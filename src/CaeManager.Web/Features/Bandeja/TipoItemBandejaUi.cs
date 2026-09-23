@@ -25,6 +25,8 @@ public static class TipoItemBandejaUi
         TipoItemBandeja.Vencido => TonoBadge.Peligro,
         // Mismo tono que EstadoAcreditacion.Rechazada en PlataformaTab.razor.
         TipoItemBandeja.PlataformaRechazada => TonoBadge.Peligro,
+        // La plataforma ya no la da por buena (P12): mismo rojo que Vencido.
+        TipoItemBandeja.PlataformaVencida => TonoBadge.Peligro,
         TipoItemBandeja.RequisitoPendiente => item.EsAltaNueva ? TonoBadge.Advertencia : TonoBadge.Peligro,
         TipoItemBandeja.VisitaUrgente => TonoBadge.Advertencia,
         TipoItemBandeja.Urgente => TonoBadge.Advertencia,
@@ -68,6 +70,7 @@ public static class TipoItemBandejaUi
         TipoItemBandeja.PlataformaRechazada => "Rechazada por plataforma",
         TipoItemBandeja.VencimientoProximo => TextosMiTrabajo.Texto("TipoProximo"),
         TipoItemBandeja.EnPlataformaSeguimiento => TextosMiTrabajo.Texto("TipoEnPlataforma"),
+        TipoItemBandeja.PlataformaVencida => TextosMiTrabajo.Texto("TipoVencidaEnPlataforma"),
         _ => "—"
     };
 
@@ -91,6 +94,7 @@ public static class TipoItemBandejaUi
         TipoItemBandeja.PlataformaRechazada => $"Corregir en {item.ProveedorNombre}",
         TipoItemBandeja.VencimientoProximo => TextosMiTrabajo.Texto("AccionVerDocumento"),
         TipoItemBandeja.EnPlataformaSeguimiento => TextosMiTrabajo.Formato("AccionVerEnPlataforma", item.ProveedorNombre ?? string.Empty),
+        TipoItemBandeja.PlataformaVencida => TextosMiTrabajo.Formato("AccionRenovarEnPlataforma", item.ProveedorNombre ?? string.Empty),
         _ => "Gestionar"
     };
 

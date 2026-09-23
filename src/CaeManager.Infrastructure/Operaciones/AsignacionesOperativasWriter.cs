@@ -16,11 +16,15 @@ public class AsignacionesOperativasWriter(
 {
     /// <summary>
     /// Roles que ven todo el workspace por su rol, sin depender del ámbito de
-    /// su cartera. Solo a estos se les emite una cartera universal: para un rol
-    /// de cartera sería un ensanchamiento silencioso del alcance.
+    /// su cartera. Solo a estos se les emite aquí una cartera universal: para
+    /// un rol de cartera sería un ensanchamiento silencioso del alcance. Un rol
+    /// de cartera solo la recibe por la aceptación explícita de una solicitud
+    /// de incorporación a cartera (CatalogoIncorporacionCartera), no por este
+    /// writer. Entre los roles que una cartera externa puede conceder
+    /// (<see cref="RolesDelegadosPermitidos"/>), solo Consulta lo es:
+    /// Administrador y Dirección CAE ya no llegan hasta aquí.
     /// </summary>
-    private static readonly string[] RolesDeAlcanceTotal =
-        [Roles.Administrador, Roles.DireccionCae, Roles.Consulta];
+    private static readonly string[] RolesDeAlcanceTotal = [Roles.Consulta];
 
     public async Task ReasignarCarteraClienteAsync(
         Guid clienteId, Guid? nuevoEjecutivoUsuarioId, CancellationToken cancellationToken = default)
@@ -153,10 +157,20 @@ public class AsignacionesOperativasWriter(
     {
         ArgumentNullException.ThrowIfNull(operacion);
 
-        // Un rol de cartera no recibe cartera universal: sus carteras nacen
-        // cliente a cliente al asignárselos. Emitirle una universal aquí le
-        // daría de golpe todos los clientes del tenant delegado, que es más de
-        // lo que tiene hoy.
+        // Falla cerrado antes de decidir el ámbito: un rol fuera de la lista
+        // blanca (Administrador, Dirección CAE o un valor corrupto) no recibe
+        // ninguna cartera, ni universal ni de cliente. Antes, un Administrador
+        // o una Dirección CAE delegados recibían aquí una cartera universal.
+        if (!RolesDelegadosPermitidos.Contains(rol))
+            throw new UnauthorizedAccessException(
+                $"El rol {rol} no se concede por Asignación de Cartera ni por delegación: " +
+                $"solo {string.Join(", ", RolesDelegadosPermitidos)}.");
+
+        // Un rol de cartera no recibe aquí cartera universal: sus carteras
+        // nacen cliente a cliente al asignárselos, o enteras solo cuando un
+        // Coordinador CAE acepta su solicitud de incorporación. Emitirle una
+        // universal aquí le daría de golpe todos los clientes del tenant
+        // delegado sin que nadie lo decidiera.
         if (!RolesDeAlcanceTotal.Contains(rol)) return;
 
         var ahora = DateTime.UtcNow;
@@ -204,8 +218,11 @@ public class AsignacionesOperativasWriter(
     {
         ArgumentNullException.ThrowIfNull(operacion);
 
+        // Una fila heredada con Administrador o Dirección CAE (anterior a la
+        // decisión del 2026-09-23) no se reabre, pero tampoco impide reactivar
+        // la delegación para los operadores válidos: se omite, sin lanzar.
         var operadores = await dbContext.AsignacionesOperadorDelegado
-            .Where(a => a.DelegacionTenantId == delegacionTenantId)
+            .Where(a => a.DelegacionTenantId == delegacionTenantId && RolesDelegadosPermitidos.Contains(a.Rol))
             .Select(a => new { a.UsuarioId, a.Rol })
             .ToListAsync(cancellationToken);
 
@@ -257,14 +274,25 @@ public class AsignacionesOperativasWriter(
     }
 
     /// <summary>
-    /// Roles válidos para un Operador Delegado. El código de rol persistido en
+    /// Roles que una Asignación de Cartera externa o una delegación pueden
+    /// conceder. El código de rol persistido en
     /// <see cref="AsignacionOperadorDelegado.Rol"/> es texto plano (Domain no
     /// referencia <c>Roles</c> — ver su doc-comment); esta lista blanca es lo
-    /// único que impide que un valor corrupto o inesperado se cuele como rol
-    /// efectivo de la cartera nueva.
+    /// único que impide que un valor corrupto, inesperado o heredado se cuele
+    /// como rol efectivo de la cartera nueva.
+    ///
+    /// <para>
+    /// Administrador y Dirección CAE quedan fuera (decisión del propietario,
+    /// 2026-09-23): son autoridad de Propiedad del Tenant propietario, no de
+    /// Operación, y una cartera o delegación solo concede Operación (ADR-011
+    /// § 1). Es la misma lista que ya exigía
+    /// <c>CrearAsignacionOperadorDelegadoCommandValidator</c> al crear la
+    /// delegación; aquí se exige también al leerla, para que una fila anterior
+    /// a esa validación no la esquive.
+    /// </para>
     /// </summary>
     private static readonly string[] RolesDelegadosPermitidos =
-        [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta];
+        [Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta];
 
     /// <summary>
     /// Falla cerrado: sin una <see cref="AsignacionOperadorDelegado"/> única y

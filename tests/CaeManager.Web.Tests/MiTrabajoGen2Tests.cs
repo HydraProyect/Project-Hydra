@@ -4,6 +4,10 @@ using Bunit;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
+using CaeManager.Application.Operaciones.IncorporacionCartera;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
+using CaeManager.Domain.Common;
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Bandeja;
 using FluentAssertions;
 using MediatR;
@@ -62,16 +66,37 @@ public class MiTrabajoGen2Tests : BunitContext
             proximos: [Item("r4", TipoItemBandeja.VencimientoProximo, "EPI por vencer", "Transportes Planet Express")],
             seguimiento: [Item("r5", TipoItemBandeja.EnPlataformaSeguimiento, "Enviado a plataforma", "Hostelería Krusty Krab", proveedor: "CTAIMA")]),
         Tenant(TenantDexter, "Laboratorios Dexter", esOrigen: false,
-            [Item("d1", TipoItemBandeja.PlataformaRechazada, "Rechazado por la plataforma", "Cervezas Duff Ibérica", documentoId: DocumentoDexter, proveedor: "Nalanda")]),
+            // Rechazada que el cálculo de su Centro de Trabajo cuenta como
+            // bloqueante (D-7): la Query la entrega ya marcada, y por eso es Bloqueo.
+            [Item("d1", TipoItemBandeja.PlataformaRechazada, "Rechazado por la plataforma", "Cervezas Duff Ibérica", documentoId: DocumentoDexter, proveedor: "Nalanda")
+                with { RechazoBloqueaCentro = true }]),
     ]);
 
-    private sealed class MediadorFijo(Func<MiTrabajoAgregadoDto> respuesta) : IMediator
+    /// <summary>Por defecto el usuario no es Gestor CAE: la Query de candidatos responde <c>SinPermiso</c>.</summary>
+    private static Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>> SinPermiso() =>
+        Result.Fallo<IReadOnlyList<CandidatoIncorporacionCarteraDto>>(ErroresSolicitudCartera.SinPermiso);
+
+    private static Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>> Candidatos(params CandidatoIncorporacionCarteraDto[] candidatos) =>
+        Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>(candidatos);
+
+    private sealed class MediadorFijo(
+        Func<MiTrabajoAgregadoDto> respuesta,
+        Func<Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>>> candidatos) : IMediator
     {
+        public int ConsultasCandidatos { get; private set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) => request switch
         {
             ObtenerMiTrabajoAgregadoQuery => Task.FromResult((TResponse)(object)respuesta()),
+            ObtenerCandidatosIncorporacionCarteraQuery => Task.FromResult((TResponse)(object)ContarCandidatos()),
             _ => throw new NotSupportedException($"Petición no prevista: {request.GetType().Name}.")
         };
+
+        private Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>> ContarCandidatos()
+        {
+            ConsultasCandidatos++;
+            return candidatos();
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => throw new NotSupportedException();
         public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -86,10 +111,16 @@ public class MiTrabajoGen2Tests : BunitContext
         public override AntiforgeryRequestToken? GetAntiforgeryToken() => new("token-de-prueba", "__RequestVerificationToken");
     }
 
-    private IRenderedComponent<MiTrabajoPagina> Renderizar(Func<MiTrabajoAgregadoDto>? respuesta = null)
+    private MediadorFijo? _mediador;
+
+    private IRenderedComponent<MiTrabajoPagina> Renderizar(
+        Func<MiTrabajoAgregadoDto>? respuesta = null,
+        Func<Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>>>? candidatos = null)
     {
-        Services.AddScoped<IMediator>(_ => new MediadorFijo(respuesta ?? Cartera));
+        _mediador = new MediadorFijo(respuesta ?? Cartera, candidatos ?? SinPermiso);
+        Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
+        Services.AddSingleton<ToastService>();
         Services.AddLocalization();
         return Render<MiTrabajoPagina>();
     }
@@ -361,5 +392,68 @@ public class MiTrabajoGen2Tests : BunitContext
         FilaDe(cut, "Reconocimiento médico").Click();
 
         cut.Find(".contenedor-pagina").TextContent.Should().NotContainEquivalentOf("tenant");
+    }
+
+    // «Añadir a mi cartera» (contrato Gen2 § 13): el botón existe solo si hay
+    // alguna Empresa que pedir; para quien no es Gestor CAE, ni botón ni error.
+
+    private static readonly CandidatoIncorporacionCarteraDto CandidatoCatering =
+        new(Guid.Parse("c3c3c3c3-0000-0000-0000-000000000003"), "Catering Los Pollos", SolicitudPendienteId: null);
+
+    private static IReadOnlyList<string> AccionesCabecera(IRenderedComponent<MiTrabajoPagina> cut) =>
+        cut.FindAll(".cabecera-pagina button").Select(b => b.TextContent.Trim()).ToList();
+
+    [Fact]
+    public void Con_candidatos_la_cabecera_ofrece_anadir_a_mi_cartera_y_abre_el_dialogo_de_solicitud()
+    {
+        var cut = Renderizar(candidatos: () => Candidatos(CandidatoCatering));
+
+        AccionesCabecera(cut).Should().Contain("Añadir a mi cartera");
+        cut.Markup.Should().NotContain("Solicitar incorporación a cartera");
+
+        cut.FindAll(".cabecera-pagina button").Single(b => b.TextContent.Trim() == "Añadir a mi cartera").Click();
+
+        // El diálogo recarga los candidatos al abrirse: una consulta la hizo la página, otra el diálogo.
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Solicitar incorporación a cartera").And.Contain("Catering Los Pollos"));
+        _mediador!.ConsultasCandidatos.Should().Be(2);
+    }
+
+    [Fact]
+    public void Sin_candidatos_no_hay_boton_de_anadir_a_mi_cartera()
+    {
+        var cut = Renderizar(candidatos: () => Candidatos());
+
+        AccionesCabecera(cut).Should().NotContain("Añadir a mi cartera");
+        _mediador!.ConsultasCandidatos.Should().Be(1);
+    }
+
+    [Fact]
+    public void Quien_no_es_Gestor_CAE_no_ve_el_boton_ni_un_mensaje_de_error()
+    {
+        var cut = Renderizar(candidatos: SinPermiso);
+
+        AccionesCabecera(cut).Should().NotContain("Añadir a mi cartera");
+        cut.Markup.Should().NotContain("Tu rol no permite esta acción.");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().BeEmpty();
+        _mediador!.ConsultasCandidatos.Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData("es-ES", "Añadir a mi cartera")]
+    [InlineData("ca-ES", "Afegir a la meva cartera")]
+    public void El_boton_de_anadir_a_mi_cartera_sigue_la_cultura_de_la_interfaz(string cultura, string rotulo)
+    {
+        var (anterior, anteriorUi) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
+        CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(cultura);
+        try
+        {
+            var cut = Renderizar(candidatos: () => Candidatos(CandidatoCatering));
+
+            AccionesCabecera(cut).Should().Contain(rotulo);
+        }
+        finally
+        {
+            (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture) = (anterior, anteriorUi);
+        }
     }
 }

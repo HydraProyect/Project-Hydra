@@ -27,6 +27,8 @@ public class IncidenciasVacioPorFiltroTests : BunitContext
     public IncidenciasVacioPorFiltroTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Incidencias salen de IStringLocalizer<TextosIncidencias>.
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 

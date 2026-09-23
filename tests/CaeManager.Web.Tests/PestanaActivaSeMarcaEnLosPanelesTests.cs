@@ -1,3 +1,4 @@
+using CaeManager.Infrastructure.Identity;
 using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerEstadoCentro;
@@ -71,8 +72,13 @@ public class PestanaActivaSeMarcaEnLosPanelesTests : BunitContext
     public PestanaActivaSeMarcaEnLosPanelesTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // EmpresaWorkspacePanel envuelve su edición en SoloConEscritura (un AuthorizeView).
+        this.ConRolDeEscritura();
         // VehiculoWorkspacePanel pinta sus textos con IStringLocalizer<TextosVehiculos>.
         Services.AddLocalization();
+        // Los disparadores de escritura van en SoloConEscritura (AuthorizeView): por
+        // defecto un rol que escribe; los tests de Consulta lo sustituyen.
+        this.ConRolDeEscritura();
     }
 
     /// <summary>Un responder por test: nada compartido que un panel no toca necesita fingirse.</summary>
@@ -176,6 +182,34 @@ public class PestanaActivaSeMarcaEnLosPanelesTests : BunitContext
             .Add(x => x.PestanaActivaChanged, SinEfecto(this)));
 
         cut.Find("[role=tab][aria-selected='true']").TextContent.Trim().Should().Be("Información");
+    }
+
+    /// <summary>
+    /// TrabajadorWorkspacePanel no tiene clase de tests propia: esta es la única que lo monta.
+    /// Editar acaba en EditarTrabajadorCommand, ICommand que AutorizacionEscrituraBehavior
+    /// deniega a Consulta, así que no se le ofrece.
+    /// </summary>
+    [Fact]
+    public void TrabajadorWorkspacePanel_no_ofrece_editar_a_Consulta()
+    {
+        this.ConRolDeEscritura(Roles.Consulta);
+        var id = Guid.NewGuid();
+        var detalle = new TrabajadorDetalleDto(
+            id, Guid.NewGuid(), null, "Refrielectric S.A.", "Marco", "Vila", "12884021K",
+            new DateOnly(1990, 1, 1), null, null, null, null, null, Guid.NewGuid());
+        RegistrarServiciosBasicos(new MediatorFalso(request => request switch
+        {
+            ObtenerTrabajadorPorIdQuery q when q.Id == id => detalle,
+            _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
+        }));
+
+        var cut = Render<TrabajadorWorkspacePanel>(p => p
+            .Add(x => x.EntidadId, id)
+            .Add(x => x.PestanaActiva, "informacion")
+            .Add(x => x.PestanaActivaChanged, SinEfecto(this)));
+
+        cut.Find(".workspace-titulo-entidad").TextContent.Should().Contain("Marco Vila", "la ficha es lectura: se ve");
+        cut.FindAll("button").Where(b => b.GetAttribute("aria-label") == "Editar información del trabajador").Should().BeEmpty();
     }
 
     [Fact]

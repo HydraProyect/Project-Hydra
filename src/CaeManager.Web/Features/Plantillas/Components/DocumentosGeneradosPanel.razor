@@ -7,6 +7,7 @@
 *@
 @using CaeManager.Domain.Plantillas
 @using MediatR
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @inject IMediator Mediator
 @inject NavigationManager Navigation
 
@@ -22,9 +23,9 @@
 
         <CampoSelect Etiqueta="Trabajador" Valor="@(_trabajadorFiltro?.ToString() ?? "")" ValorChanged="CambiarTrabajadorFiltroAsync">
             <option value="">Todos los trabajadores</option>
-            @foreach (var trabajador in _trabajadoresDisponibles)
+            @foreach (var trabajador in EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles))
             {
-                <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+                <option value="@trabajador.Id">@trabajador.Texto</option>
             }
         </CampoSelect>
     </div>

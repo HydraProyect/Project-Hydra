@@ -1,4 +1,5 @@
 using AngleSharp.Dom;
+using CaeManager.Infrastructure.Identity;
 using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
@@ -50,6 +51,7 @@ public class ProyectosGen2Tests : BunitContext
     public ProyectosGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 
@@ -466,6 +468,29 @@ public class ProyectosGen2Tests : BunitContext
         cut.FindAll(".baja-tecnico-proyecto").Should().BeEmpty("tras la baja se recargan los técnicos y ya no queda ninguno activo");
         cut.FindAll(".fila-tecnico-proyecto").Single(f => f.TextContent.Contains("Salas Moreno, Javier"))
             .TextContent.Should().Contain("De baja").And.Contain("baja 11/09/2026");
+    }
+
+    [Fact]
+    public async Task Consulta_abre_el_panel_sin_que_se_le_ofrezca_editar_cerrar_ni_gestionar_tecnicos()
+    {
+        // Editar, cerrar, asignar y dar de baja técnicos son ICommand que
+        // AutorizacionEscrituraBehavior deniega a Consulta: ofrecerlos era enseñar
+        // botones que siempre fallan.
+        this.ConRolDeEscritura(Roles.Consulta);
+        _mediator.Proyectos = [ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+        await AbrirDetalle(cut, ProyectoAbierto);
+
+        var botones = cut.FindAll("aside.panel-proyecto button").Select(b => b.TextContent.Trim()).ToList();
+        botones.Should().NotContain(["Editar", "Cerrar proyecto"])
+            .And.Contain(t => t.StartsWith("Técnicos"), "las pestañas de lectura sí se ofrecen");
+        cut.FindAll(".pie-panel-proyecto").Should().BeEmpty("sin acciones no queda un pie vacío");
+
+        await BotonConTexto(cut, "[role=tab]", "Técnicos").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".fila-tecnico-proyecto").Should().HaveCount(2, "los técnicos se siguen viendo");
+        cut.FindAll("aside.panel-proyecto button").Select(b => b.TextContent.Trim())
+            .Should().NotContain(["Dar de baja", "+ Asignar técnico"]);
     }
 
     // ------------------------------------------------------------------ respuestas fuera de orden

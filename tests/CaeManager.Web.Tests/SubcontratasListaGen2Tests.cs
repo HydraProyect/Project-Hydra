@@ -1,3 +1,4 @@
+using CaeManager.Infrastructure.Identity;
 using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
@@ -45,6 +46,8 @@ public class SubcontratasListaGen2Tests : BunitContext
     public SubcontratasListaGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // Los textos de Subcontratas salen de IStringLocalizer<TextosSubcontratas>.
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 
@@ -565,5 +568,22 @@ public class SubcontratasListaGen2Tests : BunitContext
 
         mediador.Enviadas.OfType<EliminarSubcontratasCommand>().Single().Ids.Should().Equal([elegida], "el caso solo vale si el lote pidió esa subcontrata");
         workspace.EstaAbierto.Should().BeTrue("no cayó nada: no hay nada muerto que retirar");
+    }
+
+    [Fact]
+    public async Task Consulta_puede_marcar_filas_pero_no_se_le_ofrece_eliminar_las_seleccionadas()
+    {
+        // EliminarSubcontratasCommand es ICommand que AutorizacionEscrituraBehavior deniega a
+        // Consulta. «Selección múltiple» sigue (vive en la barra compartida con «Expandir todos»),
+        // así que se marca una fila para que la barra de lote tuviera motivo para salir.
+        this.ConRolDeEscritura(Roles.Consulta);
+        var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.")] });
+
+        cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Contains("Selección múltiple")).Click();
+        await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']").ChangeAsync(new ChangeEventArgs { Value = true });
+
+        cut.Markup.Should().Contain("Andamios Bidasoa S.L.", "la lista es lectura: la fila se ve");
+        cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Eliminar seleccionados");
     }
 }

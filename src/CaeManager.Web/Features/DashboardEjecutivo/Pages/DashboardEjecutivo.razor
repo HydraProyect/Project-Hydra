@@ -2,8 +2,11 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Dashboard.Catalogo
+@using CaeManager.Web.Features.DashboardEjecutivo.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosDashboardEjecutivo> Textos
 
-<PageTitle>Dashboard Ejecutivo — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 @*
     Dashboard Ejecutivo contra su mockup Gen 2 («Dashboard Ejecutivo TALVEG.dc.html»).
@@ -25,10 +28,10 @@
     del fan-out, así que cada cifra dice su alcance en vez de compartir una frase.
 *@
 <div class="contenedor-pagina">
-    <CabeceraPagina Titulo="Tu cartera, con los KPI que elijas" Kicker="Dashboard Ejecutivo">
+    <CabeceraPagina Titulo="@Textos["TituloCabecera"]" Kicker="@Textos["Kicker"]">
         <Acciones>
             <div class="dashboard-periodo">
-                <CampoSelect Etiqueta="Periodo" Valor="@_preset.ToString()" ValorChanged="CambiarPresetAsync">
+                <CampoSelect Etiqueta="@Textos["EtiquetaSelectorPeriodo"]" Valor="@_preset.ToString()" ValorChanged="CambiarPresetAsync">
                     @foreach (var preset in Enum.GetValues<PresetPeriodoKpi>())
                     {
                         <option value="@preset">@EtiquetaPreset(preset)</option>
@@ -37,9 +40,9 @@
 
                 @if (_preset == PresetPeriodoKpi.Personalizado)
                 {
-                    <CampoTexto Etiqueta="Desde" Type="date" Valor="@_desdePersonalizado"
+                    <CampoTexto Etiqueta="@Textos["EtiquetaFechaInicio"]" Type="date" Valor="@_desdePersonalizado"
                                 ValorChanged="v => _desdePersonalizado = v" OnBlur="AplicarRangoPersonalizadoAsync" />
-                    <CampoTexto Etiqueta="Hasta" Type="date" Valor="@_hastaPersonalizado"
+                    <CampoTexto Etiqueta="@Textos["EtiquetaFechaFin"]" Type="date" Valor="@_hastaPersonalizado"
                                 ValorChanged="v => _hastaPersonalizado = v" OnBlur="AplicarRangoPersonalizadoAsync" />
                 }
             </div>
@@ -48,10 +51,10 @@
 
     @if (_error)
     {
-        <EstadoVacio Titulo="No pudimos cargar el Dashboard Ejecutivo" Descripcion="Intenta nuevamente en unos segundos."
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]"
                      NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -61,7 +64,7 @@
     }
     else
     {
-        <SeccionColapsable Titulo="Personalizar" ExpandidaPorDefecto="@(Seleccionados.Count == 0)">
+        <SeccionColapsable Titulo="@Textos["SeccionPersonalizarTitulo"]" ExpandidaPorDefecto="@(Seleccionados.Count == 0)">
             <Encabezado>
                 <span class="resumen-seleccion">@ResumenSeleccion</span>
             </Encabezado>
@@ -84,10 +87,10 @@
                     }
                 </div>
                 <div class="acciones-personalizar">
-                    <Boton OnClick="GuardarSeleccionAsync" Cargando="_guardando">Guardar selección</Boton>
+                    <Boton OnClick="GuardarSeleccionAsync" Cargando="_guardando">@Textos["BotonGuardarKpis"]</Boton>
                     @if (HayCambiosSinGuardar)
                     {
-                        <Badge Tono="TonoBadge.Advertencia" class="aviso-sin-guardar">Cambios sin guardar</Badge>
+                        <Badge Tono="TonoBadge.Advertencia" class="aviso-sin-guardar">@Textos["AvisoCambiosPendientes"]</Badge>
                     }
                 </div>
             </ChildContent>
@@ -95,7 +98,7 @@
 
         @if (Seleccionados.Count == 0)
         {
-            <EstadoVacio Titulo="Todavía no has elegido ningún KPI" Descripcion="Marca al menos uno en el panel de arriba y guarda la selección." />
+            <EstadoVacio Titulo="@Textos["VacioKpisTitulo"]" Descripcion="@Textos["VacioKpisDescripcion"]" />
         }
         else
         {
@@ -108,8 +111,8 @@
             {
                 <section class="seccion-kpis" aria-labelledby="titulo-negocio-periodo">
                     <div class="cabecera-seccion-kpis">
-                        <h2 id="titulo-negocio-periodo" class="titulo-seccion-kpis">El negocio en el periodo</h2>
-                        <VentanaContexto class="periodo-texto" Etiqueta="@DetalleOrganizaciones" Titulo="Alcance">
+                        <h2 id="titulo-negocio-periodo" class="titulo-seccion-kpis">@Textos["SeccionDelPeriodo"]</h2>
+                        <VentanaContexto class="periodo-texto" Etiqueta="@DetalleOrganizaciones" Titulo="@Textos["VentanaAlcanceTitulo"]">
                             <Disparador>@PeriodoTexto</Disparador>
                             <Detalle>@DetalleOrganizaciones</Detalle>
                         </VentanaContexto>
@@ -126,10 +129,10 @@
                     @if (TilesDelPeriodo.Any(k => k.Codigo == CatalogoKpis.CosteMesActualIa) && TenantsConPresupuestoIaExcedido.Count > 0)
                     {
                         <div class="alerta-formulario" role="alert">
-                            Presupuesto de IA superado este período en:
+                            @Textos["AlertaPresupuestoIaInicio"]
                             @string.Join(", ", TenantsConPresupuestoIaExcedido).
-                            No se ha bloqueado ni degradado nada — ajusta el límite en
-                            <a href="/configuracion">Configuración</a> si sigue siendo el esperado.
+                            @Textos["AlertaPresupuestoIaSinBloqueo"]
+                            <a href="/configuracion">@Textos["EnlaceAjustes"]</a> @Textos["AlertaPresupuestoIaCierre"]
                         </div>
                     }
                 </section>
@@ -139,7 +142,7 @@
             {
                 <section class="seccion-kpis" aria-labelledby="titulo-estado-actual">
                     <div class="cabecera-seccion-kpis">
-                        <h2 id="titulo-estado-actual" class="titulo-seccion-kpis">Al margen del periodo</h2>
+                        <h2 id="titulo-estado-actual" class="titulo-seccion-kpis">@Textos["SeccionFueraDelPeriodo"]</h2>
                         <span class="periodo-texto">@TextoFueraDelPeriodo</span>
                     </div>
 
@@ -210,7 +213,7 @@
                                         }
                                     </ul>
                                 </div>
-                                <p class="grafico-total">@total @unidad en total</p>
+                                <p class="grafico-total">@Textos["GraficoTotal", total, unidad]</p>
                             }
                         }
                         else if (kpi.TipoRender == TipoRenderKpi.GraficoBarras)
@@ -251,16 +254,16 @@
                         {
                             @if (_empresasEnRiesgo.Count == 0)
                             {
-                                <p class="texto-vacio-seccion">Ninguna empresa tiene documentación urgente o vencida.</p>
+                                <p class="texto-vacio-seccion">@Textos["VacioRiesgoEmpresas"]</p>
                             }
                             else
                             {
                                 <table class="tabla-datos">
                                     <thead>
                                         <tr>
-                                            <th scope="col">Empresa</th>
-                                            <th scope="col">Vencidos</th>
-                                            <th scope="col">Urgentes</th>
+                                            <th scope="col">@Textos["ColumnaEmpresa"]</th>
+                                            <th scope="col">@Textos["ColumnaVencidos"]</th>
+                                            <th scope="col">@Textos["ColumnaUrgentes"]</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -275,11 +278,11 @@
                                                 </td>
                                                 <td>
                                                     <Badge Tono="@(empresa.DocumentosVencidos > 0 ? TonoBadge.Peligro : TonoBadge.Neutro)"
-                                                           title="@($"{empresa.EmpresaRazonSocial}: {empresa.DocumentosVencidos} documentos de trabajador vencidos")">@empresa.DocumentosVencidos</Badge>
+                                                           title="@Textos["TituloRecuentoVencidos", empresa.EmpresaRazonSocial, empresa.DocumentosVencidos].Value">@empresa.DocumentosVencidos</Badge>
                                                 </td>
                                                 <td>
                                                     <Badge Tono="@(empresa.DocumentosUrgentes > 0 ? TonoBadge.Advertencia : TonoBadge.Neutro)"
-                                                           title="@($"{empresa.EmpresaRazonSocial}: {empresa.DocumentosUrgentes} documentos de trabajador urgentes")">@empresa.DocumentosUrgentes</Badge>
+                                                           title="@Textos["TituloRecuentoUrgentes", empresa.EmpresaRazonSocial, empresa.DocumentosUrgentes].Value">@empresa.DocumentosUrgentes</Badge>
                                                 </td>
                                             </tr>
                                         }
@@ -293,16 +296,16 @@
 
                             @if (filasHoras.Count == 0)
                             {
-                                <p class="texto-vacio-seccion">No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración.</p>
+                                <p class="texto-vacio-seccion">@Textos["VacioTiempoGestion"]</p>
                             }
                             else
                             {
                                 <table class="tabla-datos">
                                     <thead>
                                         <tr>
-                                            <th scope="col">Cliente empresarial</th>
-                                            <th scope="col">Horas de gestión</th>
-                                            <th scope="col">Reparto entre los mostrados</th>
+                                            <th scope="col">@Textos["ColumnaReceptorServicio"]</th>
+                                            <th scope="col">@Textos["ColumnaHorasGestion"]</th>
+                                            <th scope="col">@Textos["ColumnaRepartoMostrados"]</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -327,11 +330,11 @@
                         {
                             @if (TotalAprobaciones == 0)
                             {
-                                <p class="texto-vacio-seccion">Todavía no hay documentos verificados por IA.</p>
+                                <p class="texto-vacio-seccion">@Textos["VacioAutomaticasManuales"]</p>
                             }
                             else
                             {
-                                <div class="barra-comparativa" role="img" aria-label="@($"{PorcentajeAutomatica}% de las gestiones fueron automáticas, {PorcentajeManual}% manuales")">
+                                <div class="barra-comparativa" role="img" aria-label="@Textos["AriaBarraComparativa", PorcentajeAutomatica, PorcentajeManual].Value">
                                     @if (PorcentajeAutomatica > 0)
                                     {
                                         <div class="barra-comparativa-segmento barra-comparativa-automatica" style="width:@(PorcentajeAutomatica)%"></div>
@@ -344,11 +347,11 @@
                                 <ul class="barra-comparativa-leyenda">
                                     <li class="barra-comparativa-item">
                                         <span class="barra-comparativa-punto barra-comparativa-automatica"></span>
-                                        Automáticas — @_estadisticasAprobacion!.Automaticas (@PorcentajeAutomatica%)
+                                        @Textos["LeyendaAutomaticas", _estadisticasAprobacion!.Automaticas, PorcentajeAutomatica]
                                     </li>
                                     <li class="barra-comparativa-item">
                                         <span class="barra-comparativa-punto barra-comparativa-manual"></span>
-                                        Manuales — @_estadisticasAprobacion.Manuales (@PorcentajeManual%)
+                                        @Textos["LeyendaManuales", _estadisticasAprobacion.Manuales, PorcentajeManual]
                                     </li>
                                 </ul>
                             }
@@ -357,31 +360,31 @@
                 </Tarjeta>
             }
 
-            <section class="pulso-negocio" aria-label="Pulso del negocio">
+            <section class="pulso-negocio" aria-label="@Textos["PulsoKicker"].Value">
                 <div class="pulso-negocio-titular">
-                    <span class="pulso-negocio-kicker">Pulso del negocio</span>
-                    <VentanaContexto class="pulso-negocio-frase" Etiqueta="@DetallePulsoVerificaciones" Titulo="Verificaciones de IA">
+                    <span class="pulso-negocio-kicker">@Textos["PulsoKicker"]</span>
+                    <VentanaContexto class="pulso-negocio-frase" Etiqueta="@DetallePulsoVerificaciones" Titulo="@Textos["VentanaVerificacionesTitulo"]">
                         <Disparador>@PulsoVerificaciones</Disparador>
                         <Detalle>@DetallePulsoVerificaciones</Detalle>
                     </VentanaContexto>
                 </div>
                 <div class="pulso-negocio-cifras">
                     <div class="pulso-negocio-cifra">
-                        <span class="pulso-negocio-etiqueta">Coste IA del periodo</span>
-                        <VentanaContexto class="pulso-negocio-valor" Etiqueta="@DetalleCosteIa" Titulo="Coste de IA">
+                        <span class="pulso-negocio-etiqueta">@Textos["PulsoEtiquetaCosteIa"]</span>
+                        <VentanaContexto class="pulso-negocio-valor" Etiqueta="@DetalleCosteIa" Titulo="@Textos["VentanaCosteIaTitulo"]">
                             <Disparador>@($"{_valores.CosteIaMesActual:F2} €")</Disparador>
                             <Detalle>@DetalleCosteIa</Detalle>
                         </VentanaContexto>
                     </div>
                     <div class="pulso-negocio-cifra">
-                        <span class="pulso-negocio-etiqueta">Facturación estimada</span>
-                        <VentanaContexto class="pulso-negocio-valor" Etiqueta="@DetalleFacturacion" Titulo="Facturación estimada">
+                        <span class="pulso-negocio-etiqueta">@Textos["PulsoEtiquetaFacturacion"]</span>
+                        <VentanaContexto class="pulso-negocio-valor" Etiqueta="@DetalleFacturacion" Titulo="@Textos["PulsoEtiquetaFacturacion"]">
                             <Disparador>@($"{_valores.FacturacionEstimadaMesActual:F2} €")</Disparador>
                             <Detalle>@DetalleFacturacion</Detalle>
                         </VentanaContexto>
                     </div>
                 </div>
-                <a class="enlace-facturacion" href="/facturacion">Ver facturación →</a>
+                <a class="enlace-facturacion" href="/facturacion">@Textos["EnlaceVerFacturas"]</a>
             </section>
         }
     }

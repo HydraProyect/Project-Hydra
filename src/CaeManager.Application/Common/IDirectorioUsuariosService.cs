@@ -43,4 +43,17 @@ public interface IDirectorioUsuariosService
     /// PROPIO workspace, el alcance de esa cartera.
     /// </summary>
     Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Si la cuenta existe, pertenece a <paramref name="tenantId"/>, tiene el
+    /// rol de Identity <paramref name="rol"/> y no está desactivada.
+    ///
+    /// Es la comprobación sobre un <b>tercero</b> que la autorización por rol
+    /// efectivo no hace: esa mira a quien ejecuta, no a quien recibirá el
+    /// acceso. La usa la aceptación de una solicitud de incorporación a
+    /// cartera para no conceder una cartera universal a un Gestor CAE que ya
+    /// no lo es, o cuya cuenta se desactivó mientras la solicitud esperaba.
+    /// </summary>
+    Task<bool> EsCuentaActivaConRolAsync(
+        Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default);
 }

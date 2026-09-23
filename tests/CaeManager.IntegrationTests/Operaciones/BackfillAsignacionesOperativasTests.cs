@@ -280,6 +280,79 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
         externas.Should().NotContain(o => o.OperadorTenantId == segundaConsultora);
     }
 
+    /// <summary>
+    /// Decisión del propietario, 2026-09-23: una cartera externa solo concede
+    /// Coordinador CAE, Gestor CAE o Consulta. El backfill ni emite una cartera
+    /// con Administrador o Dirección CAE desde una delegación heredada, ni deja
+    /// vigente la que ya existiera de antes (reconciliación, no solo alta).
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador)]
+    [InlineData(Roles.DireccionCae)]
+    public async Task No_emite_y_cierra_carteras_externas_con_un_rol_de_Propiedad(string rol)
+    {
+        var usuario = await SembrarOperadorDelegadoAsync(rol);
+
+        await EjecutarBackfillAsync();
+
+        Guid heredadaId;
+        await using (var contextoPreparacion = CrearContexto(_clienteDelegante))
+        {
+            (await contextoPreparacion.AsignacionesCartera.AnyAsync(c => c.UsuarioId == usuario))
+                .Should().BeFalse("el backfill no emite una cartera externa con un rol de Propiedad");
+
+            // Estado anterior a la decisión: la fila que el backfill de antes sí
+            // habría creado.
+            var externa = await contextoPreparacion.AsignacionesOperacion.FirstAsync(o => !o.EsRaiz);
+            var heredada = AsignacionCartera.Externa(
+                externa, usuario, rol, AmbitoAsignacion.Universal, externa.VigenciaDesde, null, DateTime.UtcNow);
+            contextoPreparacion.AsignacionesCartera.Add(heredada);
+            await contextoPreparacion.SaveChangesAsync();
+            heredadaId = heredada.Id;
+        }
+
+        await EjecutarBackfillAsync();
+
+        await using var contexto = CrearContexto(_clienteDelegante);
+        (await contexto.AsignacionesCartera.SingleAsync(c => c.Id == heredadaId)).Estado
+            .Should().Be(EstadoAsignacion.Cerrada, "la cartera heredada con rol de Propiedad se cierra al reconciliar");
+        (await contexto.AsignacionesCartera.AnyAsync(c => c.UsuarioId == usuario && c.Estado == EstadoAsignacion.Vigente))
+            .Should().BeFalse();
+    }
+
+    /// <summary>Control positivo: Consulta sí recibe su cartera universal.</summary>
+    [Fact]
+    public async Task Un_operador_delegado_Consulta_recibe_su_cartera_universal()
+    {
+        var usuario = await SembrarOperadorDelegadoAsync(Roles.Consulta);
+
+        await EjecutarBackfillAsync();
+
+        await using var contexto = CrearContexto(_clienteDelegante);
+        var cartera = await contexto.AsignacionesCartera.SingleAsync(c => c.UsuarioId == usuario);
+        cartera.Rol.Should().Be(Roles.Consulta);
+        cartera.Ambito.EsUniversal.Should().BeTrue();
+        cartera.Estado.Should().Be(EstadoAsignacion.Vigente);
+    }
+
+    private async Task<Guid> SembrarOperadorDelegadoAsync(string rol)
+    {
+        var usuario = Guid.NewGuid();
+        await using var contexto = CrearContexto(_clienteDelegante);
+        contexto.Users.Add(new ApplicationUser
+        {
+            Id = usuario,
+            TenantId = _consultora,
+            UserName = $"{rol.ToLowerInvariant()}@consultora",
+            Email = $"{rol.ToLowerInvariant()}@consultora"
+        });
+        var delegacion = await contexto.DelegacionesTenant
+            .FirstAsync(d => d.Proposito == PropositoDelegacion.OperadorExterno);
+        contexto.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(delegacion.Id, usuario, rol));
+        await contexto.SaveChangesAsync();
+        return usuario;
+    }
+
     private async Task EjecutarBackfillAsync()
     {
         await using var contexto = CrearContexto(_clienteDelegante);

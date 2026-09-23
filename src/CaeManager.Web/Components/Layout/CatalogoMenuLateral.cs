@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Features.IncorporacionCartera.Recursos;
 
 namespace CaeManager.Web.Components.Layout;
 
@@ -10,13 +11,17 @@ namespace CaeManager.Web.Components.Layout;
 /// es autoridad: cada pantalla y cada comando se autorizan por su cuenta (ver
 /// <see cref="MenuPorVista"/>); esto solo decide qué pestañas se pintan.
 /// </summary>
+/// <param name="ParticipaEnIncorporacionCartera">Gestor o Coordinador CAE en su tenant de origen
+/// (ParticipaEnIncorporacionCarteraQuery). No sale de <see cref="Usuario"/>: dentro de un Workspace
+/// operativo derivado su claim de rol es el de la cartera en ese Tenant propietario.</param>
 public sealed record ContextoMenuLateral(
     ClaimsPrincipal Usuario,
     VistaDemo? Vista,
     bool ComunicacionesActivo,
     bool EsAdministradorPlataforma,
     PerfilVocabularioTenant Perfil,
-    bool VariosTenants)
+    bool VariosTenants,
+    bool ParticipaEnIncorporacionCartera = false)
 {
     /// <summary>
     /// Mismo criterio que <c>&lt;AuthorizeView Roles="…"&gt;</c>, que era como el marcado lo
@@ -136,6 +141,12 @@ public static class CatalogoMenuLateral
         new("dashboard", "dashboards", "", "dashboard", "Dashboard", CoincidenciaExacta: true),
         new("vision-cartera", "dashboards", "vision-cartera", "cartera", "Visión de cartera",
             Condicion: c => c.TieneAlgunRol(RolesDeCartera)),
+        // Rótulo localizado (TextosIncorporacionCartera), a diferencia de sus vecinos todavía literales:
+        // lo da RotuloPorContexto, así que el Rotulo fijo queda vacío.
+        new("solicitudes-cartera", "dashboards", "cartera/solicitudes", "cartera", "",
+            // Por el rol en el tenant de origen, no por IsInRole (ver ParticipaEnIncorporacionCartera).
+            Condicion: c => c.ParticipaEnIncorporacionCartera,
+            RotuloPorContexto: _ => TextosIncorporacionCartera.Texto("EnlaceMenu")),
         new("dashboard-ejecutivo", "dashboards", "dashboard-ejecutivo", "dashboard", "Dashboard Ejecutivo",
             Condicion: c => c.TieneAlgunRol(RolesDeDashboardEjecutivo)),
 
@@ -198,14 +209,54 @@ public static class CatalogoMenuLateral
     public sealed record GrupoVisible(GrupoMenuLateral Grupo, IReadOnlyList<EnlaceMenuLateral> Enlaces);
 
     /// <summary>
-    /// Los grupos y enlaces que <paramref name="contexto"/> puede ver, en el orden del catálogo.
-    /// Un enlace solo se ve si se ve su grupo y cumple su propia condición.
+    /// Los grupos y enlaces que <paramref name="contexto"/> puede ver, en el orden global guardado
+    /// por el Actor de Plataforma TALVEG (o en el del catálogo si no hay ninguno). Un enlace solo
+    /// se ve si se ve su grupo y cumple su propia condición: el orden nunca añade nada, solo
+    /// recoloca lo que el rol ya permitía ver.
     /// </summary>
-    public static IReadOnlyList<GrupoVisible> Visibles(ContextoMenuLateral contexto) =>
-        Grupos
+    public static IReadOnlyList<GrupoVisible> Visibles(
+        ContextoMenuLateral contexto,
+        IReadOnlyList<string>? ordenGrupos = null,
+        IReadOnlyList<string>? ordenEnlaces = null)
+    {
+        var enlaces = Reconciliar(Enlaces, e => e.Id, ordenEnlaces);
+
+        return Reconciliar(Grupos, g => g.Id, ordenGrupos)
             .Where(g => g.Visible(contexto))
-            .Select(g => new GrupoVisible(g, Enlaces
+            .Select(g => new GrupoVisible(g, enlaces
                 .Where(e => e.GrupoId == g.Id && (e.Condicion?.Invoke(contexto) ?? true))
                 .ToList()))
             .ToList();
+    }
+
+    /// <summary>
+    /// Reconciliación del orden guardado con el catálogo actual (decisión del 2026-09-23): lo que
+    /// está guardado va primero y en ese orden; lo que el catálogo tiene y el orden no nombra
+    /// (un grupo o enlace nuevo) va al final, en el orden por defecto; un identificador guardado
+    /// que ya no existe se ignora. Sin orden guardado, el catálogo tal cual.
+    ///
+    /// <para>
+    /// Los enlaces se reordenan como una lista plana: como cada enlace pertenece a un único grupo,
+    /// su posición relativa dentro del grupo es la que manda, y cambiar de grupo es imposible por
+    /// construcción.
+    /// </para>
+    /// </summary>
+    public static IReadOnlyList<T> Reconciliar<T>(
+        IReadOnlyList<T> catalogo, Func<T, string> id, IReadOnlyList<string>? orden)
+    {
+        if (orden is null || orden.Count == 0)
+            return catalogo;
+
+        var posicion = new Dictionary<string, int>(StringComparer.Ordinal);
+        // Nulos y repetidos no los deja entrar el dominio, pero la fila solo se valida al escribir:
+        // una fila tocada por SQL no puede tumbar el menú de todos los Tenants.
+        foreach (var identificador in orden)
+            if (identificador is not null)
+                posicion.TryAdd(identificador, posicion.Count);
+
+        // OrderBy es estable: entre los que no están guardados se conserva el orden del catálogo.
+        return catalogo
+            .OrderBy(item => posicion.TryGetValue(id(item), out var p) ? p : int.MaxValue)
+            .ToList();
+    }
 }

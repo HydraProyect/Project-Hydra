@@ -31,11 +31,18 @@ public class DrawerAsignacionMasivaFaltantesTests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public IReadOnlyList<DocumentoFaltanteDto> Faltantes { get; set; } = [];
+        public List<AlcanceSelectorTrabajadores> AlcancesPedidos { get; } = [];
+
+        private object Registrar(ObtenerTrabajadoresParaSelectorQuery consulta)
+        {
+            AlcancesPedidos.Add(consulta.Alcance);
+            return new[] { TrabajadorSelectorFalso.Crear(TrabajadorId, "Bea Alonso Ruiz") };
+        }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(object)(request switch
             {
-                ObtenerTrabajadoresParaSelectorQuery => (object)new[] { new TrabajadorSelectorDto(TrabajadorId, "Bea Alonso Ruiz", "12345678A", null) },
+                ObtenerTrabajadoresParaSelectorQuery consulta => Registrar(consulta),
                 ObtenerCentrosParaSelectorQuery => new[] { new CentroSelectorDto(CentroId, "Planta Zaragoza", "Refrielectric S.A.", "Montajes Ebro S.L.") },
                 ObtenerDocumentosFaltantesParaAsignacionQuery => Faltantes,
                 CrearAsignacionesCommand => Result.Exito(new ResultadoAsignacionLoteDto(0, 0, 0, [])),
@@ -100,6 +107,37 @@ public class DrawerAsignacionMasivaFaltantesTests : BunitContext
             .And.NotContain("quedarán sin", "la lectura previa no sabe qué quedará al confirmar")
             .And.NotContainEquivalentOf("obligatori", "es configuración (se pide), no una obligación legal");
         cut.Find(".drawer-pie button:last-child").TextContent.Trim().Should().Be("Asignar igualmente");
+    }
+
+    /// <summary>
+    /// La Asignación masiva es el flujo de "elige de la base general": tiene que poder ofrecer un
+    /// Trabajador que todavía no está en la cartera para crear su primera Asignación. Si alguien lo
+    /// acotara a la cartera, dejaría de poder incorporar Trabajadores nuevos.
+    /// </summary>
+    [Fact]
+    public async Task Pide_el_selector_de_Trabajadores_de_la_base_general_del_Tenant()
+    {
+        var mediador = new MediatorFalso();
+        var (cut, componente) = Renderizar(mediador);
+
+        await cut.InvokeAsync(() => componente.AbrirAsync());
+
+        mediador.AlcancesPedidos.Should().Equal(AlcanceSelectorTrabajadores.BaseGeneralDelTenant);
+    }
+
+    /// <summary>
+    /// P4 (2026-09-23): la base general del Tenant se ofrece sin DNI. El fake siembra un DNI conocido
+    /// en el origen (<see cref="TrabajadorSelectorFalso"/>), así que volver a pintarlo da rojo aquí.
+    /// </summary>
+    [Fact]
+    public async Task El_selector_de_Trabajadores_de_la_base_general_no_muestra_el_DNI()
+    {
+        var (cut, componente) = Renderizar(new MediatorFalso());
+        await cut.InvokeAsync(() => componente.AbrirAsync());
+
+        var selector = cut.FindComponents<SelectorMultiple>().Single(c => c.Instance.Etiqueta == "Trabajadores");
+        selector.Instance.Elementos.Select(e => e.Nombre).Should().Equal("Bea Alonso Ruiz");
+        cut.Markup.Should().Contain("Bea Alonso Ruiz").And.NotContain(TrabajadorSelectorFalso.DniSembrado);
     }
 
     [Fact]

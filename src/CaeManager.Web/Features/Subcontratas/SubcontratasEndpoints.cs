@@ -3,8 +3,10 @@ using CaeManager.Application.Subcontratas.Queries.ObtenerEvidenciaVerificacionPa
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Web.Exportacion;
+using CaeManager.Web.Features.Subcontratas.Recursos;
 using ClosedXML.Excel;
 using MediatR;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Subcontratas;
 
@@ -35,17 +37,18 @@ public static class SubcontratasEndpoints
         });
 
         // Mismo patrón de referencia que ClientesEndpoints.
-        endpoints.MapGet("/subcontratas/exportar.xlsx", async (IMediator mediator, CancellationToken cancellationToken) =>
+        endpoints.MapGet("/subcontratas/exportar.xlsx", async (
+            IMediator mediator, IStringLocalizer<TextosSubcontratas> textos, CancellationToken cancellationToken) =>
         {
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Subcontratas");
 
-            hoja.Cell(1, 1).Value = "Razón social";
+            hoja.Cell(1, 1).Value = textos["ExcelColumnaRazonSocial"].Value;
             hoja.Cell(1, 2).Value = "CIF";
-            hoja.Cell(1, 3).Value = "Nivel de servicio";
-            hoja.Cell(1, 4).Value = "% Cumplimiento";
-            hoja.Cell(1, 5).Value = "Total vencidas";
-            hoja.Cell(1, 6).Value = "Total próximas";
+            hoja.Cell(1, 3).Value = textos["ExcelColumnaNivelServicio"].Value;
+            hoja.Cell(1, 4).Value = textos["ExcelColumnaCumplimiento"].Value;
+            hoja.Cell(1, 5).Value = textos["ExcelColumnaTotalVencidas"].Value;
+            hoja.Cell(1, 6).Value = textos["ExcelColumnaTotalProximas"].Value;
             hoja.Row(1).Style.Font.Bold = true;
 
             var fila = 2;
@@ -56,7 +59,7 @@ public static class SubcontratasEndpoints
             {
                 hoja.Cell(fila, 1).Value = subcontrata.RazonSocial;
                 hoja.Cell(fila, 2).Value = subcontrata.Cif;
-                hoja.Cell(fila, 3).Value = EstadoSupervisionUi.TextoNivel(subcontrata.NivelServicio);
+                hoja.Cell(fila, 3).Value = EstadoSupervisionUi.TextoNivel(textos, subcontrata.NivelServicio);
                 if (subcontrata.CumplimientoPorcentaje is not null)
                     hoja.Cell(fila, 4).Value = subcontrata.CumplimientoPorcentaje.Value;
                 hoja.Cell(fila, 5).Value = subcontrata.Recuentos.TotalVencidas;

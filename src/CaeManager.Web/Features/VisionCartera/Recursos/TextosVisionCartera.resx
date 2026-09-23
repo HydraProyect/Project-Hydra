@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPagina" xml:space="preserve">
+    <value>Visión de cartera</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Visión de cartera</value>
+  </data>
+  <data name="TituloCabecera" xml:space="preserve">
+    <value>Todas las organizaciones que operas, de un vistazo</value>
+  </data>
+  <data name="LineaAmbitoTodasDelegadas" xml:space="preserve">
+    <value>{0} organizaciones que os han delegado su gestión CAE</value>
+  </data>
+  <data name="LineaAmbitoConPropiaUna" xml:space="preserve">
+    <value>{0} organizaciones: la tuya y {1} que os ha delegado su gestión CAE</value>
+  </data>
+  <data name="LineaAmbitoConPropiaVarias" xml:space="preserve">
+    <value>{0} organizaciones: la tuya y {1} que os han delegado su gestión CAE</value>
+  </data>
+  <data name="LineaAlcance" xml:space="preserve">
+    <value>Cada organización cuenta solo lo que tu rol alcanza en ella</value>
+  </data>
+  <data name="LineaAlcanceConExcluidas" xml:space="preserve">
+    <value>Cada organización cuenta solo lo que tu rol alcanza en ella; en {0} no tienes ninguna Asignación de Cartera</value>
+  </data>
+  <data name="AmbitoRecalculado" xml:space="preserve">
+    <value>Recalculado en cada carga</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar la visión de cartera</value>
+  </data>
+  <data name="ErrorCargaDescripcion" xml:space="preserve">
+    <value>Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Todavía no operas ninguna otra organización</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Esta vista suma varias organizaciones: la tuya y las que os han delegado su gestión CAE. Cuando alguna os la delegue, aparecerá aquí.</value>
+  </data>
+  <data name="EnlaceAccionVacio" xml:space="preserve">
+    <value>Ver delegaciones →</value>
+  </data>
+  <data name="SeccionRiesgoDocumental" xml:space="preserve">
+    <value>Documentación en riesgo</value>
+  </data>
+  <data name="MetricaVencidos" xml:space="preserve">
+    <value>Documentos vencidos</value>
+  </data>
+  <data name="MetricaUrgentes" xml:space="preserve">
+    <value>Urgentes</value>
+  </data>
+  <data name="PistaUrgentes" xml:space="preserve">
+    <value>Según el umbral urgente de cada organización</value>
+  </data>
+  <data name="MetricaProximos" xml:space="preserve">
+    <value>Próximos a vencer</value>
+  </data>
+  <data name="PistaProximos" xml:space="preserve">
+    <value>Según el umbral próximo de cada organización</value>
+  </data>
+  <data name="MetricaCumplimientoPromedio" xml:space="preserve">
+    <value>Cumplimiento documental promedio</value>
+  </data>
+  <data name="PistaVencidosNinguna" xml:space="preserve">
+    <value>En ninguna organización</value>
+  </data>
+  <data name="PistaVencidos" xml:space="preserve">
+    <value>En {0} de {1} organizaciones</value>
+  </data>
+  <data name="PistaMediaPonderada" xml:space="preserve">
+    <value>Ponderada por volumen de documentos</value>
+  </data>
+  <data name="PistaMediaSinCartera" xml:space="preserve">
+    <value>Sin Asignación de Cartera en ninguna organización</value>
+  </data>
+  <data name="LeyendaAnillo" xml:space="preserve">
+    <value>Cumplimiento</value>
+  </data>
+  <data name="CumplimientoPromedioFrase" xml:space="preserve">
+    <value>{0}% de cumplimiento documental promedio</value>
+  </data>
+  <data name="DetalleMedia" xml:space="preserve">
+    <value>Media ponderada por el volumen de documentos con vencimiento de cada organización; tasas de las {0} que la forman: {1}%.</value>
+  </data>
+  <data name="DetalleTasaOrganizacion" xml:space="preserve">
+    <value>Tasa de cada organización: documentos que aún no han entrado en su umbral próximo, sobre todos los que tienen fecha de vencimiento. Sin ninguno con fecha, cuenta como 100%.</value>
+  </data>
+  <data name="SinCumplimientoTitulo" xml:space="preserve">
+    <value>Sin cumplimiento que medir</value>
+  </data>
+  <data name="SinCumplimientoDetalle" xml:space="preserve">
+    <value>No tienes ninguna Asignación de Cartera en estas organizaciones: no hay documentos tuyos que evaluar.</value>
+  </data>
+  <data name="DetalleExcluidaUna" xml:space="preserve">
+    <value>No entra {0}: sin Asignación de Cartera tuya.</value>
+  </data>
+  <data name="DetalleExcluidasVarias" xml:space="preserve">
+    <value>No entran {0}: sin Asignación de Cartera tuya.</value>
+  </data>
+  <data name="SeccionActividad" xml:space="preserve">
+    <value>Actividad general</value>
+  </data>
+  <data name="MetricaOrganizaciones" xml:space="preserve">
+    <value>Organizaciones</value>
+  </data>
+  <data name="MetricaTrabajadoresActivos" xml:space="preserve">
+    <value>Trabajadores activos</value>
+  </data>
+  <data name="MetricaCentros" xml:space="preserve">
+    <value>Centros / plataformas</value>
+  </data>
+  <data name="RepartoTitulo" xml:space="preserve">
+    <value>Reparto del riesgo entre las {0} organizaciones</value>
+  </data>
+  <data name="RepartoCaption" xml:space="preserve">
+    <value>Documentos vencidos y urgentes por organización</value>
+  </data>
+  <data name="ColumnaOrganizacion" xml:space="preserve">
+    <value>Organización</value>
+  </data>
+  <data name="ColumnaVencidos" xml:space="preserve">
+    <value>Vencidos</value>
+  </data>
+  <data name="ColumnaUrgentes" xml:space="preserve">
+    <value>Urgentes</value>
+  </data>
+  <data name="ColumnaCumplimiento" xml:space="preserve">
+    <value>Cumplimiento documental</value>
+  </data>
+  <data name="ColumnaAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="RepartoFilaSinCartera" xml:space="preserve">
+    <value>{0}, sin Asignación de Cartera tuya</value>
+  </data>
+  <data name="BarraSinCartera" xml:space="preserve">
+    <value>sin cartera</value>
+  </data>
+  <data name="BarraSinRiesgo" xml:space="preserve">
+    <value>sin riesgo</value>
+  </data>
+  <data name="LeyendaVencidos" xml:space="preserve">
+    <value>Vencidos</value>
+  </data>
+  <data name="LeyendaUrgentes" xml:space="preserve">
+    <value>Urgentes (umbral de cada organización)</value>
+  </data>
+  <data name="SeccionMasRiesgo" xml:space="preserve">
+    <value>Organizaciones con más riesgo</value>
+  </data>
+  <data name="NotaOrdenMasRiesgo" xml:space="preserve">
+    <value>Todas, ordenadas por vencidos y, a igualdad, por urgentes</value>
+  </data>
+  <data name="AvisoSinCarteraUna" xml:space="preserve">
+    <value>En {0} no tienes ninguna Asignación de Cartera: no cuentas ningún documento suyo y su tasa no entra en la media.</value>
+  </data>
+  <data name="AvisoSinCarteraVarias" xml:space="preserve">
+    <value>En {0} no tienes ninguna Asignación de Cartera: no cuentas ningún documento suyo y sus tasas no entran en la media.</value>
+  </data>
+  <data name="SinRiesgoTodas" xml:space="preserve">
+    <value>Ninguna organización tiene documentación vencida ni urgente.</value>
+  </data>
+  <data name="SinRiesgoEnAlcance" xml:space="preserve">
+    <value>Ninguna organización tiene documentación vencida ni urgente en lo que tu rol alcanza.</value>
+  </data>
+  <data name="MetaTuOrganizacion" xml:space="preserve">
+    <value>Tu organización</value>
+  </data>
+  <data name="MetaDelegada" xml:space="preserve">
+    <value>Os ha delegado su gestión CAE</value>
+  </data>
+  <data name="TituloVencidosNinguno" xml:space="preserve">
+    <value>{0}: ningún documento vencido</value>
+  </data>
+  <data name="TituloVencidosUno" xml:space="preserve">
+    <value>{0}: 1 documento vencido</value>
+  </data>
+  <data name="TituloVencidosVarios" xml:space="preserve">
+    <value>{0}: {1} documentos vencidos</value>
+  </data>
+  <data name="TituloUrgentesNinguno" xml:space="preserve">
+    <value>{0}: ningún documento dentro de su umbral urgente</value>
+  </data>
+  <data name="TituloUrgentesUno" xml:space="preserve">
+    <value>{0}: 1 documento urgente, dentro de su umbral urgente</value>
+  </data>
+  <data name="TituloUrgentesVarios" xml:space="preserve">
+    <value>{0}: {1} documentos urgentes, dentro de su umbral urgente</value>
+  </data>
+  <data name="TituloCumplimientoSinCartera" xml:space="preserve">
+    <value>{0}: no tienes ninguna Asignación de Cartera aquí, así que no hay cumplimiento que medir</value>
+  </data>
+  <data name="TituloCumplimiento" xml:space="preserve">
+    <value>{0}: {1}% de cumplimiento documental ({2})</value>
+  </data>
+  <data name="TramoVerde" xml:space="preserve">
+    <value>en verde, 90% o más</value>
+  </data>
+  <data name="TramoAmbar" xml:space="preserve">
+    <value>en ámbar, entre el 70 y el 89%</value>
+  </data>
+  <data name="TramoRojo" xml:space="preserve">
+    <value>en rojo, por debajo del 70%</value>
+  </data>
+  <data name="CeldaSinCartera" xml:space="preserve">
+    <value>Sin Asignación de Cartera tuya</value>
+  </data>
+  <data name="BotonCambiarOrganizacion" xml:space="preserve">
+    <value>Cambiar a esta organización →</value>
+  </data>
+  <data name="BotonCambiarOrganizacionTitulo" xml:space="preserve">
+    <value>Hace de {0} la organización activa y abre su Dashboard</value>
+  </data>
+  <data name="PulsoTitulo" xml:space="preserve">
+    <value>Pulso de las organizaciones</value>
+  </data>
+  <data name="FrasePulsoNinguna" xml:space="preserve">
+    <value>Ninguna de las {0} organizaciones tiene documentación vencida.</value>
+  </data>
+  <data name="FrasePulsoUna" xml:space="preserve">
+    <value>1 de {0} organizaciones tiene documentación vencida.</value>
+  </data>
+  <data name="FrasePulsoVarias" xml:space="preserve">
+    <value>{0} de {1} organizaciones tienen documentación vencida.</value>
+  </data>
+  <data name="PulsoEtiquetaEnVerde" xml:space="preserve">
+    <value>Organizaciones en verde (90% o más)</value>
+  </data>
+  <data name="PulsoTituloEnVerde" xml:space="preserve">
+    <value>En verde</value>
+  </data>
+  <data name="PulsoEtiquetaEnRiesgo" xml:space="preserve">
+    <value>Documentos en riesgo</value>
+  </data>
+  <data name="PulsoTituloEnRiesgo" xml:space="preserve">
+    <value>En riesgo</value>
+  </data>
+  <data name="DetalleEnVerdeNinguna" xml:space="preserve">
+    <value>Ninguna de las {0} organizaciones llega al 90% de cumplimiento documental.</value>
+  </data>
+  <data name="DetalleEnVerdeNingunaConCartera" xml:space="preserve">
+    <value>Ninguna de las {0} organizaciones con cartera llega al 90% de cumplimiento documental.</value>
+  </data>
+  <data name="DetalleEnVerde" xml:space="preserve">
+    <value>{0} de {1} organizaciones con el cumplimiento documental en el 90% o más: {2}.</value>
+  </data>
+  <data name="DetalleEnVerdeConCartera" xml:space="preserve">
+    <value>{0} de {1} organizaciones con cartera con el cumplimiento documental en el 90% o más: {2}.</value>
+  </data>
+  <data name="DetalleEnRiesgo" xml:space="preserve">
+    <value>{0} documentos en riesgo: {1} vencidos más {2} urgentes.</value>
+  </data>
+  <data name="EnumeracionUltimo" xml:space="preserve">
+    <value>{0} y {1}</value>
+  </data>
+</root>

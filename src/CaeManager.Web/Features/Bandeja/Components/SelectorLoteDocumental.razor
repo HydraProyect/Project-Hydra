@@ -66,7 +66,7 @@
         {
             @if (_ambito == AmbitoAplicacion.Trabajador)
             {
-                <CampoBuscarSelect Etiqueta="Trabajador" Marcador="Escribe un nombre o DNI para buscar…"
+                <CampoBuscarSelect Etiqueta="Trabajador" Marcador="Escribe un nombre o alias para buscar…"
                                    Valor="@_entidadId" ValorChanged="v => _entidadId = v" Opciones="@OpcionesTrabajadores" />
             }
             else if (_ambito == AmbitoAplicacion.Empresa)
@@ -118,8 +118,8 @@
     private IReadOnlyList<ElementoSeleccionable> _opcionesTipo =>
         _tiposDelAmbito.Select(t => new ElementoSeleccionable(t.Id, t.Nombre)).ToList();
 
-    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => _trabajadoresDisponibles
-        .Select(t => new OpcionBuscable(t.Id.ToString(), string.IsNullOrWhiteSpace(t.Dni) ? t.NombreCompleto : $"{t.NombreCompleto} ({t.Dni})"))
+    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles, aliasSiempre: true)
+        .Select(e => new OpcionBuscable(e.Id.ToString(), e.Texto))
         .ToList();
 
     protected override async Task OnInitializedAsync()
@@ -180,7 +180,7 @@
             _tiposDelAmbito = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: ambito));
 
             if (ambito == AmbitoAplicacion.Trabajador && _trabajadoresDisponibles.Count == 0)
-                _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+                _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera));
             else if (ambito == AmbitoAplicacion.Empresa && _empresasDisponibles.Count == 0)
                 _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
         }

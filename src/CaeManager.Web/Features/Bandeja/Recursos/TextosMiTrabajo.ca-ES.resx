@@ -249,10 +249,19 @@
   <data name="AccionVerEnPlataforma" xml:space="preserve">
     <value>Mostra a {0}</value>
   </data>
+  <data name="TipoVencidaEnPlataforma" xml:space="preserve">
+    <value>Vençuda a la plataforma</value>
+  </data>
+  <data name="AccionRenovarEnPlataforma" xml:space="preserve">
+    <value>Renova a {0}</value>
+  </data>
   <data name="SujetoEmpresaPropia" xml:space="preserve">
     <value>Documentació d’empresa</value>
   </data>
   <data name="SujetoSubcontrata" xml:space="preserve">
     <value>Subcontracta · {0}</value>
+  </data>
+  <data name="AnadirAMiCartera" xml:space="preserve">
+    <value>Afegir a la meva cartera</value>
   </data>
 </root>

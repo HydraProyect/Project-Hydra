@@ -64,6 +64,37 @@ public class RolesConEscrituraParidadTests
             "una UI que ofrece lo que el behavior deniega (o esconde lo que permite) es el defecto que Roles.ConEscrituraCsv existe para evitar");
     }
 
+    private record ConsultaDeSecretoFalsa : MediatR.IRequest<string?>, IConsultaDeSecretosDeTenant;
+
+    /// <summary>
+    /// Los botones que copian un secreto del Tenant (Centro 360, paneles de
+    /// Empresa y Subcontrata) también van dentro de <c>SoloConEscritura</c>,
+    /// porque la regla (decisión del propietario 2026-09-23) es la misma lista:
+    /// leer una credencial de una plataforma CAE es poder actuar en ella. Si
+    /// <see cref="AutorizacionSecretosDeTenantBehavior{TRequest,TResponse}"/>
+    /// divergiera de <see cref="Roles.ConEscrituraCsv"/>, la UI ofrecería un
+    /// «Copiar contraseña» que no copia nada, o se lo escondería a quien sí puede.
+    /// </summary>
+    [Fact]
+    public async Task Cada_rol_del_sistema_lee_secretos_del_tenant_si_y_solo_si_la_UI_le_ofrece_escribir()
+    {
+        var conEscrituraEnUi = Roles.ConEscrituraCsv.Split(',');
+
+        var leen = new List<string>();
+        foreach (var rol in Roles.Todos)
+        {
+            var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeSecretoFalsa, string?>(
+                new SinSesionPrivilegiada(), new UsuarioConRol(rol));
+            var resultado = await behavior.Handle(
+                new ConsultaDeSecretoFalsa(), _ => Task.FromResult<string?>("secreto"), CancellationToken.None);
+            if (resultado == "secreto") leen.Add(rol);
+        }
+
+        leen.Should().NotBeEmpty("si el behavior no dejara leer a ningún rol el test no observaría nada");
+        leen.Count.Should().BeLessThan(Roles.Todos.Count, "Consulta y Cliente no leen secretos: si todos leen, el instrumento no distingue");
+        leen.Should().BeEquivalentTo(conEscrituraEnUi);
+    }
+
     private sealed class UsuarioConRol(string? rol) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());

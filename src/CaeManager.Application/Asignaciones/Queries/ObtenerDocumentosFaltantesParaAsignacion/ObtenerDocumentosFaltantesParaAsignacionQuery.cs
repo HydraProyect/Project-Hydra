@@ -39,10 +39,12 @@ public class ObtenerDocumentosFaltantesParaAsignacionQueryHandler(
         // no se distingue «no existe» de «no es tuyo», así que esto nunca es un
         // error explícito, solo un resultado más corto.
         //
-        // El Trabajador NO se acota aquí a propósito. IAlcanceDatosService ya
-        // documenta por qué el selector de Trabajador es universal dentro del
-        // tenant (un mismo Trabajador presta servicio a varios Clientes de
-        // distintos Gestores CAE) — acotarlo aquí con
+        // El Trabajador NO se acota aquí a propósito. El selector de Trabajador
+        // de la Asignación masiva pide la base general del Tenant
+        // (AlcanceSelectorTrabajadores.BaseGeneralDelTenant; el resto de
+        // selectores de Trabajador se acotan a la cartera) porque un mismo
+        // Trabajador presta servicio a varios Clientes empresariales de
+        // distintos Gestores CAE — acotarlo aquí con
         // ObtenerTrabajadorIdsVisiblesAsync (que exige una Asignación ACTIVA a
         // un Centro visible) rompería el propio caso de uso de este preflight:
         // un Trabajador nuevo o todavía sin ninguna Asignación (alta desde el

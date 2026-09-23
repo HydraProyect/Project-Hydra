@@ -13,6 +13,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Features.Incidencias.Recursos;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.QuickGrid;
@@ -112,12 +113,12 @@ public partial class Incidencias : ComponentBase
     private bool _confirmarEliminarLoteVisible;
 
     /// <summary>
-    /// Mensaje del conflicto de versión, con el género de «incidencia». El que
+    /// Mensaje del conflicto de versión, con el género de «incidencia»
+    /// (clave <c>ErrorConflictoVersion</c> de <see cref="TextosIncidencias"/>). El que
     /// trae <see cref="ConcurrenciaOptimista"/> es genérico y en masculino
     /// («mientras lo editabas») para cualquier entidad.
     /// </summary>
-    internal const string MensajeConflictoVersion =
-        "Otra persona guardó esta incidencia mientras la tenías abierta. Vuelve a abrirla para no pisar sus cambios.";
+    private string MensajeConflictoVersion => Textos["ErrorConflictoVersion"];
 
     private static TonoBadge GravedadTono(GravedadIncidencia gravedad) => gravedad switch
     {
@@ -127,18 +128,18 @@ public partial class Incidencias : ComponentBase
         _ => TonoBadge.Neutro
     };
 
-    private static string ObtenerEtiquetaTipo(TipoIncidencia tipo) => tipo switch
+    private string ObtenerEtiquetaTipo(TipoIncidencia tipo) => tipo switch
     {
-        TipoIncidencia.Accidente => "Accidente",
-        TipoIncidencia.Incumplimiento => "Incumplimiento",
+        TipoIncidencia.Accidente => Textos["TipoAccidente"].Value,
+        TipoIncidencia.Incumplimiento => Textos["TipoIncumplimiento"].Value,
         _ => tipo.ToString()
     };
 
-    private static string ObtenerEtiquetaGravedad(GravedadIncidencia gravedad) => gravedad switch
+    private string ObtenerEtiquetaGravedad(GravedadIncidencia gravedad) => gravedad switch
     {
-        GravedadIncidencia.Leve => "Leve",
-        GravedadIncidencia.Grave => "Grave",
-        GravedadIncidencia.MuyGrave => "Muy grave",
+        GravedadIncidencia.Leve => Textos["GravedadLeve"].Value,
+        GravedadIncidencia.Grave => Textos["GravedadGrave"].Value,
+        GravedadIncidencia.MuyGrave => Textos["GravedadMuyGrave"].Value,
         _ => gravedad.ToString()
     };
 
@@ -149,13 +150,13 @@ public partial class Incidencias : ComponentBase
     /// Esto sustituye al antiguo checkbox "Solo sin resolver", que solo dejaba
     /// filtrar en un sentido — no había forma de ver únicamente las resueltas.
     /// </summary>
-    private static readonly IReadOnlyList<OpcionEstado> OpcionesEstado =
+    private IReadOnlyList<OpcionEstado> OpcionesEstado =>
     [
-        new("SinResolver", "Sin resolver"),
-        new("Resuelta", "Resuelta")
+        new("SinResolver", Textos["EstadoSinResolver"].Value),
+        new("Resuelta", Textos["EstadoResuelta"].Value)
     ];
 
-    private string EtiquetaFiltroEstado => _estadoFiltro == "Resuelta" ? "Estado: resueltas" : "Estado: sin resolver";
+    private string EtiquetaFiltroEstado => _estadoFiltro == "Resuelta" ? Textos["ChipEstadoResueltas"].Value : Textos["ChipEstadoSinResolver"].Value;
 
     /// <summary>
     /// El recuento solo se pinta con la carga terminada: durante una recarga el
@@ -168,9 +169,13 @@ public partial class Incidencias : ComponentBase
     /// Es el total de servidor YA filtrado: la pantalla no sabe cuántas hay sin
     /// filtro, así que «con el filtro actual» solo se añade cuando lo hay.
     /// </summary>
-    private string TextoRecuento =>
-        (_totalElementos == 1 ? "1 incidencia" : $"{_totalElementos} incidencias")
-        + (HayFiltrosActivos ? " con el filtro actual" : string.Empty);
+    private string TextoRecuento => (_totalElementos == 1, HayFiltrosActivos) switch
+    {
+        (true, false) => Textos["RecuentoUno", _totalElementos].Value,
+        (false, false) => Textos["RecuentoVarios", _totalElementos].Value,
+        (true, true) => Textos["RecuentoUnoConFiltro", _totalElementos].Value,
+        (false, true) => Textos["RecuentoVariosConFiltro", _totalElementos].Value
+    };
 
     /// <summary>
     /// Esqueleto solo cuando no hay nada que enseñar todavía (primera carga, o
@@ -324,7 +329,7 @@ public partial class Incidencias : ComponentBase
         var generacion = ++_generacionFormulario;
 
         var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
-        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant));
         if (generacion != _generacionFormulario) return;
 
         _centrosDisponibles = centros;
@@ -347,13 +352,13 @@ public partial class Incidencias : ComponentBase
     {
         var generacion = ++_generacionFormulario;
 
-        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery());
+        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant));
         var incidencia = await Mediator.Send(new ObtenerIncidenciaPorIdQuery(id));
         if (generacion != _generacionFormulario) return;
 
         if (incidencia is null)
         {
-            ToastService.Mostrar("No encontramos esta incidencia. Puede que ya se haya eliminado.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastNoEncontrada"], TonoToast.Error);
             await RecargarAsync();
             return;
         }
@@ -382,7 +387,7 @@ public partial class Incidencias : ComponentBase
         return Task.CompletedTask;
     }
 
-    private static string MensajeDeFallo(Error error) =>
+    private string MensajeDeFallo(Error error) =>
         error.Codigo == ConcurrenciaOptimista.CodigoConflicto ? MensajeConflictoVersion : error.Mensaje;
 
     private async Task GuardarAsync()
@@ -397,19 +402,19 @@ public partial class Incidencias : ComponentBase
         {
             if (!DateOnly.TryParse(_fechaOcurrencia, out var fechaOcurrencia))
             {
-                _mensajeErrorFormulario = "La fecha no es válida.";
+                _mensajeErrorFormulario = Textos["ErrorFechaInvalida"];
                 return;
             }
 
             if (!Enum.TryParse<TipoIncidencia>(_tipo, out var tipo))
             {
-                _mensajeErrorFormulario = "Selecciona un tipo válido.";
+                _mensajeErrorFormulario = Textos["ErrorTipoInvalido"];
                 return;
             }
 
             if (!Enum.TryParse<GravedadIncidencia>(_gravedad, out var gravedad))
             {
-                _mensajeErrorFormulario = "Selecciona una gravedad válida.";
+                _mensajeErrorFormulario = Textos["ErrorGravedadInvalida"];
                 return;
             }
 
@@ -420,7 +425,7 @@ public partial class Incidencias : ComponentBase
             {
                 if (!Guid.TryParse(_centroId, out var centroId))
                 {
-                    _mensajeErrorFormulario = "Selecciona un centro.";
+                    _mensajeErrorFormulario = Textos["ErrorSeleccionaCentro"];
                     return;
                 }
 
@@ -441,7 +446,7 @@ public partial class Incidencias : ComponentBase
             }
 
             ToastService.Mostrar(
-                editandoId is null ? "Incidencia creada correctamente." : "Incidencia actualizada correctamente.",
+                editandoId is null ? Textos["ToastCreada"].Value : Textos["ToastActualizada"].Value,
                 TonoToast.Exito);
 
             if (generacionFormulario == _generacionFormulario)
@@ -460,7 +465,7 @@ public partial class Incidencias : ComponentBase
         catch (Exception)
         {
             if (generacionFormulario == _generacionFormulario)
-                _mensajeErrorFormulario = "No pudimos guardar los cambios. Intenta nuevamente en unos segundos.";
+                _mensajeErrorFormulario = Textos["ErrorGuardar"];
         }
         finally
         {
@@ -483,13 +488,13 @@ public partial class Incidencias : ComponentBase
             }
             else
             {
-                ToastService.Mostrar(resuelta ? "Incidencia marcada como resuelta." : "Incidencia reabierta.", TonoToast.Exito);
+                ToastService.Mostrar(resuelta ? Textos["ToastMarcadaResuelta"].Value : Textos["ToastReabierta"].Value, TonoToast.Exito);
                 await RecargarAsync();
             }
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos actualizar el estado. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ErrorActualizarEstado"], TonoToast.Error);
         }
     }
 
@@ -514,14 +519,14 @@ public partial class Incidencias : ComponentBase
             }
             else
             {
-                ToastService.Mostrar("Incidencia eliminada correctamente.", TonoToast.Exito);
+                ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito);
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
             }
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar la incidencia. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ErrorEliminar"], TonoToast.Error);
         }
         finally
         {
@@ -557,8 +562,8 @@ public partial class Incidencias : ComponentBase
 
             ToastService.Mostrar(
                 dto.Errores.Count == 0
-                    ? $"{dto.Eliminados} incidencia(s) eliminada(s)."
-                    : $"{dto.Eliminados} eliminada(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
+                    ? Textos["ToastLoteEliminadas", dto.Eliminados].Value
+                    : Textos["ToastLoteEliminadasConErrores", dto.Eliminados, dto.Errores.Count, string.Join(" ", dto.Errores)].Value,
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
             _seleccionados.Clear();
@@ -567,7 +572,7 @@ public partial class Incidencias : ComponentBase
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar las incidencias seleccionadas. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(Textos["ErrorEliminarLote"], TonoToast.Error);
         }
         finally
         {

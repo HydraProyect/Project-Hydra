@@ -62,7 +62,8 @@ public class CrearDocumentoCommandHandler(
     ICurrentUserService currentUserService,
     IDerivarCanalesAplicablesDocumentoService derivarCanalesAplicables,
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio,
-    IPublisher publisher)
+    IPublisher publisher,
+    IAlcanceDatosService alcanceDatos)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDocumentoCommand request, CancellationToken cancellationToken)
@@ -100,17 +101,7 @@ public class CrearDocumentoCommandHandler(
         };
 
         if (!propietarioEncontrado)
-        {
-            var mensaje = ambitoSolicitado switch
-            {
-                AmbitoAplicacion.Trabajador => "No encontramos este trabajador.",
-                AmbitoAplicacion.Cliente => "No encontramos este cliente.",
-                AmbitoAplicacion.Vehiculo => "No encontramos este vehículo.",
-                AmbitoAplicacion.Proyecto => "No encontramos este proyecto.",
-                _ => "No encontramos esta empresa."
-            };
-            return Result.Fallo<Guid>(Error.Crear("Documento.PropietarioNoEncontrado", mensaje));
-        }
+            return Result.Fallo<Guid>(PropietarioNoEncontrado(ambitoSolicitado));
 
         var fechaVencimiento = tipoDocumento.AplicaVencimientoAutomatico
             ? CalculadoraEstadoDocumento.CalcularFechaVencimiento(request.FechaEmision, tipoDocumento.VigenciaMeses)
@@ -134,6 +125,18 @@ public class CrearDocumentoCommandHandler(
                 request.EmpresaId!.Value, request.TipoDocumentoId, request.FechaEmision, fechaVencimiento,
                 request.ArchivoUrl, request.Comentarios)
         };
+
+        // Alcance de cartera: existir en el Tenant no basta. Un Gestor CAE solo
+        // crea Documentos de propietarios dentro de su Asignación de Cartera —
+        // mismo criterio (DocumentoVisibleAsync, gestión en la rama Empresa)
+        // que Renovar/Eliminar/MarcarAcreditacion* aplican al Documento ya
+        // existente. Sin esto, conocer el Id de un Trabajador, Empresa o
+        // Vehículo fuera de cartera bastaba para colgarle un Documento. Se
+        // responde igual que "no existe" para no revelar qué hay fuera del
+        // alcance. Lo heredan ConfirmarDocumentoPropuestoPorIa y
+        // ActualizarDocumentoDesdeAdjunto, que delegan aquí la creación.
+        if (!await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
+            return Result.Fallo<Guid>(PropietarioNoEncontrado(ambitoSolicitado));
 
         repositorio.Agregar(documento);
 
@@ -194,6 +197,17 @@ public class CrearDocumentoCommandHandler(
 
         return Result.Exito(documento.Id);
     }
+
+    private static Error PropietarioNoEncontrado(AmbitoAplicacion ambito) => Error.Crear(
+        "Documento.PropietarioNoEncontrado",
+        ambito switch
+        {
+            AmbitoAplicacion.Trabajador => "No encontramos este trabajador.",
+            AmbitoAplicacion.Cliente => "No encontramos este cliente.",
+            AmbitoAplicacion.Vehiculo => "No encontramos este vehículo.",
+            AmbitoAplicacion.Proyecto => "No encontramos este proyecto.",
+            _ => "No encontramos esta empresa."
+        });
 
     private static string DescribirAmbito(AmbitoAplicacion ambito) => ambito switch
     {

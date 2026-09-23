@@ -22,11 +22,16 @@
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
+@using CaeManager.Web.Features.Visitas.Recursos
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ContextWorkspaceService WorkspaceService
+@inject IStringLocalizer<TextosVisitas> Textos
+@inject IStringLocalizer<TextosComunes> Comunes
 
-<PageTitle>Visitas — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 @*
     Gen 2 (Visitas TALVEG.dc.html). Vocabulario: los datos traen
@@ -36,24 +41,24 @@
     deuda terminológica y no se renombran aquí.
 *@
 <div class="contenedor-pagina">
-    <CabeceraPagina Kicker="Operación" Titulo="Visitas">
+    <CabeceraPagina Kicker="@Textos["Kicker"]" Titulo="@Textos["TituloPagina"]">
         <Acciones>
-            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nueva visita</Boton></SoloConEscritura>
+            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
     <div class="barra-filtros">
-        <CampoTexto Placeholder="Buscar por centro, titular o empresa…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
         <label class="filtro-critico">
-            <input type="checkbox" @bind="_soloActivas" @bind:after="RecargarAsync" /> Solo activas
+            <input type="checkbox" @bind="_soloActivas" @bind:after="RecargarAsync" /> @Textos["FiltroSoloActivas"]
         </label>
         <label class="filtro-critico">
-            <input type="checkbox" @bind="_soloUrgentes" @bind:after="RecargarAsync" /> Solo urgentes
+            <input type="checkbox" @bind="_soloUrgentes" @bind:after="RecargarAsync" /> @Textos["FiltroSoloUrgentes"]
         </label>
-        <CampoSelect Etiqueta="Notificada a la empresa titular" Valor="@_filtroNotificado" ValorChanged="FiltrarPorNotificadoAsync">
-            <option value="">Todas</option>
-            <option value="si">Sí</option>
-            <option value="no">No</option>
+        <CampoSelect Etiqueta="@Textos["EtiquetaNotificadaTitular"]" Valor="@_filtroNotificado" ValorChanged="FiltrarPorNotificadoAsync">
+            <option value="">@Textos["OpcionTodas"]</option>
+            <option value="si">@Textos["OpcionSi"]</option>
+            <option value="no">@Textos["OpcionNo"]</option>
         </CampoSelect>
     </div>
 
@@ -61,9 +66,9 @@
 
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="No pudimos cargar las visitas" Descripcion="Intenta nuevamente en unos segundos.">
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
             <Accion>
-                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+                <Boton OnClick="RecargarAsync">@Comunes["Reintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -86,7 +91,7 @@
                    la calculadora no mira la hora de entrada. *@
                 <span class="visitas-nota-sistema">
                     <span class="visitas-nota-sistema-punto" aria-hidden="true"></span>
-                    Urgencia calculada al cargar la lista, sobre las fechas de cada visita
+                    @Textos["NotaUrgenciaCalculada"]
                 </span>
             </Extra>
         </BarraHerramientasLista>
@@ -97,19 +102,19 @@
                 {
                     <TemplateColumn Title="" Align="Align.Center">
                         <HeaderTemplate Context="columna">
-                            <input type="checkbox" aria-label="Seleccionar las visitas de esta página" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
                         </HeaderTemplate>
                         <ChildContent>
-                            <input type="checkbox" aria-label="@($"Seleccionar la visita de {context.EmpresaRazonSocial} a {context.CentroNombre}, {TextoFechas(context.FechaInicio, context.FechaFin)}")" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@Textos["AriaSeleccionarVisita", context.EmpresaRazonSocial, context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <TemplateColumn Title="Centro" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.CentroNombre))">
+                <TemplateColumn Title="@Textos["EtiquetaCentro"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.CentroNombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
                         @context.CentroNombre
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Titular del centro / Empresa" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.ClienteRazonSocial))">
+                <TemplateColumn Title="@Textos["ColumnaTitularEmpresa"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.ClienteRazonSocial))">
                     <span class="visitas-celda-apilada">
                         <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteRazonSocial, "informacion")'>
                             @context.ClienteRazonSocial
@@ -119,55 +124,67 @@
                         </button>
                     </span>
                 </TemplateColumn>
-                <TemplateColumn Title="Fechas" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.FechaInicio))">
+                <TemplateColumn Title="@Textos["ColumnaFechas"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.FechaInicio))">
                     @TextoFechas(context.FechaInicio, context.FechaFin)
                 </TemplateColumn>
-                <TemplateColumn Title="Trabajadores" Align="Align.Center">
+                <TemplateColumn Title="@Textos["EtiquetaTrabajadores"]" Align="Align.Center">
                     @context.TotalTrabajadores
                 </TemplateColumn>
-                <TemplateColumn Title="Urgencia" Align="Align.Center">
+                <TemplateColumn Title="@Textos["ColumnaUrgencia"]" Align="Align.Center">
                     @* Los cuatro valores de NivelUrgenciaVisita, «Normal» incluido:
                        una celda vacía no distingue «normal» de «sin calcular». *@
                     <Badge Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)">@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)</Badge>
                 </TemplateColumn>
                 @* El mockup lleva el origen solo al detalle; aquí se conserva
                    también en la lista porque ya existía y se ordena por él. *@
-                <TemplateColumn Title="Origen" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
+                <TemplateColumn Title="@Textos["EtiquetaOrigen"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
                     <Badge Tono="TonoOrigen(context.Origen)">@TextoOrigen(context.Origen)</Badge>
                 </TemplateColumn>
-                <TemplateColumn Title="Documentación" Align="Align.Center">
+                <TemplateColumn Title="@Textos["ColumnaDocumentacion"]" Align="Align.Center">
                     @if (context.DocumentacionCompleta)
                     {
-                        <Badge Tono="TonoBadge.Exito">Completa</Badge>
+                        <Badge Tono="TonoBadge.Exito">@Textos["BadgeDocumentacionCompleta"]</Badge>
                     }
                     else
                     {
-                        <Badge Tono="TonoBadge.Peligro">Por gestionar</Badge>
+                        <Badge Tono="TonoBadge.Peligro">@Textos["BadgeDocumentacionPorGestionar"]</Badge>
                     }
                 </TemplateColumn>
-                <TemplateColumn Title="Notificada a la empresa titular" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
-                    <input type="checkbox" role="switch" class="visitas-interruptor" checked="@context.NotificadoCliente"
-                           aria-label="@($"Notificada a la empresa titular: {context.CentroNombre}, {TextoFechas(context.FechaInicio, context.FechaFin)}")"
-                           disabled="@_marcandoNotificado.Contains(context.Id)"
-                           @onchange="e => AlternarNotificadoAsync(context.Id, e.Value is bool marcado && marcado)" />
+                <TemplateColumn Title="@Textos["EtiquetaNotificadaTitular"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
+                    @* El interruptor es a la vez el dato y el disparador de MarcarNotificadoClienteCommand
+                       (ICommand que AutorizacionEscrituraBehavior deniega a Consulta). Ocultarlo, como hace
+                       SoloConEscritura, dejaría la columna sin dato: a Consulta se le pinta deshabilitado. *@
+                    <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNotificada">
+                        <Authorized>
+                            <input type="checkbox" role="switch" class="visitas-interruptor" checked="@context.NotificadoCliente"
+                                   aria-label="@Textos["AriaNotificadaTitular", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
+                                   disabled="@_marcandoNotificado.Contains(context.Id)"
+                                   @onchange="e => AlternarNotificadoAsync(context.Id, e.Value is bool marcado && marcado)" />
+                        </Authorized>
+                        <NotAuthorized>
+                            <input type="checkbox" role="switch" class="visitas-interruptor" checked="@context.NotificadoCliente"
+                                   aria-label="@Textos["AriaNotificadaTitular", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
+                                   disabled />
+                        </NotAuthorized>
+                    </AuthorizeView>
                 </TemplateColumn>
-                <TemplateColumn Title="Acciones" Align="Align.End">
+                <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
                     <MenuAcciones>
                         <ItemMenuAccion OnClick="() => AbrirDetalleAsync(context.Id)">
-                            Ver
+                            @Textos["AccionVer"]
                         </ItemMenuAccion>
                         <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
-                            Editar
+                            @Textos["AccionEditar"]
                         </ItemMenuAccion></SoloConEscritura>
                         <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
-                            Eliminar
+                            @Textos["AccionEliminar"]
                         </ItemMenuAccion></SoloConEscritura>
                     </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
 
             <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="visita(s)" PaginaActualChanged="CambiarPaginaAsync"
+                              Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
@@ -184,10 +201,10 @@
            corresponde. *@
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
         {
-            <EstadoVacio NombreIcono="vacio" Titulo="Ninguna visita con estos filtros"
-                         Descripcion="Ninguna coincide con la búsqueda ni con los filtros de urgencia o notificación.">
+            <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioFiltroTitulo"]"
+                         Descripcion="@Textos["VacioFiltroDescripcion"]">
                 <Accion>
-                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["BotonQuitarFiltros"]</Boton>
                 </Accion>
             </EstadoVacio>
         }
@@ -196,26 +213,26 @@
             @* Sin más filtros que el de fábrica: puede haber visitas finalizadas
                detrás. Decir "crea la primera" aquí sería falso, y ofrecer
                "quitar los filtros" señalaría algo que el usuario no puso. *@
-            <EstadoVacio NombreIcono="vacio" Titulo="No hay visitas activas"
-                         Descripcion="Puede haber visitas ya finalizadas: la lista llega filtrada por «Solo activas».">
+            <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioActivasTitulo"]"
+                         Descripcion="@Textos["VacioActivasDescripcion"]">
                 <Accion>
-                    <Boton Variante="VarianteBoton.Secundario" OnClick="VerTambienFinalizadasAsync">Ver también las finalizadas</Boton>
-                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nueva visita</Boton></SoloConEscritura>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="VerTambienFinalizadasAsync">@Textos["BotonVerFinalizadas"]</Boton>
+                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         }
         else if (_totalElementos == 0 && !_cargando)
         {
-            <EstadoVacio Titulo="Todavía no hay visitas programadas" Descripcion="Crea la primera visita para empezar a llevar el control de accesos programados.">
+            <EstadoVacio Titulo="@Textos["VacioInicialTitulo"]" Descripcion="@Textos["VacioInicialDescripcion"]">
                 <Accion>
-                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nueva visita</Boton></SoloConEscritura>
+                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         }
     }
 </div>
 
-<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nueva visita" : "Editar visita")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? Textos["DrawerTituloNueva"].Value : Textos["DrawerTituloEditar"].Value)" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
@@ -224,13 +241,13 @@
 
         @if (_sugerenciaVisitaResumen is not null)
         {
-            <div class="alerta-info">Prellenado desde un correo: @_sugerenciaVisitaResumen — revisa los datos y elige los trabajadores antes de guardar.</div>
+            <div class="alerta-info">@Textos["AvisoPrellenado", _sugerenciaVisitaResumen]</div>
         }
 
         @if (_editandoId is null)
         {
-            <CampoSelect Etiqueta="Centro" Valor="@_centroId" ValorChanged="v => _centroId = v">
-                <option value="">Selecciona un centro…</option>
+            <CampoSelect Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_centroId" ValorChanged="v => _centroId = v">
+                <option value="">@Textos["OpcionSeleccionaCentro"]</option>
                 @foreach (var centro in _centrosDisponibles)
                 {
                     <option value="@centro.Id">@centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)</option>
@@ -240,39 +257,39 @@
         else
         {
             <div class="campo">
-                <label>Centro</label>
+                <label>@Textos["EtiquetaCentro"]</label>
                 <p class="texto-vacio-seccion">@_centroNombreEnEdicion</p>
             </div>
         }
 
-        <CampoTexto Etiqueta="Fecha de inicio" Type="date" Valor="@_fechaInicio" ValorChanged="v => _fechaInicio = v" />
-        <CampoTexto Etiqueta="Fecha de fin" Type="date" Valor="@_fechaFin" ValorChanged="v => _fechaFin = v" />
-        <CampoTexto Etiqueta="Hora de entrada (opcional — si se deja vacía se asume la apertura de la jornada)" Type="time"
+        <CampoTexto Etiqueta="@Textos["EtiquetaFechaInicio"]" Type="date" Valor="@_fechaInicio" ValorChanged="v => _fechaInicio = v" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaFechaFin"]" Type="date" Valor="@_fechaFin" ValorChanged="v => _fechaFin = v" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaHoraEntrada"]" Type="time"
                     Valor="@_horaEstimadaAcceso" ValorChanged="v => _horaEstimadaAcceso = v" />
 
-        <SelectorMultiple Etiqueta="Trabajadores que entran"
+        <SelectorMultiple Etiqueta="@Textos["EtiquetaTrabajadoresQueEntran"]"
                            Elementos="@_trabajadoresDisponiblesSelector"
                            Seleccionados="@_trabajadorIdsSeleccionados"
                            OnAlternar="args => AlternarTrabajador(args.Id, args.Marcado)"
-                           TextoVacio="Todavía no hay trabajadores creados." />
+                           TextoVacio="@Textos["SelectorTrabajadoresVacio"]" />
 
         <label class="campo-checkbox">
-            <input type="checkbox" @bind="_notificadoCliente" /> Notificada a la empresa titular del centro
+            <input type="checkbox" @bind="_notificadoCliente" /> @Textos["CasillaNotificadaTitularCentro"]
         </label>
 
-        <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => _notas = v" Filas="3" />
+        <CampoTextarea Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_notas" ValorChanged="v => _notas = v" Filas="3" />
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
-            Cancelar
+            @Textos["BotonCancelar"]
         </Boton>
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
-            Guardar
+            @Textos["BotonGuardar"]
         </Boton>
     </Pie>
 </Drawer>
 
-<Drawer Visible="_detalleVisible" VisibleChanged="v => _detalleVisible = v" Titulo="Detalle de la visita">
+<Drawer Visible="_detalleVisible" VisibleChanged="v => _detalleVisible = v" Titulo="@Textos["DetalleTitulo"]">
     <ChildContent>
         @if (_cargandoDetalle)
         {
@@ -293,66 +310,65 @@
 
             <dl class="visitas-detalle-campos">
                 <div class="visitas-detalle-campo">
-                    <dt>Titular del centro</dt>
+                    <dt>@Textos["DetalleTitularCentro"]</dt>
                     <dd>@_detalle.ClienteRazonSocial</dd>
                 </div>
                 <div class="visitas-detalle-campo">
-                    <dt>Empresa</dt>
+                    <dt>@Textos["DetalleEmpresa"]</dt>
                     <dd>@_detalle.EmpresaRazonSocial</dd>
                 </div>
                 <div class="visitas-detalle-campo">
-                    <dt>Entrada</dt>
-                    <dd>@(_detalle.HoraEstimadaAcceso is { } horaAcceso ? horaAcceso.ToString("HH:mm") : "Sin hora fijada")</dd>
+                    <dt>@Textos["DetalleEntrada"]</dt>
+                    <dd>@(_detalle.HoraEstimadaAcceso is { } horaAcceso ? horaAcceso.ToString("HH:mm") : Textos["DetalleSinHora"].Value)</dd>
                 </div>
                 @if (_filaDetalle is { } filaOrigen)
                 {
                     <div class="visitas-detalle-campo">
-                        <dt>Origen</dt>
+                        <dt>@Textos["EtiquetaOrigen"]</dt>
                         <dd>@TextoOrigen(filaOrigen.Origen)</dd>
                     </div>
                 }
                 <div class="visitas-detalle-campo">
-                    <dt>Trabajadores</dt>
+                    <dt>@Textos["EtiquetaTrabajadores"]</dt>
                     <dd>@_detalle.Trabajadores.Count</dd>
                 </div>
                 <div class="visitas-detalle-campo">
-                    <dt>Notificada a la empresa titular</dt>
-                    <dd>@(_detalle.NotificadoCliente ? "Sí" : "No")</dd>
+                    <dt>@Textos["EtiquetaNotificadaTitular"]</dt>
+                    <dd>@(_detalle.NotificadoCliente ? Textos["OpcionSi"].Value : Textos["OpcionNo"].Value)</dd>
                 </div>
             </dl>
 
             @if (_detalle.Tramo is { } tramo)
             {
                 <div class="campo">
-                    <label>Antelación</label>
+                    <label>@Textos["DetalleAntelacion"]</label>
                     <p class="texto-vacio-seccion">
                         <Badge Tono="@AntelacionVisitaUi.Tono(tramo)">@AntelacionVisitaUi.Texto(tramo)</Badge>
                         @AntelacionVisitaUi.TextoAtribucion(_detalle.Atribucion)
                     </p>
                     <p class="texto-vacio-seccion">
-                        Aviso recibido con @AntelacionVisitaUi.Horas(_detalle.AntelacionNominalHoras) de antelación;
-                        el expediente quedó completo @AntelacionVisitaUi.Horas(_detalle.AntelacionEfectivaHoras) antes de la entrada.
+                        @Textos["DetalleAntelacionHoras", AntelacionVisitaUi.Horas(_detalle.AntelacionNominalHoras), AntelacionVisitaUi.Horas(_detalle.AntelacionEfectivaHoras)]
                     </p>
                 </div>
             }
             @if (!string.IsNullOrWhiteSpace(_detalle.Notas))
             {
                 <div class="campo">
-                    <label>Notas</label>
+                    <label>@Textos["EtiquetaNotas"]</label>
                     <p class="texto-vacio-seccion">@_detalle.Notas</p>
                 </div>
             }
 
-            <h3 class="detalle-visita-subtitulo">Comprobación previa</h3>
+            <h3 class="detalle-visita-subtitulo">@Textos["SubtituloComprobacionPrevia"]</h3>
             @if (_cargandoDocumentacion)
             {
                 <EstadoCargando Filas="3" />
             }
             else if (_errorDocumentacion)
             {
-                <EstadoVacio Titulo="No pudimos cargar la documentación" Descripcion="Intenta nuevamente en unos segundos.">
+                <EstadoVacio Titulo="@Textos["ErrorDocumentacionTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
                     <Accion>
-                        <Boton OnClick="ReintentarDocumentacionAsync">Reintentar</Boton>
+                        <Boton OnClick="ReintentarDocumentacionAsync">@Comunes["Reintentar"]</Boton>
                     </Accion>
                 </EstadoVacio>
             }
@@ -363,14 +379,14 @@
                     <p class="visitas-detalle-resumen">@resumen</p>
                 }
 
-                <SeccionColapsable Titulo="Documentación de la empresa">
+                <SeccionColapsable Titulo="@Textos["SeccionDocumentacionEmpresa"]">
                     <Encabezado>
                         <Badge Tono="EstadoDocumentoUi.Tono(_documentacion.Empresa.PeorEstado)">@EstadoDocumentoUi.Texto(_documentacion.Empresa.PeorEstado)</Badge>
                     </Encabezado>
                     <ChildContent>
                         @if (_documentacion.Empresa.Documentos.Count == 0)
                         {
-                            <EstadoVacio Titulo="Todo en orden" Descripcion="No hay documentación de empresa pendiente para este centro." />
+                            <EstadoVacio Titulo="@Textos["VacioDocumentosTitulo"]" Descripcion="@Textos["VacioDocumentosEmpresaDescripcion"]" />
                         }
                         else
                         {
@@ -380,7 +396,7 @@
                                     <FilaEntidadRelacionada
                                         @key="item.TipoDocumentoId"
                                         Titulo="@item.TipoDocumentoNombre"
-                                        Subtitulo="@(item.FechaVencimiento is null ? "—" : $"Vence: {item.FechaVencimiento:dd/MM/yyyy}")"
+                                        Subtitulo="@(item.FechaVencimiento is null ? "—" : Textos["SubtituloVence", item.FechaVencimiento].Value)"
                                         OnClic="() => AbrirDocumento(item)">
                                         <Badge Tono="EstadoDocumentoUi.Tono(item.Estado)">@EstadoDocumentoUi.Texto(item.Estado)</Badge>
                                     </FilaEntidadRelacionada>
@@ -390,10 +406,10 @@
                     </ChildContent>
                 </SeccionColapsable>
 
-                <h3 class="detalle-visita-subtitulo">Trabajadores que entran (@_documentacion.Trabajadores.Count)</h3>
+                <h3 class="detalle-visita-subtitulo">@Textos["SubtituloTrabajadoresQueEntran", _documentacion.Trabajadores.Count]</h3>
                 @if (_documentacion.Trabajadores.Count == 0)
                 {
-                    <EstadoVacio Titulo="Sin trabajadores" Descripcion="Esta visita todavía no tiene trabajadores asignados." />
+                    <EstadoVacio Titulo="@Textos["VacioTrabajadoresTitulo"]" Descripcion="@Textos["VacioTrabajadoresDescripcion"]" />
                 }
                 else
                 {
@@ -406,7 +422,7 @@
                             <ChildContent>
                                 @if (trabajador.Documentacion.Documentos.Count == 0)
                                 {
-                                    <EstadoVacio Titulo="Todo en orden" Descripcion="No hay documentación pendiente para este centro." />
+                                    <EstadoVacio Titulo="@Textos["VacioDocumentosTitulo"]" Descripcion="@Textos["VacioDocumentosTrabajadorDescripcion"]" />
                                 }
                                 else
                                 {
@@ -416,7 +432,7 @@
                                             <FilaEntidadRelacionada
                                                 @key="item.TipoDocumentoId"
                                                 Titulo="@item.TipoDocumentoNombre"
-                                                Subtitulo="@(item.FechaVencimiento is null ? "—" : $"Vence: {item.FechaVencimiento:dd/MM/yyyy}")"
+                                                Subtitulo="@(item.FechaVencimiento is null ? "—" : Textos["SubtituloVence", item.FechaVencimiento].Value)"
                                                 OnClic="() => AbrirDocumento(item)">
                                                 <Badge Tono="EstadoDocumentoUi.Tono(item.Estado)">@EstadoDocumentoUi.Texto(item.Estado)</Badge>
                                             </FilaEntidadRelacionada>
@@ -435,14 +451,23 @@
         {
             @* Solo cambia la marca: MarcarNotificadoClienteCommand no envía
                ningún aviso, así que el texto no puede prometer uno. *@
-            <Boton Cargando="_marcandoNotificadoDetalle" OnClick="AlternarNotificadoDesdeDetalleAsync">
-                @(_detalle.NotificadoCliente ? "Quitar la marca de notificada" : "Marcar como notificada")
-            </Boton>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="EditarDesdeDetalleAsync">Editar</Boton>
+            @* Marcar notificada y Editar son ICommand que AutorizacionEscrituraBehavior deniega a
+               Consulta: no se le ofrecen, y el pie no queda vacío, le queda Cerrar. *@
+            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionPie">
+                <Authorized>
+                    <Boton Cargando="_marcandoNotificadoDetalle" OnClick="AlternarNotificadoDesdeDetalleAsync">
+                        @(_detalle.NotificadoCliente ? Textos["BotonQuitarMarcaNotificada"].Value : Textos["BotonMarcarNotificada"].Value)
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="EditarDesdeDetalleAsync">@Textos["AccionEditar"]</Boton>
+                </Authorized>
+                <NotAuthorized>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="() => _detalleVisible = false">@Textos["BotonCerrar"]</Boton>
+                </NotAuthorized>
+            </AuthorizeView>
         }
         else
         {
-            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _detalleVisible = false">Cerrar</Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _detalleVisible = false">@Textos["BotonCerrar"]</Boton>
         }
     </Pie>
 </Drawer>
@@ -452,18 +477,23 @@
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@($"¿Eliminar la visita a {_centroAEliminar}?")"
-    Mensaje="Se ocultará de las listas activas."
+    Titulo="@Textos["ConfirmarEliminarTitulo", _centroAEliminar]"
+    Mensaje="@Textos["ConfirmarEliminarMensaje"]"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
-<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+@* La única acción del lote es eliminar (ICommand que AutorizacionEscrituraBehavior deniega a
+   Consulta): la barra no se le ofrece. La palanca de selección múltiple sigue visible porque
+   vive en BarraHerramientasLista, compartida y con contenido de lectura, y seleccionar no escribe. *@
+<SoloConEscritura>
+    <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+</SoloConEscritura>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"
     VisibleChanged="v => _confirmarEliminarLoteVisible = v"
-    Titulo="@($"¿Eliminar {_seleccionados.Count} visita(s)?")"
-    Mensaje="Se ocultarán de las listas activas."
+    Titulo="@Textos["ConfirmarEliminarLoteTitulo", _seleccionados.Count]"
+    Mensaje="@Textos["ConfirmarEliminarLoteMensaje"]"
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />

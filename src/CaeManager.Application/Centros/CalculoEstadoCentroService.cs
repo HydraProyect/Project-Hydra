@@ -299,9 +299,14 @@ public class CalculoEstadoCentroService(
             var propietario = fila.TrabajadorId is { } id && nombres.TryGetValue(id, out var nombre)
                 ? $" — {nombre}"
                 : " — Empresa";
+            // Sin vigencia documental que describir (no es un vencimiento de fecha),
+            // pero el Badge de la UI (AcordeonAsignacionesCentro) indexa por
+            // EstadoDocumento y no admite null: mismo criterio que su causa hermana
+            // "vencido en la plataforma" (arriba, misma familia — vigencia decidida
+            // por la plataforma del Cliente empresarial, no por archivo documental).
             causas.Add(new CausaEstadoCentro(
                 $"{fila.TipoDocumentoNombre}{propietario} — rechazado por la plataforma",
-                Estado: null,
+                Estado: EstadoDocumento.Vencido,
                 Bloqueante: true,
                 fila.TrabajadorId is null ? AmbitoCausa.Empresa : AmbitoCausa.Trabajador,
                 fila.Id, fila.TipoDocumentoId, FechaVencimiento: null));

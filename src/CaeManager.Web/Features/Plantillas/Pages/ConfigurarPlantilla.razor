@@ -6,6 +6,7 @@
 @using CaeManager.Domain.Documentos
 @using CaeManager.Domain.Plantillas
 @using MediatR
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @inject IMediator Mediator
 @inject ToastService Toasts
 @inject IJSRuntime JSRuntime
@@ -284,12 +285,12 @@
                                 <div class="editor-plantilla-grupo-campo">
                                     <p class="editor-plantilla-texto-atenuado">Selecciona a quién se les genera el documento:</p>
                                     <div class="editor-plantilla-lista-trabajadores">
-                                        @foreach (var trabajador in _trabajadoresDisponibles)
+                                        @foreach (var trabajador in EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles))
                                         {
                                             <label class="editor-plantilla-casilla">
                                                 <input type="checkbox" checked="@_trabajadoresSeleccionadosLote.Contains(trabajador.Id)"
                                                        @onchange="e => AlternarTrabajadorLote(trabajador.Id, e.Value is bool b && b)" />
-                                                @trabajador.NombreCompleto (@trabajador.Dni)
+                                                @trabajador.Texto
                                             </label>
                                         }
                                     </div>
@@ -299,9 +300,9 @@
                             {
                                 <CampoSelect Etiqueta="Trabajador" Valor="@(_ownerIdGeneracion?.ToString() ?? "")" ValorChanged="v => _ownerIdGeneracion = Guid.TryParse(v, out var id) ? id : null">
                                     <option value="">— Selecciona —</option>
-                                    @foreach (var trabajador in _trabajadoresDisponibles)
+                                    @foreach (var trabajador in EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles))
                                     {
-                                        <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+                                        <option value="@trabajador.Id">@trabajador.Texto</option>
                                     }
                                 </CampoSelect>
                             }

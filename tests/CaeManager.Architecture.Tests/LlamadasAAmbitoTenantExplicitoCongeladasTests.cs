@@ -30,7 +30,7 @@ namespace CaeManager.Architecture.Tests;
 /// ¿qué construye el <c>Guid</c> que se pasa, un dato ya autorizado o algo que no lo
 /// está? Eso se lee una vez por fichero al añadir la entrada; contar líneas no
 /// aportaría nada que el motivo escrito no diga ya, y con 45 llamadas en 26 ficheros
-/// —varios de ellos con 2 o más, como <c>DelegacionDemoSeeder</c> con 9— sí añadiría
+/// —varios de ellos con 2 o más, como <c>DelegacionDemoSeeder</c> con 10— sí añadiría
 /// churn: cualquier <c>using</c> nuevo dentro de un fichero ya categorizado pondría
 /// esto en rojo sin que la propiedad vigilada hubiera cambiado.
 /// </para>
@@ -89,6 +89,16 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         /// línea que abre el ámbito.
         /// </summary>
         AdminPlataformaVerificadoPorConcesion,
+
+        /// <summary>
+        /// El TenantId es el tenant de ORIGEN del usuario de la sesión
+        /// (<c>ICurrentUserService.ObtenerTenantOrigenIdAsync</c>, que sale del
+        /// claim de su cuenta, no de la petición ni del workspace que tenga
+        /// abierto). Abrir el ámbito sobre la propia organización no cruza
+        /// ninguna frontera: devuelve al usuario a donde RLS ya le deja estar,
+        /// para leer allí su rol de sesión y escribir lo que es de su Operador CAE.
+        /// </summary>
+        TenantDeOrigenDelUsuario,
     }
 
     private sealed record EntradaBlanca(Categoria Categoria, string Motivo);
@@ -113,6 +123,23 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// llamada más en <c>DatosPruebaSeeder.cs</c> (de 1 a 2): siembra la
     /// instrucción de Nivel 0 solo para el tenant #1, mismo patrón
     /// <see cref="Categoria.BootstrapOSiembra"/> que ya tenía.
+    ///
+    /// <para>
+    /// Actualizado 2026-09-22 (solicitud de incorporación a cartera): tres
+    /// ficheros nuevos de Application. <c>ContextoOperadorCae.cs</c> (2 llamadas,
+    /// categoría nueva <see cref="Categoria.TenantDeOrigenDelUsuario"/>) y
+    /// Aceptar/Revocar (1 cada uno, sobre el Tenant propietario de una solicitud
+    /// ya cargada por el Operador CAE de origen).
+    /// </para>
+    ///
+    /// <para>
+    /// Actualizado 2026-09-23 (P11, marcador de elegibilidad de Operador CAE
+    /// externo): <c>DelegacionDemoSeeder.cs</c> pasa de 9 a 10 llamadas — el
+    /// reaprovisionamiento de un tenant existente que aún no tenía la
+    /// capacidad ahora la concede en su propio guardado (<c>Establecer</c>
+    /// sobre el mismo <c>tenantExistente.Id</c> que el alta nueva ya usaba),
+    /// mismo patrón <see cref="Categoria.BootstrapOSiembra"/> que ya tenía.
+    /// </para>
     ///
     /// <para>
     /// Actualizado 2026-09-18 (REC-212, auditoría de los 42 usos fuera de
@@ -180,6 +207,10 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.DelegacionOClienteYaValidado, "tenantOperador.Id, del Tenant recién creado por el propio comando tras la autorización global, en la misma transacción"),
         ["src/CaeManager.Application/Tenants/Commands/CrearTenantPropietarioDeOperadorCaeExterno/CrearTenantPropietarioDeOperadorCaeExternoCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "tenantPropietario.Id, del Tenant recién creado por el propio comando tras la autorización global (PuedeGlobalmenteAsync) y la validación del Operador, en la misma transacción"),
+        ["src/CaeManager.Application/Operaciones/IncorporacionCartera/Commands/AceptarSolicitudIncorporacionCarteraCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado, "solicitud.PropietarioTenantId, tras cargar la solicitud filtrada por el Operador CAE de origen y autorizar al Coordinador CAE por su rol en ese origen"),
+        ["src/CaeManager.Application/Operaciones/IncorporacionCartera/Commands/RevocarIncorporacionCarteraCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado, "solicitud.PropietarioTenantId, tras cargar la solicitud filtrada por el Operador CAE de origen y autorizar al Coordinador CAE o al propio Gestor CAE solicitante"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActividadSoporteQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, en OR con la vía del cliente visitado (ver UsosDeEsPlataformaCongeladosTests)"),
 
@@ -247,6 +278,11 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Cumplimiento/Queries/ObtenerHistoricoInstruccionTratamientoIaTenantPropietario/ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQuery.cs"] =
             new(Categoria.AdminPlataformaVerificadoPorConcesion,
                 "request.TenantPropietarioId, mismo criterio que Registrar — lectura cruzada, no solo escritura"),
+
+        // ── TENANT DE ORIGEN DEL USUARIO (Application) ──────────────────────────────
+        ["src/CaeManager.Application/Operaciones/IncorporacionCartera/ContextoOperadorCae.cs"] =
+            new(Categoria.TenantDeOrigenDelUsuario,
+                "2 llamadas — ObtenerTenantOrigenIdAsync() para leer el rol de sesión en la propia organización, y el OperadorTenantId que esa misma resolución guardó, para las escrituras del Operador CAE"),
     };
 
     private static readonly Regex LlamadaAEstablecer = new(
@@ -347,12 +383,13 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] = 3,
-            ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 9,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 10,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
+            ["src/CaeManager.Application/Operaciones/IncorporacionCartera/ContextoOperadorCae.cs"] = 2,
         };
 
         foreach (var fichero in conocidos)

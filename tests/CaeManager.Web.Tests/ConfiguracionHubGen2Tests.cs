@@ -3,6 +3,7 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Configuracion.Queries;
+using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Configuracion.Pages;
 using FluentAssertions;
@@ -38,7 +39,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class ConfiguracionHubGen2Tests : BunitContext
 {
-    public ConfiguracionHubGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public ConfiguracionHubGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+    }
 
     private static readonly IReadOnlyList<ClienteSelectorDto> ClientesEmpresariales =
     [
@@ -80,12 +85,18 @@ public class ConfiguracionHubGen2Tests : BunitContext
     {
         public List<object> Enviados { get; } = [];
 
+        /// <summary>Respuesta a <see cref="EsAdministradorPlataformaQuery"/>: si quien mira es Actor de Plataforma TALVEG.</summary>
+        public bool EsAdministradorPlataforma { get; init; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviados.Add(request);
-            return request is ObtenerClientesParaSelectorQuery
-                ? Task.FromResult((TResponse)(object)ClientesEmpresariales.ToList())
-                : new TaskCompletionSource<TResponse>().Task;
+            return request switch
+            {
+                ObtenerClientesParaSelectorQuery => Task.FromResult((TResponse)(object)ClientesEmpresariales.ToList()),
+                EsAdministradorPlataformaQuery => Task.FromResult((TResponse)(object)EsAdministradorPlataforma),
+                _ => new TaskCompletionSource<TResponse>().Task
+            };
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -108,18 +119,18 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- arnés
 
-    private MediadorDelHub Registrar()
+    private MediadorDelHub Registrar(bool esAdministradorPlataforma = false)
     {
-        var mediador = new MediadorDelHub();
+        var mediador = new MediadorDelHub { EsAdministradorPlataforma = esAdministradorPlataforma };
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddSingleton<ILogger<SeleccionarClienteLecturaIa>>(_ => NullLogger<SeleccionarClienteLecturaIa>.Instance);
         return mediador;
     }
 
-    private IRenderedComponent<Configuracion> RenderizarHub(string? entrada)
+    private IRenderedComponent<Configuracion> RenderizarHub(string? entrada, bool esAdministradorPlataforma = false)
     {
-        Registrar();
+        Registrar(esAdministradorPlataforma);
         return Render<Configuracion>(p => p.Add(x => x.EntradaRuta, entrada));
     }
 
@@ -314,6 +325,64 @@ public class ConfiguracionHubGen2Tests : BunitContext
         Render<Configuracion>();
 
         navegacion.Uri.Should().EndWith("/configuracion/plataforma");
+    }
+
+    // ---------------------------------------------------------------- orden del menú (plano de Plataforma)
+
+    private static List<(string Nombre, string Descripcion, string Ruta)> PlataformaYConexiones(IRenderedComponent<Configuracion> cut)
+    {
+        var titulo = Navegacion(cut).QuerySelectorAll("[id]").Single(e => e.TextContent.Trim() == "Plataforma y conexiones");
+        return Navegacion(cut).QuerySelector($"ul[aria-labelledby='{titulo.Id}']")!.QuerySelectorAll("li > a")
+            .Select(a => (a.QuerySelector(".nombre-entrada-subnav")!.TextContent.Trim(),
+                a.QuerySelector(".descripcion-entrada-subnav")!.TextContent.Trim(),
+                a.GetAttribute("href")!))
+            .ToList();
+    }
+
+    [Fact]
+    public void Un_Administrador_de_Tenant_no_ve_la_entrada_Orden_del_menu()
+    {
+        var cut = RenderizarHub("plataforma", esAdministradorPlataforma: false);
+
+        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(14);
+        PlataformaYConexiones(cut).Select(e => e.Ruta).Should().NotContain("/configuracion/orden-menu",
+            "un Administrador de Tenant no ordena el menú global: la entrada ni existe para él");
+    }
+
+    [Fact]
+    public void El_Actor_de_Plataforma_TALVEG_ve_la_entrada_Orden_del_menu_al_final_de_Plataforma_y_conexiones()
+    {
+        var cut = RenderizarHub("plataforma", esAdministradorPlataforma: true);
+
+        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(15);
+        PlataformaYConexiones(cut).Last().Should().Be(
+            ("Orden del menú", "Solo Actor de Plataforma TALVEG", "/configuracion/orden-menu"));
+    }
+
+    [Fact]
+    public void Un_Administrador_de_Tenant_no_llega_al_orden_del_menu_por_el_parametro_entry()
+    {
+        Registrar(esAdministradorPlataforma: false);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo("configuracion?entry=orden-menu");
+
+        var cut = Render<Configuracion>();
+
+        navegacion.Uri.Should().NotEndWith("/configuracion/orden-menu",
+            "sin la entrada, «orden-menu» es un id desconocido y cae en la entrada por defecto");
+        Navegacion(cut).QuerySelector("[aria-current=page]")!.GetAttribute("href").Should().Be("/configuracion/params");
+    }
+
+    [Fact]
+    public void Al_Actor_de_Plataforma_el_parametro_entry_le_lleva_a_la_ruta_literal_del_orden_del_menu()
+    {
+        Registrar(esAdministradorPlataforma: true);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo("configuracion?entry=orden-menu");
+
+        Render<Configuracion>();
+
+        navegacion.Uri.Should().EndWith("/configuracion/orden-menu");
     }
 
     [Fact]

@@ -153,10 +153,8 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
         ("creados", "Creados")
     ];
 
-    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => _trabajadoresDisponibles
-        .Select(t => new OpcionBuscable(
-            t.Id.ToString(),
-            string.IsNullOrWhiteSpace(t.Alias) ? $"{t.NombreCompleto} ({t.Dni})" : $"{t.NombreCompleto} — {t.Alias} ({t.Dni})"))
+    private IReadOnlyList<OpcionBuscable> OpcionesTrabajadores => EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles, aliasSiempre: true)
+        .Select(e => new OpcionBuscable(e.Id.ToString(), e.Texto))
         .ToList();
 
     private int TotalCreados => _totalCreados;
@@ -186,7 +184,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
             () => CurrentUserService.ObtenerRolActualAsync()) == Roles.Consulta;
         var carga = ++_cargaVigente;
         var token = _ciclo.Token;
-        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(), token);
+        var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), token);
         if (!EsVigente(carga)) return;
         var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador), token);
         if (!EsVigente(carga)) return;

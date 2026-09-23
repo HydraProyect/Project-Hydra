@@ -44,7 +44,14 @@ namespace CaeManager.Web.Tests;
 public class ReportesGen2Tests : BunitContext
 {
     /// <summary><see cref="TextoFechaCopiable"/> importa clipboard.js al pintarse.</summary>
-    public ReportesGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public ReportesGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+        // Los disparadores de escritura van en SoloConEscritura (AuthorizeView): por
+        // defecto un rol que escribe; los tests de Consulta lo sustituyen.
+        this.ConRolDeEscritura();
+    }
 
     private static readonly Guid ClienteA = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
     private static readonly Guid ClienteB = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002");
@@ -517,6 +524,20 @@ public class ReportesGen2Tests : BunitContext
     }
 
     [Fact]
+    public async Task Consulta_genera_y_descarga_el_informe_sin_que_se_le_ofrezca_enviarlo_por_comunicaciones()
+    {
+        // Enviar abre el redactor, que manda EnviarMensajeNuevoCommand: ICommand que
+        // AutorizacionEscrituraBehavior deniega a Consulta. Generar y descargar son lectura.
+        this.ConRolDeEscritura(Roles.Consulta);
+        var (cut, _) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteA}");
+
+        await Generar(cut);
+
+        Descargas(cut).Should().HaveCount(2, "las descargas son lectura: se ofrecen");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Enviar por Comunicaciones…");
+    }
+
+    [Fact]
     public async Task Cambiar_de_cliente_tras_generar_retira_la_hoja_y_sus_descargas_y_lo_escribe_en_la_url()
     {
         var (cut, _) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteA}");
@@ -693,6 +714,27 @@ public class ReportesGen2Tests : BunitContext
         cut.FindAll(".tabla-hoja-informe").Should().BeEmpty();
         Texto(cut.Find(".vacio-hoja-informe")).Should().Be("Ningún documento vencido ni urgente con estos filtros.");
         cut.FindAll(".metadato-hoja-informe").Select(Texto).Last().Should().EndWith("· 0 documentos");
+    }
+
+    /// <summary>
+    /// Con exactamente una fila, la cabecera usa el singular de su recurso
+    /// (<c>ConteoDocumentosUno</c>, <c>ConteoAsignacionesActivasUno</c>); los
+    /// demás tests solo ven el plural. El cliente empresarial B tiene una sola fila
+    /// de vigencia (Laura Ortiz) y una sola asignación.
+    /// </summary>
+    [Fact]
+    public async Task Con_una_sola_fila_la_cabecera_cuenta_en_singular()
+    {
+        var (cut, _) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteB}");
+
+        await Generar(cut);
+        cut.FindAll(".metadato-hoja-informe").Select(Texto).Last()
+            .Should().Be($"Abarca: {NombreB} · todo el cliente · incluye los vigentes · 1 documento");
+
+        await ElegirInforme(cut, "Asignaciones activas");
+        await Generar(cut);
+        cut.FindAll(".metadato-hoja-informe").Select(Texto).Last()
+            .Should().Be($"Abarca: {NombreB} · todo el cliente · 1 asignación activa");
     }
 
     // ---------------------------------------------------------------- historial

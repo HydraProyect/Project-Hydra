@@ -1,3 +1,4 @@
+using CaeManager.Infrastructure.Identity;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
@@ -117,6 +118,20 @@ public class VehiculosConcurrenciaTests : BunitContext
 
     private static DialogoConfirmacion DialogoEliminarLote(IRenderedComponent<Vehiculos> cut) =>
         cut.FindComponents<DialogoConfirmacion>().Single(x => x.Instance.Titulo.Contains("vehículo(s)?")).Instance;
+
+    [Fact]
+    public void Consulta_ve_la_lista_sin_seleccion_multiple_porque_el_lote_solo_elimina()
+    {
+        // La selección solo alimenta «Eliminar seleccionados» (EliminarVehiculosCommand, ICommand
+        // que AutorizacionEscrituraBehavior deniega a Consulta): sin eso, no se ofrece el modo.
+        this.ConRolDeEscritura(Roles.Consulta);
+        var (cut, _) = Renderizar(Vehiculo("Furgoneta de obra"));
+
+        cut.Markup.Should().Contain("Furgoneta de obra", "la lista es lectura: la fila se ve");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Selección múltiple");
+        cut.FindAll(".barra-herramientas-lista").Should().BeEmpty("la barra solo llevaba ese botón");
+        cut.FindAll("input[type=checkbox]").Should().BeEmpty();
+    }
 
     [Fact]
     public async Task Dos_invocaciones_del_OnConfirmar_del_dialogo_individual_mandan_un_solo_borrado()

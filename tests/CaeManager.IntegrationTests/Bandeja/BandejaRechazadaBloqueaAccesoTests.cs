@@ -33,9 +33,9 @@ namespace CaeManager.IntegrationTests.Bandeja;
 /// cola, pero el grupo no puede decir que el Centro está cerrado.
 ///
 /// <para>
-/// Mi trabajo agregada (/mi-trabajo) no entra: clasifica por severidad con
-/// <c>ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo</c> y no pinta el
-/// «bloquea acceso» del grupo, así que no calcula el marcado.
+/// Mi trabajo agregada (/mi-trabajo) aplica el mismo marcado por Tenant
+/// propietario; su prueba bajo RLS está en
+/// <c>MiTrabajoRechazadaAplicableBajoRlsTests</c>.
 /// </para>
 /// </summary>
 public class BandejaRechazadaBloqueaAccesoTests : IAsyncLifetime

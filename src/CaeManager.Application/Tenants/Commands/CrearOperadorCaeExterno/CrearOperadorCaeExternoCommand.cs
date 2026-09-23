@@ -94,6 +94,7 @@ public class CrearOperadorCaeExternoCommandHandler(
         // Empresas gestionadas, no "Mi empresa" singular) — DDL-072, capa de
         // presentación pura, declarado aquí explícitamente y nunca inferido.
         var tenantOperador = new Tenant(nombreNormalizado, PerfilVocabularioTenant.Consultora);
+        tenantOperador.HabilitarComoOperadorCaeExterno();
 
         // Ámbito explícito contra su PROPIO Id — mismo mecanismo que
         // CrearClienteDeleganteCommand y DelegacionDemoSeeder.AprovisionarTenantClienteAsync

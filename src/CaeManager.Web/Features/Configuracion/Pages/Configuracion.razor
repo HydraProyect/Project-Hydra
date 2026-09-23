@@ -2,6 +2,9 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @using CaeManager.Web.Features.Configuracion.Components
+@using CaeManager.Web.Features.Configuracion.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosConfiguracion> Textos
 
 <PageTitle>@TituloDocumento — @Marca.Nombre</PageTitle>
 
@@ -12,7 +15,7 @@
 }
 
 <div class="contenedor-pagina configuracion-pagina">
-    <CabeceraPagina Kicker="Sistema" Titulo="Configuración" />
+    <CabeceraPagina Kicker="@Textos["HubKicker"]" Titulo="@Textos["HubTitulo"]" />
 
     <div class="hub-configuracion">
         @* Patrón WAI-ARIA de navegación, no de pestañas: cada entrada es un
@@ -21,7 +24,7 @@
            teclado es el nativo de los enlaces: Tab entre entradas, Intro para
            abrir. Cada grupo es una lista nombrada por su título, para que el
            lector de pantalla anuncie «Catálogos y datos, lista, 5 elementos». *@
-        <nav class="subnav-configuracion" aria-label="Secciones de configuración">
+        <nav class="subnav-configuracion" aria-label="@Textos["AriaSeccionesHub"]">
             @for (var indice = 0; indice < Grupos.Count; indice++)
             {
                 var grupo = Grupos[indice];
@@ -53,7 +56,7 @@
 
         <div class="contenido-configuracion">
             <p class="migas-configuracion">
-                Configuración <span class="separador-migas" aria-hidden="true">→</span>
+                @Textos["HubTitulo"] <span class="separador-migas" aria-hidden="true">→</span>
                 @GrupoDe(actual.Id) <span class="separador-migas" aria-hidden="true">→</span>
                 <span class="miga-actual">@actual.Nombre</span>
             </p>
@@ -82,9 +85,9 @@
                    enlace, no una «pantalla pendiente» que sí existe. *@
                 <EstadoVacio Titulo="@actual.Nombre"
                              NombreIcono="configuracion"
-                             Descripcion="Esta sección tiene pantalla propia, fuera del hub de Configuración.">
+                             Descripcion="@Textos["SalidaPropiaDescripcion"]">
                     <Accion>
-                        <a href="@RutaDe(actual.Id)">Ir a @actual.Nombre</a>
+                        <a href="@RutaDe(actual.Id)">@Textos["EnlaceIrAEntrada", actual.Nombre]</a>
                     </Accion>
                 </EstadoVacio>
             }
@@ -93,6 +96,6 @@
 </div>
 
 @code {
-    private static string GrupoDe(string entradaId) =>
+    private string GrupoDe(string entradaId) =>
         Grupos.First(g => g.Entradas.Any(e => e.Id == entradaId)).Titulo;
 }

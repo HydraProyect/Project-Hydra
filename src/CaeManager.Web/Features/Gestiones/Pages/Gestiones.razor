@@ -204,12 +204,16 @@
             </div>
         </div>
 
-        <div class="pie-vista-rapida-gestion">
-            <Boton Cargando="_cambiandoEstado.Contains(vista.Id)" OnClick="() => CambiarEstadoAsync(vista.Id, vista.Estado != EstadoGestion.Completada)">
-                @(vista.Estado == EstadoGestion.Completada ? Textos["BotonReabrirGestion"] : Textos["AccionMarcarCompletada"])
-            </Boton>
-            <Boton Variante="VarianteBoton.Destructivo" Deshabilitado="_cambiandoEstado.Contains(vista.Id)" OnClick="() => AbrirEliminar(vista.Id)">@Textos["AccionEliminar"]</Boton>
-        </div>
+        @* Completar, reabrir y eliminar son ICommand: AutorizacionEscrituraBehavior los deniega
+           a Consulta, así que no se le ofrecen (el menú de la fila ya iba envuelto). *@
+        <SoloConEscritura>
+            <div class="pie-vista-rapida-gestion">
+                <Boton Cargando="_cambiandoEstado.Contains(vista.Id)" OnClick="() => CambiarEstadoAsync(vista.Id, vista.Estado != EstadoGestion.Completada)">
+                    @(vista.Estado == EstadoGestion.Completada ? Textos["BotonReabrirGestion"] : Textos["AccionMarcarCompletada"])
+                </Boton>
+                <Boton Variante="VarianteBoton.Destructivo" Deshabilitado="_cambiandoEstado.Contains(vista.Id)" OnClick="() => AbrirEliminar(vista.Id)">@Textos["AccionEliminar"]</Boton>
+            </div>
+        </SoloConEscritura>
     </aside>
 }
 

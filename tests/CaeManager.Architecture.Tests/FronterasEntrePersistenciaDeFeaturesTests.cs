@@ -563,6 +563,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IEmpresasQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "ISubcontratasQueryContext"),
         ("Trabajadores.ObtenerTrabajadorPorIdQueryHandler", "IEmpresasQueryContext"),
+        // P4 (2026-09-23): sin DNI, la etiqueta del selector desempata homónimos por el empleador
+        // (razón social de su Empresa o Subcontrata), proyectado con LEFT JOIN en la misma consulta.
+        ("Trabajadores.ObtenerTrabajadoresParaSelectorQueryHandler", "IEmpresasQueryContext"),
         ("Trabajadores.ObtenerTrabajadorPorIdQueryHandler", "ISubcontratasQueryContext"),
         ("Vehiculos.CrearVehiculoCommandHandler", "IEmpresasQueryContext"),
         ("Vehiculos.CrearVehiculoCommandHandler", "ISubcontratasQueryContext"),
@@ -683,6 +686,18 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "IEmpresasQueryContext"),
         ("Trabajadores.ResolverDeteccionAusenteCommandHandler", "IAsignacionRepository"),
         ("Visitas.ObtenerVisitasParaCalendarioQueryHandler", "IEmpresasQueryContext"),
+
+        // Solicitud de incorporación a cartera (2026-09-22): el Coordinador CAE
+        // y el Gestor CAE ven el Tenant propietario rotulado «Empresa» por su
+        // nombre (ITenantsQueryContext), y la resolución avisa al Gestor CAE
+        // con la misma NotificacionUsuario que ya usa ReasignarEjecutivoCliente.
+        ("Operaciones.AceptarSolicitudIncorporacionCarteraCommandHandler", "INotificacionUsuarioRepository"),
+        ("Operaciones.AceptarSolicitudIncorporacionCarteraCommandHandler", "ITenantsQueryContext"),
+        ("Operaciones.ObtenerSolicitudesIncorporacionCarteraQueryHandler", "ITenantsQueryContext"),
+        ("Operaciones.RechazarSolicitudIncorporacionCarteraCommandHandler", "INotificacionUsuarioRepository"),
+        ("Operaciones.RechazarSolicitudIncorporacionCarteraCommandHandler", "ITenantsQueryContext"),
+        ("Operaciones.RevocarIncorporacionCarteraCommandHandler", "INotificacionUsuarioRepository"),
+        ("Operaciones.RevocarIncorporacionCarteraCommandHandler", "ITenantsQueryContext"),
     };
 
     [Fact]

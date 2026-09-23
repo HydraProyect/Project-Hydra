@@ -226,7 +226,7 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
             new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto,
             contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
             new DerivarCanalesAplicablesDocumentoService(contexto, contexto, contexto),
-            new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso());
+            new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso(), new AlcanceDatosServiceFalso());
 
     private CaeManagerDbContext CrearContexto()
     {

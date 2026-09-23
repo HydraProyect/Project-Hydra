@@ -1,5 +1,6 @@
 using System.Globalization;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Bandeja.Recursos;
 using MediatR;
@@ -20,11 +21,21 @@ public partial class MiTrabajo : ComponentBase, IDisposable
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
+    [Inject] private ILogger<MiTrabajo> Logger { get; set; } = default!;
 
     private MiTrabajoVista? _vista;
     private AntiforgeryRequestToken? _token;
     private bool _cargando = true;
     private bool _errorCarga;
+
+    /// <summary>
+    /// «Añadir a mi cartera» (contrato Gen2 § 13): solo si la Query de candidatos
+    /// devuelve al menos una Empresa. Si falla —<c>SolicitudCartera.SinPermiso</c>
+    /// cuando quien mira no es Gestor CAE en su organización— el botón no aparece,
+    /// sin mensaje: no es un error de la pantalla, es que la acción no le toca.
+    /// </summary>
+    private bool _puedeAnadirACartera;
+    private bool _dialogoCarteraVisible;
 
     private SeveridadMiTrabajo? _severidad;
     private Guid? _tenantFiltro;
@@ -94,11 +105,35 @@ public partial class MiTrabajo : ComponentBase, IDisposable
         }
     }
 
-    protected override Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync()
     {
         _token = AntiforgeryStateProvider.GetAntiforgeryToken();
-        return CargarAsync();
+        // En serie, no en paralelo: las dos Queries comparten el ámbito del circuito.
+        await CargarAsync();
+        await CargarCandidatosCarteraAsync();
     }
+
+    private async Task CargarCandidatosCarteraAsync()
+    {
+        if (_desechado) return;
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerCandidatosIncorporacionCarteraQuery(), _ciclo.Token);
+            if (_desechado) return;
+            _puedeAnadirACartera = resultado.EsExitoso && resultado.Valor.Count > 0;
+        }
+        catch (Exception) when (_desechado)
+        {
+        }
+        catch (Exception ex)
+        {
+            // Un botón secundario no tumba la cola: se esconde y queda registrado.
+            Logger.LogWarning(ex, "Mi trabajo no pudo consultar los candidatos de incorporación a cartera.");
+            _puedeAnadirACartera = false;
+        }
+    }
+
+    private void AbrirDialogoCartera() => _dialogoCarteraVisible = true;
 
     private async Task CargarAsync()
     {

@@ -17,17 +17,17 @@
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
 
-<PageTitle>Subcontratas — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
     @* Cabecera Gen 2 (Subcontratas TALVEG.dc.html): el kicker es el grupo del
        menú al que pertenece la pantalla, y el alta sube a la cabecera junto a
        Exportar — antes vivía en la barra de trabajo, mezclada con los
        controles que actúan sobre la lista. *@
-    <CabeceraPagina Titulo="Subcontratas" Kicker="Negocio">
+    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["KickerNegocio"]">
         <Acciones>
-            <a class="enlace-exportar" href="/subcontratas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-            <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva subcontrata</Boton></SoloConEscritura>
+            <a class="enlace-exportar" href="/subcontratas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceExportarExcel"]</a>
+            <SoloConEscritura><Boton OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
@@ -36,7 +36,7 @@
        Pintarlo sin el parámetro sería un control que no filtra nada, así que
        no se dibuja hasta que exista. *@
     <div class="barra-trabajo-centros">
-        <CampoTexto Placeholder="Buscar por razón social o CIF…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
     </div>
 
     @* Mismo bloque que Empresas: lo que está filtrando se ve y se quita. Aquí
@@ -47,8 +47,8 @@
         <div class="chips-filtros">
             <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
             <span class="chip-filtro">
-                Búsqueda: "@_busqueda"
-                <button type="button" class="chip-filtro-quitar" @onclick="LimpiarFiltrosAsync" aria-label="Quitar la búsqueda"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                @Textos["ChipBusqueda", _busqueda]
+                <button type="button" class="chip-filtro-quitar" @onclick="LimpiarFiltrosAsync" aria-label="@Textos["BotonQuitarBusqueda"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
             </span>
         </div>
     }
@@ -57,9 +57,9 @@
 
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="No pudimos cargar las subcontratas" Descripcion="Intenta nuevamente en unos segundos.">
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
             <Accion>
-                <Boton OnClick="() => CargarAsync()">Reintentar</Boton>
+                <Boton OnClick="() => CargarAsync()">@Comunes["Reintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -78,18 +78,18 @@
            así que la pantalla no sabe cuántos hay sin filtro. El mockup dice
            «Hay subcontratas dadas de alta, pero ninguna coincide» — esa frase
            no se copia porque esta pantalla no puede saberla. *@
-        <EstadoVacio NombreIcono="vacio" Titulo="Ninguna subcontrata con esta búsqueda"
-                     Descripcion="Ninguna coincide con el texto buscado.">
+        <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioBusquedaTitulo"]"
+                     Descripcion="@Textos["VacioBusquedaDescripcion"]">
             <Accion>
-                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar la búsqueda</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["BotonQuitarBusqueda"]</Boton>
             </Accion>
         </EstadoVacio>
     }
     else if (_elementosPagina.Count == 0)
     {
-        <EstadoVacio NombreIcono="subcontratas" Titulo="Aún no hay subcontratas" Descripcion="Crea la primera para poder dar de alta a sus trabajadores.">
+        <EstadoVacio NombreIcono="subcontratas" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
             <Accion>
-                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva subcontrata</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
             </Accion>
         </EstadoVacio>
     }
@@ -117,10 +117,10 @@
                es una decisión de producto, no de maquetación. *@
             <label class="campo-checkbox">
                 <input type="checkbox" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
-                Seleccionar los de esta página
+                @Textos["SeleccionarLosDeEstaPagina"]
                 @if (_totalElementos > _elementosPagina.Count)
                 {
-                    <span class="texto-vacio-seccion">@($" — hay {_totalElementos} en total con estos filtros")</span>
+                    <span class="texto-vacio-seccion">@Textos["SeleccionHayMasEnTotal", _totalElementos]</span>
                 }
             </label>
         }
@@ -135,11 +135,11 @@
                 <span></span>
             }
             <span></span>
-            <span>Razón social</span>
-            <span>Nivel de servicio</span>
-            <span>Cumplimiento</span>
-            <span>Vencidos</span>
-            <span>Próximos</span>
+            <span>@Textos["RotuloRazonSocial"]</span>
+            <span>@Textos["RotuloNivelServicio"]</span>
+            <span>@Textos["RotuloCumplimiento"]</span>
+            <span>@Textos["ColumnaVencidos"]</span>
+            <span>@Textos["ColumnaProximos"]</span>
             <span></span>
         </div>
 
@@ -154,11 +154,11 @@
                     <div class="@ClaseRejilla("tarjeta-fila-acordeon-cabecera")">
                         @if (_seleccionMultiple)
                         {
-                            <input type="checkbox" aria-label="@($"Seleccionar la empresa {subcontrata.RazonSocial}")" checked="@_seleccionados.Contains(subcontrata.Id)" @onchange="e => AlternarSeleccion(subcontrata.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@Textos["AriaSeleccionarSubcontrata", subcontrata.RazonSocial]" checked="@_seleccionados.Contains(subcontrata.Id)" @onchange="e => AlternarSeleccion(subcontrata.Id, (bool)e.Value!)" />
                         }
                         <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                 aria-expanded="@(expandido ? "true" : "false")"
-                                aria-label="@($"Trabajadores de {subcontrata.RazonSocial}")"
+                                aria-label="@Textos["AriaTrabajadoresDe", subcontrata.RazonSocial]"
                                 @onclick="() => AlternarExpansion(subcontrata.Id)">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
@@ -166,12 +166,12 @@
                             <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirPreview(subcontrata.Id)">
                                 @subcontrata.RazonSocial
                             </button>
-                            <span class="tarjeta-fila-acordeon-meta">@(string.IsNullOrEmpty(subcontrata.Cif) ? "Sin CIF" : subcontrata.Cif)</span>
+                            <span class="tarjeta-fila-acordeon-meta">@(string.IsNullOrEmpty(subcontrata.Cif) ? Textos["SinCif"] : subcontrata.Cif)</span>
                         </span>
                         <span>
                             <Badge Tono="EstadoSupervisionUi.TonoNivel(subcontrata.NivelServicio)" Tamano="TamanoBadge.Pequeno"
                                    title="@DescribirNivel(subcontrata.NivelServicio)">
-                                @EstadoSupervisionUi.TextoNivel(subcontrata.NivelServicio)
+                                @EstadoSupervisionUi.TextoNivel(Textos, subcontrata.NivelServicio)
                             </Badge>
                         </span>
                         <span>
@@ -181,11 +181,11 @@
                         <span class="celda-recuento-subcontrata">
                             @if (subcontrata.Recuentos.TotalVencidas > 0)
                             {
-                                <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Vencidas, "vencido")"
-                                                 Titulo="@($"{subcontrata.Recuentos.TotalVencidas} {(subcontrata.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
+                                <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Vencidas.Count, "RecuentoDocumentosVencidosUno", "RecuentoDocumentosVencidosVarios")"
+                                                 Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalVencidas, "RecuentoDocumentosVencidosUno", "RecuentoDocumentosVencidosVarios")">
                                     <Disparador>
                                         <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">
-                                            @TextoRecuento(subcontrata.Recuentos.TotalVencidas, "vencido", "vencidos")
+                                            @DescribirRecuento(subcontrata.Recuentos.TotalVencidas, "BadgeVencidosUno", "BadgeVencidosVarios")
                                         </Badge>
                                     </Disparador>
                                     <Detalle>
@@ -204,11 +204,11 @@
                         <span class="celda-recuento-subcontrata">
                             @if (subcontrata.Recuentos.TotalProximas > 0)
                             {
-                                <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Proximas, "próximo a vencer")"
-                                                 Titulo="@($"{subcontrata.Recuentos.TotalProximas} {(subcontrata.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
+                                <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Proximas.Count, "RecuentoDocumentosProximosUno", "AriaRecuentoDocumentosProximosVarios")"
+                                                 Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalProximas, "RecuentoDocumentosProximosUno", "RecuentoDocumentosProximosVarios")">
                                     <Disparador>
                                         <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">
-                                            @TextoRecuento(subcontrata.Recuentos.TotalProximas, "próximo", "próximos")
+                                            @DescribirRecuento(subcontrata.Recuentos.TotalProximas, "BadgeProximosUno", "BadgeProximosVarios")
                                         </Badge>
                                     </Disparador>
                                     <Detalle>
@@ -221,7 +221,7 @@
                             }
                             else if (subcontrata.Recuentos.TotalVencidas == 0)
                             {
-                                <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">Al corriente</Badge>
+                                <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">@Textos["BadgeAlCorriente"]</Badge>
                             }
                         </span>
                         @* Acciones tras "⋯", mismo criterio que Empresas. "Detalles"
@@ -231,13 +231,13 @@
                         <div class="tarjeta-fila-acordeon-acciones">
                             <MenuAcciones>
                                 <ItemMenuAccion OnClick="() => AbrirPreview(subcontrata.Id)">
-                                    Detalles
+                                    @Textos["MenuDetalles"]
                                 </ItemMenuAccion>
                                 <ItemMenuAccion OnClick='() => AbrirDesdePreviewAsync((subcontrata.Id, "informacion"))'>
-                                    Abrir Subcontrata 360
+                                    @Textos["MenuAbrirSubcontrata360"]
                                 </ItemMenuAccion>
                                 <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(subcontrata.Id, subcontrata.RazonSocial)">
-                                    Eliminar
+                                    @Textos["MenuEliminar"]
                                 </ItemMenuAccion></SoloConEscritura>
                             </MenuAcciones>
                         </div>
@@ -253,49 +253,49 @@
         </div>
 
         <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                          Etiqueta="subcontrata(s)" PaginaActualChanged="CambiarPaginaAsync"
+                          Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
                           TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
     }
 </div>
 
-<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="Nueva subcontrata" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["TituloDrawerNueva"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
         }
 
-        <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" OnBlur="ValidarRazonSocialAsync" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.RazonSocial))" />
-        <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cif" ValorChanged="v => _cif = v" OnBlur="ValidarCifAsync" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.Cif))" />
+        <CampoTexto Etiqueta="@Textos["RotuloRazonSocial"]" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" OnBlur="ValidarRazonSocialAsync" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.RazonSocial))" />
+        <CampoTexto Etiqueta="@Textos["RotuloIdentificacionFiscal"]" Placeholder="@Textos["PlaceholderIdentificacionFiscal"]" Valor="@_cif" ValorChanged="v => _cif = v" OnBlur="ValidarCifAsync" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.Cif))" />
 
-        <SelectorMultiple Etiqueta="Clientes que la contrataron"
+        <SelectorMultiple Etiqueta="@Textos["EtiquetaClientesQueLaContrataron"]"
                            Elementos="@_clientesDisponiblesSelector"
                            Seleccionados="@_clienteIdsSeleccionados"
                            OnAlternar="args => AlternarCliente(args.Id, args.Marcado)"
-                           TextoVacio="Todavía no hay clientes creados." />
+                           TextoVacio="@Textos["VacioClientesSelector"]" />
 
         @if (_resolverEmpresaEnSilencio)
         {
             @* DDL-076: perfil Cliente Directo con una única Empresa — sin
                selector, pedirle que confirme que él es él en una lista de
                un solo elemento no aporta nada. *@
-            <CampoInfo Etiqueta="Empresa a la que presta servicio" Valor="@_empresasDisponibles[0].RazonSocial" />
+            <CampoInfo Etiqueta="@Textos["EtiquetaEmpresaPrestaServicio"]" Valor="@_empresasDisponibles[0].RazonSocial" />
         }
         else
         {
-            <SelectorMultiple Etiqueta="Empresas a las que presta servicio"
+            <SelectorMultiple Etiqueta="@Textos["EtiquetaEmpresasPrestaServicio"]"
                                Elementos="@_empresasDisponiblesSelector"
                                Seleccionados="@_empresaIdsSeleccionados"
                                OnAlternar="args => AlternarEmpresa(args.Id, args.Marcado)"
-                               TextoVacio="Todavía no hay empresas creadas." />
+                               TextoVacio="@Textos["VacioEmpresasSelector"]" />
         }
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
-            Cancelar
+            @Textos["BotonCancelar"]
         </Boton>
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
-            Guardar
+            @Textos["BotonGuardar"]
         </Boton>
     </Pie>
 </Drawer>
@@ -303,19 +303,24 @@
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@($"¿Eliminar a {_razonSocialAEliminar}?")"
-    Mensaje="Se ocultará de las listas activas."
+    Titulo="@Textos["ConfirmarEliminarTitulo", _razonSocialAEliminar]"
+    Mensaje="@Textos["ConfirmarEliminarMensaje"]"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
-<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+@* EliminarSubcontratasCommand es ICommand, denegado a Consulta. «Selección múltiple» sigue
+   visible: vive en BarraHerramientasLista junto a «Expandir todos» y el conteo, que sí son
+   lectura, y ocultarlo solo a él exigiría tocar el componente compartido. *@
+<SoloConEscritura>
+    <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+</SoloConEscritura>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"
     VisibleChanged="v => _confirmarEliminarLoteVisible = v"
-    Titulo="@($"¿Eliminar {_seleccionados.Count} subcontrata(s)?")"
-    Mensaje="Se ocultarán de las listas activas."
+    Titulo="@Textos["ConfirmarEliminarLoteTitulo", _seleccionados.Count]"
+    Mensaje="@Textos["ConfirmarEliminarLoteMensaje"]"
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 

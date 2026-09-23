@@ -16,23 +16,26 @@
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
 @using CaeManager.Web.Components.Workspace
+@using CaeManager.Web.Features.Incidencias.Recursos
+@using Microsoft.Extensions.Localization
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ContextWorkspaceService WorkspaceService
+@inject IStringLocalizer<TextosIncidencias> Textos
 
-<PageTitle>Incidencias — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <CabeceraPagina Titulo="Incidencias" Kicker="Operación">
+    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["KickerOperacion"]">
         <Acciones>
-            <a class="enlace-exportar" href="/incidencias/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nueva incidencia</Boton></SoloConEscritura>
+            <a class="enlace-exportar" href="/incidencias/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceExportarExcel"]</a>
+            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevaIncidencia"]</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
     <div class="barra-filtros">
-        <CampoTexto Placeholder="Buscar por centro, trabajador o descripción…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <FiltroEstado Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstado" TextoTodos="Todas" />
+        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <FiltroEstado Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstado" TextoTodos="@Textos["OpcionTodas"]" />
     </div>
 
     @* El valor del filtro de estado vive dentro de un desplegable cerrado: sin
@@ -44,7 +47,7 @@
             <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
             <span class="chip-filtro">
                 @EtiquetaFiltroEstado
-                <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="Quitar el filtro de estado"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="@Textos["AriaQuitarFiltroEstado"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
             </span>
         </div>
     }
@@ -55,9 +58,9 @@
     {
         <div role="alert">
             <EstadoVacio NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)"
-                         Titulo="No pudimos cargar las incidencias" Descripcion="Intenta nuevamente en unos segundos.">
+                         Titulo="@Textos["ErrorCargaListaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
                 <Accion>
-                    <Boton OnClick="ReintentarAsync">Reintentar</Boton>
+                    <Boton OnClick="ReintentarAsync">@Textos["BotonReintentar"]</Boton>
                 </Accion>
             </EstadoVacio>
         </div>
@@ -73,7 +76,7 @@
                 @if (_elementosPagina.Count > 0)
                 {
                     <span class="atajos-incidencias">
-                        Atajos: <kbd>j</kbd> / <kbd>k</kbd> mover · <kbd>x</kbd> marcar · <kbd>Enter</kbd> abrir el centro
+                        @Textos["AtajosEtiqueta"] <kbd>j</kbd> / <kbd>k</kbd> @Textos["AtajoMover"] · <kbd>x</kbd> @Textos["AtajoMarcar"] · <kbd>@Textos["TeclaEnter"]</kbd> @Textos["AtajoAbrirCentro"]
                     </span>
                 }
             </Extra>
@@ -90,19 +93,19 @@
                 {
                     <TemplateColumn Title="" Align="Align.Center">
                         <HeaderTemplate Context="columna">
-                            <input type="checkbox" aria-label="Seleccionar la página" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
                         </HeaderTemplate>
                         <ChildContent>
-                            <input type="checkbox" aria-label="@($"Seleccionar la incidencia de {context.CentroNombre} del {context.FechaOcurrencia:dd/MM/yyyy}")" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@(Textos["AriaSeleccionarIncidencia", context.CentroNombre, context.FechaOcurrencia.ToString("dd/MM/yyyy")])" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <TemplateColumn Title="Centro" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.CentroNombre))">
+                <TemplateColumn Title="@Textos["EtiquetaCentro"]" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.CentroNombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
                         @context.CentroNombre
                     </button>
                 </TemplateColumn>
-                <TemplateColumn Title="Trabajador" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.TrabajadorNombre))">
+                <TemplateColumn Title="@Textos["EtiquetaTrabajador"]" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.TrabajadorNombre))">
                     @if (context.TrabajadorId is null)
                     {
                         @:—
@@ -114,33 +117,33 @@
                         </button>
                     }
                 </TemplateColumn>
-                <TemplateColumn Title="Tipo" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.Tipo))">@ObtenerEtiquetaTipo(context.Tipo)</TemplateColumn>
-                <TemplateColumn Title="Gravedad" Align="Align.Center" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.Gravedad))">
+                <TemplateColumn Title="@Textos["EtiquetaTipo"]" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.Tipo))">@ObtenerEtiquetaTipo(context.Tipo)</TemplateColumn>
+                <TemplateColumn Title="@Textos["EtiquetaGravedad"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.Gravedad))">
                     <Badge Tono="@GravedadTono(context.Gravedad)">@ObtenerEtiquetaGravedad(context.Gravedad)</Badge>
                 </TemplateColumn>
-                <TemplateColumn Title="Fecha" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.FechaOcurrencia))">@context.FechaOcurrencia.ToString("dd/MM/yyyy")</TemplateColumn>
-                <TemplateColumn Title="Estado" Align="Align.Center" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.Resuelta))">
+                <TemplateColumn Title="@Textos["ColumnaFecha"]" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.FechaOcurrencia))">@context.FechaOcurrencia.ToString("dd/MM/yyyy")</TemplateColumn>
+                <TemplateColumn Title="@Textos["EtiquetaEstado"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<IncidenciaListaDto>.ByAscending(i => i.Resuelta))">
                     <Badge Tono="@(context.Resuelta ? TonoBadge.Exito : TonoBadge.Advertencia)">
-                        @(context.Resuelta ? "Resuelta" : "Sin resolver")
+                        @(context.Resuelta ? Textos["EstadoResuelta"].Value : Textos["EstadoSinResolver"].Value)
                     </Badge>
                 </TemplateColumn>
-                <TemplateColumn Title="Acciones" Align="Align.End">
+                <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
                     <MenuAcciones>
                         <SoloConEscritura><ItemMenuAccion OnClick="() => CambiarResueltaAsync(context.Id, !context.Resuelta)">
-                            @(context.Resuelta ? "Reabrir" : "Marcar resuelta")
+                            @(context.Resuelta ? Textos["AccionReabrir"].Value : Textos["AccionMarcarResuelta"].Value)
                         </ItemMenuAccion></SoloConEscritura>
                         <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
-                            Editar
+                            @Textos["AccionEditar"]
                         </ItemMenuAccion></SoloConEscritura>
                         <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
-                            Eliminar
+                            @Textos["AccionEliminar"]
                         </ItemMenuAccion></SoloConEscritura>
                     </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
 
             <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="incidencia(s)" PaginaActualChanged="CambiarPaginaAsync"
+                              Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         </div>
 
@@ -155,25 +158,25 @@
                La copia no afirma que HAYA incidencias registradas (el mockup Gen 2
                sí lo hace): el filtrado es de servidor y solo devuelve el total ya
                filtrado, así que la pantalla no puede saberlo. *@
-            <EstadoVacio NombreIcono="filtro" Titulo="Ninguna incidencia con estos filtros"
-                         Descripcion="Ninguna coincide con la búsqueda ni con el estado seleccionado.">
+            <EstadoVacio NombreIcono="filtro" Titulo="@Textos["VacioFiltrosTitulo"]"
+                         Descripcion="@Textos["VacioFiltrosDescripcion"]">
                 <Accion>
-                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["BotonQuitarFiltros"]</Boton>
                 </Accion>
             </EstadoVacio>
         }
         else if (_totalElementos == 0 && !_cargando)
         {
-            <EstadoVacio NombreIcono="incidencias" Titulo="Todavía no hay incidencias" Descripcion="Registra la primera incidencia operativa de un centro.">
+            <EstadoVacio NombreIcono="incidencias" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
                 <Accion>
-                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nueva incidencia</Boton></SoloConEscritura>
+                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevaIncidencia"]</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         }
     }
 </div>
 
-<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nueva incidencia" : "Editar incidencia")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
+<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? Textos["DrawerTituloNueva"].Value : Textos["DrawerTituloEditar"].Value)" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
@@ -182,8 +185,8 @@
 
         @if (_editandoId is null)
         {
-            <CampoSelect Etiqueta="Centro" Valor="@_centroId" ValorChanged="v => _centroId = v">
-                <option value="">Selecciona un centro…</option>
+            <CampoSelect Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_centroId" ValorChanged="v => _centroId = v">
+                <option value="">@Textos["OpcionSeleccionaCentro"]</option>
                 @foreach (var centro in _centrosDisponibles)
                 {
                     <option value="@centro.Id">@centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)</option>
@@ -194,41 +197,41 @@
         {
             @* El Centro solo se elige al crear: EditarIncidenciaCommand no lo lleva. *@
             <div class="campo">
-                <label>Centro</label>
+                <label>@Textos["EtiquetaCentro"]</label>
                 <p class="texto-vacio-seccion">@_centroNombreEnEdicion</p>
             </div>
         }
 
-        <CampoSelect Etiqueta="Trabajador (opcional)" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
-            <option value="">Ninguno — incidencia general del centro</option>
-            @foreach (var trabajador in _trabajadoresDisponibles)
+        <CampoSelect Etiqueta="@Textos["EtiquetaTrabajadorOpcional"]" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
+            <option value="">@Textos["OpcionNingunTrabajador"]</option>
+            @foreach (var trabajador in EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles))
             {
-                <option value="@trabajador.Id">@trabajador.NombreCompleto (@trabajador.Dni)</option>
+                <option value="@trabajador.Id">@trabajador.Texto</option>
             }
         </CampoSelect>
 
         <div class="campos-en-par">
-            <CampoSelect Etiqueta="Tipo" Valor="@_tipo" ValorChanged="v => _tipo = v">
-                <option value="@nameof(TipoIncidencia.Accidente)">Accidente</option>
-                <option value="@nameof(TipoIncidencia.Incumplimiento)">Incumplimiento</option>
+            <CampoSelect Etiqueta="@Textos["EtiquetaTipo"]" Valor="@_tipo" ValorChanged="v => _tipo = v">
+                <option value="@nameof(TipoIncidencia.Accidente)">@Textos["TipoAccidente"]</option>
+                <option value="@nameof(TipoIncidencia.Incumplimiento)">@Textos["TipoIncumplimiento"]</option>
             </CampoSelect>
 
-            <CampoSelect Etiqueta="Gravedad" Valor="@_gravedad" ValorChanged="v => _gravedad = v">
-                <option value="@nameof(GravedadIncidencia.Leve)">Leve</option>
-                <option value="@nameof(GravedadIncidencia.Grave)">Grave</option>
-                <option value="@nameof(GravedadIncidencia.MuyGrave)">Muy grave</option>
+            <CampoSelect Etiqueta="@Textos["EtiquetaGravedad"]" Valor="@_gravedad" ValorChanged="v => _gravedad = v">
+                <option value="@nameof(GravedadIncidencia.Leve)">@Textos["GravedadLeve"]</option>
+                <option value="@nameof(GravedadIncidencia.Grave)">@Textos["GravedadGrave"]</option>
+                <option value="@nameof(GravedadIncidencia.MuyGrave)">@Textos["GravedadMuyGrave"]</option>
             </CampoSelect>
         </div>
 
-        <CampoTexto Etiqueta="Fecha de ocurrencia" Type="date" Valor="@_fechaOcurrencia" ValorChanged="v => _fechaOcurrencia = v" />
-        <CampoTextarea Etiqueta="Descripción" Placeholder="Qué pasó, dónde y quién lo detectó" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="4" MensajeError="@ObtenerError(nameof(CrearIncidenciaCommand.Descripcion))" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaFechaOcurrencia"]" Type="date" Valor="@_fechaOcurrencia" ValorChanged="v => _fechaOcurrencia = v" />
+        <CampoTextarea Etiqueta="@Textos["EtiquetaDescripcion"]" Placeholder="@Textos["PlaceholderDescripcion"]" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="4" MensajeError="@ObtenerError(nameof(CrearIncidenciaCommand.Descripcion))" />
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
-            Cancelar
+            @Textos["BotonCancelar"]
         </Boton>
         <Boton Cargando="_guardando" OnClick="GuardarAsync">
-            Guardar
+            @Textos["BotonGuardar"]
         </Boton>
     </Pie>
 </Drawer>
@@ -236,18 +239,23 @@
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@($"¿Eliminar la incidencia de {_centroAEliminar}?")"
-    Mensaje="Se ocultará de las listas activas."
+    Titulo="@Textos["ConfirmarEliminarTitulo", _centroAEliminar]"
+    Mensaje="@Textos["ConfirmarEliminarMensaje"]"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
-<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+@* La única acción del lote es eliminar (ICommand que AutorizacionEscrituraBehavior deniega a
+   Consulta): la barra no se le ofrece. La palanca de selección múltiple sigue visible porque
+   vive en BarraHerramientasLista, compartida y con contenido de lectura, y seleccionar no escribe. *@
+<SoloConEscritura>
+    <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+</SoloConEscritura>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"
     VisibleChanged="v => _confirmarEliminarLoteVisible = v"
-    Titulo="@($"¿Eliminar {_seleccionados.Count} incidencia(s)?")"
-    Mensaje="Se ocultarán de las listas activas."
+    Titulo="@Textos["ConfirmarEliminarLoteTitulo", _seleccionados.Count]"
+    Mensaje="@Textos["ConfirmarEliminarLoteMensaje"]"
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />

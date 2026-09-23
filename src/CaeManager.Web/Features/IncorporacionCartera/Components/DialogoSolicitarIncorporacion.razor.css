@@ -1,0 +1,30 @@
+.dialogo-solicitud-campos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.dialogo-solicitud-estado {
+    margin: 0;
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+}
+
+.dialogo-solicitud-aviso {
+    margin: 0;
+    color: var(--color-text);
+    font: var(--font-body-sm);
+    font-weight: 600;
+}
+
+.dialogo-solicitud-contador {
+    margin: calc(-1 * var(--space-2)) 0 0;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    text-align: end;
+}
+
+.dialogo-solicitud-contador-excedido {
+    color: var(--color-danger-700);
+    font-weight: 600;
+}
