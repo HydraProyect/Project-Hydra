@@ -117,6 +117,27 @@ public class RevocacionCarteraEnCircuitoVivoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Unas_opciones_sustituidas_con_mas_de_60_s_no_alargan_la_cota()
+    {
+        var (cliente, _) = await SembrarTenantAsync(_tenant, "B10380186", "B10380194");
+        var gestor = Guid.NewGuid();
+        var cartera = await OtorgarCarteraAsync(_tenant, gestor, cliente);
+        var reloj = new RelojManual();
+
+        // Opciones construidas a mano, sin pasar por DesdeSegundos: el techo lo pone el servicio.
+        await using var contextoCircuito = CrearContexto(_tenant);
+        var circuito = CrearServicio(contextoCircuito, gestor, new TenantActualAmbiental { TenantId = _tenant },
+            reloj, caducidadConfigurada: TimeSpan.FromHours(1));
+        (await circuito.ObtenerClienteIdsVisiblesAsync()).Should().Equal(cliente);
+
+        await RevocarDesdeOtroCircuitoAsync(_tenant, cartera);
+
+        reloj.Avanzar(TimeSpan.FromSeconds(CaducidadAlcanceOptions.MaximoSegundos));
+        (await circuito.ObtenerClienteIdsVisiblesAsync()).Should().NotBeNull().And.BeEmpty(
+            "una caducidad configurada de 1 h se acota a 60 s en el propio servicio");
+    }
+
+    [Fact]
     public async Task La_cartera_revocada_desde_otro_circuito_deja_de_verse_al_caducar_la_memoizacion()
     {
         var (cliente, propia) = await SembrarTenantAsync(_tenant, "B10380186", "B10380194");
@@ -282,10 +303,11 @@ public class RevocacionCarteraEnCircuitoVivoTests : IAsyncLifetime
     }
 
     private static AlcanceDatosService CrearServicio(
-        CaeManagerDbContext contexto, Guid usuarioId, TenantActualAmbiental ambitoTenant, TimeProvider reloj) =>
+        CaeManagerDbContext contexto, Guid usuarioId, TenantActualAmbiental ambitoTenant, TimeProvider reloj,
+        TimeSpan? caducidadConfigurada = null) =>
         new(contexto, new UsuarioQueSigueAlTenant(usuarioId, ambitoTenant),
             ambitoTenant, new SesionPrivilegiadaAusente(), vistaDemo: null, reloj,
-            Options.Create(new CaducidadAlcanceOptions { Caducidad = Caducidad }));
+            Options.Create(new CaducidadAlcanceOptions { Caducidad = caducidadConfigurada ?? Caducidad }));
 
     /// <summary>
     /// Gestor CAE con cartera Interna en cada Tenant del fan-out: su operador es el Tenant

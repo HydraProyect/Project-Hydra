@@ -32,5 +32,12 @@ public sealed class CaducidadAlcanceOptions
     public static TimeSpan DesdeSegundos(int segundos) =>
         TimeSpan.FromSeconds(Math.Clamp(segundos, 1, MaximoSegundos));
 
+    /// <summary>
+    /// Acota una caducidad ya construida a [1, <see cref="MaximoSegundos"/>] s. Lo aplica
+    /// <see cref="AlcanceDatosService"/> al recibir las opciones, venga de donde venga el valor.
+    /// </summary>
+    public static TimeSpan Acotar(TimeSpan caducidad) =>
+        TimeSpan.FromTicks(Math.Clamp(caducidad.Ticks, TimeSpan.TicksPerSecond, MaximoSegundos * TimeSpan.TicksPerSecond));
+
     public TimeSpan Caducidad { get; set; } = CaducidadPorDefecto;
 }

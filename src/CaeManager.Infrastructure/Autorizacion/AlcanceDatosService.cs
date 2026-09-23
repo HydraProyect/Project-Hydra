@@ -87,7 +87,10 @@ public class AlcanceDatosService(
     private long _generacion;
 
     private readonly TimeProvider _reloj = reloj ?? TimeProvider.System;
-    private readonly TimeSpan _caducidad = caducidad?.Value.Caducidad ?? CaducidadAlcanceOptions.CaducidadPorDefecto;
+    // El techo se aplica aquí, no solo al leer la configuración: una sustitución de las opciones
+    // (otro registro, un test) tampoco puede alargar la cota más allá de 60 s.
+    private readonly TimeSpan _caducidad = CaducidadAlcanceOptions.Acotar(
+        caducidad?.Value.Caducidad ?? CaducidadAlcanceOptions.CaducidadPorDefecto);
 
     private static Guid ClaveTenant(Guid? tenantId) => tenantId ?? Guid.Empty;
 
