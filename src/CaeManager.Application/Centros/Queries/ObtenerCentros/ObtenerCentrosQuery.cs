@@ -206,6 +206,27 @@ public class ObtenerCentrosQueryHandler(
     /// ya viajaba, que hasta ahora la lista descartaba.
     /// "Faltante" cuenta como vencido — un requisito sin documento no está al
     /// día, y el lexico cerrado no tiene una tercera casilla en la fila.
+    ///
+    /// <para>
+    /// <see cref="EstadoDocumento.Urgente"/> — más severa que
+    /// <see cref="EstadoDocumento.Proximo"/> pero el documento aún no venció —
+    /// antes se descartaba en silencio (una causa bloqueante del Centro que no
+    /// aparecía en ningún recuento ni texto — D-7 del piloto Outbound). Va con
+    /// "próximas" y no con "vencidas": el documento aún no venció, y es la
+    /// misma agrupación Rojo/Ámbar de las Alertas (Vencido y Falta en rojo,
+    /// Urgente y Próximo en ámbar).
+    /// </para>
+    /// <para>
+    /// Toda causa que llega aquí trae un <see cref="EstadoDocumento"/> real —
+    /// incluida la rechazada en plataforma (<see cref="CalculoEstadoCentroService"/>),
+    /// que no tiene vigencia documental que describir pero usa
+    /// <see cref="EstadoDocumento.Vencido"/> por el mismo motivo que su causa
+    /// hermana "vencido en la plataforma": el Badge de Centro 360
+    /// (<c>AcordeonAsignacionesCentro</c>) indexa por <see cref="EstadoDocumento"/>
+    /// y no admite <c>null</c>. El switch no cubre <c>null</c> a propósito: si
+    /// una causa bloqueante futura no trajera un estado real, es un defecto en
+    /// su origen, no un caso más que enmascarar aquí.
+    /// </para>
     /// </summary>
     private static RecuentosCentroDto Desglosar(ResultadoEstadoCentro resultado)
     {
@@ -221,7 +242,7 @@ public class ObtenerCentrosQueryHandler(
                 case EstadoDocumento.Vencido or EstadoDocumento.Faltante:
                     vencidas.Add(incidencia);
                     break;
-                case EstadoDocumento.Proximo:
+                case EstadoDocumento.Urgente or EstadoDocumento.Proximo:
                     proximas.Add(incidencia);
                     break;
             }
