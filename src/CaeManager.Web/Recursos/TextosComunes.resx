@@ -30,6 +30,14 @@
   <data name="IdiomaNoCambiadoDetalle" xml:space="preserve">
     <value>Tu preferencia de idioma no se ha guardado y la interfaz sigue en el idioma anterior. Inténtalo de nuevo en unos segundos.</value>
   </data>
+  <data name="IrAPaginaDe" xml:space="preserve">
+    <value>Ir a la página de {0}</value>
+    <comment>Título del nombre enlazado en una fila de relación (FilaRelacion). {0}: nombre de la entidad.</comment>
+  </data>
+  <data name="AbrirPanelDe" xml:space="preserve">
+    <value>Abrir el panel de {0}</value>
+    <comment>Título del nombre que abre el panel en una fila de relación sin página 360 (FilaRelacion). {0}: nombre de la entidad.</comment>
+  </data>
   <data name="Consultar360" xml:space="preserve">
     <value>Consultar de un vistazo</value>
   </data>

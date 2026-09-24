@@ -44,6 +44,27 @@
     con el incremento de su familia.
 *@
 <header class="cabecera-pagina @(Descripcion is null ? null : "cabecera-pagina-con-descripcion")">
+    @if (Inicio is null)
+    {
+        @Texto
+    }
+    else
+    {
+        <div class="cabecera-pagina-principal">
+            <div class="cabecera-pagina-inicio">@Inicio</div>
+            @Texto
+        </div>
+    }
+
+    @if (Acciones is not null)
+    {
+        <div class="acciones-cabecera">@Acciones</div>
+    }
+</header>
+
+@code {
+    private RenderFragment Texto => __builder =>
+    {
     <div class="cabecera-pagina-texto">
         @if (!string.IsNullOrWhiteSpace(Kicker))
         {
@@ -67,14 +88,15 @@
             <p class="cabecera-pagina-descripcion">@Descripcion</p>
         }
     </div>
+    };
 
-    @if (Acciones is not null)
-    {
-        <div class="acciones-cabecera">@Acciones</div>
-    }
-</header>
+    /// <summary>
+    /// Pieza a la izquierda del bloque de texto, antes del kicker: el anillo de
+    /// cumplimiento de las cabeceras 360 (mockup «Empresa 360 página»,
+    /// <c>.centro360-cabecera</c>). Opcional: sin valor la cabecera no cambia.
+    /// </summary>
+    [Parameter] public RenderFragment? Inicio { get; set; }
 
-@code {
     /// <summary>Título de la pantalla. Es el <c>h1</c>, salvo en el hub de Configuración.</summary>
     [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
 

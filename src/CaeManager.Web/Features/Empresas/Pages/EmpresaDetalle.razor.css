@@ -73,6 +73,12 @@
     outline-offset: 1px;
 }
 
+/* La URL de la plataforma CAE es la etiqueta de su fila: puede ser larga y sin espacios. */
+.empresa360-url {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 .empresa360-pie,
 .empresa360-apoyo {
     margin: 0;

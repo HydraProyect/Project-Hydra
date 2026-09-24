@@ -215,6 +215,9 @@ public class Empresa360PaginaTests : BunitContext
         var entradilla = cut.Find(".cabecera-pagina-descripcion").TextContent;
         entradilla.Should().Contain("CIF B-48.220.917").And.Contain("2 clientes").And.Contain("25 trabajadores");
         cut.Find("[role=img]").GetAttribute("aria-label").Should().StartWith("72% de cumplimiento");
+        // El anillo va a la izquierda de la identidad, no entre las acciones (mockup).
+        cut.Find(".cabecera-pagina-inicio [role=img]").Should().NotBeNull();
+        cut.Find(".acciones-cabecera").QuerySelector("[role=img]").Should().BeNull();
 
         mediador.Enviadas.Should().Contain(new ObtenerEmpresaPorIdQuery(EmpresaId));
         mediador.Enviadas.Should().Contain(new ObtenerCumplimientoEmpresaQuery(EmpresaId));
@@ -364,6 +367,7 @@ public class Empresa360PaginaTests : BunitContext
 
         EstadosDeLasFilas(cut).Should().HaveCount(20).And.OnlyContain(e => e == "Vigente");
         cut.Find(".paginador-texto").TextContent.Should().Contain("Página 1 de 2").And.Contain("30");
+        cut.Find(".empresa360-pie").TextContent.Should().Contain("Mostrando 20 de 30 · Ordenados del peor estado al mejor");
 
         await cut.FindAll(".paginador button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
 
@@ -447,8 +451,15 @@ public class Empresa360PaginaTests : BunitContext
         Registrar(Empresa([unico]));
         var cut = Renderizar();
 
-        cut.Find(".fila-relacion-nombre").GetAttribute("href").Should().Be($"/trabajadores/{unico.Id}");
-        cut.Find(".fila-relacion-detalle").TextContent.Trim().Should().Be($"DNI {unico.Dni}");
+        var nombre = cut.Find(".fila-relacion-nombre");
+        nombre.GetAttribute("href").Should().Be($"/trabajadores/{unico.Id}");
+        nombre.GetAttribute("title").Should().Be("Ir a la página de Ana Ruiz");
+        // Mockup: avatar con iniciales (no el icono genérico) y el DNI copiable.
+        cut.Find(".fila-relacion-avatar").TextContent.Trim().Should().Be("AR");
+        cut.FindAll(".fila-relacion-icono").Should().BeEmpty();
+        var detalle = cut.Find(".fila-relacion-detalle");
+        detalle.TextContent.Should().StartWith($"DNI {unico.Dni}");
+        detalle.QuerySelector(".boton-copiar").Should().NotBeNull("el DNI se copia desde su propia fila");
 
         await cut.Find(".fila-relacion .boton-360").ClickAsync(new MouseEventArgs());
 
@@ -471,7 +482,7 @@ public class Empresa360PaginaTests : BunitContext
         mediador.Enviadas.OfType<ObtenerClientesDeEmpresaQuery>().Should().ContainSingle()
             .Which.Should().Be(new ObtenerClientesDeEmpresaQuery(EmpresaId));
         cut.Find(".fila-relacion-nombre").GetAttribute("href").Should().Be($"/clientes/{cliente.Id}");
-        cut.Find(".fila-relacion-detalle").TextContent.Trim().Should().Be("CIF A-12345678");
+        cut.Find(".fila-relacion-detalle").TextContent.Trim().Should().Be("A-12345678", "el mockup pone el CIF solo, sin prefijo");
         Pestana(cut, "Clientes").TextContent.Should().Contain("1", "el contador pasa a ser lo que la lista enseña");
 
         await cut.Find(".fila-relacion .boton-360").ClickAsync(new MouseEventArgs());
@@ -596,6 +607,10 @@ public class Empresa360PaginaTests : BunitContext
 
         var cut = Renderizar();
 
+        // Mockup: la propia URL es la etiqueta de su fila, con el aviso de credenciales de terceros.
+        var filaUrl = cut.FindAll(".elemento-lista-lateral").First();
+        filaUrl.QuerySelector(".elemento-lista-lateral-etiqueta")!.TextContent.Should()
+            .Contain("https://app.twind.io/login").And.Contain("Credenciales de terceros");
         var portal = cut.FindAll("a").Single(a => a.TextContent.Contains("Abrir portal"));
         portal.GetAttribute("href").Should().Be("https://app.twind.io/login");
         portal.GetAttribute("target").Should().Be("_blank");
@@ -606,6 +621,35 @@ public class Empresa360PaginaTests : BunitContext
             .Which.Should().Be(new ObtenerCredencialAccesoEmpresaSinContrasenaQuery(EmpresaId));
         mediador.Enviadas.OfType<ObtenerCredencialAccesoEmpresaQuery>().Should().BeEmpty(
             "la contraseña solo se pide al pulsar «Copiar contraseña» (decisión del propietario 2026-09-21)");
+    }
+
+    [Fact]
+    public void Los_botones_de_copiar_van_en_la_fila_del_usuario_y_Editar_abre_el_panel()
+    {
+        EmpresaConCredencial();
+
+        var cut = Renderizar();
+
+        var filaUsuario = cut.FindAll(".elemento-lista-lateral")
+            .Single(f => f.QuerySelector(".elemento-lista-lateral-etiqueta")!.TextContent.Trim() == "Usuario");
+        filaUsuario.QuerySelectorAll(".boton-copiar").Select(b => b.TextContent.Trim())
+            .Should().Equal("Copiar usuario", "Copiar contraseña");
+
+        var acceso = cut.FindAll(".tarjeta").Single(t => t.TextContent.Contains("Acceso a plataforma CAE"));
+        acceso.QuerySelector(".tarjeta-acciones")!.TextContent.Should().Contain("Editar →");
+    }
+
+    [Fact]
+    public void Consulta_no_ve_Editar_en_la_tarjeta_de_acceso()
+    {
+        EmpresaConCredencial(rol: Roles.Consulta);
+
+        var cut = Renderizar();
+
+        var acceso = cut.FindAll(".tarjeta").Single(t => t.TextContent.Contains("Acceso a plataforma CAE"));
+        // Barrera: la credencial se pintó; si no, la ausencia de «Editar →» sería verde vacío.
+        acceso.TextContent.Should().Contain("usuario.ibertec");
+        acceso.TextContent.Should().NotContain("Editar →");
     }
 
     [Fact]
