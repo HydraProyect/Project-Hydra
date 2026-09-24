@@ -158,23 +158,16 @@ public class EscritorasDeIdentitySinAuditarTests
         [("src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor",
             "var resultadoReset = await UserManager.ResetAuthenticatorKeyAsync(usuario);")] = 1,
 
-        // Los seis usos de SetAuthenticatorKeyAsync de abajo son SIEMBRA
-        // (IdentitySeeder, DatosPruebaSeeder, DelegacionDemoSeeder ×4,
-        // SegundoTenantSeeder): fijan la clave TOTP de cuentas demo/de
-        // prueba al arrancar, nunca en respuesta a una acción de un usuario
-        // real. Ahora también dejan fila, como cualquier otra escritura de
-        // esa tabla; su AmbitoTenantExplicito ya lo establece cada seeder
-        // (ver DelegacionDemoSeeder tras #704).
+        // El único uso de SetAuthenticatorKeyAsync de la SIEMBRA: desde P0-1
+        // (2026-09-24) todos los seeders que dan 2FA a una cuenta de demo o de
+        // prueba (IdentitySeeder, DatosPruebaSeeder, DelegacionDemoSeeder,
+        // SegundoTenantSeeder) pasan por IdentitySeeder.AsignarSegundoFactorDeSiembraAsync,
+        // que solo escribe en Development. Nunca responde a una acción de un
+        // usuario real; deja fila como cualquier otra escritura de esa tabla, y
+        // el AmbitoTenantExplicito lo establece cada seeder (ver
+        // DelegacionDemoSeeder tras #704).
         [("src/CaeManager.Infrastructure/Identity/IdentitySeeder.cs",
-            "await claveStore.SetAuthenticatorKeyAsync(administrador, ClaveTotpAdministradorInicial, CancellationToken.None);")] = 1,
-        [("src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs",
-            "await claveStore.SetAuthenticatorKeyAsync(")] = 1,
-        [("src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs",
-            "await claveStore.SetAuthenticatorKeyAsync(")] = 3,
-        [("src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs",
-            "await claveStore.SetAuthenticatorKeyAsync(administrador, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);")] = 1,
-        [("src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs",
-            "await claveStore.SetAuthenticatorKeyAsync(")] = 1,
+            "await claveStore.SetAuthenticatorKeyAsync(usuario, ClaveTotpAdministradorInicial, cancellationToken);")] = 1,
     };
 
     /// <summary>

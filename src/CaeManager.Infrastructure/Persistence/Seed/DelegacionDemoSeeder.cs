@@ -101,7 +101,7 @@ public static class DelegacionDemoSeeder
             dbContext, NombreTenantConsultora, PerfilVocabularioTenant.Consultora, logger, cancellationToken,
             esOperadorCaeExterno: true);
         var administradorConsultora = await CrearAdministradorConsultoraAsync(
-            dbContext, userManager, userStore, credenciales, logger, tenantConsultoraId, cancellationToken);
+            dbContext, userManager, userStore, entorno, credenciales, logger, tenantConsultoraId, cancellationToken);
 
         // --- Refrielectric: la referencia principal de "empresa final" ---
         var refrielectricId = await AprovisionarTenantAsync(
@@ -110,7 +110,7 @@ public static class DelegacionDemoSeeder
         using (AmbitoTenantExplicito.Establecer(refrielectricId))
         {
             await DatosPruebaSeeder.SembrarSoloDatosCompletosAsync(dbContext, logger, cancellationToken);
-            var gestoresRefrielectric = await SembrarUsuariosRefrielectricAsync(dbContext, userManager, userStore, credenciales, logger, cancellationToken);
+            var gestoresRefrielectric = await SembrarUsuariosRefrielectricAsync(dbContext, userManager, userStore, entorno, credenciales, logger, cancellationToken);
             await SembrarEscenariosDashboardRefrielectricAsync(dbContext, gestoresRefrielectric, logger, cancellationToken);
         }
         await CrearDelegacionAsync(
@@ -131,7 +131,7 @@ public static class DelegacionDemoSeeder
             await DatosPruebaSeeder.SeedAsync(dbContext, userManager, userStore, configuration, entorno, logger, cancellationToken);
             await ComunicacionesDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
             await CicloDocumentalDatosPruebaSeeder.SeedAsync(dbContext, userManager, configuration, logger, cancellationToken);
-            await SembrarVariantesIdentidadAsync(dbContext, userManager, userStore, credenciales, logger, cancellationToken);
+            await SembrarVariantesIdentidadAsync(dbContext, userManager, userStore, entorno, credenciales, logger, cancellationToken);
         }
         await CrearDelegacionAsync(
             dbContext, tenantConsultoraId, tenantClienteId, administradorConsultora, logger, NombreTenantClienteDemo, cancellationToken);
@@ -144,7 +144,7 @@ public static class DelegacionDemoSeeder
         using (AmbitoTenantExplicito.Establecer(tenantCliente2Id))
         {
             await DatosPruebaSeeder.SembrarSoloDatosAsync(dbContext, logger, cancellationToken);
-            await SembrarUsuariosDemo2Async(dbContext, userManager, userStore, credenciales, logger, cancellationToken);
+            await SembrarUsuariosDemo2Async(dbContext, userManager, userStore, entorno, credenciales, logger, cancellationToken);
         }
         await CrearDelegacionAsync(
             dbContext, tenantConsultoraId, tenantCliente2Id, administradorConsultora, logger, NombreTenantClienteDemo2, cancellationToken);
@@ -171,6 +171,7 @@ public static class DelegacionDemoSeeder
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
+        IHostEnvironment entorno,
         CredencialesDemo credenciales,
         ILogger logger,
         Guid tenantConsultoraId,
@@ -212,13 +213,8 @@ public static class DelegacionDemoSeeder
 
             await userManager.AddToRoleAsync(administrador, Roles.Administrador);
 
-            if (userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
-            {
-                await claveStore.SetAuthenticatorKeyAsync(
-                    administrador, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);
-                await userManager.UpdateAsync(administrador);
-            }
-            await userManager.SetTwoFactorEnabledAsync(administrador, true);
+            await IdentitySeeder.AsignarSegundoFactorDeSiembraAsync(
+                administrador, userManager, userStore, entorno, cancellationToken);
 
             await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, administrador.Id, cancellationToken);
 
@@ -240,6 +236,7 @@ public static class DelegacionDemoSeeder
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
+        IHostEnvironment entorno,
         CredencialesDemo credenciales,
         ILogger logger,
         CancellationToken cancellationToken)
@@ -276,12 +273,12 @@ public static class DelegacionDemoSeeder
         }
 
         var administrador = await CrearAsync(Roles.Administrador, 1, "Administrador");
-        if (administrador is not null && userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
+        if (administrador is not null)
         {
-            // P1-13: todo Administrador con 2FA — misma clave fija que el resto de la siembra.
-            await claveStore.SetAuthenticatorKeyAsync(administrador, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);
-            await userManager.UpdateAsync(administrador);
-            await userManager.SetTwoFactorEnabledAsync(administrador, true);
+            // P1-13: todo Administrador con 2FA — con la clave fija solo en
+            // Development (ver IdentitySeeder.AsignarSegundoFactorDeSiembraAsync).
+            await IdentitySeeder.AsignarSegundoFactorDeSiembraAsync(
+                administrador, userManager, userStore, entorno, cancellationToken);
         }
 
         await CrearAsync(Roles.DireccionCae, 1, "Direccion CAE");
@@ -518,6 +515,7 @@ public static class DelegacionDemoSeeder
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
+        IHostEnvironment entorno,
         CredencialesDemo credenciales,
         ILogger logger,
         CancellationToken cancellationToken)
@@ -575,18 +573,13 @@ public static class DelegacionDemoSeeder
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        // 2FA activa con la clave fija de IdentitySeeder.
+        // 2FA activa con la clave fija de IdentitySeeder (solo en Development).
         var conDobleFactor = await CrearAsync("prueba.con2fa1@caemanager.local", "Prueba Con 2FA 1", debeCambiarContrasena: false);
         if (conDobleFactor is not null)
         {
             await userManager.AddToRoleAsync(conDobleFactor, Roles.Consulta);
-            if (userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
-            {
-                await claveStore.SetAuthenticatorKeyAsync(
-                    conDobleFactor, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);
-                await userManager.UpdateAsync(conDobleFactor);
-            }
-            await userManager.SetTwoFactorEnabledAsync(conDobleFactor, true);
+            await IdentitySeeder.AsignarSegundoFactorDeSiembraAsync(
+                conDobleFactor, userManager, userStore, entorno, cancellationToken);
             await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, conDobleFactor.Id, cancellationToken);
         }
     }
@@ -601,6 +594,7 @@ public static class DelegacionDemoSeeder
         CaeManagerDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
+        IHostEnvironment entorno,
         CredencialesDemo credenciales,
         ILogger logger,
         CancellationToken cancellationToken)
@@ -623,15 +617,10 @@ public static class DelegacionDemoSeeder
         if (resultado.Succeeded)
         {
             await userManager.AddToRoleAsync(administrador, Roles.Administrador);
-            // P1-13: todo Administrador con 2FA — misma clave fija que
-            // IdentitySeeder para que los E2E puedan calcular el código.
-            if (userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
-            {
-                await claveStore.SetAuthenticatorKeyAsync(
-                    administrador, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);
-                await userManager.UpdateAsync(administrador);
-            }
-            await userManager.SetTwoFactorEnabledAsync(administrador, true);
+            // P1-13: todo Administrador con 2FA — en Development, misma clave
+            // fija que IdentitySeeder para que los E2E puedan calcular el código.
+            await IdentitySeeder.AsignarSegundoFactorDeSiembraAsync(
+                administrador, userManager, userStore, entorno, cancellationToken);
             await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, administrador.Id, cancellationToken);
 
             await SembrarHistorialRetencionAsync(dbContext, administrador.Id, cancellationToken);
