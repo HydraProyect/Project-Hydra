@@ -51,6 +51,7 @@ public class ConsumidoresDeIaConsultanLaInstruccionDeTratamientoTests
         "IDeteccionRelevanciaCaeService",
         "IDocumentAIProviderFactory",
         "IDocumentAIProvider",
+        "IDecisionesCerradasAsistenteService",
     ];
 
     /// <summary>

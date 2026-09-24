@@ -678,6 +678,13 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.IDeteccionRelevanciaCaeService, AnthropicDeteccionRelevanciaCaeService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
+        // Decisiones cerradas del asistente de órdenes (MVP1, texto). Inerte por
+        // configuración: TypeSafe:Activo es false por defecto y hace falta además
+        // la clave — ver TypeSafeOptions por qué tener la clave no basta.
+        services.Configure<TypeSafeOptions>(configuration.GetSection(TypeSafeOptions.SeccionConfiguracion));
+        services.AddHttpClient<CaeManager.Application.AsistenteIa.Decisiones.IDecisionesCerradasAsistenteService, TypeSafeDecisionesCerradasService>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(30));
         // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
         // implementación directa de Anthropic aquí — RouterExtraccionMetadatosDocumentoIaService
         // (Application) la satisface delegando en IDocumentAIRouterService,
