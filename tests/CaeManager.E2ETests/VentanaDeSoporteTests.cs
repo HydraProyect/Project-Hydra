@@ -77,8 +77,19 @@ public class VentanaDeSoporteTests(WebAppFixtureVentanaSoporte fixture) : IAsync
         // que ya se han suscrito. Un WebSocket conectado no basta: los
         // componentes pueden inicializarse después y leer ya el estado
         // caducado, que ejercería otro camino.
+        //
+        // Solo cuenta la petición de la página recargada: la anterior sigue
+        // viva hasta que el navegador confirma la nueva y puede importar el
+        // módulo en ese hueco (CI de #876, 2026-09-24: trazaSoporte llegó
+        // 200 ms antes de que la recarga respondiera, el test caducó la
+        // ventana con el circuito nuevo aún sin abrir y midió otro camino).
+        var recargaConfirmada = false;
+        page.FrameNavigated += (_, marco) =>
+        {
+            if (marco == page.MainFrame) recargaConfirmada = true;
+        };
         var moduloImportado = page.WaitForRequestAsync(
-            peticion => peticion.Url.Contains("trazaSoporte", StringComparison.OrdinalIgnoreCase),
+            peticion => recargaConfirmada && peticion.Url.Contains("trazaSoporte", StringComparison.OrdinalIgnoreCase),
             new PageWaitForRequestOptions { Timeout = 30_000 });
         await page.ReloadAsync();
         await moduloImportado;
@@ -153,5 +164,30 @@ public class VentanaDeSoporteTests(WebAppFixtureVentanaSoporte fixture) : IAsync
         // Y el aviso es de una sola vez: la siguiente carga ya no lo trae.
         await page.GotoAsync($"{fixture.BaseUrl}/clientes");
         await Assertions.Expect(page.Locator(".aviso-fin-de-acceso")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>
+    /// La carrera que el test de arriba perdía a veces (CI de main de 83005ee3,
+    /// 2026-09-24): caducada la ventana, una petición de fondo de la página
+    /// abierta —allí <c>/_blazor/initializers</c>— llegaba antes que la recarga,
+    /// retiraba la selección y borraba la cookie, y la recarga caía en «Acceso
+    /// denegado» con el texto genérico. Aquí esa petición se lanza a propósito y
+    /// se espera a que responda, para que gane siempre.
+    /// </summary>
+    [Fact]
+    public async Task Si_una_peticion_de_fondo_llega_antes_que_la_recarga_el_aviso_no_se_pierde()
+    {
+        var (contexto, page) = await AbrirVentanaYEntrarAsync(SqlCaducarEnCincoMinutos);
+        await using var _ = contexto;
+
+        Assert.True(await fixture.EjecutarSqlAsync(SqlExpirarSoporte) >= 1);
+
+        var estado = await page.EvaluateAsync<int>("async () => (await fetch('/_blazor/initializers')).status");
+        Assert.Equal(200, estado);
+
+        await page.GotoAsync($"{fixture.BaseUrl}/clientes");
+
+        await Assertions.Expect(page.Locator(".aviso-fin-de-acceso"))
+            .ToContainTextAsync("La ventana de soporte terminó", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
     }
 }

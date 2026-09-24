@@ -112,7 +112,33 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 return;
             }
 
-            if (!sigueAutorizado)
+            // Una sola conversión al tipo concreto para las tres ramas que retiran la selección.
+            var seleccionConcreta = clienteActivoSeleccionado as ClienteActivoSeleccionado;
+
+            if (!sigueAutorizado && !PuedePintarElAviso(contexto.Request))
+            {
+                // Petición que no pinta una página (módulo JS, imagen,
+                // /_blazor/initializers...): la selección se retira en ella
+                // igual —el acceso ya está decidido y no se debilita—, pero la
+                // cookie se conserva para que la próxima página vuelva a
+                // revalidar, la retire allí y cuente por qué. Borrarla aquí
+                // gastaba el único aviso en una respuesta que nadie lee: tras
+                // caducar una ventana de soporte, una petición de fondo de la
+                // página anterior llegaba primero, y la recarga caía en «Acceso
+                // denegado» sin explicación (CI de main 83005ee3, 2026-09-24,
+                // log de WebAppFixtureVentanaSoporte: /_blazor/initializers
+                // invalidó la selección 5 ms antes de que /clientes respondiera
+                // 302 hacia /acceso-denegado, que ya llegó sin cookie).
+                logger.LogWarning(
+                    "Selección de Workspace operativo derivado invalidada en {Ruta}: la revalidación no la autorizó. "
+                    + "Tenant seleccionado {TenantSeleccionado}. Petición sin página: la cookie se conserva hasta la "
+                    + "próxima, que la retira y avisa.",
+                    contexto.Request.Path,
+                    tenantSeleccionado);
+
+                seleccionConcreta?.Invalidar();
+            }
+            else if (!sigueAutorizado)
             {
                 // Se registra porque hasta REC-110 esto ocurría sin dejar rastro
                 // alguno: retirar el Workspace operativo derivado en mitad de una
@@ -164,8 +190,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                     // síncronas y ocurren antes de cualquier await —si llegó a cancelarse
                     // es porque ya pasó esas dos lecturas, así que Invalidar() no les quita
                     // nada que aún no se hubiera consultado.
-                    if (clienteActivoSeleccionado is ClienteActivoSeleccionado seleccionAbortada)
-                        seleccionAbortada.Invalidar();
+                    seleccionConcreta?.Invalidar();
 
                     contexto.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
 
@@ -176,8 +201,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                     ? MotivoFinDeAcceso.VentanaDeSoporte
                     : MotivoFinDeAcceso.AccesoNoVigente;
 
-                if (clienteActivoSeleccionado is ClienteActivoSeleccionado seleccion)
-                    seleccion.Invalidar();
+                seleccionConcreta?.Invalidar();
 
                 contexto.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
             }
@@ -241,6 +265,40 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
             if (statusCodePagesFeature is not null)
                 statusCodePagesFeature.Enabled = false;
         }
+    }
+
+    /// <summary>
+    /// Si la respuesta a esta petición es una página que el usuario va a ver y
+    /// que puede pintar <c>AvisoFinDeAccesoEstatico</c>: una navegación del
+    /// navegador o una navegación mejorada de Blazor. Solo decide dónde se
+    /// cuenta el aviso y se borra la cookie; nunca si la selección sigue
+    /// valiendo.
+    ///
+    /// <para>
+    /// Por orden: la navegación mejorada se reconoce por su marca en
+    /// <c>Accept</c> (es un <c>fetch</c>, así que su <c>Sec-Fetch-Dest</c> no
+    /// dice <c>document</c>). Si el navegador envía <c>Sec-Fetch-Dest</c>, solo
+    /// <c>document</c> es una página: un <c>fetch</c> de fondo que pida
+    /// <c>text/html</c> no lo es (hallazgo de Codex en #876). Sin esa cabecera
+    /// (contexto no seguro, cliente que no la envía) se recurre a que pida
+    /// <c>text/html</c>, que los recursos y las llamadas de fondo de Blazor no
+    /// piden.
+    /// </para>
+    /// </summary>
+    public static bool PuedePintarElAviso(HttpRequest peticion)
+    {
+        if (peticion.Path.StartsWithSegments("/_blazor", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var aceptados = peticion.Headers.Accept;
+        if (aceptados.Any(valor => valor?.Contains("blazor-enhanced-nav", StringComparison.OrdinalIgnoreCase) == true))
+            return true;
+
+        var destino = peticion.Headers["Sec-Fetch-Dest"];
+        if (destino.Count > 0)
+            return string.Equals(destino.ToString(), "document", StringComparison.OrdinalIgnoreCase);
+
+        return aceptados.Any(valor => valor?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true);
     }
 
     /// <summary>
