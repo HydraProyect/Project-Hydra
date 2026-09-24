@@ -886,7 +886,7 @@ public static class InfrastructureServiceCollectionExtensions
     /// apagado en silencio no se ve hasta que alguien lee datos de otro tenant.
     /// </para>
     /// </summary>
-    internal static string ResolverCadenaDeTrafico(IConfiguration configuration, IHostEnvironment entorno)
+    public static string ResolverCadenaDeTrafico(IConfiguration configuration, IHostEnvironment entorno)
     {
         var cadenaRuntime = configuration.GetConnectionString("CaeManagerDbRuntime");
         if (!string.IsNullOrWhiteSpace(cadenaRuntime))
