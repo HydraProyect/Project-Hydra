@@ -72,7 +72,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
             contexto, contexto,
             new SugerenciaVisitaCorreoRepository(contexto), contexto,
             new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), publicador, contexto,
-            NullLogger<CrearVisitaCommandHandler>.Instance);
+            NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());
 
         var comando = new CrearVisitaCommand(
             centro.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
@@ -109,7 +109,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
             contexto, contexto,
             new SugerenciaVisitaCorreoRepository(contexto), contexto,
             new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), publicador, contexto,
-            NullLogger<CrearVisitaCommandHandler>.Instance);
+            NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());
 
         var comando = new CrearVisitaCommand(
             centro.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
