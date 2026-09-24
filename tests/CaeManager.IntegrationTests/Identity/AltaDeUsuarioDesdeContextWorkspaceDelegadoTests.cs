@@ -117,7 +117,7 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         // rol Administrador en el Context Workspace del Tenant propietario.
         var delegacion = new DelegacionTenant(_tenantOperadorCae, _tenantPropietario);
         contexto.DelegacionesTenant.Add(delegacion);
-        contexto.AsignacionesOperadorDelegado.Add(
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
             new AsignacionOperadorDelegado(delegacion.Id, _actorDelOperador, Roles.Administrador));
         await contexto.SaveChangesAsync();
     }

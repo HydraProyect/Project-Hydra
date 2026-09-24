@@ -252,7 +252,23 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.Retencion.SolicitudPurga> SolicitudesPurga => Set<CaeManager.Domain.Retencion.SolicitudPurga>();
     IQueryable<CaeManager.Domain.Retencion.SolicitudPurga> IRetencionQueryContext.SolicitudesPurga => SolicitudesPurga;
     public DbSet<CaeManager.Domain.Retencion.IncidenciaPurga> IncidenciasPurga => Set<CaeManager.Domain.Retencion.IncidenciaPurga>();
-    public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>();
+    /// <summary>
+    /// Las asignaciones de Operador Delegado que conceden su rol: excluye las
+    /// revocadas (P8, 2026-09-23). Es la única vía de lectura, así que ningún
+    /// lector —rol efectivo, selector de Context Workspace, directorio de
+    /// /usuarios, revalidación, reapertura de carteras— puede ver ni reactivar
+    /// una revocada sin nombrarla a propósito. No lleva HasQueryFilter porque
+    /// la entidad no es EntidadConTenant (ver ModeloTenantTests).
+    /// </summary>
+    public IQueryable<AsignacionOperadorDelegado> AsignacionesOperadorDelegado =>
+        Set<AsignacionOperadorDelegado>().Where(a => a.RevocadaEnUtc == null);
+
+    /// <summary>
+    /// La tabla completa, revocadas incluidas. Para dar de alta y borrar filas
+    /// (la retirada de un Tenant de demostración) y para el historial; nunca
+    /// para decidir qué rol concede una persona.
+    /// </summary>
+    public DbSet<AsignacionOperadorDelegado> AsignacionesOperadorDelegadoConRevocadas => Set<AsignacionOperadorDelegado>();
     IQueryable<AsignacionOperadorDelegado> ITenantsQueryContext.AsignacionesOperadorDelegado => AsignacionesOperadorDelegado;
     public DbSet<AsignacionOperacion> AsignacionesOperacion => Set<AsignacionOperacion>();
     IQueryable<AsignacionOperacion> IOperacionesQueryContext.AsignacionesOperacion => AsignacionesOperacion;

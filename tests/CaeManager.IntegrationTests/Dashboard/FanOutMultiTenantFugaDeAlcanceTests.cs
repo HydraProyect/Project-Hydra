@@ -66,7 +66,7 @@ public class FanOutMultiTenantFugaDeAlcanceTests : IAsyncLifetime
         var delegacionConCartera = new DelegacionTenant(_tenantConsultora, _tenantDelegante);
         var delegacionSinCartera = new DelegacionTenant(_tenantConsultora, _tenantDeleganteSinCartera);
         contexto.DelegacionesTenant.AddRange(delegacionConCartera, delegacionSinCartera);
-        contexto.AsignacionesOperadorDelegado.AddRange(
+        contexto.AsignacionesOperadorDelegadoConRevocadas.AddRange(
             new AsignacionOperadorDelegado(delegacionConCartera.Id, _usuario, Roles.GestorCae),
             new AsignacionOperadorDelegado(delegacionSinCartera.Id, _usuario, Roles.GestorCae));
         await contexto.SaveChangesAsync();

@@ -38,7 +38,7 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         var delegacion = new DelegacionTenant(_consultora, _clienteDelegante);
         contexto.DelegacionesTenant.Add(delegacion);
         // Administrador en su casa, mero Consulta sobre el cliente delegante.
-        contexto.AsignacionesOperadorDelegado.Add(
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
             new AsignacionOperadorDelegado(delegacion.Id, _usuario, "Consulta"));
 
         await contexto.SaveChangesAsync();
@@ -111,7 +111,7 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         var usuario = Guid.NewGuid();
         await using (var preparacion = CrearContexto())
         {
-            preparacion.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(_delegacionId, usuario, rol));
+            preparacion.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(_delegacionId, usuario, rol));
             await preparacion.SaveChangesAsync();
         }
 

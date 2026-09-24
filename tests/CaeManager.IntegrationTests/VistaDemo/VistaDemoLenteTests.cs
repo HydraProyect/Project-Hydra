@@ -131,7 +131,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
         {
             var delegacion = new DelegacionTenant(_operador, propietario);
             contexto.DelegacionesTenant.Add(delegacion);
-            contexto.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(delegacion.Id, _admin, Roles.Administrador));
+            contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, _admin, Roles.Administrador));
         }
 
         await contexto.SaveChangesAsync();

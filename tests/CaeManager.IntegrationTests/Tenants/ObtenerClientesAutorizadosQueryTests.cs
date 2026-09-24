@@ -50,8 +50,8 @@ public class ObtenerClientesAutorizadosQueryTests : IAsyncLifetime
 
         contexto.DelegacionesTenant.Add(comercial);
         contexto.DelegacionesTenant.Add(soporte);
-        contexto.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(comercial.Id, _usuario, "Administrador"));
-        contexto.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(soporte.Id, _usuario, "Administrador"));
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(comercial.Id, _usuario, "Administrador"));
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(soporte.Id, _usuario, "Administrador"));
 
         await contexto.SaveChangesAsync();
     }

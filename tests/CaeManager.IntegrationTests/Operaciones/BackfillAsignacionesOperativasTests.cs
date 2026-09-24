@@ -66,7 +66,7 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
 
         var delegacion = new DelegacionTenant(_consultora, _clienteDelegante);
         contexto.DelegacionesTenant.Add(delegacion);
-        contexto.AsignacionesOperadorDelegado.Add(
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
             new AsignacionOperadorDelegado(delegacion.Id, _operadorDelegado, Roles.GestorCae));
 
         // Delegación de soporte: NO debe migrar. El soporte de TALVEG no es un
@@ -217,7 +217,7 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
             var delegacion = await contextoPreparacion.DelegacionesTenant
                 .FirstAsync(d => d.Proposito == PropositoDelegacion.OperadorExterno);
 
-            contextoPreparacion.AsignacionesOperadorDelegado.Add(
+            contextoPreparacion.AsignacionesOperadorDelegadoConRevocadas.Add(
                 new AsignacionOperadorDelegado(delegacion.Id, _gestorInterno, Roles.GestorCae));
             await contextoPreparacion.SaveChangesAsync();
         }
@@ -348,7 +348,7 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
         });
         var delegacion = await contexto.DelegacionesTenant
             .FirstAsync(d => d.Proposito == PropositoDelegacion.OperadorExterno);
-        contexto.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(delegacion.Id, usuario, rol));
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, usuario, rol));
         await contexto.SaveChangesAsync();
         return usuario;
     }

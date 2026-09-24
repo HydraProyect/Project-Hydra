@@ -20,13 +20,39 @@ namespace CaeManager.Domain.Tenants;
 /// para no invertir la dependencia entre capas (ver
 /// AutorizacionEscrituraBehavior) — la validación de que sea un código de rol
 /// conocido vive en el validador del Command, no aquí.
+///
+/// <b>Revocación (decisión del propietario 2026-09-23, P8).</b> Las filas
+/// heredadas que concedían un rol de Propiedad (Administrador, Dirección CAE)
+/// se revocan con <see cref="Revocar"/> en vez de borrarse, igual que
+/// <see cref="DelegacionTenant.Desactivar"/> desactiva en vez de borrar: la
+/// revocada se conserva como historial. No hay operación inversa: revocar es
+/// definitivo, y para volver a operar se crea una asignación nueva con un rol
+/// delegable. Los lectores no la ven: el DbContext expone la tabla filtrada a
+/// las no revocadas, y el índice único (delegación, usuario) solo cuenta las no
+/// revocadas, para que la revocada no impida esa asignación nueva.
+///
+/// Retirar a una persona de una delegación por la vía ordinaria
+/// (<c>RevocarAsignacionOperadorDelegadoCommand</c>) sigue siendo un borrado
+/// físico, tal como documenta <see cref="IAsignacionOperadorDelegadoRepository.Eliminar"/>;
+/// P8 no cambia esa regla.
 /// </summary>
 public class AsignacionOperadorDelegado : Entity
 {
+    /// <summary>Longitud máxima del motivo de revocación en base de datos.</summary>
+    public const int LongitudMaximaMotivoRevocacion = 200;
+
     public Guid DelegacionTenantId { get; private set; }
     public Guid UsuarioId { get; private set; }
     public string Rol { get; private set; } = string.Empty;
     public DateTime CreadoEnUtc { get; private set; } = DateTime.UtcNow;
+
+    /// <summary>Cuándo se revocó. <c>null</c> mientras la asignación concede su rol.</summary>
+    public DateTime? RevocadaEnUtc { get; private set; }
+
+    /// <summary>Por qué se revocó. Obligatorio al revocar, igual que el motivo de cierre de una cartera.</summary>
+    public string? MotivoRevocacion { get; private set; }
+
+    public bool EstaRevocada => RevocadaEnUtc is not null;
 
     private AsignacionOperadorDelegado()
     {
@@ -45,5 +71,24 @@ public class AsignacionOperadorDelegado : Entity
         DelegacionTenantId = delegacionTenantId;
         UsuarioId = usuarioId;
         Rol = rol.Trim();
+    }
+
+    /// <summary>
+    /// Retira el rol sin borrar la fila. Definitivo: no existe reactivación.
+    /// </summary>
+    public void Revocar(string motivo, DateTime ahoraUtc)
+    {
+        if (EstaRevocada)
+            throw new InvalidOperationException("La asignación ya estaba revocada.");
+        if (string.IsNullOrWhiteSpace(motivo))
+            throw new ArgumentException("Revocar exige un motivo.", nameof(motivo));
+
+        var motivoLimpio = motivo.Trim();
+        if (motivoLimpio.Length > LongitudMaximaMotivoRevocacion)
+            throw new ArgumentException(
+                $"El motivo no puede superar {LongitudMaximaMotivoRevocacion} caracteres.", nameof(motivo));
+
+        RevocadaEnUtc = ahoraUtc;
+        MotivoRevocacion = motivoLimpio;
     }
 }
