@@ -6,7 +6,7 @@
 # escribir este guion.
 #
 # La propiedad que importa no es "el guion corre" — es que DISTINGUE los
-# cinco desenlaces (VERDE/ROJO/EXPULSADA_DE_COLA/TIMEOUT/OBSOLETO) usando el
+# seis desenlaces (VERDE/ROJO/EXPULSADA_DE_COLA/TIMEOUT/OBSOLETO/INDETERMINADO) usando el
 # dato correcto y no uno parecido, cubriendo las variantes de instrumento de
 # PROTOCOLO-TURNO-NOCTURNO.md § 4.1: condición que termina antes, campo
 # parecido/mecanismo distinto (mergeQueueEntry vs. checks del HEAD de la PR;
@@ -364,13 +364,9 @@ fixture BRANCH_PROTECTION 1 "MOCK_ERROR"
 fixture BRANCH_PROTECTION 2 "MOCK_ERROR"
 fixture BRANCH_PROTECTION 3 "MOCK_ERROR"
 TIMEOUT_S_PRUEBA=600 ejecutar 115 --hasta checks
-PRUEBAS=$((PRUEBAS + 1))
-if [[ "$CODIGO" == "64" ]] && ! printf '%s\n' "$SALIDA" | grep -q '^VEREDICTO:'; then
-  echo "OK: fallo de API en branch protection -> error de entorno (64), no un VEREDICTO: TIMEOUT disfrazado"
-else
-  echo "FALLO: se esperaba código 64 sin línea VEREDICTO — obtenido código=$CODIGO salida='$SALIDA'" >&2
-  FALLOS=$((FALLOS + 1))
-fi
+# 2026-09-24: con la PR ya leída, esto dejó de ser 64 sin veredicto — es
+# INDETERMINADO (5), nunca TIMEOUT: el problema fue leer la API, no esperar.
+assert_veredicto "fallo persistente de branch protection -> INDETERMINADO, no TIMEOUT ni 64 mudo" INDETERMINADO 5 "lectura=branch_protection"
 
 echo
 echo "=== 2ª pasada de Codex (2026-09-17), P2: HEAD sustituido en la ventana estrecha ENTRE leer los checks y declarar VERDE ==="
@@ -416,13 +412,7 @@ fixture MERGE_QUEUE 1 "MOCK_ERROR"
 fixture MERGE_QUEUE 2 "MOCK_ERROR"
 fixture MERGE_QUEUE 3 "MOCK_ERROR"
 TIMEOUT_S_PRUEBA=600 ejecutar 117 --hasta merge
-PRUEBAS=$((PRUEBAS + 1))
-if [[ "$CODIGO" == "64" ]] && ! printf '%s\n' "$SALIDA" | grep -q '^VEREDICTO:'; then
-  echo "OK: fallo de GraphQL en la cola -> error de entorno (64), no un VEREDICTO: TIMEOUT disfrazado"
-else
-  echo "FALLO: se esperaba código 64 sin línea VEREDICTO — obtenido código=$CODIGO salida='$SALIDA'" >&2
-  FALLOS=$((FALLOS + 1))
-fi
+assert_veredicto "fallo persistente de GraphQL en la cola -> INDETERMINADO, no TIMEOUT ni 64 mudo" INDETERMINADO 5 "lectura=merge_queue"
 
 echo
 echo "=== Bug 2026-09-24 (PR #868): la LECTURA INICIAL de una PR ilegible sigue fallando rápido con 64 ==="
@@ -479,7 +469,7 @@ else
 fi
 
 echo
-echo "=== Bug 2026-09-24 (PR #868): fallo PERSISTENTE de gh pr view a mitad de espera -> TIMEOUT con el último estado, nunca sin VEREDICTO ==="
+echo "=== Bug 2026-09-24 (PR #868): fallo PERSISTENTE de gh pr view a mitad de espera -> INDETERMINADO con el último estado, nunca sin VEREDICTO ==="
 nueva_fixture_dir
 fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
 fixture PR_VIEW 2 "OPEN	AAA	CLEAN		"
@@ -490,12 +480,13 @@ fixture PR_VIEW 5 "MOCK_ERROR"
 fixture_branch_protection 1
 fixture PR_CHECKS 1 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
 # El timeout global (600 s) queda muy por encima de los 5 intentos (~5 s, o
-# ~1 min en una máquina cargada): el TIMEOUT tiene que venir del tope de
+# ~1 min en una máquina cargada): la salida tiene que venir del tope de
 # reintentos, no del reloj — por eso se exige "falló 5 veces".
 TIMEOUT_S_PRUEBA=600 ejecutar 133 --hasta merge
-assert_veredicto "gh pr view caído de forma persistente -> TIMEOUT de fase merge" TIMEOUT 3 "fase=merge"
-assert_veredicto "el TIMEOUT dice cuántas veces falló" TIMEOUT 3 "falló 5 veces"
-assert_veredicto "el TIMEOUT lleva la última lectura buena" TIMEOUT 3 "estado=OPEN head=AAA mergeStateStatus=BLOCKED"
+assert_veredicto "gh pr view caído de forma persistente -> INDETERMINADO (5), no TIMEOUT" INDETERMINADO 5 "lectura=pr_view"
+assert_veredicto "el INDETERMINADO dice la fase" INDETERMINADO 5 "fase=merge"
+assert_veredicto "el INDETERMINADO dice cuántas veces falló" INDETERMINADO 5 "falló 5 veces"
+assert_veredicto "el INDETERMINADO lleva la última lectura buena" INDETERMINADO 5 "estado=OPEN head=AAA mergeStateStatus=BLOCKED"
 
 echo
 echo "Pruebas: $PRUEBAS · Fallos: $FALLOS"
