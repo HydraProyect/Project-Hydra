@@ -383,14 +383,16 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// estado — la fila es del trabajador, la pregunta es sobre sus documentos.
     /// Se ordenan de peor a mejor por el mismo motivo que
     /// <see cref="EstadoDocumentoUi.OpcionesDocumentales"/>: al filtrar, lo que
-    /// el gestor busca es lo que le urge.
+    /// el gestor busca es lo que le urge. «Sin confirmar» (vigencia sin anotar)
+    /// va detrás de lo malo conocido y delante de lo vigente.
     /// </summary>
-    public static IReadOnlyList<OpcionEstado> OpcionesEstadoDocumental { get; } =
+    public static IReadOnlyList<OpcionEstado> OpcionesEstadoDocumental =>
     [
         new(nameof(EstadoDocumento.Vencido), EstadoDocumentoUi.Texto(EstadoDocumento.Vencido)),
         new(nameof(EstadoDocumento.Faltante), EstadoDocumentoUi.Texto(EstadoDocumento.Faltante)),
         new(nameof(EstadoDocumento.Urgente), EstadoDocumentoUi.Texto(EstadoDocumento.Urgente)),
         new(nameof(EstadoDocumento.Proximo), EstadoDocumentoUi.Texto(EstadoDocumento.Proximo)),
+        new(nameof(EstadoDocumento.SinConfirmar), EstadoDocumentoUi.Texto(EstadoDocumento.SinConfirmar)),
         new(nameof(EstadoDocumento.Vigente), EstadoDocumentoUi.Texto(EstadoDocumento.Vigente))
     ];
 

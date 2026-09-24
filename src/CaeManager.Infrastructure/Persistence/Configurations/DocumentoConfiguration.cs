@@ -23,10 +23,28 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
         // (AlinearModeloConCheckXorDocumentoExistente) no vuelve a crearla
         // desde cero: la recrea de forma idempotente porque ya existe en toda
         // base que haya aplicado la migración de agosto.
-        builder.ToTable("Documentos", t => t.HasCheckConstraint(
-            "CK_Documentos_PropietarioXor",
-            "num_nonnulls(\"TrabajadorId\", \"ClienteId\", \"EmpresaId\", \"VehiculoId\", \"ProyectoId\") = 1"));
+        //
+        // CK_Documentos_EstadoVigenciaCoherente: la fecha de vencimiento existe
+        // si y solo si el estado es VenceEnFecha (2). Sin ella, una fecha nula
+        // volvería a poder significar dos cosas —«no caduca» (1) y «sin
+        // confirmar» (0)— según quién escribiera la fila.
+        builder.ToTable("Documentos", t =>
+        {
+            t.HasCheckConstraint(
+                "CK_Documentos_PropietarioXor",
+                "num_nonnulls(\"TrabajadorId\", \"ClienteId\", \"EmpresaId\", \"VehiculoId\", \"ProyectoId\") = 1");
+            t.HasCheckConstraint(
+                "CK_Documentos_EstadoVigenciaCoherente",
+                "(\"EstadoVigencia\" = 2 AND \"FechaVencimiento\" IS NOT NULL) OR " +
+                "(\"EstadoVigencia\" IN (0, 1) AND \"FechaVencimiento\" IS NULL)");
+        });
         builder.HasKey(d => d.Id);
+
+        // Vigencia: dos columnas, porque son dos datos. La propiedad Vigencia
+        // que las une es una vista de solo lectura que valida la coherencia al
+        // leer, no una tercera columna.
+        builder.Property(d => d.EstadoVigencia).HasConversion<int>();
+        builder.Ignore(d => d.Vigencia);
 
         builder.Property(d => d.ArchivoUrl).HasMaxLength(Documento.LongitudMaximaArchivoUrl);
         builder.Property(d => d.Comentarios).HasMaxLength(Documento.LongitudMaximaComentarios);

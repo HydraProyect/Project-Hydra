@@ -511,18 +511,18 @@ public static class EscenariosDireccionDemoSeeder
                 {
                     var vencimiento = hoy.AddDays((especial ?? VigenciaDemo.AlDia).DiasHastaVencimiento());
                     yield return (nombre, Documento.DeTrabajador(
-                        trabajador.Id, tipo.Id, vencimiento.AddMonths(-(tipo.VigenciaMeses ?? 12)), vencimiento));
+                        trabajador.Id, tipo.Id, vencimiento.AddMonths(-(tipo.VigenciaMeses ?? 12)), VigenciaDocumento.VenceEl(vencimiento)));
                 }
                 else if (nombre == DocumentoIdentidad && plaza.Extranjeria != Extranjeria.No)
                 {
                     // El documento de un extranjero sí caduca (NIE/TIE); el
-                    // de un nacional se siembra sin vencimiento como en el resto.
+                    // de un nacional se siembra como «no caduca» confirmado, como en el resto.
                     var vencimiento = hoy.AddDays(400);
-                    yield return (nombre, Documento.DeTrabajador(trabajador.Id, tipo.Id, vencimiento.AddYears(-5), vencimiento));
+                    yield return (nombre, Documento.DeTrabajador(trabajador.Id, tipo.Id, vencimiento.AddYears(-5), VigenciaDocumento.VenceEl(vencimiento)));
                 }
                 else
                 {
-                    yield return (nombre, Documento.DeTrabajador(trabajador.Id, tipo.Id, hoy.AddDays(-120), fechaVencimiento: null));
+                    yield return (nombre, Documento.DeTrabajador(trabajador.Id, tipo.Id, hoy.AddDays(-120), VigenciaDocumento.NoCaduca));
                 }
             }
 
@@ -537,7 +537,7 @@ public static class EscenariosDireccionDemoSeeder
             var tipoAutorizacion = tipos.Single(t => t.Nombre == autorizacion);
             var vigencia = VigenciaEspecial(spec.Escenario, plaza.Clave, autorizacion) ?? VigenciaDemo.AlDia;
             var venceEl = hoy.AddDays(vigencia.DiasHastaVencimiento());
-            yield return (autorizacion, Documento.DeTrabajador(trabajador.Id, tipoAutorizacion.Id, venceEl.AddYears(-1), venceEl));
+            yield return (autorizacion, Documento.DeTrabajador(trabajador.Id, tipoAutorizacion.Id, venceEl.AddYears(-1), VigenciaDocumento.VenceEl(venceEl)));
         }
 
         /// <summary>

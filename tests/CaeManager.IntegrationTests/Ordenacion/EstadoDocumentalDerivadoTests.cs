@@ -67,9 +67,9 @@ public class EstadoDocumentalDerivadoTests : IAsyncLifetime
 
         contexto.Documentos.AddRange(
             // El peor de los dos manda: no basta con tener uno en regla.
-            Documento.DeTrabajador(conVencido.Id, tipo.Id, _hoy.AddDays(-400), _hoy.AddDays(-1)),
-            Documento.DeTrabajador(conVencido.Id, tipo.Id, _hoy.AddDays(-10), _hoy.AddDays(UmbralAmbarDias + 60)),
-            Documento.DeTrabajador(soloVigentes.Id, tipo.Id, _hoy.AddDays(-10), _hoy.AddDays(UmbralAmbarDias + 60)));
+            Documento.DeTrabajador(conVencido.Id, tipo.Id, _hoy.AddDays(-400), VigenciaDocumento.VenceEl(_hoy.AddDays(-1))),
+            Documento.DeTrabajador(conVencido.Id, tipo.Id, _hoy.AddDays(-10), VigenciaDocumento.VenceEl(_hoy.AddDays(UmbralAmbarDias + 60))),
+            Documento.DeTrabajador(soloVigentes.Id, tipo.Id, _hoy.AddDays(-10), VigenciaDocumento.VenceEl(_hoy.AddDays(UmbralAmbarDias + 60))));
 
         await contexto.SaveChangesAsync();
     }

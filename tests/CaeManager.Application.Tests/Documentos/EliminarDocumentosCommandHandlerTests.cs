@@ -12,8 +12,8 @@ public class EliminarDocumentosCommandHandlerTests
     [Fact]
     public async Task Elimina_todos_los_documentos_existentes()
     {
-        var uno = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), null);
-        var dos = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), null);
+        var uno = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
+        var dos = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
         var repositorio = new DocumentoRepositorioFalso();
         repositorio.Agregar(uno);
         repositorio.Agregar(dos);
@@ -33,7 +33,7 @@ public class EliminarDocumentosCommandHandlerTests
     [Fact]
     public async Task Reporta_error_por_cada_id_inexistente_sin_fallar_el_resto()
     {
-        var existente = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), null);
+        var existente = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
         var repositorio = new DocumentoRepositorioFalso();
         repositorio.Agregar(existente);
         var unitOfWork = new UnitOfWorkFalso();
@@ -53,7 +53,7 @@ public class EliminarDocumentosCommandHandlerTests
     public async Task No_elimina_un_documento_de_cliente_fuera_de_la_cartera()
     {
         var clienteAjeno = Guid.NewGuid();
-        var documento = Documento.DeCliente(clienteAjeno, Guid.NewGuid(), new DateOnly(2026, 1, 1), null);
+        var documento = Documento.DeCliente(clienteAjeno, Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
         var repositorio = new DocumentoRepositorioFalso();
         repositorio.Agregar(documento);
         var unitOfWork = new UnitOfWorkFalso();
@@ -74,7 +74,7 @@ public class EliminarDocumentosCommandHandlerTests
         // Se comprueba antes del bucle a propósito: un éxito parcial sin autor
         // no es un éxito parcial, y dejar la mitad del lote borrada sin poder
         // decir quién lo hizo es peor que no borrar nada.
-        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), null);
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
         var repositorio = new DocumentoRepositorioFalso();
         repositorio.Agregar(documento);
         var handler = new EliminarDocumentosCommandHandler(

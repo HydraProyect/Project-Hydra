@@ -13,6 +13,11 @@ namespace CaeManager.Domain.Centros;
 /// Una Gestion Pendiente asociada a un hueco no cambia este cálculo a
 /// propósito: es solo seguimiento operativo del Gestor, y el hueco real
 /// sigue existiendo hasta que se suba el Documento (ver Gestion).
+///
+/// <see cref="EstadoDocumento.SinConfirmar"/> (vigencia sin anotar) no es
+/// causa de color, mismo criterio que la vigencia en plataforma sin
+/// confirmar: el semáforo solo refleja lo malo conocido. Quien calcula el
+/// porcentaje de cumplimiento sí lo excluye de «al día».
 /// </summary>
 public static class CalculadoraEstadoCentro
 {

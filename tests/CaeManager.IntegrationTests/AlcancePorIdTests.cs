@@ -74,9 +74,9 @@ public class AlcancePorIdTests : IAsyncLifetime
             .FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador);
 
         _documentoDeTrabajadorVisible = Documento.DeTrabajador(
-            trabajadorVisible.Id, tipoDocumentoTrabajador.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);
+            trabajadorVisible.Id, tipoDocumentoTrabajador.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
         _documentoDeTrabajadorAjeno = Documento.DeTrabajador(
-            trabajadorAjeno.Id, tipoDocumentoTrabajador.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);
+            trabajadorAjeno.Id, tipoDocumentoTrabajador.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.AddRange(_documentoDeTrabajadorVisible, _documentoDeTrabajadorAjeno);
 
         await _dbContext.SaveChangesAsync();

@@ -51,7 +51,9 @@ public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEsta
 /// % de cumplimiento documental de un Centro (Centro 360, PLAN-EJECUCION-UX.md
 /// § 0.5/0.8) — <c>Requeridos</c> es el número de pares Trabajador×TipoDocumento
 /// aplicables a ese Centro (ver <see cref="Documentos.ResolucionTipoDocumentoCentro"/>),
-/// <c>AlDia</c> cuántos de esos pares tienen hoy un Documento Vigente o SinCaducidad.
+/// <c>AlDia</c> cuántos de esos pares tienen hoy un Documento Vigente o SinCaducidad
+/// (confirmado como que no caduca). Un Documento sin vigencia confirmada
+/// (<see cref="EstadoDocumento.SinConfirmar"/>) no cuenta como al día: «no lo sé» no es «sí».
 /// <see cref="Porcentaje"/> es <c>null</c> cuando el centro no tiene ningún par
 /// aplicable — un 0% o 100% ahí sería engañoso, "sin requisitos" es la lectura
 /// correcta.
@@ -331,6 +333,12 @@ public class CalculoEstadoCentroService(
         var documentosEmpresa = await (
             from documento in documentosContext.Documentos
             where documento.EmpresaId != null && empresaIds.Contains(documento.EmpresaId!.Value)
+            // Solo documentos con fecha (VenceEnFecha, por CK_Documentos_EstadoVigenciaCoherente).
+            // Ni «no caduca» ni «sin confirmar» son causa de color: lo sin confirmar resta
+            // del cumplimiento (CalcularCumplimientoAsync) pero no pone el Centro en ámbar o
+            // rojo, por la misma razón que la vigencia en plataforma sin confirmar
+            // (AgregarCausasDeVigenciaEnPlataformaAsync): los documentos que ya existían sin
+            // fecha nacen sin confirmar, y teñirlos todos a la vez sería ruido, no información.
             where documento.FechaVencimiento != null
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new
@@ -345,8 +353,9 @@ public class CalculoEstadoCentroService(
 
         foreach (var documento in documentosEmpresa)
         {
-            var estado = CalculadoraEstadoDocumento.Calcular(documento.FechaVencimiento, hoy, umbralAmbarDias, umbralRojoDias);
-            if (estado is EstadoDocumento.SinCaducidad or EstadoDocumento.Vigente) continue;
+            var estado = CalculadoraEstadoDocumento.Calcular(
+                VigenciaDocumento.VenceEl(documento.FechaVencimiento!.Value), hoy, umbralAmbarDias, umbralRojoDias);
+            if (estado is EstadoDocumento.Vigente) continue;
             if (!centroIdsPorEmpresa.TryGetValue(documento.EmpresaId, out var centrosDeEmpresa)) continue;
 
             var causa = new CausaEstadoCentro(
@@ -384,6 +393,7 @@ public class CalculoEstadoCentroService(
         var documentosTrabajador = await (
             from documento in documentosContext.Documentos
             where documento.TrabajadorId != null && trabajadorIds.Contains(documento.TrabajadorId!.Value)
+            // Solo con fecha: mismo criterio que en AgregarCausasDeEmpresaAsync.
             where documento.FechaVencimiento != null
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new { TrabajadorId = documento.TrabajadorId!.Value, documento.FechaVencimiento, tipoDocumento.Nombre })
@@ -393,8 +403,9 @@ public class CalculoEstadoCentroService(
         {
             foreach (var documento in documentosTrabajador.Where(d => d.TrabajadorId == asignacion.TrabajadorId))
             {
-                var estado = CalculadoraEstadoDocumento.Calcular(documento.FechaVencimiento, hoy, umbralAmbarDias, umbralRojoDias);
-                if (estado is EstadoDocumento.SinCaducidad or EstadoDocumento.Vigente) continue;
+                var estado = CalculadoraEstadoDocumento.Calcular(
+                    VigenciaDocumento.VenceEl(documento.FechaVencimiento!.Value), hoy, umbralAmbarDias, umbralRojoDias);
+                if (estado is EstadoDocumento.Vigente) continue;
 
                 causasPorCentro[asignacion.CentroId].Add(
                     new CausaEstadoCentro(
@@ -498,11 +509,11 @@ public class CalculoEstadoCentroService(
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsCandidatos.Contains(d.TipoDocumentoId))
-            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.FechaVencimiento })
+            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken))
             .ToDictionary(
                 d => (d.TrabajadorId, d.TipoDocumentoId),
-                d => CalculadoraEstadoDocumento.Calcular(d.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
+                d => CalculadoraEstadoDocumento.Calcular(d.EstadoVigencia, d.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
 
         foreach (var asignacion in asignacionesActivas)
         {

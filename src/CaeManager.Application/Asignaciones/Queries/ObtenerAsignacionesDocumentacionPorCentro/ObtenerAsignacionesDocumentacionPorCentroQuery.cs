@@ -66,7 +66,10 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
         [EstadoDocumento.Vencido] = 1,
         [EstadoDocumento.Urgente] = 2,
         [EstadoDocumento.Proximo] = 3,
-        [EstadoDocumento.Vigente] = 4
+        // Sin vigencia confirmada: detrás de lo malo conocido y delante de lo
+        // vigente (mismo orden que EstadoDocumentalFiltro.ClaveOrden).
+        [EstadoDocumento.SinConfirmar] = 4,
+        [EstadoDocumento.Vigente] = 5
     };
 
     public async Task<IReadOnlyList<TrabajadorAsignacionDocumentacionDto>> Handle(
@@ -125,7 +128,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsRequeridos.Contains(d.TipoDocumentoId))
-            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.FechaVencimiento })
+            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
@@ -147,7 +150,9 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             foreach (var documento in documentosDelTrabajador)
             {
                 var estado = CalculadoraEstadoDocumento.Calcular(
-                    documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
+                    documento.EstadoVigencia, documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
+                // Solo se omite lo confirmado como que no caduca; un documento
+                // sin vigencia confirmada sí se lista, porque no está en regla.
                 if (estado == EstadoDocumento.SinCaducidad) continue;
 
                 // Solo tiene sentido avisar de un documento que hoy está bien
@@ -156,7 +161,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
                 // aparte, ya se ve en su propio badge.
                 var caducaEnVentana = estado == EstadoDocumento.Vigente
                     && request.VentanaVisitaFechaFin is { } finVisita
-                    && CalculadoraEstadoDocumento.Calcular(documento.FechaVencimiento, finVisita, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
+                    && CalculadoraEstadoDocumento.Calcular(documento.EstadoVigencia, documento.FechaVencimiento, finVisita, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
                         is not (EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad);
 
                 var nombreTipo = tiposRequeridosPorCentro.First(t => t.Id == documento.TipoDocumentoId).Nombre;

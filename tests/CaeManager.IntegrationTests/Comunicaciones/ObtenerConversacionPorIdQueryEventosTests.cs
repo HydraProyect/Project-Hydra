@@ -103,7 +103,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
             conversacionId = conversacion.Id;
 
-            var documento = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 8, 1), new DateOnly(2027, 8, 1));
+            var documento = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 8, 1), VigenciaDocumento.VenceEl(new DateOnly(2027, 8, 1)));
             contexto.Documentos.Add(documento);
             await contexto.SaveChangesAsync();
             documentoId = documento.Id;
@@ -145,8 +145,8 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
             contexto.TiposDocumento.Add(tipoDocumento);
             await contexto.SaveChangesAsync();
 
-            var primero = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), new DateOnly(2026, 9, 1));
-            var segundo = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), new DateOnly(2026, 10, 1));
+            var primero = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.VenceEl(new DateOnly(2026, 9, 1)));
+            var segundo = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.VenceEl(new DateOnly(2026, 10, 1)));
             contexto.Documentos.AddRange(primero, segundo);
 
             var conversacion = new Conversacion("Documentación pendiente", cliente.Id);

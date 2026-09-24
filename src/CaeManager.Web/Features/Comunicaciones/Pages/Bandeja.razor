@@ -8,6 +8,7 @@
    rediseño): una sola bandeja para Correo y WhatsApp — /comunicaciones/chat
    ya no existe como pantalla aparte (principio § 10.2). *@
 @attribute [Authorize(Roles = RolesComunicaciones.Gestion)]
+@using CaeManager.Web.Features.Documentos.Recursos
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
 @using CaeManager.Domain.Comunicaciones
@@ -501,6 +502,10 @@
 
                     <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionDocumentoFormulario" ValorChanged="v => _fechaEmisionDocumentoFormulario = v" />
                     <CampoTexto Etiqueta="Fecha de caducidad (si no se calcula sola)" Type="date" Valor="@_fechaVencimientoDocumentoFormulario" ValorChanged="v => _fechaVencimientoDocumentoFormulario = v" />
+                    <label class="campo-checkbox">
+                        <input type="checkbox" checked="@_noCaducaDocumentoFormulario" @onchange="e => _noCaducaDocumentoFormulario = e.Value is bool m && m" />
+                        @TextosVigenciaDocumento.Texto("NoCaduca")
+                    </label>
                     <CampoTextarea Etiqueta="Comentarios" Valor="@_comentariosDocumentoFormulario" ValorChanged="v => _comentariosDocumentoFormulario = v" Filas="2" />
                 </div>
             }

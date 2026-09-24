@@ -27,6 +27,7 @@ public record DocumentoDetalleDto(
     bool TipoDocumentoAplicaVencimientoAutomatico,
     DateOnly FechaEmision,
     DateOnly? FechaVencimiento,
+    EstadoVigenciaDocumento EstadoVigencia,
     string? ArchivoUrl,
     string? Comentarios,
     string? TipoDocumentoDescripcion,
@@ -55,6 +56,7 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
                 d.TipoDocumentoId,
                 d.FechaEmision,
                 d.FechaVencimiento,
+                d.EstadoVigencia,
                 d.ArchivoUrl,
                 d.Comentarios,
                 d.Version
@@ -135,7 +137,7 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
         return new DocumentoDetalleDto(
             documento.Id, ambito, propietarioNombre, tipoDocumento.Nombre,
             tipoDocumento.AplicaVencimientoAutomatico, documento.FechaEmision, documento.FechaVencimiento,
-            documento.ArchivoUrl, documento.Comentarios,
+            documento.EstadoVigencia, documento.ArchivoUrl, documento.Comentarios,
             tipoDocumento.Descripcion, tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones,
             documento.Version, tipoDocumento.PerfilDocumentoOficial, documento.EmpresaId);
     }

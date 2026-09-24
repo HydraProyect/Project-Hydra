@@ -347,7 +347,7 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
         foreach (var diasDespues in new[] { 0, 3, 7 })
         {
             CalculadoraEstadoDocumento.Calcular(
-                vence, hoy.AddDays(diasDespues), ParametroSistemaSeedData.UmbralAmbarDias, ParametroSistemaSeedData.UmbralRojoDias)
+                VigenciaDocumento.VenceEl(vence), hoy.AddDays(diasDespues), ParametroSistemaSeedData.UmbralAmbarDias, ParametroSistemaSeedData.UmbralRojoDias)
                 .Should().Be(esperado,
                     $"{vigencia} sembrada hoy tiene que seguir siendo {esperado} {diasDespues} días después: " +
                     "la demo puede ser al día siguiente");
@@ -420,7 +420,7 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
             var documentos = await contexto.Documentos.Where(d => d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value)).ToListAsync();
 
             EstadoDocumento Estado(Documento d) =>
-                CalculadoraEstadoDocumento.Calcular(d.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
+                CalculadoraEstadoDocumento.Calcular(d.Vigencia, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
 
             var extranjeros = trabajadores
                 .Where(t => t.Dni is { Length: > 0 } dni && dni[0] == 'X')

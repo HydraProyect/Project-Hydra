@@ -46,9 +46,9 @@ public class EstadisticasAprobacionDocumentoTests : IAsyncLifetime
         var tipoApto = await _dbContext.TiposDocumento.FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador);
         var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var documentoVisibleAutomatico = Documento.DeTrabajador(_trabajadorVisible.Id, tipoApto.Id, fechaEmision, null, "a.pdf");
-        var documentoVisibleManual = Documento.DeTrabajador(_trabajadorVisible.Id, tipoApto.Id, fechaEmision, null, "b.pdf");
-        var documentoAjeno = Documento.DeTrabajador(_trabajadorAjeno.Id, tipoApto.Id, fechaEmision, null, "c.pdf");
+        var documentoVisibleAutomatico = Documento.DeTrabajador(_trabajadorVisible.Id, tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "a.pdf");
+        var documentoVisibleManual = Documento.DeTrabajador(_trabajadorVisible.Id, tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "b.pdf");
+        var documentoAjeno = Documento.DeTrabajador(_trabajadorAjeno.Id, tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "c.pdf");
         _dbContext.Documentos.AddRange(documentoVisibleAutomatico, documentoVisibleManual, documentoAjeno);
         await _dbContext.SaveChangesAsync();
 

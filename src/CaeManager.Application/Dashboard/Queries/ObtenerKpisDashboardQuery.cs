@@ -75,21 +75,26 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         var documentosQuery = documentosContext.Documentos.Where(d => d.TrabajadorId != null);
         if (trabajadorIdsVisibles is not null) documentosQuery = documentosQuery.Where(d => trabajadorIdsVisibles.Contains(d.TrabajadorId!.Value));
 
-        var fechasVencimiento = await documentosQuery
-            .Select(d => d.FechaVencimiento)
+        var vigencias = await documentosQuery
+            .Select(d => new { d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken);
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var estados = fechasVencimiento
-            .Select(f => CalculadoraEstadoDocumento.Calcular(f, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias))
+        var estados = vigencias
+            .Select(v => CalculadoraEstadoDocumento.Calcular(
+                v.EstadoVigencia, v.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias))
             .ToList();
 
         var vigentes = estados.Count(e => e == EstadoDocumento.Vigente);
         var proximos = estados.Count(e => e == EstadoDocumento.Proximo);
         var urgentes = estados.Count(e => e == EstadoDocumento.Urgente);
         var vencidos = estados.Count(e => e == EstadoDocumento.Vencido);
-        var totalConVigencia = vigentes + proximos + urgentes + vencidos;
+        // Un documento sin vigencia confirmada no está al día: entra en el
+        // denominador y no en el numerador, igual que en el cumplimiento del
+        // Centro (CalculoEstadoCentroService). Solo «no caduca» queda fuera.
+        var sinConfirmar = estados.Count(e => e == EstadoDocumento.SinConfirmar);
+        var totalConVigencia = vigentes + proximos + urgentes + vencidos + sinConfirmar;
         var tasa = totalConVigencia == 0 ? 100 : vigentes * 100 / totalConVigencia;
 
         return new KpisDashboardDto(

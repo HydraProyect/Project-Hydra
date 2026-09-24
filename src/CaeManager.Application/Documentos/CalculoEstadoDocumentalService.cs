@@ -50,16 +50,16 @@ public class CalculoEstadoDocumentalService(
         {
             AmbitoAplicacion.Trabajador => documentosContext.Documentos
                 .Where(d => d.TrabajadorId != null && ids.Contains(d.TrabajadorId!.Value))
-                .Select(d => new { PropietarioId = d.TrabajadorId!.Value, d.FechaVencimiento }),
+                .Select(d => new { PropietarioId = d.TrabajadorId!.Value, d.EstadoVigencia, d.FechaVencimiento }),
             AmbitoAplicacion.Empresa => documentosContext.Documentos
                 .Where(d => d.EmpresaId != null && ids.Contains(d.EmpresaId!.Value))
-                .Select(d => new { PropietarioId = d.EmpresaId!.Value, d.FechaVencimiento }),
+                .Select(d => new { PropietarioId = d.EmpresaId!.Value, d.EstadoVigencia, d.FechaVencimiento }),
             AmbitoAplicacion.Vehiculo => documentosContext.Documentos
                 .Where(d => d.VehiculoId != null && ids.Contains(d.VehiculoId!.Value))
-                .Select(d => new { PropietarioId = d.VehiculoId!.Value, d.FechaVencimiento }),
+                .Select(d => new { PropietarioId = d.VehiculoId!.Value, d.EstadoVigencia, d.FechaVencimiento }),
             AmbitoAplicacion.Cliente => documentosContext.Documentos
                 .Where(d => d.ClienteId != null && ids.Contains(d.ClienteId!.Value))
-                .Select(d => new { PropietarioId = d.ClienteId!.Value, d.FechaVencimiento }),
+                .Select(d => new { PropietarioId = d.ClienteId!.Value, d.EstadoVigencia, d.FechaVencimiento }),
             _ => throw new ArgumentOutOfRangeException(
                 nameof(ambito), ambito, "Este ámbito no tiene estado documental derivado.")
         };
@@ -72,19 +72,42 @@ public class CalculoEstadoDocumentalService(
         // Módulo 8: esto se llamaba con todos los propietarios visibles de la
         // página cuando se ordena/filtra por estado, así que antes eran
         // potencialmente miles de filas de Documento por una sola pantalla).
-        // MIN(FechaVencimiento) es equivalente a Max(EstadoDocumento): el
+        // MIN(FechaVencimiento) da el peor de los documentos con fecha: el
         // estado es una función monótona de la fecha —cuanto antes vence, más
-        // urgente— y CalculadoraEstadoDocumento.Calcular(null, ...) ya
-        // devuelve el mínimo del enum (SinCaducidad), que es exactamente lo
-        // que corresponde cuando ningún Documento del propietario tiene
-        // vencimiento. MIN ignora los NULL en SQL, igual que aquí.
-        var peorFechaPorPropietario = await consulta
+        // urgente—. MIN ignora los NULL, que son los «no caduca» y los «sin
+        // confirmar»; estos segundos se cuentan aparte, porque no pueden
+        // perderse en el MIN como si no caducaran.
+        var agregadoPorPropietario = await consulta
             .GroupBy(f => f.PropietarioId)
-            .Select(g => new { PropietarioId = g.Key, PeorFecha = g.Min(f => f.FechaVencimiento) })
-            .ToDictionaryAsync(x => x.PropietarioId, x => x.PeorFecha, cancellationToken);
+            .Select(g => new
+            {
+                PropietarioId = g.Key,
+                PeorFecha = g.Min(f => f.FechaVencimiento),
+                SinConfirmar = g.Count(f => f.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
+            })
+            .ToListAsync(cancellationToken);
 
-        return peorFechaPorPropietario.ToDictionary(
-            kv => kv.Key,
-            kv => CalculadoraEstadoDocumento.Calcular(kv.Value, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
+        return agregadoPorPropietario.ToDictionary(
+            a => a.PropietarioId,
+            a => PeorEstado(a.PeorFecha, a.SinConfirmar > 0, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
+    }
+
+    /// <summary>
+    /// Lo malo conocido (Próximo, Urgente, Vencido) pesa más que lo
+    /// desconocido, y lo desconocido más que lo bueno conocido: un propietario
+    /// con un documento vigente y otro sin vigencia confirmada está
+    /// <see cref="EstadoDocumento.SinConfirmar"/>, no Vigente. Mismo orden que
+    /// <see cref="EstadoDocumentalFiltro.ClaveOrden"/>.
+    /// </summary>
+    internal static EstadoDocumento PeorEstado(
+        DateOnly? peorFecha, bool haySinConfirmar, DateOnly hoy, int umbralAmbarDias, int umbralRojoDias)
+    {
+        var porFecha = peorFecha is { } fecha
+            ? CalculadoraEstadoDocumento.Calcular(VigenciaDocumento.VenceEl(fecha), hoy, umbralAmbarDias, umbralRojoDias)
+            : EstadoDocumento.SinCaducidad;
+
+        return haySinConfirmar && porFecha is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad
+            ? EstadoDocumento.SinConfirmar
+            : porFecha;
     }
 }

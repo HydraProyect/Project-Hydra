@@ -69,7 +69,7 @@ public class PlantillasDatosPruebaSeederTests
             var tipoEpi = await contexto.TiposDocumento.SingleAsync(t => t.Nombre == "Entrega de EPI");
             var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
             var documentosTrabajador = trabajadores
-                .Select(t => Documento.DeTrabajador(t.Id, tipoEpi.Id, hoy.AddMonths(-1), hoy.AddMonths(11)))
+                .Select(t => Documento.DeTrabajador(t.Id, tipoEpi.Id, hoy.AddMonths(-1), VigenciaDocumento.VenceEl(hoy.AddMonths(11))))
                 .ToList();
             contexto.Documentos.AddRange(documentosTrabajador);
             await contexto.SaveChangesAsync();

@@ -37,7 +37,7 @@ public class CheckXorPropietarioDocumentoTests : IAsyncLifetime
         var tipo = new TipoDocumento("Certificado", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, requerido: RequisitoDocumental.Si);
         contexto.TiposDocumento.Add(tipo);
 
-        _documento = Documento.DeCliente(cliente.Id, tipo.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);
+        _documento = Documento.DeCliente(cliente.Id, tipo.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
         contexto.Documentos.Add(_documento);
 
         await contexto.SaveChangesAsync();

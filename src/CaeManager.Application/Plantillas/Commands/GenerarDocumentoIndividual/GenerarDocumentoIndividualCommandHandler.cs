@@ -172,15 +172,17 @@ public class GenerarDocumentoIndividualCommandHandler(
         var archivoUrl = await almacenamientoArchivos.GuardarAsync(flujoRelleno, "documento-generado.pdf", cancellationToken);
 
         var fechaEmision = DateOnly.FromDateTime(ahoraUtc);
-        var fechaVencimiento = tipoDocumento.AplicaVencimientoAutomatico
-            ? CalculadoraEstadoDocumento.CalcularFechaVencimiento(fechaEmision, tipoDocumento.VigenciaMeses)
-            : null;
+        // Un documento generado desde plantilla no trae vigencia anotada: si
+        // el tipo no vence automáticamente, nace sin vigencia confirmada.
+        var vigencia = CalculadoraEstadoDocumento.ResolverVigencia(
+            tipoDocumento.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
+            fechaEmision, fechaVencimientoManual: null, noCaducaConfirmado: false);
 
         var documento = plantilla.AmbitoAplicacion switch
         {
-            AmbitoAplicacion.Trabajador => Documento.DeTrabajador(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl),
-            AmbitoAplicacion.Cliente => Documento.DeCliente(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl),
-            _ => Documento.DeEmpresa(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl)
+            AmbitoAplicacion.Trabajador => Documento.DeTrabajador(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, vigencia, archivoUrl),
+            AmbitoAplicacion.Cliente => Documento.DeCliente(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, vigencia, archivoUrl),
+            _ => Documento.DeEmpresa(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, vigencia, archivoUrl)
         };
         documentoRepositorio.Agregar(documento);
 

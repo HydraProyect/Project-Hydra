@@ -28,10 +28,14 @@ namespace CaeManager.Application.Documentos.Commands.CrearDocumento;
 /// ese caso no hay vigencia en meses que calcular, así que se acepta la
 /// fecha que introduce el usuario. Si el tipo sí es automático, se ignora y
 /// se recalcula siempre a partir de la vigencia en meses.
+/// <paramref name="NoCaduca"/> es la confirmación expresa del Gestor CAE de
+/// que el documento no caduca; sin ella y sin fecha, el documento nace
+/// <see cref="VigenciaDocumento.SinConfirmar"/> (ver
+/// <see cref="CalculadoraEstadoDocumento.ResolverVigencia"/>).
 /// </summary>
 public record CrearDocumentoCommand(
     Guid? TrabajadorId, Guid? ClienteId, Guid? EmpresaId, Guid? VehiculoId, Guid? ProyectoId, Guid TipoDocumentoId, DateOnly FechaEmision,
-    DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios)
+    DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios, bool NoCaduca = false)
     : ICommand<Guid>;
 
 public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCommand>
@@ -47,6 +51,9 @@ public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCo
             .LessThanOrEqualTo(DateOnly.FromDateTime(DateTime.UtcNow))
             .WithMessage("La fecha de emisión no puede ser futura.");
         RuleFor(c => c.Comentarios).MaximumLength(Documento.LongitudMaximaComentarios);
+        RuleFor(c => c)
+            .Must(c => !(c.NoCaduca && c.FechaVencimientoManual is not null))
+            .WithMessage("Un documento no puede tener fecha de vencimiento y a la vez no caducar: elige una de las dos.");
     }
 }
 
@@ -103,26 +110,26 @@ public class CrearDocumentoCommandHandler(
         if (!propietarioEncontrado)
             return Result.Fallo<Guid>(PropietarioNoEncontrado(ambitoSolicitado));
 
-        var fechaVencimiento = tipoDocumento.AplicaVencimientoAutomatico
-            ? CalculadoraEstadoDocumento.CalcularFechaVencimiento(request.FechaEmision, tipoDocumento.VigenciaMeses)
-            : request.FechaVencimientoManual;
+        var vigencia = CalculadoraEstadoDocumento.ResolverVigencia(
+            tipoDocumento.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
+            request.FechaEmision, request.FechaVencimientoManual, request.NoCaduca);
 
         var documento = ambitoSolicitado switch
         {
             AmbitoAplicacion.Trabajador => Documento.DeTrabajador(
-                request.TrabajadorId!.Value, request.TipoDocumentoId, request.FechaEmision, fechaVencimiento,
+                request.TrabajadorId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
                 request.ArchivoUrl, request.Comentarios),
             AmbitoAplicacion.Cliente => Documento.DeCliente(
-                request.ClienteId!.Value, request.TipoDocumentoId, request.FechaEmision, fechaVencimiento,
+                request.ClienteId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
                 request.ArchivoUrl, request.Comentarios),
             AmbitoAplicacion.Vehiculo => Documento.DeVehiculo(
-                request.VehiculoId!.Value, request.TipoDocumentoId, request.FechaEmision, fechaVencimiento,
+                request.VehiculoId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
                 request.ArchivoUrl, request.Comentarios),
             AmbitoAplicacion.Proyecto => Documento.DeProyecto(
-                request.ProyectoId!.Value, request.TipoDocumentoId, request.FechaEmision, fechaVencimiento,
+                request.ProyectoId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
                 request.ArchivoUrl, request.Comentarios),
             _ => Documento.DeEmpresa(
-                request.EmpresaId!.Value, request.TipoDocumentoId, request.FechaEmision, fechaVencimiento,
+                request.EmpresaId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
                 request.ArchivoUrl, request.Comentarios)
         };
 

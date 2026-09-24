@@ -23,7 +23,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
     [Fact]
     public async Task Marca_la_acreditacion_como_subida()
     {
-        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), null);
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
         var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, Guid.NewGuid());
         var documentoRepositorio = new DocumentoRepositorioFalso();
         documentoRepositorio.Agregar(documento);
@@ -65,7 +65,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         // real pero ajeno a la cartera de quien pide — mismo criterio que
         // EliminarDocumentoCommandHandlerTests.
         var clienteAjeno = Guid.NewGuid();
-        var documento = Documento.DeCliente(clienteAjeno, Guid.NewGuid(), new DateOnly(2026, 1, 1), null);
+        var documento = Documento.DeCliente(clienteAjeno, Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
         var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, Guid.NewGuid());
         var documentoRepositorio = new DocumentoRepositorioFalso();
         documentoRepositorio.Agregar(documento);
@@ -90,7 +90,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
     {
         // Simula la extensión de navegador (MarcarAcreditacionSubidaEndpoints,
         // ExigirProveedorActivo: true) — kill switch remoto de MVP2 § 14.5.
-        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), null);
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
         var proveedor = new ProveedorPlataformaCae("dokify", "Dokify", activo: false);
         var canal = CanalGestionDocumental.DePlataforma(
             Guid.NewGuid(), "Portal principal", proveedor.Id, null, null, null);
@@ -124,7 +124,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         // en su valor por defecto (false): "marcar subido" ahí registra una
         // subida hecha a mano, sin pasar por la extensión — un conector
         // inactivo para la extensión no debe romper ese registro.
-        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), null);
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
         var proveedor = new ProveedorPlataformaCae("dokify", "Dokify", activo: false);
         var canal = CanalGestionDocumental.DePlataforma(
             Guid.NewGuid(), "Portal principal", proveedor.Id, null, null, null);

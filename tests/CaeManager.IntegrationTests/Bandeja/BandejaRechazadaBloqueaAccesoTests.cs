@@ -174,7 +174,7 @@ public class BandejaRechazadaBloqueaAccesoTests : IAsyncLifetime
         await _dbContext.SaveChangesAsync();
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
-        var documento = Documento.DeTrabajador(_trabajadorId, tipo.Id, hoy, hoy.AddYears(1));
+        var documento = Documento.DeTrabajador(_trabajadorId, tipo.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)));
         _dbContext.Documentos.Add(documento);
         var canal = CanalGestionDocumental.DePlataforma(_centroId, "Acceso de prueba", proveedor.Id, null, null, null);
         _dbContext.CanalesGestionDocumental.Add(canal);

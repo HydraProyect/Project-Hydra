@@ -49,7 +49,7 @@ public class RenovarDocumentoConcurrenciaTests : IAsyncLifetime
         contexto.TiposDocumento.Add(tipoDocumento);
         await contexto.SaveChangesAsync();
 
-        var documento = Documento.DeEmpresa(empresa.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), null);
+        var documento = Documento.DeEmpresa(empresa.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
         contexto.Documentos.Add(documento);
         await contexto.SaveChangesAsync();
 
@@ -151,7 +151,7 @@ public class RenovarDocumentoConcurrenciaTests : IAsyncLifetime
         using var contenido = new MemoryStream("pdf original"u8.ToArray());
         var archivoUrl = await almacen.GuardarAsync(contenido, "original.pdf");
 
-        var documento = Documento.DeEmpresa(empresaId, tipoId, new DateOnly(2026, 1, 1), null, archivoUrl);
+        var documento = Documento.DeEmpresa(empresaId, tipoId, new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca, archivoUrl);
         contexto.Documentos.Add(documento);
         await contexto.SaveChangesAsync();
 

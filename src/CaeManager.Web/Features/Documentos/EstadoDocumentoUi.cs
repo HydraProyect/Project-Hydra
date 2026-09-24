@@ -1,6 +1,7 @@
 using CaeManager.Application.Documentos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Documentos.Recursos;
 
 namespace CaeManager.Web.Features.Documentos;
 
@@ -28,6 +29,9 @@ public static class EstadoDocumentoUi
         EstadoDocumento.Vencido => TonoBadge.Peligro,
         EstadoDocumento.Faltante => TonoBadge.Peligro,
         EstadoDocumento.SinCaducidad => TonoBadge.Neutro,
+        // Vigencia sin anotar: pide acción del Gestor CAE, pero no es un
+        // vencimiento conocido — ámbar, no rojo ni neutro.
+        EstadoDocumento.SinConfirmar => TonoBadge.Advertencia,
         _ => TonoBadge.Peligro
     };
 
@@ -39,6 +43,7 @@ public static class EstadoDocumentoUi
         EstadoDocumento.Vencido => "Vencido",
         EstadoDocumento.Faltante => "Falta",
         EstadoDocumento.SinCaducidad => "Sin caducidad",
+        EstadoDocumento.SinConfirmar => TextosVigenciaDocumento.Texto("SinConfirmar"),
         _ => "Estado desconocido"
     };
 
@@ -56,13 +61,16 @@ public static class EstadoDocumentoUi
     /// <summary>
     /// Opciones del filtro de estado documental, de peor a mejor: al filtrar,
     /// lo que el gestor busca es lo que le urge. Mismas opciones en las tres
-    /// pantallas — es la misma pregunta sobre tres tablas distintas.
+    /// pantallas — es la misma pregunta sobre tres tablas distintas. Se
+    /// construye en cada lectura: un texto localizado no se congela en la
+    /// cultura de quien la leyó primero.
     /// </summary>
-    public static IReadOnlyList<OpcionEstado> OpcionesDocumentales { get; } =
+    public static IReadOnlyList<OpcionEstado> OpcionesDocumentales =>
     [
         new(nameof(EstadoDocumento.Vencido), "Vencido"),
         new(nameof(EstadoDocumento.Urgente), "Urgente"),
         new(nameof(EstadoDocumento.Proximo), "Próximo"),
+        new(nameof(EstadoDocumento.SinConfirmar), TextosVigenciaDocumento.Texto("SinConfirmar")),
         new(nameof(EstadoDocumento.Vigente), "Vigente"),
         new(nameof(EstadoDocumento.SinCaducidad), "Sin caducidad"),
         new(EstadoDocumentalFiltro.SinDocumentos, "Sin documentos")

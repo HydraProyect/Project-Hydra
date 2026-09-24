@@ -102,6 +102,7 @@ public class GenerarInformeVigenciaQueryHandler(
                 TrabajadorNombre = trabajador.Nombre + " " + trabajador.Apellidos,
                 RazonSocial = empresa != null ? empresa.RazonSocial : subcontrata!.RazonSocial,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
+                documento.EstadoVigencia,
                 documento.FechaVencimiento
             };
 
@@ -113,14 +114,15 @@ public class GenerarInformeVigenciaQueryHandler(
         var conEstado = filas
             .Select(f => new FilaReporteDocumentoDto(
                 f.Id, f.TrabajadorNombre, f.RazonSocial, f.TipoDocumentoNombre, f.FechaVencimiento,
-                CalculadoraEstadoDocumento.Calcular(f.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
+                CalculadoraEstadoDocumento.Calcular(f.EstadoVigencia, f.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
             .Where(f => request.IncluirVigentes || f.Estado is EstadoDocumento.Vencido or EstadoDocumento.Urgente)
             .OrderBy(f => f.Estado switch
             {
                 EstadoDocumento.Vencido => 0,
                 EstadoDocumento.Urgente => 1,
                 EstadoDocumento.Proximo => 2,
-                _ => 3
+                EstadoDocumento.SinConfirmar => 3,
+                _ => 4
             })
             .ThenBy(f => f.FechaVencimiento)
             .ToList();

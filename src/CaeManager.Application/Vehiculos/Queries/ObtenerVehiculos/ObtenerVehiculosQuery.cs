@@ -98,7 +98,11 @@ public class ObtenerVehiculosQueryHandler(
                     x.EmpleadorNombre,
                     PeorFecha = documentosContext.Documentos
                         .Where(d => d.VehiculoId == x.vehiculo.Id)
-                        .Min(d => (DateOnly?)d.FechaVencimiento)
+                        .Min(d => (DateOnly?)d.FechaVencimiento),
+                    // MIN ignora las fechas nulas, que son a la vez «no caduca» y «sin
+                    // confirmar»: lo sin confirmar se cuenta aparte para no perderlo.
+                    HaySinConfirmar = documentosContext.Documentos
+                        .Any(d => d.VehiculoId == x.vehiculo.Id && d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
                 };
 
             if (!string.IsNullOrWhiteSpace(request.EstadoDocumental))
@@ -112,11 +116,12 @@ public class ObtenerVehiculosQueryHandler(
                 {
                     conFecha = estadoFiltro switch
                     {
-                        EstadoDocumento.SinCaducidad => conFecha.Where(x => x.PeorFecha == null),
+                        EstadoDocumento.SinCaducidad => conFecha.Where(x => x.PeorFecha == null && !x.HaySinConfirmar),
+                        EstadoDocumento.SinConfirmar => conFecha.Where(x => x.HaySinConfirmar && (x.PeorFecha == null || x.PeorFecha > limiteAmbar)),
                         EstadoDocumento.Vencido => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha < hoy),
                         EstadoDocumento.Urgente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha >= hoy && x.PeorFecha <= limiteRojo),
                         EstadoDocumento.Proximo => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteRojo && x.PeorFecha <= limiteAmbar),
-                        EstadoDocumento.Vigente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteAmbar),
+                        EstadoDocumento.Vigente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteAmbar && !x.HaySinConfirmar),
                         _ => conFecha.Where(x => false)
                     };
                 }
@@ -126,17 +131,19 @@ public class ObtenerVehiculosQueryHandler(
 
             var ordenadaConEstado = request.Descendente
                 ? conFecha.OrderByDescending(x =>
-                    x.PeorFecha == null ? 4
-                    : x.PeorFecha < hoy ? 0
-                    : x.PeorFecha <= limiteRojo ? 1
-                    : x.PeorFecha <= limiteAmbar ? 2
-                    : 3)
+                    x.PeorFecha != null && x.PeorFecha < hoy ? 0
+                    : x.PeorFecha != null && x.PeorFecha <= limiteRojo ? 1
+                    : x.PeorFecha != null && x.PeorFecha <= limiteAmbar ? 2
+                    : x.HaySinConfirmar ? 3
+                    : x.PeorFecha != null ? 4
+                    : 5)
                 : conFecha.OrderBy(x =>
-                    x.PeorFecha == null ? 4
-                    : x.PeorFecha < hoy ? 0
-                    : x.PeorFecha <= limiteRojo ? 1
-                    : x.PeorFecha <= limiteAmbar ? 2
-                    : 3);
+                    x.PeorFecha != null && x.PeorFecha < hoy ? 0
+                    : x.PeorFecha != null && x.PeorFecha <= limiteRojo ? 1
+                    : x.PeorFecha != null && x.PeorFecha <= limiteAmbar ? 2
+                    : x.HaySinConfirmar ? 3
+                    : x.PeorFecha != null ? 4
+                    : 5);
             var ordenadaFinal = ordenadaConEstado.ThenBy(x => x.Nombre).ThenBy(x => x.Id);
 
             var paginaConEstado = await ordenadaFinal
@@ -147,7 +154,7 @@ public class ObtenerVehiculosQueryHandler(
             return new ResultadoPaginado<VehiculoListaDto>(
                 paginaConEstado.Select(x => new VehiculoListaDto(
                     x.Id, x.Nombre, x.Modelo, x.NumeroPlaca, x.EmpleadorNombre,
-                    CalculadoraEstadoDocumento.Calcular(x.PeorFecha, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
+                    CalculoEstadoDocumentalService.PeorEstado(x.PeorFecha, x.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
                     .ToList(),
                 totalConEstado, request.Pagina, request.TamanoPagina);
         }

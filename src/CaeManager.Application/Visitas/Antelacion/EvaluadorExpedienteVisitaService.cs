@@ -167,10 +167,10 @@ public class EvaluadorExpedienteVisitaService(
 
         var documentosEmpresa = await documentosContext.Documentos
             .Where(d => d.EmpresaId == empresaId)
-            .Select(d => new { d.TipoDocumentoId, d.FechaVencimiento })
+            .Select(d => new { d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken);
 
-        if (!TiposCubiertos(tiposRequeridosEmpresa, documentosEmpresa.Select(d => (d.TipoDocumentoId, d.FechaVencimiento)), hoy, umbralAmbarDias, umbralRojoDias))
+        if (!TiposCubiertos(tiposRequeridosEmpresa, documentosEmpresa.Select(d => (d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento)), hoy, umbralAmbarDias, umbralRojoDias))
             return false;
 
         var trabajadorIds = await visitasContext.VisitasTrabajadores
@@ -184,14 +184,14 @@ public class EvaluadorExpedienteVisitaService(
 
         var documentosTrabajadores = await documentosContext.Documentos
             .Where(d => d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId!.Value))
-            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.FechaVencimiento })
+            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken);
 
         foreach (var trabajadorId in trabajadorIds)
         {
             var suyos = documentosTrabajadores
                 .Where(d => d.TrabajadorId == trabajadorId)
-                .Select(d => (d.TipoDocumentoId, d.FechaVencimiento));
+                .Select(d => (d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento));
 
             if (!TiposCubiertos(tiposRequeridosTrabajador, suyos, hoy, umbralAmbarDias, umbralRojoDias))
                 return false;
@@ -202,13 +202,16 @@ public class EvaluadorExpedienteVisitaService(
 
     private static bool TiposCubiertos(
         IReadOnlyCollection<Guid> tiposRequeridos,
-        IEnumerable<(Guid TipoDocumentoId, DateOnly? FechaVencimiento)> documentos,
+        IEnumerable<(Guid TipoDocumentoId, EstadoVigenciaDocumento EstadoVigencia, DateOnly? FechaVencimiento)> documentos,
         DateOnly hoy, int umbralAmbarDias, int umbralRojoDias)
     {
         if (tiposRequeridos.Count == 0) return true;
 
         var tiposVigentes = documentos
-            .Where(d => CalculadoraEstadoDocumento.Calcular(d.FechaVencimiento, hoy, umbralAmbarDias, umbralRojoDias) != EstadoDocumento.Vencido)
+            // Solo Vencido (y la ausencia) dejan un tipo sin cubrir: un documento
+            // sin vigencia confirmada existe y cuenta como papel entregado, que es
+            // lo que mide el sello de antelación.
+            .Where(d => CalculadoraEstadoDocumento.Calcular(d.EstadoVigencia, d.FechaVencimiento, hoy, umbralAmbarDias, umbralRojoDias) != EstadoDocumento.Vencido)
             .Select(d => d.TipoDocumentoId)
             .ToHashSet();
 

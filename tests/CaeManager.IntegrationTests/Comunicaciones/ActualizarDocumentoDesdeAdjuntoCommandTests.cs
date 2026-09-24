@@ -78,7 +78,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
     {
         var (contexto, adjuntoId, conversacionId, trabajadorId, tipoDocumentoId) = await SembrarEscenarioAsync();
 
-        var documentoExistente = Documento.DeTrabajador(trabajadorId, tipoDocumentoId, new DateOnly(2026, 7, 1), new DateOnly(2027, 7, 1));
+        var documentoExistente = Documento.DeTrabajador(trabajadorId, tipoDocumentoId, new DateOnly(2026, 7, 1), VigenciaDocumento.VenceEl(new DateOnly(2027, 7, 1)));
         contexto.Documentos.Add(documentoExistente);
         await contexto.SaveChangesAsync();
 
@@ -136,7 +136,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
     {
         var (contexto, adjuntoId, _, trabajadorId, tipoDocumentoId) = await SembrarEscenarioAsync();
 
-        var documentoExistente = Documento.DeTrabajador(trabajadorId, tipoDocumentoId, new DateOnly(2026, 7, 1), new DateOnly(2027, 7, 1));
+        var documentoExistente = Documento.DeTrabajador(trabajadorId, tipoDocumentoId, new DateOnly(2026, 7, 1), VigenciaDocumento.VenceEl(new DateOnly(2027, 7, 1)));
         contexto.Documentos.Add(documentoExistente);
         await contexto.SaveChangesAsync();
 

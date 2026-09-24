@@ -50,7 +50,7 @@ public class ClasificacionRuidoMensajeServiceTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
-        var documentoReclamado = Documento.DeTrabajador(trabajadorReclamado.Id, tipoDocumento.Id, hoy, hoy.AddMonths(6));
+        var documentoReclamado = Documento.DeTrabajador(trabajadorReclamado.Id, tipoDocumento.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddMonths(6)));
         contexto.Documentos.Add(documentoReclamado);
         await contexto.SaveChangesAsync();
 

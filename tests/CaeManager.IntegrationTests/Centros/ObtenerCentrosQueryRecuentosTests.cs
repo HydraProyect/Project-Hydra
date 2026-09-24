@@ -166,7 +166,7 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         contexto.Documentos.Add(Documento.DeTrabajador(
             _trabajadorId, _tipoDocumentoObligatorioId,
-            DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+            DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
         await contexto.SaveChangesAsync();
     }
 
@@ -175,7 +175,7 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         contexto.Documentos.Add(Documento.DeTrabajador(
             _trabajadorId, _tipoDocumentoObligatorioId,
-            DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), fechaVencimiento));
+            DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), VigenciaDocumento.VenceEl(fechaVencimiento)));
         await contexto.SaveChangesAsync();
     }
 
@@ -195,7 +195,7 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var documento = Documento.DeEmpresa(
             _empresaId, tipoEmpresaId,
-            DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1));
+            DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
         contexto.Documentos.Add(documento);
         await contexto.SaveChangesAsync();
         return documento.Id;

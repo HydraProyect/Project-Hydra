@@ -550,8 +550,11 @@ public partial class Visitas : ComponentBase
         [EstadoDocumento.Vencido] = 1,
         [EstadoDocumento.Urgente] = 2,
         [EstadoDocumento.Proximo] = 3,
-        [EstadoDocumento.Vigente] = 4,
-        [EstadoDocumento.SinCaducidad] = 5,
+        // Vigencia sin anotar: detrás de lo malo conocido, delante de lo
+        // vigente (mismo orden que EstadoDocumentalFiltro.ClaveOrden).
+        [EstadoDocumento.SinConfirmar] = 4,
+        [EstadoDocumento.Vigente] = 5,
+        [EstadoDocumento.SinCaducidad] = 6,
     };
 
     /// <summary>

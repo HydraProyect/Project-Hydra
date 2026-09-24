@@ -59,15 +59,32 @@ public class BackfillVinculosExtraccionIaCacheDesdeAuditoriaMigrationTests : IAs
             contexto.TiposDocumento.Add(tipo);
             await contexto.SaveChangesAsync();
 
-            var documento = Documento.DeCliente(cliente.Id, tipo.Id, new DateOnly(2025, 1, 1), null);
-            contexto.Documentos.Add(documento);
+            // El Documento se inserta con SQL: el modelo EF actual lleva columnas
+            // (EstadoVigencia) que el esquema en MigracionAntesDelBackfill aún no
+            // tiene. Las columnas obligatorias se comprueban contra
+            // information_schema para que el INSERT no se escriba de memoria.
+            var obligatorias = await contexto.Database.SqlQuery<string>($"""
+                SELECT column_name AS "Value" FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'Documentos'
+                  AND is_nullable = 'NO' AND column_default IS NULL
+                """).ToListAsync();
+            // ClienteId admite nulos (la CHECK de propietario exige uno de varios
+            // FK), pero el INSERT lo rellena porque es un Documento de Empresa cliente.
+            obligatorias.Should().BeSubsetOf(
+                ["Id", "TenantId", "ClienteId", "TipoDocumentoId", "FechaEmision", "CreadoEnUtc", "EstaEliminado", "Version"],
+                "el INSERT de abajo tiene que cubrir todas las columnas obligatorias del esquema intermedio");
+
+            documentoId = Guid.NewGuid();
+            await contexto.Database.ExecuteSqlAsync($"""
+                INSERT INTO "Documentos" ("Id", "TenantId", "ClienteId", "TipoDocumentoId", "FechaEmision", "CreadoEnUtc", "EstaEliminado", "Version")
+                VALUES ({documentoId}, {_tenant}, {cliente.Id}, {tipo.Id}, {new DateOnly(2025, 1, 1)}, {DateTime.UtcNow}, false, {Guid.NewGuid()})
+                """);
 
             var cache = ExtraccionIaCache.Crear(
                 new string('b', ExtraccionIaCache.LongitudHash), "  Apto   MÉDICO  ", """{"campo":"sintetico"}""");
             contexto.ExtraccionesIaCache.Add(cache);
             await contexto.SaveChangesAsync();
 
-            documentoId = documento.Id;
             cacheId = cache.Id;
 
             // Simula una AuditoriaExtraccionIa escrita por el código ANTES de

@@ -112,6 +112,13 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
         public string FechaEmision { get; set; } = string.Empty;
         public string FechaVencimientoManual { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Confirmación expresa de la persona de que el documento no caduca. La
+        /// IA nunca la propone: sin fecha y sin esta marca, la vigencia queda
+        /// sin confirmar.
+        /// </summary>
+        public bool NoCaduca { get; set; }
+
         /// <summary>Lo que la IA propuso, intacto: es el término de comparación de lo que la persona confirma.</summary>
         public PropuestaIaDocumento Propuesta { get; set; } = PropuestaIaDocumento.Vacia;
         public int? Confianza { get; set; }
@@ -525,6 +532,12 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
             && DateOnly.TryParse(item.FechaVencimientoManual, out var fv)
                 ? fv
                 : null;
+        var noCaduca = tipo is { AplicaVencimientoAutomatico: false } && item.NoCaduca;
+        if (fechaVencimientoManual is not null && noCaduca)
+        {
+            MarcarError(item, TextosVigenciaDocumento.Texto("ErrorFechaYNoCaduca"));
+            return;
+        }
 
         // El blob se escribe antes que la fila, así que entre las dos
         // operaciones hay una ventana en la que el archivo existe sin
@@ -548,7 +561,8 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
                 FechaEmision: fechaEmision,
                 FechaVencimientoManual: fechaVencimientoManual,
                 ArchivoUrl: archivoUrl,
-                Propuesta: PropuestaParaConfirmar(item)));
+                Propuesta: PropuestaParaConfirmar(item),
+                NoCaduca: noCaduca));
 
             if (resultado.EsFallido)
             {
@@ -637,7 +651,9 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
         return trabajador != propuesta.TrabajadorId
             || tipo != propuesta.TipoDocumentoId
             || emision != propuesta.FechaEmision
-            || vencimiento != vencimientoPropuesto;
+            || vencimiento != vencimientoPropuesto
+            // La IA nunca propone «no caduca»: marcarlo es siempre una corrección.
+            || (RequiereVencimientoManual(item) && item.NoCaduca);
     }
 
     private static string FechaLegible(string fechaIso) =>

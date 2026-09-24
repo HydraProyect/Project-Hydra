@@ -76,8 +76,8 @@ public class PaqueteDocumentalVisitaServiceTests
     [Fact]
     public async Task No_envia_el_documento_vencido_y_si_los_vigentes()
     {
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-400), vencimiento: Hoy.AddDays(-1), contenido: "vencido");
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-30), vencimiento: Hoy.AddDays(300), contenido: "epi-vigente");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-400), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(-1)), contenido: "vencido");
+        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-30), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(300)), contenido: "epi-vigente");
 
         await GenerarAsync();
 
@@ -90,8 +90,8 @@ public class PaqueteDocumentalVisitaServiceTests
     public async Task Un_documento_que_vence_hoy_todavia_es_vigente_y_uno_que_vencio_ayer_no()
     {
         // Frontera exacta de «Vencido» (FechaVencimiento < hoy): un mutante <= dejaría fuera el de hoy.
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-365), vencimiento: Hoy, contenido: "vence-hoy");
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-365), vencimiento: Hoy.AddDays(-1), contenido: "vencio-ayer");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-365), vigencia: VigenciaDocumento.VenceEl(Hoy), contenido: "vence-hoy");
+        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-365), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(-1)), contenido: "vencio-ayer");
 
         await GenerarAsync();
 
@@ -102,8 +102,8 @@ public class PaqueteDocumentalVisitaServiceTests
     public async Task Los_estados_proximo_y_urgente_siguen_siendo_vigentes()
     {
         // Vencen en 3 y 25 días: caen en Urgente/Próximo con los umbrales por defecto y aun así se envían.
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-300), vencimiento: Hoy.AddDays(3), contenido: "urgente");
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-300), vencimiento: Hoy.AddDays(25), contenido: "proximo");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-300), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(3)), contenido: "urgente");
+        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-300), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(25)), contenido: "proximo");
 
         await GenerarAsync();
 
@@ -114,11 +114,11 @@ public class PaqueteDocumentalVisitaServiceTests
     public async Task Entre_varias_copias_vigentes_del_mismo_tipo_envia_solo_la_de_mayor_vigencia()
     {
         // Cinco reconocimientos vigentes «por algún error»: la de mayor vigencia gana aunque NO sea la de emisión más reciente.
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-50), vencimiento: Hoy.AddDays(100), contenido: "v100");
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-40), vencimiento: Hoy.AddDays(200), contenido: "v200-la-mayor");
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-10), vencimiento: Hoy.AddDays(150), contenido: "v150-mas-reciente");
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-60), vencimiento: Hoy.AddDays(50), contenido: "v50");
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-70), vencimiento: Hoy.AddDays(60), contenido: "v60");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-50), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(100)), contenido: "v100");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-40), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(200)), contenido: "v200-la-mayor");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-10), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(150)), contenido: "v150-mas-reciente");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-60), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(50)), contenido: "v50");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-70), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(60)), contenido: "v60");
 
         await GenerarAsync();
 
@@ -128,9 +128,9 @@ public class PaqueteDocumentalVisitaServiceTests
     [Fact]
     public async Task A_igual_vigencia_gana_la_emision_mas_reciente()
     {
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-90), vencimiento: Hoy.AddDays(100), contenido: "emision-antigua");
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-5), vencimiento: Hoy.AddDays(100), contenido: "emision-reciente");
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-45), vencimiento: Hoy.AddDays(100), contenido: "emision-media");
+        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-90), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(100)), contenido: "emision-antigua");
+        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-5), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(100)), contenido: "emision-reciente");
+        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-45), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(100)), contenido: "emision-media");
 
         await GenerarAsync();
 
@@ -141,8 +141,8 @@ public class PaqueteDocumentalVisitaServiceTests
     public async Task Con_copias_vencidas_y_vigentes_del_mismo_tipo_envia_la_vigente()
     {
         // La vencida está emitida DESPUÉS que la vigente: no puede ganar por «más actual».
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-200), vencimiento: Hoy.AddDays(165), contenido: "vigente-antigua");
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-20), vencimiento: Hoy.AddDays(-2), contenido: "vencida-reciente");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-200), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(165)), contenido: "vigente-antigua");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-20), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(-2)), contenido: "vencida-reciente");
 
         await GenerarAsync();
 
@@ -153,9 +153,9 @@ public class PaqueteDocumentalVisitaServiceTests
     public async Task La_seleccion_es_independiente_por_titular_y_por_ambito()
     {
         // Mismo tipo, dos trabajadores distintos: cada uno conserva el suyo. Y el de la empresa, aparte.
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), Hoy.AddDays(100), "ana-rm");
-        DocumentoDeTrabajador(_luis, _reconocimiento, Hoy.AddDays(-10), Hoy.AddDays(100), "luis-rm");
-        DocumentoDeEmpresa(_seguro, Hoy.AddDays(-10), Hoy.AddDays(100), "empresa-seguro");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "ana-rm");
+        DocumentoDeTrabajador(_luis, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "luis-rm");
+        DocumentoDeEmpresa(_seguro, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "empresa-seguro");
 
         await GenerarAsync();
 
@@ -163,10 +163,10 @@ public class PaqueteDocumentalVisitaServiceTests
     }
 
     [Fact]
-    public async Task Un_documento_sin_caducidad_se_envia()
+    public async Task Un_documento_confirmado_como_que_no_caduca_se_envia()
     {
-        DocumentoDeTrabajador(_ana, _formacion, emision: Hoy.AddDays(-900), vencimiento: null, contenido: "formacion-60h");
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-900), vencimiento: Hoy.AddDays(-1), contenido: "epi-vencido");
+        DocumentoDeTrabajador(_ana, _formacion, emision: Hoy.AddDays(-900), vigencia: VigenciaDocumento.NoCaduca, contenido: "formacion-60h");
+        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-900), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(-1)), contenido: "epi-vencido");
 
         await GenerarAsync();
 
@@ -174,22 +174,81 @@ public class PaqueteDocumentalVisitaServiceTests
     }
 
     [Fact]
-    public async Task Sin_caducidad_cuenta_como_vigencia_maxima_frente_a_una_copia_con_fecha()
+    public async Task No_caduca_confirmado_cuenta_como_vigencia_maxima_frente_a_una_copia_con_fecha()
     {
-        DocumentoDeTrabajador(_ana, _formacion, emision: Hoy.AddDays(-10), vencimiento: Hoy.AddDays(500), contenido: "con-fecha");
-        DocumentoDeTrabajador(_ana, _formacion, emision: Hoy.AddDays(-900), vencimiento: null, contenido: "sin-caducidad");
+        DocumentoDeTrabajador(_ana, _formacion, emision: Hoy.AddDays(-10), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(500)), contenido: "con-fecha");
+        DocumentoDeTrabajador(_ana, _formacion, emision: Hoy.AddDays(-900), vigencia: VigenciaDocumento.NoCaduca, contenido: "sin-caducidad");
 
         await GenerarAsync();
 
         LeerZip().Should().ContainSingle().Which.Value.Should().Be("sin-caducidad");
     }
 
+    // --- Vigencia sin confirmar (FechaVencimiento sin anotar) ---
+    //
+    // Antes, «sin fecha» valía DateOnly.MaxValue en el orden: una copia a la que
+    // nadie había anotado el vencimiento ganaba a otra con vigencia comprobada.
+    // Sin confirmar no es «no caduca»: nunca desplaza a una copia confirmada.
+
+    [Fact]
+    public async Task Una_copia_sin_vigencia_confirmada_no_desplaza_a_una_con_vigencia_comprobada()
+    {
+        // La sin confirmar es la de emisión más reciente: ni por eso gana.
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-300), VigenciaDocumento.VenceEl(Hoy.AddDays(65)), "vigencia-comprobada");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-1), VigenciaDocumento.SinConfirmar, "sin-confirmar");
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("vigencia-comprobada");
+        _logger.Entradas.Should().NotContain(e => e.Mensaje.Contains("sin vigencia confirmada"),
+            "se envió una copia confirmada: no hay nada sin confirmar que avisar");
+    }
+
+    [Fact]
+    public async Task Una_copia_sin_vigencia_confirmada_no_desplaza_a_una_confirmada_como_que_no_caduca()
+    {
+        DocumentoDeTrabajador(_ana, _formacion, Hoy.AddDays(-900), VigenciaDocumento.NoCaduca, "no-caduca");
+        DocumentoDeTrabajador(_ana, _formacion, Hoy.AddDays(-1), VigenciaDocumento.SinConfirmar, "sin-confirmar");
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("no-caduca");
+    }
+
+    [Fact]
+    public async Task Si_solo_hay_copias_sin_confirmar_se_envia_la_mas_reciente_y_queda_registrado()
+    {
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-200), VigenciaDocumento.SinConfirmar, "sin-confirmar-antigua");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-20), VigenciaDocumento.SinConfirmar, "sin-confirmar-reciente");
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("sin-confirmar-reciente");
+        _logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Warning
+                && e.Mensaje.Contains("sin vigencia confirmada") && e.Mensaje.Contains(_reconocimiento.Id.ToString()),
+            "lo que viaja sin vigencia confirmada tiene que constar, con su tipo");
+        _logger.Entradas.Should().NotContain(e => e.Mensaje.Contains("Ana") || e.Mensaje.Contains("Garcia"),
+            "el log lleva identificadores, no el nombre del trabajador");
+    }
+
+    [Fact]
+    public async Task Frente_a_una_copia_vencida_se_envia_la_sin_confirmar()
+    {
+        // Sin confirmar no es vencido: no se sabe que no sirva. La vencida es más reciente y aun así no viaja.
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-400), VigenciaDocumento.SinConfirmar, "sin-confirmar");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(-2)), "vencida-reciente");
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("sin-confirmar");
+    }
+
     [Fact]
     public async Task Un_tipo_con_solo_copias_vencidas_no_se_envia_y_queda_registrado()
     {
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-500), vencimiento: Hoy.AddDays(-30), contenido: "vencido-1");
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-700), vencimiento: Hoy.AddDays(-200), contenido: "vencido-2");
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-10), vencimiento: Hoy.AddDays(100), contenido: "epi-vigente");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-500), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(-30)), contenido: "vencido-1");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-700), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(-200)), contenido: "vencido-2");
+        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-10), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(100)), contenido: "epi-vigente");
 
         await GenerarAsync();
 
@@ -203,8 +262,8 @@ public class PaqueteDocumentalVisitaServiceTests
     [Fact]
     public async Task Si_todo_esta_vencido_no_se_genera_paquete_ni_mensaje()
     {
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-500), vencimiento: Hoy.AddDays(-30), contenido: "vencido");
-        DocumentoDeEmpresa(_seguro, emision: Hoy.AddDays(-500), vencimiento: Hoy.AddDays(-1), contenido: "seguro-vencido");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-500), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(-30)), contenido: "vencido");
+        DocumentoDeEmpresa(_seguro, emision: Hoy.AddDays(-500), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(-1)), contenido: "seguro-vencido");
 
         await GenerarAsync();
 
@@ -216,10 +275,10 @@ public class PaqueteDocumentalVisitaServiceTests
     [Fact]
     public async Task El_correo_anuncia_los_documentos_enviados_no_los_existentes()
     {
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-50), Hoy.AddDays(100), "a");
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-40), Hoy.AddDays(200), "b");
-        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-500), Hoy.AddDays(-5), "vencido");
-        DocumentoDeEmpresa(_seguro, Hoy.AddDays(-10), Hoy.AddDays(100), "seguro");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-50), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "a");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-40), VigenciaDocumento.VenceEl(Hoy.AddDays(200)), "b");
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-500), VigenciaDocumento.VenceEl(Hoy.AddDays(-5)), "vencido");
+        DocumentoDeEmpresa(_seguro, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "seguro");
 
         await GenerarAsync();
 
@@ -230,9 +289,9 @@ public class PaqueteDocumentalVisitaServiceTests
     public async Task Si_el_archivo_de_la_mejor_copia_no_se_puede_abrir_envia_la_siguiente_vigente()
     {
         // Storage inconsistente: la de mayor vigencia apunta a un objeto que ya no existe.
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), Hoy.AddDays(400), "irrelevante", archivoInexistente: true);
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-30), Hoy.AddDays(200), "copia-de-reserva");
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-90), Hoy.AddDays(100), "otra-copia");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(400)), "irrelevante", archivoInexistente: true);
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-30), VigenciaDocumento.VenceEl(Hoy.AddDays(200)), "copia-de-reserva");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-90), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "otra-copia");
 
         await GenerarAsync();
 
@@ -242,9 +301,9 @@ public class PaqueteDocumentalVisitaServiceTests
     [Fact]
     public async Task La_copia_de_reserva_nunca_es_una_vencida()
     {
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), Hoy.AddDays(400), "irrelevante", archivoInexistente: true);
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-500), Hoy.AddDays(-3), "vencida-legible");
-        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-10), Hoy.AddDays(100), "epi-vigente");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(400)), "irrelevante", archivoInexistente: true);
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-500), VigenciaDocumento.VenceEl(Hoy.AddDays(-3)), "vencida-legible");
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "epi-vigente");
 
         await GenerarAsync();
 
@@ -254,9 +313,9 @@ public class PaqueteDocumentalVisitaServiceTests
     [Fact]
     public async Task El_correo_cuenta_lo_adjuntado_aunque_un_archivo_no_se_pueda_abrir()
     {
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), Hoy.AddDays(400), "irrelevante", archivoInexistente: true);
-        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-10), Hoy.AddDays(100), "epi");
-        DocumentoDeEmpresa(_seguro, Hoy.AddDays(-10), Hoy.AddDays(100), "seguro");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(400)), "irrelevante", archivoInexistente: true);
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "epi");
+        DocumentoDeEmpresa(_seguro, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "seguro");
 
         await GenerarAsync();
 
@@ -288,12 +347,12 @@ public class PaqueteDocumentalVisitaServiceTests
     }
 
     private void DocumentoDeTrabajador(
-        Trabajador trabajador, TipoDocumento tipo, DateOnly emision, DateOnly? vencimiento, string contenido, bool archivoInexistente = false) =>
+        Trabajador trabajador, TipoDocumento tipo, DateOnly emision, VigenciaDocumento vigencia, string contenido, bool archivoInexistente = false) =>
         _documentos.ListaDocumentos.Add(Documento.DeTrabajador(
-            trabajador.Id, tipo.Id, emision, vencimiento, archivoInexistente ? "no-existe-en-almacenamiento.pdf" : Guardar(contenido)));
+            trabajador.Id, tipo.Id, emision, vigencia, archivoInexistente ? "no-existe-en-almacenamiento.pdf" : Guardar(contenido)));
 
-    private void DocumentoDeEmpresa(TipoDocumento tipo, DateOnly emision, DateOnly? vencimiento, string contenido) =>
-        _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empresa.Id, tipo.Id, emision, vencimiento, Guardar(contenido)));
+    private void DocumentoDeEmpresa(TipoDocumento tipo, DateOnly emision, VigenciaDocumento vigencia, string contenido) =>
+        _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empresa.Id, tipo.Id, emision, vigencia, Guardar(contenido)));
 
     private string Guardar(string contenido) =>
         _almacenamiento.GuardarAsync(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(contenido)), "doc.pdf").GetAwaiter().GetResult();

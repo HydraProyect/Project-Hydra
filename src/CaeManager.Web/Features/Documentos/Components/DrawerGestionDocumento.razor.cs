@@ -52,6 +52,7 @@ public partial class DrawerGestionDocumento : ComponentBase
     private string _fechaEmision = string.Empty;
     private DateOnly? _fechaEmisionOriginal;
     private string _fechaVencimientoManual = string.Empty;
+    private bool _noCaduca;
     private string? _glosarioDescripcion;
     private string? _glosarioCriteriosValidacion;
     private string? _glosarioSeSolicitaA;
@@ -139,6 +140,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = null;
         _fechaVencimientoManual = string.Empty;
+        _noCaduca = false;
         _archivoUrl = null;
         _comentarios = string.Empty;
         _glosarioDescripcion = null;
@@ -210,6 +212,9 @@ public partial class DrawerGestionDocumento : ComponentBase
         _fechaEmision = documento.FechaEmision.ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = documento.FechaEmision;
         _fechaVencimientoManual = documento.FechaVencimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
+        // Renovar sin tocar la vigencia no puede perder la confirmación de
+        // «no caduca»: se precarga y viaja de vuelta en el comando.
+        _noCaduca = documento.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca;
         _archivoUrl = documento.ArchivoUrl;
         _comentarios = documento.Comentarios ?? string.Empty;
         _glosarioDescripcion = documento.TipoDocumentoDescripcion;
@@ -534,6 +539,12 @@ public partial class DrawerGestionDocumento : ComponentBase
             DateOnly? fechaVencimientoManual = RequiereVencimientoManual && DateOnly.TryParse(_fechaVencimientoManual, out var fv)
                 ? fv
                 : null;
+            var noCaduca = RequiereVencimientoManual && _noCaduca;
+            if (fechaVencimientoManual is not null && noCaduca)
+            {
+                _mensajeErrorFormulario = TextosVigenciaDocumento.Texto("ErrorFechaYNoCaduca");
+                return;
+            }
 
             var comentarios = string.IsNullOrWhiteSpace(_comentarios) ? null : _comentarios;
             string? mensajeError;
@@ -579,13 +590,15 @@ public partial class DrawerGestionDocumento : ComponentBase
                     FechaEmision: fechaEmision,
                     FechaVencimientoManual: fechaVencimientoManual,
                     ArchivoUrl: _archivoUrl,
-                    Comentarios: comentarios));
+                    Comentarios: comentarios,
+                    NoCaduca: noCaduca));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
             else
             {
                 var resultado = await Mediator.Send(
-                    new RenovarDocumentoCommand(_editandoId.Value, fechaEmision, fechaVencimientoManual, _archivoUrl, comentarios, _versionEditando));
+                    new RenovarDocumentoCommand(_editandoId.Value, fechaEmision, fechaVencimientoManual, _archivoUrl, comentarios, _versionEditando,
+                        NoCaduca: noCaduca));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 

@@ -50,7 +50,10 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
         [EstadoDocumento.Vencido] = 1,
         [EstadoDocumento.Urgente] = 2,
         [EstadoDocumento.Proximo] = 3,
-        [EstadoDocumento.Vigente] = 4
+        // Sin vigencia confirmada: detrás de lo malo conocido y delante de lo
+        // vigente (mismo orden que EstadoDocumentalFiltro.ClaveOrden).
+        [EstadoDocumento.SinConfirmar] = 4,
+        [EstadoDocumento.Vigente] = 5
     };
 
     public async Task<IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>> Handle(
@@ -128,15 +131,15 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
         var tipoIdsRequeridosGlobal = tiposRequeridosPorTrabajador.Values.SelectMany(t => t).Distinct().ToList();
 
         var documentosPorTrabajador = tipoIdsRequeridosGlobal.Count == 0
-            ? new Dictionary<Guid, List<(Guid Id, Guid TipoDocumentoId, DateOnly? FechaVencimiento)>>()
+            ? new Dictionary<Guid, List<(Guid Id, Guid TipoDocumentoId, EstadoVigenciaDocumento EstadoVigencia, DateOnly? FechaVencimiento)>>()
             : (await documentosContext.Documentos
                 .Where(d => d.TrabajadorId != null
                     && trabajadorIds.Contains(d.TrabajadorId!.Value)
                     && tipoIdsRequeridosGlobal.Contains(d.TipoDocumentoId))
-                .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.FechaVencimiento })
+                .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
                 .ToListAsync(cancellationToken))
                 .GroupBy(d => d.TrabajadorId)
-                .ToDictionary(g => g.Key, g => g.Select(d => (d.Id, d.TipoDocumentoId, d.FechaVencimiento)).ToList());
+                .ToDictionary(g => g.Key, g => g.Select(d => (d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento)).ToList());
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -153,7 +156,8 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
             foreach (var documento in documentosDelTrabajador)
             {
                 var estado = CalculadoraEstadoDocumento.Calcular(
-                    documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
+                    documento.EstadoVigencia, documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
+                // Solo se omite lo confirmado como que no caduca; lo sin confirmar se lista.
                 if (estado == EstadoDocumento.SinCaducidad) continue;
 
                 items.Add(new DocumentoRequeridoDto(
