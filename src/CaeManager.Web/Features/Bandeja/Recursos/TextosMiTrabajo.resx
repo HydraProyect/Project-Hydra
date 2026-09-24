@@ -96,6 +96,24 @@
   <data name="AlDiaCarteraDetalle" xml:space="preserve">
     <value>Ninguna empresa de tu cartera tiene bloqueos, documentación pendiente ni vencimientos próximos.</value>
   </data>
+  <data name="SinCarteraTitulo" xml:space="preserve">
+    <value>Sin Asignación de Cartera</value>
+  </data>
+  <data name="SinCarteraDetalle" xml:space="preserve">
+    <value>No tienes ninguna Asignación de Cartera vigente que te dé alcance sobre una empresa, así que aquí no hay nada que vigilar. Pídesela a tu Coordinador CAE.</value>
+  </data>
+  <data name="SinCarteraEmpresa" xml:space="preserve">
+    <value>{0}, sin Asignación de Cartera</value>
+  </data>
+  <data name="SinCarteraEmpresaDetalle" xml:space="preserve">
+    <value>No tienes ninguna Asignación de Cartera vigente en {0}, así que aquí no hay nada que vigilar. Pídesela a tu Coordinador CAE.</value>
+  </data>
+  <data name="SinAsignacionCartera" xml:space="preserve">
+    <value>Sin Asignación de Cartera</value>
+  </data>
+  <data name="TitularSinCartera" xml:space="preserve">
+    <value>Nada que vigilar todavía</value>
+  </data>
   <data name="VerTodaMiCartera" xml:space="preserve">
     <value>Ver toda mi cartera</value>
   </data>

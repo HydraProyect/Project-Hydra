@@ -96,6 +96,24 @@
   <data name="AlDiaCarteraDetalle" xml:space="preserve">
     <value>Cap empresa de la teva cartera no té bloquejos, documentació pendent ni venciments propers.</value>
   </data>
+  <data name="SinCarteraTitulo" xml:space="preserve">
+    <value>Sense Assignació de Cartera</value>
+  </data>
+  <data name="SinCarteraDetalle" xml:space="preserve">
+    <value>No tens cap Assignació de Cartera vigent que et doni abast sobre una empresa, així que aquí no hi ha res a vigilar. Demana-la al teu Coordinador CAE.</value>
+  </data>
+  <data name="SinCarteraEmpresa" xml:space="preserve">
+    <value>{0}, sense Assignació de Cartera</value>
+  </data>
+  <data name="SinCarteraEmpresaDetalle" xml:space="preserve">
+    <value>No tens cap Assignació de Cartera vigent a {0}, així que aquí no hi ha res a vigilar. Demana-la al teu Coordinador CAE.</value>
+  </data>
+  <data name="SinAsignacionCartera" xml:space="preserve">
+    <value>Sense Assignació de Cartera</value>
+  </data>
+  <data name="TitularSinCartera" xml:space="preserve">
+    <value>Res a vigilar encara</value>
+  </data>
   <data name="VerTodaMiCartera" xml:space="preserve">
     <value>Mostra tota la meva cartera</value>
   </data>
