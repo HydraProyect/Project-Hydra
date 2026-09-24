@@ -130,7 +130,29 @@
                     </div>
                 </div>
 
-                @if (Grupos.Count == 0 && AlDia)
+                @if (Grupos.Count == 0 && AlDia && _vista.SinAlcance(Filtro))
+                {
+                    @* P2.3: sin alcance no hay nada que vigilar, y «al día» afirmaría un
+                       cumplimiento que nadie ha mirado. La Asignación de Cartera la da
+                       el Coordinador CAE; «Añadir a mi cartera» abre esa solicitud. *@
+                    <EstadoVacio NombreIcono="cartera"
+                                 Titulo="@(TenantFiltrado is { } t ? Textos["SinCarteraEmpresa", t.Nombre] : Textos["SinCarteraTitulo"])"
+                                 Descripcion="@(TenantFiltrado is { } t2
+                                     ? Textos["SinCarteraEmpresaDetalle", t2.Nombre]
+                                     : Textos["SinCarteraDetalle"])">
+                        <Accion>
+                            @if (_puedeAnadirACartera)
+                            {
+                                <Boton OnClick="AbrirDialogoCartera">@Textos["AnadirAMiCartera"]</Boton>
+                            }
+                            @if (TenantFiltrado is not null)
+                            {
+                                <Boton Variante="VarianteBoton.Secundario" OnClick="() => CambiarTenant(null)">@Textos["VerTodaMiCartera"]</Boton>
+                            }
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (Grupos.Count == 0 && AlDia)
                 {
                     <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-500)" FondoIcono="var(--color-success-50)"
                                  Titulo="@(TenantFiltrado is { } t ? Textos["AlDiaEmpresa", t.Nombre] : Textos["AlDiaCartera"])"
