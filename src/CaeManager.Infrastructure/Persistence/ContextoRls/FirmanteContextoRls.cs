@@ -98,8 +98,16 @@ public sealed class FirmanteContextoRls
     /// conexión con otro Tenant activo. Si <paramref name="tenantId"/> es el de
     /// la base, restaura la base tal cual. <c>null</c> si la conexión no la
     /// abrió <c>TenantRlsConnectionInterceptor</c> (no hay contexto que tocar).
+    ///
+    /// <para>
+    /// El estado en memoria NO cambia aquí: el llamante invoca
+    /// <see cref="TokenPendiente.Confirmar"/> solo después de que el
+    /// <c>set_config</c> haya llegado a la base. Si fallara o se cancelara, la
+    /// memoria seguiría describiendo el token que la conexión tiene de verdad
+    /// (hallazgo P2 de Codex, ronda 1).
+    /// </para>
     /// </summary>
-    public static async Task<string?> FirmarConTenantAsync(DbConnection conexion, Guid? tenantId, CancellationToken ct)
+    public static async Task<TokenPendiente?> FirmarConTenantAsync(DbConnection conexion, Guid? tenantId, CancellationToken ct)
     {
         if (conexion is not NpgsqlConnection npgsql || !EstadoPorConexion.TryGetValue(conexion, out var estado))
             return null;
@@ -107,17 +115,22 @@ public sealed class FirmanteContextoRls
         var nuevo = tenantId == estado.Base.TenantId
             ? estado.Base
             : estado.Base with { TenantId = tenantId, Origen = OrigenContextoRls.Sellado };
+        var firmadoEn = estado.Firmante._reloj.GetUtcNow();
         var token = await estado.Firmante.ConstruirAsync(npgsql, nuevo, ct);
-        EstadoPorConexion.AddOrUpdate(conexion, estado with { Vigente = nuevo, FirmadoEn = estado.Firmante._reloj.GetUtcNow() });
-        return token;
+        return new TokenPendiente(token, () =>
+            EstadoPorConexion.AddOrUpdate(conexion, estado with { Vigente = nuevo, FirmadoEn = firmadoEn }));
     }
 
     /// <summary>
     /// Token nuevo con el mismo contexto vigente si el actual tiene más de la
     /// mitad del TTL; <c>null</c> si no hace falta renovar o la conexión no
     /// tiene contexto firmado. Para conexiones retenidas mucho tiempo abiertas.
+    /// Como en <see cref="FirmarConTenantAsync"/>, la renovación solo se
+    /// anota al <see cref="TokenPendiente.Confirmar"/>: si el
+    /// <c>set_config</c> falla, el siguiente comando lo vuelve a intentar en
+    /// vez de dar por renovado un token que la base no tiene.
     /// </summary>
-    public static async Task<string?> RenovarSiHaceFaltaAsync(DbConnection conexion, CancellationToken ct)
+    public static async Task<TokenPendiente?> RenovarSiHaceFaltaAsync(DbConnection conexion, CancellationToken ct)
     {
         if (conexion is not NpgsqlConnection npgsql || !EstadoPorConexion.TryGetValue(conexion, out var estado))
             return null;
@@ -127,8 +140,20 @@ public sealed class FirmanteContextoRls
             return null;
 
         var token = await estado.Firmante.ConstruirAsync(npgsql, estado.Vigente, ct);
-        EstadoPorConexion.AddOrUpdate(conexion, estado with { FirmadoEn = ahora });
-        return token;
+        return new TokenPendiente(token, () =>
+            EstadoPorConexion.AddOrUpdate(conexion, estado with { FirmadoEn = ahora }));
+    }
+
+    /// <summary>
+    /// Token ya firmado que el llamante escribe en <c>app.contexto</c>;
+    /// <see cref="Confirmar"/> anota en memoria que la conexión lo tiene, y
+    /// solo se llama cuando el <c>set_config</c> terminó bien.
+    /// </summary>
+    public sealed class TokenPendiente(string token, Action confirmar)
+    {
+        public string Token { get; } = token;
+
+        public void Confirmar() => confirmar();
     }
 
     /// <summary>Olvida el contexto de la conexión (se llama al cerrarla).</summary>
