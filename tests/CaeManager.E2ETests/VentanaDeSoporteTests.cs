@@ -77,8 +77,19 @@ public class VentanaDeSoporteTests(WebAppFixtureVentanaSoporte fixture) : IAsync
         // que ya se han suscrito. Un WebSocket conectado no basta: los
         // componentes pueden inicializarse después y leer ya el estado
         // caducado, que ejercería otro camino.
+        //
+        // Solo cuenta la petición de la página recargada: la anterior sigue
+        // viva hasta que el navegador confirma la nueva y puede importar el
+        // módulo en ese hueco (CI de #876, 2026-09-24: trazaSoporte llegó
+        // 200 ms antes de que la recarga respondiera, el test caducó la
+        // ventana con el circuito nuevo aún sin abrir y midió otro camino).
+        var recargaConfirmada = false;
+        page.FrameNavigated += (_, marco) =>
+        {
+            if (marco == page.MainFrame) recargaConfirmada = true;
+        };
         var moduloImportado = page.WaitForRequestAsync(
-            peticion => peticion.Url.Contains("trazaSoporte", StringComparison.OrdinalIgnoreCase),
+            peticion => recargaConfirmada && peticion.Url.Contains("trazaSoporte", StringComparison.OrdinalIgnoreCase),
             new PageWaitForRequestOptions { Timeout = 30_000 });
         await page.ReloadAsync();
         await moduloImportado;

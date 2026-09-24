@@ -56,20 +56,9 @@ public class RevalidacionCircuitoActivoHandler(
     private CancellationTokenSource? _cts;
     private Task? _bucle;
 
-    public override async Task OnCircuitOpenedAsync(Circuit circuit, CancellationToken cancellationToken)
+    public override Task OnCircuitOpenedAsync(Circuit circuit, CancellationToken cancellationToken)
     {
         SembrarSeleccionMientrasHayHttpContext();
-
-        // La selección sembrada sale de la cookie de la conexión del circuito,
-        // y esa cookie puede estar ya caducada: el middleware no la retira del
-        // ámbito del circuito (es otro ámbito de DI) y, desde que una petición
-        // sin página conserva la cookie hasta la próxima página (ver
-        // RevalidacionClienteActivoMiddleware.PuedePintarElAviso), un circuito
-        // que se abre o reanuda sin página previa la trae viva. Sin esta
-        // comprobación leería el tenant retirado hasta el primer tic del
-        // temporizador. Corre antes de que se pinte ningún componente del
-        // circuito, así que no compite con ellos por el DbContext.
-        await RevalidarAsync(cancellationToken);
 
         // Mismo patrón configurable que Circuit:* en Program.cs: ajustable en
         // producción sin recompilar. 60 s por defecto — frecuente sin llegar
@@ -80,6 +69,7 @@ public class RevalidacionCircuitoActivoHandler(
 
         _cts = new CancellationTokenSource();
         _bucle = EjecutarBucleAsync(intervalo, _cts.Token);
+        return Task.CompletedTask;
     }
 
     /// <summary>

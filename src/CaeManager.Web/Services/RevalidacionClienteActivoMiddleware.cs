@@ -112,6 +112,9 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 return;
             }
 
+            // Una sola conversión al tipo concreto para las tres ramas que retiran la selección.
+            var seleccionConcreta = clienteActivoSeleccionado as ClienteActivoSeleccionado;
+
             if (!sigueAutorizado && !PuedePintarElAviso(contexto.Request))
             {
                 // Petición que no pinta una página (módulo JS, imagen,
@@ -133,8 +136,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                     contexto.Request.Path,
                     tenantSeleccionado);
 
-                if (clienteActivoSeleccionado is ClienteActivoSeleccionado seleccionSinPagina)
-                    seleccionSinPagina.Invalidar();
+                seleccionConcreta?.Invalidar();
             }
             else if (!sigueAutorizado)
             {
@@ -188,8 +190,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                     // síncronas y ocurren antes de cualquier await —si llegó a cancelarse
                     // es porque ya pasó esas dos lecturas, así que Invalidar() no les quita
                     // nada que aún no se hubiera consultado.
-                    if (clienteActivoSeleccionado is ClienteActivoSeleccionado seleccionAbortada)
-                        seleccionAbortada.Invalidar();
+                    seleccionConcreta?.Invalidar();
 
                     contexto.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
 
@@ -200,8 +201,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                     ? MotivoFinDeAcceso.VentanaDeSoporte
                     : MotivoFinDeAcceso.AccesoNoVigente;
 
-                if (clienteActivoSeleccionado is ClienteActivoSeleccionado seleccion)
-                    seleccion.Invalidar();
+                seleccionConcreta?.Invalidar();
 
                 contexto.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
             }
