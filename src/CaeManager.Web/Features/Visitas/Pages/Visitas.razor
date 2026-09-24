@@ -415,7 +415,7 @@
                 {
                     @foreach (var trabajador in TrabajadoresPorSeveridad(_documentacion))
                     {
-                        <SeccionColapsable @key="trabajador.TrabajadorId" Titulo="@($"{trabajador.NombreCompleto} ({trabajador.Dni}) — {trabajador.EmpleadorNombre}")">
+                        <SeccionColapsable @key="trabajador.TrabajadorId" Titulo="@($"{trabajador.NombreCompleto} — {trabajador.EmpleadorNombre}")">
                             <Encabezado>
                                 <Badge Tono="EstadoDocumentoUi.Tono(trabajador.Documentacion.PeorEstado)">@EstadoDocumentoUi.Texto(trabajador.Documentacion.PeorEstado)</Badge>
                             </Encabezado>

@@ -120,11 +120,11 @@ public class ProyectosGen2Tests : BunitContext
         private IReadOnlyList<TecnicoProyectoDto> TecnicosPorDefecto() =>
         [
             _tecnicosDadosDeBaja.Contains(TecnicoActivoId)
-                ? new TecnicoProyectoDto(TecnicoActivoId, Guid.NewGuid(), "Salas Moreno, Javier", "12345678Z",
+                ? new TecnicoProyectoDto(TecnicoActivoId, Guid.NewGuid(), "Salas Moreno, Javier",
                     new DateOnly(2026, 6, 2), new DateOnly(2026, 9, 11), EstaActivo: false)
-                : new TecnicoProyectoDto(TecnicoActivoId, Guid.NewGuid(), "Salas Moreno, Javier", "12345678Z",
+                : new TecnicoProyectoDto(TecnicoActivoId, Guid.NewGuid(), "Salas Moreno, Javier",
                     new DateOnly(2026, 6, 2), null, EstaActivo: true),
-            new TecnicoProyectoDto(TecnicoDeBajaId, Guid.NewGuid(), "Duarte, Ana", "49332077T",
+            new TecnicoProyectoDto(TecnicoDeBajaId, Guid.NewGuid(), "Duarte, Ana",
                 new DateOnly(2026, 6, 9), new DateOnly(2026, 7, 31), EstaActivo: false),
         ];
 
@@ -470,6 +470,24 @@ public class ProyectosGen2Tests : BunitContext
             .TextContent.Should().Contain("De baja").And.Contain("baja 11/09/2026");
     }
 
+    /// <summary>
+    /// Decisión del 2026-09-24 (DNI residual, S2): la línea secundaria del técnico lleva solo
+    /// las fechas, sin DNI. La igualdad exacta es la que pone esto en rojo si el DNI vuelve.
+    /// </summary>
+    [Fact]
+    public async Task La_linea_del_tecnico_lleva_solo_las_fechas_sin_DNI()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+        await BotonConTexto(cut, "tbody .nombre-proyecto", ProyectoAbierto.Nombre).ClickAsync(new MouseEventArgs());
+
+        await BotonConTexto(cut, "[role=tab]", "Técnicos").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".meta-tecnico-proyecto").Select(m => m.TextContent.Trim()).Should().Equal(
+            "alta 02/06/2026",
+            "alta 09/06/2026 · baja 31/07/2026");
+    }
+
     [Fact]
     public async Task Consulta_abre_el_panel_sin_que_se_le_ofrezca_editar_cerrar_ni_gestionar_tecnicos()
     {
@@ -589,7 +607,7 @@ public class ProyectosGen2Tests : BunitContext
         _mediator.Proyectos = [ProyectoAbierto, ProyectoAbierto2];
         _mediator.TecnicosPorProyecto[Abierto2Id] =
         [
-            new TecnicoProyectoDto(Guid.NewGuid(), Guid.NewGuid(), "Iglesias Ruiz, Marta", "70112233K",
+            new TecnicoProyectoDto(Guid.NewGuid(), Guid.NewGuid(), "Iglesias Ruiz, Marta",
                 new DateOnly(2026, 7, 1), null, EstaActivo: true),
         ];
         var cut = await RenderizarConClienteAsync();
@@ -600,7 +618,7 @@ public class ProyectosGen2Tests : BunitContext
         await AbrirDetalle(cut, ProyectoAbierto2);
         await Resolver(cut, tecnicosA, (IReadOnlyList<TecnicoProyectoDto>)
         [
-            new TecnicoProyectoDto(TecnicoActivoId, Guid.NewGuid(), "Salas Moreno, Javier", "12345678Z",
+            new TecnicoProyectoDto(TecnicoActivoId, Guid.NewGuid(), "Salas Moreno, Javier",
                 new DateOnly(2026, 6, 2), null, EstaActivo: true),
         ]);
         await pestanaA.WaitAsync(Paciencia);
