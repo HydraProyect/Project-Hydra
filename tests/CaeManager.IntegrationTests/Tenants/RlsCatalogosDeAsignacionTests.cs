@@ -89,8 +89,10 @@ public class RlsCatalogosDeAsignacionTests : IAsyncLifetime
     [Fact]
     public async Task El_rol_propietario_conserva_la_vision_global_que_el_backfill_necesita()
     {
-        // Sin SET ROLE: es el rol con el que corren hoy el seeder de backfill y
-        // el job de expiración, sin tenant de sesión de ningún tipo. Si esta
+        // Sin SET ROLE: es el rol con el que corre el seeder de backfill
+        // (FabricaContextoDeBootstrap), sin tenant de sesión de ningún tipo. El
+        // job de expiración NO: conecta como cae_app_runtime y recorre los
+        // Tenants propietarios uno a uno (ExpiracionAsignacionesBajoRlsTests). Si esta
         // aserción cayera, el backfill reconciliaría contra un vacío al
         // arrancar — cerraría y recrearía asignaciones en silencio.
         await using var conexion = new NpgsqlConnection(_cadenaConexion);

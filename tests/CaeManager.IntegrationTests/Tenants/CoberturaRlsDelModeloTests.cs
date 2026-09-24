@@ -41,8 +41,10 @@ namespace CaeManager.IntegrationTests.Tenants;
 /// <description>
 /// Sin <c>TenantId</c> — la fila enlaza dos tenants — → RLS + <b>sin FORCE, a
 /// propósito</b> + política <c>posicion_en_la_asignacion</c>. Sin FORCE porque
-/// hay caminos sistémicos legítimos (backfill, job de expiración) que operan
-/// como propietario y necesitan el grafo completo. La protección frente a una
+/// hay un camino sistémico legítimo (el seeder de backfill, vía
+/// <c>FabricaContextoDeBootstrap</c>) que opera como propietario y necesita el
+/// grafo completo. El job de expiración no es uno de ellos: conecta como
+/// <c>cae_app_runtime</c> y recorre los Tenants propietarios uno a uno. La protección frente a una
 /// sesión de usuario la da que los roles restringidos no son propietarios, y
 /// eso se comprueba <b>por rol</b> en <c>RlsCatalogosDeAsignacionTests</c>, no
 /// por la ausencia de FORCE: si mañana cambiara el propietario de las tablas, el
@@ -248,8 +250,8 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
                 "quién opera para quién");
 
             e.Forzado.Should().BeFalse(
-                $"{tabla} NO debe llevar FORCE, y no por descuido: el backfill y el job de expiración operan como " +
-                "propietario y necesitan ver todos los tenants a la vez. Quien protege frente a una sesión de " +
+                $"{tabla} NO debe llevar FORCE, y no por descuido: el seeder de backfill opera como " +
+                "propietario y necesita ver todos los tenants a la vez. Quien protege frente a una sesión de " +
                 "usuario es que los roles restringidos no son propietarios, y eso se comprueba por rol en " +
                 "RlsCatalogosDeAsignacionTests");
 

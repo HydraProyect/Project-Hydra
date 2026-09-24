@@ -34,7 +34,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// "reconciliaría" contra un vacío: cerraría y recrearía asignaciones en
     /// silencio, que es peor que fallar.</item>
     /// <item><c>ExpiracionAsignacionesHostedService</c>, que caduca vigencias en
-    /// segundo plano sin sesión de usuario.</item>
+    /// segundo plano sin sesión de usuario. <b>Corrección 2026-09-23:</b> esta
+    /// premisa era falsa — el job conecta como <c>cae_app_runtime</c>, no como
+    /// propietario, y la política le ataba a cero filas. Hoy recorre los
+    /// Tenants con un <c>AmbitoTenantExplicito</c> por cada uno (ver
+    /// <c>ExpiracionAsignacionesBajoRlsTests</c>). El comentario SQL de
+    /// <c>Up</c> que repite la premisa no se edita: es texto de la migración
+    /// aplicada.</item>
     /// </list>
     ///
     /// La alternativa —una válvula de escape por variable de sesión, del tipo

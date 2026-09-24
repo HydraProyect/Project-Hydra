@@ -105,8 +105,9 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // la fila heredada. Autorización en los handlers de Application.
         "src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs",
 
-        // Job de expiración de vigencias: catálogo global por naturaleza, sin
-        // posición de llamante (no hay sesión en un job de fondo).
+        // Job de expiración de vigencias: sin posición de llamante (no hay
+        // sesión en un job de fondo). Acotado por Tenant propietario —un
+        // AmbitoTenantExplicito por pase— y por la RLS de cae_app_runtime.
         "src/CaeManager.Infrastructure/Operaciones/ExpiracionAsignacionesHostedService.cs",
 
         // Backfill de F1: recorre todos los tenants una vez, al arrancar.
