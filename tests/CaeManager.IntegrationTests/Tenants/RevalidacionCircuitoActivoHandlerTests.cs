@@ -83,6 +83,32 @@ public class RevalidacionCircuitoActivoHandlerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Un_circuito_que_se_abre_con_la_delegacion_ya_revocada_no_espera_al_temporizador()
+    {
+        // Una petición sin página conserva la cookie de selección aunque ya no
+        // valga (el aviso se reserva a la próxima página), así que un circuito
+        // puede abrirse sembrando una selección caducada. Con un intervalo de
+        // una hora, solo la comprobación al abrir puede haberla retirado.
+        await RevocarDelegacionAsync();
+
+        await using var contexto = CrearContexto();
+        var seleccion = PrepararSeleccionConTokenValido();
+
+        var handler = CrearHandler(seleccion, contexto, intervaloSegundos: 3600);
+        var circuito = CircuitFalso();
+        await handler.OnCircuitOpenedAsync(circuito, CancellationToken.None);
+
+        try
+        {
+            seleccion.TenantIdSeleccionado.Should().BeNull("al abrir el circuito ya se revalida, antes de pintar nada");
+        }
+        finally
+        {
+            await handler.OnCircuitClosedAsync(circuito, CancellationToken.None);
+        }
+    }
+
+    [Fact]
     public async Task Sin_revocar_nada_la_seleccion_sobrevive_varios_ciclos_del_temporizador()
     {
         // Control negativo: si el handler invalidara sin condición (un bug
