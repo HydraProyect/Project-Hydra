@@ -293,6 +293,17 @@ public class PlanDecisionCerradaTests
     }
 
     [Fact]
+    public void Una_entrada_nula_falla_como_Result_y_no_como_excepcion()
+    {
+        PlanDecisionCerrada.ParaSeleccionar("x", null!, Sufijo).EsFallido.Should().BeTrue();
+        PlanDecisionCerrada.ParaSeleccionar("x", [null!], Sufijo).EsFallido.Should().BeTrue();
+        PlanDecisionCerrada.ParaSeleccionar("x", [new SeleccionSolicitadaDto(null!, [CentroNorte])], Sufijo).EsFallido.Should().BeTrue();
+        PlanDecisionCerrada.ParaSeleccionar("x", [new SeleccionSolicitadaDto(Centro, null!)], Sufijo).EsFallido.Should().BeTrue();
+        PlanDecisionCerrada.ParaSeleccionar("x", [new SeleccionSolicitadaDto(Centro, [CentroNorte, null!])], Sufijo).EsFallido.Should().BeTrue();
+        PlanDecisionCerrada.ParaClasificarOrden(null!, Sufijo).EsFallido.Should().BeTrue();
+    }
+
+    [Fact]
     public void Un_mismo_dato_no_se_pide_dos_veces()
     {
         PlanDecisionCerrada.ParaSeleccionar("x",

@@ -136,8 +136,13 @@ public sealed class PlanDecisionCerrada
         if (errorTexto is not null)
             return Result.Fallo<PlanDecisionCerrada>(errorTexto);
 
-        if (selecciones.Count == 0)
+        // El contrato es un Result: una entrada mal formada falla por aquí, no
+        // con una excepción que escape al manejo de errores de quien llama.
+        if (selecciones is null || selecciones.Count == 0)
             return Invalido("No hay ningún dato que seleccionar.");
+
+        if (selecciones.Any(s => s?.Campo is null || s.Candidatos is null || s.Candidatos.Any(c => c is null)))
+            return Invalido("Hay un dato o un candidato sin definir.");
 
         if (selecciones.Select(s => s.Campo.Nombre).Distinct(StringComparer.Ordinal).Count() != selecciones.Count)
             return Invalido("Un mismo dato no puede pedirse dos veces en la misma petición.");
