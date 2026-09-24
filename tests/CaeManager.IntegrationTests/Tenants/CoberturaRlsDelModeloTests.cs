@@ -111,16 +111,21 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// con la de tenant, así que solo puede estrechar el acceso, nunca
     /// ensancharlo; aun así cada una tiene que quedar escrita aquí, con motivo,
     /// en el commit que la introduce. Una restrictiva que no esté en la lista, o
-    /// una de la lista que falte en la base, pone el test en rojo.
+    /// una de la lista que falte en la base, pone el test en rojo. <c>Menciona</c>
+    /// son los fragmentos que su USING y su WITH CHECK tienen que contener: sin
+    /// ellos, una restrictiva reescrita a <c>true</c> seguiría contando como revisada.
     /// </summary>
-    private static readonly Dictionary<string, (string Politica, string Motivo)> PoliticasRestrictivasRevisadas = new()
+    private static readonly Dictionary<string, (string Politica, string Motivo, string[] Menciona)> PoliticasRestrictivasRevisadas = new()
     {
         ["TareasAsistente"] = ("solo_su_persona",
-            "cada Tarea del asistente es de una sola persona dentro del Tenant: ActorRealUsuarioId = app.usuario_id"),
+            "cada Tarea del asistente es de una sola persona dentro del Tenant: ActorRealUsuarioId = app.usuario_id",
+            ["\"ActorRealUsuarioId\"", "'app.usuario_id'"]),
         ["TurnosTareaAsistente"] = ("solo_su_persona",
-            "un turno solo es visible si su Tarea del asistente lo es (EXISTS sobre la raíz)"),
+            "un turno solo es visible si su Tarea del asistente lo es (EXISTS sobre la raíz)",
+            ["EXISTS", "FROM \"TareasAsistente\"", "\"TurnosTareaAsistente\".\"TareaAsistenteId\""]),
         ["PasosTareaAsistente"] = ("solo_su_persona",
-            "un paso solo es visible si su Tarea del asistente lo es (EXISTS sobre la raíz)"),
+            "un paso solo es visible si su Tarea del asistente lo es (EXISTS sobre la raíz)",
+            ["EXISTS", "FROM \"TareasAsistente\"", "\"PasosTareaAsistente\".\"TareaAsistenteId\""]),
     };
 
     /// <summary>Política de los catálogos globales de asignación.</summary>
@@ -199,6 +204,16 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             .Select(r => $"{r.Key}.{r.Value.Politica}")
             .ToList();
 
+        var restrictivasQueNoDicenLoQueToca = PoliticasRestrictivasRevisadas
+            .Select(r => (r.Key, r.Value, Politica: estado.TryGetValue(r.Key, out var e)
+                ? e.Politicas.FirstOrDefault(p => p.Nombre == r.Value.Politica)
+                : null))
+            .Where(x => x.Politica is not null
+                        && !x.Value.Menciona.All(m => (x.Politica.Using ?? "").Contains(m, StringComparison.Ordinal)
+                                                      && (x.Politica.WithCheck ?? "").Contains(m, StringComparison.Ordinal)))
+            .Select(x => $"{x.Key}.{x.Value.Politica} → USING {x.Politica!.Using ?? "(ninguna)"} / WITH CHECK {x.Politica.WithCheck ?? "(ninguna)"}")
+            .ToList();
+
         // La de tenant tiene que ser PERMISSIVE: una tabla con solo políticas
         // restrictivas no deja ver nada, y una aislamiento_tenant restrictiva
         // dejaría de ser la que abre el acceso por tenant.
@@ -241,6 +256,9 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         string.Join(", ", restrictivasAusentes).Should().BeEmpty(
             "PoliticasRestrictivasRevisadas afirma que estas políticas restrictivas existen; si una desaparece o " +
             "pasa a PERMISSIVE, la tabla pierde la barrera que la lista documenta");
+
+        string.Join(", ", restrictivasQueNoDicenLoQueToca).Should().BeEmpty(
+            "una restrictiva revisada tiene que seguir diciendo, en USING y en WITH CHECK, lo que la lista documenta");
 
         string.Join(", ", aislamientoNoPermisivo).Should().BeEmpty(
             $"'{PoliticaAislamiento}' tiene que ser PERMISSIVE: es la que concede el acceso por tenant");

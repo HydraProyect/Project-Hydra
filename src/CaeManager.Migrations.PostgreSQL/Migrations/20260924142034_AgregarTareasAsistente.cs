@@ -136,11 +136,75 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 REFERENCES "TareasAsistente" ("Id", "TenantId")
                 ON DELETE CASCADE;
                 """);
+
+            // "Nada se ejecuta sin plan confirmado" también en la base, no solo
+            // en el dominio: un paso Confirmado, Ejecutado o Fallido exige que su
+            // tarea tenga PlanConfirmadoEnUtc. Trigger de restricción DIFERIDO a
+            // propósito: ConfirmarPlan guarda la raíz y sus pasos en la misma
+            // transacción y EF no garantiza el orden de esos UPDATE, así que la
+            // comprobación se hace al confirmar la transacción. La consulta a la
+            // raíz corre con los permisos y la RLS de quien escribe: si no ve la
+            // tarea, falla cerrada.
+            migrationBuilder.Sql(
+                """
+                CREATE FUNCTION paso_tarea_asistente_exige_plan_confirmado() RETURNS trigger
+                LANGUAGE plpgsql AS $$
+                BEGIN
+                    IF NEW."Estado" IN ('Confirmado', 'Ejecutado', 'Fallido') AND NOT EXISTS (
+                        SELECT 1 FROM "TareasAsistente" t
+                        WHERE t."Id" = NEW."TareaAsistenteId"
+                          AND t."TenantId" = NEW."TenantId"
+                          AND t."PlanConfirmadoEnUtc" IS NOT NULL)
+                    THEN
+                        RAISE EXCEPTION 'El paso % no se confirma ni se ejecuta sin un plan confirmado.', NEW."Id"
+                            USING ERRCODE = 'check_violation';
+                    END IF;
+                    RETURN NULL;
+                END;
+                $$;
+
+                CREATE CONSTRAINT TRIGGER "TR_PasosTareaAsistente_ExigePlanConfirmado"
+                AFTER INSERT OR UPDATE ON "PasosTareaAsistente"
+                DEFERRABLE INITIALLY DEFERRED
+                FOR EACH ROW EXECUTE FUNCTION paso_tarea_asistente_exige_plan_confirmado();
+                """);
+
+            // Y la confirmación no se deshace: sin esto, borrar PlanConfirmadoEnUtc
+            // de la raíz dejaría pasos ejecutados colgando de un plan sin confirmar.
+            migrationBuilder.Sql(
+                """
+                CREATE FUNCTION tarea_asistente_confirmacion_inmutable() RETURNS trigger
+                LANGUAGE plpgsql AS $$
+                BEGIN
+                    IF OLD."PlanConfirmadoEnUtc" IS NOT NULL
+                       AND (NEW."PlanConfirmadoEnUtc" IS DISTINCT FROM OLD."PlanConfirmadoEnUtc"
+                            OR NEW."PlanConfirmadoPorActorRealUsuarioId" IS DISTINCT FROM OLD."PlanConfirmadoPorActorRealUsuarioId"
+                            OR NEW."PlanConfirmadoComoUsuarioSimuladoId" IS DISTINCT FROM OLD."PlanConfirmadoComoUsuarioSimuladoId")
+                    THEN
+                        RAISE EXCEPTION 'La confirmación del plan de la tarea % no se modifica.', OLD."Id"
+                            USING ERRCODE = 'check_violation';
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$;
+
+                CREATE TRIGGER "TR_TareasAsistente_ConfirmacionInmutable"
+                BEFORE UPDATE ON "TareasAsistente"
+                FOR EACH ROW EXECUTE FUNCTION tarea_asistente_confirmacion_inmutable();
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql(
+                """
+                DROP TRIGGER IF EXISTS "TR_TareasAsistente_ConfirmacionInmutable" ON "TareasAsistente";
+                DROP TRIGGER IF EXISTS "TR_PasosTareaAsistente_ExigePlanConfirmado" ON "PasosTareaAsistente";
+                DROP FUNCTION IF EXISTS tarea_asistente_confirmacion_inmutable();
+                DROP FUNCTION IF EXISTS paso_tarea_asistente_exige_plan_confirmado();
+                """);
+
             migrationBuilder.DropTable(
                 name: "PasosTareaAsistente");
 

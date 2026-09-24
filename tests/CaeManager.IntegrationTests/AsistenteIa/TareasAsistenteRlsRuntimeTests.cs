@@ -125,6 +125,71 @@ public class TareasAsistenteRlsRuntimeTests
             "control positivo: la misma sentencia pasa para la persona propietaria, así que el rechazo es de la política");
     }
 
+    [Fact]
+    public async Task La_base_no_admite_un_paso_ejecutado_sin_plan_confirmado_aunque_se_salte_el_dominio()
+    {
+        await using var arnes = await CrearArnesAsync();
+        var tareaId = await CrearTareaDeLaGestoraAsync(arnes);
+
+        await using var conexion = await AbrirComoRuntimeAsync(arnes, _tenantBeneficiario, _gestora);
+        await using var atajo = conexion.CreateCommand();
+        atajo.CommandText = """
+            UPDATE "PasosTareaAsistente"
+            SET "Estado" = 'Ejecutado', "ConfirmadoEnUtc" = now(), "EjecutadoEnUtc" = now()
+            WHERE "TareaAsistenteId" = @tarea;
+            """;
+        atajo.Parameters.AddWithValue("tarea", tareaId);
+
+        var excepcion = await Record.ExceptionAsync(() => atajo.ExecuteNonQueryAsync());
+
+        // El mensaje distingue el trigger de los CHECK del paso, que esta fila
+        // cumple: tiene ConfirmadoEnUtc y EjecutadoEnUtc.
+        excepcion.Should().BeOfType<PostgresException>()
+            .Which.MessageText.Should().Contain("sin un plan confirmado");
+    }
+
+    [Fact]
+    public async Task El_flujo_del_dominio_confirma_ejecuta_y_la_confirmacion_ya_no_se_deshace()
+    {
+        await using var arnes = await CrearArnesAsync();
+        var tareaId = await CrearTareaDeLaGestoraAsync(arnes);
+
+        // Control positivo del trigger diferido: ConfirmarPlan guarda raíz y pasos
+        // en la misma transacción, en el orden que elija EF.
+        ComoPersona(_gestora, _tenantBeneficiario);
+        await using (var scope = arnes.Servicios.CreateAsyncScope())
+        {
+            var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var tarea = await contexto.TareasAsistente.Include(t => t.Pasos).SingleAsync(t => t.Id == tareaId);
+            tarea.ConfirmarPlan(_gestora, null, Ahora);
+            await contexto.SaveChangesAsync();
+            tarea.RegistrarPasoEjecutado(tarea.Pasos.Single().Id, Guid.NewGuid(), Ahora);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var conexion = await AbrirComoRuntimeAsync(arnes, _tenantBeneficiario, _gestora);
+        await using (var estado = conexion.CreateCommand())
+        {
+            estado.CommandText = """SELECT "Estado" FROM "TareasAsistente" WHERE "Id" = @id;""";
+            estado.Parameters.AddWithValue("id", tareaId);
+            ((string)(await estado.ExecuteScalarAsync())!).Should().Be(nameof(EstadoTareaAsistente.Terminada));
+        }
+
+        await using var deshacer = conexion.CreateCommand();
+        deshacer.CommandText = """
+            UPDATE "TareasAsistente"
+            SET "Estado" = 'PlanListo', "PlanConfirmadoEnUtc" = NULL, "PlanConfirmadoPorActorRealUsuarioId" = NULL
+            WHERE "Id" = @id;
+            """;
+        deshacer.Parameters.AddWithValue("id", tareaId);
+
+        var excepcion = await Record.ExceptionAsync(() => deshacer.ExecuteNonQueryAsync());
+
+        excepcion.Should().BeOfType<PostgresException>()
+            .Which.MessageText.Should().Contain("no se modifica",
+                "sin la confirmación en la raíz, sus pasos ejecutados colgarían de un plan sin confirmar");
+    }
+
     [Theory]
     [InlineData("TareasAsistente")]
     [InlineData("TurnosTareaAsistente")]
