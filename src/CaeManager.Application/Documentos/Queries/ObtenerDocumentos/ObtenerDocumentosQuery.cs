@@ -275,8 +275,14 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             .Take(request.TamanoPagina)
             .Select(x => new
             {
-                x.Id, x.Ambito, x.PropietarioNombre, x.TipoDocumentoNombre, x.FechaEmision,
-                x.EstadoVigencia, x.FechaVencimiento, x.ArchivoUrl
+                x.Id,
+                x.Ambito,
+                x.PropietarioNombre,
+                x.TipoDocumentoNombre,
+                x.FechaEmision,
+                x.EstadoVigencia,
+                x.FechaVencimiento,
+                x.ArchivoUrl
             })
             .ToListAsync(cancellationToken);
 
