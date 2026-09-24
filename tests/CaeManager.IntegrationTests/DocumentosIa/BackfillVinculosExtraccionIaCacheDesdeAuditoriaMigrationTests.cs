@@ -68,9 +68,11 @@ public class BackfillVinculosExtraccionIaCacheDesdeAuditoriaMigrationTests : IAs
                 WHERE table_schema = 'public' AND table_name = 'Documentos'
                   AND is_nullable = 'NO' AND column_default IS NULL
                 """).ToListAsync();
-            obligatorias.Should().BeEquivalentTo(
+            // ClienteId admite nulos (la CHECK de propietario exige uno de varios
+            // FK), pero el INSERT lo rellena porque es un Documento de Empresa cliente.
+            obligatorias.Should().BeSubsetOf(
                 ["Id", "TenantId", "ClienteId", "TipoDocumentoId", "FechaEmision", "CreadoEnUtc", "EstaEliminado", "Version"],
-                "el INSERT de abajo tiene que cubrir exactamente las columnas obligatorias del esquema intermedio");
+                "el INSERT de abajo tiene que cubrir todas las columnas obligatorias del esquema intermedio");
 
             documentoId = Guid.NewGuid();
             await contexto.Database.ExecuteSqlAsync($"""
