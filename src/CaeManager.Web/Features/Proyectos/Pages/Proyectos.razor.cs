@@ -513,8 +513,6 @@ public partial class Proyectos : ComponentBase
     private string MetaTecnico(TecnicoProyectoDto tecnico)
     {
         var partes = new List<string>();
-        if (!string.IsNullOrWhiteSpace(tecnico.TrabajadorDni))
-            partes.Add(tecnico.TrabajadorDni);
         partes.Add(Textos["MetaAltaFecha", tecnico.FechaAlta]);
         if (tecnico.FechaBaja is { } baja)
             partes.Add(Textos["MetaBajaFecha", baja]);

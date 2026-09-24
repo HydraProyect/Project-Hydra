@@ -39,7 +39,7 @@ public record DocumentoVisitaItemDto(
 public record SeccionDocumentacionDto(EstadoDocumento PeorEstado, IReadOnlyList<DocumentoVisitaItemDto> Documentos);
 
 public record TrabajadorDocumentacionDto(
-    Guid TrabajadorId, string NombreCompleto, string Dni, string EmpleadorNombre, SeccionDocumentacionDto Documentacion);
+    Guid TrabajadorId, string NombreCompleto, string EmpleadorNombre, SeccionDocumentacionDto Documentacion);
 
 public record DocumentacionVisitaDto(
     Guid EmpresaId, SeccionDocumentacionDto Empresa, IReadOnlyList<TrabajadorDocumentacionDto> Trabajadores);
@@ -198,7 +198,6 @@ public class ObtenerDocumentacionVisitaQueryHandler(
             {
                 trabajador.Id,
                 Nombre = trabajador.Nombre + " " + trabajador.Apellidos,
-                trabajador.Dni,
                 EmpleadorNombre = empresa != null ? empresa.RazonSocial : (subcontrata != null ? subcontrata.RazonSocial : "—")
             })
             .ToListAsync(cancellationToken);
@@ -210,7 +209,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
                 documentosContext.Documentos.Where(d => d.TrabajadorId == trabajador.Id),
                 tiposTrabajador, trabajador.Id, hoy, umbralAmbarDias, umbralRojoDias, cancellationToken);
 
-            resultado.Add(new TrabajadorDocumentacionDto(trabajador.Id, trabajador.Nombre, trabajador.Dni, trabajador.EmpleadorNombre, seccion));
+            resultado.Add(new TrabajadorDocumentacionDto(trabajador.Id, trabajador.Nombre, trabajador.EmpleadorNombre, seccion));
         }
 
         return resultado;

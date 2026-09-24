@@ -426,6 +426,27 @@ public partial class ImportarClientesGen2Tests : BunitContext
                 .Should().ContainSingle().Which.Roles.Should().Be(Roles.Administrador, $"{pagina.Name} conserva su regla de rol");
     }
 
+    /// <summary>
+    /// Decisión del 2026-09-24 (DNI residual, S3, mantener): el plan de importación enseña el DNI
+    /// porque es la clave de cruce de la importación (duplicados, Documentos y Asignaciones se
+    /// referencian por DNI) y el dato viene del fichero que acaba de subir quien lo ve. Esa
+    /// justificación solo vale mientras la pantalla sea exclusiva del Administrador del Tenant
+    /// propietario: ningún rol que un Operador CAE externo pueda recibir por delegación
+    /// (Coordinador CAE, Gestor CAE, Consulta) ni Dirección CAE puede llegar a ella. Si esta regla
+    /// de rol se abre, la decisión sobre el DNI del plan hay que volver a tomarla.
+    /// </summary>
+    [Fact]
+    public void El_plan_de_importacion_con_DNI_sigue_siendo_exclusivo_del_Administrador()
+    {
+        var roles = typeof(PaginaImportacion).GetCustomAttributes<AuthorizeAttribute>(inherit: true)
+            .Should().ContainSingle().Which.Roles!
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        roles.Should().Equal([Roles.Administrador],
+            "el DNI del plan de importación solo está justificado para el Administrador (decisión del 2026-09-24, S3)");
+        roles.Should().NotIntersectWith([Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta, Roles.DireccionCae]);
+    }
+
     [Fact]
     public async Task Desde_Clientes_la_cabecera_es_la_del_mockup_y_ofrece_volver_a_Clientes()
     {
