@@ -217,11 +217,11 @@
     <comment>Nombre accesible de la lista.</comment>
   </data>
   <data name="VacioClientesTitulo" xml:space="preserve">
-    <value>Sin clientes</value>
+    <value>Sin clientes que puedas consultar</value>
     <comment>Estado vacío de la pestaña Clientes.</comment>
   </data>
   <data name="VacioClientesDescripcion" xml:space="preserve">
-    <value>Esta empresa todavía no tiene ningún cliente asociado.</value>
+    <value>Esta empresa no tiene clientes asociados, o ninguno está dentro de tu alcance.</value>
     <comment>Estado vacío de la pestaña Clientes.</comment>
   </data>
   <data name="ErrorClientes" xml:space="preserve">

@@ -166,10 +166,10 @@
     <value>Clients d'aquesta empresa</value>
   </data>
   <data name="VacioClientesTitulo" xml:space="preserve">
-    <value>Sense clients</value>
+    <value>Sense clients que puguis consultar</value>
   </data>
   <data name="VacioClientesDescripcion" xml:space="preserve">
-    <value>Aquesta empresa encara no té cap client associat.</value>
+    <value>Aquesta empresa no té clients associats, o cap no és dins del teu abast.</value>
   </data>
   <data name="ErrorClientes" xml:space="preserve">
     <value>No hem pogut carregar els clients</value>

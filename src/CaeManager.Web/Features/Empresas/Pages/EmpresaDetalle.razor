@@ -45,21 +45,24 @@
                 {
                     @Textos["MetaCif", _detalle.Cif]
                     <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" />
-                    @if (_clientes is not null || _recuentos is not null)
+                    @if (_clientes is { Count: > 0 } || _recuentos is not null)
                     {
                         <text> · </text>
                     }
                 }
                 @* Los Clientes empresariales se cuentan con ObtenerClientesDeEmpresaQuery, que
                    aplica el alcance de gestión, igual que la pestaña. EmpresaDetalleDto.ClienteIds
-                   no está acotado: contarlo anunciaría una cartera que el actor no puede ver. *@
-                @if (_clientes is { } clientesMeta)
+                   no está acotado: contarlo anunciaría una cartera que el actor no puede ver.
+                   Una lista vacía no se cuenta: sin alcance de gestión el handler devuelve
+                   vacío a propósito, y «0 clientes» sería falso para quien no puede ver la
+                   cartera (Codex, #810). *@
+                @if (_clientes is { Count: > 0 } clientesMeta)
                 {
                     @Plural(clientesMeta.Count, "MetaClientesUno", "MetaClientesVarios")
                 }
                 @if (_recuentos is { } recuentosMeta)
                 {
-                    @if (_clientes is not null)
+                    @if (_clientes is { Count: > 0 })
                     {
                         <text> · </text>
                     }

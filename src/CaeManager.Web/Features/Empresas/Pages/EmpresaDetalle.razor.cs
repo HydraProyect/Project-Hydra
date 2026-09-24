@@ -594,7 +594,7 @@ public partial class EmpresaDetalle : ComponentBase, IDisposable
         },
         new(PestanaClientes, Textos["PestanaClientes"])
         {
-            Contador = _clientes is { } clientes ? new ContadorPestana(clientes.Count, Textos["GlosaClientes"]) : null
+            Contador = _clientes is { Count: > 0 } clientes ? new ContadorPestana(clientes.Count, Textos["GlosaClientes"]) : null
         },
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
         new(PestanaAgenda, Textos["PestanaAgenda"]),

@@ -521,7 +521,9 @@ public class Empresa360PaginaTests : BunitContext
     /// Si la cabecera contara ClienteIds, un actor sin gestión sobre esos
     /// Clientes empresariales vería el tamaño de una cartera que la pestaña no
     /// le enseña. La cabecera y el contador cuentan lo que la lista acotada
-    /// devuelve.
+    /// devuelve, y una lista vacía no se cuenta (ronda 3): sin alcance de
+    /// gestión el handler devuelve vacío a propósito, así que «0 clientes»
+    /// afirmaría algo que el actor no puede saber.
     /// </summary>
     [Fact]
     public void El_recuento_de_clientes_sale_de_la_consulta_acotada_y_no_de_ClienteIds()
@@ -535,9 +537,25 @@ public class Empresa360PaginaTests : BunitContext
         // Barrera: la entradilla ya tiene los trabajadores; si no, la ausencia sería verde vacío.
         var entradilla = cut.Find(".cabecera-pagina-descripcion").TextContent;
         entradilla.Should().Contain("25 trabajadores");
-        entradilla.Should().Contain("0 clientes").And.NotContain("2 clientes",
+        entradilla.Should().NotContain("2 clientes",
             "EmpresaDetalleDto trae dos ClienteIds, pero ninguno está en el alcance del actor");
-        Pestana(cut, "Clientes").TextContent.Should().NotContain("2");
+        entradilla.Should().NotContain("0 clientes", "una lista vacía puede ser falta de alcance, no una cartera vacía");
+        Pestana(cut, "Clientes").TextContent.Trim().Should().Be("Clientes", "sin recuento que no se pueda afirmar");
+    }
+
+    [Fact]
+    public async Task La_pestana_Clientes_vacia_no_afirma_que_la_cartera_este_vacia()
+    {
+        var mediador = Empresa();
+        mediador.Clientes[EmpresaId] = [];
+        Registrar(mediador);
+        var cut = Renderizar();
+
+        await Pestana(cut, "Clientes").ClickAsync(new MouseEventArgs());
+
+        cut.Markup.Should().Contain("Sin clientes que puedas consultar")
+            .And.Contain("o ninguno está dentro de tu alcance");
+        cut.Markup.Should().NotContain("todavía no tiene ningún cliente");
     }
 
     // ── Credencial de acceso ──────────────────────────────────────────────
