@@ -131,6 +131,9 @@ public class EnmascaradorIdentificadoresTests
         // Se mide la CPU de este hilo, no el reloj de pared: con la máquina cargada el
         // hilo pasa segundos esperando turno sin ejecutar nada del enmascarador, y un
         // cronómetro contaba esa espera como si fuera retroceso (21 s el 2026-09-24).
+        // Vale mientras Enmascarar trabaje en el hilo que lo llama, como hoy: si un día
+        // repartiera trabajo en otros hilos, esa CPU no contaría y este techo dejaría de
+        // acotar el coste total.
         var texto = prefijo + string.Concat(Enumerable.Repeat(ristra, 100_000));
 
         var (r, cpu) = TiempoCpuDelHilo.Medir(() => EnmascaradorIdentificadores.Enmascarar(texto));
