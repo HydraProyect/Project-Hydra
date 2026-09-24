@@ -11,7 +11,7 @@ namespace CaeManager.E2ETests;
 /// efectivo ajustado por <c>RolEfectivoDelWorkspaceMiddleware</c> (Consulta
 /// delegada, Gestor CAE delegado) devolvía HTTP 500
 /// (<c>InvalidOperationException</c>: segunda operación sobre el mismo
-/// DbContext). La página consultaba <c>ObtenerRolActualAsync</c> directamente en
+/// DbContext). La página consultaba <c>ObtenerRolEfectivoAsync</c> directamente en
 /// <c>OnInitializedAsync</c>, en paralelo con el layout, y con un workspace
 /// delegado esa consulta llega a base de datos (sin selección devuelve el claim
 /// sin tocarla, por eso el rol propio no fallaba).

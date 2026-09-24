@@ -53,7 +53,7 @@ public class ObtenerNotasInternasConversacionQueryHandler(
         if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null)
             return [];
 
-        var rol = await currentUserService.ObtenerRolActualAsync();
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
         if (rol is null || !RolesQueVenNotasInternas.Contains(rol))
             return [];
 

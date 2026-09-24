@@ -17,7 +17,7 @@ public class ActualizarLecturaIaGlobalCommandHandler(
 
     public async Task<Result> Handle(ActualizarLecturaIaGlobalCommand request, CancellationToken cancellationToken)
     {
-        var rol = await currentUserService.ObtenerRolActualAsync();
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
         if (rol != RolAdministrador)
             return Result.Fallo(Error.Crear("LecturaIa.SoloAdministrador", "Solo Administrador puede cambiar este interruptor."));
 

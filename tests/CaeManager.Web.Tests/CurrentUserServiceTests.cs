@@ -21,7 +21,7 @@ public class CurrentUserServiceTests
         var servicio = CrearServicio(authStateProvider, httpContextAccessor);
 
         (await servicio.ObtenerUsuarioActualIdAsync()).Should().Be(UsuarioIdDeEjemplo);
-        (await servicio.ObtenerRolActualAsync()).Should().Be("Administrador");
+        (await servicio.ObtenerRolEfectivoAsync()).Should().Be("Administrador");
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class CurrentUserServiceTests
         var servicio = CrearServicio(authStateProvider, httpContextAccessor);
 
         (await servicio.ObtenerUsuarioActualIdAsync()).Should().Be(UsuarioIdDeEjemplo);
-        (await servicio.ObtenerRolActualAsync()).Should().Be("Administrador");
+        (await servicio.ObtenerRolEfectivoAsync()).Should().Be("Administrador");
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class CurrentUserServiceTests
         var servicio = CrearServicio(authStateProvider, httpContextAccessor);
 
         (await servicio.ObtenerUsuarioActualIdAsync()).Should().BeNull();
-        (await servicio.ObtenerRolActualAsync()).Should().BeNull();
+        (await servicio.ObtenerRolEfectivoAsync()).Should().BeNull();
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public class CurrentUserServiceTests
         (await vigente.ObtenerUsuarioActualIdAsync()).Should().Be(UsuarioIdDeEjemplo, "control positivo: sin invalidar, el fallback sigue funcionando");
         (await vigenteConInterfaz.ObtenerUsuarioActualIdAsync()).Should().Be(UsuarioIdDeEjemplo, "el proveedor implementa la interfaz pero su sesión sigue vigente");
         (await invalidado.ObtenerUsuarioActualIdAsync()).Should().BeNull();
-        (await invalidado.ObtenerRolActualAsync()).Should().BeNull();
+        (await invalidado.ObtenerRolEfectivoAsync()).Should().BeNull();
     }
 
     [Fact]
@@ -81,12 +81,12 @@ public class CurrentUserServiceTests
         // El usuario sigue siendo el mismo — la auditoria necesita saber quien
         // es. Lo que desaparece es el rol.
         (await servicio.ObtenerUsuarioActualIdAsync()).Should().Be(UsuarioIdDeEjemplo);
-        (await servicio.ObtenerRolActualAsync()).Should().BeNull();
+        (await servicio.ObtenerRolEfectivoAsync()).Should().BeNull();
     }
 
     /// <summary>
     /// Sin Delegated Workspace seleccionado, que es el caso de todo usuario
-    /// que no es Operador Delegado: <c>ObtenerRolActualAsync</c> devuelve el
+    /// que no es Operador Delegado: <c>ObtenerRolEfectivoAsync</c> devuelve el
     /// claim sin resolver nada del contenedor ni tocar la base de datos, por
     /// eso basta un proveedor vacío (ver CurrentUserService). El camino
     /// delegado se cubre en CaeManager.IntegrationTests, con contexto real.

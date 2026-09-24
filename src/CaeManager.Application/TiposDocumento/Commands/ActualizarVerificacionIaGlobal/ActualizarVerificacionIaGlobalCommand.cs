@@ -26,7 +26,7 @@ public class ActualizarVerificacionIaGlobalCommandHandler(
 
     public async Task<Result> Handle(ActualizarVerificacionIaGlobalCommand request, CancellationToken cancellationToken)
     {
-        var rol = await currentUserService.ObtenerRolActualAsync();
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
         if (rol != RolAdministrador)
             return Result.Fallo(Error.Crear("VerificacionIa.SoloAdministrador", "Solo Administrador puede cambiar este interruptor."));
 

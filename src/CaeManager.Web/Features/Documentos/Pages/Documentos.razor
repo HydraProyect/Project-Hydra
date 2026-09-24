@@ -124,12 +124,10 @@
                         }
                     </CampoSelect>
                 }
-                @* GuardarFiltroCommand es ICommand: AutorizacionEscrituraBehavior lo deniega a Consulta. *@
-                <SoloConEscritura>
-                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
-                        Guardar filtro
-                    </Boton>
-                </SoloConEscritura>
+                @* Sin SoloConEscritura: GuardarFiltroCommand es IComandoDeAutoservicio y Consulta lo ejecuta. *@
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
+                    Guardar filtro
+                </Boton>
             </div>
 
             <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />

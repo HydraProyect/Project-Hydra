@@ -127,7 +127,7 @@ public class AutoridadAsignacionesService(
     {
         if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null) return false;
 
-        var rol = await currentUserService.ObtenerRolActualAsync();
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
         return rol is not null && RolesConAutoridadSobreAsignaciones.Contains(rol);
     }
 }

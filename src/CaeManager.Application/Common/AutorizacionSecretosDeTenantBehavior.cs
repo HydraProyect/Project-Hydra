@@ -32,7 +32,7 @@ namespace CaeManager.Application.Common;
 /// para actuar en esa plataforma en nombre del Tenant propietario, fuera de
 /// TALVEG. Vale igual para la Consulta delegada del Operador CAE externo: el rol
 /// que se evalúa es el efectivo del workspace delegado, que ya resuelve
-/// <see cref="ICurrentUserService.ObtenerRolActualAsync"/>. Cliente (usuario de
+/// <see cref="ICurrentUserService.ObtenerRolEfectivoAsync"/>. Cliente (usuario de
 /// portal) y un rol sin resolver tampoco leen: fallo cerrado. Es la misma lista
 /// que <see cref="AutorizacionEscrituraBehavior{TRequest,TResponse}"/>, repetida
 /// con literales porque Application no referencia Infrastructure.Identity; la
@@ -69,7 +69,7 @@ public class AutorizacionSecretosDeTenantBehavior<TRequest, TResponse>(
             || await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is null;
 
         if (sinSesionQueLoImpida
-            && await currentUserService.ObtenerRolActualAsync() is { } rol
+            && await currentUserService.ObtenerRolEfectivoAsync() is { } rol
             && RolesQueLeenSecretos.Contains(rol))
             return await next(cancellationToken);
 

@@ -66,7 +66,7 @@ public class CrearLineaWhatsAppCommandHandler(
         // Mismo criterio que el alta de delegaciones (P0-7): configurar una
         // credencial de plataforma es cosa del Administrador, no de la
         // lista blanca general de escritura.
-        if (await currentUserService.ObtenerRolActualAsync() != "Administrador")
+        if (await currentUserService.ObtenerRolEfectivoAsync() != "Administrador")
             return Result.Fallo<Guid>(Error.Crear(
                 "Autorizacion.SoloAdministrador", "Solo un administrador puede configurar líneas de WhatsApp."));
 
