@@ -150,10 +150,29 @@ public class PuertaAccesoDatosTests
     /// A y que B terminara pasaron de 5,1 a 13,9 s, y el test reanudó como
     /// mucho a los 14,9 s. Es decir, B superó los 5 s en las 8 vueltas; el
     /// plazo antiguo solo pasaba cuando el temporizador del Task.Delay,
-    /// igual de hambriento, llegaba todavía más tarde. 60 s son 4 veces el
-    /// máximo medido y no alargan ningún test en verde.
+    /// igual de hambriento, llegaba todavía más tarde. En 6 vueltas más, una
+    /// continuación tras un Task.Delay(100) tardó al menos 30 s en correr (lo
+    /// delató el plazo de 30 s de CerrarAsync, que venció antes). 120 s son 4
+    /// veces ese atasco y no alargan ningún test en verde.
     /// </summary>
-    private static readonly TimeSpan PlazoDeCuelgue = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan PlazoDeCuelgue = TimeSpan.FromSeconds(120);
+
+    /// <summary>
+    /// Espera <paramref name="tarea"/> con el <see cref="PlazoDeCuelgue"/> como
+    /// único reloj. Los tests de cierre que esperan <c>true</c> llaman a
+    /// <c>CerrarAsync(Timeout.InfiniteTimeSpan)</c>: con un plazo finito del
+    /// producto, su temporizador compite con la planificación de la
+    /// continuación que tiene que soltar la puerta, y bajo CPU disputada
+    /// vence antes aunque el producto sea correcto. El plazo acotado de
+    /// <c>CerrarAsync</c> tiene su propio test,
+    /// <see cref="CerrarAsync_con_la_espera_agotada_devuelve_false_sin_colgarse"/>.
+    /// </summary>
+    private static async Task<T> SinColgarse<T>(Task<T> tarea, string que)
+    {
+        var ganadora = await Task.WhenAny(tarea, Task.Delay(PlazoDeCuelgue));
+        ganadora.Should().BeSameAs(tarea, "{0} no debe colgarse", que);
+        return await tarea;
+    }
 
     [Fact]
     public async Task Cancelar_la_espera_justo_antes_de_que_el_ocupante_libere_nunca_ejecuta_la_operacion()
@@ -214,7 +233,7 @@ public class PuertaAccesoDatosTests
         var termina = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var enVuelo = puerta.EjecutarAsync(() => termina.Task);
 
-        var cierre = puerta.CerrarAsync(TimeSpan.FromSeconds(30));
+        var cierre = puerta.CerrarAsync(Timeout.InfiniteTimeSpan);
 
         await Task.Delay(100);
         cierre.IsCompleted.Should().BeFalse("la operación en vuelo todavía tiene la puerta");
@@ -222,7 +241,7 @@ public class PuertaAccesoDatosTests
         termina.SetResult();
         await enVuelo;
 
-        (await cierre).Should().BeTrue();
+        (await SinColgarse(cierre, "el cierre")).Should().BeTrue();
     }
 
     [Fact]
@@ -267,14 +286,14 @@ public class PuertaAccesoDatosTests
         var encolada = puerta.EjecutarAsync(() => { encoladaEjecuto = true; return Task.CompletedTask; });
         await Task.Delay(50); // que la segunda quede realmente esperando en el semáforo.
 
-        var cierre = puerta.CerrarAsync(TimeSpan.FromSeconds(30));
+        var cierre = puerta.CerrarAsync(Timeout.InfiniteTimeSpan);
         termina.SetResult();
         await enVuelo;
 
         // La encolada despierta, ve la puerta cerrada y cancela: no toca el contexto que se va a disponer.
         await FluentActions.Awaiting(() => encolada).Should().ThrowAsync<OperationCanceledException>();
         encoladaEjecuto.Should().BeFalse();
-        (await cierre).Should().BeTrue("las esperas que despertaron liberan la puerta, no la dejan tomada");
+        (await SinColgarse(cierre, "el cierre")).Should().BeTrue("las esperas que despertaron liberan la puerta, no la dejan tomada");
     }
 
     [Fact]
@@ -317,10 +336,10 @@ public class PuertaAccesoDatosTests
         });
 
         await cerrarAhora.Task;
-        var cierre = puerta.CerrarAsync(TimeSpan.FromSeconds(30));
+        var cierre = puerta.CerrarAsync(Timeout.InfiniteTimeSpan);
         yaCerrada.SetResult();
 
         (await exterior).Should().Be(7);
-        (await cierre).Should().BeTrue();
+        (await SinColgarse(cierre, "el cierre")).Should().BeTrue();
     }
 }
