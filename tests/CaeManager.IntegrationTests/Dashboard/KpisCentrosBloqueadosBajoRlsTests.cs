@@ -81,7 +81,7 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
         {
             var delegacion = new DelegacionTenant(_tenantOrigen, delegante);
             _propietario.DelegacionesTenant.Add(delegacion);
-            _propietario.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
+            _propietario.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
         }
         await _propietario.SaveChangesAsync();
 
