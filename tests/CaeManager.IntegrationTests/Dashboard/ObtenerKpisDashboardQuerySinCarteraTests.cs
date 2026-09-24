@@ -59,6 +59,11 @@ public class ObtenerKpisDashboardQuerySinCarteraTests : IAsyncLifetime
         servicios.AddSingleton<CaeManager.Application.Documentos.IDocumentosQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Trabajadores.ITrabajadoresQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Visitas.IVisitasQueryContext>(_dbContext);
+        // ObtenerKpisDashboardQuery cuenta los Centros de Trabajo bloqueados con
+        // CalculoEstadoCentroService (P2.4, D-7), cuyo constructor pide además
+        // estos dos contextos.
+        servicios.AddSingleton<CaeManager.Application.TiposDocumento.ITiposDocumentoQueryContext>(_dbContext);
+        servicios.AddSingleton<CaeManager.Application.Asignaciones.IAsignacionesQueryContext>(_dbContext);
         // GateComercialTenantBehavior (Horizonte 1.7) es un IPipelineBehavior
         // global — cualquier despacho por IMediator, incluida una Query, lo
         // construye, así que este contenedor mínimo necesita la interfaz
