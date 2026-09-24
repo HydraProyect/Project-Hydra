@@ -489,10 +489,10 @@ fixture PR_VIEW 4 "OPEN	AAA	BLOCKED		"
 fixture PR_VIEW 5 "MOCK_ERROR"
 fixture_branch_protection 1
 fixture PR_CHECKS 1 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
-# El timeout global (30 s) queda muy por encima de los 5 intentos (~4 s): el
-# TIMEOUT tiene que venir del tope de reintentos, no del reloj — por eso se
-# exige "falló 5 veces".
-TIMEOUT_S_PRUEBA=30 ejecutar 133 --hasta merge
+# El timeout global (600 s) queda muy por encima de los 5 intentos (~5 s, o
+# ~1 min en una máquina cargada): el TIMEOUT tiene que venir del tope de
+# reintentos, no del reloj — por eso se exige "falló 5 veces".
+TIMEOUT_S_PRUEBA=600 ejecutar 133 --hasta merge
 assert_veredicto "gh pr view caído de forma persistente -> TIMEOUT de fase merge" TIMEOUT 3 "fase=merge"
 assert_veredicto "el TIMEOUT dice cuántas veces falló" TIMEOUT 3 "falló 5 veces"
 assert_veredicto "el TIMEOUT lleva la última lectura buena" TIMEOUT 3 "estado=OPEN head=AAA mergeStateStatus=BLOCKED"
