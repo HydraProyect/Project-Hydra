@@ -4,6 +4,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Tenants.Commands.CrearAsignacionOperadorDelegado;
 
@@ -44,7 +45,7 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
     IDirectorioUsuariosService directorioUsuarios,
     IAsignacionesOperativasWriter asignacionesWriter,
     IAutorizacionDelegacionTenant autorizacion, ICurrentUserService currentUserService,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork, ITenantsQueryContext tenantsContext)
     : IRequestHandler<CrearAsignacionOperadorDelegadoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearAsignacionOperadorDelegadoCommand request, CancellationToken cancellationToken)
@@ -69,6 +70,24 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
 
         if (!await autorizacion.PuedeGestionarDelegacionesAsync(
                 usuarioId.Value, delegacion.TenantClienteId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear(
+                "AsignacionOperadorDelegado.NoAutorizado",
+                "Solo un administrador del Cliente Delegante puede autorizar a un operador sobre sus datos."));
+
+        // Cuarto sitio del mismo hallazgo de Codex sobre el incremento 1b (ver
+        // ReactivarDelegacionTenantCommand y AutorizarOperadorCaeExternoQueries):
+        // PuedeGestionarDelegacionesAsync no excluye por sí sola el Tenant de
+        // plataforma como TenantClienteId — si esta delegación fuera una fila
+        // heredada con TALVEG como Cliente Delegante, su Administrador inicial
+        // pasaría la autoridad de forma reflexiva. TALVEG nunca es Tenant
+        // propietario de un Operador CAE externo (ADR-011 § 1). Se corta
+        // DESPUÉS de confirmar la autoridad, con el mismo mensaje que la
+        // denegación de arriba: no revela si la delegación existe.
+        var esPlataforma = await tenantsContext.Tenants
+            .Where(t => t.Id == delegacion.TenantClienteId)
+            .Select(t => t.EsPlataforma)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (esPlataforma)
             return Result.Fallo<Guid>(Error.Crear(
                 "AsignacionOperadorDelegado.NoAutorizado",
                 "Solo un administrador del Cliente Delegante puede autorizar a un operador sobre sus datos."));

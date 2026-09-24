@@ -122,3 +122,62 @@
         justify-content: flex-end;
     }
 }
+
+.delegaciones-autorizas-tu {
+    background: var(--color-primary-50);
+    border: 1px solid var(--color-primary-200);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    display: flex;
+    flex-direction: column;
+    font: var(--font-body-sm);
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+}
+
+.delegaciones-autorizas-tu strong {
+    font: var(--font-body-md);
+    font-weight: 600;
+}
+
+.delegaciones-sugerencia,
+.delegaciones-nota-modal {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    margin: var(--space-3) 0 0;
+}
+
+.delegaciones-sugerencia {
+    color: var(--color-text);
+    margin: 0 0 var(--space-3);
+}
+
+.delegaciones-candidatos {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-top: var(--space-2);
+    overflow: hidden;
+}
+
+.delegaciones-candidato {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: var(--color-text);
+    cursor: pointer;
+    display: flex;
+    font: var(--font-body-md);
+    justify-content: space-between;
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    width: 100%;
+}
+
+.delegaciones-candidato:hover {
+    background: var(--color-surface-hover);
+}
+
+.delegaciones-candidato-seleccionado {
+    background: var(--color-primary-50);
+    font-weight: 600;
+}

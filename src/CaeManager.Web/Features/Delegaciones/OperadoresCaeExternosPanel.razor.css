@@ -47,3 +47,10 @@
     font: var(--font-body-sm);
     margin: 0;
 }
+
+.operadores-cae-acciones {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}

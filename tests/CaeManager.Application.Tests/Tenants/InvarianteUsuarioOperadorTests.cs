@@ -1,5 +1,6 @@
 using CaeManager.Application.Tenants.Commands.CrearAsignacionOperadorDelegado;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Comercial;
 using CaeManager.Application.Tests.Operaciones;
 using CaeManager.Domain.Tenants;
 using FluentAssertions;
@@ -38,7 +39,8 @@ public class InvarianteUsuarioOperadorTests
             asignaciones, delegaciones,
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Propietario),
             new AsignacionesOperativasWriterFalso(),
-            new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork);
+            new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork,
+            new TenantsQueryContextFalso());
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
@@ -60,7 +62,8 @@ public class InvarianteUsuarioOperadorTests
             asignaciones, delegaciones,
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
             writer,
-            new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork);
+            new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork,
+            new TenantsQueryContextFalso());
 
         var usuarioId = Guid.NewGuid();
         var resultado = await handler.Handle(
@@ -84,7 +87,8 @@ public class InvarianteUsuarioOperadorTests
             asignaciones, delegaciones,
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: null),
             new AsignacionesOperativasWriterFalso(),
-            new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork);
+            new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork,
+            new TenantsQueryContextFalso());
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),

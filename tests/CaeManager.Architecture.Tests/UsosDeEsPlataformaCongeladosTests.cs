@@ -143,16 +143,71 @@ public class UsosDeEsPlataformaCongeladosTests
     /// <c>EsAdministradorPlataformaQuery.cs</c>) pueda exponer a la vista exactamente esa
     /// mitad del criterio sin reimplementarla. Neto por fichero: −2 (los dos comandos) +2
     /// (los dos nuevos) = 24 sin cambio; neto por aparición: −1 −1 +2 +1 = +1, de 36 a 37.
-    /// Actualizado 2026-09-23 (P11 — capacidad explícita <c>Tenant.PuedeActuarComoOperadorCaeExterno</c>,
-    /// que sustituye el criterio interino <c>PerfilVocabulario == Consultora &amp;&amp; !EsPlataforma</c>):
-    /// <b>25 ficheros, 42 apariciones</b>. <c>Tenant.cs</c> pasa de 5 a 8 (+3, todas
+    /// Actualizado 2026-09-23 (incremento 1b del aprovisionamiento — el Administrador del
+    /// Tenant propietario autoriza a un Operador CAE externo): <b>28 ficheros, 42
+    /// apariciones</b>. Recontado sobre el diccionario antes de sumar: la cifra de arriba ya
+    /// no era la suya — #759 (<c>VistaDemoActual.cs</c>) y #768 (los dos consumidores del alta
+    /// de Operadores CAE externos) añadieron entradas sin cuadrarla, y el árbol estaba en 27
+    /// ficheros y 41 apariciones. Nuevo <c>OperadorCaeExternoElegible.cs</c> (+1,
+    /// <see cref="CategoriaUso.Guarda"/>): el mismo criterio que ya aplica
+    /// <c>CrearTenantPropietarioDeOperadorCaeExternoCommand.cs</c>, extraído a un predicado
+    /// que comparten el comando de autorización y la consulta que resuelve el candidato.
+    /// Actualizado 2026-09-23 (segunda vez — hallazgo de Codex sobre el propio incremento
+    /// 1b, revisión previa a la PR #828): <b>30 ficheros, 46 apariciones</b>. La consulta
+    /// que resuelve el Tenant propietario autorizante preguntaba la autoridad de forma
+    /// reflexiva, contra el propio Tenant de origen de quien pregunta, sin excluir el
+    /// Tenant de plataforma: si el Administrador inicial de TALVEG usaba la pantalla, la
+    /// coincidencia trivial (su Tenant de origen es el mismo que el candidato) pasaba la
+    /// autorización sin que <c>EsPlataforma</c> entrara en juego. Nuevas entradas:
+    /// <c>AutorizarOperadorCaeExternoQueries.cs</c> (+3: dos comentarios y el
+    /// <c>.Select(t =&gt; t.EsPlataforma)</c> real que corta la reflexividad) y
+    /// <c>CrearDelegacionTenantCommand.cs</c> (+1: la misma exclusión repetida en el
+    /// comando, que es quien escribe de verdad — defensa en profundidad, no depender solo
+    /// de que la consulta se comporte). Neto: +2 ficheros, +4 apariciones, de 28/42 a
+    /// 30/46.
+    /// Actualizado 2026-09-23 (tercera vez — ronda 2 de Codex sobre el delta del commit
+    /// 2830297e, esfuerzo alto): <b>31 ficheros, 48 apariciones</b>. Mismo hallazgo, un
+    /// tercer sitio: <c>ReactivarDelegacionTenantCommand.cs</c> compartía predicado con
+    /// <c>PuedeGestionarDelegacionesAsync</c> pero no comprobaba <c>EsPlataforma</c>, así
+    /// que una <c>DelegacionTenant</c> heredada con el Tenant de plataforma como Cliente
+    /// Delegante podía reactivarse y reabrir operación externa sobre TALVEG. Nueva
+    /// entrada: <c>ReactivarDelegacionTenantCommand.cs</c> (+2: un comentario y el
+    /// <c>.Select(t =&gt; t.EsPlataforma)</c> real, mismo patrón que
+    /// <c>AutorizarOperadorCaeExternoQueries.cs</c>). Neto: +1 fichero, +2 apariciones, de
+    /// 30/46 a 31/48.
+    /// Actualizado 2026-09-23 (cuarta vez — barrido pedido por el Orquestador Gen2 tras la
+    /// tercera aparición del mismo patrón, antes de gastar una ronda 3 de Codex en
+    /// encontrarlo): <b>32 ficheros, 49 apariciones</b>. Un cuarto sitio, mismo hallazgo:
+    /// <c>CrearAsignacionOperadorDelegadoCommand.cs</c> también llama a
+    /// <c>PuedeGestionarDelegacionesAsync</c> contra <c>delegacion.TenantClienteId</c> sin
+    /// excluir el Tenant de plataforma. Nueva entrada: <c>CrearAsignacionOperadorDelegadoCommand.cs</c>
+    /// (+1: solo el <c>.Select(t =&gt; t.EsPlataforma)</c> real — el comentario nuevo no repite
+    /// el nombre del identificador). Barridos y descartados por no aplicar: <c>DesactivarDelegacionTenantCommand.cs</c>
+    /// y <c>RevocarAsignacionOperadorDelegadoCommand.cs</c> comparten <c>DelegacionAdministrablePorElUsuarioAsync</c>,
+    /// que compara el tenant de origen directamente contra <c>TenantConsultoraId</c> o
+    /// <c>TenantClienteId</c> — sin pasar por el predicado reflexivo, y es la acción
+    /// protectora (revocar), no la que concede. Neto: +1 fichero, +1 aparición, de 31/48 a
+    /// 32/49.
+    /// Actualizado 2026-09-23 (P11, fusionado desde <c>origin/main</c> — capacidad explícita
+    /// <c>Tenant.PuedeActuarComoOperadorCaeExterno</c>, que sustituye para TODO el sistema el
+    /// criterio interino <c>PerfilVocabulario == Consultora &amp;&amp; !EsPlataforma</c>, este
+    /// incremento incluido: <c>OperadorCaeExternoElegible.Predicado</c> pasa a comprobar la
+    /// capacidad explícita en vez del perfil). <c>Tenant.cs</c> pasa de 5 a 8 (+3, todas
     /// <see cref="CategoriaUso.Comentario"/>: el nuevo campo documenta el criterio interino
     /// que sustituye —menciona <c>EsPlataforma</c> dos veces— y su mutador documenta que
     /// sigue el mismo criterio que <c>MarcarComoPlataforma</c>). Nuevo fichero,
     /// <c>20260923134849_AgregarCapacidadOperadorCaeExternoATenant.cs</c> (+1 fichero, +2
     /// apariciones, <see cref="CategoriaUso.MigracionManual"/>): el backfill consulta
     /// <c>EsPlataforma</c> en el <c>WHERE</c> del <c>UPDATE</c> para no conceder la
-    /// capacidad nueva al tenant de plataforma. Neto: 24+1=25 ficheros; 37+3+2=42 apariciones.
+    /// capacidad nueva al tenant de plataforma. Ningún fichero de este incremento pierde
+    /// apariciones de <c>EsPlataforma</c> por el cambio de predicado —<c>!t.EsPlataforma</c>
+    /// se conserva igual en los cinco sitios de Guarda—, pero <c>OperadorCaeExternoElegible.cs</c>
+    /// gana +1: el comentario nuevo que documenta el criterio interino retirado (perfil
+    /// Consultora) lo cita entre paréntesis, y ese texto contiene el identificador vigilado.
+    /// Neto sobre 32/49: +1 fichero (la migración), +5 apariciones de P11 (Tenant.cs +3,
+    /// migración +2) y +1 aparición propia de esta fusión (el comentario citado arriba), de
+    /// 32/49 a <b>33 ficheros, 55 apariciones</b>.
+    /// </para>
     ///
     /// <para>
     /// Cada entrada se leyó una a una; el conteo <b>no</b> se ajustó a lo que salió del
@@ -227,6 +282,53 @@ public class UsosDeEsPlataformaCongeladosTests
                 "porque El_ensamblado_de_Web_no_depende_de_EsPlataforma congela esa frontera a cero"),
 
         // ── GUARDA ────────────────────────────────────────────────────────────────
+        ["src/CaeManager.Application/Tenants/OperadorCaeExternoElegible.cs"] =
+            new(2, CategoriaUso.Guarda,
+                ":28 excluye el Tenant de plataforma de los Operadores CAE externos que el Administrador de un " +
+                "Tenant propietario puede autorizar (CrearDelegacionTenantCommand y la consulta del candidato " +
+                "del incremento 1b): TALVEG no es Operador CAE por defecto (ADR-011 § 1). No concede capacidad " +
+                "a nadie — es la mitad negativa de un fallo cerrado, junto a la guarda de la capacidad " +
+                "PuedeActuarComoOperadorCaeExterno (P11). Un comentario más (+1, al fusionar origin/main): " +
+                "documenta el criterio interino por perfil que P11 retiró, citando el nombre del identificador " +
+                "entre paréntesis — mismo tratamiento que Tenant.cs, que también sube por comentario al " +
+                "documentar el criterio sustituido"),
+        ["src/CaeManager.Application/Tenants/Queries/AutorizarOperadorCaeExterno/AutorizarOperadorCaeExternoQueries.cs"] =
+            new(3, CategoriaUso.Guarda,
+                "dos comentarios y :EsPlataforma real, proyectado sobre el Tenant de origen antes de devolverlo " +
+                "como autorizante. Hallazgo de Codex (alto) sobre el propio incremento 1b: la consulta pregunta " +
+                "la autoridad de forma REFLEXIVA, contra el propio Tenant de origen de quien pregunta — si ese " +
+                "Tenant es el de plataforma, PuedeGestionarDelegacionesAsync pasa por la coincidencia trivial " +
+                "TenantId == tenantClienteDeleganteId, sin que EsPlataforma entrara en juego. Se corta aquí, " +
+                "DESPUÉS de la autoridad (el catálogo no se toca si no hay autoridad, ver el test " +
+                "Sin_autoridad_la_busqueda_no_lee_el_catalogo_de_tenants). TALVEG nunca es Tenant propietario " +
+                "de un Operador CAE externo (ADR-011 § 1) — es la mitad negativa de un fallo cerrado, defensa " +
+                "en profundidad junto a CrearDelegacionTenantCommand.cs"),
+        ["src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "rechaza como Cliente Delegante al Tenant de plataforma, junto a la comprobación de existencia. " +
+                "Mismo hallazgo de Codex que AutorizarOperadorCaeExternoQueries.cs: este comando es quien " +
+                "escribe de verdad y no debe depender solo de que la consulta se comporte bien. TALVEG nunca " +
+                "es Tenant propietario de un Operador CAE externo (ADR-011 § 1) — mitad negativa de un fallo " +
+                "cerrado"),
+        ["src/CaeManager.Application/Tenants/Commands/ReactivarDelegacionTenant/ReactivarDelegacionTenantCommand.cs"] =
+            new(2, CategoriaUso.Guarda,
+                "un comentario y :EsPlataforma real, proyectado sobre el TenantClienteId antes de autorizar la " +
+                "reactivación. Ronda 2 de Codex sobre el delta del incremento 1b (commit 2830297e), mismo " +
+                "patrón que AutorizarOperadorCaeExternoQueries.cs: PuedeGestionarDelegacionesAsync no excluye " +
+                "por sí sola el Tenant de plataforma, así que una DelegacionTenant heredada con el Tenant de " +
+                "plataforma como Cliente Delegante podía reactivarse. Se corta DESPUÉS de la autoridad (mismo " +
+                "orden que el resto de la cadena). TALVEG nunca es Tenant propietario de un Operador CAE " +
+                "externo (ADR-011 § 1) — mitad negativa de un fallo cerrado, defensa en profundidad junto a " +
+                "CrearDelegacionTenantCommand.cs y AutorizarOperadorCaeExternoQueries.cs"),
+        ["src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs"] =
+            new(1, CategoriaUso.Guarda,
+                ":EsPlataforma real, proyectado sobre delegacion.TenantClienteId antes de autorizar la asignación " +
+                "de un Operador Delegado. Cuarto sitio del mismo hallazgo (barrido pedido por el Orquestador " +
+                "Gen2 tras la tercera aparición): PuedeGestionarDelegacionesAsync no excluye por sí sola el " +
+                "Tenant de plataforma, así que una DelegacionTenant heredada con el Tenant de plataforma como " +
+                "Cliente Delegante podía recibir Operadores Delegados nuevos. Se corta DESPUÉS de la autoridad. " +
+                "TALVEG nunca es Tenant propietario de un Operador CAE externo (ADR-011 § 1) — mitad negativa " +
+                "de un fallo cerrado, defensa en profundidad junto a los otros tres sitios"),
         ["src/CaeManager.Application/Tenants/Commands/CrearTenantPropietarioDeOperadorCaeExterno/CrearTenantPropietarioDeOperadorCaeExternoCommand.cs"] =
             new(2, CategoriaUso.Guarda,
                 "la proyección del Operador y el rechazo de un Operador que sea el Tenant de plataforma: " +

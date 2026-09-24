@@ -2,9 +2,11 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.CerrarAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
+using CaeManager.Application.Tenants.Commands.CrearDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDelegado;
+using CaeManager.Application.Tenants.Queries.AutorizarOperadorCaeExterno;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Application.Tenants.Queries.EsTenantOrigenPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
@@ -12,9 +14,11 @@ using CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
 using CaeManager.Domain.Soporte;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Delegaciones.Recursos;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Localization;
 using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Delegaciones.Pages;
@@ -22,6 +26,7 @@ namespace CaeManager.Web.Features.Delegaciones.Pages;
 public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosAutorizarOperadorCaeExterno> TextosAutorizar { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
@@ -71,8 +76,41 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private bool _creandoDelegacion;
     private string? _errorNuevaDelegacion;
 
+    /// <summary>
+    /// Enlace de preselección del Actor de Plataforma TALVEG
+    /// (<c>/delegaciones?autorizar={Id}</c>, incremento 1b). Solo sugiere: abre el
+    /// modal con ese Operador CAE externo ya resuelto; no escribe nada. La única
+    /// escritura es el clic «Autorizar» del Administrador.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "autorizar")]
+    private Guid? OperadorSugeridoId { get; set; }
+
+    /// <summary>
+    /// Tenant propietario que la persona administra (su Tenant de origen), o null.
+    /// Lo decide <see cref="ObtenerTenantPropietarioAutorizanteQuery"/> con el mismo
+    /// predicado que el comando; es el <c>TenantClienteId</c> que se le envía.
+    /// </summary>
+    private Guid? _tenantPropietarioAutorizante;
+    private bool _sugerenciaAtendida;
+    private Guid? _sugerenciaVista;
+    private bool _mostrarAutorizarOperador;
+    private bool _operadorSugerido;
+    private string _busquedaOperador = string.Empty;
+    private OperadorCaeExternoAutorizableDto? _operadorCandidato;
+    private bool _operadorSeleccionado;
+    private bool _busquedaSinResultado;
+    private int _versionBusquedaOperador;
+    private bool _autorizandoOperador;
+    private string? _errorAutorizarOperador;
+
     private bool OperandoWorkspaceAjeno => ClienteActivoSeleccionado.TenantIdSeleccionado is not null;
     private bool PuedeGestionar => _esAdministradorPlataforma && !OperandoWorkspaceAjeno;
+
+    /// <summary>
+    /// Fuera de la organización propia no: la operación delegada se escribe con el
+    /// Tenant propietario como workspace activo, y RLS la rechazaría desde otro.
+    /// </summary>
+    private bool PuedeAutorizarOperador => _tenantPropietarioAutorizante is not null && !OperandoWorkspaceAjeno;
 
     /// <summary>Nombre canónico para la guarda de reentrada del alta — evita repetir el campo legacy en cada punto de lectura.</summary>
     private bool CreacionEnCurso => _creandoDelegacion;
@@ -103,6 +141,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             token.ThrowIfCancellationRequested();
             var esAdministrador = await Mediator.Send(new EsAdministradorPlataformaQuery(), token);
             var esTenantOrigenPlataforma = await Mediator.Send(new EsTenantOrigenPlataformaQuery(), token);
+            var tenantPropietarioAutorizante = await Mediator.Send(new ObtenerTenantPropietarioAutorizanteQuery(), token);
             var delegaciones = await Mediator.Send(new ObtenerDelegacionesQuery(), token);
             await CargarNombresDeOperadoresAsync(delegaciones.SelectMany(d => d.Operadores).Select(o => o.UsuarioId), token);
             await CargarCriteriosDeReactivacionAsync(
@@ -114,6 +153,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 
             _esAdministradorPlataforma = esAdministrador;
             _esTenantOrigenPlataforma = esTenantOrigenPlataforma;
+            _tenantPropietarioAutorizante = tenantPropietarioAutorizante;
             _delegaciones = delegaciones;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -135,6 +175,174 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             {
                 _cargando = false;
             }
+        }
+    }
+
+    /// <summary>
+    /// Un enlace nuevo en el mismo circuito (<c>?autorizar=</c> con otro Id, sin
+    /// recargar) vuelve a atenderse: sin esto <c>_sugerenciaAtendida</c> quedaba en
+    /// <c>true</c> para toda la vida del componente y el segundo enlace no abría el
+    /// modal (hallazgo de Codex, P2, al integrar <c>origin/main</c> en el incremento 1b).
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        if (OperadorSugeridoId != _sugerenciaVista)
+        {
+            _sugerenciaVista = OperadorSugeridoId;
+            _sugerenciaAtendida = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // La sugerencia se atiende una sola vez, cuando ya se sabe si la persona
+        // puede autorizar. Quien no puede no ve modal ni aprende nada del Id.
+        if (_sugerenciaAtendida || _cargando || OperadorSugeridoId is not { } operadorId)
+        {
+            return;
+        }
+
+        _sugerenciaAtendida = true;
+        if (!PuedeAutorizarOperador)
+        {
+            return;
+        }
+
+        AbrirAutorizarOperador();
+        _operadorSugerido = true;
+        var version = _versionBusquedaOperador;
+        var candidato = await Mediator.Send(new BuscarOperadorCaeExternoAutorizableQuery(operadorId, null), _cicloCarga.Token);
+        // Sin comprobar la versión, cerrar el modal y reabrirlo (o teclear una
+        // búsqueda propia) mientras esta respuesta está en vuelo dejaba que la
+        // preselección pisara lo que la persona ya había escrito — hallazgo de
+        // la revisión puente del incremento 1b. No escribe nada: es solo la
+        // pantalla mostrando el candidato equivocado.
+        if (_desechado || !_mostrarAutorizarOperador || version != _versionBusquedaOperador)
+        {
+            return;
+        }
+
+        if (candidato is null)
+        {
+            _operadorSugerido = false;
+            _errorAutorizarOperador = TextosAutorizar["EnlaceNoCorresponde"];
+        }
+        else
+        {
+            _operadorCandidato = candidato;
+            _operadorSeleccionado = true;
+            _busquedaOperador = candidato.Nombre;
+        }
+
+        StateHasChanged();
+    }
+
+    private void AbrirAutorizarOperador()
+    {
+        _mostrarAutorizarOperador = true;
+        _operadorSugerido = false;
+        _busquedaOperador = string.Empty;
+        _operadorCandidato = null;
+        _operadorSeleccionado = false;
+        _busquedaSinResultado = false;
+        _errorAutorizarOperador = null;
+        _versionBusquedaOperador++;
+    }
+
+    private void CerrarAutorizarOperador(bool visible)
+    {
+        if (!visible && !_autorizandoOperador)
+        {
+            _mostrarAutorizarOperador = false;
+            _versionBusquedaOperador++;
+        }
+    }
+
+    /// <summary>
+    /// Solo por nombre exacto (sin distinguir mayúsculas): la consulta nunca lista
+    /// Operadores CAE externos por fragmentos, para no enseñar a quién da servicio
+    /// TALVEG. Cambiar el texto descarta la selección anterior.
+    /// </summary>
+    private async Task BuscarOperadorAsync(string texto)
+    {
+        var version = ++_versionBusquedaOperador;
+        _busquedaOperador = texto;
+        _operadorCandidato = null;
+        _operadorSeleccionado = false;
+        _operadorSugerido = false;
+        _busquedaSinResultado = false;
+        _errorAutorizarOperador = null;
+
+        if (string.IsNullOrWhiteSpace(texto))
+        {
+            return;
+        }
+
+        var candidato = await Mediator.Send(new BuscarOperadorCaeExternoAutorizableQuery(null, texto), _cicloCarga.Token);
+        if (_desechado || version != _versionBusquedaOperador)
+        {
+            return;
+        }
+
+        _operadorCandidato = candidato;
+        _busquedaSinResultado = candidato is null;
+    }
+
+    private void SeleccionarOperador()
+    {
+        if (_operadorCandidato is null)
+        {
+            return;
+        }
+
+        _operadorSeleccionado = true;
+        _errorAutorizarOperador = null;
+    }
+
+    private async Task AutorizarOperadorAsync()
+    {
+        if (_autorizandoOperador || _tenantPropietarioAutorizante is not { } tenantPropietario)
+        {
+            return;
+        }
+
+        if (_operadorCandidato is not { } operador || !_operadorSeleccionado)
+        {
+            _errorAutorizarOperador = TextosAutorizar["SeleccionaOperador"];
+            return;
+        }
+
+        _autorizandoOperador = true;
+        _errorAutorizarOperador = null;
+        StateHasChanged();
+        try
+        {
+            var resultado = await Mediator.Send(new CrearDelegacionTenantCommand(operador.TenantId, tenantPropietario));
+            if (_desechado)
+            {
+                return;
+            }
+
+            if (resultado.EsFallido)
+            {
+                _errorAutorizarOperador = resultado.Error.Mensaje;
+                return;
+            }
+
+            _mostrarAutorizarOperador = false;
+            ToastService.Mostrar(TextosAutorizar["Autorizado", operador.Nombre], TonoToast.Exito);
+            await CargarAsync();
+        }
+        catch (ValidationException ex)
+        {
+            if (!_desechado)
+            {
+                _errorAutorizarOperador = string.Join(" ", ex.Errors.Select(e => e.ErrorMessage));
+            }
+        }
+        finally
+        {
+            _autorizandoOperador = false;
         }
     }
 

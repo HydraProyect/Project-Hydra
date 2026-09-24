@@ -2,9 +2,11 @@ using CaeManager.Application.Tenants.Commands.CrearOperadorCaeExterno;
 using CaeManager.Application.Tenants.Commands.CrearTenantPropietarioDeOperadorCaeExterno;
 using CaeManager.Application.Tenants.Queries.ObtenerOperadoresCaeExternos;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Delegaciones.Recursos;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Delegaciones;
 
@@ -15,6 +17,8 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<OperadoresCaeExternosPanel> Logger { get; set; } = default!;
+    [Inject] private NavigationManager Navegacion { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosAutorizarOperadorCaeExterno> TextosAutorizar { get; set; } = default!;
 
     private readonly CancellationTokenSource _ciclo = new();
     private IReadOnlyList<OperadorCaeExternoDto> _operadores = [];
@@ -31,6 +35,14 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
     private string TituloModal => _modal is ModalActivo.Operador ? "Nuevo Operador CAE externo" : "Nuevo Tenant propietario";
     private string EtiquetaNombre => _modal is ModalActivo.Operador ? "Nombre del Operador CAE externo" : "Nombre del Tenant propietario";
     private string PlaceholderNombre => _modal is ModalActivo.Operador ? "ArcoSPA" : "Laboratorios Dexter";
+
+    /// <summary>
+    /// Preselección del incremento 1b: el Administrador del Tenant propietario abre
+    /// este enlace en su propia organización y decide. El enlace no lleva ni escribe
+    /// nada más que el Id del Operador CAE externo; generarlo no crea ninguna fila.
+    /// </summary>
+    private string EnlaceDeAutorizacion(OperadorCaeExternoDto operador) =>
+        Navegacion.ToAbsoluteUri($"delegaciones?autorizar={operador.TenantId}").ToString();
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
