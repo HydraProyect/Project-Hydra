@@ -50,11 +50,29 @@
 #   OBSOLETO            4   El run de "Desplegar" se descartó porque su commit
 #                           ya no era la punta de `main` (main avanzó mientras
 #                           tanto: CI reejecutado, o dos merges seguidos).
+#   INDETERMINADO       5   Ya se estaba vigilando la PR y una lectura de `gh`
+#                           (la PR, la protección de main o la cola de fusión)
+#                           siguió fallando tras los reintentos acotados. NO
+#                           dice nada del desenlace: la PR puede seguir en cola
+#                           o haberse fusionado. La línea lleva la lectura que
+#                           falló y el ÚLTIMO ESTADO OBSERVADO; hay que volver
+#                           a lanzar el vigía, nunca darlo por bueno. Es
+#                           distinto de TIMEOUT a propósito: "CI tardó
+#                           demasiado" y "no pude leer" piden reacciones
+#                           distintas.
 #
 # Un error de USO o de ENTORNO (PR inexistente, --hasta inválido, `gh` sin
 # autenticar) sale con código 64 y NUNCA imprime una línea `VEREDICTO:` — un
 # consumidor que solo mire el prefijo `VEREDICTO:` no debe poder confundir
-# "no pude ni empezar a mirar" con uno de los cinco desenlaces de arriba.
+# "no pude ni empezar a mirar" con uno de los desenlaces de arriba.
+# Eso vale para la PRIMERA lectura de la PR. Una vez empezada la vigilancia,
+# un fallo de lectura de `gh` (la PR, la protección de main o la cola de
+# fusión) se reintenta de forma acotada y, si persiste, SIEMPRE termina en
+# `VEREDICTO: INDETERMINADO` (5) — nunca en 64 sin veredicto. Medido el
+# 2026-09-24: dos vigías de la PR #868 con --hasta merge murieron con 64 a
+# mitad de la espera, con la PR en cola, y la PR acabó MERGED; y lanzado
+# entubado (`| tail`) sin `pipefail`, un 64 se ve como código 0 —
+# indistinguible de VERDE para quien solo mira `$?`.
 #
 # --- Las tres trampas de instrumento que este guion evita a propósito -------
 #
@@ -283,12 +301,15 @@ salir_rojo()        { veredicto ROJO "$*"; exit 1; }
 salir_expulsada()   { veredicto EXPULSADA_DE_COLA "$*"; exit 2; }
 salir_timeout()     { veredicto TIMEOUT "fase=$1 ultimo_estado=\"${2:-}\""; exit 3; }
 salir_obsoleto()    { veredicto OBSOLETO "$*"; exit 4; }
+salir_indeterminado() { veredicto INDETERMINADO "lectura=$1 ultimo_estado=\"${2:-}\""; exit 5; }
 
 log "PR #$PR ($REPO) · esperando hasta '$HASTA' · timeout ${TIMEOUT_MIN} min · intervalo ${INTERVALO_S}s"
 
 # =========================================================================
 # FASE 0: leer el estado inicial de la PR — usada por las tres fases.
 # =========================================================================
+# Solo para la lectura inicial: si la PR no se puede leer ni una vez, no
+# existe o no hay sesión de gh — error de entorno (64), sin veredicto.
 leer_pr() {
   local linea
   linea="$(pr_view_tsv)"
@@ -297,6 +318,30 @@ leer_pr() {
     exit 64
   fi
   IFS=$'\t' read -r PR_ESTADO PR_HEAD PR_MERGE_STATE PR_MERGE_SHA PR_MERGED_AT <<<"$linea"
+}
+
+# Relectura dentro de los bucles de espera (2026-09-24, PR #868): la PR ya se
+# leyó una vez, así que un `gh pr view` vacío aquí es un fallo transitorio de
+# red/API hasta que se demuestre lo contrario. Se reintenta con espera; si
+# falla MAX_FALLOS_RELECTURA veces seguidas (o se agota el timeout global
+# mientras tanto), sale INDETERMINADO con el último estado que SÍ se leyó. Los PR_*
+# de la última lectura buena no se tocan hasta tener una línea nueva.
+MAX_FALLOS_RELECTURA=5
+releer_pr() {
+  local fase="$1" linea fallos=0
+  while true; do
+    linea="$(pr_view_tsv)"
+    if [[ -n "$linea" ]]; then
+      IFS=$'\t' read -r PR_ESTADO PR_HEAD PR_MERGE_STATE PR_MERGE_SHA PR_MERGED_AT <<<"$linea"
+      return 0
+    fi
+    fallos=$((fallos + 1))
+    log "fase $fase: ERROR releyendo la PR (gh pr view) — intento $fallos de $MAX_FALLOS_RELECTURA"
+    if [[ "$fallos" -ge "$MAX_FALLOS_RELECTURA" ]] || tiempo_agotado; then
+      salir_indeterminado pr_view "fase=$fase gh pr view falló $fallos veces seguidas; última lectura buena: estado=$PR_ESTADO head=$PR_HEAD mergeStateStatus=$PR_MERGE_STATE"
+    fi
+    sleep "$INTERVALO_S"
+  done
 }
 
 leer_pr
@@ -314,7 +359,7 @@ fase_checks() {
   log "fase checks: vigilando HEAD $head_vigilado"
 
   while true; do
-    leer_pr
+    releer_pr checks
     if [[ "$PR_ESTADO" == "CLOSED" ]]; then
       salir_rojo "PR #$PR cerrada sin fusionar"
     fi
@@ -339,7 +384,7 @@ fase_checks() {
       log "fase checks: ERROR leyendo la protección de main (branch protection) — intento $fallos_branch_protection de 3"
       if [[ "$fallos_branch_protection" -ge 3 ]]; then
         echo "$PROG: no se pudo leer la protección de main (branch protection) tras $fallos_branch_protection intentos — es un fallo de entorno/permisos, no un TIMEOUT de CI" >&2
-        exit 64
+        salir_indeterminado branch_protection "fase=checks estado=$PR_ESTADO head=$PR_HEAD mergeStateStatus=$PR_MERGE_STATE"
       fi
       sleep "$INTERVALO_S"
       continue
@@ -381,7 +426,7 @@ fase_checks() {
       # `gh pr checks` refleja el HEAD en el momento EN QUE SE LLAMÓ, no el
       # que se leyó al principio de esta vuelta. Un push llegado entre medias
       # dejaría este VERDE hablando de un commit que ya no es el HEAD.
-      leer_pr
+      releer_pr checks
       if [[ "$PR_HEAD" != "$head_vigilado" ]]; then
         log "fase checks: el HEAD cambió a $PR_HEAD justo antes de declarar VERDE sobre $head_vigilado — descartado, se repite la vuelta sobre el HEAD nuevo"
         head_vigilado="$PR_HEAD"
@@ -417,7 +462,7 @@ fi
 SHA_FUSION=""
 
 fase_merge() {
-  leer_pr
+  releer_pr merge
   if [[ "$PR_ESTADO" == "MERGED" ]]; then
     SHA_FUSION="$PR_MERGE_SHA"
     log "fase merge: la PR ya estaba fusionada en $SHA_FUSION"
@@ -428,9 +473,9 @@ fase_merge() {
   inicio_fase="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   log "fase merge: esperando entrada en la cola de fusión (no auto-merge) y fusión real"
 
-  local fallos_graphql=0
+  local fallos_graphql=0 linea_cola_previa=""
   while true; do
-    leer_pr
+    releer_pr merge
     if [[ "$PR_ESTADO" == "CLOSED" ]]; then
       salir_rojo "PR #$PR cerrada sin fusionar (mientras se esperaba la cola)"
     fi
@@ -450,12 +495,13 @@ fase_merge() {
       log "fase merge: ERROR consultando la cola de fusión (GraphQL) — intento $fallos_graphql de 3"
       if [[ "$fallos_graphql" -ge 3 ]]; then
         echo "$PROG: no se pudo consultar la cola de fusión (GraphQL) tras $fallos_graphql intentos — es un fallo de entorno/permisos, no un TIMEOUT de CI" >&2
-        exit 64
+        salir_indeterminado merge_queue "fase=merge estado=$PR_ESTADO head=$PR_HEAD mergeStateStatus=$PR_MERGE_STATE cola_previa=${linea_cola_previa:-sin observar}"
       fi
       sleep "$INTERVALO_S"
       continue
     fi
     fallos_graphql=0
+    linea_cola_previa="${linea_cola//$'\t'/ }"
     if [[ -z "$linea_cola" ]]; then
       log "fase merge: la cola de fusión devolvió una respuesta vacía inesperada; reintentando"
     elif [[ "$linea_cola" == "NULL" ]]; then
@@ -479,7 +525,7 @@ fase_merge() {
           # `manual`) o no, es EXPULSADA_DE_COLA: `reason` es un String libre
           # de GitHub, no un enum, y ante lo desconocido se prefiere un
           # rojo de más a un VERDE de más.
-          leer_pr
+          releer_pr merge
           if [[ "$PR_ESTADO" == "MERGED" ]]; then
             SHA_FUSION="$PR_MERGE_SHA"
             log "fase merge: salió de la cola (motivo=\"$exp_motivo\") y la PR figura fusionada en $SHA_FUSION"
