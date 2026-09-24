@@ -1,3 +1,4 @@
+using CaeManager.Application.Tests.Auditoria;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena;
 using CaeManager.Application.Tests.Clientes;
@@ -24,7 +25,7 @@ public class ObtenerCredencialAccesoEmpresaSinContrasenaQueryTests
             empresaId, "https://portal.example", "campo", "usuario", "secreta", "notas"));
 
         var handler = new ObtenerCredencialAccesoEmpresaSinContrasenaQueryHandler(
-            contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresaId]));
+            contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresaId]), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(new ObtenerCredencialAccesoEmpresaSinContrasenaQuery(empresaId), CancellationToken.None);
 
@@ -40,7 +41,7 @@ public class ObtenerCredencialAccesoEmpresaSinContrasenaQueryTests
     {
         var handler = new ObtenerCredencialAccesoEmpresaSinContrasenaQueryHandler(
             new EmpresasQueryContextQueExplota(),
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: []));
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: []), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(
             new ObtenerCredencialAccesoEmpresaSinContrasenaQuery(Guid.NewGuid()), CancellationToken.None);
@@ -55,7 +56,7 @@ public class ObtenerCredencialAccesoEmpresaSinContrasenaQueryTests
         var empresaId = Guid.NewGuid();
         var handler = new ObtenerCredencialAccesoEmpresaSinContrasenaQueryHandler(
             new EmpresasQueryContextQueExplota(),
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresaId], empresaIdsParaGestion: []));
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresaId], empresaIdsParaGestion: []), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(new ObtenerCredencialAccesoEmpresaSinContrasenaQuery(empresaId), CancellationToken.None);
 

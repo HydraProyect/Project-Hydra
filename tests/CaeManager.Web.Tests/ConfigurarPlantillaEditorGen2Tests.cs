@@ -285,6 +285,35 @@ public class ConfigurarPlantillaEditorGen2Tests : BunitContext
         cut.FindAll("[data-testid='aviso-firma-sin-firmante']").Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Decisión del 2026-09-24 (DNI residual, S4, mantener): «Trabajador — DNI» es una fuente de
+    /// mapeo, no una vista del DNI de nadie. Los documentos generados que se entregan al Cliente
+    /// empresarial o a su plataforma CAE identifican al Trabajador por DNI; retirar la opción
+    /// los dejaría sin ese dato. La resolución en el generador la fija
+    /// <c>GenerarDocumentoIndividualCommandHandlerTests.Resuelve_datos_del_trabajador_y_crea_documento_y_snapshot</c>.
+    /// </summary>
+    [Fact]
+    public async Task El_origen_del_dato_conserva_la_fuente_Trabajador_DNI()
+    {
+        var cut = Renderizar(new MediatorFalso
+        {
+            Version = Result.Exito(Detalle(_versionId, elementos: [Elemento("DNI del trabajador")]))
+        });
+
+        await CajaDe(cut, "DNI del trabajador").ClickAsync(new MouseEventArgs());
+
+        var origen = cut.FindAll("select").Single(s => s.PreviousElementSibling?.TextContent.Trim() == "Origen del dato");
+        origen.QuerySelectorAll("option")
+            .Where(o => o.GetAttribute("value") == nameof(FuenteDatoPlantilla.TrabajadorDni))
+            .Select(o => o.TextContent.Trim())
+            .Should().Equal(["Trabajador — DNI"], "la fuente de mapeo del DNI se mantiene (S4)");
+
+        await origen.ChangeAsync(new ChangeEventArgs { Value = nameof(FuenteDatoPlantilla.TrabajadorDni) });
+
+        cut.FindAll("select").Single(s => s.PreviousElementSibling?.TextContent.Trim() == "Origen del dato")
+            .GetAttribute("value").Should().Be(nameof(FuenteDatoPlantilla.TrabajadorDni), "la fuente se puede elegir, no solo verse");
+    }
+
     [Fact]
     public async Task Eliminar_un_campo_pide_confirmacion_y_cancelar_lo_conserva()
     {

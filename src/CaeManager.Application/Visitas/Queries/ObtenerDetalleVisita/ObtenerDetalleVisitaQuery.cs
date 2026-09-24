@@ -11,14 +11,15 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 /// <summary>
 /// Alimenta la vista de solo lectura "Ver visita" — a diferencia de
 /// <c>ObtenerVisitaPorIdQuery</c> (que solo trae <c>TrabajadorIds</c> en bruto
-/// para el formulario de edición), esta expone nombre/DNI de cada Trabajador y
+/// para el formulario de edición), esta expone el nombre de cada Trabajador y
 /// el Id de Empresa, necesarios para mostrar quién entra y renderizar su
 /// documentación (ver <c>PestanaDocumentacion</c>, reutilizada tal cual desde
-/// el Context Workspace).
+/// el Context Workspace). Sin DNI: el detalle de la Visita no es una vista
+/// autorizada para él (decisión del 2026-09-24); está en la ficha del Trabajador.
 /// </summary>
 public record ObtenerDetalleVisitaQuery(Guid Id) : IRequest<DetalleVisitaDto?>;
 
-public record TrabajadorVisitaDto(Guid Id, string NombreCompleto, string? Dni);
+public record TrabajadorVisitaDto(Guid Id, string NombreCompleto);
 
 public record DetalleVisitaDto(
     Guid Id,
@@ -87,7 +88,7 @@ public class ObtenerDetalleVisitaQueryHandler(
         var trabajadores = await trabajadoresContext.Trabajadores
             .Where(t => trabajadorIds.Contains(t.Id))
             .OrderBy(t => t.Apellidos).ThenBy(t => t.Nombre)
-            .Select(t => new TrabajadorVisitaDto(t.Id, t.Nombre + " " + t.Apellidos, t.Dni))
+            .Select(t => new TrabajadorVisitaDto(t.Id, t.Nombre + " " + t.Apellidos))
             .ToListAsync(cancellationToken);
 
         return new DetalleVisitaDto(

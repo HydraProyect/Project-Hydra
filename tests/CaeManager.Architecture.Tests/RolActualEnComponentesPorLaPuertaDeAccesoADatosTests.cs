@@ -7,7 +7,7 @@ namespace CaeManager.Architecture.Tests;
 /// <b>Un componente que pide el rol efectivo lo hace por <c>PuertaAccesoDatos</c>.</b>
 ///
 /// <para>
-/// <c>ICurrentUserService.ObtenerRolActualAsync</c> parece una lectura de claims y no
+/// <c>ICurrentUserService.ObtenerRolEfectivoAsync</c> (antes <c>ObtenerRolActualAsync</c>, alias obsoleto) parece una lectura de claims y no
 /// lo es: dentro de un Workspace operativo derivado resuelve el rol contra la
 /// cartera de la operación, con una consulta al <c>DbContext</c> del circuito (o de
 /// la petición, en el prerender). Un componente que la llama en
@@ -21,7 +21,7 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Lo que SÍ observa:</b> los componentes (<c>.razor</c> más su <c>.razor.cs</c>)
-/// que llaman a <c>ObtenerRolActualAsync</c> o a <c>TieneDobleFactorActivoAsync</c>
+/// que llaman a <c>ObtenerRolEfectivoAsync</c>, a <c>ObtenerRolOrigenAsync</c> (lee con <c>UserManager</c>), al alias <c>ObtenerRolActualAsync</c> o a <c>TieneDobleFactorActivoAsync</c>
 /// (esta última lee con <c>UserManager</c>) y en los que no aparece ninguna llamada a
 /// <c>PuertaAccesoDatos.EjecutarAsync</c>. La lista congelada es vacía.
 /// </para>
@@ -29,7 +29,7 @@ namespace CaeManager.Architecture.Tests;
 /// <para>
 /// <b>Lo que NO observa</b> (huecos declarados): la granularidad es el componente,
 /// no la llamada (uno que use la puerta en un sitio y llame fuera de ella en otro
-/// pasa en verde); solo esos dos miembros de <c>ICurrentUserService</c>; no mira
+/// pasa en verde); solo esos miembros de <c>ICurrentUserService</c>; no mira
 /// servicios que llamen a otros servicios; se descartan los comentarios, no los
 /// literales de texto.
 /// </para>
@@ -37,7 +37,7 @@ namespace CaeManager.Architecture.Tests;
 public class RolActualEnComponentesPorLaPuertaDeAccesoADatosTests
 {
     private static readonly Regex LlamaAlRolOalDobleFactor = new(
-        @"\.\s*(?:ObtenerRolActualAsync|TieneDobleFactorActivoAsync)\s*\(", RegexOptions.Compiled);
+        @"\.\s*(?:ObtenerRolActualAsync|ObtenerRolEfectivoAsync|ObtenerRolOrigenAsync|TieneDobleFactorActivoAsync)\s*\(", RegexOptions.Compiled);
 
     private static readonly Regex PasaPorLaPuerta = new(
         @"\bPuertaAccesoDatos\s*\.\s*EjecutarAsync\s*[<(]", RegexOptions.Compiled);
@@ -59,16 +59,16 @@ public class RolActualEnComponentesPorLaPuertaDeAccesoADatosTests
             .ToList();
 
         sinPuerta.Should().BeEmpty(
-            "ObtenerRolActualAsync consulta el DbContext dentro de un workspace delegado y el componente se " +
+            "ObtenerRolEfectivoAsync/ObtenerRolOrigenAsync consultan el DbContext dentro de un workspace delegado y el componente se " +
             "inicializa en paralelo con el layout: envuélvelo en PuertaAccesoDatos.EjecutarAsync");
     }
 
     [Fact]
     public void El_detector_distingue_la_llamada_envuelta_de_la_suelta()
     {
-        const string suelta = "_x = await CurrentUserService.ObtenerRolActualAsync();";
-        const string envuelta = "_x = await PuertaAccesoDatos.EjecutarAsync(() => CurrentUserService.ObtenerRolActualAsync());";
-        const string soloComentario = "// PuertaAccesoDatos.EjecutarAsync(() => x)\n_x = await CurrentUserService.ObtenerRolActualAsync();";
+        const string suelta = "_x = await CurrentUserService.ObtenerRolEfectivoAsync();";
+        const string envuelta = "_x = await PuertaAccesoDatos.EjecutarAsync(() => CurrentUserService.ObtenerRolEfectivoAsync());";
+        const string soloComentario = "// PuertaAccesoDatos.EjecutarAsync(() => x)\n_x = await CurrentUserService.ObtenerRolEfectivoAsync();";
 
         LlamaAlRolOalDobleFactor.IsMatch(suelta).Should().BeTrue();
         PasaPorLaPuerta.IsMatch(Comentarios.Replace(suelta, " ")).Should().BeFalse();

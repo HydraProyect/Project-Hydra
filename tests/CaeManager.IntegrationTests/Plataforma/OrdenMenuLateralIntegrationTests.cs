@@ -306,7 +306,8 @@ VALUES (@id, ARRAY['control'], ARRAY[]::text[], @actor, now(), gen_random_uuid()
     private sealed class UsuarioFijo(Guid usuarioId, Guid tenantOrigenId) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("Administrador");
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("Administrador");
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(tenantOrigenId);
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }

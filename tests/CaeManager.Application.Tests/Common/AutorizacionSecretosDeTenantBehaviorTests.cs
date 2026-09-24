@@ -188,20 +188,32 @@ public class AutorizacionSecretosDeTenantBehaviorTests
     }
 
     /// <summary>
-    /// A diferencia de los secretos, la precarga no se deniega en una Sesión
-    /// Privilegiada: el formulario guarda lo que precarga, y un null aquí se
-    /// guardaría como credencial vacía.
+    /// La precarga tampoco se entrega en una Sesión Privilegiada (opción D,
+    /// 2026-09-23): toda lectura efectiva se audita, y en esa sesión la
+    /// conexión no puede escribir la fila de auditoría. No hay riesgo de
+    /// read-modify-write: en esa sesión los comandos que guardan una credencial
+    /// se deniegan (AutorizacionEscrituraBehavior), así que el null nunca llega a
+    /// guardarse como credencial vacía.
     /// </summary>
-    [Fact]
-    public async Task Los_datos_de_una_credencial_no_se_niegan_por_haber_sesion_privilegiada()
+    [Theory]
+    [InlineData(CapacidadPrivilegio.SoporteLectura)]
+    [InlineData(CapacidadPrivilegio.Impersonacion)]
+    [InlineData(CapacidadPrivilegio.AdminPlataforma)]
+    [InlineData(CapacidadPrivilegio.BreakGlass)]
+    public async Task Los_datos_de_una_credencial_tampoco_se_entregan_en_sesion_privilegiada(CapacidadPrivilegio capacidad)
     {
         var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeDatosDeCredencialQuery, CredencialDto?>(
-            SesionCon(CapacidadPrivilegio.SoporteLectura), UsuarioConRol("Administrador"));
+            SesionCon(capacidad), UsuarioConRol("Administrador"));
 
-        var resultado = await behavior.Handle(
-            new ConsultaDeDatosDeCredencialQuery(), _ => Task.FromResult<CredencialDto?>(Secreto), CancellationToken.None);
+        var handlerFueLlamado = false;
+        var resultado = await behavior.Handle(new ConsultaDeDatosDeCredencialQuery(), _ =>
+        {
+            handlerFueLlamado = true;
+            return Task.FromResult<CredencialDto?>(Secreto);
+        }, CancellationToken.None);
 
-        resultado.Should().Be(Secreto);
+        resultado.Should().BeNull();
+        handlerFueLlamado.Should().BeFalse();
     }
 
     private static ISesionPrivilegiadaActual SesionCon(CapacidadPrivilegio capacidad) =>
@@ -215,7 +227,8 @@ public class AutorizacionSecretosDeTenantBehaviorTests
     private sealed class CurrentUserServiceFalso(string? rol) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult(rol);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult(rol);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }

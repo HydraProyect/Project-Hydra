@@ -181,7 +181,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
         // inicializa en paralelo con el layout, que comparte ese DbContext. Sin la puerta
         // lanzaba «A second operation was started on this context instance» (HTTP 500).
         _esSoloLectura = await PuertaAccesoDatos.EjecutarAsync(
-            () => CurrentUserService.ObtenerRolActualAsync()) == Roles.Consulta;
+            () => CurrentUserService.ObtenerRolEfectivoAsync()) == Roles.Consulta;
         var carga = ++_cargaVigente;
         var token = _ciclo.Token;
         var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), token);

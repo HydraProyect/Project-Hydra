@@ -47,7 +47,7 @@ public class ActualizarLineaWhatsAppCommandHandler(
 {
     public async Task<Result> Handle(ActualizarLineaWhatsAppCommand request, CancellationToken cancellationToken)
     {
-        if (await currentUserService.ObtenerRolActualAsync() != "Administrador")
+        if (await currentUserService.ObtenerRolEfectivoAsync() != "Administrador")
             return Result.Fallo(Error.Crear(
                 "Autorizacion.SoloAdministrador", "Solo un administrador puede configurar líneas de WhatsApp."));
 

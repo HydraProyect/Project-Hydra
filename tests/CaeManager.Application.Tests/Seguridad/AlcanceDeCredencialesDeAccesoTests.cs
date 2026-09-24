@@ -1,3 +1,4 @@
+using CaeManager.Application.Tests.Auditoria;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa;
@@ -157,7 +158,7 @@ public class AlcanceDeCredencialesDeAccesoTests
     {
         var handler = new ObtenerCredencialAccesoSubcontrataQueryHandler(
             new SubcontratasQueryContextQueExplota(),
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: []));
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: []), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(
             new ObtenerCredencialAccesoSubcontrataQuery(Guid.NewGuid()), CancellationToken.None);
@@ -170,7 +171,7 @@ public class AlcanceDeCredencialesDeAccesoTests
     {
         var handler = new ObtenerCredencialAccesoEmpresaQueryHandler(
             new EmpresasQueryContextQueExplota(),
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: []));
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: []), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(
             new ObtenerCredencialAccesoEmpresaQuery(Guid.NewGuid()), CancellationToken.None);
@@ -193,7 +194,7 @@ public class AlcanceDeCredencialesDeAccesoTests
         var empresaId = Guid.NewGuid();
         var handler = new ObtenerCredencialAccesoEmpresaQueryHandler(
             new EmpresasQueryContextQueExplota(),
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresaId], empresaIdsParaGestion: []));
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresaId], empresaIdsParaGestion: []), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(
             new ObtenerCredencialAccesoEmpresaQuery(empresaId), CancellationToken.None);
@@ -218,7 +219,7 @@ public class AlcanceDeCredencialesDeAccesoTests
         var handler = new ObtenerCredencialAccesoSubcontrataQueryHandler(
             new SubcontratasQueryContextQueExplota(),
             new AlcanceDatosServiceFalso(
-                tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrataId], subcontrataIdsParaGestion: []));
+                tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrataId], subcontrataIdsParaGestion: []), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(
             new ObtenerCredencialAccesoSubcontrataQuery(subcontrataId), CancellationToken.None);

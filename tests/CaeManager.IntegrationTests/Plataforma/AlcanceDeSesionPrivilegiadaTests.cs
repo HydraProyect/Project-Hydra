@@ -15,7 +15,7 @@ namespace CaeManager.IntegrationTests.Plataforma;
 /// Qué ve una sesión privilegiada dentro del tenant que abre.
 ///
 /// La pregunta no es retórica: una sesión de plano 3 no tiene rol de negocio
-/// —<c>ObtenerRolActualAsync</c> devuelve null a propósito— y el resolutor de
+/// —<c>ObtenerRolEfectivoAsync</c> devuelve null a propósito— y el resolutor de
 /// alcance falla cerrado ante un rol desconocido. Sin una rama explícita, abrir
 /// el tenant de un cliente para dar soporte habría dado una pantalla vacía: el
 /// contexto correcto y cero filas.

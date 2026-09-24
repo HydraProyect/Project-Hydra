@@ -87,7 +87,8 @@ public class ObtenerClientesAutorizadosQueryTests : IAsyncLifetime
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
 
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("Administrador");
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("Administrador");
 
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(tenantOrigenId);
 

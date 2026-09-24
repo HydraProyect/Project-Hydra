@@ -92,7 +92,7 @@ public class AutorizacionEscrituraBehaviorTests
         // "Sin rol" ocurre de verdad en dos casos: un usuario que aún no lo
         // tiene asignado, y un Operador Delegado cuya delegación se revocó
         // mientras su token de selección seguía vigente — ahí
-        // ObtenerRolActualAsync devuelve null a propósito.
+        // ObtenerRolEfectivoAsync devuelve null a propósito.
         var behavior = new AutorizacionEscrituraBehavior<FalsoCommand, Result>(
             new CurrentUserServiceFalso(Guid.NewGuid(), rol), SinSesionPrivilegiada, SinTenant);
         var siguienteFueLlamado = false;

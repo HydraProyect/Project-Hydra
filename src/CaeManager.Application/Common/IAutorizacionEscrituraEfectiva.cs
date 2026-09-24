@@ -7,7 +7,7 @@ namespace CaeManager.Application.Common;
 /// para restaurar en Application el límite que ya exponían sus páginas Blazor
 /// (<c>@attribute [Authorize(Roles = Administrador)]</c>), pero una sesión
 /// privilegiada de Aprovisionamiento (PD-A3) no tiene rol de negocio —
-/// <c>ObtenerRolActualAsync</c> devuelve <c>null</c> bajo el plano 3— así que
+/// <c>ObtenerRolEfectivoAsync</c> devuelve <c>null</c> bajo el plano 3— así que
 /// la comparación literal bloqueaba también al camino que el resto de PD-A3
 /// acaba de abrir.
 ///

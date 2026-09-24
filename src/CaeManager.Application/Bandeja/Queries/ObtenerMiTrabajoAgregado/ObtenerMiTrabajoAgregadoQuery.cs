@@ -100,6 +100,17 @@ public record ResumenMiTrabajoTenantDto(
 /// solo para dos categorías que en el mockup se muestran sin subcabeceras de
 /// Cliente habría sido una abstracción sin uso real.
 /// </summary>
+/// <param name="AlcanceCero">
+/// Quien mira no alcanza nada en este Tenant: sin acceso total y con la
+/// cartera de Clientes empresariales vacía (<see cref="IAlcanceDatosService"/>,
+/// resuelto dentro del mismo <see cref="AmbitoTenantExplicito"/> que la cola).
+/// Es el caso de un Gestor CAE sin ninguna Asignación de Cartera vigente en el
+/// Tenant, o del Administrador de un Operador CAE externo que ve el Tenant
+/// delegado sin cartera en él. Con él, la pantalla distingue «no hay nada que
+/// vigilar» de «lo vigilado está al día» (P2.3 de la demo a Dirección): una
+/// cola vacía con alcance cero no es una cartera al día. Solo describe el
+/// alcance ya aplicado; no filtra ni autoriza nada.
+/// </param>
 public record MiTrabajoTenantDto(
     Guid TenantId,
     string TenantNombre,
@@ -107,7 +118,8 @@ public record MiTrabajoTenantDto(
     BandejaAgrupadaDto BloqueoActuacion,
     IReadOnlyList<ItemBandejaDto> Proximos,
     IReadOnlyList<ItemBandejaDto> Seguimiento,
-    ResumenMiTrabajoTenantDto Resumen);
+    ResumenMiTrabajoTenantDto Resumen,
+    bool AlcanceCero);
 
 /// <param name="Tenants">
 /// En el mismo orden que <see cref="ObtenerClientesAutorizadosQuery"/> — el
@@ -120,7 +132,7 @@ public record MiTrabajoAgregadoDto(IReadOnlyList<MiTrabajoTenantDto> Tenants);
 
 public class ObtenerMiTrabajoAgregadoQueryHandler(
     IMediator mediator, IConfiguracionQueryContext configuracionContext, IEmpresasQueryContext empresasContext,
-    ICalculoEstadoCentroService calculoEstadoCentro)
+    ICalculoEstadoCentroService calculoEstadoCentro, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerMiTrabajoAgregadoQuery, MiTrabajoAgregadoDto>
 {
     public async Task<MiTrabajoAgregadoDto> Handle(ObtenerMiTrabajoAgregadoQuery request, CancellationToken cancellationToken)
@@ -205,8 +217,21 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
             Seguimiento: seguimiento.Count);
 
         return new MiTrabajoTenantDto(
-            tenant.TenantId, tenant.Nombre, tenant.EsOrigen, bloqueoActuacion, proximos, seguimiento, resumen);
+            tenant.TenantId, tenant.Nombre, tenant.EsOrigen, bloqueoActuacion, proximos, seguimiento, resumen,
+            AlcanceCero: await EsAlcanceCeroAsync(alcanceDatos, cancellationToken));
     }
+
+    /// <summary>
+    /// Alcance cero en el Tenant vigente (el del <see cref="AmbitoTenantExplicito"/>
+    /// de la vuelta): sin acceso total y sin ningún Cliente empresarial en
+    /// cartera. Con la cartera de Clientes vacía, <see cref="IAlcanceDatosService"/>
+    /// deja vacíos también los alcances derivados (Centros, Empresas —incluida la
+    /// propia—, Trabajadores), así que no queda nada que la cola pudiera enseñar.
+    /// Lee el alcance, no lo cambia: cada consulta de la cola ya lo aplicó.
+    /// </summary>
+    public static async Task<bool> EsAlcanceCeroAsync(IAlcanceDatosService alcanceDatos, CancellationToken cancellationToken) =>
+        !await alcanceDatos.TieneAccesoTotalAsync(cancellationToken)
+        && await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken) is { Count: 0 };
 
     /// <summary>
     /// El sujeto de la tarea es una Empresa, no una persona: documento de

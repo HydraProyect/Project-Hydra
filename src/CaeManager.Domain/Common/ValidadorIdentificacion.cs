@@ -77,6 +77,33 @@ public static partial class ValidadorIdentificacion
                 or TipoIdentificacion.NifEmpresa;
     }
 
+    /// <summary>
+    /// Letra de control que corresponde a un DNI o NIE, calculada solo con su
+    /// parte numérica: sirve para decir «la letra debería ser E», no solo «no
+    /// cuadra». Acepta el DNI de siete dígitos, que existe (el cero a la
+    /// izquierda se omite a menudo al escribirlo), y devuelve <c>null</c> si el
+    /// documento no es un DNI ni un NIE. La letra que traiga, si trae, se ignora.
+    /// </summary>
+    public static char? LetraControlEsperada(string? documento)
+    {
+        if (string.IsNullOrWhiteSpace(documento))
+            return null;
+
+        var limpio = documento.Trim().ToUpperInvariant();
+        var numerico = RegexParteNumericaDni().Match(limpio);
+        if (numerico.Success)
+            return LetrasControlPersona[int.Parse(numerico.Groups[1].Value) % 23];
+
+        numerico = RegexParteNumericaNie().Match(limpio);
+        if (numerico.Success)
+        {
+            var prefijo = limpio[0] switch { 'X' => '0', 'Y' => '1', _ => '2' };
+            return LetrasControlPersona[int.Parse(prefijo + numerico.Groups[1].Value) % 23];
+        }
+
+        return null;
+    }
+
     public static ResultadoIdentificacion Analizar(string documento)
     {
         if (string.IsNullOrWhiteSpace(documento))
@@ -155,4 +182,10 @@ public static partial class ValidadorIdentificacion
 
     [GeneratedRegex(@"^[A-Z]{3}\d{6}$")]
     private static partial Regex RegexTieSoporte();
+
+    [GeneratedRegex(@"^(\d{7,8})[A-Z]?$")]
+    private static partial Regex RegexParteNumericaDni();
+
+    [GeneratedRegex(@"^[XYZ](\d{7})[A-Z]?$")]
+    private static partial Regex RegexParteNumericaNie();
 }

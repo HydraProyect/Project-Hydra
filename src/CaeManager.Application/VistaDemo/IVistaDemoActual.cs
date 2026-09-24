@@ -6,11 +6,15 @@ public sealed record VistaDemoEfectiva(VistaDemo Vista, Guid? GestorUsuarioId);
 /// <summary>Un Gestor CAE del Operador CAE de la cuenta de demo cuya cartera puede mostrarse en la lente.</summary>
 public sealed record GestorDeVistaDemo(Guid UsuarioId, string Nombre);
 
-/// <summary>Lo que la sesión pide: la vista de la cookie y el rol de negocio del token de sesión.</summary>
+/// <summary>
+/// Lo que la sesión pide: la vista de la cookie. El rol que decide la disponibilidad NO viaja aquí:
+/// lo lee <c>VistaDemoActual</c> con <c>ICurrentUserService.ObtenerRolOrigenAsync</c> (decisión P7,
+/// 2026-09-23) — el claim de sesión ya está sustituido por el rol de la cartera dentro de un
+/// Workspace operativo derivado.
+/// </summary>
 /// <param name="Vista">Vista pedida, o null si no hay cookie válida (ausente, manipulada, de otra cuenta, caducada).</param>
 /// <param name="GestorUsuarioId">Gestor CAE pedido para la vista Gestor; solo tiene sentido con <see cref="VistaDemo.GestorCae"/>.</param>
-/// <param name="RolDeSesion">Rol de negocio del token de sesión (el de origen, no el del contexto activo), o null sin sesión.</param>
-public sealed record PeticionVistaDemo(VistaDemo? Vista, Guid? GestorUsuarioId, string? RolDeSesion);
+public sealed record PeticionVistaDemo(VistaDemo? Vista, Guid? GestorUsuarioId);
 
 /// <summary>
 /// Lo que la sesión HTTP pide. Lo implementa Web (cookie firmada con Data Protection, ligada al
