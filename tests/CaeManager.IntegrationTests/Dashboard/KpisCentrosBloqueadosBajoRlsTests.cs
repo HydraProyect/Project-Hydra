@@ -255,7 +255,7 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         _propietario.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, hoy));
-        var documento = Documento.DeTrabajador(trabajador.Id, tipo.Id, hoy, hoy.AddYears(1));
+        var documento = Documento.DeTrabajador(trabajador.Id, tipo.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)));
         _propietario.Documentos.Add(documento);
         var canal = CanalGestionDocumental.DePlataforma(centro.Id, "Acceso de prueba", proveedor.Id, null, null, null);
         _propietario.CanalesGestionDocumental.Add(canal);
