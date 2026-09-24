@@ -340,4 +340,23 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
 
         marcados.Should().OnlyContain(i => i.EmpresaEsPropia == null, "ni persona, ni detección, ni Empresa desconocida");
     }
+
+    /// <summary>
+    /// P2.3 de la demo a Dirección: alcance cero es no tener acceso total y
+    /// tener la cartera de Clientes empresariales vacía. El acceso total
+    /// (Administrador en su Tenant, DireccionCae) nunca es alcance cero, y una
+    /// cartera con un solo Cliente tampoco.
+    /// </summary>
+    [Theory]
+    [InlineData(true, 0, false)]
+    [InlineData(false, 0, true)]
+    [InlineData(false, 1, false)]
+    public async Task EsAlcanceCero_solo_sin_acceso_total_y_con_la_cartera_vacia(bool accesoTotal, int clientes, bool esperado)
+    {
+        var alcance = new Clientes.AlcanceDatosServiceFalso(
+            tieneAccesoTotal: accesoTotal,
+            clienteIdsVisibles: Enumerable.Range(0, clientes).Select(_ => Guid.NewGuid()).ToList());
+
+        (await ObtenerMiTrabajoAgregadoQueryHandler.EsAlcanceCeroAsync(alcance, CancellationToken.None)).Should().Be(esperado);
+    }
 }

@@ -22,10 +22,10 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
 /// <para>
 /// Decisión del propietario (2026-09-21): copiar usuario y contraseña con un
 /// clic explícito, siguiendo el precedente de
-/// <c>ObtenerCredencialAccesoEmpresaQuery</c>, <b>sin registro de auditoría de
-/// la lectura</b>. Ese mecanismo no existe todavía; cuando exista, esta consulta
-/// entra en él. Consecuencia conocida: quien pueda leerla, la lee sin que quede
-/// rastro.
+/// <c>ObtenerCredencialAccesoEmpresaQuery</c>. Desde la del 2026-09-23 (opción
+/// D) cada lectura efectiva queda en la auditoría del Tenant propietario como
+/// <c>AccesoDatoSensible</c>, sin el secreto, antes de entregarlo; si no se
+/// puede registrar, no se entrega (<see cref="IRegistroAccesoDatoSensibleService"/>).
 /// </para>
 ///
 /// <para>
@@ -41,7 +41,7 @@ public record ObtenerCredencialCanalGestionQuery(Guid CentroId, Guid CanalId)
 public record CredencialCanalGestionDto(string? Usuario, string? Contrasena);
 
 public class ObtenerCredencialCanalGestionQueryHandler(
-    ICentrosQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+    ICentrosQueryContext dbContext, IAlcanceDatosService alcanceDatos, IRegistroAccesoDatoSensibleService registroAcceso)
     : IRequestHandler<ObtenerCredencialCanalGestionQuery, CredencialCanalGestionDto?>
 {
     public async Task<CredencialCanalGestionDto?> Handle(
@@ -57,11 +57,19 @@ public class ObtenerCredencialCanalGestionQueryHandler(
 
         // El canal se busca por su Id Y por el Centro autorizado: un Id de canal de
         // otro Centro no se resuelve aunque el Centro pedido sí esté en la cartera.
-        return await dbContext.CanalesGestionDocumental
+        var fila = await dbContext.CanalesGestionDocumental
             .Where(c => c.Id == request.CanalId
                         && c.CentroId == request.CentroId
                         && c.Tipo == TipoCanalGestion.Plataforma)
-            .Select(c => new CredencialCanalGestionDto(c.Usuario, c.Contrasena))
+            .Select(c => new { c.Id, Dto = new CredencialCanalGestionDto(c.Usuario, c.Contrasena) })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (fila is null)
+            return null;
+
+        // Lectura efectiva: queda en la auditoría ANTES de entregar el dato, y si
+        // no se puede registrar no se entrega (IRegistroAccesoDatoSensibleService).
+        await registroAcceso.RegistrarAsync(nameof(CanalGestionDocumental), fila.Id, cancellationToken);
+        return fila.Dto;
     }
 }

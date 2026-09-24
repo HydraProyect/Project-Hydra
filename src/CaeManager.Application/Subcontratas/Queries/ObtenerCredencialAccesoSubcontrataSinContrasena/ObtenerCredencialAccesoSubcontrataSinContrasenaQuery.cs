@@ -13,11 +13,10 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSub
 /// <c>IDataProtector</c> la descifra.
 ///
 /// Sí descifra el <c>Usuario</c> (cifrado en reposo igual que la contraseña,
-/// <c>CaeManagerDbContext</c>), así que solo la leen los roles con escritura:
-/// está marcada con <see cref="IConsultaDeDatosDeCredencial"/>, no con
-/// <see cref="IConsultaDeSecretosDeTenant"/>, porque el formulario guarda lo
-/// que precarga y denegarla en una Sesión Privilegiada vaciaría la
-/// credencial al guardar.
+/// <c>CaeManagerDbContext</c>), así que está marcada con
+/// <see cref="IConsultaDeDatosDeCredencial"/>: solo la leen los roles con
+/// escritura, nunca en una Sesión Privilegiada, y cada lectura queda en la
+/// auditoría como <c>AccesoDatoSensible</c>.
 ///
 /// La contraseña solo se obtiene mediante
 /// <c>ObtenerCredencialAccesoSubcontrataQuery</c> (esa sí, marcada), invocada
@@ -29,7 +28,7 @@ public record ObtenerCredencialAccesoSubcontrataSinContrasenaQuery(Guid Subcontr
 public record CredencialAccesoSubcontrataSinContrasenaDto(string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Notas);
 
 public class ObtenerCredencialAccesoSubcontrataSinContrasenaQueryHandler(
-    ISubcontratasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+    ISubcontratasQueryContext dbContext, IAlcanceDatosService alcanceDatos, IRegistroAccesoDatoSensibleService registroAcceso)
     : IRequestHandler<ObtenerCredencialAccesoSubcontrataSinContrasenaQuery, CredencialAccesoSubcontrataSinContrasenaDto?>
 {
     public async Task<CredencialAccesoSubcontrataSinContrasenaDto?> Handle(
@@ -40,9 +39,17 @@ public class ObtenerCredencialAccesoSubcontrataSinContrasenaQueryHandler(
         if (!await alcanceDatos.SubcontrataParaGestionVisibleAsync(request.SubcontrataId, cancellationToken))
             return null;
 
-        return await dbContext.CredencialesAccesoSubcontrata
+        var fila = await dbContext.CredencialesAccesoSubcontrata
             .Where(c => c.SubcontrataId == request.SubcontrataId)
-            .Select(c => new CredencialAccesoSubcontrataSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas))
+            .Select(c => new { c.Id, Dto = new CredencialAccesoSubcontrataSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas) })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (fila is null)
+            return null;
+
+        // Lectura efectiva: queda en la auditoría ANTES de entregar el dato, y si
+        // no se puede registrar no se entrega (IRegistroAccesoDatoSensibleService).
+        await registroAcceso.RegistrarAsync("CredencialAccesoSubcontrata", fila.Id, cancellationToken);
+        return fila.Dto;
     }
 }

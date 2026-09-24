@@ -31,9 +31,9 @@ public class VistaDemoOptions
 /// <b>Qué comprueba, cada vez, antes de aplicar nada</b> (fallo cerrado = sin lente = la
 /// autorización real sin acotar):
 /// activación por configuración; que no sea una sesión privilegiada de plataforma (sin rol de
-/// negocio no hay lente); que el rol del token de sesión sea Administrador o DireccionCae (la
-/// máxima autoridad legítima de la cuenta de demo — una cuenta sin ese rol no tiene qué
-/// estrechar); que el Tenant de ORIGEN de la cuenta sea de demo (allowlist exacta
+/// negocio no hay lente); que el rol de la cuenta en su organización de origen (Identity, no el
+/// claim de sesión — decisión P7) sea Administrador o DireccionCae (la máxima autoridad legítima
+/// de la cuenta de demo — una cuenta sin ese rol no tiene qué estrechar); que el Tenant de ORIGEN de la cuenta sea de demo (allowlist exacta
 /// <see cref="RetiradaTenantDemoService.NombresTenantsDeDemo"/>, distinto del de plataforma) y
 /// que el Tenant ACTIVO también lo sea; y, para la vista Gestor, que el Gestor pedido sea uno
 /// de los del Operador CAE de la cuenta con Asignación de Cartera vigente y rol GestorCae.
@@ -88,7 +88,12 @@ public class VistaDemoActual(
         // por otra vía y nunca es Gestor ni Operador CAE (ADR-011).
         if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null) return false;
 
-        if ((await solicitud.ObtenerAsync()).RolDeSesion is not (Roles.Administrador or Roles.DireccionCae)) return false;
+        // Rol de la organización de ORIGEN, de Identity (decisión P7, 2026-09-23). No el claim de
+        // sesión: dentro de un Workspace operativo derivado ese claim ya es el de la cartera del
+        // Tenant propietario, que nunca es Administrador ni DireccionCae, y la cuenta de demo perdía
+        // el selector justo al entrar en él. Es la única lectura del rol de origen permitida en
+        // Autorizacion (RolDeOrigenFueraDeAutorizacionTests): la lente solo puede estrechar.
+        if (await currentUserService.ObtenerRolOrigenAsync() is not (Roles.Administrador or Roles.DireccionCae)) return false;
 
         if (await currentUserService.ObtenerUsuarioActualIdAsync() is null) return false;
         if (await currentUserService.ObtenerTenantOrigenIdAsync() is not { } origen) return false;

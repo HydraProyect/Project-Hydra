@@ -32,7 +32,7 @@ namespace CaeManager.Web.Services;
 /// que ya era inmediato es la escritura: el rol efectivo pasa a null en
 /// cuanto la delegación deja de estar activa y
 /// <c>AutorizacionEscrituraBehavior</c> bloquea por lista blanca (ver
-/// <c>CurrentUserService.ObtenerRolActualAsync</c>) — lo mismo vale para el
+/// <c>CurrentUserService.ObtenerRolEfectivoAsync</c>) — lo mismo vale para el
 /// tercer camino, una sesión privilegiada cerrada o cuya concesión se
 /// revocó, porque ese behavior la revalida contra la base en cada Command.
 /// La ventana que quedaba abierta era solo de <b>lectura</b> dentro de un
@@ -379,11 +379,11 @@ public static class RevalidacionClienteActivoMiddlewareExtensions
     /// retirar el rol cuando la delegación ya no vale— lo impone
     /// <c>RolEfectivoDelWorkspaceMiddleware</c> en cada petición,
     /// independientemente de si este middleware llega a correr (ver
-    /// <c>CurrentUserService.ObtenerRolActualAsync</c>, que resuelve por las
+    /// <c>CurrentUserService.ObtenerRolEfectivoAsync</c>, que resuelve por las
     /// mismas tres vías que <see cref="RevalidacionClienteActivoMiddleware.SigueAutorizadoAsync"/>
     /// contra la misma base viva, no contra el token). Las dos consultas NO
     /// son idénticas condición por condición —la vía de asignación de
-    /// operación en <c>ObtenerRolActualAsync</c> no comprueba
+    /// operación en <c>ObtenerRolEfectivoAsync</c> no comprueba
     /// <c>operacion.VigenciaDesde</c>, y esta sí (REC-189, hallazgo
     /// secundario sin corregir aquí: está en <c>CurrentUserService</c>, fuera
     /// del alcance de este cambio)—, pero ninguna discrepancia entre las dos

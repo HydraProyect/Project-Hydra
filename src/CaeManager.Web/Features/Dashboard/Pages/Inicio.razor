@@ -5,6 +5,9 @@
 @using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Web.Features.Dashboard.Components
 @using CaeManager.Web.Features.Visitas
+@using CaeManager.Web.Features.Dashboard.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosInicio> Textos
 
 <PageTitle>Dashboard — @Marca.Nombre</PageTitle>
 
@@ -41,9 +44,23 @@
     {
         <EstadoCargando Filas="2" />
     }
+    else if (_kpis.SinCarteraAsignada && _carteraEnOtroTenant)
+    {
+        @* Sin cartera aquí, con cartera en otros Tenants propietarios, en un
+           Context Workspace que el usuario eligió con el selector (en el Tenant
+           de origen la carga ya lo ha llevado a Mi trabajo, D-2). No se
+           redirige: acaba de elegir este contexto y decirle que aquí no tiene
+           cartera es información; llevárselo a otra pantalla, no. *@
+        <EstadoVacio Titulo="@Textos["SinCarteraEnEsteContextoTitulo"]"
+                     Descripcion="@Textos["SinCarteraEnEsteContextoDescripcion"]">
+            <Accion>
+                <a class="enlace-ver-todas" href="/mi-trabajo">@Textos["EnlaceMiTrabajo"]</a>
+            </Accion>
+        </EstadoVacio>
+    }
     else if (_kpis.SinCarteraAsignada)
     {
-        <EstadoVacio Titulo="Sin cartera asignada" Descripcion="Todavía no tienes ningún cliente asignado, así que no hay datos que mostrar. Pide a tu Coordinador o a un Administrador de la plataforma que te asigne cartera." />
+        <EstadoVacio Titulo="@Textos["SinCarteraTitulo"]" Descripcion="@Textos["SinCarteraDescripcion"]" />
     }
     else if (SinNingunDatoEnEsteContexto)
     {

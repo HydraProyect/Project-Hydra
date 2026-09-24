@@ -10,6 +10,16 @@ namespace CaeManager.Domain.Auditoria;
 /// </summary>
 public class RegistroAuditoria : EntidadConTenant
 {
+    /// <summary>
+    /// Acción de una <b>lectura</b> de un dato cifrado en reposo (credenciales de
+    /// plataformas externas), no de un cambio: ARCHITECTURE.md § Datos sensibles
+    /// — «queda registrado en auditoría como acceso a dato sensible». La fila
+    /// nunca lleva el dato: <see cref="DatosAntes"/> y <see cref="DatosDespues"/>
+    /// van vacíos. La escribe <c>IRegistroAccesoDatoSensibleService</c>, no el
+    /// interceptor, que solo ve cambios.
+    /// </summary>
+    public const string AccionAccesoDatoSensible = "AccesoDatoSensible";
+
     public string EntidadTipo { get; private set; } = string.Empty;
     public Guid EntidadId { get; private set; }
     public string Accion { get; private set; } = string.Empty;

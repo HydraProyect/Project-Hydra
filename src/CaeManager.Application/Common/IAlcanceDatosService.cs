@@ -13,6 +13,18 @@ namespace CaeManager.Application.Common;
 /// visible todavía devuelve una lista VACÍA, nunca null, para que un
 /// filtro `Contains` sobre una lista vacía no deje pasar nada por accidente.
 ///
+/// Asignación de Cartera universal (decisión del propietario 2026-09-23): un
+/// GestorCae con una cartera de ámbito universal vigente sobre el Tenant actual
+/// —o un CoordinadorCae con un Gestor a su cargo que la tenga— recibe en TODOS
+/// los métodos de rama el Tenant entero, no solo lo que se deriva de sus
+/// Clientes empresariales: Centros, Subcontratas, Trabajadores y Vehículos sin
+/// Centro, Relación Empresarial ni Asignación que los una a un Cliente. Como
+/// listas EXPLÍCITAS, nunca null, y con <c>TieneAccesoTotalAsync</c> en false:
+/// es autoridad de Operación, no de Propiedad, y lo que no es operativo
+/// (usuarios, configuración, delegaciones) no se decide con estas listas. Las
+/// variantes «ParaGestion» siguen el mismo alcance (se ve y se gestiona); el
+/// rol Cliente no cambia.
+///
 /// Lente de demo (<see cref="CaeManager.Application.VistaDemo.IVistaDemoActual"/>): en un entorno
 /// de demo con la función activada, una cuenta Administrador/DireccionCae de un Tenant de demo
 /// puede pedir la vista «Gestor CAE» de un Gestor concreto. Entonces el alcance devuelto es el

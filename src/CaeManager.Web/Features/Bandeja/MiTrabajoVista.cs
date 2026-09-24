@@ -40,7 +40,8 @@ public sealed record GrupoMiTrabajo(
     string? ResumenCalendario,
     string? ResumenCabecera);
 
-public sealed record FilaCarteraMiTrabajo(Guid TenantId, string Nombre, int Total, int Bloqueos);
+/// <param name="AlcanceCero">Quien mira no alcanza nada en este Tenant (<see cref="MiTrabajoTenantDto.AlcanceCero"/>).</param>
+public sealed record FilaCarteraMiTrabajo(Guid TenantId, string Nombre, int Total, int Bloqueos, bool AlcanceCero);
 
 /// <summary>
 /// Lógica de presentación de Mi trabajo Gen2 (mockup «Cola operativa
@@ -60,12 +61,24 @@ public sealed class MiTrabajoVista
         // devuelva no basta para meterlo en la cartera.
         var gestionados = datos.Tenants.Where(t => !t.EsOrigen).ToList();
         Cartera = gestionados
-            .Select(t => new FilaCarteraMiTrabajo(t.TenantId, t.TenantNombre, t.Resumen.TotalAcciones, t.Resumen.Bloqueos))
+            .Select(t => new FilaCarteraMiTrabajo(t.TenantId, t.TenantNombre, t.Resumen.TotalAcciones, t.Resumen.Bloqueos, t.AlcanceCero))
             .ToList();
         _cartera = gestionados.SelectMany((t, orden) => Aplanar(t, orden)).ToList();
     }
 
     public IReadOnlyList<FilaCarteraMiTrabajo> Cartera { get; }
+
+    /// <summary>
+    /// Nada que vigilar en el ámbito elegido (P2.3 de la demo a Dirección): la
+    /// Empresa filtrada tiene alcance cero o, sin filtro, ninguna Empresa de la
+    /// cartera tiene alcance —incluido no tener ninguna—. Es lo que separa una
+    /// cola vacía «sin Asignación de Cartera» de una cartera al día, que exige
+    /// al menos una Empresa con alcance y ningún pendiente. Solo lee lo que la
+    /// Query ya resolvió; no filtra nada.
+    /// </summary>
+    public bool SinAlcance(FiltroMiTrabajo filtro) => filtro.TenantId is { } id
+        ? Cartera.FirstOrDefault(t => t.TenantId == id)?.AlcanceCero ?? true
+        : Cartera.All(t => t.AlcanceCero);
 
     public int TotalCartera => _cartera.Count;
 
@@ -180,6 +193,9 @@ public sealed class MiTrabajoVista
     public string Titular(FiltroMiTrabajo filtro)
     {
         var bloqueos = Contar(filtro, SeveridadMiTrabajo.Bloqueo);
+        // «Ningún bloqueo hoy» afirmaría algo sobre una cartera que no hay.
+        if (bloqueos == 0 && SinAlcance(filtro) && Ambito(filtro with { Busqueda = string.Empty }).Count == 0)
+            return TextosMiTrabajo.Texto("TitularSinCartera");
         return bloqueos == 0
             ? TextosMiTrabajo.Texto("TitularSinBloqueos")
             : Plural(bloqueos, "TitularBloqueosUno", "TitularBloqueosVarios");

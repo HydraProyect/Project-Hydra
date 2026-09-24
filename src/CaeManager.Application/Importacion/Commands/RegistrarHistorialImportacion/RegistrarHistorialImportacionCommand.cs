@@ -36,7 +36,7 @@ public class RegistrarHistorialImportacionCommandHandler(
     // (éxito, totales) sin haber ejecutado ninguna importación real — corrompe el rastro de auditoría del propio
     // flujo que este comando existe para dejar por escrito.
     // IAutorizacionEscrituraEfectiva, no el literal "Administrador" — ver EjecutarImportacionCommand: bajo una
-    // sesión de Aprovisionamiento el rol de negocio es null, y ObtenerRolActualAsync ya lo devuelve así.
+    // sesión de Aprovisionamiento el rol de negocio es null, y ObtenerRolEfectivoAsync ya lo devuelve así.
     public async Task<Result> Handle(RegistrarHistorialImportacionCommand request, CancellationToken cancellationToken)
     {
         if (!await autorizacionEscrituraEfectiva.EsActoDeAdministradorAsync(cancellationToken))

@@ -157,7 +157,7 @@ public class FirmarDocumentoEnCampoCommandHandler(
 
         var nombres = await directorioUsuarios.ObtenerNombresVisiblesAsync([firmanteUsuarioId], cancellationToken);
         var firmanteNombre = nombres.GetValueOrDefault(firmanteUsuarioId, string.Empty);
-        var firmanteRol = await currentUserService.ObtenerRolActualAsync() ?? string.Empty;
+        var firmanteRol = await currentUserService.ObtenerRolEfectivoAsync() ?? string.Empty;
 
         await using var flujoOriginal = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
         using var memoriaOriginal = new MemoryStream();

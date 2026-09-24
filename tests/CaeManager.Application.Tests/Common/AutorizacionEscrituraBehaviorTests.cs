@@ -28,6 +28,10 @@ public class AutorizacionEscrituraBehaviorTests
     // de la tercera condición.
     private record FalsoComandoDeAprovisionamiento : ICommand, IComandoDeAprovisionamiento;
 
+    // Autoservicio: escribe solo datos del propio usuario.
+    private record FalsoComandoDeAutoservicio : ICommand, IComandoDeAutoservicio;
+    private record FalsoComandoDeAutoservicioConValor : ICommand<Guid>, IComandoDeAutoservicio;
+
     [Theory]
     [InlineData("Consulta")]
     [InlineData("Cliente")]
@@ -88,7 +92,7 @@ public class AutorizacionEscrituraBehaviorTests
         // "Sin rol" ocurre de verdad en dos casos: un usuario que aún no lo
         // tiene asignado, y un Operador Delegado cuya delegación se revocó
         // mientras su token de selección seguía vigente — ahí
-        // ObtenerRolActualAsync devuelve null a propósito.
+        // ObtenerRolEfectivoAsync devuelve null a propósito.
         var behavior = new AutorizacionEscrituraBehavior<FalsoCommand, Result>(
             new CurrentUserServiceFalso(Guid.NewGuid(), rol), SinSesionPrivilegiada, SinTenant);
         var siguienteFueLlamado = false;
@@ -128,6 +132,104 @@ public class AutorizacionEscrituraBehaviorTests
             new FalsoSinInterfazCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
+    }
+
+    // ── Autoservicio: lo propio del usuario, con cualquier rol reconocido ──
+
+    [Theory]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
+    [InlineData("GestorCae")]
+    public async Task Un_comando_de_autoservicio_pasa_con_cualquier_rol_reconocido(string rol)
+    {
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeAutoservicio, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), SinSesionPrivilegiada, SinTenant);
+        var siguienteFueLlamado = false;
+
+        var resultado = await behavior.Handle(new FalsoComandoDeAutoservicio(), _ =>
+        {
+            siguienteFueLlamado = true;
+            return Task.FromResult(Result.Exito());
+        }, CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        siguienteFueLlamado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Un_comando_de_autoservicio_con_resultado_generico_tambien_pasa_para_Consulta()
+    {
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeAutoservicioConValor, Result<Guid>>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Consulta"), SinSesionPrivilegiada, SinTenant);
+
+        var resultado = await behavior.Handle(
+            new FalsoComandoDeAutoservicioConValor(), _ => Task.FromResult(Result.Exito(Guid.NewGuid())), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("RolInventado")]
+    public async Task Un_comando_de_autoservicio_sigue_bloqueado_sin_rol_reconocible(string? rol)
+    {
+        // La exención es de la lista de escritura, no de la lista blanca: el caso
+        // del Operador Delegado con la delegación revocada (rol null) sigue cerrado.
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeAutoservicio, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), SinSesionPrivilegiada, SinTenant);
+        var siguienteFueLlamado = false;
+
+        var resultado = await behavior.Handle(new FalsoComandoDeAutoservicio(), _ =>
+        {
+            siguienteFueLlamado = true;
+            return Task.FromResult(Result.Exito());
+        }, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Autorizacion.SoloLectura");
+        siguienteFueLlamado.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(CapacidadPrivilegio.SoporteLectura)]
+    [InlineData(CapacidadPrivilegio.Impersonacion)]
+    [InlineData(CapacidadPrivilegio.AdminPlataforma)]
+    [InlineData(CapacidadPrivilegio.BreakGlass)]
+    public async Task Una_sesion_privilegiada_no_escribe_ni_un_comando_de_autoservicio(CapacidadPrivilegio capacidad)
+    {
+        // El soporte de plataforma no acepta términos ni guarda filtros en nombre de
+        // nadie: bajo impersonación, la aceptación quedaría atribuida al usuario
+        // simulado. La rama de sesión privilegiada decide antes que el marcador.
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeAutoservicio, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Consulta"),
+            new SesionPrivilegiadaActualFalsa(SesionCon(capacidad)), SinTenant);
+        var siguienteFueLlamado = false;
+
+        var resultado = await behavior.Handle(new FalsoComandoDeAutoservicio(), _ =>
+        {
+            siguienteFueLlamado = true;
+            return Task.FromResult(Result.Exito());
+        }, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        siguienteFueLlamado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Una_sesion_de_aprovisionamiento_no_escribe_un_comando_de_autoservicio()
+    {
+        var tenantObjetivo = Guid.NewGuid();
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeAutoservicio, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.Aprovisionamiento, tenantObjetivo)),
+            new TenantActualFalso(tenantObjetivo));
+
+        var resultado = await behavior.Handle(
+            new FalsoComandoDeAutoservicio(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Autorizacion.ComandoFueraDelAprovisionamiento");
     }
 
     // ── Plano 3: sesiones privilegiadas de plataforma ──────────────────────

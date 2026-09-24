@@ -14,7 +14,7 @@ public class AutorizacionEscrituraEfectiva(
 
     public async Task<bool> EsActoDeAdministradorAsync(CancellationToken cancellationToken = default)
     {
-        if (await currentUserService.ObtenerRolActualAsync() == RolAdministrador)
+        if (await currentUserService.ObtenerRolEfectivoAsync() == RolAdministrador)
             return true;
 
         // ObtenerAsync, no RevalidarAsync — al revés que en AutorizacionEscrituraBehavior,
