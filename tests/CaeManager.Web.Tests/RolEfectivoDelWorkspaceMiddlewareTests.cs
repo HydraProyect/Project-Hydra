@@ -3,8 +3,10 @@ using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Services;
 using FluentAssertions;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -272,6 +274,55 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
         contexto.User.IsInRole(Roles.Consulta).Should().BeTrue();
     }
 
+    /// <summary>
+    /// Decisión P7 (2026-09-23), defecto real: el fan-out multi-Tenant
+    /// (<c>ObtenerMiTrabajoAgregadoQuery</c>, <c>ObtenerKpisGlobalesQuery</c>,
+    /// <c>ObtenerDashboardEjecutivoQuery</c>) visita también el Tenant de
+    /// ORIGEN, y para él <c>CurrentUserService</c> devolvía «el claim de
+    /// sesión». Pero con un Workspace operativo derivado seleccionado ese claim
+    /// ya lo ha sustituido este middleware por el rol de la cartera en el
+    /// Tenant propietario visitado: el alcance del Tenant de origen se
+    /// calculaba con el rol de otro Tenant. Aquí se compone el middleware real
+    /// con el <c>CurrentUserService</c> real sobre el mismo principal, que es
+    /// exactamente lo que ve el circuito de Blazor.
+    /// </summary>
+    [Fact]
+    public async Task Tras_el_ajuste_el_fan_out_al_tenant_de_origen_usa_el_rol_de_sesion_de_origen_no_el_de_la_cartera()
+    {
+        var protector = ProtectorDePruebas();
+        var tenantOrigen = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());
+
+        var contexto = ContextoCon(token, rolDeSesion: Roles.Administrador);
+        ((ClaimsIdentity)contexto.User.Identity!).AddClaim(
+            new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, tenantOrigen.ToString()));
+
+        await EjecutarAsync(contexto, protector, rolEfectivo: Roles.Consulta);
+        contexto.User.IsInRole(Roles.Consulta).Should().BeTrue(
+            "control positivo: el middleware ya sustituyó el claim por el rol de la cartera, que es la condición del defecto");
+
+        var accesor = new HttpContextAccessorFijoLocal(contexto);
+        var servicioReal = new CurrentUserService(
+            new SinCircuitoDeBlazor(),
+            accesor,
+            new ClienteActivoSeleccionado(accesor, protector),
+            new ServiceCollection().BuildServiceProvider());
+
+        using (AmbitoTenantExplicito.Establecer(tenantOrigen))
+        {
+            (await servicioReal.ObtenerRolEfectivoAsync()).Should().Be(Roles.Administrador,
+                "en su propio Tenant de origen el usuario tiene el rol de su sesión, no el de la cartera del Tenant "
+                + "propietario que tenga seleccionado");
+        }
+    }
+
+    private sealed class SinCircuitoDeBlazor : AuthenticationStateProvider
+    {
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            throw new InvalidOperationException("sin circuito");
+    }
+
     private static Task EjecutarAsync(HttpContext contexto, IDataProtectionProvider protector, string? rolEfectivo) =>
         EjecutarAsync(contexto, protector, new CurrentUserServiceFalso(rolEfectivo));
 
@@ -325,7 +376,8 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
     {
         public int VecesConsultado { get; private set; }
 
-        public Task<string?> ObtenerRolActualAsync()
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync()
         {
             VecesConsultado++;
             return Task.FromResult(rolEfectivo);

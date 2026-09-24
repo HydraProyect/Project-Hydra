@@ -10,7 +10,7 @@ namespace CaeManager.Web.Services;
 /// <para>
 /// <b>El agujero que cierra.</b> ADR-004 § 5.3 promete que un mismo usuario
 /// puede ser GestorCae en un cliente y Consulta en otro, y
-/// <c>CurrentUserService.ObtenerRolActualAsync</c> lo cumple: resuelve el rol
+/// <c>CurrentUserService.ObtenerRolEfectivoAsync</c> lo cumple: resuelve el rol
 /// contra la cartera de la operación seleccionada. Pero hay una segunda familia
 /// de puertas que no consulta ese método jamás — los <c>[Authorize(Roles = …)]</c>
 /// de páginas y endpoints, que preguntan directamente al
@@ -20,7 +20,7 @@ namespace CaeManager.Web.Services;
 /// Configuración, Roles, Claves de API, Auditoría, Integraciones e
 /// Importaciones del cliente que solo debía poder mirar. Escalada horizontal y
 /// vertical a la vez, y precisamente el hallazgo N-5 que
-/// <c>ObtenerRolActualAsync</c> creía haber cerrado — lo cerró en el camino de
+/// <c>ObtenerRolEfectivoAsync</c> creía haber cerrado — lo cerró en el camino de
 /// escritura, no en el de las puertas de página.
 /// </para>
 ///
@@ -37,7 +37,7 @@ namespace CaeManager.Web.Services;
 /// </para>
 ///
 /// <para>
-/// <b>Por qué reutiliza <c>ObtenerRolActualAsync</c> en vez de repetir la
+/// <b>Por qué reutiliza <c>ObtenerRolEfectivoAsync</c> en vez de repetir la
 /// consulta.</b> Porque dos resoluciones del mismo concepto divergen, y la
 /// divergencia sería invisible: las puertas de página dirían una cosa y
 /// <c>AutorizacionEscrituraBehavior</c> otra. Con una sola fuente, un cambio en
@@ -67,6 +67,16 @@ namespace CaeManager.Web.Services;
 /// </summary>
 public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
 {
+    /// <summary>
+    /// Claim en memoria (nunca se emite en la cookie) con el rol de la sesión
+    /// en el Tenant de origen tal como estaba ANTES de sustituirlo. Lo lee
+    /// <c>CurrentUserService</c> cuando el fan-out multi-Tenant visita el
+    /// Tenant de origen: ahí el rol efectivo es el de la sesión, no el de la
+    /// cartera del Tenant propietario seleccionado (decisión P7, 2026-09-23).
+    /// No es un rol: <c>IsInRole</c> y <c>[Authorize(Roles = …)]</c> no lo ven.
+    /// </summary>
+    public const string TipoClaimRolDeSesionOrigen = "hydra:rol_sesion_origen";
+
     public async Task InvokeAsync(
         HttpContext contexto,
         IClienteActivoSeleccionado clienteActivoSeleccionado,
@@ -76,8 +86,9 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
         if (DebeAjustarse(contexto, clienteActivoSeleccionado))
         {
             var rolDeSesion = contexto.User.FindFirst(ClaimTypes.Role)?.Value;
-            var rolEfectivo = await currentUserService.ObtenerRolActualAsync();
+            var rolEfectivo = await currentUserService.ObtenerRolEfectivoAsync();
 
+            ConservarRolDeSesionOrigen(contexto.User, rolDeSesion);
             AplicarRol(contexto.User, rolEfectivo);
 
             // Se registra porque hasta REC-189 esta sustitución no dejaba
@@ -165,6 +176,20 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
         // abstracción, y entonces no hay workspace delegado: manda el claim de
         // sesión, que es el del tenant propio del usuario.
         return seleccion.TenantIdSeleccionado is not null;
+    }
+
+    /// <summary>
+    /// Idempotente: si el principal ya pasó por aquí (no debería, es uno por
+    /// petición), se conserva el primero, que es el único que es de origen:
+    /// en una segunda pasada el claim de rol ya sería el de la cartera.
+    /// </summary>
+    private static void ConservarRolDeSesionOrigen(ClaimsPrincipal principal, string? rolDeSesion)
+    {
+        if (principal.HasClaim(c => c.Type == TipoClaimRolDeSesionOrigen)) return;
+        if (rolDeSesion is null) return;
+
+        if (principal.Identity is ClaimsIdentity identidadPrincipal)
+            identidadPrincipal.AddClaim(new Claim(TipoClaimRolDeSesionOrigen, rolDeSesion));
     }
 
     /// <summary>

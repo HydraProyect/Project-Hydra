@@ -8,7 +8,7 @@ namespace CaeManager.Web.Services;
 /// nombre una sesión privilegiada de plataforma.
 ///
 /// <b>Por qué hace falta un middleware y no basta con
-/// <c>CurrentUserService.ObtenerRolActualAsync</c>.</b> Ese método gobierna la
+/// <c>CurrentUserService.ObtenerRolEfectivoAsync</c>.</b> Ese método gobierna la
 /// autorización que pasa por la aplicación (alcance de datos, behavior de
 /// escritura) y ya devuelve <c>null</c> bajo sesión privilegiada. Pero hay una
 /// segunda familia de puertas que no lo consulta jamás: los 30

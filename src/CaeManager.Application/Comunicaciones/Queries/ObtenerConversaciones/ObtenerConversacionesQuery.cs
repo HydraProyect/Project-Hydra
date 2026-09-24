@@ -101,7 +101,7 @@ public class ObtenerConversacionesQueryHandler(
             // La comprobación se repite aquí y en [Authorize] de Bandeja.razor
             // a propósito: la página cierra la puerta de entrada, esto cierra
             // el dato para cualquier otra UI o API que llegue después.
-            var rol = await currentUserService.ObtenerRolActualAsync();
+            var rol = await currentUserService.ObtenerRolEfectivoAsync();
 
             // Un hilo anclado a una Empresa contraparte (Conversacion.EmpresaId,
             // hoy solo la reclamación de ámbito Empresa) NO es triage: tiene

@@ -42,7 +42,7 @@ public class ReasignarEjecutivoClienteCommandHandler(
 
     public async Task<Result> Handle(ReasignarEjecutivoClienteCommand request, CancellationToken cancellationToken)
     {
-        var rol = await currentUserService.ObtenerRolActualAsync();
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
         if (rol is null || !RolesPermitidos.Contains(rol))
             return Result.Fallo(Error.Crear("Cliente.SinPermisoReasignar", "Tu rol no puede reasignar la cartera de un cliente."));
 

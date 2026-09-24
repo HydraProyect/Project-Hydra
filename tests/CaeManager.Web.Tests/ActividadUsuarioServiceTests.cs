@@ -118,7 +118,8 @@ public class ActividadUsuarioServiceTests
             return id;
         }
 
-        public Task<string?> ObtenerRolActualAsync() => throw new NotSupportedException();
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => throw new NotSupportedException();
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => throw new NotSupportedException();
         public Task<bool> TieneDobleFactorActivoAsync() => throw new NotSupportedException();
     }

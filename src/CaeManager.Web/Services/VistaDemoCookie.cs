@@ -43,7 +43,7 @@ public class VistaDemoCookie(
             httpContextAccessor.HttpContext?.Request.Cookies[NombreCookie],
             usuario is null ? null : LeerUsuarioId(usuario));
 
-        return _peticion = new PeticionVistaDemo(vista, gestor, usuario?.FindFirst(ClaimTypes.Role)?.Value);
+        return _peticion = new PeticionVistaDemo(vista, gestor);
     }
 
     private static Guid? LeerUsuarioId(ClaimsPrincipal usuario) =>

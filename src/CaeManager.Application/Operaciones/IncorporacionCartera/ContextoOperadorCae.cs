@@ -22,16 +22,16 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera;
 /// operativo derivado, <c>RolEfectivoDelWorkspaceMiddleware</c> sustituye el
 /// claim de rol por el de la Asignación de Cartera en ese Tenant propietario,
 /// y el circuito hereda el principal ya sustituido. En el ámbito del tenant de
-/// origen, <see cref="ICurrentUserService.ObtenerRolActualAsync"/> devuelve ese
-/// claim tal cual: un Coordinador CAE que opera un Tenant como Gestor CAE
-/// dejaría de ser Coordinador para su Operador CAE, y un Gestor CAE con una
-/// cartera de rol Coordinador CAE en un Tenant propietario pasaría por
-/// Coordinador CAE de su organización. Por eso el rol sale de la cuenta en su
-/// tenant de origen (<see cref="IDirectorioUsuariosService.EsCuentaActivaConRolAsync"/>),
-/// que la selección de workspace no toca y que además falla cerrado con una
-/// cuenta desactivada. <c>ObtenerRolActualAsync</c> solo se consulta para
-/// fallar cerrado cuando la sesión no tiene rol de negocio (sesión privilegiada
-/// de plataforma, delegación retirada).
+/// origen, <see cref="ICurrentUserService.ObtenerRolEfectivoAsync"/> ya no
+/// devuelve ese claim sustituido sino el rol de sesión en origen conservado
+/// antes de la sustitución (decisión P7, 2026-09-23); aun así es un rol de
+/// SESIÓN, no de la cuenta: no falla cerrado con una cuenta desactivada. Por
+/// eso el rol sale de la cuenta en su tenant de origen
+/// (<see cref="IDirectorioUsuariosService.EsCuentaActivaConRolAsync"/>), que la
+/// selección de workspace no toca y que además falla cerrado con una cuenta
+/// desactivada. <c>ObtenerRolEfectivoAsync</c> solo se consulta para fallar
+/// cerrado cuando la sesión no tiene rol de negocio (sesión privilegiada de
+/// plataforma, delegación retirada).
 /// </para>
 ///
 /// <para>
@@ -73,7 +73,7 @@ public sealed record ContextoOperadorCae(Guid UsuarioId, Guid OperadorTenantId, 
 
         using (AmbitoTenantExplicito.Establecer(origen.Value))
         {
-            if (await currentUserService.ObtenerRolActualAsync() is null)
+            if (await currentUserService.ObtenerRolEfectivoAsync() is null)
                 return Result.Exito(new ContextoOperadorCae(usuarioId.Value, origen.Value, null));
 
             var rol = await directorioUsuarios.EsCuentaActivaConRolAsync(

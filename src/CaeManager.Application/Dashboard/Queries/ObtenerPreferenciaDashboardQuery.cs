@@ -22,7 +22,7 @@ public class ObtenerPreferenciaDashboardQueryHandler(
     public async Task<IReadOnlyList<string>> Handle(ObtenerPreferenciaDashboardQuery request, CancellationToken cancellationToken)
     {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
-        var porDefecto = CatalogoKpis.KpisPorDefectoPorRol(await currentUserService.ObtenerRolActualAsync());
+        var porDefecto = CatalogoKpis.KpisPorDefectoPorRol(await currentUserService.ObtenerRolEfectivoAsync());
 
         if (usuarioId is null) return porDefecto;
 

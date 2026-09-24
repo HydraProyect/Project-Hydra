@@ -26,7 +26,7 @@ public class ActualizarDeteccionTrabajadoresGlobalCommandHandler(
 
     public async Task<Result> Handle(ActualizarDeteccionTrabajadoresGlobalCommand request, CancellationToken cancellationToken)
     {
-        var rol = await currentUserService.ObtenerRolActualAsync();
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
         if (rol != RolAdministrador)
             return Result.Fallo(Error.Crear("DeteccionTrabajadores.SoloAdministrador", "Solo Administrador puede cambiar este interruptor."));
 

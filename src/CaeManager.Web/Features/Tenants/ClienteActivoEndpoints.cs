@@ -59,7 +59,7 @@ public static class ClienteActivoEndpoints
             // otra reabierta), el `where` de arriba no las distingue y
             // `FirstOrDefaultAsync` sin criterio de orden elegía una de forma
             // no determinista — mismo defecto de forma que
-            // `CurrentUserService.ObtenerRolActualAsync` ya corrigió en su
+            // `CurrentUserService.ObtenerRolEfectivoAsync` ya corrigió en su
             // sitio. Se ordena por la operación vigente más reciente
             // (`VigenciaDesde` descendente) y, a igualdad, por `Id` como
             // desempate estable — el token embebe una operación concreta y

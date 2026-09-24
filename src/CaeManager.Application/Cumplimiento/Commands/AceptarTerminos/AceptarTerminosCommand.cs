@@ -12,7 +12,7 @@ namespace CaeManager.Application.Cumplimiento.Commands.AceptarTerminos;
 /// usuario los resuelve el propio handler — nada que el cliente pueda
 /// falsear (aceptar "otra versión" no tendría sentido de negocio).
 /// </summary>
-public record AceptarTerminosCommand : ICommand;
+public record AceptarTerminosCommand : ICommand, IComandoDeAutoservicio;
 
 public class AceptarTerminosCommandHandler(
     IAceptacionTerminosRepository repositorio, ICurrentUserService currentUserService, IUnitOfWork unitOfWork)

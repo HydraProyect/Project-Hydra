@@ -243,7 +243,8 @@ public static class AsignacionesOperativasBackfillSeeder
             // Solo los roles de alcance total reciben cartera universal. Un rol
             // de cartera (GestorCae, CoordinadorCae) ve hoy exactamente los
             // clientes de los que es ejecutivo; darle una universal le
-            // entregaría de golpe todos los clientes del tenant delegado — un
+            // entregaría de golpe el tenant delegado entero —todas sus ramas
+            // operativas, ver AlcanceDatosService—: un
             // ensanchamiento de alcance que F1 no debe introducir. Sus carteras
             // salen del paso 4, cliente a cliente.
             if (!RolesDelegables.Contains(operador.Rol))
