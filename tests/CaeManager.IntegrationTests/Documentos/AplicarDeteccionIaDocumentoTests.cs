@@ -75,7 +75,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     public async Task Renueva_el_documento_con_la_fecha_detectada_y_recalcula_el_vencimiento_automatico()
     {
         var fechaOriginal = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1);
-        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, null);
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -103,7 +103,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     public async Task Marca_como_confirmada_manual_la_auditoria_de_ia_ligada_al_documento()
     {
         var fechaOriginal = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1);
-        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, null);
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
 
         var fechaDetectada = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -129,7 +129,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Usa_la_fecha_de_vencimiento_detectada_cuando_el_tipo_no_calcula_vigencia_automatica()
     {
-        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoManual.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoManual.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -149,7 +149,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Falla_si_la_ia_no_detecto_fecha_de_emision()
     {
-        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -166,7 +166,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Falla_si_la_revision_ya_estaba_resuelta()
     {
-        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -185,7 +185,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Falla_como_no_encontrada_cuando_el_trabajador_no_es_visible()
     {
-        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -205,7 +205,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     public async Task Corregir_a_mano_falla_como_no_encontrada_fuera_del_alcance_y_no_persiste_mutaciones()
     {
         var fechaOriginal = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1);
-        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, null);
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         var revision = RevisionIaDocumento.Crear(documento.Id, 92, "Apto médico", fechaOriginal, null, true, "Confianza baja");
         _dbContext.RevisionesIaDocumento.Add(revision);

@@ -1648,6 +1648,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("EstadoVigencia")
+                        .HasColumnType("integer");
+
                     b.Property<DateOnly>("FechaEmision")
                         .HasColumnType("date");
 
@@ -1702,6 +1705,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.ToTable("Documentos", null, t =>
                         {
+                            t.HasCheckConstraint("CK_Documentos_EstadoVigenciaCoherente", "(\"EstadoVigencia\" = 2 AND \"FechaVencimiento\" IS NOT NULL) OR (\"EstadoVigencia\" IN (0, 1) AND \"FechaVencimiento\" IS NULL)");
+
                             t.HasCheckConstraint("CK_Documentos_PropietarioXor", "num_nonnulls(\"TrabajadorId\", \"ClienteId\", \"EmpresaId\", \"VehiculoId\", \"ProyectoId\") = 1");
                         });
                 });

@@ -229,7 +229,7 @@ public class MiTrabajoAcreditacionVencidaBajoRlsTests : IAsyncLifetime
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         _propietario.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, hoy));
-        var documentos = tipos.Select(t => Documento.DeTrabajador(trabajador.Id, t.Id, hoy, hoy.AddYears(1))).ToList();
+        var documentos = tipos.Select(t => Documento.DeTrabajador(trabajador.Id, t.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)))).ToList();
         _propietario.Documentos.AddRange(documentos);
         var canal = CanalGestionDocumental.DePlataforma(centro.Id, $"Acceso {etiqueta}", proveedor.Id, null, null, null);
         _propietario.CanalesGestionDocumental.Add(canal);

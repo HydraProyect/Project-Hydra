@@ -55,7 +55,7 @@ public class ObtenerAlertasQueryProximoTests : IAsyncLifetime
         contexto.Documentos.Add(Documento.DeTrabajador(
             trabajador.Id, tipo.Id,
             fechaEmision: DateOnly.FromDateTime(DateTime.UtcNow),
-            fechaVencimiento: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(20)));
+            vigencia: VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(20))));
         await contexto.SaveChangesAsync();
 
         _trabajadorId = trabajador.Id;

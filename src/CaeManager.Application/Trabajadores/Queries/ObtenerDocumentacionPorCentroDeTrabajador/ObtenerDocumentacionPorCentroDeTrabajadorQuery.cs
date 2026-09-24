@@ -46,7 +46,10 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
         [EstadoDocumento.Vencido] = 1,
         [EstadoDocumento.Urgente] = 2,
         [EstadoDocumento.Proximo] = 3,
-        [EstadoDocumento.Vigente] = 4
+        // Sin vigencia confirmada: detrás de lo malo conocido y delante de lo
+        // vigente (mismo orden que EstadoDocumentalFiltro.ClaveOrden).
+        [EstadoDocumento.SinConfirmar] = 4,
+        [EstadoDocumento.Vigente] = 5
     };
 
     public async Task<IReadOnlyList<CentroDocumentacionTrabajadorDto>> Handle(
@@ -90,7 +93,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
         var documentosDelTrabajador = await documentosContext.Documentos
             .Where(d => d.TrabajadorId == request.TrabajadorId)
-            .Select(d => new { d.Id, d.TipoDocumentoId, d.FechaVencimiento })
+            .Select(d => new { d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken);
         var documentosPorTipo = documentosDelTrabajador.ToDictionary(d => d.TipoDocumentoId);
 
@@ -116,7 +119,8 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
                 }
 
                 var estado = CalculadoraEstadoDocumento.Calcular(
-                    documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
+                    documento.EstadoVigencia, documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
+                // Solo se omite lo confirmado como que no caduca; lo sin confirmar se lista.
                 if (estado == EstadoDocumento.SinCaducidad) continue;
 
                 items.Add(new DocumentoRequeridoDto(documento.Id, tipo.Id, tipo.Nombre, estado, documento.FechaVencimiento));

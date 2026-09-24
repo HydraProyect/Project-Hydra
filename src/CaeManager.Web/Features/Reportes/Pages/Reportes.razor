@@ -237,7 +237,7 @@
                                                     <td>@fila.EmpresaRazonSocial</td>
                                                     <td>@fila.TipoDocumentoNombre</td>
                                                     <td class="celda-vence-informe">
-                                                        <TextoFechaCopiable Fecha="fila.FechaVencimiento">@(fila.FechaVencimiento?.ToString("dd/MM/yyyy") ?? Textos["VenceNoCaduca"].Value)</TextoFechaCopiable>
+                                                        <TextoFechaCopiable Fecha="fila.FechaVencimiento">@(fila.FechaVencimiento?.ToString("dd/MM/yyyy") ?? (fila.Estado == CaeManager.Domain.Documentos.EstadoDocumento.SinConfirmar ? "—" : Textos["VenceNoCaduca"].Value))</TextoFechaCopiable>
                                                     </td>
                                                     <td><Badge Tono="EstadoDocumentoUi.Tono(fila.Estado)">@EstadoDocumentoUi.Texto(fila.Estado)</Badge></td>
                                                 </tr>

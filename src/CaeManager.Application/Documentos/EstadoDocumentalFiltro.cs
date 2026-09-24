@@ -61,16 +61,19 @@ public static class EstadoDocumentalFiltro
     }
 
     /// <summary>
-    /// Clave de orden: primero lo que más urge. Sin documentos va al final —
-    /// no es peor que "vencido", solo desconocido.
+    /// Clave de orden: primero lo que más urge. Lo malo conocido va antes que
+    /// lo desconocido (<see cref="EstadoDocumento.SinConfirmar"/>), y esto
+    /// antes que lo bueno conocido. Sin documentos va al final — no es peor que
+    /// "vencido", solo desconocido.
     /// </summary>
     public static int ClaveOrden(EstadoDocumento? estado) => estado switch
     {
         EstadoDocumento.Vencido => 0,
         EstadoDocumento.Urgente => 1,
         EstadoDocumento.Proximo => 2,
-        EstadoDocumento.Vigente => 3,
-        EstadoDocumento.SinCaducidad => 4,
-        _ => 5
+        EstadoDocumento.SinConfirmar => 3,
+        EstadoDocumento.Vigente => 4,
+        EstadoDocumento.SinCaducidad => 5,
+        _ => 6
     };
 }

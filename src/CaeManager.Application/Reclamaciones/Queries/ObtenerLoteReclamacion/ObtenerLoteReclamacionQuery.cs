@@ -171,8 +171,9 @@ public class ObtenerLoteReclamacionQueryHandler(
                     .Select(f => new DocumentoReclamableDto(
                         f.DocumentoId, f.TrabajadorId, f.TrabajadorNombre, f.TipoDocumentoId, f.TipoDocumentoNombre,
                         f.FechaVencimiento!.Value,
+                        // Solo filas con fecha (filtro SQL): siempre VenceEnFecha.
                         CalculadoraEstadoDocumento.Calcular(
-                            f.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
+                            VigenciaDocumento.VenceEl(f.FechaVencimiento!.Value), hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
                     .OrderBy(d => d.FechaVencimiento)
                     .ToList()))
             .Where(x => x.Documentos.Count > 0)

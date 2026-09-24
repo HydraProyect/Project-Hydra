@@ -49,6 +49,7 @@ public record DocumentoApiDetalleDto(
     bool TipoDocumentoAplicaVencimientoAutomatico,
     DateOnly FechaEmision,
     DateOnly? FechaVencimiento,
+    EstadoVigenciaDocumento EstadoVigencia,
     string? Comentarios,
     string? TipoDocumentoDescripcion,
     string? TipoDocumentoCriteriosValidacion,
@@ -61,7 +62,7 @@ public record DocumentoApiDetalleDto(
     public static DocumentoApiDetalleDto DesdeInterno(DocumentoDetalleDto dto) => new(
         dto.Id, dto.Ambito, dto.PropietarioNombre, dto.TipoDocumentoNombre,
         dto.TipoDocumentoAplicaVencimientoAutomatico, dto.FechaEmision, dto.FechaVencimiento,
-        dto.Comentarios, dto.TipoDocumentoDescripcion, dto.TipoDocumentoCriteriosValidacion,
+        dto.EstadoVigencia, dto.Comentarios, dto.TipoDocumentoDescripcion, dto.TipoDocumentoCriteriosValidacion,
         dto.TipoDocumentoSeSolicitaA, dto.TipoDocumentoObservaciones, dto.Version,
         dto.TipoDocumentoPerfilDocumentoOficial, dto.EmpresaId);
 }

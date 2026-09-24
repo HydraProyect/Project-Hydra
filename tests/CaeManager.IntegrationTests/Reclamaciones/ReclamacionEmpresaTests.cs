@@ -385,7 +385,7 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
         var documento = Documento.DeEmpresa(
             empresaId, tipoDocumentoId,
             DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10),
-            DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(mesesHastaVencer));
+            VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(mesesHastaVencer)));
         contexto.Documentos.Add(documento);
         await contexto.SaveChangesAsync();
         return documento.Id;
@@ -397,7 +397,7 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
         var documento = Documento.DeCliente(
             clienteId, tipoDocumentoId,
             DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10),
-            DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(mesesHastaVencer));
+            VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(mesesHastaVencer)));
         contexto.Documentos.Add(documento);
         await contexto.SaveChangesAsync();
         return documento.Id;

@@ -324,8 +324,12 @@ public class EjecutarImportacionCommandHandler(
 
             try
             {
-                var fechaVencimiento = CalculadoraEstadoDocumento.CalcularFechaVencimiento(fila.FechaEmision, tipoDocumento.VigenciaMeses);
-                var documento = Documento.DeTrabajador(trabajadorId, tipoDocumento.Id, fila.FechaEmision, fechaVencimiento);
+                // El archivo de importación no trae vencimiento: si el tipo no
+                // tiene vigencia en meses, el documento entra sin vigencia
+                // confirmada, nunca como «no caduca».
+                var vigencia = VigenciaDocumento.DesdeFechaOpcional(
+                    CalculadoraEstadoDocumento.CalcularFechaVencimiento(fila.FechaEmision, tipoDocumento.VigenciaMeses));
+                var documento = Documento.DeTrabajador(trabajadorId, tipoDocumento.Id, fila.FechaEmision, vigencia);
                 documentoRepositorio.Agregar(documento);
                 documentosCreados++;
             }

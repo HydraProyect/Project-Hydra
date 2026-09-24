@@ -144,8 +144,8 @@ public class ObtenerMiTrabajoAgregadoQueryComposicionTests(ITestOutputHelper sal
             await _dbContext.SaveChangesAsync();
 
             var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
-            var documentoPropia = Documento.DeEmpresa(propia.Id, tipo.Id, hoy.AddMonths(-1), hoy.AddYears(1));
-            var documentoSubcontrata = Documento.DeEmpresa(subcontrata.Id, tipo.Id, hoy.AddMonths(-1), hoy.AddYears(1));
+            var documentoPropia = Documento.DeEmpresa(propia.Id, tipo.Id, hoy.AddMonths(-1), VigenciaDocumento.VenceEl(hoy.AddYears(1)));
+            var documentoSubcontrata = Documento.DeEmpresa(subcontrata.Id, tipo.Id, hoy.AddMonths(-1), VigenciaDocumento.VenceEl(hoy.AddYears(1)));
             _dbContext.Documentos.AddRange(documentoPropia, documentoSubcontrata);
             await _dbContext.SaveChangesAsync();
 
@@ -271,7 +271,7 @@ public class ObtenerMiTrabajoAgregadoQueryComposicionTests(ITestOutputHelper sal
         var documento = Documento.DeTrabajador(
             trabajador.Id, tipoObligatorio.Id,
             fechaEmision: DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1),
-            fechaVencimiento: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(20));
+            vigencia: VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(20)));
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
     }

@@ -60,11 +60,12 @@ public class OrdenacionListadosTests : IAsyncLifetime
         // Un documento por estado, y la fecha de emisión en orden inverso al
         // del tipo, para que los dos criterios se distingan.
         contexto.Documentos.AddRange(
-            Documento.DeCliente(cliente.Id, tipoZ.Id, _hoy.AddDays(-10), _hoy.AddDays(-1)),                     // Vencido
-            Documento.DeCliente(cliente.Id, tipoM.Id, _hoy.AddDays(-20), _hoy.AddDays(UmbralRojoDias - 1)),     // Urgente
-            Documento.DeCliente(cliente.Id, tipoA.Id, _hoy.AddDays(-30), _hoy.AddDays(UmbralAmbarDias - 1)),    // Proximo
-            Documento.DeCliente(cliente.Id, tipoA.Id, _hoy.AddDays(-40), _hoy.AddDays(UmbralAmbarDias + 60)),   // Vigente
-            Documento.DeCliente(cliente.Id, tipoM.Id, _hoy.AddDays(-50), null));                                // SinCaducidad
+            Documento.DeCliente(cliente.Id, tipoZ.Id, _hoy.AddDays(-10), VigenciaDocumento.VenceEl(_hoy.AddDays(-1))),                     // Vencido
+            Documento.DeCliente(cliente.Id, tipoM.Id, _hoy.AddDays(-20), VigenciaDocumento.VenceEl(_hoy.AddDays(UmbralRojoDias - 1))),     // Urgente
+            Documento.DeCliente(cliente.Id, tipoA.Id, _hoy.AddDays(-30), VigenciaDocumento.VenceEl(_hoy.AddDays(UmbralAmbarDias - 1))),    // Proximo
+            Documento.DeCliente(cliente.Id, tipoA.Id, _hoy.AddDays(-40), VigenciaDocumento.VenceEl(_hoy.AddDays(UmbralAmbarDias + 60))),   // Vigente
+            Documento.DeCliente(cliente.Id, tipoM.Id, _hoy.AddDays(-50), VigenciaDocumento.NoCaduca),                                 // SinCaducidad
+            Documento.DeCliente(cliente.Id, tipoZ.Id, _hoy.AddDays(-60), VigenciaDocumento.SinConfirmar));                            // SinConfirmar
 
         await contexto.SaveChangesAsync();
     }
@@ -80,7 +81,7 @@ public class OrdenacionListadosTests : IAsyncLifetime
         var ascendente = await ObtenerDtosAsync(columna, descendente: false);
         var descendente = await ObtenerDtosAsync(columna, descendente: true);
 
-        ascendente.Should().HaveCount(5);
+        ascendente.Should().HaveCount(6);
 
         // No se compara "descendente == inverso de ascendente": el desempate
         // final es siempre ThenBy(Id) ascendente — deliberadamente, para que la
@@ -99,8 +100,9 @@ public class OrdenacionListadosTests : IAsyncLifetime
     {
         var elementos = await ObtenerDtosAsync(nameof(DocumentoListaDto.FechaVencimiento), descendente: false);
 
-        elementos.Last().FechaVencimiento.Should().BeNull();
-        elementos.SkipLast(1).Should().OnlyContain(d => d.FechaVencimiento != null);
+        // Dos sin fecha: el «no caduca» confirmado y el «sin confirmar».
+        elementos.TakeLast(2).Should().OnlyContain(d => d.FechaVencimiento == null);
+        elementos.SkipLast(2).Should().OnlyContain(d => d.FechaVencimiento != null);
     }
 
     private static IEnumerable<IComparable?> ClaveDe(IEnumerable<DocumentoListaDto> elementos, string columna) =>
@@ -124,7 +126,7 @@ public class OrdenacionListadosTests : IAsyncLifetime
 
         var recorridas = primera.Concat(segunda).Concat(tercera).Select(d => d.Id).ToList();
 
-        recorridas.Should().HaveCount(5);
+        recorridas.Should().HaveCount(6);
         recorridas.Should().OnlyHaveUniqueItems("ninguna fila puede repetirse entre páginas");
 
         var deUnaVez = await ObtenerDtosAsync(nameof(DocumentoListaDto.TipoDocumentoNombre), false);
@@ -145,22 +147,28 @@ public class OrdenacionListadosTests : IAsyncLifetime
     {
         var elementos = await ObtenerDtosAsync(nameof(DocumentoListaDto.Estado), descendente: false);
 
-        // El orden se resuelve en SQL con un CASE sobre FechaVencimiento; lo
+        // El orden se resuelve en SQL con un CASE sobre EstadoVigencia y FechaVencimiento; lo
         // que se comprueba es que ese CASE dice lo mismo que la calculadora.
         var esperado = new[]
         {
             EstadoDocumento.Vencido,
             EstadoDocumento.Urgente,
             EstadoDocumento.Proximo,
+            // Sin vigencia anotada: detrás de lo malo conocido y delante de
+            // lo vigente — hay que actuar, pero no hay vencimiento conocido.
+            EstadoDocumento.SinConfirmar,
             EstadoDocumento.Vigente,
             EstadoDocumento.SinCaducidad
         };
 
         elementos.Select(d => d.Estado).Should().Equal(esperado);
 
-        foreach (var documento in elementos)
+        // Con fecha, el CASE dice lo mismo que la calculadora; sin fecha, el
+        // estado lo decide EstadoVigencia y ya lo fija la secuencia de arriba.
+        foreach (var documento in elementos.Where(d => d.FechaVencimiento is not null))
         {
-            CalculadoraEstadoDocumento.Calcular(documento.FechaVencimiento, _hoy, UmbralAmbarDias, UmbralRojoDias)
+            CalculadoraEstadoDocumento.Calcular(
+                    VigenciaDocumento.VenceEl(documento.FechaVencimiento!.Value), _hoy, UmbralAmbarDias, UmbralRojoDias)
                 .Should().Be(documento.Estado);
         }
     }

@@ -32,6 +32,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
     private readonly DateOnly _hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private readonly Dictionary<Guid, VigenciaDocumento> _vigenciaPorDocumento = [];
 
     public async Task InitializeAsync()
     {
@@ -52,20 +53,23 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         // Un documento por cada estado posible, colocando la fecha de
-        // vencimiento justo dentro de cada franja.
-        var vencimientos = new DateOnly?[]
+        // vencimiento justo dentro de cada franja. Los dos sin fecha son
+        // estados distintos: «no caduca» confirmado y «sin confirmar».
+        var vigencias = new[]
         {
-            null,                                   // SinCaducidad
-            _hoy.AddDays(-1),                       // Vencido
-            _hoy.AddDays(UmbralRojoDias - 1),       // Urgente
-            _hoy.AddDays(UmbralAmbarDias - 1),      // Proximo
-            _hoy.AddDays(UmbralAmbarDias + 60)      // Vigente
+            VigenciaDocumento.NoCaduca,                                    // SinCaducidad
+            VigenciaDocumento.SinConfirmar,                                // SinConfirmar
+            VigenciaDocumento.VenceEl(_hoy.AddDays(-1)),                   // Vencido
+            VigenciaDocumento.VenceEl(_hoy.AddDays(UmbralRojoDias - 1)),   // Urgente
+            VigenciaDocumento.VenceEl(_hoy.AddDays(UmbralAmbarDias - 1)),  // Proximo
+            VigenciaDocumento.VenceEl(_hoy.AddDays(UmbralAmbarDias + 60))  // Vigente
         };
 
-        foreach (var vencimiento in vencimientos)
+        foreach (var vigencia in vigencias)
         {
-            var documento = Documento.DeCliente(cliente.Id, tipo.Id, _hoy.AddDays(-200), vencimiento);
+            var documento = Documento.DeCliente(cliente.Id, tipo.Id, _hoy.AddDays(-200), vigencia);
             contexto.Documentos.Add(documento);
+            _vigenciaPorDocumento[documento.Id] = vigencia;
         }
 
         await contexto.SaveChangesAsync();
@@ -79,6 +83,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
 
     [Theory]
     [InlineData(EstadoDocumento.SinCaducidad)]
+    [InlineData(EstadoDocumento.SinConfirmar)]
     [InlineData(EstadoDocumento.Vencido)]
     [InlineData(EstadoDocumento.Urgente)]
     [InlineData(EstadoDocumento.Proximo)]
@@ -99,7 +104,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         // que la calculadora dice de cada fila devuelta.
         foreach (var documento in resultado.Elementos)
         {
-            CalculadoraEstadoDocumento.Calcular(documento.FechaVencimiento, _hoy, UmbralAmbarDias, UmbralRojoDias)
+            CalculadoraEstadoDocumento.Calcular(_vigenciaPorDocumento[documento.Id], _hoy, UmbralAmbarDias, UmbralRojoDias)
                 .Should().Be(estado);
             documento.Estado.Should().Be(estado);
         }
@@ -116,8 +121,8 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         var resultado = await handler.Handle(
             new ObtenerDocumentosQuery(null, null, null, null, Pagina: 1, TamanoPagina: 50), CancellationToken.None);
 
-        resultado.TotalElementos.Should().Be(5);
-        resultado.Elementos.Select(d => d.Estado).Distinct().Should().HaveCount(5, "cada documento cae en un estado distinto");
+        resultado.TotalElementos.Should().Be(6);
+        resultado.Elementos.Select(d => d.Estado).Distinct().Should().HaveCount(6, "cada documento cae en un estado distinto");
     }
 
     [Fact]
@@ -134,7 +139,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         var resultado = await handler.Handle(
             new ObtenerDocumentosQuery(null, null, null, null, Pagina: 1, TamanoPagina: 2), CancellationToken.None);
 
-        resultado.TotalElementos.Should().Be(5);
+        resultado.TotalElementos.Should().Be(6);
         resultado.Elementos.Should().HaveCount(2);
     }
 

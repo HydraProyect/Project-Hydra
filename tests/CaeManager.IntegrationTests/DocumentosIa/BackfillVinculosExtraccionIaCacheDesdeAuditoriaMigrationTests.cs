@@ -59,7 +59,7 @@ public class BackfillVinculosExtraccionIaCacheDesdeAuditoriaMigrationTests : IAs
             contexto.TiposDocumento.Add(tipo);
             await contexto.SaveChangesAsync();
 
-            var documento = Documento.DeCliente(cliente.Id, tipo.Id, new DateOnly(2025, 1, 1), null);
+            var documento = Documento.DeCliente(cliente.Id, tipo.Id, new DateOnly(2025, 1, 1), VigenciaDocumento.NoCaduca);
             contexto.Documentos.Add(documento);
 
             var cache = ExtraccionIaCache.Crear(

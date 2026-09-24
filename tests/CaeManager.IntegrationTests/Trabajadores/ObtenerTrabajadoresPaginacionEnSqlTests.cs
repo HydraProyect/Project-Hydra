@@ -64,10 +64,10 @@ public class ObtenerTrabajadoresPaginacionEnSqlTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         foreach (var trabajador in vencidos)
-            contexto.Documentos.Add(Documento.DeTrabajador(trabajador.Id, tipo.Id, _hoy.AddDays(-400), _hoy.AddDays(-1)));
+            contexto.Documentos.Add(Documento.DeTrabajador(trabajador.Id, tipo.Id, _hoy.AddDays(-400), VigenciaDocumento.VenceEl(_hoy.AddDays(-1))));
 
         foreach (var trabajador in vigentes)
-            contexto.Documentos.Add(Documento.DeTrabajador(trabajador.Id, tipo.Id, _hoy.AddDays(-10), _hoy.AddDays(UmbralAmbarDias + 60)));
+            contexto.Documentos.Add(Documento.DeTrabajador(trabajador.Id, tipo.Id, _hoy.AddDays(-10), VigenciaDocumento.VenceEl(_hoy.AddDays(UmbralAmbarDias + 60))));
 
         await contexto.SaveChangesAsync();
     }

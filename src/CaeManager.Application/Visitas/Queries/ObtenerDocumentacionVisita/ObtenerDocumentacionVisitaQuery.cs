@@ -69,7 +69,10 @@ public class ObtenerDocumentacionVisitaQueryHandler(
         [EstadoDocumento.Vencido] = 1,
         [EstadoDocumento.Urgente] = 2,
         [EstadoDocumento.Proximo] = 3,
-        [EstadoDocumento.Vigente] = 4
+        // Sin vigencia confirmada: detrás de lo malo conocido y delante de lo
+        // vigente (mismo orden que EstadoDocumentalFiltro.ClaveOrden).
+        [EstadoDocumento.SinConfirmar] = 4,
+        [EstadoDocumento.Vigente] = 5
     };
 
     public async Task<DocumentacionVisitaDto?> Handle(ObtenerDocumentacionVisitaQuery request, CancellationToken cancellationToken)
@@ -149,7 +152,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
 
         var documentos = await documentosDelPropietario
             .Where(d => tiposPorId.Keys.Contains(d.TipoDocumentoId))
-            .Select(d => new { d.Id, d.TipoDocumentoId, d.FechaVencimiento, d.ArchivoUrl })
+            .Select(d => new { d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.ArchivoUrl })
             .ToListAsync(cancellationToken);
 
         var tipoIdsConDocumento = documentos.Select(d => d.TipoDocumentoId).ToHashSet();
@@ -158,7 +161,9 @@ public class ObtenerDocumentacionVisitaQueryHandler(
 
         foreach (var documento in documentos)
         {
-            var estado = CalculadoraEstadoDocumento.Calcular(documento.FechaVencimiento, hoy, umbralAmbarDias, umbralRojoDias);
+            var estado = CalculadoraEstadoDocumento.Calcular(
+                documento.EstadoVigencia, documento.FechaVencimiento, hoy, umbralAmbarDias, umbralRojoDias);
+            // Solo se omite lo confirmado como que no caduca; lo sin confirmar se lista.
             if (estado == EstadoDocumento.SinCaducidad) continue;
 
             items.Add(new DocumentoVisitaItemDto(

@@ -90,7 +90,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, _tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), null));
+                _trabajadorId, _tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca));
             await contexto.SaveChangesAsync();
         }
 

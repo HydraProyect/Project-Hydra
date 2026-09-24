@@ -16,8 +16,10 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 /// <see cref="ICalculoEstadoDocumentalService"/> (o, en el camino de esta
 /// clase que filtra/ordena por estado, con el mismo cálculo hecho en SQL). Un
 /// Trabajador sin ningún Documento nunca se ve como <c>null</c> en el DTO:
-/// cae en <see cref="EstadoDocumento.SinCaducidad"/>, igual que uno con
-/// Documentos pero sin ninguna fecha de vencimiento — el <c>null</c> del tipo
+/// cae en <see cref="EstadoDocumento.SinCaducidad"/>, igual que uno cuyos
+/// Documentos están todos confirmados como que no caducan; si alguno está sin
+/// vigencia confirmada y ninguno está en Próximo, Urgente o Vencido, cae en
+/// <see cref="EstadoDocumento.SinConfirmar"/> — el <c>null</c> del tipo
 /// es un artefacto de <see cref="TrabajadorListaDto"/> siendo compartido con
 /// otros listados, no un valor que este handler produzca.
 /// </summary>
@@ -141,7 +143,11 @@ public class ObtenerTrabajadoresQueryHandler(
                     x.EmpleadorNombre,
                     PeorFecha = documentosContext.Documentos
                         .Where(d => d.TrabajadorId == x.trabajador.Id)
-                        .Min(d => (DateOnly?)d.FechaVencimiento)
+                        .Min(d => (DateOnly?)d.FechaVencimiento),
+                    // MIN ignora las fechas nulas, que son a la vez «no caduca» y «sin
+                    // confirmar»: lo sin confirmar se cuenta aparte para no perderlo.
+                    HaySinConfirmar = documentosContext.Documentos
+                        .Any(d => d.TrabajadorId == x.trabajador.Id && d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
                 };
 
             if (!string.IsNullOrWhiteSpace(request.EstadoDocumental))
@@ -158,11 +164,12 @@ public class ObtenerTrabajadoresQueryHandler(
                 {
                     conFecha = estadoFiltro switch
                     {
-                        EstadoDocumento.SinCaducidad => conFecha.Where(x => x.PeorFecha == null),
+                        EstadoDocumento.SinCaducidad => conFecha.Where(x => x.PeorFecha == null && !x.HaySinConfirmar),
+                        EstadoDocumento.SinConfirmar => conFecha.Where(x => x.HaySinConfirmar && (x.PeorFecha == null || x.PeorFecha > limiteAmbar)),
                         EstadoDocumento.Vencido => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha < hoy),
                         EstadoDocumento.Urgente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha >= hoy && x.PeorFecha <= limiteRojo),
                         EstadoDocumento.Proximo => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteRojo && x.PeorFecha <= limiteAmbar),
-                        EstadoDocumento.Vigente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteAmbar),
+                        EstadoDocumento.Vigente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteAmbar && !x.HaySinConfirmar),
                         _ => conFecha.Where(x => false)
                     };
                 }
@@ -177,17 +184,19 @@ public class ObtenerTrabajadoresQueryHandler(
             var ordenadaConEstado = ordenaPorEstado
                 ? (request.Descendente
                     ? conFecha.OrderByDescending(x =>
-                        x.PeorFecha == null ? 4
-                        : x.PeorFecha < hoy ? 0
-                        : x.PeorFecha <= limiteRojo ? 1
-                        : x.PeorFecha <= limiteAmbar ? 2
-                        : 3)
+                        x.PeorFecha != null && x.PeorFecha < hoy ? 0
+                        : x.PeorFecha != null && x.PeorFecha <= limiteRojo ? 1
+                        : x.PeorFecha != null && x.PeorFecha <= limiteAmbar ? 2
+                        : x.HaySinConfirmar ? 3
+                        : x.PeorFecha != null ? 4
+                        : 5)
                     : conFecha.OrderBy(x =>
-                        x.PeorFecha == null ? 4
-                        : x.PeorFecha < hoy ? 0
-                        : x.PeorFecha <= limiteRojo ? 1
-                        : x.PeorFecha <= limiteAmbar ? 2
-                        : 3))
+                        x.PeorFecha != null && x.PeorFecha < hoy ? 0
+                        : x.PeorFecha != null && x.PeorFecha <= limiteRojo ? 1
+                        : x.PeorFecha != null && x.PeorFecha <= limiteAmbar ? 2
+                        : x.HaySinConfirmar ? 3
+                        : x.PeorFecha != null ? 4
+                        : 5))
                     .ThenBy(x => x.Apellidos).ThenBy(x => x.Nombre)
                 : (request.OrdenarPor, request.Descendente) switch
                 {
@@ -211,7 +220,7 @@ public class ObtenerTrabajadoresQueryHandler(
             return new ResultadoPaginado<TrabajadorListaDto>(
                 paginaConEstado.Select(x => new TrabajadorListaDto(
                     x.Id, x.Nombre, x.Apellidos, x.Dni, x.EmpleadorNombre,
-                    CalculadoraEstadoDocumento.Calcular(x.PeorFecha, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
+                    CalculoEstadoDocumentalService.PeorEstado(x.PeorFecha, x.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
                     .ToList(),
                 totalConEstado,
                 request.Pagina,

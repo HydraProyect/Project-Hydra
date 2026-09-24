@@ -1,3 +1,4 @@
+using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Application.Common;
 using CaeManager.Web.Features.Comunicaciones.Components;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
@@ -164,6 +165,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
     private string _empresaDocumentoIdFormulario = string.Empty;
     private string _fechaEmisionDocumentoFormulario = string.Empty;
     private string _fechaVencimientoDocumentoFormulario = string.Empty;
+    private bool _noCaducaDocumentoFormulario;
     private string _comentariosDocumentoFormulario = string.Empty;
     private int _confianzaDeteccionDocumento;
 
@@ -1172,6 +1174,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         _empresaDocumentoIdFormulario = string.Empty;
         _fechaEmisionDocumentoFormulario = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd");
         _fechaVencimientoDocumentoFormulario = string.Empty;
+        _noCaducaDocumentoFormulario = false;
         _comentariosDocumentoFormulario = string.Empty;
         _confianzaDeteccionDocumento = 0;
 
@@ -1239,6 +1242,11 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         }
 
         DateOnly? fechaVencimientoManual = DateOnly.TryParse(_fechaVencimientoDocumentoFormulario, out var fv) ? fv : null;
+        if (fechaVencimientoManual is not null && _noCaducaDocumentoFormulario)
+        {
+            _errorActualizarDocumento = TextosVigenciaDocumento.Texto("ErrorFechaYNoCaduca");
+            return;
+        }
 
         _aplicandoDocumento = true;
         _errorActualizarDocumento = null;
@@ -1246,7 +1254,8 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         {
             var resultado = await Mediator.Send(new ActualizarDocumentoDesdeAdjuntoCommand(
                 _adjuntoParaActualizarDocumentoId, tipoDocumentoId, trabajadorId, empresaId, fechaEmision, fechaVencimientoManual,
-                string.IsNullOrWhiteSpace(_comentariosDocumentoFormulario) ? null : _comentariosDocumentoFormulario), _ciclo.Token);
+                string.IsNullOrWhiteSpace(_comentariosDocumentoFormulario) ? null : _comentariosDocumentoFormulario,
+                _noCaducaDocumentoFormulario), _ciclo.Token);
 
             if (resultado.EsFallido)
             {

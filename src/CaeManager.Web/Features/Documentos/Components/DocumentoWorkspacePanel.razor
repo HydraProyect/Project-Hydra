@@ -1,3 +1,4 @@
+@using CaeManager.Web.Features.Documentos.Recursos
 @using CaeManager.Application.Documentos.Commands.RenovarDocumento
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId
 @using CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocumento
@@ -52,6 +53,12 @@ else
                         @if (!_detalle.TipoDocumentoAplicaVencimientoAutomatico)
                         {
                             <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoEditada" ValorChanged="v => _fechaVencimientoEditada = v" />
+                            @* Sin fecha y sin marcar, la vigencia queda «sin confirmar»: marcar
+                               es la única forma de declarar que el documento no caduca. *@
+                            <label class="campo-checkbox">
+                                <input type="checkbox" checked="@_noCaducaEditado" @onchange="e => _noCaducaEditado = e.Value is bool m && m" />
+                                @TextosVigenciaDocumento.Texto("NoCaduca")
+                            </label>
                         }
                         <CampoTextarea Etiqueta="Comentarios" Valor="@_comentariosEditados" ValorChanged="v => _comentariosEditados = v" Filas="3" />
                     </div>
@@ -69,7 +76,7 @@ else
                         @* Sin FechaEmision: fuera de Detección/Revisión IA solo la vigencia es
                            copiable (P9, 2026-09-18); la emisión ya tiene su propia celda arriba,
                            sin Alt+clic. *@
-                        <div class="celda-info-documento-360"><span>Fecha de vencimiento</span><strong><TextoFechaCopiable Fecha="_detalle.FechaVencimiento">@(_detalle.FechaVencimiento?.ToString("dd/MM/yyyy") ?? (_detalle.TipoDocumentoAplicaVencimientoAutomatico ? "—" : "Sin caducidad"))</TextoFechaCopiable></strong></div>
+                        <div class="celda-info-documento-360"><span>Fecha de vencimiento</span><strong><TextoFechaCopiable Fecha="_detalle.FechaVencimiento">@(_detalle.FechaVencimiento?.ToString("dd/MM/yyyy") ?? (_detalle.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? "Sin caducidad" : TextosVigenciaDocumento.Texto("SinConfirmar")))</TextoFechaCopiable></strong></div>
                         <div class="celda-info-documento-360 celda-info-documento-360-ancha"><span>Comentarios</span><strong>@(_detalle.Comentarios ?? "—")</strong></div>
                         <div class="celda-info-documento-360 celda-info-documento-360-ancha">
                             <span>Archivo</span>
@@ -157,6 +164,7 @@ else
     private ValidacionOficialDocumentoDto? _validacion;
     private bool _cargando = true, _cargandoValidacion = true, _error, _editandoInformacion, _guardandoInformacion;
     private string _fechaEmisionEditada = string.Empty, _fechaVencimientoEditada = string.Empty, _comentariosEditados = string.Empty;
+    private bool _noCaducaEditado;
     private string? _mensajeErrorInformacion;
     private Guid _idCargado;
     private int _generacion, _cargaCabecera, _cargaValidacion;
@@ -232,6 +240,9 @@ else
         if (_detalle is null) return;
         _fechaEmisionEditada = _detalle.FechaEmision.ToString("yyyy-MM-dd");
         _fechaVencimientoEditada = _detalle.FechaVencimiento?.ToString("yyyy-MM-dd") ?? string.Empty;
+        // Editar solo fechas o comentarios no puede perder la confirmación
+        // de «no caduca»: se precarga y viaja de vuelta en el comando.
+        _noCaducaEditado = _detalle.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca;
         _comentariosEditados = _detalle.Comentarios ?? string.Empty;
         _mensajeErrorInformacion = null;
         _editandoInformacion = true;
@@ -252,7 +263,13 @@ else
                 return;
             }
             var fechaVencimiento = DateOnly.TryParse(_fechaVencimientoEditada, out var fecha) ? fecha : (DateOnly?)null;
-            var resultado = await Mediator.Send(new RenovarDocumentoCommand(detalle.Id, fechaEmision, fechaVencimiento, null, string.IsNullOrWhiteSpace(_comentariosEditados) ? null : _comentariosEditados, detalle.Version));
+            if (fechaVencimiento is not null && _noCaducaEditado)
+            {
+                _mensajeErrorInformacion = TextosVigenciaDocumento.Texto("ErrorFechaYNoCaduca");
+                return;
+            }
+            var resultado = await Mediator.Send(new RenovarDocumentoCommand(detalle.Id, fechaEmision, fechaVencimiento, null, string.IsNullOrWhiteSpace(_comentariosEditados) ? null : _comentariosEditados, detalle.Version,
+                NoCaduca: !detalle.TipoDocumentoAplicaVencimientoAutomatico && _noCaducaEditado));
             if (resultado.EsFallido)
             {
                 if (generacion == _generacion) _mensajeErrorInformacion = resultado.Error.Mensaje;

@@ -60,7 +60,7 @@ public class ObtenerConversacionPorIdQueryDocumentosCitadosTests : IAsyncLifetim
             await contexto.SaveChangesAsync();
             conversacionId = conversacion.Id;
 
-            var documento = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 8, 1), new DateOnly(2027, 8, 1));
+            var documento = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 8, 1), VigenciaDocumento.VenceEl(new DateOnly(2027, 8, 1)));
             contexto.Documentos.Add(documento);
             await contexto.SaveChangesAsync();
             documentoId = documento.Id;
@@ -96,8 +96,8 @@ public class ObtenerConversacionPorIdQueryDocumentosCitadosTests : IAsyncLifetim
             contexto.TiposDocumento.Add(tipoDocumento);
             await contexto.SaveChangesAsync();
 
-            var primero = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), new DateOnly(2026, 9, 1));
-            var segundo = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), new DateOnly(2026, 10, 1));
+            var primero = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.VenceEl(new DateOnly(2026, 9, 1)));
+            var segundo = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.VenceEl(new DateOnly(2026, 10, 1)));
             contexto.Documentos.AddRange(primero, segundo);
 
             var conversacion = new Conversacion("Documentación pendiente — reclamación", cliente.Id);
@@ -186,8 +186,8 @@ public class ObtenerConversacionPorIdQueryDocumentosCitadosTests : IAsyncLifetim
             contexto.TiposDocumento.AddRange(tipoDocumentoConfirmado, tipoDocumentoPropietario);
             await contexto.SaveChangesAsync();
 
-            var documentoConfirmado = Documento.DeTrabajador(trabajador.Id, tipoDocumentoConfirmado.Id, new DateOnly(2026, 8, 1), new DateOnly(2027, 8, 1));
-            var documentoPropietario = Documento.DeTrabajador(trabajador.Id, tipoDocumentoPropietario.Id, new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 1));
+            var documentoConfirmado = Documento.DeTrabajador(trabajador.Id, tipoDocumentoConfirmado.Id, new DateOnly(2026, 8, 1), VigenciaDocumento.VenceEl(new DateOnly(2027, 8, 1)));
+            var documentoPropietario = Documento.DeTrabajador(trabajador.Id, tipoDocumentoPropietario.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.VenceEl(new DateOnly(2026, 12, 1)));
             contexto.Documentos.AddRange(documentoConfirmado, documentoPropietario);
 
             var conversacion = new Conversacion("Hilo con trabajador participante");

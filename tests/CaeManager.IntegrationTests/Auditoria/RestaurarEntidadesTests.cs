@@ -387,7 +387,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             var documento = Documento.DeTrabajador(
-                trabajador.Id, tipoDocumento.Id, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1));
+                trabajador.Id, tipoDocumento.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
             contexto.Documentos.Add(documento);
             await contexto.SaveChangesAsync();
             documento.MarcarComoEliminado(Guid.NewGuid());
@@ -423,7 +423,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             var documento = Documento.DeTrabajador(
-                trabajador.Id, tipoDocumento.Id, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1));
+                trabajador.Id, tipoDocumento.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
             contexto.Documentos.Add(documento);
             await contexto.SaveChangesAsync();
             documento.MarcarComoEliminado(Guid.NewGuid());

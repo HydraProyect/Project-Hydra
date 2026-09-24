@@ -86,6 +86,7 @@ public class DocumentoWorkspacePanelTests : BunitContext
         TipoDocumentoAplicaVencimientoAutomatico: false,
         FechaEmision: new DateOnly(2026, 1, 1),
         FechaVencimiento: null,
+        EstadoVigencia: EstadoVigenciaDocumento.SinConfirmar,
         ArchivoUrl: null,
         Comentarios: null,
         TipoDocumentoDescripcion: null,

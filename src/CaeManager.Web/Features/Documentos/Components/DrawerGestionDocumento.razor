@@ -6,6 +6,7 @@
     referencia (@ref), sin duplicar los ~500 líneas de subida de archivo,
     detección IA y validación que ya llevaba este flujo en producción.
 *@
+@using CaeManager.Web.Features.Documentos.Recursos
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
 @using CaeManager.Application.Common
 @using CaeManager.Application.Documentos.Commands.CrearDocumento
@@ -179,7 +180,11 @@
                     <Icono Nombre="copiar" Tamano="TamanoIcono.Pequeno" />
                 </Boton>
             </div>
-            <p class="texto-vacio-seccion">Este tipo de documento no calcula el vencimiento automáticamente — indícalo a mano.</p>
+            <label class="campo-checkbox">
+                <input type="checkbox" checked="@_noCaduca" @onchange="e => _noCaduca = e.Value is bool m && m" />
+                @TextosVigenciaDocumento.Texto("NoCaduca")
+            </label>
+            <p class="texto-vacio-seccion">Este tipo de documento no calcula el vencimiento automáticamente — indícalo a mano, o marca «No caduca». Sin ninguna de las dos, la vigencia queda sin confirmar.</p>
         }
 
         <div class="campo">

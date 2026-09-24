@@ -96,7 +96,11 @@ public class ObtenerEmpresasQueryHandler(
                     e.CreadoEnUtc,
                     PeorFecha = documentosContext.Documentos
                         .Where(d => d.EmpresaId == e.Id)
-                        .Min(d => (DateOnly?)d.FechaVencimiento)
+                        .Min(d => (DateOnly?)d.FechaVencimiento),
+                    // MIN ignora las fechas nulas, que son a la vez «no caduca» y «sin
+                    // confirmar»: lo sin confirmar se cuenta aparte para no perderlo.
+                    HaySinConfirmar = documentosContext.Documentos
+                        .Any(d => d.EmpresaId == e.Id && d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
                 };
 
             if (!string.IsNullOrWhiteSpace(request.EstadoDocumental))
@@ -110,11 +114,12 @@ public class ObtenerEmpresasQueryHandler(
                 {
                     conFecha = estadoFiltro switch
                     {
-                        EstadoDocumento.SinCaducidad => conFecha.Where(e => e.PeorFecha == null),
+                        EstadoDocumento.SinCaducidad => conFecha.Where(e => e.PeorFecha == null && !e.HaySinConfirmar),
+                        EstadoDocumento.SinConfirmar => conFecha.Where(e => e.HaySinConfirmar && (e.PeorFecha == null || e.PeorFecha > limiteAmbar)),
                         EstadoDocumento.Vencido => conFecha.Where(e => e.PeorFecha != null && e.PeorFecha < hoy),
                         EstadoDocumento.Urgente => conFecha.Where(e => e.PeorFecha != null && e.PeorFecha >= hoy && e.PeorFecha <= limiteRojo),
                         EstadoDocumento.Proximo => conFecha.Where(e => e.PeorFecha != null && e.PeorFecha > limiteRojo && e.PeorFecha <= limiteAmbar),
-                        EstadoDocumento.Vigente => conFecha.Where(e => e.PeorFecha != null && e.PeorFecha > limiteAmbar),
+                        EstadoDocumento.Vigente => conFecha.Where(e => e.PeorFecha != null && e.PeorFecha > limiteAmbar && !e.HaySinConfirmar),
                         _ => conFecha.Where(e => false)
                     };
                 }
@@ -124,17 +129,19 @@ public class ObtenerEmpresasQueryHandler(
 
             var ordenadaConEstado = request.Descendente
                 ? conFecha.OrderByDescending(e =>
-                    e.PeorFecha == null ? 4
-                    : e.PeorFecha < hoy ? 0
-                    : e.PeorFecha <= limiteRojo ? 1
-                    : e.PeorFecha <= limiteAmbar ? 2
-                    : 3)
+                    e.PeorFecha != null && e.PeorFecha < hoy ? 0
+                    : e.PeorFecha != null && e.PeorFecha <= limiteRojo ? 1
+                    : e.PeorFecha != null && e.PeorFecha <= limiteAmbar ? 2
+                    : e.HaySinConfirmar ? 3
+                    : e.PeorFecha != null ? 4
+                    : 5)
                 : conFecha.OrderBy(e =>
-                    e.PeorFecha == null ? 4
-                    : e.PeorFecha < hoy ? 0
-                    : e.PeorFecha <= limiteRojo ? 1
-                    : e.PeorFecha <= limiteAmbar ? 2
-                    : 3);
+                    e.PeorFecha != null && e.PeorFecha < hoy ? 0
+                    : e.PeorFecha != null && e.PeorFecha <= limiteRojo ? 1
+                    : e.PeorFecha != null && e.PeorFecha <= limiteAmbar ? 2
+                    : e.HaySinConfirmar ? 3
+                    : e.PeorFecha != null ? 4
+                    : 5);
             var ordenadaFinal = ordenadaConEstado.ThenBy(e => e.RazonSocial).ThenBy(e => e.Id);
 
             var paginaConEstado = await ordenadaFinal
@@ -149,7 +156,7 @@ public class ObtenerEmpresasQueryHandler(
             return new ResultadoPaginado<EmpresaListaDto>(
                 paginaConEstado.Select(e => new EmpresaListaDto(
                     e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc,
-                    CalculadoraEstadoDocumento.Calcular(e.PeorFecha, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
+                    CalculoEstadoDocumentalService.PeorEstado(e.PeorFecha, e.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
                     cumplimientoConEstado.GetValueOrDefault(e.Id),
                     deteccionesConEstado.GetValueOrDefault(e.Id)))
                     .ToList(),

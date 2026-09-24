@@ -88,6 +88,7 @@ public class ObtenerDesgloseDashboardQueryHandler(IAsignacionesQueryContext asig
                 documento.TrabajadorId,
                 TrabajadorNombre = trabajador.Nombre + " " + trabajador.Apellidos,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
+                documento.EstadoVigencia,
                 documento.FechaVencimiento,
                 EmpresaId = empresa != null ? empresa.Id : subcontrata!.Id,
                 RazonSocial = empresa != null ? empresa.RazonSocial : subcontrata!.RazonSocial
@@ -105,7 +106,7 @@ public class ObtenerDesgloseDashboardQueryHandler(IAsignacionesQueryContext asig
                 f.EmpresaId,
                 f.RazonSocial,
                 Estado = CalculadoraEstadoDocumento.Calcular(
-                    f.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
+                    f.EstadoVigencia, f.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
             })
             .Where(d => d.Estado is EstadoDocumento.Urgente or EstadoDocumento.Vencido)
             .ToList();

@@ -61,7 +61,7 @@ public class Documento360Gen2Tests : BunitContext
 
     private static DocumentoDetalleDto Detalle(Guid id, string tipo = "Certificado TGSS", Guid? version = null) => new(
         id, AmbitoAplicacion.Empresa, "Montajes Ebro S.L.", tipo, false,
-        new DateOnly(2026, 1, 10), new DateOnly(2026, 8, 10), "documentos/certificado.pdf", "Original",
+        new DateOnly(2026, 1, 10), new DateOnly(2026, 8, 10), EstadoVigenciaDocumento.VenceEnFecha, "documentos/certificado.pdf", "Original",
         null, null, null, null, version ?? Guid.NewGuid(), PerfilDocumentoOficial.Ninguno, Guid.NewGuid());
 
     private IRenderedComponent<DocumentoWorkspacePanel> Renderizar(Guid id, string pestana = "informacion") =>

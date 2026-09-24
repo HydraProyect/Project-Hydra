@@ -1,6 +1,7 @@
 @page "/documentos/subida-masiva"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@using CaeManager.Web.Features.Documentos.Recursos
 @using Microsoft.AspNetCore.Components.Forms
 
 <PageTitle>Subida múltiple — @Marca.Nombre</PageTitle>
@@ -71,7 +72,7 @@
                                         <CampoSelect Etiqueta="Tipo de documento" Valor="@item.TipoDocumentoId" ValorChanged="v => item.TipoDocumentoId = v"><option value="">Selecciona un tipo de documento…</option>@foreach (var tipo in _tiposDisponibles) { <option value="@tipo.Id">@tipo.Nombre</option> }</CampoSelect>
                                         <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@item.FechaEmision" ValorChanged="v => item.FechaEmision = v" />
                                         <span class="ayuda-fecha-subida">@(item.Propuesta.FechaEmision is not null ? "Leída del archivo por la IA: compárala con el PDF antes de confirmar." : "La IA no leyó una fecha de emisión en el archivo: indícala tú.")</span>
-                                        @if (RequiereVencimientoManual(item)) { <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@item.FechaVencimientoManual" ValorChanged="v => item.FechaVencimientoManual = v" />@if (item.Propuesta.FechaVencimiento is not null) { <span class="ayuda-fecha-subida">Propuesta por la IA; puede haberla calculado a partir de la vigencia del documento en lugar de leerla. Compárala con el PDF antes de confirmar.</span> } }
+                                        @if (RequiereVencimientoManual(item)) { <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@item.FechaVencimientoManual" ValorChanged="v => item.FechaVencimientoManual = v" /><label class="campo-checkbox"><input type="checkbox" checked="@item.NoCaduca" @onchange="e => item.NoCaduca = e.Value is bool m && m" /> @TextosVigenciaDocumento.Texto("NoCaduca")</label>@if (item.Propuesta.FechaVencimiento is not null) { <span class="ayuda-fecha-subida">Propuesta por la IA; puede haberla calculado a partir de la vigencia del documento en lugar de leerla. Compárala con el PDF antes de confirmar.</span> } }
                                         <div class="acciones-formulario"><Boton Cargando="@item.Confirmando" OnClick="() => ConfirmarAsync(item)">Confirmar y crear</Boton></div>
                                     </div>
                                 </div>

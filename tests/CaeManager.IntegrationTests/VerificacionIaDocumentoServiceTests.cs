@@ -70,7 +70,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
         var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
-        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, null, "archivo.pdf");
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -92,7 +92,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
         var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
-        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, null, "archivo.pdf");
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -112,7 +112,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
         var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
-        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, null, "archivo.pdf");
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -137,7 +137,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
         var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
-        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, null, "archivo.pdf");
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         var auditoria = AuditoriaExtraccionIa.Crear(
             new string('a', AuditoriaExtraccionIa.LongitudHash), "Apto médico", "anthropic", 800,
@@ -173,7 +173,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
         var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
-        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, null, "archivo.pdf");
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -207,7 +207,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
         var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
-        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, null, "archivo.pdf");
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -232,7 +232,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
         var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
-        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, null, "archivo.pdf");
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -254,7 +254,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
 
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
-        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -273,7 +273,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
         var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
-        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, null, "archivo.pdf");
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         _dbContext.RevisionesIaDocumento.Add(RevisionIaDocumento.Crear(documento.Id, 50, null, null, null, null, "Confianza baja (50%)"));
         await _dbContext.SaveChangesAsync();
@@ -300,7 +300,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
     {
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
-        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -322,7 +322,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
     {
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
-        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -340,7 +340,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
     {
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
-        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 

@@ -80,6 +80,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioNombre = trabajador.Nombre + " " + trabajador.Apellidos,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 documento.FechaEmision,
+                documento.EstadoVigencia,
                 documento.FechaVencimiento,
                 documento.ArchivoUrl
             };
@@ -101,6 +102,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioNombre = cliente.RazonSocial,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 documento.FechaEmision,
+                documento.EstadoVigencia,
                 documento.FechaVencimiento,
                 documento.ArchivoUrl
             };
@@ -120,6 +122,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioNombre = empresa.RazonSocial,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 documento.FechaEmision,
+                documento.EstadoVigencia,
                 documento.FechaVencimiento,
                 documento.ArchivoUrl
             };
@@ -139,6 +142,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioNombre = vehiculo.Nombre + " (" + vehiculo.NumeroPlaca + ")",
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 documento.FechaEmision,
+                documento.EstadoVigencia,
                 documento.FechaVencimiento,
                 documento.ArchivoUrl
             };
@@ -158,6 +162,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioNombre = proyecto.Nombre,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 documento.FechaEmision,
+                documento.EstadoVigencia,
                 documento.FechaVencimiento,
                 documento.ArchivoUrl
             };
@@ -199,12 +204,14 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         // pantalla para paginar en memoria.
         if (request.Estado is not null)
         {
-            // Si alguna vez cambia la calculadora, estas cuatro líneas cambian
-            // con ella — DocumentosPaginacionEnSqlTests compara ambas para que
-            // no se separen en silencio.
+            // Si alguna vez cambia la calculadora, estas líneas cambian con
+            // ella — DocumentosPaginacionEnSqlTests compara ambas para que no
+            // se separen en silencio. «No caduca» y «sin confirmar» se
+            // distinguen por EstadoVigencia, nunca por una fecha nula.
             consulta = request.Estado.Value switch
             {
-                EstadoDocumento.SinCaducidad => consulta.Where(x => x.FechaVencimiento == null),
+                EstadoDocumento.SinCaducidad => consulta.Where(x => x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca),
+                EstadoDocumento.SinConfirmar => consulta.Where(x => x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar),
                 EstadoDocumento.Vencido => consulta.Where(x => x.FechaVencimiento != null && x.FechaVencimiento < hoy),
                 EstadoDocumento.Urgente => consulta.Where(x => x.FechaVencimiento >= hoy && x.FechaVencimiento <= limiteRojo),
                 EstadoDocumento.Proximo => consulta.Where(x => x.FechaVencimiento > limiteRojo && x.FechaVencimiento <= limiteAmbar),
@@ -225,7 +232,9 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         // que se ordena por el mismo CASE de umbrales que usa el filtro de
         // arriba — exacto y resuelto en la base de datos. Ascendente deja
         // primero lo que más urge, que es lo que el gestor espera del primer
-        // clic en esa cabecera.
+        // clic en esa cabecera; el orden es el de
+        // EstadoDocumentalFiltro.ClaveOrden (lo sin confirmar entre lo malo
+        // conocido y lo vigente).
         var ordenada = (request.OrdenarPor, request.Descendente) switch
         {
             (nameof(DocumentoListaDto.PropietarioNombre), false) => consulta.OrderBy(x => x.PropietarioNombre),
@@ -239,17 +248,19 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             (nameof(DocumentoListaDto.FechaVencimiento), false) => consulta.OrderBy(x => x.FechaVencimiento),
             (nameof(DocumentoListaDto.FechaVencimiento), true) => consulta.OrderByDescending(x => x.FechaVencimiento),
             (nameof(DocumentoListaDto.Estado), false) => consulta.OrderBy(x =>
-                x.FechaVencimiento == null ? 4
+                x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
+                : x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
                 : x.FechaVencimiento < hoy ? 0
                 : x.FechaVencimiento <= limiteRojo ? 1
                 : x.FechaVencimiento <= limiteAmbar ? 2
-                : 3),
+                : 4),
             (nameof(DocumentoListaDto.Estado), true) => consulta.OrderByDescending(x =>
-                x.FechaVencimiento == null ? 4
+                x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
+                : x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
                 : x.FechaVencimiento < hoy ? 0
                 : x.FechaVencimiento <= limiteRojo ? 1
                 : x.FechaVencimiento <= limiteAmbar ? 2
-                : 3),
+                : 4),
             _ => consulta.OrderByDescending(x => x.FechaEmision)
         };
         // Desempate estable: sin un criterio total, PostgreSQL puede devolver
@@ -262,9 +273,11 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         var pagina = await ordenada
             .Skip((request.Pagina - 1) * request.TamanoPagina)
             .Take(request.TamanoPagina)
-            .Select(x => new DocumentoListaDto(
-                x.Id, x.Ambito, x.PropietarioNombre, x.TipoDocumentoNombre, x.FechaEmision, x.FechaVencimiento,
-                EstadoDocumento.Vigente, x.ArchivoUrl, new List<AcreditacionResumenDto>()))
+            .Select(x => new
+            {
+                x.Id, x.Ambito, x.PropietarioNombre, x.TipoDocumentoNombre, x.FechaEmision,
+                x.EstadoVigencia, x.FechaVencimiento, x.ArchivoUrl
+            })
             .ToListAsync(cancellationToken);
 
         // Ahora solo sobre la página, no sobre todo el tenant.
@@ -272,12 +285,12 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         var acreditacionesPorDocumento = await ObtenerAcreditacionesPorDocumentoAsync(documentoIds, cancellationToken);
 
         var elementos = pagina
-            .Select(d => d with
-            {
-                Estado = CalculadoraEstadoDocumento.Calcular(
-                    d.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
-                Acreditaciones = acreditacionesPorDocumento.GetValueOrDefault(d.Id, [])
-            })
+            .Select(d => new DocumentoListaDto(
+                d.Id, d.Ambito, d.PropietarioNombre, d.TipoDocumentoNombre, d.FechaEmision, d.FechaVencimiento,
+                CalculadoraEstadoDocumento.Calcular(
+                    d.EstadoVigencia, d.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
+                d.ArchivoUrl,
+                acreditacionesPorDocumento.GetValueOrDefault(d.Id, [])))
             .ToList();
 
         return new ResultadoPaginado<DocumentoListaDto>(elementos, total, request.Pagina, request.TamanoPagina);

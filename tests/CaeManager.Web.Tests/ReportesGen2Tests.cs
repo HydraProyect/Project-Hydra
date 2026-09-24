@@ -737,6 +737,25 @@ public class ReportesGen2Tests : BunitContext
             .Should().Be($"Abarca: {NombreB} · todo el cliente · 1 asignación activa");
     }
 
+    /// <summary>
+    /// Sin fecha no siempre es «No caduca»: si nadie ha confirmado la vigencia,
+    /// la celda no afirma que el documento no caduque.
+    /// </summary>
+    [Fact]
+    public async Task Un_documento_sin_vigencia_confirmada_no_se_pinta_como_que_no_caduca()
+    {
+        var escenario = new Escenario();
+        escenario.Documentos.Add(new(ClienteB, CentroB1,
+            Documento("Marta Gil", "Formación en espacios confinados", null, EstadoDocumento.SinConfirmar)));
+        var (cut, _) = Renderizar(escenario, $"reportes?clienteId={ClienteB}");
+
+        await Generar(cut);
+
+        var fila = FilasHoja(cut).Single(f => Celdas(f)[0] == "Marta Gil");
+        Celdas(fila)[3].Should().Be("—");
+        Celdas(fila)[4].Should().Be("Sin confirmar");
+    }
+
     // ---------------------------------------------------------------- historial
 
     [Fact]

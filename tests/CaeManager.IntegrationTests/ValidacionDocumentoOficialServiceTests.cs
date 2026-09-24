@@ -82,7 +82,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
     private async Task<Documento> CrearDocumentoAsync(DateOnly? fechaEmision = null)
     {
         var documento = Documento.DeEmpresa(
-            _empresa.Id, _tipoCorrienteTgss.Id, fechaEmision ?? new DateOnly(2026, 8, 4), null, "archivo.pdf");
+            _empresa.Id, _tipoCorrienteTgss.Id, fechaEmision ?? new DateOnly(2026, 8, 4), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
         return documento;
@@ -224,7 +224,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         _dbContext.Empresas.Add(autonomo);
         await _dbContext.SaveChangesAsync();
 
-        var documento = Documento.DeEmpresa(autonomo.Id, _tipoCorrienteTgss.Id, new DateOnly(2026, 8, 4), null, "archivo.pdf");
+        var documento = Documento.DeEmpresa(autonomo.Id, _tipoCorrienteTgss.Id, new DateOnly(2026, 8, 4), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -261,7 +261,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         _dbContext.Empresas.Add(autonomo);
         await _dbContext.SaveChangesAsync();
 
-        var documento = Documento.DeEmpresa(autonomo.Id, _tipoCorrienteTgss.Id, new DateOnly(2026, 8, 4), null, "archivo.pdf");
+        var documento = Documento.DeEmpresa(autonomo.Id, _tipoCorrienteTgss.Id, new DateOnly(2026, 8, 4), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -353,7 +353,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
     {
         var tipoRlc = await _dbContext.TiposDocumento
             .FirstAsync(t => t.PerfilDocumentoOficial == PerfilDocumentoOficial.Rlc);
-        var documento = Documento.DeEmpresa(_empresa.Id, tipoRlc.Id, new DateOnly(2026, 8, 4), null, "archivo.pdf");
+        var documento = Documento.DeEmpresa(_empresa.Id, tipoRlc.Id, new DateOnly(2026, 8, 4), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -380,7 +380,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
             .FirstAsync(t => t.PerfilDocumentoOficial == PerfilDocumentoOficial.Rlc);
         // La fecha de emisión registrada debe ser el día 1 del mes del
         // periodo (confirmado por el usuario) para que el cotejo coincida.
-        var documento = Documento.DeEmpresa(_empresa.Id, tipoRlc.Id, new DateOnly(2026, 8, 1), null, "archivo.pdf");
+        var documento = Documento.DeEmpresa(_empresa.Id, tipoRlc.Id, new DateOnly(2026, 8, 1), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -400,7 +400,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
     {
         var tipoRlc = await _dbContext.TiposDocumento
             .FirstAsync(t => t.PerfilDocumentoOficial == PerfilDocumentoOficial.Rlc);
-        var documento = Documento.DeEmpresa(_empresa.Id, tipoRlc.Id, new DateOnly(2026, 8, 4), null, "archivo.pdf");
+        var documento = Documento.DeEmpresa(_empresa.Id, tipoRlc.Id, new DateOnly(2026, 8, 4), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -431,7 +431,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
     {
         var tipoAeat = await _dbContext.TiposDocumento
             .FirstAsync(t => t.PerfilDocumentoOficial == PerfilDocumentoOficial.CorrienteAeat);
-        var documento = Documento.DeEmpresa(_empresa.Id, tipoAeat.Id, new DateOnly(2026, 8, 4), null, "archivo.pdf");
+        var documento = Documento.DeEmpresa(_empresa.Id, tipoAeat.Id, new DateOnly(2026, 8, 4), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 

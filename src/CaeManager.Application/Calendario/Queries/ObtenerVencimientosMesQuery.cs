@@ -62,7 +62,7 @@ public class ObtenerVencimientosMesQueryHandler(IConfiguracionQueryContext confi
                 f.TrabajadorNombre,
                 f.Nombre,
                 CalculadoraEstadoDocumento.Calcular(
-                    f.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
+                    VigenciaDocumento.VenceEl(f.FechaVencimiento!.Value), hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
             .OrderBy(v => v.FechaVencimiento)
             .ToList();
     }

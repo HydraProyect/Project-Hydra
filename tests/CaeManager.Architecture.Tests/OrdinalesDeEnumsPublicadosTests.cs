@@ -41,6 +41,15 @@ public class OrdinalesDeEnumsPublicadosTests
                 [nameof(EstadoDocumento.Urgente)] = 3,
                 [nameof(EstadoDocumento.Vencido)] = 4,
                 [nameof(EstadoDocumento.Faltante)] = 5,
+                [nameof(EstadoDocumento.SinConfirmar)] = 6,
+            }
+        },
+        {
+            nameof(EstadoVigenciaDocumento), new Dictionary<string, int>
+            {
+                [nameof(EstadoVigenciaDocumento.SinConfirmar)] = 0,
+                [nameof(EstadoVigenciaDocumento.NoCaduca)] = 1,
+                [nameof(EstadoVigenciaDocumento.VenceEnFecha)] = 2,
             }
         },
         {

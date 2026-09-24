@@ -79,8 +79,8 @@ public class AlcanceDeCarteraEnReportesTests
         ]);
 
         _documentos.ListaDocumentos.AddRange([
-            Documento.DeTrabajador(trabajadorEnCartera.Id, tipoDocumento.Id, hoy, hoy.AddMonths(12)),
-            Documento.DeTrabajador(trabajadorAjeno.Id, tipoDocumento.Id, hoy, hoy.AddMonths(12))
+            Documento.DeTrabajador(trabajadorEnCartera.Id, tipoDocumento.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddMonths(12))),
+            Documento.DeTrabajador(trabajadorAjeno.Id, tipoDocumento.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddMonths(12)))
         ]);
     }
 

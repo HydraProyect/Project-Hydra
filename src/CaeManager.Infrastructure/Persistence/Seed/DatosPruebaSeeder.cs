@@ -936,7 +936,7 @@ public static class DatosPruebaSeeder
                 if (tipo.Nombre == "Información Art. 18" && trabajadorIdsSinInformacionRiesgos.Contains(trabajador.Id))
                     continue;
 
-                documentos.Add(Documento.DeTrabajador(trabajador.Id, tipo.Id, emisionObligatoria, fechaVencimiento: null));
+                documentos.Add(Documento.DeTrabajador(trabajador.Id, tipo.Id, emisionObligatoria, VigenciaDocumento.NoCaduca));
             }
         }
 
@@ -985,7 +985,7 @@ public static class DatosPruebaSeeder
                 var vencimiento = hoy.AddYears(-6).AddDays(-aleatorio.Next(0, 200));
                 documentos.Add(Documento.DeTrabajador(
                     veterano.Id, tipo.Id, vencimiento.AddMonths(-(tipo.VigenciaMeses ?? 12)),
-                    tipo.AplicaVencimientoAutomatico ? vencimiento : null));
+                    tipo.AplicaVencimientoAutomatico ? VigenciaDocumento.VenceEl(vencimiento) : VigenciaDocumento.NoCaduca));
             }
         }
 
@@ -1284,7 +1284,7 @@ public static class DatosPruebaSeeder
             trabajadores.Count + VeteranosParaPurga.Length, documentos.Count);
     }
 
-    private readonly record struct DatosDocumento(Guid TipoId, DateOnly Emision, DateOnly? Vencimiento);
+    private readonly record struct DatosDocumento(Guid TipoId, DateOnly Emision, VigenciaDocumento Vencimiento);
 
     /// <summary>
     /// Reparto realista de estados: dentro de una empresa la mayoría de los
@@ -1338,7 +1338,11 @@ public static class DatosPruebaSeeder
         var emision = vencimiento?.AddMonths(-(tipo.VigenciaMeses ?? 12)) ?? hoy.AddDays(-aleatorio.Next(30, 400));
         if (emision > hoy) emision = hoy;
 
-        return fabrica(new DatosDocumento(tipo.Id, emision, vencimiento));
+        // Los tipos sin vencimiento automático se siembran como «no caduca»
+        // confirmado: la demo representa documentación ya revisada por el
+        // Gestor CAE, no pendiente de anotar.
+        return fabrica(new DatosDocumento(
+            tipo.Id, emision, vencimiento is { } fecha ? VigenciaDocumento.VenceEl(fecha) : VigenciaDocumento.NoCaduca));
     }
 
     /// <summary>

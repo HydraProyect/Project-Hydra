@@ -103,7 +103,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
 
             contexto.Asignaciones.Add(new Asignacion(trabajador.Id, _centroId, DateOnly.FromDateTime(DateTime.UtcNow)));
             contexto.Documentos.Add(Documento.DeTrabajador(
-                trabajador.Id, _tipoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+                trabajador.Id, _tipoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
             await contexto.SaveChangesAsync();
         }
 
@@ -146,7 +146,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
             contexto.Asignaciones.Add(new Asignacion(trabajador.Id, _centroId, DateOnly.FromDateTime(DateTime.UtcNow)));
             contexto.Documentos.Add(Documento.DeTrabajador(
                 trabajador.Id, _tipoObligatorioId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), DateOnly.FromDateTime(DateTime.UtcNow).AddDays(10)));
+                DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(10))));
             await contexto.SaveChangesAsync();
         }
 

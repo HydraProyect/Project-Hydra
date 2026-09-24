@@ -198,7 +198,11 @@ public static class CicloDocumentalDatosPruebaSeeder
 
         var trabajadorSinAvisosId = trabajadorIds[0];
         var trabajadorConAvisosId = trabajadorIds[1];
-        var vencimiento = tipoPlantilla.AplicaVencimientoAutomatico ? hoy.AddMonths(tipoPlantilla.VigenciaMeses ?? 12) : (DateOnly?)null;
+        // Un documento generado desde plantilla nunca confirma «no caduca» (mismo
+        // criterio que GenerarDocumentoIndividual): sin vencimiento automático
+        // queda sin confirmar.
+        var vencimiento = VigenciaDocumento.DesdeFechaOpcional(
+            tipoPlantilla.AplicaVencimientoAutomatico ? hoy.AddMonths(tipoPlantilla.VigenciaMeses ?? 12) : null);
 
         // Sin avisos: los tres campos obligatorios se resolvieron con dato real.
         var documentoSinAvisos = Documento.DeTrabajador(

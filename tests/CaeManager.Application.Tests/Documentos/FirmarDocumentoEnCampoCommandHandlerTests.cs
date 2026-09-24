@@ -44,7 +44,7 @@ public class FirmarDocumentoEnCampoCommandHandlerTests
             TiposDocumento.ListaTiposDocumento.Add(tipoDocumento);
             var url = await Almacenamiento.GuardarAsync(
                 new MemoryStream(Encoding.UTF8.GetBytes("contenido-original")), "original.pdf");
-            var documento = Documento.DeTrabajador(Guid.NewGuid(), tipoDocumento.Id, new DateOnly(2026, 1, 1), null, url);
+            var documento = Documento.DeTrabajador(Guid.NewGuid(), tipoDocumento.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca, url);
             Documentos.Agregar(documento);
             return documento;
         }
@@ -80,7 +80,7 @@ public class FirmarDocumentoEnCampoCommandHandlerTests
         var contexto = new Contexto();
         var tipo = CrearTipoDocumento();
         contexto.TiposDocumento.ListaTiposDocumento.Add(tipo);
-        var documento = Documento.DeTrabajador(Guid.NewGuid(), tipo.Id, new DateOnly(2026, 1, 1), null);
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), tipo.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
         contexto.Documentos.Agregar(documento);
         var handler = contexto.CrearHandler();
 

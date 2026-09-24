@@ -206,8 +206,8 @@ public class MiTrabajoRechazadaAplicableBajoRlsTests : IAsyncLifetime
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         _propietario.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, hoy));
-        var documentoAplicable = Documento.DeTrabajador(trabajador.Id, requerido.Id, hoy, hoy.AddYears(1));
-        var documentoNoAplicable = Documento.DeTrabajador(trabajador.Id, noRequerido.Id, hoy, hoy.AddYears(1));
+        var documentoAplicable = Documento.DeTrabajador(trabajador.Id, requerido.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)));
+        var documentoNoAplicable = Documento.DeTrabajador(trabajador.Id, noRequerido.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)));
         _propietario.Documentos.AddRange(documentoAplicable, documentoNoAplicable);
         var canal = CanalGestionDocumental.DePlataforma(centro.Id, "Acceso de prueba", proveedor.Id, null, null, null);
         _propietario.CanalesGestionDocumental.Add(canal);
