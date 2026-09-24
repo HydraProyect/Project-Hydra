@@ -105,6 +105,24 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// </summary>
     private static readonly Dictionary<string, string> ExcepcionesDocumentadas = new();
 
+    /// <summary>
+    /// Políticas <c>AS RESTRICTIVE</c> revisadas, además de
+    /// <c>aislamiento_tenant</c>, por tabla. Una restrictiva se combina con AND
+    /// con la de tenant, así que solo puede estrechar el acceso, nunca
+    /// ensancharlo; aun así cada una tiene que quedar escrita aquí, con motivo,
+    /// en el commit que la introduce. Una restrictiva que no esté en la lista, o
+    /// una de la lista que falte en la base, pone el test en rojo.
+    /// </summary>
+    private static readonly Dictionary<string, (string Politica, string Motivo)> PoliticasRestrictivasRevisadas = new()
+    {
+        ["TareasAsistente"] = ("solo_su_persona",
+            "cada Tarea del asistente es de una sola persona dentro del Tenant: ActorRealUsuarioId = app.usuario_id"),
+        ["TurnosTareaAsistente"] = ("solo_su_persona",
+            "un turno solo es visible si su Tarea del asistente lo es (EXISTS sobre la raíz)"),
+        ["PasosTareaAsistente"] = ("solo_su_persona",
+            "un paso solo es visible si su Tarea del asistente lo es (EXISTS sobre la raíz)"),
+    };
+
     /// <summary>Política de los catálogos globales de asignación.</summary>
     private const string PoliticaPosicion = "posicion_en_la_asignacion";
 
@@ -169,8 +187,23 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         // demás, así que ensancha el acceso. Es exactamente el "accidentalmente
         // demasiado permisiva" que un recuento de políticas no vería.
         var conPoliticasDeMas = conRls
-            .Where(t => estado[t].Politicas.Any(p => p.Nombre != PoliticaAislamiento))
-            .Select(t => $"{t} ({string.Join("+", estado[t].Politicas.Select(p => p.Nombre).Where(n => n != PoliticaAislamiento))})")
+            .Where(t => estado[t].Politicas.Any(p => p.Nombre != PoliticaAislamiento && !EsRestrictivaRevisada(t, p)))
+            .Select(t => $"{t} ({string.Join("+", estado[t].Politicas.Where(p => p.Nombre != PoliticaAislamiento && !EsRestrictivaRevisada(t, p)).Select(p => p.Permisiva ? p.Nombre : $"{p.Nombre} RESTRICTIVE sin revisar"))})")
+            .ToList();
+
+        // La lista de revisadas no es solo una lista blanca: cada entrada
+        // afirma que la política existe, es restrictiva y sigue ahí.
+        var restrictivasAusentes = PoliticasRestrictivasRevisadas
+            .Where(r => !estado.TryGetValue(r.Key, out var e)
+                        || !e.Politicas.Any(p => p.Nombre == r.Value.Politica && !p.Permisiva))
+            .Select(r => $"{r.Key}.{r.Value.Politica}")
+            .ToList();
+
+        // La de tenant tiene que ser PERMISSIVE: una tabla con solo políticas
+        // restrictivas no deja ver nada, y una aislamiento_tenant restrictiva
+        // dejaría de ser la que abre el acceso por tenant.
+        var aislamientoNoPermisivo = conRls
+            .Where(t => estado[t].Politicas.Any(p => p.Nombre == PoliticaAislamiento && !p.Permisiva))
             .ToList();
 
         // La política existe y se llama como toca, pero ¿dice lo que toca? Se
@@ -203,7 +236,14 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         string.Join(", ", conPoliticasDeMas).Should().BeEmpty(
             "una política PERMISSIVE adicional se combina con OR, así que ENSANCHA el acceso en vez de acotarlo; " +
             "si hace falta una política nueva sobre una tabla con TenantId, tiene que revisarse aquí en el mismo " +
-            "commit que la introduce");
+            "commit que la introduce (las RESTRICTIVE, en PoliticasRestrictivasRevisadas)");
+
+        string.Join(", ", restrictivasAusentes).Should().BeEmpty(
+            "PoliticasRestrictivasRevisadas afirma que estas políticas restrictivas existen; si una desaparece o " +
+            "pasa a PERMISSIVE, la tabla pierde la barrera que la lista documenta");
+
+        string.Join(", ", aislamientoNoPermisivo).Should().BeEmpty(
+            $"'{PoliticaAislamiento}' tiene que ser PERMISSIVE: es la que concede el acceso por tenant");
 
         string.Join(" | ", conExpresionSospechosa).Should().BeEmpty(
             $"la política '{PoliticaAislamiento}' tiene que comparar la columna TenantId contra la variable de " +
@@ -523,7 +563,12 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         && expresion.Contains("TenantId", StringComparison.Ordinal)
         && expresion.Contains("app.tenant_id", StringComparison.Ordinal);
 
-    private sealed record PoliticaRls(string Nombre, string? Using, string? WithCheck);
+    private sealed record PoliticaRls(string Nombre, string? Using, string? WithCheck, bool Permisiva = true);
+
+    private static bool EsRestrictivaRevisada(string tabla, PoliticaRls politica) =>
+        !politica.Permisiva
+        && PoliticasRestrictivasRevisadas.TryGetValue(tabla, out var revisada)
+        && revisada.Politica == politica.Nombre;
 
     private async Task<Dictionary<string, (bool Habilitado, bool Forzado, List<PoliticaRls> Politicas)>> LeerEstadoRlsAsync(
         IReadOnlyCollection<string> tablas)
@@ -538,7 +583,8 @@ SELECT c.relname,
        c.relforcerowsecurity,
        p.polname,
        pg_get_expr(p.polqual, p.polrelid),
-       pg_get_expr(p.polwithcheck, p.polrelid)
+       pg_get_expr(p.polwithcheck, p.polrelid),
+       p.polpermissive
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 LEFT JOIN pg_policy p ON p.polrelid = c.oid
@@ -557,7 +603,8 @@ WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname = ANY(@tablas);";
                 actual.Item3.Add(new PoliticaRls(
                     lector.GetString(3),
                     lector.IsDBNull(4) ? null : lector.GetString(4),
-                    lector.IsDBNull(5) ? null : lector.GetString(5)));
+                    lector.IsDBNull(5) ? null : lector.GetString(5),
+                    lector.GetBoolean(6)));
         }
 
         return estado;

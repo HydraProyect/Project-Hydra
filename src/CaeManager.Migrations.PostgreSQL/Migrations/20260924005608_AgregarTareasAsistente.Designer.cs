@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260924005608_AgregarTareasAsistente")]
+    partial class AgregarTareasAsistente
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1825,9 +1828,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("EstadoVigencia")
-                        .HasColumnType("integer");
-
                     b.Property<DateOnly>("FechaEmision")
                         .HasColumnType("date");
 
@@ -1882,8 +1882,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.ToTable("Documentos", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Documentos_EstadoVigenciaCoherente", "(\"EstadoVigencia\" = 2 AND \"FechaVencimiento\" IS NOT NULL) OR (\"EstadoVigencia\" IN (0, 1) AND \"FechaVencimiento\" IS NULL)");
-
                             t.HasCheckConstraint("CK_Documentos_PropietarioXor", "num_nonnulls(\"TrabajadorId\", \"ClienteId\", \"EmpresaId\", \"VehiculoId\", \"ProyectoId\") = 1");
                         });
                 });
@@ -6777,13 +6775,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("DelegacionTenantId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("MotivoRevocacion")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime?>("RevocadaEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("Rol")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -6797,8 +6788,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("UsuarioId");
 
                     b.HasIndex("DelegacionTenantId", "UsuarioId")
-                        .IsUnique()
-                        .HasFilter("\"RevocadaEnUtc\" IS NULL");
+                        .IsUnique();
 
                     b.ToTable("AsignacionesOperadorDelegado", (string)null);
                 });
