@@ -60,7 +60,7 @@ public class CrearClienteCommandHandler(
         // cartera — "creados o asignados" (ver Roles.cs). El resto de roles
         // que pueden crear Clientes (Administrador, DireccionCae,
         // CoordinadorCae) lo dejan sin gestor hasta asignarlo explícitamente.
-        var rol = await currentUserService.ObtenerRolActualAsync();
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
         var ejecutivoUsuarioId = rol == RolGestorCae ? await currentUserService.ObtenerUsuarioActualIdAsync() : null;
 
         var empresa = Empresa.CrearComoCliente(request.RazonSocial, request.Cif, request.EsCritico, request.Notas, ejecutivoUsuarioId);

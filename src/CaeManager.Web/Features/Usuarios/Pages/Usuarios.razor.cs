@@ -415,7 +415,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 // Para un Operador Delegado se muestra el rol de la asignación
                 // (Consulta/GestorCae/CoordinadorCae), no su rol de origen: un
                 // operador de soporte es Administrador en el tenant de
-                // plataforma, pero CurrentUserService.ObtenerRolActualAsync ya
+                // plataforma, pero CurrentUserService.ObtenerRolEfectivoAsync ya
                 // lo acota al operar aquí — mostrar "Administrador" contradice
                 // esa restricción y alarma sin motivo a quien lo ve.
                 var rolesDelegados = await ObtenerRolesDelegadosAsync(token);

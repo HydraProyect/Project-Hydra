@@ -17,7 +17,7 @@ namespace CaeManager.Infrastructure.Autorizacion;
 ///
 /// <para>
 /// <b>Ambas se resuelven contra la base, no contra la sesión</b>, y es
-/// deliberado. <c>ICurrentUserService.ObtenerRolActualAsync</c> devuelve el rol
+/// deliberado. <c>ICurrentUserService.ObtenerRolEfectivoAsync</c> devuelve el rol
 /// <i>efectivo en el contexto actual</i>: dentro de un workspace delegado es el
 /// de la cartera, no el que la persona tiene en su propia organización. Un
 /// Administrador del Cliente Delegante que estuviera operando otro workspace

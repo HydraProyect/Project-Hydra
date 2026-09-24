@@ -193,7 +193,7 @@ public class AlcanceDatosService(
         bool accesoTotal;
 
         // Plano 3 antes que el rol, porque una sesión privilegiada NO tiene rol
-        // de negocio: <c>ObtenerRolActualAsync</c> devuelve null a propósito
+        // de negocio: <c>ObtenerRolEfectivoAsync</c> devuelve null a propósito
         // (ADR-011 § 4bis.3 — el técnico de soporte no es miembro del workspace
         // que visita). Sin esta rama, SoporteLectura abriría el contexto del
         // tenant y no vería ni una fila, que es la inspección de soporte
@@ -237,7 +237,7 @@ public class AlcanceDatosService(
         }
         else
         {
-            var rol = await currentUserService.ObtenerRolActualAsync();
+            var rol = await currentUserService.ObtenerRolEfectivoAsync();
             accesoTotal = Roles.AlcanzaTodaLaOrganizacion(rol);
         }
 
@@ -320,7 +320,7 @@ public class AlcanceDatosService(
     {
         if (await TieneAccesoTotalRealAsync(cancellationToken)) return AlcanceCartera.Total;
 
-        var rol = await currentUserService.ObtenerRolActualAsync();
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
         return (rol, usuarioId) switch
@@ -483,7 +483,7 @@ public class AlcanceDatosService(
         // no opera sobre ellos. Lista vacía y no null — null significa "sin
         // restricción", que aquí sería exactamente lo contrario de lo que toca
         // (fallo cerrado).
-        if (await currentUserService.ObtenerRolActualAsync() == Roles.Cliente)
+        if (await currentUserService.ObtenerRolEfectivoAsync() == Roles.Cliente)
             return [];
 
         return await ObtenerCentroIdsVisiblesAsync(cancellationToken);
@@ -495,7 +495,7 @@ public class AlcanceDatosService(
         // contratistas relacionadas con su Cliente, pero no opera sobre ellas.
         // Lista vacía y no null — null significa "sin restricción", que aquí
         // sería exactamente lo contrario de lo que toca (fallo cerrado).
-        if (await currentUserService.ObtenerRolActualAsync() == Roles.Cliente)
+        if (await currentUserService.ObtenerRolEfectivoAsync() == Roles.Cliente)
             return [];
 
         return await ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
@@ -580,7 +580,7 @@ public class AlcanceDatosService(
     /// Solo decide el rol: quien llama ya ha comprobado que la cartera no está vacía.
     /// </summary>
     private async Task<bool> IncluyeEstructuraPropiaAsync(CancellationToken cancellationToken) =>
-        await currentUserService.ObtenerRolActualAsync() is Roles.GestorCae or Roles.CoordinadorCae
+        await currentUserService.ObtenerRolEfectivoAsync() is Roles.GestorCae or Roles.CoordinadorCae
         || (await ObtenerGestorDeLenteAsync(cancellationToken) is not null
             && await TieneAccesoTotalRealAsync(cancellationToken));
 
@@ -646,7 +646,7 @@ public class AlcanceDatosService(
         // documentación de las subcontratas de su Cliente, pero no opera sobre
         // ellas. Lista vacía y no null — null significa "sin restricción", que
         // aquí sería exactamente lo contrario de lo que toca (fallo cerrado).
-        if (await currentUserService.ObtenerRolActualAsync() == Roles.Cliente)
+        if (await currentUserService.ObtenerRolEfectivoAsync() == Roles.Cliente)
             return [];
 
         return await ObtenerSubcontrataIdsVisiblesAsync(cancellationToken);

@@ -16,7 +16,7 @@ namespace CaeManager.Application.Common;
 /// <b>Lista blanca, no lista negra.</b> Antes enumeraba los roles de solo
 /// lectura y dejaba pasar todo lo demás, incluido "sin rol": eso permitía
 /// escribir a un usuario todavía sin rol asignado y, desde que
-/// <c>ObtenerRolActualAsync</c> resuelve el rol de la delegación (hallazgo
+/// <c>ObtenerRolEfectivoAsync</c> resuelve el rol de la delegación (hallazgo
 /// N-5), habría dejado escribir a un operador cuya delegación acabara de
 /// revocarse mientras su token de selección seguía vigente. Con lista blanca
 /// ese caso falla cerrado, que es la única forma segura de equivocarse.
@@ -39,7 +39,7 @@ namespace CaeManager.Application.Common;
 /// explícita, y antes que el rol.</b> Hoy una sesión de plano 3 acabaría con
 /// rol efectivo <c>null</c> y la lista blanca la bloquearía igual — pero eso es
 /// una consecuencia de cómo se resuelve el rol, no una decisión tomada aquí. Un
-/// cambio futuro en <c>ObtenerRolActualAsync</c> que devolviera el claim de
+/// cambio futuro en <c>ObtenerRolEfectivoAsync</c> que devolviera el claim de
 /// sesión en algún caso convertiría a un técnico de soporte en escritor sin que
 /// nada de este archivo hubiera cambiado. La regla del plano 3 —la inspección
 /// de soporte es de solo lectura, sin excepción implícita— se escribe aquí y se
@@ -146,7 +146,7 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
             return await next(cancellationToken);
         }
 
-        var rol = await currentUserService.ObtenerRolActualAsync();
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
 
         var rolesAdmitidos = request is IComandoDeAutoservicio ? RolesReconocidos : RolesConEscritura;
 

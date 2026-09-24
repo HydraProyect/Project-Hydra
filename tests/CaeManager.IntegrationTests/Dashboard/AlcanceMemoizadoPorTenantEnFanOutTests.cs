@@ -397,7 +397,7 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
         servicios.AddSingleton<ISesionPrivilegiadaActual>(new SesionPrivilegiadaAusente());
 
         // Rol fijo "GestorCae" para TODA la sesión — hallazgo secundario del
-        // retorno original de HO-195-01: ICurrentUserService.ObtenerRolActualAsync
+        // retorno original de HO-195-01: ICurrentUserService.ObtenerRolEfectivoAsync
         // (real, Web/CurrentUserService.cs) consulta IClienteActivoSeleccionado,
         // no AmbitoTenantExplicito, así que el rol NUNCA varía con la vuelta
         // del fan-out. Fijarlo aquí reproduce fielmente esa realidad, no la

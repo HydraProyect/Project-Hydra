@@ -215,7 +215,8 @@ public class AutorizacionSecretosDeTenantBehaviorTests
     private sealed class CurrentUserServiceFalso(string? rol) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult(rol);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult(rol);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
