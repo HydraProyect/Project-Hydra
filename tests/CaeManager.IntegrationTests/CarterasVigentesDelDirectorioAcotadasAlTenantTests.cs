@@ -200,6 +200,50 @@ public class CarterasVigentesDelDirectorioAcotadasAlTenantTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// El ámbito que se pinta es el efectivo, como el de AlcanceDatosService:
+    /// la intersección de la cartera con su operación. Una cartera universal
+    /// bajo una operación acotada a un Cliente empresarial es ese Cliente, no
+    /// "Toda la operación"; una cartera de otro Cliente bajo esa operación no
+    /// concede nada y el usuario no aparece.
+    /// </summary>
+    [Fact]
+    public async Task Una_cartera_bajo_una_operacion_acotada_se_pinta_con_su_ambito_efectivo()
+    {
+        var ahora = DateTime.UtcNow;
+        var desde = ahora.AddDays(-1);
+        var gestorUniversal = Guid.NewGuid();
+        var gestorDeOtroCliente = Guid.NewGuid();
+        Guid clienteDeLaOperacion;
+
+        await using (var contexto = CrearContexto(_tenantMirado))
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Acotado S.A.", "B12345674", false, null, null);
+            var otro = Empresa.CrearComoCliente("Otro Cliente S.A.", "B10380186", false, null, null);
+            contexto.Empresas.AddRange(cliente, otro);
+            contexto.Users.AddRange(
+                CrearUsuario(gestorUniversal, _tenantMirado, "gestor.universal"),
+                CrearUsuario(gestorDeOtroCliente, _tenantMirado, "gestor.otro"));
+            await contexto.SaveChangesAsync();
+            clienteDeLaOperacion = cliente.Id;
+
+            var acotada = AsignacionOperacion.Interna(
+                _tenantMirado, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(cliente.Id), desde, null, ahora);
+            contexto.AsignacionesOperacion.Add(acotada);
+            contexto.AsignacionesCartera.AddRange(
+                AsignacionCartera.Interna(acotada, gestorUniversal, AmbitoAsignacion.Universal, desde, null, ahora),
+                AsignacionCartera.Interna(acotada, gestorDeOtroCliente, AmbitoAsignacion.DeRelacionCliente(otro.Id), desde, null, ahora));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto(_tenantMirado);
+        var carteras = await CrearDirectorio(lectura, _tenantMirado).ObtenerCarterasVigentesAsync();
+
+        carteras[gestorUniversal].EsUniversal.Should().BeFalse("una operación acotada nunca es toda la operación del Tenant");
+        carteras[gestorUniversal].ClienteIds.Should().Equal([clienteDeLaOperacion]);
+        carteras.Should().NotContainKey(gestorDeOtroCliente, "dos Clientes distintos no se cortan: alcance cero");
+    }
+
+    /// <summary>
     /// <c>userManager</c> y <c>dbContext</c> van a null a propósito:
     /// <c>ObtenerCarterasVigentesAsync</c> no los toca, y montar un
     /// <c>UserManager</c> real para leer dos tablas de asignación sería fixture

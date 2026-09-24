@@ -63,16 +63,19 @@ public class BuscadorGlobalGen2Tests : BunitContext
         [new ItemBusquedaDto(IdCliente, "Refrielectric S.A.", "Cliente", "/clientes?q=Refrielectric")],
         [], [], []);
 
-    /// <summary>Para Trabajador el handler pone el DNI en el subtítulo, no el tipo.</summary>
+    /// <summary>
+    /// Para Trabajador el handler pone en el subtítulo la razón social de la organización
+    /// empleadora, no el tipo — y nunca el DNI (decisión del 2026-09-24).
+    /// </summary>
     private static readonly ResultadoBusquedaGlobalDto UnTrabajador = new(
         [], [],
-        [new ItemBusquedaDto(IdTrabajador, "Juan Pérez", "12345678Z", "/trabajadores/22222222-2222-2222-2222-222222222222")],
+        [new ItemBusquedaDto(IdTrabajador, "Juan Pérez", "Montajes Ebro S.L.", "/trabajadores/22222222-2222-2222-2222-222222222222")],
         []);
 
     private static readonly ResultadoBusquedaGlobalDto DosEntidades = new(
         [new ItemBusquedaDto(IdCliente, "Refrielectric S.A.", "Cliente", "/clientes?q=Refrielectric")],
         [],
-        [new ItemBusquedaDto(IdTrabajador, "Juan Pérez", "12345678Z", "/trabajadores/22222222-2222-2222-2222-222222222222")],
+        [new ItemBusquedaDto(IdTrabajador, "Juan Pérez", "Montajes Ebro S.L.", "/trabajadores/22222222-2222-2222-2222-222222222222")],
         []);
 
     /// <summary>
@@ -306,7 +309,11 @@ public class BuscadorGlobalGen2Tests : BunitContext
         cut.Find(".buscador-item-subtitulo").TextContent.Trim().Should().Be("Cliente empresarial · Subcontrata");
     }
 
-    /// <summary>Cuando el subtítulo del DTO aporta algo distinto del tipo (el DNI), se concatena en vez de sustituirse.</summary>
+    /// <summary>
+    /// Cuando el subtítulo del DTO aporta algo distinto del tipo (la organización empleadora
+    /// del Trabajador), se concatena en vez de sustituirse — «Trabajador · Montajes Ebro S.L.»,
+    /// como el mockup del Command Palette.
+    /// </summary>
     [Fact]
     public async Task El_subtitulo_de_un_trabajador_compone_el_tipo_con_el_dato_del_dto()
     {
@@ -315,7 +322,29 @@ public class BuscadorGlobalGen2Tests : BunitContext
 
         await Input(cut).EscribirAsync("juan");
 
-        cut.Find(".buscador-item-subtitulo").TextContent.Trim().Should().Be("Trabajador · 12345678Z");
+        cut.Find(".buscador-item-subtitulo").TextContent.Trim().Should().Be("Trabajador · Montajes Ebro S.L.");
+    }
+
+    /// <summary>
+    /// Lo que se guarda como reciente al abrir un Trabajador es el subtítulo del DTO tal cual
+    /// (la organización empleadora), y es lo que «Recientes» volverá a pintar: si el handler
+    /// volviese a emitir el DNI, acabaría persistido en <c>EventosRecientesUsuario</c>. La
+    /// ausencia del DNI en el DTO la fija <c>BuscarGlobalSinDniTests</c> (integración).
+    /// </summary>
+    [Fact]
+    public async Task Abrir_un_trabajador_registra_como_reciente_el_subtitulo_del_dto()
+    {
+        var mediador = new MediadorControlado { Resultado = UnTrabajador };
+        var cut = await RenderizarYAbrir(mediador);
+        await Input(cut).EscribirAsync("juan");
+
+        await cut.InvokeAsync(() => cut.Find("a.buscador-item").Click());
+
+        await EsperarA(() => mediador.Enviados.OfType<RegistrarUsoRecienteCommand>().Any(),
+            "que el registro del reciente llegase al mediador");
+        var registrado = mediador.Enviados.OfType<RegistrarUsoRecienteCommand>().Single();
+        registrado.Tipo.Should().Be("Trabajador");
+        registrado.Subtitulo.Should().Be("Montajes Ebro S.L.");
     }
 
     /// <summary>La pista «↵ …» del mockup aparece SOLO en la fila activa, y dice el verbo de esa fila.</summary>
@@ -609,7 +638,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
             Resultado = UnClienteEmpresarial,
             Recientes =
             [
-                new ItemRecienteDto("Trabajador", IdTrabajador, "Juan Pérez", "12345678Z", "/trabajadores/22222222-2222-2222-2222-222222222222"),
+                new ItemRecienteDto("Trabajador", IdTrabajador, "Juan Pérez", "Montajes Ebro S.L.", "/trabajadores/22222222-2222-2222-2222-222222222222"),
                 new ItemRecienteDto("Centro", null, "Centro Norte", "Centro", "/centros/33333333-3333-3333-3333-333333333333")
             ]
         };
@@ -643,7 +672,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
         };
         var nuevos = new List<ItemRecienteDto>
         {
-            new("Trabajador", IdTrabajador, "Juan Pérez", "12345678Z", "/trabajadores/22222222-2222-2222-2222-222222222222")
+            new("Trabajador", IdTrabajador, "Juan Pérez", "Montajes Ebro S.L.", "/trabajadores/22222222-2222-2222-2222-222222222222")
         };
 
         var retenida = mediador.Retener(r => r is ObtenerRecientesQuery);

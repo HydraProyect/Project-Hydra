@@ -8,6 +8,7 @@
             <p class="operadores-cae-nota">
                 Da de alta la organización que presta servicio CAE y los Tenants propietarios que va a operar.
                 Nadie queda como Gestor CAE hasta que el Operador asigne su cartera.
+                @TextosAutorizar["NotaEnlacePlataforma"]
             </p>
         </div>
         <Boton OnClick="AbrirNuevoOperador">Nuevo Operador CAE externo</Boton>
@@ -40,9 +41,14 @@
                                     : string.Join(" · ", operador.TenantsPropietarios.Select(t => t.Nombre)))
                             </p>
                         </div>
-                        <Boton Variante="VarianteBoton.Secundario" OnClick="() => AbrirNuevoTenant(operador)">
-                            Crear Tenant propietario
-                        </Boton>
+                        <div class="operadores-cae-acciones">
+                            <BotonCopiar Valor="@EnlaceDeAutorizacion(operador)"
+                                         Texto="@TextosAutorizar["CopiarEnlace"]"
+                                         Etiqueta="@TextosAutorizar["EtiquetaEnlace"]" />
+                            <Boton Variante="VarianteBoton.Secundario" OnClick="() => AbrirNuevoTenant(operador)">
+                                Crear Tenant propietario
+                            </Boton>
+                        </div>
                     </div>
                 </Tarjeta>
             }

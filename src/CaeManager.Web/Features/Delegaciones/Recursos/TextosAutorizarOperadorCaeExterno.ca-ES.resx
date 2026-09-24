@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AccionAutorizar" xml:space="preserve">
+    <value>Autoritzar un Operador CAE extern</value>
+  </data>
+  <data name="NotaTitulo" xml:space="preserve">
+    <value>Autoritzes tu, no TALVEG</value>
+  </data>
+  <data name="NotaCuerpo" xml:space="preserve">
+    <value>Només qui administra la teva pròpia organització pot donar accés a un Operador CAE extern sobre les teves dades. TALVEG te'n pot suggerir un, però no pot iniciar aquesta relació pel seu compte.</value>
+  </data>
+  <data name="Sugerencia" xml:space="preserve">
+    <value>TALVEG et suggereix aquest Operador CAE extern. Comprova que és l'organització que has contractat abans d'autoritzar-la.</value>
+  </data>
+  <data name="EtiquetaOperador" xml:space="preserve">
+    <value>Operador CAE extern</value>
+  </data>
+  <data name="MarcadorBusqueda" xml:space="preserve">
+    <value>Escriu-ne el nom exacte…</value>
+  </data>
+  <data name="ListaCandidatos" xml:space="preserve">
+    <value>Operadors CAE externs trobats</value>
+  </data>
+  <data name="SinResultado" xml:space="preserve">
+    <value>Cap Operador CAE extern no es diu «{0}». Comprova el nom exacte: TALVEG no pot crear aquesta organització per tu.</value>
+  </data>
+  <data name="NotaPropiedad" xml:space="preserve">
+    <value>La propietat de les teves dades no canvia: l'Operador CAE extern passa a operar-les. Ningú del seu equip no queda com a Gestor CAE fins que l'Operador n'assigni la cartera, i pots revocar l'accés quan vulguis.</value>
+  </data>
+  <data name="Cancelar" xml:space="preserve">
+    <value>Cancel·lar</value>
+  </data>
+  <data name="Autorizar" xml:space="preserve">
+    <value>Autoritzar</value>
+  </data>
+  <data name="EnlaceNoCorresponde" xml:space="preserve">
+    <value>L'enllaç no correspon a cap Operador CAE extern que puguis autoritzar. Cerca'l pel seu nom exacte.</value>
+  </data>
+  <data name="SeleccionaOperador" xml:space="preserve">
+    <value>Selecciona l'Operador CAE extern que vols autoritzar.</value>
+  </data>
+  <data name="Autorizado" xml:space="preserve">
+    <value>Operador CAE extern autoritzat: {0}.</value>
+  </data>
+  <data name="NotaEnlacePlataforma" xml:space="preserve">
+    <value>Si el Tenant propietari ja existeix, copia l'enllaç d'autorització i envia'l al seu Administrador: l'autorització la dona la seva organització, no TALVEG.</value>
+  </data>
+  <data name="CopiarEnlace" xml:space="preserve">
+    <value>Copiar l'enllaç d'autorització</value>
+  </data>
+  <data name="EtiquetaEnlace" xml:space="preserve">
+    <value>l'enllaç d'autorització</value>
+  </data>
+</root>

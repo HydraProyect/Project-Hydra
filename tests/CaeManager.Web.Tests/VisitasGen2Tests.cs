@@ -570,17 +570,20 @@ public class VisitasGen2Tests : BunitContext
         cut.Find(".visitas-detalle-resumen").TextContent.Should()
             .Be("2 de 3 trabajadores tienen documentación pendiente para este centro.");
 
+        // Decisión del 2026-09-24 (DNI residual, S1): el título es «Nombre — Empleador», sin DNI.
+        // La igualdad exacta es la que pone esto en rojo si el DNI vuelve al título.
         var trabajadores = cut.FindAll(".seccion-colapsable-titulo")
-            .Select(t => t.TextContent)
-            .Where(t => t.Contains("(12345678Z)"))
+            .Select(t => t.TextContent.Trim())
+            .Where(t => t.Contains("Instalaciones Arbeko S.L."))
             .ToList();
-        trabajadores.Should().HaveCount(3);
-        trabajadores[0].Should().StartWith("Carla Vila", "Falta es el peor estado");
-        trabajadores[1].Should().StartWith("Bruno Salas");
-        trabajadores[2].Should().StartWith("Ana Loredo", "quien está en regla va al final");
+        trabajadores.Should().Equal(
+            ["Carla Vila — Instalaciones Arbeko S.L.",
+             "Bruno Salas — Instalaciones Arbeko S.L.",
+             "Ana Loredo — Instalaciones Arbeko S.L."],
+            "Falta es el peor estado, quien está en regla va al final y el título no lleva el DNI");
 
         static TrabajadorDocumentacionDto Trabajador(string nombre, EstadoDocumento peor) =>
-            new(Guid.NewGuid(), nombre, "12345678Z", "Instalaciones Arbeko S.L.", new SeccionDocumentacionDto(peor, []));
+            new(Guid.NewGuid(), nombre, "Instalaciones Arbeko S.L.", new SeccionDocumentacionDto(peor, []));
     }
 
     /// <summary>
@@ -623,7 +626,7 @@ public class VisitasGen2Tests : BunitContext
         static DocumentacionVisitaDto DocumentacionDe(string nombre) => new(
             Guid.NewGuid(),
             new SeccionDocumentacionDto(EstadoDocumento.Vigente, []),
-            [new TrabajadorDocumentacionDto(Guid.NewGuid(), nombre, "12345678Z", "Empresa", new SeccionDocumentacionDto(EstadoDocumento.Vigente, []))]);
+            [new TrabajadorDocumentacionDto(Guid.NewGuid(), nombre, "Empresa", new SeccionDocumentacionDto(EstadoDocumento.Vigente, []))]);
     }
 
     [Fact]

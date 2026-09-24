@@ -192,7 +192,7 @@ public class ObtenerConversacionPorIdQueryHandler(
         // criterio que la lista (ObtenerConversacionesQueryHandler), porque si
         // no, acotar solo el listado dejaba el hilo accesible a quien tuviera
         // el Guid.
-        else if (await currentUserService.ObtenerRolActualAsync() == RolCliente)
+        else if (await currentUserService.ObtenerRolEfectivoAsync() == RolCliente)
         {
             return null;
         }

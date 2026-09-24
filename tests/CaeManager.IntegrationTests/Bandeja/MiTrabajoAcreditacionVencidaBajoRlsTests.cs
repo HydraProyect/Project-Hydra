@@ -73,7 +73,7 @@ public class MiTrabajoAcreditacionVencidaBajoRlsTests : IAsyncLifetime
         _tenantDelegante = tenantDelegante.Id;
         var delegacion = new DelegacionTenant(_tenantOrigen, _tenantDelegante);
         _propietario.DelegacionesTenant.Add(delegacion);
-        _propietario.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
+        _propietario.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
         await _propietario.SaveChangesAsync();
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);

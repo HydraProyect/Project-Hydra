@@ -122,7 +122,8 @@ public class SubcontratasListaGen2Tests : BunitContext
     private sealed class UsuarioActualFalso : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("Administrador");
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("Administrador");
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }

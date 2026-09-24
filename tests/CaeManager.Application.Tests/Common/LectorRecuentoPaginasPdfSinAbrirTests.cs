@@ -32,9 +32,29 @@ public class LectorRecuentoPaginasPdfSinAbrirTests
     [Fact]
     public void Lee_el_recuento_real_de_un_pdf_de_pdfsharp()
     {
+        // 2500 páginas: por encima del tope de 2000 de los sitios que usan
+        // este lector, que es el caso que el pre-escaneo existe para cazar.
+        // Sin tope de búsqueda a propósito: el tope se mide en reloj de pared
+        // y cada búsqueda aquí dura ~1 ms, así que solo salta si el hilo se
+        // queda parado ≥200 ms (CPU disputada por otras compilaciones, pausa
+        // de GC). Entonces la lectura se abstiene —correcto en producción—
+        // y este test fallaba sin que la lógica de lectura tuviera nada mal.
+        // El valor de producción lo fija El_tope_de_produccion_es_200_ms.
         var pdf = CrearPdfConPaginas(2500);
 
-        LectorRecuentoPaginasPdfSinAbrir.IntentarLeerRecuentoDePaginasSinAbrir(pdf).Should().Be(2500);
+        LectorRecuentoPaginasPdfSinAbrir
+            .IntentarLeerRecuentoDePaginasSinAbrir(pdf, System.Text.RegularExpressions.Regex.InfiniteMatchTimeout)
+            .Should().Be(2500);
+    }
+
+    [Fact]
+    public void El_tope_de_produccion_es_200_ms()
+    {
+        // Defensa en profundidad sobre bytes no confiables (REC-186): el
+        // punto de entrada público usa este valor y solo este. Subirlo o
+        // quitarlo para que un test pase en una máquina cargada debilita esa
+        // defensa, así que cambiarlo exige cambiar también este test.
+        LectorRecuentoPaginasPdfSinAbrir.TimeoutBusquedaTextual.Should().Be(TimeSpan.FromMilliseconds(200));
     }
 
     [Fact]

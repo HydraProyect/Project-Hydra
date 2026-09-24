@@ -68,7 +68,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 
         var delegacion = new DelegacionTenant(_consultora, _propietario);
         contexto.DelegacionesTenant.Add(delegacion);
-        contexto.AsignacionesOperadorDelegado.Add(
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
             new AsignacionOperadorDelegado(delegacion.Id, _gestorConsultora, Roles.GestorCae));
         _delegacionId = delegacion.Id;
 
@@ -254,7 +254,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                 new DelegacionTenantRepository(contexto),
                 new AutorizacionAdministradorDe(_propietario),
                 new CurrentUserServiceFalso(Guid.NewGuid()),
-                CrearWriter(contexto), contexto);
+                CrearWriter(contexto), contexto, contexto);
 
             var resultado = await handler.Handle(
                 new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None);

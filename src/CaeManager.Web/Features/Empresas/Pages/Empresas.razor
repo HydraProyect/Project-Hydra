@@ -280,7 +280,9 @@
                             }
                             else if (clientes.Count == 0)
                             {
-                                <p class="texto-vacio-seccion">Esta empresa todavía no presta servicio a ningún cliente empresarial.</p>
+                                @* ObtenerClientesDeEmpresaQuery devuelve vacío también sin alcance de gestión:
+                                   el texto es cierto en los dos casos y no revela cuál (#810). *@
+                                <p class="texto-vacio-seccion">Esta empresa no presta servicio a clientes empresariales, o no están dentro de tu alcance de gestión.</p>
                             }
                             else
                             {

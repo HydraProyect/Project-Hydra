@@ -70,7 +70,9 @@ public class TextosSinLocalizarCongeladosTests
         // detector, la cabecera «@for (var indice = 0; indice < Grupos.Count; …)»
         // de Configuracion.razor, que el '<' de la comparación hace pasar por texto.
         ["Configuracion"] = 1,
-        ["Dashboard"] = 57,
+        // 57 → 55 el 2026-09-24 al migrar el estado vacío «Sin cartera asignada» de Inicio a
+        // TextosInicio.resx (aterrizaje en Mi trabajo, D-2). El resto de Inicio sigue sin migrar.
+        ["Dashboard"] = 55,
         // 89 → 1 el 2026-09-23 al migrar la Feature a TextosDashboardEjecutivo.resx. El 1 que
         // queda NO es texto: es un falso positivo del detector de markup, que toma por texto lo
         // que hay entre el «>» de <CampoSelect …> y el «<» del genérico de

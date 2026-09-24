@@ -445,7 +445,7 @@ public static class DelegacionDemoSeeder
                 !await dbContext.AsignacionesOperadorDelegado.AnyAsync(
                     a => a.DelegacionTenantId == delegacionDemo1.Id && a.UsuarioId == operadorGestor.Id, cancellationToken))
             {
-                dbContext.AsignacionesOperadorDelegado.Add(
+                dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
                     new AsignacionOperadorDelegado(delegacionDemo1.Id, operadorGestor.Id, Roles.GestorCae));
             }
 
@@ -453,7 +453,7 @@ public static class DelegacionDemoSeeder
                 !await dbContext.AsignacionesOperadorDelegado.AnyAsync(
                     a => a.DelegacionTenantId == delegacionDemo2.Id && a.UsuarioId == operadorConsulta.Id, cancellationToken))
             {
-                dbContext.AsignacionesOperadorDelegado.Add(
+                dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
                     new AsignacionOperadorDelegado(delegacionDemo2.Id, operadorConsulta.Id, Roles.Consulta));
             }
 
@@ -844,7 +844,7 @@ public static class DelegacionDemoSeeder
             await dbContext.SaveChangesAsync(cancellationToken);
 
             var asignacion = new AsignacionOperadorDelegado(delegacion.Id, administradorConsultora.Id, RolOperadorDelegadoDemo);
-            dbContext.AsignacionesOperadorDelegado.Add(asignacion);
+            dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(asignacion);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 

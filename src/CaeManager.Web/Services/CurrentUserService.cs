@@ -76,8 +76,14 @@ public class CurrentUserService(
     /// también para sus clientes delegantes, saltándose la Asignación de
     /// Cartera de su rol real ahí (hallazgo Codex 2026-09-11).
     /// </para>
+    ///
+    /// <para>
+    /// Decisión P7 (2026-09-23): se llamaba <c>ObtenerRolActualAsync</c>, que
+    /// queda como alias obsoleto. El rol de la organización de origen es otra
+    /// API, <see cref="ObtenerRolOrigenAsync"/>, y no vale para autorizar.
+    /// </para>
     /// </summary>
-    public async Task<string?> ObtenerRolActualAsync()
+    public async Task<string?> ObtenerRolEfectivoAsync()
     {
         var usuario = await ObtenerUsuarioAsync();
         var rolDeSesion = usuario?.FindFirst(ClaimTypes.Role)?.Value;
@@ -98,7 +104,7 @@ public class CurrentUserService(
             return null;
 
         if (AmbitoTenantExplicito.TenantIdActual is { } tenantAmbito)
-            return await ResolverRolParaAmbitoExplicitoAsync(tenantAmbito, rolDeSesion);
+            return await ResolverRolParaAmbitoExplicitoAsync(tenantAmbito, RolDeSesionEnOrigen(usuario));
 
         // Sin selección no hay delegación en juego: el caso de todo usuario
         // que no es Operador Delegado de nadie, sin ninguna consulta extra.
@@ -142,6 +148,8 @@ public class CurrentUserService(
                       // (decisión del propietario, 2026-09-23): una fila
                       // heredada con Administrador o Dirección CAE no da ese
                       // rol en el Tenant propietario aunque siga vigente.
+                      // Desde P8 la migración las cierra (Revocada); esta
+                      // condición queda como defensa en profundidad.
                       && (operacion.OperadorTenantId == operacion.PropietarioTenantId
                           || (cartera.Rol != null && RolesDelegables.Contains(cartera.Rol)))
                 orderby cartera.AmbitoRelacionClienteId == null ? 0 : 1, cartera.Id
@@ -153,24 +161,66 @@ public class CurrentUserService(
     }
 
     /// <summary>
+    /// Rol de la sesión en el Tenant de origen, tal como llegó en el token y
+    /// después de las restricciones de sesión (<c>RestriccionLoginLocalClaimsTransformation</c>),
+    /// pero ANTES de que <see cref="RolEfectivoDelWorkspaceMiddleware"/> lo
+    /// sustituyera por el rol de la cartera del Workspace operativo derivado
+    /// seleccionado. El middleware lo conserva en
+    /// <see cref="RolEfectivoDelWorkspaceMiddleware.TipoClaimRolDeSesionOrigen"/>;
+    /// sin sustitución, el claim de rol sigue siendo el de origen.
+    ///
+    /// <para>
+    /// No es <see cref="ObtenerRolOrigenAsync"/> a propósito: aquí se decide
+    /// alcance, y el rol de Identity se saltaría la restricción de login local
+    /// (un GestorCae entrado con contraseña es Consulta en esta sesión).
+    /// </para>
+    /// </summary>
+    private static string? RolDeSesionEnOrigen(ClaimsPrincipal? usuario) =>
+        usuario?.FindFirst(RolEfectivoDelWorkspaceMiddleware.TipoClaimRolDeSesionOrigen)?.Value
+        ?? usuario?.FindFirst(ClaimTypes.Role)?.Value;
+
+    /// <summary>
+    /// Rol de la organización de origen, de Identity. Ver el contrato en
+    /// <see cref="ICurrentUserService.ObtenerRolOrigenAsync"/>: no autoriza.
+    /// Mismo motivo que <see cref="TieneDobleFactorActivoAsync"/> para resolver
+    /// el <c>UserManager</c> dentro del método.
+    /// </summary>
+    public async Task<string?> ObtenerRolOrigenAsync()
+    {
+        var usuarioId = await ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null) return null;
+
+        var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var usuario = await userManager.FindByIdAsync(usuarioId.Value.ToString());
+        if (usuario is null) return null;
+
+        // Uno por usuario (Usuarios.razor); el orden solo hace determinista
+        // un estado que no debería existir.
+        return (await userManager.GetRolesAsync(usuario)).Order(StringComparer.Ordinal).FirstOrDefault();
+    }
+
+    /// <summary>
     /// Rol efectivo para un tenant fijado por <see cref="AmbitoTenantExplicito"/>
-    /// (fan-out multi-tenant, sin workspace seleccionado en la UI). Si el
-    /// ámbito coincide con el tenant de origen, es simplemente "mirar el
-    /// propio tenant" y el rol es el de la sesión — no hay
-    /// <c>DelegacionTenant</c> de un tenant a sí mismo que consultar.
+    /// (fan-out multi-tenant). Si el ámbito coincide con el tenant de origen,
+    /// es simplemente "mirar el propio tenant" y el rol es el de la sesión en
+    /// origen — no hay <c>DelegacionTenant</c> de un tenant a sí mismo que
+    /// consultar. Ese rol llega en <paramref name="rolDeSesionEnOrigen"/> y no
+    /// del claim de rol a secas: con un Workspace operativo derivado
+    /// seleccionado, el claim ya es el de la cartera del Tenant propietario
+    /// (defecto de la decisión P7, 2026-09-23).
     ///
     /// Solo resuelve por la vía heredada (<c>AsignacionOperadorDelegado</c>):
     /// es la misma que usa <c>ObtenerClientesAutorizadosQuery</c> para
     /// enumerar qué tenants entran en el fan-out, así que es la única fuente
     /// de la que puede venir un tenant distinto del propio en este ámbito.
     /// </summary>
-    private async Task<string?> ResolverRolParaAmbitoExplicitoAsync(Guid tenantAmbito, string? rolDeSesion)
+    private async Task<string?> ResolverRolParaAmbitoExplicitoAsync(Guid tenantAmbito, string? rolDeSesionEnOrigen)
     {
         var usuarioId = await ObtenerUsuarioActualIdAsync();
         if (usuarioId is null) return null;
 
         var tenantOrigenId = await ObtenerTenantOrigenIdAsync();
-        if (tenantOrigenId == tenantAmbito) return rolDeSesion;
+        if (tenantOrigenId == tenantAmbito) return rolDeSesionEnOrigen;
 
         return await ResolverRolViaHeredadaAsync(tenantAmbito, usuarioId.Value);
     }
@@ -196,6 +246,9 @@ public class CurrentUserService(
                   && delegacion.TenantClienteId == tenantClienteId
                   // Misma frontera que la vía nueva: una asignación heredada
                   // con un rol de Propiedad no concede nada (falla cerrado).
+                  // Desde P8 esas filas están revocadas y la vista
+                  // AsignacionesOperadorDelegado ya no las devuelve; esta
+                  // lista blanca queda como defensa en profundidad.
                   && RolesDelegables.Contains(asignacion.Rol)
             select asignacion.Rol)
             .FirstOrDefaultAsync();
@@ -208,7 +261,7 @@ public class CurrentUserService(
         return Guid.TryParse(valorClaim, out var tenantId) ? tenantId : null;
     }
 
-    // Mismo motivo que el IApplicationDbContext de ObtenerRolActualAsync:
+    // Mismo motivo que el IApplicationDbContext de ObtenerRolEfectivoAsync:
     // UserManager<ApplicationUser> depende en última instancia de
     // CaeManagerDbContext (vía UserStore), que monta AuditoriaInterceptor,
     // que depende de este mismo servicio — inyectarlo por constructor deja

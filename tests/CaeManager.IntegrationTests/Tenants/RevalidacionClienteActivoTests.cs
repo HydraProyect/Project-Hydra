@@ -9,6 +9,7 @@ using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -43,7 +44,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
 
         var delegacion = new DelegacionTenant(_consultora, _clienteDelegante);
         contexto.DelegacionesTenant.Add(delegacion);
-        contexto.AsignacionesOperadorDelegado.Add(
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
             new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
 
         await contexto.SaveChangesAsync();
@@ -90,7 +91,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         await using (var contextoRetirada = CrearContexto())
         {
             var asignacion = await contextoRetirada.AsignacionesOperadorDelegado.FirstAsync(a => a.UsuarioId == _usuario);
-            contextoRetirada.AsignacionesOperadorDelegado.Remove(asignacion);
+            contextoRetirada.AsignacionesOperadorDelegadoConRevocadas.Remove(asignacion);
             await contextoRetirada.SaveChangesAsync();
         }
 
@@ -180,7 +181,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var asignacion = await contexto.AsignacionesOperadorDelegado.FirstAsync(a => a.UsuarioId == _usuario);
-        contexto.AsignacionesOperadorDelegado.Remove(asignacion);
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Remove(asignacion);
         await contexto.SaveChangesAsync();
     }
 
@@ -193,7 +194,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         var ventana = DelegacionTenant.ParaSoporte(_consultora, _clienteDelegante);
         ventana.ActivarParaSoporte("prueba", ahora + hastaExpirar, ahora.AddHours(-1));
         contexto.DelegacionesTenant.Add(ventana);
-        contexto.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(ventana.Id, _usuario, "GestorCae"));
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(ventana.Id, _usuario, "GestorCae"));
         await contexto.SaveChangesAsync();
     }
 
@@ -381,6 +382,14 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         // por la investigación de decompilación citada arriba, no por este test.
         httpContext.RequestAborted = new CancellationToken(canceled: true);
 
+        // Hallazgo de Codex (2026-09-23): UseStatusCodePagesWithReExecute está
+        // registrado antes que este middleware y reejecutaría el pipeline entero
+        // para cualquier 4xx/5xx sin cuerpo —499 incluido—, reentrando aquí con el
+        // mismo RequestAborted ya cancelado y duplicando este mismo registro. La
+        // única guarda real es que el middleware apague la característica.
+        var statusCodePagesFeature = new StatusCodePagesFeatureFalsa();
+        httpContext.Features.Set<IStatusCodePagesFeature>(statusCodePagesFeature);
+
         var logger = new LoggerCapturador<RevalidacionClienteActivoMiddleware>();
         var siguienteFueLlamado = false;
         var middleware = new RevalidacionClienteActivoMiddleware(_ =>
@@ -400,6 +409,9 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         CabeceraDeBorradoDeCookie(httpContext).Should().BeNull();
         siguienteFueLlamado.Should().BeFalse("no hay nadie al otro lado a quien seguir sirviendo");
         httpContext.Response.StatusCode.Should().Be(StatusCodes.Status499ClientClosedRequest);
+        statusCodePagesFeature.Enabled.Should().BeFalse(
+            "sin esto UseStatusCodePagesWithReExecute reejecutaría el pipeline hacia /not-found con el mismo "
+            + "RequestAborted ya cancelado, reentrando en este middleware y duplicando el registro");
 
         logger.Entradas.Should().ContainSingle();
         logger.Entradas[0].Nivel.Should().Be(LogLevel.Information,
@@ -502,7 +514,9 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
             return Task.FromResult<Guid?>(usuarioId);
         }
 
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("GestorCae");
+
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
 
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
 
@@ -534,6 +548,17 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
 
         public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<SesionPrivilegiadaActiva?>(null);
+    }
+
+    /// <summary>
+    /// Doble mínimo de la característica real de framework
+    /// (<c>Microsoft.AspNetCore.Diagnostics.StatusCodePagesFeature</c>, interna al
+    /// framework): solo necesita exponer <see cref="Enabled"/> para que el test
+    /// compruebe que el middleware la apaga tras un aborto.
+    /// </summary>
+    private sealed class StatusCodePagesFeatureFalsa : IStatusCodePagesFeature
+    {
+        public bool Enabled { get; set; } = true;
     }
 
     private async Task RevocarDelegacionAsync()
@@ -622,7 +647,8 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
 
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("GestorCae");
 
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
 

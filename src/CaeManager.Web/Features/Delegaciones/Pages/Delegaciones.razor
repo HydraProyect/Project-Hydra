@@ -19,8 +19,20 @@
             {
                 <Boton OnClick="AbrirFormularioNuevaDelegacion">Nueva delegación</Boton>
             }
+            @if (PuedeAutorizarOperador)
+            {
+                <Boton OnClick="AbrirAutorizarOperador">@TextosAutorizar["AccionAutorizar"]</Boton>
+            }
         </Acciones>
     </CabeceraPagina>
+
+    @if (PuedeAutorizarOperador)
+    {
+        <div class="delegaciones-autorizas-tu" role="note">
+            <strong>@TextosAutorizar["NotaTitulo"]</strong>
+            <span>@TextosAutorizar["NotaCuerpo"]</span>
+        </div>
+    }
 
     @if (PuedeGestionar)
     {
@@ -316,5 +328,54 @@
             Cancelar
         </Boton>
         <Boton Cargando="_creandoDelegacion" OnClick="CrearDelegacionAsync">Crear</Boton>
+    </Pie>
+</Modal>
+
+<Modal Visible="_mostrarAutorizarOperador"
+       VisibleChanged="v => CerrarAutorizarOperador(v)"
+       Titulo="@TextosAutorizar["AccionAutorizar"]"
+       CerrarAlHacerClicFuera="!_autorizandoOperador">
+    <ChildContent>
+        @if (_operadorSugerido)
+        {
+            <p class="delegaciones-sugerencia">@TextosAutorizar["Sugerencia"]</p>
+        }
+        <CampoTexto Etiqueta="@TextosAutorizar["EtiquetaOperador"]"
+                    Valor="@_busquedaOperador"
+                    ValorChanged="BuscarOperadorAsync"
+                    Placeholder="@TextosAutorizar["MarcadorBusqueda"]" />
+        @if (_operadorCandidato is { } candidato)
+        {
+            <div class="delegaciones-candidatos" role="listbox" aria-label="@TextosAutorizar["ListaCandidatos"]">
+                <button type="button"
+                        role="option"
+                        aria-selected="@(_operadorSeleccionado ? "true" : "false")"
+                        class="delegaciones-candidato @(_operadorSeleccionado ? "delegaciones-candidato-seleccionado" : null)"
+                        @onclick="SeleccionarOperador">
+                    <span>@candidato.Nombre</span>
+                    @if (_operadorSeleccionado)
+                    {
+                        <span aria-hidden="true">✓</span>
+                    }
+                </button>
+            </div>
+        }
+        else if (_busquedaSinResultado)
+        {
+            <p class="delegaciones-nota-modal">@TextosAutorizar["SinResultado", _busquedaOperador.Trim()]</p>
+        }
+        <p class="delegaciones-nota-modal">@TextosAutorizar["NotaPropiedad"]</p>
+        @if (_errorAutorizarOperador is not null)
+        {
+            <p class="delegaciones-error" role="alert">@_errorAutorizarOperador</p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario"
+               Deshabilitado="_autorizandoOperador"
+               OnClick="() => CerrarAutorizarOperador(false)">
+            @TextosAutorizar["Cancelar"]
+        </Boton>
+        <Boton Cargando="_autorizandoOperador" OnClick="AutorizarOperadorAsync">@TextosAutorizar["Autorizar"]</Boton>
     </Pie>
 </Modal>

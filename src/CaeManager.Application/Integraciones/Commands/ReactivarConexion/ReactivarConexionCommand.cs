@@ -55,6 +55,20 @@ public class ReactivarConexionCommandHandler(
         // necesita reclamar de nuevo.
         var necesitaReclamarBuzon = conexion.Estado == EstadoConexionIntegracion.Deshabilitada;
 
+        // Resuelto ANTES de mutar la entidad (hallazgo del punto 6, revisión
+        // Codex sobre PR #820): Rehabilitar() no se deshace solo con
+        // devolver un fallo — el DbContext es scoped por circuito Blazor, así
+        // que una entidad modificada y trackeada sin guardar podría
+        // persistirse igualmente en una operación posterior ajena a este
+        // Command.
+        var tenantId = Guid.Empty;
+        if (necesitaReclamarBuzon)
+        {
+            if (tenantActual.TenantId is not { } resuelto)
+                return Result.Fallo(Error.Crear("Integraciones.Microsoft365.TenantNoResuelto", "No se pudo determinar el tenant actual."));
+            tenantId = resuelto;
+        }
+
         conexion.Rehabilitar();
 
         if (!necesitaReclamarBuzon)
@@ -62,9 +76,6 @@ public class ReactivarConexionCommandHandler(
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return Result.Exito();
         }
-
-        if (tenantActual.TenantId is not { } tenantId)
-            return Result.Fallo(Error.Crear("Integraciones.Microsoft365.TenantNoResuelto", "No se pudo determinar el tenant actual."));
 
         reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion(conexion.BuzonEmail, tenantId, conexion.Id, DateTime.UtcNow));
         var buzonLibre = await reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync(cancellationToken);

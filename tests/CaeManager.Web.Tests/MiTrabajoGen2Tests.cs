@@ -43,14 +43,16 @@ public class MiTrabajoGen2Tests : BunitContext
         ClienteId: cliente is null ? null : Guid.NewGuid(), ClienteNombre: cliente, ProveedorNombre: proveedor);
 
     private static MiTrabajoTenantDto Tenant(Guid id, string nombre, bool esOrigen,
-        IReadOnlyList<ItemBandejaDto> bloqueoActuacion, IReadOnlyList<ItemBandejaDto>? proximos = null, IReadOnlyList<ItemBandejaDto>? seguimiento = null)
+        IReadOnlyList<ItemBandejaDto> bloqueoActuacion, IReadOnlyList<ItemBandejaDto>? proximos = null, IReadOnlyList<ItemBandejaDto>? seguimiento = null,
+        bool alcanceCero = false)
     {
         proximos ??= [];
         seguimiento ??= [];
         var bloqueos = bloqueoActuacion.Count(ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo);
         return new MiTrabajoTenantDto(id, nombre, esOrigen, ObtenerBandejaAgrupadaQueryHandler.Agrupar(bloqueoActuacion), proximos, seguimiento,
             new ResumenMiTrabajoTenantDto(id, nombre, esOrigen, bloqueoActuacion.Count + proximos.Count + seguimiento.Count,
-                bloqueos, bloqueoActuacion.Count - bloqueos, proximos.Count, seguimiento.Count));
+                bloqueos, bloqueoActuacion.Count - bloqueos, proximos.Count, seguimiento.Count),
+            alcanceCero);
     }
 
     private static MiTrabajoAgregadoDto Cartera() => new(
@@ -372,6 +374,92 @@ public class MiTrabajoGen2Tests : BunitContext
         var cut = Renderizar(() => new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", false, [])]));
 
         cut.Markup.Should().Contain("Cartera al día");
+        cut.Markup.Should().NotContain("Sin Asignación de Cartera");
+    }
+
+    // P2.3 de la demo a Dirección: «Cartera al día» solo con alguna Empresa en
+    // cartera con alcance y ningún pendiente. Con alcance cero —un Gestor CAE
+    // sin Asignación de Cartera vigente, o el Administrador que ve los Tenants
+    // delegados sin cartera en ellos— no hay nada que vigilar, y decir «al día»
+    // afirmaría un cumplimiento que nadie ha mirado.
+
+    [Fact]
+    public void Con_alcance_cero_en_toda_la_cartera_no_dice_al_dia_sino_que_falta_la_Asignacion_de_Cartera()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+        [
+            Tenant(TenantOrigen, "ArcoSPA", esOrigen: true, []),
+            Tenant(TenantRefri, "Refrielectric", false, [], alcanceCero: true),
+            Tenant(TenantDexter, "Laboratorios Dexter", false, [], alcanceCero: true),
+        ]));
+
+        var vacio = cut.Find(".mi-trabajo-cola");
+        vacio.TextContent.Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+        cut.Markup.Should().NotContain("Cartera al día").And.NotContain("Ningún bloqueo hoy");
+        cut.Find(".mi-trabajo-titular").TextContent.Should().Be("Nada que vigilar todavía");
+        cut.FindAll(".mi-trabajo-cartera-sub").Select(e => e.TextContent)
+            .Should().Contain("Sin Asignación de Cartera").And.NotContain("Sin trabajo pendiente");
+    }
+
+    [Fact]
+    public void Sin_ninguna_Empresa_en_cartera_tampoco_dice_al_dia()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto([Tenant(TenantOrigen, "ArcoSPA", esOrigen: true, [])]));
+
+        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("Sin Asignación de Cartera");
+        cut.Markup.Should().NotContain("Cartera al día");
+    }
+
+    [Fact]
+    public void Con_alguna_Empresa_con_alcance_y_sin_pendientes_la_cartera_si_esta_al_dia()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+        [
+            Tenant(TenantRefri, "Refrielectric", false, []),
+            Tenant(TenantDexter, "Laboratorios Dexter", false, [], alcanceCero: true),
+        ]));
+
+        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("Cartera al día").And.NotContain("Sin Asignación de Cartera");
+        cut.Find(".mi-trabajo-titular").TextContent.Should().Be("Ningún bloqueo hoy");
+    }
+
+    [Fact]
+    public void Con_pendientes_en_cartera_muestra_la_cola_y_ningun_estado_vacio()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+        [
+            Tenant(TenantRefri, "Refrielectric", false, [Item("r1", TipoItemBandeja.Vencido, "Reconocimiento médico", "Transportes Planet Express")]),
+            Tenant(TenantDexter, "Laboratorios Dexter", false, [], alcanceCero: true),
+        ]));
+
+        TitulosVisibles(cut).Should().Equal("Reconocimiento médico");
+        cut.Find(".mi-trabajo-cola").TextContent.Should().NotContain("Cartera al día").And.NotContain("Sin Asignación de Cartera");
+    }
+
+    [Fact]
+    public void Al_elegir_una_Empresa_sin_alcance_dice_que_falta_su_Asignacion_de_Cartera()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+        [
+            Tenant(TenantRefri, "Refrielectric", false, []),
+            Tenant(TenantDexter, "Laboratorios Dexter", false, [], alcanceCero: true),
+        ]));
+
+        cut.FindAll(".mi-trabajo-cartera-fila").Single(f => f.TextContent.Contains("Laboratorios Dexter")).Click();
+
+        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("Laboratorios Dexter, sin Asignación de Cartera");
+        cut.Markup.Should().NotContain("Laboratorios Dexter, al día");
+    }
+
+    [Fact]
+    public void Con_alcance_cero_un_Gestor_CAE_puede_pedir_la_incorporacion_desde_el_estado_vacio()
+    {
+        var cut = Renderizar(
+            () => new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", false, [], alcanceCero: true)]),
+            () => Candidatos(CandidatoCatering));
+
+        cut.Find(".mi-trabajo-cola").QuerySelectorAll("button").Select(b => b.TextContent.Trim())
+            .Should().Contain("Añadir a mi cartera");
     }
 
     [Fact]

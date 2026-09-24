@@ -18,7 +18,11 @@ namespace CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
 /// aceptable: "solo Administrador de plataforma en v1". Sin este Command no
 /// había ningún camino de producto para aprovisionar el segmento consultora
 /// — <c>CrearDelegacionTenantCommand</c>/<c>CrearAsignacionOperadorDelegadoCommand</c>
-/// ya existían pero solo los despachaba <c>DelegacionDemoSeeder</c>.
+/// ya existían pero entonces solo los despachaba <c>DelegacionDemoSeeder</c>. Desde el
+/// incremento 1b, <c>CrearDelegacionTenantCommand</c> lo despacha también
+/// <c>/delegaciones</c>, cuando el Administrador de un Tenant propietario que ya existe
+/// autoriza a un Operador CAE externo; este comando sigue siendo el único camino para
+/// el caso en que el Tenant propietario todavía no existe.
 ///
 /// Une en una sola operación lo que el seeder de demo hace en varios pasos:
 /// aprovisiona el Tenant, lo une a la Consultora (el tenant de origen de

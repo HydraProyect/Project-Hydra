@@ -144,6 +144,12 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
         // ver CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap.
         servicios.AddScoped<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>();
 
+        // Mismo registro que producción (InfrastructureServiceCollectionExtensions):
+        // los jobs de fondo recorren los Tenants con esta vista antes de abrir un
+        // AmbitoTenantExplicito por cada uno.
+        servicios.AddScoped<CaeManager.Application.Tenants.ITenantsQueryContext>(
+            sp => sp.GetRequiredService<CaeManagerDbContext>());
+
         servicios.AddIdentityCore<ApplicationUser>()
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<CaeManagerDbContext>();

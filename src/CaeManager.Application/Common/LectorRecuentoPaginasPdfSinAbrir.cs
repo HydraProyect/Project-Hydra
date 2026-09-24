@@ -30,15 +30,20 @@ namespace CaeManager.Application.Common;
 /// Cota exacta para la forma "clásica" de PDF (trailer, Root, Pages y Count
 /// en texto plano, sin xref comprimida ni object streams) y ABSTENCIÓN
 /// segura (null) para todo lo demás — nunca una aproximación. Ver el
-/// doc-comment de <see cref="IntentarLeerRecuentoDePaginasSinAbrir"/> para
+/// doc-comment de <see cref="IntentarLeerRecuentoDePaginasSinAbrir(byte[])"/> para
 /// el detalle exacto de qué formas cubre y por qué el contrato de PDF (ISO
 /// 32000-1 § 7.7.3.2) hace que leer solo <c>/Count</c> del nodo raíz baste,
 /// sin bajar a <c>/Kids</c> ni sumar nada.
 /// </summary>
 public static class LectorRecuentoPaginasPdfSinAbrir
 {
-    /// <summary>Tiempo máximo por búsqueda textual — defensa en profundidad sobre bytes no confiables; ningún patrón de aquí necesita de verdad tanto.</summary>
-    private static readonly TimeSpan TimeoutBusquedaTextual = TimeSpan.FromMilliseconds(200);
+    /// <summary>
+    /// Tiempo máximo por búsqueda textual — defensa en profundidad sobre bytes
+    /// no confiables; ningún patrón de aquí necesita de verdad tanto. Es el
+    /// ÚNICO valor que usa el punto de entrada público; su valor lo fija un
+    /// test (<c>LectorRecuentoPaginasPdfSinAbrirTests</c>).
+    /// </summary>
+    internal static readonly TimeSpan TimeoutBusquedaTextual = TimeSpan.FromMilliseconds(200);
 
     /// <summary>
     /// Intenta leer cuántas páginas declara este PDF sin invocar
@@ -63,7 +68,19 @@ public static class LectorRecuentoPaginasPdfSinAbrir
     /// de aceptar o rechazar un documento nunca cambia por su causa, solo
     /// cambia CUÁNDO se paga el coste de descubrirlo.
     /// </summary>
-    public static long? IntentarLeerRecuentoDePaginasSinAbrir(byte[] contenidoPdf)
+    public static long? IntentarLeerRecuentoDePaginasSinAbrir(byte[] contenidoPdf) =>
+        IntentarLeerRecuentoDePaginasSinAbrir(contenidoPdf, TimeoutBusquedaTextual);
+
+    /// <summary>
+    /// Misma lectura con el tope por búsqueda textual como parámetro. Existe
+    /// SOLO para los tests: el tope se mide en reloj de pared, así que una
+    /// parada del hilo de ≥200 ms (CPU disputada, pausa de GC) agota una
+    /// búsqueda de ~1 ms y la lectura se abstiene — comportamiento correcto
+    /// en producción, pero no determinista en un test que quiere probar la
+    /// LÓGICA de lectura. Ningún código de producción debe llamar a esta
+    /// sobrecarga: el visible fuera de Application es el público de arriba.
+    /// </summary>
+    internal static long? IntentarLeerRecuentoDePaginasSinAbrir(byte[] contenidoPdf, TimeSpan timeoutBusquedaTextual)
     {
         try
         {
@@ -77,22 +94,22 @@ public static class LectorRecuentoPaginasPdfSinAbrir
             var indiceTrailer = texto.LastIndexOf("trailer", StringComparison.Ordinal);
             if (indiceTrailer < 0) return null;
 
-            if (BuscarReferencia(texto, "/Root", indiceTrailer) is not (long numeroRoot, long generacionRoot))
+            if (BuscarReferencia(texto, "/Root", indiceTrailer, timeoutBusquedaTextual) is not (long numeroRoot, long generacionRoot))
                 return null;
 
-            var cuerpoRoot = BuscarUltimoCuerpoDeObjeto(texto, numeroRoot, generacionRoot);
+            var cuerpoRoot = BuscarUltimoCuerpoDeObjeto(texto, numeroRoot, generacionRoot, timeoutBusquedaTextual);
             if (cuerpoRoot is null) return null;
 
-            if (BuscarReferencia(cuerpoRoot, "/Pages", 0) is not (long numeroPages, long generacionPages))
+            if (BuscarReferencia(cuerpoRoot, "/Pages", 0, timeoutBusquedaTextual) is not (long numeroPages, long generacionPages))
                 return null;
 
-            var cuerpoPages = BuscarUltimoCuerpoDeObjeto(texto, numeroPages, generacionPages);
+            var cuerpoPages = BuscarUltimoCuerpoDeObjeto(texto, numeroPages, generacionPages, timeoutBusquedaTextual);
             if (cuerpoPages is null) return null;
             if (!cuerpoPages.Contains("/Type/Pages", StringComparison.Ordinal) &&
                 !cuerpoPages.Contains("/Type /Pages", StringComparison.Ordinal))
                 return null;
 
-            var coincidencia = Regex.Match(cuerpoPages, @"/Count\s+(\d+)", RegexOptions.None, TimeoutBusquedaTextual);
+            var coincidencia = Regex.Match(cuerpoPages, @"/Count\s+(\d+)", RegexOptions.None, timeoutBusquedaTextual);
             if (!coincidencia.Success) return null;
 
             // Un /Count que no cabe en long es, para cualquier tope razonable,
@@ -129,10 +146,10 @@ public static class LectorRecuentoPaginasPdfSinAbrir
     /// la etiqueta buscada sería solo el PREFIJO de un nombre más largo
     /// (p.ej. "/Pages" dentro de "/PagesBackup"), y no la clave real.
     /// </summary>
-    private static (long numero, long generacion)? BuscarReferencia(string texto, string etiqueta, int desdeIndice)
+    private static (long numero, long generacion)? BuscarReferencia(string texto, string etiqueta, int desdeIndice, TimeSpan timeoutBusquedaTextual)
     {
         var patron = Regex.Escape(etiqueta) + @"(?=[\s()<>\[\]{}/%]|$)\s+(\d+)\s+(\d+)\s+R";
-        var coincidencia = new Regex(patron, RegexOptions.None, TimeoutBusquedaTextual).Match(texto, desdeIndice);
+        var coincidencia = new Regex(patron, RegexOptions.None, timeoutBusquedaTextual).Match(texto, desdeIndice);
         if (!coincidencia.Success) return null;
 
         if (!long.TryParse(coincidencia.Groups[1].Value, out var numero)) return null;
@@ -146,9 +163,9 @@ public static class LectorRecuentoPaginasPdfSinAbrir
     /// el texto entre esa cabecera y el "endobj" que le sigue, o null si no
     /// se encuentra ninguna de las dos cosas.
     /// </summary>
-    private static string? BuscarUltimoCuerpoDeObjeto(string texto, long numero, long generacion)
+    private static string? BuscarUltimoCuerpoDeObjeto(string texto, long numero, long generacion, TimeSpan timeoutBusquedaTextual)
     {
-        var patronCabecera = new Regex($@"(?<![0-9]){numero}\s+{generacion}\s+obj\b", RegexOptions.None, TimeoutBusquedaTextual);
+        var patronCabecera = new Regex($@"(?<![0-9]){numero}\s+{generacion}\s+obj\b", RegexOptions.None, timeoutBusquedaTextual);
 
         Match? ultimaCabecera = null;
         foreach (Match m in patronCabecera.Matches(texto))

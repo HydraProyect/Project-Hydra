@@ -111,7 +111,7 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
 
         var delegacion = new DelegacionTenant(tenantConsultora.Id, tenantCliente.Id);
         _dbContext.DelegacionesTenant.Add(delegacion);
-        _dbContext.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(delegacion.Id, _usuario, "DireccionCae"));
+        _dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, _usuario, "DireccionCae"));
         await _dbContext.SaveChangesAsync();
 
         _tenantConsultora = tenantConsultora.Id;
@@ -194,7 +194,8 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
 
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("DireccionCae");
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("DireccionCae");
 
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(tenantOrigenId());
 

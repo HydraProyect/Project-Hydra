@@ -209,7 +209,7 @@ public class DirectorioUsuariosTenant(
     /// Rol acotado (<c>AsignacionOperadorDelegado.Rol</c>) de cada Operador
     /// Delegado visible en el tenant activo — nunca su rol de origen. Un
     /// operador de soporte es <c>Administrador</c> en el tenant de plataforma,
-    /// pero <c>CurrentUserService.ObtenerRolActualAsync</c> ya lo acota a
+    /// pero <c>CurrentUserService.ObtenerRolEfectivoAsync</c> ya lo acota a
     /// Consulta/GestorCae/CoordinadorCae al operar aquí; mostrar su rol de
     /// origen en /usuarios contradice esa restricción y alarma sin motivo a
     /// quien lo ve (un "Administrador" desconocido en su propia organización).
@@ -439,21 +439,43 @@ public class DirectorioUsuariosTenant(
                       && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
                 join usuario in identidad.Users on cartera.UsuarioId equals usuario.Id
                 where operacion.OperadorTenantId == usuario.TenantId
-                select new { cartera.UsuarioId, cartera.AmbitoRelacionClienteId })
+                select new
+                {
+                    cartera.UsuarioId,
+                    Cartera = cartera.AmbitoRelacionClienteId,
+                    Operacion = operacion.AmbitoRelacionClienteId,
+                    DimensionDiferida = cartera.AmbitoCentroId != null || cartera.AmbitoTrabajadorId != null
+                                        || cartera.AmbitoProyectoId != null || operacion.AmbitoCentroId != null
+                                        || operacion.AmbitoTrabajadorId != null || operacion.AmbitoProyectoId != null
+                })
                 .Distinct()
                 .ToListAsync(cancellationToken);
 
-            return ambitos
+            // Mismo ámbito efectivo que AlcanceDatosService: la intersección de
+            // la cartera con su operación. Una cartera universal bajo una
+            // operación acotada a un Cliente empresarial no se pinta como toda
+            // la operación; una dimensión diferida no concede nada.
+            var efectivos = ambitos
+                .Where(a => !a.DimensionDiferida)
+                .Select(a => new
+                {
+                    a.UsuarioId,
+                    Concede = a.Cartera is null || a.Operacion is null || a.Operacion == a.Cartera,
+                    Ambito = a.Cartera ?? a.Operacion
+                })
+                .Where(a => a.Concede);
+
+            return efectivos
                 .GroupBy(a => a.UsuarioId)
                 .ToDictionary(
                     grupo => grupo.Key,
                     grupo => new CarteraDeUsuario(
                         // Ámbito sin dimensión ninguna: toda la operación de
                         // ESTE tenant, nunca más allá — ver AmbitoAsignacion.
-                        EsUniversal: grupo.Any(a => a.AmbitoRelacionClienteId is null),
+                        EsUniversal: grupo.Any(a => a.Ambito is null),
                         ClienteIds: grupo
-                            .Where(a => a.AmbitoRelacionClienteId is not null)
-                            .Select(a => a.AmbitoRelacionClienteId!.Value)
+                            .Where(a => a.Ambito is not null)
+                            .Select(a => a.Ambito!.Value)
                             .Distinct()
                             .ToList()));
         }, cancellationToken);

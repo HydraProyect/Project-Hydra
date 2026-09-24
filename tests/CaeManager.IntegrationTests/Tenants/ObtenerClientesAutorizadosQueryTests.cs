@@ -50,8 +50,8 @@ public class ObtenerClientesAutorizadosQueryTests : IAsyncLifetime
 
         contexto.DelegacionesTenant.Add(comercial);
         contexto.DelegacionesTenant.Add(soporte);
-        contexto.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(comercial.Id, _usuario, "Administrador"));
-        contexto.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(soporte.Id, _usuario, "Administrador"));
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(comercial.Id, _usuario, "Administrador"));
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(soporte.Id, _usuario, "Administrador"));
 
         await contexto.SaveChangesAsync();
     }
@@ -87,7 +87,8 @@ public class ObtenerClientesAutorizadosQueryTests : IAsyncLifetime
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
 
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("Administrador");
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("Administrador");
 
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(tenantOrigenId);
 

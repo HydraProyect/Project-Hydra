@@ -150,6 +150,12 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// envenenar algo — la pregunta de REC-195, no la de este ratchet. Medido
     /// uno a uno sobre <c>origin/main</c> <c>0ec6c37b</c>:
     /// </para>
+    /// <para>
+    /// Actualizado 2026-09-23: <c>ExpiracionAsignacionesHostedService.cs</c> entra en
+    /// <see cref="Categoria.JobDeFondoSobreEnumeracionPropia"/> (1 llamada), con un
+    /// <c>CreateScope()</c> por Tenant — el recuento de la lista de abajo es el del
+    /// 2026-09-18 y no lo incluye.
+    /// </para>
     /// <list type="bullet">
     /// <item><description>Los 9 ficheros de <see cref="Categoria.JobDeFondoSobreEnumeracionPropia"/>
     /// llaman <c>ambitoFactory.CreateScope()</c> justo antes de cada <c>Establecer</c>: cada
@@ -219,6 +225,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los tenants desde el propio servicio"),
         ["src/CaeManager.Infrastructure/DocumentosIa/ProcesadorAnalisisDocumentoHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "3 llamadas — tenantId del trabajo reclamado por SKIP LOCKED, nunca de un parámetro de petición"),
+        ["src/CaeManager.Infrastructure/Operaciones/ExpiracionAsignacionesHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario (2026-09-23: sin él, cae_app_runtime veía cero filas de AsignacionesOperacion/AsignacionesCartera)"),
         ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "4 llamadas — tenantId del EventoWebhook ya persistido con su tenant resuelto por el paso de verificación previo"),
         ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] =

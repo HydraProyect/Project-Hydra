@@ -268,8 +268,9 @@ public class IncorporacionCarteraCommandsTests
     /// <summary>
     /// Hallazgo de Codex (P1) sobre este incremento, más ancho de lo que decía: dentro de un
     /// Workspace operativo derivado, RolEfectivoDelWorkspaceMiddleware sustituye el claim de rol
-    /// por el de la cartera en ese Tenant propietario, y ObtenerRolActualAsync lo devuelve tal cual
-    /// también en el ámbito de origen. Un Coordinador CAE que opera ese Tenant como Gestor CAE
+    /// por el de la cartera en ese Tenant propietario, y ObtenerRolActualAsync (hoy
+    /// ObtenerRolEfectivoAsync) lo devolvía tal cual también en el ámbito de origen hasta la
+    /// decisión P7. Un Coordinador CAE que opera ese Tenant como Gestor CAE
     /// sigue siendo Coordinador CAE de su Operador CAE: el rol sale de Identity.
     /// </summary>
     [Fact]
@@ -286,7 +287,7 @@ public class IncorporacionCarteraCommandsTests
 
     /// <summary>
     /// Sesión privilegiada de plataforma o delegación retirada: la sesión no tiene rol de negocio
-    /// (ObtenerRolActualAsync da null) y no opera, aunque la cuenta sea Coordinador CAE en Identity.
+    /// (ObtenerRolEfectivoAsync da null) y no opera, aunque la cuenta sea Coordinador CAE en Identity.
     /// </summary>
     [Fact]
     public async Task Sin_rol_de_negocio_en_la_sesion_no_acepta_aunque_la_cuenta_sea_Coordinador_CAE()

@@ -89,15 +89,33 @@ public class BuscarGlobalQueryHandler(
             .Select(c => new ItemBusquedaDto(c.Id, c.Nombre, "Centro", $"/centros/{c.Id}"))
             .ToListAsync(cancellationToken);
 
-        var trabajadores = await trabajadoresContext.Trabajadores
-            .Where(t => trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(t.Id))
-            .Where(t =>
-                t.Nombre.ToUpper().Contains(terminoMayus) ||
-                t.Apellidos.ToUpper().Contains(terminoMayus) ||
-                (t.Dni ?? "").ToUpper().Contains(terminoMayus))
-            .OrderBy(t => t.Apellidos).ThenBy(t => t.Nombre)
+        // Sin DNI, ni como criterio ni como subtítulo (decisión delegada en
+        // Codex por el propietario, 2026-09-24, que extiende P4 «base general
+        // sin DNI» a Ctrl+K): el buscador lo tiene todo usuario autenticado,
+        // incluido un usuario Consulta de un Operador CAE externo con alcance
+        // sobre el Tenant beneficiario entero, y buscar por fragmento de DNI
+        // mostrando el DNI completo al lado permitía enumerarlo tecleando.
+        // Se busca por nombre y apellidos; el subtítulo es la razón social de
+        // la organización empleadora (Empresa o Subcontrata), como en el
+        // mockup del Command Palette y en el desempate de homónimos de los
+        // selectores. Quien necesite el DNI lo tiene en la ficha del
+        // Trabajador y en el listado /trabajadores.
+        var trabajadores = await (
+                from trabajador in trabajadoresContext.Trabajadores
+                where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(trabajador.Id)
+                where trabajador.Nombre.ToUpper().Contains(terminoMayus) ||
+                      trabajador.Apellidos.ToUpper().Contains(terminoMayus)
+                join empresa in empresasContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
+                from empresa in empresasCoincidentes.DefaultIfEmpty()
+                join subcontrata in empresasContext.Empresas on trabajador.SubcontrataId equals subcontrata.Id into subcontratasCoincidentes
+                from subcontrata in subcontratasCoincidentes.DefaultIfEmpty()
+                orderby trabajador.Apellidos, trabajador.Nombre
+                select new ItemBusquedaDto(
+                    trabajador.Id,
+                    trabajador.Nombre + " " + trabajador.Apellidos,
+                    empresa != null ? empresa.RazonSocial : subcontrata != null ? subcontrata.RazonSocial : null,
+                    $"/trabajadores/{trabajador.Id}"))
             .Take(LimitePorCategoria)
-            .Select(t => new ItemBusquedaDto(t.Id, t.Nombre + " " + t.Apellidos, t.Dni, $"/trabajadores/{t.Id}"))
             .ToListAsync(cancellationToken);
 
         var documentos = await BuscarDocumentosAsync(terminoMayus, cancellationToken);

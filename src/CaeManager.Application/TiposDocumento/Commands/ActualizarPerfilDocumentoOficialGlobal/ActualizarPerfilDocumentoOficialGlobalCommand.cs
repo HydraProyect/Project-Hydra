@@ -31,7 +31,7 @@ public class ActualizarPerfilDocumentoOficialGlobalCommandHandler(
 
     public async Task<Result> Handle(ActualizarPerfilDocumentoOficialGlobalCommand request, CancellationToken cancellationToken)
     {
-        var rol = await currentUserService.ObtenerRolActualAsync();
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
         if (rol != RolAdministrador)
             return Result.Fallo(Error.Crear("PerfilDocumentoOficial.SoloAdministrador", "Solo Administrador puede cambiar el perfil oficial."));
 

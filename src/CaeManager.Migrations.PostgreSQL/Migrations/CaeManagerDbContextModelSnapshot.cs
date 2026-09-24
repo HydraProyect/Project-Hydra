@@ -6595,6 +6595,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("DelegacionTenantId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("MotivoRevocacion")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("RevocadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Rol")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -6608,7 +6615,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("UsuarioId");
 
                     b.HasIndex("DelegacionTenantId", "UsuarioId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"RevocadaEnUtc\" IS NULL");
 
                     b.ToTable("AsignacionesOperadorDelegado", (string)null);
                 });

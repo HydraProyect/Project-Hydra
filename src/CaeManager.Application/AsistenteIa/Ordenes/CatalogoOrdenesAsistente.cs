@@ -23,13 +23,15 @@ namespace CaeManager.Application.AsistenteIa.Ordenes;
 /// <para>
 /// Los criterios de clasificación no están inventados: son los que se midieron
 /// contra un modelo real el 2026-09-20, donde clasificaron correctamente las 13
-/// órdenes operativas de una batería sintética. Cambiarlos invalida esa
+/// órdenes operativas de una batería sintética. Cambiarlos invalida la
 /// medición, y por eso conviene decir qué se cambió después: el 2026-09-21 el
 /// propietario confirmó la frontera entre Asignación y Visita, que hasta
 /// entonces era una propuesta, y los criterios de esas dos órdenes se
-/// reescribieron con ella. <b>La medición del 20 ya no cubre esas dos</b> —
-/// justamente las que el propio informe daba por ambiguas—; el resto sigue
-/// valiendo. Volver a medirlas es trabajo pendiente, no un detalle.
+/// reescribieron con ella. Esas dos se volvieron a medir el 2026-09-23: con los
+/// criterios anteriores, 27/30 y tres errores con confianza de 0,90 o más —los
+/// tres en la orden que abarca la semana completa—; con los actuales, 30/30,
+/// estable en tres pasadas. Quien vuelva a tocar un criterio deja de estar
+/// cubierto por esa medición hasta repetirla.
 /// </para>
 /// <para>
 /// Una orden puede tener <b>caminos</b> además de pasos. Los pasos dicen con qué

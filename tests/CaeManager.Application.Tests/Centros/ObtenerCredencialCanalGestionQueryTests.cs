@@ -1,3 +1,4 @@
+using CaeManager.Application.Tests.Auditoria;
 using CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tests.Clientes;
@@ -31,7 +32,7 @@ public class ObtenerCredencialCanalGestionQueryTests
     {
         var (contexto, centroId, canal) = Escenario();
         var handler = new ObtenerCredencialCanalGestionQueryHandler(
-            contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [centroId]));
+            contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [centroId]), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(new ObtenerCredencialCanalGestionQuery(centroId, canal.Id), CancellationToken.None);
 
@@ -50,7 +51,7 @@ public class ObtenerCredencialCanalGestionQueryTests
         var (contexto, centroId, canal) = Escenario();
         var handler = new ObtenerCredencialCanalGestionQueryHandler(
             contexto,
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [centroId], centroIdsParaGestion: []));
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [centroId], centroIdsParaGestion: []), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(new ObtenerCredencialCanalGestionQuery(centroId, canal.Id), CancellationToken.None);
 
@@ -62,7 +63,7 @@ public class ObtenerCredencialCanalGestionQueryTests
     {
         var (contexto, centroId, canal) = Escenario();
         var handler = new ObtenerCredencialCanalGestionQueryHandler(
-            contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [Guid.NewGuid()]));
+            contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [Guid.NewGuid()]), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(new ObtenerCredencialCanalGestionQuery(centroId, canal.Id), CancellationToken.None);
 
@@ -76,7 +77,7 @@ public class ObtenerCredencialCanalGestionQueryTests
         var (contexto, _, canalAjeno) = Escenario();
         var centroPropio = Guid.NewGuid();
         var handler = new ObtenerCredencialCanalGestionQueryHandler(
-            contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [centroPropio]));
+            contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [centroPropio]), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(new ObtenerCredencialCanalGestionQuery(centroPropio, canalAjeno.Id), CancellationToken.None);
 
@@ -90,7 +91,7 @@ public class ObtenerCredencialCanalGestionQueryTests
         var canal = CanalGestionDocumental.PorEmail(centroId, "Gestión general", "prl@centro.com", "Responsable PRL");
         var contexto = new CentrosQueryContextFalso();
         contexto.ListaCanalesGestionDocumental.Add(canal);
-        var handler = new ObtenerCredencialCanalGestionQueryHandler(contexto, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerCredencialCanalGestionQueryHandler(contexto, new AlcanceDatosServiceFalso(), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(new ObtenerCredencialCanalGestionQuery(centroId, canal.Id), CancellationToken.None);
 

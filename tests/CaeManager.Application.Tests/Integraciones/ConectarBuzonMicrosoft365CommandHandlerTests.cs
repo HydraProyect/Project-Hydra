@@ -85,6 +85,38 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
         reclamacionRepositorio.VecesGuardado.Should().Be(0, "debe fallar antes de intentar la reclamación global");
     }
 
+    /// <summary>
+    /// Hallazgo P2 de la revisión Codex sobre PR #820: DesconectarBuzonCommand
+    /// no borra la ConexionIntegracion, la deja Deshabilitada y libera la
+    /// reclamación global. Bloquear también ese estado en la comprobación de
+    /// arriba impediría reconectar desde cero cuando la suscripción de Graph
+    /// anterior ya no existe — el único camino que ReactivarConexionCommand
+    /// documenta para ese escenario, porque no crea una suscripción nueva.
+    /// </summary>
+    [Fact]
+    public async Task Permite_reconectar_un_buzon_cuya_unica_conexion_previa_esta_deshabilitada()
+    {
+        var conexionDeshabilitada = new ConexionIntegracion("CAE@Tenant.com", "Buzón CAE desconectado");
+        conexionDeshabilitada.Deshabilitar();
+        var queryContext = new IntegracionesQueryContextFalso();
+        queryContext.ConexionesLista.Add(conexionDeshabilitada);
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        var reclamacionRepositorio = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var handler = CrearHandler(
+            conexionRepositorio, new CredencialIntegracionRepositorioFalso(), new SuscripcionWebhookRepositorioFalso(), reclamacionRepositorio,
+            new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(),
+            queryContext: queryContext);
+
+        var resultado = await handler.Handle(
+            new ConectarBuzonMicrosoft365Command(
+                "cae@tenant.com", "Buzón CAE (reconectado)", ClienteId: null, "access-token", "refresh-token", "https://hydra.local"),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("una conexión Deshabilitada no debe bloquear la reconexión desde cero");
+        conexionRepositorio.Conexiones.Should().ContainSingle(c => c.BuzonEmail == "cae@tenant.com");
+        reclamacionRepositorio.VecesGuardado.Should().Be(1);
+    }
+
     [Fact]
     public async Task Rechaza_un_clienteId_fuera_de_la_cartera()
     {

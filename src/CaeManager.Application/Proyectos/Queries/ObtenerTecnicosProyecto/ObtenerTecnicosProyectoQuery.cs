@@ -9,7 +9,7 @@ namespace CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
 public record ObtenerTecnicosProyectoQuery(Guid ProyectoId) : IRequest<IReadOnlyList<TecnicoProyectoDto>>;
 
 public record TecnicoProyectoDto(
-    Guid Id, Guid TrabajadorId, string TrabajadorNombreCompleto, string? TrabajadorDni,
+    Guid Id, Guid TrabajadorId, string TrabajadorNombreCompleto,
     DateOnly FechaAlta, DateOnly? FechaBaja, bool EstaActivo);
 
 public class ObtenerTecnicosProyectoQueryHandler(IProyectosQueryContext proyectosContext, ITrabajadoresQueryContext trabajadoresContext)
@@ -23,7 +23,7 @@ public class ObtenerTecnicosProyectoQueryHandler(IProyectosQueryContext proyecto
             join trabajador in trabajadoresContext.Trabajadores on proyectoTecnico.TrabajadorId equals trabajador.Id
             orderby proyectoTecnico.FechaAlta descending
             select new TecnicoProyectoDto(
-                proyectoTecnico.Id, trabajador.Id, trabajador.Nombre + " " + trabajador.Apellidos, trabajador.Dni,
+                proyectoTecnico.Id, trabajador.Id, trabajador.Nombre + " " + trabajador.Apellidos,
                 proyectoTecnico.FechaAlta, proyectoTecnico.FechaBaja, proyectoTecnico.FechaBaja == null);
 
         return await consulta.ToListAsync(cancellationToken);

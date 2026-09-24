@@ -63,7 +63,7 @@ public class ObtenerMiTrabajoAgregadoQueryComposicionTests(ITestOutputHelper sal
 
         var delegacion = new DelegacionTenant(_tenantOrigen, _tenantDelegante);
         _dbContext.DelegacionesTenant.Add(delegacion);
-        _dbContext.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
+        _dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
         await _dbContext.SaveChangesAsync();
 
         _servicios = ConstruirServicios(tenantActual, () => _tenantOrigen);
@@ -197,7 +197,7 @@ public class ObtenerMiTrabajoAgregadoQueryComposicionTests(ITestOutputHelper sal
         {
             var delegacion = new DelegacionTenant(_tenantOrigen, tenant.Id);
             _dbContext.DelegacionesTenant.Add(delegacion);
-            _dbContext.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
+            _dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
         }
         await _dbContext.SaveChangesAsync();
 

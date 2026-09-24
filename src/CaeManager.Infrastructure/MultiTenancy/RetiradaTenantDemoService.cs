@@ -71,7 +71,8 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// Los catálogos globales que referencian este tenant o a sus usuarios no los
 /// alcanza el bucle de <see cref="EntidadConTenant"/> porque no heredan de
 /// ella; se limpian aquí explícitamente, y no todos por el mismo motivo.
-/// <c>DelegacionesTenant</c>, <c>AsignacionesOperadorDelegado</c>,
+/// <c>DelegacionesTenant</c>, <c>AsignacionesOperadorDelegado</c> (incluidas las
+/// revocadas, que la vista de lectura oculta),
 /// <c>AceptacionesTerminos</c>, <c>FiltrosGuardados</c>,
 /// <c>PreferenciasDashboardUsuario</c>, <c>SesionesPrivilegiadas</c> y
 /// <c>TenantsAlcanzadosPorConcesion</c> no tienen FK física hacia
@@ -256,7 +257,7 @@ public static class RetiradaTenantDemoService
                 dbContext.RemoveRange(await dbContext.AceptacionesTerminos.Where(a => idsUsuarios.Contains(a.UsuarioId)).ToListAsync(cancellationToken));
                 dbContext.RemoveRange(await dbContext.FiltrosGuardados.Where(f => idsUsuarios.Contains(f.UsuarioId)).ToListAsync(cancellationToken));
                 dbContext.RemoveRange(await dbContext.PreferenciasDashboardUsuario.Where(p => idsUsuarios.Contains(p.UsuarioId)).ToListAsync(cancellationToken));
-                dbContext.RemoveRange(await dbContext.AsignacionesOperadorDelegado.Where(a => idsUsuarios.Contains(a.UsuarioId)).ToListAsync(cancellationToken));
+                dbContext.RemoveRange(await dbContext.AsignacionesOperadorDelegadoConRevocadas.Where(a => idsUsuarios.Contains(a.UsuarioId)).ToListAsync(cancellationToken));
             }
 
             var delegaciones = await dbContext.DelegacionesTenant
@@ -265,7 +266,7 @@ public static class RetiradaTenantDemoService
             if (delegaciones.Count > 0)
             {
                 var idsDelegaciones = delegaciones.Select(d => d.Id).ToHashSet();
-                dbContext.RemoveRange(await dbContext.AsignacionesOperadorDelegado
+                dbContext.RemoveRange(await dbContext.AsignacionesOperadorDelegadoConRevocadas
                     .Where(a => idsDelegaciones.Contains(a.DelegacionTenantId)).ToListAsync(cancellationToken));
                 dbContext.RemoveRange(delegaciones);
             }

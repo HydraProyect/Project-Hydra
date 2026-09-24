@@ -306,20 +306,50 @@ public class TerminologiaCanonicaTests
     /// </para>
     ///
     /// <para>
+    /// <b><c>Delegacion</c> 320 → 329 (incremento 1b del aprovisionamiento — el Administrador
+    /// del Tenant propietario autoriza a un Operador CAE externo, 2026-09-23; recontado tras
+    /// fusionar <c>origin/main</c> con el menú lateral y la solicitud de incorporación a
+    /// cartera de arriba): +9, todo referencia a superficie existente, ningún nombre propio
+    /// nuevo.</b> La decisión fijada (opción 1′) es
+    /// reutilizar <c>CrearDelegacionTenantCommand</c> sin entidad nueva, así que la pantalla lo
+    /// nombra (espacio de nombres y tipo, 2); el comando consulta <c>DelegacionesTenant</c> y
+    /// <c>PropositoDelegacion</c> para rechazar un segundo Operador vigente (2); la consulta del
+    /// candidato reutiliza <c>IAutorizacionDelegacionTenant</c> y
+    /// <c>PuedeGestionarDelegacionesAsync</c> para no duplicar la regla de autoridad (2); y el
+    /// recurso de textos nuevo vive en la carpeta de la funcionalidad,
+    /// <c>Features.Delegaciones.Recursos</c> (declaración y dos <c>using</c>, 3). Los tipos
+    /// nuevos se nombraron sin el término (<c>OperadorCaeExternoElegible</c>,
+    /// <c>AutorizarOperadorCaeExternoQueriesHandler</c>). Baja con la migración de
+    /// <c>DelegacionTenant</c> (D-2/D-3/D-7), no antes.
+    /// </para>
+    ///
+    /// <para>
     /// <b><c>ClienteActivo</c> 71 → 73 (petición abortada en
-    /// <c>RevalidacionClienteActivoMiddleware</c>, 2026-09-23): +2, mismo identificador ya
-    /// congelado, ningún tipo nuevo.</b> La revisión puente del incremento (#822) exigió
-    /// ejecutar también en el segundo catch la invalidación de
-    /// <c>ClienteActivoSeleccionado</c> que ya existía en el camino feliz, para no diferirla a
-    /// la siguiente petición cuando el cliente aborta durante <c>EsVentanaDeSoporteAsync</c>:
-    /// dos apariciones más del mismo patrón, no deuda de un tipo distinto.
+    /// <c>RevalidacionClienteActivoMiddleware</c>, 2026-09-23, fusionado desde <c>origin/main</c>
+    /// vía #822): +2, mismo identificador ya congelado, ningún tipo nuevo.</b> La revisión
+    /// puente del incremento (#822) exigió ejecutar también en el segundo catch la invalidación
+    /// de <c>ClienteActivoSeleccionado</c> que ya existía en el camino feliz, para no diferirla
+    /// a la siguiente petición cuando el cliente aborta durante <c>EsVentanaDeSoporteAsync</c>:
+    /// dos apariciones más del mismo patrón, no deuda de un tipo distinto. Independiente del
+    /// incremento de <c>Delegacion</c> de arriba: ningún fichero se solapa.
+    /// </para>
+    ///
+    /// <para>
+    /// <b><c>Delegacion</c> 329 → 332 (hallazgo de Codex al integrar <c>origin/main</c> en el
+    /// incremento 1b, 2026-09-24): +3, todo superficie existente.</b>
+    /// <c>ReactivarDelegacionTenantCommand</c> aplica la misma regla
+    /// <c>OtroOperadorVigente</c> que <c>CrearDelegacionTenantCommand</c> antes de reabrir la
+    /// operación completa: consulta <c>DelegacionesTenant</c> (1) y compara
+    /// <c>PropositoDelegacion</c> del vínculo reactivado y de los demás (2). Sin la regla,
+    /// reactivar al Operador CAE externo A tras autorizar a B chocaba con el índice único como
+    /// excepción sin traducir. Baja con la migración de <c>DelegacionTenant</c>.
     /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
         ["Hydra"] = 48,
         ["EjecutivoUsuarioId"] = 48,
-        ["Delegacion"] = 320,
+        ["Delegacion"] = 332,
         ["ClienteActivo"] = 73,
     };
 

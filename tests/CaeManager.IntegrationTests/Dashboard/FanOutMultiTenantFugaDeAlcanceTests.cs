@@ -33,7 +33,7 @@ namespace CaeManager.IntegrationTests.Dashboard;
 /// <item>(a) <c>AlcanceDatosService</c> memoizaba acceso total/cartera en un
 /// único valor por instancia: el del PRIMER tenant visitado se servía, sin
 /// volver a resolverse, a cada tenant siguiente.</item>
-/// <item>(b) <c>CurrentUserService.ObtenerRolActualAsync</c> ignoraba
+/// <item>(b) <c>CurrentUserService.ObtenerRolEfectivoAsync</c> ignoraba
 /// <c>AmbitoTenantExplicito</c> y devolvía siempre el rol de la sesión o el
 /// del workspace seleccionado en la UI —ninguno de los dos es el rol
 /// efectivo en el Cliente Delegante que el bucle está visitando.</item>
@@ -66,7 +66,7 @@ public class FanOutMultiTenantFugaDeAlcanceTests : IAsyncLifetime
         var delegacionConCartera = new DelegacionTenant(_tenantConsultora, _tenantDelegante);
         var delegacionSinCartera = new DelegacionTenant(_tenantConsultora, _tenantDeleganteSinCartera);
         contexto.DelegacionesTenant.AddRange(delegacionConCartera, delegacionSinCartera);
-        contexto.AsignacionesOperadorDelegado.AddRange(
+        contexto.AsignacionesOperadorDelegadoConRevocadas.AddRange(
             new AsignacionOperadorDelegado(delegacionConCartera.Id, _usuario, Roles.GestorCae),
             new AsignacionOperadorDelegado(delegacionSinCartera.Id, _usuario, Roles.GestorCae));
         await contexto.SaveChangesAsync();
@@ -143,7 +143,7 @@ public class FanOutMultiTenantFugaDeAlcanceTests : IAsyncLifetime
     /// ninguna cartera (alcance cero), después el propio tenant. Antes del
     /// fix, el caché de instancia también podía servir en la otra dirección
     /// —o simplemente nunca resolver el rol correcto porque
-    /// <c>ObtenerRolActualAsync</c> ignoraba el ámbito— así que se comprueba
+    /// <c>ObtenerRolEfectivoAsync</c> ignoraba el ámbito— así que se comprueba
     /// que ninguna de las dos filas contamina a la otra en ningún sentido.
     /// </summary>
     [Fact]
@@ -182,15 +182,15 @@ public class FanOutMultiTenantFugaDeAlcanceTests : IAsyncLifetime
         var currentUserService = CrearCurrentUserService(contexto);
 
         using (AmbitoTenantExplicito.Establecer(_tenantConsultora))
-            (await currentUserService.ObtenerRolActualAsync()).Should().Be(
+            (await currentUserService.ObtenerRolEfectivoAsync()).Should().Be(
                 "Administrador", "es el propio tenant de origen: el rol es el del claim de sesión");
 
         using (AmbitoTenantExplicito.Establecer(_tenantDelegante))
-            (await currentUserService.ObtenerRolActualAsync()).Should().Be(
+            (await currentUserService.ObtenerRolEfectivoAsync()).Should().Be(
                 Roles.GestorCae, "es el rol de la AsignacionOperadorDelegado en ESE Delegante, no el de la sesión");
 
         using (AmbitoTenantExplicito.Establecer(_tenantDeleganteSinCartera))
-            (await currentUserService.ObtenerRolActualAsync()).Should().Be(
+            (await currentUserService.ObtenerRolEfectivoAsync()).Should().Be(
                 Roles.GestorCae, "GestorCae ahí también, aunque no tenga ninguna cartera bajo ese rol");
     }
 

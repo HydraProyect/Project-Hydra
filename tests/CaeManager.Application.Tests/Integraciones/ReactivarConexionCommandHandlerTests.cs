@@ -13,9 +13,10 @@ public class ReactivarConexionCommandHandlerTests
 
     private static ReactivarConexionCommandHandler CrearHandler(
         ConexionIntegracionRepositorioFalso conexionRepositorio, AlcanceDatosServiceFalso alcanceDatos,
-        UnitOfWorkFalso unitOfWork, ReclamacionBuzonIntegracionRepositorioFalso? reclamacionRepositorio = null) =>
+        UnitOfWorkFalso unitOfWork, ReclamacionBuzonIntegracionRepositorioFalso? reclamacionRepositorio = null,
+        ITenantActual? tenantActual = null) =>
         new(conexionRepositorio, reclamacionRepositorio ?? new ReclamacionBuzonIntegracionRepositorioFalso(),
-            alcanceDatos, new TenantActualFalso(TenantId), unitOfWork);
+            alcanceDatos, tenantActual ?? new TenantActualFalso(TenantId), unitOfWork);
 
     [Fact]
     public async Task Rehabilita_una_conexion_con_error_y_limpia_el_ultimo_error()
@@ -136,6 +137,36 @@ public class ReactivarConexionCommandHandlerTests
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.BuzonYaConectado");
         reclamacionRepositorio.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Hallazgo del punto 6 de la revisión Codex sobre PR #820: antes de este
+    /// fix, Rehabilitar() se llamaba ANTES de comprobar TenantId, dejando la
+    /// entidad Habilitada en memoria (trackeada, sin guardar) aunque el
+    /// Command devolviera fallo — riesgo real porque el DbContext es scoped
+    /// por circuito Blazor, no por request.
+    /// </summary>
+    [Fact]
+    public async Task No_rehabilita_la_conexion_si_no_se_puede_resolver_el_tenant_actual()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.Deshabilitar();
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var reclamacionRepositorio = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(
+            conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork, reclamacionRepositorio,
+            tenantActual: new TenantActualFalso(null));
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.TenantNoResuelto");
+        conexion.Estado.Should().Be(
+            EstadoConexionIntegracion.Deshabilitada, "no debe quedar Habilitada en memoria sin haberse podido guardar ni reclamar");
+        reclamacionRepositorio.VecesGuardado.Should().Be(0);
+        unitOfWork.VecesGuardado.Should().Be(0);
     }
 
     private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual

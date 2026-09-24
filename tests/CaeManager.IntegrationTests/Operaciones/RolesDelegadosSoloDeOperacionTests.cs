@@ -162,7 +162,7 @@ public class RolesDelegadosSoloDeOperacionTests : IAsyncLifetime
         await SembrarAsignacionDelegadaAsync(rol);
         await using (var siembra = CrearContexto(_propietario))
         {
-            siembra.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(_delegacionId, personaConsulta, Roles.Consulta));
+            siembra.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(_delegacionId, personaConsulta, Roles.Consulta));
             await siembra.SaveChangesAsync();
         }
 
@@ -180,10 +180,42 @@ public class RolesDelegadosSoloDeOperacionTests : IAsyncLifetime
             .Should().ContainSingle().Which.Rol.Should().Be(Roles.Consulta);
     }
 
+    /// <summary>
+    /// P8: reactivar la delegación no resucita una asignación revocada, aunque
+    /// su rol sea de Operación. Se usa un Gestor CAE revocado para que el
+    /// resultado dependa de la revocación y no de la lista blanca de roles.
+    /// </summary>
+    [Fact]
+    public async Task Reabrir_no_reactiva_una_asignacion_revocada()
+    {
+        var personaConsulta = Guid.NewGuid();
+        await using (var siembra = CrearContexto(_propietario))
+        {
+            var revocada = new AsignacionOperadorDelegado(_delegacionId, _personaDelOperador, Roles.GestorCae);
+            revocada.Revocar("Prueba de revocación", DateTime.UtcNow);
+            siembra.AsignacionesOperadorDelegadoConRevocadas.AddRange(
+                revocada, new AsignacionOperadorDelegado(_delegacionId, personaConsulta, Roles.Consulta));
+            await siembra.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var operacion = await contexto.AsignacionesOperacion.FirstAsync(o => !o.EsRaiz);
+            await CrearWriter(contexto).ReabrirCarterasDeOperadoresAsync(operacion, _delegacionId);
+            await contexto.SaveChangesAsync();
+        }
+
+        (await CarterasDeLaPersonaAsync()).Should().BeEmpty("la asignación revocada no se reabre");
+
+        await using var lectura = CrearContexto(_propietario);
+        (await lectura.AsignacionesCartera.Where(c => c.UsuarioId == personaConsulta).ToListAsync())
+            .Should().ContainSingle("control positivo: la válida de la misma delegación sí se reabre");
+    }
+
     private async Task SembrarAsignacionDelegadaAsync(string rol)
     {
         await using var contexto = CrearContexto(_propietario);
-        contexto.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(_delegacionId, _personaDelOperador, rol));
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(_delegacionId, _personaDelOperador, rol));
         await contexto.SaveChangesAsync();
     }
 

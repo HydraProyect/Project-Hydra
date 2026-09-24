@@ -17,7 +17,7 @@ namespace CaeManager.Infrastructure.Autorizacion;
 ///
 /// <para>
 /// <b>Ambas se resuelven contra la base, no contra la sesión</b>, y es
-/// deliberado. <c>ICurrentUserService.ObtenerRolActualAsync</c> devuelve el rol
+/// deliberado. <c>ICurrentUserService.ObtenerRolEfectivoAsync</c> devuelve el rol
 /// <i>efectivo en el contexto actual</i>: dentro de un workspace delegado es el
 /// de la cartera, no el que la persona tiene en su propia organización. Un
 /// Administrador del Cliente Delegante que estuviera operando otro workspace
@@ -50,6 +50,12 @@ public class AutorizacionDelegacionPorAdministradorDelCliente(
         // recibe, y evita consultar roles de un usuario que ya sabemos que no
         // pinta nada aquí.
         if (usuario.TenantId != tenantClienteDeleganteId) return false;
+
+        // Sin esto, una cuenta desactivada podía seguir autorizando delegaciones
+        // durante la ventana de gracia de EstaDesactivada (cookie/token ya
+        // emitidos antes del Desactivar; ver su propio comentario) — hallazgo
+        // de la revisión puente del incremento 1b.
+        if (usuario.EstaDesactivada(DateTimeOffset.UtcNow)) return false;
 
         return await userManager.IsInRoleAsync(usuario, Roles.Administrador);
     }

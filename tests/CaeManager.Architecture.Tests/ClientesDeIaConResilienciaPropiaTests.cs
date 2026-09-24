@@ -43,6 +43,7 @@ public class ClientesDeIaConResilienciaPropiaTests
         "MistralOcrDocumentAIProvider",
         "AnthropicDocumentAIProvider",
         "GeminiDocumentAIProvider",
+        "TypeSafeDecisionesCerradasService",
     ];
 
     [Fact]
