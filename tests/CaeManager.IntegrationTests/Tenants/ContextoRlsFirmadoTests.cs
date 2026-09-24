@@ -79,8 +79,14 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
     [Fact]
     public async Task Una_GUC_falsificada_sin_token_no_devuelve_datos()
     {
-        (await ContarRaicesComoPropietarioAsync()).Should().BeGreaterThan(1,
-            "control negativo: hay una raíz por Tenant, así que un 0 abajo es RLS y no una tabla vacía");
+        // Una raíz por Tenant: los tres del test más el Tenant de plataforma
+        // que siembra la migración LineaBase (HasData, EsPlataforma = true),
+        // al que el backfill también le da raíz. Se cuenta contra la tabla y
+        // no con un número fijo, para que una raíz de más o de menos se vea.
+        (await ContarRaicesComoPropietarioAsync()).Should().Be(await ContarTenantsComoPropietarioAsync(),
+            "control negativo: hay exactamente una raíz por Tenant, así que un 0 abajo es RLS y no una tabla vacía");
+        (await ContarTenantsComoPropietarioAsync()).Should().Be(_tenants.Count + 1,
+            "los tres Tenants del test y el de plataforma sembrado por la migración, ninguno más");
 
         await using var conexion = await AbrirComoRuntimeAsync();
         await FijarGucAsync(conexion, "app.tenant_id", _tenants[0].ToString());
@@ -474,6 +480,15 @@ VALUES (@id, ARRAY['control'], ARRAY[]::text[], @actor, now(), gen_random_uuid()
         await using var conexion = new NpgsqlConnection(_cadenaPropietario);
         await conexion.OpenAsync();
         return await ContarRaicesAsync(conexion);
+    }
+
+    private async Task<int> ContarTenantsComoPropietarioAsync()
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaPropietario);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = @"SELECT count(*) FROM ""Tenants"";";
+        return Convert.ToInt32(await comando.ExecuteScalarAsync());
     }
 
     private sealed record ExpresionPolitica(string Tabla, string Politica, string Expresion);
