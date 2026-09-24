@@ -162,13 +162,16 @@ public class CalculoEstadoSubcontrataService(
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsRequeridosGlobal.Contains(d.TipoDocumentoId))
-            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
+            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
             .ToListAsync(cancellationToken);
-
-        var documentosPorPar = documentosExistentes.ToDictionary(d => (d.TrabajadorId, d.TipoDocumentoId));
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        // Puede haber varios por par (el vencido y su renovación): el índice
+        // (TrabajadorId, TipoDocumentoId) no es único.
+        var documentosPorPar = PreferenciaDocumentoPorTipo.UnoPorClave(
+            documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, hoy);
 
         foreach (var trabajadorId in trabajadorIds)
         {

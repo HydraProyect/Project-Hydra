@@ -93,6 +93,33 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Con_el_vencido_y_su_renovacion_del_mismo_tipo_cuenta_el_vigente_y_no_falla()
+    {
+        // El índice (TrabajadorId, TipoDocumentoId) de Documento no es único: el
+        // vencido sigue ahí cuando se sube la renovación. Se inserta primero la
+        // renovación para que «el último leído» no acierte por casualidad.
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        await using (var contexto = CrearContexto())
+        {
+            var trabajador = Trabajador.DeSubcontrata(_subcontrataId, "Iris", "Renovada", "77189989B");
+            contexto.Trabajadores.Add(trabajador);
+            await contexto.SaveChangesAsync();
+
+            contexto.Asignaciones.Add(new Asignacion(trabajador.Id, _centroId, hoy));
+            contexto.Documentos.Add(Documento.DeTrabajador(trabajador.Id, _tipoObligatorioId, hoy.AddDays(-1), VigenciaDocumento.VenceEl(hoy.AddYears(1))));
+            await contexto.SaveChangesAsync();
+            contexto.Documentos.Add(Documento.DeTrabajador(trabajador.Id, _tipoObligatorioId, hoy.AddYears(-2), VigenciaDocumento.VenceEl(hoy.AddDays(-10))));
+            await contexto.SaveChangesAsync();
+        }
+
+        var resultado = await EjecutarAsync();
+
+        var fila = resultado.Elementos.Should().ContainSingle().Subject;
+        fila.CumplimientoPorcentaje.Should().Be(100);
+        fila.Recuentos.TotalVencidas.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Un_documento_vigente_cuenta_como_cumplimiento_al_100_por_ciento()
     {
         await using (var contexto = CrearContexto())
