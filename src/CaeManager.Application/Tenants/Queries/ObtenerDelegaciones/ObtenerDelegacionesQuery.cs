@@ -19,6 +19,11 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
 /// Devuelve también las revocadas — el histórico de quién operó sobre qué es
 /// justamente lo que conserva "desactivar, nunca borrar" (ADR-004 § 5.5), y
 /// sin verlas no se puede reactivar una.
+///
+/// Los operadores de cada delegación, en cambio, son solo los que conceden su
+/// rol hoy: una <c>AsignacionOperadorDelegado</c> revocada (P8) no aparece,
+/// porque la lista es operativa —cada fila se puede retirar— y no distingue
+/// estado. La fila revocada se conserva en base de datos con su motivo.
 /// </summary>
 public record ObtenerDelegacionesQuery : IRequest<IReadOnlyList<DelegacionDto>>;
 
