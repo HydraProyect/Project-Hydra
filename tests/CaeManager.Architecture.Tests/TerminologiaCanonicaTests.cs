@@ -325,12 +325,13 @@ public class TerminologiaCanonicaTests
     ///
     /// <para>
     /// <b><c>ClienteActivo</c> 71 → 73 (petición abortada en
-    /// <c>RevalidacionClienteActivoMiddleware</c>, 2026-09-23): +2, mismo identificador ya
-    /// congelado, ningún tipo nuevo.</b> La revisión puente del incremento (#822) exigió
-    /// ejecutar también en el segundo catch la invalidación de
-    /// <c>ClienteActivoSeleccionado</c> que ya existía en el camino feliz, para no diferirla a
-    /// la siguiente petición cuando el cliente aborta durante <c>EsVentanaDeSoporteAsync</c>:
-    /// dos apariciones más del mismo patrón, no deuda de un tipo distinto.
+    /// <c>RevalidacionClienteActivoMiddleware</c>, 2026-09-23, fusionado desde <c>origin/main</c>
+    /// vía #822): +2, mismo identificador ya congelado, ningún tipo nuevo.</b> La revisión
+    /// puente del incremento (#822) exigió ejecutar también en el segundo catch la invalidación
+    /// de <c>ClienteActivoSeleccionado</c> que ya existía en el camino feliz, para no diferirla
+    /// a la siguiente petición cuando el cliente aborta durante <c>EsVentanaDeSoporteAsync</c>:
+    /// dos apariciones más del mismo patrón, no deuda de un tipo distinto. Independiente del
+    /// incremento de <c>Delegacion</c> de arriba: ningún fichero se solapa.
     /// </para>
     ///
     /// <para>
