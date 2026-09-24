@@ -25,6 +25,9 @@ public partial class EmpresaPreviewDrawer : ComponentBase
     private int? _cumplimiento;
     private int _totalTrabajadores;
     private int? _totalClientes;
+
+    // Vacío no es «0»: sin alcance de gestión la consulta devuelve vacío a propósito.
+    private string TextoTotalClientes => _totalClientes is > 0 and var total ? total.ToString() : "—";
     private ContactoAgendaDto? _contactoPrincipal;
     private bool _cargandoContacto;
 

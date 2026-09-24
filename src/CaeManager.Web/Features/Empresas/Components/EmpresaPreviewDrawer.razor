@@ -40,7 +40,7 @@
                     <div class="celda-info-preview-empresa"><span>CNAE</span><strong>@(_detalle.Cnae ?? "—")</strong></div>
                     @* Recuento acotado por alcance de gestión (ObtenerClientesDeEmpresaQuery, REC-153), nunca
                        EmpresaDetalleDto.ClienteIds; vacío no se pinta como «0» (puede ser falta de alcance). *@
-                    <div class="celda-info-preview-empresa"><span>Clientes</span><strong>@(_totalClientes is > 0 and var totalClientes ? totalClientes.ToString() : "—")</strong></div>
+                    <div class="celda-info-preview-empresa"><span>Clientes</span><strong>@TextoTotalClientes</strong></div>
                     <div class="celda-info-preview-empresa"><span>Trabajadores</span><strong>@_totalTrabajadores</strong></div>
                     <div class="celda-info-preview-empresa"><span>Cumplimiento</span><strong>@(_cumplimiento is { } c ? $"{c}%" : "—")</strong></div>
                     <div class="celda-info-preview-empresa"><span>Anexo I RSP</span><strong>@(_detalle.EsActividadAnexoI ? "Sí" : "No")</strong></div>
