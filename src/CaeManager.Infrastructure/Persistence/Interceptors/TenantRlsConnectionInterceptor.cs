@@ -309,16 +309,17 @@ public class TenantRlsConnectionInterceptor(
 
     private static async Task RenovarAsync(DbConnection conexion, CancellationToken cancellationToken)
     {
-        var token = await FirmanteContextoRls.RenovarSiHaceFaltaAsync(conexion, cancellationToken);
-        if (token is null) return;
+        var pendiente = await FirmanteContextoRls.RenovarSiHaceFaltaAsync(conexion, cancellationToken);
+        if (pendiente is null) return;
 
         await using var comando = conexion.CreateCommand();
         comando.CommandText = "SELECT set_config('app.contexto', @contexto, false);";
         var parametro = comando.CreateParameter();
         parametro.ParameterName = "contexto";
-        parametro.Value = token;
+        parametro.Value = pendiente.Token;
         comando.Parameters.Add(parametro);
         await comando.ExecuteNonQueryAsync(cancellationToken);
+        pendiente.Confirmar();
     }
 
     public override async ValueTask<InterceptionResult> ConnectionClosingAsync(
