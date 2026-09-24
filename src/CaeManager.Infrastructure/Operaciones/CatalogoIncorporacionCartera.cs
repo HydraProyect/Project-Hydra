@@ -117,7 +117,7 @@ public class CatalogoIncorporacionCartera(
         // Tenants por la fila heredada, no por las carteras. Sin ella la
         // cartera existiría y el Gestor CAE no vería el Tenant en ningún sitio.
         var filaHeredada = new AsignacionOperadorDelegado(vinculo.Id, solicitud.SolicitanteUsuarioId, RolIncorporado);
-        dbContext.AsignacionesOperadorDelegado.Add(filaHeredada);
+        dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(filaHeredada);
 
         return new ResultadoIncorporacionCartera(cartera, filaHeredada.Id, null);
     }
@@ -139,7 +139,7 @@ public class CatalogoIncorporacionCartera(
             var fila = await dbContext.AsignacionesOperadorDelegado
                 .FirstOrDefaultAsync(a => a.Id == filaId && a.UsuarioId == solicitud.SolicitanteUsuarioId, cancellationToken);
             if (fila is not null)
-                dbContext.AsignacionesOperadorDelegado.Remove(fila);
+                dbContext.AsignacionesOperadorDelegadoConRevocadas.Remove(fila);
         }
     }
 

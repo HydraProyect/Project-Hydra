@@ -68,7 +68,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 
         var delegacion = new DelegacionTenant(_consultora, _propietario);
         contexto.DelegacionesTenant.Add(delegacion);
-        contexto.AsignacionesOperadorDelegado.Add(
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
             new AsignacionOperadorDelegado(delegacion.Id, _gestorConsultora, Roles.GestorCae));
         _delegacionId = delegacion.Id;
 

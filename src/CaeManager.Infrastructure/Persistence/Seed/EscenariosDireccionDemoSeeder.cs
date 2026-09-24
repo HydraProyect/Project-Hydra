@@ -267,7 +267,7 @@ public static class EscenariosDireccionDemoSeeder
                         a => a.DelegacionTenantId == delegacion.Id && a.UsuarioId == usuario.Id, cancellationToken))
                     continue;
 
-                dbContext.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(delegacion.Id, usuario.Id, rol));
+                dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, usuario.Id, rol));
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);

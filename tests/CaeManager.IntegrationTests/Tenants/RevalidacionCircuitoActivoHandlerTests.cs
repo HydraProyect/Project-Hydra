@@ -49,7 +49,7 @@ public class RevalidacionCircuitoActivoHandlerTests : IAsyncLifetime
 
         var delegacion = new DelegacionTenant(Guid.NewGuid(), _clienteDelegante);
         contexto.DelegacionesTenant.Add(delegacion);
-        contexto.AsignacionesOperadorDelegado.Add(
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
             new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
 
         await contexto.SaveChangesAsync();

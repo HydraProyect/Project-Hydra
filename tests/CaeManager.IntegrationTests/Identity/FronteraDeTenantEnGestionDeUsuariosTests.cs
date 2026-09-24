@@ -125,7 +125,7 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         // no un Id inventado.
         var delegacion = new DelegacionTenant(_tenantAjeno, _tenantPropio);
         contexto.DelegacionesTenant.Add(delegacion);
-        contexto.AsignacionesOperadorDelegado.Add(
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
             new AsignacionOperadorDelegado(delegacion.Id, _usuarioAjenoDelegado, Roles.GestorCae));
         await contexto.SaveChangesAsync();
     }

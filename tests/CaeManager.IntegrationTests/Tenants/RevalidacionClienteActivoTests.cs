@@ -43,7 +43,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
 
         var delegacion = new DelegacionTenant(_consultora, _clienteDelegante);
         contexto.DelegacionesTenant.Add(delegacion);
-        contexto.AsignacionesOperadorDelegado.Add(
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
             new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
 
         await contexto.SaveChangesAsync();
@@ -90,7 +90,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         await using (var contextoRetirada = CrearContexto())
         {
             var asignacion = await contextoRetirada.AsignacionesOperadorDelegado.FirstAsync(a => a.UsuarioId == _usuario);
-            contextoRetirada.AsignacionesOperadorDelegado.Remove(asignacion);
+            contextoRetirada.AsignacionesOperadorDelegadoConRevocadas.Remove(asignacion);
             await contextoRetirada.SaveChangesAsync();
         }
 
@@ -180,7 +180,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var asignacion = await contexto.AsignacionesOperadorDelegado.FirstAsync(a => a.UsuarioId == _usuario);
-        contexto.AsignacionesOperadorDelegado.Remove(asignacion);
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Remove(asignacion);
         await contexto.SaveChangesAsync();
     }
 
@@ -193,7 +193,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         var ventana = DelegacionTenant.ParaSoporte(_consultora, _clienteDelegante);
         ventana.ActivarParaSoporte("prueba", ahora + hastaExpirar, ahora.AddHours(-1));
         contexto.DelegacionesTenant.Add(ventana);
-        contexto.AsignacionesOperadorDelegado.Add(new AsignacionOperadorDelegado(ventana.Id, _usuario, "GestorCae"));
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(ventana.Id, _usuario, "GestorCae"));
         await contexto.SaveChangesAsync();
     }
 
