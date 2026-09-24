@@ -122,11 +122,29 @@ public partial class VisionCartera : ComponentBase, IDisposable
 
     private IReadOnlyList<ClienteRiesgoDto> SinCartera => Organizaciones.Where(o => o.SinCarteraAsignada).ToList();
 
-    private bool HayMediaQueMostrar => ConCartera.Count > 0;
+    /// <summary>Con cartera pero sin Centros de Trabajo ni documentos con fecha: su 100% es «sin datos».</summary>
+    private IReadOnlyList<ClienteRiesgoDto> SinDatos => ConCartera.Where(o => o.SinDatos).ToList();
+
+    /// <summary>Las que tienen algún Centro de Trabajo bloqueado (D-7): nunca en verde.</summary>
+    private IReadOnlyList<ClienteRiesgoDto> ConBloqueos => Organizaciones.Where(o => o.CentrosBloqueados > 0).ToList();
+
+    /// <summary>
+    /// La media solo existe si alguna organización pesa en ella (lo dice la
+    /// consulta): con cartera pero sin ningún documento con fecha en ninguna,
+    /// el 100 que queda es «nada que medir».
+    /// </summary>
+    private bool HayMediaQueMostrar => _kpis is { HayCumplimientoDocumentalQueMedir: true };
 
     private int ConVencidos => Organizaciones.Count(o => o.DocumentosVencidos > 0);
 
-    private int EnVerde => ConCartera.Count(o => o.TasaCumplimientoDocumental >= UmbralVerde);
+    /// <summary>
+    /// Verde = 90% documental o más Y <see cref="ClienteRiesgoDto.AdmiteVeredictoVerde"/>:
+    /// con cartera, con datos y sin ningún Centro de Trabajo bloqueado.
+    /// </summary>
+    private IReadOnlyList<ClienteRiesgoDto> OrganizacionesEnVerde =>
+        Organizaciones.Where(o => o.AdmiteVeredictoVerde && o.TasaCumplimientoDocumental >= UmbralVerde).ToList();
+
+    private int EnVerde => OrganizacionesEnVerde.Count;
 
     private int DocumentosEnRiesgo => _kpis is null ? 0 : _kpis.DocumentosVencidos + _kpis.DocumentosUrgentes;
 
@@ -172,19 +190,42 @@ public partial class VisionCartera : ComponentBase, IDisposable
 
     private string ValorMedia => HayMediaQueMostrar && _kpis is not null ? $"{_kpis.TasaCumplimientoDocumentalPromedio}%" : "—";
 
-    private string PistaMedia => HayMediaQueMostrar
-        ? Textos["PistaMediaPonderada"].Value
-        : Textos["PistaMediaSinCartera"].Value;
+    private string PistaMedia =>
+        !HayMediaQueMostrar ? (ConCartera.Count == 0 ? Textos["PistaMediaSinCartera"].Value : Textos["PistaMediaSinDatos"].Value)
+        : ConBloqueos.Count > 0 ? Textos["PistaMediaConBloqueos"].Value
+        : Textos["PistaMediaPonderada"].Value;
+
+    private string DetalleSinCumplimiento => ConCartera.Count == 0
+        ? Textos["SinCumplimientoDetalle"].Value
+        : Textos["SinCumplimientoDetalleSinDatos"].Value;
 
     private string DetalleMedia
     {
         get
         {
-            var tasas = ConCartera.Select(o => o.TasaCumplimientoDocumental).OrderByDescending(t => t).ToList();
-            var media = Textos["DetalleMedia", tasas.Count, Enumerar(tasas.Select(t => t.ToString()))].Value;
-            return SinCartera.Count == 0 ? media : $"{media} {DetalleExcluidas}";
+            var tasas = ConCartera.Where(o => !o.SinDatos).Select(o => o.TasaCumplimientoDocumental).OrderByDescending(t => t).ToList();
+            var partes = new List<string> { Textos["DetalleMedia", tasas.Count, Enumerar(tasas.Select(t => t.ToString()))].Value };
+            if (SinCartera.Count > 0) partes.Add(DetalleExcluidas);
+            if (SinDatos.Count > 0) partes.Add(DetalleSinDatos);
+            return string.Join(' ', partes);
         }
     }
+
+    private string DetalleSinDatos => SinDatos.Count == 1
+        ? Textos["DetalleSinDatosUna", SinDatos[0].Nombre].Value
+        : Textos["DetalleSinDatosVarias", Enumerar(SinDatos.Select(o => o.Nombre))].Value;
+
+    /// <summary>Debajo de la media: quiénes no están al día por un bloqueo, aunque su porcentaje documental sea alto.</summary>
+    private string? DetalleBloqueos => ConBloqueos.Count switch
+    {
+        0 => null,
+        1 => Textos["DetalleBloqueosUna", ConBloqueos[0].Nombre].Value,
+        _ => Textos["DetalleBloqueosVarias", Enumerar(ConBloqueos.Select(o => o.Nombre))].Value
+    };
+
+    private string PistaCentrosBloqueados => ConBloqueos.Count == 0
+        ? Textos["PistaCentrosBloqueadosNinguno"].Value
+        : Textos["PistaCentrosBloqueados", ConBloqueos.Count, Organizaciones.Count].Value;
 
     private string DetalleExcluidas => SinCartera.Count == 1
         ? Textos["DetalleExcluidaUna", SinCartera[0].Nombre].Value
@@ -201,8 +242,7 @@ public partial class VisionCartera : ComponentBase, IDisposable
     {
         get
         {
-            var enVerde = ConCartera.Where(o => o.TasaCumplimientoDocumental >= UmbralVerde)
-                .Select(o => $"{o.Nombre} {o.TasaCumplimientoDocumental}%").ToList();
+            var enVerde = OrganizacionesEnVerde.Select(o => $"{o.Nombre} {o.TasaCumplimientoDocumental}%").ToList();
             var hayExcluidas = SinCartera.Count > 0;
             var frase = (enVerde.Count == 0, hayExcluidas) switch
             {
@@ -211,7 +251,15 @@ public partial class VisionCartera : ComponentBase, IDisposable
                 (false, false) => Textos["DetalleEnVerde", enVerde.Count, ConCartera.Count, Enumerar(enVerde)].Value,
                 (false, true) => Textos["DetalleEnVerdeConCartera", enVerde.Count, ConCartera.Count, Enumerar(enVerde)].Value
             };
-            return hayExcluidas ? $"{frase} {DetalleExcluidas}" : frase;
+            var partes = new List<string> { frase };
+            var bloqueadasConCartera = ConBloqueos.Where(o => !o.SinCarteraAsignada).ToList();
+            if (bloqueadasConCartera.Count == 1)
+                partes.Add(Textos["DetalleNoEnVerdeBloqueoUna", bloqueadasConCartera[0].Nombre].Value);
+            else if (bloqueadasConCartera.Count > 1)
+                partes.Add(Textos["DetalleNoEnVerdeBloqueoVarias", Enumerar(bloqueadasConCartera.Select(o => o.Nombre))].Value);
+            if (SinDatos.Count > 0) partes.Add(DetalleSinDatos);
+            if (hayExcluidas) partes.Add(DetalleExcluidas);
+            return string.Join(' ', partes);
         }
     }
 
@@ -225,11 +273,23 @@ public partial class VisionCartera : ComponentBase, IDisposable
         _ => TonoBadge.Peligro
     };
 
+    /// <summary>Con algún Centro de Trabajo bloqueado en la cartera, la media documental nunca se pinta en verde.</summary>
     private TonoBadge TonoMedia => HayMediaQueMostrar && _kpis is not null
-        ? TonoCumplimiento(_kpis.TasaCumplimientoDocumentalPromedio)
+        ? SinVerdeSiHayBloqueos(TonoCumplimiento(_kpis.TasaCumplimientoDocumentalPromedio), ConBloqueos.Count)
         : TonoBadge.Neutro;
 
-    private static string ClaseTono(int tasa) => $"tono-{TonoCumplimiento(tasa).ToString().ToLowerInvariant()}";
+    private static TonoBadge SinVerdeSiHayBloqueos(TonoBadge tono, int bloqueos) =>
+        bloqueos > 0 && tono == TonoBadge.Exito ? TonoBadge.Advertencia : tono;
+
+    /// <summary>Tono de la tasa de una fila: la de una organización con un Centro de Trabajo bloqueado no sale en verde.</summary>
+    private static string ClaseTono(ClienteRiesgoDto o, int tasa) =>
+        $"tono-{SinVerdeSiHayBloqueos(TonoCumplimiento(tasa), o.CentrosBloqueados).ToString().ToLowerInvariant()}";
+
+    private TonoBadge TonoCentrosBloqueados => _kpis is { CentrosBloqueados: > 0 } ? TonoBadge.Peligro : TonoBadge.Neutro;
+
+    private string TextoBadgeBloqueados(ClienteRiesgoDto o) => o.CentrosBloqueados == 1
+        ? Textos["BadgeBloqueadosUno"].Value
+        : Textos["BadgeBloqueadosVarios", o.CentrosBloqueados].Value;
 
     // ---------------------------------------------------------------- tabla
 
@@ -248,6 +308,12 @@ public partial class VisionCartera : ComponentBase, IDisposable
     {
         if (o.SinCarteraAsignada)
             return Textos["TituloCumplimientoSinCartera", o.Nombre].Value;
+        if (o.SinDatos)
+            return Textos["TituloCumplimientoSinDatos", o.Nombre].Value;
+        if (o.CentrosBloqueados > 0)
+            return o.CentrosBloqueados == 1
+                ? Textos["TituloCumplimientoBloqueadaUno", o.Nombre, o.TasaCumplimientoDocumental].Value
+                : Textos["TituloCumplimientoBloqueadaVarios", o.Nombre, o.TasaCumplimientoDocumental, o.CentrosBloqueados].Value;
 
         var tramo = o.TasaCumplimientoDocumental >= UmbralVerde ? Textos["TramoVerde"].Value
             : o.TasaCumplimientoDocumental >= UmbralAmbar ? Textos["TramoAmbar"].Value
@@ -293,10 +359,22 @@ public partial class VisionCartera : ComponentBase, IDisposable
                     o.Nombre, Acortar(o.Nombre), x, x + AnchoBarra / 2,
                     altoVencidos, yUrgentes - altoVencidos, DocumentosVencidos(o),
                     altoUrgentes, yUrgentes, DocumentosUrgentes(o),
-                    o.SinCarteraAsignada ? Textos["BarraSinCartera"].Value : Textos["BarraSinRiesgo"].Value);
+                    TextoSinBarra(o));
             }).ToList();
         }
     }
+
+    /// <summary>Sin barra no es «sin riesgo» si no hay cartera, no hay datos o hay un Centro de Trabajo bloqueado.</summary>
+    private string TextoSinBarra(ClienteRiesgoDto o) =>
+        o.SinCarteraAsignada ? Textos["BarraSinCartera"].Value
+        : o.CentrosBloqueados > 0 ? Textos["BarraBloqueada"].Value
+        : o.SinDatos ? Textos["BarraSinDatos"].Value
+        : Textos["BarraSinRiesgo"].Value;
+
+    private string FilaReparto(ClienteRiesgoDto o) =>
+        o.SinCarteraAsignada ? Textos["RepartoFilaSinCartera", o.Nombre].Value
+        : o.SinDatos ? Textos["RepartoFilaSinDatos", o.Nombre].Value
+        : o.Nombre;
 
     /// <summary>Alto proporcional al mayor total; nunca por debajo de 2 si hay algo, para que un 1 no desaparezca.</summary>
     private static int Escalar(int valor, int maximo) =>

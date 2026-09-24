@@ -4,6 +4,7 @@ using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -20,11 +21,34 @@ public record KpisDashboardDto(
     int DocumentosProximos,
     int DocumentosVigentes,
     int VisitasProgramadas,
+    /// <summary>
+    /// Solo documental: vigentes sobre todos los Documentos de Trabajador con
+    /// fecha de vencimiento. NO es un veredicto de cumplimiento — no ve los
+    /// Centros de Trabajo bloqueados (<see cref="CentrosBloqueados"/>), y sin
+    /// ningún documento con fecha vale 100 porque no hay nada que contar
+    /// (<see cref="SinDatos"/>, <see cref="SinCarteraAsignada"/>).
+    /// </summary>
     int TasaCumplimientoDocumental,
     int VisitasUrgentes = 0,
     bool SinCarteraAsignada = false,
     /// <summary>Trabajadores dados de alta desde el día 1 del mes en curso (mockup Inicio TALVEG, pista del KPI "Trabajadores activos") — EntidadBase.CreadoEnUtc, sin campo nuevo.</summary>
-    int TrabajadoresNuevosEsteMes = 0);
+    int TrabajadoresNuevosEsteMes = 0,
+    /// <summary>
+    /// Centros de Trabajo del alcance cuyo estado, calculado con
+    /// <see cref="ICalculoEstadoCentroService"/> (el mismo criterio que la tabla
+    /// de Centros, el Centro 360 y la cola de /bandeja), es
+    /// <see cref="EstadoCentro.Bloqueado"/>: entre otras causas, una
+    /// acreditación Rechazada por la plataforma y aplicable a ese Centro
+    /// (D-7 del piloto Outbound). Con uno o más, el Tenant no está al día
+    /// aunque <see cref="TasaCumplimientoDocumental"/> sea alta.
+    /// </summary>
+    int CentrosBloqueados = 0,
+    /// <summary>
+    /// Ni un Centro de Trabajo ni un Documento con fecha de vencimiento en el
+    /// alcance: el 100 de <see cref="TasaCumplimientoDocumental"/> es «nada que
+    /// medir», nunca «al día», y no se presenta como organización en verde.
+    /// </summary>
+    bool SinDatos = false);
 
 /// <summary>
 /// Los seis KPI del Dashboard (ver DATABASE.md, hoja "Dashboard" del Excel
@@ -34,8 +58,17 @@ public record KpisDashboardDto(
 /// resultados distintos. Los 4 contadores de documentos solo cuentan
 /// Documentos de Trabajador — los de Cliente/Empresa quedan fuera de estos
 /// KPI por ahora (fuera de alcance).
+///
+/// <para>
+/// El porcentaje es documental y no decide si el Tenant está al día: los
+/// Centros de Trabajo bloqueados se cuentan aparte
+/// (<see cref="KpisDashboardDto.CentrosBloqueados"/>) con
+/// <see cref="ICalculoEstadoCentroService"/> sobre los Centros del alcance, en
+/// una sola llamada por lotes — su número de consultas no crece con el de
+/// Centros (<c>KpisCentrosBloqueadosBajoRlsTests</c>).
+/// </para>
 /// </summary>
-public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoCentroService calculoEstadoCentro)
     : IRequestHandler<ObtenerKpisDashboardQuery, KpisDashboardDto>
 {
     public async Task<KpisDashboardDto> Handle(ObtenerKpisDashboardQuery request, CancellationToken cancellationToken)
@@ -59,7 +92,14 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
 
         var centrosQuery = centrosContext.Centros.AsQueryable();
         if (centroIdsVisibles is not null) centrosQuery = centrosQuery.Where(c => centroIdsVisibles.Contains(c.Id));
-        var centros = await centrosQuery.CountAsync(cancellationToken);
+        var centroIds = await centrosQuery.Select(c => c.Id).ToListAsync(cancellationToken);
+        var centros = centroIds.Count;
+
+        // D-7: una acreditación Rechazada aplicable (y cualquier otra causa
+        // bloqueante) pone el Centro en Bloqueado. Mismo servicio, sin copiar
+        // la lista de causas, y solo sobre los Centros del alcance ya filtrado.
+        var estadosCentro = await calculoEstadoCentro.CalcularAsync(centroIds, cancellationToken);
+        var centrosBloqueados = estadosCentro.Values.Count(r => r.Estado == EstadoCentro.Bloqueado);
 
         var hoyParaVisitas = DateOnly.FromDateTime(DateTime.UtcNow);
         var visitasQuery = visitasContext.Visitas.Where(v => v.FechaFin >= hoyParaVisitas);
@@ -103,6 +143,8 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             TasaCumplimientoDocumental: tasa,
             VisitasUrgentes: visitasUrgentes,
             SinCarteraAsignada: sinCarteraAsignada,
-            TrabajadoresNuevosEsteMes: trabajadoresNuevosEsteMes);
+            TrabajadoresNuevosEsteMes: trabajadoresNuevosEsteMes,
+            CentrosBloqueados: centrosBloqueados,
+            SinDatos: centros == 0 && totalConVigencia == 0);
     }
 }

@@ -100,7 +100,7 @@
     <value>Media ponderada por el volumen de documentos con vencimiento de cada organización; tasas de las {0} que la forman: {1}%.</value>
   </data>
   <data name="DetalleTasaOrganizacion" xml:space="preserve">
-    <value>Tasa de cada organización: documentos que aún no han entrado en su umbral próximo, sobre todos los que tienen fecha de vencimiento. Sin ninguno con fecha, cuenta como 100%.</value>
+    <value>Tasa de cada organización: documentos que aún no han entrado en su umbral próximo, sobre todos los que tienen fecha de vencimiento. Es solo documental: los Centros de Trabajo bloqueados se cuentan aparte y una organización con alguno no está en verde. Sin Centros de Trabajo ni documentos con fecha, la organización sale «sin datos».</value>
   </data>
   <data name="SinCumplimientoTitulo" xml:space="preserve">
     <value>Sin cumplimiento que medir</value>
@@ -241,7 +241,7 @@
     <value>{0} de {1} organizaciones tienen documentación vencida.</value>
   </data>
   <data name="PulsoEtiquetaEnVerde" xml:space="preserve">
-    <value>Organizaciones en verde (90% o más)</value>
+    <value>Organizaciones en verde (90% o más, sin bloqueos)</value>
   </data>
   <data name="PulsoTituloEnVerde" xml:space="preserve">
     <value>En verde</value>
@@ -253,21 +253,84 @@
     <value>En riesgo</value>
   </data>
   <data name="DetalleEnVerdeNinguna" xml:space="preserve">
-    <value>Ninguna de las {0} organizaciones llega al 90% de cumplimiento documental.</value>
+    <value>Ninguna de las {0} organizaciones llega al 90% de cumplimiento documental sin Centros de Trabajo bloqueados.</value>
   </data>
   <data name="DetalleEnVerdeNingunaConCartera" xml:space="preserve">
-    <value>Ninguna de las {0} organizaciones con cartera llega al 90% de cumplimiento documental.</value>
+    <value>Ninguna de las {0} organizaciones con cartera llega al 90% de cumplimiento documental sin Centros de Trabajo bloqueados.</value>
   </data>
   <data name="DetalleEnVerde" xml:space="preserve">
-    <value>{0} de {1} organizaciones con el cumplimiento documental en el 90% o más: {2}.</value>
+    <value>{0} de {1} organizaciones con el cumplimiento documental en el 90% o más y sin Centros de Trabajo bloqueados: {2}.</value>
   </data>
   <data name="DetalleEnVerdeConCartera" xml:space="preserve">
-    <value>{0} de {1} organizaciones con cartera con el cumplimiento documental en el 90% o más: {2}.</value>
+    <value>{0} de {1} organizaciones con cartera con el cumplimiento documental en el 90% o más y sin Centros de Trabajo bloqueados: {2}.</value>
   </data>
   <data name="DetalleEnRiesgo" xml:space="preserve">
     <value>{0} documentos en riesgo: {1} vencidos más {2} urgentes.</value>
   </data>
   <data name="EnumeracionUltimo" xml:space="preserve">
     <value>{0} y {1}</value>
+  </data>
+  <data name="MetricaCentrosBloqueados" xml:space="preserve">
+    <value>Centros de Trabajo bloqueados</value>
+  </data>
+  <data name="PistaCentrosBloqueadosNinguno" xml:space="preserve">
+    <value>En ninguna organización</value>
+  </data>
+  <data name="PistaCentrosBloqueados" xml:space="preserve">
+    <value>En {0} de {1} organizaciones, que no están en verde</value>
+  </data>
+  <data name="PistaMediaSinDatos" xml:space="preserve">
+    <value>Sin documentos con vencimiento que medir</value>
+  </data>
+  <data name="PistaMediaConBloqueos" xml:space="preserve">
+    <value>Solo documental: los bloqueos se cuentan aparte</value>
+  </data>
+  <data name="SinCumplimientoDetalleSinDatos" xml:space="preserve">
+    <value>Las organizaciones con tu Asignación de Cartera no tienen ningún documento con fecha de vencimiento que evaluar.</value>
+  </data>
+  <data name="DetalleBloqueosUna" xml:space="preserve">
+    <value>{0} tiene algún Centro de Trabajo bloqueado: no está al día, aunque su porcentaje documental sea alto.</value>
+  </data>
+  <data name="DetalleBloqueosVarias" xml:space="preserve">
+    <value>{0} tienen algún Centro de Trabajo bloqueado: no están al día, aunque su porcentaje documental sea alto.</value>
+  </data>
+  <data name="DetalleSinDatosUna" xml:space="preserve">
+    <value>No entra {0}: sin datos.</value>
+  </data>
+  <data name="DetalleSinDatosVarias" xml:space="preserve">
+    <value>No entran {0}: sin datos.</value>
+  </data>
+  <data name="DetalleNoEnVerdeBloqueoUna" xml:space="preserve">
+    <value>No está en verde {0}: tiene algún Centro de Trabajo bloqueado.</value>
+  </data>
+  <data name="DetalleNoEnVerdeBloqueoVarias" xml:space="preserve">
+    <value>No están en verde {0}: tienen algún Centro de Trabajo bloqueado.</value>
+  </data>
+  <data name="CeldaSinDatos" xml:space="preserve">
+    <value>Sin datos</value>
+  </data>
+  <data name="TituloCumplimientoSinDatos" xml:space="preserve">
+    <value>{0}: sin Centros de Trabajo ni documentos con fecha de vencimiento, así que no hay cumplimiento que medir</value>
+  </data>
+  <data name="TituloCumplimientoBloqueadaUno" xml:space="preserve">
+    <value>{0}: {1}% de cumplimiento documental, pero 1 Centro de Trabajo bloqueado: no está al día</value>
+  </data>
+  <data name="TituloCumplimientoBloqueadaVarios" xml:space="preserve">
+    <value>{0}: {1}% de cumplimiento documental, pero {2} Centros de Trabajo bloqueados: no está al día</value>
+  </data>
+  <data name="BadgeBloqueadosUno" xml:space="preserve">
+    <value>1 Centro de Trabajo bloqueado</value>
+  </data>
+  <data name="BadgeBloqueadosVarios" xml:space="preserve">
+    <value>{0} Centros de Trabajo bloqueados</value>
+  </data>
+  <data name="BarraSinDatos" xml:space="preserve">
+    <value>sin datos</value>
+  </data>
+  <data name="BarraBloqueada" xml:space="preserve">
+    <value>bloqueada</value>
+  </data>
+  <data name="RepartoFilaSinDatos" xml:space="preserve">
+    <value>{0}, sin datos</value>
   </data>
 </root>
