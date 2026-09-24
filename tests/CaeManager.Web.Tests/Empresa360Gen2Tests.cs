@@ -149,7 +149,8 @@ public class Empresa360Gen2Tests : BunitContext
         cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes empresariales")).TextContent.Should().NotContain("(");
         cut.FindAll(".recuentos-empresa-360").Should().BeEmpty();
         cut.Markup.Should().NotContain("todavía no tiene ningún Cliente empresarial")
-            .And.Contain("Sin clientes empresariales que puedas consultar");
+            .And.Contain("Sin clientes empresariales que puedas consultar")
+            .And.Contain("o no están dentro de tu alcance de gestión");
     }
 
     /// <summary>
