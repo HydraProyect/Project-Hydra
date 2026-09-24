@@ -218,8 +218,9 @@ public class TenantRlsConnectionInterceptor(
         comando.Parameters.AddWithValue("tenantId", tenantId?.ToString() ?? string.Empty);
         comando.Parameters.AddWithValue("tenantOrigenId", tenantOrigenId?.ToString() ?? string.Empty);
         comando.Parameters.AddWithValue("usuarioId", usuarioId?.ToString() ?? string.Empty);
-        comando.Parameters.AddWithValue("contexto", token);
+        comando.Parameters.AddWithValue("contexto", token.Token);
         await comando.ExecuteNonQueryAsync(cancellationToken);
+        token.Confirmar();
     }
 
     // ── Renovación del contexto firmado (P6, diseño § 7) ─────────────────

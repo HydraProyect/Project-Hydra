@@ -1,5 +1,9 @@
 using Npgsql;
+using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.ContextoRls;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 namespace CaeManager.IntegrationTests;
 
 /// <summary>
@@ -113,6 +117,26 @@ internal static class BaseDatosPostgresDePruebas
         };
 
         return constructor.ConnectionString;
+    }
+
+    /// <summary>
+    /// Crea y migra la base con un contexto propietario SIN interceptores, como
+    /// el migrador de producción (<c>MigrarBaseDeDatosAsync</c> en
+    /// <c>Program.cs</c>). Migrar con un contexto que ya lleva
+    /// <c>TenantRlsConnectionInterceptor</c> no sirve desde P6: el interceptor
+    /// firma el contexto RLS al abrir cada conexión, y las que abre la migración
+    /// —la de mantenimiento que crea la base y la de la base aún sin migrar— no
+    /// tienen <c>app_privado.claves_contexto</c> donde registrar la clave
+    /// (42P01).
+    /// </summary>
+    internal static async Task MigrarAsync(string cadenaConexion)
+    {
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .Options;
+        await using var contexto = new CaeManagerDbContext(
+            opciones, new EphemeralDataProtectionProvider(), new TenantActualAmbiental());
+        await contexto.Database.MigrateAsync();
     }
 
     /// <summary>

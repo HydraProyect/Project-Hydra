@@ -39,8 +39,8 @@ public class SoloLecturaEnLaCapaDeDatosTests : IAsyncLifetime
     {
         // Se siembra como el rol propietario, que es lo que hace la app hoy al
         // migrar: el rol de soporte no puede crear nada, justamente.
+        await BaseDatosPostgresDePruebas.MigrarAsync(_cadenaConexion);
         await using var contexto = CrearContexto(_tenantVisitado);
-        await contexto.Database.MigrateAsync();
 
         var cliente = Empresa.CrearComoCliente(
             "Cliente Visitado S.L.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);

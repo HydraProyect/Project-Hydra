@@ -115,9 +115,9 @@ public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        await BaseDatosPostgresDePruebas.MigrarAsync(_cadenaConexion);
         var tenantActualDeSiembra = new TenantActualPorAmbitoExplicito();
         await using var dbContext = CrearContexto(tenantActualDeSiembra, new RegistradorAperturasConexion(tenantActualDeSiembra));
-        await dbContext.Database.MigrateAsync();
 
         var tenantA = new Domain.Tenants.Tenant("Tenant A (webhook WhatsApp)");
         var tenantB = new Domain.Tenants.Tenant("Tenant B (webhook WhatsApp)");

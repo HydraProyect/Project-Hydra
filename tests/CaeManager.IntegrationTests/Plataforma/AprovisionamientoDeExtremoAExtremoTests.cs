@@ -62,8 +62,8 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        await BaseDatosPostgresDePruebas.MigrarAsync(_cadenaConexion);
         await using var contexto = CrearContexto(_tenantObjetivo);
-        await contexto.Database.MigrateAsync();
 
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.SobreTenants(
