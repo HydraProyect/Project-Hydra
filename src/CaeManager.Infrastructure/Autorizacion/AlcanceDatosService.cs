@@ -399,10 +399,12 @@ public class AlcanceDatosService(
     /// operación cerrada o suspendida no concede nada, y el cierre en cascada
     /// puede no haber corrido todavía si la operación caducó por fecha.</item>
     /// </list>
-    /// Una cartera de ámbito universal sobre este tenant da el Tenant entero
-    /// (<see cref="AlcanzaTenantEnteroPorCarteraAsync"/>), no solo sus Clientes
-    /// empresariales. Si varios usuarios aportan carteras (Coordinador CAE), basta
-    /// una universal.
+    /// Cada cartera cuenta por su ámbito efectivo: la intersección con el de su
+    /// operación. Una cartera universal bajo una operación universal da el Tenant
+    /// entero (<see cref="AlcanzaTenantEnteroPorCarteraAsync"/>), no solo sus
+    /// Clientes empresariales; bajo una operación acotada a un Cliente empresarial,
+    /// solo ese Cliente. Si varios usuarios aportan carteras (Coordinador CAE),
+    /// basta una universal efectiva.
     /// </summary>
     private async Task<AlcanceCartera> ObtenerCarteraAsync(
         IReadOnlyList<Guid> usuarioIds, CancellationToken cancellationToken)
@@ -432,11 +434,30 @@ public class AlcanceDatosService(
                     && o.OperadorTenantId == operadorTenantId.Value
                     && o.VigenciaDesde <= ahora
                     && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)),
-                c => c.AsignacionOperacionId, o => o.Id, (c, o) => c.AmbitoRelacionClienteId)
+                c => c.AsignacionOperacionId, o => o.Id, (c, o) => new
+                {
+                    Cartera = c.AmbitoRelacionClienteId,
+                    Operacion = o.AmbitoRelacionClienteId,
+                    DimensionDiferida = c.AmbitoCentroId != null || c.AmbitoTrabajadorId != null || c.AmbitoProyectoId != null
+                                        || o.AmbitoCentroId != null || o.AmbitoTrabajadorId != null || o.AmbitoProyectoId != null
+                })
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        if (carteras.Count == 0) return AlcanceCartera.Ninguno;
+        // Ámbito efectivo = intersección del de la cartera con el de la operación que la ampara
+        // (AsignacionCartera, ADR-011 § 2.7). Una cartera universal bajo una operación acotada a un
+        // Cliente empresarial da solo ese Cliente, nunca el Tenant entero; dos Clientes distintos no
+        // se cortan y no dan nada. Una dimensión que F1 no sabe resolver (centro, trabajador,
+        // proyecto) falla cerrado: no concede nada.
+        var efectivas = new List<Guid?>();
+        foreach (var fila in carteras)
+        {
+            if (fila.DimensionDiferida) continue;
+            if (fila.Cartera is null) efectivas.Add(fila.Operacion);
+            else if (fila.Operacion is null || fila.Operacion == fila.Cartera) efectivas.Add(fila.Cartera);
+        }
+
+        if (efectivas.Count == 0) return AlcanceCartera.Ninguno;
 
         // Ámbito universal: el Tenant entero (decisión del propietario 2026-09-23: la cartera de un
         // Gestor CAE es siempre sobre el Tenant entero). Las listas las materializa cada método de
@@ -444,10 +465,10 @@ public class AlcanceDatosService(
         // TieneAccesoTotalAsync sin consultar carteras; a un rol de cartera solo se le emite una
         // universal cuando un Coordinador CAE acepta su solicitud de incorporación al Tenant
         // propietario entero (CatalogoIncorporacionCartera).
-        if (carteras.Any(id => id is null))
+        if (efectivas.Any(id => id is null))
             return AlcanceCartera.Universal;
 
-        return AlcanceCartera.DeLista(carteras.Where(id => id is not null).Select(id => id!.Value).ToList());
+        return AlcanceCartera.DeLista(efectivas.Select(id => id!.Value).Distinct().ToList());
     }
 
     public async Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default)
