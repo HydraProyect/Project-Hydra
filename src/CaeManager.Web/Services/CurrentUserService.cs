@@ -148,6 +148,8 @@ public class CurrentUserService(
                       // (decisión del propietario, 2026-09-23): una fila
                       // heredada con Administrador o Dirección CAE no da ese
                       // rol en el Tenant propietario aunque siga vigente.
+                      // Desde P8 la migración las cierra (Revocada); esta
+                      // condición queda como defensa en profundidad.
                       && (operacion.OperadorTenantId == operacion.PropietarioTenantId
                           || (cartera.Rol != null && RolesDelegables.Contains(cartera.Rol)))
                 orderby cartera.AmbitoRelacionClienteId == null ? 0 : 1, cartera.Id
@@ -244,6 +246,9 @@ public class CurrentUserService(
                   && delegacion.TenantClienteId == tenantClienteId
                   // Misma frontera que la vía nueva: una asignación heredada
                   // con un rol de Propiedad no concede nada (falla cerrado).
+                  // Desde P8 esas filas están revocadas y la vista
+                  // AsignacionesOperadorDelegado ya no las devuelve; esta
+                  // lista blanca queda como defensa en profundidad.
                   && RolesDelegables.Contains(asignacion.Rol)
             select asignacion.Rol)
             .FirstOrDefaultAsync();

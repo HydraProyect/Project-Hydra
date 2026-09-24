@@ -82,7 +82,7 @@ public class MiTrabajoAlcanceCeroBajoRlsTests : IAsyncLifetime
         var delegacionConCartera = new DelegacionTenant(_tenantOrigen, _tenantConCartera);
         var delegacionSinCartera = new DelegacionTenant(_tenantOrigen, _tenantSinCartera);
         _propietario.DelegacionesTenant.AddRange(delegacionConCartera, delegacionSinCartera);
-        _propietario.AsignacionesOperadorDelegado.AddRange(
+        _propietario.AsignacionesOperadorDelegadoConRevocadas.AddRange(
             new AsignacionOperadorDelegado(delegacionConCartera.Id, _usuario, Roles.GestorCae),
             new AsignacionOperadorDelegado(delegacionSinCartera.Id, _usuario, Roles.GestorCae));
         await _propietario.SaveChangesAsync();

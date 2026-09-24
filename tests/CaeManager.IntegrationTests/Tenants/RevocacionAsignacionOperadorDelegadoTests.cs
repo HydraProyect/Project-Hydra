@@ -68,7 +68,7 @@ public class RevocacionAsignacionOperadorDelegadoTests : IAsyncLifetime
         await using var contexto = CrearContexto(_propietario);
         var servicio = CrearServicio(contexto, _gestoraRevocada);
 
-        (await servicio.ObtenerRolActualAsync()).Should().BeNull(
+        (await servicio.ObtenerRolEfectivoAsync()).Should().BeNull(
             "sin rol efectivo no hay ni lectura ni escritura en el Tenant propietario");
     }
 
@@ -81,7 +81,7 @@ public class RevocacionAsignacionOperadorDelegadoTests : IAsyncLifetime
         await using var contexto = CrearContexto(_propietario);
         var servicio = CrearServicio(contexto, usuario);
 
-        (await servicio.ObtenerRolActualAsync()).Should().Be(rolEsperado);
+        (await servicio.ObtenerRolEfectivoAsync()).Should().Be(rolEsperado);
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public class RevocacionAsignacionOperadorDelegadoTests : IAsyncLifetime
         filas.Should().HaveCount(2);
         filas.Should().ContainSingle(a => a.EstaRevocada).Which.Rol.Should().Be("GestorCae");
 
-        (await CrearServicio(contexto, _gestoraRevocada).ObtenerRolActualAsync()).Should().Be("Consulta");
+        (await CrearServicio(contexto, _gestoraRevocada).ObtenerRolEfectivoAsync()).Should().Be("Consulta");
     }
 
     [Fact]
