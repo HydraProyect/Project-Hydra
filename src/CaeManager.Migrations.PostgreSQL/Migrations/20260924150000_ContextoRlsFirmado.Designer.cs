@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20260924090000_ContextoRlsFirmado")]
+    [Migration("20260924150000_ContextoRlsFirmado")]
     partial class ContextoRlsFirmado
     {
         /// <inheritdoc />
@@ -117,6 +117,183 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasFilter("\"FechaBaja\" IS NULL");
 
                     b.ToTable("Asignaciones", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AsistenteIa.PasoTareaAsistente", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ActualizadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("AsistidoPorIa")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AvisosJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CamposPendientesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ConfirmadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DatosJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)");
+
+                    b.Property<DateTime?>("EjecutadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EntidadResultadoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("MotivoFallo")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("OrdenAsistenteId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Posicion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Resumen")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("TareaAsistenteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TareaAsistenteId", "Posicion")
+                        .IsUnique();
+
+                    b.ToTable("PasosTareaAsistente", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PasosTareaAsistente_EjecucionTrasConfirmacion", "\"Estado\" NOT IN ('Confirmado', 'Ejecutado', 'Fallido') OR \"ConfirmadoEnUtc\" IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_PasosTareaAsistente_EjecutadoConFecha", "\"Estado\" <> 'Ejecutado' OR \"EjecutadoEnUtc\" IS NOT NULL");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AsistenteIa.TareaAsistente", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorRealUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ActualizadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DescartadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid?>("PlanConfirmadoComoUsuarioSimuladoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("PlanConfirmadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("PlanConfirmadoPorActorRealUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TenantOrigenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("UsuarioSimuladoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ViaAcceso")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid?>("ViaAccesoId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ActorRealUsuarioId", "ActualizadaEnUtc");
+
+                    b.ToTable("TareasAsistente", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TareasAsistente_ConfirmadaConConfirmacion", "\"Estado\" NOT IN ('Confirmada', 'Terminada') OR (\"PlanConfirmadoEnUtc\" IS NOT NULL AND \"PlanConfirmadoPorActorRealUsuarioId\" IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AsistenteIa.TurnoTareaAsistente", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Autor")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("FechaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Numero")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TareaAsistenteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TextoEnmascarado")
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)");
+
+                    b.Property<string>("TextoOriginal")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TareaAsistenteId", "Numero")
+                        .IsUnique();
+
+                    b.ToTable("TurnosTareaAsistente", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Auditoria.RegistroAccesoDocumentoSensible", b =>
@@ -7417,6 +7594,24 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.AsistenteIa.PasoTareaAsistente", b =>
+                {
+                    b.HasOne("CaeManager.Domain.AsistenteIa.TareaAsistente", null)
+                        .WithMany("Pasos")
+                        .HasForeignKey("TareaAsistenteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AsistenteIa.TurnoTareaAsistente", b =>
+                {
+                    b.HasOne("CaeManager.Domain.AsistenteIa.TareaAsistente", null)
+                        .WithMany("Turnos")
+                        .HasForeignKey("TareaAsistenteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Blindaje42.SolicitudCertificacionTgss", b =>
                 {
                     b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
@@ -8153,6 +8348,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AsistenteIa.TareaAsistente", b =>
+                {
+                    b.Navigation("Pasos");
+
+                    b.Navigation("Turnos");
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.Conversacion", b =>
