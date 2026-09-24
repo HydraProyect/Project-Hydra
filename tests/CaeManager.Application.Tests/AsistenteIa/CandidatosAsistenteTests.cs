@@ -248,6 +248,44 @@ public class CandidatosAsistenteTests
     }
 
     [Fact]
+    public void Si_solo_el_texto_nombra_otro_Tenant_se_ejecuta_en_el_elegido_y_se_recomienda_el_nombrado()
+    {
+        var candidatos = DosTenants(out _, out _, out _, out _);
+
+        var destino = ResolucionTenantDestino.Resolver(candidatos,
+            [new(Q.CampoTenant, TenantA, 90), new(Q.CampoCentro, null, 40)], tenantElegido: TenantB);
+
+        destino.Situacion.Should().Be(SituacionTenantDestino.Unico);
+        destino.Bloquea.Should().BeFalse();
+        destino.Tenant!.TenantId.Should().Be(TenantB);
+        destino.Recomendado!.TenantId.Should().Be(TenantA);
+        destino.Motivo.Should().Contain("cambiar a Tenant A");
+    }
+
+    [Fact]
+    public void El_Tenant_que_nombra_el_texto_manda_sobre_la_pantalla()
+    {
+        var candidatos = DosTenants(out _, out _, out _, out _);
+
+        var destino = ResolucionTenantDestino.Resolver(candidatos, [new(Q.CampoTenant, TenantA, 90)], tenantPantalla: TenantB);
+
+        destino.Situacion.Should().Be(SituacionTenantDestino.Unico);
+        destino.Tenant!.TenantId.Should().Be(TenantA);
+        destino.DistintoDePantalla.Should().BeTrue();
+    }
+
+    [Fact]
+    public void El_Tenant_que_nombra_el_texto_con_datos_de_otro_es_mezcla()
+    {
+        var candidatos = DosTenants(out _, out var centroB, out _, out _);
+
+        var destino = ResolucionTenantDestino.Resolver(candidatos, [new(Q.CampoTenant, TenantA, 90), new(Q.CampoCentro, centroB, 90)]);
+
+        destino.Situacion.Should().Be(SituacionTenantDestino.Mezcla);
+        destino.Bloquea.Should().BeTrue();
+    }
+
+    [Fact]
     public void Una_mezcla_de_datos_bloquea_aunque_haya_Tenant_elegido_y_pantalla()
     {
         var candidatos = DosTenants(out var centroA, out _, out _, out var trabajadorB);
@@ -316,6 +354,7 @@ public class CandidatosAsistenteTests
             {
                 [Q.CampoCentro] = [new(centroA, "Nave · en Tenant A", TenantA), new(centroB, "Nave · en Tenant B", TenantB)],
                 [Q.CampoTrabajadores] = [new(trabajadorA, "Ana Ruiz · en Tenant A", TenantA), new(trabajadorB, "Ana Ruiz · en Tenant B", TenantB)],
+                [Q.CampoTenant] = [new(TenantA, "Tenant A", TenantA), new(TenantB, "Tenant B", TenantB)],
             });
     }
 

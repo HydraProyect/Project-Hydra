@@ -30,7 +30,8 @@ public enum SituacionTenantDestino
 /// <paramref name="Tenants"/> son las opciones en <see cref="SituacionTenantDestino.Elegir"/>
 /// y los Tenants que se mezclan en <see cref="SituacionTenantDestino.Mezcla"/>.
 /// <paramref name="Recomendado"/> es el Tenant al que se recomienda cambiar en
-/// <see cref="SituacionTenantDestino.Discrepancia"/>.
+/// <see cref="SituacionTenantDestino.Discrepancia"/>, o en <see cref="SituacionTenantDestino.Unico"/>
+/// cuando solo el texto nombra otro Tenant: aviso que no bloquea.
 /// <paramref name="DistintoDePantalla"/> avisa de que el destino no es el Tenant
 /// que el Gestor CAE tiene abierto en pantalla, para resaltarlo.
 /// </summary>
@@ -60,7 +61,9 @@ public record TenantDestinoDto(
 /// <item>Si los datos salen de Tenants distintos, el plan no se puede confirmar:
 /// nunca se da de alta a un Trabajador de un Tenant en otro.</item>
 /// <item>Si el Gestor CAE cambia el Tenant a mano (chip del chat) y los datos son
-/// de otro, se bloquea y se le recomienda el Tenant de los datos.</item>
+/// de otro, se bloquea y se le recomienda el Tenant de los datos. Si lo único
+/// que choca es el Tenant que nombra el texto, no hay dato que lo impida: se
+/// ejecuta en el elegido y se le recomienda el nombrado.</item>
 /// <item>Si nada lo sitúa, el destino es el Tenant elegido a mano; si no lo hay,
 /// el de la pantalla; si tampoco, el único de la cartera; con varios, se pregunta
 /// ofreciendo solo los de la cartera.</item>
@@ -87,7 +90,10 @@ public static class ResolucionTenantDestino
 
         var pantalla = candidatos.Tenants.FirstOrDefault(t => t.TenantId == tenantPantalla);
 
+        // El Tenant que nombra el texto (campo tenant) cuenta junto a los datos
+        // para detectar mezcla, pero no es un dato: nada del plan pertenece a él.
         var implicados = new HashSet<Guid>();
+        var hayDatos = false;
         foreach (var seleccion in selecciones)
         {
             if (seleccion.CandidatoId is not { } candidatoId)
@@ -98,6 +104,7 @@ public static class ResolucionTenantDestino
                 ?? throw new ArgumentException(
                     $"El candidato elegido para «{seleccion.Campo}» no está entre los enviados.", nameof(selecciones));
             implicados.Add(tenant);
+            hayDatos |= seleccion.Campo != ObtenerCandidatosAsistenteQueryHandler.CampoTenant;
         }
 
         var deLosDatos = candidatos.Tenants.Where(t => implicados.Contains(t.TenantId)).ToList();
@@ -110,6 +117,12 @@ public static class ResolucionTenantDestino
         if (deLosDatos.Count == 1)
         {
             var correcto = deLosDatos[0];
+            if (elegido is not null && elegido.TenantId != correcto.TenantId && !hayDatos)
+                return new(SituacionTenantDestino.Unico, elegido, [elegido],
+                    $"Has elegido {elegido.Nombre}, pero la orden nombra {correcto.Nombre}. " +
+                    $"Te recomendamos cambiar a {correcto.Nombre}.",
+                    Recomendado: correcto,
+                    DistintoDePantalla: pantalla is not null && pantalla.TenantId != elegido.TenantId);
             if (elegido is not null && elegido.TenantId != correcto.TenantId)
                 return new(SituacionTenantDestino.Discrepancia, null, [elegido, correcto],
                     $"Has elegido {elegido.Nombre}, pero los datos de la orden son de {correcto.Nombre}. " +
