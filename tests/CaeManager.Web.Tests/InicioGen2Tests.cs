@@ -8,6 +8,7 @@ using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRespuesta;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Tenants;
@@ -100,6 +101,136 @@ public class InicioGen2Tests : BunitContext
 
         cut.Markup.Should().NotContain("Este contexto todavía no tiene datos",
             "decir «no hay datos» sobre un contexto que tiene una visita sería peor que los ceros");
+    }
+
+    // ------------------------------------------- aterrizaje en Mi trabajo (D-2)
+
+    private static readonly Guid OrigenOperador = Guid.NewGuid();
+    private static readonly Guid PropietarioConCartera = Guid.NewGuid();
+    private static readonly Guid PropietarioSinCartera = Guid.NewGuid();
+
+    private static IReadOnlyList<ClienteAutorizadoDto> OrigenYDosPropietarios() =>
+    [
+        new(OrigenOperador, "Operador CAE de prueba", EsOrigen: true),
+        new(PropietarioConCartera, "Laboratorios Dexter", EsOrigen: false),
+        new(PropietarioSinCartera, "Cervezas Duff Ibérica", EsOrigen: false),
+    ];
+
+    private static MediadorDeInicio SinCarteraAqui(bool carteraEnOtroTenant) => new()
+    {
+        Kpis = KpisACero() with { SinCarteraAsignada = true },
+        Autorizados = OrigenYDosPropietarios(),
+        CarteraPorTenant = new Dictionary<Guid, bool> { [PropietarioConCartera] = carteraEnOtroTenant },
+    };
+
+    private string UrlActual => Services.GetRequiredService<NavigationManager>().Uri;
+
+    /// <summary>
+    /// D-2: el Gestor CAE de un Operador CAE externo aterriza en Mi trabajo. En el
+    /// Tenant de origen del Operador CAE no tiene cartera —su cartera vive en los
+    /// Tenants propietarios que opera—, y decirle «Sin cartera asignada» era falso.
+    /// </summary>
+    [Fact]
+    public void En_el_Tenant_de_origen_sin_cartera_y_con_cartera_en_otro_Tenant_lleva_a_Mi_trabajo()
+    {
+        var mediador = SinCarteraAqui(carteraEnOtroTenant: true);
+        var cut = Renderizar(mediador);
+
+        cut.WaitForAssertion(() => UrlActual.Should().EndWith(Inicio.RutaMiTrabajo));
+        cut.Markup.Should().NotContain("Sin cartera asignada",
+            "no se afirma que no tiene cartera a quien la tiene en otro Tenant propietario");
+    }
+
+    [Fact]
+    public void Sin_cartera_en_ningun_Tenant_se_queda_en_el_estado_vacio_y_sin_la_palabra_cliente()
+    {
+        var mediador = SinCarteraAqui(carteraEnOtroTenant: false);
+        var cut = Renderizar(mediador);
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin cartera asignada");
+        cut.Find(".estado-vacio p").TextContent.Should().NotContainEquivalentOf("cliente",
+            "contrato de lenguaje: «cliente» a secas no dice qué sentido tiene");
+        cut.FindAll(".estado-vacio a[href='/mi-trabajo']").Should().BeEmpty();
+        UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
+        mediador.PeticionesVision.Should().Be(1, "se miró de verdad si había cartera en otro Tenant");
+    }
+
+    /// <summary>
+    /// En un Context Workspace elegido con el selector no se redirige: el usuario
+    /// acaba de pedir ver este Tenant, y el selector vuelve a la página en la que
+    /// estaba. Se le dice que aquí no tiene cartera y se le da la salida.
+    /// </summary>
+    [Fact]
+    public void En_un_Tenant_propietario_sin_cartera_suya_no_redirige_y_ofrece_ir_a_Mi_trabajo()
+    {
+        var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true), tenantActivo: PropietarioSinCartera);
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin cartera en este contexto");
+        cut.Find(".estado-vacio a[href='/mi-trabajo']").TextContent.Should().Contain("Mi trabajo");
+        UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
+    }
+
+    /// <summary>
+    /// La cartera en el propio Tenant de origen no cuenta como «cartera en otro
+    /// Tenant»: Mi trabajo no enseña el Tenant de origen, así que la salida
+    /// llevaría a una pantalla sin nada suyo.
+    /// </summary>
+    [Fact]
+    public void La_cartera_en_el_Tenant_de_origen_no_ofrece_Mi_trabajo_desde_otro_contexto()
+    {
+        var mediador = new MediadorDeInicio
+        {
+            Kpis = KpisACero() with { SinCarteraAsignada = true },
+            Autorizados = OrigenYDosPropietarios(),
+            CarteraPorTenant = new Dictionary<Guid, bool> { [OrigenOperador] = true },
+        };
+        var cut = Renderizar(mediador, tenantActivo: PropietarioSinCartera);
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin cartera asignada");
+        cut.FindAll(".estado-vacio a[href='/mi-trabajo']").Should().BeEmpty();
+        mediador.PeticionesVision.Should().Be(1);
+    }
+
+    [Fact]
+    public void Con_datos_en_el_contexto_activo_no_redirige_ni_consulta_la_cartera_de_otros_Tenants()
+    {
+        var mediador = new MediadorDeInicio
+        {
+            Autorizados = OrigenYDosPropietarios(),
+            CarteraPorTenant = new Dictionary<Guid, bool> { [PropietarioConCartera] = true },
+        };
+        var cut = Renderizar(mediador);
+
+        cut.FindAll(".dashboard-resumen").Should().NotBeEmpty();
+        UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
+        mediador.PeticionesAutorizados.Should().Be(0);
+        mediador.PeticionesVision.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Mi trabajo autoriza por rol de cuenta; un rol Consulta con cartera en otro
+    /// Tenant acabaría en «acceso denegado». Se queda en Inicio.
+    /// </summary>
+    [Fact]
+    public void Un_rol_que_no_puede_abrir_Mi_trabajo_no_es_llevado_alli()
+    {
+        var mediador = SinCarteraAqui(carteraEnOtroTenant: true);
+        var cut = Renderizar(mediador, rol: Roles.Consulta);
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin cartera asignada");
+        UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
+        mediador.PeticionesAutorizados.Should().Be(0);
+    }
+
+    [Fact]
+    public void Sin_ningun_Tenant_ademas_del_de_origen_no_pide_la_vision_de_cartera()
+    {
+        var mediador = new MediadorDeInicio { Kpis = KpisACero() with { SinCarteraAsignada = true } };
+        var cut = Renderizar(mediador);
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin cartera asignada");
+        mediador.PeticionesAutorizados.Should().Be(1);
+        mediador.PeticionesVision.Should().Be(0, "sin otro Tenant autorizado no hay cartera fuera que buscar");
     }
 
     // ------------------------------------------------------------ cabecera
@@ -454,7 +585,7 @@ public class InicioGen2Tests : BunitContext
     // ---------------------------------------------------------------- ayudas
 
     private IRenderedComponent<Inicio> Renderizar(MediadorDeInicio mediador, ActividadUsuarioService? actividad = null,
-        AuthenticationStateProvider? autenticacion = null)
+        AuthenticationStateProvider? autenticacion = null, Guid? tenantActivo = null, string rol = Roles.GestorCae)
     {
         // La aplicación fija es-ES en Program.cs; aquí se fija en el flujo del
         // propio test, que es donde renderiza bUnit.
@@ -470,10 +601,15 @@ public class InicioGen2Tests : BunitContext
         Services.AddScoped(_ => actividad ?? new ActividadSinAusencia());
         Services.AddScoped(_ => new UserManager<ApplicationUser>(
             new AlmacenSinUsuarios(), null!, null!, null!, null!, null!, null!, null!, null!));
+        // Los estados vacíos de cartera salen de IStringLocalizer<TextosInicio>.
+        Services.AddLocalization();
+        // Por defecto, el Context Workspace activo es el Tenant de origen del
+        // Operador CAE de estos casos.
+        Services.AddScoped<ITenantActual>(_ => new TenantActivoFijo(tenantActivo ?? OrigenOperador));
 
         // Cualquier rol menos Cliente: «Requiere atención» reutiliza la cola del
         // Gestor CAE y el rol Cliente no la ve.
-        AddAuthorization().SetAuthorized("marta").SetRoles(Roles.GestorCae);
+        AddAuthorization().SetAuthorized("marta").SetRoles(rol);
 
         // Registrado DESPUÉS de AddAuthorization para ganarle el registro: el de
         // bUnit responde con una tarea ya completa, así que con él no existe la
@@ -600,6 +736,16 @@ public class InicioGen2Tests : BunitContext
         public PerfilVocabularioTenant Perfil { get; init; } = PerfilVocabularioTenant.ClienteDirecto;
         public IReadOnlyList<ItemBandejaDto> Items { get; set; } = items;
 
+        /// <summary>Tenants autorizados (<see cref="ObtenerClientesAutorizadosQuery"/>); por defecto, solo el de origen.</summary>
+        public IReadOnlyList<ClienteAutorizadoDto> Autorizados { get; init; } =
+            [new ClienteAutorizadoDto(OrigenOperador, "Operador CAE de prueba", EsOrigen: true)];
+
+        /// <summary>Por Tenant autorizado: si el usuario tiene cartera en él (visión de cartera, <see cref="ObtenerKpisGlobalesQuery"/>).</summary>
+        public IReadOnlyDictionary<Guid, bool> CarteraPorTenant { get; init; } = new Dictionary<Guid, bool>();
+
+        public int PeticionesAutorizados { get; private set; }
+        public int PeticionesVision { get; private set; }
+
         /// <summary>Token con el que viajó cada consulta, en orden de llegada — para comprobar que se cancelan al retirar la pantalla.</summary>
         public List<CancellationToken> TokensDeCarga { get; } = [];
 
@@ -643,6 +789,15 @@ public class InicioGen2Tests : BunitContext
                     return Task.FromResult((TResponse)(object)new PulsoEquipoDto(0, 0, 0, null, false));
                 case ObtenerReclamacionesSinRespuestaQuery:
                     return Task.FromResult((TResponse)(object)SinRespuesta);
+                case ObtenerClientesAutorizadosQuery:
+                    PeticionesAutorizados++;
+                    return Task.FromResult((TResponse)(object)Autorizados);
+                case ObtenerKpisGlobalesQuery:
+                    PeticionesVision++;
+                    return Task.FromResult((TResponse)(object)new KpisGlobalesDto(
+                        Autorizados.Count, 0, 0, 0, 0, 0, 100,
+                        [.. Autorizados.Select(t => new ClienteRiesgoDto(t.TenantId, t.Nombre, 0, 0, 100,
+                            SinCarteraAsignada: !CarteraPorTenant.GetValueOrDefault(t.TenantId)))]));
                 default:
                     throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.");
             }
@@ -667,6 +822,11 @@ public class InicioGen2Tests : BunitContext
 
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
             where TNotification : INotification => Task.CompletedTask;
+    }
+
+    private sealed class TenantActivoFijo(Guid tenantId) : ITenantActual
+    {
+        public Guid? TenantId => tenantId;
     }
 
     /// <summary>

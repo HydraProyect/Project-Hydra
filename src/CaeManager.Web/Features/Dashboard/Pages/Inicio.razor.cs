@@ -4,6 +4,7 @@ using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRespuesta;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Tenants;
@@ -37,8 +38,31 @@ public partial class Inicio : ComponentBase, IDisposable
     [Inject] private ActividadUsuarioService ActividadUsuario { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
+
+    /// <summary>
+    /// Destino del aterrizaje del Gestor CAE de un Operador CAE externo (D-2 del
+    /// piloto Outbound): su trabajo vive en los Tenants propietarios que opera,
+    /// no en el Tenant de origen del Operador CAE.
+    /// </summary>
+    public const string RutaMiTrabajo = "/mi-trabajo";
+
+    /// <summary>
+    /// Roles de cuenta que autoriza la página Mi trabajo (<c>MiTrabajo.razor</c>,
+    /// atributo <c>Authorize</c>). Solo se lleva allí a quien puede abrirla: un
+    /// rol Consulta con cartera en otro Tenant acabaría en «acceso denegado».
+    /// </summary>
+    private static readonly string[] RolesMiTrabajo =
+        [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae];
 
     private KpisDashboardDto? _kpis;
+
+    /// <summary>
+    /// El Context Workspace activo no tiene cartera del usuario, pero algún otro
+    /// Tenant propietario autorizado sí. Solo se calcula cuando Inicio iba a
+    /// decir «Sin cartera asignada».
+    /// </summary>
+    private bool _carteraEnOtroTenant;
     private BandejaAgrupadaDto? _bandejaAgrupada;
     private IReadOnlyList<PendientePorPlataformaDto> _pendientePorPlataforma = [];
     private IReadOnlyList<ItemBandejaDto> _queLlegoSinVer = [];
@@ -216,6 +240,9 @@ public partial class Inicio : ComponentBase, IDisposable
         ProximoVencimientoDto? proximoVencimiento = null;
         PulsoEquipoDto? pulso = null;
         IReadOnlyList<ReclamacionSinRespuestaDto> sinRespuesta = [];
+        var carteraEnOtroTenant = false;
+        var activoEsOrigen = false;
+        var irAMiTrabajo = false;
 
         try
         {
@@ -224,6 +251,17 @@ public partial class Inicio : ComponentBase, IDisposable
             var perfilVocabulario = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery(), token);
 
             var kpis = await Mediator.Send(new ObtenerKpisDashboardQuery(), token);
+
+            if (kpis.SinCarteraAsignada && RolesMiTrabajo.Any(estadoAutenticacion.User.IsInRole))
+                (carteraEnOtroTenant, activoEsOrigen) = await ResolverCarteraEnOtroTenantAsync(token);
+
+            if (carteraEnOtroTenant && activoEsOrigen)
+            {
+                // D-2: el Gestor CAE (o Coordinador CAE) de un Operador CAE externo
+                // aterriza en Mi trabajo. Nada se publica: la pantalla se va.
+                irAMiTrabajo = true;
+                return;
+            }
 
             if (!kpis.SinCarteraAsignada)
             {
@@ -262,6 +300,7 @@ public partial class Inicio : ComponentBase, IDisposable
             _mostrarRequiereAtencion = mostrarRequiereAtencion;
             _perfilVocabulario = perfilVocabulario;
             _kpis = kpis;
+            _carteraEnOtroTenant = carteraEnOtroTenant;
             _bandejaAgrupada = bandeja;
             _pendientePorPlataforma = plataformas;
             _queLlegoSinVer = sinVer;
@@ -283,9 +322,49 @@ public partial class Inicio : ComponentBase, IDisposable
         }
         finally
         {
+            // Fuera del catch a propósito: la navegación no puede acabar
+            // convertida en el estado de error de la pantalla. replace: Inicio
+            // no fue un paso propio que «Atrás» deba devolver — volver a él
+            // solo repetiría el salto.
             if (EsVigente(carga))
-                StateHasChanged();
+            {
+                if (irAMiTrabajo)
+                    NavigationManager.NavigateTo(RutaMiTrabajo, replace: true);
+                else
+                    StateHasChanged();
+            }
         }
+    }
+
+    /// <summary>
+    /// Si el usuario tiene cartera en algún Tenant propietario autorizado que no
+    /// sea su Tenant de origen, y si el Context Workspace activo es ese Tenant de
+    /// origen. Sin consulta nueva: la lista de Tenants autorizados es
+    /// <see cref="ObtenerClientesAutorizadosQuery"/> (la misma que recorre Mi
+    /// trabajo Gen2) y «sin cartera» por Tenant es
+    /// <see cref="ClienteRiesgoDto.SinCarteraAsignada"/> de
+    /// <see cref="ObtenerKpisGlobalesQuery"/>, que calcula cada Tenant con su
+    /// propio alcance y su RLS, sellado por <c>AmbitoTenantExplicito</c>. El
+    /// Tenant de origen no cuenta: Mi trabajo no lo enseña
+    /// (<c>MiTrabajoVista</c>), así que llevar allí a quien solo tiene cartera
+    /// en él sería llevarlo a una pantalla vacía. Lo caro (la visión de cartera
+    /// entera) solo corre si hay algún Tenant además del de origen.
+    /// </summary>
+    private async Task<(bool CarteraEnOtroTenant, bool ActivoEsOrigen)> ResolverCarteraEnOtroTenantAsync(
+        CancellationToken token)
+    {
+        var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery(), token);
+        var origen = autorizados.Where(t => t.EsOrigen).Select(t => t.TenantId).ToHashSet();
+        var activoEsOrigen = TenantActual.TenantId is { } activo && origen.Contains(activo);
+
+        if (autorizados.All(t => t.EsOrigen))
+            return (false, activoEsOrigen);
+
+        var vision = await Mediator.Send(new ObtenerKpisGlobalesQuery(), token);
+        var carteraEnOtro = vision.ClientesConMasRiesgo.Any(t =>
+            !origen.Contains(t.TenantId) && t.TenantId != TenantActual.TenantId && !t.SinCarteraAsignada);
+
+        return (carteraEnOtro, activoEsOrigen);
     }
 
     /// <summary>Base real de "N de M vigentes" (mockup Inicio TALVEG) — la misma suma que ya usa ObtenerKpisDashboardQuery para la tasa de cumplimiento, no una cifra nueva.</summary>
