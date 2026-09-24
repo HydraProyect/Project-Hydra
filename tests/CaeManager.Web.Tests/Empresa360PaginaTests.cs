@@ -200,7 +200,13 @@ public class Empresa360PaginaTests : BunitContext
     [Fact]
     public void La_cabecera_pinta_identidad_recuentos_y_anillo_con_las_consultas_del_panel()
     {
-        var mediador = Registrar(Empresa());
+        var mediador = Empresa();
+        mediador.Clientes[EmpresaId] =
+        [
+            new ClienteDeEmpresaDto(Guid.NewGuid(), "Refrielectric S.A.", "A-12345678"),
+            new ClienteDeEmpresaDto(Guid.NewGuid(), "Aislamientos Nervión S.L.", "B-87654321")
+        ];
+        Registrar(mediador);
 
         var cut = Renderizar();
 
@@ -380,7 +386,13 @@ public class Empresa360PaginaTests : BunitContext
     [Fact]
     public void Las_pestanas_siguen_el_orden_del_mockup_y_Trabajadores_es_la_de_entrada()
     {
-        Registrar(Empresa());
+        var mediador = Empresa();
+        mediador.Clientes[EmpresaId] =
+        [
+            new ClienteDeEmpresaDto(Guid.NewGuid(), "Refrielectric S.A.", "A-12345678"),
+            new ClienteDeEmpresaDto(Guid.NewGuid(), "Aislamientos Nervión S.L.", "B-87654321")
+        ];
+        Registrar(mediador);
 
         var cut = Renderizar();
 
@@ -451,10 +463,11 @@ public class Empresa360PaginaTests : BunitContext
         mediador.Clientes[EmpresaId] = [cliente];
         Registrar(mediador);
         var cut = Renderizar();
-        mediador.Enviadas.OfType<ObtenerClientesDeEmpresaQuery>().Should().BeEmpty("se piden al abrir la pestaña, como en el panel");
 
         await Pestana(cut, "Clientes").ClickAsync(new MouseEventArgs());
 
+        // Se piden una sola vez, al cargar la página (de ahí sale el recuento de la
+        // cabecera); abrir la pestaña no repite la consulta.
         mediador.Enviadas.OfType<ObtenerClientesDeEmpresaQuery>().Should().ContainSingle()
             .Which.Should().Be(new ObtenerClientesDeEmpresaQuery(EmpresaId));
         cut.Find(".fila-relacion-nombre").GetAttribute("href").Should().Be($"/clientes/{cliente.Id}");
@@ -500,6 +513,31 @@ public class Empresa360PaginaTests : BunitContext
         cut.FindAll(".fila-relacion-nombre").Select(a => a.TextContent.Trim())
             .Should().Equal(["Aislamientos Nervión S.L."], "la lista es la de B, no la que ya estaba cargada de A");
         cut.Markup.Should().NotContain("Ibertec GmbH").And.NotContain("Refrielectric S.A.");
+    }
+
+    /// <summary>
+    /// Hallazgo de Codex (#810): EmpresaDetalleDto.ClienteIds no está acotado por
+    /// alcance y ObtenerClientesDeEmpresaQuery sí (alcance de gestión, REC-153).
+    /// Si la cabecera contara ClienteIds, un actor sin gestión sobre esos
+    /// Clientes empresariales vería el tamaño de una cartera que la pestaña no
+    /// le enseña. La cabecera y el contador cuentan lo que la lista acotada
+    /// devuelve.
+    /// </summary>
+    [Fact]
+    public void El_recuento_de_clientes_sale_de_la_consulta_acotada_y_no_de_ClienteIds()
+    {
+        var mediador = Empresa();
+        mediador.Clientes[EmpresaId] = [];
+        Registrar(mediador);
+
+        var cut = Renderizar();
+
+        // Barrera: la entradilla ya tiene los trabajadores; si no, la ausencia sería verde vacío.
+        var entradilla = cut.Find(".cabecera-pagina-descripcion").TextContent;
+        entradilla.Should().Contain("25 trabajadores");
+        entradilla.Should().Contain("0 clientes").And.NotContain("2 clientes",
+            "EmpresaDetalleDto trae dos ClienteIds, pero ninguno está en el alcance del actor");
+        Pestana(cut, "Clientes").TextContent.Should().NotContain("2");
     }
 
     // ── Credencial de acceso ──────────────────────────────────────────────

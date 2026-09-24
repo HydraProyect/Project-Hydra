@@ -252,7 +252,10 @@ public partial class EmpresaDetalle : ComponentBase, IDisposable
         }
 
         await CargarTrabajadoresAsync();
-        await CargarClientesSiHaceFaltaAsync();
+        // Los Clientes empresariales se piden siempre, no solo al abrir la pestaña:
+        // de esta lista acotada por alcance sale el recuento de la cabecera y del
+        // contador (EmpresaDetalleDto.ClienteIds no está acotado).
+        await CargarClientesAsync();
 
         // Mismo motivo que CentroDetalle: OnParametersSetAsync también corre
         // en el prerenderizado estático, y una tarea sin await ahí queda en
@@ -467,7 +470,7 @@ public partial class EmpresaDetalle : ComponentBase, IDisposable
         _ => null
     };
 
-    /// <summary>La pestaña Clientes, la primera vez que se abre (como el panel).</summary>
+    /// <summary>La pestaña Clientes, si al abrirla aún no hay lista (la carga de la página ya la pide).</summary>
     private async Task CargarClientesSiHaceFaltaAsync()
     {
         if (_pestana != PestanaClientes || _detalle is null || _clientes is not null || _errorClientes || _cargandoClientes)
@@ -591,7 +594,7 @@ public partial class EmpresaDetalle : ComponentBase, IDisposable
         },
         new(PestanaClientes, Textos["PestanaClientes"])
         {
-            Contador = _detalle is null ? null : new ContadorPestana(_clientes?.Count ?? _detalle.ClienteIds.Count, Textos["GlosaClientes"])
+            Contador = _clientes is { } clientes ? new ContadorPestana(clientes.Count, Textos["GlosaClientes"]) : null
         },
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
         new(PestanaAgenda, Textos["PestanaAgenda"]),

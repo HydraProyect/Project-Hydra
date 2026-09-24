@@ -45,12 +45,25 @@
                 {
                     @Textos["MetaCif", _detalle.Cif]
                     <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" />
-                    <text> · </text>
+                    @if (_clientes is not null || _recuentos is not null)
+                    {
+                        <text> · </text>
+                    }
                 }
-                @Plural(_detalle.ClienteIds.Count, "MetaClientesUno", "MetaClientesVarios")
+                @* Los Clientes empresariales se cuentan con ObtenerClientesDeEmpresaQuery, que
+                   aplica el alcance de gestión, igual que la pestaña. EmpresaDetalleDto.ClienteIds
+                   no está acotado: contarlo anunciaría una cartera que el actor no puede ver. *@
+                @if (_clientes is { } clientesMeta)
+                {
+                    @Plural(clientesMeta.Count, "MetaClientesUno", "MetaClientesVarios")
+                }
                 @if (_recuentos is { } recuentosMeta)
                 {
-                    <text> · </text>@Plural(recuentosMeta.Total, "MetaTrabajadoresUno", "MetaTrabajadoresVarios")
+                    @if (_clientes is not null)
+                    {
+                        <text> · </text>
+                    }
+                    @Plural(recuentosMeta.Total, "MetaTrabajadoresUno", "MetaTrabajadoresVarios")
                 }
                 @if (_recuentos is { } r && (r.Vencidos > 0 || r.PorVencer > 0))
                 {
