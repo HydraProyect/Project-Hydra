@@ -178,12 +178,12 @@
                    bloqueado (CalculoEstadoCentroService, el mismo cálculo que Centro
                    360) se declara junto a él para que no se lea como cumplimiento. *@
                 <AnilloCumplimiento Porcentaje="@(_kpis.SinDatos ? null : _kpis.TasaCumplimientoDocumental)" Tamano="TamanoAnillo.Grande" Leyenda="Cumplimiento"
-                                     Etiqueta="@(_kpis.SinDatos ? "Sin datos de cumplimiento documental" : $"{_kpis.TasaCumplimientoDocumental}% de cumplimiento documental")" />
+                                     Etiqueta="@(_kpis.SinDatos ? Textos["AnilloSinDatos"].Value : $"{_kpis.TasaCumplimientoDocumental}% de cumplimiento documental")" />
                 <div>
                     @if (_kpis.SinDatos)
                     {
-                        <p class="dashboard-resumen-anillo-titulo">Sin datos de cumplimiento documental</p>
-                        <p class="dashboard-resumen-anillo-detalle">No hay centros de trabajo ni documentos con vigencia en cartera que medir.</p>
+                        <p class="dashboard-resumen-anillo-titulo">@Textos["AnilloSinDatos"]</p>
+                        <p class="dashboard-resumen-anillo-detalle">@Textos["AnilloSinDatosDetalle"]</p>
                     }
                     else
                     {

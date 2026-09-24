@@ -420,8 +420,8 @@ public partial class Inicio : ComponentBase, IDisposable
     /// </summary>
     private string TextoCentrosBloqueadosKpi => _kpis is not { CentrosBloqueados: > 0 } k ? string.Empty
         : k.CentrosBloqueados == 1
-            ? "1 centro de trabajo con el acceso bloqueado: el porcentaje cuenta documentos, no acceso."
-            : $"{k.CentrosBloqueados} centros de trabajo con el acceso bloqueado: el porcentaje cuenta documentos, no acceso.";
+            ? Textos["CentrosBloqueadosKpiUno"]
+            : Textos["CentrosBloqueadosKpiVarios", k.CentrosBloqueados];
 
     private string TextoCierreAtencion =>
         _proximoVencimiento is { } proximo
