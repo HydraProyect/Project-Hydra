@@ -540,6 +540,8 @@ public class Empresa360PaginaTests : BunitContext
         entradilla.Should().NotContain("2 clientes",
             "EmpresaDetalleDto trae dos ClienteIds, pero ninguno está en el alcance del actor");
         entradilla.Should().NotContain("0 clientes", "una lista vacía puede ser falta de alcance, no una cartera vacía");
+        // Sin recuento de clientes, entre el CIF y los trabajadores queda un solo separador.
+        entradilla.Count(c => c == '·').Should().Be(1, $"la entradilla es «{entradilla.Trim()}»");
         Pestana(cut, "Clientes").TextContent.Trim().Should().Be("Clientes", "sin recuento que no se pueda afirmar");
     }
 
@@ -554,7 +556,7 @@ public class Empresa360PaginaTests : BunitContext
         await Pestana(cut, "Clientes").ClickAsync(new MouseEventArgs());
 
         cut.Markup.Should().Contain("Sin clientes que puedas consultar")
-            .And.Contain("o ninguno está dentro de tu alcance");
+            .And.Contain("o no están dentro de tu alcance de gestión");
         cut.Markup.Should().NotContain("todavía no tiene ningún cliente");
     }
 

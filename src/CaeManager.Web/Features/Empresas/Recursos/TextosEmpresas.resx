@@ -54,11 +54,11 @@
   </data>
   <data name="MetaClientesUno" xml:space="preserve">
     <value>1 cliente</value>
-    <comment>Recuento de Clientes empresariales (ClienteIds). En pantalla, «cliente».</comment>
+    <comment>Recuento de Clientes empresariales visibles con alcance de gestión (ObtenerClientesDeEmpresaQuery; nunca ClienteIds). En pantalla, «cliente».</comment>
   </data>
   <data name="MetaClientesVarios" xml:space="preserve">
     <value>{0} clientes</value>
-    <comment>Recuento de Clientes empresariales (ClienteIds). {0} = número.</comment>
+    <comment>Recuento de Clientes empresariales visibles con alcance de gestión (ObtenerClientesDeEmpresaQuery; nunca ClienteIds). {0} = número.</comment>
   </data>
   <data name="MetaTrabajadoresUno" xml:space="preserve">
     <value>1 trabajador</value>
@@ -221,7 +221,7 @@
     <comment>Estado vacío de la pestaña Clientes.</comment>
   </data>
   <data name="VacioClientesDescripcion" xml:space="preserve">
-    <value>Esta empresa no tiene clientes asociados, o ninguno está dentro de tu alcance.</value>
+    <value>Esta empresa no tiene clientes asociados, o no están dentro de tu alcance de gestión.</value>
     <comment>Estado vacío de la pestaña Clientes.</comment>
   </data>
   <data name="ErrorClientes" xml:space="preserve">

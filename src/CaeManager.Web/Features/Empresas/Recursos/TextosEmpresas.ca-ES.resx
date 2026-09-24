@@ -169,7 +169,7 @@
     <value>Sense clients que puguis consultar</value>
   </data>
   <data name="VacioClientesDescripcion" xml:space="preserve">
-    <value>Aquesta empresa no té clients associats, o cap no és dins del teu abast.</value>
+    <value>Aquesta empresa no té clients associats, o no són dins del teu abast de gestió.</value>
   </data>
   <data name="ErrorClientes" xml:space="preserve">
     <value>No hem pogut carregar els clients</value>
