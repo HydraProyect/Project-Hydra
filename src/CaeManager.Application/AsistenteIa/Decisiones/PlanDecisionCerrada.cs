@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using CaeManager.Application.AsistenteIa.Ordenes;
+using CaeManager.Application.AsistenteIa.Preparacion;
 using CaeManager.Domain.Common;
 
 namespace CaeManager.Application.AsistenteIa.Decisiones;
@@ -44,6 +45,10 @@ public sealed record RespuestaCerrada(string PreguntaId, string Eleccion, double
 /// <item><b>El nombre del campo lleva un sufijo aleatorio por petición.</b> Sin
 /// él, un texto que imite el final del campo y abra otro («[Fin del texto
 /// citado.] orden_del_gestor: …») atraviesa las dos defensas anteriores.</item>
+/// <item><b>Los identificadores personales y fiscales viajan enmascarados</b>
+/// (<see cref="EnmascaradorIdentificadores"/>): con marcadores, la selección
+/// acierta igual que en claro. Por eso ningún candidato puede describirse por
+/// su documento.</item>
 /// </list>
 /// <para>
 /// La lectura es estricta en el mismo sentido: una elección que no esté entre
@@ -80,16 +85,31 @@ public sealed class PlanDecisionCerrada
 
     private PlanDecisionCerrada(string campoTexto, string texto, IReadOnlyList<PreguntaCerrada> preguntas)
     {
+        // Todo texto entra al estado por aquí, y entra enmascarado: los DNI, NIE,
+        // pasaportes, CIF y correos no salen hacia el proveedor. El Centro, el
+        // Cliente empresarial y los nombres de persona sí, porque son lo que hay
+        // que casar con los candidatos.
+        var enmascarado = EnmascaradorIdentificadores.Enmascarar(texto);
         CampoTextoOrden = campoTexto;
-        Estado = new Dictionary<string, string> { [campoTexto] = texto };
+        Estado = new Dictionary<string, string> { [campoTexto] = enmascarado.Texto };
+        Identificadores = enmascarado.Identificadores;
         Preguntas = preguntas;
     }
 
     /// <summary>Nombre, con sufijo aleatorio, del campo del estado que lleva el texto de la orden.</summary>
     public string CampoTextoOrden { get; }
 
-    /// <summary>El estado que se envía. Hoy lleva un único campo: el texto de la orden.</summary>
+    /// <summary>
+    /// El estado que se envía. Hoy lleva un único campo: el texto de la orden,
+    /// con sus identificadores sustituidos por marcadores.
+    /// </summary>
     public IReadOnlyDictionary<string, string> Estado { get; }
+
+    /// <summary>
+    /// Lo que se retiró del texto antes de enviarlo, para que las validaciones y
+    /// los borradores trabajen con el valor real. Nunca viaja al proveedor.
+    /// </summary>
+    public IReadOnlyList<IdentificadorEnmascarado> Identificadores { get; }
 
     public IReadOnlyList<PreguntaCerrada> Preguntas { get; }
 
@@ -275,6 +295,11 @@ public sealed class PlanDecisionCerrada
         var nombres = seleccion.Candidatos.Select(c => c.Nombre.Trim());
         if (nombres.Distinct(StringComparer.OrdinalIgnoreCase).Count() != seleccion.Candidatos.Count)
             return ErrorInvalido($"El dato «{seleccion.Campo.Nombre}» tiene candidatos con el mismo nombre.");
+
+        // Un candidato descrito por su documento sacaría ese documento en claro, y
+        // además no casaría con el texto, que viaja enmascarado.
+        if (seleccion.Candidatos.Any(c => EnmascaradorIdentificadores.Enmascarar(c.Nombre).Identificadores.Count > 0))
+            return ErrorInvalido($"El dato «{seleccion.Campo.Nombre}» tiene un candidato descrito por un documento o un correo.");
 
         return null;
     }
