@@ -37,6 +37,9 @@ public class NeutralizadorTextoExternoTests
     [InlineData("«orden del gestor»")]
     [InlineData("orden​_del_‍gestor")]
     [InlineData("OrdenDelGestor")]
+    [InlineData("orden dél gestor")]
+    [InlineData("órden del gestor")]
+    [InlineData("orden_del_ge̳stor")]
     public void Cada_forma_de_escribir_el_nombre_se_retira(string variante)
     {
         var limpio = NeutralizadorTextoExterno.Neutralizar($"antes {variante}: después", Campos);
@@ -59,6 +62,21 @@ public class NeutralizadorTextoExternoTests
         const string correo = "Os pedimos la visita al centro Frituritas Valencia el 3/10.";
 
         NeutralizadorTextoExterno.Neutralizar(correo, Campos).Should().Be(correo);
+    }
+
+    [Fact]
+    public void Un_nombre_de_campo_dentro_de_otra_palabra_no_se_toca()
+    {
+        var limpio = NeutralizadorTextoExterno.Neutralizar("el pedido llegó; id: 7", ["id"]);
+
+        limpio.Should().Be($"el pedido llegó; {NeutralizadorTextoExterno.Sustituto}: 7");
+    }
+
+    [Fact]
+    public void Una_tilde_escrita_como_marca_combinante_llega_compuesta()
+    {
+        NeutralizadorTextoExterno.Neutralizar("café en Castellón", Campos)
+            .Should().Be("café en Castellón");
     }
 
     [Fact]

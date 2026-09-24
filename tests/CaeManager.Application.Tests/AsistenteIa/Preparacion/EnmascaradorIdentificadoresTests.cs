@@ -40,6 +40,9 @@ public class EnmascaradorIdentificadoresTests
     [InlineData("TIE ABC123456", "ABC123456", TipoIdentificadorEnmascarado.Pasaporte)]
     [InlineData("escribe a marta.gil@ejemplo.es", "marta.gil@ejemplo.es", TipoIdentificadorEnmascarado.Correo)]
     [InlineData("DNI 12345678", "12345678", TipoIdentificadorEnmascarado.DocumentoPersona)]
+    [InlineData("con DNI 12.345.678-Z", "12345678Z", TipoIdentificadorEnmascarado.DocumentoPersona)]
+    [InlineData("el 1.234.567 z", "01234567Z", TipoIdentificadorEnmascarado.DocumentoPersona)]
+    [InlineData("DNI 12.345.678", "12345678", TipoIdentificadorEnmascarado.DocumentoPersona)]
     public void Cada_formato_se_enmascara(string texto, string normalizado, TipoIdentificadorEnmascarado tipo)
     {
         var r = EnmascaradorIdentificadores.Enmascarar(texto);
@@ -56,6 +59,8 @@ public class EnmascaradorIdentificadoresTests
     [InlineData("el pasaporte francés de Ana")]
     [InlineData("Centro Frituritas Valencia Norte, nave 7")]
     [InlineData("llama al 612345678")]
+    [InlineData("presupuesto de 12.345.678 euros")]
+    [InlineData("pasaporte ABCDEFGHIJKLMNOPQRSTU1")]
     public void Lo_que_no_es_un_identificador_no_se_toca(string texto)
     {
         // Enmascarar de más también es un fallo: un Centro o una fecha enmascarados
@@ -103,6 +108,33 @@ public class EnmascaradorIdentificadoresTests
         r.Restaurar("persona [DOC_1], correo [CORREO_1], y [DOC_9]")
             .Should().Be("persona 12345678Z, correo marta.gil@ejemplo.es, y [DOC_9]");
         r.Buscar("[DOC_9]").Should().BeNull();
+    }
+
+    [Fact]
+    public void Restaurar_no_confunde_un_marcador_con_otro_que_empieza_igual()
+    {
+        var r = EnmascaradorIdentificadores.Enmascarar("de 12345678Z");
+
+        // Si Restaurar casara por prefijo, «[DOC_10]» recibiría el documento de [DOC_1].
+        r.Restaurar("[DOC_10] y [doc_1]").Should().Be("[DOC_10] y [doc_1]");
+    }
+
+    [Theory]
+    [InlineData("pasaporte ", "A")]
+    [InlineData("", "a.")]
+    [InlineData("DNI ", "1")]
+    [InlineData("", "a@")]
+    public void Una_entrada_hostil_muy_larga_no_dispara_el_tiempo(string prefijo, string ristra)
+    {
+        // El texto externo no es de confianza. Con un recorrido lineal esto tarda
+        // milisegundos; con uno cuadrático, minutos. El techo solo separa esos dos.
+        var texto = prefijo + string.Concat(Enumerable.Repeat(ristra, 100_000));
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+
+        var r = EnmascaradorIdentificadores.Enmascarar(texto);
+
+        reloj.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5));
+        r.Identificadores.Should().BeEmpty();
     }
 
     [Fact]

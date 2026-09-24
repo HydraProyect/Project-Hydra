@@ -21,7 +21,7 @@ public enum TipoIdentificadorEnmascarado
 /// <summary>
 /// Un identificador retirado del texto. <see cref="ValorOriginal"/> es el tramo tal
 /// como se escribió, para devolverlo al texto; <see cref="ValorNormalizado"/> es el
-/// que consumen las validaciones y los Commands (sin espacios ni guiones, en
+/// que consumen las validaciones y los Commands (sin espacios, guiones ni puntos, en
 /// mayúsculas, y el DNI de siete dígitos completado con el cero).
 /// </summary>
 public sealed record IdentificadorEnmascarado(
@@ -195,13 +195,13 @@ public static partial class EnmascaradorIdentificadores
     private static partial Regex RegexNie();
 
     // Siete u ocho dígitos y una letra. El de siete existe: el cero de delante se
-    // omite a menudo al escribirlo.
-    [GeneratedRegex(@"(?<![\p{L}\p{N}])\d{7,8}[\s\-]?[A-Z](?![\p{L}\p{N}])", RegexOptions.IgnoreCase)]
+    // omite a menudo al escribirlo. También con puntos de miles: «12.345.678-Z».
+    [GeneratedRegex(@"(?<![\p{L}\p{N}.])(?:\d{7,8}|\d{1,2}\.\d{3}\.\d{3})[\s\-]?[A-Z](?![\p{L}\p{N}])", RegexOptions.IgnoreCase)]
     private static partial Regex RegexDni();
 
     // Sin letra solo cuando lo precede la palabra que dice qué es: siete u ocho
     // dígitos sueltos pueden ser cualquier otra cosa.
-    [GeneratedRegex(@"\b(?:DNI|NIF|NIE|documento)\b\s*(?:n[º°o.]*\s*)?:?\s*(?<valor>\d{7,8})(?![\p{L}\p{N}])", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(?:DNI|NIF|NIE|documento)\b\s*(?:n[º°o.]*\s*)?:?\s*(?<valor>\d{7,8}|\d{1,2}\.\d{3}\.\d{3})(?![\p{L}\p{N}])", RegexOptions.IgnoreCase)]
     private static partial Regex RegexDniSinLetraTrasPalabraClave();
 
     [GeneratedRegex(@"(?<![\p{L}\p{N}])[ABCDEFGHJNPQRSUVW][\s\-]?\d{7}[\s\-]?[0-9A-J](?![\p{L}\p{N}])", RegexOptions.IgnoreCase)]
@@ -213,10 +213,11 @@ public static partial class EnmascaradorIdentificadores
 
     // Un pasaporte extranjero no tiene formato fijo: se reconoce por la palabra que
     // lo precede, y el valor tiene que llevar algún dígito («pasaporte francés» no
-    // es un número).
-    [GeneratedRegex(@"\bpasaporte\b\s*(?:n[º°o.]*\s*)?:?\s*(?<valor>(?=[A-Z0-9]*\d)[A-Z0-9]{5,12})(?![\p{L}\p{N}])", RegexOptions.IgnoreCase)]
+    // es un número). La búsqueda del dígito va acotada a los doce caracteres del
+    // valor: sin tope recorrería hasta el final cualquier ristra de letras.
+    [GeneratedRegex(@"\bpasaporte\b\s*(?:n[º°o.]*\s*)?:?\s*(?<valor>(?=[A-Z0-9]{0,11}\d)[A-Z0-9]{5,12})(?![\p{L}\p{N}])", RegexOptions.IgnoreCase)]
     private static partial Regex RegexPasaporteTrasPalabraClave();
 
-    [GeneratedRegex(@"[\s\-]")]
+    [GeneratedRegex(@"[\s\-.]")]
     private static partial Regex RegexSeparadores();
 }

@@ -43,6 +43,11 @@ public static partial class NeutralizadorTextoExterno
         // partir el nombre de un campo sin que se vea: «orden​_del_gestor».
         var texto = RegexInvisibles().Replace(textoExterno, string.Empty);
 
+        // Una tilde escrita como marca combinante («dél») se lee igual que la
+        // precompuesta: se compone primero, y la marca que no tenga forma compuesta se
+        // retira, porque también podría partir un nombre de campo sin que se vea.
+        texto = RegexMarcasCombinantes().Replace(texto.Normalize(NormalizationForm.FormC), string.Empty);
+
         foreach (var nombre in nombresDeCampo.Where(n => !string.IsNullOrWhiteSpace(n)))
             texto = PatronDe(nombre).Replace(texto, Sustituto);
 
@@ -61,8 +66,10 @@ public static partial class NeutralizadorTextoExterno
             .Where(p => p.Length > 0)
             .Select(p => string.Concat(p.Select(ClaseDeCaracter)));
 
+        // Sin letra pegada a ningún lado: el nombre es una palabra, no un trozo de otra.
+        // Con el campo «id», «pedido» se queda como está.
         var cuerpo = string.Join(@"[\s_\-.·]*", partes);
-        return new Regex($@"[`'""«]*{cuerpo}[`'""»]*", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return new Regex($@"(?<!\p{{L}})[`'""«]*{cuerpo}(?!\p{{L}})[`'""»]*", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     private static string ClaseDeCaracter(char c)
@@ -93,4 +100,7 @@ public static partial class NeutralizadorTextoExterno
 
     [GeneratedRegex("[­​-‏⁠-⁤﻿]")]
     private static partial Regex RegexInvisibles();
+
+    [GeneratedRegex(@"\p{Mn}")]
+    private static partial Regex RegexMarcasCombinantes();
 }
