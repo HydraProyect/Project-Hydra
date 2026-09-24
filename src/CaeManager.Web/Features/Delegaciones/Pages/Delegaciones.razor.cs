@@ -92,6 +92,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     /// </summary>
     private Guid? _tenantPropietarioAutorizante;
     private bool _sugerenciaAtendida;
+    private Guid? _sugerenciaVista;
     private bool _mostrarAutorizarOperador;
     private bool _operadorSugerido;
     private string _busquedaOperador = string.Empty;
@@ -174,6 +175,21 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             {
                 _cargando = false;
             }
+        }
+    }
+
+    /// <summary>
+    /// Un enlace nuevo en el mismo circuito (<c>?autorizar=</c> con otro Id, sin
+    /// recargar) vuelve a atenderse: sin esto <c>_sugerenciaAtendida</c> quedaba en
+    /// <c>true</c> para toda la vida del componente y el segundo enlace no abría el
+    /// modal (hallazgo de Codex, P2, al integrar <c>origin/main</c> en el incremento 1b).
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        if (OperadorSugeridoId != _sugerenciaVista)
+        {
+            _sugerenciaVista = OperadorSugeridoId;
+            _sugerenciaAtendida = false;
         }
     }
 

@@ -82,10 +82,21 @@ public class AutorizarOperadorCaeExternoQueriesHandler(
             candidatos = candidatos.Where(t => t.Nombre.ToLower() == nombreNormalizado);
         }
 
-        return await candidatos
+        // Falla cerrado ante la ambigüedad (hallazgo de Codex, P1, al integrar
+        // origin/main en el incremento 1b; antes hallazgo C de la revisión puente):
+        // Tenant.Nombre no tiene índice único y la búsqueda no distingue
+        // mayúsculas, así que un nombre exacto puede casar con dos Operadores CAE
+        // externos. Elegir uno en silencio podía llevar al Administrador a
+        // autorizar la organización equivocada. Con más de uno no se devuelve
+        // ninguno —mismo resultado que "no existe", sin contar cuántos hay— y el
+        // camino inequívoco es el enlace por Id que envía el Actor de Plataforma.
+        var encontrados = await candidatos
             .OrderBy(t => t.Nombre).ThenBy(t => t.Id)
             .Select(t => new OperadorCaeExternoAutorizableDto(t.Id, t.Nombre))
-            .FirstOrDefaultAsync(cancellationToken);
+            .Take(2)
+            .ToListAsync(cancellationToken);
+
+        return encontrados.Count == 1 ? encontrados[0] : null;
     }
 
     private async Task<Guid?> TenantPropietarioAutorizanteAsync(CancellationToken cancellationToken)

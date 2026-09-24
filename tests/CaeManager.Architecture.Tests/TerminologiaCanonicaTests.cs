@@ -332,12 +332,23 @@ public class TerminologiaCanonicaTests
     /// la siguiente petición cuando el cliente aborta durante <c>EsVentanaDeSoporteAsync</c>:
     /// dos apariciones más del mismo patrón, no deuda de un tipo distinto.
     /// </para>
+    ///
+    /// <para>
+    /// <b><c>Delegacion</c> 329 → 332 (hallazgo de Codex al integrar <c>origin/main</c> en el
+    /// incremento 1b, 2026-09-24): +3, todo superficie existente.</b>
+    /// <c>ReactivarDelegacionTenantCommand</c> aplica la misma regla
+    /// <c>OtroOperadorVigente</c> que <c>CrearDelegacionTenantCommand</c> antes de reabrir la
+    /// operación completa: consulta <c>DelegacionesTenant</c> (1) y compara
+    /// <c>PropositoDelegacion</c> del vínculo reactivado y de los demás (2). Sin la regla,
+    /// reactivar al Operador CAE externo A tras autorizar a B chocaba con el índice único como
+    /// excepción sin traducir. Baja con la migración de <c>DelegacionTenant</c>.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
         ["Hydra"] = 48,
         ["EjecutivoUsuarioId"] = 48,
-        ["Delegacion"] = 329,
+        ["Delegacion"] = 332,
         ["ClienteActivo"] = 73,
     };
 

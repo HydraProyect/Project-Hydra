@@ -304,6 +304,30 @@ public class AutorizarOperadorCaeExternoTests
         candidato.Should().NotBeNull();
     }
 
+    /// <summary>
+    /// Hallazgo de Codex (P1) al integrar <c>origin/main</c>; antes hallazgo C de la revisión
+    /// puente. <c>Tenant.Nombre</c> no es único y la búsqueda no distingue mayúsculas: con dos
+    /// Operadores CAE externos elegibles que casan con el mismo nombre, elegir uno en silencio
+    /// podía llevar al Administrador a autorizar la organización equivocada. Falla cerrado; el
+    /// enlace por Id sigue resolviendo cada uno sin ambigüedad.
+    /// </summary>
+    [Fact]
+    public async Task El_buscador_no_elige_entre_homonimos_y_el_enlace_por_id_si_los_distingue()
+    {
+        var homonimo = CrearOperadorCaeExterno("ARCOSPA");
+        _tenants.ListaTenants.Add(homonimo);
+        var consultas = ConsultasComo(AutorizacionDelegacionFalsa.AdministradorDe(_propietario.Id), _propietario.Id);
+
+        var porNombre = await consultas.Handle(
+            new BuscarOperadorCaeExternoAutorizableQuery(null, "arcospa"), CancellationToken.None);
+        var porId = await consultas.Handle(
+            new BuscarOperadorCaeExternoAutorizableQuery(homonimo.Id, null), CancellationToken.None);
+
+        porNombre.Should().BeNull("dos organizaciones casan con ese nombre y no hay forma de saber cuál es");
+        porId?.TenantId.Should().Be(homonimo.Id);
+        porId.Should().NotBeNull();
+    }
+
     [Theory]
     [InlineData("Arco")]
     [InlineData("a")]

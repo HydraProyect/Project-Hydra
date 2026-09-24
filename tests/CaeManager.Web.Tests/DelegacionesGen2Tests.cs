@@ -606,6 +606,31 @@ public class DelegacionesGen2Tests : BunitContext
             .Which.Should().Be(new CrearDelegacionTenantCommand(arcoSpa.TenantId, TenantPropietarioRefrielectric));
     }
 
+    /// <summary>
+    /// Hallazgo de Codex (P2) al integrar <c>origin/main</c> en el incremento 1b: un segundo
+    /// enlace en el mismo circuito, sin recargar, no abría el modal porque la sugerencia se
+    /// marcaba atendida para toda la vida del componente.
+    /// </summary>
+    [Fact]
+    public void Un_segundo_enlace_de_autorizacion_en_el_mismo_circuito_vuelve_a_preseleccionar()
+    {
+        var arcoSpa = new OperadorCaeExternoAutorizableDto(Guid.NewGuid(), "ArcoSPA");
+        var norte = new OperadorCaeExternoAutorizableDto(Guid.NewGuid(), "Prevención Norte");
+        ComoAdministradorDelTenantPropietario(q =>
+            q.OperadorId == arcoSpa.TenantId ? arcoSpa : q.OperadorId == norte.TenantId ? norte : null);
+        _urlInicial = $"delegaciones?autorizar={arcoSpa.TenantId}";
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("ArcoSPA"));
+
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"delegaciones?autorizar={norte.TenantId}");
+        cut.Render();
+
+        cut.WaitForAssertion(() => mediador.Enviadas.Select(x => x.Peticion).OfType<BuscarOperadorCaeExternoAutorizableQuery>()
+            .Select(q => q.OperadorId).Should().Equal(arcoSpa.TenantId, norte.TenantId));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Prevención Norte"));
+        mediador.Enviadas.Should().NotContain(x => x.Peticion is CrearDelegacionTenantCommand, "sugerir no es autorizar");
+    }
+
     [Fact]
     public void El_enlace_de_autorizacion_no_hace_nada_para_quien_no_administra_el_Tenant_propietario()
     {

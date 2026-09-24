@@ -365,6 +365,33 @@ public class AutorizacionDeDelegacionTests
     }
 
     /// <summary>
+    /// Hallazgo de Codex (P1) al integrar <c>origin/main</c> en el incremento 1b: el Tenant
+    /// propietario revoca al Operador CAE externo A y autoriza a B; reactivar A abría una
+    /// segunda operación completa y chocaba con el índice único como <c>DbUpdateException</c>
+    /// sin traducir. Debe rechazarse antes de escribir, igual que al autorizar.
+    /// </summary>
+    [Fact]
+    public async Task No_se_reactiva_un_operador_externo_si_el_propietario_ya_autorizo_a_otro()
+    {
+        var (delegacion, delegaciones, _, unitOfWork) = Preparar();
+        delegacion.Desactivar();
+        var tenants = new TenantsQueryContextFalso();
+        tenants.ListaDelegacionesTenant.AddRange([delegacion, new DelegacionTenant(Guid.NewGuid(), ClienteDelegante)]);
+
+        var handler = new ReactivarDelegacionTenantCommandHandler(
+            delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
+            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork, tenants);
+
+        var resultado = await handler.Handle(
+            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue("solo cabe un Operador CAE externo con la operación completa vigente");
+        resultado.Error.Codigo.Should().Be("DelegacionTenant.OtroOperadorVigente");
+        delegacion.Activa.Should().BeFalse();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
     /// El caso que motiva el cambio, y el que un doble booleano no distinguiría:
     /// los dos usuarios tienen rol <c>Administrador</c>. Lo que los separa es de
     /// qué tenant lo son.

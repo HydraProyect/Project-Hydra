@@ -122,6 +122,26 @@ public class ReactivarDelegacionTenantCommandHandler(
         if (delegacion.Activa)
             return Result.Fallo(Error.Crear("DelegacionTenant.YaActiva", "Esta delegación ya estaba activa."));
 
+        // Misma regla que CrearDelegacionTenantCommand (OtroOperadorVigente): si,
+        // entre revocar a este Operador CAE externo y reactivarlo, el Tenant
+        // propietario autorizó a otro, reabrir aquí la operación completa chocaría
+        // con el índice único IX_AsignacionesOperacion_DelegacionTotalVigente y
+        // saldría como DbUpdateException sin traducir (hallazgo de Codex, P1, al
+        // integrar origin/main en el incremento 1b). Se rechaza antes de escribir,
+        // con el mismo código que la autorización. Va después de la autoridad y del
+        // estado: quien llega aquí ya administra ese Tenant propietario, así que
+        // no revela nada de terceros.
+        if (delegacion.Proposito == PropositoDelegacion.OperadorExterno &&
+            await tenantsContext.DelegacionesTenant.AnyAsync(
+                d => d.TenantClienteId == delegacion.TenantClienteId
+                     && d.Id != delegacion.Id
+                     && d.Activa
+                     && d.Proposito == PropositoDelegacion.OperadorExterno,
+                cancellationToken))
+            return Result.Fallo(Error.Crear(
+                "DelegacionTenant.OtroOperadorVigente",
+                "Tu organización ya tiene otro Operador CAE externo activo. Revoca su acceso antes de reactivar este."));
+
         delegacion.Reactivar();
 
         // Append-only: no se reabre la operación cerrada, se abre una nueva.
