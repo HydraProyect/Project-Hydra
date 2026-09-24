@@ -63,7 +63,7 @@ public class VisionCarteraGen2Tests : BunitContext
     // ---------------------------------------------------------------- dobles
 
     /// <summary>Documentos por estado y actividad; la tasa se calcula como <c>ObtenerKpisDashboardQueryHandler</c>.</summary>
-    private sealed record Datos(int Vencidos, int Urgentes, int Proximos, int Vigentes, int Trabajadores, int Centros)
+    private sealed record Datos(int Vencidos, int Urgentes, int Proximos, int Vigentes, int Trabajadores, int Centros, int Bloqueados = 0)
     {
         public static readonly Datos Nada = new(0, 0, 0, 0, 0, 0);
 
@@ -74,7 +74,9 @@ public class VisionCarteraGen2Tests : BunitContext
             DocumentosVencidos: Vencidos, DocumentosUrgentes: Urgentes, DocumentosProximos: Proximos, DocumentosVigentes: Vigentes,
             VisitasProgramadas: 0,
             TasaCumplimientoDocumental: ConVigencia == 0 ? 100 : Vigentes * 100 / ConVigencia,
-            SinCarteraAsignada: sinCartera);
+            SinCarteraAsignada: sinCartera,
+            CentrosBloqueados: Bloqueados,
+            SinDatos: Centros == 0 && ConVigencia == 0);
     }
 
     /// <param name="Rol">Rol efectivo del usuario EN esta organización (el que resuelve CurrentUserService dentro del ámbito).</param>
@@ -272,7 +274,7 @@ public class VisionCarteraGen2Tests : BunitContext
             $"En {NombreB} no tienes ninguna Asignación de Cartera: no cuentas ningún documento suyo y su tasa no entra en la media.");
         MetricaMedia(cut).Valor.Should().Be("82%", "(96×64 + 74×100) / 164: Montajes Ebro no pesa en la media");
         cut.Find(".pulso-en-verde").GetAttribute("aria-label").Should().Be(
-            $"1 de 2 organizaciones con cartera con el cumplimiento documental en el 90% o más: {NombrePropio} 96%. "
+            $"1 de 2 organizaciones con cartera con el cumplimiento documental en el 90% o más y sin Centros de Trabajo bloqueados: {NombrePropio} 96%. "
             + $"No entra {NombreB}: sin Asignación de Cartera tuya.");
         cut.FindAll("svg.reparto-riesgo-grafico g.barra-organizacion")[2].TextContent.Should().Contain("sin cartera");
         TablaDelGrafico(cut)[2].Organizacion.Should().Be($"{NombreB}, sin Asignación de Cartera tuya");
@@ -335,7 +337,8 @@ public class VisionCarteraGen2Tests : BunitContext
             ("Urgentes", "9", "Según el umbral urgente de cada organización"),
             ("Próximos a vencer", "17", "Según el umbral próximo de cada organización"),
             // (96×64 + 74×100 + 36×30) / 194 = 75; la media simple de 96, 74 y 36 sería 68.
-            ("Cumplimiento documental promedio", "75%", "Ponderada por volumen de documentos"));
+            ("Cumplimiento documental promedio", "75%", "Ponderada por volumen de documentos"),
+            ("Centros de Trabajo bloqueados", "0", "En ninguna organización"));
 
         // Los umbrales son ParametroSistema de cada organización, configurables:
         // una ventana fija escrita en la pantalla sería falsa en cuanto alguien los cambie.
@@ -406,6 +409,108 @@ public class VisionCarteraGen2Tests : BunitContext
             "Media ponderada por el volumen de documentos con vencimiento de cada organización; tasas de las 3 que la forman: 96, 74 y 36%.");
     }
 
+    // ---------------------------------------------------------------- bloqueos y sin datos (P2.4, D-7)
+
+    /// <summary>
+    /// D-7: una acreditación Rechazada aplicable pone su Centro de Trabajo en
+    /// Bloqueado, y la organización deja de estar al día aunque su tasa
+    /// documental siga en el 96%. El recuento sale junto al porcentaje, y ni la
+    /// fila ni el pulso la presentan en verde.
+    /// </summary>
+    [Fact]
+    public void Una_organizacion_con_un_Centro_de_Trabajo_bloqueado_no_sale_en_verde_aunque_su_tasa_sea_alta()
+    {
+        var escenario = new Escenario();
+        escenario.Cambiar(TenantPropio, o => o with { Completa = o.Completa with { Bloqueados = 1 } });
+
+        var cut = Renderizar(escenario).Cut;
+
+        var fila = Filas(cut)[2];
+        Texto(fila.QuerySelector(".nombre-organizacion")!).Should().Be(NombrePropio);
+        var valor = fila.QuerySelector(".valor-cumplimiento")!;
+        Texto(valor).Should().Be("96%", "el porcentaje documental sigue a la vista");
+        valor.ClassList.Should().NotContain("tono-exito", "con un Centro de Trabajo bloqueado el porcentaje no es un veredicto verde");
+        Texto(fila.QuerySelector(".bloqueos-organizacion")!).Should().Be("1 Centro de Trabajo bloqueado");
+        fila.QuerySelector(".cumplimiento-organizacion")!.GetAttribute("title").Should().Be(
+            $"{NombrePropio}: 96% de cumplimiento documental, pero 1 Centro de Trabajo bloqueado: no está al día");
+
+        var verde = cut.Find(".pulso-en-verde");
+        verde.TextContent.Should().StartWith("0");
+        verde.GetAttribute("aria-label").Should().Be(
+            "Ninguna de las 3 organizaciones llega al 90% de cumplimiento documental sin Centros de Trabajo bloqueados. "
+            + $"No está en verde {NombrePropio}: tiene algún Centro de Trabajo bloqueado.");
+
+        cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(Metrica)
+            .Single(m => m.Etiqueta == "Centros de Trabajo bloqueados")
+            .Should().Be(("Centros de Trabajo bloqueados", "1", "En 1 de 3 organizaciones, que no están en verde"));
+        MetricaMedia(cut).Pista.Should().Be("Solo documental: los bloqueos se cuentan aparte");
+        Texto(cut.Find(".detalle-bloqueos-cartera")).Should().Be(
+            $"{NombrePropio} tiene algún Centro de Trabajo bloqueado: no está al día, aunque su porcentaje documental sea alto.");
+        cut.FindAll("svg.reparto-riesgo-grafico g.barra-organizacion")[2].TextContent.Should().Contain("bloqueada").And.NotContain("sin riesgo");
+    }
+
+    [Fact]
+    public void Un_bloqueo_sin_documentos_en_riesgo_sigue_mostrando_la_tabla_de_organizaciones()
+    {
+        var escenario = new Escenario();
+        foreach (var id in new[] { TenantA, TenantB })
+            escenario.Cambiar(id, o => o with { Cartera = new(0, 0, 0, 10, 5, 1) });
+        escenario.Cambiar(TenantA, o => o with { Cartera = o.Cartera! with { Bloqueados = 2 } });
+
+        var cut = Renderizar(escenario).Cut;
+
+        cut.FindAll(".tarjeta-organizaciones-riesgo .texto-vacio-seccion").Should().BeEmpty(
+            "«ninguna tiene riesgo» ocultaría el Centro de Trabajo bloqueado");
+        Filas(cut).Select(f => f.QuerySelector(".bloqueos-organizacion") is { } b ? Texto(b) : "").Should().Contain("2 Centros de Trabajo bloqueados");
+    }
+
+    /// <summary>
+    /// Una organización sin Centros de Trabajo ni documentos con fecha no está
+    /// al 100%: está «sin datos». No se pinta porcentaje, no cuenta en verde y
+    /// no forma la media.
+    /// </summary>
+    [Fact]
+    public void Una_organizacion_sin_datos_sale_sin_datos_y_no_cuenta_en_verde()
+    {
+        var escenario = new Escenario();
+        escenario.Cambiar(TenantPropio, o => o with { Completa = Datos.Nada });
+
+        var cut = Renderizar(escenario).Cut;
+
+        var fila = Filas(cut).Single(f => Texto(f.QuerySelector(".nombre-organizacion")!) == NombrePropio);
+        fila.QuerySelectorAll("td")[3].TextContent.Trim().Should().Be("Sin datos");
+        fila.TextContent.Should().NotContain("100%");
+
+        var verde = cut.Find(".pulso-en-verde");
+        verde.TextContent.Should().StartWith("0", "su 100% es «nada que medir», no «al día»");
+        verde.GetAttribute("aria-label").Should().EndWith($"No entra {NombrePropio}: sin datos.");
+
+        // (74×100 + 36×30) / 130 = 65: la organización sin datos no pesa.
+        MetricaMedia(cut).Valor.Should().Be("65%");
+        Texto(cut.Find(".detalle-media-cartera")).Should().Be(
+            "Media ponderada por el volumen de documentos con vencimiento de cada organización; tasas de las 2 que la forman: 74 y 36%. "
+            + $"No entra {NombrePropio}: sin datos.");
+        TablaDelGrafico(cut).Should().Contain(r => r.Organizacion == $"{NombrePropio}, sin datos");
+    }
+
+    [Fact]
+    public void Con_cartera_pero_sin_datos_en_ninguna_no_hay_media_que_pintar()
+    {
+        var escenario = new Escenario();
+        escenario.Cambiar(TenantPropio, o => o with { Completa = Datos.Nada });
+        foreach (var id in new[] { TenantA, TenantB })
+            escenario.Cambiar(id, o => o with { Cartera = Datos.Nada });
+
+        var cut = Renderizar(escenario).Cut;
+
+        MetricaMedia(cut).Should().Be(("Cumplimiento documental promedio", "—", "Sin documentos con vencimiento que medir"));
+        Texto(cut.Find(".dashboard-resumen-anillo-titulo")).Should().Be("Sin cumplimiento que medir");
+        Texto(cut.Find(".detalle-media-cartera")).Should().Be(
+            "Las organizaciones con tu Asignación de Cartera no tienen ningún documento con fecha de vencimiento que evaluar.");
+        cut.FindAll(".dashboard-resumen-tarjeta-anillo svg").Should().BeEmpty("un anillo al 100% afirmaría «al día»");
+        cut.Find(".pulso-en-verde").TextContent.Should().StartWith("0");
+    }
+
     [Fact]
     public void El_reparto_del_riesgo_dibuja_cada_organizacion_con_sus_cifras()
     {
@@ -461,7 +566,7 @@ public class VisionCarteraGen2Tests : BunitContext
 
         var verde = cut.Find(".pulso-en-verde");
         verde.GetAttribute("aria-label").Should().Be(
-            $"1 de 3 organizaciones con el cumplimiento documental en el 90% o más: {NombrePropio} 96%.");
+            $"1 de 3 organizaciones con el cumplimiento documental en el 90% o más y sin Centros de Trabajo bloqueados: {NombrePropio} 96%.");
         verde.TextContent.Should().StartWith("1");
 
         var riesgo = cut.Find(".pulso-en-riesgo");

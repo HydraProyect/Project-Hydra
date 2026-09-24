@@ -125,7 +125,7 @@ public class ObtenerKpisGlobalesQueryHandlerTests
     }
 
     [Fact]
-    public void Cuando_todos_los_clientes_estan_sin_cartera_la_media_cae_al_valor_neutro_100()
+    public void Cuando_todos_los_clientes_estan_sin_cartera_no_hay_media_que_presentar()
     {
         var porCliente = new List<(ClienteAutorizadoDto, KpisDashboardDto)>
         {
@@ -135,7 +135,79 @@ public class ObtenerKpisGlobalesQueryHandlerTests
 
         var resultado = ObtenerKpisGlobalesQueryHandler.Fusionar(porCliente);
 
-        resultado.TasaCumplimientoDocumentalPromedio.Should().Be(100);
+        resultado.TasaCumplimientoDocumentalPromedio.Should().Be(100, "valor neutro del int, que no se pinta");
+        resultado.HayCumplimientoDocumentalQueMedir.Should().BeFalse();
+    }
+
+    // ---------------------------------------------------------------- P2.4 / D-7
+
+    private static KpisDashboardDto ConBloqueosYDatos(KpisDashboardDto kpis, int bloqueados = 0, bool sinDatos = false) =>
+        kpis with { CentrosBloqueados = bloqueados, SinDatos = sinDatos };
+
+    [Fact]
+    public void Suma_los_Centros_de_Trabajo_bloqueados_y_los_lleva_a_cada_organizacion()
+    {
+        var porCliente = new List<(ClienteAutorizadoDto, KpisDashboardDto)>
+        {
+            (Cliente("Bloqueada"), ConBloqueosYDatos(Kpis(vigentes: 24, vencidos: 1, tasa: 96, centros: 2), bloqueados: 1)),
+            (Cliente("AlDia"), Kpis(vigentes: 10, tasa: 100, centros: 1)),
+            (Cliente("DosBloqueos"), ConBloqueosYDatos(Kpis(vigentes: 5, tasa: 100, centros: 3), bloqueados: 2)),
+        };
+
+        var resultado = ObtenerKpisGlobalesQueryHandler.Fusionar(porCliente);
+
+        resultado.CentrosBloqueados.Should().Be(3);
+        var porNombre = resultado.ClientesConMasRiesgo.ToDictionary(c => c.Nombre);
+        porNombre["Bloqueada"].CentrosBloqueados.Should().Be(1);
+        porNombre["DosBloqueos"].CentrosBloqueados.Should().Be(2);
+        porNombre["AlDia"].CentrosBloqueados.Should().Be(0);
+    }
+
+    [Fact]
+    public void Una_organizacion_con_un_Centro_de_Trabajo_bloqueado_no_admite_veredicto_verde_aunque_su_tasa_sea_96()
+    {
+        var porCliente = new List<(ClienteAutorizadoDto, KpisDashboardDto)>
+        {
+            (Cliente("Bloqueada"), ConBloqueosYDatos(Kpis(vigentes: 24, vencidos: 1, tasa: 96, centros: 2), bloqueados: 1)),
+            (Cliente("AlDia"), Kpis(vigentes: 10, tasa: 100, centros: 1)),
+        };
+
+        var resultado = ObtenerKpisGlobalesQueryHandler.Fusionar(porCliente);
+
+        var bloqueada = resultado.ClientesConMasRiesgo.Single(c => c.Nombre == "Bloqueada");
+        bloqueada.TasaCumplimientoDocumental.Should().Be(96, "el porcentaje documental no cambia");
+        bloqueada.AdmiteVeredictoVerde.Should().BeFalse("D-7: nunca «apto» con una Rechazada aplicable");
+        resultado.ClientesConMasRiesgo.Single(c => c.Nombre == "AlDia").AdmiteVeredictoVerde.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Una_organizacion_sin_datos_no_admite_veredicto_verde_ni_pesa_en_la_media()
+    {
+        var porCliente = new List<(ClienteAutorizadoDto, KpisDashboardDto)>
+        {
+            (Cliente("SinDatos"), ConBloqueosYDatos(Kpis(tasa: 100), sinDatos: true)),
+            (Cliente("ConDatos"), Kpis(vigentes: 50, vencidos: 50, tasa: 50, centros: 1)),
+        };
+
+        var resultado = ObtenerKpisGlobalesQueryHandler.Fusionar(porCliente);
+
+        var sinDatos = resultado.ClientesConMasRiesgo.Single(c => c.Nombre == "SinDatos");
+        sinDatos.SinDatos.Should().BeTrue();
+        sinDatos.AdmiteVeredictoVerde.Should().BeFalse("su 100% es «nada que medir»");
+        resultado.TasaCumplimientoDocumentalPromedio.Should().Be(50);
+        resultado.HayCumplimientoDocumentalQueMedir.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Si_solo_hay_organizaciones_sin_datos_no_hay_media_que_presentar()
+    {
+        var porCliente = new List<(ClienteAutorizadoDto, KpisDashboardDto)>
+        {
+            (Cliente("SinDatosUno"), ConBloqueosYDatos(Kpis(tasa: 100), sinDatos: true)),
+            (Cliente("SinDatosDos"), ConBloqueosYDatos(Kpis(tasa: 100), sinDatos: true)),
+        };
+
+        ObtenerKpisGlobalesQueryHandler.Fusionar(porCliente).HayCumplimientoDocumentalQueMedir.Should().BeFalse();
     }
 
     [Fact]

@@ -17,12 +17,21 @@
     El alcance de cada fila lo decide ObtenerKpisGlobalesQuery con el rol
     efectivo y la Asignación de Cartera de ESA organización; la pantalla no
     lee ningún rol (el del contexto activo no vale para las demás) y solo pinta
-    lo que la consulta dice por fila: SinCarteraAsignada.
+    lo que la consulta dice por fila: SinCarteraAsignada, SinDatos y
+    CentrosBloqueados.
+
+    El porcentaje de cada fila es solo documental. El veredicto «en verde»
+    exige además ClienteRiesgoDto.AdmiteVeredictoVerde: con cartera, con datos
+    y sin ningún Centro de Trabajo bloqueado según ICalculoEstadoCentroService
+    (D-7: una Rechazada aplicable bloquea). Una organización con bloqueos
+    enseña su recuento junto al porcentaje y nunca sale en verde; una sin
+    Centros ni documentos sale «sin datos», nunca al 100%.
 
     Lo que el mockup pinta y aquí NO se copia, porque la consulta no lo sabe:
     el desglose por centro de cada fila (ClienteRiesgoDto no lo trae), el
     «84 trabajadores · 7 centros» por fila, «X de N bloquean acceso a algún
-    centro», las ventanas fijas «≤15/≤30 días» (son los umbrales urgente y
+    centro» (se cuentan Centros de Trabajo bloqueados, no documentos que
+    bloquean), las ventanas fijas «≤15/≤30 días» (son los umbrales urgente y
     próximo de cada organización, configurables) y el rótulo «SLA» (no hay
     acuerdo de nivel de servicio detrás: es la tasa de cumplimiento
     documental). Tampoco los enlaces de las cifras a /documentos, /centros,
@@ -86,6 +95,8 @@
                                     Pista="@Textos["PistaProximos"]" />
                     <TarjetaMetrica Etiqueta="@Textos["MetricaCumplimientoPromedio"]" Valor="@ValorMedia" NombreIcono="check"
                                     Tono="@TonoMedia" Pista="@PistaMedia" />
+                    <TarjetaMetrica Etiqueta="@Textos["MetricaCentrosBloqueados"]" Valor="@_kpis.CentrosBloqueados.ToString()" NombreIcono="error-circulo"
+                                    Tono="@TonoCentrosBloqueados" Pista="@PistaCentrosBloqueados" />
                 </div>
             </section>
 
@@ -98,6 +109,10 @@
                         <div>
                             <p class="dashboard-resumen-anillo-titulo">@Textos["CumplimientoPromedioFrase", _kpis.TasaCumplimientoDocumentalPromedio]</p>
                             <p class="dashboard-resumen-anillo-detalle detalle-media-cartera">@DetalleMedia</p>
+                            @if (DetalleBloqueos is { } bloqueos)
+                            {
+                                <p class="dashboard-resumen-anillo-detalle detalle-bloqueos-cartera">@bloqueos</p>
+                            }
                             <p class="dashboard-resumen-anillo-detalle detalle-tasa-cartera">
                                 @Textos["DetalleTasaOrganizacion"]
                             </p>
@@ -105,12 +120,17 @@
                     }
                     else
                     {
-                        @* Sin ninguna Asignación de Cartera en ninguna organización, el
-                           100% que devuelve la consulta es «nada que evaluar»: pintarlo
-                           en un anillo verde afirmaría lo contrario. *@
+                        @* Sin ninguna Asignación de Cartera, o sin ningún documento con
+                           fecha en las que sí la tienen, el 100% que devuelve la consulta
+                           es «nada que evaluar»: pintarlo en un anillo verde afirmaría lo
+                           contrario. *@
                         <div>
                             <p class="dashboard-resumen-anillo-titulo">@Textos["SinCumplimientoTitulo"]</p>
-                            <p class="dashboard-resumen-anillo-detalle detalle-media-cartera">@Textos["SinCumplimientoDetalle"]</p>
+                            <p class="dashboard-resumen-anillo-detalle detalle-media-cartera">@DetalleSinCumplimiento</p>
+                            @if (DetalleBloqueos is { } bloqueos)
+                            {
+                                <p class="dashboard-resumen-anillo-detalle detalle-bloqueos-cartera">@bloqueos</p>
+                            }
                         </div>
                     }
                 </div>
@@ -144,7 +164,7 @@
                                 @foreach (var organizacion in Organizaciones)
                                 {
                                     <tr>
-                                        <th scope="row">@(organizacion.SinCarteraAsignada ? Textos["RepartoFilaSinCartera", organizacion.Nombre].Value : organizacion.Nombre)</th>
+                                        <th scope="row">@FilaReparto(organizacion)</th>
                                         <td>@organizacion.DocumentosVencidos</td>
                                         <td>@organizacion.DocumentosUrgentes</td>
                                     </tr>
@@ -203,7 +223,7 @@
                 }
 
                 <Tarjeta Class="tarjeta-organizaciones-riesgo">
-                    @if (Organizaciones.All(o => o.DocumentosVencidos == 0 && o.DocumentosUrgentes == 0))
+                    @if (Organizaciones.All(o => o.DocumentosVencidos == 0 && o.DocumentosUrgentes == 0 && o.CentrosBloqueados == 0))
                     {
                         <p class="texto-vacio-seccion">@TextoSinRiesgo</p>
                     }
@@ -241,14 +261,22 @@
                                             {
                                                 <span class="sin-cartera-organizacion" title="@TituloCumplimiento(organizacion)">@Textos["CeldaSinCartera"]</span>
                                             }
+                                            else if (organizacion.SinDatos)
+                                            {
+                                                <span class="sin-datos-organizacion" title="@TituloCumplimiento(organizacion)">@Textos["CeldaSinDatos"]</span>
+                                            }
                                             else
                                             {
                                                 <span class="cumplimiento-organizacion" title="@TituloCumplimiento(organizacion)">
                                                     <span class="barra-cumplimiento" aria-hidden="true">
-                                                        <span class="barra-cumplimiento-relleno @ClaseTono(tasa)" style="width: @(tasa)%"></span>
+                                                        <span class="barra-cumplimiento-relleno @ClaseTono(organizacion, tasa)" style="width: @(tasa)%"></span>
                                                     </span>
-                                                    <span class="valor-cumplimiento @ClaseTono(tasa)">@tasa%</span>
+                                                    <span class="valor-cumplimiento @ClaseTono(organizacion, tasa)">@tasa%</span>
                                                 </span>
+                                                @if (organizacion.CentrosBloqueados > 0)
+                                                {
+                                                    <Badge Tono="TonoBadge.Peligro" ConIcono="true" class="bloqueos-organizacion" title="@TituloCumplimiento(organizacion)">@TextoBadgeBloqueados(organizacion)</Badge>
+                                                }
                                             }
                                         </td>
                                         <td class="celda-accion-organizacion">

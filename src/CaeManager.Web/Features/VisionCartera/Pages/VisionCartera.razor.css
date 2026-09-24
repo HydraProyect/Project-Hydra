@@ -123,7 +123,8 @@ figure.reparto-riesgo {
     border: 0;
 }
 
-.sin-cartera-organizacion {
+.sin-cartera-organizacion,
+.sin-datos-organizacion {
     font: var(--font-caption);
     color: var(--color-text-muted);
 }
@@ -202,6 +203,11 @@ figure.reparto-riesgo {
     display: block;
     font: var(--font-caption);
     color: var(--color-text-muted);
+}
+
+/* Recuento de Centros de Trabajo bloqueados, debajo del porcentaje documental (D-7). */
+::deep .bloqueos-organizacion {
+    margin-top: var(--space-1);
 }
 
 .cumplimiento-organizacion {
