@@ -65,7 +65,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, new DateOnly(2026, 1, 1)));
-            var tipoDocumento = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador);
+            var tipoDocumento = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
             contexto.TiposDocumento.Add(tipoDocumento);
             await contexto.SaveChangesAsync();
 
@@ -381,7 +381,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, new DateOnly(2026, 1, 1)));
-            var tipoDocumento = new TipoDocumento("Formación", 12, true, 1, AmbitoAplicacion.Trabajador);
+            var tipoDocumento = new TipoDocumento("Formación", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
             contexto.TiposDocumento.Add(tipoDocumento);
             await contexto.SaveChangesAsync();
 
