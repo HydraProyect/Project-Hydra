@@ -202,8 +202,10 @@ public partial class BuscadorGlobal : ComponentBase
     /// Etiqueta de tipo de cada categoría de entidad, en terminología
     /// canónica. El subtítulo que devuelve BuscarGlobalQueryHandler para
     /// Centro es el literal del tipo, así que mostrarlo tal cual repetiría
-    /// la etiqueta. Para Trabajador (DNI) y Documento (propietario) el
-    /// subtítulo del DTO sí aporta información distinta y se concatena.
+    /// la etiqueta. Para Trabajador (razón social de su organización
+    /// empleadora, nunca el DNI: decisión del 2026-09-24) y Documento
+    /// (propietario) el subtítulo del DTO sí aporta información distinta y se
+    /// concatena.
     /// "Cliente"/"Empresa"/"Subcontrata" ya no los emite el handler para
     /// resultados directos —Empresa tiene su propia composición, ver
     /// <see cref="ComponerSubtituloEmpresa"/>— pero siguen aquí porque
