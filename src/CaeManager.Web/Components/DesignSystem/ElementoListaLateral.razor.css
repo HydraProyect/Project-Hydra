@@ -1,0 +1,37 @@
+/* Las medidas de .centro360-lista-canales li y sus dos clases de línea. */
+.elemento-lista-lateral {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-top: var(--space-3);
+    border-top: var(--border-default);
+}
+
+.elemento-lista-lateral:first-child {
+    padding-top: 0;
+    border-top: none;
+}
+
+.elemento-lista-lateral-etiqueta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+.elemento-lista-lateral-detalles {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+/* Cada hijo directo, una línea: lo declara la página, así que va con ::deep. */
+.elemento-lista-lateral-detalles ::deep > * {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}

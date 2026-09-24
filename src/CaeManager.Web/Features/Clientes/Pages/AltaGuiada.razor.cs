@@ -49,10 +49,15 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 /// </summary>
 public partial class AltaGuiada : ComponentBase
 {
-    private static readonly IReadOnlyList<PasoDefinicion> Pasos =
+    // Texto visible del asistente (contrato Gen2 § 14): el Cliente empresarial
+    // se rotula «Cliente»/«Clientes» y sale de TextosClientes; las claves de
+    // paso ("cliente"…) y los nombres de código conservan el término canónico.
+    private IReadOnlyList<PasoDefinicion>? _pasos;
+
+    private IReadOnlyList<PasoDefinicion> Pasos => _pasos ??=
     [
         new("empresa", "Empresa"),
-        new("cliente", "Cliente empresarial"),
+        new("cliente", Textos["AltaGuiadaPasoCliente"]),
         new("centro", "Centro"),
         new("trabajadores", "Trabajadores")
     ];
@@ -231,10 +236,10 @@ public partial class AltaGuiada : ComponentBase
         _pasoActual = Pasos.Select(p => p.Clave).FirstOrDefault(p => !_pasosCompletados.Contains(p)) ?? "trabajadores";
     }
 
-    private static readonly IReadOnlyList<BreadcrumbElemento> MigueroEstatico =
-        [new BreadcrumbElemento("Clientes empresariales"), new BreadcrumbElemento("Alta guiada")];
+    private IReadOnlyList<BreadcrumbElemento>? _miguero;
 
-    private IReadOnlyList<BreadcrumbElemento> Miguero => MigueroEstatico;
+    private IReadOnlyList<BreadcrumbElemento> Miguero => _miguero ??=
+        [new BreadcrumbElemento(Textos["MigaClientes"]), new BreadcrumbElemento("Alta guiada")];
 
     private void IrABreadcrumb(int indice)
     {
@@ -371,7 +376,7 @@ public partial class AltaGuiada : ComponentBase
     {
         if (!Guid.TryParse(_clienteExistenteId, out var clienteId))
         {
-            _mensajeErrorCliente = "Selecciona un Cliente empresarial.";
+            _mensajeErrorCliente = Textos["AltaGuiadaErrorSeleccionaCliente"];
             return;
         }
 
@@ -382,7 +387,7 @@ public partial class AltaGuiada : ComponentBase
         _clienteNombre = _clientesCatalogo.First(c => c.Id == clienteId).RazonSocial;
         _pasosCompletados.Add("cliente");
         _pasoActual = "centro";
-        ToastService.Mostrar("Empresa vinculada al Cliente empresarial.", TonoToast.Exito);
+        ToastService.Mostrar(Textos["AltaGuiadaToastVinculada"], TonoToast.Exito);
     }
 
     private async Task CrearClienteNuevoAsync()
@@ -419,13 +424,13 @@ public partial class AltaGuiada : ComponentBase
             var mensajeVinculacion = _mensajeErrorCliente;
             _mensajeErrorCliente = null;
             ToastService.Mostrar(
-                $"Cliente empresarial «{_clienteNombre}» creado, pero no se pudo vincular con la Empresa: {mensajeVinculacion}",
+                Textos["AltaGuiadaToastCreadoSinVincular", _clienteNombre, mensajeVinculacion],
                 TonoToast.Advertencia, "Reintentar vinculación", () => ReintentarVinculacionClienteAsync(clienteId));
             return;
         }
 
         _pasoActual = "centro";
-        ToastService.Mostrar("Cliente empresarial creado correctamente.", TonoToast.Exito);
+        ToastService.Mostrar(Textos["AltaGuiadaToastCreado"], TonoToast.Exito);
     }
 
     /// <summary>
@@ -451,7 +456,7 @@ public partial class AltaGuiada : ComponentBase
         }
 
         _vinculacionEmpresaClientePendiente = false;
-        ToastService.Mostrar("Empresa vinculada al Cliente empresarial.", TonoToast.Exito);
+        ToastService.Mostrar(Textos["AltaGuiadaToastVinculada"], TonoToast.Exito);
         StateHasChanged();
     }
 

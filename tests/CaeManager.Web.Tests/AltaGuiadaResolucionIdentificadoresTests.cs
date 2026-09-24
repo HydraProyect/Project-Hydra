@@ -100,6 +100,7 @@ public class AltaGuiadaResolucionIdentificadoresTests : BunitContext
     /// </summary>
     private IRenderedComponent<AltaGuiada> RenderizarConQuery(string query, MediatorDeResolucion mediator)
     {
+        Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => mediator);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();

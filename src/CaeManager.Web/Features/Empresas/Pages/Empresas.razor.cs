@@ -67,22 +67,22 @@ public partial class Empresas : ComponentBase, IDisposable
     private string _razonSocialAEliminar = string.Empty;
     private bool _eliminando;
 
-    // Drawer ligero (mismo patrón que ClientePreviewDrawer): nombre de fila
-    // y "Detalles" abren esto primero, no el Context Workspace directamente.
-    private Guid? _previewEmpresaId;
-    private bool _previewVisible;
-
-    private void AbrirPreview(Guid id)
+    // El nombre de la fila es un enlace a Empresa 360 (/empresas/{id}); la
+    // «Vista rápida» del menú y Enter sobre la fila enfocada abren el panel de
+    // 520 px del Context Workspace, el mismo que abren los botones 360 del
+    // resto de pantallas, igual que en la lista Clientes. Antes el nombre abría
+    // EmpresaPreviewDrawer, que la lista ya no usa.
+    private Task AbrirVistaRapidaAsync(Guid id)
     {
-        _previewEmpresaId = id;
-        _previewVisible = true;
+        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == id)?.RazonSocial ?? string.Empty;
+        return WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, id, nombre, "informacion");
     }
 
-    private Task AbrirDesdePreviewAsync((Guid Id, string Pestana) destino)
-    {
-        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == destino.Id)?.RazonSocial ?? string.Empty;
-        return WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, destino.Id, nombre, destino.Pestana);
-    }
+    /// <summary>Empresa cuyo panel está abierto arriba de la pila del Context Workspace, si la hay.</summary>
+    private Guid? EmpresaEnVistaPrevia =>
+        WorkspaceService.FrameActual is { Tipo: EntidadWorkspace.Empresa } frame ? frame.EntidadId : null;
+
+    private void AlCambiarWorkspace() => InvokeAsync(StateHasChanged);
 
     private readonly HashSet<Guid> _seleccionados = [];
 
@@ -172,6 +172,9 @@ public partial class Empresas : ComponentBase, IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        // La marca de fila sigue al panel del Context Workspace, que se abre y
+        // se cierra fuera de esta página.
+        WorkspaceService.OnCambio += AlCambiarWorkspace;
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _estadoFiltro = EstadoDesdeUrl();
 
@@ -253,6 +256,7 @@ public partial class Empresas : ComponentBase, IDisposable
             return;
 
         _desechado = true;
+        WorkspaceService.OnCambio -= AlCambiarWorkspace;
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
@@ -384,13 +388,14 @@ public partial class Empresas : ComponentBase, IDisposable
         $"{claseBase} rejilla-empresas" + (_seleccionMultiple ? " rejilla-empresas-seleccion" : string.Empty);
 
     /// <summary>
-    /// La fila cuya vista previa está abierta se marca, para no perder de
-    /// vista a qué fila corresponde el panel de la derecha.
+    /// La fila cuya vista previa (el panel del Context Workspace) está abierta
+    /// se marca, para no perder de vista a qué fila corresponde el panel de la
+    /// derecha.
     /// </summary>
     private string ClaseTarjeta(Guid id) =>
         "tarjeta-fila-acordeon"
         + (id == _idEnfocado ? " fila-enfocada" : string.Empty)
-        + (_previewVisible && id == _previewEmpresaId ? " fila-empresa-en-vista-previa" : string.Empty);
+        + (id == EmpresaEnVistaPrevia ? " fila-empresa-en-vista-previa" : string.Empty);
 
     /// <summary>
     /// Nombre accesible del anillo. Antes se interpolaba el porcentaje sin
@@ -753,7 +758,7 @@ public partial class Empresas : ComponentBase, IDisposable
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
-                    AbrirPreview(idAbrir);
+                    await AbrirVistaRapidaAsync(idAbrir);
                 break;
         }
 

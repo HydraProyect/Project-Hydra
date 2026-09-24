@@ -39,8 +39,11 @@ namespace CaeManager.Web.Tests;
 /// Esta clase prueba los tres desenlaces (nada / parcial / completo) de esas
 /// dos cadenas tras la corrección, la guarda de reentrada de
 /// <c>GuardarTrabajadorAsync</c> comprobada al entrar (no solo apagada al
-/// salir), y que el texto visible del asistente completo usa «Cliente
-/// empresarial» — nunca «Cliente» a secas, contrato de terminología TALVEG.
+/// salir), y que el texto visible del asistente completo rotula al Cliente
+/// empresarial «Cliente»/«Clientes» — nunca «Cliente empresarial»/«Clientes
+/// empresariales» en pantalla (contrato Gen2 § 14, decisión del propietario
+/// del 2026-09-23). En código, comentarios y nombres de tipo sigue el término
+/// canónico «Cliente empresarial».
 /// </para>
 ///
 /// <para>
@@ -134,6 +137,7 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
     {
         mediador ??= new MediadorControlado();
 
+        Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
@@ -188,7 +192,7 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
 
         var (cut, _, toasts) = Renderizar($"clientes/alta-guiada?empresaId={empresaId}", mediador);
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("2. Cliente empresarial"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("2. Cliente</h2>"));
 
         // CampoTexto rebota 300 ms y notifica en oninput/onblur, no en onchange:
         // el blur vuelca el valor ya mismo, sin esperar al temporizador. Se
@@ -203,8 +207,7 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
 
         toasts.Mensajes.Should().ContainSingle(m =>
             m.Tono == TonoToast.Advertencia
-            && m.Mensaje.Contains("Refrielectric SL")
-            && m.Mensaje.Contains("creado")
+            && m.Mensaje.StartsWith("Cliente «Refrielectric SL» creado")
             && m.Mensaje.Contains("La empresa cambió mientras tanto."),
             "el aviso debe decir que el Cliente empresarial YA se creó, no solo que la vinculación falló");
 
@@ -222,7 +225,8 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
         mediador.Enviadas.OfType<EditarEmpresaCommand>().Should().HaveCount(2, "primer intento fallido más el reintento");
 
         cut.Markup.Should().Contain("Vinculado a la Empresa", "el resumen refleja el nuevo estado tras el reintento");
-        toasts.Mensajes.Should().Contain(m => m.Tono == TonoToast.Exito && m.Mensaje.Contains("Cliente empresarial"));
+        toasts.Mensajes.Should().Contain(m => m.Tono == TonoToast.Exito && m.Mensaje == "Empresa vinculada al Cliente.");
+        SinClienteEmpresarialVisible(cut.Markup, toasts);
     }
 
     // ------------------------------------------------- desenlace: Trabajador
@@ -345,14 +349,17 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
     // ------------------------------------------------- terminología visible
 
     /// <summary>
-    /// Recorre el asistente completo (Empresa → Cliente empresarial → Centro
-    /// → Trabajadores) con las cuatro escrituras en éxito, y comprueba en cada
-    /// paso que el texto visible dice «Cliente empresarial»/«Clientes
-    /// empresariales» — nunca «Cliente»/«Clientes» a secas. Mutar cualquiera
-    /// de esas cadenas de vuelta a la forma legacy debe tumbar este test.
+    /// Contrato Gen2 § 14 (decisión del propietario, 2026-09-23): en texto
+    /// visible el Cliente empresarial se rotula «Cliente»/«Clientes». Recorre
+    /// el asistente completo (Empresa → Cliente → Centro → Trabajadores) con
+    /// las cuatro escrituras en éxito —pasando por el catálogo vacío de la
+    /// casilla «Vincular a un Cliente que ya existe»— y comprueba en cada paso
+    /// los rótulos nuevos y que ni el marcado ni los toasts dicen «Cliente
+    /// empresarial»/«Clientes empresariales». Devolver cualquiera de esos
+    /// textos a la forma larga debe tumbar este test.
     /// </summary>
     [Fact]
-    public async Task El_asistente_completo_dice_Cliente_empresarial_y_nunca_Cliente_a_secas()
+    public async Task El_asistente_completo_dice_Cliente_y_nunca_Cliente_empresarial()
     {
         // El Id de Empresa es fijo (no el que generaría por defecto
         // AlCrearEmpresa) para poder precargar Empresa con el mismo Id: la
@@ -366,46 +373,101 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
             AlCrearEmpresa = _ => Result.Exito(empresaId),
             Empresa = new EmpresaDetalleDto(empresaId, "Montajes Ebro S.L.", null, DateTime.UtcNow, [], Guid.NewGuid()),
         };
-        var (cut, _, _) = Renderizar("clientes/alta-guiada", mediador);
+        var (cut, _, toasts) = Renderizar("clientes/alta-guiada", mediador);
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("1. Empresa"));
-        cut.Markup.Should().Contain("Alta guiada de Cliente empresarial");
-        cut.Markup.Should().Contain("Volver a Clientes empresariales");
-        cut.Markup.Should().Contain("Clientes empresariales"); // breadcrumb
-        SinTerminologiaLegacyDeCliente(cut.Markup);
+        cut.Find("h1").TextContent.Trim().Should().Be("Alta guiada de Cliente");
+        cut.Markup.Should().Contain("Da de alta la Empresa, su Cliente, el primer Centro");
+        cut.Find("a.enlace-exportar").TextContent.Trim().Should().Be("Volver a Clientes");
+        cut.Markup.Should().MatchRegex(@">\s*Clientes\s*<", "la primera miga rotula la lista «Clientes»");
+        cut.Markup.Should().MatchRegex(@">\s*Cliente\s*<", "el indicador de pasos rotula el paso 2 «Cliente»");
+        SinClienteEmpresarialVisible(cut.Markup, toasts);
 
         await RellenarCampoTextoAsync(cut, 0, "Montajes Ebro S.L.");
         await Boton(cut, "Guardar y continuar").ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("2. Cliente empresarial"));
-        SinTerminologiaLegacyDeCliente(cut.Markup);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("2. Cliente</h2>"));
+        cut.Markup.Should().Contain("Vincular a un Cliente que ya existe");
+        cut.Markup.Should().Contain("Cliente crítico");
+        cut.Markup.Should().Contain("Notas del Cliente");
+        SinClienteEmpresarialVisible(cut.Markup, toasts);
+
+        // La casilla con el catálogo vacío: estado vacío propio, sin «Cliente
+        // empresarial». Se vuelve a desmarcar para seguir por el alta nueva.
+        await cut.Find("input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Todavía no hay ningún Cliente dado de alta"));
+        cut.Markup.Should().Contain("crea el primer Cliente aquí mismo.");
+        SinClienteEmpresarialVisible(cut.Markup, toasts);
+        await cut.Find("input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = false });
 
         await RellenarCampoTextoAsync(cut, 0, "Refrielectric SL");
         await RellenarCampoTextoAsync(cut, 1, "B00000000");
         await Boton(cut, "Guardar y continuar a Centro").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("3. Centro"));
+        toasts.Mensajes.Should().Contain(m => m.Tono == TonoToast.Exito && m.Mensaje == "Cliente creado correctamente.");
         // <strong> lleva el atributo de aislamiento de CSS del componente: no
         // se puede comparar el literal exacto de la etiqueta de apertura.
-        Regex.IsMatch(cut.Markup, @"Cliente empresarial: <strong[^>]*>Refrielectric SL").Should().BeTrue();
-        SinTerminologiaLegacyDeCliente(cut.Markup);
+        Regex.IsMatch(cut.Markup, @"· Cliente: <strong[^>]*>Refrielectric SL").Should().BeTrue();
+        SinClienteEmpresarialVisible(cut.Markup, toasts);
 
         await RellenarCampoTextoAsync(cut, 0, "Nave 1");
         await Boton(cut, "Guardar centro").ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ver el Cliente empresarial"));
-        SinTerminologiaLegacyDeCliente(cut.Markup);
+        cut.WaitForAssertion(() => Boton(cut, "Ver el Cliente").TextContent.Trim().Should().Be("Ver el Cliente"));
+        cut.Markup.Should().Contain("para esta misma Empresa y este mismo Cliente sin salir del paso.");
+        SinClienteEmpresarialVisible(cut.Markup, toasts);
 
         await Boton(cut, "Continuar a Trabajadores").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("4. Trabajadores"));
-        SinTerminologiaLegacyDeCliente(cut.Markup);
+        SinClienteEmpresarialVisible(cut.Markup, toasts);
     }
 
-    private static void SinTerminologiaLegacyDeCliente(string markup)
+    /// <summary>
+    /// La rama «Vincular a un Cliente que ya existe» con catálogo: etiqueta y
+    /// opción vacía del selector, error de validación sin selección y toast
+    /// de éxito dicen «Cliente», nunca «Cliente empresarial» (§ 14).
+    /// </summary>
+    [Fact]
+    public async Task Vincular_a_un_Cliente_existente_dice_Cliente_en_selector_error_y_toast()
     {
-        Regex.IsMatch(markup, @"\bCliente\b(?!\s+empresarial)").Should().BeFalse(
-            "el contrato de terminología exige «Cliente empresarial» en texto visible, nunca «Cliente» a secas");
-        Regex.IsMatch(markup, @"\bClientes\b(?!\s+empresariales)").Should().BeFalse(
-            "el contrato de terminología exige «Clientes empresariales» en texto visible, nunca «Clientes» a secas");
+        var empresaId = Guid.NewGuid();
+        var clienteId = Guid.NewGuid();
+        var mediador = new MediadorControlado
+        {
+            Empresa = new EmpresaDetalleDto(empresaId, "Montajes Ebro S.L.", null, DateTime.UtcNow, [], Guid.NewGuid()),
+            CatalogoClientes = [new ClienteSelectorDto(clienteId, "Refrielectric SL")],
+        };
+        var (cut, _, toasts) = Renderizar($"clientes/alta-guiada?empresaId={empresaId}", mediador);
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("2. Cliente</h2>"));
+        await cut.Find("input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
+
+        cut.WaitForAssertion(() => cut.Find("select").Should().NotBeNull());
+        var idSelect = cut.Find("select").Id;
+        cut.Find($"label[for='{idSelect}']").TextContent.Trim().Should().Be("Cliente");
+        cut.Find("select option[value='']").TextContent.Trim().Should().Be("Selecciona un Cliente…");
+
+        await Boton(cut, "Vincular y continuar a Centro").ClickAsync(new MouseEventArgs());
+        cut.Find("[role=alert]").TextContent.Trim().Should().Be("Selecciona un Cliente.");
+        SinClienteEmpresarialVisible(cut.Markup, toasts);
+
+        await cut.Find("select").ChangeAsync(new ChangeEventArgs { Value = clienteId.ToString() });
+        await Boton(cut, "Vincular y continuar a Centro").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("3. Centro"));
+        toasts.Mensajes.Should().Contain(m => m.Tono == TonoToast.Exito && m.Mensaje == "Empresa vinculada al Cliente.");
+        SinClienteEmpresarialVisible(cut.Markup, toasts);
+    }
+
+    private static readonly Regex ClienteEmpresarial =
+        new(@"\bClientes?\s+empresarial(?:es)?\b", RegexOptions.IgnoreCase);
+
+    private static void SinClienteEmpresarialVisible(string markup, ToastService toasts)
+    {
+        ClienteEmpresarial.IsMatch(markup).Should().BeFalse(
+            "contrato Gen2 § 14: en pantalla el Cliente empresarial se rotula «Cliente»/«Clientes», nunca «Cliente empresarial»");
+        toasts.Mensajes.Should().NotContain(m => ClienteEmpresarial.IsMatch(m.Mensaje),
+            "contrato Gen2 § 14: tampoco los toasts dicen «Cliente empresarial»");
     }
 }

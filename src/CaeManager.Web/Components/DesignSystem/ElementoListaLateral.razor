@@ -1,0 +1,28 @@
+@*
+    Elemento de <ListaLateral>: una etiqueta (la línea principal, con sus
+    badges) y debajo las líneas de detalle en letra pequeña atenuada.
+
+    Cada hijo directo de ChildContent es UNA línea de detalle: quien lo usa
+    escribe un <span> por línea, sin clase, y este componente lo alinea
+    (flex, centrado, separación) con ::deep. Así el texto y un BotonCopiar o
+    un «Abrir portal ↗» quedan en la misma línea sin que la página tenga que
+    declarar CSS propio ni copiar el de otro componente.
+*@
+<li class="elemento-lista-lateral">
+    @if (Etiqueta is not null)
+    {
+        <span class="elemento-lista-lateral-etiqueta">@Etiqueta</span>
+    }
+    @if (ChildContent is not null)
+    {
+        <div class="elemento-lista-lateral-detalles">@ChildContent</div>
+    }
+</li>
+
+@code {
+    /// <summary>Línea principal del elemento (texto y badges).</summary>
+    [Parameter] public RenderFragment? Etiqueta { get; set; }
+
+    /// <summary>Líneas de detalle: un elemento hijo por línea.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -166,6 +166,7 @@ public class Centro360Gen2Tests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
+        Services.AddLocalization();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
         Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
@@ -374,10 +375,10 @@ public class Centro360Gen2Tests : BunitContext
     // ── El mockup ─────────────────────────────────────────────────────────
 
     /// <summary>
-    /// La cabecera del mockup: nombre, las dos contrapartes con su apellido
-    /// semántico —la contraparte de la Relación Empresarial es el Cliente
-    /// empresarial, no «el cliente»—, la ventana de la próxima visita y el
-    /// anillo con el porcentaje que devuelve la consulta.
+    /// La cabecera del mockup: nombre, las dos contrapartes, la ventana de la
+    /// próxima visita y el anillo con el porcentaje que devuelve la consulta.
+    /// El Cliente empresarial se rotula «Cliente» en pantalla (contrato Gen2
+    /// § 14); en código y en la documentación sigue siendo Cliente empresarial.
     /// </summary>
     [Fact]
     public void La_cabecera_nombra_el_centro_su_cliente_empresarial_su_empresa_y_su_proxima_visita()
@@ -391,11 +392,46 @@ public class Centro360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         cut.Find("h1").TextContent.Trim().Should().Be("Centro Norte");
-        var texto = cut.Markup;
-        texto.Should().Contain("Cliente empresarial:").And.Contain("Refrielectric S.A.")
-            .And.Contain("Ibertec GmbH")
+        var entradilla = cut.Find(".cabecera-pagina-descripcion").TextContent;
+        entradilla.Should().Contain("Cliente: Refrielectric S.A.")
+            .And.Contain("Empresa: Ibertec GmbH")
             .And.Contain("21/08–23/08");
+        entradilla.Should().NotContain("Cliente empresarial",
+            "en pantalla el Cliente empresarial se rotula «Cliente» (contrato Gen2 § 14)");
         cut.Markup.Should().Contain("61");
+    }
+
+    /// <summary>
+    /// Cada contraparte de la cabecera tiene dos caminos (decisión del
+    /// propietario 2026-09-22): el nombre es un enlace real a su página 360
+    /// —se puede abrir en otra pestaña— y el botón 360 de al lado abre su
+    /// panel de 520 px sin salir de Centro 360, que es lo que antes hacía el
+    /// nombre.
+    /// </summary>
+    [Fact]
+    public void Las_contrapartes_de_la_cabecera_enlazan_a_su_pagina_360_y_su_boton_360_abre_el_panel()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        var detalle = Detalle(id, "Centro Norte");
+        mediador.Detalles[id] = detalle;
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", porcentaje: 61);
+
+        var cut = Renderizar(id);
+        var entradilla = cut.Find(".cabecera-pagina-descripcion");
+
+        var enlaces = entradilla.QuerySelectorAll("a");
+        enlaces.Select(a => (a.TextContent.Trim(), a.GetAttribute("href"))).Should().Equal(
+            ("Refrielectric S.A.", $"/clientes/{detalle.ClienteId}"),
+            ("Ibertec GmbH", $"/empresas/{detalle.EmpresaId}"));
+
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+
+        cut.Find("button[aria-label='Consultar Refrielectric S.A. de un vistazo']").Click();
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Cliente, detalle.ClienteId, "Refrielectric S.A.", "informacion"));
+
+        cut.Find("button[aria-label='Consultar Ibertec GmbH de un vistazo']").Click();
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, detalle.EmpresaId, "Ibertec GmbH", "informacion"));
     }
 
     /// <summary>

@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Kicker" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="MigaClientes" xml:space="preserve">
+    <value>Clients</value>
+  </data>
+  <data name="RutaNavegacion" xml:space="preserve">
+    <value>Ruta de Client 360</value>
+  </data>
+  <data name="ErrorCargaTitulo" xml:space="preserve">
+    <value>No hem pogut carregar aquest client</value>
+  </data>
+  <data name="ErrorCargaDescripcion" xml:space="preserve">
+    <value>Potser ja no existeix o no hi tens accés.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Torna-ho a provar</value>
+  </data>
+  <data name="Cif" xml:space="preserve">
+    <value>CIF</value>
+  </data>
+  <data name="CopiarCifEtiqueta" xml:space="preserve">
+    <value>el CIF</value>
+  </data>
+  <data name="RecuentoCentrosUno" xml:space="preserve">
+    <value>1 centre</value>
+  </data>
+  <data name="RecuentoCentrosVarios" xml:space="preserve">
+    <value>{0} centres</value>
+  </data>
+  <data name="RecuentoTrabajadoresUno" xml:space="preserve">
+    <value>1 treballador</value>
+  </data>
+  <data name="RecuentoTrabajadoresVarios" xml:space="preserve">
+    <value>{0} treballadors</value>
+  </data>
+  <data name="Critico" xml:space="preserve">
+    <value>Crític</value>
+  </data>
+  <data name="IndicadorBloqueados" xml:space="preserve">
+    <value>Accés bloquejat en {0} de {1} centres</value>
+  </data>
+  <data name="IndicadorBloqueadosUnico" xml:space="preserve">
+    <value>Accés bloquejat en el seu únic centre</value>
+  </data>
+  <data name="VentanaBloqueadosUno" xml:space="preserve">
+    <value>1 centre amb accés bloquejat</value>
+  </data>
+  <data name="VentanaBloqueadosVarios" xml:space="preserve">
+    <value>{0} centres amb accés bloquejat</value>
+  </data>
+  <data name="IndicadorVencidosUno" xml:space="preserve">
+    <value>1 centre amb vençuts</value>
+  </data>
+  <data name="IndicadorVencidosVarios" xml:space="preserve">
+    <value>{0} centres amb vençuts</value>
+  </data>
+  <data name="VentanaVencidosUno" xml:space="preserve">
+    <value>1 centre amb documents vençuts</value>
+  </data>
+  <data name="VentanaVencidosVarios" xml:space="preserve">
+    <value>{0} centres amb documents vençuts</value>
+  </data>
+  <data name="IndicadorProximosUno" xml:space="preserve">
+    <value>1 centre amb pròxims venciments</value>
+  </data>
+  <data name="IndicadorProximosVarios" xml:space="preserve">
+    <value>{0} centres amb pròxims venciments</value>
+  </data>
+  <data name="VentanaProximosUno" xml:space="preserve">
+    <value>1 centre amb documents a punt de vèncer</value>
+  </data>
+  <data name="VentanaProximosVarios" xml:space="preserve">
+    <value>{0} centres amb documents a punt de vèncer</value>
+  </data>
+  <data name="AriaIndicador" xml:space="preserve">
+    <value>{0}: {1}. Prem per veure els centres</value>
+  </data>
+  <data name="EditarCliente" xml:space="preserve">
+    <value>Editar el client</value>
+  </data>
+  <data name="PestanaCentros" xml:space="preserve">
+    <value>Centres</value>
+  </data>
+  <data name="PestanaEmpresas" xml:space="preserve">
+    <value>Empreses</value>
+  </data>
+  <data name="PestanaSubcontratas" xml:space="preserve">
+    <value>Subcontractes</value>
+  </data>
+  <data name="PestanaBlindaje" xml:space="preserve">
+    <value>Blindatge 42.1</value>
+  </data>
+  <data name="PestanaDocumentacion" xml:space="preserve">
+    <value>Documentació</value>
+  </data>
+  <data name="PestanaAgenda" xml:space="preserve">
+    <value>Agenda</value>
+  </data>
+  <data name="PestanaHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
+  <data name="EtiquetaPestanas" xml:space="preserve">
+    <value>Seccions del client</value>
+  </data>
+  <data name="GlosaCentroUno" xml:space="preserve">
+    <value>centre</value>
+  </data>
+  <data name="GlosaCentroVarios" xml:space="preserve">
+    <value>centres</value>
+  </data>
+  <data name="GlosaEmpresaUno" xml:space="preserve">
+    <value>empresa</value>
+  </data>
+  <data name="GlosaEmpresaVarios" xml:space="preserve">
+    <value>empreses</value>
+  </data>
+  <data name="GlosaSubcontrataUno" xml:space="preserve">
+    <value>subcontracta</value>
+  </data>
+  <data name="GlosaSubcontrataVarios" xml:space="preserve">
+    <value>subcontractes</value>
+  </data>
+  <data name="ResumenCentrosUno" xml:space="preserve">
+    <value>1 centre d’aquest client.</value>
+  </data>
+  <data name="ResumenCentrosVarios" xml:space="preserve">
+    <value>{0} centres d’aquest client, del pitjor estat al millor.</value>
+  </data>
+  <data name="ResumenCentrosTruncado" xml:space="preserve">
+    <value>Es mostren els {0} centres amb pitjor estat de {1}.</value>
+  </data>
+  <data name="DetalleEmpresa" xml:space="preserve">
+    <value>Empresa: {0}</value>
+  </data>
+  <data name="DetalleVencidosUno" xml:space="preserve">
+    <value>1 vençut</value>
+  </data>
+  <data name="DetalleVencidosVarios" xml:space="preserve">
+    <value>{0} vençuts</value>
+  </data>
+  <data name="DetalleProximosUno" xml:space="preserve">
+    <value>1 pròxim</value>
+  </data>
+  <data name="DetalleProximosVarios" xml:space="preserve">
+    <value>{0} pròxims</value>
+  </data>
+  <data name="CentroSinRequisitos" xml:space="preserve">
+    <value>Sense requisits</value>
+  </data>
+  <data name="CumplimientoCentro" xml:space="preserve">
+    <value>Compliment del centre</value>
+  </data>
+  <data name="SinCentrosTitulo" xml:space="preserve">
+    <value>Sense centres</value>
+  </data>
+  <data name="SinCentrosDescripcion" xml:space="preserve">
+    <value>Aquest client encara no té cap centre.</value>
+  </data>
+  <data name="ErrorCentrosTitulo" xml:space="preserve">
+    <value>No hem pogut carregar els centres</value>
+  </data>
+  <data name="ErrorListaDescripcion" xml:space="preserve">
+    <value>Torna-ho a provar d’aquí a uns segons.</value>
+  </data>
+  <data name="ResumenEmpresasUno" xml:space="preserve">
+    <value>1 empresa contractada amb relació viva.</value>
+  </data>
+  <data name="ResumenEmpresasVarios" xml:space="preserve">
+    <value>{0} empreses contractades amb relació viva.</value>
+  </data>
+  <data name="SinEmpresasTitulo" xml:space="preserve">
+    <value>Sense empreses</value>
+  </data>
+  <data name="SinEmpresasDescripcion" xml:space="preserve">
+    <value>Aquest client encara no té cap empresa contractada amb relació viva.</value>
+  </data>
+  <data name="ErrorEmpresasTitulo" xml:space="preserve">
+    <value>No hem pogut carregar les empreses</value>
+  </data>
+  <data name="ResumenSubcontratasUno" xml:space="preserve">
+    <value>1 subcontracta declarada.</value>
+  </data>
+  <data name="ResumenSubcontratasVarios" xml:space="preserve">
+    <value>{0} subcontractes declarades.</value>
+  </data>
+  <data name="SinSubcontratasTitulo" xml:space="preserve">
+    <value>Sense subcontractes</value>
+  </data>
+  <data name="SinSubcontratasDescripcion" xml:space="preserve">
+    <value>Aquest client encara no té cap subcontracta declarada.</value>
+  </data>
+  <data name="ErrorSubcontratasTitulo" xml:space="preserve">
+    <value>No hem pogut carregar les subcontractes</value>
+  </data>
+  <data name="ListaCentros" xml:space="preserve">
+    <value>Centres d’aquest client</value>
+  </data>
+  <data name="ListaEmpresas" xml:space="preserve">
+    <value>Empreses d’aquest client</value>
+  </data>
+  <data name="ListaSubcontratas" xml:space="preserve">
+    <value>Subcontractes d’aquest client</value>
+  </data>
+  <data name="EtiquetaLateral" xml:space="preserve">
+    <value>Context del client</value>
+  </data>
+  <data name="TarjetaInformacion" xml:space="preserve">
+    <value>Informació</value>
+  </data>
+  <data name="DatoAlta" xml:space="preserve">
+    <value>Alta</value>
+  </data>
+  <data name="Si" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="EditarEnlace" xml:space="preserve">
+    <value>Editar →</value>
+  </data>
+  <data name="TarjetaNota" xml:space="preserve">
+    <value>Nota interna</value>
+  </data>
+  <data name="SinNota" xml:space="preserve">
+    <value>Sense nota interna.</value>
+  </data>
+  <data name="NotaSoloEquipo" xml:space="preserve">
+    <value>Només visible per al teu equip.</value>
+  </data>
+  <data name="AltaGuiadaTitulo" xml:space="preserve">
+    <value>Alta guiada de Client</value>
+  </data>
+  <data name="AltaGuiadaDescripcion" xml:space="preserve">
+    <value>Dona d'alta l'Empresa, el seu Client, el primer Centre i els seus Treballadors en un sol lloc. Cada pas es desa en confirmar-lo — si t'atures a mig camí, el que ja s'ha creat no es perd.</value>
+  </data>
+  <data name="AltaGuiadaVolver" xml:space="preserve">
+    <value>Tornar a Clients</value>
+  </data>
+  <data name="AltaGuiadaPasoCliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="AltaGuiadaTituloPasoCliente" xml:space="preserve">
+    <value>2. Client</value>
+  </data>
+  <data name="AltaGuiadaVincularExistente" xml:space="preserve">
+    <value>Vincular a un Client que ja existeix</value>
+  </data>
+  <data name="AltaGuiadaCatalogoVacioTitulo" xml:space="preserve">
+    <value>Encara no hi ha cap Client donat d'alta</value>
+  </data>
+  <data name="AltaGuiadaCatalogoVacioDescripcion" xml:space="preserve">
+    <value>No és que el filtre no trobi res: el catàleg sencer és buit. Desmarca la casella i crea el primer Client aquí mateix.</value>
+  </data>
+  <data name="AltaGuiadaEtiquetaEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="AltaGuiadaEtiquetaCliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="AltaGuiadaOpcionSeleccionaCliente" xml:space="preserve">
+    <value>Selecciona un Client…</value>
+  </data>
+  <data name="AltaGuiadaClienteCritico" xml:space="preserve">
+    <value>Client crític</value>
+  </data>
+  <data name="AltaGuiadaNotasCliente" xml:space="preserve">
+    <value>Notes del Client</value>
+  </data>
+  <data name="AltaGuiadaVerCliente" xml:space="preserve">
+    <value>Veure el Client</value>
+  </data>
+  <data name="AltaGuiadaOtroCentro" xml:space="preserve">
+    <value>El formulari s'ha buidat: pots crear un altre centre per a aquesta mateixa Empresa i aquest mateix Client sense sortir del pas.</value>
+  </data>
+  <data name="AltaGuiadaErrorSeleccionaCliente" xml:space="preserve">
+    <value>Selecciona un Client.</value>
+  </data>
+  <data name="AltaGuiadaToastVinculada" xml:space="preserve">
+    <value>Empresa vinculada al Client.</value>
+  </data>
+  <data name="AltaGuiadaToastCreadoSinVincular" xml:space="preserve">
+    <value>Client «{0}» creat, però no s'ha pogut vincular amb l'Empresa: {1}</value>
+  </data>
+  <data name="AltaGuiadaToastCreado" xml:space="preserve">
+    <value>Client creat correctament.</value>
+  </data>
+</root>

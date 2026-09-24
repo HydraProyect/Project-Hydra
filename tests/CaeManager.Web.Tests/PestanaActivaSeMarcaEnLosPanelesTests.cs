@@ -138,6 +138,8 @@ public class PestanaActivaSeMarcaEnLosPanelesTests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
+        // ClienteWorkspacePanel rotula su kicker con IStringLocalizer<TextosClientes>.
+        Services.AddLocalization();
     }
 
     private static EventCallback<string> SinEfecto(object suscriptor) =>

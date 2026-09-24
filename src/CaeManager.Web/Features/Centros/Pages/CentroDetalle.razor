@@ -12,6 +12,9 @@
 @using CaeManager.Application.Integraciones
 @using CaeManager.Domain.Centros
 @using CaeManager.Web.Features.Centros.Components
+@using CaeManager.Web.Features.Centros.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosCentros> Textos
 
 <PageTitle>@(_detalle?.Nombre ?? "Centro") — @Marca.Nombre</PageTitle>
 
@@ -38,11 +41,21 @@
             título», la identidad de sus contrapartes como entradilla, y a la
             derecha el anillo con la acción principal y el resto en un menú,
             igual que el mockup.
+
+            Contrapartes (decisión del propietario 2026-09-22: cada 360 tiene
+            página propia además del panel): el NOMBRE es un enlace real a la
+            página 360 del Cliente empresarial (/clientes/{id}) y de la Empresa
+            (/empresas/{id}), y el botón 360 de al lado abre su panel de 520 px
+            como antes lo hacía el nombre. En pantalla el Cliente empresarial
+            se rotula «Cliente» (contrato Gen2 § 14); en código sigue siendo
+            ClienteEmpresarial.
         *@
         <CabeceraPagina Titulo="@_detalle.Nombre">
             <Descripcion>
-                Cliente empresarial: <button type="button" class="enlace-nombre-fila" @onclick="AbrirClienteEmpresarial">@_detalle.ClienteRazonSocial</button>
-                · Empresa: <button type="button" class="enlace-nombre-fila" @onclick="AbrirEmpresa">@_detalle.EmpresaRazonSocial</button>
+                @Textos["CabeceraCliente"] <a class="enlace-nombre-fila centro360-contraparte" href="@($"/clientes/{_detalle.ClienteId}")">@_detalle.ClienteRazonSocial</a>
+                <Boton360 Nombre="@_detalle.ClienteRazonSocial" OnClick="AbrirClienteEmpresarial" />
+                · @Textos["CabeceraEmpresa"] <a class="enlace-nombre-fila centro360-contraparte" href="@($"/empresas/{_detalle.EmpresaId}")">@_detalle.EmpresaRazonSocial</a>
+                <Boton360 Nombre="@_detalle.EmpresaRazonSocial" OnClick="AbrirEmpresa" />
                 @if (_visitas.Count > 0)
                 {
                     var proxima = _visitas[0];

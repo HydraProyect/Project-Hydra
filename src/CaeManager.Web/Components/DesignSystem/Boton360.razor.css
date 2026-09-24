@@ -1,0 +1,27 @@
+/* 30×30 con borde, como .boton-360 de los mockups Cliente 360 y Empresa 360. */
+.boton-360 {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    vertical-align: middle;
+    transition: border-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+
+.boton-360:hover {
+    border-color: var(--color-primary-500);
+    color: var(--color-primary-500);
+}
+
+.boton-360:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+}

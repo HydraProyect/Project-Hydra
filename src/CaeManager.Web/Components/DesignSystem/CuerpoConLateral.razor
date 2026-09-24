@@ -1,0 +1,32 @@
+@*
+    Cuerpo de las páginas 360: la columna principal (pestañas, listas) y un
+    lateral de contexto fijo de 300 px con tarjetas, que se queda pegado al
+    hacer scroll. Bajo 900 px el lateral pasa debajo y deja de ser fijo.
+
+    Es la maquetación de .centro360-cuerpo de Centro 360, sacada aquí para que
+    Cliente 360 y Empresa 360 no la copien: una clase de un .razor.css no
+    viaja a otro componente (ClasesDeCssAisladoNoViajanEntreComponentesTests).
+    Las tarjetas del lateral son <Tarjeta Compacta="true">.
+*@
+<div class="cuerpo-con-lateral @(Lateral is null ? "cuerpo-con-lateral-sin-lateral" : null)">
+    <div class="cuerpo-con-lateral-principal">@ChildContent</div>
+
+    @if (Lateral is not null)
+    {
+        <aside class="cuerpo-con-lateral-lateral" aria-label="@EtiquetaLateral">@Lateral</aside>
+    }
+</div>
+
+@code {
+    /// <summary>Columna principal.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Lateral de contexto (tarjetas). Sin él, la columna principal ocupa todo el ancho.</summary>
+    [Parameter] public RenderFragment? Lateral { get; set; }
+
+    /// <summary>
+    /// Nombre accesible del <c>aside</c>, ya localizado por quien lo usa
+    /// («Contexto del cliente»). Opcional: sin valor no se pinta el atributo.
+    /// </summary>
+    [Parameter] public string? EtiquetaLateral { get; set; }
+}

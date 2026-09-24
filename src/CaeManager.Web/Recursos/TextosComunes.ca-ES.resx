@@ -30,4 +30,11 @@
   <data name="IdiomaNoCambiadoDetalle" xml:space="preserve">
     <value>Tu preferencia de idioma no se ha guardado y la interfaz sigue en el idioma anterior. Inténtalo de nuevo en unos segundos.</value>
   </data>
+  <data name="Consultar360" xml:space="preserve">
+    <value>Consultar d’un cop d’ull</value>
+  </data>
+  <data name="Consultar360Entidad" xml:space="preserve">
+    <value>Consultar {0} d’un cop d’ull</value>
+    <comment>{0}: nom de l’entitat (Centre, Empresa, Client…) que obre el panell 360.</comment>
+  </data>
 </root>

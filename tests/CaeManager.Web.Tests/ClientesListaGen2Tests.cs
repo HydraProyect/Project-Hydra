@@ -445,8 +445,6 @@ public class ClientesListaGen2Tests : BunitContext
         Services.AddCascadingAuthenticationState();
         Services.AddScoped<IValidator<CrearClienteCommand>>(_ => new InlineValidator<CrearClienteCommand>());
         Services.AddScoped(_ => CrearDirectorio(gestores ?? []));
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            new AlmacenUsuariosQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!));
         Services.AddScoped<PuertaAccesoDatos>();
     }
 
@@ -984,8 +982,26 @@ public class ClientesListaGen2Tests : BunitContext
         frame.PestanaActiva.Should().Be("centros");
     }
 
+    /// <summary>
+    /// El nombre de la fila es un enlace real a la página Cliente 360: se puede
+    /// abrir en otra pestaña o copiar, y no abre ningún panel.
+    /// </summary>
     [Fact]
-    public async Task Abrir_Cliente_360_del_menu_abre_el_workspace_de_esa_fila()
+    public void El_nombre_de_la_fila_enlaza_a_la_pagina_Cliente_360()
+    {
+        var otro = Cliente("Aislamientos Nervión S.L.");
+        var enlazado = Cliente("Montajes Ebro S.L.");
+        var cut = Renderizar(new MediatorFalso { Almacen = { otro, enlazado } });
+
+        var nombre = cut.FindAll("tbody tr")[1].QuerySelector(".enlace-nombre-fila")!;
+
+        nombre.TagName.Should().Be("A", "un botón no se puede abrir en otra pestaña ni copiar");
+        nombre.GetAttribute("href").Should().Be($"/clientes/{enlazado.Id}");
+        nombre.TextContent.Trim().Should().Be("Montajes Ebro S.L.");
+    }
+
+    [Fact]
+    public async Task Abrir_Cliente_360_del_menu_navega_a_la_pagina_de_esa_fila()
     {
         var otro = Cliente("Aislamientos Nervión S.L.");
         var abierto = Cliente("Montajes Ebro S.L.");
@@ -993,14 +1009,14 @@ public class ClientesListaGen2Tests : BunitContext
 
         await PulsarEnElMenuDeLaFila(cut, 1, "Abrir Cliente 360");
 
-        var frame = Services.GetRequiredService<ContextWorkspaceService>().FrameActual;
-        frame.Should().NotBeNull();
-        frame!.EntidadId.Should().Be(abierto.Id);
-        frame.PestanaActiva.Should().Be("informacion");
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath
+            .Should().Be($"/clientes/{abierto.Id}");
+        Services.GetRequiredService<ContextWorkspaceService>().EstaAbierto.Should().BeFalse(
+            "«Abrir Cliente 360» lleva a la página; el panel es «Vista rápida»");
     }
 
     [Fact]
-    public async Task Vista_rapida_del_menu_abre_la_vista_rapida_de_esa_fila_y_no_el_360()
+    public async Task Vista_rapida_del_menu_abre_el_panel_de_esa_fila_sin_salir_de_la_lista()
     {
         var otro = Cliente("Aislamientos Nervión S.L.");
         var abierto = Cliente("Montajes Ebro S.L.");
@@ -1008,11 +1024,13 @@ public class ClientesListaGen2Tests : BunitContext
 
         await PulsarEnElMenuDeLaFila(cut, 1, "Vista rápida");
 
-        cut.WaitForAssertion(() => cut.Find("aside.drawer-preview-cliente .nombre-cabecera-preview-cliente")
-            .TextContent.Trim().Should().Be("Montajes Ebro S.L."));
-        cut.Find("aside.drawer-preview-cliente .etiqueta-cabecera-preview-cliente").TextContent.Trim()
-            .Should().Be("Vista rápida · Cliente");
-        Services.GetRequiredService<ContextWorkspaceService>().EstaAbierto.Should().BeFalse();
+        var frame = Services.GetRequiredService<ContextWorkspaceService>().FrameActual;
+        frame.Should().NotBeNull();
+        frame!.Tipo.Should().Be(EntidadWorkspace.Cliente);
+        frame.EntidadId.Should().Be(abierto.Id);
+        frame.PestanaActiva.Should().Be("informacion");
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath.Should().Be("/clientes");
+        cut.FindAll("aside.drawer-preview-cliente").Should().BeEmpty("el drawer ligero ya no se monta");
     }
 
     // ------------------------------------------------------ Teclado y lote
@@ -1020,7 +1038,8 @@ public class ClientesListaGen2Tests : BunitContext
     /// <summary>
     /// Lo mismo que recorre el E2E P331 (j/k/x/Enter sin activar «Selección
     /// múltiple»), aquí sin navegador: j enfoca, x marca y la barra de lote
-    /// dice «1 seleccionado en esta página», Enter abre la vista rápida.
+    /// dice «1 seleccionado en esta página», Enter abre la vista rápida (el
+    /// panel de 520 px de la fila enfocada).
     /// </summary>
     [Fact]
     public async Task Los_atajos_j_x_y_Enter_enfocan_marcan_y_abren_la_vista_rapida()
@@ -1036,8 +1055,10 @@ public class ClientesListaGen2Tests : BunitContext
         cut.Find(".barra-acciones-lote-cantidad").TextContent.Trim().Should().Be("1 seleccionado en esta página");
 
         await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("Enter"));
-        cut.WaitForAssertion(() => cut.Find("aside.drawer-preview-cliente .nombre-cabecera-preview-cliente")
-            .TextContent.Trim().Should().Be("Montajes Ebro S.L."));
+        var frame = Services.GetRequiredService<ContextWorkspaceService>().FrameActual;
+        frame.Should().NotBeNull();
+        frame!.Tipo.Should().Be(EntidadWorkspace.Cliente);
+        frame.TituloVisible.Should().Be("Montajes Ebro S.L.");
     }
 
     /// <summary>

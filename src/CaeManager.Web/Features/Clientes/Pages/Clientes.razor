@@ -194,9 +194,10 @@
                     </TemplateColumn>
                 }
                 <TemplateColumn Title="Razón social" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.RazonSocial))">
-                    <button type="button" class="enlace-nombre-fila" @onclick='() => AbrirPreview(context.Id)'>
-                        @context.RazonSocial
-                    </button>
+                    @* El nombre es un enlace real a la página Cliente 360
+                       (decisión 2026-09-22): ctrl+clic abre otra pestaña. La
+                       consulta de un vistazo es «Vista rápida» del menú. *@
+                    <a class="enlace-nombre-fila" href="@($"/clientes/{context.Id}")">@context.RazonSocial</a>
                     @* Perfil incompleto: sin agenda no hay a quién reclamarle.
                        Lleva directo a la pestaña que lo resuelve. No sale en el
                        mockup y se conserva. *@
@@ -254,16 +255,19 @@
                           title="@(context.EsCritico ? "Crítico: bloquea acceso a un centro" : "Sin situación crítica")"></span>
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
-                    @* Menú del mockup: vista rápida, Cliente 360 y editar. El
+                    @* Menú del mockup: vista rápida, Cliente 360 y editar.
+                       «Vista rápida» abre el panel de 520 px (el mismo que el
+                       botón 360 de las páginas) y «Abrir Cliente 360» la
+                       página /clientes/{id}. El
                        mockup rotula la baja «Dar de baja»; aquí sigue siendo
                        «Eliminar», el mismo verbo que la barra de lote y que su
                        diálogo de confirmación, para no llamar de dos formas a
                        la misma operación (EliminarClienteCommand). *@
                     <MenuAcciones>
-                        <ItemMenuAccion OnClick='() => AbrirPreview(context.Id)'>
+                        <ItemMenuAccion OnClick='() => AbrirPreviewAsync(context.Id)'>
                             Vista rápida
                         </ItemMenuAccion>
-                        <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "informacion")'>
+                        <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo($"/clientes/{context.Id}")'>
                             Abrir Cliente 360
                         </ItemMenuAccion>
                         <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
@@ -397,4 +401,3 @@
     </Pie>
 </Modal>
 
-<ClientePreviewDrawer ClienteId="_previewClienteId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" OnOperar="AbrirDesdePreviewAsync" />

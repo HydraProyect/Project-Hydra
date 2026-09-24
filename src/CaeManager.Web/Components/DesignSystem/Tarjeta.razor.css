@@ -19,3 +19,29 @@
 .tarjeta-contenido {
     padding: var(--space-5);
 }
+
+/*
+  Variante compacta: la tarjeta del lateral de las páginas 360
+  (.centro360-tarjeta-lateral de CentroDetalle.razor.css y de los mockups
+  Cliente 360 / Empresa 360): 16 px de relleno total, sin raya bajo la
+  cabecera, 12 px entre cabecera y contenido, título --font-heading-sm.
+*/
+.tarjeta-compacta .tarjeta-header {
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-4) 0;
+    margin-bottom: var(--space-3);
+    border-bottom: none;
+}
+
+.tarjeta-compacta .tarjeta-titulo {
+    font: var(--font-heading-sm);
+    margin: 0;
+}
+
+.tarjeta-compacta .tarjeta-contenido {
+    padding: 0 var(--space-4) var(--space-4);
+}
+
+.tarjeta-compacta > .tarjeta-contenido:first-child {
+    padding-top: var(--space-4);
+}

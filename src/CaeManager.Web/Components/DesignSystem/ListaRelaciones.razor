@@ -1,0 +1,23 @@
+@*
+    Lista de entidades relacionadas de una página 360 (los centros de un
+    Cliente empresarial, las empresas con las que trabaja, los trabajadores
+    de una Empresa…): una caja con borde y una <FilaRelacion> por entidad,
+    separadas por raya. Es .lista-rel de los mockups Cliente 360 y
+    Empresa 360.
+
+    No es FilaEntidadRelacionada (Components/Workspace): esa es la fila
+    entera-botón del panel de 520 px, que navega dentro del panel. Aquí el
+    nombre es un enlace a la página 360 de la entidad y el panel se abre con
+    el botón 360 de la fila.
+*@
+<ul class="lista-relaciones" aria-label="@Etiqueta">
+    @ChildContent
+</ul>
+
+@code {
+    /// <summary>Las <see cref="FilaRelacion"/> de la lista.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Nombre accesible de la lista, ya localizado («Centros de este cliente»). Opcional.</summary>
+    [Parameter] public string? Etiqueta { get; set; }
+}

@@ -9,6 +9,8 @@
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
 @using CaeManager.Application.Trabajadores.Commands.CrearTrabajador
 @using CaeManager.Web.Components.Workspace
+@using CaeManager.Web.Features.Clientes.Recursos
+@using Microsoft.Extensions.Localization
 @using FluentValidation
 @using MediatR
 @inject IMediator Mediator
@@ -19,6 +21,7 @@
 @inject IValidator<CrearEmpresaCommand> ValidadorEmpresaCrear
 @inject IValidator<CrearCentroCommand> ValidadorCentroCrear
 @inject IValidator<CrearTrabajadorCommand> ValidadorTrabajadorCrear
+@inject IStringLocalizer<TextosClientes> Textos
 
 <PageTitle>Alta guiada — @Marca.Nombre</PageTitle>
 
@@ -29,13 +32,12 @@
        pinta todo nodo no final como botón — sería un control muerto. *@
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="Ruta de alta guiada" />
 
-    <CabeceraPagina Titulo="Alta guiada de Cliente empresarial">
+    <CabeceraPagina Titulo="@Textos["AltaGuiadaTitulo"]">
         <Descripcion>
-            Da de alta la Empresa, su Cliente empresarial, el primer Centro y sus Trabajadores en un solo sitio. Cada paso se
-            guarda al confirmarlo — si te detienes a mitad de camino, lo ya creado no se pierde.
+            @Textos["AltaGuiadaDescripcion"]
         </Descripcion>
         <Acciones>
-            <a class="enlace-exportar" href="/clientes">Volver a Clientes empresariales</a>
+            <a class="enlace-exportar" href="/clientes">@Textos["AltaGuiadaVolver"]</a>
         </Acciones>
     </CabeceraPagina>
 
@@ -101,13 +103,13 @@
         }
         else if (_pasoActual == "cliente")
         {
-            <h2 class="titulo-seccion-importacion">2. Cliente empresarial</h2>
+            <h2 class="titulo-seccion-importacion">@Textos["AltaGuiadaTituloPasoCliente"]</h2>
             @* El guardado es incremental de verdad: al llegar aquí la Empresa
                ya está en base. La marca lo dice explícitamente, que es lo que
                hace honesto que el botón secundario de este paso sea "Terminar
                aquí" y no "Cancelar". *@
             <p class="texto-vacio-seccion">
-                Empresa: <strong>@_empresaNombre</strong>
+                @Textos["AltaGuiadaEtiquetaEmpresa"]: <strong>@_empresaNombre</strong>
                 <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">Ya creada</Badge>
             </p>
 
@@ -119,7 +121,7 @@
             @if (_clienteId is null)
             {
                 <label class="campo-checkbox">
-                    <input type="checkbox" @bind="_clienteExistente" /> Vincular a un Cliente empresarial que ya existe
+                    <input type="checkbox" @bind="_clienteExistente" /> @Textos["AltaGuiadaVincularExistente"]
                 </label>
 
                 @if (_clienteExistente)
@@ -130,13 +132,13 @@
                     }
                     else if (_clientesCatalogo.Count == 0)
                     {
-                        <EstadoVacio Titulo="Todavía no hay ningún Cliente empresarial dado de alta"
-                                     Descripcion="No es que el filtro no encuentre nada: el catálogo entero está vacío. Desmarca la casilla y crea el primer Cliente empresarial aquí mismo." />
+                        <EstadoVacio Titulo="@Textos["AltaGuiadaCatalogoVacioTitulo"]"
+                                     Descripcion="@Textos["AltaGuiadaCatalogoVacioDescripcion"]" />
                     }
                     else
                     {
-                        <CampoSelect Etiqueta="Cliente empresarial" Valor="@_clienteExistenteId" ValorChanged="v => _clienteExistenteId = v">
-                            <option value="">Selecciona un Cliente empresarial…</option>
+                        <CampoSelect Etiqueta="@Textos["AltaGuiadaEtiquetaCliente"]" Valor="@_clienteExistenteId" ValorChanged="v => _clienteExistenteId = v">
+                            <option value="">@Textos["AltaGuiadaOpcionSeleccionaCliente"]</option>
                             @foreach (var cliente in _clientesCatalogo)
                             {
                                 <option value="@cliente.Id">@cliente.RazonSocial</option>
@@ -152,13 +154,13 @@
                                 OnBlur="ValidarCifClienteAsync" MensajeError="@ObtenerError(_erroresCliente, nameof(CrearClienteCommand.Cif))" />
 
                     <label class="campo-checkbox">
-                        <input type="checkbox" @bind="_esCriticoCliente" /> Cliente empresarial crítico
+                        <input type="checkbox" @bind="_esCriticoCliente" /> @Textos["AltaGuiadaClienteCritico"]
                     </label>
                     @* Qué hace la casilla, no qué es: "crítico" a secas no dice al
                        gestor qué cambia si la marca. *@
                     <p class="texto-vacio-seccion">Prioriza sus vencimientos.</p>
 
-                    <CampoTextarea Etiqueta="Notas del Cliente empresarial" Valor="@_notasCliente" ValorChanged="v => _notasCliente = v" Filas="3" />
+                    <CampoTextarea Etiqueta="@Textos["AltaGuiadaNotasCliente"]" Valor="@_notasCliente" ValorChanged="v => _notasCliente = v" Filas="3" />
                 }
 
                 <div class="acciones-formulario">
@@ -178,7 +180,7 @@
                    repetirlo y chocar contra este mismo registro; lo que queda
                    por resolver, si algo, es solo la vinculación con la Empresa. *@
                 <p class="texto-vacio-seccion">
-                    Cliente empresarial: <strong>@_clienteNombre</strong>
+                    @Textos["AltaGuiadaEtiquetaCliente"]: <strong>@_clienteNombre</strong>
                     @if (_vinculacionEmpresaClientePendiente)
                     {
                         <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">Vinculación con la Empresa pendiente</Badge>
@@ -205,7 +207,7 @@
         {
             <h2 class="titulo-seccion-importacion">3. Centro</h2>
             <p class="texto-vacio-seccion">
-                Empresa: <strong>@_empresaNombre</strong> · Cliente empresarial: <strong>@_clienteNombre</strong>
+                @Textos["AltaGuiadaEtiquetaEmpresa"]: <strong>@_empresaNombre</strong> · @Textos["AltaGuiadaEtiquetaCliente"]: <strong>@_clienteNombre</strong>
             </p>
 
             @if (_mensajeErrorCentro is not null)
@@ -239,7 +241,7 @@
                     </p>
                     <div class="acciones-formulario">
                         <Boton Variante="VarianteBoton.Primario" OnClick="IrAPasoTrabajadores">Continuar a Trabajadores</Boton>
-                        <Boton Variante="VarianteBoton.Secundario" OnClick="VerClienteAsync">Ver el Cliente empresarial</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="VerClienteAsync">@Textos["AltaGuiadaVerCliente"]</Boton>
                         <Boton Variante="VarianteBoton.Secundario" OnClick="AnadirRequisitosAsync">Añadir requisitos documentales</Boton>
                     </div>
                     @* Los campos de arriba se acaban de vaciar. Sin decirlo, el
@@ -247,7 +249,7 @@
                        cuando es justo lo contrario: está listo para el
                        siguiente centro de la misma Empresa y Cliente empresarial. *@
                     <p class="texto-vacio-seccion">
-                        El formulario se ha vaciado: puedes crear otro centro para esta misma Empresa y este mismo Cliente empresarial sin salir del paso.
+                        @Textos["AltaGuiadaOtroCentro"]
                     </p>
                 </div>
             }
@@ -256,7 +258,7 @@
         {
             <h2 class="titulo-seccion-importacion">4. Trabajadores</h2>
             <p class="texto-vacio-seccion">
-                Empresa: <strong>@_empresaNombre</strong>
+                @Textos["AltaGuiadaEtiquetaEmpresa"]: <strong>@_empresaNombre</strong>
                 @if (_ultimoCentroId is not null)
                 {
                     <text> · Centro: <strong>@_ultimoCentroNombre</strong></text>

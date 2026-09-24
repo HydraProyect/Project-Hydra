@@ -1,0 +1,21 @@
+@*
+    Rejilla de datos de lectura en dos columnas (etiqueta pequeña atenuada
+    sobre el valor): la tarjeta «Información» del lateral de Cliente 360 y
+    Empresa 360 (.rejilla-info / .celda-info de los mockups). Cada dato es un
+    <DatoRejilla>; uno con Ancho="true" ocupa las dos columnas.
+
+    Es una lista de descripción (dl/dt/dd): el lector de pantalla anuncia la
+    etiqueta y su valor como par, no como dos textos sueltos.
+
+    No sustituye a CampoInfo (fila etiqueta/valor de los paneles del Context
+    Workspace) ni a las rejillas propias de ClienteWorkspacePanel y
+    ClientePreviewDrawer: migrarlas sería un incremento aparte.
+*@
+<dl class="rejilla-datos">
+    @ChildContent
+</dl>
+
+@code {
+    /// <summary>Los <see cref="DatoRejilla"/> de la rejilla.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

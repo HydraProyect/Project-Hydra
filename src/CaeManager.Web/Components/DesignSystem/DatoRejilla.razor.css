@@ -1,0 +1,34 @@
+/* .celda-info de los mockups Cliente 360 / Empresa 360. */
+.dato-rejilla {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.dato-rejilla-ancho {
+    grid-column: 1 / -1;
+}
+
+.dato-rejilla-etiqueta {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+/* flex: el valor puede llevar un BotonCopiar o un badge al lado. */
+.dato-rejilla-valor {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+}
+
+.dato-rejilla-vacio {
+    font-weight: 400;
+    color: var(--color-text-muted);
+}

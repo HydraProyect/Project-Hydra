@@ -1,0 +1,286 @@
+@*
+    Cliente 360, página (mockup aprobado «Cliente 360 página TALVEG.dc.html»,
+    decisión del propietario 2026-09-22: cada 360 tiene página propia además
+    del panel de 520 px). Ver el comentario de cabecera del .razor.cs para lo
+    que esta página compone, lo que remite al panel y lo que no enseña.
+*@
+@page "/clientes/{ClienteId:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using CaeManager.Application.Centros.Queries.ObtenerCentros
+@using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
+@using CaeManager.Domain.Centros
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Blindaje42.Components
+@using CaeManager.Web.Features.Centros
+@using CaeManager.Web.Features.Clientes.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosClientes> Textos
+
+<PageTitle>@(_detalle?.RazonSocial ?? Textos["Kicker"]) — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["RutaNavegacion"]" />
+
+    @if (_error)
+    {
+        @*
+            Mismo resultado que el panel: ObtenerClientePorIdQuery devuelve null
+            fuera del alcance (IAlcanceDatosService + RLS) y la página no
+            distingue «no existe» de «no tienes acceso» — no filtra información.
+        *@
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
+            <Accion>
+                <Boton OnClick="ReintentarAsync">@Textos["Reintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <EstadoCargando Filas="5" />
+    }
+    else if (_detalle is not null)
+    {
+        @*
+            Sin anillo, a diferencia de Centro 360: no existe un porcentaje de
+            cumplimiento por Cliente empresarial, y AnilloCumplimiento con
+            Porcentaje null se anuncia «Sin requisitos» — diría que este
+            cliente no exige nada. Lo que sí hay es el estado de cada uno de
+            sus centros, y eso es lo que resumen los indicadores.
+        *@
+        <CabeceraPagina Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]">
+            <Descripcion>
+                <span class="cliente360-meta">
+                    @* El alta permite un Cliente empresarial sin CIF: entonces no hay
+                       nada que enseñar ni copiar, igual que en Empresa 360. *@
+                    @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                    {
+                        <span>@Textos["Cif"] <b>@_detalle.Cif</b></span>
+                        <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarCifEtiqueta"]" />
+                    }
+                    @if (TextoRecuentos is { } recuentos)
+                    {
+                        <span>@(string.IsNullOrWhiteSpace(_detalle.Cif) ? recuentos : $"· {recuentos}")</span>
+                    }
+                </span>
+                @if (_detalle.EsCritico || Indicadores.Count > 0)
+                {
+                    <span class="cliente360-indicadores">
+                        @if (_detalle.EsCritico)
+                        {
+                            <Badge Tono="TonoBadge.Peligro">@Textos["Critico"]</Badge>
+                        }
+                        @foreach (var indicador in Indicadores)
+                        {
+                            <VentanaContexto Etiqueta="@indicador.Etiqueta" Titulo="@indicador.Titulo">
+                                <Disparador>
+                                    <button type="button" class="cliente360-indicador-boton" data-indicador="@indicador.Clave" @onclick="IrACentros">
+                                        <Badge Tono="indicador.Tono" Tamano="indicador.Tamano">@indicador.Texto</Badge>
+                                    </button>
+                                </Disparador>
+                                <Detalle>
+                                    @foreach (var linea in indicador.Lineas)
+                                    {
+                                        <span class="ventana-linea">@linea</span>
+                                    }
+                                </Detalle>
+                            </VentanaContexto>
+                        }
+                    </span>
+                }
+            </Descripcion>
+            <Acciones>
+                @*
+                    Cliente no tiene ninguna acción que opere de verdad: solo el
+                    menú «⋯» con «Editar cliente», que abre el panel en
+                    Información (la página compone, el panel opera). El menú
+                    entero va dentro de SoloConEscritura: con su único elemento
+                    oculto quedaría un «⋯» que se abre vacío.
+                *@
+                <SoloConEscritura>
+                    <MenuAcciones>
+                        <ItemMenuAccion OnClick="AbrirInformacionAsync">@Textos["EditarCliente"]</ItemMenuAccion>
+                    </MenuAcciones>
+                </SoloConEscritura>
+            </Acciones>
+        </CabeceraPagina>
+
+        <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
+            <ChildContent>
+                <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaPestanas"]">
+                    @switch (_pestanaActiva)
+                    {
+                        case "centros":
+                            @if (_cargandoCentros)
+                            {
+                                <EstadoCargando Filas="3" />
+                            }
+                            else if (_errorCentros)
+                            {
+                                <EstadoVacio Titulo="@Textos["ErrorCentrosTitulo"]" Descripcion="@Textos["ErrorListaDescripcion"]">
+                                    <Accion>
+                                        <Boton OnClick="ReintentarCentrosAsync">@Textos["Reintentar"]</Boton>
+                                    </Accion>
+                                </EstadoVacio>
+                            }
+                            else if (_centros is { Count: 0 })
+                            {
+                                <EstadoVacio Titulo="@Textos["SinCentrosTitulo"]" Descripcion="@Textos["SinCentrosDescripcion"]" />
+                            }
+                            else if (_centros is not null)
+                            {
+                                <p class="cliente360-resumen-lista">@ResumenCentros</p>
+                                <ListaRelaciones Etiqueta="@Textos["ListaCentros"]">
+                                    @foreach (var centro in _centros)
+                                    {
+                                        <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" NombreIcono="centros"
+                                                      OnAbrir360="() => AbrirCentroAsync(centro)">
+                                            <Detalle>@DetalleCentro(centro)</Detalle>
+                                            <Derecha>
+                                                <span class="cliente360-cumplimiento" title="@Textos["CumplimientoCentro"]">
+                                                    @(centro.CumplimientoPorcentaje is { } porcentaje ? $"{porcentaje} %" : Textos["CentroSinRequisitos"])
+                                                </span>
+                                                <Badge Tono="EstadoCentroUi.Tono(centro.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(centro.Estado)</Badge>
+                                            </Derecha>
+                                        </FilaRelacion>
+                                    }
+                                </ListaRelaciones>
+                            }
+                            break;
+
+                        case "empresas":
+                            @if (_cargandoEmpresas)
+                            {
+                                <EstadoCargando Filas="3" />
+                            }
+                            else if (_errorEmpresas)
+                            {
+                                <EstadoVacio Titulo="@Textos["ErrorEmpresasTitulo"]" Descripcion="@Textos["ErrorListaDescripcion"]">
+                                    <Accion>
+                                        <Boton OnClick="ReintentarEmpresasAsync">@Textos["Reintentar"]</Boton>
+                                    </Accion>
+                                </EstadoVacio>
+                            }
+                            else if (_empresas is { Count: 0 })
+                            {
+                                <EstadoVacio Titulo="@Textos["SinEmpresasTitulo"]" Descripcion="@Textos["SinEmpresasDescripcion"]" />
+                            }
+                            else if (_empresas is not null)
+                            {
+                                <p class="cliente360-resumen-lista">@Plural(_empresas.Count, "ResumenEmpresasUno", "ResumenEmpresasVarios")</p>
+                                <ListaRelaciones Etiqueta="@Textos["ListaEmpresas"]">
+                                    @foreach (var empresa in _empresas)
+                                    {
+                                        <FilaRelacion @key="empresa.Id" Nombre="@empresa.RazonSocial" Href="@($"/empresas/{empresa.Id}")" NombreIcono="empresas"
+                                                      OnAbrir360="() => AbrirEmpresaAsync(empresa)">
+                                            <Detalle>@(string.IsNullOrWhiteSpace(empresa.Cif) ? "—" : empresa.Cif)</Detalle>
+                                        </FilaRelacion>
+                                    }
+                                </ListaRelaciones>
+                            }
+                            break;
+
+                        case "subcontratas":
+                            @if (_cargandoSubcontratas)
+                            {
+                                <EstadoCargando Filas="3" />
+                            }
+                            else if (_errorSubcontratas)
+                            {
+                                <EstadoVacio Titulo="@Textos["ErrorSubcontratasTitulo"]" Descripcion="@Textos["ErrorListaDescripcion"]">
+                                    <Accion>
+                                        <Boton OnClick="ReintentarSubcontratasAsync">@Textos["Reintentar"]</Boton>
+                                    </Accion>
+                                </EstadoVacio>
+                            }
+                            else if (_subcontratas is { Count: 0 })
+                            {
+                                <EstadoVacio Titulo="@Textos["SinSubcontratasTitulo"]" Descripcion="@Textos["SinSubcontratasDescripcion"]" />
+                            }
+                            else if (_subcontratas is not null)
+                            {
+                                @*
+                                    Subcontrata 360 todavía no tiene página: hasta
+                                    entonces el nombre abre el panel, igual que el
+                                    botón 360 (anotación NAVEGACIÓN del mockup).
+                                *@
+                                <p class="cliente360-resumen-lista">@Plural(_subcontratas.Count, "ResumenSubcontratasUno", "ResumenSubcontratasVarios")</p>
+                                <ListaRelaciones Etiqueta="@Textos["ListaSubcontratas"]">
+                                    @foreach (var subcontrata in _subcontratas)
+                                    {
+                                        <FilaRelacion @key="subcontrata.Id" Nombre="@subcontrata.RazonSocial" NombreIcono="subcontratas"
+                                                      OnNombre="() => AbrirSubcontrataAsync(subcontrata)"
+                                                      OnAbrir360="() => AbrirSubcontrataAsync(subcontrata)" />
+                                    }
+                                </ListaRelaciones>
+                            }
+                            break;
+
+                        case "blindaje42":
+                            <PestanaBlindaje42 EntidadId="ClienteId" />
+                            break;
+
+                        case "documentacion":
+                            <PestanaDocumentacion Ambito="AmbitoAplicacion.Cliente" PropietarioId="ClienteId" />
+                            break;
+
+                        case "agenda":
+                            <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Cliente" PropietarioId="ClienteId" />
+                            break;
+
+                        case "historial":
+                            <PestanaHistorial EntidadTipo="Cliente" EntidadId="ClienteId" />
+                            break;
+                    }
+                </Pestanas>
+            </ChildContent>
+            <Lateral>
+                @*
+                    Razón social y CIF ya están en la cabecera: no se repiten.
+                    Del mockup de panel no entran, igual que en el panel, Alias y
+                    Domicilio (sin columna), Portal principal (el portal es del
+                    Centro), el Gestor CAE (deuda terminológica congelada por
+                    TerminologiaCanonicaTests) ni Cumplimiento (sin dato por
+                    Cliente empresarial).
+                *@
+                <Tarjeta Compacta="true" Titulo="@Textos["TarjetaInformacion"]">
+                    <AccionesHeader>
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirInformacionAsync">@Textos["EditarEnlace"]</Boton>
+                        </SoloConEscritura>
+                    </AccionesHeader>
+                    <ChildContent>
+                        <RejillaDatos>
+                            <DatoRejilla Etiqueta="@Textos["Critico"]" Valor="@(_detalle.EsCritico ? Textos["Si"] : Textos["No"])" />
+                            <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
+                        </RejillaDatos>
+                    </ChildContent>
+                </Tarjeta>
+
+                @*
+                    «Notas» es una sola columna (ClienteDetalleDto.Notas): la
+                    tarjeta la enseña y «Editar →» abre el panel en la pestaña
+                    Notas. Sin historial con fecha y autor: no existe entidad Nota.
+                *@
+                <Tarjeta Compacta="true" Titulo="@Textos["TarjetaNota"]">
+                    <AccionesHeader>
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirNotasAsync">@Textos["EditarEnlace"]</Boton>
+                        </SoloConEscritura>
+                    </AccionesHeader>
+                    <ChildContent>
+                        @if (string.IsNullOrWhiteSpace(_detalle.Notas))
+                        {
+                            <p class="texto-vacio-seccion cliente360-nota">@Textos["SinNota"]</p>
+                        }
+                        else
+                        {
+                            <p class="cliente360-nota">@_detalle.Notas</p>
+                        }
+                        <p class="cliente360-nota-pie">@Textos["NotaSoloEquipo"]</p>
+                    </ChildContent>
+                </Tarjeta>
+            </Lateral>
+        </CuerpoConLateral>
+    }
+</div>

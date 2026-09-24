@@ -91,6 +91,8 @@ public class EmpresasVacioPorFiltroTests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Empresas = empresas });
         Services.AddScoped<ToastService>();
+        // Empresas pinta con IStringLocalizer<TextosEmpresas> (la «Vista rápida» del menú de fila).
+        Services.AddLocalization();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearEmpresaCommand>>(_ => new InlineValidator<CrearEmpresaCommand>());
@@ -212,7 +214,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
         // vacío — daría lo mismo que el ítem existiera o no.
         cut.Find(".menu-acciones-disparador").Click();
 
-        cut.Markup.Should().Contain("Abrir Empresa 360",
+        cut.Markup.Should().Contain("Vista rápida",
             "el menú abierto es la barrera que hace válida la comprobación siguiente");
         cut.Markup.Should().NotContain("Detección de trabajadores");
     }

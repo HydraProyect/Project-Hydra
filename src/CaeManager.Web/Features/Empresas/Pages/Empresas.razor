@@ -18,10 +18,13 @@
 @using MediatR
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Empresas.Components
+@using CaeManager.Web.Features.Empresas.Recursos
+@using Microsoft.Extensions.Localization
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ContextWorkspaceService WorkspaceService
 @inject ICurrentUserService CurrentUserService
+@inject IStringLocalizer<TextosEmpresas> Textos
 
 <PageTitle>@_tituloPagina — @Marca.Nombre</PageTitle>
 
@@ -199,9 +202,12 @@
                            EmpresaListaDto no trae ni el CNAE ni el Anexo I (viven en
                            el detalle, y el panel de vista previa ya los enseña), así
                            que no se copia: sería una consulta más por fila. *@
-                        <button type="button" class="enlace-nombre-fila celda-empresa" @onclick='() => AbrirPreview(empresa.Id)'>
+                        @* El nombre es un enlace real a Empresa 360 (decisión del propietario
+                           2026-09-22: cada 360 tiene página propia); el panel de 520 px queda en
+                           «Vista rápida» del menú de la fila, como en la lista Clientes. *@
+                        <a class="enlace-nombre-fila celda-empresa" href="@($"/empresas/{empresa.Id}")">
                             @empresa.RazonSocial
-                        </button>
+                        </a>
                         <span class="tarjeta-fila-acordeon-meta celda-empresa">@(empresa.Cif ?? "—")</span>
                         @* Cumplimiento antes que Documentación, en el orden del mockup. Cada
                            celda va envuelta para que la rejilla tenga SIEMPRE el mismo número
@@ -238,11 +244,11 @@
                            siempre sería un cambio de producto que nadie ha decidido. *@
                         <div class="tarjeta-fila-acordeon-acciones">
                             <MenuAcciones>
-                                <ItemMenuAccion OnClick="() => AbrirPreview(empresa.Id)">
-                                    Detalles
+                                <ItemMenuAccion OnClick="() => AbrirVistaRapidaAsync(empresa.Id)">
+                                    @Textos["VistaRapida"]
                                 </ItemMenuAccion>
-                                <ItemMenuAccion OnClick='() => AbrirDesdePreviewAsync((empresa.Id, "informacion"))'>
-                                    Abrir Empresa 360
+                                <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}")'>
+                                    @Textos["AbrirEmpresa360"]
                                 </ItemMenuAccion>
                                 @if (empresa.DeteccionesPendientes > 0)
                                 {
@@ -365,4 +371,3 @@
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
-<EmpresaPreviewDrawer EmpresaId="_previewEmpresaId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" OnOperar="AbrirDesdePreviewAsync" />

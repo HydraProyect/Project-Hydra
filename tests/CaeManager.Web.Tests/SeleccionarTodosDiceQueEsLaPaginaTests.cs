@@ -82,6 +82,8 @@ public class SeleccionarTodosDiceQueEsLaPaginaTests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Pagina = pagina, TotalFiltrado = totalFiltrado });
         Services.AddScoped<ToastService>();
+        // Empresas pinta con IStringLocalizer<TextosEmpresas> (la «Vista rápida» del menú de fila).
+        Services.AddLocalization();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearEmpresaCommand>>(_ => new InlineValidator<CrearEmpresaCommand>());
