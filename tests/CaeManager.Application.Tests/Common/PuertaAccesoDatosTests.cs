@@ -71,14 +71,16 @@ public class PuertaAccesoDatosTests
         // lanza la segunda hija podía quedar desalojado más de 20 ms, la
         // primera terminaba antes y el test daba false sin que el diseño
         // hubiera cambiado. Ahora ninguna hija sale hasta que la otra ha
-        // entrado; el plazo solo se agota si la segunda no puede entrar
-        // mientras la primera sigue dentro — que es justo lo que este test
-        // debe detectar — y no interviene en el camino verde.
+        // entrado, y entre el lanzamiento de una y otra no corre ningún reloj:
+        // la vía de escape solo se arma después de lanzar las dos, y solo si
+        // la segunda no ha entrado — que es justo lo que este test debe
+        // detectar. Hoy la rama reentrante es síncrona hasta el primer await
+        // de la hija, así que la escape nunca se arma en el camino verde.
         var puerta = new PuertaAccesoDatos();
         var enVuelo = 0;
         var huboSolape = false;
         var ambasDentro = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var plazo = Task.Delay(TimeSpan.FromSeconds(10));
+        var escape = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         async Task Hija()
         {
@@ -87,13 +89,17 @@ public class PuertaAccesoDatosTests
                 huboSolape = true;
                 ambasDentro.TrySetResult();
             }
-            await Task.WhenAny(ambasDentro.Task, plazo);
+            await Task.WhenAny(ambasDentro.Task, escape.Task);
             Interlocked.Decrement(ref enVuelo);
         }
 
-        await puerta.EjecutarAsync(() => Task.WhenAll(
-            puerta.EjecutarAsync(Hija),
-            puerta.EjecutarAsync(Hija)));
+        await puerta.EjecutarAsync(() =>
+        {
+            var hijas = Task.WhenAll(puerta.EjecutarAsync(Hija), puerta.EjecutarAsync(Hija));
+            if (!ambasDentro.Task.IsCompleted)
+                _ = Task.Delay(TimeSpan.FromSeconds(10)).ContinueWith(_ => escape.TrySetResult(), TaskScheduler.Default);
+            return hijas;
+        });
 
         huboSolape.Should().BeTrue(
             "es la limitación conocida documentada en ROADMAP.md — si empieza a dar false, el diseño cambió");
