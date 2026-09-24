@@ -155,4 +155,30 @@ public class ValidadorIdentificacionTests
         if (loAceptabaElCriterioAnterior)
             ValidadorIdentificacion.EsIdentificacionFiscalValida(documento).Should().BeTrue();
     }
+
+    [Theory]
+    [InlineData("12345678", 'Z')]
+    [InlineData("12345678A", 'Z')]
+    [InlineData("1233443F", 'E')]
+    [InlineData("01233443", 'E')]
+    [InlineData("x1234567", 'L')]
+    [InlineData("Y1234567A", 'X')]
+    [InlineData("Z1234567", 'R')]
+    public void Calcula_la_letra_que_corresponde_a_un_dni_o_nie(string documento, char esperada)
+    {
+        // La letra que traiga el documento se ignora: lo que se pide es la que debería
+        // llevar. El DNI de siete dígitos es el mismo número con el cero delante.
+        ValidadorIdentificacion.LetraControlEsperada(documento).Should().Be(esperada);
+    }
+
+    [Theory]
+    [InlineData("B12345674")]
+    [InlineData("PAA123456")]
+    [InlineData("123456")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void No_calcula_letra_de_lo_que_no_es_un_dni_ni_un_nie(string? documento)
+    {
+        ValidadorIdentificacion.LetraControlEsperada(documento).Should().BeNull();
+    }
 }
