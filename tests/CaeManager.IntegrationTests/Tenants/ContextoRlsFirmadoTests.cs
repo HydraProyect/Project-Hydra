@@ -137,7 +137,7 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
     public async Task Manipular_el_Tenant_del_token_falla_con_42501()
     {
         await using var conexion = await AbrirComoRuntimeAsync();
-        var token = await _firmante.FirmarAsync(conexion, Contexto(_tenants[0]), CancellationToken.None);
+        var token = (await _firmante.FirmarAsync(conexion, Contexto(_tenants[0]), CancellationToken.None)).Token;
         var manipulado = token.Replace(_tenants[0].ToString("D"), _tenants[1].ToString("D"), StringComparison.Ordinal);
         manipulado.Should().NotBe(token);
 
@@ -150,7 +150,7 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
     public async Task Un_token_firmado_para_otra_conexion_falla_con_42501()
     {
         await using var original = await AbrirComoRuntimeAsync();
-        var token = await _firmante.FirmarAsync(original, Contexto(_tenants[0]), CancellationToken.None);
+        var token = (await _firmante.FirmarAsync(original, Contexto(_tenants[0]), CancellationToken.None)).Token;
 
         await using var otra = await AbrirComoRuntimeAsync();
         otra.ProcessID.Should().NotBe(original.ProcessID);
@@ -170,7 +170,7 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
             FirmanteContextoRls.TtlPorDefecto, FirmanteContextoRls.RotacionPorDefecto);
 
         await using var conexion = await AbrirComoRuntimeAsync();
-        var token = await firmanteAtrasado.FirmarAsync(conexion, Contexto(_tenants[0]), CancellationToken.None);
+        var token = (await firmanteAtrasado.FirmarAsync(conexion, Contexto(_tenants[0]), CancellationToken.None)).Token;
         await FijarGucAsync(conexion, "app.contexto", token);
 
         await DebeFallarCon42501Async(() => ContarRaicesAsync(conexion), "caducado");
@@ -191,7 +191,7 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
     public async Task Un_contexto_local_desaparece_al_cerrar_la_transaccion()
     {
         await using var conexion = await AbrirComoRuntimeAsync();
-        var token = await _firmante.FirmarAsync(conexion, Contexto(_tenants[0]), CancellationToken.None);
+        var token = (await _firmante.FirmarAsync(conexion, Contexto(_tenants[0]), CancellationToken.None)).Token;
 
         await using (var transaccion = await conexion.BeginTransactionAsync())
         {
@@ -423,6 +423,24 @@ VALUES (@id, ARRAY['control'], ARRAY[]::text[], @actor, now(), gen_random_uuid()
         }
     }
 
+    [Fact]
+    public async Task Un_token_firmado_sin_confirmar_no_deja_contexto_en_memoria()
+    {
+        // Hallazgo P2 de Codex (ronda 2): si el set_config inicial falla o se
+        // cancela, la memoria no puede describir un contexto que la base no
+        // tiene. Sin Confirmar, sellar no encuentra contexto que tocar.
+        await using var conexion = await AbrirComoRuntimeAsync();
+        var pendiente = await _firmante.FirmarAsync(conexion, Contexto(_tenants[0]), CancellationToken.None);
+
+        (await FirmanteContextoRls.FirmarConTenantAsync(conexion, _tenants[1], CancellationToken.None))
+            .Should().BeNull("el token no llegó a la base, así que la conexión no tiene contexto firmado");
+
+        pendiente.Confirmar();
+
+        (await FirmanteContextoRls.FirmarConTenantAsync(conexion, _tenants[1], CancellationToken.None))
+            .Should().NotBeNull("tras confirmar, la conexión sí tiene contexto de base");
+    }
+
     // ── Andamiaje ─────────────────────────────────────────────────────────
 
     private static ContextoSesionRls Contexto(Guid tenant) =>
@@ -430,7 +448,7 @@ VALUES (@id, ARRAY['control'], ARRAY[]::text[], @actor, now(), gen_random_uuid()
 
     private async Task FijarContextoAsync(NpgsqlConnection conexion, ContextoSesionRls contexto)
     {
-        var token = await _firmante.FirmarAsync(conexion, contexto, CancellationToken.None);
+        var token = (await _firmante.FirmarAsync(conexion, contexto, CancellationToken.None)).Token;
         await FijarGucAsync(conexion, "app.contexto", token);
     }
 

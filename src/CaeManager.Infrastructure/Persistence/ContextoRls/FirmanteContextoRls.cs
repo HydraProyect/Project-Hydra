@@ -83,14 +83,20 @@ public sealed class FirmanteContextoRls
 
     /// <summary>
     /// Firma <paramref name="contexto"/> para esta conexión (ya abierta: el
-    /// token se ata a su <c>ProcessID</c>) y lo recuerda como contexto de base.
-    /// Devuelve el valor que el llamante escribe en <c>app.contexto</c>.
+    /// token se ata a su <c>ProcessID</c>). El llamante escribe
+    /// <see cref="TokenPendiente.Token"/> en <c>app.contexto</c> y solo después
+    /// invoca <see cref="TokenPendiente.Confirmar"/>, que lo recuerda como
+    /// contexto de base de la conexión. Si el <c>set_config</c> falla o se
+    /// cancela, la conexión se queda sin estado en memoria, igual que en la
+    /// base, y renovar o sellar no tienen nada que tocar (hallazgo P2 de Codex,
+    /// ronda 2).
     /// </summary>
-    public async Task<string> FirmarAsync(NpgsqlConnection conexion, ContextoSesionRls contexto, CancellationToken ct)
+    public async Task<TokenPendiente> FirmarAsync(NpgsqlConnection conexion, ContextoSesionRls contexto, CancellationToken ct)
     {
         var token = await ConstruirAsync(conexion, contexto, ct);
-        EstadoPorConexion.AddOrUpdate(conexion, new EstadoConexion(this, contexto, contexto, _reloj.GetUtcNow()));
-        return token;
+        var firmadoEn = _reloj.GetUtcNow();
+        return new TokenPendiente(token, () =>
+            EstadoPorConexion.AddOrUpdate(conexion, new EstadoConexion(this, contexto, contexto, firmadoEn)));
     }
 
     /// <summary>
