@@ -104,4 +104,49 @@ public class ReclamacionBuzonIntegracionRepositoryGuardaUnicidadTests : IAsyncLi
         (await reclamacionRepositorioB.GuardarCambiosSiBuzonLibreAsync()).Should().BeTrue(
             "son dos buzones distintos, la guarda de unicidad no debe interferir entre ellos");
     }
+
+    /// <summary>
+    /// Punto 3 de la revisión Codex sobre PR #820: el catch genérico de
+    /// <see cref="ReclamacionBuzonIntegracionRepository.GuardarCambiosSiBuzonLibreAsync"/>
+    /// debe limpiar el <c>ChangeTracker</c> también cuando el
+    /// <see cref="DbUpdateException"/> viene de OTRO índice único ajeno al
+    /// buzón (aquí, (TenantId, Nombre) de ConexionIntegracion) — y relanzar,
+    /// no tragarse el fallo real del plan.
+    /// </summary>
+    [Fact]
+    public async Task Un_fallo_de_guardado_ajeno_al_buzon_se_relanza_y_limpia_el_change_tracker()
+    {
+        await using (var contextoPrevio = CrearContexto(_tenantA))
+        {
+            contextoPrevio.ConexionesIntegracion.Add(new ConexionIntegracion("cae@arcosspa.com", "Buzón CAE"));
+            await contextoPrevio.SaveChangesAsync();
+        }
+
+        await using var contexto = CrearContexto(_tenantA);
+        var conexionConNombreDuplicado = new ConexionIntegracion("otro-buzon@arcosspa.com", "Buzón CAE");
+        contexto.ConexionesIntegracion.Add(conexionConNombreDuplicado);
+        var reclamacionRepositorio = new ReclamacionBuzonIntegracionRepository(contexto);
+        reclamacionRepositorio.Reclamar(
+            new ReclamacionBuzonIntegracion(conexionConNombreDuplicado.BuzonEmail, _tenantA, conexionConNombreDuplicado.Id, DateTime.UtcNow));
+
+        await FluentActions.Awaiting(() => reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync())
+            .Should().ThrowAsync<DbUpdateException>("(TenantId, Nombre) es un índice único ajeno al de buzón y debe propagarse, no tragarse");
+
+        // El mismo DbContext (scoped por circuito Blazor) debe quedar limpio:
+        // una operación válida posterior en el mismo contexto no debe
+        // arrastrar la ConexionIntegracion/ReclamacionBuzonIntegracion del
+        // intento fallido.
+        var conexionValidaPosterior = new ConexionIntegracion("valida-despues@arcosspa.com", "Otro nombre distinto");
+        contexto.ConexionesIntegracion.Add(conexionValidaPosterior);
+        var reclamacionRepositorioPosterior = new ReclamacionBuzonIntegracionRepository(contexto);
+        reclamacionRepositorioPosterior.Reclamar(
+            new ReclamacionBuzonIntegracion(conexionValidaPosterior.BuzonEmail, _tenantA, conexionValidaPosterior.Id, DateTime.UtcNow));
+
+        (await reclamacionRepositorioPosterior.GuardarCambiosSiBuzonLibreAsync()).Should().BeTrue(
+            "sin el Clear(), la ConexionIntegracion del intento fallido seguiría trackeada como Added y este SaveChangesAsync fallaría también");
+
+        await using var contextoVerificacion = CrearContexto(_tenantA);
+        (await contextoVerificacion.ConexionesIntegracion.AnyAsync(c => c.Id == conexionConNombreDuplicado.Id)).Should().BeFalse(
+            "la conexión del intento fallido no debe haberse persistido");
+    }
 }

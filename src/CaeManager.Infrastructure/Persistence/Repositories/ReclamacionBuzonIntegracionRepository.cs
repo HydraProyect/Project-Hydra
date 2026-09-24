@@ -36,6 +36,18 @@ public class ReclamacionBuzonIntegracionRepository(CaeManagerDbContext dbContext
             dbContext.ChangeTracker.Clear();
             return false;
         }
+        // Cualquier otro fallo de SaveChangesAsync (p. ej. el índice único
+        // (TenantId, Nombre) de ConexionIntegracion) es un error real del
+        // plan y debe propagarse tal cual — pero el mismo razonamiento del
+        // Clear() de arriba aplica: sin él, el DbContext (scoped por
+        // circuito Blazor, no por request) arrastraría las entidades Added
+        // de este intento fallido a la siguiente operación del mismo
+        // circuito (hallazgo de la revisión Codex sobre PR #820).
+        catch (DbUpdateException)
+        {
+            dbContext.ChangeTracker.Clear();
+            throw;
+        }
     }
 
     public async Task LiberarAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default)

@@ -76,8 +76,18 @@ public class ConectarBuzonMicrosoft365CommandHandler(
         // GLOBAL de ReclamacionBuzonIntegracion (por diseño, ni siquiera
         // reconoce a su propio dueño) y devolvería el mensaje de "otra
         // organización" — engañoso cuando la organización es la misma.
+        //
+        // Excluye Deshabilitada (hallazgo P2, revisión Codex sobre PR #820):
+        // DesconectarBuzonCommand libera la reclamación pero NO borra la
+        // ConexionIntegracion — queda Deshabilitada. Bloquear también ese
+        // caso impediría reconectar desde cero cuando la suscripción de
+        // Graph anterior ya no existe, el único camino que
+        // ReactivarConexionCommand documenta para ese escenario (no crea una
+        // suscripción nueva por sí solo).
         var buzonNormalizado = request.BuzonEmail.Trim().ToLowerInvariant();
-        if (await queryContext.ConexionesIntegracion.AnyAsync(c => c.BuzonEmail.ToLower() == buzonNormalizado, cancellationToken))
+        if (await queryContext.ConexionesIntegracion.AnyAsync(
+                c => c.BuzonEmail.ToLower() == buzonNormalizado && c.Estado != EstadoConexionIntegracion.Deshabilitada,
+                cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion",
                 "Ya tienes una conexión con este buzón en esta organización. Desconéctala antes de volver a conectarla."));
