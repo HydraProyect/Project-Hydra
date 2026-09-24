@@ -413,6 +413,16 @@ public partial class Inicio : ComponentBase, IDisposable
             .Distinct()
             .Count();
 
+    /// <summary>
+    /// Aviso bajo el anillo cuando la consulta de KPI cuenta Centros de Trabajo
+    /// bloqueados (<see cref="KpisDashboardDto.CentrosBloqueados"/>, P2.4): el
+    /// porcentaje mide documentos vigentes y no puede leerse como acceso.
+    /// </summary>
+    private string TextoCentrosBloqueadosKpi => _kpis is not { CentrosBloqueados: > 0 } k ? string.Empty
+        : k.CentrosBloqueados == 1
+            ? "1 centro de trabajo con el acceso bloqueado: el porcentaje cuenta documentos, no acceso."
+            : $"{k.CentrosBloqueados} centros de trabajo con el acceso bloqueado: el porcentaje cuenta documentos, no acceso.";
+
     private string TextoCierreAtencion =>
         _proximoVencimiento is { } proximo
             ? $"Nada pendiente ahora mismo. Próximo vencimiento: {proximo.TipoDocumentoNombre} de {proximo.TrabajadorNombre}, el {proximo.FechaVencimiento:dd/MM/yyyy} ({TextoDias(proximo.DiasRestantes)})."
