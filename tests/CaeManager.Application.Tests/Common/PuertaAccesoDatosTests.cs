@@ -65,14 +65,29 @@ public class PuertaAccesoDatosTests
         // test es la prueba de que la carrera reaparece — y si algún día deja
         // de ser cierto (huboSolape empieza a dar false), el diseño cambió y
         // la nota de ROADMAP.md hay que actualizarla, no borrar este test.
+        //
+        // El solape se fuerza con una barrera en vez de esperar a que coincida
+        // por tiempo: con un Task.Delay(20), bajo CPU disputada el hilo que
+        // lanza la segunda hija podía quedar desalojado más de 20 ms, la
+        // primera terminaba antes y el test daba false sin que el diseño
+        // hubiera cambiado. Ahora ninguna hija sale hasta que la otra ha
+        // entrado; el plazo solo se agota si la segunda no puede entrar
+        // mientras la primera sigue dentro — que es justo lo que este test
+        // debe detectar — y no interviene en el camino verde.
         var puerta = new PuertaAccesoDatos();
         var enVuelo = 0;
         var huboSolape = false;
+        var ambasDentro = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var plazo = Task.Delay(TimeSpan.FromSeconds(10));
 
         async Task Hija()
         {
-            if (Interlocked.Increment(ref enVuelo) > 1) huboSolape = true;
-            await Task.Delay(20);
+            if (Interlocked.Increment(ref enVuelo) > 1)
+            {
+                huboSolape = true;
+                ambasDentro.TrySetResult();
+            }
+            await Task.WhenAny(ambasDentro.Task, plazo);
             Interlocked.Decrement(ref enVuelo);
         }
 
