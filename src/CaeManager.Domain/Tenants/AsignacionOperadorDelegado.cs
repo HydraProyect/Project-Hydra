@@ -21,14 +21,20 @@ namespace CaeManager.Domain.Tenants;
 /// AutorizacionEscrituraBehavior) — la validación de que sea un código de rol
 /// conocido vive en el validador del Command, no aquí.
 ///
-/// <b>Revocación (decisión del propietario 2026-09-23, P8).</b> Una asignación
-/// revocada se conserva como historial y nunca se borra, igual que
-/// <see cref="DelegacionTenant.Desactivar"/> desactiva en vez de borrar. No
-/// hay operación inversa: revocar es definitivo, y para volver a operar se
-/// crea una asignación nueva con un rol delegable. Los lectores no la ven: el
-/// DbContext expone la tabla filtrada a las no revocadas, y el índice único
-/// (delegación, usuario) solo cuenta las no revocadas, para que la revocada no
-/// impida esa asignación nueva.
+/// <b>Revocación (decisión del propietario 2026-09-23, P8).</b> Las filas
+/// heredadas que concedían un rol de Propiedad (Administrador, Dirección CAE)
+/// se revocan con <see cref="Revocar"/> en vez de borrarse, igual que
+/// <see cref="DelegacionTenant.Desactivar"/> desactiva en vez de borrar: la
+/// revocada se conserva como historial. No hay operación inversa: revocar es
+/// definitivo, y para volver a operar se crea una asignación nueva con un rol
+/// delegable. Los lectores no la ven: el DbContext expone la tabla filtrada a
+/// las no revocadas, y el índice único (delegación, usuario) solo cuenta las no
+/// revocadas, para que la revocada no impida esa asignación nueva.
+///
+/// Retirar a una persona de una delegación por la vía ordinaria
+/// (<c>RevocarAsignacionOperadorDelegadoCommand</c>) sigue siendo un borrado
+/// físico, tal como documenta <see cref="IAsignacionOperadorDelegadoRepository.Eliminar"/>;
+/// P8 no cambia esa regla.
 /// </summary>
 public class AsignacionOperadorDelegado : Entity
 {
