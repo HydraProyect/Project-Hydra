@@ -425,5 +425,78 @@ else
 fi
 
 echo
+echo "=== Bug 2026-09-24 (PR #868): la LECTURA INICIAL de una PR ilegible sigue fallando rápido con 64 ==="
+nueva_fixture_dir
+fixture PR_VIEW 1 "MOCK_ERROR"
+TIMEOUT_S_PRUEBA=600 ejecutar 130 --hasta merge
+PRUEBAS=$((PRUEBAS + 1))
+if [[ "$CODIGO" == "64" ]] && ! printf '%s\n' "$SALIDA" | grep -q '^VEREDICTO:' \
+   && ! grep -q "releyendo" "$TMP_ROOT/ultimo-stderr.log"; then
+  echo "OK: PR ilegible desde el principio -> 64 sin VEREDICTO y sin reintentos"
+else
+  echo "FALLO: se esperaba 64 inmediato sin VEREDICTO — obtenido código=$CODIGO salida='$SALIDA'" >&2
+  FALLOS=$((FALLOS + 1))
+fi
+
+echo
+echo "=== Bug 2026-09-24 (PR #868): fallo transitorio de gh pr view en la fase checks se reintenta ==="
+nueva_fixture_dir
+# 1: lectura inicial. 2: primera vuelta de fase_checks — falla. 3: reintento,
+# recuperado. 4: relectura previa al VERDE.
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+fixture PR_VIEW 2 "MOCK_ERROR"
+fixture PR_VIEW 3 "OPEN	AAA	CLEAN		"
+fixture PR_VIEW 4 "OPEN	AAA	CLEAN		"
+fixture_branch_protection 1
+fixture PR_CHECKS 1 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
+TIMEOUT_S_PRUEBA=600 ejecutar 131 --hasta checks
+assert_veredicto "un gh pr view fallido a mitad de fase checks no mata al vigía" VERDE 0 "AAA"
+
+echo
+echo "=== Bug 2026-09-24 (PR #868): fallo transitorio en la fase merge (PR en cola) se reintenta hasta ver MERGED ==="
+nueva_fixture_dir
+# 1: inicial. 2-3: fase checks (vuelta + relectura previa al VERDE).
+# 4: inicio de fase_merge. 5 y 6: la vuelta del bucle falla dos veces
+# seguidas — lo observado en #868 — y 7: gh se recupera y la PR ya está MERGED.
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+fixture PR_VIEW 2 "OPEN	AAA	CLEAN		"
+fixture PR_VIEW 3 "OPEN	AAA	CLEAN		"
+fixture PR_VIEW 4 "OPEN	AAA	CLEAN		"
+fixture PR_VIEW 5 "MOCK_ERROR"
+fixture PR_VIEW 6 "MOCK_ERROR"
+fixture PR_VIEW 7 "MERGED	AAA	MERGED	SHAFUSION	2026-09-24T10:00:00Z"
+fixture_branch_protection 1
+fixture PR_CHECKS 1 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
+fixture MERGE_QUEUE 1 $'AWAITING_CHECKS\tSINT1\tPENDING'
+TIMEOUT_S_PRUEBA=600 ejecutar 132 --hasta merge
+assert_veredicto "dos fallos seguidos de gh pr view y recuperación -> VERDE con el SHA de fusión" VERDE 0 "SHAFUSION"
+PRUEBAS=$((PRUEBAS + 1))
+if [[ "$(grep -c 'ERROR releyendo la PR' "$TMP_ROOT/ultimo-stderr.log")" == "2" ]]; then
+  echo "OK: los dos fallos transitorios quedaron registrados como reintentos"
+else
+  echo "FALLO: se esperaban exactamente 2 reintentos registrados" >&2
+  FALLOS=$((FALLOS + 1))
+fi
+
+echo
+echo "=== Bug 2026-09-24 (PR #868): fallo PERSISTENTE de gh pr view a mitad de espera -> TIMEOUT con el último estado, nunca sin VEREDICTO ==="
+nueva_fixture_dir
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+fixture PR_VIEW 2 "OPEN	AAA	CLEAN		"
+fixture PR_VIEW 3 "OPEN	AAA	CLEAN		"
+fixture PR_VIEW 4 "OPEN	AAA	BLOCKED		"
+# 5 en adelante: el mock repite la última fixture, así que gh falla siempre.
+fixture PR_VIEW 5 "MOCK_ERROR"
+fixture_branch_protection 1
+fixture PR_CHECKS 1 $'Check A\tpass' $'Check B\tpass' $'Check C\tpass'
+# El timeout global (30 s) queda muy por encima de los 5 intentos (~4 s): el
+# TIMEOUT tiene que venir del tope de reintentos, no del reloj — por eso se
+# exige "falló 5 veces".
+TIMEOUT_S_PRUEBA=30 ejecutar 133 --hasta merge
+assert_veredicto "gh pr view caído de forma persistente -> TIMEOUT de fase merge" TIMEOUT 3 "fase=merge"
+assert_veredicto "el TIMEOUT dice cuántas veces falló" TIMEOUT 3 "falló 5 veces"
+assert_veredicto "el TIMEOUT lleva la última lectura buena" TIMEOUT 3 "estado=OPEN head=AAA mergeStateStatus=BLOCKED"
+
+echo
 echo "Pruebas: $PRUEBAS · Fallos: $FALLOS"
 (( FALLOS == 0 )) || exit 1
