@@ -102,7 +102,7 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
             .UseNpgsql(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion))
             .AddInterceptors(
                 new TenantSelladoInterceptor(tenantDeLaPeticion),
-                new TenantRlsConnectionInterceptor(tenantDeLaPeticion, new SinClienteActivo(), usuario),
+                new TenantRlsConnectionInterceptor(tenantDeLaPeticion, new SinClienteActivo(), usuario, BaseDatosPostgresDePruebas.FirmanteContextoRls),
                 _contador)
             .Options;
         _runtime = new CaeManagerDbContext(opcionesRuntime, new EphemeralDataProtectionProvider(), tenantDeLaPeticion);
