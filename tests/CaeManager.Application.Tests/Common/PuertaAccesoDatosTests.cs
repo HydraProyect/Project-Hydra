@@ -118,15 +118,42 @@ public class PuertaAccesoDatosTests
         });
 
         await entroA.Task; // A ya tiene la puerta.
-        var tareaB = puerta.EjecutarAsync(() => Task.CompletedTask); // B queda en cola, de verdad esperando.
+        var entroB = false;
+        var tareaB = puerta.EjecutarAsync(() => { entroB = true; return Task.CompletedTask; }); // B queda en cola, de verdad esperando.
+        entroB.Should().BeFalse("con A dentro, B tiene que quedar esperando en el semáforo");
 
         liberarA.SetResult();
-        await tareaA;
+        await tareaA; // A ya soltó la puerta: desde aquí B debía estar concedida.
 
-        var ganadora = await Task.WhenAny(tareaB, Task.Delay(TimeSpan.FromSeconds(5)));
-        ganadora.Should().Be(tareaB, "sin Dispose no hay ninguna carrera que pueda colgar la espera de B");
+        var ganadora = await Task.WhenAny(tareaB, Task.Delay(PlazoDeCuelgue));
+        ganadora.Should().Be(tareaB,
+            "sin Dispose no hay ninguna carrera que pueda colgar la espera de B (B {0} llegó a entrar)",
+            entroB ? "sí" : "no");
         await tareaB; // no debe lanzar nada
+        entroB.Should().BeTrue();
     }
+
+    /// <summary>
+    /// Vigía de cuelgue, no espera de sincronización: los tests que lo usan
+    /// comprueban que una tarea termina en vez de colgarse para siempre, y en
+    /// verde el <c>Task.WhenAny</c> sale en cuanto la tarea termina, así que su
+    /// longitud solo cuesta tiempo cuando el test ya está en rojo. Un cuelgue
+    /// real es infinito, de modo que cualquier plazo finito lo detecta igual;
+    /// lo que el plazo NO puede es quedarse por debajo de la latencia de
+    /// planificación de la continuación de la tarea, que es el tiempo que
+    /// tarda el runner en darle un hilo y la máquina en darle CPU. Con 5 s
+    /// falló 1 de 6 vueltas de la suite completa con el proceso en prioridad
+    /// BelowNormal y 32 quemadores de CPU en 16 núcleos (2026-09-24): el
+    /// planificador de Windows puede dejar sin CPU un hilo de menor prioridad
+    /// varios segundos seguidos, y la cola del runner se suma a eso. Medido
+    /// bajo esa misma carga en 8 vueltas de la suite completa: entre liberar
+    /// A y que B terminara pasaron de 5,1 a 13,9 s, y el test reanudó como
+    /// mucho a los 14,9 s. Es decir, B superó los 5 s en las 8 vueltas; el
+    /// plazo antiguo solo pasaba cuando el temporizador del Task.Delay,
+    /// igual de hambriento, llegaba todavía más tarde. 60 s son 4 veces el
+    /// máximo medido y no alargan ningún test en verde.
+    /// </summary>
+    private static readonly TimeSpan PlazoDeCuelgue = TimeSpan.FromSeconds(60);
 
     [Fact]
     public async Task Cancelar_la_espera_justo_antes_de_que_el_ocupante_libere_nunca_ejecuta_la_operacion()
@@ -224,7 +251,7 @@ public class PuertaAccesoDatosTests
 
         var tardia = puerta.EjecutarAsync(() => Task.CompletedTask);
 
-        var terminada = await Task.WhenAny(tardia, Task.Delay(TimeSpan.FromSeconds(5)));
+        var terminada = await Task.WhenAny(tardia, Task.Delay(PlazoDeCuelgue));
         terminada.Should().BeSameAs(tardia, "la puerta cerrada cancela sin encolar");
         await FluentActions.Awaiting(() => tardia).Should().ThrowAsync<OperationCanceledException>();
         nuncaTermina.SetResult();
