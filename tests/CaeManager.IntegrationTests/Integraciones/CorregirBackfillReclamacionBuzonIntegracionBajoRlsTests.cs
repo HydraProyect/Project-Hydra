@@ -36,7 +36,7 @@ namespace CaeManager.IntegrationTests.Integraciones;
 /// </summary>
 public class CorregirBackfillReclamacionBuzonIntegracionBajoRlsTests : IAsyncLifetime
 {
-    private const string MigracionAntesDeLaCorreccion = "BackfillReclamacionBuzonIntegracionDesdeConexionesExistentes";
+    private const string MigracionAntesDeLaCorreccion = "RetirarDniDeRecientesDeTrabajador";
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
     public async Task InitializeAsync()
