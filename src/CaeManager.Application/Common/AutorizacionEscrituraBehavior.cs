@@ -6,7 +6,9 @@ namespace CaeManager.Application.Common;
 
 /// <summary>
 /// Pipeline behavior de MediatR: solo los roles con capacidad de escritura
-/// ejecutan Commands (ver Roles.cs en CaeManager.Infrastructure.Identity).
+/// ejecutan Commands (ver Roles.cs en CaeManager.Infrastructure.Identity),
+/// salvo los marcados <see cref="IComandoDeAutoservicio"/>, que admiten
+/// cualquier rol reconocido (ver "Autoservicio" más abajo).
 /// Los literales de rol se repiten aquí a propósito: Application no puede
 /// referenciar Infrastructure.Identity.Roles sin invertir la dependencia
 /// entre capas.
@@ -64,6 +66,16 @@ namespace CaeManager.Application.Common;
 /// resuelve, el rol efectivo de un contexto privilegiado es <c>null</c> y se
 /// deniega por lista blanca.
 ///
+/// <b>Autoservicio: la única salida de la lista de escritura, y solo del rol.</b>
+/// Un <see cref="IComandoDeAutoservicio"/> escribe solo datos del propio usuario
+/// (aceptar sus términos, sus filtros, sus preferencias, sus notificaciones), y
+/// pasa con cualquier rol reconocido, incluidos Consulta y Cliente. Sin esto, un
+/// usuario Consulta que aún no hubiera aceptado los términos quedaba atascado
+/// detrás de <c>AceptacionTerminosGate</c>, que es bloqueante. La exención va
+/// después de la rama de sesión privilegiada —el soporte de plataforma no
+/// escribe ni lo suyo— y no alcanza a un rol nulo o desconocido: la lista blanca
+/// sigue mandando, lo que cambia es que no exige un rol de escritura.
+///
 /// <b>La escritura sí exige inmediatez (REC-067, DEC-44).</b> La resolución de
 /// sesión se memoiza por ámbito de DI —petición en HTTP, circuito entero en
 /// Blazor Server— igual que el resto de la resolución de alcance, así que un
@@ -98,6 +110,11 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
     private static readonly string[] RolesConEscritura =
         ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
 
+    // Todos los roles que existen (Roles.Todos): un IComandoDeAutoservicio pasa con
+    // cualquiera de ellos; null o un valor desconocido siguen sin escribir.
+    private static readonly string[] RolesReconocidos =
+        [.. RolesConEscritura, "Consulta", "Cliente"];
+
     public async Task<TResponse> Handle(
         TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
@@ -131,7 +148,9 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
 
         var rol = await currentUserService.ObtenerRolEfectivoAsync();
 
-        if (rol is null || !RolesConEscritura.Contains(rol))
+        var rolesAdmitidos = request is IComandoDeAutoservicio ? RolesReconocidos : RolesConEscritura;
+
+        if (rol is null || !rolesAdmitidos.Contains(rol))
         {
             var error = Error.Crear(
                 "Autorizacion.SoloLectura",
