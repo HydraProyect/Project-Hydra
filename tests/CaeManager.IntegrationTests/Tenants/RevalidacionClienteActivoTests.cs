@@ -177,6 +177,54 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         httpContext.Items.ContainsKey(AvisoFinDeAcceso.ClaveItems).Should().BeFalse();
     }
 
+    /// <summary>
+    /// La carrera del CI de main de 83005ee3 (2026-09-24): caducada la ventana,
+    /// una petición de fondo de la página abierta llegó antes que la recarga,
+    /// retiró la selección y borró la cookie; la página siguiente ya no tenía
+    /// nada que revalidar y salió «Acceso denegado» sin decir por qué.
+    /// </summary>
+    [Theory]
+    [InlineData("/_blazor/initializers")]
+    [InlineData("/js/trazaSoporte.js")]
+    public async Task Una_peticion_sin_pagina_retira_la_seleccion_pero_deja_el_aviso_a_la_siguiente_pagina(string ruta)
+    {
+        await RetirarLaAsignacionOrdinariaAsync();
+        await AbrirVentanaDeSoporteAsync(TimeSpan.FromMinutes(-1));
+
+        await using (var contextoFondo = CrearContexto())
+        {
+            var (fondo, seleccionFondo) = PrepararPeticionConTokenValido(pidePagina: false);
+            fondo.Request.Path = ruta;
+
+            await EjecutarMiddlewareAsync(fondo, seleccionFondo, contextoFondo);
+
+            // El acceso no espera a la página: en esta misma petición ya no hay selección.
+            seleccionFondo.TenantIdSeleccionado.Should().BeNull();
+            CabeceraDeBorradoDeCookie(fondo).Should().BeNull("la cookie la retira la página que puede contarlo");
+            fondo.Items.Should().NotContainKey(AvisoFinDeAcceso.ClaveItems);
+        }
+
+        // La página siguiente trae todavía la cookie: vuelve a revalidar, la retira y avisa.
+        await using var contexto = CrearContexto();
+        var (pagina, seleccion) = PrepararPeticionConTokenValido();
+
+        await EjecutarMiddlewareAsync(pagina, seleccion, contexto);
+
+        seleccion.TenantIdSeleccionado.Should().BeNull();
+        CabeceraDeBorradoDeCookie(pagina).Should().NotBeNull();
+        pagina.Items[AvisoFinDeAcceso.ClaveItems].Should().Be(MotivoFinDeAcceso.VentanaDeSoporte);
+    }
+
+    [Fact]
+    public void La_navegacion_mejorada_de_Blazor_cuenta_como_pagina()
+    {
+        var peticion = new DefaultHttpContext().Request;
+        peticion.Path = "/clientes";
+        peticion.Headers.Accept = "text/html; blazor-enhanced-nav=on";
+
+        RevalidacionClienteActivoMiddleware.PuedePintarElAviso(peticion).Should().BeTrue();
+    }
+
     private async Task RetirarLaAsignacionOrdinariaAsync()
     {
         await using var contexto = CrearContexto();
@@ -573,12 +621,26 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     /// Token emitido por la propia clase de producción, no uno inventado: si
     /// el formato cambia, el test cambia con él.
     /// </summary>
-    private (DefaultHttpContext, ClienteActivoSeleccionado) PrepararPeticionConTokenValido(Guid? asignacionOperacionId = null)
+    private (DefaultHttpContext, ClienteActivoSeleccionado) PrepararPeticionConTokenValido(
+        Guid? asignacionOperacionId = null, bool pidePagina = true)
     {
         var token = ClienteActivoSeleccionado.Proteger(_protector, _usuario, _clienteDelegante, asignacionOperacionId);
 
         var httpContext = new DefaultHttpContext { User = UsuarioAutenticado(_usuario) };
         httpContext.Request.Headers.Cookie = $"{ClienteActivoSeleccionado.NombreCookie}={token}";
+        // Las cabeceras reales de cada caso: la de una navegación del navegador
+        // y la de fetch('/_blazor/initializers'), la petición que ganó la
+        // carrera en el CI de main de 83005ee3.
+        if (pidePagina)
+        {
+            httpContext.Request.Path = "/acceso-denegado";
+            httpContext.Request.Headers.Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+        }
+        else
+        {
+            httpContext.Request.Path = "/_blazor/initializers";
+            httpContext.Request.Headers.Accept = "*/*";
+        }
 
         return (httpContext, new ClienteActivoSeleccionado(new HttpContextAccessorFalso(httpContext), _protector));
     }

@@ -16,10 +16,13 @@ public enum MotivoFinDeAcceso
 /// <summary>
 /// Puente entre quien retira la selección y quien lo cuenta en pantalla.
 /// <see cref="RevalidacionClienteActivoMiddleware"/> deja el motivo en
-/// <c>HttpContext.Items</c> durante la petición que la retira, y
+/// <c>HttpContext.Items</c> durante la petición de página que la retira, y
 /// <c>AvisoFinDeAccesoEstatico</c> lo pinta en esa misma respuesta. Solo vive
-/// esa petición: no hay cookie ni estado que sobreviva, así que el aviso
-/// aparece una vez y no se arrastra.
+/// esa petición: no hay cookie propia ni estado que sobreviva, así que el
+/// aviso aparece una vez y no se arrastra. Una petición que no pinta página
+/// (recurso, llamada de fondo de Blazor) retira la selección sin gastar el
+/// aviso: deja la cookie de selección para que la próxima página lo cuente
+/// (ver <c>RevalidacionClienteActivoMiddleware.PuedePintarElAviso</c>).
 /// </summary>
 public static class AvisoFinDeAcceso
 {

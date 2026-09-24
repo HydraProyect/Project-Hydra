@@ -112,7 +112,31 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 return;
             }
 
-            if (!sigueAutorizado)
+            if (!sigueAutorizado && !PuedePintarElAviso(contexto.Request))
+            {
+                // Petición que no pinta una página (módulo JS, imagen,
+                // /_blazor/initializers...): la selección se retira en ella
+                // igual —el acceso ya está decidido y no se debilita—, pero la
+                // cookie se conserva para que la próxima página vuelva a
+                // revalidar, la retire allí y cuente por qué. Borrarla aquí
+                // gastaba el único aviso en una respuesta que nadie lee: tras
+                // caducar una ventana de soporte, una petición de fondo de la
+                // página anterior llegaba primero, y la recarga caía en «Acceso
+                // denegado» sin explicación (CI de main 83005ee3, 2026-09-24,
+                // log de WebAppFixtureVentanaSoporte: /_blazor/initializers
+                // invalidó la selección 5 ms antes de que /clientes respondiera
+                // 302 hacia /acceso-denegado, que ya llegó sin cookie).
+                logger.LogWarning(
+                    "Selección de Workspace operativo derivado invalidada en {Ruta}: la revalidación no la autorizó. "
+                    + "Tenant seleccionado {TenantSeleccionado}. Petición sin página: la cookie se conserva hasta la "
+                    + "próxima, que la retira y avisa.",
+                    contexto.Request.Path,
+                    tenantSeleccionado);
+
+                if (clienteActivoSeleccionado is ClienteActivoSeleccionado seleccionSinPagina)
+                    seleccionSinPagina.Invalidar();
+            }
+            else if (!sigueAutorizado)
             {
                 // Se registra porque hasta REC-110 esto ocurría sin dejar rastro
                 // alguno: retirar el Workspace operativo derivado en mitad de una
@@ -242,6 +266,19 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 statusCodePagesFeature.Enabled = false;
         }
     }
+
+    /// <summary>
+    /// Si la respuesta a esta petición es una página que el usuario va a ver y
+    /// que puede pintar <c>AvisoFinDeAccesoEstatico</c>: una navegación del
+    /// navegador o una navegación mejorada de Blazor, las dos piden
+    /// <c>text/html</c>. Los recursos (scripts, estilos, imágenes) y las
+    /// llamadas de fondo de Blazor no lo piden. Solo decide dónde se cuenta el
+    /// aviso y se borra la cookie; nunca si la selección sigue valiendo.
+    /// </summary>
+    public static bool PuedePintarElAviso(HttpRequest peticion) =>
+        !peticion.Path.StartsWithSegments("/_blazor", StringComparison.OrdinalIgnoreCase)
+        && peticion.Headers.Accept.Any(
+            valor => valor?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true);
 
     /// <summary>
     /// La comprobación completa, factorizada para que
