@@ -76,7 +76,7 @@ public class SolapamientoDeAsignacionesTests : IAsyncLifetime
         await using (var contextoAlta = CrearContexto())
         {
             var creacion = new CrearAsignacionCommandHandler(
-                new AsignacionRepository(contextoAlta), new AutoridadAsignacionesServiceFalso(contextoAlta), contextoAlta);
+                new AsignacionRepository(contextoAlta), new AutoridadAsignacionesServiceFalso(contextoAlta), AltaAcreditacionesDePrueba.Con(contextoAlta), contextoAlta);
             var resultado = await creacion.Handle(new CrearAsignacionCommand(_trabajadorId, _centroId, altaA), CancellationToken.None);
             resultado.EsExitoso.Should().BeTrue();
             asignacionAId = resultado.Valor;
@@ -96,7 +96,7 @@ public class SolapamientoDeAsignacionesTests : IAsyncLifetime
         await using (var contextoAltaB = CrearContexto())
         {
             var creacion = new CrearAsignacionCommandHandler(
-                new AsignacionRepository(contextoAltaB), new AutoridadAsignacionesServiceFalso(contextoAltaB), contextoAltaB);
+                new AsignacionRepository(contextoAltaB), new AutoridadAsignacionesServiceFalso(contextoAltaB), AltaAcreditacionesDePrueba.Con(contextoAltaB), contextoAltaB);
             var resultado = await creacion.Handle(new CrearAsignacionCommand(_trabajadorId, _centroId, altaB), CancellationToken.None);
 
             resultado.EsFallido.Should().BeTrue("DEC-19 prohíbe el solape también contra una fila ya cerrada");
@@ -178,7 +178,7 @@ public class SolapamientoDeAsignacionesTests : IAsyncLifetime
         await using (var contextoAlta = CrearContexto())
         {
             var creacion = new CrearAsignacionCommandHandler(
-                new AsignacionRepository(contextoAlta), new AutoridadAsignacionesServiceFalso(contextoAlta), contextoAlta);
+                new AsignacionRepository(contextoAlta), new AutoridadAsignacionesServiceFalso(contextoAlta), AltaAcreditacionesDePrueba.Con(contextoAlta), contextoAlta);
             var resultado = await creacion.Handle(
                 new CrearAsignacionCommand(_trabajadorId, _centroId, fechaAmbitoEliminado), CancellationToken.None);
 

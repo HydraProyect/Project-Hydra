@@ -28,8 +28,8 @@ public record PendientePorPlataformaDto(
 /// <summary>
 /// Cierra el hallazgo P-04 de la auditoría de producto 2026-08-16: la cadena
 /// catálogo → canal → acreditación (Lotes 2-A/2-B/2-C/2-D) ya deriva y
-/// persiste <see cref="AcreditacionDocumentoPlataforma"/> al crear/renovar un
-/// Documento (ver <c>IDerivarCanalesAplicablesDocumentoService</c>), pero
+/// persiste <see cref="AcreditacionDocumentoPlataforma"/> en cada camino de alta
+/// (ver <c>IAltaAcreditacionesPlataformaService</c>), pero
 /// hasta ahora ninguna query la agregaba para responder "¿qué me queda por
 /// dejar acreditado en qué portal?" de un vistazo (grep verificado en la
 /// auditoría). Solo cuenta PendienteDeSubir y Rechazada: Subida/Aceptada ya

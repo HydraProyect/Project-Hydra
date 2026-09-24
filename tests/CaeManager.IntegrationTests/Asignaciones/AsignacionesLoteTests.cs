@@ -75,7 +75,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
     public async Task Crea_el_producto_cartesiano_y_omite_en_silencio_lo_ya_activo()
     {
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
+        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand(
@@ -109,7 +109,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         }
 
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
+        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand(
@@ -145,7 +145,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         }
 
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
+        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand([_trabajador2Id], [_centro2Id], hoy),
@@ -160,7 +160,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
     public async Task Un_id_de_trabajador_inexistente_se_reporta_como_error_sin_bloquear_el_resto()
     {
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
+        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand(
@@ -180,7 +180,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var creacion = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
+            var creacion = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
             await creacion.Handle(
                 new CrearAsignacionesCommand([_trabajador2Id], [_centro1Id, _centro2Id], DateOnly.FromDateTime(DateTime.UtcNow)),
                 CancellationToken.None);
