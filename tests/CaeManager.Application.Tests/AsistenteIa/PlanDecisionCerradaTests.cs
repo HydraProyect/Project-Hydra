@@ -310,4 +310,30 @@ public class PlanDecisionCerradaTests
             [new SeleccionSolicitadaDto(Centro, [CentroNorte]), new SeleccionSolicitadaDto(Centro, [CentroSur])], Sufijo)
             .EsFallido.Should().BeTrue();
     }
+
+    // ── Enmascarado ────────────────────────────────────────────────────
+
+    [Fact]
+    public void Los_identificadores_no_salen_en_el_estado_y_el_plan_los_conserva()
+    {
+        const string orden = "Alta de Ana Pérez DNI 12345678Z en el Centro Norte, avisa a ana.perez@ejemplo.es";
+
+        foreach (var plan in new[] { PlanDeClasificacion(orden), PlanDeSeleccion(orden) })
+        {
+            plan.Estado[CampoTexto].Should().NotContain("12345678").And.NotContain("ana.perez@ejemplo.es");
+            plan.Estado[CampoTexto].Should().Contain("DNI [DOC_1]").And.Contain("[CORREO_1]")
+                .And.Contain("Ana Pérez").And.Contain("Centro Norte", "lo que se casa con los candidatos viaja en claro");
+            plan.Identificadores.Select(i => i.ValorNormalizado)
+                .Should().BeEquivalentTo(["12345678Z", "ana.perez@ejemplo.es"]);
+        }
+    }
+
+    [Fact]
+    public void Un_candidato_descrito_por_su_documento_no_se_pregunta()
+    {
+        var conDni = new CandidatoDecisionDto(Guid.NewGuid(), "Ana Pérez Gil (12345678Z)");
+
+        PlanDecisionCerrada.ParaSeleccionar("x", [new SeleccionSolicitadaDto(Trabajadores, [conDni])], Sufijo)
+            .EsFallido.Should().BeTrue("el documento saldría en claro por las opciones");
+    }
 }
