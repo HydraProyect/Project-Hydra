@@ -209,8 +209,13 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
                 ? e.Politicas.FirstOrDefault(p => p.Nombre == r.Value.Politica)
                 : null))
             .Where(x => x.Politica is not null
-                        && !x.Value.Menciona.All(m => (x.Politica.Using ?? "").Contains(m, StringComparison.Ordinal)
-                                                      && (x.Politica.WithCheck ?? "").Contains(m, StringComparison.Ordinal)))
+                        && (!x.Value.Menciona.All(m => (x.Politica.Using ?? "").Contains(m, StringComparison.Ordinal)
+                                                       && (x.Politica.WithCheck ?? "").Contains(m, StringComparison.Ordinal))
+                            // Ninguna de estas tres lleva disyunciones: un "... OR true" conservaría
+                            // los fragmentos y dejaría de restringir. Que restringe de verdad lo
+                            // prueban los tests de runtime (TareasAsistenteRlsRuntimeTests); esto
+                            // solo cierra la reescritura más barata.
+                            || TieneDisyuncion(x.Politica.Using) || TieneDisyuncion(x.Politica.WithCheck)))
             .Select(x => $"{x.Key}.{x.Value.Politica} → USING {x.Politica!.Using ?? "(ninguna)"} / WITH CHECK {x.Politica.WithCheck ?? "(ninguna)"}")
             .ToList();
 
@@ -575,6 +580,9 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
 
         return actual.FullName;
     }
+
+    private static bool TieneDisyuncion(string? expresion) =>
+        expresion is not null && System.Text.RegularExpressions.Regex.IsMatch(expresion, @"OR", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     private static bool MencionaElAislamiento(string? expresion) =>
         expresion is not null
