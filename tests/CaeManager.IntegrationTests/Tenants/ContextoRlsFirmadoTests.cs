@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -41,6 +42,7 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
     private readonly List<Guid> _tenants = [];
     private int _politicasConGucAntesDeReescribir;
     private readonly FirmanteContextoRls _firmante = BaseDatosPostgresDePruebas.FirmanteContextoRls;
+    private readonly Guid _actorPlataforma = Guid.NewGuid();
 
     public async Task InitializeAsync()
     {
@@ -54,6 +56,12 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
                 contexto.Tenants.Add(tenant);
                 _tenants.Add(tenant.Id);
             }
+
+            // Actor de Plataforma TALVEG con concesión global vigente: la
+            // coordenada que un atacante con la credencial runtime querría
+            // suplantar en el plano 3 (diseño § 6, propiedad 6).
+            contexto.ConcesionesPrivilegio.Add(ConcesionPrivilegio.Global(
+                _actorPlataforma, vigenciaDesde: DateTime.UtcNow.AddMinutes(-10), vigenciaHasta: null));
 
             await contexto.SaveChangesAsync();
             await AsignacionesOperativasBackfillSeeder.SeedAsync(contexto, NullLogger.Instance);
@@ -297,6 +305,57 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
         var accion = () => ajeno.ExecuteNonQueryAsync();
         (await accion.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501",
             "mover la fila a otro Tenant lo impide el WITH CHECK reescrito");
+    }
+
+    // ── Plano 3: suplantar a un Actor de Plataforma TALVEG ───────────────
+
+    [Fact]
+    public async Task Una_GUC_con_el_id_de_un_Actor_de_Plataforma_no_da_sus_privilegios()
+    {
+        await using (var propietario = new NpgsqlConnection(_cadenaPropietario))
+        {
+            await propietario.OpenAsync();
+            (await ContarConcesionesAsync(propietario)).Should().Be(1,
+                "control negativo: la concesión existe, así que un 0 abajo es RLS y no una tabla vacía");
+        }
+
+        await using var conexion = await AbrirComoRuntimeAsync();
+        await FijarGucAsync(conexion, "app.usuario_id", _actorPlataforma.ToString());
+
+        (await ContarConcesionesAsync(conexion)).Should().Be(0,
+            "la GUC suelta con el id del Actor de Plataforma TALVEG no le presta sus concesiones");
+        var insertar = () => InsertarOrdenMenuAsync(conexion, _actorPlataforma);
+        (await insertar.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501",
+            "el WITH CHECK de OrdenMenuLateral no ve un administrador de plataforma sin contexto firmado");
+    }
+
+    [Fact]
+    public async Task Un_token_firmado_del_Actor_de_Plataforma_si_da_sus_privilegios()
+    {
+        await using var conexion = await AbrirComoRuntimeAsync();
+        await FijarContextoAsync(conexion, new ContextoSesionRls(null, null, _actorPlataforma, OrigenContextoRls.Peticion));
+
+        (await ContarConcesionesAsync(conexion)).Should().Be(1,
+            "control positivo: la misma coordenada, firmada, sí es el Actor de Plataforma TALVEG");
+        (await InsertarOrdenMenuAsync(conexion, _actorPlataforma)).Should().Be(1);
+    }
+
+    private static async Task<int> ContarConcesionesAsync(NpgsqlConnection conexion)
+    {
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = @"SELECT count(*) FROM ""ConcesionesPrivilegio"";";
+        return Convert.ToInt32(await comando.ExecuteScalarAsync());
+    }
+
+    private static async Task<int> InsertarOrdenMenuAsync(NpgsqlConnection conexion, Guid actor)
+    {
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = @"
+INSERT INTO ""OrdenMenuLateral"" (""Id"", ""OrdenGrupos"", ""OrdenEnlaces"", ""ActualizadoPorUsuarioId"", ""ActualizadoEnUtc"", ""Version"")
+VALUES (@id, ARRAY['control'], ARRAY[]::text[], @actor, now(), gen_random_uuid());";
+        comando.Parameters.AddWithValue("id", OrdenMenuLateral.ClaveCanonica);
+        comando.Parameters.AddWithValue("actor", actor);
+        return await comando.ExecuteNonQueryAsync();
     }
 
     // ── El interceptor: firma de verdad, y renueva ────────────────────────
