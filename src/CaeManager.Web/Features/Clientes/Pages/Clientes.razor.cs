@@ -28,6 +28,10 @@ public record GestorCaeSelectorDto(Guid Id, string NombreCompleto, string Email)
 
 public partial class Clientes : ComponentBase
 {
+    /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
+    /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
+    private bool _alcanceCero;
+
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private IValidator<CrearClienteCommand> ValidadorCrear { get; set; } = default!;

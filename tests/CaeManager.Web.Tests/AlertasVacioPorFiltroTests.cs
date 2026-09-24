@@ -1,3 +1,5 @@
+using CaeManager.Domain.Common;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using Bunit;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Domain.Documentos;
@@ -41,10 +43,14 @@ public class AlertasVacioPorFiltroTests : BunitContext
 
     private sealed class MediatorConAlertas(IReadOnlyList<AlertaDto> alertas) : IMediator
     {
+        public bool AlcanceCero { get; init; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerAlertasQuery => alertas,
+                ObtenerAlcanceCeroQuery => (object)AlcanceCero,
+                ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 
@@ -74,7 +80,7 @@ public class AlertasVacioPorFiltroTests : BunitContext
     private IRenderedComponent<Features.Alertas.Pages.Alertas> Renderizar(
         string? estado = null, params AlertaDto[] alertas)
     {
-        Services.AddScoped<IMediator>(_ => new MediatorConAlertas(alertas));
+        Services.AddScoped<IMediator>(_ => new MediatorConAlertas(alertas) { AlcanceCero = _alcanceCero });
         Services.AddScoped<ToastService>();
 
         // [SupplyParameterFromQuery]: se navega a la URI, no se pasa como parámetro.
@@ -155,5 +161,33 @@ public class AlertasVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("Ninguna alerta con este estado");
         cut.Markup.Should().NotContain("Nada que reclamar");
         cut.Find("table.tabla-datos").TextContent.Should().Contain("Reconocimiento médico");
+    }
+
+    // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
+    // vigente en este Tenant— el vacío no es «Nada que reclamar»: la pantalla dice que
+    // falta la Asignación de Cartera y a quién pedirla.
+    private bool _alcanceCero;
+
+    [Fact]
+    public void Con_alcance_cero_y_sin_registros_dice_que_falta_la_Asignacion_de_Cartera()
+    {
+        _alcanceCero = true;
+
+        var cut = Renderizar();
+
+        cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
+            .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+        cut.Markup.Should().NotContain("Nada que reclamar");
+    }
+
+    [Fact]
+    public void Con_alcance_y_sin_registros_el_vacio_no_cambia()
+    {
+        _alcanceCero = false;
+
+        var cut = Renderizar();
+
+        cut.Markup.Should().Contain("Nada que reclamar");
+        cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }
 }

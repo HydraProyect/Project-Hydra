@@ -1,3 +1,5 @@
+using CaeManager.Domain.Common;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
@@ -46,6 +48,8 @@ public class EmpresasVacioPorFiltroTests : BunitContext
     /// <summary>La página lanza dos consultas por el mismo IMediator: el perfil de vocabulario y la lista.</summary>
     private sealed class MediatorPorTipo : IMediator
     {
+        public bool AlcanceCero { get; init; }
+
         public required IReadOnlyList<EmpresaListaDto> Empresas { get; init; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
@@ -54,6 +58,8 @@ public class EmpresasVacioPorFiltroTests : BunitContext
                 ObtenerPerfilVocabularioActualQuery => PerfilVocabularioTenant.Consultora,
                 ObtenerEmpresasQuery q => (object)new ResultadoPaginado<EmpresaListaDto>(
                     Empresas, Empresas.Count, q.Pagina, q.TamanoPagina),
+                ObtenerAlcanceCeroQuery => (object)AlcanceCero,
+                ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 
@@ -89,7 +95,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
     private IRenderedComponent<Empresas> Renderizar(string? busqueda = null, string? estado = null,
         params EmpresaListaDto[] empresas)
     {
-        Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Empresas = empresas });
+        Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Empresas = empresas, AlcanceCero = _alcanceCero });
         Services.AddScoped<ToastService>();
         // Empresas pinta con IStringLocalizer<TextosEmpresas> (la «Vista rápida» del menú de fila).
         Services.AddLocalization();
@@ -239,5 +245,35 @@ public class EmpresasVacioPorFiltroTests : BunitContext
         cut.FindAll(".chip-filtro").Should().BeEmpty();
         cut.FindAll(".chips-filtros").Should().BeEmpty(
             "la barra de chips entera sobra cuando no hay nada que quitar");
+    }
+
+    // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
+    // vigente en este Tenant— el vacío no es «Aún no hay empresas»: la pantalla dice que
+    // falta la Asignación de Cartera y a quién pedirla.
+    private bool _alcanceCero;
+
+    [Fact]
+    public void Con_alcance_cero_y_sin_registros_dice_que_falta_la_Asignacion_de_Cartera()
+    {
+        _alcanceCero = true;
+
+        var cut = Renderizar();
+
+        cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
+            .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+        cut.Markup.Should().NotContain("Aún no hay empresas");
+        cut.Markup.Should().NotContain("+ Nueva empresa", "invitar a crear con alcance cero termina en un duplicado");
+    }
+
+    [Fact]
+    public void Con_alcance_y_sin_registros_el_vacio_no_cambia()
+    {
+        _alcanceCero = false;
+
+        var cut = Renderizar();
+
+        cut.Markup.Should().Contain("Aún no hay empresas");
+        cut.Markup.Should().Contain("+ Nueva empresa");
+        cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }
 }

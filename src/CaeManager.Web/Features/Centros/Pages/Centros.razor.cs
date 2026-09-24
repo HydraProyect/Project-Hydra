@@ -19,6 +19,10 @@ namespace CaeManager.Web.Features.Centros.Pages;
 
 public partial class Centros : ComponentBase
 {
+    /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
+    /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
+    private bool _alcanceCero;
+
     // QuickGrid no soporta filas expandibles (Centro 360, PLAN-EJECUCION-UX.md
     // § 0.1): cada Centro es una tarjeta con SeccionColapsable anidada, así
     // que la paginación se gestiona a mano en vez de con QuickGrid+Paginator

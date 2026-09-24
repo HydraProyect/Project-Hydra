@@ -1,3 +1,5 @@
+using CaeManager.Domain.Common;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion.Queries;
@@ -47,6 +49,8 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
     /// <summary>La página lanza cinco consultas distintas al montarse: responde por tipo.</summary>
     private sealed class MediatorPorTipo : IMediator
     {
+        public bool AlcanceCero { get; init; }
+
         public required IReadOnlyList<TrabajadorListaDto> Trabajadores { get; init; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
@@ -58,6 +62,8 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
                 ObtenerFiltrosGuardadosQuery => Array.Empty<FiltroGuardadoDto>(),
                 ObtenerTrabajadoresQuery q => new ResultadoPaginado<TrabajadorListaDto>(
                     Trabajadores, Trabajadores.Count, q.Pagina, q.TamanoPagina),
+                ObtenerAlcanceCeroQuery => (object)AlcanceCero,
+                ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 
@@ -91,7 +97,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
     private IRenderedComponent<Trabajadores> Renderizar(string? busqueda = null, string? estado = null,
         params TrabajadorListaDto[] trabajadores)
     {
-        Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Trabajadores = trabajadores });
+        Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Trabajadores = trabajadores, AlcanceCero = _alcanceCero });
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
@@ -184,5 +190,35 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
 
         cut.Markup.Should().Contain("Abrir Trabajador 360");
         cut.Markup.Should().Contain("Detalles", "el destino nuevo se suma, no sustituye a la vista previa");
+    }
+
+    // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
+    // vigente en este Tenant— el vacío no es «Aún no hay trabajadores»: la pantalla dice que
+    // falta la Asignación de Cartera y a quién pedirla.
+    private bool _alcanceCero;
+
+    [Fact]
+    public void Con_alcance_cero_y_sin_registros_dice_que_falta_la_Asignacion_de_Cartera()
+    {
+        _alcanceCero = true;
+
+        var cut = Renderizar();
+
+        cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
+            .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+        cut.Markup.Should().NotContain("Aún no hay trabajadores");
+        cut.Markup.Should().NotContain("+ Nuevo trabajador", "invitar a crear con alcance cero termina en un duplicado");
+    }
+
+    [Fact]
+    public void Con_alcance_y_sin_registros_el_vacio_no_cambia()
+    {
+        _alcanceCero = false;
+
+        var cut = Renderizar();
+
+        cut.Markup.Should().Contain("Aún no hay trabajadores");
+        cut.Markup.Should().Contain("+ Nuevo trabajador");
+        cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }
 }

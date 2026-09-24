@@ -19,6 +19,10 @@ namespace CaeManager.Web.Features.Empresas.Pages;
 
 public partial class Empresas : ComponentBase, IDisposable
 {
+    /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
+    /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
+    private bool _alcanceCero;
+
     // QuickGrid no soporta filas expandibles (Centro 360, PLAN-EJECUCION-UX.md
     // § 0.11 — migra /empresas al mismo patrón de Centros.razor § 0.1): cada
     // Empresa es una tarjeta con acordeón de Centros con actividad, así que

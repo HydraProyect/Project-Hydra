@@ -213,4 +213,13 @@
   <data name="ErrorYaEnCartera" xml:space="preserve">
     <value>El Gestor CAE ya tenía la Empresa en cartera: la solicitud se ha anulado.</value>
   </data>
+  <data name="SinAsignacionTitulo" xml:space="preserve">
+    <value>Sin Asignación de Cartera</value>
+  </data>
+  <data name="SinAsignacionDetalle" xml:space="preserve">
+    <value>No tienes ninguna Asignación de Cartera vigente en esta empresa, así que aquí no aparece nada: no es que esté al día ni que falte por dar de alta. Pídesela a tu Coordinador CAE.</value>
+  </data>
+  <data name="SinAsignacionAnadir" xml:space="preserve">
+    <value>Añadir a mi cartera</value>
+  </data>
 </root>
