@@ -51,11 +51,16 @@
         <CabeceraPagina Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]">
             <Descripcion>
                 <span class="cliente360-meta">
-                    <span>@Textos["Cif"] <b>@_detalle.Cif</b></span>
-                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarCifEtiqueta"]" />
+                    @* El alta permite un Cliente empresarial sin CIF: entonces no hay
+                       nada que enseñar ni copiar, igual que en Empresa 360. *@
+                    @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                    {
+                        <span>@Textos["Cif"] <b>@_detalle.Cif</b></span>
+                        <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarCifEtiqueta"]" />
+                    }
                     @if (TextoRecuentos is { } recuentos)
                     {
-                        <span>· @recuentos</span>
+                        <span>@(string.IsNullOrWhiteSpace(_detalle.Cif) ? recuentos : $"· {recuentos}")</span>
                     }
                 </span>
                 @if (_detalle.EsCritico || Indicadores.Count > 0)
@@ -168,7 +173,7 @@
                                     {
                                         <FilaRelacion @key="empresa.Id" Nombre="@empresa.RazonSocial" Href="@($"/empresas/{empresa.Id}")" NombreIcono="empresas"
                                                       OnAbrir360="() => AbrirEmpresaAsync(empresa)">
-                                            <Detalle>@empresa.Cif</Detalle>
+                                            <Detalle>@(string.IsNullOrWhiteSpace(empresa.Cif) ? "—" : empresa.Cif)</Detalle>
                                         </FilaRelacion>
                                     }
                                 </ListaRelaciones>

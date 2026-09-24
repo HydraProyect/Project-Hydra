@@ -171,6 +171,32 @@ public class Cliente360PaginaTests : BunitContext
             "no existe porcentaje de cumplimiento por Cliente empresarial: un anillo inventaría uno");
     }
 
+    /// <summary>
+    /// Hallazgo de Codex (#810, ronda 2): el alta permite un Cliente empresarial
+    /// sin CIF, y la Empresa de una relación también puede no tenerlo. Ni «CIF»
+    /// con el valor vacío ni un botón de copiar sin nada que copiar; en la fila
+    /// de relación, «—», como en Empresa 360.
+    /// </summary>
+    [Fact]
+    public void Sin_CIF_no_se_pinta_la_etiqueta_ni_el_boton_de_copiar()
+    {
+        var (id, mediador) = ClienteBase();
+        // ClienteDetalleDto.Cif es string, pero el handler proyecta Empresa.Cif (string?)
+        // con «!»: en ejecución llega null. Se reproduce ese valor.
+        mediador.Detalles[id] = mediador.Detalles[id] with { Cif = null! };
+        mediador.Empresas.Add(new EmpresaDeClienteDto(Guid.NewGuid(), "Ibertec GmbH", null));
+        Registrar(mediador);
+
+        var cut = Renderizar(id, "?pestana=empresas");
+
+        var meta = cut.Find(".cliente360-meta");
+        // Barrera: la entradilla ya tiene los recuentos; si no, la ausencia sería verde vacío.
+        meta.TextContent.Trim().Should().StartWith("3 centros · 42 trabajadores");
+        meta.TextContent.Should().NotContain("CIF");
+        meta.QuerySelector("button").Should().BeNull("no hay CIF que copiar");
+        cut.Find(".fila-relacion-detalle").TextContent.Trim().Should().Be("—");
+    }
+
     [Fact]
     public void Un_cliente_no_critico_no_pinta_el_badge()
     {
