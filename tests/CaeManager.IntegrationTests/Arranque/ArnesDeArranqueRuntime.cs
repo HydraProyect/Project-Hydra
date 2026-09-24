@@ -58,7 +58,8 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
         bool datosDePruebaActivos,
         bool segundoTenantActivo = false,
         ITenantActual? tenantActualPersonalizado = null,
-        IActorAuditoria? actorAuditoriaPersonalizado = null)
+        IActorAuditoria? actorAuditoriaPersonalizado = null,
+        ICurrentUserService? currentUserServicePersonalizado = null)
     {
         var cadenaPropietario = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
@@ -108,7 +109,10 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
         // real de la cuenta de Identity que se está auditando).
         servicios.AddSingleton<ITenantActual>(tenantActualPersonalizado ?? new TenantActualDeArranque());
         servicios.AddSingleton<IClienteActivoSeleccionado>(new SinClienteActivo());
-        servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso());
+        // Sin usuario por defecto, como el arranque. Un test que mida una
+        // política por persona (app.usuario_id, que el interceptor toma de
+        // aquí) pasa el suyo — mismo patrón que tenantActualPersonalizado.
+        servicios.AddSingleton<ICurrentUserService>(currentUserServicePersonalizado ?? new CurrentUserServiceFalso());
         // LOS CUATRO interceptores de produccion, no solo el de sesion. Montar
         // solo TenantRlsConnectionInterceptor dejaba las filas SIN TenantId
         // —lo sella TenantSelladoInterceptor— y cualquier escritura tenantizada

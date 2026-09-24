@@ -42,6 +42,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<VentanaSaludOperativa>();
         // Orden global del menú lateral: una caché por proceso, invalidada al guardar.
         services.AddSingleton<CaeManager.Application.Plataforma.OrdenMenu.CacheOrdenMenuLateral>();
+        // Esqueleto común de los Commands que cambian una tarea del asistente de flujos.
+        services.AddScoped<CaeManager.Application.AsistenteIa.Tareas.ModificacionTareaAsistente>();
         // TryAdd, no Add: Program.cs registra la implementación real
         // (SentryAlertaOperativa, Infrastructure) después de AddApplication()
         // y la sustituye — ver AlertaOperativaInerte para el porqué de este

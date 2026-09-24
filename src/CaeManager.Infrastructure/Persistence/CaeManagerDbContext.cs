@@ -30,6 +30,7 @@ using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.ApiKeys;
+using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Auditoria;
@@ -87,6 +88,7 @@ public class CaeManagerDbContext(
         IBlindaje42QueryContext,
         IBusquedaGlobalQueryContext,
         CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext,
+        CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext,
         IDesenganchadorDeEntidadesRastreadas
 {
     void IDesenganchadorDeEntidadesRastreadas.Desenganchar<TEntidad>(TEntidad entidad) =>
@@ -327,6 +329,12 @@ public class CaeManagerDbContext(
     IQueryable<EventoConversacion> IComunicacionesQueryContext.EventosConversacion => EventosConversacion;
     public DbSet<NotaInternaConversacion> NotasInternasConversacion => Set<NotaInternaConversacion>();
     IQueryable<NotaInternaConversacion> IComunicacionesQueryContext.NotasInternasConversacion => NotasInternasConversacion;
+    public DbSet<TareaAsistente> TareasAsistente => Set<TareaAsistente>();
+    IQueryable<TareaAsistente> CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext.TareasAsistente => TareasAsistente;
+    public DbSet<TurnoTareaAsistente> TurnosTareaAsistente => Set<TurnoTareaAsistente>();
+    IQueryable<TurnoTareaAsistente> CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext.TurnosTareaAsistente => TurnosTareaAsistente;
+    public DbSet<PasoTareaAsistente> PasosTareaAsistente => Set<PasoTareaAsistente>();
+    IQueryable<PasoTareaAsistente> CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext.PasosTareaAsistente => PasosTareaAsistente;
     public DbSet<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje => Set<ClasificacionRuidoMensaje>();
     IQueryable<ClasificacionRuidoMensaje> IComunicacionesQueryContext.ClasificacionesRuidoMensaje => ClasificacionesRuidoMensaje;
     public DbSet<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae => Set<ClasificacionRelevanciaCae>();
