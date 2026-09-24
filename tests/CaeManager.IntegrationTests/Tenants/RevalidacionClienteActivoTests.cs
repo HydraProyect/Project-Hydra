@@ -225,6 +225,26 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         RevalidacionClienteActivoMiddleware.PuedePintarElAviso(peticion).Should().BeTrue();
     }
 
+    /// <summary>
+    /// Cuando el navegador dice qué va a hacer con la respuesta, eso manda
+    /// sobre <c>Accept</c>: un <c>fetch</c> de fondo que pide HTML no pinta
+    /// página, y gastaría el aviso igual que <c>/_blazor/initializers</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("document", "text/html,application/xhtml+xml", true)]
+    [InlineData("empty", "text/html", false)]
+    [InlineData("iframe", "text/html", false)]
+    [InlineData("empty", "text/html; blazor-enhanced-nav=on", true)]
+    public void Sec_Fetch_Dest_decide_si_la_peticion_pinta_pagina(string destino, string aceptados, bool pintaPagina)
+    {
+        var peticion = new DefaultHttpContext().Request;
+        peticion.Path = "/clientes";
+        peticion.Headers.Accept = aceptados;
+        peticion.Headers["Sec-Fetch-Dest"] = destino;
+
+        RevalidacionClienteActivoMiddleware.PuedePintarElAviso(peticion).Should().Be(pintaPagina);
+    }
+
     private async Task RetirarLaAsignacionOrdinariaAsync()
     {
         await using var contexto = CrearContexto();
