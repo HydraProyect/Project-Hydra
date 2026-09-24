@@ -230,7 +230,8 @@ public class TareasAsistenteRlsRuntimeTests
         public Guid? TenantOrigenId { get; set; }
 
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(UsuarioId);
-        public Task<string?> ObtenerRolActualAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>("GestorCae");
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(TenantOrigenId);
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
