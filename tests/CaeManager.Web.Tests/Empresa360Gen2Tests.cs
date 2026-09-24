@@ -152,6 +152,29 @@ public class Empresa360Gen2Tests : BunitContext
             .And.Contain("Sin clientes empresariales que puedas consultar");
     }
 
+    /// <summary>
+    /// Hallazgo de Codex: el recuento sale de la lista acotada, que el panel
+    /// guarda; tras editar las Relaciones Empresariales y guardar, esa lista se
+    /// vuelve a pedir, o el campo y la pestaña enseñarían la cartera de antes.
+    /// </summary>
+    [Fact]
+    public async Task Guardar_la_informacion_vuelve_a_pedir_los_clientes_empresariales_acotados()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso());
+        m.Detalles[id] = Detalle(id, "Montajes Ebro S.L."); m.Cumplimientos[id] = 80;
+        m.Clientes[id] = [new(Guid.NewGuid(), "Refrielectric S.A.", "A-01")];
+        var cut = Renderizar(id);
+        ValorInfo(cut, "Clientes empresariales con los que trabaja").Should().Be("1");
+
+        await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+        m.Clientes[id] = [new(Guid.NewGuid(), "Refrielectric S.A.", "A-01"), new(Guid.NewGuid(), "Ibertec S.A.", "A-02")];
+        await Boton(cut, "Guardar").ClickAsync(new MouseEventArgs());
+
+        ValorInfo(cut, "Clientes empresariales con los que trabaja").Should().Be("2",
+            "tras guardar, el recuento refleja la cartera acotada ya actualizada");
+        cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes empresariales")).TextContent.Should().Contain("(2)");
+    }
+
     [Fact]
     public async Task Las_etiquetas_de_credenciales_usan_la_terminologia_canonica()
     {

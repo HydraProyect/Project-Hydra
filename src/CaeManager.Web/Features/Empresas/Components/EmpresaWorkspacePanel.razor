@@ -466,6 +466,10 @@ else
             ToastService.Mostrar($"{detalle.RazonSocial} actualizada correctamente.", TonoToast.Exito);
             _editandoInformacion = false;
             await CargarCabeceraAsync();
+            // El recuento de «Información» y la pestaña salen de la lista acotada, no de la
+            // cabecera: se vuelve a pedir, o seguirían enseñando la cartera de antes de guardar.
+            if (generacion != _generacion) return;
+            await CargarClientesAsync();
         }
         catch (ValidationException ex)
         {
