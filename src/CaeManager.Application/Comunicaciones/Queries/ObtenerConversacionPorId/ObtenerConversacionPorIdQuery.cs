@@ -9,6 +9,7 @@ using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -376,7 +377,12 @@ public class ObtenerConversacionPorIdQueryHandler(
                 .Where(d => (d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value))
                     || (d.EmpresaId != null && empresaIds.Contains(d.EmpresaId.Value)))
                 .Where(d => !documentoIdsConfirmados.Contains(d.Id))
-                .OrderBy(d => d.FechaVencimiento == null ? 1 : 0).ThenBy(d => d.FechaVencimiento)
+                // Primero lo fechado (por vencimiento), luego lo que está sin
+                // confirmar —el Gestor CAE aún tiene que anotarlo— y al final
+                // lo confirmado como que no caduca.
+                .OrderBy(d => d.EstadoVigencia == EstadoVigenciaDocumento.VenceEnFecha ? 0
+                    : d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 1 : 2)
+                .ThenBy(d => d.FechaVencimiento)
                 .Take(MaximoDocumentosDelPropietario)
                 .Select(d => d.Id)
                 .ToListAsync(cancellationToken);

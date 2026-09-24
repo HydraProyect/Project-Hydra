@@ -100,7 +100,7 @@ public class ExtraccionIaCacheDocumentoPurgaTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var documento = Documento.DeCliente(_clienteId, _tipoDocumentoId, _hoy.AddYears(-7), _hoy.AddYears(-6));
+            var documento = Documento.DeCliente(_clienteId, _tipoDocumentoId, _hoy.AddYears(-7), VigenciaDocumento.VenceEl(_hoy.AddYears(-6)));
             contexto.Documentos.Add(documento);
             await contexto.SaveChangesAsync();
 
@@ -147,13 +147,13 @@ public class ExtraccionIaCacheDocumentoPurgaTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var documentoViejo = Documento.DeCliente(_clienteId, _tipoDocumentoId, _hoy.AddYears(-7), _hoy.AddYears(-6));
+            var documentoViejo = Documento.DeCliente(_clienteId, _tipoDocumentoId, _hoy.AddYears(-7), VigenciaDocumento.VenceEl(_hoy.AddYears(-6)));
             // FechaEmision tiene que ser una fecha real ya pasada (la guarda
             // de Documento.Renovar compara contra DateTime.UtcNow real, no
             // contra el "_hoy" ficticio de 2031) — el vencimiento sí puede
             // proyectarse sobre ese "_hoy" ficticio, que es lo que decide si
             // la retención lo alcanza.
-            var documentoReciente = Documento.DeCliente(_clienteId, _tipoDocumentoId, new DateOnly(2025, 6, 1), _hoy.AddYears(1));
+            var documentoReciente = Documento.DeCliente(_clienteId, _tipoDocumentoId, new DateOnly(2025, 6, 1), VigenciaDocumento.VenceEl(_hoy.AddYears(1)));
             contexto.Documentos.AddRange(documentoViejo, documentoReciente);
             await contexto.SaveChangesAsync();
             documentoViejoId = documentoViejo.Id;
@@ -214,7 +214,7 @@ public class ExtraccionIaCacheDocumentoPurgaTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var documento = Documento.DeCliente(_clienteId, _tipoDocumentoId, _hoy.AddYears(-7), _hoy.AddYears(-6));
+            var documento = Documento.DeCliente(_clienteId, _tipoDocumentoId, _hoy.AddYears(-7), VigenciaDocumento.VenceEl(_hoy.AddYears(-6)));
             contexto.Documentos.Add(documento);
 
             // Entrada de caché sin ningún vínculo — nunca debe tocarla una

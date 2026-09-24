@@ -288,7 +288,8 @@ public class DeteccionPurgaTests : IAsyncLifetime
         var fechaEmision = emision ?? vencimiento?.AddYears(-1) ?? _hoy.AddYears(-8);
 
         var documento = Documento.DeCliente(
-            _clienteId, _tipoDocumentoId, fechaEmision, vencimiento, "ruta.pdf");
+            _clienteId, _tipoDocumentoId, fechaEmision,
+            vencimiento is { } fecha ? VigenciaDocumento.VenceEl(fecha) : VigenciaDocumento.NoCaduca, "ruta.pdf");
 
         contexto.Documentos.Add(documento);
         await contexto.SaveChangesAsync();

@@ -23,10 +23,15 @@ namespace CaeManager.Application.Documentos.Commands.RenovarDocumento;
 /// <see cref="Application.Clientes.Commands.EditarCliente.EditarClienteCommand"/>.
 /// <see cref="Guid.Empty"/> significa "sin comprobación", para los
 /// llamadores que todavía no la propagan.
+///
+/// <paramref name="NoCaduca"/> es la confirmación expresa de que el documento
+/// renovado no caduca; sin ella y sin fecha, queda
+/// <see cref="VigenciaDocumento.SinConfirmar"/> (ver
+/// <see cref="CalculadoraEstadoDocumento.ResolverVigencia"/>).
 /// </summary>
 public record RenovarDocumentoCommand(
     Guid Id, DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios,
-    Guid Version = default) : ICommand;
+    Guid Version = default, bool NoCaduca = false) : ICommand;
 
 public class RenovarDocumentoCommandValidator : AbstractValidator<RenovarDocumentoCommand>
 {
@@ -37,6 +42,9 @@ public class RenovarDocumentoCommandValidator : AbstractValidator<RenovarDocumen
             .LessThanOrEqualTo(DateOnly.FromDateTime(DateTime.UtcNow))
             .WithMessage("La fecha de emisión no puede ser futura.");
         RuleFor(c => c.Comentarios).MaximumLength(Documento.LongitudMaximaComentarios);
+        RuleFor(c => c)
+            .Must(c => !(c.NoCaduca && c.FechaVencimientoManual is not null))
+            .WithMessage("Un documento no puede tener fecha de vencimiento y a la vez no caducar: elige una de las dos.");
     }
 }
 
@@ -73,10 +81,10 @@ public class RenovarDocumentoCommandHandler(
         if (tipoDocumento is null)
             return Result.Fallo(Error.Crear("Documento.TipoDocumentoNoEncontrado", "No encontramos el tipo de documento asociado."));
 
-        var fechaVencimiento = tipoDocumento.AplicaVencimientoAutomatico
-            ? CalculadoraEstadoDocumento.CalcularFechaVencimiento(request.FechaEmision, tipoDocumento.VigenciaMeses)
-            : request.FechaVencimientoManual;
-        documento.Renovar(request.FechaEmision, fechaVencimiento);
+        var vigencia = CalculadoraEstadoDocumento.ResolverVigencia(
+            tipoDocumento.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
+            request.FechaEmision, request.FechaVencimientoManual, request.NoCaduca);
+        documento.Renovar(request.FechaEmision, vigencia);
 
         if (!string.IsNullOrWhiteSpace(request.ArchivoUrl))
         {

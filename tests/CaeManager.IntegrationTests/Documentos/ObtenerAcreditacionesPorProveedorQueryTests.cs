@@ -147,7 +147,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             var documento = Documento.DeEmpresa(
-                empresa.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), new DateOnly(2027, 1, 1));
+                empresa.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.VenceEl(new DateOnly(2027, 1, 1)));
             contexto.Documentos.Add(documento);
             await contexto.SaveChangesAsync();
 
@@ -228,7 +228,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
                 await contexto.SaveChangesAsync();
 
                 var documento = Documento.DeEmpresa(
-                    empresa.Id, tipo.Id, new DateOnly(2026, 1, 1), new DateOnly(2030, 1, 1));
+                    empresa.Id, tipo.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.VenceEl(new DateOnly(2030, 1, 1)));
                 contexto.Documentos.Add(documento);
                 await contexto.SaveChangesAsync();
 
@@ -317,8 +317,8 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
             contexto.TiposDocumento.Add(tipoDos);
             await contexto.SaveChangesAsync();
 
-            var documentoUno = Documento.DeEmpresa(empresa.Id, tipoUno.Id, new DateOnly(2026, 1, 1), new DateOnly(2027, 1, 1));
-            var documentoDos = Documento.DeEmpresa(empresa.Id, tipoDos.Id, new DateOnly(2026, 1, 1), new DateOnly(2027, 1, 1));
+            var documentoUno = Documento.DeEmpresa(empresa.Id, tipoUno.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.VenceEl(new DateOnly(2027, 1, 1)));
+            var documentoDos = Documento.DeEmpresa(empresa.Id, tipoDos.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.VenceEl(new DateOnly(2027, 1, 1)));
             contexto.Documentos.Add(documentoUno);
             contexto.Documentos.Add(documentoDos);
             await contexto.SaveChangesAsync();

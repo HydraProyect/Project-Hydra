@@ -60,7 +60,7 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         // WITH CHECK.
         var empresa = new Empresa("RENDELSUR", "B12345674");
         dbContext.Empresas.Add(empresa);
-        var documento = Documento.DeCliente(empresa.Id, tipoDocumento.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);
+        var documento = Documento.DeCliente(empresa.Id, tipoDocumento.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
         dbContext.Documentos.Add(documento);
         dbContext.FirmasEnCampoDocumento.Add(new FirmaEnCampoDocumento(
             documento.Id, Guid.NewGuid(), "Juan Pérez", "GestorCae", DateTime.UtcNow, null, new string('a', 64)));

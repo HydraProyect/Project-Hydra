@@ -55,7 +55,7 @@ public class EnviarReclamacionEmpresaCommandHandlerTests
 
     private static Documento AgregarDocumento(Escenario escenario, DateOnly fechaVencimiento)
     {
-        var documento = Documento.DeEmpresa(escenario.Contraparte.Id, escenario.TipoDocumento.Id, Hoy.AddYears(-1), fechaVencimiento);
+        var documento = Documento.DeEmpresa(escenario.Contraparte.Id, escenario.TipoDocumento.Id, Hoy.AddYears(-1), VigenciaDocumento.VenceEl(fechaVencimiento));
         escenario.Entorno.Documentos.ListaDocumentos.Add(documento);
         return documento;
     }
@@ -168,7 +168,7 @@ public class EnviarReclamacionEmpresaCommandHandlerTests
         var escenario = ConstruirEscenario();
         var tipoDocumentoDeCliente = new TipoDocumento("RLC", null, false, 1, AmbitoAplicacion.Cliente);
         escenario.Entorno.TiposDocumento.ListaTiposDocumento.Add(tipoDocumentoDeCliente);
-        var documentoDeOtroAmbito = Documento.DeEmpresa(escenario.Contraparte.Id, tipoDocumentoDeCliente.Id, Hoy.AddYears(-1), Hoy.AddDays(10));
+        var documentoDeOtroAmbito = Documento.DeEmpresa(escenario.Contraparte.Id, tipoDocumentoDeCliente.Id, Hoy.AddYears(-1), VigenciaDocumento.VenceEl(Hoy.AddDays(10)));
         escenario.Entorno.Documentos.ListaDocumentos.Add(documentoDeOtroAmbito);
         var handler = escenario.Entorno.CrearHandler();
 

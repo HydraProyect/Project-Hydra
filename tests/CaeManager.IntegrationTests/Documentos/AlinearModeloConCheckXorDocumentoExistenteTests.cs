@@ -60,7 +60,7 @@ public class AlinearModeloConCheckXorDocumentoExistenteTests : IAsyncLifetime
             "Certificado Verificación Migración", 12, aplicaVencimientoAutomatico: true, 1,
             AmbitoAplicacion.Cliente, requerido: RequisitoDocumental.Si);
         verificacion.TiposDocumento.Add(tipo);
-        var documento = Documento.DeCliente(cliente.Id, tipo.Id, DateOnly.FromDateTime(DateTime.UtcNow), null);
+        var documento = Documento.DeCliente(cliente.Id, tipo.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
         verificacion.Documentos.Add(documento);
         await verificacion.SaveChangesAsync();
 

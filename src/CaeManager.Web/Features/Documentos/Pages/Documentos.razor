@@ -1,6 +1,7 @@
 @page "/documentos"
 @rendermode InteractiveServer
 @attribute [Authorize]
+@using CaeManager.Web.Features.Documentos.Recursos
 @using CaeManager.Application.Documentos.Commands.CrearDocumento
 @using CaeManager.Application.Documentos.Commands.EliminarDocumento
 @using CaeManager.Application.Documentos.Commands.RenovarDocumento
@@ -112,6 +113,7 @@
                     <option value="@nameof(EstadoDocumento.Urgente)">Urgente</option>
                     <option value="@nameof(EstadoDocumento.Proximo)">Próximo</option>
                     <option value="@nameof(EstadoDocumento.Vigente)">Vigente</option>
+                    <option value="@nameof(EstadoDocumento.SinConfirmar)">@TextosVigenciaDocumento.Texto("SinConfirmar")</option>
                     <option value="@nameof(EstadoDocumento.SinCaducidad)">Sin caducidad</option>
                 </CampoSelect>
                 @if (_filtrosGuardados.Count > 0)

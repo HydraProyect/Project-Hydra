@@ -72,11 +72,13 @@ public class AplicarDeteccionIaDocumentoCommandHandler(
             return Result.Fallo(Error.Crear("RevisionIa.SinUsuario", "No pudimos identificar quién acepta esta revisión."));
 
         var fechaEmision = revision.FechaEmisionDetectada.Value;
-        var fechaVencimiento = tipoDocumento.AplicaVencimientoAutomatico
-            ? CalculadoraEstadoDocumento.CalcularFechaVencimiento(fechaEmision, tipoDocumento.VigenciaMeses)
-            : revision.FechaVencimientoDetectada;
+        // La IA puede leer una fecha, pero nunca confirma «no caduca»: sin
+        // fecha detectada, el documento queda sin vigencia confirmada.
+        var vigencia = CalculadoraEstadoDocumento.ResolverVigencia(
+            tipoDocumento.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
+            fechaEmision, revision.FechaVencimientoDetectada, noCaducaConfirmado: false);
 
-        documento.Renovar(fechaEmision, fechaVencimiento);
+        documento.Renovar(fechaEmision, vigencia);
         revision.Resolver();
         aprobacionRepositorio.Agregar(AprobacionDocumento.CrearManual(revision.DocumentoId, revision.ConfianzaGeneral, usuarioId.Value));
 

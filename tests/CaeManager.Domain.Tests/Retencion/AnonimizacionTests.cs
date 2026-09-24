@@ -103,7 +103,7 @@ public class AnonimizacionTests
         // exige borrar el fichero. Si esta operación no devolviera la ruta, el
         // archivo quedaría huérfano y la supresión sería aparente.
         var documento = Documento.DeTrabajador(
-            Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 15), new DateOnly(2027, 1, 15),
+            Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 15), VigenciaDocumento.VenceEl(new DateOnly(2027, 1, 15)),
             "tenant/documentos/reconocimiento-medico.pdf", "Apto con restricciones");
 
         var archivo = documento.Anonimizar(Ahora);
@@ -119,7 +119,7 @@ public class AnonimizacionTests
     {
         var emision = new DateOnly(2026, 1, 15);
         var vencimiento = new DateOnly(2027, 1, 15);
-        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), emision, vencimiento, "ruta.pdf");
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), emision, VigenciaDocumento.VenceEl(vencimiento), "ruta.pdf");
 
         documento.Anonimizar(Ahora);
 
@@ -132,7 +132,7 @@ public class AnonimizacionTests
     public void Anonimizar_un_documento_dos_veces_no_pide_borrar_nada_otra_vez()
     {
         var documento = Documento.DeTrabajador(
-            Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 15), null, "ruta.pdf");
+            Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 15), VigenciaDocumento.NoCaduca, "ruta.pdf");
         documento.Anonimizar(Ahora);
 
         documento.Anonimizar(Ahora.AddDays(1)).Should().BeNull();

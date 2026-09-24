@@ -41,6 +41,7 @@ public class DocumentoApiDtosTests
             TipoDocumentoAplicaVencimientoAutomatico: true,
             FechaEmision: new DateOnly(2026, 1, 10),
             FechaVencimiento: new DateOnly(2027, 1, 10),
+            EstadoVigencia: EstadoVigenciaDocumento.VenceEnFecha,
             ArchivoUrl: "3f3e.../a1b2c3.pdf",
             Comentarios: "Comentario de prueba",
             TipoDocumentoDescripcion: "Descripción",

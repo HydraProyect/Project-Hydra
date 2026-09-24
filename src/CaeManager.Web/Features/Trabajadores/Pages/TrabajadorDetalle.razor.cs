@@ -51,7 +51,10 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
         [EstadoDocumento.Vencido] = 1,
         [EstadoDocumento.Urgente] = 2,
         [EstadoDocumento.Proximo] = 3,
-        [EstadoDocumento.Vigente] = 4
+        // Sin vigencia confirmada: detrás de lo malo conocido y delante de lo
+        // vigente (mismo orden que EstadoDocumentalFiltro.ClaveOrden).
+        [EstadoDocumento.SinConfirmar] = 4,
+        [EstadoDocumento.Vigente] = 5
     };
 
     [Parameter] public Guid TrabajadorId { get; set; }

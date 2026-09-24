@@ -53,8 +53,8 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
         var tipoApto = await _dbContext.TiposDocumento.FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador);
         var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var documentoVisible = Documento.DeTrabajador(_trabajadorVisible.Id, tipoApto.Id, fechaEmision, null, "archivo.pdf");
-        var documentoAjeno = Documento.DeTrabajador(_trabajadorAjeno.Id, tipoApto.Id, fechaEmision, null, "archivo.pdf");
+        var documentoVisible = Documento.DeTrabajador(_trabajadorVisible.Id, tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
+        var documentoAjeno = Documento.DeTrabajador(_trabajadorAjeno.Id, tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.AddRange(documentoVisible, documentoAjeno);
         await _dbContext.SaveChangesAsync();
 

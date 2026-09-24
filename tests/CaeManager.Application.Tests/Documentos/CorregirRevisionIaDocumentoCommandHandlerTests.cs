@@ -19,7 +19,7 @@ public class CorregirRevisionIaDocumentoCommandHandlerTests
     [Fact]
     public async Task Corrige_la_fecha_y_resuelve_la_revision_en_el_mismo_guardado()
     {
-        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2025, 1, 1), null);
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2025, 1, 1), VigenciaDocumento.NoCaduca);
         var revision = RevisionIaDocumento.Crear(documento.Id, 65, null, null, null, null, "Confianza baja");
         var documentos = new DocumentoRepositorioFalso();
         documentos.Agregar(documento);
@@ -27,7 +27,7 @@ public class CorregirRevisionIaDocumentoCommandHandlerTests
         var tipos = new TiposDocumentoQueryContextFalso();
         tipos.ListaTiposDocumento.Add(new TipoDocumento("Formación", 12, true, 1, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si));
         // El tipo del documento se fija al tipo de la consulta para comprobar el recálculo real.
-        documento = Documento.DeTrabajador(documento.TrabajadorId!.Value, tipos.ListaTiposDocumento[0].Id, new DateOnly(2025, 1, 1), null);
+        documento = Documento.DeTrabajador(documento.TrabajadorId!.Value, tipos.ListaTiposDocumento[0].Id, new DateOnly(2025, 1, 1), VigenciaDocumento.NoCaduca);
         documentos.Documentos[0] = documento;
         revision = RevisionIaDocumento.Crear(documento.Id, 65, null, null, null, null, "Confianza baja");
         var auditoria = AuditoriaExtraccionIa.Crear(new string('a', AuditoriaExtraccionIa.LongitudHash), "Formación", "prueba", 1, null, null, 2, 65, null, documento.Id);
@@ -55,7 +55,7 @@ public class CorregirRevisionIaDocumentoCommandHandlerTests
     public async Task No_modifica_ni_resuelve_sin_usuario_identificado()
     {
         var tipo = new TipoDocumento("Formación", 12, true, 1, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si);
-        var documento = Documento.DeTrabajador(Guid.NewGuid(), tipo.Id, new DateOnly(2025, 1, 1), null);
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), tipo.Id, new DateOnly(2025, 1, 1), VigenciaDocumento.NoCaduca);
         var revision = RevisionIaDocumento.Crear(documento.Id, 65, null, null, null, null, "Confianza baja");
         var documentos = new DocumentoRepositorioFalso();
         documentos.Agregar(documento);
@@ -93,7 +93,7 @@ public class CorregirRevisionIaDocumentoCommandHandlerTests
     public async Task Devuelve_no_encontrada_y_no_muta_cuando_el_documento_esta_fuera_de_alcance()
     {
         var tipo = new TipoDocumento("Formación", 12, true, 1, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si);
-        var documento = Documento.DeTrabajador(Guid.NewGuid(), tipo.Id, new DateOnly(2025, 1, 1), null);
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), tipo.Id, new DateOnly(2025, 1, 1), VigenciaDocumento.NoCaduca);
         var revision = RevisionIaDocumento.Crear(documento.Id, 65, null, null, null, null, "Confianza baja");
         var documentos = new DocumentoRepositorioFalso();
         documentos.Agregar(documento);

@@ -136,8 +136,10 @@ public class ObtenerAlertasQueryHandler(
             .Select(f => new AlertaDto(
                 f.DocumentoId, f.TrabajadorId, f.TrabajadorNombre, f.TipoDocumentoId, f.TipoDocumentoNombre,
                 f.FechaVencimiento,
+                // El where solo deja filas con fecha, que por
+                // CK_Documentos_EstadoVigenciaCoherente son siempre VenceEnFecha.
                 CalculadoraEstadoDocumento.Calcular(
-                    f.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
+                    VigenciaDocumento.VenceEl(f.FechaVencimiento!.Value), hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
                 f.ArchivoUrl, CentroNombre: null, EmpresaId: f.EmpresaId))
             .Where(a => a.Estado is EstadoDocumento.Proximo or EstadoDocumento.Urgente or EstadoDocumento.Vencido)
             .ToList();

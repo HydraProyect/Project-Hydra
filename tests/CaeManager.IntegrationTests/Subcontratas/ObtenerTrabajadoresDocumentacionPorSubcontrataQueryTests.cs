@@ -149,7 +149,7 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryTests : IAsyncLi
 
             contexto.Asignaciones.Add(new Asignacion(trabajadorId, _centroAId, DateOnly.FromDateTime(DateTime.UtcNow)));
             contexto.Documentos.Add(Documento.DeTrabajador(
-                trabajadorId, _tipoAId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+                trabajadorId, _tipoAId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
             await contexto.SaveChangesAsync();
         }
 

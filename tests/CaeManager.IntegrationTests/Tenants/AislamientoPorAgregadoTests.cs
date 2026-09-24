@@ -131,7 +131,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     {
         Guid trabajadorId = default, tipoDocumentoId = default;
         return VerificarAislamientoAsync(
-            () => Documento.DeTrabajador(trabajadorId, tipoDocumentoId, new DateOnly(2026, 1, 1), null),
+            () => Documento.DeTrabajador(trabajadorId, tipoDocumentoId, new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca),
             async contexto =>
             {
                 trabajadorId = await SembrarTrabajadorAsync(contexto);
@@ -614,7 +614,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     {
         var trabajadorId = await SembrarTrabajadorAsync(contexto);
         var tipoDocumentoId = await SembrarTipoDocumentoAsync(contexto);
-        var documento = Documento.DeTrabajador(trabajadorId, tipoDocumentoId, new DateOnly(2026, 1, 1), null);
+        var documento = Documento.DeTrabajador(trabajadorId, tipoDocumentoId, new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
         contexto.Documentos.Add(documento);
         await contexto.SaveChangesAsync();
         return documento.Id;

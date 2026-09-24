@@ -154,12 +154,12 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
 
         var vencimientosTrabajadores = await documentosContext.Documentos
             .Where(d => d.TrabajadorId != null && trabajadorIdsImplicados.Contains(d.TrabajadorId!.Value))
-            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.FechaVencimiento })
+            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken);
 
         var vencimientosEmpresas = await documentosContext.Documentos
             .Where(d => d.EmpresaId != null && empresaIdsImplicadas.Contains(d.EmpresaId!.Value))
-            .Select(d => new { EmpresaId = d.EmpresaId!.Value, d.TipoDocumentoId, d.FechaVencimiento })
+            .Select(d => new { EmpresaId = d.EmpresaId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken);
 
         var tiposObligatoriosEmpresa = await tiposDocumentoContext.TiposDocumento
@@ -167,20 +167,22 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
             .Select(t => t.Id)
             .ToListAsync(cancellationToken);
 
-        bool DocumentacionOk(IEnumerable<DateOnly?> fechasVencimiento)
+        // Un documento sin vigencia confirmada no deja la documentación «OK»:
+        // «no lo sé» no es «sí».
+        bool DocumentacionOk(IEnumerable<(EstadoVigenciaDocumento Estado, DateOnly? Fecha)> vigencias)
         {
-            var lista = fechasVencimiento.ToList();
+            var lista = vigencias.ToList();
             if (lista.Count == 0) return false;
 
-            return lista.All(f =>
-                CalculadoraEstadoDocumento.Calcular(f, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
+            return lista.All(v =>
+                CalculadoraEstadoDocumento.Calcular(v.Estado, v.Fecha, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
                     is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad);
         }
 
         bool TipoVigenteParaEmpresa(Guid empresaId, Guid tipoDocumentoId) =>
             vencimientosEmpresas
                 .Where(v => v.EmpresaId == empresaId && v.TipoDocumentoId == tipoDocumentoId)
-                .Any(v => CalculadoraEstadoDocumento.Calcular(v.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
+                .Any(v => CalculadoraEstadoDocumento.Calcular(v.EstadoVigencia, v.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
                     is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad);
 
         var elementos = pagina.Select(p =>
@@ -195,7 +197,7 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
 
             var trabajadoresOk = trabajadorIdsDeEstaVisita.All(trabajadorId =>
                 DocumentacionOk(
-                    vencimientosTrabajadores.Where(v => v.TrabajadorId == trabajadorId).Select(v => v.FechaVencimiento)));
+                    vencimientosTrabajadores.Where(v => v.TrabajadorId == trabajadorId).Select(v => (v.EstadoVigencia, v.FechaVencimiento))));
 
             return new VisitaListaDto(
                 p.Id, p.CentroId, p.CentroNombre, p.ClienteId, p.ClienteRazonSocial, p.EmpresaId, p.EmpresaRazonSocial,

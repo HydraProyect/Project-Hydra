@@ -88,7 +88,7 @@ public class ObtenerSugerenciasPreventivasQueryTests : IAsyncLifetime
         {
             // El segundo técnico ya tiene el documento — solo queda 1 afectado.
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajador2Id, _tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), null));
+                _trabajador2Id, _tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca));
             await contexto.SaveChangesAsync();
         }
 
@@ -105,8 +105,8 @@ public class ObtenerSugerenciasPreventivasQueryTests : IAsyncLifetime
     {
         await using (var contexto = CrearContexto())
         {
-            contexto.Documentos.Add(Documento.DeTrabajador(_trabajador1Id, _tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), null));
-            contexto.Documentos.Add(Documento.DeTrabajador(_trabajador2Id, _tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), null));
+            contexto.Documentos.Add(Documento.DeTrabajador(_trabajador1Id, _tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca));
+            contexto.Documentos.Add(Documento.DeTrabajador(_trabajador2Id, _tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca));
             await contexto.SaveChangesAsync();
         }
 

@@ -81,7 +81,7 @@ public class EnviarReclamacionCommandHandlerTests
 
     private static Documento AgregarDocumento(Escenario escenario, DateOnly fechaVencimiento)
     {
-        var documento = Documento.DeTrabajador(escenario.Trabajador.Id, escenario.TipoDocumento.Id, Hoy.AddYears(-1), fechaVencimiento);
+        var documento = Documento.DeTrabajador(escenario.Trabajador.Id, escenario.TipoDocumento.Id, Hoy.AddYears(-1), VigenciaDocumento.VenceEl(fechaVencimiento));
         escenario.Entorno.Documentos.ListaDocumentos.Add(documento);
         return documento;
     }

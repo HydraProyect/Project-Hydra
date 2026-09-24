@@ -54,11 +54,15 @@ public class CorregirRevisionIaDocumentoCommandHandler(
         if (usuarioId is null)
             return Result.Fallo(Error.Crear("RevisionIa.SinUsuario", "No pudimos identificar quién corrige esta revisión."));
 
-        var fechaVencimiento = tipoDocumento.AplicaVencimientoAutomatico
-            ? CalculadoraEstadoDocumento.CalcularFechaVencimiento(request.FechaEmision, tipoDocumento.VigenciaMeses)
-            : documento.FechaVencimiento;
+        // Solo se corrige la emisión: si el tipo no vence automáticamente, la
+        // vigencia que ya tenía el documento —fecha, «no caduca» o sin
+        // confirmar— se conserva tal cual.
+        var vigencia = tipoDocumento.AplicaVencimientoAutomatico
+            ? VigenciaDocumento.DesdeFechaOpcional(
+                CalculadoraEstadoDocumento.CalcularFechaVencimiento(request.FechaEmision, tipoDocumento.VigenciaMeses))
+            : documento.Vigencia;
 
-        documento.Renovar(request.FechaEmision, fechaVencimiento);
+        documento.Renovar(request.FechaEmision, vigencia);
         revision.Resolver();
         aprobacionRepositorio.Agregar(AprobacionDocumento.CrearManual(revision.DocumentoId, revision.ConfianzaGeneral, usuarioId.Value));
 

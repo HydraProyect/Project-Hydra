@@ -33,7 +33,7 @@ namespace CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesd
 /// </summary>
 public record ActualizarDocumentoDesdeAdjuntoCommand(
     Guid AdjuntoId, Guid TipoDocumentoId, Guid? TrabajadorId, Guid? EmpresaId,
-    DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? Comentarios)
+    DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? Comentarios, bool NoCaduca = false)
     : ICommand<Guid>;
 
 public class ActualizarDocumentoDesdeAdjuntoCommandValidator : AbstractValidator<ActualizarDocumentoDesdeAdjuntoCommand>
@@ -113,7 +113,8 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         if (documentoExistenteId is { } idExistente)
         {
             var renovado = await mediator.Send(new RenovarDocumentoCommand(
-                idExistente, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios),
+                idExistente, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios,
+                NoCaduca: request.NoCaduca),
                 cancellationToken);
             if (renovado.EsFallido)
             {
@@ -127,7 +128,8 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         {
             var creado = await mediator.Send(new CrearDocumentoCommand(
                 request.TrabajadorId, null, request.EmpresaId, null, null,
-                request.TipoDocumentoId, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios),
+                request.TipoDocumentoId, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios,
+                request.NoCaduca),
                 cancellationToken);
             if (creado.EsFallido)
             {

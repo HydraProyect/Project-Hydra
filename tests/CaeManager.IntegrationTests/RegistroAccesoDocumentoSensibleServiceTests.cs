@@ -59,7 +59,7 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         await _dbContext.TiposDocumento.FirstAsync(t => t.Sensibilidad == sensibilidad);
 
     private Documento CrearDocumentoDeEmpresa(Guid tipoDocumentoId) =>
-        Documento.DeEmpresa(_empresa.Id, tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        Documento.DeEmpresa(_empresa.Id, tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
 
     [Fact]
     public async Task Registra_el_acceso_cuando_el_tipo_revela_salud()

@@ -62,4 +62,14 @@ public class CalculadoraEstadoCentroTests
 
         estado.Should().Be(EstadoCentro.Faltante);
     }
+
+    [Fact]
+    public void Una_vigencia_sin_confirmar_no_da_color_al_centro()
+    {
+        // El semáforo refleja lo malo conocido; «sin confirmar» no se sabe malo.
+        CalculadoraEstadoCentro.Calcular([EstadoDocumento.SinConfirmar], tieneRequisitoBloqueanteSinCumplir: false)
+            .Should().Be(EstadoCentro.Vigente);
+        CalculadoraEstadoCentro.Calcular([EstadoDocumento.SinConfirmar, EstadoDocumento.Proximo], tieneRequisitoBloqueanteSinCumplir: false)
+            .Should().Be(EstadoCentro.Proximo, "no tapa lo malo conocido de otro documento");
+    }
 }

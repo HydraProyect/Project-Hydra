@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="NoCaduca" xml:space="preserve">
+    <value>No caduca</value>
+  </data>
+  <data name="SinConfirmar" xml:space="preserve">
+    <value>Sense confirmar</value>
+  </data>
+  <data name="ErrorFechaYNoCaduca" xml:space="preserve">
+    <value>Indica una data de venciment o marca «No caduca», no totes dues.</value>
+  </data>
+</root>

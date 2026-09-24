@@ -87,7 +87,7 @@ public class AcreditacionesPorProveedorRolClienteTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, new DateOnly(2026, 1, 1)));
-            var documento = Documento.DeTrabajador(trabajador.Id, tipo.Id, new DateOnly(2026, 1, 1), new DateOnly(2027, 1, 1));
+            var documento = Documento.DeTrabajador(trabajador.Id, tipo.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.VenceEl(new DateOnly(2027, 1, 1)));
             contexto.Documentos.Add(documento);
             await contexto.SaveChangesAsync();
 

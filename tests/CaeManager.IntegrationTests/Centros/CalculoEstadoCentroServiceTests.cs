@@ -308,7 +308,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
 
         var documento = Documento.DeTrabajador(
             _trabajadorId, _tipoDocumentoObligatorioId,
-            DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1));
+            DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
         contexto.Documentos.Add(documento);
 
         var proveedor = new ProveedorPlataformaCae("PLAT-PRUEBA", "Plataforma de prueba");
@@ -332,7 +332,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
             await contexto.SaveChangesAsync();
         }
 
@@ -366,10 +366,10 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
             tipoEmpresaId = tipoEmpresa.Id;
 
             var documentoEmpresa = Documento.DeEmpresa(
-                _empresaId, tipoEmpresa.Id, DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), fechaVencimiento);
+                _empresaId, tipoEmpresa.Id, DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), VigenciaDocumento.VenceEl(fechaVencimiento));
             contexto.Documentos.Add(documentoEmpresa);
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
             await contexto.SaveChangesAsync();
             documentoEmpresaId = documentoEmpresa.Id;
         }
@@ -392,7 +392,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
 
             var tipoBloqueante = new TipoDocumento("Formulario de acceso", null, false, 3, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.No);
             contexto.TiposDocumento.Add(tipoBloqueante);
@@ -415,7 +415,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
 
             var tipoBloqueante = new TipoDocumento("Formulario de acceso", null, false, 3, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.No);
             contexto.TiposDocumento.Add(tipoBloqueante);
@@ -423,7 +423,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
 
             contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoBloqueante.Id, _centroId, incluido: true, bloqueaAcceso: true));
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, tipoBloqueante.Id, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+                _trabajadorId, tipoBloqueante.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
             await contexto.SaveChangesAsync();
         }
 
@@ -479,7 +479,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
 
         var documento = Documento.DeTrabajador(
             trabajadorId, tipoDocumentoId ?? _tipoDocumentoObligatorioId,
-            DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1));
+            DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
         contexto.Documentos.Add(documento);
 
         var proveedor = new ProveedorPlataformaCae($"PLAT-{Guid.NewGuid():N}"[..14], "Plataforma de prueba");

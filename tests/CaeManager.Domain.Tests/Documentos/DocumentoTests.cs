@@ -14,7 +14,7 @@ public class DocumentoTests
     {
         var trabajadorId = Guid.NewGuid();
 
-        var documento = Documento.DeTrabajador(trabajadorId, Guid.NewGuid(), Hoy, null);
+        var documento = Documento.DeTrabajador(trabajadorId, Guid.NewGuid(), Hoy, VigenciaDocumento.NoCaduca);
 
         documento.TrabajadorId.Should().Be(trabajadorId);
         documento.ClienteId.Should().BeNull();
@@ -27,7 +27,7 @@ public class DocumentoTests
     {
         var clienteId = Guid.NewGuid();
 
-        var documento = Documento.DeCliente(clienteId, Guid.NewGuid(), Hoy, null);
+        var documento = Documento.DeCliente(clienteId, Guid.NewGuid(), Hoy, VigenciaDocumento.NoCaduca);
 
         documento.ClienteId.Should().Be(clienteId);
         documento.TrabajadorId.Should().BeNull();
@@ -40,7 +40,7 @@ public class DocumentoTests
     {
         var empresaId = Guid.NewGuid();
 
-        var documento = Documento.DeEmpresa(empresaId, Guid.NewGuid(), Hoy, null);
+        var documento = Documento.DeEmpresa(empresaId, Guid.NewGuid(), Hoy, VigenciaDocumento.NoCaduca);
 
         documento.EmpresaId.Should().Be(empresaId);
         documento.TrabajadorId.Should().BeNull();
@@ -53,7 +53,7 @@ public class DocumentoTests
     {
         var vehiculoId = Guid.NewGuid();
 
-        var documento = Documento.DeVehiculo(vehiculoId, Guid.NewGuid(), Hoy, null);
+        var documento = Documento.DeVehiculo(vehiculoId, Guid.NewGuid(), Hoy, VigenciaDocumento.NoCaduca);
 
         documento.VehiculoId.Should().Be(vehiculoId);
         documento.TrabajadorId.Should().BeNull();
@@ -67,7 +67,7 @@ public class DocumentoTests
     {
         var proyectoId = Guid.NewGuid();
 
-        var documento = Documento.DeProyecto(proyectoId, Guid.NewGuid(), Hoy, null);
+        var documento = Documento.DeProyecto(proyectoId, Guid.NewGuid(), Hoy, VigenciaDocumento.NoCaduca);
 
         documento.ProyectoId.Should().Be(proyectoId);
         documento.TrabajadorId.Should().BeNull();
@@ -80,7 +80,7 @@ public class DocumentoTests
     [Fact]
     public void No_permite_crear_un_documento_de_proyecto_sin_proyecto()
     {
-        var accion = () => Documento.DeProyecto(Guid.Empty, Guid.NewGuid(), Hoy, null);
+        var accion = () => Documento.DeProyecto(Guid.Empty, Guid.NewGuid(), Hoy, VigenciaDocumento.NoCaduca);
 
         accion.Should().Throw<ArgumentException>();
     }
@@ -88,7 +88,7 @@ public class DocumentoTests
     [Fact]
     public void No_permite_crear_un_documento_de_vehiculo_sin_vehiculo()
     {
-        var accion = () => Documento.DeVehiculo(Guid.Empty, Guid.NewGuid(), Hoy, null);
+        var accion = () => Documento.DeVehiculo(Guid.Empty, Guid.NewGuid(), Hoy, VigenciaDocumento.NoCaduca);
 
         accion.Should().Throw<ArgumentException>();
     }
@@ -96,7 +96,7 @@ public class DocumentoTests
     [Fact]
     public void No_permite_crear_un_documento_de_trabajador_sin_trabajador()
     {
-        var accion = () => Documento.DeTrabajador(Guid.Empty, Guid.NewGuid(), Hoy, null);
+        var accion = () => Documento.DeTrabajador(Guid.Empty, Guid.NewGuid(), Hoy, VigenciaDocumento.NoCaduca);
 
         accion.Should().Throw<ArgumentException>();
     }
@@ -104,7 +104,7 @@ public class DocumentoTests
     [Fact]
     public void No_permite_crear_un_documento_de_cliente_sin_cliente()
     {
-        var accion = () => Documento.DeCliente(Guid.Empty, Guid.NewGuid(), Hoy, null);
+        var accion = () => Documento.DeCliente(Guid.Empty, Guid.NewGuid(), Hoy, VigenciaDocumento.NoCaduca);
 
         accion.Should().Throw<ArgumentException>();
     }
@@ -112,7 +112,7 @@ public class DocumentoTests
     [Fact]
     public void No_permite_crear_un_documento_de_empresa_sin_empresa()
     {
-        var accion = () => Documento.DeEmpresa(Guid.Empty, Guid.NewGuid(), Hoy, null);
+        var accion = () => Documento.DeEmpresa(Guid.Empty, Guid.NewGuid(), Hoy, VigenciaDocumento.NoCaduca);
 
         accion.Should().Throw<ArgumentException>();
     }
@@ -120,7 +120,7 @@ public class DocumentoTests
     [Fact]
     public void No_permite_un_tipo_de_documento_vacio()
     {
-        var accion = () => Documento.DeCliente(Guid.NewGuid(), Guid.Empty, Hoy, null);
+        var accion = () => Documento.DeCliente(Guid.NewGuid(), Guid.Empty, Hoy, VigenciaDocumento.NoCaduca);
 
         accion.Should().Throw<ArgumentException>();
     }
@@ -128,7 +128,7 @@ public class DocumentoTests
     [Fact]
     public void No_permite_una_fecha_de_emision_futura()
     {
-        var accion = () => Documento.DeEmpresa(Guid.NewGuid(), Guid.NewGuid(), Hoy.AddDays(1), null);
+        var accion = () => Documento.DeEmpresa(Guid.NewGuid(), Guid.NewGuid(), Hoy.AddDays(1), VigenciaDocumento.NoCaduca);
 
         accion.Should().Throw<ArgumentException>();
     }
@@ -137,9 +137,9 @@ public class DocumentoTests
     public void Renovar_no_cambia_el_propietario()
     {
         var clienteId = Guid.NewGuid();
-        var documento = Documento.DeCliente(clienteId, Guid.NewGuid(), Hoy.AddDays(-30), null);
+        var documento = Documento.DeCliente(clienteId, Guid.NewGuid(), Hoy.AddDays(-30), VigenciaDocumento.NoCaduca);
 
-        documento.Renovar(Hoy, Hoy.AddYears(1));
+        documento.Renovar(Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)));
 
         documento.ClienteId.Should().Be(clienteId);
         documento.Ambito.Should().Be(AmbitoAplicacion.Cliente);

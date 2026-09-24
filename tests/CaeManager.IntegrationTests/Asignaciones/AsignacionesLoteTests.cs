@@ -249,7 +249,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajador1Id, _tipoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+                _trabajador1Id, _tipoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
             await contexto.SaveChangesAsync();
         }
 

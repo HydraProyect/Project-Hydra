@@ -162,7 +162,7 @@ public class CalculoEstadoSubcontrataService(
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsRequeridosGlobal.Contains(d.TipoDocumentoId))
-            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.FechaVencimiento })
+            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken);
 
         var documentosPorPar = documentosExistentes.ToDictionary(d => (d.TrabajadorId, d.TipoDocumentoId));
@@ -179,13 +179,16 @@ public class CalculoEstadoSubcontrataService(
             {
                 var tieneDocumento = documentosPorPar.TryGetValue((trabajadorId, tipoId), out var documento);
                 var estado = tieneDocumento
-                    ? CalculadoraEstadoDocumento.Calcular(documento!.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
+                    ? CalculadoraEstadoDocumento.Calcular(documento!.EstadoVigencia, documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
                     : EstadoDocumento.Faltante;
 
                 var alDia = actual.AlDia + (estado is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad ? 1 : 0);
                 actual = (alDia, actual.Requeridos + 1);
 
-                if (estado is EstadoDocumento.SinCaducidad or EstadoDocumento.Vigente) continue;
+                // Sin vigencia confirmada no está al día (no suma arriba) pero
+                // tampoco es incidencia de color: mismo criterio que el Centro
+                // (CalculoEstadoCentroService.AgregarCausasDeEmpresaAsync).
+                if (estado is EstadoDocumento.SinCaducidad or EstadoDocumento.Vigente or EstadoDocumento.SinConfirmar) continue;
 
                 causasPorSubcontrata[subcontrataId].Add(new IncidenciaSubcontrataDto(
                     $"{nombrePorTipo[tipoId]} — {nombrePorTrabajador[trabajadorId]}", estado,

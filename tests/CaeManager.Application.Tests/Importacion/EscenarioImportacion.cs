@@ -89,7 +89,7 @@ internal sealed class EscenarioImportacion
     public EscenarioImportacion ConDocumentoExistente()
     {
         DocumentosContexto.ListaDocumentos.Add(Documento.DeTrabajador(
-            TrabajadorExistente!.Id, TipoDocumentoExistente!.Id, new DateOnly(2026, 1, 1), null));
+            TrabajadorExistente!.Id, TipoDocumentoExistente!.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca));
         return this;
     }
 

@@ -157,8 +157,9 @@ else
             EstadoDocumento.Vencido => 0,
             EstadoDocumento.Urgente => 1,
             EstadoDocumento.Proximo => 2,
-            EstadoDocumento.Vigente => 3,
-            _ => 4
+            EstadoDocumento.SinConfirmar => 3,
+            EstadoDocumento.Vigente => 4,
+            _ => 5
         };
     }
 

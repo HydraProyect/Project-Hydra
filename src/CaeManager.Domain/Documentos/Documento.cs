@@ -25,7 +25,23 @@ public class Documento : EntidadBase
     public Guid? ProyectoId { get; private set; }
     public Guid TipoDocumentoId { get; private set; }
     public DateOnly FechaEmision { get; private set; }
+    /// <summary>
+    /// Solo tiene valor cuando <see cref="EstadoVigencia"/> es
+    /// <see cref="EstadoVigenciaDocumento.VenceEnFecha"/>. Nula NO significa
+    /// «no caduca»: para eso está <see cref="EstadoVigencia"/>. Léase siempre
+    /// a través de <see cref="Vigencia"/>.
+    /// </summary>
     public DateOnly? FechaVencimiento { get; private set; }
+
+    /// <summary>
+    /// Estado explícito de la vigencia: sin confirmar, no caduca o vence en
+    /// <see cref="FechaVencimiento"/>. Se persiste junto a la fecha y los dos
+    /// los vigila <c>CK_Documentos_EstadoVigenciaCoherente</c>.
+    /// </summary>
+    public EstadoVigenciaDocumento EstadoVigencia { get; private set; }
+
+    /// <summary>La vigencia como valor único; revienta si la fila es incoherente.</summary>
+    public VigenciaDocumento Vigencia => VigenciaDocumento.Rehidratar(EstadoVigencia, FechaVencimiento);
     public string? ArchivoUrl { get; private set; }
     public string? Comentarios { get; private set; }
 
@@ -33,7 +49,7 @@ public class Documento : EntidadBase
     /// DCR-19: hasta ahora un documento sin propietario "mentía" devolviendo
     /// <see cref="AmbitoAplicacion.Empresa"/> por defecto. El constructor
     /// impide que eso ocurra para un agregado recién creado (ver
-    /// <see cref="Documento(Guid?, Guid?, Guid?, Guid?, Guid?, Guid, DateOnly, DateOnly?, string?, string?)"/>),
+    /// <see cref="Documento(Guid?, Guid?, Guid?, Guid?, Guid?, Guid, DateOnly, VigenciaDocumento, string?, string?)"/>),
     /// pero EF Core materializa las filas existentes por el constructor SIN
     /// parámetros (confirmado por inspección del <c>ConstructorBinding</c> del
     /// modelo: usa <c>Documento()</c>, no el privado con parámetros), así que
@@ -83,7 +99,7 @@ public class Documento : EntidadBase
         Guid? proyectoId,
         Guid tipoDocumentoId,
         DateOnly fechaEmision,
-        DateOnly? fechaVencimiento,
+        VigenciaDocumento vigencia,
         string? archivoUrl,
         string? comentarios)
     {
@@ -109,7 +125,7 @@ public class Documento : EntidadBase
         VehiculoId = vehiculoId;
         ProyectoId = proyectoId;
         TipoDocumentoId = tipoDocumentoId;
-        Renovar(fechaEmision, fechaVencimiento);
+        Renovar(fechaEmision, vigencia);
         ArchivoUrl = archivoUrl;
         Comentarios = comentarios;
     }
@@ -118,88 +134,90 @@ public class Documento : EntidadBase
         Guid trabajadorId,
         Guid tipoDocumentoId,
         DateOnly fechaEmision,
-        DateOnly? fechaVencimiento,
+        VigenciaDocumento vigencia,
         string? archivoUrl = null,
         string? comentarios = null)
     {
         if (trabajadorId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un trabajador.", nameof(trabajadorId));
 
-        return new Documento(trabajadorId, null, null, null, null, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
+        return new Documento(trabajadorId, null, null, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios);
     }
 
     public static Documento DeCliente(
         Guid clienteId,
         Guid tipoDocumentoId,
         DateOnly fechaEmision,
-        DateOnly? fechaVencimiento,
+        VigenciaDocumento vigencia,
         string? archivoUrl = null,
         string? comentarios = null)
     {
         if (clienteId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un cliente.", nameof(clienteId));
 
-        return new Documento(null, clienteId, null, null, null, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
+        return new Documento(null, clienteId, null, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios);
     }
 
     public static Documento DeEmpresa(
         Guid empresaId,
         Guid tipoDocumentoId,
         DateOnly fechaEmision,
-        DateOnly? fechaVencimiento,
+        VigenciaDocumento vigencia,
         string? archivoUrl = null,
         string? comentarios = null)
     {
         if (empresaId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a una empresa.", nameof(empresaId));
 
-        return new Documento(null, null, empresaId, null, null, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
+        return new Documento(null, null, empresaId, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios);
     }
 
     public static Documento DeVehiculo(
         Guid vehiculoId,
         Guid tipoDocumentoId,
         DateOnly fechaEmision,
-        DateOnly? fechaVencimiento,
+        VigenciaDocumento vigencia,
         string? archivoUrl = null,
         string? comentarios = null)
     {
         if (vehiculoId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un vehículo.", nameof(vehiculoId));
 
-        return new Documento(null, null, null, vehiculoId, null, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
+        return new Documento(null, null, null, vehiculoId, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios);
     }
 
     public static Documento DeProyecto(
         Guid proyectoId,
         Guid tipoDocumentoId,
         DateOnly fechaEmision,
-        DateOnly? fechaVencimiento,
+        VigenciaDocumento vigencia,
         string? archivoUrl = null,
         string? comentarios = null)
     {
         if (proyectoId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un proyecto.", nameof(proyectoId));
 
-        return new Documento(null, null, null, null, proyectoId, tipoDocumentoId, fechaEmision, fechaVencimiento, archivoUrl, comentarios);
+        return new Documento(null, null, null, null, proyectoId, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios);
     }
 
     /// <summary>
-    /// Actualiza fecha de emisión/vencimiento — p. ej. cuando el trabajador
-    /// presenta la renovación de un documento vencido. FechaVencimiento la
-    /// calcula el llamador (Application) con CalculadoraEstadoDocumento,
-    /// porque depende de la vigencia del TipoDocumento o de un
-    /// RequisitoDocumental, que el Documento no conoce.
+    /// Actualiza fecha de emisión y vigencia — p. ej. cuando el trabajador
+    /// presenta la renovación de un documento vencido. La vigencia la decide el
+    /// llamador (Application): la calcula con CalculadoraEstadoDocumento cuando
+    /// el TipoDocumento tiene vencimiento automático, o la confirma el Gestor
+    /// CAE a mano. Una renovación sin vigencia confirmada queda
+    /// <see cref="VigenciaDocumento.SinConfirmar"/>, nunca «no caduca».
     /// </summary>
-    public void Renovar(DateOnly fechaEmision, DateOnly? fechaVencimiento)
+    public void Renovar(DateOnly fechaEmision, VigenciaDocumento vigencia)
     {
         if (fechaEmision > DateOnly.FromDateTime(DateTime.UtcNow))
             throw new ArgumentException("La fecha de emisión no puede ser futura.", nameof(fechaEmision));
-        if (fechaVencimiento is not null && fechaVencimiento < fechaEmision)
-            throw new ArgumentException("La fecha de vencimiento no puede ser anterior a la de emisión.", nameof(fechaVencimiento));
+        if (vigencia.FechaVencimiento is { } fecha && fecha < fechaEmision)
+            throw new ArgumentException("La fecha de vencimiento no puede ser anterior a la de emisión.", nameof(vigencia));
 
         FechaEmision = fechaEmision;
-        FechaVencimiento = fechaVencimiento;
+        EstadoVigencia = vigencia.Estado;
+        FechaVencimiento = vigencia.FechaVencimiento;
     }
 
     public void AdjuntarArchivo(string archivoUrl)
@@ -249,5 +267,5 @@ public class Documento : EntidadBase
     }
 
     public EstadoDocumento CalcularEstado(DateOnly hoy, int umbralAmbarDias, int umbralRojoDias) =>
-        CalculadoraEstadoDocumento.Calcular(FechaVencimiento, hoy, umbralAmbarDias, umbralRojoDias);
+        CalculadoraEstadoDocumento.Calcular(Vigencia, hoy, umbralAmbarDias, umbralRojoDias);
 }

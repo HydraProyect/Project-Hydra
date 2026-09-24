@@ -48,7 +48,7 @@ public record PropuestaIaDocumento(
 /// </summary>
 public record ConfirmarDocumentoPropuestoPorIaCommand(
     Guid TrabajadorId, Guid TipoDocumentoId, DateOnly FechaEmision, DateOnly? FechaVencimientoManual,
-    string ArchivoUrl, PropuestaIaDocumento Propuesta)
+    string ArchivoUrl, PropuestaIaDocumento Propuesta, bool NoCaduca = false)
     : ICommand<Guid>;
 
 public class ConfirmarDocumentoPropuestoPorIaCommandValidator : AbstractValidator<ConfirmarDocumentoPropuestoPorIaCommand>
@@ -81,7 +81,7 @@ public class ConfirmarDocumentoPropuestoPorIaCommandHandler(IMediator mediator, 
         return await mediator.Send(new CrearDocumentoCommand(
             request.TrabajadorId, null, null, null, null,
             request.TipoDocumentoId, request.FechaEmision, request.FechaVencimientoManual,
-            request.ArchivoUrl, DescribirOrigen(request)), cancellationToken);
+            request.ArchivoUrl, DescribirOrigen(request), request.NoCaduca), cancellationToken);
     }
 
     /// <summary>

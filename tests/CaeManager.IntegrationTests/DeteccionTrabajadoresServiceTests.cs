@@ -78,7 +78,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
         var trabajadorQueYaNoAparece = Trabajador.DeEmpresa(empresa.Id, "Pedro", "Gomez Ruiz", "12345678Z");
         _dbContext.Trabajadores.AddRange(trabajadorQueSigue, trabajadorQueYaNoAparece);
 
-        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoIta, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoIta, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -115,7 +115,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
             .ToList();
         _dbContext.Trabajadores.AddRange(activos);
 
-        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoIta, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoIta, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -308,7 +308,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
     {
         var empresa = new Empresa("Ibertec S.A.");
         _dbContext.Empresas.Add(empresa);
-        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoCertificadoSs, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoCertificadoSs, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -330,7 +330,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
         var trabajadorSubcontrata = Trabajador.DeSubcontrata(subcontrata.Id, "Juan", "Perez Lopez", "11111111H");
         _dbContext.Trabajadores.Add(trabajadorSubcontrata);
 
-        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoIta, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoIta, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -353,7 +353,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
     {
         var empresa = new Empresa("Ibertec S.A.");
         _dbContext.Empresas.Add(empresa);
-        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoIta, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoIta, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -372,7 +372,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
     {
         var empresa = new Empresa("Ibertec S.A.");
         _dbContext.Empresas.Add(empresa);
-        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoIta, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoIta, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -391,7 +391,7 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
     {
         var empresa = new Empresa("Ibertec S.A.");
         _dbContext.Empresas.Add(empresa);
-        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoIta, DateOnly.FromDateTime(DateTime.UtcNow), null, "archivo.pdf");
+        var documento = Documento.DeEmpresa(empresa.Id, IdTipoDocumentoIta, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 

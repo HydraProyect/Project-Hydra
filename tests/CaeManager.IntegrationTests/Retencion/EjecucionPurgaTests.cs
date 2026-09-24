@@ -256,7 +256,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
         var documento = Documento.DeCliente(
             _clienteId, _tipoDocumentoId,
             fechaEmision: _hoy.AddYears(-7),
-            fechaVencimiento: _hoy.AddYears(-6),
+            vigencia: VigenciaDocumento.VenceEl(_hoy.AddYears(-6)),
             archivoUrl: archivoUrl);
         contexto.Documentos.Add(documento);
 
