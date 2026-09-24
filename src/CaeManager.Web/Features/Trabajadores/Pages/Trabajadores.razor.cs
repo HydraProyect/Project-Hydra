@@ -31,6 +31,10 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 
 public partial class Trabajadores : ComponentBase
 {
+    /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
+    /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
+    private bool _alcanceCero;
+
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
     // H2 (docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.

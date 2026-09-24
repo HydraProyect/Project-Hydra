@@ -1,3 +1,5 @@
+using CaeManager.Domain.Common;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using Bunit;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Web.Components.DesignSystem;
@@ -41,7 +43,8 @@ public class BandejaVacioPorFiltroTests : BunitContext
 
     private IRenderedComponent<Bandeja> Renderizar(string? tipo, params ItemBandejaDto[] items)
     {
-        Services.AddScoped<IMediator>(_ => new MediatorDeLaBandeja(items));
+        Services.AddScoped<IMediator>(_ => new MediatorDeLaBandeja(items) { AlcanceCero = _alcanceCero });
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
 
@@ -123,5 +126,33 @@ public class BandejaVacioPorFiltroTests : BunitContext
 
         var todos = cut.FindAll("button.bandeja-chip").Single(b => b.TextContent.Contains("Todos"));
         todos.QuerySelector(".bandeja-chip-cuenta")!.TextContent.Trim().Should().Be("2");
+    }
+
+    // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
+    // vigente en este Tenant— el vacío no es «La cola está vacía»: la pantalla dice que
+    // falta la Asignación de Cartera y a quién pedirla.
+    private bool _alcanceCero;
+
+    [Fact]
+    public void Con_alcance_cero_y_sin_registros_dice_que_falta_la_Asignacion_de_Cartera()
+    {
+        _alcanceCero = true;
+
+        var cut = Renderizar(tipo: null);
+
+        cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
+            .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+        cut.Markup.Should().NotContain("La cola está vacía");
+    }
+
+    [Fact]
+    public void Con_alcance_y_sin_registros_el_vacio_no_cambia()
+    {
+        _alcanceCero = false;
+
+        var cut = Renderizar(tipo: null);
+
+        cut.Markup.Should().Contain("La cola está vacía");
+        cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }
 }

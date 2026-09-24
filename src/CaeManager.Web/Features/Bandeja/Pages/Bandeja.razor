@@ -7,6 +7,7 @@
 @using CaeManager.Web.Components.Workspace
 @using CaeManager.Web.Features.Bandeja.Components
 @using MediatR
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 
@@ -92,9 +93,12 @@
     }
     else if (ItemsFiltrados.Count == 0)
     {
-        <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-500)" FondoIcono="var(--color-success-50)"
-                     Titulo="La cola está vacía"
-                     Descripcion="No queda nada pendiente en tu cartera: ni documentos vencidos, urgentes o faltantes, ni revisiones de IA, ni requisitos que bloqueen un Centro." />
+        @* Con alcance cero la cola vacía no es una cartera al día (P0-9a, FS-03). *@
+        <VacioSegunAlcance>
+            <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-500)" FondoIcono="var(--color-success-50)"
+                         Titulo="La cola está vacía"
+                         Descripcion="No queda nada pendiente en tu cartera: ni documentos vencidos, urgentes o faltantes, ni revisiones de IA, ni requisitos que bloqueen un Centro." />
+        </VacioSegunAlcance>
     }
     else
     {

@@ -18,6 +18,7 @@
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Trabajadores.Components
 @using Microsoft.AspNetCore.Components.QuickGrid
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
@@ -34,7 +35,10 @@
     <CabeceraPagina Titulo="@TituloPagina">
         <Acciones>
             <a class="enlace-exportar" href="/trabajadores/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceExportarExcel"]</a>
-            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoTrabajador"]</Boton></SoloConEscritura>
+            @if (!_alcanceCero)
+            {
+                <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoTrabajador"]</Boton></SoloConEscritura>
+            }
         </Acciones>
     </CabeceraPagina>
 
@@ -226,11 +230,14 @@
         }
         else if (_totalElementos == 0 && !_cargando)
         {
-            <EstadoVacio NombreIcono="trabajadores" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
-                <Accion>
-                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoTrabajador"]</Boton></SoloConEscritura>
-                </Accion>
-            </EstadoVacio>
+            @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
+            <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
+                <EstadoVacio NombreIcono="trabajadores" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
+                    <Accion>
+                        <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoTrabajador"]</Boton></SoloConEscritura>
+                    </Accion>
+                </EstadoVacio>
+            </VacioSegunAlcance>
         }
     }
 </div>

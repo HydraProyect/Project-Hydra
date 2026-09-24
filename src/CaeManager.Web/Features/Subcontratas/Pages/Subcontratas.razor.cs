@@ -21,6 +21,10 @@ namespace CaeManager.Web.Features.Subcontratas.Pages;
 
 public partial class Subcontratas : ComponentBase
 {
+    /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
+    /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
+    private bool _alcanceCero;
+
     // Igual que Centros.razor.cs (Centro 360): QuickGrid no soporta filas
     // expandibles, así que la paginación se gestiona a mano — la Query sigue
     // paginando en servidor, solo cambia el control visual.

@@ -1,0 +1,20 @@
+@using CaeManager.Web.Features.IncorporacionCartera.Recursos
+@using Microsoft.Extensions.Localization
+
+<div class="aviso-sin-asignacion-cartera" data-estado="sin-asignacion-cartera">
+    <EstadoVacio NombreIcono="cartera"
+                 Titulo="@(Titulo ?? Textos["SinAsignacionTitulo"])"
+                 Descripcion="@(Descripcion ?? Textos["SinAsignacionDetalle"])">
+        <Accion>
+            @if (_puedeAnadirACartera)
+            {
+                <Boton OnClick="() => _dialogoVisible = true">@Textos["SinAsignacionAnadir"]</Boton>
+            }
+        </Accion>
+    </EstadoVacio>
+</div>
+
+@if (_puedeAnadirACartera)
+{
+    <DialogoSolicitarIncorporacion @bind-Visible="_dialogoVisible" OnSolicitada="_ => CargarCandidatosAsync()" />
+}

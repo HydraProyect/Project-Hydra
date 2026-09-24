@@ -13,6 +13,7 @@
 @using CaeManager.Web.Recursos
 @using MediatR
 @using Microsoft.Extensions.Localization
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IMediator Mediator
 @inject IStringLocalizer<TextosAlertas> Textos
 @inject IStringLocalizer<TextosComunes> Comunes
@@ -276,8 +277,11 @@
     }
     else if (AlertasFiltradas.Count == 0)
     {
-        <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-700)" FondoIcono="var(--color-success-50)"
-                     Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDetalle"]" />
+        @* Con alcance cero «nada que reclamar» no es un cumplimiento (P0-9a, FS-04). *@
+        <VacioSegunAlcance>
+            <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-700)" FondoIcono="var(--color-success-50)"
+                         Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDetalle"]" />
+        </VacioSegunAlcance>
     }
     else
     {

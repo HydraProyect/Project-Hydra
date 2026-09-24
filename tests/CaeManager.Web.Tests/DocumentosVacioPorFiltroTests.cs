@@ -1,3 +1,5 @@
+using CaeManager.Domain.Common;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using System.Security.Claims;
 using AngleSharp.Dom;
 using Bunit;
@@ -45,6 +47,8 @@ public class DocumentosVacioPorFiltroTests : BunitContext
 
     private sealed class MediatorPorTipo : IMediator
     {
+        public bool AlcanceCero { get; init; }
+
         public required IReadOnlyList<DocumentoListaDto> Documentos { get; init; }
 
         public List<object> Enviadas { get; } = [];
@@ -57,6 +61,8 @@ public class DocumentosVacioPorFiltroTests : BunitContext
                 ObtenerFiltrosGuardadosQuery => (object)Array.Empty<FiltroGuardadoDto>(),
                 ObtenerDocumentosQuery q => new ResultadoPaginado<DocumentoListaDto>(
                     Documentos, Documentos.Count, q.Pagina, q.TamanoPagina),
+                ObtenerAlcanceCeroQuery => (object)AlcanceCero,
+                ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
         }
@@ -152,8 +158,9 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     private (IRenderedComponent<PaginaDocumentos> Cut, MediatorPorTipo Mediador) RenderizarConMediador(
         string? busqueda = null, string? estado = null, string? ambito = null, params DocumentoListaDto[] documentos)
     {
-        var mediador = new MediatorPorTipo { Documentos = documentos };
+        var mediador = new MediatorPorTipo { Documentos = documentos, AlcanceCero = _alcanceCero };
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
@@ -299,5 +306,35 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().Busqueda.Should().Be("Reconocimiento");
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
             "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
+    }
+
+    // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
+    // vigente en este Tenant— el vacío no es «Aún no hay documentos»: la pantalla dice que
+    // falta la Asignación de Cartera y a quién pedirla.
+    private bool _alcanceCero;
+
+    [Fact]
+    public void Con_alcance_cero_y_sin_registros_dice_que_falta_la_Asignacion_de_Cartera()
+    {
+        _alcanceCero = true;
+
+        var cut = Renderizar();
+
+        cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
+            .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+        cut.Markup.Should().NotContain("Aún no hay documentos");
+        cut.Markup.Should().NotContain("+ Nuevo documento", "invitar a crear con alcance cero termina en un duplicado");
+    }
+
+    [Fact]
+    public void Con_alcance_y_sin_registros_el_vacio_no_cambia()
+    {
+        _alcanceCero = false;
+
+        var cut = Renderizar();
+
+        cut.Markup.Should().Contain("Aún no hay documentos");
+        cut.Markup.Should().Contain("+ Nuevo documento");
+        cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }
 }
