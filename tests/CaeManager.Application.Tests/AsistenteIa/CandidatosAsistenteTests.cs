@@ -174,13 +174,90 @@ public class CandidatosAsistenteTests
     }
 
     [Fact]
-    public void El_Tenant_elegido_cuenta_como_un_dato_mas()
+    public void Elegir_a_mano_un_Tenant_distinto_del_de_los_datos_bloquea_y_recomienda_el_correcto()
     {
         var candidatos = DosTenants(out var centroA, out _, out _, out _);
 
         var destino = ResolucionTenantDestino.Resolver(candidatos, [new(Q.CampoCentro, centroA, 90)], tenantElegido: TenantB);
 
+        destino.Situacion.Should().Be(SituacionTenantDestino.Discrepancia);
+        destino.Bloquea.Should().BeTrue();
+        destino.Tenant.Should().BeNull();
+        destino.Recomendado!.TenantId.Should().Be(TenantA);
+        destino.Motivo.Should().Contain("cambiar a Tenant A");
+    }
+
+    [Fact]
+    public void Elegir_a_mano_el_Tenant_de_los_datos_no_es_discrepancia()
+    {
+        var candidatos = DosTenants(out var centroA, out _, out _, out _);
+
+        var destino = ResolucionTenantDestino.Resolver(candidatos, [new(Q.CampoCentro, centroA, 90)], tenantElegido: TenantA);
+
+        destino.Situacion.Should().Be(SituacionTenantDestino.Unico);
+        destino.Tenant!.TenantId.Should().Be(TenantA);
+        destino.Recomendado.Should().BeNull();
+    }
+
+    [Fact]
+    public void Sin_datos_que_lo_situen_el_Tenant_de_la_pantalla_es_el_de_serie()
+    {
+        var candidatos = DosTenants(out _, out _, out _, out _);
+
+        var destino = ResolucionTenantDestino.Resolver(candidatos, [new(Q.CampoCentro, null, 40)], tenantPantalla: TenantB);
+
+        destino.Situacion.Should().Be(SituacionTenantDestino.Unico);
+        destino.Tenant!.TenantId.Should().Be(TenantB);
+        destino.DistintoDePantalla.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Los_datos_de_la_orden_mandan_sobre_la_pantalla_y_se_resalta()
+    {
+        var candidatos = DosTenants(out var centroA, out _, out _, out _);
+
+        var destino = ResolucionTenantDestino.Resolver(candidatos, [new(Q.CampoCentro, centroA, 90)], tenantPantalla: TenantB);
+
+        destino.Situacion.Should().Be(SituacionTenantDestino.Unico);
+        destino.Tenant!.TenantId.Should().Be(TenantA);
+        destino.DistintoDePantalla.Should().BeTrue();
+        destino.Bloquea.Should().BeFalse();
+    }
+
+    [Fact]
+    public void El_Tenant_elegido_a_mano_manda_sobre_la_pantalla()
+    {
+        var candidatos = DosTenants(out _, out _, out _, out _);
+
+        var destino = ResolucionTenantDestino.Resolver(candidatos, [], tenantElegido: TenantA, tenantPantalla: TenantB);
+
+        destino.Situacion.Should().Be(SituacionTenantDestino.Unico);
+        destino.Tenant!.TenantId.Should().Be(TenantA);
+        destino.DistintoDePantalla.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Una_pantalla_fuera_de_la_cartera_no_sirve_de_valor_por_defecto()
+    {
+        var candidatos = DosTenants(out _, out _, out _, out _);
+
+        var destino = ResolucionTenantDestino.Resolver(candidatos, [], tenantPantalla: TenantSinCartera);
+
+        destino.Situacion.Should().Be(SituacionTenantDestino.Elegir);
+        destino.Tenants.Select(t => t.TenantId).Should().Equal(TenantA, TenantB);
+    }
+
+    [Fact]
+    public void Una_mezcla_de_datos_bloquea_aunque_haya_Tenant_elegido_y_pantalla()
+    {
+        var candidatos = DosTenants(out var centroA, out _, out _, out var trabajadorB);
+
+        var destino = ResolucionTenantDestino.Resolver(candidatos,
+            [new(Q.CampoCentro, centroA, 90), new(Q.CampoTrabajadores, trabajadorB, 90)],
+            tenantElegido: TenantA, tenantPantalla: TenantA);
+
         destino.Situacion.Should().Be(SituacionTenantDestino.Mezcla);
+        destino.Bloquea.Should().BeTrue();
     }
 
     [Fact]
