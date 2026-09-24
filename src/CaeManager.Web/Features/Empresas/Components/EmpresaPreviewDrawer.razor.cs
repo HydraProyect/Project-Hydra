@@ -1,4 +1,5 @@
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
+using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
@@ -23,6 +24,10 @@ public partial class EmpresaPreviewDrawer : ComponentBase
     private bool _cargando;
     private int? _cumplimiento;
     private int _totalTrabajadores;
+    private int? _totalClientes;
+
+    // Vacío no es «0»: sin alcance de gestión la consulta devuelve vacío a propósito.
+    private string TextoTotalClientes => _totalClientes is > 0 and var total ? total.ToString() : "—";
     private ContactoAgendaDto? _contactoPrincipal;
     private bool _cargandoContacto;
 
@@ -33,6 +38,7 @@ public partial class EmpresaPreviewDrawer : ComponentBase
             _idCargado = id;
             _pestanaActiva = "informacion";
             _detalle = null;
+            _totalClientes = null;
             _contactoPrincipal = null;
             return CargarInformacionAsync(id);
         }
@@ -57,6 +63,8 @@ public partial class EmpresaPreviewDrawer : ComponentBase
 
         _detalle = await Mediator.Send(new ObtenerEmpresaPorIdQuery(empresaId));
         _cumplimiento = await Mediator.Send(new ObtenerCumplimientoEmpresaQuery(empresaId));
+        // Clientes empresariales con alcance de gestión: EmpresaDetalleDto.ClienteIds no está acotado.
+        _totalClientes = (await Mediator.Send(new ObtenerClientesDeEmpresaQuery(empresaId))).Count;
 
         var trabajadores = await Mediator.Send(new ObtenerTrabajadoresQuery(null, EmpresaId: empresaId, TamanoPagina: 1));
         _totalTrabajadores = trabajadores.TotalElementos;

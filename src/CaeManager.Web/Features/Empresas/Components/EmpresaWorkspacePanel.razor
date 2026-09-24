@@ -45,7 +45,7 @@ else
         <div class="texto-cabecera-empresa-360">
             <span class="kicker-empresa-360">Empresa</span>
             <h2 class="workspace-titulo-entidad titulo-empresa-360">@_detalle.RazonSocial</h2>
-            @if (PestanaActiva == "clientes" && _clientes is not null)
+            @if (PestanaActiva == "clientes" && _clientes is { Count: > 0 })
             {
                 <span class="recuentos-empresa-360">@(_clientes.Count == 1 ? "1 cliente empresarial" : $"{_clientes.Count} clientes empresariales")</span>
             }
@@ -141,7 +141,11 @@ else
                         <CampoInfo Etiqueta="CNAE" Valor="@_detalle.Cnae" />
                         <CampoInfo Etiqueta="Convenio aplicable" Valor="@_detalle.ConvenioAplicable" />
                         <CampoInfo Etiqueta="Actividad del Anexo I del RSP" Valor="@(_detalle.EsActividadAnexoI ? "Sí" : "No")" />
-                        <CampoInfo Etiqueta="Clientes empresariales con los que trabaja" Valor="@_detalle.ClienteIds.Count.ToString()" />
+                        @* Sale de ObtenerClientesDeEmpresaQuery (alcance de gestión, REC-153), igual que la
+                           pestaña: EmpresaDetalleDto.ClienteIds no está acotado y anunciaría una cartera que
+                           el actor no puede ver. Una lista vacía no se cuenta: sin alcance de gestión el
+                           handler devuelve vacío a propósito, y «0» sería falso (mismo criterio que #810). *@
+                        <CampoInfo Etiqueta="Clientes empresariales con los que trabaja" Valor="@(_clientes is { Count: > 0 } clientesInfo ? clientesInfo.Count.ToString() : null)" />
                         <CampoInfo Etiqueta="Creada" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
                     </div>
                     <div class="acciones-empresa-360">
@@ -167,7 +171,7 @@ else
                 }
                 else if (_clientes is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin clientes empresariales" Descripcion="Esta empresa todavía no tiene ningún Cliente empresarial asociado." />
+                    <EstadoVacio Titulo="Sin clientes empresariales que puedas consultar" Descripcion="Esta empresa no tiene Clientes empresariales asociados, o no están dentro de tu alcance de gestión." />
                 }
                 else if (_clientes is not null)
                 {
@@ -283,8 +287,9 @@ else
     private bool _borrandoContrasena;
 
     // El recuento se limita a la pestaña que representa; la cabecera solo lo muestra allí.
+    // Una lista vacía no lleva recuento: puede ser falta de alcance de gestión, no cartera vacía.
     private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
-        _pestanas.Select(p => p.Id == "clientes" && _clientes is not null
+        _pestanas.Select(p => p.Id == "clientes" && _clientes is { Count: > 0 }
             ? p with { Etiqueta = $"{p.Etiqueta} ({_clientes.Count})" }
             : p).ToList();
 
@@ -306,7 +311,8 @@ else
             await CargarCabeceraAsync();
         }
 
-        if (PestanaActiva == "clientes" && _clientes is null && !_errorClientes && !_cargandoClientes)
+        // «Información» también la necesita: de esta lista acotada sale su recuento de Clientes empresariales.
+        if (PestanaActiva is "clientes" or "informacion" && _clientes is null && !_errorClientes && !_cargandoClientes)
             await CargarClientesAsync();
     }
 
@@ -460,6 +466,10 @@ else
             ToastService.Mostrar($"{detalle.RazonSocial} actualizada correctamente.", TonoToast.Exito);
             _editandoInformacion = false;
             await CargarCabeceraAsync();
+            // El recuento de «Información» y la pestaña salen de la lista acotada, no de la
+            // cabecera: se vuelve a pedir, o seguirían enseñando la cartera de antes de guardar.
+            if (generacion != _generacion) return;
+            await CargarClientesAsync();
         }
         catch (ValidationException ex)
         {

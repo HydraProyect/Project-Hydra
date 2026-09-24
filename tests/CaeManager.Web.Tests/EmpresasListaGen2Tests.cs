@@ -411,8 +411,13 @@ public class EmpresasListaGen2Tests : BunitContext
         contenidoRefrielectric.TextContent.Should().Contain("Grupo Arbeko").And.Contain("Petronor Servicios");
     }
 
+    /// <summary>
+    /// ObtenerClientesDeEmpresaQuery devuelve vacío también cuando el actor no
+    /// tiene alcance de gestión sobre la Empresa: el texto no afirma que no
+    /// preste servicio a nadie, porque para quien no ve la cartera sería falso.
+    /// </summary>
     [Fact]
-    public async Task Sin_ninguna_relacion_la_fila_desplegada_lo_dice_sin_rotulo_de_recuento()
+    public async Task Sin_relaciones_visibles_la_fila_desplegada_no_afirma_que_no_haya_ninguna()
     {
         var mediador = new MediatorFalso { Almacen = { Empresa("Talleres Berriz S. Coop.") } };
         var cut = Renderizar(mediador);
@@ -420,7 +425,7 @@ public class EmpresasListaGen2Tests : BunitContext
         await cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
 
         cut.Find(".tarjeta-fila-acordeon-contenido").TextContent.Trim()
-            .Should().Be("Esta empresa todavía no presta servicio a ningún cliente empresarial.");
+            .Should().Be("Esta empresa no presta servicio a clientes empresariales, o no están dentro de tu alcance de gestión.");
         cut.FindAll(".titulo-clientes-empresa").Should().BeEmpty();
     }
 

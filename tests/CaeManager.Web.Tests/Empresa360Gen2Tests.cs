@@ -101,6 +101,81 @@ public class Empresa360Gen2Tests : BunitContext
         cut.FindAll(".recuentos-empresa-360").Should().BeEmpty("el recuento de clientes empresariales no pertenece a las demás pestañas");
     }
 
+    private static string ValorInfo(IRenderedComponent<EmpresaWorkspacePanel> cut, string etiqueta) =>
+        cut.FindAll(".campo-info")
+            .Where(c => c.QuerySelector(".campo-info-etiqueta")!.TextContent.Trim() == etiqueta)
+            .Should().ContainSingle().Subject
+            .QuerySelector(".campo-info-valor")!.TextContent.Trim();
+
+    /// <summary>
+    /// EmpresaDetalleDto.ClienteIds no está acotado por alcance: lista todas las
+    /// Relaciones Empresariales de la Empresa en el Tenant propietario. El campo
+    /// de «Información» sale de ObtenerClientesDeEmpresaQuery, que aplica el
+    /// alcance de gestión (REC-153), igual que la pestaña: un actor cuyo alcance
+    /// solo cubre uno de los tres Clientes empresariales ve «1», no «3».
+    /// </summary>
+    [Fact]
+    public void El_campo_de_clientes_empresariales_cuenta_la_consulta_acotada_y_no_ClienteIds()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso());
+        m.Detalles[id] = Detalle(id, "Montajes Ebro S.L.") with { ClienteIds = [Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()] };
+        m.Cumplimientos[id] = 80;
+        m.Clientes[id] = [new(Guid.NewGuid(), "Refrielectric S.A.", "A-01")];
+
+        var cut = Renderizar(id);
+
+        ValorInfo(cut, "Clientes empresariales con los que trabaja").Should().Be("1",
+            "el actor solo gestiona uno de los tres Clientes empresariales de la Empresa");
+        cut.Markup.Should().NotContain("(3)");
+    }
+
+    /// <summary>
+    /// Sin alcance de gestión, ObtenerClientesDeEmpresaQuery devuelve vacío a
+    /// propósito: el panel no lo convierte en «0» ni en «todavía no tiene ningún
+    /// Cliente empresarial», que sería falso para quien no puede ver la cartera
+    /// (mismo criterio que Empresa 360 en #810).
+    /// </summary>
+    [Fact]
+    public void Una_lista_vacia_por_falta_de_alcance_no_se_presenta_como_cero_clientes()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso());
+        m.Detalles[id] = Detalle(id, "Montajes Ebro S.L.") with { ClienteIds = [Guid.NewGuid(), Guid.NewGuid()] };
+        m.Cumplimientos[id] = 80;
+
+        var cut = Renderizar(id);
+        ValorInfo(cut, "Clientes empresariales con los que trabaja").Should().Be("—");
+
+        cut.Render(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, "clientes"));
+        cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes empresariales")).TextContent.Should().NotContain("(");
+        cut.FindAll(".recuentos-empresa-360").Should().BeEmpty();
+        cut.Markup.Should().NotContain("todavía no tiene ningún Cliente empresarial")
+            .And.Contain("Sin clientes empresariales que puedas consultar")
+            .And.Contain("o no están dentro de tu alcance de gestión");
+    }
+
+    /// <summary>
+    /// Hallazgo de Codex: el recuento sale de la lista acotada, que el panel
+    /// guarda; tras editar las Relaciones Empresariales y guardar, esa lista se
+    /// vuelve a pedir, o el campo y la pestaña enseñarían la cartera de antes.
+    /// </summary>
+    [Fact]
+    public async Task Guardar_la_informacion_vuelve_a_pedir_los_clientes_empresariales_acotados()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso());
+        m.Detalles[id] = Detalle(id, "Montajes Ebro S.L."); m.Cumplimientos[id] = 80;
+        m.Clientes[id] = [new(Guid.NewGuid(), "Refrielectric S.A.", "A-01")];
+        var cut = Renderizar(id);
+        ValorInfo(cut, "Clientes empresariales con los que trabaja").Should().Be("1");
+
+        await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+        m.Clientes[id] = [new(Guid.NewGuid(), "Refrielectric S.A.", "A-01"), new(Guid.NewGuid(), "Ibertec S.A.", "A-02")];
+        await Boton(cut, "Guardar").ClickAsync(new MouseEventArgs());
+
+        ValorInfo(cut, "Clientes empresariales con los que trabaja").Should().Be("2",
+            "tras guardar, el recuento refleja la cartera acotada ya actualizada");
+        cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes empresariales")).TextContent.Should().Contain("(2)");
+    }
+
     [Fact]
     public async Task Las_etiquetas_de_credenciales_usan_la_terminologia_canonica()
     {
@@ -121,7 +196,8 @@ public class Empresa360Gen2Tests : BunitContext
     {
         var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso()); m.Detalles[id] = Detalle(id, "Montajes Ebro S.L."); m.Cumplimientos[id] = 80;
         var cut = Renderizar(id);
-        m.Tokens.Should().HaveCount(2).And.OnlyContain(x => x.CanBeCanceled && !x.IsCancellationRequested);
+        // Detalle, cumplimiento y Clientes empresariales (acotados): «Información» también cuenta estos últimos.
+        m.Tokens.Should().HaveCount(3).And.OnlyContain(x => x.CanBeCanceled && !x.IsCancellationRequested);
         await DisposeComponentsAsync();
         m.Tokens.Should().OnlyContain(x => x.IsCancellationRequested, "DisposeComponentsAsync retira el panel y cancela su ciclo");
     }
