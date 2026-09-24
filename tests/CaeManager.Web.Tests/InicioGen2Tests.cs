@@ -170,6 +170,27 @@ public class InicioGen2Tests : BunitContext
         UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
     }
 
+    /// <summary>
+    /// La cartera en el propio Tenant de origen no cuenta como «cartera en otro
+    /// Tenant»: Mi trabajo no enseña el Tenant de origen, así que la salida
+    /// llevaría a una pantalla sin nada suyo.
+    /// </summary>
+    [Fact]
+    public void La_cartera_en_el_Tenant_de_origen_no_ofrece_Mi_trabajo_desde_otro_contexto()
+    {
+        var mediador = new MediadorDeInicio
+        {
+            Kpis = KpisACero() with { SinCarteraAsignada = true },
+            Autorizados = OrigenYDosPropietarios(),
+            CarteraPorTenant = new Dictionary<Guid, bool> { [OrigenOperador] = true },
+        };
+        var cut = Renderizar(mediador, tenantActivo: PropietarioSinCartera);
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin cartera asignada");
+        cut.FindAll(".estado-vacio a[href='/mi-trabajo']").Should().BeEmpty();
+        mediador.PeticionesVision.Should().Be(1);
+    }
+
     [Fact]
     public void Con_datos_en_el_contexto_activo_no_redirige_ni_consulta_la_cartera_de_otros_Tenants()
     {
