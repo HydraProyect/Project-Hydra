@@ -131,6 +131,90 @@ public class BackfillReclamacionBuzonIntegracionMigrationTests : IAsyncLifetime
             tenantAntiguo, "ON CONFLICT DO NOTHING debe resolver a favor de la conexión más antigua");
     }
 
+    /// <summary>
+    /// Hallazgo de la ronda 2 de Codex sobre PR #820: una conexión ya
+    /// <c>Deshabilitada</c> antes de este incremento liberó su buzón bajo la
+    /// lógica nueva (<c>DesconectarBuzonCommand</c>) — backfillearla de todos
+    /// modos reconstruiría una reclamación que bloquearía reconectar ese
+    /// buzón, incluso para el mismo Tenant.
+    /// </summary>
+    [Fact]
+    public async Task El_backfill_excluye_conexiones_ya_deshabilitadas()
+    {
+        await using (var contexto = CrearContexto(Guid.NewGuid()))
+        {
+            var conexion = new ConexionIntegracion("cae@arcosspa.example", "Buzón desconectado antes del incremento");
+            conexion.Deshabilitar();
+            contexto.ConexionesIntegracion.Add(conexion);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(Guid.NewGuid()))
+        {
+            var migrador = contexto.GetInfrastructure().GetRequiredService<IMigrator>();
+            await migrador.MigrateAsync();
+        }
+
+        await using var verificacion = CrearContexto(Guid.NewGuid());
+        (await verificacion.ReclamacionesBuzonIntegracion.AnyAsync()).Should().BeFalse(
+            "una conexión ya Deshabilitada liberó su buzón bajo la lógica nueva; backfillearla lo bloquearía de nuevo");
+    }
+
+    /// <summary>
+    /// Hallazgo de la ronda 2 de Codex sobre PR #820: sin desempate por
+    /// <c>Id</c>, dos conexiones preexistentes con el mismo
+    /// <c>CreadoEnUtc</c> dejarían el ganador de <c>ON CONFLICT DO NOTHING</c>
+    /// sin determinar (PostgreSQL puede procesar filas empatadas en
+    /// cualquier orden).
+    /// </summary>
+    [Fact]
+    public async Task El_backfill_desempata_por_id_cuando_las_fechas_de_creacion_coinciden()
+    {
+        await using (var contexto = CrearContexto(Guid.NewGuid()))
+        {
+            contexto.ConexionesIntegracion.Add(new ConexionIntegracion("empate@arcosspa.example", "Conexión A"));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(Guid.NewGuid()))
+        {
+            contexto.ConexionesIntegracion.Add(new ConexionIntegracion("Empate@ArcosSPA.example", "Conexión B"));
+            await contexto.SaveChangesAsync();
+        }
+
+        // Iguala CreadoEnUtc a propósito: sin el desempate por Id, PostgreSQL
+        // no garantiza qué fila del empate procesa primero. El ganador
+        // esperado se lee con la MISMA cláusula ORDER BY que usa la
+        // migración, contra PostgreSQL real — comparar por Guid.CompareTo en
+        // .NET no es fiable como oráculo de cómo ordena "uuid" PostgreSQL.
+        Guid idGanadorEsperado;
+        await using (var conexionSql = new NpgsqlConnection(_cadenaConexion))
+        {
+            await conexionSql.OpenAsync();
+            await using (var actualizar = conexionSql.CreateCommand())
+            {
+                actualizar.CommandText = """UPDATE "ConexionesIntegracion" SET "CreadoEnUtc" = TIMESTAMPTZ '2026-01-01 00:00:00Z'""";
+                await actualizar.ExecuteNonQueryAsync();
+            }
+
+            await using var consultarOrden = conexionSql.CreateCommand();
+            consultarOrden.CommandText = """SELECT "Id" FROM "ConexionesIntegracion" ORDER BY "CreadoEnUtc" ASC, "Id" ASC LIMIT 1""";
+            idGanadorEsperado = (Guid)(await consultarOrden.ExecuteScalarAsync())!;
+        }
+
+        await using (var contexto = CrearContexto(Guid.NewGuid()))
+        {
+            var migrador = contexto.GetInfrastructure().GetRequiredService<IMigrator>();
+            await migrador.MigrateAsync();
+        }
+
+        await using var verificacion = CrearContexto(Guid.NewGuid());
+        var reclamaciones = await verificacion.ReclamacionesBuzonIntegracion.ToListAsync();
+        reclamaciones.Should().ContainSingle("el índice único global no puede tener dos filas para el mismo buzón");
+        reclamaciones.Single().ConexionIntegracionId.Should().Be(
+            idGanadorEsperado, "con CreadoEnUtc empatado, el desempate por Id debe ser determinista");
+    }
+
     private CaeManagerDbContext CrearContexto(Guid tenantId)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
