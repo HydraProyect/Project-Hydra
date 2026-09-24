@@ -159,7 +159,7 @@ public static class EscenariosDireccionDemoSeeder
             : await CrearAsync(emails.Direccion, "Carmen Ibáñez (Dirección CAE)", Roles.DireccionCae);
 
         // El alcance del Coordinador CAE sale de quién le tiene como
-        // coordinador (AlcanceDatosService.ObtenerClienteIdsParaCoordinadorAsync),
+        // coordinador (AlcanceDatosService.ObtenerCarteraParaCoordinadorAsync),
         // no de un rol ni de una cartera propia: sin este vínculo no vería nada.
         using (AmbitoTenantExplicito.Establecer(tenantOperadorId))
         {
