@@ -96,6 +96,13 @@
     color: var(--color-text-muted);
 }
 
+/* P2.4: Centro de Trabajo bloqueado junto al anillo — el porcentaje cuenta documentos, no acceso. */
+.dashboard-resumen-anillo-bloqueo {
+    margin: 0;
+    font: var(--font-body-md);
+    color: var(--color-danger-700);
+}
+
 .dashboard-resumen-anillo-enlace {
     font: var(--font-label-md);
     font-size: 0.8125rem;

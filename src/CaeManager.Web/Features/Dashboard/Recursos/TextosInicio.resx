@@ -27,4 +27,16 @@
   <data name="EnlaceMiTrabajo" xml:space="preserve">
     <value>Ir a Mi trabajo →</value>
   </data>
+  <data name="AnilloSinDatos" xml:space="preserve">
+    <value>Sin datos de cumplimiento documental</value>
+  </data>
+  <data name="AnilloSinDatosDetalle" xml:space="preserve">
+    <value>No hay centros de trabajo ni documentos con vigencia en cartera que medir.</value>
+  </data>
+  <data name="CentrosBloqueadosKpiUno" xml:space="preserve">
+    <value>1 centro de trabajo con el acceso bloqueado: el porcentaje cuenta documentos, no acceso.</value>
+  </data>
+  <data name="CentrosBloqueadosKpiVarios" xml:space="preserve">
+    <value>{0} centros de trabajo con el acceso bloqueado: el porcentaje cuenta documentos, no acceso.</value>
+  </data>
 </root>

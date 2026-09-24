@@ -84,6 +84,44 @@ public class InicioGen2Tests : BunitContext
         cut.FindAll(".dashboard-resumen").Should().NotBeEmpty();
     }
 
+    // ------------------------------------------------ anillo: sin datos y bloqueos (P2.4)
+
+    /// <summary>
+    /// Con trabajadores pero sin Centros de Trabajo ni documentos con vigencia,
+    /// la consulta devuelve 100 (nada que medir) y SinDatos: el anillo no puede
+    /// afirmar «100 % de cumplimiento», que se lee como «al día».
+    /// </summary>
+    [Fact]
+    public void Sin_datos_que_medir_el_anillo_no_afirma_un_cien_por_cien_de_cumplimiento()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            Kpis = KpisACero() with { TrabajadoresActivos = 3, TasaCumplimientoDocumental = 100, SinDatos = true }
+        });
+
+        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("Sin datos de cumplimiento documental");
+        cut.Find(".dashboard-resumen").TextContent.Should().NotContain("100%");
+    }
+
+    [Fact]
+    public void Con_centros_de_trabajo_bloqueados_el_anillo_declara_que_el_porcentaje_no_mide_el_acceso()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 2 } });
+
+        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("87% de cumplimiento documental");
+        cut.Find(".dashboard-resumen-anillo-bloqueo").TextContent.Should()
+            .Be("2 centros de trabajo con el acceso bloqueado: el porcentaje cuenta documentos, no acceso.");
+    }
+
+    [Fact]
+    public void Sin_centros_de_trabajo_bloqueados_no_hay_aviso_de_bloqueo_junto_al_anillo()
+    {
+        var cut = Renderizar(new MediadorDeInicio());
+
+        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("87% de cumplimiento documental");
+        cut.FindAll(".dashboard-resumen-anillo-bloqueo").Should().BeEmpty();
+    }
+
     [Fact]
     public void Con_cifras_a_cero_pero_una_visita_por_delante_no_se_esconde_el_panel()
     {
