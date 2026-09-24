@@ -126,14 +126,16 @@ public class EnmascaradorIdentificadoresTests
     [InlineData("", "a@")]
     public void Una_entrada_hostil_muy_larga_no_dispara_el_tiempo(string prefijo, string ristra)
     {
-        // El texto externo no es de confianza. Con un recorrido lineal esto tarda
-        // milisegundos; con uno cuadrático, minutos. El techo solo separa esos dos.
+        // El texto externo no es de confianza. Con un recorrido lineal esto gasta
+        // milisegundos de CPU; con uno cuadrático, minutos. El techo solo separa esos dos.
+        // Se mide la CPU de este hilo, no el reloj de pared: con la máquina cargada el
+        // hilo pasa segundos esperando turno sin ejecutar nada del enmascarador, y un
+        // cronómetro contaba esa espera como si fuera retroceso (21 s el 2026-09-24).
         var texto = prefijo + string.Concat(Enumerable.Repeat(ristra, 100_000));
-        var reloj = System.Diagnostics.Stopwatch.StartNew();
 
-        var r = EnmascaradorIdentificadores.Enmascarar(texto);
+        var (r, cpu) = TiempoCpuDelHilo.Medir(() => EnmascaradorIdentificadores.Enmascarar(texto));
 
-        reloj.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5));
+        cpu.Should().BeLessThan(TimeSpan.FromSeconds(5));
         r.Identificadores.Should().BeEmpty();
     }
 
