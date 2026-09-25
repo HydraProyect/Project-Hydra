@@ -131,12 +131,16 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Un_documento_en_estado_Urgente_aparece_en_Proximas()
+    public async Task Un_documento_en_estado_Urgente_aparece_en_Vencidas()
     {
         // Mismo defecto que tenía ObtenerCentrosQuery.Desglosar (D-7, piloto
         // Outbound), ahora corregido también aquí: Urgente (dentro del
         // umbral rojo de 15 días, sin llegar a vencer) no es una tercera
-        // casilla fuera del recuento.
+        // casilla fuera del recuento. Se agrupa con Vencidas, no con
+        // Proximas: comparte el mismo tono Peligro que Vencido/Faltante en
+        // EstadoDocumentoUi.Tono, distinto del tono Advertencia de Proximo —
+        // bucketizarlo en Proximas le rebajaría la severidad que la UI ya le
+        // reconoce en cualquier otro sitio donde se pinta.
         await using (var contexto = CrearContexto())
         {
             var trabajador = Trabajador.DeSubcontrata(_subcontrataId, "Ines", "Urgente", "99887766P");
@@ -153,10 +157,10 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         var resultado = await EjecutarAsync();
 
         var fila = resultado.Elementos.Should().ContainSingle().Subject;
-        fila.Recuentos.TotalProximas.Should().Be(1,
-            "Urgente es más severo que Proximo pero el documento aún no venció");
-        fila.Recuentos.TotalVencidas.Should().Be(0,
-            "el documento aún no venció: no es correcto contarlo como si lo estuviera");
+        fila.Recuentos.TotalVencidas.Should().Be(1,
+            "Urgente comparte el tono Peligro de Vencido/Faltante, no el Advertencia de Proximo");
+        fila.Recuentos.TotalProximas.Should().Be(0,
+            "Urgente no es Proximo: son tonos distintos y el recuento no debe mezclarlos");
     }
 
     [Fact]
