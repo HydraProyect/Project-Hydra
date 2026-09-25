@@ -135,8 +135,12 @@ public static class InfrastructureServiceCollectionExtensions
             .AddEntityFrameworkStores<CaeManagerDbContext>()
             // Detrás de AddEntityFrameworkStores, que registra el suyo con
             // TryAdd: los códigos de recuperación de 2FA se guardan con hash
-            // (ver AlmacenUsuarios, P0-8).
+            // (ver AlmacenUsuarios, P0-8), y las cuentas se encuentran antes de
+            // que exista Tenant bajo la RLS de AspNetUsers (P1-M1).
             .AddUserStore<AlmacenUsuarios>()
+            // Unicidad del nombre y del correo entre Tenants, aunque la otra
+            // cuenta no sea visible bajo RLS (P1-M1).
+            .AddUserValidator<ValidadorUnicidadGlobalCuenta>()
             .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
             .AddDefaultTokenProviders();

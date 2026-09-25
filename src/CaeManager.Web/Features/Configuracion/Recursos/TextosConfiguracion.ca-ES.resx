@@ -520,7 +520,7 @@
     <value>Actor real</value>
   </data>
   <data name="OrdenMenuActorRealPista" xml:space="preserve">
-    <value>Quien guardó (ActorRealUsuarioId).</value>
+    <value>Quién guardó el orden. En una impersonación se registra el Actor real, no el Usuario simulado.</value>
   </data>
   <data name="OrdenMenuActorDesconocido" xml:space="preserve">
     <value>Usuario no encontrado</value>

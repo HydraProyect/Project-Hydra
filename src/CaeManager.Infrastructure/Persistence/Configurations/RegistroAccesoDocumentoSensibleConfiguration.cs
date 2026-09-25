@@ -33,6 +33,12 @@ public class RegistroAccesoDocumentoSensibleConfiguration : IEntityTypeConfigura
         builder.HasIndex(r => new { r.TenantId, r.OcurridoEnUtc });
         builder.HasIndex(r => new { r.DocumentoId, r.OcurridoEnUtc });
 
+        // La rama G2 de la política de lectura de AspNetUsers (P1-M1) pregunta,
+        // por cada cuenta, si actuó en el Tenant: sin estos índices, cada fila
+        // recorrería todos los accesos del Tenant.
+        builder.HasIndex(r => new { r.TenantId, r.UsuarioId });
+        builder.HasIndex(r => new { r.TenantId, r.ActorRealUsuarioId });
+
         // Sin FK hacia Documento (DocumentoId es un Guid suelto, ver el
         // comentario de la entidad): el rastro debe sobrevivir a la baja del
         // Documento que describe, igual que RegistroAuditoria.EntidadId.

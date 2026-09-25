@@ -318,9 +318,16 @@ WHERE COALESCE(""DatosAntes"", '') LIKE '%' || @s || '%' OR COALESCE(""DatosDesp
         ((long)(await comando.ExecuteScalarAsync())!).Should().Be(0, "ningún código de recuperación entra en la auditoría");
     }
 
+    /// <summary>
+    /// Tenant de la sesión, salvo dentro de un <c>AmbitoTenantExplicito</c>, que
+    /// manda igual que en el <c>TenantActual</c> real. Desde P1-M1 la preparación
+    /// de una cuenta de otro Tenant necesita que el ámbito llegue al sellado:
+    /// con el Tenant de sesión fijo, el alta de esa cuenta es un INSERT en un
+    /// Tenant ajeno y la política de <c>AspNetUsers</c> lo rechaza (42501).
+    /// </summary>
     private sealed class TenantFijo(Guid tenantId) : ITenantActual
     {
-        public Guid? TenantId => tenantId;
+        public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual ?? tenantId;
     }
 
     private sealed class ActorFijo(ActorAuditoria actor) : IActorAuditoria

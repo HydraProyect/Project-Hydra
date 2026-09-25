@@ -343,7 +343,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("DocumentoId", "OcurridoEnUtc");
 
+                    b.HasIndex("TenantId", "ActorRealUsuarioId");
+
                     b.HasIndex("TenantId", "OcurridoEnUtc");
+
+                    b.HasIndex("TenantId", "UsuarioId");
 
                     b.ToTable("RegistrosAccesoDocumentoSensible", (string)null);
                 });
@@ -6136,6 +6140,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Capacidad")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<DateTime?>("CerradaEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -6619,6 +6628,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("DelegacionTenantId", "OcurridaEnUtc");
 
                     b.HasIndex("SesionPrivilegiadaId", "OcurridaEnUtc");
+
+                    b.HasIndex("TenantId", "UsuarioSoporteId");
 
                     b.ToTable("RegistrosActividadSoporte", null, t =>
                         {

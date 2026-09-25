@@ -135,6 +135,16 @@ public partial class ImportarClientesGen2Tests : BunitContext
             return plan;
         }
 
+        public PlanImportacionDto PlanDocumentos(
+            string contenido, IEnumerable<DocumentoImportadoDto> documentos,
+            IEnumerable<ItemImportacionDto>? omitidos = null, IEnumerable<ItemImportacionDto>? advertencias = null)
+        {
+            var plan = new PlanImportacionDto(
+                Guid.NewGuid(), [], [], [], [.. documentos], [], [.. advertencias ?? []], [.. omitidos ?? []]);
+            Planes[(typeof(AnalizarPlantillaDocumentosQuery), contenido)] = plan;
+            return plan;
+        }
+
         public PlanImportacionCombinadaDto PlanCombinado(string contenido, IEnumerable<ClienteImportadoDto> clientes)
         {
             var plan = new PlanImportacionCombinadaDto([.. clientes], [], [], [], [], []);
@@ -187,6 +197,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
             {
                 AnalizarPlantillaClientesQuery q => Analizar(typeof(AnalizarPlantillaClientesQuery), q.ContenidoArchivo),
                 AnalizarImportacionExcelQuery q => Analizar(typeof(AnalizarImportacionExcelQuery), q.ContenidoArchivo),
+                AnalizarPlantillaDocumentosQuery q => Analizar(typeof(AnalizarPlantillaDocumentosQuery), q.ContenidoArchivo),
                 AnalizarPlantillaCombinadaQuery q => PlanesCombinados.TryGetValue(Encoding.UTF8.GetString(q.ContenidoArchivo), out var plan)
                     ? plan
                     : throw new InvalidDataException("No es un libro que la Combinada sepa leer."),
@@ -242,7 +253,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
             }
 
             return Result.Exito(new ResultadoImportacionDto(
-                0, 0, plan.Empresas.Count(e => !e.YaExiste), 0, 0, 0,
+                0, 0, plan.Empresas.Count(e => !e.YaExiste), 0, plan.Documentos.Count(d => !d.YaExiste), 0,
                 plan.Advertencias, [.. plan.Omitidos, .. omitidosEnEscritura]));
         }
 
@@ -554,7 +565,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
     // ---------------------------------------------------------------- plan
 
     [Fact]
-    public async Task El_plan_cuenta_lo_del_analisis_pero_avisa_de_que_ninguna_alta_de_Clientes_se_hara()
+    public async Task El_plan_no_cuenta_como_creaciones_las_altas_de_Clientes_que_la_escritura_no_hara()
     {
         var escenario = new Escenario();
         escenario.ClientesExistentes.Add("Refrielectric S.L.");
@@ -572,23 +583,27 @@ public partial class ImportarClientesGen2Tests : BunitContext
             .Which.ContenidoArchivo.Should().Equal(Encoding.UTF8.GetBytes("levante"), "se analiza el archivo que se subió");
         await Pulsar(cut, "Ver plan de importación");
 
-        cut.FindAll(".badges-resumen-plan .badge").Select(Texto).Should().Equal(["3 se crearán", "0 con aviso", "0 se omitirán"],
-            "el recuento es el del análisis: 1 Cliente empresarial y 2 Centros con nombre nuevo");
-        cut.Find(".badges-resumen-plan .badge").GetAttribute("title").Should().Be("1 Clientes empresariales y 2 Centros con nombre nuevo");
-        cut.Find(".badges-resumen-plan .badge").GetAttribute("class").Should().Contain("badge-advertencia",
-            "las 3 altas contadas son de Cliente/Centro y ninguna se hará: el color no debe leer como éxito garantizado (REC-106)");
+        cut.FindAll(".badges-resumen-plan .badge").Select(Texto).Should().Equal(
+            ["0 se crearán", "3 no se crearán", "0 con aviso", "0 se omitirán"],
+            "1 Cliente empresarial y 2 Centros con nombre nuevo que la escritura omite no son creaciones (REC-106)");
+        var badges = cut.FindAll(".badges-resumen-plan .badge");
+        badges[0].GetAttribute("class").Should().Contain("badge-exito", "«se crearán» solo cuenta lo que sí se escribe");
+        badges[1].GetAttribute("class").Should().Contain("badge-advertencia");
+        badges[1].GetAttribute("title").Should().Be("1 Clientes empresariales y 2 Centros con nombre nuevo");
         cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr").Select(f => f.QuerySelectorAll("td").Select(Texto).ToArray())
             .Should().BeEquivalentTo(new[]
             {
-                new[] { "Instalaciones Vidal S.L.", "Crear cliente", "Nombre nuevo en la hoja «Clientes»." },
-                new[] { "Instalaciones Vidal S.L.", "Crear centro", "Nombre nuevo en la hoja «Clientes»." },
-                new[] { "Refrielectric S.L.", "Crear centro", "Nombre nuevo en la hoja «Clientes»." }
+                new[] { "Instalaciones Vidal S.L.", "No se creará", "La plantilla de Clientes no recoge CIF, y el Cliente empresarial lo exige. Créalo a mano en Clientes." },
+                new[] { "Instalaciones Vidal S.L.", "No se creará", "La plantilla de Clientes no recoge Empresa, y el Centro la exige. Créalo a mano en Centros." },
+                new[] { "Refrielectric S.L.", "No se creará", "La plantilla de Clientes no recoge Empresa, y el Centro la exige. Créalo a mano en Centros." }
             }, o => o.WithStrictOrdering());
+        cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr").Select(f => f.GetAttribute("data-tipo-fila-plan"))
+            .Should().OnlyContain(t => t == "NoSeCrea");
         cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr .badge").Select(b => b.GetAttribute("class"))
             .Should().OnlyContain(clase => clase!.Contains("badge-advertencia"),
                 "las tres filas son altas de Cliente/Centro que el handler nunca hará: ninguna debe pintarse en verde");
 
-        Texto(cut.Find(".titulo-aviso-altas")).Should().Be("Ninguna de estas altas se hará al importar.");
+        Texto(cut.Find(".titulo-aviso-altas")).Should().Be("3 altas de Cliente empresarial o Centro no se harán al importar.");
         Texto(cut.Find(".detalle-aviso-altas")).Should().Be(
             "Las 2 filas de Cliente empresarial o Centro con un nombre que todavía no existe se omitirán: esta importación no recoge " +
             "el CIF que exige el alta de un Cliente empresarial ni la Empresa que exige la de un Centro. Dalos de alta a mano en Clientes y Centros.",
@@ -606,14 +621,14 @@ public partial class ImportarClientesGen2Tests : BunitContext
         await Subir(cut, "existentes.xlsx", "existentes");
         await Pulsar(cut, "Ver plan de importación");
 
-        Texto(cut.Find(".badges-resumen-plan .badge")).Should().Be("0 se crearán");
-        cut.Find(".badges-resumen-plan .badge").GetAttribute("class").Should().Contain("badge-exito",
-            "no hay ninguna alta que no vaya a hacerse: el verde original sigue siendo correcto aquí");
+        cut.FindAll(".badges-resumen-plan .badge").Select(Texto).Should().Equal(["0 se crearán", "0 con aviso", "0 se omitirán"],
+            "sin altas que no vayan a hacerse no aparece el badge «no se crearán»");
+        cut.Find(".badges-resumen-plan .badge").GetAttribute("class").Should().Contain("badge-exito");
         cut.FindAll(".aviso-altas-importacion").Should().BeEmpty();
     }
 
     [Fact]
-    public async Task En_la_CAE_completa_el_aviso_y_la_confirmacion_separan_las_altas_que_si_se_haran()
+    public async Task En_la_CAE_completa_el_plan_separa_las_altas_que_si_se_haran_de_las_que_no()
     {
         var escenario = new Escenario();
         escenario.Plan<AnalizarImportacionExcelQuery>("cae", [Fila("Obra Norte")], empresas: [new EmpresaImportadaDto("Montajes Ebro S.A.", false)]);
@@ -623,17 +638,18 @@ public partial class ImportarClientesGen2Tests : BunitContext
         await Subir(cut, "cae.xlsx", "cae");
         await Pulsar(cut, "Ver plan de importación");
 
-        Texto(cut.Find(".badges-resumen-plan .badge")).Should().Be("3 se crearán");
-        cut.Find(".badges-resumen-plan .badge").GetAttribute("class").Should().Contain("badge-advertencia",
-            "2 de las 3 altas contadas no se harán: el color no debe leer como éxito garantizado (REC-106)");
-        Texto(cut.Find(".titulo-aviso-altas")).Should().Be("2 de estas altas no se harán al importar.");
+        cut.FindAll(".badges-resumen-plan .badge").Select(Texto).Take(2).Should().Equal(["1 se crearán", "2 no se crearán"],
+            "solo el alta de Empresa se escribe; Cliente empresarial y Centro de Centros_Plataformas no (REC-106)");
+        Texto(cut.Find(".titulo-aviso-altas")).Should().Be("2 altas de Cliente empresarial o Centro no se harán al importar.");
         var filasPlan = cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr");
-        filasPlan.Select(f => Texto(f.QuerySelectorAll("td")[2]))
-            .Should().Contain("Nombre nuevo en Centros_Plataformas.", "la CAE completa sí lee Centros_Plataformas");
 
-        var filasClienteCentro = filasPlan.Where(f => Texto(f.QuerySelectorAll("td")[1]) is "Crear cliente" or "Crear centro").ToList();
-        filasClienteCentro.Should().HaveCount(2);
-        filasClienteCentro.Select(f => f.QuerySelector(".badge")!.GetAttribute("class"))
+        var filasNoSeCrea = filasPlan.Where(f => f.GetAttribute("data-tipo-fila-plan") == "NoSeCrea").ToList();
+        filasNoSeCrea.Select(f => f.QuerySelectorAll("td").Select(Texto).ToArray()).Should().BeEquivalentTo(new[]
+        {
+            new[] { "Obra Norte", "No se creará", "La hoja «Centros_Plataformas» no recoge CIF, y el Cliente empresarial lo exige. Créalo a mano en Clientes." },
+            new[] { "Obra Norte", "No se creará", "La hoja «Centros_Plataformas» no recoge Empresa, y el Centro la exige. Créalo a mano en Centros." }
+        }, o => o.WithStrictOrdering());
+        filasNoSeCrea.Select(f => f.QuerySelector(".badge")!.GetAttribute("class"))
             .Should().OnlyContain(clase => clase!.Contains("badge-advertencia"),
                 "Centros_Plataformas nunca da de alta Cliente ni Centro: no deben pintarse en verde");
 
@@ -643,7 +659,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
         await Pulsar(cut, "Continuar a confirmar");
         Texto(cut.Find(".titulo-aviso-confirmacion")).Should().Be(
-            "Se crearán como máximo 1 de las 3 altas del plan. Esta acción escribe datos reales.");
+            "Se creará como máximo 1 elemento. Esta acción escribe datos reales.");
     }
 
     // ---------------------------------------------------------------- confirmar y escribir
@@ -657,7 +673,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var (cut, mediador) = Renderizar(escenario);
         await LlevarAConfirmarAsync(cut, "clientes-levante.xlsx", "levante");
 
-        Texto(cut.Find(".titulo-aviso-confirmacion")).Should().Be("Ninguna de las 2 altas del plan se hará.");
+        Texto(cut.Find(".titulo-aviso-confirmacion")).Should().Be("No se creará ningún elemento.");
         Texto(cut.Find(".detalle-aviso-confirmacion")).Should().StartWith(
             "La fila de Cliente empresarial o Centro con un nombre que todavía no existe se omitirá:");
         cut.FindAll("label.opcion-reemplazar-importacion").Should().BeEmpty("solo la Combinada actualiza lo existente");
@@ -1188,5 +1204,236 @@ public partial class ImportarClientesGen2Tests : BunitContext
         Metrica(cut, "Actualizados").Should().Be(actualizados);
         mediador.Enviados.OfType<RegistrarHistorialImportacionCommand>().Should().ContainSingle()
             .Which.Should().BeEquivalentTo(new RegistrarHistorialImportacionCommand("Combinada", "combinada.xlsx", true, 1, 0, 0, null));
+    }
+
+    // ---------------------------------------------------------------- plantilla Documentos
+
+    private const string UrlImportarDocumentos = "importacion?plantilla=documentos&flujo=documentos";
+
+    private static DocumentoImportadoDto Documento(string dni, bool yaExiste = false) =>
+        new(dni, "Certificado de aptitud médica", new DateOnly(2026, 1, 1), yaExiste, "Documentos");
+
+    private static async Task LlevarAlPlanDeDocumentosAsync(IRenderedComponent<PaginaImportacion> cut, string contenido)
+    {
+        await Subir(cut, "documentos.xlsx", contenido);
+        await Pulsar(cut, "Ver plan de importación");
+    }
+
+    [Fact]
+    public void Importar_documentos_enlaza_a_la_subida_multiple_desde_la_cabecera()
+    {
+        var (cut, _) = Renderizar(new Escenario(), url: UrlImportarDocumentos);
+
+        var enlace = cut.Find("a.enlace-subida-multiple");
+        enlace.GetAttribute("href").Should().Be("/documentos/subida-masiva");
+        Texto(enlace).Should().Be("Subida múltiple →");
+    }
+
+    [Fact]
+    public void El_asistente_general_no_enlaza_a_la_subida_multiple()
+    {
+        var (cut, _) = Renderizar(new Escenario(), url: "importacion");
+
+        cut.FindAll("a.enlace-subida-multiple").Should().BeEmpty("el enlace es del flujo documental, no de las otras plantillas");
+    }
+
+    [Fact]
+    public void Las_columnas_de_Documentos_son_las_de_la_plantilla_que_se_descarga()
+    {
+        var (cut, _) = Renderizar(new Escenario(), url: UrlImportarDocumentos);
+
+        using var libro = new XLWorkbook(new MemoryStream(new ClosedXmlPlantillaDocumentosService(null!, null!, null!).GenerarPlantilla()));
+        var hoja = libro.Worksheets.Should().ContainSingle().Subject;
+        hoja.Name.Should().Be("Documentos");
+        Texto(cut.Find(".cabecera-columnas-plantilla")).Should().Be("Columnas que espera la hoja «Documentos»");
+
+        var filas = cut.FindAll("tr[data-columna-plantilla]")
+            .Select(f => f.QuerySelectorAll("td").Select(Texto).ToArray()).ToList();
+        filas.Select(f => f[0]).Should().Equal(
+            Enumerable.Range(1, 3).Select(c => hoja.Cell(1, c).GetString()),
+            "los rótulos tienen que ser los de la cabecera que escribe GenerarPlantilla");
+        hoja.Cell(1, 4).IsEmpty().Should().BeTrue("la plantilla no tiene más columnas que las que se enseñan");
+        filas.Skip(1).Select(f => f[1]).Should().Equal(
+            Enumerable.Range(2, 2).Select(c => hoja.Cell(2, c).GetString()),
+            "los ejemplos son los de la fila de ejemplo de la plantilla");
+        filas.Select(f => f[2]).Should().Equal(["Sí", "Sí", "Sí"], "el lector omite la fila a la que le falta cualquiera de las tres");
+    }
+
+    [Fact]
+    public void Documentos_admite_hasta_5_MB_y_la_CAE_completa_20()
+    {
+        var (cut, _) = Renderizar(new Escenario(), url: "importacion");
+
+        Texto(cut.Find("[data-plantilla='documentos'] .limite-tarjeta-plantilla")).Should().Be(".xlsx · máx. 5 MB");
+        Texto(cut.Find("[data-plantilla='cae'] .limite-tarjeta-plantilla")).Should().Be(".xlsx · máx. 20 MB");
+    }
+
+    [Fact]
+    public void La_zona_de_soltar_de_Documentos_anuncia_su_limite_y_solo_acepta_xlsx()
+    {
+        var (cut, _) = Renderizar(new Escenario(), url: UrlImportarDocumentos);
+
+        cut.Markup.Should().Contain(".xlsx · máx. 5 MB · el análisis no escribe nada");
+        cut.Find("input[type=file]").GetAttribute("accept").Should().Be(".xlsx");
+    }
+
+    [Fact]
+    public async Task Sin_hoja_Documentos_el_paso_2_lo_dice_con_su_estado_y_no_como_error_de_lectura()
+    {
+        var escenario = new Escenario();
+        escenario.PlanDocumentos("sin-hoja", [],
+            omitidos: [new ItemImportacionDto("Documentos", 0, "Hoja completa", "No se encontró la hoja \"Documentos\" en el archivo.")]);
+        var (cut, _) = Renderizar(escenario, url: UrlImportarDocumentos);
+
+        await Subir(cut, "documentos.xlsx", "sin-hoja");
+
+        var estado = cut.Find("[data-estado-hoja='sin-hoja']");
+        estado.GetAttribute("role").Should().Be("alert");
+        Texto(estado.QuerySelector(".titulo-estado-hoja-documentos")!).Should().Be("No se encontró la hoja «Documentos» en el archivo");
+        cut.FindAll("[data-estado-hoja='sin-filas']").Should().BeEmpty();
+        cut.FindAll(".alerta-formulario").Should().BeEmpty("el archivo se leyó: .alerta-formulario es solo el error de lectura");
+        Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse("el plan enseña la misma omisión con su motivo");
+    }
+
+    [Fact]
+    public async Task Una_hoja_Documentos_sin_filas_tiene_su_propio_estado()
+    {
+        var escenario = new Escenario();
+        escenario.PlanDocumentos("vacia", []);
+        var (cut, _) = Renderizar(escenario, url: UrlImportarDocumentos);
+
+        await Subir(cut, "documentos.xlsx", "vacia");
+
+        Texto(cut.Find("[data-estado-hoja='sin-filas'] .titulo-estado-hoja-documentos"))
+            .Should().Be("La hoja «Documentos» no tiene ninguna fila que importar");
+        cut.FindAll("[data-estado-hoja='sin-hoja']").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_filas_para_importar_no_aparece_ningun_estado_de_hoja()
+    {
+        var escenario = new Escenario();
+        escenario.PlanDocumentos("normal", [Documento("12345678Z")]);
+        var (cut, _) = Renderizar(escenario, url: UrlImportarDocumentos);
+
+        await Subir(cut, "documentos.xlsx", "normal");
+
+        cut.FindAll("[data-estado-hoja]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Los_filtros_del_plan_de_Documentos_separan_lo_que_se_crea_de_lo_que_se_omite()
+    {
+        var escenario = new Escenario();
+        escenario.PlanDocumentos("mixto", [Documento("12345678Z"), Documento("87654321X")],
+            omitidos: [new ItemImportacionDto("Documentos", 4, "11111111H", "No existe ningún trabajador con este DNI.")],
+            advertencias: [new ItemImportacionDto("Documentos", 5, "22222222J", "Aviso de prueba.")]);
+        var (cut, _) = Renderizar(escenario, url: UrlImportarDocumentos);
+        await LlevarAlPlanDeDocumentosAsync(cut, "mixto");
+
+        string[] TiposVisibles() =>
+            [.. cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr").Select(f => f.GetAttribute("data-tipo-fila-plan")!)];
+        IElement Filtro(string texto) => cut.FindAll("button.filtro-plan-importacion").Single(b => Texto(b) == texto);
+
+        cut.FindAll("button.filtro-plan-importacion").Select(Texto).Should().Equal(["Todas", "Se crearán", "Se omitirán"]);
+        Filtro("Todas").GetAttribute("aria-pressed").Should().Be("true");
+        TiposVisibles().Should().BeEquivalentTo(["Crear", "Crear", "Aviso", "Omitir"], "«Todas» incluye los avisos");
+
+        await Filtro("Se crearán").ClickAsync(new MouseEventArgs());
+        TiposVisibles().Should().Equal(["Crear", "Crear"]);
+        Filtro("Se crearán").GetAttribute("aria-pressed").Should().Be("true");
+        Filtro("Todas").GetAttribute("aria-pressed").Should().Be("false");
+
+        await Filtro("Se omitirán").ClickAsync(new MouseEventArgs());
+        TiposVisibles().Should().Equal(["Omitir"]);
+
+        await Filtro("Todas").ClickAsync(new MouseEventArgs());
+        TiposVisibles().Should().HaveCount(4);
+    }
+
+    [Fact]
+    public async Task El_plan_de_las_otras_plantillas_no_tiene_filtros()
+    {
+        var escenario = new Escenario();
+        escenario.Plan<AnalizarPlantillaClientesQuery>("existentes", [Fila("Refrielectric S.L.", true, true)]);
+        var (cut, _) = Renderizar(escenario);
+
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+        await Subir(cut, "existentes.xlsx", "existentes");
+        await Pulsar(cut, "Ver plan de importación");
+
+        cut.FindAll(".filtros-plan-importacion").Should().BeEmpty();
+    }
+
+    private static async Task ImportarDocumentosAsync(IRenderedComponent<PaginaImportacion> cut, MediadorControlado mediador, string contenido)
+    {
+        await LlevarAlPlanDeDocumentosAsync(cut, contenido);
+        await Pulsar(cut, "Continuar a confirmar");
+        await MarcarRevisado(cut);
+        await Pulsar(cut, "Importar ahora");
+        await BotonDelDialogo(cut, "Sí, importar").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => mediador.Enviados.OfType<EjecutarImportacionCommand>().Should().ContainSingle());
+    }
+
+    [Fact]
+    public async Task El_reporte_de_Documentos_indica_el_siguiente_paso_para_los_PDF()
+    {
+        var escenario = new Escenario();
+        escenario.PlanDocumentos("dos", [Documento("12345678Z"), Documento("87654321X"), Documento("11111111H", yaExiste: true)]);
+        var (cut, mediador) = Renderizar(escenario, url: UrlImportarDocumentos);
+
+        await ImportarDocumentosAsync(cut, mediador, "dos");
+
+        cut.WaitForAssertion(() => cut.FindAll(".siguiente-paso-pdf").Should().ContainSingle());
+        Texto(cut.Find(".titulo-siguiente-paso-pdf")).Should().Be("Y ahora, los PDF");
+        Texto(cut.Find(".texto-siguiente-paso-pdf")).Should().Be(
+            "Los 2 documentos importados existen con su fecha de emisión, pero todavía sin archivo adjunto. Los PDF se aportan con la subida múltiple.",
+            "cuenta los documentos creados, no los que ya existían");
+        cut.Find("a.enlace-siguiente-paso-pdf").GetAttribute("href").Should().Be("/documentos/subida-masiva");
+        cut.FindAll("a").Single(a => Texto(a) == "Ver los documentos importados").GetAttribute("href").Should().Be("/documentos");
+    }
+
+    [Fact]
+    public async Task Si_no_se_creo_ningun_documento_el_reporte_no_habla_de_PDF()
+    {
+        var escenario = new Escenario();
+        escenario.PlanDocumentos("ninguno", [Documento("11111111H", yaExiste: true)]);
+        var (cut, mediador) = Renderizar(escenario, url: UrlImportarDocumentos);
+
+        await ImportarDocumentosAsync(cut, mediador, "ninguno");
+
+        cut.WaitForAssertion(() => cut.FindAll(".nota-reporte-importacion").Should().NotBeEmpty());
+        cut.FindAll(".siguiente-paso-pdf").Should().BeEmpty("con cero documentos creados no hay nada a lo que aportar un PDF");
+        cut.FindAll("a").Where(a => Texto(a) == "Ver los documentos importados").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_filtro_sin_filas_lo_dice_en_vez_de_dejar_la_tabla_muda()
+    {
+        var escenario = new Escenario();
+        escenario.PlanDocumentos("sin-omitidos", [Documento("12345678Z")]);
+        var (cut, _) = Renderizar(escenario, url: UrlImportarDocumentos);
+        await LlevarAlPlanDeDocumentosAsync(cut, "sin-omitidos");
+
+        cut.FindAll(".fila-plan-filtro-vacio").Should().BeEmpty("con «Todas» hay filas que enseñar");
+        await cut.FindAll("button.filtro-plan-importacion").Single(b => Texto(b) == "Se omitirán").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("tr[data-tipo-fila-plan]").Should().BeEmpty();
+        Texto(cut.Find(".fila-plan-filtro-vacio")).Should().Be("Ninguna fila del plan corresponde a este filtro.");
+    }
+
+    [Fact]
+    public async Task Con_un_solo_documento_la_confirmacion_y_el_dialogo_hablan_en_singular()
+    {
+        var escenario = new Escenario();
+        escenario.PlanDocumentos("uno", [Documento("12345678Z")]);
+        var (cut, _) = Renderizar(escenario, url: UrlImportarDocumentos);
+        await LlevarAlPlanDeDocumentosAsync(cut, "uno");
+        await Pulsar(cut, "Continuar a confirmar");
+
+        Texto(cut.Find(".titulo-aviso-confirmacion")).Should().Be("Se creará 1 elemento. Esta acción escribe datos reales.");
+        await MarcarRevisado(cut);
+        await Pulsar(cut, "Importar ahora");
+        Texto(cut.Find(".modal-cuerpo p")).Should().StartWith("Se creará 1 elemento.");
     }
 }

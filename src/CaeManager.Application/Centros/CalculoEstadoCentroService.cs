@@ -410,18 +410,25 @@ public class CalculoEstadoCentroService(
         // el bloque "alertasVigencia" de ObtenerAlertasQuery, sin filtrar por
         // EsObligatorio: un Documento vencido cuenta para el Centro exista o
         // no exista una fila de obligatoriedad para su TipoDocumento.
-        var documentosTrabajador = await (
+        //
+        // Con vencimiento más allá del umbral ámbar el estado es SIEMPRE
+        // Vigente (CalculadoraEstadoDocumento) y el bucle de abajo lo salta:
+        // la cota superior lo deja en PostgreSQL en vez de traerlo y
+        // descartarlo aquí (mismo límite que ObtenerAlertasQuery; P1-D1).
+        var fechaLimiteCausa = hoy.AddDays(umbralAmbarDias);
+        var documentosTrabajador = (await (
             from documento in documentosContext.Documentos
             where documento.TrabajadorId != null && trabajadorIds.Contains(documento.TrabajadorId!.Value)
             // Solo con fecha: mismo criterio que en AgregarCausasDeEmpresaAsync.
-            where documento.FechaVencimiento != null
+            where documento.FechaVencimiento != null && documento.FechaVencimiento <= fechaLimiteCausa
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new { TrabajadorId = documento.TrabajadorId!.Value, documento.FechaVencimiento, tipoDocumento.Nombre })
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken))
+            .ToLookup(d => d.TrabajadorId);
 
         foreach (var asignacion in asignacionesActivas)
         {
-            foreach (var documento in documentosTrabajador.Where(d => d.TrabajadorId == asignacion.TrabajadorId))
+            foreach (var documento in documentosTrabajador[asignacion.TrabajadorId])
             {
                 var estado = CalculadoraEstadoDocumento.Calcular(
                     VigenciaDocumento.VenceEl(documento.FechaVencimiento!.Value), hoy, umbralAmbarDias, umbralRojoDias);

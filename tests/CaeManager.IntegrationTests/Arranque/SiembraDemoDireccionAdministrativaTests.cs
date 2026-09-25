@@ -241,6 +241,9 @@ public class SiembraDemoDireccionAdministrativaSobreBaseTests
 
             using var ambito = arnes.Servicios.CreateScope();
             var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            // AspNetUsers tiene RLS (P1-M1): el test busca por correo sin conocer el
+            // Tenant, por el mismo camino que el login.
+            using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
             foreach (var (email, contrasena) in credenciales)
             {
                 var usuario = await userManager.FindByEmailAsync(email);
@@ -672,6 +675,7 @@ public class SiembraDemoDireccionAdministrativaSobreBaseTests
 
             using var otro = arnes.Servicios.CreateScope();
             var userManager = otro.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
             foreach (var cuenta in cuentas)
             {
                 var usuario = await userManager.FindByEmailAsync(cuenta.GetProperty("email").GetString()!);

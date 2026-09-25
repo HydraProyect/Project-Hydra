@@ -53,10 +53,17 @@ public record TrabajadorImportadoDto(
     string? Email,
     bool YaExiste);
 
+/// <param name="Hoja">
+/// Hoja del Excel de la que salió la fila, para que un documento que se omita al
+/// escribir se reporte en su hoja real: «Documentos» en la plantilla de
+/// Documentos, la hoja de trabajadores correspondiente en la plantilla CAE
+/// completa. El valor por defecto es la hoja de trabajadores de la plantilla CAE.
+/// </param>
 public record DocumentoImportadoDto(
     string Dni,
     string NombreTipoDocumento,
     DateOnly FechaEmision,
-    bool YaExiste);
+    bool YaExiste,
+    string Hoja = "Empleados");
 
 public record AsignacionImportadaDto(string Dni, string NombreCentro, bool YaExiste);

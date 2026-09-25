@@ -54,11 +54,14 @@ public class DirectorioUsuariosTenant(
     /// scoped.
     /// </summary>
     /// <summary>
-    /// Sin filtro de visibilidad a propósito: la pregunta que responde es "¿de
-    /// qué tenant es este usuario?", y quien la hace la necesita justamente
-    /// para decidir si ese usuario es aceptable — filtrarla por el tenant
-    /// activo la volvería circular. No revela nada: devuelve un Guid de tenant
-    /// a partir de un Guid de usuario que el llamante ya tenía.
+    /// Sin filtro de visibilidad en C#: la pregunta que responde es "¿de qué
+    /// Tenant es este usuario?", y quien la hace la necesita justamente para
+    /// decidir si ese usuario es aceptable. Desde P1-M1 la RLS de
+    /// <c>AspNetUsers</c> sí la acota: una cuenta que el contexto no puede ver
+    /// devuelve <c>null</c>, que el llamante trata como "no es de la
+    /// organización esperada" (fallo cerrado). Su único llamante,
+    /// <c>CrearAsignacionOperadorDelegado</c>, ya exige antes que la cuenta sea
+    /// visible en el Tenant activo.
     /// </summary>
     public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>

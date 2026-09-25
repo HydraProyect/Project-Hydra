@@ -43,6 +43,11 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
     private const string Contrasena = "Arnes#2026Seguro";
 
     private readonly ActorMutable _actor = new();
+    // El usuario de la sesión, como lo fija CurrentUserService en producción:
+    // sin él, la cuenta del Administrador no sería visible desde otro workspace
+    // (RLS de AspNetUsers, P1-M1) y la autorización fallaría antes de llegar a
+    // la política que estos tests miden.
+    private readonly CurrentUserServiceMutable _sesion = new();
     private ArnesDeArranqueRuntime _arnes = null!;
 
     private Guid _propietario;
@@ -57,7 +62,8 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        _arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false, actorAuditoriaPersonalizado: _actor);
+        _arnes = await ArnesDeArranqueRuntime.CrearAsync(
+            datosDePruebaActivos: false, actorAuditoriaPersonalizado: _actor, currentUserServicePersonalizado: _sesion);
 
         await using (var propietarioDeLaBase = ContextoPropietarioDeLaBase())
         {
@@ -116,6 +122,8 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         using (var ambito = _arnes.Servicios.CreateScope())
         {
             var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            // En el Tenant de la cuenta: AspNetUsers tiene RLS (P1-M1).
+            using var tenantDeLaCuenta = AmbitoTenantExplicito.Establecer(_propietario);
             var usuario = (await userManager.FindByIdAsync(_administradorPropietario.Id.ToString()))!;
             usuario.Desactivar();
             (await userManager.UpdateAsync(usuario)).Succeeded.Should().BeTrue();
@@ -232,6 +240,8 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
     {
         using var ambito = _arnes.Servicios.CreateScope();
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        _sesion.UsuarioId = usuario.Id;
+        _sesion.TenantOrigenId = usuario.TenantId;
 
         using (AmbitoTenantExplicito.Establecer(workspaceActivo ?? usuario.TenantId))
             return await new AutorizacionDelegacionPorAdministradorDelCliente(userManager)
@@ -246,6 +256,8 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         var contexto = servicios.GetRequiredService<CaeManagerDbContext>();
         var usuarioActual = new CurrentUserServiceFalso(usuario.Id, tenantOrigenId: usuario.TenantId);
         _actor.Actual = usuario.Id;
+        _sesion.UsuarioId = usuario.Id;
+        _sesion.TenantOrigenId = usuario.TenantId;
 
         var handler = new CrearDelegacionTenantCommandHandler(
             new DelegacionTenantRepository(contexto),

@@ -102,6 +102,20 @@ public class PrivilegioDePlataformaTests
     }
 
     [Theory]
+    [InlineData(CapacidadPrivilegio.SoporteLectura)]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento)]
+    public void La_sesion_lleva_la_capacidad_de_su_concesion(CapacidadPrivilegio capacidad)
+    {
+        // Es lo que el Tenant objetivo ve para distinguir una lectura de soporte
+        // de un aprovisionamiento que escribe, sin leer la concesión.
+        var concesion = ConcesionPrivilegio.SobreTenants(
+            Tecnico, capacidad, [TenantCliente], Ahora.AddDays(-1), Ahora.AddDays(1));
+
+        SesionPrivilegiada.Abrir(concesion, TenantCliente, "motivo", Ahora, TimeSpan.FromHours(1))
+            .Capacidad.Should().Be(capacidad);
+    }
+
+    [Theory]
     [InlineData(CapacidadPrivilegio.Aprovisionamiento)]
     [InlineData(CapacidadPrivilegio.BreakGlass)]
     [InlineData(CapacidadPrivilegio.Impersonacion)]

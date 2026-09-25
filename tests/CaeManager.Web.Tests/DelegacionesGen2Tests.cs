@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Bunit;
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma.Queries.ObtenerAccesosSoporteTalveg;
 using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
 using CaeManager.Application.Tenants.Commands.CrearDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.CrearOperadorCaeExterno;
@@ -18,6 +19,7 @@ using CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 using CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
 using CaeManager.Application.Tenants.Queries.ObtenerOperadoresCaeExternos;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
@@ -60,6 +62,12 @@ public class DelegacionesGen2Tests : BunitContext
         /// nadie administra un Tenant propietario, y el flujo del incremento 1b no se ve.
         /// </summary>
         public Guid? TenantPropietarioAutorizante { get; set; }
+
+        /// <summary>
+        /// Respuesta de <see cref="ObtenerAccesosSoporteTalvegQuery"/>: por defecto null,
+        /// que es lo que recibe quien no es Administrador del Tenant propietario.
+        /// </summary>
+        public IReadOnlyList<AccesoSoporteTalvegDto>? AccesosSoporteTalveg { get; set; }
         public Func<BuscarOperadorCaeExternoAutorizableQuery, OperadorCaeExternoAutorizableDto?> Buscar { get; set; } = _ => null;
         public Result<Guid> ResultadoAutorizacion { get; set; } = Result.Exito(Guid.NewGuid());
 
@@ -83,6 +91,7 @@ public class DelegacionesGen2Tests : BunitContext
                 CrearTenantPropietarioDeOperadorCaeExternoCommand => Result.Exito(Guid.NewGuid()),
                 PuedeReactivarQuery q => PuedeReactivar(q.TenantClienteId),
                 ObtenerTenantPropietarioAutorizanteQuery => TenantPropietarioAutorizante,
+                ObtenerAccesosSoporteTalvegQuery => AccesosSoporteTalveg,
                 BuscarOperadorCaeExternoAutorizableQuery q => Buscar(q),
                 CrearDelegacionTenantCommand => ResultadoAutorizacion,
                 _ => throw new NotSupportedException(request.GetType().Name)
@@ -653,5 +662,40 @@ public class DelegacionesGen2Tests : BunitContext
         var boton = cut.FindComponents<BotonCopiar>().Should().ContainSingle().Subject;
         boton.Instance.Texto.Should().Be("Copiar enlace de autorización");
         boton.Instance.Valor.Should().EndWith($"/delegaciones?autorizar={operador}");
+    }
+
+    // ── ADR-011 § 8.7, incremento 2: el Administrador del Tenant propietario ve los accesos de Soporte TALVEG ──
+
+    [Fact]
+    public void Sin_ser_Administrador_del_Tenant_propietario_la_seccion_de_accesos_de_Soporte_TALVEG_no_existe()
+    {
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false);
+
+        cut.FindAll(".accesos-soporte-talveg").Should().BeEmpty();
+        mediador.Enviadas.Should().Contain(x => x.Peticion is ObtenerAccesosSoporteTalvegQuery,
+            "control positivo: la pantalla sí preguntó y la respuesta fue null");
+    }
+
+    [Fact]
+    public void El_Administrador_del_Tenant_propietario_ve_motivo_ticket_y_estado_sin_la_identidad_del_tecnico()
+    {
+        var ahora = DateTime.UtcNow;
+        _configurarMediador = m => m.AccesosSoporteTalveg =
+        [
+            new AccesoSoporteTalvegDto(Guid.NewGuid(), CapacidadPrivilegio.SoporteLectura, "Revisar importación fallida", "TCK-42",
+                ahora.AddMinutes(-5), ahora.AddHours(1), null, EstadoAccesoSoporteTalveg.Abierto),
+            new AccesoSoporteTalvegDto(Guid.NewGuid(), CapacidadPrivilegio.Aprovisionamiento, "Consulta de configuración", null,
+                ahora.AddDays(-2), ahora.AddDays(-2).AddHours(1), ahora.AddDays(-2).AddMinutes(30), EstadoAccesoSoporteTalveg.Cerrado),
+        ];
+        var (cut, _, _) = Renderizar(esAdministradorPlataforma: false);
+
+        var seccion = cut.Find(".accesos-soporte-talveg");
+        var filas = seccion.QuerySelectorAll("tbody tr");
+        filas.Should().HaveCount(2, "control positivo: la tabla pinta las dos sesiones del doble");
+        filas[0].TextContent.Should().Contain("Revisar importación fallida").And.Contain("TCK-42").And.Contain("Ventana abierta");
+        filas[0].TextContent.Should().Contain("Lectura de soporte");
+        filas[1].TextContent.Should().Contain("Consulta de configuración").And.Contain("Cerrado")
+            .And.Contain("Aprovisionamiento, con escritura", "un acceso que escribe no se presenta como una lectura");
+        seccion.TextContent.Should().Contain("Soporte TALVEG");
     }
 }

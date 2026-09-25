@@ -49,6 +49,22 @@ public class SignInManagerCuentaDesactivada(
     IUserConfirmation<ApplicationUser> confirmation)
     : SignInManager<ApplicationUser>(userManager, contextAccessor, claimsFactory, optionsAccessor, logger, schemes, confirmation)
 {
+    /// <summary>
+    /// Punto de entrada de la validación periódica de la cookie y del circuito: busca
+    /// la cuenta por el <c>Id</c> del principal. En el <c>SecurityStampValidator</c>
+    /// de la cookie todavía no hay <c>HttpContext.User</c> y por tanto tampoco Tenant,
+    /// y <c>AspNetUsers</c> tiene RLS (P1-M1): sin
+    /// <see cref="AmbitoIdentificacionSinTenant"/> la cuenta no se encontraría y la
+    /// sesión moriría en el primer refresco. Con Tenant en el contexto (el circuito
+    /// ya autenticado) el ámbito no cambia nada: la cuenta se lee por la rama de la
+    /// propia cuenta de la política.
+    /// </summary>
+    public override async Task<ApplicationUser?> ValidateSecurityStampAsync(ClaimsPrincipal? principal)
+    {
+        using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
+        return await base.ValidateSecurityStampAsync(principal);
+    }
+
     public override async Task<bool> ValidateSecurityStampAsync(ApplicationUser? user, string? securityStamp)
     {
         if (user is not null && user.EstaDesactivada(DateTimeOffset.UtcNow))

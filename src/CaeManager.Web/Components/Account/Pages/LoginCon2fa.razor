@@ -117,6 +117,10 @@
         Entrada ??= new DatosEntrada();
         EntradaRecuperacion ??= new DatosRecuperacion();
 
+        // Antes de que exista Tenant: la cuenta se busca por su clave bajo la RLS
+        // de AspNetUsers (ver AmbitoIdentificacionSinTenant, P1-M1).
+        using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
+
         // Si no hay un login con contraseña ya validado en curso (por
         // ejemplo, alguien navega aquí directamente sin haber pasado por
         // Login.razor), no hay nada que verificar — de vuelta al login.
@@ -128,6 +132,10 @@
     private async Task VerificarAsync()
     {
         if (Entrada is null || _usuarioPendiente is null) return;
+
+        // Antes de que exista Tenant: la cuenta se busca por su clave bajo la RLS
+        // de AspNetUsers (ver AmbitoIdentificacionSinTenant, P1-M1).
+        using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
 
         var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
 
@@ -229,6 +237,10 @@
     private async Task VerificarRecuperacionAsync()
     {
         if (EntradaRecuperacion is null || _usuarioPendiente is null) return;
+
+        // Antes de que exista Tenant: la cuenta se busca por su clave bajo la RLS
+        // de AspNetUsers (ver AmbitoIdentificacionSinTenant, P1-M1).
+        using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
 
         // Validación a mano y no con DataAnnotations: sus mensajes no pasan por
         // TextosCuenta. Un código mal formado no es un caso aparte: se trata como

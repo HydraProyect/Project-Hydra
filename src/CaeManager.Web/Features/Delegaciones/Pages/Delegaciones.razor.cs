@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma.Queries.ObtenerAccesosSoporteTalveg;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.CerrarAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
@@ -27,6 +29,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosAutorizarOperadorCaeExterno> TextosAutorizar { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosAccesosSoporteTalveg> TextosAccesos { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
@@ -94,6 +97,13 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private bool _sugerenciaAtendida;
     private Guid? _sugerenciaVista;
     private bool _mostrarAutorizarOperador;
+
+    /// <summary>
+    /// Sesiones Privilegiadas de Soporte TALVEG sobre el Tenant propietario;
+    /// <c>null</c> si quien mira no es su Administrador, y entonces la sección
+    /// no se pinta (ADR-011 § 8.7, incremento 2).
+    /// </summary>
+    private IReadOnlyList<AccesoSoporteTalvegDto>? _accesosSoporteTalveg;
     private bool _operadorSugerido;
     private string _busquedaOperador = string.Empty;
     private OperadorCaeExternoAutorizableDto? _operadorCandidato;
@@ -116,6 +126,37 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private bool CreacionEnCurso => _creandoDelegacion;
 
     private void OcultarFormularioNueva() => _mostrarNuevaDelegacion = false;
+    private string TextoEstadoAcceso(EstadoAccesoSoporteTalveg estado) => estado switch
+    {
+        EstadoAccesoSoporteTalveg.Abierto => TextosAccesos["EstadoAbierto"],
+        EstadoAccesoSoporteTalveg.Cerrado => TextosAccesos["EstadoCerrado"],
+        _ => TextosAccesos["EstadoCaducado"],
+    };
+
+    private string TextoTipoAcceso(CapacidadPrivilegio capacidad) => capacidad switch
+    {
+        CapacidadPrivilegio.SoporteLectura => TextosAccesos["TipoSoporteLectura"],
+        CapacidadPrivilegio.Aprovisionamiento => TextosAccesos["TipoAprovisionamiento"],
+        _ => TextosAccesos["TipoOtro"],
+    };
+
+    private static TonoBadge TonoEstadoAcceso(EstadoAccesoSoporteTalveg estado) => estado switch
+    {
+        EstadoAccesoSoporteTalveg.Abierto => TonoBadge.Advertencia,
+        EstadoAccesoSoporteTalveg.Cerrado => TonoBadge.Neutro,
+        _ => TonoBadge.Neutro,
+    };
+
+    /// <summary>
+    /// Inicio y final efectivo de la ventana: el cierre si la sesión se cerró
+    /// antes de expirar, si no, su expiración.
+    /// </summary>
+    private static string TextoVentanaAcceso(AccesoSoporteTalvegDto acceso)
+    {
+        var fin = acceso.CerradaEnUtc < acceso.ExpiraEnUtc ? acceso.CerradaEnUtc.Value : acceso.ExpiraEnUtc;
+        return $"{acceso.InicioEnUtc.ToLocalTime():dd/MM/yyyy HH:mm} – {fin.ToLocalTime():HH:mm}";
+    }
+
     private string MensajeRevocacion => _delegacionARevocar is not { } aRevocar
         ? string.Empty
         : $"Se retirará el acceso de «{TituloDe(aRevocar.SomosLaConsultora, aRevocar.ClienteNombre, aRevocar.ConsultoraNombre)}». " +
@@ -142,6 +183,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             var esAdministrador = await Mediator.Send(new EsAdministradorPlataformaQuery(), token);
             var esTenantOrigenPlataforma = await Mediator.Send(new EsTenantOrigenPlataformaQuery(), token);
             var tenantPropietarioAutorizante = await Mediator.Send(new ObtenerTenantPropietarioAutorizanteQuery(), token);
+            var accesosSoporteTalveg = await Mediator.Send(new ObtenerAccesosSoporteTalvegQuery(), token);
             var delegaciones = await Mediator.Send(new ObtenerDelegacionesQuery(), token);
             await CargarNombresDeOperadoresAsync(delegaciones.SelectMany(d => d.Operadores).Select(o => o.UsuarioId), token);
             await CargarCriteriosDeReactivacionAsync(
@@ -154,6 +196,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             _esAdministradorPlataforma = esAdministrador;
             _esTenantOrigenPlataforma = esTenantOrigenPlataforma;
             _tenantPropietarioAutorizante = tenantPropietarioAutorizante;
+            _accesosSoporteTalveg = accesosSoporteTalveg;
             _delegaciones = delegaciones;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
