@@ -145,7 +145,7 @@ comprobar "primera ejecucion sin estado: toma referencia, sin alerta" "$URL" "$l
 reiniciar
 : > "$CURL_LOG"
 env VIGILANCIA_USO_DISCO=95 VIGILANCIA_MEMINFO="$TMP/meminfo" VIGILANCIA_VMSTAT="$TMP/vmstat" \
-  VIGILANCIA_ESTADO="$TMP/estado" bash "$GUION" >/dev/null 2>&1
+  VIGILANCIA_ESTADO="$TMP/estado" VIGILANCIA_BOOT_ID="$TMP/boot_id" bash "$GUION" >/dev/null 2>&1
 codigo=$?
 comprobar "sin URL y disco 95%: sale 1" "1" "$codigo"
 comprobar "sin URL: ninguna llamada de red" "0" "$(wc -l < "$CURL_LOG" | tr -d ' ')"
@@ -206,6 +206,54 @@ comprobar "oom ya entregado: no se repite" "$URL" "$llamada"
 reiniciar
 ejecutar 40 VIGILANCIA_ESTADO="$TMP/no-existe/estado"
 comprobar "estado no escribible: alerta" "$URL/fail" "$llamada"
+
+# --- Log imposible de escribir (disco lleno: el `>>` del cron falla). Antes,
+# el echo abortaba con 1 bajo `set -e`, se confundia con "alerta ya avisada" y
+# no llegaba ningun /fail (revision puente). Aqui stdout va cerrado.
+reiniciar
+: > "$CURL_LOG"
+env VIGILANCIA_USO_DISCO=99 VIGILANCIA_MEMINFO="$TMP/meminfo" VIGILANCIA_VMSTAT="$TMP/vmstat" \
+  VIGILANCIA_ESTADO="$TMP/estado" VIGILANCIA_BOOT_ID="$TMP/boot_id" \
+  BETTERSTACK_HOST_HEARTBEAT_URL="$URL" bash "$GUION" >&- 2>/dev/null
+codigo=$?
+llamada=$(tail -1 "$CURL_LOG"); [ -n "$llamada" ] || llamada="ninguna"
+comprobar "log no escribible y disco 99%: /fail igualmente" "$URL/fail" "$llamada"
+comprobar "log no escribible y disco 99%: sale 1" "1" "$codigo"
+
+# Y con el disco sano, un log no escribible no es motivo de alarma.
+reiniciar
+: > "$CURL_LOG"
+env VIGILANCIA_USO_DISCO=40 VIGILANCIA_MEMINFO="$TMP/meminfo" VIGILANCIA_VMSTAT="$TMP/vmstat" \
+  VIGILANCIA_ESTADO="$TMP/estado" VIGILANCIA_BOOT_ID="$TMP/boot_id" \
+  BETTERSTACK_HOST_HEARTBEAT_URL="$URL" bash "$GUION" >&- 2>/dev/null
+codigo=$?
+llamada=$(tail -1 "$CURL_LOG"); [ -n "$llamada" ] || llamada="ninguna"
+comprobar "log no escribible y todo en orden: ping de exito, no /fail" "$URL" "$llamada"
+comprobar "log no escribible y todo en orden: sale 0" "0" "$codigo"
+
+# --- Estado corrupto con ceros a la izquierda: bash lo leeria en octal ("08"
+# aborta, "09" se pierde). Se descarta el valor y se sigue vigilando.
+reiniciar; meminfo 5; echo "08 3 aaaa-1111" > "$TMP/estado"
+ejecutar 40
+comprobar "estado '08 ...' y memoria baja: se lee como 8 (no octal) y alerta" "$URL/fail" "$llamada"
+case "$salida" in *"en 9 lecturas seguidas"*) r=si ;; *) r="no ($salida)" ;; esac
+comprobar "estado '08 ...': la cuenta sigue en base 10 (9 lecturas)" "si" "$r"
+
+reiniciar; echo "0 09 aaaa-1111" > "$TMP/estado"; vmstat 12
+ejecutar 40
+comprobar "estado '0 09 ...' y oom_kill 12: los 3 OOM no se pierden" "$URL/fail" "$llamada"
+case "$salida" in *"ha matado 3 proceso"*) r=si ;; *) r="no ($salida)" ;; esac
+comprobar "estado '0 09 ...': cuenta 3, en base 10" "si" "$r"
+
+# --- Umbral de 20 cifras: desborda `[ -lt ]` y pasaba la validacion.
+reiniciar
+ejecutar 99 UMBRAL_DISCO=99999999999999999999
+comprobar "umbral de 20 cifras: configuracion invalida (2)" "2" "$codigo"
+
+# --- boot_id previo ilegible ("-") no es un reinicio.
+reiniciar; echo "0 3 -" > "$TMP/estado"
+ejecutar 40
+comprobar "boot_id previo '-' y oom_kill estable: sin alerta" "$URL" "$llamada"
 
 # --- Configuracion invalida
 reiniciar
