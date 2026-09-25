@@ -84,11 +84,30 @@ public class ObtenerAvisoVisitaQueryHandler(
         if (visita.GestionCae != ModalidadGestionCae.SinGestionCae)
             return Result.Fallo<AvisoVisitaDto>(CentroConGestionCae);
 
+        var trabajadores = await ObtenerTrabajadoresAsync(
+            visitasContext, trabajadoresContext, empresasContext, request.VisitaId, cancellationToken);
+
+        return Result.Exito(Componer(new DatosAvisoVisita(
+            visita.CentroNombre, visita.FechaInicio, visita.FechaFin, visita.HoraEstimadaAcceso,
+            trabajadores, visita.EmpresaRazonSocial)));
+    }
+
+    /// <summary>
+    /// Quién acude, con la Empresa a la que pertenece — solo nombre y razón social,
+    /// nunca DNI. Lo comparte la solicitud de acceso por correo (P1-X1).
+    /// </summary>
+    public static async Task<IReadOnlyList<TrabajadorAvisoVisita>> ObtenerTrabajadoresAsync(
+        IVisitasQueryContext visitasContext,
+        ITrabajadoresQueryContext trabajadoresContext,
+        IEmpresasQueryContext empresasContext,
+        Guid visitaId,
+        CancellationToken cancellationToken)
+    {
         var trabajadorIds = visitasContext.VisitasTrabajadores
-            .Where(vt => vt.VisitaId == request.VisitaId)
+            .Where(vt => vt.VisitaId == visitaId)
             .Select(vt => vt.TrabajadorId);
 
-        var trabajadores = await (
+        return await (
             from trabajador in trabajadoresContext.Trabajadores
             where trabajadorIds.Contains(trabajador.Id)
             join empresa in empresasContext.Empresas on trabajador.EmpresaId equals empresa.Id into empresasCoincidentes
@@ -100,10 +119,6 @@ public class ObtenerAvisoVisitaQueryHandler(
                 trabajador.Nombre + " " + trabajador.Apellidos,
                 empresa != null ? empresa.RazonSocial : (subcontrata != null ? subcontrata.RazonSocial : "Sin empresa")))
             .ToListAsync(cancellationToken);
-
-        return Result.Exito(Componer(new DatosAvisoVisita(
-            visita.CentroNombre, visita.FechaInicio, visita.FechaFin, visita.HoraEstimadaAcceso,
-            trabajadores, visita.EmpresaRazonSocial)));
     }
 
     /// <summary>

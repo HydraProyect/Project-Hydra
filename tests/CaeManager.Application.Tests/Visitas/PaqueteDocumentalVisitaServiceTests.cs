@@ -333,6 +333,64 @@ public class PaqueteDocumentalVisitaServiceTests
         _conversacion.Mensajes.Should().BeEmpty("un Centro sin gestión CAE no pide acreditación (P1-X2)");
     }
 
+    // P1-X1: la descarga manual (Centro gestionado por correo) usa ConstruirAsync. Misma
+    // selección que el adjunto al buzón, sin tocar ninguna conversación.
+
+    [Fact]
+    public async Task Construir_aplica_la_misma_seleccion_sin_adjuntar_a_ninguna_conversacion()
+    {
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-400), VigenciaDocumento.VenceEl(Hoy.AddDays(-1)), "vencido");
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-200), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "epi-antiguo");
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(300)), "epi-reciente");
+        DocumentoDeEmpresa(_seguro, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "seguro");
+
+        var paquete = await ConstruirAsync();
+
+        paquete.Should().NotBeNull();
+        LeerZip(paquete!.Contenido).Values.Should().BeEquivalentTo("epi-reciente", "seguro");
+        _conversacion.Mensajes.Should().BeEmpty("la descarga manual no pasa por el buzón (D-1)");
+    }
+
+    [Fact]
+    public async Task Construir_devuelve_solo_los_documentos_que_entraron_en_el_zip()
+    {
+        var ilegible = DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(400)), "irrelevante", archivoInexistente: true);
+        var epi = DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "epi");
+        var vencido = DocumentoDeTrabajador(_luis, _epi, Hoy.AddDays(-500), VigenciaDocumento.VenceEl(Hoy.AddDays(-3)), "vencido");
+
+        var paquete = await ConstruirAsync();
+
+        // Es la lista con la que la descarga registra los accesos sensibles (DEC-36):
+        // ni el que no se pudo abrir ni el vencido entregan contenido.
+        paquete!.Documentos.Should().ContainSingle()
+            .Which.Should().Be(new DocumentoEnPaquete(epi.Id, _epi.Id));
+        paquete.Documentos.Select(d => d.DocumentoId).Should().NotContain([ilegible.Id, vencido.Id]);
+    }
+
+    [Fact]
+    public async Task Construir_no_genera_nada_para_un_centro_sin_gestion_cae()
+    {
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "epi-vigente");
+        _centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+
+        (await ConstruirAsync()).Should().BeNull();
+    }
+
+    private Task<PaqueteDocumentalZip?> ConstruirAsync() =>
+        new PaqueteDocumentalVisitaService(
+                _visitas, _centros, _documentos, _tipos, _empresas, _trabajadores, _conversaciones, _almacenamiento, _logger)
+            .ConstruirAsync(_visita.Id);
+
+    private static Dictionary<string, string> LeerZip(byte[] contenido)
+    {
+        using var zip = new ZipArchive(new MemoryStream(contenido), ZipArchiveMode.Read);
+        return zip.Entries.ToDictionary(e => e.FullName, e =>
+        {
+            using var lector = new StreamReader(e.Open());
+            return lector.ReadToEnd();
+        });
+    }
+
     private async Task GenerarAsync()
     {
         var servicio = new PaqueteDocumentalVisitaService(
@@ -357,10 +415,14 @@ public class PaqueteDocumentalVisitaServiceTests
         });
     }
 
-    private void DocumentoDeTrabajador(
-        Trabajador trabajador, TipoDocumento tipo, DateOnly emision, VigenciaDocumento vigencia, string contenido, bool archivoInexistente = false) =>
-        _documentos.ListaDocumentos.Add(Documento.DeTrabajador(
-            trabajador.Id, tipo.Id, emision, vigencia, archivoInexistente ? "no-existe-en-almacenamiento.pdf" : Guardar(contenido)));
+    private Documento DocumentoDeTrabajador(
+        Trabajador trabajador, TipoDocumento tipo, DateOnly emision, VigenciaDocumento vigencia, string contenido, bool archivoInexistente = false)
+    {
+        var documento = Documento.DeTrabajador(
+            trabajador.Id, tipo.Id, emision, vigencia, archivoInexistente ? "no-existe-en-almacenamiento.pdf" : Guardar(contenido));
+        _documentos.ListaDocumentos.Add(documento);
+        return documento;
+    }
 
     private void DocumentoDeEmpresa(TipoDocumento tipo, DateOnly emision, VigenciaDocumento vigencia, string contenido) =>
         _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empresa.Id, tipo.Id, emision, vigencia, Guardar(contenido)));

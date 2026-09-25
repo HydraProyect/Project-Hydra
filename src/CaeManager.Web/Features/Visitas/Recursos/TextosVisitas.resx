@@ -324,4 +324,25 @@
   <data name="ErrorAvisoVisita" xml:space="preserve">
     <value>No pudimos preparar el aviso de la visita.</value>
   </data>
+  <data name="SubtituloSolicitudAccesoCorreo" xml:space="preserve">
+    <value>Solicitud de acceso por correo</value>
+  </data>
+  <data name="SolicitudAccesoCorreoExplicacion" xml:space="preserve">
+    <value>Este centro se gestiona por correo, no por una plataforma. Copia la solicitud, descarga el ZIP con la documentación vigente y adjúntalo al correo.</value>
+  </data>
+  <data name="SolicitudAccesoCorreoPara" xml:space="preserve">
+    <value>Para:</value>
+  </data>
+  <data name="SolicitudAccesoCorreoCopiar" xml:space="preserve">
+    <value>Copiar solicitud</value>
+  </data>
+  <data name="SolicitudAccesoCorreoEtiquetaCopiar" xml:space="preserve">
+    <value>la solicitud de acceso</value>
+  </data>
+  <data name="DescargarPaqueteDocumental" xml:space="preserve">
+    <value>Descargar ZIP de documentación</value>
+  </data>
+  <data name="ErrorSolicitudAccesoCorreo" xml:space="preserve">
+    <value>No pudimos preparar la solicitud de acceso.</value>
+  </data>
 </root>

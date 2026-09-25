@@ -10,6 +10,7 @@ using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
+using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Common;
@@ -87,6 +88,12 @@ public class VisitasGen2Tests : BunitContext
             FechaHoraExpedienteCompletoUtc: null, AntelacionNominalHoras: 36m, AntelacionEfectivaHoras: 11m, tramo,
             AtribucionUrgencia.SinUrgencia, CentroRequiereGestionCae: v.CentroRequiereGestionCae);
 
+        public HashSet<Guid> VisitasPorCorreo { get; } = [];
+
+        public SolicitudAccesoCorreoDto Solicitud { get; set; } = new("acceso@centronorte.es", "Solicitud de acceso — Centro Norte — 01/10/2026", "Buenos días, Marta:\n\n- Ana Garcia (Contratista Demo SL)");
+
+        public int ConsultasSolicitud { get; private set; }
+
         public AvisoVisitaDto Aviso { get; set; } = new("Aviso de visita — Almacén Sur — 01/10/2026", "Buenos días:\n\n- Ana Garcia (Contratista Demo SL)");
 
         public int ConsultasDocumentacion { get; private set; }
@@ -124,12 +131,16 @@ public class VisitasGen2Tests : BunitContext
                 case ObtenerDetalleVisitaQuery detalle:
                     return DetallesDiferidos.TryGetValue(detalle.Id, out var detalleDiferido)
                         ? (Task<TResponse>)(object)detalleDiferido.Task
-                        : Respuesta<TResponse>(Detalle(Visitas.Single(v => v.Id == detalle.Id), Tramo));
+                        : Respuesta<TResponse>(Detalle(Visitas.Single(v => v.Id == detalle.Id), Tramo) with { CentroGestionadoPorCorreo = VisitasPorCorreo.Contains(detalle.Id) });
 
                 case ObtenerVisitaPorIdQuery edicion:
                     return EdicionesDiferidas.TryGetValue(edicion.Id, out var edicionDiferida)
                         ? (Task<TResponse>)(object)edicionDiferida.Task
                         : Respuesta<TResponse>(ParaEditar(Visitas.Single(v => v.Id == edicion.Id)));
+
+                case ObtenerSolicitudAccesoCorreoQuery:
+                    ConsultasSolicitud++;
+                    return Respuesta<TResponse>(Result.Exito(Solicitud));
 
                 case ObtenerAvisoVisitaQuery:
                     return Respuesta<TResponse>(Result.Exito(Aviso));
@@ -456,6 +467,48 @@ public class VisitasGen2Tests : BunitContext
             .Which.Instance.Valor.Should().Be(mediator.Aviso.Asunto + "\n\n" + mediator.Aviso.Cuerpo,
                 "lo que se pega en el correo es el asunto y el cuerpo, sin nada añadido por la página");
         mediator.ConsultasDocumentacion.Should().Be(0, "sin gestión CAE no hay documentación que consultar");
+    }
+
+    /// <summary>
+    /// P1-X1: en el cajón, un Centro gestionado por correo ofrece la solicitud de
+    /// acceso para copiar (asunto y cuerpo tal como los compone Application) y el
+    /// enlace de descarga del zip, sin quitar la comprobación previa de documentación.
+    /// </summary>
+    [Fact]
+    public async Task El_cajon_de_un_centro_gestionado_por_correo_ofrece_la_solicitud_copiable_y_el_zip()
+    {
+        var norte = Visita("Centro Norte");
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(norte);
+        mediator.VisitasPorCorreo.Add(norte.Id);
+        var cut = Renderizar(mediator);
+
+        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".visitas-aviso-destinatarios").TextContent.Should().Contain("acceso@centronorte.es"));
+        cut.FindComponents<BotonCopiar>().Should().ContainSingle()
+            .Which.Instance.Valor.Should().Be(mediator.Solicitud.Asunto + "\n\n" + mediator.Solicitud.Cuerpo,
+                "lo que se pega en el correo es el asunto y el cuerpo, sin nada añadido por la página");
+        var descarga = cut.Find($"a[href='/visitas/{norte.Id}/paquete-documental.zip']");
+        descarga.HasAttribute("download").Should().BeTrue("el zip se descarga, no se navega a él");
+        descarga.GetAttribute("data-enhance-nav").Should().Be("false", "la navegación mejorada de Blazor no debe interceptar la descarga");
+        cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1, "la comprobación previa sigue: el Centro requiere gestión CAE"));
+    }
+
+    [Fact]
+    public async Task El_cajon_de_un_centro_con_gestion_que_no_es_por_correo_no_ofrece_solicitud_ni_zip()
+    {
+        var norte = Visita("Centro Norte");
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(norte);
+        var cut = Renderizar(mediator);
+
+        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1));
+        cut.FindAll("a[href$='paquete-documental.zip']").Should().BeEmpty();
+        cut.FindComponents<BotonCopiar>().Should().BeEmpty();
+        mediator.ConsultasSolicitud.Should().Be(0, "sin canal de correo no se compone la solicitud");
     }
 
     [Fact]

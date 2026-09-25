@@ -324,4 +324,25 @@
   <data name="ErrorAvisoVisita" xml:space="preserve">
     <value>No pudimos preparar el aviso de la visita.</value>
   </data>
+  <data name="SubtituloSolicitudAccesoCorreo" xml:space="preserve">
+    <value>Sol·licitud d'accés per correu</value>
+  </data>
+  <data name="SolicitudAccesoCorreoExplicacion" xml:space="preserve">
+    <value>Aquest centre es gestiona per correu, no per una plataforma. Copia la sol·licitud, descarrega el ZIP amb la documentació vigent i adjunta'l al correu.</value>
+  </data>
+  <data name="SolicitudAccesoCorreoPara" xml:space="preserve">
+    <value>Per a:</value>
+  </data>
+  <data name="SolicitudAccesoCorreoCopiar" xml:space="preserve">
+    <value>Copiar sol·licitud</value>
+  </data>
+  <data name="SolicitudAccesoCorreoEtiquetaCopiar" xml:space="preserve">
+    <value>la sol·licitud d'accés</value>
+  </data>
+  <data name="DescargarPaqueteDocumental" xml:space="preserve">
+    <value>Descarregar ZIP de documentació</value>
+  </data>
+  <data name="ErrorSolicitudAccesoCorreo" xml:space="preserve">
+    <value>No hem pogut preparar la sol·licitud d'accés.</value>
+  </data>
 </root>

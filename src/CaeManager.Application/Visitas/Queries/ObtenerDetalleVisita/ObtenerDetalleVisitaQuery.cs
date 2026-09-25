@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Visitas.GestionPorCorreo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Visitas;
 using MediatR;
@@ -40,7 +41,8 @@ public record DetalleVisitaDto(
     decimal? AntelacionEfectivaHoras,
     TramoAntelacion? Tramo,
     AtribucionUrgencia Atribucion,
-    bool CentroRequiereGestionCae = true);
+    bool CentroRequiereGestionCae = true,
+    bool CentroGestionadoPorCorreo = false);
 
 public class ObtenerDetalleVisitaQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
@@ -83,6 +85,12 @@ public class ObtenerDetalleVisitaQueryHandler(
         if (visita is null) return null;
         if (!await alcanceDatos.CentroVisibleAsync(visita.CentroId, cancellationToken)) return null;
 
+        // P1-X1: la pantalla ofrece el correo de solicitud de acceso y el zip solo
+        // si el Centro requiere gestión CAE y su canal es el correo.
+        var requiereGestionCae = visita.GestionCae != ModalidadGestionCae.SinGestionCae;
+        var gestionadoPorCorreo = requiereGestionCae
+            && await CanalCorreoDeCentro.ResolverAsync(centrosContext, visita.CentroId, cancellationToken) is not null;
+
         var trabajadorIds = await visitasContext.VisitasTrabajadores
             .Where(vt => vt.VisitaId == request.Id)
             .Select(vt => vt.TrabajadorId)
@@ -99,6 +107,7 @@ public class ObtenerDetalleVisitaQueryHandler(
             visita.FechaInicio, visita.FechaFin, visita.Notas, visita.NotificadoCliente, trabajadores,
             visita.HoraEstimadaAcceso, visita.FechaHoraSolicitudUtc, visita.FechaHoraExpedienteCompletoUtc,
             visita.AntelacionNominalHoras, visita.AntelacionEfectivaHoras, visita.Tramo, visita.Atribucion,
-            visita.GestionCae != ModalidadGestionCae.SinGestionCae);
+            requiereGestionCae,
+            gestionadoPorCorreo);
     }
 }

@@ -394,6 +394,41 @@
             }
             else
             {
+            @if (_detalle.CentroGestionadoPorCorreo)
+            {
+                @*
+                    P1-X1: el Centro se gestiona por correo, no por una
+                    plataforma. El correo de solicitud de acceso para copiar y
+                    el zip con la documentación vigente para adjuntarlo a mano —
+                    sin M365 (D-1), mismo patrón que el aviso de P1-X2. El texto
+                    lo compone ObtenerSolicitudAccesoCorreoQuery; el zip lo sirve
+                    /visitas/{id}/paquete-documental.zip, que autoriza y registra
+                    el acceso a los documentos sensibles.
+                *@
+                <h3 class="detalle-visita-subtitulo">@Textos["SubtituloSolicitudAccesoCorreo"]</h3>
+                <p class="texto-vacio-seccion">@Textos["SolicitudAccesoCorreoExplicacion"]</p>
+                @if (_cargandoSolicitudCorreo)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_solicitudCorreo is null)
+                {
+                    <p class="alerta-formulario" role="alert">@(_errorSolicitudCorreo ?? Textos["ErrorSolicitudAccesoCorreo"].Value)</p>
+                }
+                else
+                {
+                    <div class="visitas-aviso visitas-solicitud-correo">
+                        <p class="visitas-aviso-destinatarios">@Textos["SolicitudAccesoCorreoPara"] @_solicitudCorreo.Destinatarios</p>
+                        <p class="visitas-aviso-asunto">@_solicitudCorreo.Asunto</p>
+                        <pre class="visitas-aviso-cuerpo">@_solicitudCorreo.Cuerpo</pre>
+                        <div class="visitas-aviso-acciones">
+                            <BotonCopiar Valor="@TextoSolicitudParaCopiar(_solicitudCorreo)" Etiqueta="@Textos["SolicitudAccesoCorreoEtiquetaCopiar"]" Texto="@Textos["SolicitudAccesoCorreoCopiar"]" />
+                            <Boton Variante="VarianteBoton.Secundario" Href="@RutaPaqueteDocumental(_detalle.Id)" download data-enhance-nav="false">@Textos["DescargarPaqueteDocumental"]</Boton>
+                        </div>
+                    </div>
+                }
+            }
+
             <h3 class="detalle-visita-subtitulo">@Textos["SubtituloComprobacionPrevia"]</h3>
             @if (_cargandoDocumentacion)
             {

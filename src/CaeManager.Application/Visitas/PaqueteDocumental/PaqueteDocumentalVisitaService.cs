@@ -29,9 +29,9 @@ public class PaqueteDocumentalVisitaService(
     private const string RemitenteAutomaticoEmail = "hydra-automatico@sistema.local";
 
     private record DocumentoCandidatoDto(
-        Guid? TrabajadorId, Guid TipoDocumentoId, string ArchivoUrl, DateOnly FechaEmision,
+        Guid Id, Guid? TrabajadorId, Guid TipoDocumentoId, string ArchivoUrl, DateOnly FechaEmision,
         EstadoVigenciaDocumento EstadoVigencia, DateOnly? FechaVencimiento);
-    private record DocumentoParaZipDto(Guid? TrabajadorId, Guid TipoDocumentoId, string ArchivoUrl);
+    private record DocumentoParaZipDto(Guid Id, Guid? TrabajadorId, Guid TipoDocumentoId, string ArchivoUrl);
     private record TrabajadorNombreDto(string Nombre, string Apellidos);
 
     /// <summary>
@@ -46,19 +46,40 @@ public class PaqueteDocumentalVisitaService(
 
     public async Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionId, CancellationToken cancellationToken = default)
     {
+        var paquete = await ConstruirAsync(visitaId, cancellationToken);
+        if (paquete is null) return;
+
+        var conversacion = await conversacionRepositorio.ObtenerPorIdAsync(conversacionId, cancellationToken);
+        if (conversacion is null) return;
+
+        using var flujoZip = new MemoryStream(paquete.Contenido);
+        var archivoUrlZip = await almacenamiento.GuardarAsync(flujoZip, paquete.NombreArchivo, cancellationToken);
+
+        var cuerpo =
+            $"""
+            <p>Adjuntamos automáticamente la documentación disponible en la plataforma para la visita en <strong>{paquete.CentroNombre}</strong>
+            del {paquete.FechaInicio:dd/MM/yyyy} al {paquete.FechaFin:dd/MM/yyyy} ({paquete.Documentos.Count} documento(s)).</p>
+            """;
+
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Saliente, conversacion.Canal, RemitenteAutomaticoEmail, cuerpo);
+        mensaje.AgregarAdjunto(paquete.NombreArchivo, "application/zip", paquete.Contenido.LongLength, archivoUrlZip);
+    }
+
+    public async Task<PaqueteDocumentalZip?> ConstruirAsync(Guid visitaId, CancellationToken cancellationToken = default)
+    {
         var visita = await visitasContext.Visitas
             .Where(v => v.Id == visitaId)
             .Select(v => new { v.Id, v.CentroId, v.FechaInicio, v.FechaFin })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (visita is null) return;
+        if (visita is null) return null;
 
         var centro = await centrosContext.Centros
             .Where(c => c.Id == visita.CentroId)
             .Select(c => new { c.Id, c.Nombre, c.EmpresaId, c.GestionCae })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (centro is null) return;
+        if (centro is null) return null;
 
         // P1-X2: un Centro sin gestión CAE no pide acreditación — no se le
         // envía documentación; la Visita se comunica con el aviso copiable
@@ -66,7 +87,7 @@ public class PaqueteDocumentalVisitaService(
         if (centro.GestionCae == Domain.Centros.ModalidadGestionCae.SinGestionCae)
         {
             logger.LogInformation("Visita {VisitaId}: el Centro no requiere gestión CAE, no se genera paquete documental.", visitaId);
-            return;
+            return null;
         }
 
         var trabajadorIds = await visitasContext.VisitasTrabajadores
@@ -76,13 +97,13 @@ public class PaqueteDocumentalVisitaService(
 
         var candidatos = await documentosContext.Documentos
             .Where(d => d.ArchivoUrl != null && (d.EmpresaId == centro.EmpresaId || (d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value))))
-            .Select(d => new DocumentoCandidatoDto(d.TrabajadorId, d.TipoDocumentoId, d.ArchivoUrl!, d.FechaEmision, d.EstadoVigencia, d.FechaVencimiento))
+            .Select(d => new DocumentoCandidatoDto(d.Id, d.TrabajadorId, d.TipoDocumentoId, d.ArchivoUrl!, d.FechaEmision, d.EstadoVigencia, d.FechaVencimiento))
             .ToListAsync(cancellationToken);
 
         if (candidatos.Count == 0)
         {
             logger.LogInformation("Visita {VisitaId}: sin documentos de empresa/trabajadores disponibles, no se genera paquete documental.", visitaId);
-            return;
+            return null;
         }
 
         var seleccion = SeleccionarDocumentos(candidatos, DateOnly.FromDateTime(DateTime.UtcNow));
@@ -114,7 +135,7 @@ public class PaqueteDocumentalVisitaService(
         if (gruposAEnviar.Count == 0)
         {
             logger.LogWarning("Visita {VisitaId}: ningún documento vigente que enviar, no se genera paquete documental.", visitaId);
-            return;
+            return null;
         }
 
         var tiposDocumentoIds = gruposAEnviar.SelectMany(g => g).Select(d => d.TipoDocumentoId).Distinct().ToList();
@@ -134,24 +155,11 @@ public class PaqueteDocumentalVisitaService(
             .ToDictionaryAsync(t => t.Id, t => new TrabajadorNombreDto(t.Nombre, t.Apellidos), cancellationToken);
 
         var zip = await ConstruirZipAsync(gruposAEnviar, nombresTipoDocumento, empresa?.RazonSocial, trabajadoresPorId, cancellationToken);
-        if (zip is null) return; // ningún archivo pudo abrirse — no tiene sentido adjuntar un zip vacío.
-        var (zipBytes, documentosAdjuntos) = zip.Value;
-
-        var conversacion = await conversacionRepositorio.ObtenerPorIdAsync(conversacionId, cancellationToken);
-        if (conversacion is null) return;
+        if (zip is null) return null; // ningún archivo pudo abrirse — no tiene sentido ofrecer un zip vacío.
+        var (zipBytes, incluidos) = zip.Value;
 
         var nombreZip = $"documentacion-visita-{centro.Nombre.Replace(' ', '-')}-{visita.FechaInicio:yyyyMMdd}.zip";
-        using var flujoZip = new MemoryStream(zipBytes);
-        var archivoUrlZip = await almacenamiento.GuardarAsync(flujoZip, nombreZip, cancellationToken);
-
-        var cuerpo =
-            $"""
-            <p>Adjuntamos automáticamente la documentación disponible en la plataforma para la visita en <strong>{centro.Nombre}</strong>
-            del {visita.FechaInicio:dd/MM/yyyy} al {visita.FechaFin:dd/MM/yyyy} ({documentosAdjuntos} documento(s)).</p>
-            """;
-
-        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Saliente, conversacion.Canal, RemitenteAutomaticoEmail, cuerpo);
-        mensaje.AgregarAdjunto(nombreZip, "application/zip", zipBytes.LongLength, archivoUrlZip);
+        return new PaqueteDocumentalZip(nombreZip, zipBytes, incluidos, centro.Nombre, visita.FechaInicio, visita.FechaFin);
     }
 
     /// <summary>
@@ -217,7 +225,7 @@ public class PaqueteDocumentalVisitaService(
             if (vigentes[0].EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
                 soloSinConfirmar.Add(grupo.Key);
 
-            enviar.Add(vigentes.Select(d => new DocumentoParaZipDto(d.TrabajadorId, d.TipoDocumentoId, d.ArchivoUrl)).ToList());
+            enviar.Add(vigentes.Select(d => new DocumentoParaZipDto(d.Id, d.TrabajadorId, d.TipoDocumentoId, d.ArchivoUrl)).ToList());
         }
 
         return new SeleccionPaquete(enviar, soloVencidos, soloSinConfirmar);
@@ -227,9 +235,10 @@ public class PaqueteDocumentalVisitaService(
     /// Devuelve null si ningún documento pudo abrirse (storage inconsistente) — mejor no adjuntar
     /// nada que adjuntar un zip vacío. De cada grupo entra UNA copia: la primera cuyo archivo se
     /// pueda abrir; si ninguna se abre, el grupo queda fuera (con un aviso por cada intento).
-    /// Devuelve también cuántos documentos entraron de verdad, que es la cifra que anuncia el correo.
+    /// Devuelve también qué documentos entraron de verdad: su cuenta es la cifra que anuncia el
+    /// correo, y cada uno es un acceso a su contenido que la descarga manual debe registrar (DEC-36).
     /// </summary>
-    private async Task<(byte[] Bytes, int Documentos)?> ConstruirZipAsync(
+    private async Task<(byte[] Bytes, IReadOnlyList<DocumentoEnPaquete> Documentos)?> ConstruirZipAsync(
         IReadOnlyList<IReadOnlyList<DocumentoParaZipDto>> grupos,
         IReadOnlyDictionary<Guid, string> nombresTipoDocumento,
         string? razonSocialEmpresa,
@@ -238,7 +247,7 @@ public class PaqueteDocumentalVisitaService(
     {
         using var memoria = new MemoryStream();
         var nombresUsados = new HashSet<string>();
-        var agregados = 0;
+        var agregados = new List<DocumentoEnPaquete>();
 
         using (var zip = new ZipArchive(memoria, ZipArchiveMode.Create, leaveOpen: true))
         {
@@ -273,13 +282,13 @@ public class PaqueteDocumentalVisitaService(
                         await contenido.CopyToAsync(flujoEntrada, cancellationToken);
                     }
 
-                    agregados++;
+                    agregados.Add(new DocumentoEnPaquete(documento.Id, documento.TipoDocumentoId));
                     break; // uno por titular y tipo
                 }
             }
         }
 
-        return agregados > 0 ? (memoria.ToArray(), agregados) : null;
+        return agregados.Count > 0 ? (memoria.ToArray(), agregados) : null;
     }
 
     private static string SanearNombreEntrada(string nombrePropuesto, HashSet<string> nombresUsados)
