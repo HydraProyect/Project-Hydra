@@ -280,7 +280,8 @@ public partial class CentroDetalle : ComponentBase, IDisposable
         }
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
-            NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+            if (centroId == CentroId)
+                NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
             return null;
         }
         if (centroId != CentroId) return null;

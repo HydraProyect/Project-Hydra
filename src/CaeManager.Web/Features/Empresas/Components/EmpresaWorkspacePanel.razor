@@ -571,7 +571,8 @@ else
         }
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
-            NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+            if (generacion == _generacion)
+                NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
             return null;
         }
         if (generacion != _generacion) return null;

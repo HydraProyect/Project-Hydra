@@ -569,7 +569,8 @@ public partial class EmpresaDetalle : ComponentBase, IDisposable
         }
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
-            NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+            if (empresaId == EmpresaId)
+                NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
             return null;
         }
         if (empresaId != EmpresaId) return null;

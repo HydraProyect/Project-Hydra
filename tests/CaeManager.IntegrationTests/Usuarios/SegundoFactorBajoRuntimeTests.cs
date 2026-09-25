@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Usuarios.Commands.GenerarCodigosRecuperacion;
 using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
@@ -6,7 +7,10 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using CaeManager.IntegrationTests.Arranque;
+using CaeManager.Web.Services;
 using FluentAssertions;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -137,6 +141,36 @@ public class SegundoFactorBajoRuntimeTests
         (await Leer2faActivaAsync(arnes.CadenaPropietario, ajenoId)).Should().BeTrue();
         (await ContarTokensAsync(arnes.CadenaPropietario, ajenoId)).Should().Be(1, "su clave del autenticador sigue ahí");
         (await LeerSelloAsync(arnes.CadenaPropietario, ajenoId)).Should().Be(selloAntes);
+    }
+
+    [Fact]
+    public async Task Un_2FA_restablecido_desde_otro_ambito_deja_de_contar_en_un_circuito_que_ya_rastrea_la_cuenta()
+    {
+        // P1-I1: TieneDobleFactorActivoAsync decide si se entregan datos de
+        // credencial. En un circuito de Blazor el DbContext vive lo que el
+        // circuito, y FindByIdAsync devolvería la cuenta ya rastreada con el
+        // 2FA de cuando se cargó: un restablecimiento hecho desde otro ámbito
+        // (RestablecerSegundoFactorCommand) no cerraría el acceso.
+        var usuarioId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(usuarioId, "GestorCae");
+        await CrearUsuarioCon2faAsync(arnes, usuarioId, "circuito@caemanager.local", TenantA);
+
+        using var circuito = arnes.Servicios.CreateScope();
+        var umCircuito = circuito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        (await umCircuito.FindByIdAsync(usuarioId.ToString())).Should().NotBeNull("el circuito rastrea la cuenta");
+        var servicio = CrearCurrentUserService(circuito.ServiceProvider, usuarioId);
+
+        (await servicio.TieneDobleFactorActivoAsync()).Should().BeTrue("control positivo: la cuenta tiene 2FA");
+
+        await EnAmbitoAsync(arnes, async um =>
+        {
+            var usuario = await um.FindByIdAsync(usuarioId.ToString());
+            Comprobar(await um.SetTwoFactorEnabledAsync(usuario!, false));
+        });
+        (await Leer2faActivaAsync(arnes.CadenaPropietario, usuarioId)).Should().BeFalse("barrera: la base ya lo tiene apagado");
+
+        (await servicio.TieneDobleFactorActivoAsync()).Should().BeFalse(
+            "el 2FA se lee de la base, no de la cuenta rastreada por el circuito");
     }
 
     // ---------- Arnés ----------
@@ -302,5 +336,35 @@ WHERE COALESCE(""DatosAntes"", '') LIKE '%' || @s || '%' OR COALESCE(""DatosDesp
         public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(rol);
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(tenantOrigenId);
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    private static CurrentUserService CrearCurrentUserService(IServiceProvider circuito, Guid usuarioId) => new(
+        new AuthenticationStateProviderFalso(new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, usuarioId.ToString()), new Claim(ClaimTypes.Role, "GestorCae")],
+            "prueba"))),
+        new HttpContextAccessorFalso(),
+        new ClienteActivoSeleccionadoFalso(),
+        circuito);
+
+    private sealed class AuthenticationStateProviderFalso(ClaimsPrincipal usuario) : AuthenticationStateProvider
+    {
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            Task.FromResult(new AuthenticationState(usuario));
+    }
+
+    private sealed class HttpContextAccessorFalso : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext
+        {
+            get => null;
+            set => throw new NotSupportedException();
+        }
+    }
+
+    private sealed class ClienteActivoSeleccionadoFalso : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => TenantA;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 }
