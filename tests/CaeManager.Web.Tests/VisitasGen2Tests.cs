@@ -131,8 +131,7 @@ public class VisitasGen2Tests : BunitContext
                 case ObtenerDetalleVisitaQuery detalle:
                     return DetallesDiferidos.TryGetValue(detalle.Id, out var detalleDiferido)
                         ? (Task<TResponse>)(object)detalleDiferido.Task
-                        : Respuesta<TResponse>(Detalle(Visitas.Single(v => v.Id == detalle.Id), Tramo)
-                            with { CentroGestionadoPorCorreo = VisitasPorCorreo.Contains(detalle.Id) });
+                        : Respuesta<TResponse>(Detalle(Visitas.Single(v => v.Id == detalle.Id), Tramo) with { CentroGestionadoPorCorreo = VisitasPorCorreo.Contains(detalle.Id) });
 
                 case ObtenerVisitaPorIdQuery edicion:
                     return EdicionesDiferidas.TryGetValue(edicion.Id, out var edicionDiferida)
