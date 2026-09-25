@@ -399,6 +399,10 @@ public class Centro360Gen2Tests : BunitContext
         entradilla.Should().NotContain("Cliente empresarial",
             "en pantalla el Cliente empresarial se rotula «Cliente» (contrato Gen2 § 14)");
         cut.Markup.Should().Contain("61");
+        // El anillo va a la izquierda de la identidad, como en las cuatro páginas 360
+        // (decisión del propietario 2026-09-24), no entre las acciones.
+        cut.Find(".cabecera-pagina-inicio [role=img]").GetAttribute("aria-label").Should().StartWith("61% de cumplimiento");
+        cut.Find(".acciones-cabecera").QuerySelector("[role=img]").Should().BeNull();
     }
 
     /// <summary>

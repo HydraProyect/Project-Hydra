@@ -29,7 +29,8 @@
             fuera del alcance (IAlcanceDatosService + RLS) y la página no
             distingue «no existe» de «no tienes acceso» — no filtra información.
         *@
-        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
+        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]"
+                     NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
                 <Boton OnClick="ReintentarAsync">@Textos["Reintentar"]</Boton>
             </Accion>

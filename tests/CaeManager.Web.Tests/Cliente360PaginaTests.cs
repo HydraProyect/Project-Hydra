@@ -418,6 +418,7 @@ public class Cliente360PaginaTests : BunitContext
 
         var fila = cut.Find("li.fila-relacion");
         fila.QuerySelector("a.fila-relacion-nombre")!.GetAttribute("href").Should().Be($"/empresas/{empresa.Id}");
+        fila.QuerySelector("a.fila-relacion-nombre")!.GetAttribute("title").Should().Be("Ir a la página de Ibertec GmbH");
         fila.QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("B-12345678");
 
         fila.QuerySelector("button.boton-360")!.Click();
@@ -436,6 +437,7 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id, "?pestana=subcontratas");
 
         cut.FindAll("li.fila-relacion a").Should().BeEmpty("Subcontrata 360 no tiene página: un enlace daría 404");
+        cut.Find("button.fila-relacion-nombre").GetAttribute("title").Should().Be("Abrir el panel de Andamios Cantábrico S.L.");
 
         cut.Find("button.fila-relacion-nombre").Click();
 

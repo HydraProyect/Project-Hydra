@@ -131,7 +131,8 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
     private string? NombreCompleto => _detalle is null ? null : $"{_detalle.Nombre} {_detalle.Apellidos}";
 
     /// <summary>
-    /// Las tres pestañas de esta ficha. No es estático porque el recuento de
+    /// Las pestañas de esta ficha. «Contactos» ya no es pestaña: sus datos
+    /// viven en el lateral (decisión del propietario 2026-09-24). No es estático porque el recuento de
     /// «Operación» depende de los datos cargados: el mockup Gen 2 pinta ahí
     /// la píldora con los documentos que hoy tienen incidencia.
     /// </summary>
@@ -146,8 +147,7 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
                     TotalConIncidencia == 1 ? Textos["ContadorIncidenciasUno"] : Textos["ContadorIncidenciasVarios"],
                     EnAlerta: true)
         },
-        new("historial", Textos["PestanaHistorial"]),
-        new("contactos", Textos["PestanaContactos"])
+        new("historial", Textos["PestanaHistorial"])
     ];
 
     private int TotalConIncidencia =>
