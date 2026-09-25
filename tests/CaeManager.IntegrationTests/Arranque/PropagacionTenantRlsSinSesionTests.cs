@@ -117,6 +117,14 @@ public class PropagacionTenantRlsSinSesionTests
     /// reproducir toda la cadena de claims: la sesión "ve" el tenant del
     /// workspace seleccionado, sea cual sea el tenant propietario real de la
     /// cuenta que se está modificando en ese instante.
+    ///
+    /// Desde P1-M1 la sesión lleva además a su titular (la propia cuenta, con
+    /// Tenant de origen el del operador): <c>TenantSelladoInterceptor</c> solo
+    /// traslada <c>app.tenant_id</c> al Tenant de la cuenta cuando es la propia,
+    /// y la RLS de <c>AspNetUsers</c> solo deja escribirla desde otro Tenant por
+    /// la rama <c>Id = app.usuario_id</c>. Sin titular, el UPDATE lo rechazaría la
+    /// política, que es justo lo que debe pasar con una cuenta ajena (ver
+    /// <c>RlsAspNetUsersBajoRuntimeTests</c>).
     /// </summary>
     [Fact]
     public async Task Modificar_el_propio_ApplicationUser_desde_un_workspace_delegado_sella_con_el_tenant_propietario()
@@ -124,14 +132,17 @@ public class PropagacionTenantRlsSinSesionTests
         var tenantOperador = Guid.NewGuid();
         var tenantBeneficiario = Guid.NewGuid();
         var tenantActualDeTest = new TenantActualFijo { TenantId = tenantOperador };
+        var cuentaId = Guid.NewGuid();
 
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(
-            datosDePruebaActivos: false, tenantActualPersonalizado: tenantActualDeTest);
+            datosDePruebaActivos: false, tenantActualPersonalizado: tenantActualDeTest,
+            currentUserServicePersonalizado: new CurrentUserServiceFalso(usuarioId: cuentaId, tenantOrigenId: tenantOperador));
         using var ambito = arnes.Servicios.CreateScope();
 
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var usuario = new ApplicationUser
         {
+            Id = cuentaId,
             UserName = "gestor-operador@caemanager.local",
             Email = "gestor-operador@caemanager.local",
             NombreCompleto = "Gestor del Operador",

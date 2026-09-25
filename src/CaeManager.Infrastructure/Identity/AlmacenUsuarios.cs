@@ -167,8 +167,8 @@ public class AlmacenUsuarios(
         TenantDeCuentaAsync(Context, id, cancellationToken);
 
     // Las tres funciones SECURITY DEFINER de RlsAspNetUsers. Estáticas e internas: las
-    // usan también ValidadorUnicidadGlobalCuenta y DirectorioUsuariosTenant, y un test
-    // de arquitectura acota quién más puede nombrarlas.
+    // usa también ValidadorUnicidadGlobalCuenta, y ProhibicionSqlCrudoYFiltrosIgnoradosTests
+    // congela estas tres líneas como los únicos sitios que las invocan.
 
     internal static Task<Guid?> TenantDeCuentaAsync(CaeManagerDbContext db, Guid cuentaId, CancellationToken cancellationToken) =>
         db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")

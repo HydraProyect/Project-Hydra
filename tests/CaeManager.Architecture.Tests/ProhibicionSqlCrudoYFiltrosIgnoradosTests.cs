@@ -111,6 +111,19 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Persistence/Repositories/ClaveApiRepository.cs",
             """.SqlQuery<Guid?>($"SELECT app_tenant_de_clave_api({hashClave}) AS \"Value\"")""")] = 1,
 
+        // Mismo patrón para las cuentas de Identity (P1-M1): con RLS en
+        // AspNetUsers, el login, la 2FA, la recuperación de contraseña y la
+        // revalidación de la cookie buscan una cuenta antes de que exista
+        // contexto de Tenant. Estas funciones SECURITY DEFINER (migración
+        // 20260925184521_RlsAspNetUsers) devuelven solo Id y TenantId; la fila
+        // se lee después por EF dentro del AmbitoTenantExplicito de su Tenant.
+        // Las mismas dos de búsqueda sostienen la unicidad global de nombre y
+        // correo (ValidadorUnicidadGlobalCuenta). Parámetros por EF.
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            """db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")""")] = 1,
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            "await db.Database.SqlQuery<CuentaResuelta>(")] = 2,
+
         // Comprobación de arranque de la identidad de conexión del tráfico. No
         // consulta ninguna tabla de negocio —solo current_user, pg_roles y
         // pg_class, catálogos del sistema— así que no hay filas de ningún
