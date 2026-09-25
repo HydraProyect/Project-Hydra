@@ -203,10 +203,11 @@ public static class CatalogoOrdenesAsistente
             Ejecucion: [new PasoDeEjecucion(typeof(CrearVisitaCommand))],
             Ejecutable: true,
             Limitacion:
-                "CrearVisitaCommand comprueba que el centro y los trabajadores existan dentro del " +
-                "Tenant, pero no comprueba alcance de cartera. Con un formulario eso lo cubre la " +
-                "pantalla, que solo ofrece lo visible; con una orden escrita no. Los candidatos " +
-                "tienen que filtrarse antes por lo que la persona puede ver. Y registrar la Visita " +
+                "CrearVisitaCommand rechaza un centro fuera del alcance de cartera de quien la " +
+                "ordena, como si no existiera. Los trabajadores solo tienen que existir dentro del " +
+                "Tenant: el formulario los ofrece de la base general y acotarlos a la cartera es una " +
+                "decisión de producto aún no tomada, así que los candidatos a trabajador los decide " +
+                "el catálogo, no el comando. Y registrar la Visita " +
                 "no acredita a nadie: lo que hay que hacer después depende del canal del Centro, y " +
                 "está en los cinco caminos de esta orden, y hoy NINGUNO de los cinco se completa " +
                 "solo: todos acaban en una acción del Gestor CAE —subir a la plataforma, pedir un " +

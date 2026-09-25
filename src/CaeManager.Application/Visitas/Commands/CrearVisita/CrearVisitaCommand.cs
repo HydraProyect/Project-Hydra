@@ -52,14 +52,31 @@ public class CrearVisitaCommandHandler(
     ISugerenciaVisitaCorreoRepository sugerenciaRepositorio, IComunicacionesQueryContext comunicacionesContext,
     IPaqueteDocumentalVisitaService paqueteDocumental, IEvaluadorExpedienteVisitaService evaluadorExpediente,
     ICurrentUserService currentUserService, IPublisher publisher, IUnitOfWork unitOfWork,
-    ILogger<CrearVisitaCommandHandler> logger)
+    ILogger<CrearVisitaCommandHandler> logger, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<CrearVisitaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearVisitaCommand request, CancellationToken cancellationToken)
     {
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
         if (!await centrosContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("Visita.CentroNoEncontrado", "No encontramos este centro."));
+            return CentroNoEncontrado();
+
+        // Alcance de cartera: existir en el Tenant no basta. Un Gestor CAE solo
+        // crea Visitas sobre Centros dentro de su Asignación de Cartera —el mismo
+        // criterio con el que las lecturas de Visita (ObtenerVisitaPorId,
+        // ObtenerDetalleVisita, ObtenerVisitas) deciden si se ve—; sin esto,
+        // conocer el Id de un Centro fuera de cartera bastaba para crearle una
+        // Visita que luego ni siquiera veía. Variante «ParaGestion»: crear es
+        // operar, no leer. Se responde igual que "no existe" para no revelar qué
+        // hay fuera del alcance.
+        //
+        // Los Trabajadores NO se acotan a la cartera: el formulario los ofrece de
+        // la base general del Tenant (AlcanceSelectorTrabajadores.BaseGeneralDelTenant)
+        // porque un Trabajador de una Subcontrata puede acudir a Centros de
+        // distintos Gestores CAE; acotarlos es una decisión de producto aún no
+        // tomada. RLS y el filtro de Tenant siguen aplicando a su existencia.
+        if (!await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
+            return CentroNoEncontrado();
 
         var trabajadorIds = request.TrabajadorIds.Distinct().ToList();
         var encontrados = await trabajadoresContext.Trabajadores
@@ -161,4 +178,7 @@ public class CrearVisitaCommandHandler(
 
         return Result.Exito(visita.Id);
     }
+
+    private static Result<Guid> CentroNoEncontrado() =>
+        Result.Fallo<Guid>(Error.Crear("Visita.CentroNoEncontrado", "No encontramos este centro."));
 }
