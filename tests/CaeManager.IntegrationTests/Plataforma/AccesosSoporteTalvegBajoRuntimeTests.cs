@@ -63,9 +63,12 @@ public class AccesosSoporteTalvegBajoRuntimeTests : IAsyncLifetime
                 var correo = $"{nombre}@accesos-soporte.test";
                 var cuenta = new ApplicationUser
                 {
-                    UserName = correo, NormalizedUserName = correo.ToUpperInvariant(),
-                    Email = correo, NormalizedEmail = correo.ToUpperInvariant(),
-                    NombreCompleto = nombre, TenantId = tenant,
+                    UserName = correo,
+                    NormalizedUserName = correo.ToUpperInvariant(),
+                    Email = correo,
+                    NormalizedEmail = correo.ToUpperInvariant(),
+                    NombreCompleto = nombre,
+                    TenantId = tenant,
                 };
                 if (desactivada) cuenta.LockoutEnd = ApplicationUser.FinDeBloqueoDeCuentaDesactivada;
                 contexto.Users.Add(cuenta);
