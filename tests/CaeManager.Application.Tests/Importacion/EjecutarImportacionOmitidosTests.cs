@@ -267,6 +267,46 @@ public class EjecutarImportacionOmitidosTests
     }
 
     /// <summary>
+    /// La plantilla de Documentos tiene una sola hoja, «Documentos»: un documento
+    /// suyo que se omite al escribir se reporta en esa hoja, no en «Empleados»
+    /// (la hoja de trabajadores de la CAE completa, antes fija en las cuatro
+    /// ramas). Una rama por caso, cada una con su motivo.
+    /// </summary>
+    [Theory]
+    [InlineData("trabajador no resuelto", "no tiene a quién asociarse")]
+    [InlineData("tipo inexistente", "no existe en el catálogo")]
+    [InlineData("ya existe al confirmar", "ya tenía un documento de tipo")]
+    public async Task Documento_de_la_plantilla_de_Documentos_se_omite_en_su_propia_hoja(string caso, string motivo)
+    {
+        var escenario = new EscenarioImportacion();
+        var dni = EscenarioImportacion.DniConocido;
+        var tipo = EscenarioImportacion.TipoDocumentoConocido;
+        switch (caso)
+        {
+            case "trabajador no resuelto":
+                escenario.ConTipoDocumentoExistente();
+                dni = EscenarioImportacion.DniDesconocido;
+                break;
+            case "tipo inexistente":
+                escenario.ConTrabajadorExistente();
+                tipo = EscenarioImportacion.TipoDocumentoInexistente;
+                break;
+            default:
+                escenario.ConTrabajadorExistente().ConTipoDocumentoExistente().ConDocumentoExistente();
+                break;
+        }
+        var plan = EscenarioImportacion.Plan(documentos:
+            [new DocumentoImportadoDto(dni, tipo, new DateOnly(2026, 2, 1), YaExiste: false, Hoja: "Documentos")]);
+
+        var resultado = await escenario.EjecutarAsync(plan);
+
+        var omitido = resultado.Omitidos.Should().ContainSingle().Subject;
+        omitido.Hoja.Should().Be("Documentos");
+        omitido.Motivo.Should().Contain(motivo);
+        escenario.DocumentoRepositorio.Documentos.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// Las cuatro ramas de deduplicación NO son omisiones: el análisis ya anunció
     /// la reutilización marcando la fila <c>YaExiste</c>, y la vista previa no la
     /// contó como "Crear …". Reimportar el mismo archivo debe seguir dando cero

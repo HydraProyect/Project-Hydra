@@ -305,7 +305,7 @@ public class EjecutarImportacionCommandHandler(
                 // El documento se queda sin titular: su trabajador no existía ni
                 // pudo crearse (su propia fila se omitió más arriba, con su motivo).
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Empleados", 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                    fila.Hoja, 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
                     $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; su documento no tiene a quién asociarse."));
                 continue;
             }
@@ -316,7 +316,7 @@ public class EjecutarImportacionCommandHandler(
                 // del caso anterior, este archivo nunca pudo crearla — el catálogo
                 // de tipos de documento no se alimenta desde la importación.
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Empleados", 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                    fila.Hoja, 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
                     $"El tipo de documento «{fila.NombreTipoDocumento}» no existe en el catálogo del sistema y la importación no lo crea; da de alta el tipo en Tipos de documento y vuelve a importar."));
                 continue;
             }
@@ -326,7 +326,7 @@ public class EjecutarImportacionCommandHandler(
                 // Reutilización anunciada por el análisis (ver nota de la clase).
                 if (!fila.YaExiste)
                     omitidosEnEscritura.Add(new ItemImportacionDto(
-                        "Empleados", 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                        fila.Hoja, 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
                         $"El trabajador {fila.Dni} ya tenía un documento de tipo «{fila.NombreTipoDocumento}» al confirmar la importación, aunque no lo tenía al analizar el archivo; se conserva el que ya había en vez de duplicarlo."));
                 continue;
             }
@@ -345,7 +345,7 @@ public class EjecutarImportacionCommandHandler(
             }
             catch (ArgumentException ex)
             {
-                omitidosEnEscritura.Add(new ItemImportacionDto("Empleados", 0, $"{fila.Dni} — {fila.NombreTipoDocumento}", ex.Message));
+                omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, 0, $"{fila.Dni} — {fila.NombreTipoDocumento}", ex.Message));
             }
         }
 

@@ -109,7 +109,7 @@ public class ClosedXmlImportacionParserTests
 
     /// <summary>REC-128, absorbido y cerrado en REC-129 con el mismo ayudante que usan los otros tres analizadores.</summary>
     [Fact]
-    public async Task Fecha_de_nacimiento_ilegible_no_bloquea_al_trabajador_pero_queda_omitida_nombrando_el_valor_bruto()
+    public async Task Fecha_de_nacimiento_ilegible_no_bloquea_al_trabajador_y_queda_como_aviso_nombrando_el_valor_bruto()
     {
         var libro = NuevoLibroBase();
         var hoja = libro.Worksheets.Worksheet("Empleados");
@@ -121,9 +121,12 @@ public class ClosedXmlImportacionParserTests
         var trabajador = plan.Trabajadores.Should().ContainSingle().Subject;
         trabajador.FechaNacimiento.Should().BeNull();
 
-        var omitido = plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Empleados").Subject;
-        omitido.Fila.Should().Be(4);
-        omitido.Motivo.Should().Be("La fecha de nacimiento «hace treinta años» no se pudo interpretar; el trabajador se importó sin ese dato.");
+        // El trabajador sí se crea, así que no es una omisión sino un aviso (como la
+        // fecha de contrato en la plantilla combinada).
+        plan.Omitidos.Should().NotContain(o => o.Hoja == "Empleados");
+        var aviso = plan.Advertencias.Should().ContainSingle(a => a.Hoja == "Empleados").Subject;
+        aviso.Fila.Should().Be(4);
+        aviso.Motivo.Should().Be("La fecha de nacimiento «hace treinta años» no se pudo interpretar; el trabajador se importó sin ese dato.");
     }
 
     /// <summary>Caso legítimo gemelo del anterior: celda vacía, ningún registro, y el trabajador se importa igual.</summary>
@@ -156,6 +159,33 @@ public class ClosedXmlImportacionParserTests
         plan.Advertencias.Should().NotContain(a => a.Descripcion.Contains(TipoDocumentoConocido));
         plan.Advertencias.Should().NotContain(a => a.Motivo.Contains("se omitió"));
         plan.Documentos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El documento lleva la hoja de trabajadores de la que salió (la de
+    /// empleados o la de extranjeros, posiciones 2 y 3 de
+    /// <see cref="NuevoLibroBase"/>), para que un omitido al escribir se
+    /// reporte en su hoja real.
+    /// </summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task Documento_lleva_la_hoja_de_trabajadores_de_la_que_salio(int posicionHoja)
+    {
+        var libro = NuevoLibroBase();
+        var hoja = libro.Worksheet(posicionHoja);
+        EscribirTrabajadorValido(hoja, fila: 4);
+        hoja.Cell(4, 7).Value = DateTime.UtcNow.Date.AddDays(-30);
+        var tipos = new TiposDocumentoQueryContextFalso();
+        tipos.ListaTiposDocumento.Add(new CaeManager.Domain.Documentos.TipoDocumento(
+            TipoDocumentoConocido, vigenciaMeses: null, aplicaVencimientoAutomatico: false, orden: 1,
+            ambitoAplicacion: CaeManager.Domain.Documentos.AmbitoAplicacion.Trabajador));
+
+        var plan = await AnalizarAsync(libro, new EmpresasQueryContextFalso(), tipos);
+
+        var documento = plan.Documentos.Should().ContainSingle().Subject;
+        documento.NombreTipoDocumento.Should().Be(TipoDocumentoConocido);
+        documento.Hoja.Should().Be(hoja.Name);
     }
 
     [Fact]
@@ -277,11 +307,12 @@ public class ClosedXmlImportacionParserTests
     private static Task<CaeManager.Application.Importacion.PlanImportacionDto> AnalizarAsync(XLWorkbook libro) =>
         AnalizarAsync(libro, new EmpresasQueryContextFalso());
 
-    private static async Task<CaeManager.Application.Importacion.PlanImportacionDto> AnalizarAsync(XLWorkbook libro, EmpresasQueryContextFalso empresas)
+    private static async Task<CaeManager.Application.Importacion.PlanImportacionDto> AnalizarAsync(
+        XLWorkbook libro, EmpresasQueryContextFalso empresas, TiposDocumentoQueryContextFalso? tipos = null)
     {
         var parser = new ClosedXmlImportacionParser(
             new AsignacionesQueryContextFalso(), new CentrosQueryContextFalso(), new DocumentosQueryContextFalso(),
-            empresas, new TiposDocumentoQueryContextFalso(), new TrabajadoresQueryContextFalso());
+            empresas, tipos ?? new TiposDocumentoQueryContextFalso(), new TrabajadoresQueryContextFalso());
 
         using var flujo = new MemoryStream();
         libro.SaveAs(flujo);
