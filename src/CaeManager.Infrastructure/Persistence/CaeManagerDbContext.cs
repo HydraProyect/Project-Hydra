@@ -467,7 +467,9 @@ public class CaeManagerDbContext(
         // AspNetUsers queda deliberadamente sin filtro (no hereda de
         // EntidadConTenant) — el login necesita poder resolver el usuario
         // (y por tanto su tenant) antes de conocerlo, ver
-        // TenantClaimsPrincipalFactory. Tenant, DelegacionTenant,
+        // TenantClaimsPrincipalFactory. Sí tiene RLS en PostgreSQL (P1-M1,
+        // migración RlsAspNetUsers): el login la atraviesa por
+        // AmbitoIdentificacionSinTenant, no por este filtro. Tenant, DelegacionTenant,
         // AsignacionOperadorDelegado, ProveedorPlataformaCae,
         // DominioProveedorPlataformaCae y las tres tablas del plano de
         // privilegio de plataforma (ConcesionPrivilegio, SesionPrivilegiada,
