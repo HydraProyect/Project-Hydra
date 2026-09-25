@@ -145,6 +145,13 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     private const string PoliticaPrivilegio = "privilegio_del_usuario";
 
     /// <summary>
+    /// La única política adicional de un catálogo de privilegio (ADR-011 § 8.7,
+    /// incremento 2): el Administrador del Tenant propietario lee las Sesiones
+    /// Privilegiadas que apuntan a su Tenant. Solo SELECT, sin WITH CHECK.
+    /// </summary>
+    private const string PoliticaAdministradorTenantObjetivo = "administrador_del_tenant_objetivo";
+
+    /// <summary>
     /// Categoría 3: <b>catálogo de privilegio</b>. Sin <c>TenantId</c> —una
     /// concesión cruza tenants por definición— pero, al contrario que los
     /// catálogos de asignación, <b>con FORCE</b>. La misma pregunta sobre roles
@@ -491,8 +498,26 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
                 "bajo sesión de usuario, y ningún escritor. Sin FORCE la política no ataría al propietario, que " +
                 "es el rol con el que la aplicación conecta hoy");
 
-            e.Politicas.Select(p => p.Nombre).Should().BeEquivalentTo([PoliticaPrivilegio],
-                $"{tabla} tiene que llevar exactamente '{PoliticaPrivilegio}' y ninguna otra");
+            string[] esperadas = tabla == "SesionesPrivilegiadas"
+                ? [PoliticaPrivilegio, PoliticaAdministradorTenantObjetivo]
+                : [PoliticaPrivilegio];
+            e.Politicas.Select(p => p.Nombre).Should().BeEquivalentTo(esperadas,
+                $"{tabla} tiene que llevar exactamente esas políticas y ninguna otra");
+
+            var transparencia = e.Politicas.FirstOrDefault(p => p.Nombre == PoliticaAdministradorTenantObjetivo);
+            if (transparencia is not null)
+            {
+                transparencia.Comando.Should().Be('r',
+                    "la transparencia para el Tenant propietario es solo lectura: una política permisiva FOR ALL " +
+                    "dejaría a su Administrador crear o cerrar Sesiones Privilegiadas de Soporte TALVEG");
+                transparencia.WithCheck.Should().BeNull();
+                transparencia.Permisiva.Should().BeTrue();
+                transparencia.Using.Should().NotBeNull()
+                    .And.Subject.As<string>().Should().Contain("app.tenant_id")
+                    .And.Contain("app_es_administrador_del_tenant(",
+                        "por Tenant a secas cualquier usuario del Tenant leería el historial de accesos de soporte: " +
+                        "la autoridad (Administrador) se exige en la misma frontera que el aislamiento");
+            }
 
             var politica = e.Politicas.FirstOrDefault(p => p.Nombre == PoliticaPrivilegio);
             if (politica is null) continue;
@@ -589,7 +614,8 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         && expresion.Contains("TenantId", StringComparison.Ordinal)
         && expresion.Contains("app.tenant_id", StringComparison.Ordinal);
 
-    private sealed record PoliticaRls(string Nombre, string? Using, string? WithCheck, bool Permisiva = true);
+    private sealed record PoliticaRls(
+        string Nombre, string? Using, string? WithCheck, bool Permisiva = true, char Comando = '*');
 
     private static bool EsRestrictivaRevisada(string tabla, PoliticaRls politica) =>
         !politica.Permisiva
@@ -610,7 +636,8 @@ SELECT c.relname,
        p.polname,
        pg_get_expr(p.polqual, p.polrelid),
        pg_get_expr(p.polwithcheck, p.polrelid),
-       p.polpermissive
+       p.polpermissive,
+       p.polcmd
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 LEFT JOIN pg_policy p ON p.polrelid = c.oid
@@ -630,7 +657,8 @@ WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname = ANY(@tablas);";
                     lector.GetString(3),
                     lector.IsDBNull(4) ? null : lector.GetString(4),
                     lector.IsDBNull(5) ? null : lector.GetString(5),
-                    lector.GetBoolean(6)));
+                    lector.GetBoolean(6),
+                    lector.GetChar(7)));
         }
 
         return estado;

@@ -217,6 +217,44 @@
             }
         </div>
     }
+
+    @if (!_cargando && !_error && _accesosSoporteTalveg is not null && !OperandoWorkspaceAjeno)
+    {
+        <section class="accesos-soporte-talveg" aria-labelledby="titulo-accesos-soporte-talveg">
+            <h2 id="titulo-accesos-soporte-talveg" class="accesos-soporte-talveg-titulo">@TextosAccesos["SeccionTitulo"]</h2>
+            <p class="accesos-soporte-talveg-descripcion">@TextosAccesos["SeccionDescripcion"]</p>
+            @if (_accesosSoporteTalveg.Count == 0)
+            {
+                <EstadoVacio Titulo="@TextosAccesos["Vacio"]" />
+            }
+            else
+            {
+                <table class="tabla-datos accesos-soporte-talveg-tabla">
+                    <thead>
+                        <tr>
+                            <th>@TextosAccesos["ColumnaQuien"]</th>
+                            <th>@TextosAccesos["ColumnaMotivo"]</th>
+                            <th>@TextosAccesos["ColumnaTicket"]</th>
+                            <th>@TextosAccesos["ColumnaVentana"]</th>
+                            <th>@TextosAccesos["ColumnaEstado"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var acceso in _accesosSoporteTalveg)
+                        {
+                            <tr>
+                                <td>@TextosAccesos["ValorQuien"]</td>
+                                <td>@acceso.Motivo</td>
+                                <td>@(acceso.Ticket ?? TextosAccesos["SinTicket"])</td>
+                                <td>@TextoVentanaAcceso(acceso)</td>
+                                <td><Badge Tono="@TonoEstadoAcceso(acceso.Estado)">@TextoEstadoAcceso(acceso.Estado)</Badge></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
+    }
 </div>
 
 <Drawer Visible="_verActividadDe is not null"

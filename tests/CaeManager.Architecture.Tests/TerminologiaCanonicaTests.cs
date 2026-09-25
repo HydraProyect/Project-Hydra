@@ -344,12 +344,23 @@ public class TerminologiaCanonicaTests
     /// reactivar al Operador CAE externo A tras autorizar a B chocaba con el índice único como
     /// excepción sin traducir. Baja con la migración de <c>DelegacionTenant</c>.
     /// </para>
+    ///
+    /// <para>
+    /// <b><c>Delegacion</c> 332 → 335 (transparencia de Soporte TALVEG para el Tenant
+    /// propietario, ADR-011 § 8.7 incremento 2, 2026-09-25): +3, todo superficie existente,
+    /// ningún identificador nuevo.</b> <c>ObtenerAccesosSoporteTalvegQuery</c> autoriza con el
+    /// mismo predicado de Administrador del Tenant propietario que las delegaciones, a través
+    /// de <c>IAutorizacionDelegacionTenant.PuedeGestionarDelegacionesAsync</c> (2), y sus
+    /// textos viven junto a la pantalla que los pinta, en el espacio de nombres
+    /// <c>Features.Delegaciones.Recursos</c> (1), como <c>TextosAutorizarOperadorCaeExterno</c>.
+    /// Baja con el renombrado de esa interfaz y de la carpeta.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
         ["Hydra"] = 48,
         ["EjecutivoUsuarioId"] = 48,
-        ["Delegacion"] = 332,
+        ["Delegacion"] = 335,
         ["ClienteActivo"] = 72,
     };
 
