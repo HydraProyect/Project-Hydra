@@ -499,6 +499,10 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
     {
         if (_asignacionABajar is not { } asignacionId) return;
         await DarDeBajaAsignacionAsync(asignacionId);
+
+        // Si mientras tanto se abrió otro diálogo (otro trabajador, otra fila),
+        // es del usuario: solo se cierra el que confirmó esta baja.
+        if (_asignacionABajar != asignacionId) return;
         _confirmarBajaAsignacionVisible = false;
         _asignacionABajar = null;
     }

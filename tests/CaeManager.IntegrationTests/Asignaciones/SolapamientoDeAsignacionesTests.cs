@@ -112,7 +112,7 @@ public class SolapamientoDeAsignacionesTests : IAsyncLifetime
     }
 
     private static ReactivarAsignacionCommandHandler Reactivador(CaeManagerDbContext contexto) =>
-        new(new AsignacionRepository(contexto), new AutoridadAsignacionesServiceFalso(contexto), contexto);
+        new(new AsignacionRepository(contexto), new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
     private async Task<Guid> SembrarCerradaAsync(DateOnly alta, DateOnly baja)
     {

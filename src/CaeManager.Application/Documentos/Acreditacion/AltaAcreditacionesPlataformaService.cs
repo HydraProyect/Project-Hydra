@@ -69,7 +69,7 @@ public sealed record AltasConAcreditacion
 /// (Cliente, Vehículo y Proyecto quedan fuera a propósito).
 ///
 /// Todos los caminos de alta —Documento creado a mano, importado o generado
-/// desde plantilla; Asignación individual, en lote o importada; acceso de
+/// desde plantilla; Asignación individual, en lote, importada o reabierta; acceso de
 /// plataforma nuevo; tipo que un Centro pasa a exigir— llaman aquí. Cada
 /// camino evalúa solo lo que su alta pone en juego: un Documento nuevo, ante
 /// todos los Centros de su propietario; una Asignación nueva, los Documentos

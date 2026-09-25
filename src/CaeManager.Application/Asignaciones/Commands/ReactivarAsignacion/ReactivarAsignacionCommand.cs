@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -24,7 +25,8 @@ public class ReactivarAsignacionCommandValidator : AbstractValidator<ReactivarAs
 }
 
 public class ReactivarAsignacionCommandHandler(
-    IAsignacionRepository repositorio, IAutoridadAsignacionesService autoridad, IUnitOfWork unitOfWork)
+    IAsignacionRepository repositorio, IAutoridadAsignacionesService autoridad,
+    IAltaAcreditacionesPlataformaService altaAcreditaciones, IUnitOfWork unitOfWork)
     : IRequestHandler<ReactivarAsignacionCommand, Result>
 {
     public async Task<Result> Handle(ReactivarAsignacionCommand request, CancellationToken cancellationToken)
@@ -63,6 +65,13 @@ public class ReactivarAsignacionCommandHandler(
                 "Este trabajador tiene otra asignación a este centro posterior a esta; no se puede reabrir."));
 
         asignacion.ReactivarAlta();
+
+        // Reabierta, vuelve a estar de alta en la plataforma del Centro, igual
+        // que tras CrearAsignacionCommand: lo que el Centro empezó a exigir, o
+        // lo que se subió, mientras estaba cerrada nace pendiente de acreditar.
+        // Idempotente: lo ya acreditado antes de la baja no se duplica.
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Asignaciones = [asignacion] }, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

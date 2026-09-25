@@ -1,5 +1,6 @@
 using CaeManager.Application.Asignaciones.Commands.ReactivarAsignacion;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Asignaciones;
 using FluentAssertions;
@@ -21,6 +22,7 @@ public class ReactivarAsignacionCommandHandlerTests
     private readonly Guid _centroId = Guid.NewGuid();
     private readonly AsignacionRepositorioFalso _repositorio = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
+    private readonly AltaAcreditacionesFalsa _altaAcreditaciones = new();
 
     private Asignacion Cerrada(DateOnly alta, DateOnly baja)
     {
@@ -31,7 +33,7 @@ public class ReactivarAsignacionCommandHandlerTests
     }
 
     private Task<Domain.Common.Result> Reactivar(Guid id, AutoridadFalsa? autoridad = null) =>
-        new ReactivarAsignacionCommandHandler(_repositorio, autoridad ?? new AutoridadFalsa(), _unitOfWork)
+        new ReactivarAsignacionCommandHandler(_repositorio, autoridad ?? new AutoridadFalsa(), _altaAcreditaciones, _unitOfWork)
             .Handle(new ReactivarAsignacionCommand(id), CancellationToken.None);
 
     [Fact]
@@ -46,6 +48,8 @@ public class ReactivarAsignacionCommandHandlerTests
         asignacion.FechaBaja.Should().BeNull();
         asignacion.FechaAlta.Should().Be(Alta, "deshacer conserva la fecha de alta de siempre");
         _unitOfWork.VecesGuardado.Should().Be(1);
+        _altaAcreditaciones.Asignaciones.Should().Equal([asignacion],
+            "reabierta vuelve a estar de alta en la plataforma del Centro, como tras un alta");
     }
 
     [Fact]
@@ -59,6 +63,7 @@ public class ReactivarAsignacionCommandHandlerTests
         resultado.Error.Codigo.Should().Be("Asignacion.NoEncontrada");
         asignacion.FechaBaja.Should().Be(Baja);
         _unitOfWork.VecesGuardado.Should().Be(0);
+        _altaAcreditaciones.Asignaciones.Should().BeEmpty();
     }
 
     [Fact]
@@ -120,6 +125,17 @@ public class ReactivarAsignacionCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Asignacion.NoEncontrada");
+    }
+
+    private sealed class AltaAcreditacionesFalsa : IAltaAcreditacionesPlataformaService
+    {
+        public List<Asignacion> Asignaciones { get; } = [];
+
+        public Task<int> AgregarPendientesAsync(AltasConAcreditacion altas, CancellationToken cancellationToken = default)
+        {
+            Asignaciones.AddRange(altas.Asignaciones);
+            return Task.FromResult(0);
+        }
     }
 
     private sealed class AutoridadFalsa : IAutoridadAsignacionesService
