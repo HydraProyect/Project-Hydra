@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Visitas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -38,7 +39,8 @@ public record DetalleVisitaDto(
     decimal? AntelacionNominalHoras,
     decimal? AntelacionEfectivaHoras,
     TramoAntelacion? Tramo,
-    AtribucionUrgencia Atribucion);
+    AtribucionUrgencia Atribucion,
+    bool CentroRequiereGestionCae = true);
 
 public class ObtenerDetalleVisitaQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
@@ -60,6 +62,7 @@ public class ObtenerDetalleVisitaQueryHandler(
                 v.Id,
                 CentroId = centro.Id,
                 CentroNombre = centro.Nombre,
+                centro.GestionCae,
                 ClienteRazonSocial = cliente.RazonSocial,
                 EmpresaId = empresa.Id,
                 EmpresaRazonSocial = empresa.RazonSocial,
@@ -95,6 +98,7 @@ public class ObtenerDetalleVisitaQueryHandler(
             visita.Id, visita.CentroNombre, visita.ClienteRazonSocial, visita.EmpresaId, visita.EmpresaRazonSocial,
             visita.FechaInicio, visita.FechaFin, visita.Notas, visita.NotificadoCliente, trabajadores,
             visita.HoraEstimadaAcceso, visita.FechaHoraSolicitudUtc, visita.FechaHoraExpedienteCompletoUtc,
-            visita.AntelacionNominalHoras, visita.AntelacionEfectivaHoras, visita.Tramo, visita.Atribucion);
+            visita.AntelacionNominalHoras, visita.AntelacionEfectivaHoras, visita.Tramo, visita.Atribucion,
+            visita.GestionCae != ModalidadGestionCae.SinGestionCae);
     }
 }

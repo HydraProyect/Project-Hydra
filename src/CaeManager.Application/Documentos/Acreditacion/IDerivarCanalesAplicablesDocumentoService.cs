@@ -36,6 +36,14 @@ public class DerivarCanalesAplicablesDocumentoService(
 
         if (centroIds.Count == 0) return [];
 
+        // P1-X2: un Centro sin gestión CAE no pide acreditar nada, aunque
+        // conserve canales de plataforma de antes.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(centrosContext, centroIds, cancellationToken);
+        if (sinGestionCae.Count > 0)
+            centroIds = centroIds.Where(id => !sinGestionCae.Contains(id)).ToList();
+
+        if (centroIds.Count == 0) return [];
+
         return await centrosContext.CanalesGestionDocumental
             .Where(c => centroIds.Contains(c.CentroId) && c.Tipo == TipoCanalGestion.Plataforma)
             .Select(c => c.Id)

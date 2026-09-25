@@ -55,10 +55,19 @@ public class PaqueteDocumentalVisitaService(
 
         var centro = await centrosContext.Centros
             .Where(c => c.Id == visita.CentroId)
-            .Select(c => new { c.Id, c.Nombre, c.EmpresaId })
+            .Select(c => new { c.Id, c.Nombre, c.EmpresaId, c.GestionCae })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (centro is null) return;
+
+        // P1-X2: un Centro sin gestión CAE no pide acreditación — no se le
+        // envía documentación; la Visita se comunica con el aviso copiable
+        // (ObtenerAvisoVisitaQuery).
+        if (centro.GestionCae == Domain.Centros.ModalidadGestionCae.SinGestionCae)
+        {
+            logger.LogInformation("Visita {VisitaId}: el Centro no requiere gestión CAE, no se genera paquete documental.", visitaId);
+            return;
+        }
 
         var trabajadorIds = await visitasContext.VisitasTrabajadores
             .Where(vt => vt.VisitaId == visitaId)

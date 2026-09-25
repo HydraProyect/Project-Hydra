@@ -1,3 +1,4 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
@@ -26,12 +27,23 @@ public interface IDocumentosFaltantesService
         IReadOnlyList<ParejaTrabajadorCentro> parejas, CancellationToken cancellationToken);
 }
 
-public class DocumentosFaltantesService(ITiposDocumentoQueryContext tiposDocumentoContext, IDocumentosQueryContext documentosContext)
+public class DocumentosFaltantesService(
+    ITiposDocumentoQueryContext tiposDocumentoContext, IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext)
     : IDocumentosFaltantesService
 {
     public async Task<IReadOnlyList<DocumentoFaltanteDto>> CalcularAsync(
         IReadOnlyList<ParejaTrabajadorCentro> parejas, CancellationToken cancellationToken)
     {
+        if (parejas.Count == 0)
+            return [];
+
+        // P1-X2: un Centro sin gestión CAE no exige documentación — ningún
+        // par Trabajador×Centro suyo puede tener un documento faltante.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(
+            centrosContext, parejas.Select(p => p.CentroId), cancellationToken);
+        if (sinGestionCae.Count > 0)
+            parejas = parejas.Where(p => !sinGestionCae.Contains(p.CentroId)).ToList();
+
         if (parejas.Count == 0)
             return [];
 

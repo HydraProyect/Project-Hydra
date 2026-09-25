@@ -66,6 +66,13 @@ public class ObtenerDocumentacionBloqueantePendienteQueryHandler(
         if (centroIdsVisibles is not null)
             filasBloqueantes = filasBloqueantes.Where(f => centroIdsVisibles.Contains(f.CentroId)).ToList();
 
+        // P1-X2: una fila BloqueaAcceso que quedó de cuando el Centro exigía
+        // gestión CAE no bloquea nada en un Centro que ya no la requiere.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(
+            centrosContext, filasBloqueantes.Select(f => f.CentroId), cancellationToken);
+        if (sinGestionCae.Count > 0)
+            filasBloqueantes = filasBloqueantes.Where(f => !sinGestionCae.Contains(f.CentroId)).ToList();
+
         if (filasBloqueantes.Count == 0)
             return [];
 

@@ -87,10 +87,14 @@ public class ObtenerDocumentacionVisitaQueryHandler(
 
         var centro = await centrosContext.Centros
             .Where(c => c.Id == visita.CentroId)
-            .Select(c => new { c.Id, c.EmpresaId })
+            .Select(c => new { c.Id, c.EmpresaId, c.GestionCae })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (centro is null) return null;
+
+        // P1-X2: un Centro sin gestión CAE no exige nada — la vista puede
+        // enseñar los Documentos que existan, pero nunca un «Faltante».
+        var centroRequiereGestionCae = centro.GestionCae != Domain.Centros.ModalidadGestionCae.SinGestionCae;
 
         var trabajadorIds = await visitasContext.VisitasTrabajadores
             .Where(vt => vt.VisitaId == request.VisitaId)
@@ -122,11 +126,11 @@ public class ObtenerDocumentacionVisitaQueryHandler(
 
         var tiposEmpresa = tipos
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa && EnAlcanceDelCentro(t.Id))
-            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centro.Id, t.CuentaParaCumplimiento)))
+            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, centroRequiereGestionCae && ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centro.Id, t.CuentaParaCumplimiento)))
             .ToList();
         var tiposTrabajador = tipos
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && EnAlcanceDelCentro(t.Id))
-            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centro.Id, t.CuentaParaCumplimiento)))
+            .Select(t => new TipoDocumentoAplicableDto(t.Id, t.Nombre, centroRequiereGestionCae && ResolucionTipoDocumentoCentro.Aplica(filasDelCentro, t.Id, centro.Id, t.CuentaParaCumplimiento)))
             .ToList();
 
         var seccionEmpresa = await ConstruirSeccionAsync(

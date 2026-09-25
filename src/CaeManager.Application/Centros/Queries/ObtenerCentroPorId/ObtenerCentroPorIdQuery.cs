@@ -1,3 +1,4 @@
+using CaeManager.Domain.Centros;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
@@ -19,7 +20,8 @@ public record CentroDetalleDto(
     string? Direccion,
     string? Contacto,
     DateOnly? ContratoVigenteHasta,
-    Guid Version);
+    Guid Version,
+    ModalidadGestionCae GestionCae = ModalidadGestionCae.ConGestionCae);
 
 public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerCentroPorIdQuery, CentroDetalleDto?>
@@ -37,7 +39,8 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
             where centro.Id == request.Id
             select new CentroDetalleDto(
                 centro.Id, centro.ClienteId, cliente.RazonSocial, centro.EmpresaId, empresa.RazonSocial, centro.Nombre,
-                centro.CodigoCentro, centro.Direccion, centro.Contacto, centro.ContratoVigenteHasta, centro.Version))
+                centro.CodigoCentro, centro.Direccion, centro.Contacto, centro.ContratoVigenteHasta, centro.Version,
+                centro.GestionCae))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

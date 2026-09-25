@@ -119,7 +119,7 @@ public class ObtenerSugerenciasPreventivasQueryTests : IAsyncLifetime
     }
 
     private static ObtenerSugerenciasPreventivasQueryHandler CrearHandler(CaeManagerDbContext contexto) =>
-        new(contexto, contexto, contexto, new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(contexto, contexto));
+        new(contexto, contexto, contexto, new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(contexto, contexto, contexto));
 
     private CaeManagerDbContext CrearContexto()
     {
