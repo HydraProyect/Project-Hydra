@@ -70,6 +70,10 @@ public class ObtenerFormatosRequeridosCentroQueryHandler(
     /// <summary>Ver ResolucionTipoDocumentoCentro — universo completo (Empresa+Trabajador), fila explícita manda, sin fila sigue EsObligatorio.</summary>
     private async Task<List<TipoAplicableDto>> ObtenerTiposAplicablesAsync(Guid centroId, CancellationToken cancellationToken)
     {
+        // P1-X2: un Centro sin gestión CAE no exige ningún formato.
+        if ((await CentrosSinGestionCae.FiltrarAsync(centrosContext, [centroId], cancellationToken)).Count > 0)
+            return [];
+
         var tipos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
             .OrderBy(t => t.Orden)

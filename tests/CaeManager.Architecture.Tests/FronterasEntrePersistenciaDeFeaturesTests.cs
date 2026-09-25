@@ -516,6 +516,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "ITiposDocumentoQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "ITrabajadoresQueryContext"),
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "IAsignacionesQueryContext"),
+        // P1-X2: un Centro sin gestión CAE no exige nada al personal de la subcontrata (CentrosSinGestionCae).
+        ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "ICentrosQueryContext"),
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "IConfiguracionQueryContext"),
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "IDocumentosQueryContext"),
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "ITiposDocumentoQueryContext"),

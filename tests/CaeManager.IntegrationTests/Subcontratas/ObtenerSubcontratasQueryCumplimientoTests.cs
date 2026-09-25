@@ -218,7 +218,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     private async Task<CaeManager.Application.Common.ResultadoPaginado<SubcontrataListaDto>> EjecutarAsync(AlcanceDatosServiceFalso alcance)
     {
         await using var contexto = CrearContexto();
-        var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, alcance);
+        var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance);
         var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio);
 
         return await handler.Handle(new ObtenerSubcontratasQuery(Busqueda: null), CancellationToken.None);

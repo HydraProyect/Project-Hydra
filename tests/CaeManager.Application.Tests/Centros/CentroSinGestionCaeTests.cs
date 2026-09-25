@@ -1,3 +1,12 @@
+using CaeManager.Domain.RelacionesEmpresariales;
+using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata;
+using CaeManager.Application.Subcontratas.Queries.ObtenerTrabajadoresDocumentacionPorSubcontrata;
+using CaeManager.Application.Subcontratas;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCentro;
+using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
+using Microsoft.Extensions.Logging.Abstractions;
+using CaeManager.Application.Tests.Visitas;
+using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Commands.EstablecerGestionCaeCentro;
@@ -121,6 +130,102 @@ public class CentroSinGestionCaeTests
         // Control positivo: el mismo Trabajador en un Centro con gestión CAE sí
         // tiene el documento obligatorio en falta.
         con.Should().ContainSingle().Which.PeorEstado.Should().Be(EstadoDocumento.Faltante);
+    }
+
+    [Fact]
+    public async Task Una_visita_a_un_centro_sin_gestion_cae_sella_el_expediente_solo_cuando_sabe_quien_va()
+    {
+        var repositorio = new VisitaRepositorioFalso();
+        var sinNadie = new Visita(_sinGestion.Id, Hoy.AddDays(3), Hoy.AddDays(3), null);
+        sinNadie.RegistrarOrigenSolicitud(Guid.NewGuid(), DateTime.UtcNow.AddHours(-1));
+        var conAna = new Visita(_sinGestion.Id, Hoy.AddDays(3), Hoy.AddDays(3), null);
+        conAna.RegistrarOrigenSolicitud(Guid.NewGuid(), DateTime.UtcNow.AddHours(-1));
+        repositorio.Visitas.AddRange([sinNadie, conAna]);
+        _visitas.ListaVisitas.AddRange([sinNadie, conAna]);
+        _visitas.ListaVisitasTrabajadores.Add(new VisitaTrabajador(conAna.Id, _ana.Id));
+
+        var evaluador = new EvaluadorExpedienteVisitaService(
+            _visitas, _centros, _documentos, _tipos, _configuracion, repositorio, new UnitOfWorkFalso(),
+            NullLogger<EvaluadorExpedienteVisitaService>.Instance);
+
+        // El sello es irreversible: sin participantes no se puede dar por completo
+        // (añadirlos después no recalcularía la antelación).
+        (await evaluador.EvaluarAsync(sinNadie.Id)).Should().BeFalse();
+        sinNadie.FechaHoraExpedienteCompletoUtc.Should().BeNull();
+
+        // Con participantes, nada que reunir: completo aunque Ana no tenga el
+        // documento obligatorio que un Centro con gestión CAE le exigiría.
+        (await evaluador.EvaluarAsync(conAna.Id)).Should().BeTrue();
+        conAna.FechaHoraExpedienteCompletoUtc.Should().NotBeNull();
+    }
+
+    // ---- Otros caminos que resuelven requisitos (Codex r2, P1-X2) ----
+
+    [Fact]
+    public async Task La_documentacion_por_centro_del_trabajador_no_exige_nada_en_el_centro_sin_gestion_cae()
+    {
+        var resultado = await new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
+                _asignaciones, _centros, _empresas, _tipos, _documentos, _configuracion, new AlcanceDatosServiceFalso())
+            .Handle(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(_ana.Id), CancellationToken.None);
+
+        resultado.Single(c => c.CentroId == _sinGestion.Id).Documentos.Should().BeEmpty();
+        resultado.Single(c => c.CentroId == _conGestion.Id).Documentos.Should().NotBeEmpty("control positivo");
+    }
+
+    [Fact]
+    public async Task Los_formatos_requeridos_de_un_centro_sin_gestion_cae_estan_vacios()
+    {
+        var handler = new ObtenerFormatosRequeridosCentroQueryHandler(_centros, _tipos, new AlcanceDatosServiceFalso());
+
+        (await handler.Handle(new ObtenerFormatosRequeridosCentroQuery(_sinGestion.Id), CancellationToken.None)).Should().BeNull();
+        (await handler.Handle(new ObtenerFormatosRequeridosCentroQuery(_conGestion.Id), CancellationToken.None)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task El_cumplimiento_y_la_documentacion_de_la_subcontrata_no_cuentan_el_centro_sin_gestion_cae()
+    {
+        var pepe = TrabajadorDeSubcontrata();
+        _asignaciones.ListaAsignaciones.Add(new Asignacion(pepe.Id, _sinGestion.Id, Hoy.AddDays(-5)));
+        var calculo = new CalculoEstadoSubcontrataService(
+            _trabajadores, _asignaciones, _documentos, _tipos, _configuracion, _centros, new AlcanceDatosServiceFalso());
+        var documentacion = new ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
+            _trabajadores, _asignaciones, _tipos, _documentos, _configuracion, _centros, new AlcanceDatosServiceFalso());
+
+        var soloSinGestion = await calculo.CalcularCumplimientoAsync([_subcontrata.Id], CancellationToken.None);
+        (soloSinGestion.TryGetValue(_subcontrata.Id, out var fraccion) ? fraccion.Requeridos : 0).Should().Be(0);
+        (await documentacion.Handle(new ObtenerTrabajadoresDocumentacionPorSubcontrataQuery(_subcontrata.Id), CancellationToken.None))
+            .Single(t => t.TrabajadorId == pepe.Id).Documentos.Should().BeEmpty();
+
+        // Control positivo: la misma persona en un Centro con gestión CAE sí debe el documento.
+        _asignaciones.ListaAsignaciones.Add(new Asignacion(pepe.Id, _conGestion.Id, Hoy.AddDays(-5)));
+        (await calculo.CalcularCumplimientoAsync([_subcontrata.Id], CancellationToken.None))[_subcontrata.Id].Requeridos.Should().BeGreaterThan(0);
+        (await documentacion.Handle(new ObtenerTrabajadoresDocumentacionPorSubcontrataQuery(_subcontrata.Id), CancellationToken.None))
+            .Single(t => t.TrabajadorId == pepe.Id).Documentos.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task La_supervision_de_la_subcontrata_no_exige_ni_ofrece_el_centro_sin_gestion_cae()
+    {
+        var pepe = TrabajadorDeSubcontrata();
+        _empresas.ListaRelacionesEmpresariales.Add(RelacionEmpresarial.Crear(_subcontrata.Id, _titular.Id, DateTime.UtcNow.AddMonths(-6)));
+        _asignaciones.ListaAsignaciones.Add(new Asignacion(pepe.Id, _sinGestion.Id, Hoy.AddDays(-5)));
+        _asignaciones.ListaAsignaciones.Add(new Asignacion(pepe.Id, _conGestion.Id, Hoy.AddDays(-5)));
+
+        var supervision = await new ObtenerSupervisionSubcontrataQueryHandler(
+                new SubcontratasQueryContextFalso(), _asignaciones, _trabajadores, _centros, _empresas, _tipos, _configuracion,
+                new AlcanceDatosServiceFalso())
+            .Handle(new ObtenerSupervisionSubcontrataQuery(_subcontrata.Id), CancellationToken.None);
+
+        supervision!.CentrosSeleccionables.Select(c => c.CentroId).Should().Contain(_conGestion.Id).And.NotContain(_sinGestion.Id);
+        supervision.Centros.Where(c => c.CentroId == _sinGestion.Id).SelectMany(c => c.Tipos).Should().NotContain(t => t.Exigido);
+        supervision.Centros.Single(c => c.CentroId == _conGestion.Id).Tipos.Should().Contain(t => t.Exigido, "control positivo");
+    }
+
+    private Trabajador TrabajadorDeSubcontrata()
+    {
+        var trabajador = Trabajador.DeSubcontrata(_subcontrata.Id, "Pepe", "Ruiz", "11223344B");
+        _trabajadores.ListaTrabajadores.Add(trabajador);
+        return trabajador;
     }
 
     [Fact]

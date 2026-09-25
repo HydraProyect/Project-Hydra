@@ -56,6 +56,7 @@ public class CalculoEstadoSubcontrataService(
     IDocumentosQueryContext documentosContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IConfiguracionQueryContext configuracionContext,
+    ICentrosQueryContext centrosContext,
     IAlcanceDatosService alcanceDatos)
     : ICalculoEstadoSubcontrataService
 {
@@ -117,6 +118,10 @@ public class CalculoEstadoSubcontrataService(
             .GroupBy(a => a.TrabajadorId)
             .ToDictionary(g => g.Key, g => g.Select(a => a.CentroId).Distinct().ToList());
 
+        // P1-X2: un Centro sin gestión CAE no exige ningún tipo a quien trabaja allí.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(
+            centrosContext, asignacionesActivas.Select(a => a.CentroId), cancellationToken);
+
         var centroIds = asignacionesActivas.Select(a => a.CentroId).Distinct().ToList();
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
@@ -149,7 +154,7 @@ public class CalculoEstadoSubcontrataService(
             }
 
             tiposRequeridosPorTrabajador[trabajadorId] = tiposCandidatos
-                .Where(t => centrosDelTrabajador.Any(centroId => ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
+                .Where(t => centrosDelTrabajador.Any(centroId => !sinGestionCae.Contains(centroId) && ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
                 .Select(t => t.Id)
                 .ToList();
         }
