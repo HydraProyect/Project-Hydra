@@ -65,6 +65,23 @@ public class AccionesBandejaTests
     }
 
     /// <summary>
+    /// P0-9b (FS-02): con la acreditación concreta, la acción lleva a su fila y no
+    /// a la lista de todas las plataformas. Vale igual como returnUrl cross-Tenant.
+    /// </summary>
+    [Theory]
+    [InlineData(TipoItemBandeja.PlataformaPendiente)]
+    [InlineData(TipoItemBandeja.PlataformaRechazada)]
+    [InlineData(TipoItemBandeja.EnPlataformaSeguimiento)]
+    [InlineData(TipoItemBandeja.PlataformaVencida)]
+    public void Plataforma_con_acreditacion_lleva_el_deep_link_a_su_fila(TipoItemBandeja tipo)
+    {
+        var acreditacionId = Guid.NewGuid();
+        var item = Item(tipo, documentoId: Guid.NewGuid()) with { AcreditacionId = acreditacionId };
+
+        AccionesBandeja.ResolverUrl(item).Should().Be($"/documentos?pestana=plataforma&acreditacionId={acreditacionId}");
+    }
+
+    /// <summary>
     /// P12: la vencida en plataforma lleva DocumentoId, pero lo que hay que
     /// renovar es la acreditación en la plataforma, no el documento de TALVEG
     /// (que sigue vigente): no puede caer en el destino genérico por documento.

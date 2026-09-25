@@ -89,6 +89,12 @@ public record ClienteAcreditacionesDto(Guid ClienteId, string ClienteNombre, IRe
 /// que quien lo lea no necesita volver a comparar fechas ni leer el reloj por
 /// su cuenta (entre las dos lecturas podía cambiar el día).
 /// </param>
+/// <param name="UrlAccesoCanal">
+/// La dirección del portal tal como la anotó el Gestor CAE en el canal del
+/// Centro (<c>CanalGestionDocumental.UrlAcceso</c>), para «Abrir portal» desde
+/// la fila (P0-9b). Es la dirección, nunca la credencial: la credencial vive en
+/// Empresa 360 y no viaja por esta consulta.
+/// </param>
 public record AcreditacionDrillDownDto(
     Guid AcreditacionId, Guid DocumentoId, string PropietarioNombre, string TipoDocumentoNombre,
     EstadoAcreditacion Estado, string? UltimoMotivoRechazo,
@@ -96,7 +102,8 @@ public record AcreditacionDrillDownDto(
     Guid? CanalGestionDocumentalId = null, string? TrabajadorDni = null,
     EstadoVigenciaEnPlataforma EstadoVigencia = EstadoVigenciaEnPlataforma.SinConfirmar,
     DateOnly? FechaVencimientoEnPlataforma = null,
-    bool VencidaEnPlataforma = false);
+    bool VencidaEnPlataforma = false,
+    string? UrlAccesoCanal = null);
 
 public class ObtenerAcreditacionesPorProveedorQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,
@@ -150,6 +157,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                 acreditacion.FechaVencimientoEnPlataforma,
                 ProveedorId = canal.ProveedorPlataformaCaeId,
                 CanalGestionDocumentalId = canal.Id,
+                canal.UrlAcceso,
                 CentroId = centro.Id,
                 centro.ClienteId,
                 documento.TrabajadorId,
@@ -222,7 +230,8 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                                 f.CanalGestionDocumentalId, TrabajadorDni(f.TrabajadorId),
                                 f.EstadoVigencia, f.FechaVencimientoEnPlataforma,
                                 VencidaEnPlataforma: f.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
-                                                     && f.FechaVencimientoEnPlataforma < hoy))
+                                                     && f.FechaVencimientoEnPlataforma < hoy,
+                                UrlAccesoCanal: f.UrlAcceso))
                             .OrderBy(d => d.PropietarioNombre)
                             .ToList()))
                     .OrderBy(c => c.ClienteNombre)

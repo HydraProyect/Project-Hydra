@@ -94,6 +94,13 @@ public partial class Documentos : ComponentBase, IDisposable
     /// <summary>Pestaña con la que abrir la página — deep-link desde otras superficies (hoy, el timeline de Comunicaciones).</summary>
     [SupplyParameterFromQuery] public string? Pestana { get; set; }
 
+    /// <summary>
+    /// Deep-link de la pestaña Plataforma a una acreditación concreta (P0-9b):
+    /// «Corregir en {plataforma}» de Mi trabajo y /bandeja llega con
+    /// <c>?pestana=plataforma&amp;acreditacionId=</c>, y la pestaña resalta su fila.
+    /// </summary>
+    [SupplyParameterFromQuery] public Guid? AcreditacionId { get; set; }
+
     private GridItemsProvider<DocumentoListaDto>? _proveedorElementos;
 
     /// <summary>
@@ -307,6 +314,7 @@ public partial class Documentos : ComponentBase, IDisposable
     private record FiltrosDocumentosJson(string? Busqueda, string? Ambito, string? Estado);
 
     private DrawerGestionDocumento _drawerGestion = default!;
+    private PlataformaTab? _plataformaTab;
 
     protected override async Task OnInitializedAsync()
     {
@@ -341,7 +349,24 @@ public partial class Documentos : ComponentBase, IDisposable
         StateHasChanged();
     }
 
-    private Task ManejarDocumentoGuardadoAsync() => RecargarAsync();
+    private async Task ManejarDocumentoGuardadoAsync()
+    {
+        // La versión corregida devuelve las acreditaciones del Documento a
+        // Pendiente de subir: la pestaña Plataforma tiene que enseñarlo ya,
+        // no la fila Rechazada que había antes de guardar. La rejilla del
+        // listado no está montada en esa pestaña (su @ref sería la de una
+        // QuickGrid ya desmontada) y se recarga sola al volver a ella.
+        if (_pestanaActiva == "plataforma" && _plataformaTab is not null)
+            await _plataformaTab.RecargarAsync();
+        else
+            await RecargarAsync();
+    }
+
+    /// <summary>
+    /// «Subir versión corregida» de una acreditación Rechazada: el mismo drawer que
+    /// «Renovar» del listado, que guarda con <c>RenovarDocumentoCommand</c>.
+    /// </summary>
+    private Task AbrirVersionCorregidaAsync(Guid documentoId) => _drawerGestion.AbrirEditarAsync(documentoId);
 
     /// <summary>
     /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,

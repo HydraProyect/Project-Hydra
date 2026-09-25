@@ -43,7 +43,10 @@ public static class MarcarAcreditacionSubidaEndpoints
             // genérico que el gestor confundiría con un documento inexistente.
             if (!resultado.EsFallido) return Results.NoContent();
 
-            var statusCode = resultado.Error.Codigo == "Acreditacion.ConectorInactivo"
+            // Una Rechazada tampoco es un 404: existe, pero sin versión nueva
+            // no se puede dar por subida (MarcarAcreditacionSubidaCommand).
+            var statusCode = resultado.Error.Codigo is "Acreditacion.ConectorInactivo"
+                    or MarcarAcreditacionSubidaCommandHandler.CodigoRechazadaSinVersionNueva
                 ? StatusCodes.Status409Conflict
                 : StatusCodes.Status404NotFound;
             return Results.Problem(resultado.Error.Mensaje, statusCode: statusCode);
