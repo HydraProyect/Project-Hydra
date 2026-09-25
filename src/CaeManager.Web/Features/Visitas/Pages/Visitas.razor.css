@@ -158,3 +158,30 @@
     font: var(--font-body-md);
     color: var(--color-text-muted);
 }
+
+/* P1-X2: aviso de visita copiable de un Centro sin gestión CAE. */
+.visitas-aviso {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+}
+
+.visitas-aviso-asunto {
+    margin: 0;
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.visitas-aviso-cuerpo {
+    margin: 0;
+    font: var(--font-body-sm);
+    color: var(--color-text);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}

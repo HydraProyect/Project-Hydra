@@ -7,6 +7,7 @@ using CaeManager.Application.Visitas.Commands.EliminarVisita;
 using CaeManager.Application.Visitas.Commands.EliminarVisitas;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
+using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
@@ -128,6 +129,11 @@ public partial class Visitas : ComponentBase
     private bool _cargandoDocumentacion;
     private bool _errorDocumentacion;
     private DocumentacionVisitaDto? _documentacion;
+
+    // P1-X2: aviso copiable de una visita a un Centro sin gestión CAE.
+    private bool _cargandoAviso;
+    private AvisoVisitaDto? _aviso;
+    private string? _errorAviso;
 
     private bool _visorVisible;
     private Guid _visorDocumentoId;
@@ -462,6 +468,8 @@ public partial class Visitas : ComponentBase
         _detalle = null;
         _documentacion = null;
         _errorDocumentacion = false;
+        _aviso = null;
+        _errorAviso = null;
 
         try
         {
@@ -476,7 +484,10 @@ public partial class Visitas : ComponentBase
                 return;
             }
 
-            await CargarDocumentacionAsync(id);
+            if (detalle.CentroRequiereGestionCae)
+                await CargarDocumentacionAsync(id);
+            else
+                await CargarAvisoAsync(id, carga);
         }
         catch (Exception)
         {
@@ -489,6 +500,35 @@ public partial class Visitas : ComponentBase
                 _cargandoDetalle = false;
         }
     }
+
+    private async Task CargarAvisoAsync(Guid visitaId, int carga)
+    {
+        _cargandoAviso = true;
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerAvisoVisitaQuery(visitaId));
+            if (carga != _cargaDetalle) return;
+
+            if (resultado.EsFallido)
+                _errorAviso = resultado.Error.Mensaje;
+            else
+                _aviso = resultado.Valor;
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaDetalle)
+                _errorAviso = null;
+        }
+        finally
+        {
+            if (carga == _cargaDetalle)
+                _cargandoAviso = false;
+        }
+    }
+
+    /// <summary>Lo que se pega en el correo: asunto en la primera línea y el cuerpo debajo.</summary>
+    private static string TextoAvisoParaCopiar(AvisoVisitaDto aviso) =>
+        aviso.Asunto + "\n\n" + aviso.Cuerpo;
 
     private Task ReintentarDocumentacionAsync() =>
         _detalle is { } detalle ? CargarDocumentacionAsync(detalle.Id) : Task.CompletedTask;

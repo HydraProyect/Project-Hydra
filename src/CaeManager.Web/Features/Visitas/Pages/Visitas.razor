@@ -141,7 +141,12 @@
                     <Badge Tono="TonoOrigen(context.Origen)">@TextoOrigen(context.Origen)</Badge>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaDocumentacion"]" Align="Align.Center">
-                    @if (context.DocumentacionCompleta)
+                    @if (!context.CentroRequiereGestionCae)
+                    {
+                        @* P1-X2: ni «Completa» (verde falso) ni «Por gestionar» (pendiente que no existe). *@
+                        <Badge Tono="TonoBadge.Neutro">@Textos["BadgeSinGestionCae"]</Badge>
+                    }
+                    else if (context.DocumentacionCompleta)
                     {
                         <Badge Tono="TonoBadge.Exito">@Textos["BadgeDocumentacionCompleta"]</Badge>
                     }
@@ -359,6 +364,36 @@
                 </div>
             }
 
+            @if (!_detalle.CentroRequiereGestionCae)
+            {
+                @*
+                    P1-X2: el Centro no requiere gestión CAE, así que no hay
+                    comprobación previa que hacer. En su lugar, el aviso de la
+                    visita listo para copiar y pegar en un correo — sin M365
+                    (D-1) y sin DNI ni datos sensibles (#856): lo compone
+                    ObtenerAvisoVisitaQuery, no la página.
+                *@
+                <h3 class="detalle-visita-subtitulo">@Textos["SubtituloAvisoVisita"]</h3>
+                <p class="texto-vacio-seccion">@Textos["AvisoVisitaExplicacion"]</p>
+                @if (_cargandoAviso)
+                {
+                    <EstadoCargando Filas="3" />
+                }
+                else if (_aviso is null)
+                {
+                    <p class="alerta-formulario" role="alert">@(_errorAviso ?? Textos["ErrorAvisoVisita"].Value)</p>
+                }
+                else
+                {
+                    <div class="visitas-aviso">
+                        <p class="visitas-aviso-asunto">@_aviso.Asunto</p>
+                        <pre class="visitas-aviso-cuerpo">@_aviso.Cuerpo</pre>
+                        <BotonCopiar Valor="@TextoAvisoParaCopiar(_aviso)" Etiqueta="@Textos["AvisoVisitaEtiquetaCopiar"]" Texto="@Textos["AvisoVisitaCopiar"]" />
+                    </div>
+                }
+            }
+            else
+            {
             <h3 class="detalle-visita-subtitulo">@Textos["SubtituloComprobacionPrevia"]</h3>
             @if (_cargandoDocumentacion)
             {
@@ -443,6 +478,7 @@
                         </SeccionColapsable>
                     }
                 }
+            }
             }
         }
     </ChildContent>
