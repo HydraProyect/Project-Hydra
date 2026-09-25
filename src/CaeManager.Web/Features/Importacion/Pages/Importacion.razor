@@ -46,6 +46,7 @@
     {
         <div class="acciones-contexto-documentos">
             <a href="/importacion">@Textos["EnlaceVerPlantillas"]</a>
+            <a href="@RutaSubidaMultiple" class="enlace-subida-multiple">@Textos["EnlaceSubidaMultiple"]</a>
         </div>
     }
 
@@ -217,6 +218,63 @@
                 <ProgresoConMensajes Visible="_analizando" Mensajes="MensajesAnalizando" />
             </div>
 
+            @* Mockup «Importar Documentos», estados «hoja no encontrada» y
+               «hoja sin filas». El análisis terminó bien (hay plan), así que no
+               llevan .alerta-formulario, que es solo el error de lectura. El
+               plan sigue alcanzable: enseña la misma omisión con su motivo. *@
+            @if (DocumentosSinHoja)
+            {
+                <div class="estado-hoja-documentos estado-hoja-documentos-error" role="alert" data-estado-hoja="sin-hoja">
+                    <span class="icono-estado-hoja-documentos"><Icono Nombre="advertencia" /></span>
+                    <div>
+                        <p class="titulo-estado-hoja-documentos">@Textos["TituloHojaDocumentosNoEncontrada", NombreHojaDocumentos]</p>
+                        <p class="detalle-estado-hoja-documentos">@Textos["DetalleHojaDocumentosNoEncontrada"]</p>
+                    </div>
+                    <a href="/documentos/plantilla.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlacePlantillaBlanco"]</a>
+                </div>
+            }
+            else if (DocumentosSinFilas)
+            {
+                <div class="estado-hoja-documentos" role="status" data-estado-hoja="sin-filas">
+                    <span class="icono-estado-hoja-documentos"><Icono Nombre="documentos" /></span>
+                    <div>
+                        <p class="titulo-estado-hoja-documentos">@Textos["TituloHojaDocumentosSinFilas", NombreHojaDocumentos]</p>
+                        <p class="detalle-estado-hoja-documentos">@Textos["DetalleHojaDocumentosSinFilas"]</p>
+                    </div>
+                </div>
+            }
+
+            @if (EsPlantillaDocumentos)
+            {
+                <section class="columnas-plantilla-importacion" aria-labelledby="columnas-plantilla-documentos-titulo">
+                    <h3 id="columnas-plantilla-documentos-titulo" class="cabecera-columnas-plantilla">@Textos["TituloColumnasHoja", NombreHojaDocumentos]</h3>
+                    <div class="tabla-columnas-plantilla-envoltorio">
+                        <table class="tabla-datos">
+                            <thead>
+                                <tr>
+                                    <th scope="col">@Textos["ColumnaColumna"]</th>
+                                    <th scope="col">@Textos["ColumnaEjemplo"]</th>
+                                    <th scope="col">@Textos["ColumnaObligatoria"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var columna in ColumnasPlantillaDocumentos)
+                                {
+                                    <tr data-columna-plantilla>
+                                        <td class="nombre-columna-plantilla">@columna.Nombre</td>
+                                        <td class="ejemplo-columna-plantilla">@columna.Ejemplo</td>
+                                        <td><Badge Tono="@(columna.Obligatoria ? TonoBadge.Exito : TonoBadge.Neutro)">@(columna.Obligatoria ? Textos["ValorSi"].Value : Textos["ValorNo"].Value)</Badge></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="nota-columnas-plantilla">
+                        @Textos["NotaColumnasPlantillaDocumentos", MarcadorFilaEjemplo]
+                    </p>
+                </section>
+            }
+
             @if (EsPlantillaClientes)
             {
                 <section class="columnas-plantilla-importacion" aria-labelledby="columnas-plantilla-clientes-titulo">
@@ -304,22 +362,39 @@
             else
             {
             <div class="badges-resumen-plan">
-                <Badge Tono="TonoBadgeCrear" title="@TituloBadgeCrear">@Textos["BadgeSeCrearan", TotalACrear]</Badge>
+                <Badge Tono="TonoBadge.Exito">@Textos["BadgeSeCrearan", TotalACrear]</Badge>
+                @if (AltasClienteCentroQueNoSeHaran > 0)
+                {
+                    <Badge Tono="TonoBadge.Advertencia" title="@TituloBadgeNoSeCrearan">@Textos["BadgeNoSeCrearan", AltasClienteCentroQueNoSeHaran]</Badge>
+                }
                 @if (_planCombinada is not null)
                 {
                     <Badge Tono="TonoBadge.Neutro" title="@Textos["TituloBadgeReutilizados"]">@Textos["BadgeReutilizados", TotalReutilizados]</Badge>
                 }
                 <Badge Tono="TonoBadge.Advertencia">@Textos["BadgeConAviso", TotalAdvertencias]</Badge>
                 <Badge Tono="TonoBadge.Peligro">@Textos["BadgeSeOmitiran", TotalOmitidos]</Badge>
+                @* Filtros del mockup «Importar Documentos»: la lista de un lote
+                   documental mezcla muchas altas y muchas omisiones. Son
+                   conmutadores excluyentes con aria-pressed, como las vistas del
+                   plan de la Combinada; «Todas» incluye los avisos. *@
+                @if (EsImportacionDocumentos)
+                {
+                    <span class="filtros-plan-importacion" role="group" aria-label="@Textos["AriaFiltroPlan"]">
+                        @foreach (var filtro in FiltrosPlan)
+                        {
+                            var activo = filtro == _filtroPlan;
+                            <button type="button" class="@(activo ? "filtro-plan-importacion filtro-plan-importacion-activo" : "filtro-plan-importacion")"
+                                    aria-pressed="@(activo ? "true" : "false")" @onclick="() => _filtroPlan = filtro">@Textos[ClaveFiltroPlan(filtro)]</button>
+                        }
+                    </span>
+                }
             </div>
 
-            @* El mockup, en su modo «Fiel al código de hoy», pinta aquí el
-               defecto: el plan cuenta altas de Cliente empresarial y Centro que
-               la escritura no hará. Se dice al usuario en su idioma, sin
-               nombres de clases; el recuento de arriba sigue siendo el del
-               análisis. La «Propuesta corregida» del mockup (recontar esas
-               filas como «No se creará») no se hace aquí: corregir el recuento
-               es del análisis, no de la pantalla. *@
+            @* «Propuesta corregida» del mockup «Importar Clientes» (REC-106):
+               el análisis lista altas de Cliente empresarial y Centro que la
+               escritura no hará; «se crearán» ya no las cuenta, van en su
+               propio badge y en la tabla como «No se creará». Este aviso dice
+               por qué, en el idioma del usuario y sin nombres de clases. *@
             @if (AltasClienteCentroQueNoSeHaran > 0)
             {
                 <div class="aviso-altas-importacion" role="note">
@@ -377,9 +452,9 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var fila in ProyectarFilas())
+                            @foreach (var fila in FilasFiltradas())
                             {
-                                <tr>
+                                <tr data-tipo-fila-plan="@fila.Tipo">
                                     <td>@fila.Entidad</td>
                                     <td><Badge Tono="fila.Tono">@fila.Accion</Badge></td>
                                     <td>@fila.Motivo</td>
@@ -490,6 +565,18 @@
 
                 <span class="nota-reporte-importacion">@Textos["NotaReporte"]</span>
 
+                @* Mockup «Importar Documentos», reporte: los documentos del lote
+                   existen sin archivo. Solo si se creó alguno: con cero no hay
+                   nada a lo que aportar un PDF. *@
+                @if (EsImportacionDocumentos && _resultadoSimple is { DocumentosCreados: > 0 } rd)
+                {
+                    <section class="siguiente-paso-pdf" aria-labelledby="siguiente-paso-pdf-titulo">
+                        <h3 id="siguiente-paso-pdf-titulo" class="titulo-siguiente-paso-pdf">@Textos["TituloSiguientePasoPdf"]</h3>
+                        <p class="texto-siguiente-paso-pdf">@(rd.DocumentosCreados == 1 ? Textos["TextoSiguientePasoPdfUno"].Value : Textos["TextoSiguientePasoPdfVarios", rd.DocumentosCreados].Value)</p>
+                        <a href="@RutaSubidaMultiple" class="enlace-siguiente-paso-pdf">@Textos["EnlaceIrASubidaMultiple"]</a>
+                    </section>
+                }
+
                 <div class="acciones-formulario">
                     <Boton OnClick="EmpezarDeNuevo">@Textos["BotonNuevaImportacion"]</Boton>
                     @* Salida del mockup: el propio motivo del handler dice
@@ -506,6 +593,10 @@
                     @if (_resultadoCombinada is not null)
                     {
                         <Boton Variante="VarianteBoton.Secundario" Href="/clientes">@Textos["BotonVerClientesEmpresariales"]</Boton>
+                    }
+                    @if (EsImportacionDocumentos && _resultadoSimple is { DocumentosCreados: > 0 })
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" Href="/documentos">@Textos["BotonVerDocumentosImportados"]</Boton>
                     }
                 </div>
             </div>

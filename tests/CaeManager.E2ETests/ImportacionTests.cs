@@ -90,18 +90,21 @@ public class ImportacionTests(WebAppFixture fixture)
             await Ayudas.EsperarPlanDeImportacionAsync(page);
             await page.GetByText("Ver plan de importación").ClickAsync();
 
-            // --- Paso 3 "Revisar plan": el plan promete las 6 altas, incluida la
+            // --- Paso 3 "Revisar plan": el plan promete 4 altas, incluida la
             // Asignación (Importacion.razor.cs, ClavesPasos — el wizard
             // unificado de 5 pasos que sustituyó a los 4 por plantilla, tarea
             // #41, ya no usa el título "N. Revisa el plan de importación" de
             // aquellos ni tarjetas TarjetaMetrica por entidad: aquí el plan es
-            // una única tabla ProyectarFilas con una fila "Crear X" por alta). ---
+            // una única tabla ProyectarFilas con una fila "Crear X" por alta). El
+            // Cliente empresarial y el Centro de Centros_Plataformas no cuentan
+            // como creaciones: la escritura no los da de alta (REC-106), y el
+            // plan los enseña como "No se creará". ---
             await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Revisar plan" })
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
             var tablaPlan = page.Locator(".tabla-plan-importacion-envoltorio .tabla-datos");
-            await Expect(page.GetByText("6 se crearán")).ToBeVisibleAsync();
-            await Expect(tablaPlan).ToContainTextAsync("Crear cliente");
-            await Expect(tablaPlan).ToContainTextAsync("Crear centro");
+            await Expect(page.GetByText("4 se crearán", new PageGetByTextOptions { Exact = true })).ToBeVisibleAsync();
+            await Expect(page.GetByText("2 no se crearán", new PageGetByTextOptions { Exact = true })).ToBeVisibleAsync();
+            await Expect(tablaPlan).ToContainTextAsync("No se creará");
             await Expect(tablaPlan).ToContainTextAsync("Crear empresa");
             await Expect(tablaPlan).ToContainTextAsync($"{nombreTrabajador} {apellidosTrabajador}");
             await Expect(tablaPlan).ToContainTextAsync("Crear documento");

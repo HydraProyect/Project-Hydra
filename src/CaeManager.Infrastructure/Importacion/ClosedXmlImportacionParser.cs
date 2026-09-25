@@ -269,7 +269,9 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
             var resultadoNacimiento = FechaCeldaAyudante.Leer(hoja.Cell(fila, 5));
             if (resultadoNacimiento.Estado == EstadoCeldaFecha.Ilegible)
             {
-                omitidos.Add(new ItemImportacionDto(
+                // Aviso, no omisión: el trabajador sí se crea, solo sin ese dato
+                // (igual que «Contrato vigente hasta» en la plantilla combinada).
+                advertencias.Add(new ItemImportacionDto(
                     nombreHoja, fila, $"{nombre} {apellidos} ({dni})",
                     $"La fecha de nacimiento «{resultadoNacimiento.ValorBruto}» no se pudo interpretar; el trabajador se importó sin ese dato."));
             }
@@ -312,7 +314,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
                 }
 
                 documentos.Add(new DocumentoImportadoDto(
-                    dni, tipoDocumento, fechaEmision, documentosExistentes.Contains((dni, tipoDocumento))));
+                    dni, tipoDocumento, fechaEmision, documentosExistentes.Contains((dni, tipoDocumento)), nombreHoja));
             }
         }
     }

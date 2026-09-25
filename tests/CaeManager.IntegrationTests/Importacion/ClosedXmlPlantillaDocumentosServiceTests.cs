@@ -101,6 +101,7 @@ public class ClosedXmlPlantillaDocumentosServiceTests
         var documento = plan.Documentos.Should().ContainSingle().Subject;
         documento.Dni.Should().Be(DniValido);
         documento.NombreTipoDocumento.Should().Be(TipoDocumentoConocido);
+        documento.Hoja.Should().Be("Documentos", "si la escritura lo omite, se reporta en la hoja de la que salió");
     }
 
     [Fact]

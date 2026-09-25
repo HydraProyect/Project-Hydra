@@ -709,3 +709,103 @@
     .acciones-contexto-documentos { justify-content: flex-start; margin-top: 0; }
     .rejilla-alcance-documentos { grid-template-columns: 1fr; }
 }
+
+/* Flujo documental (mockup «Importar Documentos»): estados de la hoja,
+   filtros del plan y siguiente paso con los PDF en el reporte. */
+.estado-hoja-documentos {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    padding: var(--space-4);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.estado-hoja-documentos > div {
+    flex: 1 1 240px;
+}
+
+.estado-hoja-documentos-error {
+    background-color: var(--color-danger-50);
+    border-color: var(--color-danger-500);
+}
+
+.icono-estado-hoja-documentos {
+    flex: none;
+    display: inline-flex;
+    color: var(--color-text-muted);
+}
+
+.estado-hoja-documentos-error .icono-estado-hoja-documentos,
+.estado-hoja-documentos-error .titulo-estado-hoja-documentos {
+    color: var(--color-danger-700);
+}
+
+.titulo-estado-hoja-documentos {
+    margin: 0 0 var(--space-1);
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+.detalle-estado-hoja-documentos {
+    margin: 0;
+    font: var(--font-body-md);
+    color: var(--color-text);
+}
+
+.filtros-plan-importacion {
+    display: inline-flex;
+    gap: var(--space-2);
+    margin-left: auto;
+    flex-wrap: wrap;
+}
+
+.filtro-plan-importacion {
+    min-height: 32px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-full);
+    background-color: var(--color-surface);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    cursor: pointer;
+}
+
+.filtro-plan-importacion-activo {
+    border-color: var(--color-primary-500);
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+}
+
+.siguiente-paso-pdf {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-4);
+    background-color: var(--color-surface-subtle);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.titulo-siguiente-paso-pdf {
+    margin: 0;
+    font: var(--font-label-md);
+}
+
+.texto-siguiente-paso-pdf {
+    margin: 0;
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}
+
+.enlace-siguiente-paso-pdf {
+    align-self: flex-start;
+    font: var(--font-body-sm);
+    font-weight: 600;
+}
+
+@media (max-width: 700px) {
+    .filtros-plan-importacion { margin-left: 0; }
+}

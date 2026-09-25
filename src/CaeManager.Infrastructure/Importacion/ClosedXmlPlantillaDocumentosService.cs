@@ -150,7 +150,7 @@ public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documen
             }
 
             documentos.Add(new DocumentoImportadoDto(
-                dni, tipoDocumento, fechaEmision, documentosExistentes.Contains((dni, tipoDocumento))));
+                dni, tipoDocumento, fechaEmision, documentosExistentes.Contains((dni, tipoDocumento)), NombreHoja));
         }
 
         return new PlanImportacionDto(Guid.NewGuid(), [], [], [], documentos, [], [], omitidos);
