@@ -566,7 +566,7 @@ public partial class Centros : ComponentBase
                     ? $"{dto.Eliminados} centro(s) eliminado(s)."
                     : $"{dto.Eliminados} eliminado(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia,
-                eliminados.Count > 0 ? "Deshacer" : null,
+                eliminados.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
                 eliminados.Count > 0 ? () => DeshacerEliminarLoteAsync(eliminados) : null);
 
             // Se retiran solo las fichas de los que cayeron (IdsEliminados); un superviviente
@@ -607,7 +607,9 @@ public partial class Centros : ComponentBase
             var r = await RestauracionEnLote.RestaurarAsync(ids, id => Mediator.Send(new RestaurarCentroCommand(id)));
 
             ToastService.Mostrar(
-                r.Errores.Count == 0 ? $"{r.Restaurados} centro(s) restaurado(s)." : $"{r.Restaurados} restaurado(s). {r.Errores.Count} no se pudieron restaurar: {string.Join(" ", r.Errores)}",
+                r.Errores.Count == 0
+                    ? Textos["ToastLoteRestaurados", r.Restaurados].Value
+                    : Textos["ToastLoteRestauradosConErrores", r.Restaurados, r.Errores.Count, string.Join(" ", r.Errores)].Value,
                 r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
             if (r.Restaurados > 0)

@@ -59,6 +59,8 @@ public class EmpresasListaGen2Tests : BunitContext
     {
         public List<EmpresaListaDto> Almacen { get; } = [];
         public int? EliminadosForzados { get; set; }
+        /// <summary>Ids que el lote pide y no elimina: no entran en IdsEliminados.</summary>
+        public HashSet<Guid> NoEliminables { get; } = [];
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> ClientesDe { get; } = [];
         public HashSet<Guid> ClientesQueFallan { get; } = [];
         public PerfilVocabularioTenant Perfil { get; set; } = PerfilVocabularioTenant.Consultora;
@@ -94,7 +96,9 @@ public class EmpresasListaGen2Tests : BunitContext
             CrearEmpresaCommand => Result.Exito(Guid.NewGuid()),
             EliminarEmpresaCommand => Result.Exito(),
             EliminarEmpresasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(
-                EliminadosForzados ?? lote.Ids.Count, [], EliminadosForzados is null ? lote.Ids : null)),
+                EliminadosForzados ?? lote.Ids.Count(id => !NoEliminables.Contains(id)),
+                lote.Ids.Where(NoEliminables.Contains).Select(_ => "No se pudo borrar.").ToList(),
+                EliminadosForzados is null ? lote.Ids.Where(id => !NoEliminables.Contains(id)).ToList() : null)),
             RestaurarEmpresaCommand => Result.Exito(),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
@@ -879,15 +883,18 @@ public class EmpresasListaGen2Tests : BunitContext
     /// eliminación en lote ofrece «Deshacer», que restaura las empresas que cayeron.
     /// </summary>
     [Fact]
-    public async Task Eliminar_en_lote_ofrece_deshacer_que_restaura_las_empresas_eliminadas()
+    public async Task Eliminar_en_lote_ofrece_deshacer_que_restaura_solo_las_empresas_eliminadas()
     {
         var elegida = Empresa("Aislamientos Nervión S.L.");
-        var mediador = new MediatorFalso { Almacen = { elegida, Empresa("Refrielectric S.A.") } };
+        var superviviente = Empresa("Refrielectric S.A.");
+        var mediador = new MediatorFalso { Almacen = { elegida, superviviente } };
+        mediador.NoEliminables.Add(superviviente.Id);
         var cut = Renderizar(mediador);
 
         await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Trim() == "Selección múltiple")
             .ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label='Seleccionar Aislamientos Nervión S.L.']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("input[aria-label='Seleccionar Refrielectric S.A.']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
             .ClickAsync(new MouseEventArgs());
         cut.Find("[role=dialog]").TextContent.Should().Contain("Podrás deshacerlo desde el aviso que aparecerá");
@@ -897,7 +904,10 @@ public class EmpresasListaGen2Tests : BunitContext
         var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(m => m.TextoAccion == "Deshacer");
         await cut.InvokeAsync(aviso.OnAccion!);
 
-        mediador.Enviadas.OfType<RestaurarEmpresaCommand>().Select(c => c.Id).Should().Equal([elegida.Id]);
+        mediador.Enviadas.OfType<EliminarEmpresasCommand>().Single().Ids.Should().BeEquivalentTo([elegida.Id, superviviente.Id],
+            "el caso solo vale si el superviviente iba en el lote");
+        mediador.Enviadas.OfType<RestaurarEmpresaCommand>().Select(c => c.Id).Should().Equal([elegida.Id],
+            "se restaura solo lo que el lote eliminó, no lo que pidió");
         Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje == "1 empresa(s) restaurada(s).");
     }
 }

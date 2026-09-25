@@ -252,4 +252,13 @@
   <data name="AbrirEmpresa360" xml:space="preserve">
     <value>Obre Empresa 360</value>
   </data>
+  <data name="ToastLoteRestaurados" xml:space="preserve">
+    <value>{0} empresa(s) restaurada(s).</value>
+  </data>
+  <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
+    <value>{0} restaurada(s). {1} no se pudieron restaurar: {2}</value>
+  </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
 </root>

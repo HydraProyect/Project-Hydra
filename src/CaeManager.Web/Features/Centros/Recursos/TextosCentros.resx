@@ -60,4 +60,13 @@
     <value>No aplica</value>
     <comment>Columna Vigencia de la fila de Empresa cuando Estado es null: un rechazo en plataforma no vence ni "no caduca" (AcordeonAsignacionesCentro.razor.cs, TextoVigenciaEmpresa).</comment>
   </data>
+  <data name="ToastLoteRestaurados" xml:space="preserve">
+    <value>{0} centro(s) restaurado(s).</value>
+  </data>
+  <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
+    <value>{0} restaurado(s). {1} no se pudieron restaurar: {2}</value>
+  </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
 </root>
