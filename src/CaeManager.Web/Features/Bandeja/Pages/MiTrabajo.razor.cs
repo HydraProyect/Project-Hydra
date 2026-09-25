@@ -277,7 +277,11 @@ public partial class MiTrabajo : ComponentBase, IDisposable
 
     private static string EmpresasConsultadas(int n) => MiTrabajoVista.Plural(n, "EmpresasConsultadasUna", "EmpresasConsultadasVarias");
 
-    private static string SubtituloCartera(FilaCarteraMiTrabajo tenant) => tenant.Total == 0
+    private string CarteraIncompleta => MiTrabajoVista.Plural(_vista?.NoConsultados ?? 0, "CarteraIncompletaUna", "CarteraIncompletaVarias");
+
+    private static string SubtituloCartera(FilaCarteraMiTrabajo tenant) => tenant.NoConsultado
+        ? TextosMiTrabajo.Texto("NoConsultado")
+        : tenant.Total == 0
         ? TextosMiTrabajo.Texto(tenant.AlcanceCero ? "SinAsignacionCartera" : "SinTrabajoPendiente")
         : tenant.Bloqueos == 0
             ? TextosMiTrabajo.Texto("SinBloqueos")

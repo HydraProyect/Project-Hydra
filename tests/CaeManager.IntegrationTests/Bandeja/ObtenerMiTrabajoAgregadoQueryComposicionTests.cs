@@ -106,6 +106,43 @@ public class ObtenerMiTrabajoAgregadoQueryComposicionTests(ITestOutputHelper sal
         delegante.BloqueoActuacion.Grupos.SelectMany(g => g.Items).Should().BeEmpty();
     }
 
+    /// <summary>
+    /// FS-07: un Tenant propietario cuya consulta falla no deja sin cola al
+    /// resto de la cartera. El fallo es determinista —el Tenant no tiene
+    /// ParametroSistema y SingleAsync lanza— y el Tenant averiado se consulta
+    /// antes que el delegante (orden por nombre): el que va detrás, con la
+    /// misma conexión, sigue sellado con su propio Tenant y trae su cola.
+    /// </summary>
+    [Fact]
+    public async Task Un_tenant_que_falla_vuelve_no_consultado_sin_tumbar_al_resto()
+    {
+        var averiado = new Tenant("Averiado Mi Trabajo");
+        _dbContext.Tenants.Add(averiado);
+        await _dbContext.SaveChangesAsync();
+        var delegacion = new DelegacionTenant(_tenantOrigen, averiado.Id);
+        _dbContext.DelegacionesTenant.Add(delegacion);
+        _dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
+        await _dbContext.SaveChangesAsync();
+
+        var resultado = await _servicios.GetRequiredService<IMediator>().Send(new ObtenerMiTrabajoAgregadoQuery());
+
+        resultado.Tenants.Select(t => t.TenantId).Should().Equal([_tenantOrigen, averiado.Id, _tenantDelegante],
+            "el averiado tiene que consultarse antes que el delegante para probar que el fallo no contamina al siguiente");
+
+        var caido = resultado.Tenants.Single(t => t.TenantId == averiado.Id);
+        caido.NoConsultado.Should().BeTrue();
+        caido.AlcanceCero.Should().BeFalse("no consultado no es lo mismo que sin Asignación de Cartera");
+        caido.Resumen.TotalAcciones.Should().Be(0);
+
+        var delegante = resultado.Tenants.Single(t => t.TenantId == _tenantDelegante);
+        delegante.NoConsultado.Should().BeFalse();
+        delegante.Proximos.Should().ContainSingle().Which.Titulo.Should().Be("Apto médico Delegante");
+
+        var origen = resultado.Tenants.Single(t => t.TenantId == _tenantOrigen);
+        origen.NoConsultado.Should().BeFalse();
+        origen.Proximos.Should().ContainSingle().Which.Titulo.Should().Be("Apto médico Origen");
+    }
+
     [Fact]
     public async Task Cada_tenant_consultado_por_separado_solo_ve_su_propio_trabajador()
     {

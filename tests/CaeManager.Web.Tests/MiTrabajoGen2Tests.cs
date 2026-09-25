@@ -462,6 +462,71 @@ public class MiTrabajoGen2Tests : BunitContext
             .Should().Contain("Añadir a mi cartera");
     }
 
+    private static MiTrabajoTenantDto NoConsultado(Guid id, string nombre) => Tenant(id, nombre, false, []) with { NoConsultado = true };
+
+    private static IElement FilaCartera(IRenderedComponent<MiTrabajoPagina> cut, string nombre) =>
+        cut.FindAll(".mi-trabajo-cartera-fila").Single(f => f.QuerySelector(".mi-trabajo-cartera-nombre")?.TextContent == nombre);
+
+    /// <summary>FS-07: una Empresa cuya consulta falla no deja sin cola al resto.</summary>
+    [Fact]
+    public void Una_empresa_no_consultada_no_tumba_la_cartera_y_avisa_de_que_esta_incompleta()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+        [
+            Tenant(TenantRefri, "Refrielectric", false, [Item("r1", TipoItemBandeja.Vencido, "Reconocimiento médico", "Transportes Planet Express")]),
+            NoConsultado(TenantDexter, "Laboratorios Dexter"),
+        ]));
+
+        FilaDe(cut, "Reconocimiento médico").Should().NotBeNull("la cola de las Empresas consultadas sigue a la vista");
+        var fila = FilaCartera(cut, "Laboratorios Dexter");
+        fila.QuerySelector(".mi-trabajo-cartera-sub")!.TextContent.Trim().Should().Be("No se pudo consultar");
+        fila.QuerySelector(".mi-trabajo-cartera-total")!.TextContent.Trim().Should().Be("—");
+        cut.Find(".mi-trabajo-cartera-incompleta").TextContent.Should()
+            .Contain("Cartera incompleta").And.Contain("1 empresa no ha respondido");
+        cut.Markup.Should().NotContain("No pudimos consultar tu cartera");
+    }
+
+    [Fact]
+    public void Reintentar_desde_el_aviso_de_cartera_incompleta_vuelve_a_consultar()
+    {
+        var consultas = 0;
+        var cut = Renderizar(() =>
+        {
+            consultas++;
+            return new MiTrabajoAgregadoDto([NoConsultado(TenantDexter, "Laboratorios Dexter")]);
+        });
+        consultas.Should().Be(1);
+
+        cut.Find(".mi-trabajo-cartera-incompleta-accion").Click();
+
+        cut.WaitForAssertion(() => consultas.Should().Be(2));
+    }
+
+    [Fact]
+    public void Sin_trabajo_en_lo_consultado_no_dice_cartera_al_dia_si_falta_una_empresa()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+            [Tenant(TenantRefri, "Refrielectric", false, []), NoConsultado(TenantDexter, "Laboratorios Dexter")]));
+
+        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("Lo consultado está al día");
+        cut.Markup.Should().NotContain("Cartera al día");
+    }
+
+    [Fact]
+    public void Filtrar_por_una_empresa_no_consultada_no_la_da_por_al_dia()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+        [
+            Tenant(TenantRefri, "Refrielectric", false, [Item("r1", TipoItemBandeja.Vencido, "Reconocimiento médico", "Transportes Planet Express")]),
+            NoConsultado(TenantDexter, "Laboratorios Dexter"),
+        ]));
+
+        FilaCartera(cut, "Laboratorios Dexter").Click();
+
+        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("No se pudo consultar Laboratorios Dexter");
+        cut.Markup.Should().NotContain("Laboratorios Dexter, al día");
+    }
+
     [Fact]
     public void Un_chip_de_severidad_sin_coincidencias_no_se_confunde_con_una_cartera_al_dia()
     {
