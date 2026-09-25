@@ -210,8 +210,11 @@
   <data name="ErrorAcceso" xml:space="preserve">
     <value>No hem pogut carregar l'accés.</value>
   </data>
-  <data name="DatoUrl" xml:space="preserve">
-    <value>URL</value>
+  <data name="BadgeCredencialesTerceros" xml:space="preserve">
+    <value>Credencials de tercers</value>
+  </data>
+  <data name="PieMostrando" xml:space="preserve">
+    <value>Mostrant {0} de {1}</value>
   </data>
   <data name="SeAccedeComo" xml:space="preserve">
     <value>S'hi accedeix com a</value>
@@ -224,6 +227,9 @@
   </data>
   <data name="CopiarContrasena" xml:space="preserve">
     <value>Copiar la contrasenya</value>
+  </data>
+  <data name="ElDni" xml:space="preserve">
+    <value>el DNI</value>
   </data>
   <data name="ElUsuario" xml:space="preserve">
     <value>l'usuari</value>

@@ -38,9 +38,10 @@
         @*
             Cabecera de entidad con la primitiva única de Gen 2
             (CabeceraPagina): el título, lo que califica al centro «junto al
-            título», la identidad de sus contrapartes como entradilla, y a la
-            derecha el anillo con la acción principal y el resto en un menú,
-            igual que el mockup.
+            título», la identidad de sus contrapartes como entradilla, el
+            anillo a la izquierda de la identidad (ranura Inicio, como las
+            cuatro páginas 360; decisión del propietario 2026-09-24) y a la
+            derecha la acción principal con el resto en un menú.
 
             Contrapartes (decisión del propietario 2026-09-22: cada 360 tiene
             página propia además del panel): el NOMBRE es un enlace real a la
@@ -51,6 +52,14 @@
             ClienteEmpresarial.
         *@
         <CabeceraPagina Titulo="@_detalle.Nombre">
+            <Inicio>
+                @* P1-X2: un Centro sin gestión CAE no tiene cumplimiento que medir; el anillo vacío se leería como 0 %. *@
+                @if (_detalle.GestionCae != ModalidadGestionCae.SinGestionCae)
+                {
+                    <AnilloCumplimiento Porcentaje="_resumen?.CumplimientoPorcentaje" Tamano="TamanoAnillo.Cabecera"
+                                        Etiqueta="@($"{_resumen?.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />
+                }
+            </Inicio>
             <Descripcion>
                 @Textos["CabeceraCliente"] <a class="enlace-nombre-fila centro360-contraparte" href="@($"/clientes/{_detalle.ClienteId}")">@_detalle.ClienteRazonSocial</a>
                 <Boton360 Nombre="@_detalle.ClienteRazonSocial" OnClick="AbrirClienteEmpresarial" />
@@ -110,12 +119,6 @@
             </JuntoAlTitulo>
             <Acciones>
                 <span class="centro360-acciones">
-                @* P1-X2: un Centro sin gestión CAE no tiene cumplimiento que medir; el anillo vacío se leería como 0 %. *@
-                @if (_detalle?.GestionCae != ModalidadGestionCae.SinGestionCae)
-                {
-                    <AnilloCumplimiento Porcentaje="_resumen?.CumplimientoPorcentaje" Tamano="TamanoAnillo.Cabecera"
-                                         Etiqueta="@($"{_resumen?.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />
-                }
                 <Boton OnClick="ProgramarVisita">Programar visita</Boton>
                 @*
                     El resto de acciones, en el menú «⋯» del mockup. «Reclamar

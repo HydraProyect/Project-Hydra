@@ -33,23 +33,28 @@
     }
     else if (_detalle is not null)
     {
-        <div class="trabajador360-cabecera">
-            <AnilloCumplimiento Porcentaje="Cumplimiento" Tamano="TamanoAnillo.Cabecera"
-                                 Etiqueta="@(Textos["AnilloCumplimiento", Cumplimiento?.ToString() ?? string.Empty])" />
-            <div class="trabajador360-identidad">
-                <h1 class="trabajador360-titulo">
-                    @_detalle.Nombre @_detalle.Apellidos
-                    @if (!string.IsNullOrWhiteSpace(_detalle.Alias))
-                    {
-                        <span class="trabajador360-alias">(@_detalle.Alias)</span>
-                    }
-                </h1>
-                <p class="trabajador360-meta">
-                    DNI: <b>@_detalle.Dni</b>
-                    <BotonCopiar Valor="@_detalle.Dni" Etiqueta="@Textos["EtiquetaCopiarDni"]" />
-                    · <button type="button" class="enlace-nombre-fila" @onclick="AbrirEmpleador">@_detalle.EmpleadorNombre</button>
-                </p>
-                <div class="trabajador360-indicadores">
+        @*
+            Cabecera plana, como Empresa 360 y Cliente 360 (decisión del
+            propietario 2026-09-24, opción C): el anillo a la izquierda de la
+            identidad, la entradilla con el DNI y el empleador, y a la derecha
+            la acción principal con el resto en el menú «⋯».
+        *@
+        <CabeceraPagina Titulo="@(NombreCompleto ?? string.Empty)" Kicker="@Textos["Kicker"]">
+            <Inicio>
+                <AnilloCumplimiento Porcentaje="Cumplimiento" Tamano="TamanoAnillo.Cabecera"
+                                     Etiqueta="@(Textos["AnilloCumplimiento", Cumplimiento?.ToString() ?? string.Empty])" />
+            </Inicio>
+            <JuntoAlTitulo>
+                @if (!string.IsNullOrWhiteSpace(_detalle.Alias))
+                {
+                    <span class="trabajador360-alias">(@_detalle.Alias)</span>
+                }
+            </JuntoAlTitulo>
+            <Descripcion>
+                DNI: <b>@_detalle.Dni</b>
+                <BotonCopiar Valor="@_detalle.Dni" Etiqueta="@Textos["EtiquetaCopiarDni"]" />
+                · <button type="button" class="enlace-nombre-fila" @onclick="AbrirEmpleador">@_detalle.EmpleadorNombre</button>
+                <span class="trabajador360-indicadores">
                     @if (PeorEstadoGlobal is { } peorEstado)
                     {
                         <Badge Tono="EstadoDocumentoUi.Tono(peorEstado)">@EstadoDocumentoUi.Texto(peorEstado)</Badge>
@@ -72,22 +77,48 @@
                             </Detalle>
                         </VentanaContexto>
                     }
-                </div>
-            </div>
-            <div class="trabajador360-acciones">
-                <SoloConEscritura><Boton Deshabilitado="DocumentoMasUrgente is null" OnClick="SubirDocumentoMasUrgenteAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
-                <MenuAcciones>
-                    <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditar"]</ItemMenuAccion></SoloConEscritura>
-                    <SoloConEscritura><ItemMenuAccion OnClick="ReclamarFaltantesAsync">@Textos["AccionReclamarFaltantes"]</ItemMenuAccion></SoloConEscritura>
-                    <SoloConEscritura><ItemMenuAccion OnClick="AbrirCrearGestionAsync">@Textos["AccionCrearGestion"]</ItemMenuAccion></SoloConEscritura>
-                </MenuAcciones>
-            </div>
-        </div>
+                </span>
+            </Descripcion>
+            <Acciones>
+                <span class="trabajador360-acciones">
+                    <SoloConEscritura><Boton Deshabilitado="DocumentoMasUrgente is null" OnClick="SubirDocumentoMasUrgenteAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
+                    <MenuAcciones>
+                        <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditar"]</ItemMenuAccion></SoloConEscritura>
+                        <SoloConEscritura><ItemMenuAccion OnClick="ReclamarFaltantesAsync">@Textos["AccionReclamarFaltantes"]</ItemMenuAccion></SoloConEscritura>
+                        <SoloConEscritura><ItemMenuAccion OnClick="AbrirCrearGestionAsync">@Textos["AccionCrearGestion"]</ItemMenuAccion></SoloConEscritura>
+                    </MenuAcciones>
+                </span>
+            </Acciones>
+        </CabeceraPagina>
 
+        <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
+            <ChildContent>
         <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="@Textos["AriaSeccionesTrabajador360"]">
             @switch (_pestanaActiva)
             {
                 case "operacion":
+                    @*
+                        Franja «Por vencer» (decisión del propietario 2026-09-24,
+                        Q3 = (a)): los documentos del trabajador en Próximo o
+                        Urgente, con el umbral ámbar del tenant. Va antes que los
+                        Centros porque es lo que hay que renovar ya. Sin ninguno,
+                        la franja no se pinta.
+                    *@
+                    @if (DocumentosPorVencer is { Count: > 0 } porVencer)
+                    {
+                        <div class="separador-ambito">@Textos["SeparadorPorVencer"]</div>
+                        <ul class="trabajador360-por-vencer" aria-label="@Textos["SeparadorPorVencer"]">
+                            @foreach (var documento in porVencer)
+                            {
+                                <li class="trabajador360-por-vencer-fila" @key="documento.Id">
+                                    <span class="trabajador360-por-vencer-nombre">@documento.TipoDocumentoNombre</span>
+                                    <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
+                                    <span class="trabajador360-por-vencer-fecha">@Textos["VenceEl", TextoVence(documento.FechaVencimiento, documento.Estado)]</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+
                     @*
                         Ámbito 1: Documentación por centro (completo — es lo que se
                         opera aquí, a diferencia de la pestaña "Documentación" plana
@@ -290,30 +321,125 @@
                     }
                     break;
 
+                case "documentacion":
+                    @*
+                        Documentación del trabajador a día de hoy (decisión del
+                        propietario 2026-09-24, Q1–Q4 = (a)). Dos bloques:
+                        1. Todos sus documentos, con la fecha del documento y
+                           su caducidad; los que no caducan dicen «Sin
+                           caducidad» (Q4).
+                        2. Lo exigido solo en algunos Centros de trabajo, por
+                           par Trabajador–Centro (Q2): la fecha de renovación es
+                           la caducidad del documento, igual en todos (Q1).
+                    *@
+                    @if (_cargandoDocumentos)
+                    {
+                        <EstadoCargando Filas="4" />
+                    }
+                    else if (_errorDocumentos)
+                    {
+                        <EstadoVacio Titulo="@Textos["DocumentacionErrorTitulo"]" Descripcion="@Textos["DocumentacionErrorDescripcion"]"
+                                     NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
+                            <Accion>
+                                <Boton OnClick="CargarDocumentosAsync">@Comunes["Reintentar"]</Boton>
+                            </Accion>
+                        </EstadoVacio>
+                    }
+                    else
+                    {
+                        <div class="separador-ambito">@Textos["SeparadorDocumentosTrabajador"]</div>
+                        @if (_documentos.Count == 0)
+                        {
+                            <p class="texto-vacio-seccion">@Textos["SinDocumentos"]</p>
+                        }
+                        else
+                        {
+                            <div class="tabla-documentos-requeridos trabajador360-documentos" role="table" aria-label="@Textos["SeparadorDocumentosTrabajador"]">
+                                <div class="documentos-requeridos-cabecera" role="row">
+                                    <span role="columnheader">@Textos["ColumnaDocumento"]</span>
+                                    <span role="columnheader">@Textos["ColumnaEstado"]</span>
+                                    <span role="columnheader">@Textos["ColumnaFechaDocumento"]</span>
+                                    <span role="columnheader">@Textos["ColumnaVence"]</span>
+                                </div>
+                                @foreach (var documento in DocumentosOrdenados)
+                                {
+                                    <div class="fila-documento-requerido" role="row" @key="documento.Id">
+                                        <span class="celda-documento-nombre" role="cell">@documento.TipoDocumentoNombre</span>
+                                        <span role="cell">
+                                            <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
+                                        </span>
+                                        <span role="cell">@documento.FechaEmision.ToString("dd/MM/yyyy")</span>
+                                        <span role="cell">@TextoVence(documento.FechaVencimiento, documento.Estado)</span>
+                                    </div>
+                                }
+                            </div>
+                            @if (_totalDocumentos > _documentos.Count)
+                            {
+                                <p class="texto-descriptivo">@Textos["MostrandoDocumentos", _documentos.Count, _totalDocumentos]</p>
+                            }
+                        }
+
+                        <div class="separador-ambito">@Textos["SeparadorExigidosEnCentros"]</div>
+                        <p class="texto-descriptivo">@Textos["TextoExigidosEnCentros"]</p>
+                        @if (ExigenciasPropiasDeCentros is { Count: > 0 } exigencias)
+                        {
+                            <div class="tabla-documentos-requeridos trabajador360-exigencias" role="table" aria-label="@Textos["SeparadorExigidosEnCentros"]">
+                                <div class="documentos-requeridos-cabecera" role="row">
+                                    <span role="columnheader">@Textos["ColumnaDocumento"]</span>
+                                    <span role="columnheader">@Textos["ColumnaCentroTrabajo"]</span>
+                                    <span role="columnheader">@Textos["ColumnaEstado"]</span>
+                                    <span role="columnheader">@Textos["ColumnaFechaDocumento"]</span>
+                                    <span role="columnheader">@Textos["ColumnaRenovarAntes"]</span>
+                                </div>
+                                @foreach (var exigencia in exigencias)
+                                {
+                                    <div class="fila-documento-requerido" role="row" @key="(exigencia.CentroId, exigencia.Documento.TipoDocumentoId)">
+                                        <span class="celda-documento-nombre" role="cell">@exigencia.Documento.TipoDocumentoNombre</span>
+                                        <span role="cell" class="trabajador360-exigencia-centro">
+                                            <a href="@($"/centros/{exigencia.CentroId}")">@exigencia.CentroNombre</a>
+                                            <span class="trabajador360-exigencia-cliente">@Textos["DelClienteEmpresarial", exigencia.ClienteRazonSocial]</span>
+                                        </span>
+                                        <span role="cell">
+                                            <Badge Tono="EstadoDocumentoUi.Tono(exigencia.Documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(exigencia.Documento.Estado)</Badge>
+                                        </span>
+                                        <span role="cell">@(exigencia.FechaEmision is { } emision ? emision.ToString("dd/MM/yyyy") : "—")</span>
+                                        <span role="cell">@TextoVence(exigencia.Documento.FechaVencimiento, exigencia.Documento.Estado)</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="texto-vacio-seccion">@Textos["SinExigenciasPropias"]</p>
+                        }
+                    }
+                    break;
+
                 case "historial":
                     <PestanaHistorial EntidadTipo="Trabajador" EntidadId="TrabajadorId" />
                     break;
-
-                case "contactos":
-                    @*
-                        Mockup Gen 2 § Contactos: los datos de contacto del
-                        propio trabajador, copiables. Solo se pintan Teléfono y
-                        Correo porque son los únicos que trae
-                        TrabajadorDetalleDto — Dirección, contacto de
-                        emergencia y su teléfono NO existen en ningún DTO y no
-                        se inventan (el propio mockup los marca como campos
-                        ilustrativos sin confirmar en el código).
-                    *@
-                    @if (!string.IsNullOrWhiteSpace(_detalle.Telefono) || !string.IsNullOrWhiteSpace(_detalle.Email))
-                    {
-                        <div class="separador-ambito">@Textos["SeparadorDatosTrabajador"]</div>
+            }
+        </Pestanas>
+            </ChildContent>
+            <Lateral>
+                @*
+                    Lo que era la pestaña «Contactos» (decisión del propietario
+                    2026-09-24, punto 3): los datos de contacto del propio
+                    trabajador, copiables, y la agenda de su empleador. Solo
+                    Teléfono y Correo, los únicos que trae TrabajadorDetalleDto:
+                    Dirección y contacto de emergencia NO existen en ningún DTO y
+                    no se inventan. Sin ninguno de los dos no se pinta la tarjeta.
+                *@
+                @if (!string.IsNullOrWhiteSpace(_detalle.Telefono) || !string.IsNullOrWhiteSpace(_detalle.Email))
+                {
+                    <Tarjeta Titulo="@Textos["SeparadorDatosTrabajador"]" Compacta="true">
                         <dl class="trabajador360-contactos">
                             @if (!string.IsNullOrWhiteSpace(_detalle.Telefono))
                             {
                                 <div class="trabajador360-contacto">
                                     <dt class="trabajador360-contacto-clave">@Textos["EtiquetaTelefono"]</dt>
                                     <dd class="trabajador360-contacto-valor">
-                                        @_detalle.Telefono
+                                        <span class="trabajador360-contacto-texto">@_detalle.Telefono</span>
                                         <BotonCopiar Valor="@_detalle.Telefono" Etiqueta="@Textos["EtiquetaCopiarTelefono"]" />
                                     </dd>
                                 </div>
@@ -323,25 +449,31 @@
                                 <div class="trabajador360-contacto">
                                     <dt class="trabajador360-contacto-clave">@Textos["EtiquetaCorreo"]</dt>
                                     <dd class="trabajador360-contacto-valor">
-                                        @_detalle.Email
+                                        <span class="trabajador360-contacto-texto">@_detalle.Email</span>
                                         <BotonCopiar Valor="@_detalle.Email" Etiqueta="@Textos["EtiquetaCopiarCorreo"]" />
                                     </dd>
                                 </div>
                             }
                         </dl>
-                        <div class="separador-ambito">@Textos["SeparadorAgendaEmpleador"]</div>
-                    }
-                    @if (_detalle.EmpresaId is { } empresaIdContactos)
-                    {
-                        <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Empresa" PropietarioId="empresaIdContactos" />
-                    }
-                    else if (_detalle.SubcontrataId is { } subcontrataIdContactos)
-                    {
-                        <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Subcontrata" PropietarioId="subcontrataIdContactos" />
-                    }
-                    break;
-            }
-        </Pestanas>
+                    </Tarjeta>
+                }
+                @if (_detalle.EmpresaId is not null || _detalle.SubcontrataId is not null)
+                {
+                    <Tarjeta Titulo="@Textos["SeparadorAgendaEmpleador"]" Compacta="true">
+                        <div class="trabajador360-agenda">
+                            @if (_detalle.EmpresaId is { } empresaIdContactos)
+                            {
+                                <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Empresa" PropietarioId="empresaIdContactos" />
+                            }
+                            else if (_detalle.SubcontrataId is { } subcontrataIdContactos)
+                            {
+                                <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Subcontrata" PropietarioId="subcontrataIdContactos" />
+                            }
+                        </div>
+                    </Tarjeta>
+                }
+            </Lateral>
+        </CuerpoConLateral>
     }
 </div>
 

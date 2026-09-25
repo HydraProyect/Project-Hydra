@@ -62,8 +62,8 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        await BaseDatosPostgresDePruebas.MigrarAsync(_cadenaConexion);
         await using var contexto = CrearContexto(_tenantObjetivo);
-        await contexto.Database.MigrateAsync();
 
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.SobreTenants(
@@ -198,7 +198,7 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(
                 new TenantSelladoInterceptor(tenantActual),
-                new TenantRlsConnectionInterceptor(tenantActual, clienteActivoSeleccionado, currentUserService))
+                new TenantRlsConnectionInterceptor(tenantActual, clienteActivoSeleccionado, currentUserService, BaseDatosPostgresDePruebas.FirmanteContextoRls))
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);

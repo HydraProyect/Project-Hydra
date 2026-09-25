@@ -498,8 +498,62 @@
   <data name="PestanaHistorial" xml:space="preserve">
     <value>Historial</value>
   </data>
-  <data name="PestanaContactos" xml:space="preserve">
-    <value>Contactos</value>
+  <data name="PestanaDocumentacion" xml:space="preserve">
+    <value>Documentació</value>
+  </data>
+  <data name="SeparadorPorVencer" xml:space="preserve">
+    <value>Per vèncer</value>
+  </data>
+  <data name="VenceEl" xml:space="preserve">
+    <value>Venç: {0}</value>
+  </data>
+  <data name="SinCaducidad" xml:space="preserve">
+    <value>Sense caducitat</value>
+  </data>
+  <data name="DocumentacionErrorTitulo" xml:space="preserve">
+    <value>No hem pogut carregar la documentació</value>
+  </data>
+  <data name="DocumentacionErrorDescripcion" xml:space="preserve">
+    <value>Torna-ho a provar d&apos;aquí a uns segons.</value>
+  </data>
+  <data name="SeparadorDocumentosTrabajador" xml:space="preserve">
+    <value>Documents del treballador</value>
+  </data>
+  <data name="SinDocumentos" xml:space="preserve">
+    <value>Aquest treballador encara no té documents.</value>
+  </data>
+  <data name="ColumnaFechaDocumento" xml:space="preserve">
+    <value>Data del document</value>
+  </data>
+  <data name="ColumnaVence" xml:space="preserve">
+    <value>Caducitat</value>
+  </data>
+  <data name="MostrandoDocumentos" xml:space="preserve">
+    <value>Mostrant {0} de {1} documents.</value>
+  </data>
+  <data name="SeparadorExigidosEnCentros" xml:space="preserve">
+    <value>Exigits només en alguns centres de treball</value>
+  </data>
+  <data name="TextoExigidosEnCentros" xml:space="preserve">
+    <value>Tipus que no es demanen amb caràcter general i que inclou la configuració d&apos;aquests centres de treball. La data de renovació és la caducitat del document: és la mateixa a tots els centres.</value>
+  </data>
+  <data name="SinExigenciasPropias" xml:space="preserve">
+    <value>Cap centre de treball d&apos;aquest treballador no exigeix documentació més enllà de la general.</value>
+  </data>
+  <data name="ColumnaCentroTrabajo" xml:space="preserve">
+    <value>Centre de treball</value>
+  </data>
+  <data name="ColumnaRenovarAntes" xml:space="preserve">
+    <value>Renovar abans de</value>
+  </data>
+  <data name="DelClienteEmpresarial" xml:space="preserve">
+    <value>del client empresarial {0}</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Treballador</value>
+  </data>
+  <data name="EtiquetaLateral" xml:space="preserve">
+    <value>Context del treballador</value>
   </data>
   <data name="MigaTrabajadores" xml:space="preserve">
     <value>Trabajadores</value>

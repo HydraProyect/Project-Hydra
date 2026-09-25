@@ -71,6 +71,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<AuditoriaInterceptor>();
         services.AddScoped<TenantSelladoInterceptor>();
         services.AddScoped<TenantRlsConnectionInterceptor>();
+        // Singleton: guarda en memoria la clave del contexto RLS leída por base (P6).
+        services.AddSingleton(sp => new Persistence.ContextoRls.FirmanteContextoRls(
+            sp.GetRequiredService<IConfiguration>(),
+            sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),
+            sp.GetService<TimeProvider>() ?? TimeProvider.System,
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Persistence.ContextoRls.FirmanteContextoRls>>()));
         // Sin estado y sin dependencias: una sola instancia sirve.
         services.AddSingleton<ConcurrenciaOptimistaInterceptor>();
 

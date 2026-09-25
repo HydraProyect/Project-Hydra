@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Persistence.ContextoRls;
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -537,14 +538,46 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
         await context.Database.OpenConnectionAsync(cancellationToken);
         _aperturasRlsPendientes++;
 
-        var conexion = context.Database.GetDbConnection();
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText = "SELECT set_config('app.tenant_id', @tenantId, false);";
-        var parametro = comando.CreateParameter();
-        parametro.ParameterName = "tenantId";
-        parametro.Value = valorTenantId;
-        comando.Parameters.Add(parametro);
-        await comando.ExecuteNonQueryAsync(cancellationToken);
+        try
+        {
+            var conexion = context.Database.GetDbConnection();
+
+            // P6: el contexto firmado (app.contexto) se vuelve a firmar con el
+            // Tenant del sellado, o se restaura el de base al volver. Null si la
+            // conexión no la abrió TenantRlsConnectionInterceptor: entonces solo
+            // hay GUC antiguo que tocar, como hasta ahora.
+            var tokenContexto = await FirmanteContextoRls.FirmarConTenantAsync(
+                conexion, Guid.TryParse(valorTenantId, out var tenantSellado) ? tenantSellado : null, cancellationToken);
+
+            await using var comando = conexion.CreateCommand();
+            comando.CommandText = tokenContexto is null
+                ? "SELECT set_config('app.tenant_id', @tenantId, false);"
+                : "SELECT set_config('app.tenant_id', @tenantId, false), set_config('app.contexto', @contexto, false);";
+            var parametro = comando.CreateParameter();
+            parametro.ParameterName = "tenantId";
+            parametro.Value = valorTenantId;
+            comando.Parameters.Add(parametro);
+            if (tokenContexto is not null)
+            {
+                var parametroContexto = comando.CreateParameter();
+                parametroContexto.ParameterName = "contexto";
+                parametroContexto.Value = tokenContexto.Token;
+                comando.Parameters.Add(parametroContexto);
+            }
+            await comando.ExecuteNonQueryAsync(cancellationToken);
+            tokenContexto?.Confirmar();
+        }
+        catch
+        {
+            // Hallazgo P2 de Codex (P6, ronda 1): si firmar o fijar falla en
+            // el primer sellado, _tenantDeSesionARestaurar aún no está puesto
+            // y ningún final de SaveChanges cerraría esta apertura: la
+            // conexión quedaría retenida en un DbContext de vida larga. Se
+            // cierra aquí la apertura que este mismo método acaba de sumar.
+            _aperturasRlsPendientes--;
+            await context.Database.CloseConnectionAsync();
+            throw;
+        }
     }
 
     /// <summary>

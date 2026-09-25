@@ -26,6 +26,21 @@
     color: var(--color-text-muted);
 }
 
+/* .fila-rel-avatar del mockup de Empresa 360 (fila de trabajador). */
+.fila-relacion-avatar {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: var(--border-default);
+    border-radius: var(--radius-full);
+    background: var(--color-surface-subtle);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
 .fila-relacion-texto {
     flex: 1;
     min-width: 0;

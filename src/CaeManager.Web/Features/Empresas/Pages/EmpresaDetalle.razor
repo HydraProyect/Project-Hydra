@@ -22,7 +22,8 @@
 
     @if (_error)
     {
-        <EstadoVacio Titulo="@Textos["ErrorTitulo"]" Descripcion="@Textos["ErrorDescripcion"]">
+        <EstadoVacio Titulo="@Textos["ErrorTitulo"]" Descripcion="@Textos["ErrorDescripcion"]"
+                     NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
                 <Boton OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
             </Accion>
@@ -40,6 +41,11 @@
             se pinta. Pulsarlo lleva a la pestaña Trabajadores filtrada.
         *@
         <CabeceraPagina Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]">
+            @* El anillo va a la izquierda de la identidad, como en el mockup. *@
+            <Inicio>
+                <AnilloCumplimiento Porcentaje="_cumplimiento" Tamano="TamanoAnillo.Cabecera"
+                                    Etiqueta="@(_cumplimiento is { } p ? Textos["AnilloEtiqueta", p] : Textos["AnilloSinDato"])" />
+            </Inicio>
             <Descripcion>
                 @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
                 {
@@ -106,8 +112,6 @@
             </Descripcion>
             <Acciones>
                 <span class="empresa360-acciones">
-                    <AnilloCumplimiento Porcentaje="_cumplimiento" Tamano="TamanoAnillo.Cabecera"
-                                        Etiqueta="@(_cumplimiento is { } p ? Textos["AnilloEtiqueta", p] : Textos["AnilloSinDato"])" />
                     <Boton Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
                     @* El único ítem del menú es de escritura: sin escritura no hay menú. *@
                     <SoloConEscritura>
@@ -163,6 +167,13 @@
                 </Tarjeta>
 
                 <Tarjeta Titulo="@Textos["TarjetaAcceso"]" Compacta="true">
+                    <AccionesHeader>
+                        @* La credencial se edita en el panel, pestaña Información. *@
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirInformacion">@Textos["EditarFlecha"]</Boton>
+                        </SoloConEscritura>
+                    </AccionesHeader>
+                    <ChildContent>
                     @if (_cargandoAcceso)
                     {
                         <EstadoCargando Filas="2" />
@@ -186,22 +197,25 @@
                         <ListaLateral>
                             @if (!string.IsNullOrWhiteSpace(_credencial.UrlAcceso))
                             {
+                                @* La propia URL es la etiqueta de la fila (mockup), con el aviso de que la
+                                   credencial es de un tercero. «Abrir portal» solo con http(s): la URL es
+                                   texto libre (ver UrlPortalCae). *@
                                 <ElementoListaLateral>
-                                    <Etiqueta>@Textos["DatoUrl"]</Etiqueta>
+                                    <Etiqueta>
+                                        <span class="empresa360-url">@_credencial.UrlAcceso</span>
+                                        <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["BadgeCredencialesTerceros"]</Badge>
+                                    </Etiqueta>
                                     <ChildContent>
-                                        @* Solo http(s): la URL es texto libre (ver UrlPortalCae). *@
                                         @if (UrlPortalCae.Normalizar(_credencial.UrlAcceso) is { } destino)
                                         {
-                                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                                   Href="@destino" target="_blank" rel="noopener noreferrer"
-                                                   title="@_credencial.UrlAcceso"
-                                                   aria-label="@Textos["AbrirPortalAccesible", _credencial.UrlAcceso]">
-                                                @Textos["AbrirPortal"]
-                                            </Boton>
-                                        }
-                                        else
-                                        {
-                                            @_credencial.UrlAcceso
+                                            <span>
+                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                       Href="@destino" target="_blank" rel="noopener noreferrer"
+                                                       title="@_credencial.UrlAcceso"
+                                                       aria-label="@Textos["AbrirPortalAccesible", _credencial.UrlAcceso]">
+                                                    @Textos["AbrirPortal"]
+                                                </Boton>
+                                            </span>
                                         }
                                     </ChildContent>
                                 </ElementoListaLateral>
@@ -215,26 +229,27 @@
                             }
                             @if (!string.IsNullOrWhiteSpace(_credencial.Usuario))
                             {
+                                @* Los botones de copiar van en la fila «Usuario», como en el mockup. *@
                                 <ElementoListaLateral>
                                     <Etiqueta>@Textos["Usuario"]</Etiqueta>
-                                    <ChildContent>@_credencial.Usuario</ChildContent>
+                                    <ChildContent>
+                                        <span>@_credencial.Usuario</span>
+                                        <span>
+                                            <BotonCopiar Valor="@_credencial.Usuario" Etiqueta="@Textos["ElUsuario"]" Texto="@Textos["CopiarUsuario"]" />
+                                            @* La contraseña solo la leen los roles con escritura (decisión del
+                                               propietario 2026-09-23): a Consulta el servidor le devuelve null
+                                               desde AutorizacionSecretosDeTenantBehavior, así que el botón no se
+                                               ofrece, igual que en el panel. *@
+                                            <SoloConEscritura>
+                                                <BotonCopiar ValorAsync="CopiarContrasenaAsync" Etiqueta="@Textos["LaContrasena"]" Texto="@Textos["CopiarContrasena"]" />
+                                            </SoloConEscritura>
+                                        </span>
+                                    </ChildContent>
                                 </ElementoListaLateral>
                             }
                         </ListaLateral>
-                        <span class="empresa360-acciones">
-                            @if (!string.IsNullOrWhiteSpace(_credencial.Usuario))
-                            {
-                                <BotonCopiar Valor="@_credencial.Usuario" Etiqueta="@Textos["ElUsuario"]" Texto="@Textos["CopiarUsuario"]" />
-                            }
-                            @* La contraseña solo la leen los roles con escritura (decisión del
-                               propietario 2026-09-23): a Consulta el servidor le devuelve null
-                               desde AutorizacionSecretosDeTenantBehavior, así que el botón no se
-                               ofrece, igual que en el panel. *@
-                            <SoloConEscritura>
-                                <BotonCopiar ValorAsync="CopiarContrasenaAsync" Etiqueta="@Textos["LaContrasena"]" Texto="@Textos["CopiarContrasena"]" />
-                            </SoloConEscritura>
-                        </span>
                     }
+                    </ChildContent>
                 </Tarjeta>
             </Lateral>
         </CuerpoConLateral>
@@ -285,8 +300,18 @@
                         @foreach (var trabajador in _filas)
                         {
                             <FilaRelacion @key="trabajador.Id" Nombre="@NombreCompleto(trabajador)" Href="@($"/trabajadores/{trabajador.Id}")"
-                                          NombreIcono="trabajadores" OnAbrir360="() => AbrirTrabajador(trabajador)">
-                                <Detalle>@(string.IsNullOrWhiteSpace(trabajador.Dni) ? "—" : Textos["DetalleDni", trabajador.Dni])</Detalle>
+                                          Iniciales="@Iniciales(NombreCompleto(trabajador))" OnAbrir360="() => AbrirTrabajador(trabajador)">
+                                <Detalle>
+                                    @if (string.IsNullOrWhiteSpace(trabajador.Dni))
+                                    {
+                                        <text>—</text>
+                                    }
+                                    else
+                                    {
+                                        @Textos["DetalleDni", trabajador.Dni]
+                                        <BotonCopiar Valor="@trabajador.Dni" Etiqueta="@Textos["ElDni"]" />
+                                    }
+                                </Detalle>
                                 <Derecha>
                                     <Badge Tono="EstadoDocumentoUi.TonoDocumental(trabajador.EstadoDocumental)" Tamano="TamanoBadge.Pequeno">
                                         @EstadoDocumentoUi.TextoDocumental(trabajador.EstadoDocumental)
@@ -295,7 +320,13 @@
                             </FilaRelacion>
                         }
                     </ListaRelaciones>
-                    <p class="empresa360-pie">@Textos["PieOrden"]</p>
+                    <p class="empresa360-pie">
+                        @if (_filas.Count < TotalDelFiltro)
+                        {
+                            @Textos["PieMostrando", _filas.Count, TotalDelFiltro]<text> · </text>
+                        }
+                        @Textos["PieOrden"]
+                    </p>
                     @if (TotalPaginas > 1)
                     {
                         <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="TotalDelFiltro"
@@ -339,7 +370,7 @@
                     {
                         <FilaRelacion @key="cliente.Id" Nombre="@cliente.RazonSocial" Href="@($"/clientes/{cliente.Id}")"
                                       NombreIcono="clientes" OnAbrir360="() => AbrirCliente(cliente)">
-                            <Detalle>@(string.IsNullOrWhiteSpace(cliente.Cif) ? "—" : Textos["MetaCif", cliente.Cif])</Detalle>
+                            <Detalle>@(string.IsNullOrWhiteSpace(cliente.Cif) ? "—" : cliente.Cif)</Detalle>
                         </FilaRelacion>
                     }
                 </ListaRelaciones>

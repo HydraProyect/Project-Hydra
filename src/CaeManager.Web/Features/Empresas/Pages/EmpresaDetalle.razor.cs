@@ -583,6 +583,13 @@ public partial class EmpresaDetalle : ComponentBase, IDisposable
 
     private static string NombreCompleto(TrabajadorListaDto trabajador) => $"{trabajador.Nombre} {trabajador.Apellidos}".Trim();
 
+    // Avatar de la fila: las dos primeras palabras del nombre (mockup, t.ini), como MiTrabajo.
+    private static string Iniciales(string nombre) => string.Concat(nombre
+        .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+        .Where(p => char.IsLetter(p[0]))
+        .Take(2)
+        .Select(p => char.ToUpperInvariant(p[0])));
+
     private string Plural(int n, string claveUno, string claveVarios) =>
         n == 1 ? Textos[claveUno] : Textos[claveVarios, n];
 

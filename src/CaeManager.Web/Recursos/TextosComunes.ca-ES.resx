@@ -30,6 +30,12 @@
   <data name="IdiomaNoCambiadoDetalle" xml:space="preserve">
     <value>Tu preferencia de idioma no se ha guardado y la interfaz sigue en el idioma anterior. Inténtalo de nuevo en unos segundos.</value>
   </data>
+  <data name="IrAPaginaDe" xml:space="preserve">
+    <value>Anar a la pàgina de {0}</value>
+  </data>
+  <data name="AbrirPanelDe" xml:space="preserve">
+    <value>Obrir el panell de {0}</value>
+  </data>
   <data name="Consultar360" xml:space="preserve">
     <value>Consultar d’un cop d’ull</value>
   </data>

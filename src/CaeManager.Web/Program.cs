@@ -590,7 +590,18 @@ builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.LiberacionDeA
 builder.Services.AddHealthChecks()
     .AddNpgSql(
         sp => InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico(builder.Configuration, builder.Environment),
-        name: "postgresql");
+        name: "postgresql")
+    // P6: clave del contexto RLS firmado. Degraded, nunca Unhealthy, en la
+    // fase «expandir» (ver ClaveContextoRlsHealthCheck).
+    .Add(new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
+        "contexto-rls-clave",
+        sp => new CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRlsHealthCheck(
+            () => InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico(builder.Configuration, builder.Environment),
+            sp.GetRequiredService<IDataProtectionProvider>(),
+            sp.GetService<TimeProvider>() ?? TimeProvider.System,
+            sp.GetRequiredService<ILogger<CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRlsHealthCheck>>()),
+        failureStatus: null,
+        tags: null));
 
 // El nombre comercial se resuelve una sola vez, antes de que nada lo pinte.
 // Sin configuración se queda en el histórico; ver CaeManager.Application.Common.Marca.
@@ -1092,6 +1103,16 @@ static async Task MigrarBaseDeDatosAsync(IConfiguration configuration, IServiceP
         servicios.GetRequiredService<IDataProtectionProvider>(),
         new TenantActualAmbiental());
     await dbContextMigraciones.Database.MigrateAsync();
+
+    // P6: la clave del contexto RLS firmado la registra quien tiene la
+    // identidad propietaria, y en staging y producción ese es solo el
+    // migrador. Cada ejecución registra una nueva: rota en cada despliegue, y
+    // relanzar el migrador la renueva sin desplegar.
+    await CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRls.RegistrarAsync(
+        cadenaMigraciones!,
+        servicios.GetRequiredService<IDataProtectionProvider>(),
+        CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRls.VigenciaPorDefecto,
+        CancellationToken.None);
 }
 
 namespace CaeManager.Web.Services
