@@ -1,8 +1,10 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Centros.Commands.EstablecerGestionCaeCentro;
 
@@ -11,7 +13,11 @@ namespace CaeManager.Application.Centros.Commands.EstablecerGestionCaeCentro;
 /// <see cref="ModalidadGestionCae.SinGestionCae"/> no borra nada: los canales,
 /// requisitos y acreditaciones que tuviera se conservan y dejan de contar
 /// mientras el Centro no requiera gestión; volver a
-/// <see cref="ModalidadGestionCae.ConGestionCae"/> los recupera tal cual.
+/// <see cref="ModalidadGestionCae.ConGestionCae"/> los recupera tal cual y
+/// además da de alta, en el mismo guardado, las acreditaciones de plataforma
+/// que no nacieron mientras el Centro no exigía nada
+/// (<see cref="IAltaAcreditacionesPlataformaService"/>, idempotente: las que ya
+/// existían no se duplican).
 ///
 /// Autorización: rol de escritura (<see cref="AutorizacionEscrituraBehavior"/>)
 /// y alcance de gestión del Gestor CAE sobre el Centro; fuera de alcance
@@ -34,7 +40,11 @@ public class EstablecerGestionCaeCentroCommandValidator : AbstractValidator<Esta
 }
 
 public class EstablecerGestionCaeCentroCommandHandler(
-    ICentroRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    ICentroRepository repositorio,
+    ICentrosQueryContext centrosContext,
+    IAltaAcreditacionesPlataformaService altaAcreditaciones,
+    IAlcanceDatosService alcanceDatos,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<EstablecerGestionCaeCentroCommand, Result>
 {
     public async Task<Result> Handle(EstablecerGestionCaeCentroCommand request, CancellationToken cancellationToken)
@@ -46,7 +56,23 @@ public class EstablecerGestionCaeCentroCommandHandler(
         if (ConcurrenciaOptimista.Verificar(centro, request.Version, "este centro") is { } conflicto)
             return Result.Fallo(conflicto);
 
+        var vuelveAGestionCae = centro.GestionCae == ModalidadGestionCae.SinGestionCae
+            && request.Modalidad == ModalidadGestionCae.ConGestionCae;
         centro.EstablecerGestionCae(request.Modalidad);
+
+        if (vuelveAGestionCae)
+        {
+            var accesosPlataforma = await centrosContext.CanalesGestionDocumental
+                .Where(c => c.CentroId == centro.Id && c.Tipo == TipoCanalGestion.Plataforma)
+                .ToListAsync(cancellationToken);
+            if (accesosPlataforma.Count > 0)
+                await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
+                {
+                    Canales = accesosPlataforma,
+                    CentrosQueVuelvenAGestionCae = [centro.Id]
+                }, cancellationToken);
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

@@ -1,4 +1,6 @@
 using CaeManager.Domain.RelacionesEmpresariales;
+using CaeManager.Application.Dashboard.Queries;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerTrabajadoresDocumentacionPorSubcontrata;
 using CaeManager.Application.Subcontratas;
@@ -221,6 +223,25 @@ public class CentroSinGestionCaeTests
         supervision.Centros.Single(c => c.CentroId == _conGestion.Id).Tipos.Should().Contain(t => t.Exigido, "control positivo");
     }
 
+    [Fact]
+    public async Task El_pendiente_por_plataforma_no_cuenta_acreditaciones_de_un_centro_sin_gestion_cae()
+    {
+        var proveedor = new ProveedorPlataformaCae("dokify", "Dokify");
+        var canalConGestion = CanalGestionDocumental.DePlataforma(_conGestion.Id, "Portal Norte", proveedor.Id, null, null, null);
+        var canalSinGestion = CanalGestionDocumental.DePlataforma(_sinGestion.Id, "Portal Sur", proveedor.Id, null, null, null);
+        _centros.ListaCanalesGestionDocumental.AddRange([canalConGestion, canalSinGestion]);
+        _documentos.ListaAcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(Guid.NewGuid(), canalConGestion.Id));
+        _documentos.ListaAcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(Guid.NewGuid(), canalSinGestion.Id));
+        _documentos.ListaAcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(Guid.NewGuid(), canalSinGestion.Id));
+        var proveedores = new ProveedoresPlataformaCaeQueryContextFalso();
+        proveedores.ListaProveedores.Add(proveedor);
+
+        var filas = await new ObtenerPendientePorPlataformaQueryHandler(_documentos, _centros, proveedores, new AlcanceDatosServiceFalso())
+            .Handle(new ObtenerPendientePorPlataformaQuery(), CancellationToken.None);
+
+        filas.Should().ContainSingle().Which.PendientesDeSubir.Should().Be(1, "solo cuenta la acreditación del Centro con gestión CAE");
+    }
+
     private Trabajador TrabajadorDeSubcontrata()
     {
         var trabajador = Trabajador.DeSubcontrata(_subcontrata.Id, "Pepe", "Ruiz", "11223344B");
@@ -316,7 +337,7 @@ public class CentroSinGestionCaeTests
         var sinGestion = new AlcanceDatosServiceFalso(
             tieneAccesoTotal: false, centroIdsVisibles: [_conGestion.Id], centroIdsParaGestion: []);
 
-        var resultado = await new EstablecerGestionCaeCentroCommandHandler(repositorio, sinGestion, unidad)
+        var resultado = await new EstablecerGestionCaeCentroCommandHandler(repositorio, _centros, new MundoAcreditaciones().Servicio(), sinGestion, unidad)
             .Handle(new EstablecerGestionCaeCentroCommand(_conGestion.Id, ModalidadGestionCae.SinGestionCae), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
@@ -326,12 +347,46 @@ public class CentroSinGestionCaeTests
         var conGestion = new AlcanceDatosServiceFalso(
             tieneAccesoTotal: false, centroIdsVisibles: [_conGestion.Id], centroIdsParaGestion: [_conGestion.Id]);
 
-        var permitido = await new EstablecerGestionCaeCentroCommandHandler(repositorio, conGestion, unidad)
+        var permitido = await new EstablecerGestionCaeCentroCommandHandler(repositorio, _centros, new MundoAcreditaciones().Servicio(), conGestion, unidad)
             .Handle(new EstablecerGestionCaeCentroCommand(_conGestion.Id, ModalidadGestionCae.SinGestionCae), CancellationToken.None);
 
         permitido.EsExitoso.Should().BeTrue();
         _conGestion.GestionCae.Should().Be(ModalidadGestionCae.SinGestionCae);
         unidad.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Volver_a_gestion_cae_da_de_alta_las_acreditaciones_que_no_nacieron_mientras_no_exigia()
+    {
+        var mundo = new MundoAcreditaciones();
+        var trabajador = mundo.Trabajador();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si);
+        var centro = mundo.Centro("Almacén Sur");
+        var acceso = mundo.AccesoPlataforma(centro);
+        mundo.Asignacion(trabajador, centro);
+        centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        // El Documento nace mientras el Centro no exige nada: no se acredita.
+        var documento = mundo.DocumentoDe(trabajador, tipo);
+
+        var repositorio = new CentroRepositorioFalso();
+        repositorio.Agregar(centro);
+        var unidad = new UnitOfWorkFalso();
+        EstablecerGestionCaeCentroCommandHandler Handler() =>
+            new(repositorio, mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unidad);
+
+        var resultado = await Handler().Handle(
+            new EstablecerGestionCaeCentroCommand(centro.Id, ModalidadGestionCae.ConGestionCae), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, acceso.Id)]);
+        unidad.VecesGuardado.Should().Be(1, "el cambio y sus acreditaciones se confirman juntos");
+
+        // Idempotente: salir y volver a entrar no duplica la que ya existe.
+        mundo.Guardar();
+        await Handler().Handle(new EstablecerGestionCaeCentroCommand(centro.Id, ModalidadGestionCae.SinGestionCae), CancellationToken.None);
+        mundo.Agregadas.Should().BeEmpty("marcar sin gestión CAE no da de alta nada");
+        await Handler().Handle(new EstablecerGestionCaeCentroCommand(centro.Id, ModalidadGestionCae.ConGestionCae), CancellationToken.None);
+        mundo.Agregadas.Should().BeEmpty();
     }
 
     private sealed class VisitasQueryContextFalso : IVisitasQueryContext

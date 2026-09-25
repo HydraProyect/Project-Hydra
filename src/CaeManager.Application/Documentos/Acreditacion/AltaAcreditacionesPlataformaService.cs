@@ -39,6 +39,15 @@ public sealed record AltasConAcreditacion
     /// sobre la fila guardada al resolver qué exige el Centro.
     /// </summary>
     public IReadOnlyCollection<TipoDocumentoCentro> Requisitos { get; init; } = [];
+
+    /// <summary>
+    /// Centros que este alta devuelve a <see cref="ModalidadGestionCae.ConGestionCae"/>
+    /// (P1-X2). Prevalecen sobre la modalidad guardada, igual que
+    /// <see cref="Requisitos"/> sobre la fila guardada: el Command los cambia y
+    /// confirma sus acreditaciones en el mismo guardado, así que la base todavía
+    /// los tiene como sin gestión CAE.
+    /// </summary>
+    public IReadOnlyCollection<Guid> CentrosQueVuelvenAGestionCae { get; init; } = [];
 }
 
 /// <summary>
@@ -181,10 +190,12 @@ public class AltaAcreditacionesPlataformaService(
 
         // P1-X2: un Centro sin gestión CAE no exige nada, así que no acredita
         // ante sus accesos de plataforma aunque los conserve (CentrosSinGestionCae).
+        // Salvo que este mismo alta lo devuelva a gestión CAE.
         var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(
             centrosContext, candidatos.Select(c => c.CentroId), cancellationToken);
         if (sinGestionCae.Count > 0)
-            candidatos.RemoveAll(c => sinGestionCae.Contains(c.CentroId));
+            candidatos.RemoveAll(c => sinGestionCae.Contains(c.CentroId)
+                && !altas.CentrosQueVuelvenAGestionCae.Contains(c.CentroId));
 
         // ¿Exige el Centro el tipo? Misma regla que el cumplimiento del Centro.
         var centroIds = candidatos.Select(c => c.CentroId).Distinct().ToArray();

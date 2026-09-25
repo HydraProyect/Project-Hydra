@@ -1,4 +1,10 @@
+using CaeManager.Application.Centros.Commands.EstablecerGestionCaeCentro;
 using CaeManager.Application.Common;
+using CaeManager.Domain.Asignaciones;
+using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Integraciones;
+using CaeManager.Domain.Trabajadores;
+using CaeManager.Infrastructure.Persistence.Repositories;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
@@ -65,6 +71,58 @@ public class AuditoriaModalidadGestionCaeTests : IAsyncLifetime
         registro.ActorRealUsuarioId.Should().Be(gestor);
         registro.DatosAntes.Should().Contain($"\"{nameof(Centro.GestionCae)}\":{(int)ModalidadGestionCae.ConGestionCae}");
         registro.DatosDespues.Should().Contain($"\"{nameof(Centro.GestionCae)}\":{(int)ModalidadGestionCae.SinGestionCae}");
+    }
+
+    /// <summary>
+    /// P1-X2 con P0-7: mientras el Centro no exige nada no nacen acreditaciones
+    /// de plataforma; al volver a gestión CAE nacen en el mismo guardado. La base
+    /// todavía tiene el Centro como sin gestión cuando el servicio de altas
+    /// consulta, así que solo Postgres real distingue si el handler lo declara.
+    /// </summary>
+    [Fact]
+    public async Task Volver_a_gestion_cae_da_de_alta_las_acreditaciones_pendientes_en_el_mismo_guardado()
+    {
+        Guid centroId, documentoId, accesoId;
+        await using (var contexto = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.Normal(Guid.NewGuid()))))
+        {
+            var titular = Empresa.CrearComoCliente("Titular reconciliado", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+            var proveedora = new Empresa("Contratista reconciliada", "B10380202");
+            var centro = new Centro(titular.Id, proveedora.Id, "Almacén Sur");
+            centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+            var proveedor = new ProveedorPlataformaCae($"prueba-{Guid.NewGuid():N}", "Portal de prueba");
+            var acceso = CanalGestionDocumental.DePlataforma(centro.Id, "Portal", proveedor.Id, null, null, null);
+            var tipo = new TipoDocumento("Formación PRL", 12, aplicaVencimientoAutomatico: true, orden: 1, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si);
+            var trabajador = Trabajador.DeEmpresa(proveedora.Id, "Ana", "Pérez", "12345678Z");
+            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var documento = Documento.DeTrabajador(trabajador.Id, tipo.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(5)));
+            contexto.Empresas.AddRange(titular, proveedora);
+            contexto.Centros.Add(centro);
+            contexto.ProveedoresPlataformaCae.Add(proveedor);
+            contexto.CanalesGestionDocumental.Add(acceso);
+            contexto.TiposDocumento.Add(tipo);
+            contexto.Trabajadores.Add(trabajador);
+            contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, hoy.AddDays(-1)));
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+            (centroId, documentoId, accesoId) = (centro.Id, documento.Id, acceso.Id);
+        }
+
+        await using (var contexto = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.Normal(Guid.NewGuid()))))
+        {
+            var resultado = await new EstablecerGestionCaeCentroCommandHandler(
+                    new CentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto),
+                    new AlcanceDatosServiceFalso(), contexto)
+                .Handle(new EstablecerGestionCaeCentroCommand(centroId, ModalidadGestionCae.ConGestionCae), CancellationToken.None);
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        await using var lectura = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.SinResolver));
+        (await lectura.Centros.SingleAsync(c => c.Id == centroId)).GestionCae.Should().Be(ModalidadGestionCae.ConGestionCae);
+        (await lectura.AcreditacionesDocumentoPlataforma
+                .Select(a => new { a.DocumentoId, a.CanalGestionDocumentalId, a.Estado })
+                .ToListAsync())
+            .Should().ContainSingle(a => a.DocumentoId == documentoId && a.CanalGestionDocumentalId == accesoId
+                && a.Estado == EstadoAcreditacion.PendienteDeSubir);
     }
 
     private CaeManagerDbContext CrearContexto(IActorAuditoria actor)

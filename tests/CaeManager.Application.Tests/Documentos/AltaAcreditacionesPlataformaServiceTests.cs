@@ -222,4 +222,29 @@ public class AltaAcreditacionesPlataformaServiceTests
 
         agregadasPorAsignacion.Should().Be(0);
     }
+
+    [Fact]
+    public async Task Un_centro_que_el_alta_devuelve_a_gestion_cae_acredita_aunque_la_base_aun_lo_tenga_sin_gestion()
+    {
+        var mundo = new MundoAcreditaciones();
+        var trabajador = mundo.Trabajador();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si);
+        var centro = mundo.Centro("Almacén Sur");
+        var acceso = mundo.AccesoPlataforma(centro);
+        mundo.Asignacion(trabajador, centro);
+        var documento = mundo.DocumentoDe(trabajador, tipo);
+        // Lo que ve la consulta: el guardado que lo cambia todavía no ha ocurrido.
+        centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+
+        (await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { Canales = [acceso] }))
+            .Should().Be(0, "control: sin declararlo, el Centro sigue sin gestión CAE");
+
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion
+        {
+            Canales = [acceso],
+            CentrosQueVuelvenAGestionCae = [centro.Id]
+        });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, acceso.Id)]);
+    }
 }
