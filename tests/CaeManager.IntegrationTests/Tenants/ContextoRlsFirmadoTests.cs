@@ -10,6 +10,7 @@ using CaeManager.Migrations.PostgreSQL;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
@@ -350,6 +351,31 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
             (await nueva.FirmarAsync(otraConexion, Contexto(_tenants[0]), CancellationToken.None))
                 .Token.Should().NotBeEmpty("control: con la clave del migrador sí firma");
         }
+    }
+
+    /// <summary>
+    /// <c>/salud</c> de la clave, con la identidad de tráfico: Healthy con una
+    /// clave vigente de 30 días; Degraded (nunca Unhealthy en «expandir») si le
+    /// quedan 7 días o menos, o si ninguna se deja descifrar.
+    /// </summary>
+    [Fact]
+    public async Task El_health_check_de_la_clave_avisa_sin_cortar_el_trafico()
+    {
+        var cadenaRuntime = BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario);
+        ClaveContextoRlsHealthCheck Chequeo(IDataProtectionProvider anillo) => new(
+            () => cadenaRuntime, anillo, TimeProvider.System, NullLogger<ClaveContextoRlsHealthCheck>.Instance);
+        async Task<HealthStatus> EstadoAsync(IDataProtectionProvider anillo) =>
+            (await Chequeo(anillo).CheckHealthAsync(new HealthCheckContext())).Status;
+
+        await RegistrarClaveAsync();
+        (await EstadoAsync(BaseDatosPostgresDePruebas.ProteccionDePruebas)).Should().Be(HealthStatus.Healthy,
+            "control: clave vigente de 30 días que el proceso sabe descifrar");
+        (await EstadoAsync(new EphemeralDataProtectionProvider())).Should().Be(HealthStatus.Degraded,
+            "con otro anillo no hay clave descifrable");
+
+        await EjecutarComoPropietarioAsync("UPDATE app_privado.claves_contexto SET valida_hasta = now() + interval '5 days';");
+        (await EstadoAsync(BaseDatosPostgresDePruebas.ProteccionDePruebas)).Should().Be(HealthStatus.Degraded,
+            "le quedan 7 días o menos");
     }
 
     // ── La reescritura: cubre todas las políticas que existen hoy ────────
