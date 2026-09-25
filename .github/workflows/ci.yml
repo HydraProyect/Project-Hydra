@@ -1261,6 +1261,9 @@ jobs:
       - name: deploy/liberar-disco.tests.sh
         run: bash deploy/liberar-disco.tests.sh
 
+      - name: deploy/vigilar-host.tests.sh
+        run: bash deploy/vigilar-host.tests.sh
+
       - name: deploy/ci-deploy-secretos.tests.sh
         run: bash deploy/ci-deploy-secretos.tests.sh
 
