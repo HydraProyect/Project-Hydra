@@ -17,6 +17,13 @@ public class AsignacionRepositorioFalso : IAsignacionRepository
         Task.FromResult(Asignaciones.Any(a =>
             a.TrabajadorId == trabajadorId && a.CentroId == centroId && a.SeSolapaCon(fechaAlta, fechaBaja)));
 
+    public Task<bool> ExisteSolapeConOtraAsync(
+        Guid asignacionId, Guid trabajadorId, Guid centroId, DateOnly fechaAlta, DateOnly? fechaBaja,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(Asignaciones.Any(a =>
+            a.Id != asignacionId && a.TrabajadorId == trabajadorId && a.CentroId == centroId
+            && a.SeSolapaCon(fechaAlta, fechaBaja)));
+
     public Task<IReadOnlyList<Asignacion>> ObtenerActivasPorCentroAsync(Guid centroId, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<Asignacion>>(
             Asignaciones.Where(a => a.CentroId == centroId && a.FechaBaja is null).ToList());

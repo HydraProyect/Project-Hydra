@@ -18,6 +18,15 @@ public interface IAsignacionRepository
         Guid trabajadorId, Guid centroId, DateOnly fechaAlta, DateOnly? fechaBaja, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Como <see cref="ExisteSolapeAsync"/>, pero sin contar la propia
+    /// <paramref name="asignacionId"/>: al reabrir una asignación cerrada, su
+    /// fila ya ocupa el rango que se comprueba y se solaparía consigo misma.
+    /// </summary>
+    Task<bool> ExisteSolapeConOtraAsync(
+        Guid asignacionId, Guid trabajadorId, Guid centroId, DateOnly fechaAlta, DateOnly? fechaBaja,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Asignaciones activas de un centro, para cerrarlas cuando el centro se
     /// elimina. Devuelve entidades rastreadas a propósito: el cierre pasa por
     /// el dominio y por el interceptor de auditoría, no por un

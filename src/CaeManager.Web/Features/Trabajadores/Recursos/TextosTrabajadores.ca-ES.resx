@@ -387,6 +387,12 @@
   <data name="AccionDarDeBaja" xml:space="preserve">
     <value>Dar de baja</value>
   </data>
+  <data name="ConfirmarBajaAsignacionTitulo" xml:space="preserve">
+    <value>¿Dar de baja la asignación?</value>
+  </data>
+  <data name="ConfirmarBajaAsignacionMensaje" xml:space="preserve">
+    <value>{0} dejará de estar de alta en {1} desde hoy. Podrás deshacerlo desde el aviso que aparecerá; después, habrá que darle de alta de nuevo.</value>
+  </data>
   <data name="SeparadorGestionesPendientes" xml:space="preserve">
     <value>Gestiones pendientes</value>
   </data>
@@ -572,6 +578,9 @@
   </data>
   <data name="ToastBaja" xml:space="preserve">
     <value>Asignación dada de baja.</value>
+  </data>
+  <data name="ToastBajaDeshecha" xml:space="preserve">
+    <value>Baja deshecha: la asignación vuelve a estar activa.</value>
   </data>
   <data name="ToastSinPendientesReclamar" xml:space="preserve">
     <value>No hay documentos pendientes que reclamar.</value>

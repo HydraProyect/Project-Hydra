@@ -1,5 +1,6 @@
 using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignacion;
+using CaeManager.Application.Asignaciones.Commands.ReactivarAsignacion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
@@ -64,6 +65,64 @@ public class SolapamientoDeAsignacionesTests : IAsyncLifetime
     }
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
+
+    /// <summary>
+    /// FS-13: «Deshacer» de una baja. La propia fila cerrada cae dentro del
+    /// rango [alta, ∞) que se comprueba; si el repositorio la contara, ninguna
+    /// baja se podría deshacer nunca.
+    /// </summary>
+    [Fact]
+    public async Task Reabrir_una_asignacion_cerrada_no_choca_con_su_propia_fila()
+    {
+        var alta = new DateOnly(2026, 1, 1);
+        var asignacionId = await SembrarCerradaAsync(alta, new DateOnly(2026, 6, 1));
+
+        await using (var contexto = CrearContexto())
+        {
+            var resultado = await Reactivador(contexto).Handle(new ReactivarAsignacionCommand(asignacionId), CancellationToken.None);
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        await using var verificacion = CrearContexto();
+        var fila = await verificacion.Asignaciones.SingleAsync(a => a.Id == asignacionId);
+        fila.FechaBaja.Should().BeNull();
+        fila.FechaAlta.Should().Be(alta);
+    }
+
+    /// <summary>
+    /// Control del anterior: excluir la propia fila no puede excluir las demás.
+    /// Una alta posterior ya cerrada pisa el rango reabierto (DEC-19).
+    /// </summary>
+    [Fact]
+    public async Task Reabrir_una_asignacion_cuyo_rango_pisaria_otra_posterior_se_rechaza()
+    {
+        var bajaA = new DateOnly(2026, 6, 1);
+        var asignacionAId = await SembrarCerradaAsync(new DateOnly(2026, 1, 1), bajaA);
+        await SembrarCerradaAsync(new DateOnly(2026, 7, 1), new DateOnly(2026, 8, 1));
+
+        await using (var contexto = CrearContexto())
+        {
+            var resultado = await Reactivador(contexto).Handle(new ReactivarAsignacionCommand(asignacionAId), CancellationToken.None);
+            resultado.EsFallido.Should().BeTrue();
+            resultado.Error.Codigo.Should().Be("Asignacion.SolapaConOtra");
+        }
+
+        await using var verificacion = CrearContexto();
+        (await verificacion.Asignaciones.SingleAsync(a => a.Id == asignacionAId)).FechaBaja.Should().Be(bajaA);
+    }
+
+    private static ReactivarAsignacionCommandHandler Reactivador(CaeManagerDbContext contexto) =>
+        new(new AsignacionRepository(contexto), new AutoridadAsignacionesServiceFalso(contexto), contexto);
+
+    private async Task<Guid> SembrarCerradaAsync(DateOnly alta, DateOnly baja)
+    {
+        await using var contexto = CrearContexto();
+        var asignacion = new Asignacion(_trabajadorId, _centroId, alta);
+        asignacion.DarDeBaja(baja);
+        contexto.Asignaciones.Add(asignacion);
+        await contexto.SaveChangesAsync();
+        return asignacion.Id;
+    }
 
     [Fact]
     public async Task Solape_de_rango_contra_una_fila_ya_cerrada_se_rechaza_en_el_comando()

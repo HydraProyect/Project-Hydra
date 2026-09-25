@@ -268,7 +268,7 @@
                                            queda (vacía) para no desalinear la rejilla con la cabecera. *@
                                         <SoloConEscritura>
                                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                                   OnClick="() => DarDeBajaAsignacionAsync(centro.AsignacionId)">
+                                                   OnClick="() => AbrirBajaAsignacionConfirm(centro.AsignacionId, centro.CentroNombre)">
                                                 @Textos["AccionDarDeBaja"]
                                             </Boton>
                                         </SoloConEscritura>
@@ -499,6 +499,16 @@
 @* Solo aparece cuando el trabajador tiene asignaciones activas en Centros de
    más de un Cliente empresarial a la vez — con uno solo, ReclamarFaltantesAsync
    envía directo. *@
+@* FS-13: la baja de una asignación se confirma y se puede deshacer desde el aviso. *@
+<DialogoConfirmacion
+    Visible="_confirmarBajaAsignacionVisible"
+    VisibleChanged="v => _confirmarBajaAsignacionVisible = v"
+    Titulo="@Textos["ConfirmarBajaAsignacionTitulo"]"
+    Mensaje="@Textos["ConfirmarBajaAsignacionMensaje", NombreCompleto ?? string.Empty, _centroABajar].Value"
+    TextoBotonConfirmar="@Textos["AccionDarDeBaja"]"
+    EnProgreso="_asignacionABajar is { } enCurso && _dandoDeBajaAsignacion.Contains(enCurso)"
+    OnConfirmar="ConfirmarBajaAsignacionAsync" />
+
 <Modal Visible="_reclamarFaltantesVisible" VisibleChanged="v => _reclamarFaltantesVisible = v"
        Titulo="@Textos["ModalReclamarTitulo"]" CerrarAlHacerClicFuera="!_reclamandoFaltantes">
     <ChildContent>

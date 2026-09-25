@@ -14,7 +14,17 @@ public class AsignacionRepository(CaeManagerDbContext dbContext) : IAsignacionRe
             cancellationToken);
 
     public Task<bool> ExisteSolapeAsync(
-        Guid trabajadorId, Guid centroId, DateOnly fechaAlta, DateOnly? fechaBaja, CancellationToken cancellationToken = default)
+        Guid trabajadorId, Guid centroId, DateOnly fechaAlta, DateOnly? fechaBaja, CancellationToken cancellationToken = default) =>
+        ExisteSolapeAsync(null, trabajadorId, centroId, fechaAlta, fechaBaja, cancellationToken);
+
+    public Task<bool> ExisteSolapeConOtraAsync(
+        Guid asignacionId, Guid trabajadorId, Guid centroId, DateOnly fechaAlta, DateOnly? fechaBaja,
+        CancellationToken cancellationToken = default) =>
+        ExisteSolapeAsync(asignacionId, trabajadorId, centroId, fechaAlta, fechaBaja, cancellationToken);
+
+    private Task<bool> ExisteSolapeAsync(
+        Guid? excluirAsignacionId, Guid trabajadorId, Guid centroId, DateOnly fechaAlta, DateOnly? fechaBaja,
+        CancellationToken cancellationToken)
     {
         // Misma semántica que Asignacion.SeSolapaCon, en forma traducible a
         // SQL: no se puede invocar el método de dominio dentro del árbol de
@@ -29,6 +39,7 @@ public class AsignacionRepository(CaeManagerDbContext dbContext) : IAsignacionRe
 
         return dbContext.Asignaciones.AnyAsync(
             a => a.TrabajadorId == trabajadorId && a.CentroId == centroId
+                && (excluirAsignacionId == null || a.Id != excluirAsignacionId)
                 && a.FechaBaja != a.FechaAlta
                 && a.FechaAlta < bajaEfectiva
                 && fechaAlta < (a.FechaBaja ?? DateOnly.MaxValue),
