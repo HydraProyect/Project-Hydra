@@ -595,6 +595,14 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Visitas.ObtenerAvisoVisitaQueryHandler", "ICentrosQueryContext"),
         ("Visitas.ObtenerAvisoVisitaQueryHandler", "IEmpresasQueryContext"),
         ("Visitas.ObtenerAvisoVisitaQueryHandler", "ITrabajadoresQueryContext"),
+        // P1-X1: la solicitud de acceso de un Centro gestionado por correo lee el Centro y
+        // sus canales (nombre, destinatarios, contacto), la Empresa y los Trabajadores de la
+        // Visita (solo nombre, apellidos y razón social), igual que el aviso de P1-X2; la
+        // descarga del zip solo lee el Centro y sus canales para decidir si se ofrece.
+        ("Visitas.ObtenerSolicitudAccesoCorreoQueryHandler", "ICentrosQueryContext"),
+        ("Visitas.ObtenerSolicitudAccesoCorreoQueryHandler", "IEmpresasQueryContext"),
+        ("Visitas.ObtenerSolicitudAccesoCorreoQueryHandler", "ITrabajadoresQueryContext"),
+        ("Visitas.ObtenerPaqueteDocumentalVisitaQueryHandler", "ICentrosQueryContext"),
         ("Visitas.ObtenerDocumentacionVisitaQueryHandler", "ICentrosQueryContext"),
         ("Visitas.ObtenerDocumentacionVisitaQueryHandler", "IConfiguracionQueryContext"),
         ("Visitas.ObtenerDocumentacionVisitaQueryHandler", "IDocumentosQueryContext"),
