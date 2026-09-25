@@ -5,6 +5,7 @@ using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
@@ -70,6 +71,10 @@ public class Trabajador360Gen2Tests : BunitContext
         public Dictionary<Guid, List<CentroDocumentacionTrabajadorDto>> Centros { get; } = [];
         public Dictionary<Guid, List<GestionListaDto>> Gestiones { get; } = [];
         public List<TipoDocumentoListaDto> Tipos { get; } = [];
+        public Dictionary<Guid, List<DocumentoListaDto>> Documentos { get; } = [];
+
+        /// <summary>Si es true, ObtenerDocumentosQuery lanza: el resto de la página tiene que seguir en pie.</summary>
+        public bool FallarDocumentos { get; set; }
 
         /// <summary>El comando dice cuántas bajas hizo y qué errores hubo: un éxito pelado no distingue «dada de baja» de «no se dio de baja ninguna».</summary>
         public Result<ResultadoBajaLoteDto> ResultadoDarDeBajaAsignacion { get; set; } =
@@ -100,6 +105,8 @@ public class Trabajador360Gen2Tests : BunitContext
             ObtenerGestionesQuery q => Paginar(q),
             ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)Tipos,
             ObtenerAgendaContactosQuery => (IReadOnlyList<ContactoAgendaDto>)[],
+            ObtenerDocumentosQuery when FallarDocumentos => throw new InvalidOperationException("Fallo simulado de la consulta de documentos."),
+            ObtenerDocumentosQuery q => PaginarDocumentos(q),
             DarDeBajaAsignacionesCommand => ResultadoDarDeBajaAsignacion,
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
@@ -108,6 +115,12 @@ public class Trabajador360Gen2Tests : BunitContext
         {
             var todas = q.TrabajadorId is { } id ? Gestiones.GetValueOrDefault(id) ?? [] : [];
             return new ResultadoPaginado<GestionListaDto>(todas, todas.Count, q.Pagina, q.TamanoPagina);
+        }
+
+        private ResultadoPaginado<DocumentoListaDto> PaginarDocumentos(ObtenerDocumentosQuery q)
+        {
+            var todos = q.TrabajadorId is { } id ? Documentos.GetValueOrDefault(id) ?? [] : [];
+            return new ResultadoPaginado<DocumentoListaDto>(todos, todos.Count, q.Pagina, q.TamanoPagina);
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -231,7 +244,7 @@ public class Trabajador360Gen2Tests : BunitContext
     }
 
     [Fact]
-    public void Son_dos_pestanas_y_solo_Operacion_lleva_el_recuento_de_documentos_con_incidencia()
+    public void Son_tres_pestanas_y_solo_Operacion_lleva_el_recuento_de_documentos_con_incidencia()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -244,8 +257,8 @@ public class Trabajador360Gen2Tests : BunitContext
         var pestanas = cut.FindAll("[role=tab]");
         pestanas.Select(t => t.QuerySelector(".pestanas-contador") is null
             ? t.TextContent.Trim()
-            : t.FirstChild!.TextContent.Trim()).Should().Equal(["Operación", "Historial"],
-            "«Contactos» pasó al lateral (decisión del propietario 2026-09-24) y «Vehículos» nunca existió en esta página");
+            : t.FirstChild!.TextContent.Trim()).Should().Equal(["Operación", "Documentación", "Historial"],
+            "«Contactos» pasó al lateral y «Documentación» es la del trabajador a día de hoy (decisiones del propietario 2026-09-24); «Vehículos» nunca existió en esta página");
 
         var contadores = cut.FindAll(".pestanas-contador");
         contadores.Should().ContainSingle("solo Operación cuenta algo");
@@ -266,7 +279,7 @@ public class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         cut.FindAll(".pestanas-contador").Should().BeEmpty("un cero no se pinta como si fuera un dato que atender");
-        cut.FindAll("[role=tab]").Should().HaveCount(2);
+        cut.FindAll("[role=tab]").Should().HaveCount(3);
     }
 
     [Fact]
@@ -325,6 +338,166 @@ public class Trabajador360Gen2Tests : BunitContext
         detalle.QuerySelectorAll(".columna-accion button").Select(b => b.TextContent.Trim())
             .Should().Equal(["Renovar", "Subir", "Ver"]);
         detalle.TextContent.Should().NotContain("Nave Berriz", "solo se despliega el centro sobre el que se pulsó");
+    }
+
+    private static DocumentoListaDto DocumentoDelTrabajador(
+        string tipo, EstadoDocumento estado, DateOnly emision, DateOnly? vencimiento, Guid? id = null) =>
+        new(id ?? Guid.NewGuid(), AmbitoAplicacion.Trabajador, "Javier Salas Moreno", tipo,
+            emision, vencimiento, estado, ArchivoUrl: null, Acreditaciones: []);
+
+    private static TipoDocumentoListaDto Tipo(Guid id, string nombre, RequisitoDocumental requerido) =>
+        new(id, nombre, VigenciaMeses: 12, AplicaVencimientoAutomatico: true, Orden: 0,
+            AmbitoAplicacion.Trabajador, requerido, Naturaleza: default, Descripcion: null,
+            CriteriosValidacion: null, SeSolicitaA: null, Observaciones: null,
+            LecturaIaActiva: false, DeteccionTrabajadoresActiva: false, VerificacionIaActiva: false,
+            PerfilDocumentoOficial.Ninguno, Aliases: []);
+
+    private static async Task AbrirPestanaAsync(IRenderedComponent<TrabajadorDetalle> cut, string nombre)
+    {
+        var pestana = cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim().StartsWith(nombre, StringComparison.Ordinal));
+        await pestana.ClickAsync(new MouseEventArgs());
+    }
+
+    private static IReadOnlyList<string[]> Filas(IRenderedComponent<TrabajadorDetalle> cut, string tabla) =>
+        cut.Find($"[role=table][aria-label='{tabla}']").QuerySelectorAll(".fila-documento-requerido")
+            .Select(f => f.QuerySelectorAll("[role=cell]").Select(c => SinEspaciosDeMas(c.TextContent)).ToArray())
+            .ToList();
+
+    [Fact]
+    public void Operacion_abre_con_la_franja_de_lo_que_esta_por_vencer_y_solo_con_eso()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        var (norte, berriz) = Escena();
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [norte, berriz];
+        mediador.Documentos[id] =
+        [
+            DocumentoDelTrabajador("Reconocimiento médico", EstadoDocumento.Urgente, new(2025, 10, 1), new(2026, 10, 1)),
+            DocumentoDelTrabajador("Entrega de EPI", EstadoDocumento.Proximo, new(2025, 10, 20), new(2026, 10, 20)),
+            DocumentoDelTrabajador("Formación PRL — 20 h", EstadoDocumento.Vigente, new(2025, 3, 1), new(2027, 3, 1)),
+            DocumentoDelTrabajador("Formación PRL — 60 h", EstadoDocumento.Vencido, new(2024, 3, 1), new(2026, 3, 1)),
+            DocumentoDelTrabajador("DNI", EstadoDocumento.SinCaducidad, new(2020, 1, 1), null),
+        ];
+
+        var cut = Renderizar(id);
+
+        var franja = cut.Find("ul.trabajador360-por-vencer");
+        franja.GetAttribute("aria-label").Should().Be("Por vencer");
+        franja.QuerySelectorAll(".trabajador360-por-vencer-fila")
+            .Select(f => SinEspaciosDeMas(f.TextContent))
+            .Should().Equal(
+                ["Reconocimiento médico Urgente Vence: 01/10/2026", "Entrega de EPI Próximo Vence: 20/10/2026"],
+                "la franja usa el umbral ámbar del sistema (Q3): Próximo y Urgente, lo más cercano primero; lo vencido ya es incidencia de Centro y lo vigente no apremia");
+    }
+
+    [Fact]
+    public void Sin_nada_por_vencer_no_se_pinta_la_franja()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        var (norte, _) = Escena();
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [norte];
+        mediador.Documentos[id] = [DocumentoDelTrabajador("DNI", EstadoDocumento.SinCaducidad, new(2020, 1, 1), null)];
+
+        var cut = Renderizar(id);
+
+        cut.FindAll("ul.trabajador360-por-vencer").Should().BeEmpty("una lista vacía con su rótulo diría que hay algo que mirar");
+    }
+
+    [Fact]
+    public async Task La_documentacion_del_trabajador_dice_de_cada_documento_su_fecha_y_cuando_caduca()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Documentos[id] =
+        [
+            DocumentoDelTrabajador("Formación PRL — 20 h", EstadoDocumento.Vigente, new(2025, 3, 1), new(2027, 3, 1)),
+            DocumentoDelTrabajador("DNI", EstadoDocumento.SinCaducidad, new(2020, 1, 1), null),
+            DocumentoDelTrabajador("Reconocimiento médico", EstadoDocumento.Vencido, new(2024, 9, 1), new(2025, 9, 1)),
+        ];
+
+        var cut = Renderizar(id);
+        await AbrirPestanaAsync(cut, "Documentación");
+
+        Filas(cut, "Documentos del trabajador").Should().BeEquivalentTo(
+            new[]
+            {
+                new[] { "Reconocimiento médico", "Vencido", "01/09/2024", "01/09/2025" },
+                new[] { "Formación PRL — 20 h", "Vigente", "01/03/2025", "01/03/2027" },
+                new[] { "DNI", "Sin caducidad", "01/01/2020", "Sin caducidad" },
+            },
+            o => o.WithStrictOrdering(),
+            "lo más grave arriba; lo que no caduca lo dice (Q4) en vez de dejar la celda en blanco");
+
+        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().ContainSingle()
+            .Which.Should().BeEquivalentTo(new { TrabajadorId = (Guid?)id, Ambito = (AmbitoAplicacion?)AmbitoAplicacion.Trabajador },
+                "la misma consulta, alcance y RLS que la lista de Documentos, acotada a este trabajador");
+    }
+
+    [Fact]
+    public async Task Los_exigidos_solo_en_algunos_Centros_dicen_en_que_Centro_de_que_Cliente_empresarial_y_cuando_renovar()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+
+        var tipoGeneral = Guid.NewGuid();
+        var tipoDeCentro = Guid.NewGuid();
+        var documentoDeCentro = Guid.NewGuid();
+        mediador.Tipos.Add(Tipo(tipoGeneral, "Formación PRL — 20 h", RequisitoDocumental.Si));
+        mediador.Tipos.Add(Tipo(tipoDeCentro, "Formación específica de centro", RequisitoDocumental.No));
+
+        var norte = Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Proximo,
+            new DocumentoRequeridoDto(Guid.NewGuid(), tipoGeneral, "Formación PRL — 20 h", EstadoDocumento.Vigente, new(2027, 3, 1)),
+            new DocumentoRequeridoDto(documentoDeCentro, tipoDeCentro, "Formación específica de centro", EstadoDocumento.Proximo, new(2026, 10, 15)));
+        mediador.Centros[id] = [norte];
+        mediador.Documentos[id] =
+        [
+            DocumentoDelTrabajador("Formación específica de centro", EstadoDocumento.Proximo, new(2025, 10, 15), new(2026, 10, 15), documentoDeCentro),
+        ];
+
+        var cut = Renderizar(id);
+        await AbrirPestanaAsync(cut, "Documentación");
+
+        Filas(cut, "Exigidos solo en algunos Centros de trabajo").Should().BeEquivalentTo(
+            new[]
+            {
+                new[] { "Formación específica de centro", "Centro Norte del Cliente empresarial Refrielectric S.A.", "Próximo", "15/10/2025", "15/10/2026" },
+            },
+            o => o.WithStrictOrdering(),
+            "el tipo exigido a todo trabajador (Requerido = Sí) no es propio de ningún Centro (Q2); la renovación es la caducidad del documento (Q1)");
+
+        var centro = cut.Find(".trabajador360-exigencia-centro a");
+        centro.GetAttribute("href").Should().Be($"/centros/{norte.CentroId}");
+        cut.Find(".trabajador360-exigencias").TextContent.Should().NotContain("exigido por",
+            "lo exige el Centro de trabajo; el Cliente empresarial solo lo sitúa");
+    }
+
+    [Fact]
+    public async Task Si_la_documentacion_falla_el_resto_de_la_pagina_sigue_y_se_puede_reintentar()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso { FallarDocumentos = true });
+        var (norte, _) = Escena();
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [norte];
+
+        var cut = Renderizar(id);
+        cut.FindAll(".trabajador360-centro").Should().ContainSingle("Operación no depende de la consulta de documentos");
+        cut.FindAll("ul.trabajador360-por-vencer").Should().BeEmpty();
+
+        await AbrirPestanaAsync(cut, "Documentación");
+        cut.FindAll("[role=table][aria-label='Documentos del trabajador']").Should().BeEmpty(
+            "un fallo no se pinta como «sin documentos»");
+
+        mediador.FallarDocumentos = false;
+        mediador.Documentos[id] = [DocumentoDelTrabajador("DNI", EstadoDocumento.SinCaducidad, new(2020, 1, 1), null)];
+        await cut.InvokeAsync(() => Boton(cut, "Reintentar").Click());
+
+        cut.WaitForAssertion(() => Filas(cut, "Documentos del trabajador").Should().ContainSingle());
     }
 
     [Fact]

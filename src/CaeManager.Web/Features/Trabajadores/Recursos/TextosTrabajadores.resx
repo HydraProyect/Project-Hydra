@@ -498,6 +498,57 @@
   <data name="PestanaHistorial" xml:space="preserve">
     <value>Historial</value>
   </data>
+  <data name="PestanaDocumentacion" xml:space="preserve">
+    <value>Documentación</value>
+  </data>
+  <data name="SeparadorPorVencer" xml:space="preserve">
+    <value>Por vencer</value>
+  </data>
+  <data name="VenceEl" xml:space="preserve">
+    <value>Vence: {0}</value>
+  </data>
+  <data name="SinCaducidad" xml:space="preserve">
+    <value>Sin caducidad</value>
+  </data>
+  <data name="DocumentacionErrorTitulo" xml:space="preserve">
+    <value>No pudimos cargar la documentación</value>
+  </data>
+  <data name="DocumentacionErrorDescripcion" xml:space="preserve">
+    <value>Inténtalo de nuevo en unos segundos.</value>
+  </data>
+  <data name="SeparadorDocumentosTrabajador" xml:space="preserve">
+    <value>Documentos del trabajador</value>
+  </data>
+  <data name="SinDocumentos" xml:space="preserve">
+    <value>Este trabajador todavía no tiene documentos.</value>
+  </data>
+  <data name="ColumnaFechaDocumento" xml:space="preserve">
+    <value>Fecha del documento</value>
+  </data>
+  <data name="ColumnaVence" xml:space="preserve">
+    <value>Caducidad</value>
+  </data>
+  <data name="MostrandoDocumentos" xml:space="preserve">
+    <value>Mostrando {0} de {1} documentos.</value>
+  </data>
+  <data name="SeparadorExigidosEnCentros" xml:space="preserve">
+    <value>Exigidos solo en algunos Centros de trabajo</value>
+  </data>
+  <data name="TextoExigidosEnCentros" xml:space="preserve">
+    <value>Tipos que no se piden con carácter general y que incluye la configuración de estos Centros de trabajo. La fecha de renovación es la caducidad del documento: es la misma en todos los Centros.</value>
+  </data>
+  <data name="SinExigenciasPropias" xml:space="preserve">
+    <value>Ningún Centro de trabajo de este trabajador exige documentación más allá de la general.</value>
+  </data>
+  <data name="ColumnaCentroTrabajo" xml:space="preserve">
+    <value>Centro de trabajo</value>
+  </data>
+  <data name="ColumnaRenovarAntes" xml:space="preserve">
+    <value>Renovar antes de</value>
+  </data>
+  <data name="DelClienteEmpresarial" xml:space="preserve">
+    <value>del Cliente empresarial {0}</value>
+  </data>
   <data name="Kicker" xml:space="preserve">
     <value>Trabajador</value>
   </data>

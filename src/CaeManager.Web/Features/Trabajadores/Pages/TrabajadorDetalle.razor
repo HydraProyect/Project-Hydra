@@ -98,6 +98,28 @@
             {
                 case "operacion":
                     @*
+                        Franja «Por vencer» (decisión del propietario 2026-09-24,
+                        Q3 = (a)): los documentos del trabajador en Próximo o
+                        Urgente, con el umbral ámbar del tenant. Va antes que los
+                        Centros porque es lo que hay que renovar ya. Sin ninguno,
+                        la franja no se pinta.
+                    *@
+                    @if (DocumentosPorVencer is { Count: > 0 } porVencer)
+                    {
+                        <div class="separador-ambito">@Textos["SeparadorPorVencer"]</div>
+                        <ul class="trabajador360-por-vencer" aria-label="@Textos["SeparadorPorVencer"]">
+                            @foreach (var documento in porVencer)
+                            {
+                                <li class="trabajador360-por-vencer-fila" @key="documento.Id">
+                                    <span class="trabajador360-por-vencer-nombre">@documento.TipoDocumentoNombre</span>
+                                    <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
+                                    <span class="trabajador360-por-vencer-fecha">@Textos["VenceEl", TextoVence(documento.FechaVencimiento, documento.Estado)]</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+
+                    @*
                         Ámbito 1: Documentación por centro (completo — es lo que se
                         opera aquí, a diferencia de la pestaña "Documentación" plana
                         del Workspace Panel). Acordeón por centro, mismo lenguaje que
@@ -296,6 +318,100 @@
                                 </div>
                             }
                         </div>
+                    }
+                    break;
+
+                case "documentacion":
+                    @*
+                        Documentación del trabajador a día de hoy (decisión del
+                        propietario 2026-09-24, Q1–Q4 = (a)). Dos bloques:
+                        1. Todos sus documentos, con la fecha del documento y
+                           su caducidad; los que no caducan dicen «Sin
+                           caducidad» (Q4).
+                        2. Lo exigido solo en algunos Centros de trabajo, por
+                           par Trabajador–Centro (Q2): la fecha de renovación es
+                           la caducidad del documento, igual en todos (Q1).
+                    *@
+                    @if (_cargandoDocumentos)
+                    {
+                        <EstadoCargando Filas="4" />
+                    }
+                    else if (_errorDocumentos)
+                    {
+                        <EstadoVacio Titulo="@Textos["DocumentacionErrorTitulo"]" Descripcion="@Textos["DocumentacionErrorDescripcion"]"
+                                     NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
+                            <Accion>
+                                <Boton OnClick="CargarDocumentosAsync">@Comunes["Reintentar"]</Boton>
+                            </Accion>
+                        </EstadoVacio>
+                    }
+                    else
+                    {
+                        <div class="separador-ambito">@Textos["SeparadorDocumentosTrabajador"]</div>
+                        @if (_documentos.Count == 0)
+                        {
+                            <p class="texto-vacio-seccion">@Textos["SinDocumentos"]</p>
+                        }
+                        else
+                        {
+                            <div class="tabla-documentos-requeridos trabajador360-documentos" role="table" aria-label="@Textos["SeparadorDocumentosTrabajador"]">
+                                <div class="documentos-requeridos-cabecera" role="row">
+                                    <span role="columnheader">@Textos["ColumnaDocumento"]</span>
+                                    <span role="columnheader">@Textos["ColumnaEstado"]</span>
+                                    <span role="columnheader">@Textos["ColumnaFechaDocumento"]</span>
+                                    <span role="columnheader">@Textos["ColumnaVence"]</span>
+                                </div>
+                                @foreach (var documento in DocumentosOrdenados)
+                                {
+                                    <div class="fila-documento-requerido" role="row" @key="documento.Id">
+                                        <span class="celda-documento-nombre" role="cell">@documento.TipoDocumentoNombre</span>
+                                        <span role="cell">
+                                            <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
+                                        </span>
+                                        <span role="cell">@documento.FechaEmision.ToString("dd/MM/yyyy")</span>
+                                        <span role="cell">@TextoVence(documento.FechaVencimiento, documento.Estado)</span>
+                                    </div>
+                                }
+                            </div>
+                            @if (_totalDocumentos > _documentos.Count)
+                            {
+                                <p class="texto-descriptivo">@Textos["MostrandoDocumentos", _documentos.Count, _totalDocumentos]</p>
+                            }
+                        }
+
+                        <div class="separador-ambito">@Textos["SeparadorExigidosEnCentros"]</div>
+                        <p class="texto-descriptivo">@Textos["TextoExigidosEnCentros"]</p>
+                        @if (ExigenciasPropiasDeCentros is { Count: > 0 } exigencias)
+                        {
+                            <div class="tabla-documentos-requeridos trabajador360-exigencias" role="table" aria-label="@Textos["SeparadorExigidosEnCentros"]">
+                                <div class="documentos-requeridos-cabecera" role="row">
+                                    <span role="columnheader">@Textos["ColumnaDocumento"]</span>
+                                    <span role="columnheader">@Textos["ColumnaCentroTrabajo"]</span>
+                                    <span role="columnheader">@Textos["ColumnaEstado"]</span>
+                                    <span role="columnheader">@Textos["ColumnaFechaDocumento"]</span>
+                                    <span role="columnheader">@Textos["ColumnaRenovarAntes"]</span>
+                                </div>
+                                @foreach (var exigencia in exigencias)
+                                {
+                                    <div class="fila-documento-requerido" role="row" @key="(exigencia.CentroId, exigencia.Documento.TipoDocumentoId)">
+                                        <span class="celda-documento-nombre" role="cell">@exigencia.Documento.TipoDocumentoNombre</span>
+                                        <span role="cell" class="trabajador360-exigencia-centro">
+                                            <a href="@($"/centros/{exigencia.CentroId}")">@exigencia.CentroNombre</a>
+                                            <span class="trabajador360-exigencia-cliente">@Textos["DelClienteEmpresarial", exigencia.ClienteRazonSocial]</span>
+                                        </span>
+                                        <span role="cell">
+                                            <Badge Tono="EstadoDocumentoUi.Tono(exigencia.Documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(exigencia.Documento.Estado)</Badge>
+                                        </span>
+                                        <span role="cell">@(exigencia.FechaEmision is { } emision ? emision.ToString("dd/MM/yyyy") : "—")</span>
+                                        <span role="cell">@TextoVence(exigencia.Documento.FechaVencimiento, exigencia.Documento.Estado)</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="texto-vacio-seccion">@Textos["SinExigenciasPropias"]</p>
+                        }
                     }
                     break;
 

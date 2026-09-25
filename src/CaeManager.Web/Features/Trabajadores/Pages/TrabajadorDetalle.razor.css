@@ -170,6 +170,82 @@
 }
 
 /* ------------------------------------------------------------------ */
+/* Franja «Por vencer» de Operación                                      */
+/* ------------------------------------------------------------------ */
+
+.trabajador360-por-vencer {
+    list-style: none;
+    margin: 0 0 var(--space-4);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.trabajador360-por-vencer-fila {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-warning-50);
+    border: var(--border-default);
+    border-left: 3px solid var(--color-warning-500);
+    border-radius: var(--radius-md);
+}
+
+.trabajador360-por-vencer-nombre {
+    flex: 1 1 12rem;
+    min-width: 0;
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.trabajador360-por-vencer-fecha {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pestaña Documentación                                                 */
+/* ------------------------------------------------------------------ */
+
+/*
+  Las dos tablas reutilizan la rejilla de .tabla-documentos-requeridos
+  (list-page.css), pero no cuelgan de un acordeón: sin sangría ni filete, y
+  con sus propias columnas (cuatro y cinco, sin columna de acción).
+*/
+.trabajador360-documentos,
+.trabajador360-exigencias {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: 0;
+    margin-bottom: var(--space-4);
+}
+
+.trabajador360-documentos {
+    grid-template-columns: minmax(0, 1fr) 140px 120px 120px;
+}
+
+.trabajador360-exigencias {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 140px 120px 120px;
+}
+
+.trabajador360-exigencia-centro {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    min-width: 0;
+}
+
+.trabajador360-exigencia-cliente {
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+/* ------------------------------------------------------------------ */
 /* Contacto y agenda, en el lateral de 300 px                           */
 /* ------------------------------------------------------------------ */
 
