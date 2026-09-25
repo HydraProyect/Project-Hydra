@@ -20,7 +20,7 @@ public class EliminarVisitasCommandHandlerTests
         repositorio.Agregar(uno);
         repositorio.Agregar(dos);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarVisitasCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
+        var handler = new EliminarVisitasCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()), new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new EliminarVisitasCommand([uno.Id, dos.Id]), CancellationToken.None);
 
@@ -37,7 +37,7 @@ public class EliminarVisitasCommandHandlerTests
         var repositorio = new VisitaRepositorioFalso();
         repositorio.Agregar(existente);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarVisitasCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
+        var handler = new EliminarVisitasCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()), new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new EliminarVisitasCommand([existente.Id, Guid.NewGuid()]), CancellationToken.None);
 
@@ -56,7 +56,7 @@ public class EliminarVisitasCommandHandlerTests
         var repositorio = new VisitaRepositorioFalso();
         repositorio.Agregar(visita);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarVisitasCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(usuarioId: null));
+        var handler = new EliminarVisitasCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(usuarioId: null), new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new EliminarVisitasCommand([visita.Id]), CancellationToken.None);
 
@@ -64,5 +64,45 @@ public class EliminarVisitasCommandHandlerTests
         resultado.Error.Codigo.Should().Be("Visita.SinIdentidad");
         visita.EstaEliminado.Should().BeFalse();
         unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Alcance de gestión en lote: la Visita cuyo Centro está fuera de la Asignación de
+    /// Cartera cuenta como una que ya no existía; la de dentro se borra.
+    /// </summary>
+    [Fact]
+    public async Task Solo_borra_del_lote_las_visitas_dentro_del_alcance_de_gestion()
+    {
+        var dentro = CrearVisita();
+        var fuera = CrearVisita();
+        var repositorio = new VisitaRepositorioFalso();
+        repositorio.Agregar(dentro);
+        repositorio.Agregar(fuera);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [dentro.CentroId]);
+        var handler = new EliminarVisitasCommandHandler(repositorio, new UnitOfWorkFalso(), new CurrentUserServiceFalso(Guid.NewGuid()), alcance);
+
+        var resultado = await handler.Handle(new EliminarVisitasCommand([dentro.Id, fuera.Id]), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Eliminados.Should().Be(1);
+        resultado.Valor.Errores.Should().ContainSingle();
+        dentro.EstaEliminado.Should().BeTrue();
+        fuera.EstaEliminado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Con_alcance_de_gestion_vacio_no_borra_nada_del_lote()
+    {
+        var visita = CrearVisita();
+        var repositorio = new VisitaRepositorioFalso();
+        repositorio.Agregar(visita);
+        var alcance = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, centroIdsVisibles: [visita.CentroId], centroIdsParaGestion: []);
+        var handler = new EliminarVisitasCommandHandler(repositorio, new UnitOfWorkFalso(), new CurrentUserServiceFalso(Guid.NewGuid()), alcance);
+
+        var resultado = await handler.Handle(new EliminarVisitasCommand([visita.Id]), CancellationToken.None);
+
+        resultado.Valor.Eliminados.Should().Be(0);
+        visita.EstaEliminado.Should().BeFalse();
     }
 }

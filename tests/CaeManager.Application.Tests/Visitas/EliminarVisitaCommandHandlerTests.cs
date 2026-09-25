@@ -18,7 +18,7 @@ public class EliminarVisitaCommandHandlerTests
         var repositorio = new VisitaRepositorioFalso();
         repositorio.Agregar(visita);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarVisitaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
+        var handler = new EliminarVisitaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()), new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new EliminarVisitaCommand(visita.Id), CancellationToken.None);
 
@@ -31,7 +31,7 @@ public class EliminarVisitaCommandHandlerTests
     {
         var repositorio = new VisitaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarVisitaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
+        var handler = new EliminarVisitaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()), new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new EliminarVisitaCommand(Guid.NewGuid()), CancellationToken.None);
 
@@ -48,7 +48,7 @@ public class EliminarVisitaCommandHandlerTests
         var repositorio = new VisitaRepositorioFalso();
         repositorio.Agregar(visita);
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new EliminarVisitaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(usuarioId: null));
+        var handler = new EliminarVisitaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(usuarioId: null), new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(new EliminarVisitaCommand(visita.Id), CancellationToken.None);
 
@@ -56,5 +56,63 @@ public class EliminarVisitaCommandHandlerTests
         resultado.Error.Codigo.Should().Be("Visita.SinIdentidad");
         visita.EstaEliminado.Should().BeFalse();
         unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Alcance de gestión: una Visita cuyo Centro está fuera de la Asignación de Cartera
+    /// responde igual que una inexistente y no se toca.
+    /// </summary>
+    [Fact]
+    public async Task No_elimina_una_visita_cuyo_Centro_esta_fuera_del_alcance_de_gestion()
+    {
+        var visita = CrearVisita();
+        var repositorio = new VisitaRepositorioFalso();
+        repositorio.Agregar(visita);
+        var unitOfWork = new UnitOfWorkFalso();
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [Guid.NewGuid()]);
+        var handler = new EliminarVisitaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()), alcance);
+
+        var resultado = await handler.Handle(new EliminarVisitaCommand(visita.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Visita.NoEncontrada");
+        visita.EstaEliminado.Should().BeFalse();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Alcance de GESTIÓN, no de lectura: quien ve el Centro (p. ej. un usuario de portal
+    /// sobre su propio Cliente empresarial) no por eso borra sus Visitas.
+    /// </summary>
+    [Fact]
+    public async Task No_elimina_con_alcance_de_lectura_sin_alcance_de_gestion()
+    {
+        var visita = CrearVisita();
+        var repositorio = new VisitaRepositorioFalso();
+        repositorio.Agregar(visita);
+        var unitOfWork = new UnitOfWorkFalso();
+        var alcance = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, centroIdsVisibles: [visita.CentroId], centroIdsParaGestion: []);
+        var handler = new EliminarVisitaCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()), alcance);
+
+        var resultado = await handler.Handle(new EliminarVisitaCommand(visita.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Visita.NoEncontrada");
+        visita.EstaEliminado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Elimina_una_visita_cuyo_Centro_esta_dentro_del_alcance_de_gestion()
+    {
+        var visita = CrearVisita();
+        var repositorio = new VisitaRepositorioFalso();
+        repositorio.Agregar(visita);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [visita.CentroId]);
+        var handler = new EliminarVisitaCommandHandler(repositorio, new UnitOfWorkFalso(), new CurrentUserServiceFalso(Guid.NewGuid()), alcance);
+
+        var resultado = await handler.Handle(new EliminarVisitaCommand(visita.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        visita.EstaEliminado.Should().BeTrue();
     }
 }
