@@ -314,6 +314,10 @@ else
         finally
         {
             _cargando = false;
+            // Hace falta cuando la recarga llega de fuera (RecargarAsync, tras
+            // guardar el drawer del padre): ahí ningún evento propio repinta
+            // la pestaña y se quedaba en el esqueleto de carga.
+            StateHasChanged();
         }
     }
 

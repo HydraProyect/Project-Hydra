@@ -75,6 +75,19 @@ public sealed class PlataformaTabBucleCorreccionTests : BunitContext
     }
 
     [Fact]
+    public async Task Recargar_desde_fuera_repinta_la_fila_ya_pendiente_de_subir()
+    {
+        var cut = Render<PlataformaTab>(p => p.Add(x => x.OnSubirVersionCorregida, (Guid _) => { }));
+        _mediador.EstadoRechazada = EstadoAcreditacion.PendienteDeSubir;
+
+        // Lo que hace Documentos tras guardar la versión corregida en su drawer.
+        await cut.InvokeAsync(() => cut.Instance.RecargarAsync());
+
+        Botones(Fila(cut, RechazadaId)).Should().Contain("Marcar subido")
+            .And.NotContain("Subir versión corregida");
+    }
+
+    [Fact]
     public void Un_portal_no_navegable_no_se_convierte_en_enlace()
     {
         _mediador.UrlPortal = "javascript:alert(1)";
@@ -161,6 +174,7 @@ public sealed class PlataformaTabBucleCorreccionTests : BunitContext
     private sealed class Mediador : IMediator
     {
         public string UrlPortal { get; set; } = "portal.nalanda.example/login";
+        public EstadoAcreditacion EstadoRechazada { get; set; } = EstadoAcreditacion.Rechazada;
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -173,7 +187,7 @@ public sealed class PlataformaTabBucleCorreccionTests : BunitContext
                         new ClienteAcreditacionesDto(Guid.NewGuid(), "Cliente Norte S.A.",
                         [
                             new AcreditacionDrillDownDto(RechazadaId, DocumentoRechazadoId, "Iker Etxeberria", "Formación PRL",
-                                EstadoAcreditacion.Rechazada, "Firma ilegible", UrlAccesoCanal: UrlPortal)
+                                EstadoRechazada, "Firma ilegible", UrlAccesoCanal: UrlPortal)
                         ])
                     ]),
                     new ProveedorAcreditacionesDto(Guid.NewGuid(), "Dokify", "dokify",
