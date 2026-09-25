@@ -3,18 +3,21 @@ using System.Security.Claims;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Common;
+using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
 using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Web.Features.Usuarios.Recursos;
 using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Features.Usuarios.Pages;
@@ -32,9 +35,14 @@ namespace CaeManager.Web.Features.Usuarios.Pages;
 /// Distinta de <paramref name="Activo"/>: una cuenta puede estar activa
 /// (sin bloquear) y aun así pendiente de que alguien complete el alta.
 /// </param>
+/// <param name="DosFactoresActivo">
+/// Si la cuenta tiene la verificación en dos pasos activada. Solo decide si se
+/// ofrece «Restablecer verificación en dos pasos» (P0-8); quién puede hacerlo lo
+/// decide <c>RestablecerSegundoFactorCommand</c>.
+/// </param>
 public record UsuarioListaDto(
     Guid Id, string Email, string NombreCompleto, string Rol, bool Activo, bool EsOperadorDelegado,
-    bool PendienteActivacion, AlcanceUsuarioDto Alcance);
+    bool PendienteActivacion, AlcanceUsuarioDto Alcance, bool DosFactoresActivo = false);
 
 /// <summary>
 /// Qué alcanza una cuenta, ya resuelto a texto. Es presentación y por eso vive
@@ -61,6 +69,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosUsuarios> TextosUsuarios { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IEmailService EmailService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -451,7 +460,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                     usuarios.Add(new UsuarioListaDto(
                         usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, rol, activo, esOperadorDelegado,
                         EsPendienteActivacion(usuario, idsConLoginExterno),
-                        CalcularAlcance(usuario, rol, carteras, gestoresPorCoordinador)));
+                        CalcularAlcance(usuario, rol, carteras, gestoresPorCoordinador),
+                        usuario.TwoFactorEnabled));
                 }
             }, token);
 
@@ -1572,6 +1582,59 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     private UsuarioListaDto? _usuarioAEliminar;
     private bool _eliminandoUsuario;
+
+    private UsuarioListaDto? _usuarioARestablecerSegundoFactor;
+    private bool _restableciendoSegundoFactor;
+
+    /// <summary>
+    /// Solo presentación: un Operador Delegado es una cuenta de otro Tenant, y la
+    /// propia se recupera con un código de recuperación. El servidor lo vuelve a
+    /// comprobar todo, incluido que quien pulsa sea Administrador.
+    /// </summary>
+    private bool PuedeOfrecerRestablecerSegundoFactor(UsuarioListaDto usuario) =>
+        _usuarioActualEsAdministrador && usuario.DosFactoresActivo && !usuario.EsOperadorDelegado
+        && usuario.Id != _usuarioActualId;
+
+    private void PedirRestablecerSegundoFactor(UsuarioListaDto usuario)
+    {
+        if (!_restableciendoSegundoFactor) _usuarioARestablecerSegundoFactor = usuario;
+    }
+
+    private void CerrarRestablecerSegundoFactor(bool visible)
+    {
+        if (!visible && !_restableciendoSegundoFactor) _usuarioARestablecerSegundoFactor = null;
+    }
+
+    private async Task RestablecerSegundoFactorAsync()
+    {
+        if (_usuarioARestablecerSegundoFactor is not { } usuarioLista || _restableciendoSegundoFactor) return;
+
+        _restableciendoSegundoFactor = true;
+        try
+        {
+            var resultado = await Mediator.Send(new RestablecerSegundoFactorCommand(usuarioLista.Id), _ciclo.Token);
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar(TextosUsuarios["RestablecerSegundoFactorHecho", usuarioLista.Email], TonoToast.Exito);
+            _usuarioARestablecerSegundoFactor = null;
+            await CargarAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _restableciendoSegundoFactor = false;
+        }
+    }
+
+    private string MensajeRestablecerSegundoFactor => _usuarioARestablecerSegundoFactor is null
+        ? string.Empty
+        : TextosUsuarios["RestablecerSegundoFactorMensaje", _usuarioARestablecerSegundoFactor.Email];
 
     private string MensajeEliminacion => _usuarioAEliminar is null
         ? string.Empty

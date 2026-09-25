@@ -192,6 +192,16 @@
                                                 OnClick="() => CambiarActivacionAsync(usuario)">
                                     @(usuario.Activo ? "Desactivar" : "Reactivar")
                                 </ItemMenuAccion>
+                                @* P0-8 (FS-01): la salida de quien perdió el móvil y los
+                                   códigos de recuperación. Solo se ofrece a un Administrador,
+                                   sobre otra cuenta de su organización con la 2FA activa; la
+                                   autorización real la decide RestablecerSegundoFactorCommand. *@
+                                @if (PuedeOfrecerRestablecerSegundoFactor(usuario))
+                                {
+                                    <ItemMenuAccion Destructivo="true" OnClick="() => PedirRestablecerSegundoFactor(usuario)">
+                                        @TextosUsuarios["RestablecerSegundoFactorAccion"]
+                                    </ItemMenuAccion>
+                                }
                             </MenuAcciones>
                         </td>
                     </tr>
@@ -358,3 +368,8 @@
                       Titulo="Eliminar usuario" Mensaje="@MensajeEliminacion"
                       TextoBotonConfirmar="Eliminar" EnProgreso="_eliminandoUsuario"
                       OnConfirmar="EliminarUsuarioAsync" />
+
+<DialogoConfirmacion Visible="@(_usuarioARestablecerSegundoFactor is not null)" VisibleChanged="CerrarRestablecerSegundoFactor"
+                      Titulo="@TextosUsuarios["RestablecerSegundoFactorTitulo"]" Mensaje="@MensajeRestablecerSegundoFactor"
+                      TextoBotonConfirmar="@TextosUsuarios["RestablecerSegundoFactorConfirmar"]" EnProgreso="_restableciendoSegundoFactor"
+                      OnConfirmar="RestablecerSegundoFactorAsync" />

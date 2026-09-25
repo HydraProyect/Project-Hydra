@@ -38,6 +38,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 
     private readonly SignInManagerFalso _signIn = new();
     private readonly RegistroCapturado _registro = new();
+    private MediatorCodigosRecuperacionFalso _mediador = new();
 
     public ConfigurarAutenticadorDosFactoresEscrituraTests()
     {
@@ -45,6 +46,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         Services.AddSingleton<SignInManager<ApplicationUser>>(_signIn);
         Services.AddSingleton<ILoggerFactory>(new LoggerFactory([_registro]));
         Services.AddLocalization();
+        Services.AddSingleton<MediatR.IMediator>(_mediador);
         Services.AddSingleton<AuthenticationStateProvider>(new AutenticacionFalsa(UsuarioId));
     }
 
@@ -99,6 +101,58 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         _almacen.DosFactoresActivo.Should().BeTrue();
         _signIn.SesionReemitida.Should().BeTrue();
         _registro.Mensajes.Should().ContainSingle(m => m.Contains("2FA activado"));
+    }
+
+    /// <summary>
+    /// P0-8 (FS-01): los códigos de recuperación nacen con la 2FA y se enseñan
+    /// una sola vez, en esta misma respuesta. La salida a "/" ya no es automática:
+    /// es el enlace de continuar, con carga completa (ver la página).
+    /// </summary>
+    [Fact]
+    public async Task Al_activar_la_2FA_enseña_una_vez_los_codigos_de_recuperacion_y_una_salida()
+    {
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo("/cuenta/configurar-2fa");
+        var uriAntes = navegacion.Uri;
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarCodigoAsync(cut);
+
+        _mediador.Enviados.Should().Be(1);
+        cut.FindAll(".lista-codigos code").Select(c => c.TextContent).Should()
+            .Equal(MediatorCodigosRecuperacionFalso.Codigos);
+        cut.Find(".tarjeta-codigos-recuperacion h2").TextContent.Should().Be("3. Guarda tus códigos de recuperación");
+        cut.Find(".aviso-administrador-unico").TextContent.Should().Contain(
+            "nadie podrá devolverte el acceso",
+            "opción C (25-09): sin segundo Administrador no hay vía de recuperación, y hay que decirlo aquí");
+        var continuar = cut.Find("a.boton-continuar");
+        continuar.GetAttribute("href").Should().Be("/");
+        continuar.GetAttribute("data-enhance-nav").Should().Be("false",
+            "el menú y los gates de rol solo se recalculan en una carga completa");
+        cut.Find("a[download]").GetAttribute("href").Should().StartWith("data:text/plain;charset=utf-8,")
+            .And.Contain(Uri.EscapeDataString(MediatorCodigosRecuperacionFalso.Codigos[0]));
+        navegacion.Uri.Should().Be(uriAntes, "sin esperar al usuario, los códigos se perderían al navegar");
+    }
+
+    [Fact]
+    public async Task Si_generar_los_codigos_falla_la_2FA_queda_activa_y_sale_como_antes()
+    {
+        _mediador = new MediatorCodigosRecuperacionFalso(
+            CaeManager.Domain.Common.Error.Crear("SegundoFactor.CodigosNoGuardados", "No pudimos guardar los códigos."));
+        Services.AddSingleton<MediatR.IMediator>(_mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        // Se parte de otra ruta: en bUnit la inicial ya es "/", y comprobar que
+        // se llegó ahí sin salir de ella no observaría nada.
+        navegacion.NavigateTo("/cuenta/configurar-2fa");
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarCodigoAsync(cut);
+
+        _almacen.DosFactoresActivo.Should().BeTrue();
+        cut.FindAll(".lista-codigos").Should().BeEmpty();
+        navegacion.Uri.Should().Be(navegacion.BaseUri,
+            "sin salida, quien llega forzado por la 2FA obligatoria se quedaría atrapado en esta pantalla");
+        _registro.Mensajes.Should().Contain(m => m.Contains("sin códigos de recuperación"));
     }
 
     private static async Task EnviarCodigoAsync(IRenderedComponent<ConfigurarAutenticadorDosFactores> cut)

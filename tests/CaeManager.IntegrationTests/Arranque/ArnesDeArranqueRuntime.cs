@@ -157,7 +157,10 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
 
         servicios.AddIdentityCore<ApplicationUser>()
             .AddRoles<IdentityRole<Guid>>()
-            .AddEntityFrameworkStores<CaeManagerDbContext>();
+            .AddEntityFrameworkStores<CaeManagerDbContext>()
+            // El mismo almacén que producción: los códigos de recuperación de
+            // 2FA se guardan con hash (P0-8).
+            .AddUserStore<CaeManager.Infrastructure.Identity.AlmacenUsuarios>();
 
         return new ArnesDeArranqueRuntime(servicios.BuildServiceProvider(), cadenaPropietario);
     }

@@ -7,11 +7,14 @@
 @using CaeManager.Web.Components.Account
 @using CaeManager.Web.Services
 @using Microsoft.AspNetCore.Authorization
+@using CaeManager.Web.Components.Account.Recursos
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Localization
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IEleccionLiderService CerrojoVerificacion
 @inject NavigationManager Navigation
 @inject ILoggerFactory LoggerFactory
+@inject IStringLocalizer<TextosCuenta> Textos
 
 <PageTitle>Verificación en dos pasos — @Marca.Nombre</PageTitle>
 
@@ -19,8 +22,33 @@
     @if (_bloqueado)
     {
         <CabeceraAcceso Titulo="Verificación en dos pasos" />
-        <div class="acceso-alerta" role="alert">@MensajeBloqueo</div>
+        <div class="acceso-alerta" role="alert">@(_mensajeCierre ?? MensajeBloqueo)</div>
         <a class="acceso-entrar" href="/cuenta/iniciar-sesion">Volver a iniciar sesión</a>
+    }
+    else if (ModoRecuperacion && EntradaRecuperacion is not null && _usuarioPendiente is not null)
+    {
+        @* Mockup «Verificar 2FA TALVEG», modo recuperación (P0-8, FS-01). *@
+        <CabeceraAcceso Titulo="Verificación en dos pasos" Explicacion="@Textos["RecuperacionExplicacion"]" />
+
+        <EditForm Model="EntradaRecuperacion" method="post" OnValidSubmit="VerificarRecuperacionAsync" FormName="verificar-2fa-recuperacion" novalidate>
+            <DataAnnotationsValidator />
+
+            @if (mensajeError is not null)
+            {
+                <div class="acceso-alerta" role="alert">@mensajeError</div>
+            }
+
+            <div class="acceso-campo acceso-codigo">
+                <label for="recuperacion">@Textos["RecuperacionEtiqueta"]</label>
+                <InputText id="recuperacion" @bind-Value="EntradaRecuperacion.Codigo" autocomplete="one-time-code" placeholder="@Textos["RecuperacionMarcador"]" aria-describedby="recuperacion-ayuda" />
+                <span id="recuperacion-ayuda" class="acceso-nota">@Textos["RecuperacionAyuda"]</span>
+            </div>
+
+            <button type="submit" class="acceso-entrar">@Textos["RecuperacionVerificar"]</button>
+        </EditForm>
+
+        <p class="acceso-olvido"><a href="@EnlaceModo(recuperacion: false)">@Textos["RecuperacionVolverAplicacion"]</a></p>
+        <p class="acceso-olvido"><a href="/cuenta/iniciar-sesion">@Textos["RecuperacionVolverInicio"]</a></p>
     }
     else if (Entrada is not null && _usuarioPendiente is not null)
     {
@@ -43,6 +71,11 @@
             <button type="submit" class="acceso-entrar">Verificar</button>
         </EditForm>
 
+        @* Sin el móvil: los códigos de recuperación que se guardaron al activar
+           la 2FA (P0-8, FS-01). Antes de ellos, perder el móvil dejaba la cuenta
+           fuera sin más salida que la base de datos. *@
+        <p class="acceso-olvido"><a href="@EnlaceModo(recuperacion: true)">@Textos["RecuperacionUsarCodigo"]</a></p>
+
         @* Salida también sin bloqueo: quien se equivocó de cuenta o no tiene el
            móvil a mano no debe quedarse atrapado en este paso. *@
         <p class="acceso-olvido"><a href="/cuenta/iniciar-sesion">Volver a iniciar sesión</a></p>
@@ -52,10 +85,24 @@
 @code {
     private string? mensajeError;
     private bool _bloqueado;
+    // Con _bloqueado: el paso se cierra por otro motivo que el bloqueo (hoy, un
+    // intento fallido que no se pudo registrar).
+    private string? _mensajeCierre;
     private ApplicationUser? _usuarioPendiente;
 
-    [SupplyParameterFromForm]
+    [SupplyParameterFromForm(FormName = "verificar-2fa")]
     private DatosEntrada? Entrada { get; set; }
+
+    [SupplyParameterFromForm(FormName = "verificar-2fa-recuperacion")]
+    private DatosRecuperacion? EntradaRecuperacion { get; set; }
+
+    // "recuperacion" muestra el campo del código de recuperación. Va en la URL y
+    // no en estado del componente porque la página es SSR estática: cada petición
+    // construye una instancia nueva, y el POST del formulario conserva la query.
+    [SupplyParameterFromQuery]
+    private string? Modo { get; set; }
+
+    private bool ModoRecuperacion => string.Equals(Modo, "recuperacion", StringComparison.Ordinal);
 
     // Página SSR estática: el HttpContext de la petición del formulario, en el
     // que SignInManager ya escribe la cookie de autenticación.
@@ -68,6 +115,7 @@
     protected override async Task OnInitializedAsync()
     {
         Entrada ??= new DatosEntrada();
+        EntradaRecuperacion ??= new DatosRecuperacion();
 
         // Si no hay un login con contraseña ya validado en curso (por
         // ejemplo, alguien navega aquí directamente sin haber pasado por
@@ -169,8 +217,127 @@
         mensajeError = "Código no válido. Revisa tu aplicación autenticadora e intenta nuevamente.";
     }
 
+    /// <summary>
+    /// Entrada con un código de recuperación. Mismo cerrojo por usuario que
+    /// <see cref="VerificarAsync"/>, y por el mismo motivo: dos envíos concurrentes
+    /// del mismo código no deben poder canjearlo dos veces ni gastar dos intentos.
+    /// A diferencia de <c>TwoFactorRecoveryCodeSignInAsync</c>, que ni mira el
+    /// bloqueo ni cuenta los fallos, aquí se hacen las dos cosas: un código de
+    /// recuperación no puede ser la puerta trasera de una cuenta bloqueada por
+    /// intentos, ni un canal de prueba sin límite.
+    /// </summary>
+    private async Task VerificarRecuperacionAsync()
+    {
+        if (EntradaRecuperacion is null || _usuarioPendiente is null) return;
+
+        // Validación a mano y no con DataAnnotations: sus mensajes no pasan por
+        // TextosCuenta. Un código mal formado no es un caso aparte: se trata como
+        // no válido y, como cualquier fallo, cuenta un intento.
+        if (string.IsNullOrWhiteSpace(EntradaRecuperacion.Codigo))
+        {
+            mensajeError = Textos["RecuperacionVacio"];
+            return;
+        }
+
+        var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
+        var usuario = _usuarioPendiente;
+
+        SignInResult? resultadoObtenido = null;
+        var fallidoSinRegistrar = false;
+        var ejecutado = await CerrojoVerificacion.IntentarEjecutarComoLiderAsync(
+            $"verificar-2fa:{usuario.Id}",
+            async _ =>
+            {
+                if (await SignInManager.UserManager.IsLockedOutAsync(usuario))
+                {
+                    resultadoObtenido = SignInResult.LockedOut;
+                    return;
+                }
+
+                resultadoObtenido = await SignInManager.TwoFactorRecoveryCodeSignInAsync(EntradaRecuperacion.Codigo);
+                if (!resultadoObtenido.Succeeded)
+                {
+                    // Revisión Codex: AccessFailedAsync devuelve un IdentityResult fallido
+                    // cuando pierde la concurrencia optimista (un intento de contraseña
+                    // simultáneo, otra instancia). Ignorarlo dejaría probar códigos sin
+                    // gastar intentos; si no se registra, el paso se cierra.
+                    var registro = await SignInManager.UserManager.AccessFailedAsync(usuario);
+                    if (!registro.Succeeded)
+                        fallidoSinRegistrar = true;
+                    else if (await SignInManager.UserManager.IsLockedOutAsync(usuario))
+                        resultadoObtenido = SignInResult.LockedOut;
+                }
+            },
+            CancellationToken.None);
+
+        if (!ejecutado)
+        {
+            logger.LogWarning(
+                "Verificación 2FA con código de recuperación rechazada, ya había una en curso para el mismo usuario: {UsuarioId}",
+                usuario.Id);
+            mensajeError = Textos["RecuperacionEnCurso"];
+            return;
+        }
+
+        var resultado = resultadoObtenido!;
+
+        if (resultado.Succeeded)
+        {
+            logger.LogInformation("Verificación 2FA correcta con código de recuperación: {UsuarioId}", usuario.Id);
+
+            if (HttpContext is not null)
+                CulturaUsuarioCookie.Escribir(HttpContext, usuario.Idioma);
+
+            if (usuario.DebeCambiarContrasena)
+            {
+                Navigation.NavigateTo("/cuenta/cambiar-contrasena", forceLoad: true);
+                return;
+            }
+
+            Navigation.NavigateTo(RedireccionLocal.Sanear(ReturnUrl), forceLoad: true);
+            return;
+        }
+
+        if (resultado.IsLockedOut)
+        {
+            logger.LogWarning("Verificación 2FA con código de recuperación rechazada, cuenta bloqueada: {UsuarioId}", usuario.Id);
+            await SignInManager.SignOutAsync();
+            _bloqueado = true;
+            return;
+        }
+
+        if (fallidoSinRegistrar)
+        {
+            logger.LogError(
+                "Verificación 2FA con código de recuperación fallida y sin registrar el intento; se cierra el paso: {UsuarioId}",
+                usuario.Id);
+            await SignInManager.SignOutAsync();
+            _mensajeCierre = Textos["RecuperacionIntentoNoRegistrado"];
+            _bloqueado = true;
+            return;
+        }
+
+        logger.LogWarning("Verificación 2FA con código de recuperación fallida: {UsuarioId}", usuario.Id);
+        mensajeError = Textos["RecuperacionNoValido"];
+    }
+
+    private string EnlaceModo(bool recuperacion)
+    {
+        var parametros = new Dictionary<string, object?>
+        {
+            ["modo"] = recuperacion ? "recuperacion" : null,
+            ["returnUrl"] = ReturnUrl,
+        };
+        return Navigation.GetUriWithQueryParameters("/cuenta/verificar-2fa", parametros);
+    }
+
     private const string MensajeBloqueo =
         "Demasiados intentos. Tu cuenta está bloqueada temporalmente; espera unos minutos y vuelve a iniciar sesión.";
+
+    private sealed class DatosRecuperacion
+    {
+        public string Codigo { get; set; } = string.Empty;
+    }
 
     private sealed class DatosEntrada
     {

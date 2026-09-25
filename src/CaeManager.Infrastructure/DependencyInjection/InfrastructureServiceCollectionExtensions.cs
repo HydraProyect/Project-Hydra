@@ -133,6 +133,10 @@ public static class InfrastructureServiceCollectionExtensions
             })
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<CaeManagerDbContext>()
+            // Detrás de AddEntityFrameworkStores, que registra el suyo con
+            // TryAdd: los códigos de recuperación de 2FA se guardan con hash
+            // (ver AlmacenUsuarios, P0-8).
+            .AddUserStore<AlmacenUsuarios>()
             .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
             .AddDefaultTokenProviders();
@@ -540,6 +544,7 @@ public static class InfrastructureServiceCollectionExtensions
         // comprobación de IDirectorioUsuariosService.
         services.AddScoped<DirectorioUsuariosTenant>();
         services.AddScoped<IDirectorioUsuariosService>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
+        services.AddScoped<CaeManager.Application.Usuarios.ISegundoFactorDeCuentas, SegundoFactorDeCuentasIdentity>();
         // Autoridad para vincular tenants: Administrador DEL CLIENTE DELEGANTE
         // (ADR-004 § 12.2). No consulta EsPlataforma a propósito — Hydra nunca
         // inicia una delegación (§ 11.1).
