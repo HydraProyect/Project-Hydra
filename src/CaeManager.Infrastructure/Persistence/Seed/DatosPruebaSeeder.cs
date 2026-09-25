@@ -335,7 +335,7 @@ public static class DatosPruebaSeeder
         var resumen = await SembrarDatosOperativosAsync(
             dbContext, aleatorio, RazonesSocialesClientes.Length, numeroEmpresas: 24, numeroSubcontratas: 8, cancellationToken);
 
-        await SembrarUsuariosYCarteraAsync(dbContext, userManager, userStore, credenciales, logger, cancellationToken);
+        await SembrarUsuariosYCarteraAsync(dbContext, userManager, userStore, entorno, credenciales, logger, cancellationToken);
 
         tenant.MarcarDatosDemoCompletados();
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -1466,6 +1466,7 @@ public static class DatosPruebaSeeder
     private static async Task SembrarUsuariosYCarteraAsync(
         CaeManagerDbContext dbContext, UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
+        IHostEnvironment entorno,
         CredencialesDemo credenciales, ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -1518,18 +1519,16 @@ public static class DatosPruebaSeeder
                 await userManager.AddToRoleAsync(usuario, rol);
 
                 // P1-13 exige 2FA a todo Administrador, y MainLayout lo hace
-                // cumplir redirigiendo a /cuenta/configurar-2fa. Sin sembrar la
-                // clave, estas tres cuentas de Administrador nacían atrapadas
-                // ahí: existían, tenían contraseña, y no servían para nada —
-                // un defecto silencioso del sembrador, no de la regla. Se usa
-                // la misma clave fija que IdentitySeeder y que el Administrador
-                // de demo 2, que es lo que permite a los E2E calcular el código
-                // (ver Ayudas.ClaveTotpAdministrador).
-                if (rol == Roles.Administrador && userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
+                // cumplir redirigiendo a /cuenta/configurar-2fa. En Development
+                // estas tres cuentas nacen con la misma clave fija que
+                // IdentitySeeder, que es lo que permite a los E2E calcular el
+                // código (ver Ayudas.ClaveTotpAdministrador). Fuera de
+                // Development nacen sin segundo factor y dan de alta el suyo en
+                // el primer acceso (P0-1, D-5): la clave fija es pública.
+                if (rol == Roles.Administrador)
                 {
-                    await claveStore.SetAuthenticatorKeyAsync(
-                        usuario, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);
-                    await userManager.SetTwoFactorEnabledAsync(usuario, true);
+                    await IdentitySeeder.AsignarSegundoFactorDeSiembraAsync(
+                        usuario, userManager, userStore, entorno, cancellationToken);
                 }
 
                 await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, usuario.Id, cancellationToken);

@@ -13,6 +13,7 @@
 @using CaeManager.Web.Features.Subcontratas.Components
 @using FluentValidation
 @using MediatR
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
@@ -27,7 +28,10 @@
     <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["KickerNegocio"]">
         <Acciones>
             <a class="enlace-exportar" href="/subcontratas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceExportarExcel"]</a>
-            <SoloConEscritura><Boton OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
+            @if (!_alcanceCero)
+            {
+                <SoloConEscritura><Boton OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
+            }
         </Acciones>
     </CabeceraPagina>
 
@@ -87,11 +91,14 @@
     }
     else if (_elementosPagina.Count == 0)
     {
-        <EstadoVacio NombreIcono="subcontratas" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
-            <Accion>
-                <SoloConEscritura><Boton OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
-            </Accion>
-        </EstadoVacio>
+        @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
+        <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
+            <EstadoVacio NombreIcono="subcontratas" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
+                <Accion>
+                    <SoloConEscritura><Boton OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
+                </Accion>
+            </EstadoVacio>
+        </VacioSegunAlcance>
     }
     else
     {

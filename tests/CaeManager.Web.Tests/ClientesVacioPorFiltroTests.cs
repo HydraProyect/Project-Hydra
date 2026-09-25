@@ -1,3 +1,5 @@
+using CaeManager.Domain.Common;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using System.Security.Claims;
 using Bunit;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
@@ -53,6 +55,8 @@ public class ClientesVacioPorFiltroTests : BunitContext
 
     private sealed class MediatorPorTipo : IMediator
     {
+        public bool AlcanceCero { get; init; }
+
         public required IReadOnlyList<ClienteListaDto> Clientes { get; init; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
@@ -61,6 +65,8 @@ public class ClientesVacioPorFiltroTests : BunitContext
                 ObtenerFiltrosGuardadosQuery => (object)Array.Empty<FiltroGuardadoDto>(),
                 ObtenerClientesQuery q => new ResultadoPaginado<ClienteListaDto>(
                     Clientes, Clientes.Count, q.Pagina, q.TamanoPagina),
+                ObtenerAlcanceCeroQuery => (object)AlcanceCero,
+                ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 
@@ -176,7 +182,8 @@ public class ClientesVacioPorFiltroTests : BunitContext
     private IRenderedComponent<Clientes> Renderizar(string? busqueda = null, bool soloCriticos = false,
         params ClienteListaDto[] clientes)
     {
-        Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Clientes = clientes });
+        Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Clientes = clientes, AlcanceCero = _alcanceCero });
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
@@ -325,5 +332,37 @@ public class ClientesVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("Ningún cliente con estos filtros");
         cut.Markup.Should().NotContain("Aún no hay clientes");
         cut.Markup.Should().Contain("Refrielectric S.A.");
+    }
+
+    // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
+    // vigente en este Tenant— el vacío no es «Aún no hay clientes»: la pantalla dice que
+    // falta la Asignación de Cartera y a quién pedirla.
+    private bool _alcanceCero;
+
+    [Fact]
+    public void Con_alcance_cero_y_sin_registros_dice_que_falta_la_Asignacion_de_Cartera()
+    {
+        _alcanceCero = true;
+
+        var cut = Renderizar();
+
+        cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
+            .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+        cut.Markup.Should().NotContain("Aún no hay clientes");
+        cut.Markup.Should().NotContain("+ Nuevo cliente", "invitar a crear con alcance cero termina en un duplicado");
+        cut.Markup.Should().NotContain("Alta guiada", "invitar a crear con alcance cero termina en un duplicado");
+    }
+
+    [Fact]
+    public void Con_alcance_y_sin_registros_el_vacio_no_cambia()
+    {
+        _alcanceCero = false;
+
+        var cut = Renderizar();
+
+        cut.Markup.Should().Contain("Aún no hay clientes");
+        cut.Markup.Should().Contain("+ Nuevo cliente");
+        cut.Markup.Should().Contain("Alta guiada");
+        cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }
 }

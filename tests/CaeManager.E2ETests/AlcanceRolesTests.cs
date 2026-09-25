@@ -117,14 +117,24 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         // esa exigencia, una /clientes rota por cualquier otro motivo pasaría
         // por "acotada correctamente", que es justo el falso verde que la
         // cuarentena de F3b dejó vivo durante dos días.
+        //
+        // Con alcance cero, desde P0-9a (FS-05) el estado vacío ya no es «Aún no
+        // hay clientes» —que invitaba a crear lo que existe fuera de su
+        // cartera— sino el aviso «Sin Asignación de Cartera», y la cabecera
+        // deja de ofrecer «+ Nuevo cliente».
         var contador = page.GetByText(PatronContadorElementos()).First;
         var totalVisible = await contador.IsVisibleAsync();
 
         if (totalVisible)
             Assert.True(ExtraerTotalElementos(await contador.InnerTextAsync()) < 9);
         else
-            await Assertions.Expect(page.GetByText("Aún no hay clientes"))
-                .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
+        {
+            await Assertions.Expect(page.Locator("[data-estado=sin-asignacion-cartera]"))
+                .ToContainTextAsync("Sin Asignación de Cartera", new LocatorAssertionsToContainTextOptions { Timeout = 10_000 });
+            await Assertions.Expect(page.GetByText("Aún no hay clientes")).Not.ToBeVisibleAsync();
+            await Assertions.Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo cliente" }))
+                .Not.ToBeVisibleAsync();
+        }
     }
 
     /// <summary>

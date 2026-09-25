@@ -17,6 +17,7 @@
 @using Microsoft.AspNetCore.Components.QuickGrid
 @using CaeManager.Web.Features.Vehiculos.Recursos
 @using Microsoft.Extensions.Localization
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ContextWorkspaceService WorkspaceService
@@ -27,7 +28,10 @@
 <div class="contenedor-pagina">
     <div class="cabecera-pagina">
         <h1 class="titulo-pagina">@Textos["TituloPagina"]</h1>
-        <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoVehiculo"]</Boton></SoloConEscritura>
+        @if (!_alcanceCero)
+        {
+            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoVehiculo"]</Boton></SoloConEscritura>
+        }
     </div>
 
     <div class="barra-filtros">
@@ -134,11 +138,14 @@
         }
         else if (_totalElementos == 0 && !_cargando)
         {
-            <EstadoVacio NombreIcono="vehiculos" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
-                <Accion>
-                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoVehiculo"]</Boton></SoloConEscritura>
-                </Accion>
-            </EstadoVacio>
+            @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
+            <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
+                <EstadoVacio NombreIcono="vehiculos" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
+                    <Accion>
+                        <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoVehiculo"]</Boton></SoloConEscritura>
+                    </Accion>
+                </EstadoVacio>
+            </VacioSegunAlcance>
         }
     }
 </div>

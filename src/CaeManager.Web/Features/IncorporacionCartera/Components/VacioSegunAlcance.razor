@@ -1,0 +1,8 @@
+@if (_alcanceCero is true)
+{
+    <AvisoSinAsignacionCartera Descripcion="@DescripcionSinAlcance" />
+}
+else if (_alcanceCero is false)
+{
+    @ChildContent
+}

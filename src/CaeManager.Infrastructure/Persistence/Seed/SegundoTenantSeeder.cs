@@ -110,18 +110,12 @@ public static class SegundoTenantSeeder
             {
                 await userManager.AddToRoleAsync(administrador, Roles.Administrador);
 
-                // Mismo motivo que IdentitySeeder: P1-13 de
-                // docs/business/MATURITY_REVIEW.md exige 2FA para todo
-                // Administrador, así que este también nace con ella activa
-                // (misma clave fija, reutilizada por Ayudas.IniciarSesionAsync
-                // en el proyecto E2E).
-                if (userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
-                {
-                    await claveStore.SetAuthenticatorKeyAsync(
-                        administrador, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);
-                    await userManager.UpdateAsync(administrador);
-                }
-                await userManager.SetTwoFactorEnabledAsync(administrador, true);
+                // Mismo motivo que IdentitySeeder: P1-13 exige 2FA para todo
+                // Administrador. En Development nace con ella activa y la clave
+                // fija que usa Ayudas.IniciarSesionAsync en el proyecto E2E;
+                // fuera de Development, sin segundo factor (P0-1, D-5).
+                await IdentitySeeder.AsignarSegundoFactorDeSiembraAsync(
+                    administrador, userManager, userStore, entorno, cancellationToken);
                 await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, administrador.Id, cancellationToken);
 
                 logger.LogInformation("Administrador del segundo tenant de verificación sembrado.");
