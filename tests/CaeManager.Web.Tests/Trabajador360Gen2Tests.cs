@@ -961,10 +961,12 @@ public class Trabajador360Gen2Tests : BunitContext
         var id = Guid.NewGuid();
         var puerta = new TaskCompletionSource();
         var mediador = ConTrabajador(id);
-        mediador.Retener = p => p is DarDeBajaAsignacionesCommand ? puerta.Task : null;
 
         var cut = Renderizar(id);
         await cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
+        // Se retiene después de abrir el diálogo: si la fila mandara la baja sin
+        // confirmar, el caso tiene que fallar al buscar el diálogo, no colgarse.
+        mediador.Retener = p => p is DarDeBajaAsignacionesCommand ? puerta.Task : null;
         var confirmar = BotonDelDialogo(cut, "Dar de baja");
         var primera = confirmar.ClickAsync(new MouseEventArgs());
         var segunda = confirmar.ClickAsync(new MouseEventArgs());
