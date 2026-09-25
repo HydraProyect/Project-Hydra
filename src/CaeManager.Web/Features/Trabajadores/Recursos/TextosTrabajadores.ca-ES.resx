@@ -498,8 +498,11 @@
   <data name="PestanaHistorial" xml:space="preserve">
     <value>Historial</value>
   </data>
-  <data name="PestanaContactos" xml:space="preserve">
-    <value>Contactos</value>
+  <data name="Kicker" xml:space="preserve">
+    <value>Treballador</value>
+  </data>
+  <data name="EtiquetaLateral" xml:space="preserve">
+    <value>Context del treballador</value>
   </data>
   <data name="MigaTrabajadores" xml:space="preserve">
     <value>Trabajadores</value>
