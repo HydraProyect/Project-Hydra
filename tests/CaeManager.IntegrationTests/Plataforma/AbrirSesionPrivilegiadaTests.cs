@@ -49,6 +49,10 @@ public class AbrirSesionPrivilegiadaTests : IAsyncLifetime
         await contexto.Database.MigrateAsync();
 
         contexto.Tenants.Add(CrearTenantDePlataforma());
+        // Desde la precondición 5 el Tenant objetivo tiene que existir: con
+        // concesiones acotadas lo garantizaba la lista; con una global no.
+        contexto.Tenants.Add(CrearTenant(_tenantVisitado, "Visitado S.L."));
+        contexto.Tenants.Add(CrearTenant(_otroTenant, "Otro S.L."));
 
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.SobreTenants(
@@ -290,6 +294,102 @@ public class AbrirSesionPrivilegiadaTests : IAsyncLifetime
         await NoHayNingunaSesionAsync();
     }
 
+    // ── Soporte TALVEG universal (ADR-011 § 8.9) ──────────────────────────
+
+    [Fact]
+    public async Task Una_concesion_global_de_SoporteLectura_abre_sesion_sobre_cualquier_tenant_ajeno()
+    {
+        var global = await SembrarConcesionGlobalAsync();
+
+        var enVisitado = await EjecutarAsync(_tenantVisitado, concesionId: global);
+        var enOtro = await EjecutarAsync(_otroTenant, concesionId: global);
+
+        enVisitado.EsExitoso.Should().BeTrue();
+        enOtro.EsExitoso.Should().BeTrue("la misma concesión global sirve para cualquier Tenant, sin pedir otra");
+
+        await using var contexto = CrearContexto();
+        var sesiones = await contexto.SesionesPrivilegiadas.ToListAsync();
+        sesiones.Select(s => s.TenantObjetivoId).Should().BeEquivalentTo([_tenantVisitado, _otroTenant],
+            "universal no es directo: cada entrada es una sesión propia sobre un único Tenant objetivo");
+        sesiones.Should().OnlyContain(s => s.Motivo == "Reproducir la incidencia");
+    }
+
+    [Fact]
+    public async Task Una_concesion_global_no_abre_sesion_sobre_el_propio_tenant()
+    {
+        // La concesión global cubre también el Tenant de quien la tiene; lo que
+        // impide entrar ahí es la precondición 2, no el alcance.
+        var global = await SembrarConcesionGlobalAsync();
+
+        var resultado = await EjecutarAsync(_tenantPlataforma, concesionId: global);
+
+        resultado.Error.Codigo.Should().Be("SesionPrivilegiada.TenantPropio");
+        await NoHayNingunaSesionAsync();
+    }
+
+    [Fact]
+    public async Task Una_concesion_global_no_abre_sesion_sobre_un_tenant_que_no_existe()
+    {
+        var global = await SembrarConcesionGlobalAsync();
+
+        var resultado = await EjecutarAsync(Guid.NewGuid(), concesionId: global);
+
+        resultado.Error.Codigo.Should().Be("SesionPrivilegiada.TenantNoEncontrado");
+        await NoHayNingunaSesionAsync();
+    }
+
+    [Fact]
+    public async Task Sin_concesion_propia_un_tenant_inexistente_no_se_distingue_de_uno_real()
+    {
+        // Orden: la existencia del Tenant se mira DESPUÉS de la concesión, así
+        // que quien no tiene concesión no puede sondear qué Tenants existen.
+        var inexistente = await EjecutarAsync(Guid.NewGuid(), concesionId: Guid.NewGuid());
+        var real = await EjecutarAsync(_otroTenant, concesionId: Guid.NewGuid());
+
+        inexistente.Error.Codigo.Should().Be("SesionPrivilegiada.ConcesionNoEncontrada");
+        real.Error.Codigo.Should().Be("SesionPrivilegiada.ConcesionNoEncontrada");
+    }
+
+    [Fact]
+    public async Task Una_concesion_global_sin_doble_factor_no_abre_nada()
+    {
+        var global = await SembrarConcesionGlobalAsync();
+
+        var resultado = await EjecutarAsync(_tenantVisitado, concesionId: global, dobleFactor: false);
+
+        resultado.Error.Codigo.Should().Be("SesionPrivilegiada.SinDobleFactor");
+        await NoHayNingunaSesionAsync();
+    }
+
+    [Fact]
+    public async Task Una_concesion_global_revocada_no_abre_nada()
+    {
+        var global = await SembrarConcesionGlobalAsync();
+        await using (var contexto = CrearContexto())
+        {
+            var concesion = await contexto.ConcesionesPrivilegio.SingleAsync(c => c.Id == global);
+            concesion.Revocar(DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+        }
+
+        var resultado = await EjecutarAsync(_tenantVisitado, concesionId: global);
+
+        resultado.Error.Codigo.Should().Be("SesionPrivilegiada.NoAbrible");
+        await NoHayNingunaSesionAsync();
+    }
+
+    private async Task<Guid> SembrarConcesionGlobalAsync()
+    {
+        await using var contexto = CrearContexto();
+        var ahora = DateTime.UtcNow;
+        var concesion = ConcesionPrivilegio.SoporteLecturaGlobal(
+            _tecnico, vigenciaDesde: ahora.AddMinutes(-10), vigenciaHasta: ahora.AddDays(30),
+            concedidaPorUsuarioId: _tecnico);
+        contexto.ConcesionesPrivilegio.Add(concesion);
+        await contexto.SaveChangesAsync();
+        return concesion.Id;
+    }
+
     // ── Andamiaje ──────────────────────────────────────────────────────────
 
     private async Task<Domain.Common.Result<Guid>> EjecutarAsync(
@@ -304,6 +404,7 @@ public class AbrirSesionPrivilegiadaTests : IAsyncLifetime
             _tecnico, rol: null, tenantOrigenId: tenantOrigen ?? _tenantPlataforma, dobleFactor);
 
         var handler = new AbrirSesionPrivilegiadaCommandHandler(
+            contexto,
             contexto,
             new PlataformaWriter(contexto),
             currentUser,
@@ -320,6 +421,13 @@ public class AbrirSesionPrivilegiadaTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         (await contexto.SesionesPrivilegiadas.CountAsync()).Should().Be(0,
             "una precondición que falla no puede dejar una sesión a medio abrir");
+    }
+
+    private static Domain.Tenants.Tenant CrearTenant(Guid id, string nombre)
+    {
+        var tenant = new Domain.Tenants.Tenant(nombre);
+        typeof(Domain.Common.Entity).GetProperty(nameof(Domain.Common.Entity.Id))!.SetValue(tenant, id);
+        return tenant;
     }
 
     private Domain.Tenants.Tenant CrearTenantDePlataforma()
