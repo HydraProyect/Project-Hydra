@@ -110,11 +110,20 @@ else
                             @incidencia.Descripcion
                         </button>
                     </span>
-                    @* Estado siempre presente: IncidenciasEmpresa solo contiene causas ya calculadas con un valor real. *@
+                    @* Estado null: un rechazo en plataforma no tiene vigencia documental que describir (CalculoEstadoCentroService). *@
                     <span role="cell">
-                        <Badge Tono="EstadoDocumentoUi.Tono(incidencia.Estado!.Value)" ConIcono Tamano="TamanoBadge.Pequeno">
-                            @EstadoDocumentoUi.Texto(incidencia.Estado!.Value)
-                        </Badge>
+                        @if (incidencia.Estado is { } estadoIncidencia)
+                        {
+                            <Badge Tono="EstadoDocumentoUi.Tono(estadoIncidencia)" ConIcono Tamano="TamanoBadge.Pequeno">
+                                @EstadoDocumentoUi.Texto(estadoIncidencia)
+                            </Badge>
+                        }
+                        else
+                        {
+                            <Badge Tono="TonoBadge.Peligro" ConIcono Tamano="TamanoBadge.Pequeno">
+                                @Textos["BadgeRechazadoPlataforma"]
+                            </Badge>
+                        }
                     </span>
                     <span role="cell">
                         <TextoFechaCopiable Fecha="incidencia.FechaVencimiento" Class="celda-documento-vigencia">

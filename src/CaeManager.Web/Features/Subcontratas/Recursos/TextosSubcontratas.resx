@@ -144,6 +144,12 @@
   <data name="AriaRecuentoDocumentosProximosVarios" xml:space="preserve">
     <value>{0} documentos próximo a vencer</value>
   </data>
+  <data name="AriaAvisoUnUrgenteEnProximos" xml:space="preserve">
+    <value>1 urgente</value>
+  </data>
+  <data name="AriaAvisoVariosUrgentesEnProximos" xml:space="preserve">
+    <value>{0} urgentes</value>
+  </data>
   <data name="BadgeVencidosUno" xml:space="preserve">
     <value>1 vencido</value>
   </data>

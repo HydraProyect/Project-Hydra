@@ -6,6 +6,7 @@ using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
@@ -511,6 +512,24 @@ public partial class Subcontratas : ComponentBase
     /// </summary>
     private string DescribirRecuento(int total, string claveUno, string claveVarios) =>
         total == 1 ? Textos[claveUno] : Textos[claveVarios, total];
+
+    /// <summary>
+    /// Nombre accesible de la ventana de Próximas. El badge visual ya
+    /// distingue Urgente de Próximo por incidencia (Codex, oleada 3); sin
+    /// este aviso en el nombre accesible, quien usa lector de pantalla no
+    /// recibe esa misma distinción de severidad — solo el recuento genérico.
+    /// </summary>
+    private string EtiquetaProximos(IReadOnlyList<IncidenciaSubcontrataDto> proximas)
+    {
+        var etiquetaBase = DescribirRecuento(proximas.Count, "RecuentoDocumentosProximosUno", "AriaRecuentoDocumentosProximosVarios");
+        var totalUrgentes = proximas.Count(i => i.Estado == EstadoDocumento.Urgente);
+        return totalUrgentes switch
+        {
+            0 => etiquetaBase,
+            1 => $"{etiquetaBase}, {Textos["AriaAvisoUnUrgenteEnProximos"]}",
+            _ => $"{etiquetaBase}, {Textos["AriaAvisoVariosUrgentesEnProximos", totalUrgentes]}",
+        };
+    }
 
     /// <summary>
     /// Nombre accesible del anillo. Antes se interpolaba el porcentaje sin

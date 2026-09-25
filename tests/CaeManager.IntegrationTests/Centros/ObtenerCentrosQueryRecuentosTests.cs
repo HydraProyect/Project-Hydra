@@ -23,24 +23,30 @@ namespace CaeManager.IntegrationTests.Centros;
 /// bloqueante (<c>CalculoEstadoCentroServiceTests</c>). Lo que no estaba
 /// probado es el segundo salto: <c>ObtenerCentrosQuery.Desglosar</c> agrupa
 /// esas causas en <see cref="RecuentosCentroDto"/> por
-/// <see cref="CausaEstadoCentro.Estado"/>, y esa causa concreta llevaba
-/// <c>Estado: null</c> — no encajaba en ningún <c>case</c> del switch y se
-/// descartaba en silencio. El síntoma real (Centro 360, D-7 del piloto
-/// Outbound): la insignia "Acceso bloqueado" aparecía sin ningún recuento ni
-/// texto que dijera por qué. El arreglo real está en el origen del dato
-/// (<see cref="CalculoEstadoCentroService"/> ya no produce <c>Estado: null</c>
-/// para esta causa, usa <see cref="EstadoDocumento.Vencido"/> como su causa
-/// hermana "vencido en la plataforma") — necesario porque el Badge de Centro
-/// 360 (<c>AcordeonAsignacionesCentro</c>) indexa por
-/// <see cref="EstadoDocumento"/> y no admite <c>null</c>: un caso especial en
-/// el switch del Query por sí solo dejaba ese Badge expuesto a la misma
-/// causa cuando su ámbito es Empresa (<c>TrabajadorId</c> nulo en la fila
-/// rechazada) en vez de Trabajador.
+/// <see cref="CausaEstadoCentro.Estado"/>, y esa causa concreta lleva
+/// <c>Estado: null</c> a propósito — un rechazo en plataforma no es un
+/// vencimiento de fecha, y forzar un <see cref="EstadoDocumento"/> para
+/// evitar el <c>null</c> sería una clasificación documental falsa. Antes del
+/// fix, ese <c>null</c> no encajaba en ningún <c>case</c> del switch y la
+/// causa se descartaba en silencio: el síntoma real (Centro 360, D-7 del
+/// piloto Outbound) era la insignia "Acceso bloqueado" sin ningún recuento
+/// ni texto que dijera por qué. El fix bucketiza por
+/// <see cref="CausaEstadoCentro.Bloqueante"/> cuando <c>Estado</c> es
+/// <c>null</c>, y el único consumidor de UI que no toleraba ese <c>null</c>
+/// (<c>AcordeonAsignacionesCentro</c>, que indexaba
+/// <see cref="EstadoDocumento"/> sin comprobar) ahora renderiza un badge
+/// dedicado "Rechazado" en su lugar.
 ///
-/// Mismo defecto para <see cref="EstadoDocumento.Urgente"/> — el switch solo
-/// cubría Vencido/Faltante y Próximo, así que un documento dentro del umbral
-/// rojo tampoco aparecía en ningún recuento aunque sí influye en
-/// <see cref="EstadoCentro"/> (ver <see cref="CalculadoraEstadoCentro"/>).
+/// Mismo defecto de descarte silencioso para <see cref="EstadoDocumento.Urgente"/>
+/// — el switch solo cubría Vencido/Faltante y Próximo, así que un documento
+/// dentro del umbral rojo tampoco aparecía en ningún recuento aunque sí
+/// influye en <see cref="EstadoCentro"/> (ver <see cref="CalculadoraEstadoCentro"/>).
+/// Urgente se agrupa con Próximas, no con Vencidas: el documento aún no
+/// venció, y estos dos buckets se leen como texto literal ("N vencido(s)",
+/// Centro 360) — meterlo en "vencidas" afirmaría una fecha vencida que no lo
+/// está (hallazgo de Codex, oleada 3 sobre esta misma PR; la severidad de
+/// color de Urgente se resuelve en el badge de cada incidencia, no en el
+/// bucket del recuento agregado).
 /// </summary>
 public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
 {
@@ -104,20 +110,21 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
             "una causa bloqueante sin vigencia documental que describir sigue siendo una incidencia que declarar, " +
             "no un hueco silencioso entre Vencidas y Próximas");
         centro.Recuentos.Vencidas.Should().ContainSingle(i => i.Descripcion.Contains("rechazado por la plataforma"))
-            .Which.Estado.Should().Be(EstadoDocumento.Vencido,
-                "nunca null: el Badge de Centro 360 (AcordeonAsignacionesCentro) indexa por EstadoDocumento " +
-                "y no admite null — la causa debe traer un estado real, igual que su hermana \"vencido en la plataforma\"");
+            .Which.Estado.Should().BeNull(
+                "un rechazo en plataforma no es un vencimiento de fecha: forzar un EstadoDocumento para evitar " +
+                "el null sería una clasificación documental falsa — la causa se bucketiza en Vencidas por Bloqueante, no por Estado");
     }
 
     [Fact]
-    public async Task Un_Centro_Bloqueado_por_un_rechazo_de_documento_de_Empresa_declara_la_causa_con_Estado_no_nulo()
+    public async Task Un_Centro_Bloqueado_por_un_rechazo_de_documento_de_Empresa_declara_la_causa_con_Estado_nulo()
     {
         // Mismo defecto, camino distinto: TrabajadorId nulo en la fila
         // rechazada produce AmbitoCausa.Empresa (no Trabajador). Es el camino
-        // que AcordeonAsignacionesCentro.razor renderiza con
-        // "incidencia.Estado!.Value" sin comprobar null — si la causa de
-        // rechazo volviera a llevar Estado: null, esto reproduciría el
-        // InvalidOperationException real, no solo un hueco en el recuento.
+        // que AcordeonAsignacionesCentro.razor renderizaba con
+        // "incidencia.Estado!.Value" sin comprobar null — el componente ya
+        // tiene una rama null-safe (badge "Rechazado") para este caso, así
+        // que aquí solo se demuestra que el DTO sigue llegando con
+        // Estado: null y Bloqueante: true, sin excepción en el handler.
         var tipoEmpresa = await SembrarTipoDocumentoEmpresaAsync();
         var documentoEmpresa = await SembrarDocumentoEmpresaAlDiaAsync(tipoEmpresa);
         await SembrarAcreditacionRechazadaAsync(documentoEmpresa);
@@ -127,7 +134,7 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
         centro.Estado.Should().Be(EstadoCentro.Bloqueado);
         centro.Recuentos.Vencidas.Should().ContainSingle(i => i.Descripcion.Contains("rechazado por la plataforma"))
             .Which.Should().Match<IncidenciaCentroDto>(i =>
-                i.Ambito == AmbitoCausa.Empresa && i.Estado == EstadoDocumento.Vencido);
+                i.Ambito == AmbitoCausa.Empresa && i.Estado == null);
     }
 
     [Fact]
@@ -142,9 +149,10 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
         centro.Estado.Should().Be(EstadoCentro.Urgente,
             "control positivo: EstadoCentro.Urgente se deriva exactamente de esta causa (CalculadoraEstadoCentro)");
         centro.Recuentos.TotalProximas.Should().Be(1,
-            "Urgente es una vigencia próxima a vencer más severa que Proximo, no una tercera casilla fuera del recuento");
+            "el documento aún no venció: Vencidas se lee como texto literal (\"N vencido(s)\") en Centro 360, y " +
+            "meter Urgente ahí afirmaría una fecha vencida que no lo está");
         centro.Recuentos.TotalVencidas.Should().Be(0,
-            "el documento aún no venció: no es correcto contarlo como si lo estuviera");
+            "Urgente no es Vencido: el recuento de vencidas no debe mezclar severidad de color con vencimiento real");
     }
 
     private async Task<CentroListaDto> ObtenerCentroUnicoAsync()

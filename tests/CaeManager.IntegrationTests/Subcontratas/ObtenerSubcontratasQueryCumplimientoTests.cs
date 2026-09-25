@@ -163,7 +163,11 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         // Mismo defecto que tenía ObtenerCentrosQuery.Desglosar (D-7, piloto
         // Outbound), ahora corregido también aquí: Urgente (dentro del
         // umbral rojo de 15 días, sin llegar a vencer) no es una tercera
-        // casilla fuera del recuento.
+        // casilla fuera del recuento. Se agrupa con Proximas, no con
+        // Vencidas: el documento aún no venció, y ambos buckets se leen como
+        // texto literal ("N vencido(s)") en la UI — meterlo en Vencidas
+        // afirmaría una fecha vencida que no lo está (hallazgo de Codex,
+        // oleada 3 sobre esta misma PR).
         await using (var contexto = CrearContexto())
         {
             var trabajador = Trabajador.DeSubcontrata(_subcontrataId, "Ines", "Urgente", "99887766P");
@@ -181,9 +185,9 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
 
         var fila = resultado.Elementos.Should().ContainSingle().Subject;
         fila.Recuentos.TotalProximas.Should().Be(1,
-            "Urgente es más severo que Proximo pero el documento aún no venció");
+            "el documento aún no venció: Vencidas se lee como texto literal en la UI y Urgente no es un vencimiento real");
         fila.Recuentos.TotalVencidas.Should().Be(0,
-            "el documento aún no venció: no es correcto contarlo como si lo estuviera");
+            "Urgente no es Vencido: el recuento de vencidas no debe mezclar severidad de color con vencimiento real");
     }
 
     [Fact]

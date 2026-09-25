@@ -234,6 +234,42 @@ public class SubcontratasListaGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Vencidas y Próximas se leen como texto literal ("N vencido(s)"/"N
+    /// próximo(s)"): por eso Urgente vive en Próximas, no en Vencidas
+    /// (ObtenerSubcontratasQuery.Desglosar). Pero el badge agregado de
+    /// Próximas es siempre Advertencia (ámbar), así que sin un badge por
+    /// incidencia dentro del detalle, un documento Urgente (severidad Peligro
+    /// en el resto de la aplicación) sería indistinguible de uno Próximo
+    /// normal en esta lista (hallazgo de Codex, oleada 3 sobre esta PR).
+    /// </summary>
+    [Fact]
+    public void El_detalle_de_Proximas_distingue_Urgente_de_Proximo_por_su_propio_badge()
+    {
+        var cut = Renderizar(new MediatorFalso
+        {
+            Subcontratas =
+            [
+                Subcontrata("Andamios Bidasoa S.L.",
+                    proximas: [
+                        Incidencia("EPIs — Iñaki Otaegi", EstadoDocumento.Urgente),
+                        Incidencia("Reconocimiento médico — Miguel Sanz", EstadoDocumento.Proximo),
+                    ]),
+            ]
+        });
+
+        var lineas = cut.FindAll(".ventana-contexto-panel .ventana-linea").ToList();
+
+        var lineaUrgente = lineas.Should().ContainSingle(l => l.TextContent.Contains("EPIs — Iñaki Otaegi")).Subject;
+        lineaUrgente.TextContent.Should().Contain("Urgente");
+        lineaUrgente.QuerySelector(".badge")!.ClassList.Should().Contain("badge-peligro",
+            "Urgente es severidad Peligro en el resto de la aplicación, no Advertencia");
+
+        var lineaProxima = lineas.Should().ContainSingle(l => l.TextContent.Contains("Reconocimiento médico — Miguel Sanz")).Subject;
+        lineaProxima.TextContent.Should().Contain("Próximo");
+        lineaProxima.QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia");
+    }
+
+    /// <summary>
     /// <c>CumplimientoPorcentaje</c> es <c>null</c> cuando ningún trabajador
     /// tiene un documento exigido por un centro activo. Antes el nombre
     /// accesible interpolaba el valor sin mirarlo y anunciaba «% de

@@ -12,16 +12,19 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelecto
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Centros.Recursos;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Features.Documentos.Components;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Centros.Components;
 
 public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 {
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosCentros> Textos { get; set; } = default!;
 
     [Parameter, EditorRequired] public Guid CentroId { get; set; }
     [Parameter, EditorRequired] public string CentroNombre { get; set; } = string.Empty;
@@ -544,8 +547,16 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private Task ManejarAsignacionGuardadaAsync() => ManejarDocumentoGuardadoAsync();
 
-    private static string TextoVigenciaEmpresa(IncidenciaCentroDto incidencia)
+    private string TextoVigenciaEmpresa(IncidenciaCentroDto incidencia)
     {
+        // Un rechazo en plataforma (Estado: null a propósito, ver
+        // CalculoEstadoCentroService) no tiene vigencia documental que
+        // describir: ni vence ni "no caduca", es una decisión activa de la
+        // plataforma. "Sin caducidad" sería contradictorio junto al badge
+        // "Rechazado" (hallazgo de Codex, oleada 3 sobre esta misma PR).
+        if (incidencia.Estado is null)
+            return Textos["VigenciaNoAplica"];
+
         if (incidencia.FechaVencimiento is not { } fecha)
             return "Sin caducidad";
 

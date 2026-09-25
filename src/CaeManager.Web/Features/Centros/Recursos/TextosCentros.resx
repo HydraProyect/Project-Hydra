@@ -52,4 +52,12 @@
     <value>No pudimos cambiar la gestión CAE del centro. Intenta nuevamente en unos segundos.</value>
     <comment>Error inesperado al cambiar la modalidad de gestión CAE.</comment>
   </data>
+  <data name="BadgeRechazadoPlataforma" xml:space="preserve">
+    <value>Rechazado</value>
+    <comment>Badge de la fila de Empresa cuando Estado es null: rechazo en plataforma, no un estado de vigencia documental (CalculoEstadoCentroService).</comment>
+  </data>
+  <data name="VigenciaNoAplica" xml:space="preserve">
+    <value>No aplica</value>
+    <comment>Columna Vigencia de la fila de Empresa cuando Estado es null: un rechazo en plataforma no vence ni "no caduca" (AcordeonAsignacionesCentro.razor.cs, TextoVigenciaEmpresa).</comment>
+  </data>
 </root>
