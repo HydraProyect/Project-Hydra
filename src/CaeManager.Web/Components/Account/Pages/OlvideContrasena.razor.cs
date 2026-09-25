@@ -45,6 +45,10 @@ public partial class OlvideContrasena : ComponentBase
     {
         if (Entrada is null) return;
 
+        // Antes de que exista Tenant: la cuenta se busca por su clave bajo la RLS
+        // de AspNetUsers (ver AmbitoIdentificacionSinTenant, P1-M1).
+        using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
+
         _error = false;
 
         var usuario = await UserManager.FindByEmailAsync(Entrada.Email);

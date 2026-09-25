@@ -31,8 +31,9 @@ public partial class AccesosDocumentosSensibles : CaeManager.Web.Components.Pagi
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
 
     /// <summary>
-    /// Identity no encuentra el Id. AspNetUsers no tiene RLS ni filtro de
-    /// tenant, así que no es un usuario de otro tenant oculto: no existe.
+    /// Identity no encuentra el Id. La RLS de AspNetUsers (P1-M1) deja ver en este
+    /// Tenant a todo actor de su registro de accesos a documentos sensibles, así que
+    /// no es una cuenta de otro Tenant oculta: no existe.
     /// </summary>
     private const string UsuarioNoEncontrado = "(usuario eliminado)";
 

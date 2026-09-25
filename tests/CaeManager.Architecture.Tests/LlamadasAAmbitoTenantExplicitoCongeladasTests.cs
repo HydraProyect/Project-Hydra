@@ -99,6 +99,16 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         /// para leer allí su rol de sesión y escribir lo que es de su Operador CAE.
         /// </summary>
         TenantDeOrigenDelUsuario,
+
+        /// <summary>
+        /// Identificación de una cuenta de Identity antes de que exista sesión
+        /// (P1-M1: login, 2FA, recuperación, revalidación de la cookie, alta por
+        /// SSO). El TenantId es el Tenant propietario de ESA cuenta, resuelto por
+        /// una función SECURITY DEFINER acotada o traído por la propia cuenta, y
+        /// solo se abre dentro de <c>AmbitoIdentificacionSinTenant</c> o sobre la
+        /// cuenta recién creada: nunca con otro Tenant ya en el contexto.
+        /// </summary>
+        IdentificacionDeCuentaSinSesion,
     }
 
     private sealed record EntradaBlanca(Categoria Categoria, string Motivo);
@@ -139,6 +149,16 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// capacidad ahora la concede en su propio guardado (<c>Establecer</c>
     /// sobre el mismo <c>tenantExistente.Id</c> que el alta nueva ya usaba),
     /// mismo patrón <see cref="Categoria.BootstrapOSiembra"/> que ya tenía.
+    /// </para>
+    ///
+    /// <para>
+    /// Actualizado 2026-09-25 (P1-M1, RLS en <c>AspNetUsers</c>): la tabla de
+    /// cuentas deja de verse sin Tenant en el contexto. Cuatro seeders suben una
+    /// llamada o dos (<c>DelegacionDemoSeeder</c> 10→12, <c>DelegacionesSoporteSeeder</c>
+    /// 3→4, <c>SegundoTenantSeeder</c> 2→3, <c>EscenariosDireccionDemoSeeder</c> 3→4),
+    /// todas para buscar una cuenta en el Tenant que el propio seeder ya
+    /// resolvió; y entran <c>AlmacenUsuarios</c> e <c>IdentityEndpointsExtensions</c>
+    /// con la categoría nueva <see cref="Categoria.IdentificacionDeCuentaSinSesion"/>.
     /// </para>
     ///
     /// <para>
@@ -262,15 +282,19 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
                 "2 llamadas — tenant.Id de un tenant que el propio seeder acaba de crear, y " +
                 "TenantSeedData.IdPorDefecto en SembrarInstruccionTratamientoIaTenantPrincipalAsync (HO-035-02, REC-035)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] =
-            new(Categoria.BootstrapOSiembra, "9 llamadas — todas sobre Ids de tenants de demo que el propio seeder crea o localiza"),
+            new(Categoria.BootstrapOSiembra, "12 llamadas — todas sobre Ids de tenants de demo que el propio seeder crea o localiza (3 de ellas, desde P1-M1, para buscar por correo cuentas de esos Tenants bajo la RLS de AspNetUsers)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] =
-            new(Categoria.BootstrapOSiembra, "3 llamadas — Ids del tenant de plataforma y de tenants de demo, todos resueltos por el propio seeder"),
+            new(Categoria.BootstrapOSiembra, "4 llamadas — Ids del tenant de plataforma y de tenants de demo, todos resueltos por el propio seeder"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] =
-            new(Categoria.BootstrapOSiembra, "3 llamadas — Ids del tenant del Operador CAE de la demo y de cada tenant propietario, todos aprovisionados o localizados por el propio seeder por nombre"),
+            new(Categoria.BootstrapOSiembra, "4 llamadas — Ids del tenant del Operador CAE de la demo y de cada tenant propietario, todos aprovisionados o localizados por el propio seeder por nombre"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] =
             new(Categoria.BootstrapOSiembra, "2 llamadas — marcador de datos de demo sobre el Tenant que la propia siembra acaba de crear, localizado por nombre, y el Tenant propietario de cada rama al sembrar su historial de Comunicaciones y su ciclo documental (su Id lo devuelve la propia siembra); solo se alcanza desde el modo de CLI (ver SiembraDemoDireccionSoloDesdeElModoCliTests)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] =
-            new(Categoria.BootstrapOSiembra, "2 llamadas — tenantId del segundo tenant que el propio seeder crea"),
+            new(Categoria.BootstrapOSiembra, "3 llamadas — tenantId del segundo tenant que el propio seeder crea"),
+        ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] =
+            new(Categoria.IdentificacionDeCuentaSinSesion, "2 llamadas — el Tenant de la cuenta que se busca o se escribe, resuelto por app_tenant_de_cuenta / app_cuenta_por_nombre_normalizado / app_cuentas_por_email_normalizado, solo sin Tenant en el contexto y dentro de AmbitoIdentificacionSinTenant"),
+        ["src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs"] =
+            new(Categoria.IdentificacionDeCuentaSinSesion, "usuarioPendiente.TenantId, la cuenta que el callback SSO acaba de crear, para avisar a los Administradores de su Tenant propietario"),
         ["src/CaeManager.Web/Program.cs"] =
             new(Categoria.BootstrapOSiembra, "TenantSeedData.IdPorDefecto, constante de siembra del tenant #1, solo en el arranque"),
 
@@ -395,10 +419,11 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] = 3,
-            ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 10,
-            ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 3,
-            ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 2,
-            ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = 3,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 12,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 4,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 3,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = 4,
+            ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/IncorporacionCartera/ContextoOperadorCae.cs"] = 2,

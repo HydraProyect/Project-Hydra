@@ -21,7 +21,8 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// mismo principio arquitectónico que <c>AuditoriaInterceptor</c> para los
 /// campos de auditoría.
 /// </summary>
-public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesInterceptor, IDbCommandInterceptor, IDbTransactionInterceptor
+public class TenantSelladoInterceptor(ITenantActual tenantActual, ICurrentUserService? currentUserService = null)
+    : SaveChangesInterceptor, IDbCommandInterceptor, IDbTransactionInterceptor
 {
     /// <summary>
     /// <c>true</c> cuando un conflicto de concurrencia terminó el
@@ -434,7 +435,24 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
                     // entidades (dominio), ResolverTenantDeIdentidadAuditada
                     // siempre devuelve null, así que el comportamiento no
                     // cambia: sigue siendo tenantId (el único caso posible).
-                    var tenantParaEsta = ResolverTenantDeIdentidadAuditada(context, entrada.Entity) ?? tenantId;
+                    //
+                    // P1-M1: ese traslado de app.tenant_id vale para TODO el
+                    // lote, también para el UPDATE de AspNetUsers, cuya
+                    // política de modificación compara contra él. Por eso
+                    // solo se hace en los dos casos legítimos —sin Tenant de
+                    // sesión (identificación previa al login) o sobre la
+                    // PROPIA cuenta—: con Tenant de sesión X y la cuenta de
+                    // otra persona del Tenant Y, trasladarlo convertiría la
+                    // auditoría en un salvoconducto para escribir cuentas de
+                    // Y desde X. En ese caso manda la sesión, la política
+                    // deja el UPDATE en cero filas y el lote entero se
+                    // revierte (DbUpdateConcurrencyException).
+                    var tenantDeLaCuenta = ResolverTenantDeIdentidadAuditada(context, entrada.Entity);
+                    var tenantParaEsta = tenantDeLaCuenta is not null
+                        && (tenantId is null || tenantDeLaCuenta == tenantId
+                            || await EsLaPropiaCuentaAsync((RegistroAuditoria)entrada.Entity))
+                        ? tenantDeLaCuenta
+                        : tenantId;
                     if (tenantParaEsta is null)
                         throw new InvalidOperationException(
                             $"No se puede crear una entidad de tipo {entrada.Entity.GetType().Name} sin un tenant resuelto (ver ITenantActual).");
@@ -617,6 +635,11 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
     /// tenant lo pondrá la sesión, o no habrá tenant y el <c>SaveChanges</c>
     /// se rechazará en vez de escribir una fila que no se sabe de quién es.
     /// </summary>
+    private async Task<bool> EsLaPropiaCuentaAsync(RegistroAuditoria registro) =>
+        currentUserService is not null
+        && await currentUserService.ObtenerUsuarioActualIdAsync() is { } usuarioId
+        && usuarioId == registro.EntidadId;
+
     private static Guid? ResolverTenantDeIdentidadAuditada(DbContext context, object entidad)
     {
         if (entidad is not RegistroAuditoria registro) return null;

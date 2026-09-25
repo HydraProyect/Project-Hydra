@@ -36,6 +36,10 @@ public class RegistroActividadSoporteConfiguration : IEntityTypeConfiguration<Re
         builder.HasIndex(r => new { r.DelegacionTenantId, r.OcurridaEnUtc });
         builder.HasIndex(r => new { r.SesionPrivilegiadaId, r.OcurridaEnUtc });
 
+        // Rama G3 de la política de lectura de AspNetUsers (P1-M1): ¿esta cuenta
+        // de Soporte TALVEG actuó en el Tenant?
+        builder.HasIndex(r => new { r.TenantId, r.UsuarioSoporteId });
+
         // El filtro global de tenant lo aplica CaeManagerDbContext como con
         // todas las entidades con TenantId, sin excepción.
     }

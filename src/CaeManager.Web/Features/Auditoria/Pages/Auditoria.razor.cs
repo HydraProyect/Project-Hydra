@@ -56,8 +56,9 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
     private int _versionCarga;
 
     /// <summary>
-    /// Identity no encuentra el Id. AspNetUsers no tiene RLS ni filtro de
-    /// tenant, así que no es un usuario de otro tenant oculto: no existe.
+    /// Identity no encuentra el Id. La RLS de AspNetUsers (P1-M1) deja ver en este
+    /// Tenant a todo actor de su auditoría, así que no es una cuenta de otro Tenant
+    /// oculta: no existe.
     /// </summary>
     private const string UsuarioNoEncontrado = "(usuario eliminado)";
 

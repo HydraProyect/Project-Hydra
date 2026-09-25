@@ -30,9 +30,12 @@ public interface IAutorizacionRestablecerSegundoFactor
 /// propietario de la cuenta del actor. Un Workspace operativo derivado nunca da
 /// Administrador (la Operación no concede roles de Propiedad), pero se comprueba
 /// aquí igualmente, no se hereda de esa regla;</item>
-/// <item>la cuenta afectada pertenece a ese mismo Tenant. Nunca entre Tenants: bajo el
-/// rol de runtime <c>AspNetUsers</c> no filtra por Tenant, así que esta comprobación es
-/// la única barrera;</item>
+/// <item>la cuenta afectada pertenece a ese mismo Tenant. Nunca entre Tenants. Desde
+/// P1-M1 la RLS de <c>AspNetUsers</c> también lo impide en la base: la política de
+/// modificación solo deja escribir una cuenta del Tenant activo (o la propia). Esta
+/// comprobación sigue siendo necesaria, porque la de lectura es más ancha (deja ver a
+/// Operadores Delegados, Gestores CAE con cartera y actores de la auditoría) y es la que
+/// da un error de negocio en vez de una excepción de base;</item>
 /// <item>la cuenta afectada no es la suya: la propia se recupera con un código de
 /// recuperación.</item>
 /// </list>

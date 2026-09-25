@@ -100,7 +100,11 @@ public static class EscenariosDireccionDemoSeeder
             dbContext, DelegacionDemoSeeder.NombreTenantConsultora, PerfilVocabularioTenant.Consultora, logger, cancellationToken,
             esOperadorCaeExterno: true);
 
-        var administrador = await userManager.FindByEmailAsync(DelegacionDemoSeeder.EmailAdministradorConsultora)
+        // En el Tenant del Operador CAE externo, por la RLS de AspNetUsers (P1-M1).
+        ApplicationUser? administradorExistente;
+        using (AmbitoTenantExplicito.Establecer(tenantOperadorId))
+            administradorExistente = await userManager.FindByEmailAsync(DelegacionDemoSeeder.EmailAdministradorConsultora);
+        var administrador = administradorExistente
             ?? throw new InvalidOperationException(
                 "Falta el administrador del Operador CAE de la demo: esta siembra debe correr después de DelegacionDemoSeeder.");
 

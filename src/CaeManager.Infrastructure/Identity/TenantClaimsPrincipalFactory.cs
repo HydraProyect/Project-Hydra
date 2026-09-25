@@ -12,9 +12,10 @@ namespace CaeManager.Infrastructure.Identity;
 /// claims de rol). El valor sale directamente de <c>user.TenantId</c>, ya
 /// cargado en memoria — no hace falta una consulta adicional a base de
 /// datos, y no hay ningún riesgo de recursión con el filtro global de
-/// <c>CaeManagerDbContext</c> (que no se aplica a <c>AspNetUsers</c>,
-/// precisamente para que el login pueda resolver el tenant antes de
-/// conocerlo).
+/// <c>CaeManagerDbContext</c> (que no se aplica a <c>AspNetUsers</c>). La
+/// cuenta llega ya leída: antes de conocer el Tenant, bajo la RLS de
+/// <c>AspNetUsers</c>, la resuelve <c>AlmacenUsuarios</c> dentro de
+/// <c>AmbitoIdentificacionSinTenant</c> (P1-M1).
 /// </summary>
 public class TenantClaimsPrincipalFactory(
     UserManager<ApplicationUser> userManager,

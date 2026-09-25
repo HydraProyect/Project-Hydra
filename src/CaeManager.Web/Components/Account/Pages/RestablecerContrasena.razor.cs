@@ -61,6 +61,9 @@ public partial class RestablecerContrasena : ComponentBase
             return;
         }
 
+        // Antes de que exista Tenant: la cuenta se busca por su clave bajo la RLS
+        // de AspNetUsers (ver AmbitoIdentificacionSinTenant, P1-M1).
+        using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
         _usuario = await UserManager.FindByIdAsync(UserId);
         if (_usuario is null)
         {
@@ -84,6 +87,10 @@ public partial class RestablecerContrasena : ComponentBase
     private async Task GuardarAsync()
     {
         if (_usuario is null || _token is null || Entrada is null) return;
+
+        // Antes de que exista Tenant: la cuenta se busca por su clave bajo la RLS
+        // de AspNetUsers (ver AmbitoIdentificacionSinTenant, P1-M1).
+        using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
 
         // La coincidencia se comprueba AQUÍ, no en el disabled del botón.
         //

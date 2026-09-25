@@ -84,7 +84,11 @@ public class ExtensionAuthenticationHandler(
         if (carga is null)
             return AuthenticateResult.Fail("Token inválido o caducado.");
 
-        var usuario = await userManager.FindByIdAsync(carga.UsuarioId.ToString());
+        // Todavía no hay principal ni Tenant, y AspNetUsers tiene RLS (P1-M1):
+        // la cuenta se resuelve por el camino declarado de identificación.
+        ApplicationUser? usuario;
+        using (AmbitoIdentificacionSinTenant.Abrir())
+            usuario = await userManager.FindByIdAsync(carga.UsuarioId.ToString());
         if (usuario is null)
             return AuthenticateResult.Fail("Token inválido o caducado.");
 

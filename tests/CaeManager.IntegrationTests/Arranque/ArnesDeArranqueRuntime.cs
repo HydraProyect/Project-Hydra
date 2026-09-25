@@ -160,7 +160,10 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
             .AddEntityFrameworkStores<CaeManagerDbContext>()
             // El mismo almacén que producción: los códigos de recuperación de
             // 2FA se guardan con hash (P0-8).
-            .AddUserStore<CaeManager.Infrastructure.Identity.AlmacenUsuarios>();
+            .AddUserStore<CaeManager.Infrastructure.Identity.AlmacenUsuarios>()
+            // Y la unicidad entre Tenants que la RLS de AspNetUsers (P1-M1)
+            // ya no deja comprobar al validador de serie.
+            .AddUserValidator<CaeManager.Infrastructure.Identity.ValidadorUnicidadGlobalCuenta>();
 
         return new ArnesDeArranqueRuntime(servicios.BuildServiceProvider(), cadenaPropietario);
     }

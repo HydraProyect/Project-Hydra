@@ -138,7 +138,11 @@ public static class DelegacionesSoporteSeeder
 
         // Traza de una visita de soporte completa en el tenant visitado.
         var emailSoporte = configuration["AdministradorInicial:Email"] ?? IdentitySeeder.EmailAdministradorInicial;
-        var usuarioSoporte = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == emailSoporte, cancellationToken);
+        // La cuenta de soporte de demo es del Tenant de plataforma, y AspNetUsers
+        // tiene RLS (P1-M1): sin Tenant en el contexto no se vería.
+        ApplicationUser? usuarioSoporte;
+        using (AmbitoTenantExplicito.Establecer(tenantPlataformaId))
+            usuarioSoporte = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == emailSoporte, cancellationToken);
         if (usuarioSoporte is null)
             return;
 

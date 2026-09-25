@@ -262,6 +262,11 @@ public static partial class SiembraDemoDireccionAdministrativa
         var ajenas = new List<string>();
         tenantsExistentes.TryGetValue(NombreTenantOperador, out var operadorExistente);
 
+        // La pregunta es entre Tenants —¿existe ese correo en CUALQUIER Tenant?— y
+        // AspNetUsers tiene RLS (P1-M1): sin este ámbito la búsqueda no vería ninguna
+        // cuenta y esta guarda dejaría de proteger nada. Dentro, AlmacenUsuarios
+        // resuelve el Tenant de la cuenta y la lee bajo su propia política.
+        using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
         foreach (var email in emails)
         {
             cancellationToken.ThrowIfCancellationRequested();

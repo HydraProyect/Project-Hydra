@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Infrastructure.Identity;
 
@@ -38,8 +40,24 @@ namespace CaeManager.Infrastructure.Identity;
 /// <c>GenerateNewTwoFactorRecoveryCodesAsync</c> en <c>src</c>), y aceptar el
 /// formato en claro sería mantener viva justo la debilidad que esto cierra.
 /// </para>
+///
+/// <para>
+/// <b>Cuentas antes de que exista Tenant (P1-M1).</b> <c>AspNetUsers</c> tiene RLS
+/// por Tenant (migración <c>RlsAspNetUsers</c>): sin Tenant en el contexto no se ve
+/// ninguna fila. Dentro de <see cref="AmbitoIdentificacionSinTenant"/>, y solo
+/// mientras <see cref="ITenantActual"/> no tenga Tenant, las búsquedas por clave
+/// (Id, nombre, correo) resuelven primero el Tenant de la cuenta con una función
+/// <c>SECURITY DEFINER</c> que devuelve ese dato y nada más, y leen la fila dentro de
+/// <see cref="AmbitoTenantExplicito"/>: bajo la política de su propio Tenant, igual
+/// que <c>ApiKeyAuthenticationHandler</c> con <c>app_tenant_de_clave_api</c>. Las
+/// escrituras de esos caminos (el contador de intentos fallidos, el restablecimiento
+/// de la contraseña, el alta por SSO) corren en el Tenant de la cuenta que se
+/// escribe. Fuera de ese ámbito, o con Tenant, el almacén se comporta como el de
+/// Identity y la política decide.
+/// </para>
 /// </summary>
-public class AlmacenUsuarios(CaeManagerDbContext context, IdentityErrorDescriber? describer = null)
+public class AlmacenUsuarios(
+    CaeManagerDbContext context, ITenantActual tenantActual, IdentityErrorDescriber? describer = null)
     : UserStore<ApplicationUser, IdentityRole<Guid>, CaeManagerDbContext, Guid>(context, describer)
 {
     // Los mismos valores que las constantes privadas de UserStoreBase: la fila
@@ -51,6 +69,124 @@ public class AlmacenUsuarios(CaeManagerDbContext context, IdentityErrorDescriber
     private const int Iteraciones = 100_000;
     private const int BytesSal = 16;
     private const int BytesHash = 32;
+
+    // ── Cuentas antes de que exista Tenant (P1-M1) ─────────────────────────
+
+    private bool ResuelveSinTenant => tenantActual.TenantId is null && AmbitoIdentificacionSinTenant.Abierto;
+
+    public override async Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        if (!ResuelveSinTenant || !Guid.TryParse(userId, out var id))
+            return await base.FindByIdAsync(userId, cancellationToken);
+
+        return await EnTenantAsync(await ResolverTenantPorIdAsync(id, cancellationToken),
+            () => base.FindByIdAsync(userId, cancellationToken));
+    }
+
+    protected override async Task<ApplicationUser?> FindUserAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        if (!ResuelveSinTenant)
+            return await base.FindUserAsync(userId, cancellationToken);
+
+        return await EnTenantAsync(await ResolverTenantPorIdAsync(userId, cancellationToken),
+            () => base.FindUserAsync(userId, cancellationToken));
+    }
+
+    public override async Task<ApplicationUser?> FindByNameAsync(
+        string normalizedUserName, CancellationToken cancellationToken = default)
+    {
+        if (!ResuelveSinTenant)
+            return await base.FindByNameAsync(normalizedUserName, cancellationToken);
+
+        var cuentas = await CuentasPorNombreNormalizadoAsync(Context, normalizedUserName, cancellationToken);
+        return await EnTenantAsync(TenantUnico(cuentas),
+            () => base.FindByNameAsync(normalizedUserName, cancellationToken));
+    }
+
+    public override async Task<ApplicationUser?> FindByEmailAsync(
+        string normalizedEmail, CancellationToken cancellationToken = default)
+    {
+        if (!ResuelveSinTenant)
+            return await base.FindByEmailAsync(normalizedEmail, cancellationToken);
+
+        var cuentas = await CuentasPorEmailNormalizadoAsync(Context, normalizedEmail, cancellationToken);
+        return await EnTenantAsync(TenantUnico(cuentas),
+            () => base.FindByEmailAsync(normalizedEmail, cancellationToken));
+    }
+
+    public override Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken = default) =>
+        EnTenantDeLaCuentaAsync(user, () => base.CreateAsync(user, cancellationToken));
+
+    public override Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken = default) =>
+        EnTenantDeLaCuentaAsync(user, () => base.UpdateAsync(user, cancellationToken));
+
+    public override Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken = default) =>
+        EnTenantDeLaCuentaAsync(user, () => base.DeleteAsync(user, cancellationToken));
+
+    /// <summary>
+    /// Una cuenta que un camino sin Tenant ya tiene delante (la cargó por su clave
+    /// dentro del mismo ámbito, o la está dando de alta el SSO) se escribe en su
+    /// propio Tenant. Con Tenant en el contexto, o fuera del ámbito, decide la
+    /// política con el contexto que haya.
+    /// </summary>
+    private async Task<IdentityResult> EnTenantDeLaCuentaAsync(ApplicationUser user, Func<Task<IdentityResult>> escribir)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        if (!ResuelveSinTenant || user.TenantId == Guid.Empty) return await escribir();
+
+        using (AmbitoTenantExplicito.Establecer(user.TenantId))
+            return await escribir();
+    }
+
+    private static async Task<ApplicationUser?> EnTenantAsync(Guid? tenantId, Func<Task<ApplicationUser?>> leer)
+    {
+        if (tenantId is not { } tenant) return null;
+
+        using (AmbitoTenantExplicito.Establecer(tenant))
+            return await leer();
+    }
+
+    /// <summary>
+    /// El índice de <c>NormalizedEmail</c> no es único: dos cuentas con el mismo correo
+    /// en Tenants distintos harían que la búsqueda de Identity fallara igual
+    /// (<c>SingleOrDefault</c>). Se falla aquí, antes de elegir un Tenant al azar.
+    /// </summary>
+    private static Guid? TenantUnico(IReadOnlyList<CuentaResuelta> cuentas)
+    {
+        var tenants = cuentas.Select(c => c.TenantId).Distinct().ToList();
+        return tenants.Count switch
+        {
+            0 => null,
+            1 => tenants[0],
+            _ => throw new InvalidOperationException(
+                "Hay más de una cuenta con esa clave en Tenants distintos; la búsqueda sin Tenant no puede elegir."),
+        };
+    }
+
+    private Task<Guid?> ResolverTenantPorIdAsync(Guid id, CancellationToken cancellationToken) =>
+        TenantDeCuentaAsync(Context, id, cancellationToken);
+
+    // Las tres funciones SECURITY DEFINER de RlsAspNetUsers. Estáticas e internas: las
+    // usa también ValidadorUnicidadGlobalCuenta, y ProhibicionSqlCrudoYFiltrosIgnoradosTests
+    // congela estas tres líneas como los únicos sitios que las invocan.
+
+    internal static Task<Guid?> TenantDeCuentaAsync(CaeManagerDbContext db, Guid cuentaId, CancellationToken cancellationToken) =>
+        db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")
+            .SingleAsync(cancellationToken);
+
+    internal static async Task<IReadOnlyList<CuentaResuelta>> CuentasPorNombreNormalizadoAsync(
+        CaeManagerDbContext db, string nombreNormalizado, CancellationToken cancellationToken) =>
+        await db.Database.SqlQuery<CuentaResuelta>(
+                $"SELECT cuenta_id AS \"CuentaId\", tenant_id AS \"TenantId\" FROM app_cuenta_por_nombre_normalizado({nombreNormalizado})")
+            .ToListAsync(cancellationToken);
+
+    internal static async Task<IReadOnlyList<CuentaResuelta>> CuentasPorEmailNormalizadoAsync(
+        CaeManagerDbContext db, string emailNormalizado, CancellationToken cancellationToken) =>
+        await db.Database.SqlQuery<CuentaResuelta>(
+                $"SELECT cuenta_id AS \"CuentaId\", tenant_id AS \"TenantId\" FROM app_cuentas_por_email_normalizado({emailNormalizado})")
+            .ToListAsync(cancellationToken);
+
+    // ── Códigos de recuperación de la 2FA (P0-8) ───────────────────────────
 
     public override Task ReplaceCodesAsync(
         ApplicationUser user, IEnumerable<string> recoveryCodes, CancellationToken cancellationToken)
@@ -135,4 +271,11 @@ public class AlmacenUsuarios(CaeManagerDbContext context, IdentityErrorDescriber
     private static byte[] Derivar(string codigoNormalizado, byte[] sal) =>
         Rfc2898DeriveBytes.Pbkdf2(
             Encoding.UTF8.GetBytes(codigoNormalizado), sal, Iteraciones, HashAlgorithmName.SHA256, BytesHash);
+}
+
+/// <summary>Una fila de las funciones de resolución de cuenta de <c>RlsAspNetUsers</c>.</summary>
+public sealed record CuentaResuelta
+{
+    public Guid CuentaId { get; init; }
+    public Guid TenantId { get; init; }
 }

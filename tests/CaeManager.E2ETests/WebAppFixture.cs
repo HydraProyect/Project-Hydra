@@ -53,6 +53,17 @@ public class WebAppFixture : IAsyncLifetime
     protected virtual IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
         new Dictionary<string, string>();
 
+    /// <summary>
+    /// Punto de extensión para preparar el clúster antes de arrancar el proceso
+    /// (ver <see cref="WebAppFixtureBajoRuntime"/>, que da LOGIN al rol
+    /// <c>cae_app_runtime</c>). Corre con <see cref="CadenaConexion"/> ya asignada.
+    /// </summary>
+    protected virtual Task PrepararAntesDeArrancarAsync() => Task.CompletedTask;
+
+    /// <summary>La cadena propietaria de la base de esta fixture.</summary>
+    protected string CadenaConexion => _cadenaConexion
+        ?? throw new InvalidOperationException("La fixture todavía no ha creado su base.");
+
     public async Task InitializeAsync()
     {
         var puerto = ObtenerPuertoLibre();
@@ -132,6 +143,7 @@ public class WebAppFixture : IAsyncLifetime
         // vez lo necesita.
         infoInicio.Environment["Logging__RutaArchivo"] = $"App_Data/logs/log-{tipoFixture}-.txt";
 
+        await PrepararAntesDeArrancarAsync();
         foreach (var (clave, valor) in VariablesDeEntornoAdicionales())
             infoInicio.Environment[clave] = valor;
 
