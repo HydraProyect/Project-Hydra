@@ -40,6 +40,12 @@ else if (_error)
 }
 else if (_proveedores.Count == 0)
 {
+    @* El aviso del enlace va también aquí: sin él, «Todo acreditado» sugiere que el
+       enlace nunca apuntó a nada. *@
+    @if (_acreditacionNoEncontrada)
+    {
+        <p class="plataforma-aviso-destino" role="status">@TextosPlataformaAcreditacion.Texto("AcreditacionYaNoPendiente")</p>
+    }
     <EstadoVacio Titulo="Todo acreditado." Descripcion="No hay documentos pendientes de subir ni rechazados en ningún portal." />
 }
 else

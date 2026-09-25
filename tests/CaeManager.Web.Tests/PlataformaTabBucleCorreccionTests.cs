@@ -134,6 +134,17 @@ public sealed class PlataformaTabBucleCorreccionTests : BunitContext
     }
 
     [Fact]
+    public void Un_deep_link_con_todo_acreditado_sigue_diciendo_que_ya_no_esta_pendiente()
+    {
+        _mediador.SinAcreditaciones = true;
+
+        var cut = Render<PlataformaTab>(p => p.Add(x => x.AcreditacionId, RechazadaId));
+
+        cut.Find(".plataforma-aviso-destino").TextContent.Should().Contain("ya no está pendiente");
+        cut.Markup.Should().Contain("Todo acreditado.");
+    }
+
+    [Fact]
     public void Sin_deep_link_no_hay_aviso_ni_fila_resaltada()
     {
         var cut = Render<PlataformaTab>();
@@ -175,11 +186,13 @@ public sealed class PlataformaTabBucleCorreccionTests : BunitContext
     {
         public string UrlPortal { get; set; } = "portal.nalanda.example/login";
         public EstadoAcreditacion EstadoRechazada { get; set; } = EstadoAcreditacion.Rechazada;
+        public bool SinAcreditaciones { get; set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             object valor = request switch
             {
+                ObtenerAcreditacionesPorProveedorQuery when SinAcreditaciones => (IReadOnlyList<ProveedorAcreditacionesDto>)[],
                 ObtenerAcreditacionesPorProveedorQuery => (IReadOnlyList<ProveedorAcreditacionesDto>)
                 [
                     new ProveedorAcreditacionesDto(Guid.NewGuid(), "Nalanda", "nalanda",
