@@ -360,6 +360,9 @@
   <data name="ConfirmacionSinOmitir" xml:space="preserve">
     <value>Se crearán {0} elementos. Esta acción escribe datos reales.</value>
   </data>
+  <data name="ConfirmacionSinOmitirUno" xml:space="preserve">
+    <value>Se creará 1 elemento. Esta acción escribe datos reales.</value>
+  </data>
   <data name="ConfirmacionNinguna" xml:space="preserve">
     <value>No se creará ningún elemento.</value>
   </data>
@@ -440,6 +443,9 @@
   </data>
   <data name="DialogoSeCrearan" xml:space="preserve">
     <value>Se crearán {0} elementos.</value>
+  </data>
+  <data name="DialogoSeCrearaUno" xml:space="preserve">
+    <value>Se creará 1 elemento.</value>
   </data>
   <data name="DialogoNingunElemento" xml:space="preserve">
     <value>No se creará ningún elemento.</value>
@@ -539,6 +545,9 @@
   </data>
   <data name="FiltroPlanOmitir" xml:space="preserve">
     <value>Se omitirán</value>
+  </data>
+  <data name="PlanFiltroSinFilas" xml:space="preserve">
+    <value>Ninguna fila del plan corresponde a este filtro.</value>
   </data>
   <data name="TituloSiguientePasoPdf" xml:space="preserve">
     <value>Y ahora, los PDF</value>

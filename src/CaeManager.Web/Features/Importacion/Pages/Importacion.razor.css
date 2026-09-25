@@ -809,3 +809,10 @@
 @media (max-width: 700px) {
     .filtros-plan-importacion { margin-left: 0; }
 }
+
+/* Filtro del plan sin filas que enseñar: se dice, no se deja la tabla muda. */
+.fila-plan-filtro-vacio td {
+    color: var(--color-text-muted);
+    text-align: center;
+    padding: var(--space-4);
+}

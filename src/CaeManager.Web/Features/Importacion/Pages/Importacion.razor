@@ -452,12 +452,19 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var fila in FilasFiltradas())
+                            @{ var filasVisibles = FilasFiltradas(); }
+                            @foreach (var fila in filasVisibles)
                             {
                                 <tr data-tipo-fila-plan="@fila.Tipo">
                                     <td>@fila.Entidad</td>
                                     <td><Badge Tono="fila.Tono">@fila.Accion</Badge></td>
                                     <td>@fila.Motivo</td>
+                                </tr>
+                            }
+                            @if (filasVisibles.Count == 0 && _filtroPlan != FiltroPlan.Todas)
+                            {
+                                <tr class="fila-plan-filtro-vacio">
+                                    <td colspan="3">@Textos["PlanFiltroSinFilas"]</td>
                                 </tr>
                             }
                         </tbody>

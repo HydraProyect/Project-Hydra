@@ -675,7 +675,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         {
             var noSeHaran = AltasClienteCentroQueNoSeHaran;
             if (noSeHaran == 0)
-                return Textos["ConfirmacionSinOmitir", TotalACrear];
+                return TotalACrear == 1
+                    ? Textos["ConfirmacionSinOmitirUno"]
+                    : Textos["ConfirmacionSinOmitir", TotalACrear];
             if (TotalACrear == 0)
                 return Textos["ConfirmacionNinguna"];
             // «Como máximo»: la escritura aún puede omitir filas que dependían
@@ -703,7 +705,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
             var noSeHaran = AltasClienteCentroQueNoSeHaran;
             var partes = new List<string>
             {
-                noSeHaran == 0 ? Textos["DialogoSeCrearan", TotalACrear].Value
+                noSeHaran == 0 ? (TotalACrear == 1 ? Textos["DialogoSeCrearaUno"].Value : Textos["DialogoSeCrearan", TotalACrear].Value)
                     : TotalACrear == 0 ? Textos["DialogoNingunElemento"].Value
                     : TotalACrear == 1 ? Textos["DialogoComoMaximoUno"].Value
                     : Textos["DialogoComoMaximo", TotalACrear].Value

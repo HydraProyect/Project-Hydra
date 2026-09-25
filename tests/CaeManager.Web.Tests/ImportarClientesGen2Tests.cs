@@ -1406,4 +1406,34 @@ public partial class ImportarClientesGen2Tests : BunitContext
         cut.FindAll(".siguiente-paso-pdf").Should().BeEmpty("con cero documentos creados no hay nada a lo que aportar un PDF");
         cut.FindAll("a").Where(a => Texto(a) == "Ver los documentos importados").Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task Un_filtro_sin_filas_lo_dice_en_vez_de_dejar_la_tabla_muda()
+    {
+        var escenario = new Escenario();
+        escenario.PlanDocumentos("sin-omitidos", [Documento("12345678Z")]);
+        var (cut, _) = Renderizar(escenario, url: UrlImportarDocumentos);
+        await LlevarAlPlanDeDocumentosAsync(cut, "sin-omitidos");
+
+        cut.FindAll(".fila-plan-filtro-vacio").Should().BeEmpty("con «Todas» hay filas que enseñar");
+        await cut.FindAll("button.filtro-plan-importacion").Single(b => Texto(b) == "Se omitirán").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("tr[data-tipo-fila-plan]").Should().BeEmpty();
+        Texto(cut.Find(".fila-plan-filtro-vacio")).Should().Be("Ninguna fila del plan corresponde a este filtro.");
+    }
+
+    [Fact]
+    public async Task Con_un_solo_documento_la_confirmacion_y_el_dialogo_hablan_en_singular()
+    {
+        var escenario = new Escenario();
+        escenario.PlanDocumentos("uno", [Documento("12345678Z")]);
+        var (cut, _) = Renderizar(escenario, url: UrlImportarDocumentos);
+        await LlevarAlPlanDeDocumentosAsync(cut, "uno");
+        await Pulsar(cut, "Continuar a confirmar");
+
+        Texto(cut.Find(".titulo-aviso-confirmacion")).Should().Be("Se creará 1 elemento. Esta acción escribe datos reales.");
+        await MarcarRevisado(cut);
+        await Pulsar(cut, "Importar ahora");
+        Texto(cut.Find(".modal-cuerpo p")).Should().StartWith("Se creará 1 elemento.");
+    }
 }

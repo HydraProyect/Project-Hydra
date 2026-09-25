@@ -38,11 +38,14 @@ namespace CaeManager.Infrastructure.Importacion;
 /// opcional de una fila que sí se importa: si la celda está vacía, el
 /// trabajador se crea sin fecha de nacimiento, legítimo y silencioso; si la
 /// celda trae un valor que no se pudo interpretar, el trabajador se crea
-/// igual (éxito parcial, DCR-12 B) pero la pérdida del dato concreto queda
-/// en <see cref="PlanImportacionDto.Omitidos"/> nombrando el valor bruto
+/// igual (éxito parcial, DCR-12 B) y la pérdida del dato concreto queda
+/// en <see cref="PlanImportacionDto.Advertencias"/> nombrando el valor bruto
 /// (REC-128, cerrado dentro de REC-129 con el mismo ayudante que también
 /// usan <see cref="ClosedXmlPlantillaDocumentosService"/> y
-/// <see cref="ClosedXmlPlantillaCombinadaService"/>).
+/// <see cref="ClosedXmlPlantillaCombinadaService"/>). Es un aviso, no un
+/// omitido, porque la fila no se descarta: lo mismo que hace la Combinada
+/// (rescate de pantallas 2026-09-25, ítem 9). Antes iba a Omitidos y el
+/// reporte contaba como omitido a un trabajador que sí se importaba.
 /// </summary>
 public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext) : IExcelImportacionParser
 {
