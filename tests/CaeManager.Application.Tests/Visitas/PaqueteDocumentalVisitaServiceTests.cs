@@ -322,6 +322,17 @@ public class PaqueteDocumentalVisitaServiceTests
         _conversacion.Mensajes.Should().ContainSingle().Which.CuerpoHtml.Should().Contain("(2 documento(s))");
     }
 
+    [Fact]
+    public async Task Un_centro_sin_gestion_cae_no_recibe_paquete_aunque_haya_documentos_vigentes()
+    {
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "epi-vigente");
+        _centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+
+        await GenerarAsync();
+
+        _conversacion.Mensajes.Should().BeEmpty("un Centro sin gestión CAE no pide acreditación (P1-X2)");
+    }
+
     private async Task GenerarAsync()
     {
         var servicio = new PaqueteDocumentalVisitaService(

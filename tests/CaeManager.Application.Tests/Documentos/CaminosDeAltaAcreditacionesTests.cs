@@ -172,7 +172,7 @@ public class CaminosDeAltaAcreditacionesTests
         var proveedor = new ProveedorPlataformaCae("ctaima", "CTAIMA");
         proveedores.ListaProveedores.Add(proveedor);
         var handler = new CrearCanalGestionCommandHandler(
-            new CanalesGestionEnMemoria(), new AlcanceDatosServiceFalso(), proveedores, mundo.Servicio(), new UnitOfWorkFalso());
+            new CanalesGestionEnMemoria(), new AlcanceDatosServiceFalso(), proveedores, mundo.CentrosContexto, mundo.Servicio(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
             new CrearCanalGestionCommand(centro.Id, TipoCanalGestion.Plataforma, "Acceso subcontratas", proveedor.Id,

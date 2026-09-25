@@ -25,6 +25,9 @@ public static class EstadoCentroUi
         EstadoCentro.Vencido => TonoBadge.Peligro,
         EstadoCentro.Faltante => TonoBadge.Peligro,
         EstadoCentro.Bloqueado => TonoBadge.Peligro,
+        // P1-X2: neutro, nunca Exito — el Centro no está "al día", es que no
+        // se le exige documentación. Pintarlo en verde sería un verde falso.
+        EstadoCentro.SinGestionCae => TonoBadge.Neutro,
         _ => TonoBadge.Peligro
     };
 
@@ -42,7 +45,8 @@ public static class EstadoCentroUi
             EstadoCentro.Vencido,
             EstadoCentro.Urgente,
             EstadoCentro.Proximo,
-            EstadoCentro.Vigente
+            EstadoCentro.Vigente,
+            EstadoCentro.SinGestionCae
         }
         .Select(e => new OpcionEstado(e.ToString(), Texto(e)))
         .ToList();
@@ -58,6 +62,7 @@ public static class EstadoCentroUi
         // estado del sujeto, no lo que el documento provoca (decisión
         // cerrada del lámina, protocolo de cierre — banco visual Ronda 1).
         EstadoCentro.Bloqueado => "Acceso bloqueado",
+        EstadoCentro.SinGestionCae => "No requiere gestión CAE",
         _ => "Estado desconocido"
     };
 }

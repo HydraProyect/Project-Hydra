@@ -236,6 +236,44 @@ public class Centro360Gen2Tests : BunitContext
     /// «Copiar». Sin <c>noopener</c> la pestaña abierta tendría acceso a
     /// <c>window.opener</c>, la de TALVEG.
     /// </summary>
+    /// <summary>
+    /// P1-X2: un Centro sin gestión CAE se rotula como tal, en tono neutro, sin
+    /// anillo de cumplimiento (un 0 % o un 100 % afirmaría algo que no se
+    /// mide) y con la explicación en lugar de los canales de gestión.
+    /// </summary>
+    [Fact]
+    public void Un_centro_sin_gestion_cae_dice_que_no_la_requiere_y_no_muestra_cumplimiento_ni_verde()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Almacén Sur") with { GestionCae = ModalidadGestionCae.SinGestionCae };
+        mediador.Resumenes[id] = Resumen(id, "Almacén Sur", porcentaje: null, estado: EstadoCentro.SinGestionCae);
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => cut.Find(".centro360-indicadores").TextContent.Should().Contain("No requiere gestión CAE"));
+        cut.Find(".centro360-indicadores .badge").ClassList.Should().Contain("badge-neutro").And.NotContain("badge-exito");
+        // Por componente, no por clase: con porcentaje null el anillo pinta «—»
+        // sin su svg, y la clase no distinguiría si la página lo monta o no.
+        cut.FindComponents<AnilloCumplimiento>().Should().BeEmpty();
+        cut.Find(".centro360-sin-gestion-cae").TextContent.Should().Contain("no requiere gestión CAE");
+    }
+
+    [Fact]
+    public void Un_centro_con_gestion_cae_conserva_el_anillo_y_no_se_rotula_sin_gestion()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte");
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => cut.FindComponents<AnilloCumplimiento>().Should().NotBeEmpty());
+        cut.Markup.Should().NotContain("No requiere gestión CAE");
+        cut.FindAll(".centro360-sin-gestion-cae").Should().BeEmpty();
+    }
+
     [Fact]
     public void La_direccion_del_portal_es_un_enlace_que_abre_pestana_nueva_y_no_un_boton_de_copiar()
     {

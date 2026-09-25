@@ -1,4 +1,5 @@
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
 using Xunit;
@@ -181,5 +182,69 @@ public class AltaAcreditacionesPlataformaServiceTests
         var agregadas = await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] });
 
         agregadas.Should().Be(0);
+    }
+
+    /// <summary>
+    /// P1-X2 (frontera con P0-7): un Centro sin gestión CAE conserva sus accesos
+    /// de plataforma, pero no exige nada, así que ni un Documento nuevo ni una
+    /// Asignación nueva hacen nacer acreditaciones ante ellos.
+    /// </summary>
+    [Fact]
+    public async Task Un_centro_sin_gestion_cae_no_recibe_acreditaciones_aunque_conserve_accesos_de_plataforma()
+    {
+        var mundo = new MundoAcreditaciones();
+        var trabajador = mundo.Trabajador();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si);
+
+        var centroConGestion = mundo.Centro("Planta Norte");
+        var accesoConGestion = mundo.AccesoPlataforma(centroConGestion);
+        mundo.Asignacion(trabajador, centroConGestion);
+
+        var centroSinGestion = mundo.Centro("Almacén Sur");
+        mundo.AccesoPlataforma(centroSinGestion);
+        mundo.Asignacion(trabajador, centroSinGestion);
+        centroSinGestion.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+
+        var documento = DocumentoNuevoDe(trabajador, tipo);
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] });
+
+        // Control positivo en el mismo alta: el Centro con gestión CAE sí la recibe.
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, accesoConGestion.Id)]);
+
+        // Camino de la Asignación: un Documento ya guardado y una Asignación nueva
+        // al Centro sin gestión CAE tampoco acreditan.
+        var otro = mundo.Trabajador("77189989B");
+        mundo.DocumentoDe(otro, tipo);
+        var agregadasPorAsignacion = await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion
+        {
+            Asignaciones = [new Domain.Asignaciones.Asignacion(otro.Id, centroSinGestion.Id, Hoy)]
+        });
+
+        agregadasPorAsignacion.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_centro_que_el_alta_devuelve_a_gestion_cae_acredita_aunque_la_base_aun_lo_tenga_sin_gestion()
+    {
+        var mundo = new MundoAcreditaciones();
+        var trabajador = mundo.Trabajador();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si);
+        var centro = mundo.Centro("Almacén Sur");
+        var acceso = mundo.AccesoPlataforma(centro);
+        mundo.Asignacion(trabajador, centro);
+        var documento = mundo.DocumentoDe(trabajador, tipo);
+        // Lo que ve la consulta: el guardado que lo cambia todavía no ha ocurrido.
+        centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+
+        (await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { Canales = [acceso] }))
+            .Should().Be(0, "control: sin declararlo, el Centro sigue sin gestión CAE");
+
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion
+        {
+            Canales = [acceso],
+            CentrosQueVuelvenAGestionCae = [centro.Id]
+        });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, acceso.Id)]);
     }
 }

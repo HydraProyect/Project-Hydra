@@ -20,6 +20,38 @@
     <value>Empresa:</value>
     <comment>Empresa contractista que treballa al Centre.</comment>
   </data>
+  <data name="GestionCaeTitulo" xml:space="preserve">
+    <value>Gestió CAE</value>
+    <comment>Título de la sección de modalidad de gestión CAE del Centro (P1-X2).</comment>
+  </data>
+  <data name="GestionCaeExigir" xml:space="preserve">
+    <value>Exigir gestió CAE</value>
+    <comment>Botón: vuelve a exigir gestión CAE en un Centro que no la requería.</comment>
+  </data>
+  <data name="GestionCaeMarcarSin" xml:space="preserve">
+    <value>Marcar sense gestió CAE</value>
+    <comment>Botón: el Centro deja de requerir gestión CAE (no borra canales ni requisitos).</comment>
+  </data>
+  <data name="GestionCaeExplicacionPanel" xml:space="preserve">
+    <value>Aquest centre no requereix gestió CAE: no s'exigeix documentació ni s'acredita a plataformes. Avisa de cada visita amb el text que es prepara a la visita.</value>
+    <comment>Panel de trabajo del Centro sin gestión CAE.</comment>
+  </data>
+  <data name="GestionCaeExplicacionCentro360" xml:space="preserve">
+    <value>Aquest centre no requereix gestió CAE: el tècnic només ha d'arribar. Avisa de cada visita amb el text que es prepara a la visita.</value>
+    <comment>Sección de canales de Centro 360 cuando el Centro no requiere gestión CAE.</comment>
+  </data>
+  <data name="GestionCaeToastSin" xml:space="preserve">
+    <value>El centre ja no requereix gestió CAE.</value>
+    <comment>Confirmación tras marcar el Centro sin gestión CAE.</comment>
+  </data>
+  <data name="GestionCaeToastCon" xml:space="preserve">
+    <value>El centre torna a exigir gestió CAE.</value>
+    <comment>Confirmación tras volver a exigir gestión CAE.</comment>
+  </data>
+  <data name="GestionCaeErrorCambio" xml:space="preserve">
+    <value>No hem pogut canviar la gestió CAE del centre. Torna-ho a provar d'aquí a uns segons.</value>
+    <comment>Error inesperado al cambiar la modalidad de gestión CAE.</comment>
+  </data>
   <data name="BadgeRechazadoPlataforma" xml:space="preserve">
     <value>Rebutjat</value>
     <comment>Badge de la fila d'Empresa quan Estat és null: rebuig a la plataforma, no un estat de vigència documental (CalculoEstadoCentroService).</comment>

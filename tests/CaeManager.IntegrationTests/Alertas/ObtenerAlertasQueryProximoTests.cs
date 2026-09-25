@@ -70,7 +70,7 @@ public class ObtenerAlertasQueryProximoTests : IAsyncLifetime
         var handler = new ObtenerAlertasQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto,
             new ResolverClientePrincipalService(contexto, contexto, contexto),
-            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(contexto, contexto));
+            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(contexto, contexto, contexto));
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 

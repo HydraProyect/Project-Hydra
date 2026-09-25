@@ -209,7 +209,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
     public async Task El_preflight_detecta_lo_que_le_faltaria_a_cada_trabajador_en_cada_centro()
     {
         await using var contexto = CrearContexto();
-        var servicio = new DocumentosFaltantesService(contexto, contexto);
+        var servicio = new DocumentosFaltantesService(contexto, contexto, contexto);
         var handler = new ObtenerDocumentosFaltantesParaAsignacionQueryHandler(contexto, contexto, servicio, new AlcanceDatosServiceFalso());
 
         // Ninguno de los dos trabajadores tiene el Apto médico todavía —
@@ -232,7 +232,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         // rechazara. Contra Postgres real (no un fake en memoria) para
         // comprobar que el filtro sobrevive a la traducción EF → SQL.
         await using var contexto = CrearContexto();
-        var servicio = new DocumentosFaltantesService(contexto, contexto);
+        var servicio = new DocumentosFaltantesService(contexto, contexto, contexto);
         var handler = new ObtenerDocumentosFaltantesParaAsignacionQueryHandler(
             contexto, contexto, servicio, new AlcanceDatosServiceFalso(centroIds: [_centro1Id]));
 
@@ -254,7 +254,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         }
 
         await using var contexto2 = CrearContexto();
-        var servicio = new DocumentosFaltantesService(contexto2, contexto2);
+        var servicio = new DocumentosFaltantesService(contexto2, contexto2, contexto2);
         var handler = new ObtenerDocumentosFaltantesParaAsignacionQueryHandler(contexto2, contexto2, servicio, new AlcanceDatosServiceFalso());
 
         var faltantes = await handler.Handle(

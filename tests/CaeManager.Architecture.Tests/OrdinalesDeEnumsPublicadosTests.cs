@@ -61,6 +61,17 @@ public class OrdinalesDeEnumsPublicadosTests
                 [nameof(EstadoCentro.Vencido)] = 3,
                 [nameof(EstadoCentro.Faltante)] = 4,
                 [nameof(EstadoCentro.Bloqueado)] = 5,
+                // P1-X2: Centro sin gestión CAE — se añade al final, nunca reordena.
+                [nameof(EstadoCentro.SinGestionCae)] = 6,
+            }
+        },
+        {
+            // P1-X2: columna Centros.GestionCae (entero). El 0 es el valor por defecto
+            // de la migración: cambiarlo reinterpretaría todos los Centros existentes.
+            nameof(ModalidadGestionCae), new Dictionary<string, int>
+            {
+                [nameof(ModalidadGestionCae.ConGestionCae)] = 0,
+                [nameof(ModalidadGestionCae.SinGestionCae)] = 1,
             }
         },
         {

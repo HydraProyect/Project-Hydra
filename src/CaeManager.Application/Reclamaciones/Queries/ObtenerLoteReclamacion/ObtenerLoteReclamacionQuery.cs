@@ -7,6 +7,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -115,6 +116,10 @@ public class ObtenerLoteReclamacionQueryHandler(
             where asignacion.FechaBaja == null
             where centroIdsVisibles == null || centroIdsVisibles.Contains(asignacion.CentroId)
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
+            // P1-X2: un Centro sin gestión CAE no exige documentación, así que
+            // tampoco da pie a reclamarla (ObtenerLoteReclamacion y
+            // EnviarReclamacion comparten el filtro: lo que no se ofrece no se envía).
+            where centro.GestionCae != ModalidadGestionCae.SinGestionCae
             where request.CentroId == null || centro.Id == request.CentroId
             where request.ClienteId == null || centro.ClienteId == request.ClienteId
             where request.TipoDocumentoIds == null || request.TipoDocumentoIds.Contains(tipoDocumento.Id)

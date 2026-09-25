@@ -88,6 +88,12 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandler(
         if (!centroEnRelacionVigente)
             return Result.Fallo(Error.Crear("VerificacionExterna.CentroNoEncontrado", "No encontramos este centro."));
 
+        // P1-X2: un Centro sin gestión CAE no acredita nada ante nadie; sus
+        // verificaciones anteriores se conservan, pero no se registran nuevas.
+        if ((await CentrosSinGestionCae.FiltrarAsync(centrosContext, [request.CentroId], cancellationToken)).Count > 0)
+            return Result.Fallo(Error.Crear(
+                "VerificacionExterna.CentroSinGestionCae", "Este centro no requiere gestión CAE: no hay nada que verificar."));
+
         // Mismo criterio que _tiposVerificables del drawer y que tiposCandidatos de
         // ObtenerSupervisionSubcontrataQuery: los ámbitos que un portal puede exigir a
         // una subcontrata. No se exige que el tipo esté "aplicado" en este Centro

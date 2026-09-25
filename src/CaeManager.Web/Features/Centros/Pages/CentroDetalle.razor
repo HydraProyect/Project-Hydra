@@ -53,8 +53,12 @@
         *@
         <CabeceraPagina Titulo="@_detalle.Nombre">
             <Inicio>
-                <AnilloCumplimiento Porcentaje="_resumen?.CumplimientoPorcentaje" Tamano="TamanoAnillo.Cabecera"
-                                    Etiqueta="@($"{_resumen?.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />
+                @* P1-X2: un Centro sin gestión CAE no tiene cumplimiento que medir; el anillo vacío se leería como 0 %. *@
+                @if (_detalle.GestionCae != ModalidadGestionCae.SinGestionCae)
+                {
+                    <AnilloCumplimiento Porcentaje="_resumen?.CumplimientoPorcentaje" Tamano="TamanoAnillo.Cabecera"
+                                        Etiqueta="@($"{_resumen?.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />
+                }
             </Inicio>
             <Descripcion>
                 @Textos["CabeceraCliente"] <a class="enlace-nombre-fila centro360-contraparte" href="@($"/clientes/{_detalle.ClienteId}")">@_detalle.ClienteRazonSocial</a>
@@ -74,6 +78,11 @@
                         @if (_resumen.Estado == EstadoCentro.Bloqueado)
                         {
                             <Badge Tono="TonoBadge.Peligro">Acceso bloqueado</Badge>
+                        }
+                        @if (_resumen.Estado == EstadoCentro.SinGestionCae)
+                        {
+                            @* P1-X2: estado propio y tono neutro — nunca un verde falso. *@
+                            <Badge Tono="EstadoCentroUi.Tono(EstadoCentro.SinGestionCae)">@EstadoCentroUi.Texto(EstadoCentro.SinGestionCae)</Badge>
                         }
                         @if (_resumen.Recuentos.TotalVencidas > 0)
                         {
@@ -165,7 +174,11 @@
                         <h2>Canales de gestión</h2>
                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPlataforma">Gestionar →</Boton>
                     </div>
-                    @if (_cargandoCanales)
+                    @if (_detalle.GestionCae == ModalidadGestionCae.SinGestionCae)
+                    {
+                        <p class="texto-vacio-seccion centro360-sin-gestion-cae">@Textos["GestionCaeExplicacionCentro360"]</p>
+                    }
+                    else if (_cargandoCanales)
                     {
                         <EstadoCargando Filas="2" />
                     }

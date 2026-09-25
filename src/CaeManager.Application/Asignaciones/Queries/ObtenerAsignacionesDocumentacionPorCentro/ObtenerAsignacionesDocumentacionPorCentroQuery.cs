@@ -57,6 +57,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IDocumentosQueryContext documentosContext,
     IConfiguracionQueryContext configuracionContext,
+    ICentrosQueryContext centrosContext,
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerAsignacionesDocumentacionPorCentroQuery, IReadOnlyList<TrabajadorAsignacionDocumentacionDto>>
 {
@@ -113,7 +114,12 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             .Select(t => new { t.Id, t.Nombre })
             .ToList();
 
-        if (tiposRequeridosPorCentro.Count == 0)
+        // P1-X2: un Centro sin gestión CAE no exige ningún tipo; sus requisitos
+        // se conservan y vuelven a contar si se restaura la gestión.
+        var centroSinGestionCae = (await CentrosSinGestionCae.FiltrarAsync(
+            centrosContext, [request.CentroId], cancellationToken)).Count > 0;
+
+        if (centroSinGestionCae || tiposRequeridosPorCentro.Count == 0)
         {
             return asignaciones
                 .Select(a => new TrabajadorAsignacionDocumentacionDto(

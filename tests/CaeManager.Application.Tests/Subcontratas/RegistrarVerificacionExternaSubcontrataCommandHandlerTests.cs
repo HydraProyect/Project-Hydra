@@ -88,6 +88,27 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandlerTests
         unitOfWork.VecesGuardado.Should().Be(0);
     }
 
+    /// <summary>P1-X2: un Centro sin gestión CAE no acredita nada, así que no admite verificaciones nuevas.</summary>
+    [Fact]
+    public async Task Falla_cuando_el_centro_no_requiere_gestion_cae()
+    {
+        var (subcontrata, _, centro, tipo, subcontratas, empresas, centros, tipos) = PrepararEscenario();
+        centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        var verificaciones = new VerificacionExternaSubcontrataRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(subcontratas, verificaciones, centros, empresas, tipos, unitOfWork);
+
+        var resultado = await handler.Handle(
+            new RegistrarVerificacionExternaSubcontrataCommand(
+                subcontrata.Id, centro.Id, tipo.Id, new DateOnly(2026, 1, 1), ResultadoVerificacionExterna.Valido, null, null),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("VerificacionExterna.CentroSinGestionCae");
+        verificaciones.Verificaciones.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
     [Fact]
     public async Task Falla_cuando_la_relacion_con_el_centro_esta_cerrada()
     {

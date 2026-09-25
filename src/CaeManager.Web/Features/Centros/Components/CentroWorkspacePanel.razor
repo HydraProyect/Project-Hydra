@@ -9,6 +9,7 @@
 @using CaeManager.Application.Centros.Commands.EditarCentro
 @using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro
 @using CaeManager.Application.Centros.Commands.CrearCanalGestion
+@using CaeManager.Application.Centros.Commands.EstablecerGestionCaeCentro
 @using CaeManager.Application.Centros.Commands.EditarCanalGestion
 @using CaeManager.Application.Centros.Commands.EliminarCanalGestion
 @using CaeManager.Application.Centros.Commands.MarcarCanalGestionPrincipal
@@ -28,6 +29,8 @@
 @using CaeManager.Application.Centros.Commands.EliminarDocumentacionRequeridaCentro
 @using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro
 @using CaeManager.Web.Features.Centros
+@using CaeManager.Web.Features.Centros.Recursos
+@using Microsoft.Extensions.Localization
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Domain.Common
 @using CaeManager.Domain.Documentos
@@ -39,6 +42,7 @@
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
+@inject IStringLocalizer<TextosCentros> Textos
 @inject IFileStorageService AlmacenamientoArchivos
 @inject ILogger<CentroWorkspacePanel> Logger
 @inject ICurrentUserService CurrentUserService
@@ -295,6 +299,27 @@ else
                 break;
 
             case "plataforma":
+                @*
+                    P1-X2: modalidad de gestión CAE del Centro. Un Centro sin
+                    gestión CAE no exige documentación ni acredita en ningún
+                    canal: el técnico solo llega y la visita se avisa con el
+                    texto copiable del cajón de Visitas. Cambiarla no borra los
+                    canales: dejan de usarse y vuelven al restaurarla.
+                *@
+                <div class="workspace-cabecera-seccion">
+                    <h3>@Textos["GestionCaeTitulo"]</h3>
+                    <SoloConEscritura>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_cambiandoGestionCae"
+                               OnClick="CambiarGestionCaeAsync">
+                            @(_detalle.GestionCae == ModalidadGestionCae.SinGestionCae ? Textos["GestionCaeExigir"] : Textos["GestionCaeMarcarSin"])
+                        </Boton>
+                    </SoloConEscritura>
+                </div>
+                @if (_detalle.GestionCae == ModalidadGestionCae.SinGestionCae)
+                {
+                    <p class="texto-vacio-seccion">@Textos["GestionCaeExplicacionPanel"]</p>
+                    break;
+                }
                 @if (_cargandoPlataforma)
                 {
                     <EstadoCargando Filas="2" />
@@ -1349,6 +1374,42 @@ else
         finally
         {
             _guardandoCanal = false;
+        }
+    }
+
+    private bool _cambiandoGestionCae;
+
+    private async Task CambiarGestionCaeAsync()
+    {
+        if (_detalle is null || _cambiandoGestionCae) return;
+
+        var nueva = _detalle.GestionCae == ModalidadGestionCae.SinGestionCae
+            ? ModalidadGestionCae.ConGestionCae
+            : ModalidadGestionCae.SinGestionCae;
+
+        _cambiandoGestionCae = true;
+        try
+        {
+            var resultado = await Mediator.Send(new EstablecerGestionCaeCentroCommand(_detalle.Id, nueva, _detalle.Version));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar(nueva == ModalidadGestionCae.SinGestionCae
+                ? Textos["GestionCaeToastSin"]
+                : Textos["GestionCaeToastCon"], TonoToast.Exito);
+            await CargarCabeceraAsync();
+            await CargarEstadoAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["GestionCaeErrorCambio"], TonoToast.Error);
+        }
+        finally
+        {
+            _cambiandoGestionCae = false;
         }
     }
 

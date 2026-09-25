@@ -5,6 +5,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Visitas;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Visitas;
 using MediatR;
@@ -31,7 +32,10 @@ public record VisitaListaDto(
     bool DocumentacionCompleta,
     bool NotificadoCliente,
     OrigenVisita Origen,
-    NivelUrgenciaVisita NivelUrgencia);
+    NivelUrgenciaVisita NivelUrgencia,
+    // P1-X2: en un Centro sin gestión CAE no hay documentación que completar;
+    // la columna no debe decir «por gestionar» ni «completa».
+    bool CentroRequiereGestionCae = true);
 
 /// <summary>
 /// Igual que Dashboard/Alertas, el semáforo de cada Documento se calcula en
@@ -135,7 +139,8 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 x.visita.FechaInicio,
                 x.visita.FechaFin,
                 x.visita.NotificadoCliente,
-                x.visita.Origen
+                x.visita.Origen,
+                x.centro.GestionCae
             })
             .ToListAsync(cancellationToken);
 
@@ -205,7 +210,8 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 DocumentacionCompleta: empresaOk && trabajadoresOk,
                 p.NotificadoCliente, p.Origen,
                 NivelUrgencia: CalculadoraUrgenciaVisita.Calcular(
-                    p.FechaInicio, p.FechaFin, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita));
+                    p.FechaInicio, p.FechaFin, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita),
+                CentroRequiereGestionCae: p.GestionCae != ModalidadGestionCae.SinGestionCae);
         }).ToList();
 
         return new ResultadoPaginado<VisitaListaDto>(elementos, total, request.Pagina, request.TamanoPagina);

@@ -112,20 +112,35 @@ public class CalculoEstadoCentroService(
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var causasPorCentro = centroIds.Distinct().ToDictionary(id => id, _ => new List<CausaEstadoCentro>());
+        // P1-X2: un Centro sin gestión CAE no exige documentación, así que no
+        // se buscan causas en él (ni de Empresa, ni de Trabajador, ni de las
+        // acreditaciones en plataforma de canales que conserve de antes): su
+        // estado es SinGestionCae, nunca un Vigente que nadie ha comprobado.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(centrosContext, centroIds, cancellationToken);
+        var conGestionCae = centroIds.Where(id => !sinGestionCae.Contains(id)).Distinct().ToList();
 
-        await AgregarCausasDeEmpresaAsync(centroIds, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
-        await AgregarCausasDeTrabajadorAsync(centroIds, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
-        await AgregarCausasDeVigenciaEnPlataformaAsync(centroIds, hoy, causasPorCentro, cancellationToken);
-        await AgregarCausasDeRechazoEnPlataformaAsync(centroIds, causasPorCentro, cancellationToken);
+        var causasPorCentro = conGestionCae.ToDictionary(id => id, _ => new List<CausaEstadoCentro>());
 
-        return causasPorCentro.ToDictionary(
+        if (conGestionCae.Count > 0)
+        {
+            await AgregarCausasDeEmpresaAsync(conGestionCae, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
+            await AgregarCausasDeTrabajadorAsync(conGestionCae, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
+            await AgregarCausasDeVigenciaEnPlataformaAsync(conGestionCae, hoy, causasPorCentro, cancellationToken);
+            await AgregarCausasDeRechazoEnPlataformaAsync(conGestionCae, causasPorCentro, cancellationToken);
+        }
+
+        var resultado = causasPorCentro.ToDictionary(
             par => par.Key,
             par => new ResultadoEstadoCentro(
                 CalculadoraEstadoCentro.Calcular(
                     par.Value.Where(c => c.Estado is not null).Select(c => c.Estado!.Value).ToList(),
                     par.Value.Any(c => c.Bloqueante)),
                 par.Value));
+
+        foreach (var centroId in sinGestionCae)
+            resultado[centroId] = new ResultadoEstadoCentro(EstadoCentro.SinGestionCae, []);
+
+        return resultado;
     }
 
     /// <summary>
@@ -483,8 +498,13 @@ public class CalculoEstadoCentroService(
         if (centroIds.Count == 0)
             return acumulado.ToDictionary(p => p.Key, p => new FraccionCumplimiento(p.Value.AlDia, p.Value.Requeridos));
 
+        // P1-X2: un Centro sin gestión CAE no exige nada — queda en 0/0, cuyo
+        // porcentaje es null («sin requisitos»), nunca un 100 %.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(centrosContext, centroIds, cancellationToken);
+        var conGestionCae = centroIds.Where(id => !sinGestionCae.Contains(id)).Distinct().ToList();
+
         var asignacionesActivas = await asignacionesContext.Asignaciones
-            .Where(a => a.FechaBaja == null && centroIds.Contains(a.CentroId))
+            .Where(a => a.FechaBaja == null && conGestionCae.Contains(a.CentroId))
             .Select(a => new { a.CentroId, a.TrabajadorId })
             .ToListAsync(cancellationToken);
 

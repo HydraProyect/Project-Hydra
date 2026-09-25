@@ -80,6 +80,10 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
         var centroIds = asignaciones.Select(a => a.CentroId).ToList();
 
+        // P1-X2: la Asignación a un Centro sin gestión CAE se sigue viendo, pero
+        // no exige ningún tipo.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(centrosContext, centroIds, cancellationToken);
+
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
             .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
@@ -109,7 +113,8 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
         foreach (var asignacion in asignaciones)
         {
             var tiposRequeridos = tiposCandidatos
-                .Where(t => ResolucionTipoDocumentoCentro.Aplica(filasDeLosCentros, t.Id, asignacion.CentroId, t.CuentaParaCumplimiento))
+                .Where(t => !sinGestionCae.Contains(asignacion.CentroId)
+                    && ResolucionTipoDocumentoCentro.Aplica(filasDeLosCentros, t.Id, asignacion.CentroId, t.CuentaParaCumplimiento))
                 .ToList();
 
             var items = new List<DocumentoRequeridoDto>();

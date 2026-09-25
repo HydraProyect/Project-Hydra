@@ -136,12 +136,21 @@ public class EvaluadorExpedienteVisitaService(
     private async Task<bool> ExpedienteCompletoAsync(
         Visita visita, DateOnly hoy, int umbralAmbarDias, int umbralRojoDias, CancellationToken cancellationToken)
     {
-        var empresaId = await centrosContext.Centros
+        var centro = await centrosContext.Centros
             .Where(c => c.Id == visita.CentroId)
-            .Select(c => (Guid?)c.EmpresaId)
+            .Select(c => new { c.EmpresaId, c.GestionCae })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (empresaId is null) return false;
+        if (centro is null) return false;
+
+        // P1-X2: un Centro sin gestión CAE no exige documentos — el expediente
+        // no tiene nada que reunir y está completo en cuanto sabe quién va. Una
+        // visita sin participantes sigue incompleta, igual que con gestión CAE:
+        // el sello es irreversible y no se recalcula al añadir Trabajadores.
+        if (centro.GestionCae == Domain.Centros.ModalidadGestionCae.SinGestionCae)
+            return await visitasContext.VisitasTrabajadores.AnyAsync(vt => vt.VisitaId == visita.Id, cancellationToken);
+
+        Guid? empresaId = centro.EmpresaId;
 
         var tipos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)

@@ -70,7 +70,7 @@ public class ObtenerBorradorPedirPrioridadQueryTests : IAsyncLifetime
 
     private ObtenerBorradorPedirPrioridadQueryHandler CrearHandler(CaeManagerDbContext contexto, AlcanceDatosServiceFalso? alcance = null) =>
         new(contexto, contexto, contexto, contexto, contexto, contexto, contexto,
-            new DocumentosFaltantesService(contexto, contexto), alcance ?? new AlcanceDatosServiceFalso());
+            new DocumentosFaltantesService(contexto, contexto, contexto), alcance ?? new AlcanceDatosServiceFalso());
 
     [Fact]
     public async Task Sin_trabajadores_asignados_devuelve_fallo()

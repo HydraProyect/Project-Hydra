@@ -136,6 +136,9 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                       && acreditacion.FechaVencimientoEnPlataforma < hoy)
             join canal in canalesQuery on acreditacion.CanalGestionDocumentalId equals canal.Id
             join centro in centrosContext.Centros on canal.CentroId equals centro.Id
+            // P1-X2: los canales que conserve un Centro sin gestión CAE no
+            // generan trabajo de acreditación (ni pendientes ni rechazos).
+            where centro.GestionCae != ModalidadGestionCae.SinGestionCae
             join documento in documentosContext.Documentos on acreditacion.DocumentoId equals documento.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new

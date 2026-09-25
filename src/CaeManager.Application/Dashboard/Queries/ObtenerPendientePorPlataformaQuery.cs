@@ -53,6 +53,13 @@ public class ObtenerPendientePorPlataformaQueryHandler(
 
         var canalesQuery = centrosContext.CanalesGestionDocumental
             .Where(c => c.Tipo == TipoCanalGestion.Plataforma);
+        // P1-X2: un Centro sin gestión CAE conserva sus canales y acreditaciones,
+        // pero no exige nada: sus pendientes no cuentan en el panel.
+        canalesQuery =
+            from canal in canalesQuery
+            join centro in centrosContext.Centros on canal.CentroId equals centro.Id
+            where centro.GestionCae != ModalidadGestionCae.SinGestionCae
+            select canal;
         if (centroIdsVisibles is not null)
             canalesQuery = canalesQuery.Where(c => centroIdsVisibles.Contains(c.CentroId));
 

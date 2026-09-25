@@ -20,6 +20,11 @@ public class CentroConfiguration : IEntityTypeConfiguration<Centro>
         builder.Property(c => c.Direccion).HasMaxLength(Centro.LongitudMaximaDireccion);
         builder.Property(c => c.Contacto).HasMaxLength(Centro.LongitudMaximaContacto);
 
+        // P1-X2: GestionCae se guarda como entero (convención); la migración que
+        // la añade rellena 0 (ConGestionCae), así que los Centros que ya
+        // existían siguen exigiendo gestión CAE sin backfill.
+        builder.Ignore(c => c.RequiereGestionCae);
+
         // Sin navigation property hacia Cliente/Empresa a propósito: cada agregado
         // se consulta por su propio repositorio/query (ver ARCHITECTURE.md). La FK
         // sí se declara (P0-1 de docs/business/MATURITY_REVIEW.md): protege la

@@ -1,3 +1,4 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Common;
@@ -41,6 +42,7 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IDocumentosQueryContext documentosContext,
     IConfiguracionQueryContext configuracionContext,
+    ICentrosQueryContext centrosContext,
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTrabajadoresDocumentacionPorSubcontrataQuery, IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>>
 {
@@ -93,6 +95,10 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
             .GroupBy(a => a.TrabajadorId)
             .ToDictionary(g => g.Key, g => g.Select(a => a.CentroId).Distinct().ToList());
 
+        // P1-X2: un Centro sin gestión CAE no exige ningún tipo a quien trabaja allí.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(
+            centrosContext, asignacionesActivas.Select(a => a.CentroId), cancellationToken);
+
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
             .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
@@ -116,7 +122,7 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
                 tiposRequeridosPorTrabajador[trabajadorId] = centrosDelTrabajador.Count == 0
                     ? []
                     : tiposCandidatos
-                        .Where(t => centrosDelTrabajador.Any(centroId => ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
+                        .Where(t => centrosDelTrabajador.Any(centroId => !sinGestionCae.Contains(centroId) && ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
                         .Select(t => t.Id)
                         .ToList();
             }

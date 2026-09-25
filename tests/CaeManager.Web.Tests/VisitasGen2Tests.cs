@@ -7,6 +7,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas.Commands.EliminarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
+using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
@@ -84,7 +85,11 @@ public class VisitasGen2Tests : BunitContext
             v.Id, v.CentroNombre, v.ClienteRazonSocial, v.EmpresaId, v.EmpresaRazonSocial, v.FechaInicio, v.FechaFin,
             Notas: null, v.NotificadoCliente, Trabajadores: [], HoraEstimadaAcceso: null, FechaHoraSolicitudUtc: null,
             FechaHoraExpedienteCompletoUtc: null, AntelacionNominalHoras: 36m, AntelacionEfectivaHoras: 11m, tramo,
-            AtribucionUrgencia.SinUrgencia);
+            AtribucionUrgencia.SinUrgencia, CentroRequiereGestionCae: v.CentroRequiereGestionCae);
+
+        public AvisoVisitaDto Aviso { get; set; } = new("Aviso de visita — Almacén Sur — 01/10/2026", "Buenos días:\n\n- Ana Garcia (Contratista Demo SL)");
+
+        public int ConsultasDocumentacion { get; private set; }
 
         public static VisitaDetalleDto ParaEditar(VisitaListaDto v) => new(
             v.Id, v.CentroId, v.CentroNombre, v.ClienteRazonSocial, v.EmpresaRazonSocial, v.FechaInicio, v.FechaFin,
@@ -126,7 +131,11 @@ public class VisitasGen2Tests : BunitContext
                         ? (Task<TResponse>)(object)edicionDiferida.Task
                         : Respuesta<TResponse>(ParaEditar(Visitas.Single(v => v.Id == edicion.Id)));
 
+                case ObtenerAvisoVisitaQuery:
+                    return Respuesta<TResponse>(Result.Exito(Aviso));
+
                 case ObtenerDocumentacionVisitaQuery:
+                    ConsultasDocumentacion++;
                     if (DiferirDocumentacion)
                     {
                         var pendiente = new TaskCompletionSource<DocumentacionVisitaDto>();
@@ -401,6 +410,52 @@ public class VisitasGen2Tests : BunitContext
         Interruptor(cut, "Centro Norte").HasAttribute("checked").Should().BeFalse();
         Interruptor(cut, "Planta Zaragoza").GetAttribute("role").Should().Be("switch");
         Interruptor(cut, "Planta Zaragoza").GetAttribute("aria-label").Should().StartWith("Notificada a la empresa titular: Planta Zaragoza");
+    }
+
+    /// <summary>
+    /// P1-X2: la visita a un Centro sin gestión CAE no tiene documentación que
+    /// completar. La columna no dice «Completa» (verde falso) ni «Por
+    /// gestionar» (pendiente que no existe): dice que no requiere gestión CAE.
+    /// </summary>
+    [Fact]
+    public void La_fila_de_un_centro_sin_gestion_cae_no_pinta_ni_completa_ni_por_gestionar()
+    {
+        var mediator = new MediatorVisitas
+        {
+            Visitas = { Visita("Almacén Sur") with { CentroRequiereGestionCae = false }, Visita("Centro Norte") }
+        };
+        var cut = Renderizar(mediator);
+
+        cut.WaitForAssertion(() => Fila(cut, "Almacén Sur").TextContent.Should().Contain("No requiere gestión CAE"));
+        Fila(cut, "Almacén Sur").TextContent.Should().NotContain("Completa").And.NotContain("Por gestionar");
+        Fila(cut, "Almacén Sur").QuerySelectorAll(".badge").Should().NotContain(b => b.ClassList.Contains("badge-exito") || b.ClassList.Contains("badge-peligro"),
+            "ni verde ni rojo: el Centro no está al día ni en falta, no se le exige nada");
+        Fila(cut, "Centro Norte").TextContent.Should().NotContain("No requiere gestión CAE", "control positivo: el Centro con gestión sigue igual");
+    }
+
+    /// <summary>
+    /// P1-X2: en el cajón, un Centro sin gestión CAE ofrece el aviso de la
+    /// visita para copiar (asunto y cuerpo, tal como los compone Application)
+    /// en lugar de la comprobación previa de documentación, que ni se pide.
+    /// </summary>
+    [Fact]
+    public async Task El_cajon_de_un_centro_sin_gestion_cae_ofrece_el_aviso_copiable_y_no_la_documentacion()
+    {
+        var sur = Visita("Almacén Sur") with { CentroRequiereGestionCae = false };
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(sur);
+        var cut = Renderizar(mediator);
+
+        await ItemDeMenu(cut, "Almacén Sur", "Ver").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".visitas-aviso").TextContent.Should().Contain("Ana Garcia (Contratista Demo SL)"));
+        var panel = cut.Find(".drawer-panel").TextContent;
+        panel.Should().Contain("Este centro no requiere gestión CAE");
+        panel.Should().NotContain("Comprobación previa");
+        cut.FindComponents<BotonCopiar>().Should().ContainSingle()
+            .Which.Instance.Valor.Should().Be(mediator.Aviso.Asunto + "\n\n" + mediator.Aviso.Cuerpo,
+                "lo que se pega en el correo es el asunto y el cuerpo, sin nada añadido por la página");
+        mediator.ConsultasDocumentacion.Should().Be(0, "sin gestión CAE no hay documentación que consultar");
     }
 
     [Fact]

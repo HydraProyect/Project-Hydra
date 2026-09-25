@@ -63,7 +63,7 @@ public class CrearCanalGestionCommandValidator : AbstractValidator<CrearCanalGes
 
 public class CrearCanalGestionCommandHandler(
     ICanalGestionDocumentalRepository repositorio, IAlcanceDatosService alcanceDatos,
-    IProveedoresPlataformaCaeQueryContext proveedoresContext,
+    IProveedoresPlataformaCaeQueryContext proveedoresContext, ICentrosQueryContext centrosContext,
     IAltaAcreditacionesPlataformaService altaAcreditaciones, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearCanalGestionCommand, Result<Guid>>
 {
@@ -72,6 +72,13 @@ public class CrearCanalGestionCommandHandler(
         // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
         if (!await alcanceDatos.CentroVisibleAsync(request.CentroId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("CanalGestion.CentroNoEncontrado", "No encontramos este centro."));
+
+        // P1-X2: un Centro sin gestión CAE no recibe documentación, así que un
+        // canal nuevo no tendría a qué servir. Los que ya tuviera se conservan.
+        if (await centrosContext.Centros.AnyAsync(
+                c => c.Id == request.CentroId && c.GestionCae == ModalidadGestionCae.SinGestionCae, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear(
+                "CanalGestion.CentroSinGestionCae", "Este centro no requiere gestión CAE: no necesita canales de gestión."));
 
         if (request.Tipo == TipoCanalGestion.Plataforma
             && !await proveedoresContext.ProveedoresPlataformaCae.AnyAsync(p => p.Id == request.ProveedorPlataformaCaeId, cancellationToken))

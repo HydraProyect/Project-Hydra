@@ -50,13 +50,15 @@ public class AcotarActivoUnicoProyectoTecnicoMigrationTests : IAsyncLifetime
             contexto.Empresas.AddRange(cliente, empresa);
             await contexto.SaveChangesAsync();
 
-            var centro = new CaeManager.Domain.Centros.Centro(cliente.Id, empresa.Id, "Centro Duplicado");
+            // El Centro, por SQL crudo: en MigracionAntes "Centros" todavía no
+            // tiene "GestionCae" (SiembraCentroEnEsquemaAnterior).
+            var centroId = Guid.NewGuid();
+            await SiembraCentroEnEsquemaAnterior.InsertarAsync(contexto, centroId, _tenantId, cliente.Id, empresa.Id, "Centro Duplicado");
             var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "García", "77189989B");
-            contexto.Centros.Add(centro);
             contexto.Trabajadores.Add(trabajador);
             await contexto.SaveChangesAsync();
 
-            var proyecto = Proyecto.Crear(cliente.Id, centro.Id, "Ampliación Duplicada", new DateOnly(2026, 1, 1), null, null);
+            var proyecto = Proyecto.Crear(cliente.Id, centroId, "Ampliación Duplicada", new DateOnly(2026, 1, 1), null, null);
             contexto.Proyectos.Add(proyecto);
             await contexto.SaveChangesAsync();
 

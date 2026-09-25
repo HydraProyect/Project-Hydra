@@ -306,4 +306,22 @@
   <data name="ToastErrorEliminarLote" xml:space="preserve">
     <value>No pudimos eliminar las visitas seleccionadas. Intenta nuevamente.</value>
   </data>
+  <data name="BadgeSinGestionCae" xml:space="preserve">
+    <value>No requiere gestión CAE</value>
+  </data>
+  <data name="SubtituloAvisoVisita" xml:space="preserve">
+    <value>Aviso de visita</value>
+  </data>
+  <data name="AvisoVisitaExplicacion" xml:space="preserve">
+    <value>Este centro no requiere gestión CAE: el técnico solo tiene que llegar. Copia este aviso y envíalo por correo al centro.</value>
+  </data>
+  <data name="AvisoVisitaCopiar" xml:space="preserve">
+    <value>Copiar aviso</value>
+  </data>
+  <data name="AvisoVisitaEtiquetaCopiar" xml:space="preserve">
+    <value>el aviso de la visita</value>
+  </data>
+  <data name="ErrorAvisoVisita" xml:space="preserve">
+    <value>No pudimos preparar el aviso de la visita.</value>
+  </data>
 </root>
