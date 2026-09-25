@@ -60,4 +60,13 @@
     <value>No s'aplica</value>
     <comment>Columna Vigència de la fila d'Empresa quan Estat és null: un rebuig a la plataforma ni venç ni "no caduca" (AcordeonAsignacionesCentro.razor.cs, TextoVigenciaEmpresa).</comment>
   </data>
+  <data name="ToastLoteRestaurados" xml:space="preserve">
+    <value>{0} centro(s) restaurado(s).</value>
+  </data>
+  <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
+    <value>{0} restaurado(s). {1} no se pudieron restaurar: {2}</value>
+  </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
 </root>

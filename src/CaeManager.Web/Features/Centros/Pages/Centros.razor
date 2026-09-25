@@ -12,12 +12,15 @@
 @using CaeManager.Application.Common
 @using CaeManager.Web.Features.Centros
 @using CaeManager.Web.Features.Centros.Components
+@using CaeManager.Web.Features.Centros.Recursos
+@using Microsoft.Extensions.Localization
 @using CaeManager.Web.Features.Clientes.Components
 @using CaeManager.Web.Features.Empresas.Components
 @using FluentValidation
 @using MediatR
 @using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IMediator Mediator
+@inject IStringLocalizer<TextosCentros> Textos
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
 @inject ContextWorkspaceService WorkspaceService
@@ -401,6 +404,6 @@
     Visible="_confirmarEliminarLoteVisible"
     VisibleChanged="v => _confirmarEliminarLoteVisible = v"
     Titulo="@($"¿Eliminar {_seleccionados.Count} centro(s)?")"
-    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría."
+    Mensaje="Se ocultarán de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador del Tenant puede recuperarlos desde Auditoría."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />

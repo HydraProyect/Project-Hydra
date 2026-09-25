@@ -79,6 +79,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
     {
         public List<Fila> Almacen { get; } = [];
         public int? EliminadosForzados { get; set; }
+        /// <summary>Ids que el lote pide y no puede eliminar: vuelven como error y no entran en IdsEliminados.</summary>
+        public HashSet<Guid> NoEliminables { get; } = [];
         private readonly List<Fila> _papelera = [];
         public List<object> Enviadas { get; } = [];
 
@@ -139,8 +141,15 @@ public class TrabajadoresListaGen2Tests : BunitContext
                     _papelera.RemoveAll(f => f.Dto.Id == c.Id);
                     return Result.Exito();
                 case EliminarTrabajadoresCommand c:
-                    var borrados = Almacen.RemoveAll(f => c.Ids.Contains(f.Dto.Id));
-                    return Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? borrados, []));
+                    {
+                        var caidos = Almacen.Where(f => c.Ids.Contains(f.Dto.Id) && !NoEliminables.Contains(f.Dto.Id)).ToList();
+                        _papelera.AddRange(caidos);
+                        Almacen.RemoveAll(caidos.Contains);
+                        var errores = c.Ids.Where(NoEliminables.Contains).Select(id => $"No se pudo borrar {id}.").ToList();
+                        return Result.Exito(EliminadosForzados is { } forzados
+                            ? new ResultadoEliminacionLoteDto(forzados, errores)
+                            : new ResultadoEliminacionLoteDto(caidos.Count, errores, caidos.Select(f => f.Dto.Id).ToList()));
+                    }
                 default:
                     throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
             }
@@ -1061,5 +1070,60 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
         mediador.Enviadas.OfType<EliminarTrabajadoresCommand>().Single().Ids.Should().Equal([ana.Dto.Id], "el caso solo vale si el lote pidió a ese trabajador");
         workspace.EstaAbierto.Should().BeTrue("no cayó nada: no hay nada muerto que retirar");
+    }
+
+    /// <summary>
+    /// FS-09 (auditoría UX de flujos sin salida, 2026-09-24): tras eliminar en lote no
+    /// había salida salvo pedir a un Administrador del Tenant que recuperase uno a uno
+    /// desde Auditoría. El aviso ofrece «Deshacer», que restaura solo los que el lote sí
+    /// eliminó, y el diálogo lo anuncia.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_en_lote_ofrece_deshacer_que_restaura_solo_los_que_cayeron()
+    {
+        var ana = Trabajador("Ana", "Moreno");
+        var bea = Trabajador("Bea", "Alonso");
+        var mediador = new MediatorFalso { Almacen = { bea, ana } };
+        mediador.NoEliminables.Add(bea.Dto.Id);
+        var cut = Renderizar(mediador);
+
+        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja");
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Alonso"));
+
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        mediador.Enviadas.OfType<RestaurarTrabajadorCommand>().Should().Equal([new RestaurarTrabajadorCommand(ana.Dto.Id)],
+            "se restaura solo lo que el lote eliminó, no el superviviente");
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Alonso", "Moreno"));
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje == "1 trabajador(es) restaurado(s).");
+    }
+
+    /// <summary>Con los ids del lote, la ficha de un superviviente sigue abierta (antes se retiraban todas las pedidas).</summary>
+    [Fact]
+    public async Task Eliminar_en_lote_no_retira_la_ficha_de_un_superviviente()
+    {
+        var ana = Trabajador("Ana", "Moreno");
+        var bea = Trabajador("Bea", "Alonso");
+        var mediador = new MediatorFalso { Almacen = { bea, ana } };
+        mediador.NoEliminables.Add(bea.Dto.Id);
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Trabajador, bea.Dto.Id, "Bea Alonso", "operacion"));
+
+        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarTrabajadoresCommand>().Single().Ids.Should().BeEquivalentTo([ana.Dto.Id, bea.Dto.Id],
+            "el caso solo vale si el superviviente iba en el lote");
+        workspace.EstaAbierto.Should().BeTrue("Bea no cayó: su ficha no está muerta");
     }
 }

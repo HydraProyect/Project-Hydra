@@ -49,6 +49,7 @@ public class EliminarTrabajadoresCommandHandlerTests
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Eliminados.Should().Be(1);
         resultado.Valor.Errores.Should().ContainSingle();
+        resultado.Valor.IdsEliminados.Should().Equal([existente.Id], "«Deshacer» del lote (FS-09) restaura solo los que cayeron");
     }
 
     [Fact]
@@ -67,6 +68,7 @@ public class EliminarTrabajadoresCommandHandlerTests
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Eliminados.Should().Be(0);
         resultado.Valor.Errores.Should().ContainSingle();
+        resultado.Valor.IdsEliminados.Should().BeEmpty("lo que no se eliminó no se ofrece para deshacer");
         trabajador.EstaEliminado.Should().BeFalse();
     }
 }

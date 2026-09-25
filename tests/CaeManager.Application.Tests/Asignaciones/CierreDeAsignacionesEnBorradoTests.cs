@@ -127,6 +127,7 @@ public class CierreDeAsignacionesEnBorradoTests
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Eliminados.Should().Be(2);
+        resultado.Valor.IdsEliminados.Should().BeEquivalentTo([primero.Id, segundo.Id]);
         unaDelPrimero.EstaActiva.Should().BeFalse();
         unaDelSegundo.EstaActiva.Should().BeFalse();
     }

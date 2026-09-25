@@ -211,13 +211,13 @@
     <value>¿Eliminar a {0}?</value>
   </data>
   <data name="ConfirmarEliminarMensaje" xml:space="preserve">
-    <value>Se ocultará de las listas activas.</value>
+    <value>Se ocultará de las listas activas. No se puede recuperar desde la aplicación.</value>
   </data>
   <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
     <value>¿Eliminar {0} subcontrata(s)?</value>
   </data>
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas.</value>
+    <value>Se ocultarán de las listas activas. No se pueden recuperar desde la aplicación.</value>
   </data>
   <data name="ConteoUno" xml:space="preserve">
     <value>{0} de {1} subcontrata</value>

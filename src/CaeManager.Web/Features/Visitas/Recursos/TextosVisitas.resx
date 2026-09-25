@@ -229,13 +229,13 @@
     <value>¿Eliminar la visita a {0}?</value>
   </data>
   <data name="ConfirmarEliminarMensaje" xml:space="preserve">
-    <value>Se ocultará de las listas activas.</value>
+    <value>Se ocultará de las listas activas junto con su historia. No se puede recuperar desde la aplicación: si solo han cambiado las fechas o quién entra, edítala en lugar de eliminarla.</value>
   </data>
   <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
     <value>¿Eliminar {0} visita(s)?</value>
   </data>
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas.</value>
+    <value>Se ocultarán de las listas activas junto con su historia. No se pueden recuperar desde la aplicación.</value>
   </data>
   <data name="ToastSugerenciaNoEncontrada" xml:space="preserve">
     <value>No encontramos esta sugerencia. Puede que ya se haya resuelto.</value>
