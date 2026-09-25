@@ -41,10 +41,12 @@ namespace CaeManager.IntegrationTests.Centros;
 /// — el switch solo cubría Vencido/Faltante y Próximo, así que un documento
 /// dentro del umbral rojo tampoco aparecía en ningún recuento aunque sí
 /// influye en <see cref="EstadoCentro"/> (ver <see cref="CalculadoraEstadoCentro"/>).
-/// Urgente se agrupa con Vencidas, no con Próximas: comparte el mismo tono
-/// Peligro que <see cref="EstadoDocumento.Vencido"/> y
-/// <see cref="EstadoDocumento.Faltante"/> en <c>EstadoDocumentoUi.Tono</c>,
-/// distinto del tono Advertencia de <see cref="EstadoDocumento.Proximo"/>.
+/// Urgente se agrupa con Próximas, no con Vencidas: el documento aún no
+/// venció, y estos dos buckets se leen como texto literal ("N vencido(s)",
+/// Centro 360) — meterlo en "vencidas" afirmaría una fecha vencida que no lo
+/// está (hallazgo de Codex, oleada 3 sobre esta misma PR; la severidad de
+/// color de Urgente se resuelve en el badge de cada incidencia, no en el
+/// bucket del recuento agregado).
 /// </summary>
 public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
 {
@@ -136,7 +138,7 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Un_documento_en_estado_Urgente_aparece_en_Vencidas()
+    public async Task Un_documento_en_estado_Urgente_aparece_en_Proximas()
     {
         // Vence dentro de 10 días: por debajo del umbral rojo (15) pero no
         // vencido — EstadoDocumento.Urgente, no Vencido ni Proximo.
@@ -146,11 +148,11 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
 
         centro.Estado.Should().Be(EstadoCentro.Urgente,
             "control positivo: EstadoCentro.Urgente se deriva exactamente de esta causa (CalculadoraEstadoCentro)");
-        centro.Recuentos.TotalVencidas.Should().Be(1,
-            "Urgente comparte el tono Peligro de Vencido/Faltante (EstadoDocumentoUi.Tono) — bucketizarlo en " +
-            "Proximas le rebajaría la severidad que la UI ya le reconoce en cualquier otro sitio donde se pinta");
-        centro.Recuentos.TotalProximas.Should().Be(0,
-            "Urgente no es Proximo: son tonos distintos (Peligro vs. Advertencia) y el recuento no debe mezclarlos");
+        centro.Recuentos.TotalProximas.Should().Be(1,
+            "el documento aún no venció: Vencidas se lee como texto literal (\"N vencido(s)\") en Centro 360, y " +
+            "meter Urgente ahí afirmaría una fecha vencida que no lo está");
+        centro.Recuentos.TotalVencidas.Should().Be(0,
+            "Urgente no es Vencido: el recuento de vencidas no debe mezclar severidad de color con vencimiento real");
     }
 
     private async Task<CentroListaDto> ObtenerCentroUnicoAsync()

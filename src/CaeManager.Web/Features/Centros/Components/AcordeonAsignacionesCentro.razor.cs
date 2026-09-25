@@ -546,6 +546,14 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private static string TextoVigenciaEmpresa(IncidenciaCentroDto incidencia)
     {
+        // Un rechazo en plataforma (Estado: null a propósito, ver
+        // CalculoEstadoCentroService) no tiene vigencia documental que
+        // describir: ni vence ni "no caduca", es una decisión activa de la
+        // plataforma. "Sin caducidad" sería contradictorio junto al badge
+        // "Rechazado" (hallazgo de Codex, oleada 3 sobre esta misma PR).
+        if (incidencia.Estado is null)
+            return "No aplica";
+
         if (incidencia.FechaVencimiento is not { } fecha)
             return "Sin caducidad";
 

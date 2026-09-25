@@ -101,5 +101,9 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
 
         fila.TextContent.Should().Contain("Rechazado",
             "sin Estado, el componente ya no intenta indexar EstadoDocumentoUi con un valor inexistente: pinta un badge propio");
+        fila.TextContent.Should().Contain("No aplica",
+            "un rechazo no tiene vigencia documental: \"Sin caducidad\" sería contradictorio junto al badge \"Rechazado\" " +
+            "(hallazgo de Codex, oleada 3 sobre esta misma PR)");
+        fila.TextContent.Should().NotContain("Sin caducidad");
     }
 }

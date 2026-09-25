@@ -97,21 +97,22 @@ public class ObtenerSubcontratasQueryHandler(
     }
 
     /// <summary>
-    /// "Faltante" cuenta como vencido, y Urgente también — mismo criterio que
-    /// <c>ObtenerCentrosQuery.Desglosar</c>: un requisito sin documento no está
-    /// al día, y <c>EstadoDocumentoUi</c> ya le da a Urgente el mismo tono
-    /// Peligro que a Vencido y Faltante (distinto de Próximo, que es
-    /// Advertencia/ámbar) en el resto de la aplicación — contarlo en
-    /// "próximas" le rebajaría la severidad que la UI ya le reconoce en
-    /// cualquier otro sitio donde se pinta. Antes de que
+    /// "Faltante" cuenta como vencido, y Urgente va con "próximas" — mismo
+    /// criterio que <c>ObtenerCentrosQuery.Desglosar</c>: un requisito sin
+    /// documento no está al día, y Urgente es más severo que Próximo pero el
+    /// documento aún no venció. Estos dos buckets se leen como texto literal
+    /// ("N vencido(s)") en la UI, no solo como un tono de color — meter
+    /// Urgente en "vencidas" afirmaría una fecha vencida que no lo está
+    /// (hallazgo de Codex, oleada 3). La severidad de color se resuelve en el
+    /// badge de cada incidencia, no en el bucket del recuento. Antes de que
     /// <c>ObtenerCentrosQuery</c> lo corrigiera (D-7, piloto Outbound), este
     /// comentario afirmaba paridad mientras Urgente se descartaba en silencio
     /// aquí igual que allí.
     /// </summary>
     private static RecuentosSubcontrataDto Desglosar(IReadOnlyList<IncidenciaSubcontrataDto> incidencias)
     {
-        var vencidas = incidencias.Where(i => i.Estado is Domain.Documentos.EstadoDocumento.Vencido or Domain.Documentos.EstadoDocumento.Faltante or Domain.Documentos.EstadoDocumento.Urgente).ToList();
-        var proximas = incidencias.Where(i => i.Estado is Domain.Documentos.EstadoDocumento.Proximo).ToList();
+        var vencidas = incidencias.Where(i => i.Estado is Domain.Documentos.EstadoDocumento.Vencido or Domain.Documentos.EstadoDocumento.Faltante).ToList();
+        var proximas = incidencias.Where(i => i.Estado is Domain.Documentos.EstadoDocumento.Urgente or Domain.Documentos.EstadoDocumento.Proximo).ToList();
         return new RecuentosSubcontrataDto(vencidas, proximas);
     }
 }
