@@ -32,6 +32,14 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 /// segunda línea: que el registro de Hydra nunca diga "subida" para un
 /// conector que la plataforma declaró inactivo, ni siquiera si un cliente
 /// desactualizado o modificado se saltó el freno del popup.
+///
+/// Una acreditación <see cref="EstadoAcreditacion.Rechazada"/> no se marca
+/// subida (P0-9b, FS-02): la plataforma ya evaluó y devolvió esa versión, y
+/// marcarla subida sin versión nueva registraría como enviada la misma copia
+/// rechazada y sacaría el rechazo de la cola. La salida es subir una versión
+/// corregida (<c>RenovarDocumentoCommand</c>), que devuelve todas las
+/// acreditaciones del Documento a <see cref="EstadoAcreditacion.PendienteDeSubir"/>;
+/// desde ahí sí se marca subida. Vale igual para la extensión.
 /// </summary>
 public record MarcarAcreditacionSubidaCommand(Guid AcreditacionId, bool ExigirProveedorActivo = false) : ICommand;
 
@@ -42,6 +50,8 @@ public class MarcarAcreditacionSubidaCommandHandler(
     IUnitOfWork unitOfWork)
     : IRequestHandler<MarcarAcreditacionSubidaCommand, Result>
 {
+    public const string CodigoRechazadaSinVersionNueva = "Acreditacion.RechazadaSinVersionNueva";
+
     public async Task<Result> Handle(MarcarAcreditacionSubidaCommand request, CancellationToken cancellationToken)
     {
         var acreditacion = await acreditacionRepositorio.ObtenerPorIdAsync(request.AcreditacionId, cancellationToken);
@@ -51,6 +61,11 @@ public class MarcarAcreditacionSubidaCommandHandler(
         var documento = await documentoRepositorio.ObtenerPorIdAsync(acreditacion.DocumentoId, cancellationToken);
         if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
             return Result.Fallo(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
+
+        if (acreditacion.Estado == EstadoAcreditacion.Rechazada)
+            return Result.Fallo(Error.Crear(
+                CodigoRechazadaSinVersionNueva,
+                "La plataforma rechazó esta versión. Sube una versión corregida del documento: al guardarla volverá a quedar pendiente de subir."));
 
         if (request.ExigirProveedorActivo && !await ProveedorActivoAsync(acreditacion.CanalGestionDocumentalId, cancellationToken))
             return Result.Fallo(Error.Crear(

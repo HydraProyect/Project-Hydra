@@ -42,6 +42,53 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
     }
 
     [Fact]
+    public async Task Una_rechazada_no_se_marca_subida_sin_version_nueva()
+    {
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
+        var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, Guid.NewGuid());
+        acreditacion.Rechazar(CausaRechazoAcreditacion.Ilegible, "Firma ilegible", DateTime.UtcNow);
+        var (handler, unitOfWork) = HandlerCon(documento, acreditacion);
+
+        var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(MarcarAcreditacionSubidaCommandHandler.CodigoRechazadaSinVersionNueva);
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.Rechazada, "el rechazo sigue en la cola hasta que llegue una versión corregida");
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Tras_subir_una_version_corregida_la_misma_acreditacion_si_se_marca_subida()
+    {
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
+        var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, Guid.NewGuid());
+        acreditacion.Rechazar(CausaRechazoAcreditacion.Ilegible, "Firma ilegible", DateTime.UtcNow);
+        // Lo que hace RenovarDocumentoCommand con cada acreditación del Documento.
+        acreditacion.ReiniciarPorRenovacionDocumento();
+        var (handler, unitOfWork) = HandlerCon(documento, acreditacion);
+
+        var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.Subida);
+        unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    private static (MarcarAcreditacionSubidaCommandHandler, UnitOfWorkFalso) HandlerCon(
+        Documento documento, AcreditacionDocumentoPlataforma acreditacion)
+    {
+        var documentoRepositorio = new DocumentoRepositorioFalso();
+        documentoRepositorio.Agregar(documento);
+        var acreditacionRepositorio = new AcreditacionDocumentoPlataformaRepositorioFalso();
+        acreditacionRepositorio.Agregar(acreditacion);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new MarcarAcreditacionSubidaCommandHandler(
+            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
+            new CentrosQueryContextFalso(), new ProveedoresPlataformaCaeQueryContextFalso(), unitOfWork);
+        return (handler, unitOfWork);
+    }
+
+    [Fact]
     public async Task Falla_cuando_la_acreditacion_no_existe()
     {
         var acreditacionRepositorio = new AcreditacionDocumentoPlataformaRepositorioFalso();

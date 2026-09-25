@@ -154,6 +154,8 @@ public class ObtenerBandejaGestorQueryHandlerTests
         item.Subtitulo.Should().Be("Iker Etxeberria — Certificado ilegible");
         item.ProveedorNombre.Should().Be("Dokify");
         item.ClienteNombre.Should().Be("Cliente Norte S.A.");
+        // P0-9b: la acción «Corregir en …» lleva a esta acreditación, no a la lista.
+        item.AcreditacionId.Should().Be(rechazada.Clientes.Single().Documentos.Single().AcreditacionId);
     }
 
     [Fact]

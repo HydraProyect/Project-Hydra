@@ -45,9 +45,14 @@ public static class AccionesBandeja
         // La acción real (MarcarAcreditacionSubidaCommand) vive en la pestaña
         // Plataforma de /documentos, no en DocumentoWorkspacePanel (el
         // fallback genérico de abajo) — ese panel no tiene ningún control de
-        // acreditación por plataforma.
+        // acreditación por plataforma. Con la acreditación concreta (P0-9b),
+        // la pestaña abre solo su plataforma y resalta su fila: «Corregir en
+        // Nalanda» tiene que llevar al documento rechazado, no a la lista de
+        // todas las plataformas.
         TipoItemBandeja.PlataformaPendiente or TipoItemBandeja.PlataformaRechazada or TipoItemBandeja.EnPlataformaSeguimiento
-            or TipoItemBandeja.PlataformaVencida => "/documentos?pestana=plataforma",
+            or TipoItemBandeja.PlataformaVencida => item.AcreditacionId is { } acreditacionId
+                ? $"/documentos?pestana=plataforma&acreditacionId={acreditacionId}"
+                : "/documentos?pestana=plataforma",
         _ => item.DocumentoId is { } documentoId
             ? $"/documentos?documentoId={documentoId}"
             : $"/documentos?trabajadorId={item.TrabajadorId}&tipoDocumentoId={item.TipoDocumentoId}"

@@ -55,7 +55,8 @@
         {
             <AuthorizeView Roles="@RolesDeGestionDocumental">
                 <Authorized>
-                    <PlataformaTab />
+                    <PlataformaTab @ref="_plataformaTab" AcreditacionId="AcreditacionId"
+                                   OnSubirVersionCorregida="AbrirVersionCorregidaAsync" />
                 </Authorized>
                 <NotAuthorized>
                     <SinPermisoEnSeccion Seccion="Plataformas CAE" />

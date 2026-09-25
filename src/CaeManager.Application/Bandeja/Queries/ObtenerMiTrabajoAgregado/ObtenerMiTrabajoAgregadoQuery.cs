@@ -351,7 +351,8 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
                     ClienteNombre: cliente.ClienteNombre,
                     EmpresaId: d.EmpresaId,
                     TrabajadorNombre: d.TrabajadorId is not null ? d.PropietarioNombre : null,
-                    ProveedorNombre: proveedor.ProveedorNombre))))
+                    ProveedorNombre: proveedor.ProveedorNombre,
+                    AcreditacionId: d.AcreditacionId))))
             .ToList();
     }
 
@@ -395,6 +396,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
                 ClienteNombre: cliente.ClienteNombre,
                 EmpresaId: d.EmpresaId,
                 TrabajadorNombre: d.TrabajadorId is not null ? d.PropietarioNombre : null,
-                ProveedorNombre: proveedor.ProveedorNombre))))
+                ProveedorNombre: proveedor.ProveedorNombre,
+                AcreditacionId: d.AcreditacionId))))
         .ToList();
 }

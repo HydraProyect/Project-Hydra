@@ -168,6 +168,12 @@ public enum TipoItemBandeja
 /// consume la vigilancia de visitas urgentes, a la que no le hace falta—: allí
 /// false significa «no calculado», no «no bloquea».
 /// </param>
+/// <param name="AcreditacionId">
+/// Solo en los ítems de plataforma (pendiente, rechazada, en seguimiento,
+/// vencida en plataforma): la acreditación concreta, para que la acción lleve
+/// a su fila en la pestaña Plataforma (<c>?acreditacionId=</c>, P0-9b) y no a
+/// la lista entera de todas las plataformas.
+/// </param>
 public record ItemBandejaDto(
     string Id,
     TipoItemBandeja Tipo,
@@ -189,7 +195,8 @@ public record ItemBandejaDto(
     string? ProveedorNombre = null,
     bool EsAltaNueva = false,
     bool? EmpresaEsPropia = null,
-    bool RechazoBloqueaCentro = false);
+    bool RechazoBloqueaCentro = false,
+    Guid? AcreditacionId = null);
 
 public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracionQueryContext configuracionContext)
     : IRequestHandler<ObtenerBandejaGestorQuery, IReadOnlyList<ItemBandejaDto>>
@@ -379,7 +386,8 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             ClienteNombre: x.cliente.ClienteNombre,
             EmpresaId: x.d.EmpresaId,
             TrabajadorNombre: x.d.TrabajadorId is not null ? x.d.PropietarioNombre : null,
-            ProveedorNombre: x.proveedor.ProveedorNombre)));
+            ProveedorNombre: x.proveedor.ProveedorNombre,
+            AcreditacionId: x.d.AcreditacionId)));
 
         // Una sugerencia sin confirmar pesa más que cualquier otra cosa: sin
         // confirmarla no hay ni Visita ni documentación que verificar. Entre
