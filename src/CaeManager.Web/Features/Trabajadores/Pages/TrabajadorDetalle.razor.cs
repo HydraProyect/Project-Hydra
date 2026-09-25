@@ -215,6 +215,15 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
         {
             _trabajadorEnPantalla = trabajadorId;
             CerrarModalesPendientes();
+
+            // Los documentos llegan en una carga aparte, después del detalle
+            // y los centros: sin vaciarlos aquí, la franja «Por vencer» de B
+            // enseñaría los de A mientras tanto.
+            _documentos = [];
+            _totalDocumentos = 0;
+            _tiposGenerales = null;
+            _cargandoDocumentos = true;
+            _errorDocumentos = false;
         }
 
         _cargando = true;
@@ -338,8 +347,12 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
         _errorDocumentos = false;
         try
         {
+            // Orden por Estado ascendente, resuelto en la base de datos: si hay
+            // más documentos que el tope, lo que se queda fuera es lo vigente o
+            // lo que no caduca, nunca lo que alimenta la franja «Por vencer».
             var documentos = await Mediator.Send(new ObtenerDocumentosQuery(
-                trabajadorId, AmbitoAplicacion.Trabajador, Busqueda: null, TamanoPagina: TopeDocumentos), _ciclo.Token);
+                trabajadorId, AmbitoAplicacion.Trabajador, Busqueda: null, TamanoPagina: TopeDocumentos,
+                OrdenarPor: nameof(DocumentoListaDto.Estado)), _ciclo.Token);
             if (!EsVigente(carga))
                 return;
 

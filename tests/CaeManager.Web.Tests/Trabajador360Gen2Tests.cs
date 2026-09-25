@@ -433,8 +433,10 @@ public class Trabajador360Gen2Tests : BunitContext
             "lo más grave arriba; lo que no caduca lo dice (Q4) en vez de dejar la celda en blanco");
 
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().ContainSingle()
-            .Which.Should().BeEquivalentTo(new { TrabajadorId = (Guid?)id, Ambito = (AmbitoAplicacion?)AmbitoAplicacion.Trabajador },
-                "la misma consulta, alcance y RLS que la lista de Documentos, acotada a este trabajador");
+            .Which.Should().BeEquivalentTo(
+                new { TrabajadorId = (Guid?)id, Ambito = (AmbitoAplicacion?)AmbitoAplicacion.Trabajador, OrdenarPor = "Estado", Descendente = false },
+                "la misma consulta, alcance y RLS que la lista de Documentos, acotada a este trabajador; con lo más grave primero, " +
+                "si el tope de la página corta la lista, lo que se pierde es lo vigente y no lo que alimenta «Por vencer»");
     }
 
     [Fact]
@@ -697,6 +699,33 @@ public class Trabajador360Gen2Tests : BunitContext
         cut.Markup.Should().NotContain("Certificado de aptitud de A",
             "son las gestiones de otro trabajador");
         cut.FindAll("[aria-label='Gestiones pendientes']").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Al_pasar_a_otro_trabajador_la_franja_Por_vencer_no_ensena_los_documentos_del_anterior()
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        var documentosDeB = new TaskCompletionSource();
+        var mediador = Registrar(new MediatorFalso
+        {
+            Retener = p => p is ObtenerDocumentosQuery q && q.TrabajadorId == b ? documentosDeB.Task : null
+        });
+        var (norte, berriz) = Escena();
+        mediador.Detalles[a] = Detalle(a, "Javier", "Salas Moreno");
+        mediador.Detalles[b] = Detalle(b, "Eider", "Lasa Arrieta");
+        mediador.Centros[a] = [norte];
+        mediador.Centros[b] = [berriz];
+        mediador.Documentos[a] = [DocumentoDelTrabajador("Reconocimiento médico de A", EstadoDocumento.Urgente, new(2025, 10, 1), new(2026, 10, 1))];
+
+        var cut = Renderizar(a);
+        cut.Find("ul.trabajador360-por-vencer").TextContent.Should().Contain("Reconocimiento médico de A");
+
+        // Los documentos de B siguen en vuelo; el detalle y los centros de B ya han llegado.
+        cut.Render(p => p.Add(x => x.TrabajadorId, b));
+
+        cut.Find(".cabecera-pagina h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
+        cut.Markup.Should().NotContain("Reconocimiento médico de A", "son los documentos de otro trabajador");
     }
 
     [Fact]
