@@ -1,8 +1,10 @@
+using CaeManager.Application.AsistenteIa.Candidatos;
 using CaeManager.Application.AsistenteIa.Queries.PreguntarAlAsistente;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Domain.Common;
 using FluentAssertions;
+using MediatR;
 using Xunit;
 
 namespace CaeManager.Application.Tests.AsistenteIa;
@@ -39,7 +41,7 @@ public class PreguntarAlAsistenteQueryHandlerTests
         var historial = new List<MensajeChatDto> { new(RolMensajeChat.Usuario, "¿Cada cuánto se renueva un reconocimiento médico?") };
         var servicio = new AsistenteIaServiceFalso(Result.Exito("Depende del puesto de trabajo…"));
         var handler = new PreguntarAlAsistenteQueryHandler(
-            servicio, new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(TenantId));
+            servicio, new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(TenantId), new CarteraFalsa());
 
         var resultado = await handler.Handle(new PreguntarAlAsistenteQuery(historial), CancellationToken.None);
 
@@ -54,7 +56,7 @@ public class PreguntarAlAsistenteQueryHandlerTests
         var error = Error.Crear("AsistenteIa.NoConfigurado", "El asistente no está disponible ahora mismo.");
         var servicio = new AsistenteIaServiceFalso(Result.Fallo<string>(error));
         var handler = new PreguntarAlAsistenteQueryHandler(
-            servicio, new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(TenantId));
+            servicio, new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(TenantId), new CarteraFalsa());
 
         var resultado = await handler.Handle(new PreguntarAlAsistenteQuery([]), CancellationToken.None);
 
@@ -70,12 +72,56 @@ public class PreguntarAlAsistenteQueryHandlerTests
         // servicio, no con una aserción confusa sobre el mensaje de error.
         var servicioQueNuncaDebeLlamarse = new AsistenteIaServiceLanzaSiSeInvoca();
         var handler = new PreguntarAlAsistenteQueryHandler(
-            servicioQueNuncaDebeLlamarse, new InstruccionTratamientoIaFalsa(habilitada: false), new TenantActualFalso(TenantId));
+            servicioQueNuncaDebeLlamarse, new InstruccionTratamientoIaFalsa(habilitada: false), new TenantActualFalso(TenantId), new CarteraFalsa());
 
         var resultado = await handler.Handle(new PreguntarAlAsistenteQuery([]), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("AsistenteIa.SinInstruccion");
+    }
+
+    [Fact]
+    public async Task Con_un_Tenant_de_la_cartera_sin_instruccion_no_llama_al_servicio_y_dice_cual_falta()
+    {
+        // La pantalla tiene instrucción, pero el Gestor CAE puede escribir el nombre
+        // de una persona de otro Tenant de su cartera: falla cerrado.
+        var otro = new TenantDeCarteraDto(Guid.NewGuid(), "Tenant beneficiario sin instrucción", false);
+        var handler = new PreguntarAlAsistenteQueryHandler(
+            new AsistenteIaServiceLanzaSiSeInvoca(), new InstruccionTratamientoIaFalsa(habilitada: true),
+            new TenantActualFalso(TenantId), new CarteraFalsa(sin: [otro]));
+
+        var resultado = await handler.Handle(
+            new PreguntarAlAsistenteQuery([new(RolMensajeChat.Usuario, "¿Tiene Ana Ruiz el reconocimiento médico al día?")]),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(InstruccionIaCarteraDto.CodigoError);
+        resultado.Error.Mensaje.Should().Contain("Tenant beneficiario sin instrucción");
+    }
+
+    /// <summary>Devuelve la comprobación de la cartera; la Query en sí tiene su propia suite.</summary>
+    private sealed class CarteraFalsa(TenantDeCarteraDto[]? sin = null) : IMediator
+    {
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            request is ComprobarInstruccionIaCarteraQuery
+                ? Task.FromResult((TResponse)(object)new InstruccionIaCarteraDto([], sin ?? []))
+                : throw new NotSupportedException(request.GetType().Name);
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            throw new NotSupportedException();
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
     }
 
     private sealed class AsistenteIaServiceLanzaSiSeInvoca : IAsistenteIaService

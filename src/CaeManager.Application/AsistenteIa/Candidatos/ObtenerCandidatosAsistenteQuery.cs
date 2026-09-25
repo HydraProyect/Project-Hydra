@@ -60,14 +60,22 @@ public record CandidatosAsistenteDto(
     /// vuelve a preguntar cuando el Gestor CAE ya ha elegido dónde se ejecuta.
     /// Un Tenant fuera de la cartera no deja ningún candidato.
     /// </summary>
-    public CandidatosAsistenteDto SoloDelTenant(Guid tenantId)
+    public CandidatosAsistenteDto SoloDelTenant(Guid tenantId) => SoloDeLosTenants(new HashSet<Guid> { tenantId });
+
+    /// <summary>
+    /// Los mismos candidatos, reducidos a unos Tenants de la cartera: por ejemplo,
+    /// los que tienen instrucción de tratamiento con IA vigente. Un Tenant de fuera
+    /// de la cartera no deja ningún candidato.
+    /// </summary>
+    public CandidatosAsistenteDto SoloDeLosTenants(IReadOnlySet<Guid> tenantIds)
     {
-        var tenants = Tenants.Where(t => t.TenantId == tenantId).ToList();
+        var tenants = Tenants.Where(t => tenantIds.Contains(t.TenantId)).ToList();
+        var quedan = tenants.Select(t => t.TenantId).ToHashSet();
         return new CandidatosAsistenteDto(
             tenants,
             PorCampo.ToDictionary(
                 c => c.Key,
-                c => (IReadOnlyList<CandidatoSelladoDto>)c.Value.Where(x => tenants.Count > 0 && x.TenantId == tenantId).ToList()));
+                c => (IReadOnlyList<CandidatoSelladoDto>)c.Value.Where(x => quedan.Contains(x.TenantId)).ToList()));
     }
 
     /// <summary>De qué Tenant sale un candidato; null si no está entre estos.</summary>
