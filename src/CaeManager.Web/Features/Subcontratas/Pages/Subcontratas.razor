@@ -9,6 +9,7 @@
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
 @using CaeManager.Application.Common
 @using CaeManager.Domain.Subcontratas
+@using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Subcontratas
 @using CaeManager.Web.Features.Subcontratas.Components
 @using FluentValidation
@@ -221,7 +222,13 @@
                                     <Detalle>
                                         @foreach (var incidencia in subcontrata.Recuentos.Proximas)
                                         {
-                                            <span class="ventana-linea">@incidencia.Descripcion</span>
+                                            @* Urgente y Proximo comparten badge Advertencia arriba (Codex,
+                                               oleada 3): sin el tono por incidencia aquí, un documento urgente
+                                               era indistinguible de uno próximo normal en esta lista. *@
+                                            <span class="ventana-linea">
+                                                <Badge Tono="EstadoDocumentoUi.Tono(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                                                @incidencia.Descripcion
+                                            </span>
                                         }
                                     </Detalle>
                                 </VentanaContexto>
