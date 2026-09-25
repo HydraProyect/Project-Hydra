@@ -141,15 +141,15 @@ public class TrabajadoresListaGen2Tests : BunitContext
                     _papelera.RemoveAll(f => f.Dto.Id == c.Id);
                     return Result.Exito();
                 case EliminarTrabajadoresCommand c:
-                {
-                    var caidos = Almacen.Where(f => c.Ids.Contains(f.Dto.Id) && !NoEliminables.Contains(f.Dto.Id)).ToList();
-                    _papelera.AddRange(caidos);
-                    Almacen.RemoveAll(caidos.Contains);
-                    var errores = c.Ids.Where(NoEliminables.Contains).Select(id => $"No se pudo borrar {id}.").ToList();
-                    return Result.Exito(EliminadosForzados is { } forzados
-                        ? new ResultadoEliminacionLoteDto(forzados, errores)
-                        : new ResultadoEliminacionLoteDto(caidos.Count, errores, caidos.Select(f => f.Dto.Id).ToList()));
-                }
+                    {
+                        var caidos = Almacen.Where(f => c.Ids.Contains(f.Dto.Id) && !NoEliminables.Contains(f.Dto.Id)).ToList();
+                        _papelera.AddRange(caidos);
+                        Almacen.RemoveAll(caidos.Contains);
+                        var errores = c.Ids.Where(NoEliminables.Contains).Select(id => $"No se pudo borrar {id}.").ToList();
+                        return Result.Exito(EliminadosForzados is { } forzados
+                            ? new ResultadoEliminacionLoteDto(forzados, errores)
+                            : new ResultadoEliminacionLoteDto(caidos.Count, errores, caidos.Select(f => f.Dto.Id).ToList()));
+                    }
                 default:
                     throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
             }
