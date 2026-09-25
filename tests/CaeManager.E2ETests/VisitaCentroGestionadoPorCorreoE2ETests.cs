@@ -176,9 +176,12 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
             await page.WaitForTimeoutAsync(250);
             copiado = await page.EvaluateAsync<string>("navigator.clipboard.readText()");
         }
+        // El portapapeles de Windows devuelve los saltos como \r\n; que el texto sale
+        // sin \r lo fija SolicitudAccesoCorreoComposicionTests, no este instrumento.
+        copiado = copiado.Replace("\r\n", "\n");
         Assert.StartsWith($"Solicitud de acceso — {nombreCentro} — ", copiado);
+        Assert.Contains("\n\nBuenos días, Marta:\n", copiado);
         Assert.Contains($"- {nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})", copiado);
-        Assert.DoesNotContain("\r", copiado);
 
         var descarga = await page.RunAndWaitForDownloadAsync(() =>
             drawer.GetByRole(AriaRole.Link, new LocatorGetByRoleOptions { Name = "Descargar ZIP de documentación" }).ClickAsync());
