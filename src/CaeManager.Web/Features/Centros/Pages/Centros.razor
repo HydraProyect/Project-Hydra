@@ -401,6 +401,6 @@
     Visible="_confirmarEliminarLoteVisible"
     VisibleChanged="v => _confirmarEliminarLoteVisible = v"
     Titulo="@($"¿Eliminar {_seleccionados.Count} centro(s)?")"
-    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría."
+    Mensaje="Se ocultarán de las listas activas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador del Tenant puede recuperarlos desde Auditoría."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />

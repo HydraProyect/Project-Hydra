@@ -5,6 +5,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
+using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
@@ -92,7 +93,9 @@ public class EmpresasListaGen2Tests : BunitContext
             ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)Array.Empty<ClienteSelectorDto>(),
             CrearEmpresaCommand => Result.Exito(Guid.NewGuid()),
             EliminarEmpresaCommand => Result.Exito(),
-            EliminarEmpresasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? lote.Ids.Count, [])),
+            EliminarEmpresasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(
+                EliminadosForzados ?? lote.Ids.Count, [], EliminadosForzados is null ? lote.Ids : null)),
+            RestaurarEmpresaCommand => Result.Exito(),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -869,5 +872,32 @@ public class EmpresasListaGen2Tests : BunitContext
 
         workspace.Pila.Should().ContainSingle().Which.EntidadId.Should().Be(hija.Id,
             "la hija se conserva y el padre eliminado no vuelve con «Volver»");
+    }
+
+    /// <summary>
+    /// FS-09 (auditoría UX de flujos sin salida, 2026-09-24): el aviso de una
+    /// eliminación en lote ofrece «Deshacer», que restaura las empresas que cayeron.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_en_lote_ofrece_deshacer_que_restaura_las_empresas_eliminadas()
+    {
+        var elegida = Empresa("Aislamientos Nervión S.L.");
+        var mediador = new MediatorFalso { Almacen = { elegida, Empresa("Refrielectric S.A.") } };
+        var cut = Renderizar(mediador);
+
+        await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Trim() == "Selección múltiple")
+            .ClickAsync(new MouseEventArgs());
+        await cut.Find("input[aria-label='Seleccionar Aislamientos Nervión S.L.']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .ClickAsync(new MouseEventArgs());
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Podrás deshacerlo desde el aviso que aparecerá");
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar")
+            .ClickAsync(new MouseEventArgs());
+
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        mediador.Enviadas.OfType<RestaurarEmpresaCommand>().Select(c => c.Id).Should().Equal([elegida.Id]);
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje == "1 empresa(s) restaurada(s).");
     }
 }

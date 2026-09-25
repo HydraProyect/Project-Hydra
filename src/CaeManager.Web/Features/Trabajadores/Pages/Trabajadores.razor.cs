@@ -719,17 +719,22 @@ public partial class Trabajadores : ComponentBase
             var resultado = await Mediator.Send(new EliminarTrabajadoresCommand(idsPedidos));
             var dto = resultado.Valor;
 
+            // FS-09: el aviso ofrece «Deshacer» sobre los que sí cayeron.
+            IReadOnlyList<Guid> eliminados = dto.IdsEliminados ?? [];
+
             ToastService.Mostrar(
                 dto.Errores.Count == 0
                     ? Textos["ToastLoteEliminados", dto.Eliminados]
                     : Textos["ToastLoteEliminadosConErrores", dto.Eliminados, dto.Errores.Count, string.Join(" ", dto.Errores)],
-                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia,
+                eliminados.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
+                eliminados.Count > 0 ? () => DeshacerEliminarLoteAsync(eliminados) : null);
 
-            // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
-            // si cayó alguno, se retiran las fichas de todos los pedidos, también la de un superviviente
-            // (con su edición sin guardar, si la tenía). Se prefiere pasarse de retirar a dejar abierta una ficha muerta.
+            // Se retiran solo las fichas de los que cayeron (IdsEliminados); un superviviente
+            // conserva la suya y su edición sin guardar. Sin ids en el DTO se retiran todas las
+            // pedidas: mejor pasarse de retirar que dejar abierta una ficha muerta.
             if (dto.Eliminados > 0)
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Trabajador, idsPedidos);
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Trabajador, dto.IdsEliminados ?? idsPedidos);
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
@@ -742,6 +747,36 @@ public partial class Trabajadores : ComponentBase
         finally
         {
             _eliminandoLote = false;
+        }
+    }
+
+    /// <summary>
+    /// FS-09 (auditoría UX de flujos sin salida, 2026-09-24): «Deshacer» del aviso
+    /// de una eliminación en lote. Restaura los que el lote sí eliminó; sin esto, la
+    /// única salida era pedir a un Administrador del Tenant que los recuperase uno a
+    /// uno desde Auditoría.
+    /// </summary>
+    private bool _restaurandoLote;
+
+    private async Task DeshacerEliminarLoteAsync(IReadOnlyList<Guid> ids)
+    {
+        if (_restaurandoLote) return;
+        _restaurandoLote = true;
+
+        try
+        {
+            var r = await RestauracionEnLote.RestaurarAsync(ids, id => Mediator.Send(new RestaurarTrabajadorCommand(id)));
+
+            ToastService.Mostrar(
+                r.Errores.Count == 0 ? Textos["ToastLoteRestaurados", r.Restaurados].Value : Textos["ToastLoteRestauradosConErrores", r.Restaurados, r.Errores.Count, string.Join(" ", r.Errores)].Value,
+                r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (r.Restaurados > 0)
+                await RecargarAsync();
+        }
+        finally
+        {
+            _restaurandoLote = false;
         }
     }
 

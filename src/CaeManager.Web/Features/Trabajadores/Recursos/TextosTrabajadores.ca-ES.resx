@@ -172,7 +172,7 @@
     <value>Asignar a centro…</value>
   </data>
   <data name="DialogoEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría.</value>
+    <value>Se ocultarán de las listas activas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador del Tenant puede recuperarlos desde Auditoría.</value>
   </data>
   <data name="EtiquetaCentro" xml:space="preserve">
     <value>Centro</value>
@@ -278,6 +278,12 @@
   </data>
   <data name="ToastLoteEliminadosConErrores" xml:space="preserve">
     <value>{0} eliminado(s). {1} no se pudieron borrar: {2}</value>
+  </data>
+  <data name="ToastLoteRestaurados" xml:space="preserve">
+    <value>{0} trabajador(es) restaurado(s).</value>
+  </data>
+  <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
+    <value>{0} restaurado(s). {1} no se pudieron restaurar: {2}</value>
   </data>
   <data name="ErrorEliminarLote" xml:space="preserve">
     <value>No pudimos eliminar los trabajadores seleccionados. Intenta nuevamente.</value>
