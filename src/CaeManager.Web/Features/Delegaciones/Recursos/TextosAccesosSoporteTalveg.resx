@@ -52,7 +52,7 @@
     <value>Estado</value>
   </data>
   <data name="EstadoAbierto" xml:space="preserve">
-    <value>Abierto ahora</value>
+    <value>Ventana abierta</value>
   </data>
   <data name="EstadoCerrado" xml:space="preserve">
     <value>Cerrado</value>

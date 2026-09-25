@@ -9,7 +9,13 @@ namespace CaeManager.Application.Plataforma.Queries.ObtenerAccesosSoporteTalveg;
 /// <summary>Cómo está hoy una Sesión Privilegiada vista desde el Tenant propietario.</summary>
 public enum EstadoAccesoSoporteTalveg
 {
-    /// <summary>Abierta y dentro de su ventana: Soporte TALVEG puede estar leyendo ahora.</summary>
+    /// <summary>
+    /// Sin cerrar y dentro de su ventana. Es el límite superior del acceso, no
+    /// la garantía de que siga autorizado: si la concesión caduca o se revoca
+    /// antes, la sesión deja de resolverse aunque aquí siga «abierta». Mostrar
+    /// ese estado exigiría leer la concesión, que sigue fuera del alcance del
+    /// Tenant (hueco declarado en ADR-011 § 8.7, incremento 2).
+    /// </summary>
     Abierto,
 
     /// <summary>Cerrada antes de agotar la ventana.</summary>

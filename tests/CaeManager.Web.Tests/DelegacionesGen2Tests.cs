@@ -692,7 +692,7 @@ public class DelegacionesGen2Tests : BunitContext
         var seccion = cut.Find(".accesos-soporte-talveg");
         var filas = seccion.QuerySelectorAll("tbody tr");
         filas.Should().HaveCount(2, "control positivo: la tabla pinta las dos sesiones del doble");
-        filas[0].TextContent.Should().Contain("Revisar importación fallida").And.Contain("TCK-42").And.Contain("Abierto");
+        filas[0].TextContent.Should().Contain("Revisar importación fallida").And.Contain("TCK-42").And.Contain("Ventana abierta");
         filas[0].TextContent.Should().Contain("Lectura de soporte");
         filas[1].TextContent.Should().Contain("Consulta de configuración").And.Contain("Cerrado")
             .And.Contain("Aprovisionamiento, con escritura", "un acceso que escribe no se presenta como una lectura");

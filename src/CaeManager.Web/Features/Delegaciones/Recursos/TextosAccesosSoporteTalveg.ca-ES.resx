@@ -52,7 +52,7 @@
     <value>Estat</value>
   </data>
   <data name="EstadoAbierto" xml:space="preserve">
-    <value>Obert ara</value>
+    <value>Finestra oberta</value>
   </data>
   <data name="EstadoCerrado" xml:space="preserve">
     <value>Tancat</value>
