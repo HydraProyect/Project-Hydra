@@ -115,9 +115,9 @@ public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        await BaseDatosPostgresDePruebas.MigrarAsync(_cadenaConexion);
         var tenantActualDeSiembra = new TenantActualPorAmbitoExplicito();
         await using var dbContext = CrearContexto(tenantActualDeSiembra, new RegistradorAperturasConexion(tenantActualDeSiembra));
-        await dbContext.Database.MigrateAsync();
 
         var tenantA = new Domain.Tenants.Tenant("Tenant A (webhook WhatsApp)");
         var tenantB = new Domain.Tenants.Tenant("Tenant B (webhook WhatsApp)");
@@ -151,7 +151,7 @@ public class WebhookLoopSinCreateScopeEntreTenantsTests : IAsyncLifetime
         var interceptorRls = new TenantRlsConnectionInterceptor(
             tenantActual,
             new ClienteActivoSeleccionadoAusente(),
-            new CurrentUserServiceFalso());
+            new CurrentUserServiceFalso(), BaseDatosPostgresDePruebas.FirmanteContextoRls);
 
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))

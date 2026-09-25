@@ -178,6 +178,26 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // mutación revertida que confirmó sensibilidad.
         [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = connection.CreateCommand();")] = 3,
 
+        // P6 (contexto RLS firmado): renovación del token app.contexto antes
+        // de un comando en autocommit o de un BEGIN cuando pasó la mitad del
+        // TTL. Mismo set_config parametrizado que la apertura, sobre la
+        // conexión que el interceptor ya preparó; no lee ni escribe filas.
+        [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = conexion.CreateCommand();")] = 1,
+
+        // P6: registro de la clave del contexto RLS en
+        // app_privado.claves_contexto con la conexión PROPIETARIA — la única
+        // identidad que puede escribir ese esquema (cae_app_runtime no tiene
+        // ningún permiso sobre él); en staging y producción solo lo hace el
+        // migrador. INSERT y DELETE de caducadas, parametrizados, sobre una
+        // tabla fuera del modelo EF a propósito: la clave no debe ser una
+        // entidad alcanzable desde ningún DbContext.
+        [("src/CaeManager.Infrastructure/Persistence/ContextoRls/ClaveContextoRls.cs", "await using var comando = conexionPropietaria.CreateCommand();")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/ContextoRls/ClaveContextoRls.cs", "await using var limpieza = conexionPropietaria.CreateCommand();")] = 1,
+        // P6: lectura de la clave cifrada por la conexión de tráfico. Solo
+        // llama a app_claves_contexto_protegidas() (SECURITY DEFINER), que no
+        // devuelve filas de ningún Tenant ni los rellenos HMAC.
+        [("src/CaeManager.Infrastructure/Persistence/ContextoRls/ClaveContextoRls.cs", "await using var comando = conexion.CreateCommand();")] = 1,
+
         // Elección de líder entre réplicas con pg_try_advisory_lock/
         // pg_advisory_unlock: no existe equivalente en EF Core, así que va
         // por una conexión Npgsql propia con comandos parametrizados (uno

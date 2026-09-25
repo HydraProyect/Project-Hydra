@@ -433,7 +433,7 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
             // Version no se renueva y la carrera solo la frenan los índices únicos.
             .AddInterceptors(
                 new TenantSelladoInterceptor(tenantActual),
-                new TenantRlsConnectionInterceptor(tenantActual, new SinTenantSeleccionado(), usuario),
+                new TenantRlsConnectionInterceptor(tenantActual, new SinTenantSeleccionado(), usuario, BaseDatosPostgresDePruebas.FirmanteContextoRls),
                 new ConcurrenciaOptimistaInterceptor())
             .Options;
 

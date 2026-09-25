@@ -129,6 +129,7 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
         servicios.AddScoped<AuditoriaInterceptor>();
         servicios.AddScoped<TenantSelladoInterceptor>();
         servicios.AddScoped<TenantRlsConnectionInterceptor>();
+        servicios.AddSingleton(BaseDatosPostgresDePruebas.FirmanteContextoRls);
         servicios.AddSingleton<ConcurrenciaOptimistaInterceptor>();
 
         servicios.AddDbContext<CaeManagerDbContext>((sp, opciones) =>

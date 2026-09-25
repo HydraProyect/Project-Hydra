@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Infrastructure.Persistence.ContextoRls;
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
@@ -76,7 +77,8 @@ namespace CaeManager.Infrastructure.Persistence.Interceptors;
 public class TenantRlsConnectionInterceptor(
     ITenantActual tenantActual,
     IClienteActivoSeleccionado clienteActivoSeleccionado,
-    ICurrentUserService currentUserService) : DbConnectionInterceptor
+    ICurrentUserService currentUserService,
+    FirmanteContextoRls firmante) : DbConnectionInterceptor, IDbCommandInterceptor, IDbTransactionInterceptor
 {
     /// <summary>
     /// Rol de solo lectura del plano 3 (ver la migración
@@ -201,15 +203,124 @@ public class TenantRlsConnectionInterceptor(
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
+        var origen = usuarioId is not null ? OrigenContextoRls.Peticion
+            : AmbitoTenantExplicito.TenantIdActual is not null ? OrigenContextoRls.Ambito
+            : OrigenContextoRls.Anonimo;
+        var token = await firmante.FirmarAsync(
+            connection, new ContextoSesionRls(tenantId, tenantOrigenId, usuarioId, origen), cancellationToken);
+
         await using var comando = connection.CreateCommand();
         comando.CommandText =
             "SELECT set_config('app.tenant_id', @tenantId, false), " +
             "set_config('app.tenant_origen_id', @tenantOrigenId, false), " +
-            "set_config('app.usuario_id', @usuarioId, false);";
+            "set_config('app.usuario_id', @usuarioId, false), " +
+            "set_config('app.contexto', @contexto, false);";
         comando.Parameters.AddWithValue("tenantId", tenantId?.ToString() ?? string.Empty);
         comando.Parameters.AddWithValue("tenantOrigenId", tenantOrigenId?.ToString() ?? string.Empty);
         comando.Parameters.AddWithValue("usuarioId", usuarioId?.ToString() ?? string.Empty);
+        comando.Parameters.AddWithValue("contexto", token.Token);
         await comando.ExecuteNonQueryAsync(cancellationToken);
+        token.Confirmar();
+    }
+
+    // ── Renovación del contexto firmado (P6, diseño § 7) ─────────────────
+    //
+    // La caducidad del token la compara app_contexto_validado() contra now(),
+    // que es el INICIO de la transacción en curso. Contrato: el token tiene
+    // que estar vigente cuando empieza cada transacción; dentro de ella no
+    // caduca. Por eso se renueva (si pasó la mitad del TTL) justo antes de
+    // abrir una transacción explícita y antes de cada comando en
+    // autocommit, y nunca dentro de una transacción: un set_config de sesión
+    // hecho dentro de una transacción que después se deshace vuelve al valor
+    // anterior, y el estado en memoria diría que está renovado sin estarlo.
+
+    public override void ConnectionClosed(DbConnection connection, ConnectionEndEventData eventData)
+    {
+        FirmanteContextoRls.Olvidar(connection);
+        base.ConnectionClosed(connection, eventData);
+    }
+
+    public override Task ConnectionClosedAsync(DbConnection connection, ConnectionEndEventData eventData)
+    {
+        FirmanteContextoRls.Olvidar(connection);
+        return base.ConnectionClosedAsync(connection, eventData);
+    }
+
+    InterceptionResult<DbDataReader> IDbCommandInterceptor.ReaderExecuting(
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
+    {
+        RenovarFueraDeTransaccionAsync(command, CancellationToken.None).GetAwaiter().GetResult();
+        return result;
+    }
+
+    async ValueTask<InterceptionResult<DbDataReader>> IDbCommandInterceptor.ReaderExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken)
+    {
+        await RenovarFueraDeTransaccionAsync(command, cancellationToken);
+        return result;
+    }
+
+    InterceptionResult<int> IDbCommandInterceptor.NonQueryExecuting(
+        DbCommand command, CommandEventData eventData, InterceptionResult<int> result)
+    {
+        RenovarFueraDeTransaccionAsync(command, CancellationToken.None).GetAwaiter().GetResult();
+        return result;
+    }
+
+    async ValueTask<InterceptionResult<int>> IDbCommandInterceptor.NonQueryExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken)
+    {
+        await RenovarFueraDeTransaccionAsync(command, cancellationToken);
+        return result;
+    }
+
+    InterceptionResult<object> IDbCommandInterceptor.ScalarExecuting(
+        DbCommand command, CommandEventData eventData, InterceptionResult<object> result)
+    {
+        RenovarFueraDeTransaccionAsync(command, CancellationToken.None).GetAwaiter().GetResult();
+        return result;
+    }
+
+    async ValueTask<InterceptionResult<object>> IDbCommandInterceptor.ScalarExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<object> result, CancellationToken cancellationToken)
+    {
+        await RenovarFueraDeTransaccionAsync(command, cancellationToken);
+        return result;
+    }
+
+    InterceptionResult<DbTransaction> IDbTransactionInterceptor.TransactionStarting(
+        DbConnection connection, TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result)
+    {
+        RenovarAsync(connection, CancellationToken.None).GetAwaiter().GetResult();
+        return result;
+    }
+
+    async ValueTask<InterceptionResult<DbTransaction>> IDbTransactionInterceptor.TransactionStartingAsync(
+        DbConnection connection, TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result,
+        CancellationToken cancellationToken)
+    {
+        await RenovarAsync(connection, cancellationToken);
+        return result;
+    }
+
+    private static Task RenovarFueraDeTransaccionAsync(DbCommand command, CancellationToken cancellationToken) =>
+        command.Transaction is null && command.Connection is { } conexion
+            ? RenovarAsync(conexion, cancellationToken)
+            : Task.CompletedTask;
+
+    private static async Task RenovarAsync(DbConnection conexion, CancellationToken cancellationToken)
+    {
+        var pendiente = await FirmanteContextoRls.RenovarSiHaceFaltaAsync(conexion, cancellationToken);
+        if (pendiente is null) return;
+
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "SELECT set_config('app.contexto', @contexto, false);";
+        var parametro = comando.CreateParameter();
+        parametro.ParameterName = "contexto";
+        parametro.Value = pendiente.Token;
+        comando.Parameters.Add(parametro);
+        await comando.ExecuteNonQueryAsync(cancellationToken);
+        pendiente.Confirmar();
     }
 
     public override async ValueTask<InterceptionResult> ConnectionClosingAsync(
