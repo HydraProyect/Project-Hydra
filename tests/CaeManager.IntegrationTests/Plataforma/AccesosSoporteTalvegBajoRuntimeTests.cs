@@ -99,6 +99,8 @@ public class AccesosSoporteTalvegBajoRuntimeTests : IAsyncLifetime
         acceso.Motivo.Should().Be("Revisar la incidencia 42");
         acceso.Ticket.Should().Be("TCK-42");
         acceso.Estado.Should().Be(EstadoAccesoSoporteTalveg.Abierto);
+        acceso.Capacidad.Should().Be(CapacidadPrivilegio.SoporteLectura,
+            "la capacidad viaja en la sesión: el Administrador la ve sin leer la concesión");
 
         (await ContarSesionesVisiblesComoAsync(_administradorDeA, _tenantA)).Should().Be(1,
             "la política entrega la sesión sobre A y ninguna otra, ni siquiera sin el filtro de la consulta");
@@ -137,6 +139,28 @@ public class AccesosSoporteTalvegBajoRuntimeTests : IAsyncLifetime
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.CerradaEnUtc, DateTime.UtcNow));
 
         afectadas.Should().Be(0, "la política nueva es solo de lectura; escribir sigue siendo del titular de la concesión");
+    }
+
+    /// <summary>
+    /// Ni el titular de la concesión, que sí puede escribir su sesión bajo RLS,
+    /// consigue que la sesión declare otra capacidad que la de su concesión: la
+    /// clave foránea compuesta lo rechaza. Sin ella, la etiqueta que ve el Tenant
+    /// sería una afirmación sin respaldo.
+    /// </summary>
+    [Fact]
+    public async Task La_capacidad_de_la_sesion_no_puede_discrepar_de_la_de_su_concesion()
+    {
+        await using var contexto = CrearContexto(_tenantPlataforma, _tecnico);
+
+        var cambiar = () => contexto.SesionesPrivilegiadas
+            .Where(s => s.Id == _sesionSobreA)
+            .ExecuteUpdateAsync(u => u.SetProperty(s => s.Capacidad, CapacidadPrivilegio.Aprovisionamiento));
+
+        (await cambiar.Should().ThrowAsync<Npgsql.PostgresException>())
+            .Which.SqlState.Should().Be("23503", "la sesión tiene que decir la misma capacidad que su concesión");
+
+        (await contexto.SesionesPrivilegiadas.CountAsync(s => s.Id == _sesionSobreA)).Should().Be(1,
+            "control positivo: el titular sí ve y alcanza la fila, así que el rechazo no es de RLS");
     }
 
     [Fact]

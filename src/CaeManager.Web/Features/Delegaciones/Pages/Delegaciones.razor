@@ -233,6 +233,7 @@
                     <thead>
                         <tr>
                             <th>@TextosAccesos["ColumnaQuien"]</th>
+                            <th>@TextosAccesos["ColumnaTipo"]</th>
                             <th>@TextosAccesos["ColumnaMotivo"]</th>
                             <th>@TextosAccesos["ColumnaTicket"]</th>
                             <th>@TextosAccesos["ColumnaVentana"]</th>
@@ -244,6 +245,7 @@
                         {
                             <tr>
                                 <td>@TextosAccesos["ValorQuien"]</td>
+                                <td>@TextoTipoAcceso(acceso.Capacidad)</td>
                                 <td>@acceso.Motivo</td>
                                 <td>@(acceso.Ticket ?? TextosAccesos["SinTicket"])</td>
                                 <td>@TextoVentanaAcceso(acceso)</td>

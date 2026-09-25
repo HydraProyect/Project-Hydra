@@ -19,6 +19,7 @@ using CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 using CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
 using CaeManager.Application.Tenants.Queries.ObtenerOperadoresCaeExternos;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
@@ -681,9 +682,9 @@ public class DelegacionesGen2Tests : BunitContext
         var ahora = DateTime.UtcNow;
         _configurarMediador = m => m.AccesosSoporteTalveg =
         [
-            new AccesoSoporteTalvegDto(Guid.NewGuid(), "Revisar importación fallida", "TCK-42",
+            new AccesoSoporteTalvegDto(Guid.NewGuid(), CapacidadPrivilegio.SoporteLectura, "Revisar importación fallida", "TCK-42",
                 ahora.AddMinutes(-5), ahora.AddHours(1), null, EstadoAccesoSoporteTalveg.Abierto),
-            new AccesoSoporteTalvegDto(Guid.NewGuid(), "Consulta de configuración", null,
+            new AccesoSoporteTalvegDto(Guid.NewGuid(), CapacidadPrivilegio.Aprovisionamiento, "Consulta de configuración", null,
                 ahora.AddDays(-2), ahora.AddDays(-2).AddHours(1), ahora.AddDays(-2).AddMinutes(30), EstadoAccesoSoporteTalveg.Cerrado),
         ];
         var (cut, _, _) = Renderizar(esAdministradorPlataforma: false);
@@ -692,7 +693,9 @@ public class DelegacionesGen2Tests : BunitContext
         var filas = seccion.QuerySelectorAll("tbody tr");
         filas.Should().HaveCount(2, "control positivo: la tabla pinta las dos sesiones del doble");
         filas[0].TextContent.Should().Contain("Revisar importación fallida").And.Contain("TCK-42").And.Contain("Abierto");
-        filas[1].TextContent.Should().Contain("Consulta de configuración").And.Contain("Cerrado");
+        filas[0].TextContent.Should().Contain("Lectura de soporte");
+        filas[1].TextContent.Should().Contain("Consulta de configuración").And.Contain("Cerrado")
+            .And.Contain("Aprovisionamiento, con escritura", "un acceso que escribe no se presenta como una lectura");
         seccion.TextContent.Should().Contain("Soporte TALVEG");
     }
 }

@@ -12,6 +12,7 @@ public class SesionPrivilegiadaConfiguration : IEntityTypeConfiguration<SesionPr
         builder.HasKey(s => s.Id);
 
         builder.Property(s => s.ConcesionPrivilegioId).IsRequired();
+        builder.Property(s => s.Capacidad).IsRequired().HasConversion<string>().HasMaxLength(30);
         builder.Property(s => s.TenantObjetivoId).IsRequired();
         builder.Property(s => s.Motivo).IsRequired().HasMaxLength(SesionPrivilegiada.LongitudMaximaMotivo);
         builder.Property(s => s.Ticket).HasMaxLength(SesionPrivilegiada.LongitudMaximaTicket);

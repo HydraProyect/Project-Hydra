@@ -78,6 +78,9 @@ public class ObtenerAccesosSoporteTalvegQueryTests
             ("caducada", EstadoAccesoSoporteTalveg.Caducado));
         accesos.Should().NotContain(a => a.Motivo == "de otro Tenant");
         accesos.Single(a => a.Motivo == "abierta").Ticket.Should().Be("TCK-1");
+        accesos.Single(a => a.Motivo == "caducada").Capacidad.Should().Be(CapacidadPrivilegio.Aprovisionamiento,
+            "el Tenant distingue un aprovisionamiento, que escribe, de una lectura de soporte");
+        accesos.Single(a => a.Motivo == "abierta").Capacidad.Should().Be(CapacidadPrivilegio.SoporteLectura);
     }
 
     private sealed class ContextoConSesiones : IPlataformaQueryContext
@@ -90,7 +93,9 @@ public class ObtenerAccesosSoporteTalvegQueryTests
             var concesion = ConcesionPrivilegio.SoporteLecturaGlobal(
                 Guid.NewGuid(), ahora.AddDays(-1), ahora.AddDays(1));
 
-            var caducada = SesionPrivilegiada.Abrir(concesion, TenantPropietario, "caducada", ahora.AddHours(-6), TimeSpan.FromHours(1));
+            var aprovisionamiento = ConcesionPrivilegio.SobreTenants(
+                Guid.NewGuid(), CapacidadPrivilegio.Aprovisionamiento, [TenantPropietario], ahora.AddDays(-1), ahora.AddDays(1));
+            var caducada = SesionPrivilegiada.Abrir(aprovisionamiento, TenantPropietario, "caducada", ahora.AddHours(-6), TimeSpan.FromHours(1));
             var cerrada = SesionPrivilegiada.Abrir(concesion, TenantPropietario, "cerrada", ahora.AddHours(-2), TimeSpan.FromHours(4));
             cerrada.Cerrar(ahora.AddHours(-1));
             var cerradaTrasExpirar = SesionPrivilegiada.Abrir(concesion, TenantPropietario, "cerrada tras expirar", ahora.AddHours(-4), TimeSpan.FromHours(1));

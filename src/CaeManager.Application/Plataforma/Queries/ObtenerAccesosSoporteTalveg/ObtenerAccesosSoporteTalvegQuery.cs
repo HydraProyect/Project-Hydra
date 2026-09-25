@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Plataforma;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,13 +25,14 @@ public enum EstadoAccesoSoporteTalveg
 
 /// <summary>
 /// Una entrada de Soporte TALVEG en los datos del Tenant propietario. Sin
-/// identidad del técnico ni capacidad: el Tenant propietario ve que fue
-/// «Soporte TALVEG», por qué, con qué ticket y durante qué ventana (ADR-011
-/// § 8.7, incremento 2). La trazabilidad de la persona concreta vive en el
+/// identidad del técnico: el Tenant propietario ve que fue «Soporte TALVEG»,
+/// con qué capacidad (lectura de soporte o aprovisionamiento, que escribe), por
+/// qué, con qué ticket y durante qué ventana (ADR-011 § 8.7, incremento 2). La trazabilidad de la persona concreta vive en el
 /// plano de privilegio, que sigue sin ser legible desde el Tenant.
 /// </summary>
 public record AccesoSoporteTalvegDto(
     Guid SesionId,
+    CapacidadPrivilegio Capacidad,
     string Motivo,
     string? Ticket,
     DateTime InicioEnUtc,
@@ -89,13 +91,13 @@ public class ObtenerAccesosSoporteTalvegQueryHandler(
         var sesiones = await plataformaContext.SesionesPrivilegiadas
             .Where(s => s.TenantObjetivoId == tenantId)
             .OrderByDescending(s => s.InicioEnUtc)
-            .Select(s => new { s.Id, s.Motivo, s.Ticket, s.InicioEnUtc, s.ExpiraEnUtc, s.CerradaEnUtc })
+            .Select(s => new { s.Id, s.Capacidad, s.Motivo, s.Ticket, s.InicioEnUtc, s.ExpiraEnUtc, s.CerradaEnUtc })
             .ToListAsync(cancellationToken);
 
         var ahora = DateTime.UtcNow;
         return sesiones
             .Select(s => new AccesoSoporteTalvegDto(
-                s.Id, s.Motivo, s.Ticket, s.InicioEnUtc, s.ExpiraEnUtc, s.CerradaEnUtc,
+                s.Id, s.Capacidad, s.Motivo, s.Ticket, s.InicioEnUtc, s.ExpiraEnUtc, s.CerradaEnUtc,
                 s.CerradaEnUtc < s.ExpiraEnUtc ? EstadoAccesoSoporteTalveg.Cerrado
                 : s.CerradaEnUtc is null && ahora < s.ExpiraEnUtc ? EstadoAccesoSoporteTalveg.Abierto
                 : EstadoAccesoSoporteTalveg.Caducado))

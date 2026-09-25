@@ -27,6 +27,18 @@
   <data name="ValorQuien" xml:space="preserve">
     <value>Soporte TALVEG</value>
   </data>
+  <data name="ColumnaTipo" xml:space="preserve">
+    <value>Tipo de acceso</value>
+  </data>
+  <data name="TipoSoporteLectura" xml:space="preserve">
+    <value>Lectura de soporte</value>
+  </data>
+  <data name="TipoAprovisionamiento" xml:space="preserve">
+    <value>Aprovisionamiento, con escritura</value>
+  </data>
+  <data name="TipoOtro" xml:space="preserve">
+    <value>Otro acceso de plataforma</value>
+  </data>
   <data name="ColumnaMotivo" xml:space="preserve">
     <value>Motivo</value>
   </data>

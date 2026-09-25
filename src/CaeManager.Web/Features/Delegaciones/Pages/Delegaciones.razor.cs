@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma.Queries.ObtenerAccesosSoporteTalveg;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.CerrarAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
@@ -130,6 +131,13 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         EstadoAccesoSoporteTalveg.Abierto => TextosAccesos["EstadoAbierto"],
         EstadoAccesoSoporteTalveg.Cerrado => TextosAccesos["EstadoCerrado"],
         _ => TextosAccesos["EstadoCaducado"],
+    };
+
+    private string TextoTipoAcceso(CapacidadPrivilegio capacidad) => capacidad switch
+    {
+        CapacidadPrivilegio.SoporteLectura => TextosAccesos["TipoSoporteLectura"],
+        CapacidadPrivilegio.Aprovisionamiento => TextosAccesos["TipoAprovisionamiento"],
+        _ => TextosAccesos["TipoOtro"],
     };
 
     private static TonoBadge TonoEstadoAcceso(EstadoAccesoSoporteTalveg estado) => estado switch
