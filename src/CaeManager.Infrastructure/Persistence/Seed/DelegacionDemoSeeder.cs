@@ -177,7 +177,12 @@ public static class DelegacionDemoSeeder
         Guid tenantConsultoraId,
         CancellationToken cancellationToken)
     {
-        var existente = await userManager.FindByEmailAsync(EmailAdministradorConsultora);
+        // La búsqueda, en el Tenant de la consultora: AspNetUsers tiene RLS
+        // (P1-M1) y sin Tenant no vería la cuenta ya sembrada en un arranque
+        // anterior; el alta de abajo chocaría entonces con ella.
+        ApplicationUser? existente;
+        using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
+            existente = await userManager.FindByEmailAsync(EmailAdministradorConsultora);
         if (existente is not null)
             return existente;
 
@@ -469,7 +474,11 @@ public static class DelegacionDemoSeeder
         string rol,
         CancellationToken cancellationToken)
     {
-        var existente = await userManager.FindByEmailAsync(email);
+        // En el Tenant de la consultora, por la RLS de AspNetUsers (P1-M1):
+        // ver CrearAdministradorConsultoraAsync.
+        ApplicationUser? existente;
+        using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
+            existente = await userManager.FindByEmailAsync(email);
         if (existente is not null)
             return existente;
 

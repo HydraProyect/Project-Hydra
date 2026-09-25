@@ -116,6 +116,8 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         using (var ambito = _arnes.Servicios.CreateScope())
         {
             var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            // En el Tenant de la cuenta: AspNetUsers tiene RLS (P1-M1).
+            using var tenantDeLaCuenta = AmbitoTenantExplicito.Establecer(_propietario);
             var usuario = (await userManager.FindByIdAsync(_administradorPropietario.Id.ToString()))!;
             usuario.Desactivar();
             (await userManager.UpdateAsync(usuario)).Succeeded.Should().BeTrue();

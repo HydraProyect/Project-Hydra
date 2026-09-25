@@ -85,8 +85,13 @@ public static class SegundoTenantSeeder
             tenantId = tenantExistente.Id;
         }
 
-        if (await userManager.FindByEmailAsync(EmailAdministradorSegundoTenant) is not null)
-            return tenantId;
+        // En el segundo Tenant, por la RLS de AspNetUsers (P1-M1): sin Tenant no
+        // vería la cuenta ya sembrada y el alta de abajo chocaría con ella.
+        using (AmbitoTenantExplicito.Establecer(tenantId))
+        {
+            if (await userManager.FindByEmailAsync(EmailAdministradorSegundoTenant) is not null)
+                return tenantId;
+        }
 
         // Este usuario pertenece al segundo tenant — el ámbito explícito
         // asegura que tanto las entidades de dominio que este alta pueda

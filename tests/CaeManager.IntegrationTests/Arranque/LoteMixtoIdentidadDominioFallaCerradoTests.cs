@@ -66,6 +66,17 @@ namespace CaeManager.IntegrationTests.Arranque;
 /// </para>
 ///
 /// <para>
+/// <b>Desde P1-M1 la cuenta es siempre la PROPIA</b>: la sesión es la de su
+/// titular (<c>app.usuario_id</c> = la cuenta, Tenant de origen X) operando el
+/// Tenant Y, el caso real de un Gestor CAE de un Operador CAE externo en el
+/// Workspace operativo derivado de un Tenant beneficiario. Con la RLS de
+/// <c>AspNetUsers</c> una cuenta ajena de X no se ve desde Y, e
+/// <c>TenantSelladoInterceptor</c> ya no traslada <c>app.tenant_id</c> al Tenant
+/// de una cuenta ajena (ver <c>RlsAspNetUsersBajoRuntimeTests</c>): el traslado,
+/// y con él el riesgo que mide este archivo, solo existe para la propia.
+/// </para>
+///
+/// <para>
 /// <b>Lo que NO prueba</b>: que ningún camino de producción construya el lote.
 /// Hasta donde se ha leído no hay ninguno por diseño (el contexto es scoped y
 /// compartido por <c>UserManager</c> y el dominio, y ningún handler de
@@ -83,11 +94,12 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
     private const int UmbralRojoRecuperacion = 9;
 
     private readonly TenantActualFijo _sesion = new();
+    private readonly TitularDeLaSesion _titular = new();
     private ArnesDeArranqueRuntime _arnes = null!;
 
     public async Task InitializeAsync() =>
         _arnes = await ArnesDeArranqueRuntime.CrearAsync(
-            datosDePruebaActivos: false, tenantActualPersonalizado: _sesion);
+            datosDePruebaActivos: false, tenantActualPersonalizado: _sesion, currentUserServicePersonalizado: _titular);
 
     public async Task DisposeAsync() => await _arnes.DisposeAsync();
 
@@ -245,32 +257,25 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Sin ninguna escritura de dominio: dos cuentas de Tenants propietarios
-    /// distintos en el mismo lote. La variable de sesión solo puede reflejar
-    /// una, así que la fila de la otra la rechaza <c>WITH CHECK</c>.
+    /// Dos cuentas de Tenants propietarios distintos en el mismo lote. Antes de
+    /// P1-M1 las dos se leían y el lote lo rechazaba <c>WITH CHECK</c>, porque la
+    /// variable de sesión solo podía reflejar una. Ahora la segunda, que no es la
+    /// propia ni guarda relación con el Tenant de sesión, ni siquiera se lee: el
+    /// lote no se puede construir.
     /// </summary>
     [Fact]
-    public async Task Dos_cuentas_de_Tenants_distintos_en_el_mismo_lote_fallan_enteras()
+    public async Task Dos_cuentas_de_Tenants_distintos_no_llegan_al_mismo_lote()
     {
         var (_, tenantSesion, cuentaId) = await EscenarioAsync(conParametroDeSesion: true);
         var tenantOtra = await CrearTenantAsync();
         var otraCuentaId = await CrearCuentaAsync(tenantOtra);
-        var antes = await FotoAsync(cuentaId, tenantSesion);
-        var antesOtra = await FotoAsync(otraCuentaId, tenantSesion);
 
         await using var sesion = await AbrirSesionAsync(tenantSesion);
-        var cuenta = await sesion.Usuarios.FindByIdAsync(cuentaId.ToString());
-        var otraCuenta = await sesion.Usuarios.FindByIdAsync(otraCuentaId.ToString());
-        cuenta!.PhoneNumber = "600000007";
-        otraCuenta!.PhoneNumber = "600000008";
 
-        var excepcion = await CapturarAsync(() => sesion.Contexto.SaveChangesAsync());
-
-        excepcion.Should().BeOfType<DbUpdateException>();
-        SqlStateDe(excepcion).Should().Be("42501");
-        await AfirmarNadaEscritoYSesionRestauradaAsync(sesion, antes, cuentaId, tenantSesion);
-        (await FotoAsync(otraCuentaId, tenantSesion)).Should().Be(antesOtra,
-            "tampoco la segunda cuenta ni su auditoría pueden haberse escrito");
+        (await sesion.Usuarios.FindByIdAsync(cuentaId.ToString())).Should().NotBeNull(
+            "control positivo: la propia cuenta se lee desde el Tenant operado");
+        (await sesion.Usuarios.FindByIdAsync(otraCuentaId.ToString())).Should().BeNull(
+            "una cuenta ajena de otro Tenant no es visible desde el Tenant de sesión");
     }
 
     // ── Grupo B. La capa de dominio aislada de la auditoría de dominio ──────────
@@ -545,6 +550,8 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
         var tenantCuenta = await CrearTenantAsync();
         var tenantSesion = await CrearTenantAsync();
         var cuentaId = await CrearCuentaAsync(tenantCuenta);
+        _titular.UsuarioId = cuentaId;
+        _titular.TenantOrigenId = tenantCuenta;
         if (conParametroDeSesion) await SembrarParametroAsync(tenantSesion);
         return (tenantCuenta, tenantSesion, cuentaId);
     }
@@ -623,7 +630,7 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
         var interceptores = new List<IInterceptor>
         {
             new AuditoriaSoloDeIdentidadInterceptor(),
-            new TenantSelladoInterceptor(_sesion),
+            new TenantSelladoInterceptor(_sesion, _titular),
         };
         if (trasElSellado is not null) interceptores.Add(trasElSellado);
         interceptores.Add(new TenantRlsConnectionInterceptor(
@@ -776,5 +783,18 @@ WHERE ""EntidadId"" = @id ORDER BY ""FechaUtc"" DESC LIMIT 1;";
     private sealed class TenantActualFijo : ITenantActual
     {
         public Guid? TenantId { get; set; }
+    }
+
+    /// <summary>El titular de la cuenta del escenario, operando desde su Tenant de origen.</summary>
+    private sealed class TitularDeLaSesion : ICurrentUserService
+    {
+        public Guid? UsuarioId { get; set; }
+        public Guid? TenantOrigenId { get; set; }
+
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(UsuarioId);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(null);
+        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(null);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(TenantOrigenId);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 }

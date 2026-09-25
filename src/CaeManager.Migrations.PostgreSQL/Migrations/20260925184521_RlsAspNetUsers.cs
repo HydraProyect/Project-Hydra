@@ -60,9 +60,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     ///
     /// <para>
     /// <b>Escritura, más estrecha que la lectura.</b> Alta y baja solo en el Tenant
-    /// activo (A). Modificación: A, o la propia cuenta (B) sin moverla de su Tenant de
-    /// origen. D, E1, E2 y G no dan escritura: poder nombrar a un actor no es poder
-    /// cambiar su contraseña, su 2FA o su sello de seguridad.
+    /// activo (A). Modificación: A, o la propia cuenta (B); y la propia cuenta, por
+    /// cualquiera de las dos ramas, solo si sigue en su Tenant de origen: quien opera
+    /// otro Tenant no puede trasladarse a él. D, E1, E2 y G no dan escritura: poder
+    /// nombrar a un actor no es poder cambiar su contraseña, su 2FA o su sello de
+    /// seguridad.
     /// </para>
     ///
     /// <para>
@@ -174,7 +176,8 @@ CREATE POLICY cuentas_alta ON ""AspNetUsers"" FOR INSERT
 
 CREATE POLICY cuentas_modificacion ON ""AspNetUsers"" FOR UPDATE
   USING (""TenantId"" = {Tenant} OR ""Id"" = {Usuario})
-  WITH CHECK (""TenantId"" = {Tenant} OR (""Id"" = {Usuario} AND ""TenantId"" = {TenantOrigen}));
+  WITH CHECK ((""TenantId"" = {Tenant} OR ""Id"" = {Usuario})
+          AND (""Id"" IS DISTINCT FROM {Usuario} OR ""TenantId"" = {TenantOrigen}));
 
 CREATE POLICY cuentas_baja ON ""AspNetUsers"" FOR DELETE
   USING (""TenantId"" = {Tenant});

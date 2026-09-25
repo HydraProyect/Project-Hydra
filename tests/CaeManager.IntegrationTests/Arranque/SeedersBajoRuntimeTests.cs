@@ -102,7 +102,11 @@ public class SeedersBajoRuntimeTests
 
         foreach (var (email, rol) in esperados)
         {
-            var usuario = await gestorUsuarios.FindByEmailAsync(email);
+            // AspNetUsers tiene RLS (P1-M1) y el test no conoce el Tenant de
+            // Refrielectric: lo resuelve el mismo camino que el login.
+            ApplicationUser? usuario;
+            using (CaeManager.Infrastructure.Identity.AmbitoIdentificacionSinTenant.Abrir())
+                usuario = await gestorUsuarios.FindByEmailAsync(email);
 
             usuario.Should().NotBeNull(
                 $"MEDIDO: el guion de la demo entra con {email} — si el seeder no lo creó, " +

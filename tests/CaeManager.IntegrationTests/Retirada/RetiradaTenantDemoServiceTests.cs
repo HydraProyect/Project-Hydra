@@ -170,7 +170,9 @@ public class RetiradaTenantDemoServiceTests
             tenantDexterId = (await contexto.Tenants.SingleAsync(t => t.Nombre == DelegacionDemoSeeder.NombreTenantClienteDemo)).Id;
             tenantRefrielectricId = (await contexto.Tenants.SingleAsync(t => t.Nombre == DelegacionDemoSeeder.NombreTenantRefrielectric)).Id;
 
-            usuariosDexterAntes = await contexto.Users.CountAsync(u => u.TenantId == tenantDexterId);
+            // En el Tenant de Dexter: AspNetUsers tiene RLS (P1-M1).
+            using (AmbitoTenantExplicito.Establecer(tenantDexterId))
+                usuariosDexterAntes = await contexto.Users.CountAsync(u => u.TenantId == tenantDexterId);
             usuariosDexterAntes.Should().BeGreaterThan(0, "el escenario solo es interesante si Dexter tenía usuarios antes de retirarlo");
 
             using (AmbitoTenantExplicito.Establecer(tenantRefrielectricId))
