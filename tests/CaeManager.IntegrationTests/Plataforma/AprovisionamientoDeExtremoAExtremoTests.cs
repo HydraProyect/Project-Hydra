@@ -176,6 +176,9 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
         servicios.AddSingleton<IDocumentoRepository, DocumentoRepository>();
         servicios.AddSingleton<IAsignacionRepository, AsignacionRepository>();
         servicios.AddSingleton<IOperacionImportacionRepository, OperacionImportacionRepository>();
+        // La importación agrega las acreditaciones de plataforma de su alta
+        // (IAltaAcreditacionesPlataformaService), igual que en producción.
+        servicios.AddSingleton<IAcreditacionDocumentoPlataformaRepository, AcreditacionDocumentoPlataformaRepository>();
 
         return servicios.BuildServiceProvider();
     }

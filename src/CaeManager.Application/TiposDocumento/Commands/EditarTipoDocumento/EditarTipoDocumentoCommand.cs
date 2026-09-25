@@ -116,7 +116,7 @@ public class EditarTipoDocumentoCommandHandler(
         {
             if (filaExcluidaPorCentroId.TryGetValue(centroId, out var filaExcluida))
             {
-                    filaExcluida.Actualizar(true, filaExcluida.PeriodicidadEspecialMeses, filaExcluida.BloqueaAcceso, filaExcluida.ArchivoUrl, filaExcluida.NombreArchivoOriginal);
+                filaExcluida.Actualizar(true, filaExcluida.PeriodicidadEspecialMeses, filaExcluida.BloqueaAcceso, filaExcluida.ArchivoUrl, filaExcluida.NombreArchivoOriginal);
                 requisitosNuevos.Add(filaExcluida);
             }
             else
