@@ -65,7 +65,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, new DateOnly(2026, 1, 1)));
-            var tipoDocumento = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador);
+            var tipoDocumento = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
             contexto.TiposDocumento.Add(tipoDocumento);
             await contexto.SaveChangesAsync();
 
@@ -80,8 +80,8 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
             var handler = new CrearDocumentoCommandHandler(
                 new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto,
                 contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
-                new DerivarCanalesAplicablesDocumentoService(contexto, contexto, contexto),
-                new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso(), new AlcanceDatosServiceFalso());
+                AltaAcreditacionesDePrueba.Con(contexto),
+                new PublisherFalso(), new AlcanceDatosServiceFalso());
 
             var resultado = await handler.Handle(
                 new CrearDocumentoCommand(
@@ -381,15 +381,15 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, new DateOnly(2026, 1, 1)));
-            var tipoDocumento = new TipoDocumento("Formación", 12, true, 1, AmbitoAplicacion.Trabajador);
+            var tipoDocumento = new TipoDocumento("Formación", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
             contexto.TiposDocumento.Add(tipoDocumento);
             await contexto.SaveChangesAsync();
 
             var handlerCrear = new CrearDocumentoCommandHandler(
                 new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto,
                 contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
-                new DerivarCanalesAplicablesDocumentoService(contexto, contexto, contexto),
-                new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso(), new AlcanceDatosServiceFalso());
+                AltaAcreditacionesDePrueba.Con(contexto),
+                new PublisherFalso(), new AlcanceDatosServiceFalso());
 
             await handlerCrear.Handle(
                 new CrearDocumentoCommand(

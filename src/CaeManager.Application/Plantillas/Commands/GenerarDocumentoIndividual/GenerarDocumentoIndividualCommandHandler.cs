@@ -2,6 +2,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -20,12 +21,10 @@ namespace CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 
 /// <summary>
 /// No encola detección/verificación IA (el contenido lo escribe Hydra desde
-/// datos ya conocidos, no hace falta releerlo) ni deriva canales de
-/// acreditación de plataforma todavía — a diferencia de
-/// <c>CrearDocumentoCommandHandler</c>, que sí hace ambas cosas para un PDF
-/// subido a mano. Queda como mejora pendiente, no como omisión silenciosa:
-/// sin ella, un documento generado por plantilla no aparece con acreditación
-/// pendiente aunque su TipoDocumento la requiera.
+/// datos ya conocidos, no hace falta releerlo), a diferencia de
+/// <c>CrearDocumentoCommandHandler</c>, que sí lo hace para un PDF subido a
+/// mano. Las acreditaciones de plataforma sí nacen igual que en el alta manual
+/// (<see cref="IAltaAcreditacionesPlataformaService"/>).
 /// </summary>
 public class GenerarDocumentoIndividualCommandHandler(
     IPlantillaDocumentoVersionRepository versionRepositorio,
@@ -42,6 +41,7 @@ public class GenerarDocumentoIndividualCommandHandler(
     ICurrentUserService usuarioActual,
     IAlcanceDatosService alcanceDatos,
     IAsignacionRepository asignacionRepositorio,
+    IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IUnitOfWork unitOfWork)
     : IRequestHandler<GenerarDocumentoIndividualCommand, Result<GenerarDocumentoIndividualResultadoDto>>
 {
@@ -185,6 +185,9 @@ public class GenerarDocumentoIndividualCommandHandler(
             _ => Documento.DeEmpresa(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, vigencia, archivoUrl)
         };
         documentoRepositorio.Agregar(documento);
+
+        // Mismo SaveChangesAsync que el Documento: o se confirman juntos o ninguno.
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] }, cancellationToken);
 
         var datosUtilizadosJson = JsonSerializer.Serialize(
             valoresPorElemento.ToDictionary(par => par.Key.EtiquetaVisible, par => par.Value));

@@ -93,12 +93,16 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
         var documentosDelTrabajador = await documentosContext.Documentos
             .Where(d => d.TrabajadorId == request.TrabajadorId)
-            .Select(d => new { d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
+            .Select(d => new { d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
             .ToListAsync(cancellationToken);
-        var documentosPorTipo = documentosDelTrabajador.ToDictionary(d => d.TipoDocumentoId);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        // Puede haber varios del mismo tipo (el vencido y su renovación): el
+        // índice (TrabajadorId, TipoDocumentoId) no es único.
+        var documentosPorTipo = PreferenciaDocumentoPorTipo.UnoPorClave(
+            documentosDelTrabajador, d => d.TipoDocumentoId, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, hoy);
 
         var resultado = new List<CentroDocumentacionTrabajadorDto>();
 

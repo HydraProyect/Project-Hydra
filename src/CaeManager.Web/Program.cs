@@ -580,10 +580,16 @@ builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.LiberacionDeA
 // "Healthy" solo si el proceso vive Y la BD responde. Sigue siendo anónimo
 // y barato a propósito (es lo que sondea el healthcheck de Docker Compose y
 // el uptime check externo — ver deploy/local/docker-compose.produccion.yml).
+//
+// Con la identidad del TRÁFICO (P0-2, plan de madurez 2026-09-24), no con
+// CaeManagerDb: el contenedor "app" de staging y producción ya no recibe la
+// credencial del rol propietario —solo el "migrador" la tiene—, y /salud
+// responde por la conexión que de verdad sirve las peticiones. Misma función
+// que decide la conexión del DbContext inyectado, así que en desarrollo sin
+// CaeManagerDbRuntime sigue siendo CaeManagerDb.
 builder.Services.AddHealthChecks()
     .AddNpgSql(
-        sp => builder.Configuration.GetConnectionString("CaeManagerDb")
-            ?? throw new InvalidOperationException("Falta el connection string CaeManagerDb."),
+        sp => InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico(builder.Configuration, builder.Environment),
         name: "postgresql");
 
 // El nombre comercial se resuelve una sola vez, antes de que nada lo pinte.
@@ -599,19 +605,29 @@ var app = builder.Build();
 // que arranque ninguna réplica del proceso web — no N réplicas compitiendo
 // por aplicar DDL a la vez en cada redeploy/reinicio.
 //
-// Desde REC-017/P39 SÍ está wireado: es el comando del servicio "migrador" en
-// docker-compose.produccion.yml y docker-compose.staging.yml, que corre como
-// contenedor efímero antes de que "app" arranque (`depends_on: migrador:
-// condition: service_completed_successfully`) — con Migraciones:AlArrancar en
-// false en ambos, "app" ya no vuelve a aplicar migraciones por su cuenta. La
-// topología de hoy sigue siendo de una sola réplica; el pre-deploy explícito
-// para multi-réplica queda para cuando esa réplica exista de verdad.
+// Fue el comando del servicio "migrador" de docker-compose.produccion.yml y
+// docker-compose.staging.yml desde REC-017/P39 hasta P0-2, que lo sustituyó
+// por --preparar-arranque (migrar Y sembrar, ver debajo). Sigue disponible
+// para quien solo quiera el esquema.
 if (args.Contains("--migrate-only"))
 {
     using var scopeMigracion = app.Services.CreateScope();
     await MigrarBaseDeDatosAsync(app.Configuration, scopeMigracion.ServiceProvider);
     return;
 }
+
+// Modo del servicio "migrador" de staging y producción desde P0-2 (plan de
+// madurez 2026-09-24): hace TODO lo que el arranque normal hace con la base
+// —migrar y sembrar, en el mismo orden— y termina sin levantar Kestrel. Existe
+// porque dos seeders del arranque (IdentitySeeder y el backfill de asignaciones,
+// ver FabricaContextoDeBootstrap) necesitan la identidad del rol propietario, y
+// mientras la siembra corría en "app" ese contenedor tenía que recibir la
+// credencial del superusuario postgres durante toda su vida. Con este modo, esa
+// credencial vive solo en el contenedor de un solo uso; "app" arranca con
+// Siembra:AlArrancar=false y Migraciones:AlArrancar=false y no la recibe
+// (deploy/ci-deploy-secretos.tests.sh lo vigila). La lógica es la del bloque
+// `using (var scope …)` de más abajo, no una copia: ahí se ramifica.
+var prepararArranque = args.Contains("--preparar-arranque");
 
 // Modo administrativo explícito para retirar por completo un tenant de demo
 // (ver RetiradaTenantDemoService, motivado por el incidente de siembra
@@ -622,6 +638,11 @@ if (args.Contains("--migrate-only"))
 // tenant que no esté en su allowlist de nombres de demo conocidos, empezando
 // por el de plataforma — ese rechazo es la garantía real, no esta capa de
 // entrada.
+//
+// En staging y producción se lanza con el servicio "migrador", no con "app"
+// (`docker compose run --rm migrador --retirar-tenant-demo <TenantId>`): desde
+// P0-2 es el único contenedor que recibe CaeManagerDb. Igual para
+// --retirar-demo-direccion, más abajo.
 //
 // Identidad de BOOTSTRAP (FabricaContextoDeBootstrap), no el contexto
 // inyectado: igual que AsignacionesOperativasBackfillSeeder, la retirada es
@@ -767,7 +788,7 @@ using (var scope = app.Services.CreateScope())
 {
     // Migraciones__AlArrancar=false en staging y producción desde REC-017/P39
     // (docker-compose.*.yml, servicio "migrador"): el pre-deploy de arriba
-    // (--migrate-only) ya es quien aplica el esquema en esos dos entornos, así
+    // (--preparar-arranque) ya es quien aplica el esquema en esos dos entornos, así
     // que este bloque no vuelve a tocarlo ahí. El valor por defecto (true)
     // sigue en pie para cualquier entorno que NO declare la variable — el
     // desarrollo local (docker-compose.yml, solo Postgres, sin contenedor
@@ -777,7 +798,7 @@ using (var scope = app.Services.CreateScope())
     // se escalase a varias réplicas simultáneas volvería la carrera que
     // migrate-only existe para evitar — de ahí el apagador explícito en vez
     // de dejarlo siempre encendido.
-    if (app.Configuration.GetValue("Migraciones:AlArrancar", defaultValue: true))
+    if (prepararArranque || app.Configuration.GetValue("Migraciones:AlArrancar", defaultValue: true))
     {
         await MigrarBaseDeDatosAsync(app.Configuration, scope.ServiceProvider);
     }
@@ -820,77 +841,91 @@ using (var scope = app.Services.CreateScope())
             app.Environment.EnvironmentName);
     }
 
-    // La matriz de escenarios de la demo a dirección se rechaza en Producción ANTES de
-    // cualquier siembra: con el flag activo allí, el resto de seeders de demo habrían
-    // escrito ya cuando la suya lanzara. Inerte sin DatosPrueba:EscenariosDireccion.
-    EscenariosDireccionDemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
-
-    // Identidad ADMINISTRATIVA para los dos seeders que no son trafico de
-    // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
-    // usuario, y el backfill de asignaciones es cross-tenant por diseno.
-    // Ninguno de los dos puede ejecutarse bajo un rol sometido a RLS por-tenant
-    // — ver FabricaContextoDeBootstrap, que explica los dos fallos concretos.
-    // Los demas seeders siguen con el contexto inyectado a proposito: operan
-    // dentro de un AmbitoTenantExplicito, que es lo que las politicas piden.
-    await using var dbContextBootstrap = scope.ServiceProvider
-        .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>()
-        .Crear();
-
-    // Sin sesión de usuario en el arranque no hay tenant que resolver por
-    // claim — la siembra del Administrador inicial se ejecuta explícitamente
-    // como tenant #1 (ver AmbitoTenantExplicito, docs/MULTITENANCY.md § 8.4).
-    using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
+    // Siembra:AlArrancar=false en "app" de staging y producción desde P0-2: allí
+    // siembra el servicio "migrador" con --preparar-arranque (ver el modo, más
+    // arriba), que es el único contenedor con la credencial del rol propietario
+    // que piden FabricaContextoDeBootstrap y sus dos seeders. Sin ese apagador,
+    // "app" intentaría crear el contexto de bootstrap sin CaeManagerDb y el
+    // arranque moriría. Por defecto (true) siembra aquí, como siempre: el
+    // desarrollo local y el arnés E2E no declaran la variable.
+    if (prepararArranque || app.Configuration.GetValue("Siembra:AlArrancar", defaultValue: true))
     {
-        await IdentitySeeder.SeedAsync(userManager, roleManager, userStore, logger, app.Configuration, app.Environment, dbContextBootstrap);
+        // La matriz de escenarios de la demo a dirección se rechaza en Producción ANTES de
+        // cualquier siembra: con el flag activo allí, el resto de seeders de demo habrían
+        // escrito ya cuando la suya lanzara. Inerte sin DatosPrueba:EscenariosDireccion.
+        EscenariosDireccionDemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
+
+        // Identidad ADMINISTRATIVA para los dos seeders que no son trafico de
+        // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
+        // usuario, y el backfill de asignaciones es cross-tenant por diseno.
+        // Ninguno de los dos puede ejecutarse bajo un rol sometido a RLS por-tenant
+        // — ver FabricaContextoDeBootstrap, que explica los dos fallos concretos.
+        // Los demas seeders siguen con el contexto inyectado a proposito: operan
+        // dentro de un AmbitoTenantExplicito, que es lo que las politicas piden.
+        await using var dbContextBootstrap = scope.ServiceProvider
+            .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>()
+            .Crear();
+
+        // Sin sesión de usuario en el arranque no hay tenant que resolver por
+        // claim — la siembra del Administrador inicial se ejecuta explícitamente
+        // como tenant #1 (ver AmbitoTenantExplicito, docs/MULTITENANCY.md § 8.4).
+        using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
+        {
+            await IdentitySeeder.SeedAsync(userManager, roleManager, userStore, logger, app.Configuration, app.Environment, dbContextBootstrap);
+        }
+
+        // Los datos de prueba de CAE ya no se siembran en el tenant #1: en el
+        // escenario de demo de ADR-004-delegacion-consultoras-cae.md, el tenant
+        // #1 juega el papel de Consultora (sin datos operativos propios, § 5.1)
+        // — DelegacionDemoSeeder los siembra en un tenant Cliente Delegante
+        // nuevo y establece su propio AmbitoTenantExplicito internamente.
+        await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
+
+        // Matriz de estados de la demo a dirección — inerte salvo que
+        // DatosPrueba:EscenariosDireccion esté activo además de DatosPrueba:Activo,
+        // y lanza en Producción (ver EscenariosDireccionDemoSeeder).
+        await EscenariosDireccionDemoSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
+
+        // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
+        // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
+        // que SegundoTenant:Activo esté configurado explícitamente.
+        await SegundoTenantSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
+
+        // Despues de TODOS los sembradores, no dentro de ninguno: la verificacion
+        // IA se reconcilia sobre los tenants de demo que ya existen, no solo sobre
+        // los que se acaban de crear. Colgarla de un camino de siembra dejo cinco
+        // de seis tenants sin encender en produccion (ver el metodo).
+        await DatosPruebaSeeder.ReconciliarVerificacionIaEnTenantsDeDemoAsync(
+            dbContext, app.Configuration, logger);
+
+        // Nivel 0 (DEC-33, REC-035): sin esto, el Nivel 1 que la reconciliación
+        // de arriba acaba de encender no basta — la instrucción documentada de
+        // tratamiento IA es el gate que se comprueba primero, y sin ella ningún
+        // tenant de demo llega a ejercitar IA de verdad. Deliberadamente solo el
+        // tenant #1 (ver el método): el segundo tenant y el Cliente Delegante de
+        // demo quedan sin instrucción, como control negativo vivo.
+        await DatosPruebaSeeder.SembrarInstruccionTratamientoIaTenantPrincipalAsync(
+            dbContext, app.Configuration, logger);
+
+        // Al final a propósito: aprovisiona la delegación de soporte —apagada—
+        // de todo tenant que exista, incluidos los que acaben de sembrarse.
+        // Idempotente, así que cubre también los tenants creados en arranques
+        // anteriores. Aprovisionar no concede acceso: abrirlo exige motivo y
+        // ventana (ver DelegacionesSoporteSeeder).
+        await DelegacionesSoporteSeeder.SeedAsync(dbContext, app.Configuration, logger);
+
+        // Después de todo lo anterior: traslada el reparto de responsabilidad
+        // operativa (delegaciones comerciales y ejecutivos de cliente) a las tablas
+        // de asignación, incluyendo los tenants que se acaben de sembrar. Es
+        // idempotente y reconciliador, así que se ejecuta en cada arranque hasta
+        // que la doble escritura quede establecida (F1 del plan de migración).
+        await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);
     }
-
-    // Los datos de prueba de CAE ya no se siembran en el tenant #1: en el
-    // escenario de demo de ADR-004-delegacion-consultoras-cae.md, el tenant
-    // #1 juega el papel de Consultora (sin datos operativos propios, § 5.1)
-    // — DelegacionDemoSeeder los siembra en un tenant Cliente Delegante
-    // nuevo y establece su propio AmbitoTenantExplicito internamente.
-    await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
-
-    // Matriz de estados de la demo a dirección — inerte salvo que
-    // DatosPrueba:EscenariosDireccion esté activo además de DatosPrueba:Activo,
-    // y lanza en Producción (ver EscenariosDireccionDemoSeeder).
-    await EscenariosDireccionDemoSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
-
-    // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
-    // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
-    // que SegundoTenant:Activo esté configurado explícitamente.
-    await SegundoTenantSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
-
-    // Despues de TODOS los sembradores, no dentro de ninguno: la verificacion
-    // IA se reconcilia sobre los tenants de demo que ya existen, no solo sobre
-    // los que se acaban de crear. Colgarla de un camino de siembra dejo cinco
-    // de seis tenants sin encender en produccion (ver el metodo).
-    await DatosPruebaSeeder.ReconciliarVerificacionIaEnTenantsDeDemoAsync(
-        dbContext, app.Configuration, logger);
-
-    // Nivel 0 (DEC-33, REC-035): sin esto, el Nivel 1 que la reconciliación
-    // de arriba acaba de encender no basta — la instrucción documentada de
-    // tratamiento IA es el gate que se comprueba primero, y sin ella ningún
-    // tenant de demo llega a ejercitar IA de verdad. Deliberadamente solo el
-    // tenant #1 (ver el método): el segundo tenant y el Cliente Delegante de
-    // demo quedan sin instrucción, como control negativo vivo.
-    await DatosPruebaSeeder.SembrarInstruccionTratamientoIaTenantPrincipalAsync(
-        dbContext, app.Configuration, logger);
-
-    // Al final a propósito: aprovisiona la delegación de soporte —apagada—
-    // de todo tenant que exista, incluidos los que acaben de sembrarse.
-    // Idempotente, así que cubre también los tenants creados en arranques
-    // anteriores. Aprovisionar no concede acceso: abrirlo exige motivo y
-    // ventana (ver DelegacionesSoporteSeeder).
-    await DelegacionesSoporteSeeder.SeedAsync(dbContext, app.Configuration, logger);
-
-    // Después de todo lo anterior: traslada el reparto de responsabilidad
-    // operativa (delegaciones comerciales y ejecutivos de cliente) a las tablas
-    // de asignación, incluyendo los tenants que se acaben de sembrar. Es
-    // idempotente y reconciliador, así que se ejecuta en cada arranque hasta
-    // que la doble escritura quede establecida (F1 del plan de migración).
-    await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);
 }
+
+// --preparar-arranque termina aquí: esquema migrado y siembra hecha, sin Kestrel.
+if (prepararArranque)
+    return;
 
 // Registrado antes del manejo de excepciones para envolverlo por completo:
 // una petición que termina en 500 vía UseExceptionHandler se sigue

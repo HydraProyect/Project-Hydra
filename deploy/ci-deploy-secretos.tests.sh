@@ -428,4 +428,69 @@ for valor in "sk_""live_""SINTETICA2222222222" "sk_""test_""SINTETICA3333333333"
 done
 echo "OK: sk_live_, sk_test_ y rk_test_ rechazados; rk_live_ sigue entrando (caso 12)"
 
+echo "=== Caso 19: 'app' no recibe la credencial del superusuario postgres (P0-2) ==="
+# P0-2 del plan de madurez (2026-09-24): el contenedor que sirve tráfico recibía
+# ConnectionStrings__CaeManagerDb con Username=postgres y, por `env_file`, el
+# POSTGRES_PASSWORD del `.env`. Desde P0-2 migra y siembra el "migrador"
+# (--preparar-arranque) y es el único que la recibe. Dos instrumentos: el texto
+# de los dos compose (siempre) y la configuración EFECTIVA que resuelve Compose
+# mezclando `env_file` y `environment` (solo con docker; obligatorio en CI).
+bloque_de_servicio_en() {  # <fichero> <servicio>
+  awk -v s="$2" '$0 == "  " s ":" { f = 1; next } f && /^  [A-Za-z0-9_-]+:/ { f = 0 } f' "$1"
+}
+for compose19 in docker-compose.produccion.yml docker-compose.staging.yml; do
+  fichero19="$DIR_GUION/local/$compose19"
+  MIGRADOR19="$(bloque_de_servicio_en "$fichero19" migrador)"
+  APP19="$(bloque_de_servicio_en "$fichero19" app)"
+  # Control positivo: el extractor ve la credencial donde SÍ debe estar.
+  printf '%s\n' "$MIGRADOR19" | grep -q 'Username=postgres;Password=\${POSTGRES_PASSWORD}' \
+    || { echo "FALLO: $compose19: el extractor no ve la credencial del migrador — el caso no observa lo que dice observar" >&2; exit 1; }
+  printf '%s\n' "$MIGRADOR19" | grep -q '^    command: \["--preparar-arranque"\]' \
+    || { echo "FALLO: $compose19: el migrador no prepara el arranque (--preparar-arranque): 'app' tendría que sembrar sin la credencial" >&2; exit 1; }
+  [ -n "$APP19" ] || { echo "FALLO: $compose19: no se encontró el bloque del servicio app" >&2; exit 1; }
+  if printf '%s\n' "$APP19" | grep -qE 'Username=postgres|\$\{POSTGRES_PASSWORD'; then
+    echo "FALLO: $compose19: el servicio app vuelve a recibir la credencial del superusuario postgres" >&2
+    exit 1
+  fi
+  # `env_file` inyecta el .env entero: sin estas dos líneas, POSTGRES_PASSWORD entra igual.
+  for linea19 in '      POSTGRES_PASSWORD: ""' '      ConnectionStrings__CaeManagerDb: ""' '      Siembra__AlArrancar: "false"'; do
+    printf '%s\n' "$APP19" | grep -qxF "$linea19" \
+      || { echo "FALLO: $compose19: falta en app la línea '${linea19#      }'" >&2; exit 1; }
+  done
+done
+echo "OK (texto): en los dos compose solo el migrador lleva la credencial y app la vacía"
+
+if docker compose version >/dev/null 2>&1; then
+  DIR19="$DIR/caso19"
+  mkdir -p "$DIR19"
+  cp "$DIR_GUION/local/docker-compose.produccion.yml" "$DIR_GUION/local/docker-compose.staging.yml" "$DIR19/"
+  # Valores SINTÉTICOS con marca: la credencial real nunca pasa por aquí.
+  for env19 in .env .env.staging; do
+    printf '%s\n' 'POSTGRES_PASSWORD=SINTETICA_SUPERUSUARIO_19' \
+      'ConnectionStrings__CaeManagerDb=Host=db;Username=postgres;Password=SINTETICA_SUPERUSUARIO_19' \
+      'DOMINIO=ejemplo.invalid' 'ACME_EMAIL=ops@ejemplo.invalid' > "$DIR19/$env19"
+  done
+  for par19 in "docker-compose.produccion.yml .env" "docker-compose.staging.yml .env.staging"; do
+    set -- $par19
+    EFECTIVA19="$DIR19/efectiva-$1"
+    ( cd "$DIR19" && docker compose -f "$1" --env-file "$2" config ) > "$EFECTIVA19" \
+      || { echo "FALLO: docker compose config no resolvió $1" >&2; exit 1; }
+    MIGRADOR19="$(bloque_de_servicio_en "$EFECTIVA19" migrador)"
+    APP19="$(bloque_de_servicio_en "$EFECTIVA19" app)"
+    printf '%s\n' "$MIGRADOR19" | grep -q 'SINTETICA_SUPERUSUARIO_19' \
+      || { echo "FALLO: $1 (efectiva): el migrador no recibe la credencial sintética — el caso no observa lo que dice observar" >&2; exit 1; }
+    [ -n "$APP19" ] || { echo "FALLO: $1 (efectiva): no se encontró el bloque del servicio app" >&2; exit 1; }
+    if printf '%s\n' "$APP19" | grep -q 'SINTETICA_SUPERUSUARIO_19'; then
+      echo "FALLO: $1 (efectiva): el contenedor app recibe la credencial del superusuario (por environment o por env_file)" >&2
+      exit 1
+    fi
+  done
+  echo "OK (efectiva): docker compose config no da la credencial a app, y sí al migrador"
+elif [ "${CI:-}" = "true" ]; then
+  echo "FALLO: en CI el caso 19 exige docker compose para medir la configuración efectiva" >&2
+  exit 1
+else
+  echo "OMITIDO (efectiva): sin docker compose en esta máquina — solo se midió el texto; en CI es obligatorio"
+fi
+
 echo "TODAS LAS PRUEBAS PASARON"

@@ -68,10 +68,16 @@ public sealed class FabricaContextoDeBootstrap(
     /// </summary>
     public CaeManagerDbContext Crear()
     {
-        var cadena = configuration.GetConnectionString("CaeManagerDb")
-            ?? throw new InvalidOperationException(
+        // Vacía cuenta como ausente: el servicio "app" de staging y producción la
+        // recibe vacía a propósito desde P0-2 (docker-compose.*.yml), y solo el
+        // "migrador" lleva la de verdad.
+        var cadena = configuration.GetConnectionString("CaeManagerDb");
+        if (string.IsNullOrWhiteSpace(cadena))
+            throw new InvalidOperationException(
                 "Falta el connection string CaeManagerDb, que es la identidad administrativa del " +
-                "arranque. Sin él no se puede sembrar el estado de sistema.");
+                "arranque. Sin él no se puede sembrar el estado de sistema ni retirar Tenants de demo. " +
+                "En staging y producción solo lo recibe el servicio migrador: lanza el modo con " +
+                "`docker compose run --rm migrador <modo>`, no con app.");
 
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>();
         ConfiguracionDeContexto.Aplicar(opciones, serviceProvider, cadena);

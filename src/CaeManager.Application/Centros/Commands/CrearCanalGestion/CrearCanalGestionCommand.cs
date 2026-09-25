@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -62,7 +63,8 @@ public class CrearCanalGestionCommandValidator : AbstractValidator<CrearCanalGes
 
 public class CrearCanalGestionCommandHandler(
     ICanalGestionDocumentalRepository repositorio, IAlcanceDatosService alcanceDatos,
-    IProveedoresPlataformaCaeQueryContext proveedoresContext, ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
+    IProveedoresPlataformaCaeQueryContext proveedoresContext, ICentrosQueryContext centrosContext,
+    IAltaAcreditacionesPlataformaService altaAcreditaciones, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearCanalGestionCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearCanalGestionCommand request, CancellationToken cancellationToken)
@@ -96,6 +98,13 @@ public class CrearCanalGestionCommandHandler(
             canal.MarcarComoPrincipal();
 
         repositorio.Agregar(canal);
+
+        // Un acceso de plataforma nuevo es un sitio más donde acreditar: los
+        // Documentos que el Centro exige a quienes ya trabajan en él nacen
+        // pendientes de subir a este acceso. Un acceso por correo no acredita.
+        // Mismo SaveChangesAsync que el acceso.
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Canales = [canal] }, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito(canal.Id);

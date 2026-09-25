@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -18,7 +19,8 @@ public class CrearAsignacionCommandValidator : AbstractValidator<CrearAsignacion
 }
 
 public class CrearAsignacionCommandHandler(
-    IAsignacionRepository repositorio, IAutoridadAsignacionesService autoridad, IUnitOfWork unitOfWork)
+    IAsignacionRepository repositorio, IAutoridadAsignacionesService autoridad,
+    IAltaAcreditacionesPlataformaService altaAcreditaciones, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearAsignacionCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearAsignacionCommand request, CancellationToken cancellationToken)
@@ -58,6 +60,13 @@ public class CrearAsignacionCommandHandler(
 
         var asignacion = new Asignacion(request.TrabajadorId, request.CentroId, request.FechaAlta);
         repositorio.Agregar(asignacion);
+
+        // Estar asignado es estar de alta en la plataforma del Centro: los
+        // Documentos del Trabajador y de su Empresa que ese Centro exige nacen
+        // pendientes de acreditar ante cada acceso de plataforma del Centro.
+        // Mismo SaveChangesAsync que la Asignación.
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Asignaciones = [asignacion] }, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito(asignacion.Id);

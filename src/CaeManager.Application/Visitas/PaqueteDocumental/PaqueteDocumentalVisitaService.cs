@@ -200,12 +200,11 @@ public class PaqueteDocumentalVisitaService(
 
         foreach (var grupo in candidatos.GroupBy(d => (d.TrabajadorId, d.TipoDocumentoId)))
         {
-            // Los umbrales no afectan a "Vencido"; 0/0 basta y evita leer ParametrosSistema.
-            var vigentes = grupo
-                .Where(d => CalculadoraEstadoDocumento.Calcular(d.EstadoVigencia, d.FechaVencimiento, hoy, 0, 0) != EstadoDocumento.Vencido)
-                .OrderByDescending(d => d.EstadoVigencia != EstadoVigenciaDocumento.SinConfirmar)
-                .ThenByDescending(d => d.FechaVencimiento ?? DateOnly.MaxValue)
-                .ThenByDescending(d => d.FechaEmision)
+            // Mismo orden de preferencia que las vistas documentales (PreferenciaDocumentoPorTipo);
+            // aquí además se descartan los vencidos, porque nunca se envían.
+            var vigentes = PreferenciaDocumentoPorTipo.Ordenar(
+                    grupo.Where(d => !PreferenciaDocumentoPorTipo.EstaVencido(d.EstadoVigencia, d.FechaVencimiento, hoy)),
+                    d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, hoy)
                 .ThenBy(d => d.ArchivoUrl, StringComparer.Ordinal)
                 .ToList();
 
