@@ -173,7 +173,7 @@
                     </div>
                     @if (_detalle.GestionCae == ModalidadGestionCae.SinGestionCae)
                     {
-                        <p class="texto-vacio-seccion centro360-sin-gestion-cae">Este centro no requiere gestión CAE: el técnico solo tiene que llegar. Avisa de cada visita con el texto que se prepara en la visita.</p>
+                        <p class="texto-vacio-seccion centro360-sin-gestion-cae">@Textos["GestionCaeExplicacionCentro360"]</p>
                     }
                     else if (_cargandoCanales)
                     {

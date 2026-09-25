@@ -73,6 +73,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Asignaciones.CrearAsignacionCommandHandler", "ITrabajadoresQueryContext"),
         ("Asignaciones.CrearAsignacionesCommandHandler", "ICentrosQueryContext"),
         ("Asignaciones.CrearAsignacionesCommandHandler", "ITrabajadoresQueryContext"),
+        // P1-X2: el acordeón no exige nada a un Centro sin gestión CAE (CentrosSinGestionCae).
+        ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "ICentrosQueryContext"),
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "IConfiguracionQueryContext"),
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "IDocumentosQueryContext"),
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "ITiposDocumentoQueryContext"),
@@ -585,6 +587,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IClientesQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IEmpresasQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "ITrabajadoresQueryContext"),
+        // P1-X2: el aviso de visita de un Centro sin gestión CAE lee el Centro (nombre,
+        // modalidad), las Empresas (proveedora y la de cada Trabajador) y los
+        // Trabajadores (solo nombre y apellidos), igual que ObtenerDetalleVisita.
+        ("Visitas.ObtenerAvisoVisitaQueryHandler", "ICentrosQueryContext"),
+        ("Visitas.ObtenerAvisoVisitaQueryHandler", "IEmpresasQueryContext"),
+        ("Visitas.ObtenerAvisoVisitaQueryHandler", "ITrabajadoresQueryContext"),
         ("Visitas.ObtenerDocumentacionVisitaQueryHandler", "ICentrosQueryContext"),
         ("Visitas.ObtenerDocumentacionVisitaQueryHandler", "IConfiguracionQueryContext"),
         ("Visitas.ObtenerDocumentacionVisitaQueryHandler", "IDocumentosQueryContext"),

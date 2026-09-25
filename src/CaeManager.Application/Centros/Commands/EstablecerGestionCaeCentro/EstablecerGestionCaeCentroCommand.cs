@@ -16,6 +16,11 @@ namespace CaeManager.Application.Centros.Commands.EstablecerGestionCaeCentro;
 /// Autorización: rol de escritura (<see cref="AutorizacionEscrituraBehavior"/>)
 /// y alcance de gestión del Gestor CAE sobre el Centro; fuera de alcance
 /// responde igual que un Centro inexistente.
+///
+/// Auditoría: el cambio silencia el cumplimiento del Centro, así que queda en
+/// RegistroAuditoria con Actor real, valor anterior y valor nuevo. Lo escribe
+/// el interceptor genérico de auditoría al guardar (fijado por
+/// <c>AuditoriaModalidadGestionCaeTests</c>), no este handler.
 /// </summary>
 public record EstablecerGestionCaeCentroCommand(Guid CentroId, ModalidadGestionCae Modalidad, Guid Version = default) : ICommand;
 

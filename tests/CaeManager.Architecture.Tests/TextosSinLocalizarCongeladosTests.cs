@@ -52,7 +52,11 @@ public class TextosSinLocalizarCongeladosTests
         ["Bandeja"] = 107,
         ["Blindaje42"] = 46,
         ["BusquedaGlobal"] = 72,
-        ["Centros"] = 312,
+        // 312 → 313 el 2026-09-25 (P1-X2): la rama «No requiere gestión CAE» de
+        // EstadoCentroUi.Texto. Es un switch estático sin localizar entero; migrar
+        // solo la rama nueva lo dejaría a medias. Los demás textos de P1-X2 van a
+        // TextosCentros.resx. Baja cuando se migre EstadoCentroUi completo.
+        ["Centros"] = 313,
         ["Clientes"] = 256,
         ["Comercial"] = 61,
         ["Components/Account"] = 95,

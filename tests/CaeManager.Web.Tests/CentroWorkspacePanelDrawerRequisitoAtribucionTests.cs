@@ -102,6 +102,7 @@ public class CentroWorkspacePanelDrawerRequisitoAtribucionTests : BunitContext
         Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
         Services.AddScoped<IResolucionProveedorPlataformaCaeService, ResolucionProveedorQueNadieDebeTocar>();
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        Services.AddLocalization();
     }
 
     private static CentroDetalleDto Centro(Guid centroId) => new(

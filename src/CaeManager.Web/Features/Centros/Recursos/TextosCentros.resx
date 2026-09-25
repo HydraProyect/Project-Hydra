@@ -20,4 +20,36 @@
     <value>Empresa:</value>
     <comment>Empresa contratista que trabaja en el Centro.</comment>
   </data>
+  <data name="GestionCaeTitulo" xml:space="preserve">
+    <value>Gestión CAE</value>
+    <comment>Título de la sección de modalidad de gestión CAE del Centro (P1-X2).</comment>
+  </data>
+  <data name="GestionCaeExigir" xml:space="preserve">
+    <value>Exigir gestión CAE</value>
+    <comment>Botón: vuelve a exigir gestión CAE en un Centro que no la requería.</comment>
+  </data>
+  <data name="GestionCaeMarcarSin" xml:space="preserve">
+    <value>Marcar sin gestión CAE</value>
+    <comment>Botón: el Centro deja de requerir gestión CAE (no borra canales ni requisitos).</comment>
+  </data>
+  <data name="GestionCaeExplicacionPanel" xml:space="preserve">
+    <value>Este centro no requiere gestión CAE: no se exige documentación ni se acredita en plataformas. Avisa de cada visita con el texto que se prepara en la visita.</value>
+    <comment>Panel de trabajo del Centro sin gestión CAE.</comment>
+  </data>
+  <data name="GestionCaeExplicacionCentro360" xml:space="preserve">
+    <value>Este centro no requiere gestión CAE: el técnico solo tiene que llegar. Avisa de cada visita con el texto que se prepara en la visita.</value>
+    <comment>Sección de canales de Centro 360 cuando el Centro no requiere gestión CAE.</comment>
+  </data>
+  <data name="GestionCaeToastSin" xml:space="preserve">
+    <value>El centro ya no requiere gestión CAE.</value>
+    <comment>Confirmación tras marcar el Centro sin gestión CAE.</comment>
+  </data>
+  <data name="GestionCaeToastCon" xml:space="preserve">
+    <value>El centro vuelve a exigir gestión CAE.</value>
+    <comment>Confirmación tras volver a exigir gestión CAE.</comment>
+  </data>
+  <data name="GestionCaeErrorCambio" xml:space="preserve">
+    <value>No pudimos cambiar la gestión CAE del centro. Intenta nuevamente en unos segundos.</value>
+    <comment>Error inesperado al cambiar la modalidad de gestión CAE.</comment>
+  </data>
 </root>

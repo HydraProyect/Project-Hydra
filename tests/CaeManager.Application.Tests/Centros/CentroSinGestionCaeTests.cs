@@ -1,3 +1,4 @@
+using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Commands.EstablecerGestionCaeCentro;
 using CaeManager.Application.Tests.Clientes;
@@ -101,6 +102,25 @@ public class CentroSinGestionCaeTests
         sin.Porcentaje.Should().BeNull("un anillo al 0 % o al 100 % afirmaría algo que no se mide");
 
         cumplimiento[_conGestion.Id].Requeridos.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task El_acordeon_de_centro_360_no_exige_documentos_en_un_centro_sin_gestion_cae()
+    {
+        var handler = new ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
+            _asignaciones, _trabajadores, _tipos, _documentos, _configuracion, _centros, new AlcanceDatosServiceFalso());
+
+        var sin = await handler.Handle(new ObtenerAsignacionesDocumentacionPorCentroQuery(_sinGestion.Id), CancellationToken.None);
+        var con = await handler.Handle(new ObtenerAsignacionesDocumentacionPorCentroQuery(_conGestion.Id), CancellationToken.None);
+
+        // La asignación se sigue viendo (quién va al Centro importa para el aviso);
+        // lo que desaparece es la exigencia documental.
+        sin.Should().ContainSingle().Which.Documentos.Should().BeEmpty();
+        sin.Single().PeorEstado.Should().NotBe(EstadoDocumento.Faltante);
+
+        // Control positivo: el mismo Trabajador en un Centro con gestión CAE sí
+        // tiene el documento obligatorio en falta.
+        con.Should().ContainSingle().Which.PeorEstado.Should().Be(EstadoDocumento.Faltante);
     }
 
     [Fact]
