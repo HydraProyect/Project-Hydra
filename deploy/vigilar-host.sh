@@ -60,6 +60,7 @@ MUESTRAS_MEMORIA="${MUESTRAS_MEMORIA:-2}"
 ESTADO="${VIGILANCIA_ESTADO:-/var/lib/caemanager-vigilancia.estado}"
 MEMINFO="${VIGILANCIA_MEMINFO:-/proc/meminfo}"
 VMSTAT="${VIGILANCIA_VMSTAT:-/proc/vmstat}"
+BOOT_ID="${VIGILANCIA_BOOT_ID:-/proc/sys/kernel/random/boot_id}"
 
 # La URL del heartbeat es un secreto (quien la conozca puede fingir que el host
 # esta sano): va por stdin con `curl -K -`, no como argumento, para que no salga
@@ -121,12 +122,15 @@ total=$(campo "$MEMINFO" MemTotal)
 disponible=$(campo "$MEMINFO" MemAvailable)
 bajas_previas=0
 oom_previo=""
+arranque_previo=""
 if [ -r "$ESTADO" ]; then
-  # Formato: "<muestras bajas seguidas> <oom_kill>"; se lee sin `source`.
-  read -r bajas_previas oom_previo < "$ESTADO" || true
+  # Formato: "<muestras bajas seguidas> <oom_kill|-> <boot_id|->"; se lee sin `source`.
+  read -r bajas_previas oom_previo arranque_previo < "$ESTADO" || true
   [[ "$bajas_previas" =~ ^[0-9]+$ ]] || bajas_previas=0
   [[ "$oom_previo" =~ ^[0-9]+$ ]] || oom_previo=""
 fi
+arranque=$(tr -dc '0-9a-f-' < "$BOOT_ID" 2>/dev/null || true)
+[ -n "$arranque" ] || arranque="-"
 if ! [[ "${total:-}" =~ ^[0-9]+$ && "${disponible:-}" =~ ^[0-9]+$ ]] || [ "$total" -eq 0 ]; then
   motivos+=("memoria ilegible")
   pct_mem="?"
@@ -149,14 +153,23 @@ alerta_oom=0
 if ! [[ "${oom:-}" =~ ^[0-9]+$ ]]; then
   # Kernels < 4.13 no exponen oom_kill: no es una alerta, es un hueco declarado.
   oom=""
-elif [ -n "$oom_previo" ] && [ "$oom" -gt "$oom_previo" ]; then
+elif [ -n "$oom_previo" ]; then
+  # oom_kill cuenta desde el arranque del kernel: tras un reinicio vuelve a 0
+  # y compararlo con la referencia del arranque anterior ocultaria los OOM del
+  # nuevo. Con otro boot_id (o un contador que ha bajado) la referencia es 0.
+  if { [ "$arranque" != "-" ] && [ -n "$arranque_previo" ] && [ "$arranque" != "$arranque_previo" ]; } \
+     || [ "$oom" -lt "$oom_previo" ]; then
+    oom_previo=0
+  fi
+fi
+if [ -n "$oom" ] && [ -n "$oom_previo" ] && [ "$oom" -gt "$oom_previo" ]; then
   motivos+=("el OOM killer ha matado $(( oom - oom_previo )) proceso(s)")
   alerta_oom=1
 fi
 
 # Guardar estado. Si no se puede escribir, se avisa: sin estado las condiciones
 # 2 y 3 quedan ciegas, y eso tambien es un fallo de la vigilancia.
-if ! printf '%s %s\n' "$bajas" "${oom:-}" > "$ESTADO" 2>/dev/null; then
+if ! printf '%s %s %s\n' "$bajas" "${oom:--}" "$arranque" > "$ESTADO" 2>/dev/null; then
   motivos+=("no se pudo escribir el estado en $ESTADO")
 fi
 
@@ -179,7 +192,7 @@ if [ -n "$destino" ]; then
     # condicion; el OOM es un suceso y se perderia: la referencia no avanza
     # hasta que el aviso se entregue, para que la siguiente lectura lo repita.
     if [ "$alerta_oom" = "1" ]; then
-      printf '%s %s\n' "$bajas" "$oom_previo" > "$ESTADO" 2>/dev/null || true
+      printf '%s %s %s\n' "$bajas" "$oom_previo" "$arranque" > "$ESTADO" 2>/dev/null || true
     fi
   fi
 fi

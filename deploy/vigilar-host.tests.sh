@@ -56,11 +56,13 @@ ejecutar() {
   : > "$CURL_LOG"; : > "$CURL_ARGS"
   salida=$(env VIGILANCIA_USO_DISCO="$disco" VIGILANCIA_MEMINFO="$TMP/meminfo" \
     VIGILANCIA_VMSTAT="$TMP/vmstat" VIGILANCIA_ESTADO="$TMP/estado" \
+    VIGILANCIA_BOOT_ID="$TMP/boot_id" \
     BETTERSTACK_HOST_HEARTBEAT_URL="$URL" "$@" bash "$GUION" 2>&1)
   codigo=$?
   llamada=$(tail -1 "$CURL_LOG"); [ -n "$llamada" ] || llamada="ninguna"
 }
-reiniciar() { rm -f "$TMP/estado"; meminfo 50; vmstat 3; }
+arranque() { echo "$1" > "$TMP/boot_id"; }
+reiniciar() { rm -f "$TMP/estado"; meminfo 50; vmstat 3; arranque aaaa-1111; }
 
 echo "vigilar-host.sh"
 
@@ -154,6 +156,40 @@ ejecutar 90 CURL_FALLA=1
 comprobar "heartbeat inalcanzable: sigue saliendo 1" "1" "$codigo"
 case "$salida" in *"no se pudo llamar al heartbeat"*) r=si ;; *) r="no ($salida)" ;; esac
 comprobar "heartbeat inalcanzable: lo dice" "si" "$r"
+
+# --- Reinicio del host: oom_kill vuelve a contar desde 0.
+reiniciar; vmstat 8
+ejecutar 40
+arranque bbbb-2222; vmstat 1
+ejecutar 40
+comprobar "tras reiniciar (otro boot_id), 8 -> 1 es un OOM nuevo: alerta" "$URL/fail" "$llamada"
+ejecutar 40
+comprobar "tras reiniciar, sin OOM nuevos: sin alerta" "$URL" "$llamada"
+
+reiniciar; vmstat 8
+ejecutar 40
+arranque bbbb-2222; vmstat 0
+ejecutar 40
+comprobar "tras reiniciar sin OOM (8 -> 0): sin alerta" "$URL" "$llamada"
+
+# Solo el boot_id lo distingue: 2 OOM antes del reinicio y 2 despues.
+reiniciar; vmstat 2
+ejecutar 40
+arranque bbbb-2222
+ejecutar 40
+comprobar "tras reiniciar, el mismo valor (2 -> 2) son OOM nuevos: alerta" "$URL/fail" "$llamada"
+
+reiniciar; vmstat 8; rm -f "$TMP/boot_id"
+ejecutar 40
+vmstat 2
+ejecutar 40
+comprobar "sin boot_id legible, un contador que baja se toma como reinicio: alerta" "$URL/fail" "$llamada"
+
+reiniciar; rm -f "$TMP/vmstat"
+ejecutar 40
+vmstat 5
+ejecutar 40
+comprobar "estado guardado sin oom_kill no desplaza campos: toma referencia" "$URL" "$llamada"
 
 # --- Un OOM cuyo aviso no se entrego no se pierde: se repite en la siguiente.
 reiniciar
