@@ -21,12 +21,13 @@ namespace CaeManager.Application.AsistenteIa.Queries.ProponerPlan;
 /// el chip del chat; tiene que ser de su cartera.
 /// </para>
 /// <para>
-/// Nivel 0 (DEC-33), el mismo control que <c>PreguntarAlAsistenteQuery</c>, pero
-/// aplicado a cada Tenant cuyos datos viajan al proveedor: el texto exige la
-/// instrucción de tratamiento con IA del Tenant de la pantalla, y los candidatos
-/// solo salen de Tenants de la cartera que la tengan vigente. Los que no, se
-/// devuelven en <see cref="PlanPropuestoDto.TenantsSinInstruccion"/> para que el
-/// plan lo diga en vez de dar por hecho que la orden no los nombra.
+/// Nivel 0 (DEC-33), el mismo control que <c>PreguntarAlAsistenteQuery</c>: antes
+/// de que el texto salga hacia el proveedor, el Tenant de la pantalla y todos los
+/// Tenants de la cartera tienen que tener instrucción de tratamiento con IA
+/// vigente (<see cref="ComprobarInstruccionIaCarteraQuery"/>); si falta en alguno,
+/// falla cerrado y dice cuál. Los candidatos solo salen de los Tenants que esa
+/// comprobación dio por buenos: uno que aparezca después sin haberse comprobado
+/// también falla cerrado.
 /// </para>
 /// </summary>
 public record ProponerPlanAsistenteQuery(string Texto, Guid? TenantElegido = null) : IRequest<Result<PlanPropuestoDto>>;
@@ -61,7 +62,6 @@ public record PlanPropuestoDto(
     int ConfianzaOrden,
     IReadOnlyList<DatoPropuestoDto> Datos,
     TenantDestinoDto? Destino,
-    IReadOnlyList<TenantDeCarteraDto> TenantsSinInstruccion,
     bool Ejecutable,
     string? Limitacion)
 {
@@ -98,12 +98,16 @@ public class ProponerPlanAsistenteQueryHandler(
                 "AsistenteIa.SinInstruccion",
                 "Este tenant todavía no tiene una instrucción de tratamiento con IA vigente — el asistente no puede procesar tu mensaje."));
 
+        var cartera = await mediator.Send(new ComprobarInstruccionIaCarteraQuery(), cancellationToken);
+        if (cartera.ErrorSiFalta() is { } sinInstruccion)
+            return Result.Fallo<PlanPropuestoDto>(sinInstruccion);
+
         var clasificacion = await decisiones.ClasificarOrdenAsync(request.Texto, cancellationToken);
         if (clasificacion.EsFallido)
             return Result.Fallo<PlanPropuestoDto>(clasificacion.Error);
 
         if (clasificacion.Valor.OrdenId is not { } ordenId || CatalogoOrdenesAsistente.PorId(ordenId) is not { } orden)
-            return new PlanPropuestoDto(SituacionPlan.NoEntendido, null, clasificacion.Valor.Confianza, [], null, [], false, null);
+            return new PlanPropuestoDto(SituacionPlan.NoEntendido, null, clasificacion.Valor.Confianza, [], null, false, null);
 
         var campos = orden.Campos.ToList();
         var seleccionables = campos
@@ -115,24 +119,20 @@ public class ProponerPlanAsistenteQueryHandler(
         if (seleccionables.All(c => c.Nombre != CampoTenantImplicito.Nombre))
             seleccionables.Add(CampoTenantImplicito);
 
-        var leidos = await mediator.Send(
+        var candidatos = await mediator.Send(
             new ObtenerCandidatosAsistenteQuery(seleccionables.Select(c => c.Nombre).ToList()), cancellationToken);
 
-        var conInstruccion = new HashSet<Guid>();
-        var sinInstruccion = new List<TenantDeCarteraDto>();
-        foreach (var tenant in leidos.Tenants)
-        {
-            if (await instruccionTratamientoIa.EstaHabilitadaAsync(tenant.TenantId, cancellationToken))
-                conInstruccion.Add(tenant.TenantId);
-            else
-                sinInstruccion.Add(tenant);
-        }
-        var candidatos = leidos.SoloDeLosTenants(conInstruccion);
+        // La cartera leída ahora tiene que ser la que se comprobó: un Tenant que
+        // haya entrado entre las dos lecturas no tiene la instrucción verificada.
+        var conInstruccion = cartera.ConInstruccion.Select(t => t.TenantId).ToHashSet();
+        var sinComprobar = candidatos.Tenants.Where(t => !conInstruccion.Contains(t.TenantId)).ToList();
+        if (sinComprobar.Count > 0)
+            return Result.Fallo<PlanPropuestoDto>(new InstruccionIaCarteraDto([], sinComprobar).ErrorSiFalta()!);
 
         if (request.TenantElegido is { } elegido && candidatos.Tenants.All(t => t.TenantId != elegido))
             return Result.Fallo<PlanPropuestoDto>(Error.Crear(
                 "AsistenteIa.TenantFueraDeCartera",
-                "El Tenant elegido no es de tu cartera o no tiene instrucción de tratamiento con IA vigente."));
+                "El Tenant elegido no es de tu cartera."));
 
         IReadOnlyList<SeleccionCandidatoDto> elegidos = [];
         if (candidatos.Tenants.Count > 0)
@@ -163,7 +163,7 @@ public class ProponerPlanAsistenteQueryHandler(
         var porCampo = elegidos.ToDictionary(s => s.Campo, StringComparer.Ordinal);
         var datos = campos.Select(c => Dato(c, porCampo, candidatos)).ToList();
         return new PlanPropuestoDto(
-            SituacionPlan.Propuesto, orden.Id, clasificacion.Valor.Confianza, datos, destino, sinInstruccion,
+            SituacionPlan.Propuesto, orden.Id, clasificacion.Valor.Confianza, datos, destino,
             orden.Ejecutable, string.IsNullOrWhiteSpace(orden.Limitacion) ? null : orden.Limitacion);
     }
 

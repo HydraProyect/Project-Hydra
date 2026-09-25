@@ -12,7 +12,7 @@ using Q = CaeManager.Application.AsistenteIa.Candidatos.ObtenerCandidatosAsisten
 namespace CaeManager.Application.Tests.AsistenteIa;
 
 /// <summary>
-/// Orquestación del plan propuesto: Nivel 0 por cada Tenant cuyos datos viajan,
+/// Orquestación del plan propuesto: Nivel 0 sobre toda la cartera antes de enviar el texto,
 /// candidatos solo de la cartera, Tenant destino y datos pendientes. La regla del
 /// Tenant y el sellado tienen su propia suite (<see cref="CandidatosAsistenteTests"/>).
 /// </summary>
@@ -79,19 +79,36 @@ public class ProponerPlanAsistenteQueryHandlerTests
     }
 
     [Fact]
-    public async Task Los_candidatos_de_un_Tenant_sin_instruccion_no_viajan_al_proveedor_y_el_plan_lo_dice()
+    public async Task Un_Tenant_de_la_cartera_sin_instruccion_falla_cerrado_sin_enviar_el_texto_al_proveedor()
     {
+        // El texto puede nombrar a Ana Ruiz de Tenant B aunque la pantalla sea la
+        // de A: no hay forma de filtrarlo en local, así que no sale nada.
         var decisiones = new DecisionesFalsas(CatalogoOrdenesAsistente.VisitaPuntualACentro);
+        var mediator = new MediatorFalso(DosTenants(), habilitados: [TenantA]);
 
-        var plan = (await Handler(decisiones, habilitados: [TenantA]).Handle(new(Orden), default)).Valor;
+        var resultado = await Handler(decisiones, habilitados: [TenantA], mediator: mediator).Handle(new(Orden), default);
 
-        decisiones.Solicitadas!.SelectMany(s => s.Candidatos).Select(c => c.Id)
-            .Should().NotContain([CentroB, TrabajadorB, TenantB]);
-        decisiones.Solicitadas!.SelectMany(s => s.Candidatos).Select(c => c.Id).Should().Contain([CentroA, TrabajadorA]);
-        decisiones.Solicitadas!.SelectMany(s => s.Candidatos).Select(c => c.Nombre)
-            .Should().NotContain(n => n.Contains("Tenant B"), "ni el nombre del Tenant excluido viaja al proveedor");
-        plan.TenantsSinInstruccion.Select(t => t.TenantId).Should().Equal(TenantB);
-        plan.Destino!.Situacion.Should().Be(SituacionTenantDestino.Unico, "con B fuera, la cartera efectiva es solo A");
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(InstruccionIaCarteraDto.CodigoError);
+        resultado.Error.Mensaje.Should().Contain("Tenant B").And.NotContain("Tenant A");
+        decisiones.Clasificaciones.Should().Be(0);
+        decisiones.Solicitadas.Should().BeNull();
+        mediator.Consultas.Should().Be(0, "ni siquiera se leen candidatos");
+    }
+
+    [Fact]
+    public async Task Un_Tenant_que_aparece_en_los_candidatos_sin_haberse_comprobado_falla_cerrado()
+    {
+        // La cartera cambió entre la comprobación y la lectura de candidatos: B no
+        // se comprobó, así que sus candidatos no viajan.
+        var decisiones = new DecisionesFalsas(CatalogoOrdenesAsistente.VisitaPuntualACentro);
+        var mediator = new MediatorFalso(DosTenants(), comprobados: [new(TenantA, "Tenant A", true)]);
+
+        var resultado = await Handler(decisiones, mediator: mediator).Handle(new(Orden), default);
+
+        resultado.Error.Codigo.Should().Be(InstruccionIaCarteraDto.CodigoError);
+        resultado.Error.Mensaje.Should().Contain("Tenant B");
+        decisiones.Solicitadas.Should().BeNull();
     }
 
     [Fact]
@@ -112,17 +129,6 @@ public class ProponerPlanAsistenteQueryHandlerTests
         var decisiones = new DecisionesFalsas(CatalogoOrdenesAsistente.VisitaPuntualACentro);
 
         var resultado = await Handler(decisiones).Handle(new(Orden, TenantElegido: Guid.NewGuid()), default);
-
-        resultado.Error.Codigo.Should().Be("AsistenteIa.TenantFueraDeCartera");
-        decisiones.Solicitadas.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task Un_Tenant_elegido_sin_instruccion_se_rechaza()
-    {
-        var decisiones = new DecisionesFalsas(CatalogoOrdenesAsistente.VisitaPuntualACentro);
-
-        var resultado = await Handler(decisiones, habilitados: [TenantA]).Handle(new(Orden, TenantElegido: TenantB), default);
 
         resultado.Error.Codigo.Should().Be("AsistenteIa.TenantFueraDeCartera");
         decisiones.Solicitadas.Should().BeNull();
@@ -174,7 +180,7 @@ public class ProponerPlanAsistenteQueryHandlerTests
         var elegir = unico with { Situacion = SituacionTenantDestino.Elegir, Tenant = null };
         DatoPropuestoDto Dato(bool obligatorio, Guid? id) => new("c", "", obligatorio, id, null, null, 0, null);
         PlanPropuestoDto Plan(TenantDestinoDto destino, bool ejecutable, params DatoPropuestoDto[] datos) =>
-            new(SituacionPlan.Propuesto, "x", 90, datos, destino, [], ejecutable, null);
+            new(SituacionPlan.Propuesto, "x", 90, datos, destino, ejecutable, null);
 
         Plan(unico, true, Dato(true, Guid.NewGuid()), Dato(false, null)).Confirmable.Should().BeTrue();
         Plan(unico, true, Dato(true, null)).Confirmable.Should().BeFalse();
@@ -184,7 +190,7 @@ public class ProponerPlanAsistenteQueryHandlerTests
 
     private static ProponerPlanAsistenteQueryHandler Handler(
         DecisionesFalsas decisiones, Guid? pantalla = null, Guid[]? habilitados = null, MediatorFalso? mediator = null) =>
-        new(mediator ?? new MediatorFalso(DosTenants()), decisiones,
+        new(mediator ?? new MediatorFalso(DosTenants(), habilitados), decisiones,
             new InstruccionPorTenant(habilitados ?? [TenantA, TenantB]), new TenantActualFalso(pantalla ?? TenantA));
 
     private static CandidatosAsistenteDto DosTenants() => new(
@@ -230,12 +236,27 @@ public class ProponerPlanAsistenteQueryHandlerTests
         public Guid? TenantId => tenantId;
     }
 
-    private sealed class MediatorFalso(CandidatosAsistenteDto candidatos) : IMediator
+    /// <summary>
+    /// Resuelve la lectura de candidatos y la comprobación de la cartera. Sin
+    /// <paramref name="comprobados"/>, la cartera comprobada es la misma que la de
+    /// los candidatos, repartida según <paramref name="habilitados"/>.
+    /// </summary>
+    private sealed class MediatorFalso(
+        CandidatosAsistenteDto candidatos, Guid[]? habilitados = null, TenantDeCarteraDto[]? comprobados = null) : IMediator
     {
         public int Consultas { get; private set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is ComprobarInstruccionIaCarteraQuery)
+            {
+                var cartera = comprobados is not null
+                    ? new InstruccionIaCarteraDto(comprobados, [])
+                    : new InstruccionIaCarteraDto(
+                        candidatos.Tenants.Where(t => (habilitados ?? [TenantA, TenantB]).Contains(t.TenantId)).ToList(),
+                        candidatos.Tenants.Where(t => !(habilitados ?? [TenantA, TenantB]).Contains(t.TenantId)).ToList());
+                return Task.FromResult((TResponse)(object)cartera);
+            }
             if (request is not ObtenerCandidatosAsistenteQuery)
                 throw new NotSupportedException(request.GetType().Name);
             Consultas++;
