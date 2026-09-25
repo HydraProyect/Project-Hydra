@@ -298,20 +298,26 @@ else
     # guion borra al salir) y `--env-file`, no `-e VAR=valor`: así ningún valor
     # (cadenas de conexión, contraseña del administrador de ensayo) queda en el
     # argv del cliente docker, visible en `ps` a cualquier usuario de la máquina.
+    #
+    # Dos ficheros, como los dos servicios de docker-compose.produccion.yml (P0-2):
+    # solo el del migrador lleva la cadena del rol propietario; la app arranca sin
+    # ella y sin sembrar (la siembra, como la migración, la hace el migrador).
     ENV_APP="$DIR_TRABAJO/app.env"
+    ENV_MIGRADOR="$DIR_TRABAJO/migrador.env"
     ( umask 077
       {
-        echo "ConnectionStrings__CaeManagerDb=$CADENA_OWNER"
         echo "ConnectionStrings__CaeManagerDbRuntime=$CADENA_RUNTIME"
         echo "AlmacenamientoArchivos__Ruta=/data/documentos"
         echo "DataProtection__RutaClaves=/data/dataprotection-keys"
         echo "Migraciones__AlArrancar=false"
+        echo "Siembra__AlArrancar=false"
         echo "DatosPrueba__Activo=false"
-        # En Producción el arranque exige un administrador inicial (IdentitySeeder):
+        # En Producción la siembra exige un administrador inicial (IdentitySeeder):
         # un valor desechable de esta copia, nunca el de verdad.
         echo "AdministradorInicial__Email=ensayo-admin@ensayo.invalid"
         echo "AdministradorInicial__Contrasena=$CLAVE_ADMIN_ENSAYO"
-      } > "$ENV_APP" )
+      } > "$ENV_APP"
+      { cat "$ENV_APP"; echo "ConnectionStrings__CaeManagerDb=$CADENA_OWNER"; } > "$ENV_MIGRADOR" )
 
     # Migraciones y arranque + login + documento, una vez por origen de claves.
     verificar_app() {   # verificar_app ETIQUETA DIR_CLAVES
@@ -326,7 +332,7 @@ else
         # compatible con el código de este árbol.
         local antes despues
         antes=$(consulta "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";")
-        if docker run --rm --network "$RED" -v "$vol":/data --env-file "$ENV_APP" "$IMAGEN_APP" --migrate-only \
+        if docker run --rm --network "$RED" -v "$vol":/data --env-file "$ENV_MIGRADOR" "$IMAGEN_APP" --preparar-arranque \
                 >"$DIR_TRABAJO/migrador-$etiqueta.log" 2>&1; then
             despues=$(consulta "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";")
             registrar OK "migrador [$etiqueta]" "exit 0; migraciones aplicadas en la BD: $antes -> $despues"

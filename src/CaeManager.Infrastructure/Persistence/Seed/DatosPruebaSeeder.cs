@@ -602,7 +602,8 @@ public static class DatosPruebaSeeder
     /// duplicaría filas sin ningún control de qué falta — pero el log deja
     /// de sonar a "todo en orden": dice exactamente qué pasa y cómo se
     /// arregla (retirar el tenant con <c>--retirar-tenant-demo</c> y dejar
-    /// que la siembra lo complete desde cero en el próximo arranque). Ese
+    /// que la siembra lo complete desde cero en la próxima preparación del
+    /// arranque — el servicio migrador en staging y producción). Ese
     /// "cómo se arregla" es la retirada, no una auto-reparación aquí: encajar
     /// una reconciliación fila a fila en este método arriesgaba
     /// duplicaciones sutiles por una ganancia que la retirada ya cubre.
@@ -629,7 +630,9 @@ public static class DatosPruebaSeeder
                 "DatosPrueba:Activo está en true y este tenant YA TIENE Clientes, pero NUNCA se marcó como " +
                 "siembra completa — es un estado A MEDIAS (volcado externo o siembra interrumpida), no 'ya está " +
                 "listo'. Se omite igual que antes para no duplicar filas, pero esto necesita una acción manual: " +
-                "retira este tenant con --retirar-tenant-demo <TenantId> y reinicia para que la siembra lo complete desde cero.");
+                "retira este tenant con --retirar-tenant-demo <TenantId> y vuelve a preparar el arranque para que la " +
+                "siembra lo complete desde cero (en staging y producción, el servicio migrador con --preparar-arranque; " +
+                "en desarrollo, reiniciar).");
             return true;
         }
 

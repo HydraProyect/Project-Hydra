@@ -79,6 +79,15 @@ services:
     # día a multi-réplica, hace falta un mecanismo aparte (p. ej. un paso de
     # pre-deploy fuera de Compose) para que N réplicas de "app" no esperen cada
     # una a su propio "migrador" compitiendo por el mismo DDL.
+    #
+    # P0-2 (plan de madurez 2026-09-24): el comando pasó de `--migrate-only` a
+    # `--preparar-arranque` — migra Y siembra (Program.cs), porque dos seeders
+    # del arranque (IdentitySeeder y el backfill de asignaciones) necesitan
+    # también la identidad del rol propietario. Mientras sembraba "app", ese
+    # contenedor seguía recibiendo la credencial del superusuario postgres toda
+    # su vida; ahora este es el ÚNICO servicio que la recibe. Los modos
+    # administrativos que la necesitan se lanzan también desde aquí:
+    #   docker compose -f docker-compose.produccion.yml run --rm migrador --retirar-tenant-demo <TenantId>
     # Imagen construida y firmada en CI, cargada por ci-deploy.sh, que arranca
     # con IMAGEN_TAG=<sha>. Sin `build:` y con `pull_policy: never` a propósito:
     # un `up` manual sin IMAGEN_TAG falla («No such image: caemanager:sin-
@@ -89,7 +98,7 @@ services:
     pull_policy: never
     container_name: caemanager-migrador
     restart: "no"
-    command: ["--migrate-only"]
+    command: ["--preparar-arranque"]
     env_file: .env
     environment:
       ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
@@ -138,15 +147,19 @@ services:
     # `docker stats caemanager-app` en el servidor.
     mem_limit: ${LIMITE_MEMORIA_APP:-3g}
     restart: unless-stopped
-    # REC-017/P39: las migraciones ya no las aplica este contenedor — las
-    # aplica el servicio "migrador" de arriba, antes de que este arranque (ver
-    # su `depends_on` más abajo). Este apagador ya existía en Program.cs sin
-    # estar wireado desde ningún despliegue.
+    # REC-017/P39 y P0-2: ni las migraciones ni la siembra las hace este
+    # contenedor — las hace el servicio "migrador" de arriba
+    # (`--preparar-arranque`), antes de que este arranque (ver su `depends_on`
+    # más abajo).
     #
-    # ConnectionStrings__CaeManagerDb sigue configurado más abajo pese a esto:
-    # lo sigue usando el healthcheck de /salud (Program.cs, `AddNpgSql`, un
-    # `SELECT 1` de solo lectura sin relación con RLS) — quitarlo rompería esa
-    # comprobación, no las migraciones.
+    # SIN CREDENCIAL DEL SUPERUSUARIO (P0-2). `env_file: .env` inyecta el
+    # `.env` entero, que contiene POSTGRES_PASSWORD (la usa `db` y compone la
+    # cadena del "migrador"); por eso `environment:` la vacía expresamente
+    # —`environment` gana a `env_file`— y hace lo mismo con
+    # ConnectionStrings__CaeManagerDb, por si el `.env` real la trae compuesta
+    # y para tapar el valor de desarrollo de appsettings.json. /salud usa la
+    # conexión del tráfico (Program.cs, ResolverCadenaDeTrafico). Contrato
+    # vigilado por deploy/ci-deploy-secretos.tests.sh (caso 19).
     #
     # ConnectionStrings__CaeManagerDbRuntime (RUNBOOK-RLS.md, repositorio de
     # negocio) NO aparece en el bloque `environment:` de abajo a propósito:
@@ -161,11 +174,14 @@ services:
     # exponer el valor en ningún log.
     env_file: .env
     environment:
-      ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      # P0-2 — ver el comentario de más arriba, junto a `restart:`.
+      POSTGRES_PASSWORD: ""
+      ConnectionStrings__CaeManagerDb: ""
       AlmacenamientoArchivos__Ruta: /data/documentos
       DataProtection__RutaClaves: /data/dataprotection-keys
-      # REC-017/P39 — ver el comentario de más arriba, junto a `restart:`.
+      # REC-017/P39 y P0-2 — ver el comentario de más arriba, junto a `restart:`.
       Migraciones__AlArrancar: "false"
+      Siembra__AlArrancar: "false"
     volumes:
       - caemanager-data:/data
       # P44b — certificado de cliente del conector de Microsoft 365 (PEM). Fuera del
