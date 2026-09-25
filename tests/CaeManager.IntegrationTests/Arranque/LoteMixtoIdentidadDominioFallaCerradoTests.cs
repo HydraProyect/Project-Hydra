@@ -94,7 +94,7 @@ public sealed class LoteMixtoIdentidadDominioFallaCerradoTests : IAsyncLifetime
     private const int UmbralRojoRecuperacion = 9;
 
     private readonly TenantActualFijo _sesion = new();
-    private readonly TitularDeLaSesion _titular = new();
+    private readonly CurrentUserServiceMutable _titular = new();
     private ArnesDeArranqueRuntime _arnes = null!;
 
     public async Task InitializeAsync() =>
@@ -783,18 +783,5 @@ WHERE ""EntidadId"" = @id ORDER BY ""FechaUtc"" DESC LIMIT 1;";
     private sealed class TenantActualFijo : ITenantActual
     {
         public Guid? TenantId { get; set; }
-    }
-
-    /// <summary>El titular de la cuenta del escenario, operando desde su Tenant de origen.</summary>
-    private sealed class TitularDeLaSesion : ICurrentUserService
-    {
-        public Guid? UsuarioId { get; set; }
-        public Guid? TenantOrigenId { get; set; }
-
-        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(UsuarioId);
-        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(null);
-        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(null);
-        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(TenantOrigenId);
-        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 }

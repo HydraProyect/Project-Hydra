@@ -152,15 +152,19 @@ public class RlsAspNetUsersBajoRuntimeTests
         await using var e = await CrearEscenarioAsync();
         await using var conexion = await AbrirComoRuntimeAsync(e, tenant: e.TenantX, origen: e.TenantX, usuario: e.PropiaX.Id);
 
-        var altaEnOtro = () => EjecutarAsync(
-            conexion,
-            """
+        // Todas las columnas NOT NULL sin valor por defecto (snapshot del modelo):
+        // sin ellas, el rechazo sería 23502 y la política no llegaría a decidir.
+        const string alta = """
             INSERT INTO "AspNetUsers" ("Id", "TenantId", "NombreCompleto", "EmailConfirmed", "PhoneNumberConfirmed",
-                "TwoFactorEnabled", "LockoutEnabled", "AccessFailedCount", "DebeCambiarContrasena")
-            VALUES (@id, @tenant, 'intrusa', false, false, false, true, 0, false)
-            """,
-            Guid.NewGuid(), e.TenantY);
+                "TwoFactorEnabled", "LockoutEnabled", "AccessFailedCount", "DebeCambiarContrasena",
+                "FechaCreacion", "Idioma", "Tema", "PermisoConsultarAccesoDocumentosSensibles")
+            VALUES (@id, @tenant, 'alta de prueba', false, false, false, true, 0, false, now(), 0, 0, false)
+            """;
 
+        // Control positivo: la misma fila entra en el Tenant activo.
+        (await EjecutarAsync(conexion, alta, Guid.NewGuid(), e.TenantX)).Should().Be(1);
+
+        var altaEnOtro = () => EjecutarAsync(conexion, alta, Guid.NewGuid(), e.TenantY);
         (await altaEnOtro.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
     }
 
