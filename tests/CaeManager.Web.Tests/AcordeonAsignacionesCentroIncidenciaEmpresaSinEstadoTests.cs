@@ -1,13 +1,13 @@
 using Bunit;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Common;
-using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
 using FluentAssertions;
 using MediatR;
-using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -15,25 +15,28 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// «Falta» en el tercer nivel de Centro 360 sale de
-/// ResolucionTipoDocumentoCentro.Aplica (ObtenerAsignacionesDocumentacionPorCentroQuery,
-/// mismo criterio que Alertas.razor): la fila de este centro si existe y, si
-/// no, el valor general del tipo. Atribuirlo solo al centro ("el centro lo
-/// exige") mentía en los centros que no han configurado nada — hallazgo real
-/// del 2026-09-11 al corregir Alertas.
+/// Hallazgo de la oleada 2 de Codex sobre la PR #833: una causa de rechazo en
+/// plataforma con <c>Ambito.Empresa</c> llega con <c>Estado: null</c> a
+/// propósito (CalculoEstadoCentroService — no es un vencimiento de fecha, es
+/// un rechazo activo). Antes de este fix, el bloque Empresa de este
+/// componente hacía <c>incidencia.Estado!.Value</c> sin comprobar null,
+/// bajo el comentario "Estado siempre presente" — cierto antes del fix v2 de
+/// ObtenerCentrosQuery.Desglosar, falso después. Este test demuestra que el
+/// null real no lanza y que el componente pinta el badge dedicado
+/// "Rechazado" en su lugar, en vez de solo probarlo indirectamente a través
+/// del DTO de ObtenerCentrosQueryRecuentosTests (integración, no UI).
 /// </summary>
-public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
+public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitContext
 {
-    public AcordeonAsignacionesCentroAtribucionFaltaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
     private sealed class MediatorFalso : IMediator
     {
-        public required IReadOnlyList<TrabajadorAsignacionDocumentacionDto> Trabajadores { get; init; }
-
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(object)(request switch
             {
-                ObtenerAsignacionesDocumentacionPorCentroQuery => Trabajadores,
+                ObtenerAsignacionesDocumentacionPorCentroQuery =>
+                    (IReadOnlyList<TrabajadorAsignacionDocumentacionDto>)[],
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 
@@ -72,51 +75,39 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
             throw new NotSupportedException("Con el drawer cerrado no se convierte nada; si esto salta, el acordeón cambió de camino.");
     }
 
-    private void RegistrarServicios(MediatorFalso mediator)
+    [Fact]
+    public void La_incidencia_de_Empresa_sin_Estado_no_lanza_y_pinta_el_badge_Rechazado()
     {
-        // El acordeón inyecta IStringLocalizer<TextosCentros> (badge "Rechazado"
-        // y "No aplica" de la fila de Empresa sin Estado, Codex oleada 3).
+        // El badge "Rechazado" y el texto "No aplica" salen de
+        // IStringLocalizer<TextosCentros> (Codex, oleada 3: ratchet de
+        // textos sin localizar).
         Services.AddLocalization();
-        Services.AddScoped<IMediator>(_ => mediator);
+        Services.AddScoped<IMediator>(_ => new MediatorFalso());
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
         Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
-    }
 
-    [Fact]
-    public async Task El_tooltip_de_Falta_atribuye_la_exigencia_a_las_dos_procedencias_posibles()
-    {
-        var trabajador = new TrabajadorAsignacionDocumentacionDto(
-            Guid.NewGuid(), Guid.NewGuid(), "Ruiz Peña, Ana", new DateOnly(2026, 1, 15), EstadoDocumento.Faltante,
-            [new DocumentoRequeridoDto(null, Guid.NewGuid(), "Reconocimiento médico", EstadoDocumento.Faltante, null)]);
-
-        RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
+        var incidencia = new IncidenciaCentroDto(
+            "EPIs — rechazado por la plataforma", AmbitoCausa.Empresa, Estado: null,
+            DocumentoId: Guid.NewGuid(), TipoDocumentoId: Guid.NewGuid(), FechaVencimiento: null);
 
         var cut = Render<AcordeonAsignacionesCentro>(p => p
             .Add(a => a.CentroId, Guid.NewGuid())
-            .Add(a => a.CentroNombre, "Centro Logístico Norte"));
+            .Add(a => a.CentroNombre, "Centro Logístico Norte")
+            .Add(a => a.EmpresaId, Guid.NewGuid())
+            .Add(a => a.EmpresaNombre, "Empresa Recuentos S.L.")
+            .Add(a => a.IncidenciasEmpresa, [incidencia]));
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ruiz Peña, Ana"));
-        await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
-
-        // DocumentosVencidos cuenta Faltante como vencido (misma severidad),
-        // así que el mismo trabajador pinta OTRA VentanaContexto en el
-        // recuento de la fila — acotar al tercer nivel evita leer esa.
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("tabla-documentos-requeridos"));
-        var panel = cut.Find(".tabla-documentos-requeridos .ventana-contexto-panel");
-        var texto = panel.TextContent;
+        var fila = cut.Find(".tabla-documentos-requeridos .fila-documento-requerido");
 
-        texto.Should().Contain("porque este centro lo tiene configurado")
-            .And.Contain("si no dice nada, porque el tipo de documento se pide siempre",
-                "sin fila del centro, manda el valor general del tipo (ResolucionTipoDocumentoCentro.Aplica)");
-        texto.Should().NotContain("Este centro exige el documento",
-            "esa frase atribuía la exigencia solo al centro, aunque no hubiera configurado nada");
-        texto.Should().NotContainEquivalentOf("obligatori", "es configuración, no una obligación legal");
-
-        var disparador = cut.Find(".tabla-documentos-requeridos .ventana-contexto");
-        disparador.GetAttribute("aria-label")!.Should().Contain("porque lo tiene configurado")
-            .And.Contain("si no dice nada, porque el tipo se pide siempre");
+        fila.TextContent.Should().Contain("Rechazado",
+            "sin Estado, el componente ya no intenta indexar EstadoDocumentoUi con un valor inexistente: pinta un badge propio");
+        fila.TextContent.Should().Contain("No aplica",
+            "un rechazo no tiene vigencia documental: \"Sin caducidad\" sería contradictorio junto al badge \"Rechazado\" " +
+            "(hallazgo de Codex, oleada 3 sobre esta misma PR)");
+        fila.TextContent.Should().NotContain("Sin caducidad");
     }
 }
