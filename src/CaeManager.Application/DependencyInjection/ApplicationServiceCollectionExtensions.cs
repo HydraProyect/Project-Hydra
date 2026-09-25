@@ -44,6 +44,10 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<CaeManager.Application.Plataforma.OrdenMenu.CacheOrdenMenuLateral>();
         // Esqueleto común de los Commands que cambian una tarea del asistente de flujos.
         services.AddScoped<CaeManager.Application.AsistenteIa.Tareas.ModificacionTareaAsistente>();
+        // Quién puede restablecer la 2FA de otra cuenta, separado del acto (P0-8).
+        services.AddScoped<
+            CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor.IAutorizacionRestablecerSegundoFactor,
+            CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor.AutorizacionRestablecerSegundoFactorAdministrador>();
         // TryAdd, no Add: Program.cs registra la implementación real
         // (SentryAlertaOperativa, Infrastructure) después de AddApplication()
         // y la sustituye — ver AlertaOperativaInerte para el porqué de este

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="RestablecerSegundoFactorAccion" xml:space="preserve">
+    <value>Restablir la verificació en dos passos</value>
+  </data>
+  <data name="RestablecerSegundoFactorTitulo" xml:space="preserve">
+    <value>Restablir la verificació en dos passos</value>
+  </data>
+  <data name="RestablecerSegundoFactorConfirmar" xml:space="preserve">
+    <value>Restablir</value>
+  </data>
+  <data name="RestablecerSegundoFactorMensaje" xml:space="preserve">
+    <value>Es desactivarà la verificació en dos passos de «{0}»: s'esborren la seva aplicació autenticadora i els seus codis de recuperació, i es tanquen les seves sessions obertes. Si és Administrador, l'haurà de tornar a configurar en entrar. Queda registrat a l'auditoria al teu nom.</value>
+  </data>
+  <data name="RestablecerSegundoFactorHecho" xml:space="preserve">
+    <value>Verificació en dos passos restablerta per a {0}. L'haurà de tornar a configurar.</value>
+  </data>
+</root>

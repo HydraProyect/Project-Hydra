@@ -38,6 +38,7 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
         Services.AddSingleton<SignInManager<ApplicationUser>>(_signIn);
         Services.AddSingleton<ILoggerFactory>(new LoggerFactory([_registro]));
         Services.AddSingleton<IEleccionLiderService>(new CerrojoSiempreConcedidoFalso());
+        Services.AddLocalization();
     }
 
     [Fact]
@@ -123,6 +124,113 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
             "el rechazo se audita distinto de un código incorrecto");
     }
 
+    // ---------- Código de recuperación (P0-8, FS-01) ----------
+    //
+    // SignInManager.TwoFactorRecoveryCodeSignInAsync ni mira el bloqueo ni cuenta
+    // los fallos; la página hace las dos cosas. Sin ellas, un código de
+    // recuperación sería la puerta trasera de una cuenta bloqueada por intentos
+    // y un canal de prueba sin límite.
+
+    [Fact]
+    public async Task Un_codigo_de_recuperacion_valido_entra_sin_contar_un_fallo()
+    {
+        _signIn.ResultadoRecuperacion = SignInResult.Success;
+        var cut = RenderizarModoRecuperacion();
+
+        await EnviarRecuperacionAsync(cut, "abcde-12345");
+
+        _signIn.CodigosRecuperacionProbados.Should().Equal("abcde-12345");
+        _signIn.Usuarios.Fallos.Should().Be(0);
+        _registro.Mensajes.Should().Contain(m => m.Contains("correcta con código de recuperación"));
+    }
+
+    [Fact]
+    public async Task Un_codigo_de_recuperacion_incorrecto_cuenta_un_intento_fallido()
+    {
+        _signIn.ResultadoRecuperacion = SignInResult.Failed;
+        var cut = RenderizarModoRecuperacion();
+
+        await EnviarRecuperacionAsync(cut, "zzzzz-zzzzz");
+
+        _signIn.Usuarios.Fallos.Should().Be(1, "cada código probado gasta un intento, como el de la aplicación");
+        cut.Find("[role=alert]").TextContent.Should().Contain("Código de recuperación no válido");
+        cut.FindAll("#recuperacion").Should().ContainSingle("sin bloqueo se puede volver a intentar");
+        _signIn.SesionCerrada.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Con_la_cuenta_ya_bloqueada_el_codigo_de_recuperacion_ni_se_prueba()
+    {
+        _signIn.Usuarios.Bloqueado = true;
+        _signIn.ResultadoRecuperacion = SignInResult.Success;
+        var cut = RenderizarModoRecuperacion();
+
+        await EnviarRecuperacionAsync(cut, "abcde-12345");
+
+        _signIn.CodigosRecuperacionProbados.Should().BeEmpty(
+            "un código válido no puede abrir una cuenta bloqueada por intentos");
+        cut.Find("[role=alert]").TextContent.Should().Contain(TextoBloqueo);
+        cut.FindAll("form").Should().BeEmpty();
+        _signIn.SesionCerrada.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task El_fallo_que_agota_los_intentos_dice_bloqueada_y_cierra_el_paso()
+    {
+        _signIn.ResultadoRecuperacion = SignInResult.Failed;
+        _signIn.Usuarios.BloquearTrasFallos = 1;
+        var cut = RenderizarModoRecuperacion();
+
+        await EnviarRecuperacionAsync(cut, "zzzzz-zzzzz");
+
+        cut.Find("[role=alert]").TextContent.Should().Contain(TextoBloqueo);
+        _signIn.SesionCerrada.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Revisión Codex: si el intento fallido no se pudo registrar (concurrencia
+    /// optimista), seguir en el paso permitiría probar códigos sin gastar intentos.
+    /// </summary>
+    [Fact]
+    public async Task Un_fallo_que_no_se_pudo_registrar_cierra_el_paso()
+    {
+        _signIn.ResultadoRecuperacion = SignInResult.Failed;
+        _signIn.Usuarios.RegistroFalla = true;
+        var cut = RenderizarModoRecuperacion();
+
+        await EnviarRecuperacionAsync(cut, "zzzzz-zzzzz");
+
+        cut.Find("[role=alert]").TextContent.Should().Contain("No pudimos registrar el intento");
+        cut.FindAll("form").Should().BeEmpty();
+        _signIn.SesionCerrada.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Un_codigo_de_recuperacion_vacio_no_gasta_un_intento()
+    {
+        var cut = RenderizarModoRecuperacion();
+
+        await EnviarRecuperacionAsync(cut, "   ");
+
+        _signIn.CodigosRecuperacionProbados.Should().BeEmpty();
+        _signIn.Usuarios.Fallos.Should().Be(0);
+        cut.Find("[role=alert]").TextContent.Should().Contain("Introduce un código de recuperación.");
+    }
+
+    private IRenderedComponent<LoginCon2fa> RenderizarModoRecuperacion()
+    {
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/cuenta/verificar-2fa?modo=recuperacion");
+        var cut = Render<LoginCon2fa>();
+        cut.FindAll("#codigo").Should().BeEmpty("control del instrumento: estamos en el modo de recuperación");
+        return cut;
+    }
+
+    private static async Task EnviarRecuperacionAsync(IRenderedComponent<LoginCon2fa> cut, string codigo)
+    {
+        await cut.Find("#recuperacion").ChangeAsync(new ChangeEventArgs { Value = codigo });
+        await cut.Find("form").SubmitAsync();
+    }
+
     private static async Task EnviarCodigoAsync(IRenderedComponent<LoginCon2fa> cut)
     {
         await cut.Find("#codigo").ChangeAsync(new ChangeEventArgs { Value = "123456" });
@@ -135,23 +243,35 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
     /// </summary>
     private sealed class SignInManagerFalso : SignInManager<ApplicationUser>
     {
-        private static readonly UserManager<ApplicationUser> Usuarios = new(
-            new AlmacenSinUso(), Opciones.Create(new IdentityOptions()), new PasswordHasher<ApplicationUser>(),
-            [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
-            NullLogger<UserManager<ApplicationUser>>.Instance);
-
         private readonly ApplicationUser _pendiente = new() { Id = Guid.NewGuid() };
 
-        public SignInManagerFalso()
-            : base(Usuarios, new HttpContextAccessor(),
-                new UserClaimsPrincipalFactory<ApplicationUser>(Usuarios, Opciones.Create(new IdentityOptions())),
+        public SignInManagerFalso() : this(new UsuariosConBloqueoFalso())
+        {
+        }
+
+        private SignInManagerFalso(UsuariosConBloqueoFalso usuarios)
+            : base(usuarios, new HttpContextAccessor(),
+                new UserClaimsPrincipalFactory<ApplicationUser>(usuarios, Opciones.Create(new IdentityOptions())),
                 Opciones.Create(new IdentityOptions()), NullLogger<SignInManager<ApplicationUser>>.Instance,
                 new AuthenticationSchemeProvider(Opciones.Create(new AuthenticationOptions())),
                 new DefaultUserConfirmation<ApplicationUser>())
         {
+            Usuarios = usuarios;
         }
 
+        public UsuariosConBloqueoFalso Usuarios { get; }
+
         public SignInResult Resultado { get; set; } = SignInResult.Failed;
+
+        public SignInResult ResultadoRecuperacion { get; set; } = SignInResult.Failed;
+
+        public List<string> CodigosRecuperacionProbados { get; } = [];
+
+        public override Task<SignInResult> TwoFactorRecoveryCodeSignInAsync(string recoveryCode)
+        {
+            CodigosRecuperacionProbados.Add(recoveryCode);
+            return Task.FromResult(ResultadoRecuperacion);
+        }
 
         public bool SesionCerrada { get; private set; }
 
@@ -199,6 +319,33 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
         {
             await trabajo(cancellationToken);
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Solo el bloqueo y el contador de fallos, que es lo que la página consulta
+    /// en el modo de recuperación; el almacén no se usa.
+    /// </summary>
+    private sealed class UsuariosConBloqueoFalso() : UserManager<ApplicationUser>(
+        new AlmacenSinUso(), Opciones.Create(new IdentityOptions()), new PasswordHasher<ApplicationUser>(),
+        [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
+        NullLogger<UserManager<ApplicationUser>>.Instance)
+    {
+        public bool Bloqueado { get; set; }
+        public int Fallos { get; private set; }
+        public int? BloquearTrasFallos { get; set; }
+        public bool RegistroFalla { get; set; }
+
+        public override Task<bool> IsLockedOutAsync(ApplicationUser user) => Task.FromResult(Bloqueado);
+
+        public override Task<IdentityResult> AccessFailedAsync(ApplicationUser user)
+        {
+            // Como UpdateAsync al perder la concurrencia optimista: no cuenta y lo dice.
+            if (RegistroFalla)
+                return Task.FromResult(IdentityResult.Failed(new IdentityErrorDescriber().ConcurrencyFailure()));
+            Fallos++;
+            if (Fallos >= BloquearTrasFallos) Bloqueado = true;
+            return Task.FromResult(IdentityResult.Success);
         }
     }
 

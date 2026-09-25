@@ -5,6 +5,7 @@
 @using System.Security.Claims
 @using System.Text
 @using System.Text.Encodings.Web
+@using CaeManager.Application.Usuarios.Commands.GenerarCodigosRecuperacion
 @using CaeManager.Infrastructure.Identity
 @using CaeManager.Web.Components.Account
 @using CaeManager.Web.Components.Account.Recursos
@@ -12,6 +13,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.Extensions.Localization
+@using MediatR
 @using QRCoder
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
@@ -19,6 +21,7 @@
 @inject ILoggerFactory LoggerFactory
 @inject NavigationManager NavigationManager
 @inject IStringLocalizer<TextosCuenta> Textos
+@inject IMediator Mediator
 
 <PageTitle>Autenticación en dos pasos — @Marca.Nombre</PageTitle>
 
@@ -36,12 +39,56 @@
             <span class="dos-factores-esqueleto dos-factores-esqueleto-linea-corta" aria-hidden="true"></span>
         </div>
     }
+    else if (_codigosRecuperacion is not null)
+    {
+        @* Paso 3 del mockup «Configurar 2FA TALVEG»: los códigos solo existen en
+           claro en esta respuesta; en la base quedan con hash (AlmacenUsuarios). *@
+        <section class="tarjeta-2fa tarjeta-codigos-recuperacion" aria-labelledby="codigos-recuperacion-titulo">
+            <h2 id="codigos-recuperacion-titulo">@(_dosFactoresRecienActivado ? Textos["CodigosPasoTresTitulo"] : Textos["CodigosNuevosTitulo"])</h2>
+            <div class="aviso-codigos" role="status">
+                <Icono Nombre="advertencia" Tamano="TamanoIcono.Pequeno" />
+                <span>@Textos["CodigosAviso"]</span>
+            </div>
+            @* Opción C (decisión del 25-09): sin otro Administrador en el Tenant no hay
+               vía de recuperación; ni Soporte TALVEG ni la base de datos la sustituyen. *@
+            <p class="texto-2fa-secundario aviso-administrador-unico">@Textos["CodigosAvisoAdministradorUnico"]</p>
+            <ul class="lista-codigos" aria-label="@Textos["CodigosLista"]">
+                @foreach (var codigo in _codigosRecuperacion)
+                {
+                    <li><code>@codigo</code></li>
+                }
+            </ul>
+            <div class="acciones-codigos">
+                <a class="boton-secundario" href="@EnlaceDescarga" download="@NombreFicheroDescarga">
+                    <Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> <span>@Textos["CodigosDescargar"]</span>
+                </a>
+                <span class="texto-2fa-secundario">@Textos["CodigosUnSoloUso"]</span>
+            </div>
+            @* Carga completa, no navegación mejorada: el menú y los gates de rol
+               dependen de una claims transformation que solo se recalcula en una
+               petición nueva (mismo motivo que el forceLoad de VerificarAsync). *@
+            <a class="boton-primario boton-continuar" href="/" data-enhance-nav="false">@Textos["CodigosContinuar"]</a>
+        </section>
+    }
     else if (_dosFactoresActivo)
     {
         <div class="tarjeta-2fa tarjeta-2fa-activa">
             <p class="texto-2fa-exito"><Icono Nombre="exito-circulo" Tamano="TamanoIcono.Pequeno" /> <span>La autenticación en dos pasos ya está activada en tu cuenta.</span></p>
             <p class="texto-2fa-secundario">Tu aplicación autenticadora te pedirá un código cuando sea necesario.</p>
         </div>
+
+        <section class="tarjeta-2fa tarjeta-2fa-activa tarjeta-regenerar" aria-labelledby="codigos-restantes-titulo">
+            <h2 id="codigos-restantes-titulo">@Textos["CodigosLista"]</h2>
+            <p class="codigos-restantes">@TextoCodigosRestantes</p>
+            @if (mensajeError is not null)
+            {
+                <div class="alerta-login" role="alert"><Icono Nombre="error-circulo" Tamano="TamanoIcono.Pequeno" /> <span>@mensajeError</span></div>
+            }
+            <p class="texto-2fa-secundario">@Textos["CodigosRegenerarAyuda"]</p>
+            <EditForm Model="Regenerar" method="post" OnSubmit="RegenerarCodigosAsync" FormName="regenerar-codigos">
+                <button type="submit" class="boton-primario">@Textos["CodigosRegenerar"]</button>
+            </EditForm>
+        </section>
     }
     else if (_errorCarga is not null)
     {
@@ -107,6 +154,9 @@
     private string? mensajeError;
     private string? _errorCarga;
     private ApplicationUser? _usuario;
+    private int _codigosRestantes;
+    private IReadOnlyList<string>? _codigosRecuperacion;
+    private bool _dosFactoresRecienActivado;
 
     // Quien llega aquí redirigido por CuentaAMedioActivarSinAccesoMiddleware o
     // por el guard de MainLayout no puede usar nada más hasta activarla, y la
@@ -124,9 +174,16 @@
     [SupplyParameterFromForm]
     private DatosEntrada? Entrada { get; set; }
 
+    // Sin campos: el formulario de regenerar solo lleva la intención (y el token
+    // antiforgery que EditForm añade). EditForm y no un <form> suelto, como el resto
+    // de formularios de esta página estática.
+    [SupplyParameterFromForm(FormName = "regenerar-codigos")]
+    private DatosRegenerar? Regenerar { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         Entrada ??= new DatosEntrada();
+        Regenerar ??= new DatosRegenerar();
 
         var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var idClaim = estadoAutenticacion.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -144,7 +201,9 @@
         }
 
         _dosFactoresActivo = await UserManager.GetTwoFactorEnabledAsync(_usuario);
-        if (!_dosFactoresActivo)
+        if (_dosFactoresActivo)
+            _codigosRestantes = await UserManager.CountRecoveryCodesAsync(_usuario);
+        else
         {
             _dosFactoresObligatorio = await UserManager.IsInRoleAsync(_usuario, Roles.Administrador);
             await CargarClaveCompartidaAsync(_usuario);
@@ -238,14 +297,62 @@
         LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
             .LogInformation("2FA activado: {UsuarioId}", _usuario.Id);
 
-        // Sin esto, quien llega aquí forzado por MainLayout (2FA obligatoria
-        // para Administrador/soporte) se queda atrapado en esta pantalla tras
-        // activarlo — nunca vuelve a la app. forceLoad: true porque el resto
-        // del layout (menú, gates de rol) depende de una claims transformation
-        // que solo se recalcula en una carga de página nueva, no en una
-        // navegación interna de Blazor.
-        NavigationManager.NavigateTo("/", forceLoad: true);
+        // Los códigos de recuperación nacen con la 2FA (P0-8, FS-01): sin ellos,
+        // perder el móvil deja la cuenta fuera. Se muestran aquí una sola vez, y
+        // el botón de continuar lleva a "/" con carga completa: sin esa salida,
+        // quien llega forzado por MainLayout (2FA obligatoria para
+        // Administrador) se quedaría atrapado en esta pantalla. Si generarlos
+        // falla, la 2FA ya está activa: se sale como antes (forceLoad, porque el
+        // menú y los gates de rol dependen de una claims transformation que solo
+        // se recalcula en una carga nueva), y los códigos se generan después
+        // desde esta misma página.
+        var codigos = await Mediator.Send(new GenerarCodigosRecuperacionCommand());
+        if (codigos.EsFallido)
+        {
+            LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                .LogWarning("2FA activado sin códigos de recuperación: {UsuarioId} ({Codigo})", _usuario.Id, codigos.Error.Codigo);
+            NavigationManager.NavigateTo("/", forceLoad: true);
+            return;
+        }
+
+        _dosFactoresActivo = true;
+        _dosFactoresRecienActivado = true;
+        _codigosRecuperacion = codigos.Valor;
     }
+
+    private async Task RegenerarCodigosAsync()
+    {
+        if (_usuario is null || !_dosFactoresActivo) return;
+
+        var codigos = await Mediator.Send(new GenerarCodigosRecuperacionCommand());
+        if (codigos.EsFallido)
+        {
+            mensajeError = codigos.Error.Mensaje;
+            return;
+        }
+
+        LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+            .LogInformation("Códigos de recuperación de 2FA regenerados: {UsuarioId}", _usuario.Id);
+
+        _codigosRecuperacion = codigos.Valor;
+    }
+
+    private string TextoCodigosRestantes => _codigosRestantes switch
+    {
+        0 => Textos["CodigosRestantesNinguno"],
+        1 => Textos["CodigosRestantesUno"],
+        _ => Textos["CodigosRestantesVarios", _codigosRestantes],
+    };
+
+    private static string NombreFicheroDescarga => $"codigos-recuperacion-{Marca.Nombre.ToLowerInvariant()}.txt";
+
+    // Fichero de texto que el navegador arma con esta misma respuesta: los códigos
+    // no pasan por ningún otro endpoint ni quedan en claro en el servidor.
+    private string EnlaceDescarga =>
+        "data:text/plain;charset=utf-8," + Uri.EscapeDataString(
+            Textos["CodigosFicheroCabecera", Marca.Nombre, _usuario?.Email ?? string.Empty] + "\n" +
+            Textos["CodigosUnSoloUso"] + "\n\n" +
+            string.Join("\n", _codigosRecuperacion ?? []));
 
     /// <summary>
     /// Agrupa la clave de 4 en 4 caracteres para que sea más fácil de leer
@@ -281,4 +388,6 @@
         [StringLength(6, MinimumLength = 6, ErrorMessage = "El código debe tener 6 dígitos.")]
         public string Codigo { get; set; } = string.Empty;
     }
+
+    private sealed class DatosRegenerar;
 }

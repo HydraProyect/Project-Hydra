@@ -45,6 +45,7 @@ public class AccesoCuentaEscenaTests : BunitContext
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         Services.AddSingleton<IEmailService>(new EmailQueNoDebeUsarse());
         Services.AddSingleton<IEleccionLiderService>(new CerrojoSiempreConcedidoFalso());
+        Services.AddLocalization();
         AddAuthorization();
     }
 
@@ -181,7 +182,10 @@ public class AccesoCuentaEscenaTests : BunitContext
         cut.Find("h2.acceso-titulo").TextContent.Should().Be("Verificación en dos pasos");
         cut.Find(".acceso-codigo #codigo").GetAttribute("autocomplete").Should().Be("one-time-code");
         cut.FindAll("button[type=submit]").Should().ContainSingle("Ayudas.IniciarSesionAsync pulsa el único envío tras rellenar #codigo");
-        cut.Find(".acceso-olvido a").GetAttribute("href").Should().Be("/cuenta/iniciar-sesion");
+        var salidas = cut.FindAll(".acceso-olvido a").Select(a => a.GetAttribute("href")).ToList();
+        salidas.Should().Contain("/cuenta/iniciar-sesion");
+        // P0-8 (FS-01): sin el móvil, la salida es un código de recuperación.
+        salidas.Should().Contain(h => h!.Contains("/cuenta/verificar-2fa?") && h.Contains("modo=recuperacion"));
     }
 
     /// <summary>

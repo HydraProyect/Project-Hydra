@@ -5,6 +5,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
 using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
 using CaeManager.Domain.Common;
@@ -301,6 +302,7 @@ public class UsuariosGen2Tests : BunitContext
             BuscarEmpresaPorCifQuery q => EmpresasPorCif.GetValueOrDefault(q.Cif.Trim().ToUpperInvariant()),
             ObtenerClientePorIdQuery => null,
             ObtenerRolesNoAsignablesQuery => RolesNoAsignables,
+            RestablecerSegundoFactorCommand => Result.Exito(),
             VerificarRolAsignableQuery q => RolesNoAsignables.Contains(q.Rol)
                 ? Result.Fallo(Error.Crear("Usuarios.RolReservadoAlTenantDeOrigen", "Rol reservado al Tenant de origen."))
                 : Result.Exito(),
@@ -427,6 +429,7 @@ public class UsuariosGen2Tests : BunitContext
         Services.AddSingleton<ILogger<PaginaUsuarios>>(NullLogger<PaginaUsuarios>.Instance);
         Services.AddSingleton(_fuente);
         Services.AddSingleton(_toasts);
+        Services.AddLocalization();
         Services.AddSingleton<IMediator>(_mediador);
         Services.AddSingleton<IEmailService>(_correo);
         Services.AddSingleton<UserManager<ApplicationUser>>(_identidad);
@@ -1388,6 +1391,60 @@ public class UsuariosGen2Tests : BunitContext
         _identidad.Cuentas.Should().NotContainKey(AnderId);
         _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Usuario eliminado.");
     }
+
+    /// <summary>
+    /// P0-8 (FS-01): el Administrador ofrece restablecer la verificación en dos
+    /// pasos de otra cuenta de su organización que la tenga activa, y lo que se
+    /// envía es el comando (la autorización real está en Application). Ni sobre
+    /// la propia cuenta —que se recupera con sus códigos— ni sobre una sin 2FA.
+    /// </summary>
+    [Fact]
+    public async Task Un_Administrador_restablece_la_2FA_de_otra_cuenta_tras_confirmar()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        ander.TwoFactorEnabled = true;
+        var marta = Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez");
+        marta.TwoFactorEnabled = true;
+        Sembrar((marta, RolesIdentidad.Administrador), (ander, RolesIdentidad.GestorCae));
+
+        var cut = Renderizar(actorId: MartaId);
+        await AbrirMenuAsync(cut, "marta.r@talveg.es");
+        Fila(cut, "marta.r@talveg.es").QuerySelectorAll(".menu-acciones-item").Select(b => b.TextContent.Trim())
+            .Should().NotContain(TextoRestablecer2fa, "la propia cuenta se recupera con sus códigos de recuperación");
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", TextoRestablecer2fa);
+        var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == TextoRestablecer2fa);
+        dialogo.Instance.Visible.Should().BeTrue();
+        dialogo.Instance.Mensaje.Should().Contain("a.beitia@talveg.es");
+        await cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
+
+        _mediador.Enviadas.OfType<RestablecerSegundoFactorCommand>().Should().ContainSingle()
+            .Which.UsuarioId.Should().Be(AnderId);
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Contain("a.beitia@talveg.es");
+    }
+
+    [Theory]
+    [InlineData(RolesIdentidad.Administrador, false)]
+    [InlineData(RolesIdentidad.DireccionCae, true)]
+    public async Task No_se_ofrece_sin_2FA_activa_ni_a_quien_no_es_Administrador(string rolActor, bool dosFactoresActivo)
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        ander.TwoFactorEnabled = dosFactoresActivo;
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), rolActor), (ander, RolesIdentidad.GestorCae));
+
+        var cut = Renderizar(actorId: MartaId, rolActor: rolActor);
+        var disparador = Fila(cut, "a.beitia@talveg.es").QuerySelector(".menu-acciones-disparador");
+        if (disparador is not null)
+        {
+            await AbrirMenuAsync(cut, "a.beitia@talveg.es");
+            Fila(cut, "a.beitia@talveg.es").QuerySelectorAll(".menu-acciones-item").Select(b => b.TextContent.Trim())
+                .Should().NotContain(TextoRestablecer2fa);
+        }
+
+        cut.Markup.Should().NotContain(TextoRestablecer2fa);
+    }
+
+    private const string TextoRestablecer2fa = "Restablecer verificación en dos pasos";
 
     /// <summary>
     /// Revisión de Codex (2026-09-18): <c>AsignacionCartera.UsuarioId</c> no
