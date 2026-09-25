@@ -20,16 +20,25 @@ namespace CaeManager.Architecture.Tests;
 /// Trabajador). Si mañana existe <c>RestaurarVehiculoCommand</c>, la promesa vuelve
 /// a ser verdad y el gate la acepta sin tocarlo.
 /// </para>
+/// <para>
+/// Lee los recursos <c>.resx</c> y el marcado <c>.razor</c> de <c>Features/{Modulo}</c>
+/// (sin comentarios Razor), y reconoce «recuperar» o «restaurar» seguidos, a pocas
+/// palabras, de «desde/en (la pantalla de) Auditoría». Hueco declarado: compara el
+/// módulo del fichero, no la entidad de cada frase, y solo reconoce la redacción en
+/// castellano (el catalán es hoy copia literal del castellano).
+/// </para>
 /// </summary>
 public class PromesaDeRecuperarDesdeAuditoriaTests
 {
-    private static readonly Regex Promesa = new(@"recuper\w*\s+desde\s+Auditor", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex Promesa = new(
+        @"(recuper|restaur)\w*(\s+\w+){0,3}\s+(desde|en)\s+(la\s+pantalla\s+de\s+)?Auditor",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     [Fact]
     public void Solo_prometen_recuperar_desde_Auditoria_los_modulos_cuyo_tipo_se_puede_restaurar()
     {
         var restaurables = TiposRestaurables();
-        var promesas = PromesasEnRecursos();
+        var promesas = PromesasEnRecursos().Concat(PromesasEnMarcado()).ToList();
 
         // Controles positivos, independientes de qué textos prometan hoy algo: la
         // reflexión encuentra los comandos de restaurar, la regex reconoce la frase
@@ -38,8 +47,12 @@ public class PromesaDeRecuperarDesdeAuditoriaTests
         restaurables.Should().Contain(["Trabajador", "Empresa", "Centro"]);
         Promesa.IsMatch("Se ocultará de las listas activas. Podrás recuperarlo desde Auditoría.").Should().BeTrue();
         Promesa.IsMatch("Podrás recuperarlas desde Auditoria").Should().BeTrue();
+        Promesa.IsMatch("Podrás restaurarlo en Auditoría.").Should().BeTrue();
+        Promesa.IsMatch("Un Administrador puede recuperar el proyecto desde la pantalla de Auditoría").Should().BeTrue();
         Promesa.IsMatch("No se puede recuperar desde la aplicación.").Should().BeFalse();
         RecursosLeidos().Should().Contain("Vehiculos", "el recorrido tiene que llegar a los recursos de Vehículos");
+        MarcadoLeido().Should().Contain("Proyectos", "el recorrido tiene que llegar a las páginas de Proyectos");
+        SinComentariosRazor("a @* Podrás recuperarlo desde Auditoría *@ b").Should().Be("a  b");
 
         var falsas = promesas
             .Where(p => !restaurables.Any(t => p.Modulo.StartsWith(t, StringComparison.Ordinal)))
@@ -76,6 +89,31 @@ public class PromesaDeRecuperarDesdeAuditoriaTests
             })
             .ToList();
     }
+
+    private static List<PromesaEncontrada> PromesasEnMarcado()
+    {
+        var raiz = RaizDelRepositorio();
+
+        return FicherosDeMarcado(raiz)
+            .SelectMany(f => SinComentariosRazor(File.ReadAllText(f.Fichero)).Split('\n')
+                .Select((linea, i) => (Linea: linea.Trim(), Numero: i + 1))
+                .Where(l => Promesa.IsMatch(l.Linea))
+                .Select(l => new PromesaEncontrada(Path.GetRelativePath(raiz, f.Fichero), f.Modulo, $"línea {l.Numero}", l.Linea)))
+            .ToList();
+    }
+
+    private static IEnumerable<(string Fichero, string Modulo)> FicherosDeMarcado(string raiz)
+    {
+        var features = Path.Combine(raiz, "src", "CaeManager.Web", "Features");
+        return Directory.EnumerateFiles(features, "*.razor", SearchOption.AllDirectories)
+            .Select(f => (f, Path.GetRelativePath(features, f).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)[0]));
+    }
+
+    private static HashSet<string> MarcadoLeido() =>
+        FicherosDeMarcado(RaizDelRepositorio()).Select(f => f.Modulo).ToHashSet();
+
+    private static string SinComentariosRazor(string texto) =>
+        Regex.Replace(texto, @"@\*.*?\*@", string.Empty, RegexOptions.Singleline);
 
     private static HashSet<string> RecursosLeidos() =>
         Directory.EnumerateFiles(Path.Combine(RaizDelRepositorio(), "src"), "Textos*.resx", SearchOption.AllDirectories)

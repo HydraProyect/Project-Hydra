@@ -300,6 +300,12 @@
   <data name="ToastReabierto" xml:space="preserve">
     <value>Proyecto reabierto: vuelve a contar como abierto para la facturación por días.</value>
   </data>
+  <data name="ConfirmarReabrirTitulo" xml:space="preserve">
+    <value>¿Reabrir el proyecto?</value>
+  </data>
+  <data name="ConfirmarReabrirMensaje" xml:space="preserve">
+    <value>El proyecto {0} volverá a contar como abierto y se borrará su fecha de cierre ({1}). Si solo querías corregir la fecha, vuelve a cerrarlo con la correcta.</value>
+  </data>
   <data name="ToastEliminado" xml:space="preserve">
     <value>Proyecto eliminado.</value>
   </data>

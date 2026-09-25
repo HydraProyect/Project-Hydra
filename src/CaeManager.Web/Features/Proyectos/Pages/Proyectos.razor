@@ -1,4 +1,4 @@
-@page "/proyectos"
+﻿@page "/proyectos"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
@@ -171,7 +171,7 @@
                                         }
                                         else
                                         {
-                                            <SoloConEscritura><ItemMenuAccion OnClick="() => ReabrirAsync(proyecto.Id)">@Textos["AccionReabrirProyecto"]</ItemMenuAccion></SoloConEscritura>
+                                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirReabrirConfirm(proyecto.Id)">@Textos["AccionReabrirProyecto"]</ItemMenuAccion></SoloConEscritura>
                                         }
                                         <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(proyecto.Id, proyecto.Nombre)">@Textos["MenuEliminar"]</ItemMenuAccion></SoloConEscritura>
                                     </MenuAcciones>
@@ -351,7 +351,7 @@
                     }
                     else
                     {
-                        <Boton OnClick="() => ReabrirAsync(_detalle.Id)" Variante="VarianteBoton.Secundario" Cargando="_reabriendo">@Textos["AccionReabrirProyecto"]</Boton>
+                        <Boton OnClick="() => AbrirReabrirConfirm(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionReabrirProyecto"]</Boton>
                     }
                 </div>
             </SoloConEscritura>
@@ -403,6 +403,15 @@
         <Boton Cargando="_guardando" OnClick="ConfirmarCerrarAsync">@Textos["AccionCerrarProyecto"]</Boton>
     </Pie>
 </Modal>
+
+<DialogoConfirmacion
+    Visible="_confirmarReabrirVisible"
+    VisibleChanged="v => _confirmarReabrirVisible = v"
+    Titulo="@Textos["ConfirmarReabrirTitulo"]"
+    Mensaje="@Textos["ConfirmarReabrirMensaje", _nombreAReabrir, _fechaCierreAReabrir?.ToString() ?? string.Empty].Value"
+    TextoBotonConfirmar="@Textos["AccionReabrirProyecto"]"
+    EnProgreso="_reabriendo"
+    OnConfirmar="ConfirmarReabrirAsync" />
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
