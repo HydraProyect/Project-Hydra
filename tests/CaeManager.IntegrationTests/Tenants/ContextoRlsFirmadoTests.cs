@@ -376,7 +376,40 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
         await EjecutarComoPropietarioAsync("UPDATE app_privado.claves_contexto SET valida_hasta = now() + interval '5 days';");
         (await EstadoAsync(BaseDatosPostgresDePruebas.ProteccionDePruebas)).Should().Be(HealthStatus.Degraded,
             "le quedan 7 días o menos");
+
+        // Un error de lectura (aquí, 42501 al llamar a la función) tampoco
+        // puede subir a Unhealthy: HealthCheckService lo haría con una excepción.
+        await EjecutarComoPropietarioAsync(SinPermisoSobreLaFuncion);
+        (await EstadoAsync(BaseDatosPostgresDePruebas.ProteccionDePruebas)).Should().Be(HealthStatus.Degraded,
+            "un error al leer la clave avisa sin cortar el tráfico");
     }
+
+    /// <summary>
+    /// Si el rol de tráfico no puede obtener la clave (error de PostgreSQL, no
+    /// ausencia), el firmante no firma ni lanza: la conexión se abre sin
+    /// contexto firmado y sigue siendo usable.
+    /// </summary>
+    [Fact]
+    public async Task Un_error_al_leer_la_clave_no_firma_ni_corta_la_conexion()
+    {
+        await RegistrarClaveAsync();
+        await EjecutarComoPropietarioAsync(SinPermisoSobreLaFuncion);
+        var firmante = new FirmanteContextoRls(
+            cadenaPropietaria: null, BaseDatosPostgresDePruebas.ProteccionDePruebas, TimeProvider.System,
+            FirmanteContextoRls.TtlPorDefecto, FirmanteContextoRls.RotacionPorDefecto);
+
+        await using var conexion = await AbrirComoRuntimeAsync();
+        (await firmante.FirmarAsync(conexion, Contexto(_tenants[0]), CancellationToken.None))
+            .Token.Should().BeEmpty();
+
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "SELECT 1";
+        (await comando.ExecuteScalarAsync()).Should().Be(1, "la conexión sigue usable tras el fallo");
+    }
+
+    // Local a la base de este test: el ACL de la función vive en ella, no en el clúster.
+    private const string SinPermisoSobreLaFuncion =
+        "REVOKE EXECUTE ON FUNCTION public.app_claves_contexto_protegidas() FROM cae_app_runtime;";
 
     // ── La reescritura: cubre todas las políticas que existen hoy ────────
 

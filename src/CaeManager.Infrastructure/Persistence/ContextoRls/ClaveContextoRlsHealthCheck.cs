@@ -30,9 +30,21 @@ public sealed class ClaveContextoRlsHealthCheck(
     {
         // Conexión cruda de tráfico, sin interceptor: no lee filas de ningún
         // Tenant, solo llama a app_claves_contexto_protegidas().
-        await using var conexion = new NpgsqlConnection(cadenaDeTrafico());
-        await conexion.OpenAsync(cancellationToken);
-        var clave = await ClaveContextoRls.LeerVigenteAsync(conexion, proteccion, cancellationToken);
+        ClaveContextoLeida? clave;
+        try
+        {
+            await using var conexion = new NpgsqlConnection(cadenaDeTrafico());
+            await conexion.OpenAsync(cancellationToken);
+            clave = await ClaveContextoRls.LeerVigenteAsync(conexion, proteccion, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Sin capturar, HealthCheckService lo convertiría en Unhealthy (503)
+            // y cortaría el sondeo del despliegue. La caída de la base ya la
+            // enseña el check de NpgSql; este solo avisa de la clave.
+            log.LogError(ex, "No se pudo leer la clave del contexto RLS: las conexiones no llevan contexto firmado.");
+            return HealthCheckResult.Degraded("No se pudo leer la clave del contexto RLS.", ex);
+        }
 
         if (clave is null)
         {

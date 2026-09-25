@@ -226,15 +226,30 @@ public sealed class FirmanteContextoRls
                 && _reloj.GetUtcNow() - falloEn < EsperaTrasFallo)
                 return null;
 
-            var leida = await ClaveContextoRls.LeerVigenteAsync(conexion, _proteccion, ct);
-            if (leida is null && _cadenaPropietaria is not null)
+            ClaveContextoLeida? leida;
+            try
             {
-                var cadena = new NpgsqlConnectionStringBuilder(_cadenaPropietaria);
-                if (!string.IsNullOrEmpty(conexion.Database))
-                    cadena.Database = conexion.Database;
-                await ClaveContextoRls.RegistrarAsync(
-                    cadena.ConnectionString, _proteccion, ClaveContextoRls.VigenciaPorDefecto, ct);
                 leida = await ClaveContextoRls.LeerVigenteAsync(conexion, _proteccion, ct);
+                if (leida is null && _cadenaPropietaria is not null)
+                {
+                    var cadena = new NpgsqlConnectionStringBuilder(_cadenaPropietaria);
+                    if (!string.IsNullOrEmpty(conexion.Database))
+                        cadena.Database = conexion.Database;
+                    await ClaveContextoRls.RegistrarAsync(
+                        cadena.ConnectionString, _proteccion, ClaveContextoRls.VigenciaPorDefecto, ct);
+                    leida = await ClaveContextoRls.LeerVigenteAsync(conexion, _proteccion, ct);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Falla cerrado también ante un error de lectura o de registro:
+                // no firma, lo registra y espera antes de reintentar, en vez de
+                // tumbar la apertura de la conexión desde el interceptor.
+                _falloPorBase[baseDeDatos] = _reloj.GetUtcNow();
+                _clavePorBase.TryRemove(baseDeDatos, out _);
+                _log.LogError(ex, "Contexto RLS sin firmar en {BaseDeDatos}: no se pudo leer ni registrar la clave.",
+                    baseDeDatos);
+                return null;
             }
 
             // Una clave que caduca antes que el token daría 42501 a mitad de su
