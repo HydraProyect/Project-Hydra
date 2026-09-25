@@ -136,6 +136,9 @@ public class CrearVisitaCommandTests : IAsyncLifetime
     {
         public Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionId, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task<PaqueteDocumentalZip?> ConstruirAsync(Guid visitaId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<PaqueteDocumentalZip?>(null);
     }
 
     private class EvaluadorExpedienteDeMentira : IEvaluadorExpedienteVisitaService

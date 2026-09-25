@@ -230,6 +230,9 @@ public class CrearVisitaCommandAlcanceCarteraTests : IAsyncLifetime
     {
         public Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionId, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task<PaqueteDocumentalZip?> ConstruirAsync(Guid visitaId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<PaqueteDocumentalZip?>(null);
     }
 
     private sealed class EvaluadorExpedienteNulo : IEvaluadorExpedienteVisitaService

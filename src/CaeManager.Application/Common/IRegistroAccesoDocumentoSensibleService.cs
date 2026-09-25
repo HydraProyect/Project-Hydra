@@ -18,6 +18,10 @@ namespace CaeManager.Application.Common;
 /// sirven contenido sin ninguna clasificación (adjunto de correo, imagen de
 /// firma/sello, plantilla en blanco) y no deben llamar a este servicio — ver el comentario de cada punto de
 /// servicio y el veredicto completo en el RETURN PACKAGE de HO-099-01.
+/// Posterior a HO-099-01: el zip de documentación de una Visita que el Gestor CAE
+/// descarga para un Centro gestionado por correo (P1-X1,
+/// <c>ObtenerPaqueteDocumentalVisitaQuery</c>) registra una apertura por cada
+/// Documento que contiene.
 /// </para>
 ///
 /// <para>

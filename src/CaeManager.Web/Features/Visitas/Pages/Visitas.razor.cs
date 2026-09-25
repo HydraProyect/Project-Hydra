@@ -8,6 +8,7 @@ using CaeManager.Application.Visitas.Commands.EliminarVisitas;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
+using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
@@ -134,6 +135,11 @@ public partial class Visitas : ComponentBase
     private bool _cargandoAviso;
     private AvisoVisitaDto? _aviso;
     private string? _errorAviso;
+
+    // P1-X1: correo de solicitud de acceso de una visita a un Centro gestionado por correo.
+    private bool _cargandoSolicitudCorreo;
+    private SolicitudAccesoCorreoDto? _solicitudCorreo;
+    private string? _errorSolicitudCorreo;
 
     private bool _visorVisible;
     private Guid _visorDocumentoId;
@@ -470,6 +476,8 @@ public partial class Visitas : ComponentBase
         _errorDocumentacion = false;
         _aviso = null;
         _errorAviso = null;
+        _solicitudCorreo = null;
+        _errorSolicitudCorreo = null;
 
         try
         {
@@ -485,7 +493,12 @@ public partial class Visitas : ComponentBase
             }
 
             if (detalle.CentroRequiereGestionCae)
-                await CargarDocumentacionAsync(id);
+            {
+                if (detalle.CentroGestionadoPorCorreo)
+                    await CargarSolicitudCorreoAsync(id, carga);
+                if (carga == _cargaDetalle)
+                    await CargarDocumentacionAsync(id);
+            }
             else
                 await CargarAvisoAsync(id, carga);
         }
@@ -525,6 +538,37 @@ public partial class Visitas : ComponentBase
                 _cargandoAviso = false;
         }
     }
+
+    private async Task CargarSolicitudCorreoAsync(Guid visitaId, int carga)
+    {
+        _cargandoSolicitudCorreo = true;
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerSolicitudAccesoCorreoQuery(visitaId));
+            if (carga != _cargaDetalle) return;
+
+            if (resultado.EsFallido)
+                _errorSolicitudCorreo = resultado.Error.Mensaje;
+            else
+                _solicitudCorreo = resultado.Valor;
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaDetalle)
+                _errorSolicitudCorreo = null;
+        }
+        finally
+        {
+            if (carga == _cargaDetalle)
+                _cargandoSolicitudCorreo = false;
+        }
+    }
+
+    /// <summary>Lo que se pega en el correo: asunto en la primera línea y el cuerpo debajo; los destinatarios se muestran aparte.</summary>
+    private static string TextoSolicitudParaCopiar(SolicitudAccesoCorreoDto solicitud) =>
+        solicitud.Asunto + "\n\n" + solicitud.Cuerpo;
+
+    private static string RutaPaqueteDocumental(Guid visitaId) => $"/visitas/{visitaId}/paquete-documental.zip";
 
     /// <summary>Lo que se pega en el correo: asunto en la primera línea y el cuerpo debajo.</summary>
     private static string TextoAvisoParaCopiar(AvisoVisitaDto aviso) =>
