@@ -16,10 +16,10 @@
     <value>Accessos de Suport TALVEG</value>
   </data>
   <data name="SeccionDescripcion" xml:space="preserve">
-    <value>Cada vegada que Suport TALVEG entra a les dades de la teva organització obre una sessió amb motiu, una finestra de 4 hores com a màxim i doble factor. Totes queden aquí.</value>
+    <value>Les Sessions Privilegiades que Suport TALVEG obre sobre les dades de la teva organització, cadascuna amb motiu, una finestra de 4 hores com a màxim i doble factor.</value>
   </data>
   <data name="Vacio" xml:space="preserve">
-    <value>Suport TALVEG no ha entrat mai a les dades de la teva organització.</value>
+    <value>Suport TALVEG no ha obert cap Sessió Privilegiada sobre les dades de la teva organització.</value>
   </data>
   <data name="ColumnaQuien" xml:space="preserve">
     <value>Qui</value>

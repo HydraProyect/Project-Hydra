@@ -74,6 +74,7 @@ public class ObtenerAccesosSoporteTalvegQueryTests
         accesos!.Select(a => (a.Motivo, a.Estado)).Should().Equal(
             ("abierta", EstadoAccesoSoporteTalveg.Abierto),
             ("cerrada", EstadoAccesoSoporteTalveg.Cerrado),
+            ("cerrada tras expirar", EstadoAccesoSoporteTalveg.Caducado),
             ("caducada", EstadoAccesoSoporteTalveg.Caducado));
         accesos.Should().NotContain(a => a.Motivo == "de otro Tenant");
         accesos.Single(a => a.Motivo == "abierta").Ticket.Should().Be("TCK-1");
@@ -92,10 +93,12 @@ public class ObtenerAccesosSoporteTalvegQueryTests
             var caducada = SesionPrivilegiada.Abrir(concesion, TenantPropietario, "caducada", ahora.AddHours(-6), TimeSpan.FromHours(1));
             var cerrada = SesionPrivilegiada.Abrir(concesion, TenantPropietario, "cerrada", ahora.AddHours(-2), TimeSpan.FromHours(4));
             cerrada.Cerrar(ahora.AddHours(-1));
+            var cerradaTrasExpirar = SesionPrivilegiada.Abrir(concesion, TenantPropietario, "cerrada tras expirar", ahora.AddHours(-4), TimeSpan.FromHours(1));
+            cerradaTrasExpirar.Cerrar(ahora.AddHours(-2.5));
             var abierta = SesionPrivilegiada.Abrir(concesion, TenantPropietario, "abierta", ahora.AddMinutes(-5), TimeSpan.FromHours(1), ticket: "TCK-1");
             var ajena = SesionPrivilegiada.Abrir(concesion, OtroTenant, "de otro Tenant", ahora.AddMinutes(-1), TimeSpan.FromHours(1));
 
-            _sesiones = [caducada, ajena, abierta, cerrada];
+            _sesiones = [caducada, ajena, cerradaTrasExpirar, abierta, cerrada];
         }
 
         public IQueryable<EstadoBootstrapPlataforma> EstadoBootstrapPlataforma => Vacio<EstadoBootstrapPlataforma>();

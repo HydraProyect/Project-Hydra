@@ -16,10 +16,10 @@
     <value>Accesos de Soporte TALVEG</value>
   </data>
   <data name="SeccionDescripcion" xml:space="preserve">
-    <value>Cada vez que Soporte TALVEG entra en los datos de tu organización abre una sesión con motivo, una ventana de 4 horas como máximo y doble factor. Todas quedan aquí.</value>
+    <value>Las Sesiones Privilegiadas que Soporte TALVEG abre sobre los datos de tu organización, cada una con motivo, una ventana de 4 horas como máximo y doble factor.</value>
   </data>
   <data name="Vacio" xml:space="preserve">
-    <value>Soporte TALVEG no ha entrado nunca en los datos de tu organización.</value>
+    <value>Soporte TALVEG no ha abierto ninguna Sesión Privilegiada sobre los datos de tu organización.</value>
   </data>
   <data name="ColumnaQuien" xml:space="preserve">
     <value>Quién</value>

@@ -141,10 +141,13 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 
     /// <summary>
     /// Inicio y final efectivo de la ventana: el cierre si la sesión se cerró
-    /// antes, si no, su expiración.
+    /// antes de expirar, si no, su expiración.
     /// </summary>
-    private static string TextoVentanaAcceso(AccesoSoporteTalvegDto acceso) =>
-        $"{acceso.InicioEnUtc.ToLocalTime():dd/MM/yyyy HH:mm} – {(acceso.CerradaEnUtc ?? acceso.ExpiraEnUtc).ToLocalTime():HH:mm}";
+    private static string TextoVentanaAcceso(AccesoSoporteTalvegDto acceso)
+    {
+        var fin = acceso.CerradaEnUtc < acceso.ExpiraEnUtc ? acceso.CerradaEnUtc.Value : acceso.ExpiraEnUtc;
+        return $"{acceso.InicioEnUtc.ToLocalTime():dd/MM/yyyy HH:mm} – {fin.ToLocalTime():HH:mm}";
+    }
 
     private string MensajeRevocacion => _delegacionARevocar is not { } aRevocar
         ? string.Empty

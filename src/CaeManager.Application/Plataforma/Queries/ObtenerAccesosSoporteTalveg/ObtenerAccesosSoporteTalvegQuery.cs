@@ -14,7 +14,11 @@ public enum EstadoAccesoSoporteTalveg
     /// <summary>Cerrada antes de agotar la ventana.</summary>
     Cerrado,
 
-    /// <summary>Nadie la cerró, pero su ventana ya pasó: no da acceso.</summary>
+    /// <summary>
+    /// Su ventana ya pasó sin que nadie la cerrara antes: no da acceso. Un cierre
+    /// posterior a la expiración (el comando de cierre lo admite) no la vuelve
+    /// «Cerrado»: el acceso terminó al expirar.
+    /// </summary>
     Caducado,
 }
 
@@ -36,7 +40,9 @@ public record AccesoSoporteTalvegDto(
 
 /// <summary>
 /// Las Sesiones Privilegiadas abiertas por Soporte TALVEG sobre el Tenant
-/// propietario de la persona actual, de la más reciente a la más antigua.
+/// propietario de la persona actual, de la más reciente a la más antigua. Solo
+/// Sesiones Privilegiadas: el acceso heredado de soporte por
+/// <c>DelegacionTenant</c> (<c>AbrirAccesoSoporteCommand</c>) no aparece aquí.
 /// <c>null</c> si no es Administrador de ese Tenant: la pantalla no muestra
 /// la sección, en lugar de mostrarla vacía.
 ///
@@ -90,8 +96,8 @@ public class ObtenerAccesosSoporteTalvegQueryHandler(
         return sesiones
             .Select(s => new AccesoSoporteTalvegDto(
                 s.Id, s.Motivo, s.Ticket, s.InicioEnUtc, s.ExpiraEnUtc, s.CerradaEnUtc,
-                s.CerradaEnUtc is not null ? EstadoAccesoSoporteTalveg.Cerrado
-                : ahora < s.ExpiraEnUtc ? EstadoAccesoSoporteTalveg.Abierto
+                s.CerradaEnUtc < s.ExpiraEnUtc ? EstadoAccesoSoporteTalveg.Cerrado
+                : s.CerradaEnUtc is null && ahora < s.ExpiraEnUtc ? EstadoAccesoSoporteTalveg.Abierto
                 : EstadoAccesoSoporteTalveg.Caducado))
             .ToList();
     }
