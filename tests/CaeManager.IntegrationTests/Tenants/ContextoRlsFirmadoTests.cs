@@ -165,7 +165,7 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
         // Reloj del firmante dos horas atrás: con TTL de 60 min el token nace
         // caducado respecto al now() de PostgreSQL.
         var firmanteAtrasado = new FirmanteContextoRls(
-            BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool(),
+            BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool(), BaseDatosPostgresDePruebas.ProteccionDePruebas,
             new RelojManual(DateTimeOffset.UtcNow.AddHours(-2)),
             FirmanteContextoRls.TtlPorDefecto, FirmanteContextoRls.RotacionPorDefecto);
 
@@ -243,7 +243,7 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
 
     [Theory]
     [InlineData("SELECT count(*) FROM app_privado.claves_contexto")]
-    [InlineData("INSERT INTO app_privado.claves_contexto (id, ipad, opad, valida_hasta) VALUES (gen_random_uuid(), decode(repeat('00', 64), 'hex'), decode(repeat('00', 64), 'hex'), now() + interval '1 hour')")]
+    [InlineData("INSERT INTO app_privado.claves_contexto (id, ipad, opad, clave_protegida, valida_hasta) VALUES (gen_random_uuid(), decode(repeat('00', 64), 'hex'), decode(repeat('00', 64), 'hex'), decode('00', 'hex'), now() + interval '1 hour')")]
     [InlineData("DELETE FROM app_privado.claves_contexto")]
     public async Task El_rol_de_trafico_no_puede_leer_ni_escribir_las_claves(string sql)
     {
@@ -253,6 +253,103 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
 
         var accion = () => comando.ExecuteNonQueryAsync();
         (await accion.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
+    }
+
+    /// <summary>
+    /// Lo único que el tráfico obtiene de la tabla es la clave cifrada con
+    /// DataProtection: ni los rellenos HMAC con los que valida la base ni
+    /// ninguna otra columna. Se comprueba contra lo que ve el propietario, y el
+    /// control positivo es que ese cifrado, descifrado con el anillo del
+    /// proceso, reproduce exactamente los rellenos registrados.
+    /// </summary>
+    [Fact]
+    public async Task El_rol_de_trafico_solo_obtiene_la_clave_cifrada()
+    {
+        await RegistrarClaveAsync();
+        var (idPropietario, ipad, opad) = await ClaveMasRecienteComoPropietarioAsync();
+
+        await using var conexion = await AbrirComoRuntimeAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "SELECT * FROM app_claves_contexto_protegidas();";
+        await using var lector = await comando.ExecuteReaderAsync();
+
+        Enumerable.Range(0, lector.FieldCount).Select(lector.GetName)
+            .Should().Equal(["id", "clave_protegida", "valida_hasta"], "la función no expone ninguna otra columna");
+        (await lector.ReadAsync()).Should().BeTrue("control: hay una clave vigente registrada");
+        lector.GetGuid(0).Should().Be(idPropietario, "la más reciente va primero");
+        var devuelta = lector.GetFieldValue<byte[]>(1);
+
+        devuelta.Should().NotEqual(ipad, "el tráfico nunca recibe los rellenos con los que valida la base");
+        devuelta.Should().NotEqual(opad, "el tráfico nunca recibe los rellenos con los que valida la base");
+        var clave = BaseDatosPostgresDePruebas.ProteccionDePruebas.CreateProtector(ClaveContextoRls.Proposito)
+            .Unprotect(devuelta);
+        var (ipadDescifrado, opadDescifrado) = TokenContextoRls.Rellenos(clave);
+        ipadDescifrado.Should().Equal(ipad, "control positivo: lo devuelto es la clave registrada, cifrada");
+        opadDescifrado.Should().Equal(opad);
+    }
+
+    /// <summary>
+    /// Un proceso con otro anillo de DataProtection (otro entorno, anillo
+    /// perdido) no puede usar la clave: no firma, deja <c>app.contexto</c>
+    /// vacío y, con las políticas ya reescritas, no ve ninguna fila. Falla
+    /// cerrado. El control, con el anillo del proceso, sí ve su Tenant.
+    /// </summary>
+    [Fact]
+    public async Task Con_otro_anillo_de_DataProtection_no_se_firma_y_no_hay_filas()
+    {
+        await RegistrarClaveAsync();
+        var otroAnillo = new FirmanteContextoRls(
+            cadenaPropietaria: null, new EphemeralDataProtectionProvider(), TimeProvider.System,
+            FirmanteContextoRls.TtlPorDefecto, FirmanteContextoRls.RotacionPorDefecto);
+
+        await using (var control = await AbrirComoRuntimeAsync())
+        {
+            await FijarContextoAsync(control, Contexto(_tenants[0]));
+            (await ContarRaicesAsync(control)).Should().Be(1, "control: con el anillo del proceso se firma y se ve");
+        }
+
+        await using var conexion = await AbrirComoRuntimeAsync();
+        (await ClaveContextoRls.LeerVigenteAsync(conexion, new EphemeralDataProtectionProvider(), CancellationToken.None))
+            .Should().BeNull("ninguna clave registrada se deja descifrar con otro anillo");
+
+        var pendiente = await otroAnillo.FirmarAsync(conexion, Contexto(_tenants[0]), CancellationToken.None);
+        pendiente.Token.Should().BeEmpty("sin clave descifrable no se firma");
+        await FijarGucAsync(conexion, "app.contexto", pendiente.Token);
+        pendiente.Confirmar();
+
+        (await ContextoValidadoAsync(conexion)).Should().Be(((Guid?)null, (Guid?)null, (Guid?)null, false));
+        (await ContarRaicesAsync(conexion)).Should().Be(0, "sin contexto firmado, ninguna fila");
+        (await FirmanteContextoRls.FirmarConTenantAsync(conexion, _tenants[1], CancellationToken.None))
+            .Should().BeNull("la conexión no queda con un contexto en memoria que la base no tiene");
+    }
+
+    [Fact]
+    public async Task Sin_cadena_propietaria_el_proceso_no_registra_clave()
+    {
+        // Como el contenedor app de staging y producción (#882): si el
+        // migrador no registró clave, el proceso web no puede crear una.
+        var sinPropietario = new FirmanteContextoRls(
+            cadenaPropietaria: null, BaseDatosPostgresDePruebas.ProteccionDePruebas, TimeProvider.System,
+            FirmanteContextoRls.TtlPorDefecto, FirmanteContextoRls.RotacionPorDefecto);
+        await EjecutarComoPropietarioAsync("DELETE FROM app_privado.claves_contexto;");
+
+        await using var conexion = await AbrirComoRuntimeAsync();
+        (await sinPropietario.FirmarAsync(conexion, Contexto(_tenants[0]), CancellationToken.None))
+            .Token.Should().BeEmpty();
+        (await ContarClavesComoPropietarioAsync()).Should().Be(0, "el proceso web no registra claves");
+
+        await RegistrarClaveAsync();
+        var otraConexion = await AbrirComoRuntimeAsync();
+        await using (otraConexion)
+        {
+            // Pasada la espera tras el fallo, la misma instancia recoge la que
+            // registró el migrador; aquí, una instancia nueva basta de control.
+            var nueva = new FirmanteContextoRls(
+                cadenaPropietaria: null, BaseDatosPostgresDePruebas.ProteccionDePruebas, TimeProvider.System,
+                FirmanteContextoRls.TtlPorDefecto, FirmanteContextoRls.RotacionPorDefecto);
+            (await nueva.FirmarAsync(otraConexion, Contexto(_tenants[0]), CancellationToken.None))
+                .Token.Should().NotBeEmpty("control: con la clave del migrador sí firma");
+        }
     }
 
     // ── La reescritura: cubre todas las políticas que existen hoy ────────
@@ -392,7 +489,7 @@ VALUES (@id, ARRAY['control'], ARRAY[]::text[], @actor, now(), gen_random_uuid()
     {
         var reloj = new RelojManual(DateTimeOffset.UtcNow.AddMinutes(-100));
         var firmante = new FirmanteContextoRls(
-            BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool(), reloj,
+            BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool(), BaseDatosPostgresDePruebas.ProteccionDePruebas, reloj,
             FirmanteContextoRls.TtlPorDefecto, FirmanteContextoRls.RotacionPorDefecto);
 
         await using var contexto = CrearContextoRuntime(_tenants[2], firmante);
@@ -442,6 +539,32 @@ VALUES (@id, ARRAY['control'], ARRAY[]::text[], @actor, now(), gen_random_uuid()
     }
 
     // ── Andamiaje ─────────────────────────────────────────────────────────
+
+    private Task RegistrarClaveAsync() =>
+        ClaveContextoRls.RegistrarAsync(
+            _cadenaPropietario, BaseDatosPostgresDePruebas.ProteccionDePruebas,
+            ClaveContextoRls.VigenciaPorDefecto, CancellationToken.None);
+
+    private async Task<(Guid Id, byte[] Ipad, byte[] Opad)> ClaveMasRecienteComoPropietarioAsync()
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaPropietario);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText =
+            "SELECT id, ipad, opad FROM app_privado.claves_contexto ORDER BY registrada DESC, id LIMIT 1;";
+        await using var lector = await comando.ExecuteReaderAsync();
+        await lector.ReadAsync();
+        return (lector.GetGuid(0), lector.GetFieldValue<byte[]>(1), lector.GetFieldValue<byte[]>(2));
+    }
+
+    private async Task<int> ContarClavesComoPropietarioAsync()
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaPropietario);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "SELECT count(*) FROM app_privado.claves_contexto;";
+        return Convert.ToInt32(await comando.ExecuteScalarAsync());
+    }
 
     private static ContextoSesionRls Contexto(Guid tenant) =>
         new(tenant, tenant, Guid.NewGuid(), OrigenContextoRls.Peticion);

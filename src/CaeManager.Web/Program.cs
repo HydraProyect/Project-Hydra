@@ -1092,6 +1092,16 @@ static async Task MigrarBaseDeDatosAsync(IConfiguration configuration, IServiceP
         servicios.GetRequiredService<IDataProtectionProvider>(),
         new TenantActualAmbiental());
     await dbContextMigraciones.Database.MigrateAsync();
+
+    // P6: la clave del contexto RLS firmado la registra quien tiene la
+    // identidad propietaria, y en staging y producción ese es solo el
+    // migrador. Cada ejecución registra una nueva: rota en cada despliegue, y
+    // relanzar el migrador la renueva sin desplegar.
+    await CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRls.RegistrarAsync(
+        cadenaMigraciones!,
+        servicios.GetRequiredService<IDataProtectionProvider>(),
+        CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRls.VigenciaPorDefecto,
+        CancellationToken.None);
 }
 
 namespace CaeManager.Web.Services

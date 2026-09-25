@@ -108,15 +108,22 @@ public class ConexionesFueraDelInterceptorTests
         // aquí puede hacer falta a mitad de SaveChanges.
         "src/CaeManager.Infrastructure/MultiTenancy/TenantSelladoInterceptor.cs",
 
-        // P6: FirmanteContextoRls registra la clave efímera del contexto RLS
-        // firmado con la cadena PROPIETARIA (CaeManagerDb), a propósito fuera
-        // de EF y del interceptor: es la única identidad que puede escribir en
-        // app_privado.claves_contexto, y la conexión solo toca esa tabla
-        // (INSERT de la clave nueva y DELETE de las caducadas). No lee ni
-        // escribe filas de ningún Tenant, así que no hay nada que aislar; y
+        // P6: ClaveContextoRls registra la clave del contexto RLS firmado con
+        // la cadena PROPIETARIA (el migrador en staging y producción; el
+        // registro de respaldo de FirmanteContextoRls en desarrollo y tests), a
+        // propósito fuera de EF y del interceptor: es la única identidad que
+        // puede escribir en app_privado.claves_contexto, y la conexión solo toca
+        // esa tabla (INSERT de la clave nueva y DELETE de las caducadas). No lee
+        // ni escribe filas de ningún Tenant, así que no hay nada que aislar; y
         // pasar por el interceptor sería circular: el interceptor necesita la
         // clave para firmar la conexión que abre.
-        "src/CaeManager.Infrastructure/Persistence/ContextoRls/FirmanteContextoRls.cs",
+        "src/CaeManager.Infrastructure/Persistence/ContextoRls/ClaveContextoRls.cs",
+
+        // P6: el /salud de la clave abre una conexión de TRÁFICO cruda y solo
+        // llama a app_claves_contexto_protegidas(), que devuelve la clave
+        // cifrada. No lee filas de ningún Tenant; por el interceptor no
+        // serviría, porque comprobaría la clave usándola para firmar.
+        "src/CaeManager.Infrastructure/Persistence/ContextoRls/ClaveContextoRlsHealthCheck.cs",
     ];
 
     [Fact]

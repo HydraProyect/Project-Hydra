@@ -16,7 +16,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <c>cae_app_runtime</c> elige de qué Tenant lee. Esta migración crea la
     /// alternativa: <c>app.contexto</c> lleva un token HMAC-SHA256 que firma la
     /// aplicación con una clave que <c>cae_app_runtime</c> no puede leer ni
-    /// escribir, y <c>app_contexto_validado()</c> lo valida.
+    /// escribir, y <c>app_contexto_validado()</c> lo valida. La clave la
+    /// registra el migrador; el proceso web la obtiene cifrada con
+    /// DataProtection mediante <c>app_claves_contexto_protegidas()</c>
+    /// (<c>ClaveContextoRls</c>).
     /// </para>
     ///
     /// <para>
@@ -69,6 +72,7 @@ CREATE TABLE app_privado.claves_contexto (
     id uuid PRIMARY KEY,
     ipad bytea NOT NULL CHECK (octet_length(ipad) = 64),
     opad bytea NOT NULL CHECK (octet_length(opad) = 64),
+    clave_protegida bytea NOT NULL CHECK (octet_length(clave_protegida) > 0),
     valida_hasta timestamptz NOT NULL,
     registrada timestamptz NOT NULL DEFAULT now()
 );
@@ -124,6 +128,19 @@ BEGIN
 END;
 $$;
 
+-- Lo único de la tabla que ve el tráfico: la clave cifrada con
+-- DataProtection, nunca los rellenos con los que se valida. Más reciente
+-- primero; la aplicación usa la primera que sabe descifrar.
+CREATE FUNCTION public.app_claves_contexto_protegidas()
+  RETURNS TABLE (id uuid, clave_protegida bytea, valida_hasta timestamptz)
+  LANGUAGE sql STABLE SECURITY DEFINER
+  SET search_path = pg_catalog, pg_temp AS $$
+    SELECT c.id, c.clave_protegida, c.valida_hasta
+      FROM app_privado.claves_contexto c
+     WHERE c.valida_hasta > now()
+     ORDER BY c.registrada DESC, c.id
+$$;
+
 CREATE FUNCTION public.app_ctx_tenant_id() RETURNS uuid
   LANGUAGE sql STABLE AS $$ SELECT tenant_id FROM public.app_contexto_validado() $$;
 CREATE FUNCTION public.app_ctx_tenant_origen_id() RETURNS uuid
@@ -139,7 +156,7 @@ CREATE FUNCTION public.app_ctx_valido() RETURNS boolean
             // no los hereda, INHERIT FALSE, así que no le basta con el suyo).
             foreach (var funcion in new[]
                      {
-                         "app_contexto_validado()", "app_ctx_tenant_id()", "app_ctx_tenant_origen_id()",
+                         "app_contexto_validado()", "app_claves_contexto_protegidas()", "app_ctx_tenant_id()", "app_ctx_tenant_origen_id()",
                          "app_ctx_usuario_id()", "app_ctx_valido()",
                      })
             {
@@ -159,6 +176,7 @@ DROP FUNCTION IF EXISTS public.app_ctx_usuario_id();
 DROP FUNCTION IF EXISTS public.app_ctx_tenant_origen_id();
 DROP FUNCTION IF EXISTS public.app_ctx_tenant_id();
 DROP FUNCTION IF EXISTS public.app_contexto_validado();
+DROP FUNCTION IF EXISTS public.app_claves_contexto_protegidas();
 DROP SCHEMA IF EXISTS app_privado CASCADE;
 ");
         }

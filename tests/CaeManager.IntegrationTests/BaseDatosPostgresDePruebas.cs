@@ -70,14 +70,23 @@ internal static class BaseDatosPostgresDePruebas
         $"{Servidor};Database=postgres;Pooling=false";
 
     /// <summary>
+    /// Anillo de DataProtection del proceso de tests: el que cifra la clave del
+    /// contexto RLS al registrarla y el que la descifra al firmar, como el
+    /// volumen que comparten migrador y app en producción.
+    /// </summary>
+    internal static IDataProtectionProvider ProteccionDePruebas { get; } = new EphemeralDataProtectionProvider();
+
+    /// <summary>
     /// Firmante del contexto RLS (P6) para los tests que montan
     /// <c>TenantRlsConnectionInterceptor</c> a mano. Uno por proceso, como en
-    /// producción; registra una clave en cada base de test la primera vez que
-    /// firma una conexión de esa base. Sin pool: la conexión propietaria se usa
-    /// una vez por base y no debe quedar viva sumando a <c>max_connections</c>.
+    /// producción. Ninguna base de test pasa por el migrador, así que usa el
+    /// registro de respaldo con cadena propietaria: registra una clave en cada
+    /// base la primera vez que firma una conexión de esa base, y la lee por la
+    /// vía de producción. Sin pool: la conexión propietaria se usa una vez por
+    /// base y no debe quedar viva sumando a <c>max_connections</c>.
     /// </summary>
     internal static FirmanteContextoRls FirmanteContextoRls { get; } = new(
-        CadenaDeMantenimientoSinPool(), TimeProvider.System,
+        CadenaDeMantenimientoSinPool(), ProteccionDePruebas, TimeProvider.System,
         FirmanteContextoRls.TtlPorDefecto, FirmanteContextoRls.RotacionPorDefecto);
 
     internal static string CadenaConexionUnica() =>
