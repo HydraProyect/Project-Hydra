@@ -3,13 +3,11 @@ using CaeManager.Application.AsistenteIa.Candidatos;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.DependencyInjection;
-using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Cumplimiento;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
-using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -35,13 +33,13 @@ namespace CaeManager.IntegrationTests.AsistenteIa;
 /// de un Tenant beneficiario solo se ve desde su propio ámbito (filtro de Tenant y
 /// RLS <c>aislamiento_tenant</c>). Si la Query la leyera fuera del
 /// <see cref="AmbitoTenantExplicito"/> de cada vuelta, todo Tenant distinto del de la
-/// petición saldría sin instrucción y el asistente fallaría cerrado siempre. Alcance
-/// real (<see cref="AlcanceDatosService"/>), como en <c>MiTrabajoAlcanceCeroBajoRlsTests</c>.
+/// petición saldría sin instrucción y el asistente fallaría cerrado siempre.
 /// <para>
 /// Escenario: Administrador en el Tenant de origen del Operador CAE externo, con
 /// instrucción; Gestor CAE con Asignación de Cartera en dos Tenants beneficiarios,
 /// uno con instrucción y otro sin ella; y un tercer Tenant beneficiario delegado
-/// sin cartera (alcance cero) y sin instrucción.
+/// sin cartera y sin instrucción, que también cuenta: la comprobación no descarta
+/// ningún Tenant autorizado por alcance.
 /// </para>
 /// </summary>
 public class InstruccionIaCarteraBajoRlsTests : IAsyncLifetime
@@ -81,6 +79,8 @@ public class InstruccionIaCarteraBajoRlsTests : IAsyncLifetime
         }
         await _propietario.SaveChangesAsync();
 
+        // Cartera real en dos de los tres Tenants beneficiarios: la comprobación
+        // no la mira, pero el escenario es el de producción.
         var ahora = DateTime.UtcNow;
         var cifs = new Queue<string>(["B10380186", "B10380194"]);
         foreach (var tenant in new[] { _tenantConInstruccion, _tenantSinInstruccion })
@@ -127,8 +127,6 @@ public class InstruccionIaCarteraBajoRlsTests : IAsyncLifetime
         servicios.AddSingleton<IInstruccionTratamientoIaTenantPropietarioRepository>(
             new InstruccionTratamientoIaTenantPropietarioRepository(_runtime));
         servicios.AddSingleton<ICurrentUserService>(usuarioReal);
-        servicios.AddSingleton<IAlcanceDatosService>(
-            new AlcanceDatosService(_runtime, usuarioReal, tenantDeLaPeticion, new SesionPrivilegiadaAusente()));
         _servicios = servicios.BuildServiceProvider();
     }
 
@@ -165,9 +163,9 @@ public class InstruccionIaCarteraBajoRlsTests : IAsyncLifetime
         var resultado = await _servicios.GetRequiredService<IMediator>().Send(new ComprobarInstruccionIaCarteraQuery());
 
         resultado.ConInstruccion.Select(t => t.TenantId).Should().BeEquivalentTo([_tenantOrigen, _tenantConInstruccion]);
-        resultado.SinInstruccion.Select(t => t.TenantId).Should().Equal(
-            [_tenantSinInstruccion], "el Tenant de alcance cero no es de la cartera, aunque tampoco tenga instrucción");
-        resultado.ErrorSiFalta()!.Mensaje.Should().Contain("Beneficiario sin instrucción");
+        resultado.SinInstruccion.Select(t => t.TenantId).Should().BeEquivalentTo(
+            [_tenantSinInstruccion, _tenantAlcanceCero], "falla cerrado: también cuenta el Tenant autorizado sin Asignación de Cartera");
+        resultado.ErrorSiFalta()!.Mensaje.Should().Contain("Beneficiario sin instrucción").And.Contain("Beneficiario sin cartera");
     }
 
     private CurrentUserService CrearCurrentUserService(ITenantsQueryContext contexto)

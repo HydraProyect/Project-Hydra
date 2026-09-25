@@ -1,4 +1,3 @@
-using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
@@ -17,10 +16,13 @@ namespace CaeManager.Application.AsistenteIa.Candidatos;
 /// cartera no tiene instrucción de tratamiento con IA vigente, el texto no sale
 /// (<see cref="InstruccionIaCarteraDto.ErrorSiFalta"/>).
 /// <para>
-/// Mismo fan-out que <see cref="ObtenerCandidatosAsistenteQueryHandler"/>: los Tenants
-/// salen de <see cref="ObtenerClientesAutorizadosQuery"/>, uno con alcance cero no es
-/// de la cartera, y la instrucción de cada uno se lee <b>dentro de su
-/// <see cref="AmbitoTenantExplicito"/></b>. Fuera de él, el filtro de Tenant y RLS
+/// Los Tenants salen de <see cref="ObtenerClientesAutorizadosQuery"/>, <b>todos</b>: a
+/// diferencia de <see cref="ObtenerCandidatosAsistenteQueryHandler"/>, aquí no se
+/// descarta ninguno por alcance cero. Ese criterio (sin acceso total y sin Clientes
+/// empresariales en cartera) también lo cumple una Asignación de Cartera universal
+/// en un Tenant sin Clientes empresariales, que sí ve Centros y Trabajadores; ante
+/// la duda, cuenta. La instrucción de cada uno se lee <b>dentro de su
+/// <see cref="AmbitoTenantExplicito"/></b>: fuera de él, el filtro de Tenant y RLS
 /// esconden la instrucción de otro Tenant y la comprobación la daría siempre por
 /// ausente.
 /// </para>
@@ -43,7 +45,7 @@ public record InstruccionIaCarteraDto(
 }
 
 public class ComprobarInstruccionIaCarteraQueryHandler(
-    IMediator mediator, IAlcanceDatosService alcanceDatos, IInstruccionTratamientoIaService instruccionTratamientoIa)
+    IMediator mediator, IInstruccionTratamientoIaService instruccionTratamientoIa)
     : IRequestHandler<ComprobarInstruccionIaCarteraQuery, InstruccionIaCarteraDto>
 {
     public async Task<InstruccionIaCarteraDto> Handle(ComprobarInstruccionIaCarteraQuery request, CancellationToken cancellationToken)
@@ -56,9 +58,6 @@ public class ComprobarInstruccionIaCarteraQueryHandler(
         {
             using (AmbitoTenantExplicito.Establecer(tenant.TenantId))
             {
-                if (await ObtenerMiTrabajoAgregadoQueryHandler.EsAlcanceCeroAsync(alcanceDatos, cancellationToken))
-                    continue;
-
                 var deCartera = new TenantDeCarteraDto(tenant.TenantId, tenant.Nombre, tenant.EsOrigen);
                 (await instruccionTratamientoIa.EstaHabilitadaAsync(tenant.TenantId, cancellationToken) ? con : sin).Add(deCartera);
             }
