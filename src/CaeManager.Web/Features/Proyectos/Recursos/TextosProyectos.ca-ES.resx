@@ -259,7 +259,7 @@
     <value>Crear proyecto</value>
   </data>
   <data name="ModalCerrarExplicacion" xml:space="preserve">
-    <value>Tras cerrarlo, este proyecto dejará de contar como abierto para la facturación por días. Puedes seguir consultando sus técnicos y documentos.</value>
+    <value>Tras cerrarlo, este proyecto dejará de contar como abierto para la facturación por días. Puedes seguir consultando sus técnicos y documentos, y reabrirlo desde su detalle si la fecha no era la correcta.</value>
   </data>
   <data name="EtiquetaFechaCierre" xml:space="preserve">
     <value>Fecha de cierre</value>
@@ -268,7 +268,7 @@
     <value>¿Eliminar este proyecto?</value>
   </data>
   <data name="ConfirmarEliminarMensaje" xml:space="preserve">
-    <value>El proyecto {0} se ocultará de las listas activas. Podrás recuperarlo desde Auditoría.</value>
+    <value>El proyecto {0} dejará de aparecer en las listas. No se puede recuperar desde la aplicación: si solo ha terminado, ciérralo en lugar de eliminarlo.</value>
   </data>
   <data name="ErrorFaltaCentro" xml:space="preserve">
     <value>Selecciona un centro.</value>
@@ -293,6 +293,12 @@
   </data>
   <data name="ToastCerrado" xml:space="preserve">
     <value>Proyecto cerrado correctamente.</value>
+  </data>
+  <data name="AccionReabrirProyecto" xml:space="preserve">
+    <value>Reabrir proyecto</value>
+  </data>
+  <data name="ToastReabierto" xml:space="preserve">
+    <value>Proyecto reabierto: vuelve a contar como abierto para la facturación por días.</value>
   </data>
   <data name="ToastEliminado" xml:space="preserve">
     <value>Proyecto eliminado.</value>

@@ -169,6 +169,10 @@
                                         {
                                             <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirCerrarConfirm(proyecto.Id)">@Textos["AccionCerrarProyecto"]</ItemMenuAccion></SoloConEscritura>
                                         }
+                                        else
+                                        {
+                                            <SoloConEscritura><ItemMenuAccion OnClick="() => ReabrirAsync(proyecto.Id)">@Textos["AccionReabrirProyecto"]</ItemMenuAccion></SoloConEscritura>
+                                        }
                                         <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(proyecto.Id, proyecto.Nombre)">@Textos["MenuEliminar"]</ItemMenuAccion></SoloConEscritura>
                                     </MenuAcciones>
                                 </td>
@@ -344,6 +348,10 @@
                     @if (_detalle.EstaAbierto)
                     {
                         <Boton OnClick="() => AbrirCerrarConfirm(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionCerrarProyecto"]</Boton>
+                    }
+                    else
+                    {
+                        <Boton OnClick="() => ReabrirAsync(_detalle.Id)" Variante="VarianteBoton.Secundario" Cargando="_reabriendo">@Textos["AccionReabrirProyecto"]</Boton>
                     }
                 </div>
             </SoloConEscritura>

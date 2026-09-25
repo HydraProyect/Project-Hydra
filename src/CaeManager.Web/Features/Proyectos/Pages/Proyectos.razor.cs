@@ -3,6 +3,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
 using CaeManager.Application.Proyectos.Commands.AsignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.CerrarProyecto;
+using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Proyectos.Commands.CrearProyecto;
 using CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.EliminarProyecto;
@@ -658,6 +659,42 @@ public partial class Proyectos : ComponentBase
         finally
         {
             _guardando = false;
+        }
+    }
+
+    // ---- Reabrir proyecto ----
+
+    /// <summary>
+    /// Salida del cierre (FS-12): un cierre con la fecha equivocada afecta a la
+    /// facturación por días, así que el proyecto cerrado ofrece «Reabrir». No
+    /// pide confirmación porque se deshace volviendo a cerrar.
+    /// </summary>
+    private bool _reabriendo;
+
+    private async Task ReabrirAsync(Guid id)
+    {
+        if (_reabriendo) return;
+        _reabriendo = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ReabrirProyectoCommand(id));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar(Textos["ToastReabierto"], TonoToast.Exito);
+            await CargarProyectosAsync();
+
+            if (_detalle is not null && _detalle.Id == id)
+                await SeleccionarProyectoAsync(_detalle.Id);
+        }
+        finally
+        {
+            _reabriendo = false;
         }
     }
 

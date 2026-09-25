@@ -151,7 +151,7 @@
     <value>¿Eliminar esta gestión?</value>
   </data>
   <data name="DialogoEliminarMensaje" xml:space="preserve">
-    <value>Se ocultará de las listas activas. Podrás recuperarla desde Auditoría.</value>
+    <value>Dejará de aparecer en las listas. No se puede recuperar desde la aplicación: si ya está hecha, márcala como completada en lugar de eliminarla.</value>
   </data>
   <data name="ToastErrorEstado" xml:space="preserve">
     <value>No pudimos actualizar el estado. Intenta nuevamente en unos segundos.</value>
