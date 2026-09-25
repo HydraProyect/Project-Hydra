@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -43,6 +44,7 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
     ITipoDocumentoCentroRepository repositorio,
     ICentrosQueryContext centrosContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
+    IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IUnitOfWork unitOfWork)
     : IRequestHandler<EstablecerDocumentacionRequeridaCentroCommand, Result>
 {
@@ -70,6 +72,13 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
                 request.Incluido, request.PeriodicidadEspecialMeses, request.BloqueaAcceso,
                 request.ArchivoUrl, request.NombreArchivoOriginal);
         }
+
+        // Si el Centro pasa a exigir el tipo, los Documentos de ese tipo de
+        // quienes ya trabajan en él nacen pendientes de acreditar ante sus
+        // accesos de plataforma. Si deja de exigirlo, no se retira ninguna
+        // acreditación (ver IAltaAcreditacionesPlataformaService). Mismo
+        // SaveChangesAsync que la fila.
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Requisitos = [fila] }, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

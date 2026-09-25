@@ -22,7 +22,9 @@ namespace CaeManager.IntegrationTests.Documentos;
 /// <summary>
 /// docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b)/Lote 2-D: crear/renovar
 /// un Documento sincroniza sus AcreditacionDocumentoPlataforma contra los
-/// accesos de plataforma que hoy le aplican.
+/// accesos de plataforma que hoy le aplican. Desde P0-7 solo aplican los de un
+/// Centro que exige el tipo: por eso los tipos de estos escenarios son
+/// obligatorios por defecto (<see cref="RequisitoDocumental.Si"/>).
 /// </summary>
 public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
 {
@@ -64,7 +66,7 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, new DateOnly(2026, 1, 1)));
-            var tipoDocumento = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador);
+            var tipoDocumento = new TipoDocumento("Apto médico", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
             contexto.TiposDocumento.Add(tipoDocumento);
             await contexto.SaveChangesAsync();
 
@@ -112,7 +114,7 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             var trabajador = Trabajador.DeEmpresa(empresa.Id, "Luis", "Pérez", "87654321X");
-            var tipoDocumento = new TipoDocumento("Formación", 12, true, 1, AmbitoAplicacion.Trabajador);
+            var tipoDocumento = new TipoDocumento("Formación", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
             contexto.Trabajadores.Add(trabajador);
             contexto.TiposDocumento.Add(tipoDocumento);
             await contexto.SaveChangesAsync();
@@ -166,7 +168,7 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, new DateOnly(2026, 1, 1)));
-            var tipoDocumento = new TipoDocumento("Certificado", 12, true, 1, AmbitoAplicacion.Trabajador);
+            var tipoDocumento = new TipoDocumento("Certificado", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
             contexto.TiposDocumento.Add(tipoDocumento);
             await contexto.SaveChangesAsync();
 
@@ -225,8 +227,8 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
         new(
             new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto,
             contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
-            new DerivarCanalesAplicablesDocumentoService(contexto, contexto, contexto),
-            new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso(), new AlcanceDatosServiceFalso());
+            AltaAcreditacionesDePrueba.Con(contexto),
+            new PublisherFalso(), new AlcanceDatosServiceFalso());
 
     private CaeManagerDbContext CrearContexto()
     {

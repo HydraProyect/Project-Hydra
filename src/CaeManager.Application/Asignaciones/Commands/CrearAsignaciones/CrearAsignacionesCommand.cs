@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -56,7 +57,8 @@ public class CrearAsignacionesCommandValidator : AbstractValidator<CrearAsignaci
 
 public class CrearAsignacionesCommandHandler(
     IAsignacionRepository repositorio, IAsignacionesQueryContext asignacionesContext,
-    IAutoridadAsignacionesService autoridad, IUnitOfWork unitOfWork)
+    IAutoridadAsignacionesService autoridad, IAltaAcreditacionesPlataformaService altaAcreditaciones,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<CrearAsignacionesCommand, Result<ResultadoAsignacionLoteDto>>
 {
     public async Task<Result<ResultadoAsignacionLoteDto>> Handle(CrearAsignacionesCommand request, CancellationToken cancellationToken)
@@ -123,6 +125,7 @@ public class CrearAsignacionesCommandHandler(
                 solapadasSet.Add(clave);
         }
 
+        var asignacionesNuevas = new List<Asignacion>();
         var creadas = 0;
         var yaActivas = 0;
         var solapadas = 0;
@@ -144,7 +147,9 @@ public class CrearAsignacionesCommandHandler(
                     continue;
                 }
 
-                repositorio.Agregar(new Asignacion(trabajadorId, centroId, request.FechaAlta));
+                var asignacion = new Asignacion(trabajadorId, centroId, request.FechaAlta);
+                repositorio.Agregar(asignacion);
+                asignacionesNuevas.Add(asignacion);
                 creadas++;
             }
         }
@@ -152,6 +157,10 @@ public class CrearAsignacionesCommandHandler(
         if (solapadas > 0)
             errores.Add(
                 $"{solapadas} combinación(es) se omitieron: la fecha de alta solapa con un periodo ya registrado (activo o cerrado) para ese mismo trabajador y centro.");
+
+        // Misma regla que CrearAsignacionCommand, para todo el lote a la vez y en
+        // el mismo SaveChangesAsync.
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Asignaciones = asignacionesNuevas }, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

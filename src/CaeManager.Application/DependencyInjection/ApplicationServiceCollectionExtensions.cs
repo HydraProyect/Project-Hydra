@@ -120,7 +120,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IClasificacionRuidoMensajeService, ClasificacionRuidoMensajeService>();
         services.AddScoped<IRelevanciaCaeService, RelevanciaCaeService>();
         services.AddScoped<IMotorCoincidenciaConversacionesService, MotorCoincidenciaConversacionesService>();
-        services.AddScoped<IDerivarCanalesAplicablesDocumentoService, DerivarCanalesAplicablesDocumentoService>();
+        services.AddScoped<IAltaAcreditacionesPlataformaService, AltaAcreditacionesPlataformaService>();
         services.AddScoped<IPaqueteDocumentalVisitaService, PaqueteDocumentalVisitaService>();
         services.AddScoped<IEvaluadorExpedienteVisitaService, EvaluadorExpedienteVisitaService>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();

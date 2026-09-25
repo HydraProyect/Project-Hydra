@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 using CaeManager.Application.Tests.Asignaciones;
 using CaeManager.Application.Tests.Clientes;
@@ -51,13 +52,14 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         public required PlantillaDocumentoVersion Version { get; init; }
         public required PlantillaDocumento Plantilla { get; init; }
         public AsignacionRepositorioFalso Asignaciones { get; } = new();
+        public IAltaAcreditacionesPlataformaService AltaAcreditaciones { get; set; } = new AltaAcreditacionesPlataformaServiceFalso();
 
         public GenerarDocumentoIndividualCommandHandler CrearHandler(
             Guid? usuarioActualId = null, IAlcanceDatosService? alcanceDatos = null, bool sinUsuario = false) => new(
             Versiones, Plantillas, Documentos, new DocumentoGeneradoRepositorioFalso(), TiposDocumento,
             Empresas, Trabajadores, Centros, Contactos, Rellenador, Almacenamiento,
             new CurrentUserServiceFalso(sinUsuario ? null : usuarioActualId ?? Guid.NewGuid()),
-            alcanceDatos ?? new AlcanceDatosServiceFalso(), Asignaciones, new UnitOfWorkFalso());
+            alcanceDatos ?? new AlcanceDatosServiceFalso(), Asignaciones, AltaAcreditaciones, new UnitOfWorkFalso());
     }
 
     private static async Task<Entorno> ConstruirEntornoAsync(TipoDocumento? tipoDocumentoOverride = null)
@@ -130,6 +132,41 @@ public class GenerarDocumentoIndividualCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Plantilla.PropietarioNoEncontrado");
+    }
+
+    [Fact]
+    public async Task El_documento_generado_se_acredita_ante_los_centros_del_trabajador_que_exigen_su_tipo()
+    {
+        // Camino de alta "plantilla" de P0-7, contra el servicio REAL de acreditaciones.
+        var tipo = new TipoDocumento("Ficha de riesgos", null, false, 1, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si);
+        var entorno = await ConstruirEntornoAsync(tipo);
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Pérez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        var centroQueLoExige = new Centro(Guid.NewGuid(), Guid.NewGuid(), "Planta Norte");
+        var centroQueLoExcluye = new Centro(Guid.NewGuid(), Guid.NewGuid(), "Planta Sur");
+        var acceso = CanalGestionDocumental.DePlataforma(centroQueLoExige.Id, "Gestión general", Guid.NewGuid(), null, null, null);
+        entorno.Centros.ListaCentros.AddRange([centroQueLoExige, centroQueLoExcluye]);
+        entorno.Centros.ListaCanalesGestionDocumental.AddRange(
+            [acceso, CanalGestionDocumental.DePlataforma(centroQueLoExcluye.Id, "Gestión general", Guid.NewGuid(), null, null, null)]);
+        entorno.TiposDocumento.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(tipo.Id, centroQueLoExcluye.Id, incluido: false));
+        var asignaciones = new Reportes.AsignacionesQueryContextFalso();
+        asignaciones.ListaAsignaciones.AddRange(
+            [new Asignacion(trabajador.Id, centroQueLoExige.Id, new DateOnly(2026, 1, 1)), new Asignacion(trabajador.Id, centroQueLoExcluye.Id, new DateOnly(2026, 1, 1))]);
+        var acreditaciones = new AcreditacionDocumentoPlataformaRepositorioFalso();
+        entorno.AltaAcreditaciones = new AltaAcreditacionesPlataformaService(
+            asignaciones, entorno.Centros, entorno.Trabajadores, new DocumentosQueryContextFalso(), entorno.TiposDocumento, acreditaciones);
+        var usuarioId = Guid.NewGuid();
+        Confirmar(entorno.Version,
+            [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Nombre", FuenteDatoPlantilla.TrabajadorNombreCompleto)],
+            usuarioId);
+
+        var resultado = await entorno.CrearHandler(usuarioId).Handle(
+            new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var documento = entorno.Documentos.Documentos.Should().ContainSingle().Subject;
+        acreditaciones.Acreditaciones.Select(a => (a.DocumentoId, a.CanalGestionDocumentalId))
+            .Should().BeEquivalentTo([(documento.Id, acceso.Id)]);
     }
 
     [Fact]
@@ -391,7 +428,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Versiones, entorno.Plantillas, entorno.Documentos, documentosGenerados, entorno.TiposDocumento,
             entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
-            new AlcanceDatosServiceFalso(), entorno.Asignaciones, new UnitOfWorkFalso());
+            new AlcanceDatosServiceFalso(), entorno.Asignaciones, new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
             new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
@@ -580,7 +617,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Versiones, entorno.Plantillas, entorno.Documentos, documentosGenerados, entorno.TiposDocumento,
             entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
-            new AlcanceDatosServiceFalso(), entorno.Asignaciones, new UnitOfWorkFalso());
+            new AlcanceDatosServiceFalso(), entorno.Asignaciones, new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso());
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
@@ -609,7 +646,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Versiones, entorno.Plantillas, entorno.Documentos, documentosGenerados, entorno.TiposDocumento,
             entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
-            new AlcanceDatosServiceFalso(), entorno.Asignaciones, new UnitOfWorkFalso());
+            new AlcanceDatosServiceFalso(), entorno.Asignaciones, new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso());
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
@@ -633,7 +670,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             entorno.Versiones, entorno.Plantillas, entorno.Documentos, documentosGenerados, entorno.TiposDocumento,
             entorno.Empresas, entorno.Trabajadores, entorno.Centros, entorno.Contactos,
             entorno.Rellenador, entorno.Almacenamiento, new CurrentUserServiceFalso(usuarioId),
-            new AlcanceDatosServiceFalso(), entorno.Asignaciones, new UnitOfWorkFalso());
+            new AlcanceDatosServiceFalso(), entorno.Asignaciones, new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso());
 
         await handler.Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 

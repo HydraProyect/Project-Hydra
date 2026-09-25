@@ -41,7 +41,7 @@ namespace CaeManager.IntegrationTests.Documentos;
 /// aislado no puede, porque nunca pasa por el registro ni por el orden.
 ///
 /// Todas las interfaces de consulta que <see cref="CrearDocumentoCommandHandler"/>
-/// necesita (y las que necesita <c>DerivarCanalesAplicablesDocumentoService</c>,
+/// necesita (y las que necesita <c>AltaAcreditacionesPlataformaService</c>,
 /// que registra <c>AddApplication()</c>) las implementa el propio
 /// <see cref="CaeManagerDbContext"/> — mismo patrón que
 /// AcreditacionDocumentoPlataformaSincronizacionTests. Se registran de
