@@ -5,8 +5,8 @@ namespace CaeManager.Application.Common;
 
 /// <summary>
 /// Corta el acceso a los secretos del tenant durante una sesión privilegiada de
-/// plataforma, sea cual sea su capacidad, y a cualquier usuario de negocio
-/// cuyo rol no escriba.
+/// plataforma, sea cual sea su capacidad, a cualquier usuario de negocio
+/// cuyo rol no escriba y a quien no tenga activa la autenticación en dos pasos.
 ///
 /// Complementa a <see cref="AutorizacionEscrituraBehavior{TRequest,TResponse}"/>
 /// —que cubre "¿operación permitida?"— con el escalón que le falta a
@@ -44,9 +44,21 @@ namespace CaeManager.Application.Common;
 /// </para>
 ///
 /// <para>
+/// <b>Y con la autenticación en dos pasos activa</b> (P1-I1, 2026-09-25). Quien
+/// puede llevarse la llave de una plataforma CAE de terceros no puede tenerla
+/// protegida solo por una contraseña. Se comprueba la cuenta real que pregunta
+/// (<see cref="ICurrentUserService.TieneDobleFactorActivoAsync"/>), también en un
+/// Workspace operativo derivado: el Gestor CAE del Operador CAE externo necesita
+/// su propio 2FA. Esta denegación, y solo esta, lanza
+/// <see cref="SegundoFactorRequeridoParaCredencialesException"/> en vez de
+/// devolver <c>null</c>, para que la pantalla pueda llevarle a activarlo; el
+/// porqué de que no filtre nada está en esa excepción.
+/// </para>
+///
+/// <para>
 /// Las consultas marcadas con <see cref="IConsultaDeDatosDeCredencial"/> (el usuario
-/// de una credencial, sin contraseña) siguen las dos reglas: la de roles y la
-/// de la sesión privilegiada (ver el porqué en esa interfaz).
+/// de una credencial, sin contraseña) siguen las tres reglas: la de roles, la del
+/// 2FA y la de la sesión privilegiada (ver el porqué en esa interfaz).
 /// </para>
 /// </summary>
 public class AutorizacionSecretosDeTenantBehavior<TRequest, TResponse>(
@@ -67,7 +79,12 @@ public class AutorizacionSecretosDeTenantBehavior<TRequest, TResponse>(
         if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is null
             && await currentUserService.ObtenerRolEfectivoAsync() is { } rol
             && RolesQueLeenSecretos.Contains(rol))
+        {
+            if (!await currentUserService.TieneDobleFactorActivoAsync())
+                throw new SegundoFactorRequeridoParaCredencialesException();
+
             return await next(cancellationToken);
+        }
 
         if (typeof(TResponse).IsValueType)
             throw new InvalidOperationException(

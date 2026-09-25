@@ -68,6 +68,7 @@
 @using MediatR
 @using CaeManager.Web.Features.Subcontratas.Recursos
 @using CaeManager.Web.Recursos
+@using CaeManager.Web.Services
 @using Microsoft.Extensions.Localization
 @using System.Globalization
 @implements IDisposable
@@ -76,6 +77,7 @@
 @inject IStringLocalizer<TextosComunes> Comunes
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
+@inject NavigationManager NavigationManager
 
 @if (_cargando)
 {
@@ -1006,6 +1008,11 @@ else
             _credencialConsultada = true;
             _contrasenaVisible = false;
         }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (carga == _cargaCredencial)
+                NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+        }
         catch (Exception)
         {
             if (carga == _cargaCredencial)
@@ -1068,6 +1075,14 @@ else
 
             _editandoInformacion = true;
         }
+        // P1-I1: la edición carga el usuario de la credencial, y sin 2FA no se
+        // entrega. No se abre con los campos vacíos: guardarla así podría pisar
+        // la credencial que el usuario no pudo ver.
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (generacion == _generacion)
+                NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+        }
         catch (Exception)
         {
             if (generacion == _generacion)
@@ -1091,7 +1106,16 @@ else
     {
         if (_detalle is null) return null;
 
-        var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(_detalle.Id), _cancelacion);
+        CredencialAccesoSubcontrataDto? credencial;
+        try
+        {
+            credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(_detalle.Id), _cancelacion);
+        }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+            return null;
+        }
         if (string.IsNullOrEmpty(credencial?.Contrasena))
         {
             ToastService.Mostrar(Textos["ToastSinContrasenaGuardada"], TonoToast.Info);

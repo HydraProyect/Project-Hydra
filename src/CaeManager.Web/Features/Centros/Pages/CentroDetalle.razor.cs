@@ -1,4 +1,5 @@
 using CaeManager.Application.Centros;
+using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
@@ -9,6 +10,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 
@@ -271,7 +273,16 @@ public partial class CentroDetalle : ComponentBase, IDisposable
     private Func<Task<string?>> CopiarCredencial(Guid canalId, bool contrasena) => async () =>
     {
         var centroId = CentroId;
-        var credencial = await Mediator.Send(new ObtenerCredencialCanalGestionQuery(centroId, canalId), _cancelacion);
+        CredencialCanalGestionDto? credencial;
+        try
+        {
+            credencial = await Mediator.Send(new ObtenerCredencialCanalGestionQuery(centroId, canalId), _cancelacion);
+        }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+            return null;
+        }
         if (centroId != CentroId) return null;
 
         var valor = contrasena ? credencial?.Contrasena : credencial?.Usuario;

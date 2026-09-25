@@ -87,10 +87,15 @@ public class Centro360Gen2Tests : BunitContext
         /// <summary>El token con el que llegó cada petición, en el mismo orden que <see cref="Enviadas"/>.</summary>
         public List<(object Peticion, CancellationToken Token)> Tokens { get; } = [];
 
+        /// <summary>Como AutorizacionSecretosDeTenantBehavior con un rol que lee secretos y sin 2FA (P1-I1).</summary>
+        public bool SinDobleFactor { get; set; }
+
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
             Tokens.Add((request, cancellationToken));
+            if (SinDobleFactor && request is IConsultaDeSecretosDeTenant or IConsultaDeDatosDeCredencial)
+                throw new SegundoFactorRequeridoParaCredencialesException();
             if (Retener?.Invoke(request) is { } retenida)
                 await retenida;
             return (TResponse)Responder(request)!;
@@ -408,6 +413,27 @@ public class Centro360Gen2Tests : BunitContext
 
         modulo.Invocations.Should().BeEmpty("no había nada que copiar");
         Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(t => t.Mensaje.Contains("No hay ninguna contraseña"));
+    }
+
+    // P1-I1: sin 2FA, Application no entrega la credencial y la pantalla lleva
+    // a activarlo, con el motivo para que la página de 2FA explique por qué.
+    [Theory]
+    [InlineData("Copiar usuario")]
+    [InlineData("Copiar contraseña")]
+    public async Task Sin_2FA_el_clic_lleva_a_configurar_el_2FA_y_no_copia(string boton)
+    {
+        var (id, canal, mediador) = CentroConCanal(CanalPlataforma("app.twind.io"));
+        mediador.Credenciales[(id, canal.Id)] = new("usuario.secreto", "clave-secreta-123");
+        mediador.SinDobleFactor = true;
+        var modulo = JSInterop.SetupModule("./js/clipboard.js");
+        modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
+        var cut = Renderizar(id);
+
+        await cut.FindAll(".boton-copiar").Single(b => b.TextContent.Trim() == boton).ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<ObtenerCredencialCanalGestionQuery>().Should().ContainSingle();
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/cuenta/configurar-2fa?motivo=credenciales");
+        modulo.Invocations.Should().BeEmpty("sin 2FA no hay nada que copiar");
     }
 
     // ── El mockup ─────────────────────────────────────────────────────────

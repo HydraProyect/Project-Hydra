@@ -59,9 +59,14 @@ public class Empresa360PaginaTests : BunitContext
 
         public List<object> Enviadas { get; } = [];
 
+        /// <summary>Como AutorizacionSecretosDeTenantBehavior con un rol que lee secretos y sin 2FA (P1-I1).</summary>
+        public bool SinDobleFactor { get; set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            if (SinDobleFactor && request is IConsultaDeSecretosDeTenant or IConsultaDeDatosDeCredencial)
+                return Task.FromException<TResponse>(new SegundoFactorRequeridoParaCredencialesException());
             return Task.FromResult((TResponse)Responder(request)!);
         }
 
@@ -621,6 +626,27 @@ public class Empresa360PaginaTests : BunitContext
             .Which.Should().Be(new ObtenerCredencialAccesoEmpresaSinContrasenaQuery(EmpresaId));
         mediador.Enviadas.OfType<ObtenerCredencialAccesoEmpresaQuery>().Should().BeEmpty(
             "la contraseña solo se pide al pulsar «Copiar contraseña» (decisión del propietario 2026-09-21)");
+    }
+
+    // P1-I1: abrir la ficha no es pedir la credencial, así que no se redirige;
+    // la tarjeta dice por qué no la ve y enlaza a activar el 2FA.
+    [Fact]
+    public void Sin_2FA_la_tarjeta_de_acceso_pide_activarlo_sin_redirigir_ni_pintar_la_credencial()
+    {
+        var mediador = EmpresaConCredencial();
+        mediador.SinDobleFactor = true;
+
+        var cut = Renderizar();
+
+        var acceso = cut.WaitForElement(".acceso-requiere-2fa");
+        acceso.TextContent.Should().Contain("Activa la autenticación en dos pasos para ver el acceso.");
+        acceso.QuerySelector("a")!.GetAttribute("href").Should().Be("/cuenta/configurar-2fa?motivo=credenciales");
+        cut.Markup.Should().NotContain("usuario.ibertec").And.NotContain("Sin credenciales que puedas consultar");
+        cut.FindAll(".boton-copiar").Select(b => b.TextContent.Trim())
+            .Should().NotContain(["Copiar usuario", "Copiar contraseña"]);
+        Navegacion.Uri.Should().NotContain("configurar-2fa");
+        mediador.Enviadas.OfType<ObtenerCredencialAccesoEmpresaSinContrasenaQuery>().Should().ContainSingle(
+            "barrera: la consulta se hizo y fue la denegación lo que pintó el aviso");
     }
 
     [Fact]

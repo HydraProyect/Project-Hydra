@@ -15,6 +15,9 @@
   <data name="DosFactoresObligatorioPorRol" xml:space="preserve">
     <value>El teu rol d’Administrador exigeix l’autenticació en dos passos. Activa-la per continuar: fins aleshores no podràs accedir a la resta de {0}.</value>
   </data>
+  <data name="DosFactoresObligatorioParaCredenciales" xml:space="preserve">
+    <value>Per consultar o copiar credencials d’accés a plataformes CAE necessites l’autenticació en dos passos. Activa-la i torna a la fitxa.</value>
+  </data>
   <data name="CodigosPasoTresTitulo" xml:space="preserve">
     <value>3. Desa els teus codis de recuperació</value>
   </data>
