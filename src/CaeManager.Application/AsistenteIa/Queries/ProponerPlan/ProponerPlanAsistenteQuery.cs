@@ -123,11 +123,15 @@ public class ProponerPlanAsistenteQueryHandler(
             new ObtenerCandidatosAsistenteQuery(seleccionables.Select(c => c.Nombre).ToList()), cancellationToken);
 
         // La cartera leída ahora tiene que ser la que se comprobó: un Tenant que
-        // haya entrado entre las dos lecturas no tiene la instrucción verificada.
+        // haya entrado entre las dos lecturas no tiene la instrucción verificada,
+        // y sus candidatos no viajan. El texto ya salió para clasificar la orden
+        // (con la cartera comprobada), así que el mensaje no puede decir que no.
         var conInstruccion = cartera.ConInstruccion.Select(t => t.TenantId).ToHashSet();
         var sinComprobar = candidatos.Tenants.Where(t => !conInstruccion.Contains(t.TenantId)).ToList();
         if (sinComprobar.Count > 0)
-            return Result.Fallo<PlanPropuestoDto>(new InstruccionIaCarteraDto([], sinComprobar).ErrorSiFalta()!);
+            return Result.Fallo<PlanPropuestoDto>(Error.Crear(
+                InstruccionIaCarteraDto.CodigoError,
+                $"Tu cartera ha cambiado mientras se preparaba el plan: {string.Join(", ", sinComprobar.Select(t => t.Nombre))} no se ha comprobado. El plan no sigue; vuelve a escribir la orden."));
 
         if (request.TenantElegido is { } elegido && candidatos.Tenants.All(t => t.TenantId != elegido))
             return Result.Fallo<PlanPropuestoDto>(Error.Crear(

@@ -107,7 +107,8 @@ public class ProponerPlanAsistenteQueryHandlerTests
         var resultado = await Handler(decisiones, mediator: mediator).Handle(new(Orden), default);
 
         resultado.Error.Codigo.Should().Be(InstruccionIaCarteraDto.CodigoError);
-        resultado.Error.Mensaje.Should().Contain("Tenant B");
+        resultado.Error.Mensaje.Should().Contain("Tenant B").And.NotContain("No se ha enviado",
+            "el texto ya salió para clasificar la orden: el mensaje no puede negarlo");
         decisiones.Solicitadas.Should().BeNull();
     }
 
