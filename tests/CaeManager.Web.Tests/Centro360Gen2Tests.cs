@@ -253,7 +253,9 @@ public class Centro360Gen2Tests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".centro360-indicadores").TextContent.Should().Contain("No requiere gestión CAE"));
         cut.Find(".centro360-indicadores .badge").ClassList.Should().Contain("badge-neutro").And.NotContain("badge-exito");
-        cut.FindAll(".anillo-cumplimiento").Should().BeEmpty();
+        // Por componente, no por clase: con porcentaje null el anillo pinta «—»
+        // sin su svg, y la clase no distinguiría si la página lo monta o no.
+        cut.FindComponents<AnilloCumplimiento>().Should().BeEmpty();
         cut.Find(".centro360-sin-gestion-cae").TextContent.Should().Contain("no requiere gestión CAE");
     }
 
@@ -267,7 +269,7 @@ public class Centro360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.WaitForAssertion(() => cut.FindAll(".anillo-cumplimiento").Should().NotBeEmpty());
+        cut.WaitForAssertion(() => cut.FindComponents<AnilloCumplimiento>().Should().NotBeEmpty());
         cut.Markup.Should().NotContain("No requiere gestión CAE");
         cut.FindAll(".centro360-sin-gestion-cae").Should().BeEmpty();
     }
