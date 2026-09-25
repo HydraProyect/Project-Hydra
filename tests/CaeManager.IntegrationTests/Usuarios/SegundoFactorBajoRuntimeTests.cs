@@ -173,6 +173,30 @@ public class SegundoFactorBajoRuntimeTests
             "el 2FA se lee de la base, no de la cuenta rastreada por el circuito");
     }
 
+    [Fact]
+    public async Task La_cuenta_de_otro_Tenant_sin_ser_el_usuario_de_sesion_no_cuenta_como_2FA_activo()
+    {
+        // Fallo cerrado bajo la RLS de AspNetUsers (P1-M1): con app.tenant_id en
+        // TenantA y un usuario de sesión que no es la cuenta, la fila de una
+        // cuenta de otro Tenant es invisible y TieneDobleFactorActivoAsync da
+        // false aunque esa cuenta tenga el 2FA activo en la base.
+        var sesionId = Guid.NewGuid();
+        var propiaId = Guid.NewGuid();
+        var ajenaId = Guid.NewGuid();
+        var tenantB = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(sesionId, "GestorCae");
+        await CrearUsuarioCon2faAsync(arnes, propiaId, "propia-a@caemanager.local", TenantA);
+        await CrearUsuarioCon2faAsync(arnes, ajenaId, "ajena-b@caemanager.local", tenantB);
+        (await Leer2faActivaAsync(arnes.CadenaPropietario, ajenaId)).Should().BeTrue("barrera: la cuenta ajena tiene 2FA en la base");
+
+        using var circuito = arnes.Servicios.CreateScope();
+
+        (await CrearCurrentUserService(circuito.ServiceProvider, propiaId).TieneDobleFactorActivoAsync())
+            .Should().BeTrue("control positivo: una cuenta del Tenant de contexto sí se ve");
+        (await CrearCurrentUserService(circuito.ServiceProvider, ajenaId).TieneDobleFactorActivoAsync())
+            .Should().BeFalse("la RLS oculta la fila de otro Tenant cuando no es el usuario de sesión");
+    }
+
     // ---------- Arnés ----------
 
     private static Task<ArnesDeArranqueRuntime> CrearArnesAsync(Guid actorId, string rol) =>
