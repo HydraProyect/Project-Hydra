@@ -155,6 +155,17 @@ comprobar "heartbeat inalcanzable: sigue saliendo 1" "1" "$codigo"
 case "$salida" in *"no se pudo llamar al heartbeat"*) r=si ;; *) r="no ($salida)" ;; esac
 comprobar "heartbeat inalcanzable: lo dice" "si" "$r"
 
+# --- Un OOM cuyo aviso no se entrego no se pierde: se repite en la siguiente.
+reiniciar
+ejecutar 40
+vmstat 4
+ejecutar 40 CURL_FALLA=1
+comprobar "oom con heartbeat caido: sale 1" "1" "$codigo"
+ejecutar 40
+comprobar "oom no entregado: se repite al volver la red" "$URL/fail" "$llamada"
+ejecutar 40
+comprobar "oom ya entregado: no se repite" "$URL" "$llamada"
+
 # --- Estado no escribible: la vigilancia de memoria quedaria ciega; avisa.
 reiniciar
 ejecutar 40 VIGILANCIA_ESTADO="$TMP/no-existe/estado"

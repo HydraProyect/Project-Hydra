@@ -145,11 +145,13 @@ fi
 
 # 3. OOM killer
 oom=$(campo "$VMSTAT" oom_kill)
+alerta_oom=0
 if ! [[ "${oom:-}" =~ ^[0-9]+$ ]]; then
   # Kernels < 4.13 no exponen oom_kill: no es una alerta, es un hueco declarado.
   oom=""
 elif [ -n "$oom_previo" ] && [ "$oom" -gt "$oom_previo" ]; then
   motivos+=("el OOM killer ha matado $(( oom - oom_previo )) proceso(s)")
+  alerta_oom=1
 fi
 
 # Guardar estado. Si no se puede escribir, se avisa: sin estado las condiciones
@@ -172,7 +174,13 @@ fi
 
 if [ -n "$destino" ]; then
   if ! llamar_heartbeat "$destino" 2>/dev/null; then
-    echo "$marca AVISO no se pudo llamar al heartbeat: la ausencia del ping acabara avisando igualmente."
+    echo "$marca AVISO no se pudo llamar al heartbeat: se reintenta en la siguiente ejecucion."
+    # Disco y memoria se vuelven a medir y siguen en alerta mientras dure la
+    # condicion; el OOM es un suceso y se perderia: la referencia no avanza
+    # hasta que el aviso se entregue, para que la siguiente lectura lo repita.
+    if [ "$alerta_oom" = "1" ]; then
+      printf '%s %s\n' "$bajas" "$oom_previo" > "$ESTADO" 2>/dev/null || true
+    fi
   fi
 fi
 
