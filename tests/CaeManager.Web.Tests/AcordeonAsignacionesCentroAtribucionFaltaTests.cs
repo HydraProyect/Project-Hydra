@@ -74,6 +74,9 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
 
     private void RegistrarServicios(MediatorFalso mediator)
     {
+        // El acordeón inyecta IStringLocalizer<TextosCentros> (badge "Rechazado"
+        // y "No aplica" de la fila de Empresa sin Estado, Codex oleada 3).
+        Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => mediator);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();

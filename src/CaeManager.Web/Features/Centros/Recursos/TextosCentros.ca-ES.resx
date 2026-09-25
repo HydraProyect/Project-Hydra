@@ -20,4 +20,12 @@
     <value>Empresa:</value>
     <comment>Empresa contractista que treballa al Centre.</comment>
   </data>
+  <data name="BadgeRechazadoPlataforma" xml:space="preserve">
+    <value>Rebutjat</value>
+    <comment>Badge de la fila d'Empresa quan Estat és null: rebuig a la plataforma, no un estat de vigència documental (CalculoEstadoCentroService).</comment>
+  </data>
+  <data name="VigenciaNoAplica" xml:space="preserve">
+    <value>No s'aplica</value>
+    <comment>Columna Vigència de la fila d'Empresa quan Estat és null: un rebuig a la plataforma ni venç ni "no caduca" (AcordeonAsignacionesCentro.razor.cs, TextoVigenciaEmpresa).</comment>
+  </data>
 </root>

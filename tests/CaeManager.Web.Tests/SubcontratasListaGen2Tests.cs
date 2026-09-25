@@ -259,8 +259,14 @@ public class SubcontratasListaGen2Tests : BunitContext
 
         var lineas = cut.FindAll(".ventana-contexto-panel .ventana-linea").ToList();
 
-        lineas.Should().Contain(l => l.TextContent.Contains("EPIs — Iñaki Otaegi") && l.TextContent.Contains("Urgente"));
-        lineas.Should().Contain(l => l.TextContent.Contains("Reconocimiento médico — Miguel Sanz") && l.TextContent.Contains("Próximo"));
+        var lineaUrgente = lineas.Should().ContainSingle(l => l.TextContent.Contains("EPIs — Iñaki Otaegi")).Subject;
+        lineaUrgente.TextContent.Should().Contain("Urgente");
+        lineaUrgente.QuerySelector(".badge")!.ClassList.Should().Contain("badge-peligro",
+            "Urgente es severidad Peligro en el resto de la aplicación, no Advertencia");
+
+        var lineaProxima = lineas.Should().ContainSingle(l => l.TextContent.Contains("Reconocimiento médico — Miguel Sanz")).Subject;
+        lineaProxima.TextContent.Should().Contain("Próximo");
+        lineaProxima.QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia");
     }
 
     /// <summary>

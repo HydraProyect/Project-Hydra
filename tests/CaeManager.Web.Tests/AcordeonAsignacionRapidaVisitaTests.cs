@@ -99,6 +99,9 @@ public class AcordeonAsignacionRapidaVisitaTests : BunitContext
 
     private IRenderedComponent<AcordeonAsignacionesCentro> Renderizar(MediatorFalso mediador)
     {
+        // El acordeón inyecta IStringLocalizer<TextosCentros> (badge "Rechazado"
+        // y "No aplica" de la fila de Empresa sin Estado, Codex oleada 3).
+        Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();

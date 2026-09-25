@@ -78,6 +78,10 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
     [Fact]
     public void La_incidencia_de_Empresa_sin_Estado_no_lanza_y_pinta_el_badge_Rechazado()
     {
+        // El badge "Rechazado" y el texto "No aplica" salen de
+        // IStringLocalizer<TextosCentros> (Codex, oleada 3: ratchet de
+        // textos sin localizar).
+        Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => new MediatorFalso());
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();

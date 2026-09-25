@@ -212,7 +212,7 @@
                         <span class="celda-recuento-subcontrata">
                             @if (subcontrata.Recuentos.TotalProximas > 0)
                             {
-                                <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Proximas.Count, "RecuentoDocumentosProximosUno", "AriaRecuentoDocumentosProximosVarios")"
+                                <VentanaContexto Etiqueta="@EtiquetaProximos(subcontrata.Recuentos.Proximas)"
                                                  Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalProximas, "RecuentoDocumentosProximosUno", "RecuentoDocumentosProximosVarios")">
                                     <Disparador>
                                         <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">
