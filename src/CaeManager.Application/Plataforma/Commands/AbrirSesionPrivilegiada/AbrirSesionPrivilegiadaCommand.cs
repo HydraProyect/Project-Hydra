@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using FluentValidation;
@@ -69,6 +70,7 @@ public class AbrirSesionPrivilegiadaCommandValidator : AbstractValidator<AbrirSe
 /// </summary>
 public class AbrirSesionPrivilegiadaCommandHandler(
     IPlataformaQueryContext plataformaContext,
+    ITenantsQueryContext tenantsContext,
     IPlataformaWriter writer,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
@@ -151,6 +153,19 @@ public class AbrirSesionPrivilegiadaCommandHandler(
             return Result.Fallo<Guid>(Error.Crear(
                 "SesionPrivilegiada.CapacidadNoAbreSesion",
                 "Esa concesión no habilita abrir un acceso de soporte."));
+
+        // Precondición 5 — el Tenant objetivo existe.
+        //
+        // Con concesiones acotadas lo garantizaba la lista: nadie ponía en ella
+        // un Tenant inexistente. Una concesión global de SoporteLectura (ADR-011
+        // § 8.9) cubre cualquier Guid, así que sin esta línea se podría abrir, y
+        // dejar auditada, una sesión sobre un Tenant que no existe. Va después de
+        // las precondiciones de concesión a propósito: quien no tiene una
+        // concesión propia que abra sesión no puede usar este error para sondear
+        // qué Tenants existen.
+        if (!await tenantsContext.Tenants.AnyAsync(t => t.Id == request.TenantObjetivoId, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear(
+                "SesionPrivilegiada.TenantNoEncontrado", "No encontramos esa organización."));
 
         // Y a partir de aquí manda el dominio. CubreEn comprueba las tres cosas
         // juntas —estado, ventana y alcance— así que una concesión revocada,

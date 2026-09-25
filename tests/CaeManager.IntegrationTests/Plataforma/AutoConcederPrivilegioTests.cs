@@ -60,7 +60,7 @@ public class AutoConcederPrivilegioTests : IAsyncLifetime
             .GetConstructors().Single()
             .GetParameters().Select(p => p.Name).ToList();
 
-        parametros.Should().BeEquivalentTo(["TenantObjetivoId", "Capacidad", "DiasDeVigencia"],
+        parametros.Should().BeEquivalentTo(["Capacidad", "DiasDeVigencia"],
             "el beneficiario sale de la sesión; en cuanto sea un parámetro, esto deja de ser auto-concesión");
 
         typeof(AutoConcederPrivilegioCommand).GetProperties(BindingFlags.Public | BindingFlags.Instance)
@@ -91,9 +91,10 @@ public class AutoConcederPrivilegioTests : IAsyncLifetime
         concesion.ConcedidaPorUsuarioId.Should().Be(_tecnico,
             "la autoría se registra desde el primer día, aunque hoy coincida con el beneficiario");
         concesion.Capacidad.Should().Be(CapacidadPrivilegio.SoporteLectura);
-        concesion.EsAlcanceGlobal.Should().BeFalse("una auto-concesión nunca es global");
-        concesion.TenantsAlcanzados.Should().ContainSingle()
-            .Which.TenantId.Should().Be(_tenantVisitado);
+        concesion.EsAlcanceGlobal.Should().BeTrue(
+            "Soporte TALVEG universal: la concesión de lectura no se pide Tenant a Tenant (ADR-011 § 8.9)");
+        concesion.TenantsAlcanzados.Should().BeEmpty();
+        concesion.VigenciaHasta.Should().NotBeNull("la llave universal de lectura caduca y se renueva");
     }
 
     [Fact]
@@ -116,8 +117,11 @@ public class AutoConcederPrivilegioTests : IAsyncLifetime
 
         var abrir = () => SesionPrivilegiada.Abrir(
             concesion, _tenantVisitado, "Reproducir la incidencia", DateTime.UtcNow, TimeSpan.FromHours(1));
+        var abrirOtro = () => SesionPrivilegiada.Abrir(
+            concesion, Guid.NewGuid(), "Reproducir otra incidencia", DateTime.UtcNow, TimeSpan.FromHours(1));
 
         abrir.Should().NotThrow("auto-concederse y abrir tienen que encadenar");
+        abrirOtro.Should().NotThrow("la misma concesión sirve para cualquier Tenant, sin pedir otra");
     }
 
     [Fact]
@@ -146,22 +150,9 @@ public class AutoConcederPrivilegioTests : IAsyncLifetime
         await NoHayNingunaConcesionAsync();
     }
 
-    [Fact]
-    public async Task Nadie_se_concede_privilegio_sobre_su_propio_tenant()
-    {
-        // Desde A2, emitir SoporteLectura exige AdminPlataforma vigente: la
-        // cadena es raíz → fundacional → soporte. El contrato que este test
-        // verifica no cambia; lo que cambia es de dónde sale la autoridad.
-        (await ArrancarAsync()).EsExitoso.Should().BeTrue();
-
-        var resultado = await EjecutarAsync(tenantObjetivo: _tenantPlataforma);
-
-        // Código propio desde A0, por lo mismo que al abrir: la regla venía
-        // dentro de la autorización de apertura retirada y necesita test que la
-        // distinga de "no eres la raíz".
-        resultado.Error.Codigo.Should().Be("ConcesionPrivilegio.TenantPropio");
-        await NoHayNingunaConcesionAsync();
-    }
+    // La regla "nadie entra en su propio Tenant" ya no vive en la concesión,
+    // que es global y no nombra ninguno: vive en la apertura. Su test está en
+    // AbrirSesionPrivilegiadaTests.Una_concesion_global_no_abre_sesion_sobre_el_propio_tenant.
 
     // ── A2: la cadena raíz → AdminPlataforma → SoporteLectura ─────────────
 
@@ -378,14 +369,13 @@ public class AutoConcederPrivilegioTests : IAsyncLifetime
 
     private Task<Domain.Common.Result<Guid>> ArrancarAsync(Guid? usuario = null) =>
         EjecutarAsync(
-            tenantObjetivo: Guid.Empty,
             capacidad: CapacidadPrivilegio.AdminPlataforma,
             usuario: usuario);
 
     // ── Andamiaje ──────────────────────────────────────────────────────────
 
     private async Task<Domain.Common.Result<Guid>> EjecutarAsync(
-        Guid? tenantObjetivo = null, Guid? tenantOrigen = null, bool dobleFactor = true,
+        Guid? tenantOrigen = null, bool dobleFactor = true,
         CapacidadPrivilegio? capacidad = null, Guid? usuario = null)
     {
         await using var contexto = CrearContexto();
@@ -403,7 +393,6 @@ public class AutoConcederPrivilegioTests : IAsyncLifetime
 
         return await handler.Handle(
             new AutoConcederPrivilegioCommand(
-                tenantObjetivo ?? _tenantVisitado,
                 capacidad ?? CapacidadPrivilegio.SoporteLectura,
                 DiasDeVigencia: 7),
             CancellationToken.None);

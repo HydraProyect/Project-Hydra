@@ -41,10 +41,12 @@ public class ConcesionPrivilegio : Entity, IVersionable
     public CapacidadPrivilegio Capacidad { get; private set; }
 
     /// <summary>
-    /// Alcance global sobre todos los tenants. <b>Solo se admite para
-    /// <see cref="CapacidadPrivilegio.AdminPlataforma"/></b>, y ni siquiera
-    /// entonces implica leer contenido: administrar la plataforma es otra cosa
-    /// que abrir los datos de un cliente (ADR-011 § 8.9). Para el resto de
+    /// Alcance global sobre todos los tenants. <b>Solo se admite para las
+    /// capacidades de <see cref="AdmiteAlcanceGlobal"/></b>:
+    /// <see cref="CapacidadPrivilegio.AdminPlataforma"/>, que no implica leer
+    /// contenido, y <see cref="CapacidadPrivilegio.SoporteLectura"/>, que sí lo
+    /// lee pero nunca sin una <see cref="SesionPrivilegiada"/> por Tenant
+    /// objetivo, con motivo, ventana y 2FA (ADR-011 § 8.9). Para el resto de
     /// capacidades el alcance es siempre una lista explícita de tenants.
     /// </summary>
     public bool EsAlcanceGlobal { get; private set; }
@@ -98,6 +100,13 @@ public class ConcesionPrivilegio : Entity, IVersionable
             throw new ArgumentException("La vigencia debe terminar después de empezar.", nameof(vigenciaHasta));
         if (motivoConcesion is { Length: > LongitudMaximaMotivo })
             throw new ArgumentException($"El motivo no puede superar {LongitudMaximaMotivo} caracteres.", nameof(motivoConcesion));
+        // Invariante explícito, no propiedad emergente de qué fábricas existen:
+        // una fábrica nueva que pasara esAlcanceGlobal: true con otra capacidad
+        // se rompería aquí, no en producción (ADR-011 § 8.9).
+        if (esAlcanceGlobal && !AdmiteAlcanceGlobal(capacidad))
+            throw new ArgumentException(
+                $"La capacidad {capacidad} no admite alcance global: necesita una lista explícita de tenants.",
+                nameof(esAlcanceGlobal));
 
         UsuarioPlataformaId = usuarioPlataformaId;
         Capacidad = capacidad;
@@ -110,9 +119,27 @@ public class ConcesionPrivilegio : Entity, IVersionable
     }
 
     /// <summary>
-    /// Concesión acotada a una lista explícita de tenants. Es la forma normal:
-    /// "soporte A puede entrar en Refrielectric", no "soporte A puede entrar
-    /// donde sea" (ADR-011 § 8.9).
+    /// Qué capacidades admiten una concesión de alcance global (ADR-011 § 8.9).
+    ///
+    /// <para>
+    /// <see cref="CapacidadPrivilegio.AdminPlataforma"/> porque administrar la
+    /// plataforma no abre el contenido de ningún Tenant.
+    /// <see cref="CapacidadPrivilegio.SoporteLectura"/> porque el propietario
+    /// decidió (2026-09-25) que Soporte TALVEG no pida acceso Tenant a Tenant:
+    /// el control se traslada de la concesión a la <see cref="SesionPrivilegiada"/>,
+    /// que sigue siendo por un Tenant objetivo concreto, temporal, con motivo,
+    /// 2FA y auditoría con Actor real. Ninguna capacidad con camino de escritura
+    /// entra aquí: esas siguen acotadas a una lista explícita (ADR-011 § 8.8).
+    /// </para>
+    /// </summary>
+    public static bool AdmiteAlcanceGlobal(CapacidadPrivilegio capacidad) =>
+        capacidad is CapacidadPrivilegio.AdminPlataforma or CapacidadPrivilegio.SoporteLectura;
+
+    /// <summary>
+    /// Concesión acotada a una lista explícita de tenants: "Aprovisionamiento
+    /// sobre Refrielectric", no "Aprovisionamiento donde sea". Es la única forma
+    /// para las capacidades que no están en <see cref="AdmiteAlcanceGlobal"/>
+    /// (ADR-011 § 8.8).
     /// </summary>
     public static ConcesionPrivilegio SobreTenants(
         Guid usuarioPlataformaId,
@@ -139,12 +166,6 @@ public class ConcesionPrivilegio : Entity, IVersionable
         return concesion;
     }
 
-    /// <summary>
-    /// Concesión sobre todos los tenants. Reservada a
-    /// <see cref="CapacidadPrivilegio.AdminPlataforma"/>: un alcance global de
-    /// lectura sería precisamente la cuenta de soporte omnipotente que el
-    /// principio de mínimo privilegio prohíbe (ADR-011 § 8.8).
-    /// </summary>
     /// <summary>
     /// La concesión fundacional: la que existe antes de que exista ninguna
     /// autoridad de la que derivarla.
@@ -181,6 +202,11 @@ public class ConcesionPrivilegio : Entity, IVersionable
         };
     }
 
+    /// <summary>
+    /// Concesión de <see cref="CapacidadPrivilegio.AdminPlataforma"/> sobre
+    /// todos los tenants. Administrar la plataforma no implica leer el contenido
+    /// de ningún Tenant (ADR-011 § 8.2).
+    /// </summary>
     public static ConcesionPrivilegio Global(
         Guid usuarioPlataformaId,
         DateTime vigenciaDesde,
@@ -188,6 +214,33 @@ public class ConcesionPrivilegio : Entity, IVersionable
         Guid? concedidaPorUsuarioId = null,
         string? motivoConcesion = null) =>
         new(usuarioPlataformaId, CapacidadPrivilegio.AdminPlataforma, esAlcanceGlobal: true,
+            vigenciaDesde, vigenciaHasta, concedidaPorUsuarioId, motivoConcesion);
+
+    /// <summary>
+    /// Concesión de <see cref="CapacidadPrivilegio.SoporteLectura"/> sobre
+    /// todos los tenants: Soporte TALVEG universal (ADR-011 § 8.9).
+    ///
+    /// <para>
+    /// <b>Universal no es permanente ni directo.</b> Esta concesión no abre nada
+    /// por sí sola: cada entrada sigue siendo una <see cref="SesionPrivilegiada"/>
+    /// sobre un único Tenant objetivo ajeno, con motivo, ventana acotada y 2FA,
+    /// y la lectura sigue pasando por RLS con el rol de solo lectura. Lo único
+    /// que desaparece es pedir la concesión Tenant a Tenant.
+    /// </para>
+    ///
+    /// <para>
+    /// <b><paramref name="vigenciaHasta"/> es obligatoria</b>, a diferencia de
+    /// <see cref="Global"/>: una llave universal de lectura caduca y se renueva
+    /// con un acto auditado; no queda viva para siempre por olvido.
+    /// </para>
+    /// </summary>
+    public static ConcesionPrivilegio SoporteLecturaGlobal(
+        Guid usuarioPlataformaId,
+        DateTime vigenciaDesde,
+        DateTime vigenciaHasta,
+        Guid? concedidaPorUsuarioId = null,
+        string? motivoConcesion = null) =>
+        new(usuarioPlataformaId, CapacidadPrivilegio.SoporteLectura, esAlcanceGlobal: true,
             vigenciaDesde, vigenciaHasta, concedidaPorUsuarioId, motivoConcesion);
 
     /// <summary>

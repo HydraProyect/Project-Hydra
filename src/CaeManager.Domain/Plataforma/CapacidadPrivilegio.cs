@@ -17,7 +17,10 @@ public enum CapacidadPrivilegio
     /// <summary>
     /// Inspección de solo lectura de un tenant. Sin escritura operativa, sin
     /// excepción implícita: la escritura excepcional es
-    /// <see cref="BreakGlass"/>, y es otra concesión.
+    /// <see cref="BreakGlass"/>, y es otra concesión. Admite concesión de
+    /// alcance global (Soporte TALVEG universal, ADR-011 § 8.9), pero cada
+    /// entrada sigue siendo una <see cref="SesionPrivilegiada"/> sobre un único
+    /// Tenant objetivo.
     /// </summary>
     SoporteLectura = 0,
 

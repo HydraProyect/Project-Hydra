@@ -402,7 +402,6 @@
         {
             var resultado = await Mediator.Send(
                 new AutoConcederPrivilegioCommand(
-                    Guid.Empty,
                     CapacidadPrivilegio.AdminPlataforma,
                     DiasDeVigencia: 1));
             var esFallido = resultado.EsFallido;

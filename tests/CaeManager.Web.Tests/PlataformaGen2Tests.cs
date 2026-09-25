@@ -140,7 +140,6 @@ public class PlataformaGen2Tests : BunitContext
         await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Sí, inicializar").ClickAsync(new MouseEventArgs());
 
         var comando = mediator.Enviados.OfType<AutoConcederPrivilegioCommand>().Should().ContainSingle().Subject;
-        comando.TenantObjetivoId.Should().Be(Guid.Empty);
         comando.Capacidad.Should().Be(CapacidadPrivilegio.AdminPlataforma);
         comando.DiasDeVigencia.Should().Be(1);
         cut.FindAll("[role=dialog]").Should().BeEmpty();

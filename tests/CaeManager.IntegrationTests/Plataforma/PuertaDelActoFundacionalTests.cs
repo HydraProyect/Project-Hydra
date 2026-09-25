@@ -180,7 +180,7 @@ public class PuertaDelActoFundacionalTests : IAsyncLifetime
 
         return await handler.Handle(
             new Application.Plataforma.Commands.AutoConcederPrivilegio.AutoConcederPrivilegioCommand(
-                Guid.Empty, CapacidadPrivilegio.AdminPlataforma, DiasDeVigencia: 1),
+                CapacidadPrivilegio.AdminPlataforma, DiasDeVigencia: 1),
             CancellationToken.None);
     }
 

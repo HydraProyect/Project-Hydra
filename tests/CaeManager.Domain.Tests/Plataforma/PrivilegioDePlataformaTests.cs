@@ -39,16 +39,88 @@ public class PrivilegioDePlataformaTests
     }
 
     [Fact]
-    public void El_alcance_global_solo_existe_para_la_administracion_de_plataforma()
+    public void La_fabrica_Global_es_de_administracion_de_plataforma()
     {
-        // Un alcance global de LECTURA sería la cuenta de soporte omnipotente
-        // que el principio de mínimo privilegio prohíbe: por eso la fábrica
-        // global no admite elegir capacidad.
         var global = ConcesionPrivilegio.Global(Tecnico, Ahora, null);
 
         global.Capacidad.Should().Be(CapacidadPrivilegio.AdminPlataforma);
         global.EsAlcanceGlobal.Should().BeTrue();
         global.CubreEn(Guid.NewGuid(), Ahora).Should().BeTrue("administrar la plataforma alcanza a cualquier tenant");
+    }
+
+    // ---------- Soporte TALVEG universal (ADR-011 § 8.9) ----------
+
+    [Theory]
+    [InlineData(CapacidadPrivilegio.AdminPlataforma, true)]
+    [InlineData(CapacidadPrivilegio.SoporteLectura, true)]
+    [InlineData(CapacidadPrivilegio.Impersonacion, false)]
+    [InlineData(CapacidadPrivilegio.BreakGlass, false)]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento, false)]
+    public void Solo_administracion_y_soporte_de_lectura_admiten_alcance_global(
+        CapacidadPrivilegio capacidad, bool admite)
+    {
+        ConcesionPrivilegio.AdmiteAlcanceGlobal(capacidad).Should().Be(admite,
+            "ninguna capacidad con camino de escritura ni de simulación puede ser universal (ADR-011 § 8.8)");
+    }
+
+    [Fact]
+    public void La_lista_de_alcance_global_cubre_todas_las_capacidades_del_enum()
+    {
+        // Una capacidad nueva en el enum tiene que decidir aquí si admite
+        // alcance global; el Theory de arriba enumera las cinco de hoy.
+        Enum.GetValues<CapacidadPrivilegio>().Should().HaveCount(5,
+            "si se añade una capacidad, añádela al Theory de alcance global con su decisión explícita");
+    }
+
+    [Fact]
+    public void Soporte_de_lectura_global_cubre_cualquier_tenant_mientras_esta_vigente()
+    {
+        var global = ConcesionPrivilegio.SoporteLecturaGlobal(
+            Tecnico, Ahora.AddDays(-1), Ahora.AddDays(30), concedidaPorUsuarioId: Tecnico);
+
+        global.Capacidad.Should().Be(CapacidadPrivilegio.SoporteLectura);
+        global.EsAlcanceGlobal.Should().BeTrue();
+        global.TenantsAlcanzados.Should().BeEmpty("universal significa sin lista de Tenants");
+        global.CubreEn(TenantCliente, Ahora).Should().BeTrue();
+        global.CubreEn(OtroTenant, Ahora).Should().BeTrue();
+
+        global.CubreEn(TenantCliente, Ahora.AddDays(31)).Should().BeFalse("universal no es perpetua: caduca");
+        global.Revocar(Ahora);
+        global.CubreEn(TenantCliente, Ahora).Should().BeFalse("revocar corta la llave universal en el acto");
+    }
+
+    [Fact]
+    public void Soporte_de_lectura_global_no_da_acceso_por_si_solo_cada_entrada_es_una_sesion_por_tenant()
+    {
+        var global = ConcesionPrivilegio.SoporteLecturaGlobal(Tecnico, Ahora.AddDays(-1), Ahora.AddDays(30));
+
+        var sesion = SesionPrivilegiada.Abrir(
+            global, TenantCliente, "Revisar la incidencia 42", Ahora, TimeSpan.FromHours(1));
+
+        sesion.TenantObjetivoId.Should().Be(TenantCliente, "la sesión sigue siendo sobre un único Tenant objetivo");
+        sesion.EstaVigenteEn(Ahora.AddHours(2)).Should().BeFalse("la ventana de la sesión sigue acotada");
+    }
+
+    [Theory]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento)]
+    [InlineData(CapacidadPrivilegio.BreakGlass)]
+    [InlineData(CapacidadPrivilegio.Impersonacion)]
+    public void El_constructor_rechaza_alcance_global_para_una_capacidad_que_no_lo_admite(CapacidadPrivilegio capacidad)
+    {
+        // El invariante vive en el constructor, no en qué fábricas existen: una
+        // fábrica futura que pasara esAlcanceGlobal: true con otra capacidad
+        // tiene que romper aquí. Se invoca el constructor privado a propósito,
+        // que es exactamente lo que haría esa fábrica.
+        var constructor = typeof(ConcesionPrivilegio).GetConstructors(
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            .Single(c => c.GetParameters().Length == 7);
+
+        var crear = () => constructor.Invoke(
+            [Tecnico, capacidad, true, Ahora, (DateTime?)Ahora.AddDays(1), (Guid?)null, (string?)null]);
+
+        crear.Should().Throw<System.Reflection.TargetInvocationException>()
+            .WithInnerException<ArgumentException>()
+            .Which.ParamName.Should().Be("esAlcanceGlobal");
     }
 
     // ---------- vigencia ----------

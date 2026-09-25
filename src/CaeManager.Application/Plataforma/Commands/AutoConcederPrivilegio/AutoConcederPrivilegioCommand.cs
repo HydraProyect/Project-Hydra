@@ -9,7 +9,18 @@ namespace CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio;
 
 /// <summary>
 /// Un usuario de plataforma se concede a <b>sí mismo</b> una concesión de
-/// privilegio sobre un tenant concreto.
+/// privilegio de alcance global: <see cref="CapacidadPrivilegio.AdminPlataforma"/>
+/// (el acto fundacional) o <see cref="CapacidadPrivilegio.SoporteLectura"/>
+/// (Soporte TALVEG universal, ADR-011 § 8.9).
+///
+/// <para>
+/// <b>Sin Tenant objetivo desde 2026-09-25.</b> El propietario decidió que
+/// Soporte TALVEG no pida acceso Tenant a Tenant: la concesión de lectura es
+/// global y el control por Tenant pasa entero a la apertura de cada
+/// <see cref="SesionPrivilegiada"/> (Tenant ajeno, motivo, ventana, 2FA). Por
+/// eso el comando ya no tiene parámetro de Tenant: una concesión global con un
+/// Tenant "de adorno" sería un dato que afirma algo que el sistema no aplica.
+/// </para>
 ///
 /// <para>
 /// <b>Es auto-concesión, no "gestión de concesiones" en pequeño.</b> La
@@ -30,7 +41,7 @@ namespace CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio;
 /// </para>
 ///
 /// <para>
-/// El ADR § 4bis.7.7 acepta la auto-concesión mientras el equipo de plataforma
+/// ADR-011 § 8.5.7 acepta la auto-concesión mientras el equipo de plataforma
 /// sea unipersonal, con la autoría registrada desde el primer día; la
 /// segregación de funciones —que una segunda persona apruebe— llega cuando haya
 /// equipo. Y el <c>WITH CHECK</c> de RLS (F2b-5) no se toca: sigue admitiendo
@@ -38,11 +49,12 @@ namespace CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio;
 /// esta operación produce.
 /// </para>
 /// </summary>
-/// <param name="TenantObjetivoId">Sobre qué tenant se concede el privilegio.</param>
 /// <param name="Capacidad">Qué podrá hacer la sesión que se abra bajo esta concesión.</param>
-/// <param name="DiasDeVigencia">Cuánto vive la concesión. Distinto de la ventana de cada sesión.</param>
+/// <param name="DiasDeVigencia">
+/// Cuánto vive la concesión. Distinto de la ventana de cada sesión. Para
+/// SoporteLectura es además el plazo de renovación de la llave universal.
+/// </param>
 public record AutoConcederPrivilegioCommand(
-    Guid TenantObjetivoId,
     CapacidadPrivilegio Capacidad,
     int DiasDeVigencia) : ICommand<Guid>;
 
@@ -59,17 +71,6 @@ public class AutoConcederPrivilegioCommandValidator : AbstractValidator<AutoConc
 
     public AutoConcederPrivilegioCommandValidator()
     {
-        // Solo el acto ordinario tiene tenant: la concesión fundacional es
-        // global por definición y ahí un tenant objetivo no significa nada.
-        RuleFor(c => c.TenantObjetivoId)
-            .NotEmpty()
-            .When(c => c.Capacidad != CapacidadPrivilegio.AdminPlataforma);
-
-        RuleFor(c => c.TenantObjetivoId)
-            .Empty()
-            .When(c => c.Capacidad == CapacidadPrivilegio.AdminPlataforma)
-            .WithMessage("La concesión fundacional es global: no lleva tenant objetivo.");
-
         RuleFor(c => c.DiasDeVigencia)
             .InclusiveBetween(1, MaximoDiasDeVigencia)
             .WithMessage($"La vigencia de la concesión debe estar entre 1 y {MaximoDiasDeVigencia} días.");
@@ -152,22 +153,21 @@ public class AutoConcederPrivilegioCommandHandler(
         if (request.Capacidad == CapacidadPrivilegio.AdminPlataforma)
             return await ArrancarLaPlataformaAsync(usuarioId.Value, cancellationToken);
 
-        if (!await ReglaTenantObjetivoAjeno.SeCumpleAsync(currentUserService, request.TenantObjetivoId))
-            return Result.Fallo<Guid>(Error.Crear(
-                "ConcesionPrivilegio.TenantPropio",
-                "No se concede acceso de soporte sobre tu propia organización."));
-
+        // Sin regla de Tenant ajeno aquí: una concesión global no nombra ningún
+        // Tenant. La regla no desaparece, se queda donde se usa la llave —la
+        // apertura de cada sesión, AbrirSesionPrivilegiadaCommand precondición
+        // 2—, y es precisamente la que impide que la concesión universal cubra
+        // la propia organización de quien la tiene.
         var ahora = DateTime.UtcNow;
-        var concesion = ConcesionPrivilegio.SobreTenants(
+        var concesion = ConcesionPrivilegio.SoporteLecturaGlobal(
             // Beneficiario y autor son el mismo, y los dos salen de la sesión.
             // No hay forma de que difieran desde este camino.
             usuarioPlataformaId: usuarioId.Value,
-            request.Capacidad,
-            tenantIds: [request.TenantObjetivoId],
             vigenciaDesde: ahora,
             vigenciaHasta: ahora.AddDays(request.DiasDeVigencia),
             concedidaPorUsuarioId: usuarioId.Value,
-            motivoConcesion: "Auto-concesión (equipo de plataforma unipersonal, ADR-011 § 4bis.7.7).");
+            motivoConcesion: "Auto-concesión de Soporte TALVEG universal (equipo de plataforma unipersonal, " +
+                             "ADR-011 § 8.5.7 y § 8.9).");
 
         writer.AnadirConcesion(concesion);
         await unitOfWork.SaveChangesAsync(cancellationToken);
