@@ -160,9 +160,8 @@ caddy_tiene_montaje() {
 # Antes de recrearlo se valida el Caddyfile del checkout con un Caddy
 # desechable (misma imagen, mismos ficheros de ranuras, mismo DOMINIO): si no
 # valida, no se recrea, porque un Caddy que no arranca deja sin proxy a los dos
-# entornos. El Caddy nuevo arranca con --resume (compose): retoma la última
-# configuración cargada, la del Caddy anterior, y la de P1-F2 entra con la
-# recarga del relevo, que Caddy valida antes de aplicar.
+# entornos. El Caddy nuevo arranca con el Caddyfile aprobado si existe, y si
+# no, con el del checkout (compose). Es el que se acaba de validar.
 validar_caddyfile() {
     local imagen dominio acme
     imagen="$(docker inspect -f '{{.Config.Image}}' "$CONTENEDOR_CADDY" 2>/dev/null)" || return 1
@@ -177,8 +176,10 @@ asegurar_montaje_caddy() {
     docker inspect "$CONTENEDOR_CADDY" > /dev/null 2>&1 || return 0
     caddy_tiene_montaje && return 0
     echo "Caddy sin el montaje de ranuras (anterior a P1-F2): se valida el Caddyfile y se recrea desde docker-compose.produccion.yml."
-    if ! validar_caddyfile "$RAIZ_DESPLIEGUE/deploy/local/Caddyfile"; then
-        echo "El Caddyfile del checkout no valida: no se recrea Caddy (sigue el anterior)." >&2
+    local fuente="$RAIZ_DESPLIEGUE/deploy/local/Caddyfile"
+    [ -f "$(caddyfile_aprobado)" ] && fuente="$(caddyfile_aprobado)"
+    if ! validar_caddyfile "$fuente"; then
+        echo "El Caddyfile con el que arrancaría Caddy ($fuente) no valida: no se recrea Caddy (sigue el anterior)." >&2
         return 1
     fi
     ( cd "$RAIZ_DESPLIEGUE/deploy/local" && docker compose -f docker-compose.produccion.yml up -d --no-deps --no-build caddy )
@@ -223,7 +224,14 @@ recargar_caddy() {
         [ -n "$tmp" ] && rm -f "$tmp"
         return 1
     fi
-    [ -n "$tmp" ] && mv -f "$tmp" "$aprobado"
+    # Un `mv` fallido tiene que ser un fallo: si no, el aprobado se queda en
+    # la versión anterior y la siguiente recarga, o el siguiente arranque de
+    # Caddy, desharía esta (revisión de Codex). Quien llama restaura.
+    if [ -n "$tmp" ] && ! mv -f "$tmp" "$aprobado"; then
+        rm -f "$tmp"
+        echo "Caddy aceptó la recarga, pero no se pudo guardar el Caddyfile aprobado." >&2
+        return 1
+    fi
     return 0
 }
 

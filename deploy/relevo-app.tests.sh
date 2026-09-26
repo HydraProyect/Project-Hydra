@@ -159,6 +159,10 @@ for e in produccion staging; do
 done
 comprobar "el compose de producción monta DIR_RANURAS por defecto en /etc/caddy/ranuras" 1 \
   "$(grep -cx '      - /var/lib/talveg/caddy-ranuras:/etc/caddy/ranuras' "$AQUI/local/docker-compose.produccion.yml")"
+comprobar "Caddy arranca con el Caddyfile aprobado si existe (no --resume, no el del checkout)" "1 0" \
+  "$(grep -c 'c=/etc/caddy/Caddyfile; \[ -f /etc/caddy/ranuras/Caddyfile.aprobado \] && c=/etc/caddy/ranuras/Caddyfile.aprobado;' "$AQUI/local/docker-compose.produccion.yml") $(grep -v '^[[:space:]]*#' "$AQUI/local/docker-compose.produccion.yml" | grep -c -- '--resume')"
+comprobar "el aprobado se guarda en el directorio que Caddy monta" 1 \
+  "$(grep -cx 'caddyfile_aprobado() { echo "$DIR_RANURAS/Caddyfile.aprobado"; }' "$GUION")"
 comprobar "Caddy crea al arrancar los ficheros que falten, con los contenedores anteriores a P1-F2" "1 1" \
   "$(grep -c "\[ -f /etc/caddy/ranuras/produccion.caddy \] || echo 'to caemanager-app:8080' > /etc/caddy/ranuras/produccion.caddy;" "$AQUI/local/docker-compose.produccion.yml") $(grep -c "\[ -f /etc/caddy/ranuras/staging.caddy \] || echo 'to caemanager-staging-app:8080' > /etc/caddy/ranuras/staging.caddy;" "$AQUI/local/docker-compose.produccion.yml")"
 comprobar "el valor por defecto de DIR_RANURAS es ese directorio" 1 \
@@ -310,6 +314,12 @@ fichero produccion "to caemanager-app-azul:8080 caemanager-app:8080"; fichero st
 relevo COMPOSE_FALLA=1 -- desplegar produccion "$B"
 comprobar "si la nueva no llega a sana, la saliente anterior sigue en marcha y en Caddy" "1 true to caemanager-app-azul:8080 caemanager-app:8080" \
   "$codigo $(en_marcha caemanager-app) $(ranuras produccion)"
+
+limpio; contenedor caemanager-app-azul "$A"; contenedor caemanager-app "$C"
+fichero produccion "to caemanager-app-azul:8080 caemanager-app:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo RECARGA_FALLA=1 -- desplegar produccion "$B"
+comprobar "si Caddy rechaza la conmutación, la saliente anterior sigue en marcha y el fichero vuelve a estar como antes" \
+  "1 true to caemanager-app-azul:8080 caemanager-app:8080" "$codigo $(en_marcha caemanager-app) $(ranuras produccion)"
 
 echo "fallos que antes acababan en éxito (errexit no actúa a la izquierda de || y &&)"
 limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"

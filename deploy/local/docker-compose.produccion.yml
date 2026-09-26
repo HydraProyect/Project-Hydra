@@ -354,19 +354,22 @@ services:
     # siguiente despliegue haga el primer relevo. Después, relevo-app.sh los
     # mantiene y esta línea no hace nada.
     #
-    # --resume: al arrancar (reinicio del VPS, contenedor recreado) retoma la
-    # última configuración que Caddy tenía cargada (autosave en el volumen
-    # caddy-config), no el Caddyfile del checkout. El checkout puede traer un
-    # Caddyfile que producción aún no ha aprobado, porque staging despliega
-    # antes (hallazgo de Codex). Sin configuración guardada, usa --config. Un
-    # Caddyfile nuevo solo entra con la recarga de un relevo de producción
-    # (relevo-app.sh, «Caddyfile aprobado»).
+    # Con qué Caddyfile arranca (reinicio del VPS, contenedor recreado): el
+    # APROBADO que guarda relevo-app.sh en el mismo directorio de ranuras, si
+    # existe, no el del checkout. El checkout puede traer un Caddyfile que
+    # producción aún no ha aprobado, porque staging despliega antes (hallazgo
+    # de Codex). Así el arranque vuelve a leer lo aprobado junto con los
+    # ficheros de ranuras actuales, y coincide con lo que el relevo dejó.
+    # Sin aprobado (solo en la transición de P1-F2) arranca con el del
+    # checkout. No se usa --resume: el autosave puede quedar atrás de los
+    # ficheros de ranuras, o perderse con el volumen (revisión de Codex).
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
         [ -f /etc/caddy/ranuras/produccion.caddy ] || echo 'to caemanager-app:8080' > /etc/caddy/ranuras/produccion.caddy;
         [ -f /etc/caddy/ranuras/staging.caddy ] || echo 'to caemanager-staging-app:8080' > /etc/caddy/ranuras/staging.caddy;
-        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile --resume
+        c=/etc/caddy/Caddyfile; [ -f /etc/caddy/ranuras/Caddyfile.aprobado ] && c=/etc/caddy/ranuras/Caddyfile.aprobado;
+        exec caddy run --config "$$c" --adapter caddyfile
 
   seq:
     # SIN mem_limit — mismo hueco declarado que "db" arriba (REC-199/REC-198,
