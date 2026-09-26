@@ -9,7 +9,9 @@ public class RegistroAccesoDocumentoSensibleConfiguration : IEntityTypeConfigura
     public void Configure(EntityTypeBuilder<RegistroAccesoDocumentoSensible> builder)
     {
         builder.ToTable("RegistrosAccesoDocumentoSensible");
-        builder.HasKey(r => r.Id);
+        // PK (Id, OcurridoEnUtc): particionada por mes sobre OcurridoEnUtc
+        // (P1-M2), mismo motivo que RegistroAuditoriaConfiguration.
+        builder.HasKey(r => new { r.Id, r.OcurridoEnUtc });
 
         builder.Property(r => r.DocumentoId).IsRequired();
         builder.Property(r => r.Sensibilidad).IsRequired().HasConversion<string>().HasMaxLength(30);

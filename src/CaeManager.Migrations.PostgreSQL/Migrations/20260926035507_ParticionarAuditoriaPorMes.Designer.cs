@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260926035507_ParticionarAuditoriaPorMes")]
+    partial class ParticionarAuditoriaPorMes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -7217,9 +7220,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Atribucion")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime?>("CanceladaEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<Guid>("CentroId")
                         .HasColumnType("uuid");
 
@@ -7234,9 +7234,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<Guid?>("EliminadoPorUsuarioId")
                         .HasColumnType("uuid");
-
-                    b.Property<bool>("EstaCancelada")
-                        .HasColumnType("boolean");
 
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
@@ -7256,14 +7253,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<TimeOnly?>("HoraEstimadaAcceso")
                         .HasColumnType("time without time zone");
 
-                    b.Property<string>("MotivoCancelacion")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("MotivoReactivacion")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<string>("Notas")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
@@ -7273,9 +7262,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<int>("Origen")
                         .HasColumnType("integer");
-
-                    b.Property<DateTime?>("ReactivadaEnUtc")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
@@ -7299,7 +7285,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "FechaFin")
                         .HasDatabaseName("IX_Visitas_ExpedientePendiente")
-                        .HasFilter("\"FechaHoraSolicitudUtc\" IS NOT NULL AND \"FechaHoraExpedienteCompletoUtc\" IS NULL AND NOT \"EstaEliminado\" AND NOT \"EstaCancelada\"");
+                        .HasFilter("\"FechaHoraSolicitudUtc\" IS NOT NULL AND \"FechaHoraExpedienteCompletoUtc\" IS NULL AND NOT \"EstaEliminado\"");
 
                     b.HasIndex("TenantId", "Id")
                         .IsUnique();

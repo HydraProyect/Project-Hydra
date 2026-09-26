@@ -62,6 +62,12 @@ public class ConexionesFueraDelInterceptorTests
         // servicio de fondo, sin petición ni usuario en juego.
         "src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs",
 
+        // P1-M2: particiones mensuales futuras de la auditoría. Solo llama a
+        // app_asegurar_particiones_eventos (SECURITY DEFINER, sin nombres ni
+        // SQL del llamador), que no devuelve filas de ningún Tenant: dos
+        // recuentos. No hay filas que aislar; corre en un servicio de fondo.
+        "src/CaeManager.Infrastructure/Auditing/ParticionesEventosHostedService.cs",
+
         // Comprobación de arranque de que la identidad de conexión del tráfico
         // está sometida a RLS. No lee ninguna tabla de negocio: solo
         // current_user, sus atributos en pg_roles y si es propietaria de alguna

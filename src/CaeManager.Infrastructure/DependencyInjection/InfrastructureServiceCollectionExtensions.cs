@@ -314,6 +314,10 @@ public static class InfrastructureServiceCollectionExtensions
             configuration.GetSection(RetencionEventosWebhookOptions.SeccionConfiguracion));
         services.AddHostedService<RedaccionPayloadWebhookHostedService>();
 
+        // Particiones mensuales futuras de la auditoría (P1-M2): siempre
+        // registrado; sin él, los eventos acaban en la partición por defecto.
+        services.AddHostedService<ParticionesEventosHostedService>();
+
         // Segundo conector de mensajería: WhatsApp Cloud API (Meta). Mismo
         // patrón "inerte por defecto": sin AppSecret/VerifyToken no se
         // registra el consumidor y el webhook rechaza todo. El cliente HTTP
