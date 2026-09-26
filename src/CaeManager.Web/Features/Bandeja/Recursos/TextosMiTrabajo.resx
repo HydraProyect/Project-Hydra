@@ -201,27 +201,6 @@
   <data name="SinTrabajoPendiente" xml:space="preserve">
     <value>Sin trabajo pendiente</value>
   </data>
-  <data name="NoConsultado" xml:space="preserve">
-    <value>No se pudo consultar</value>
-  </data>
-  <data name="NoConsultadoEmpresa" xml:space="preserve">
-    <value>No se pudo consultar {0}</value>
-  </data>
-  <data name="NoConsultadoEmpresaDetalle" xml:space="preserve">
-    <value>Su trabajo pendiente no aparece aquí. Reintenta la consulta; si vuelve a fallar, avisa a Soporte TALVEG.</value>
-  </data>
-  <data name="CarteraIncompletaTitulo" xml:space="preserve">
-    <value>Cartera incompleta</value>
-  </data>
-  <data name="CarteraIncompletaUna" xml:space="preserve">
-    <value>1 empresa no ha respondido. Los totales excluyen su trabajo pendiente.</value>
-  </data>
-  <data name="CarteraIncompletaVarias" xml:space="preserve">
-    <value>{0} empresas no han respondido. Los totales excluyen su trabajo pendiente.</value>
-  </data>
-  <data name="AlDiaLoConsultado" xml:space="preserve">
-    <value>Lo consultado está al día</value>
-  </data>
   <data name="SinBloqueos" xml:space="preserve">
     <value>Sin bloqueos</value>
   </data>

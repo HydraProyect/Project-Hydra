@@ -1,5 +1,6 @@
 using CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio;
 using CaeManager.Application.Plataforma.Commands.ConcederPrivilegio;
+using CaeManager.Domain.Plataforma;
 using FluentAssertions;
 
 namespace CaeManager.Application.Tests.Plataforma.ConcederPrivilegio;
@@ -7,8 +8,32 @@ namespace CaeManager.Application.Tests.Plataforma.ConcederPrivilegio;
 public class ConcederPrivilegioCommandValidatorTests
 {
     private static ConcederPrivilegioCommand Comando(
-        Guid? beneficiario = null, Guid? tenant = null, int dias = 1, string motivo = "Aprovisionamiento inicial") =>
-        new(beneficiario ?? Guid.NewGuid(), tenant ?? Guid.NewGuid(), dias, motivo);
+        Guid? beneficiario = null, Guid? tenant = null, int dias = 1, string motivo = "Aprovisionamiento inicial",
+        CapacidadPrivilegio capacidad = CapacidadPrivilegio.Aprovisionamiento) =>
+        new(beneficiario ?? Guid.NewGuid(), tenant ?? Guid.NewGuid(), dias, motivo, capacidad);
+
+    [Theory]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento)]
+    [InlineData(CapacidadPrivilegio.RestablecimientoSegundoFactor)]
+    public void Acepta_las_dos_capacidades_concedibles_a_un_tercero(CapacidadPrivilegio capacidad)
+    {
+        var validador = new ConcederPrivilegioCommandValidator();
+
+        validador.Validate(Comando(capacidad: capacidad)).IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(CapacidadPrivilegio.SoporteLectura)]
+    [InlineData(CapacidadPrivilegio.AdminPlataforma)]
+    [InlineData(CapacidadPrivilegio.BreakGlass)]
+    [InlineData(CapacidadPrivilegio.Impersonacion)]
+    public void Rechaza_cualquier_otra_capacidad(CapacidadPrivilegio capacidad)
+    {
+        var validador = new ConcederPrivilegioCommandValidator();
+
+        validador.Validate(Comando(capacidad: capacidad)).IsValid.Should().BeFalse(
+            "la lista es cerrada: SoporteLectura se autoconcede y AdminPlataforma nace del acto fundacional");
+    }
 
     [Fact]
     public void Rechaza_beneficiario_vacio()

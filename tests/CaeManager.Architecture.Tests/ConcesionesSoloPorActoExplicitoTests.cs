@@ -119,10 +119,11 @@ public class ConcesionesSoloPorActoExplicitoTests
             "beneficiario SÍ es un parámetro. Exige AdminPlataforma vigente del concedente SOBRE EL " +
             "TENANT OBJETIVO (IAutorizacionAdminPlataforma.PuedeSobreTenantAsync), 2FA, " +
             "beneficiario != concedente, y el tenant objetivo ajeno al del concedente. Solo puede emitir " +
-            "CapacidadPrivilegio.Aprovisionamiento — la matriz de auto-concesión no se toca y sigue " +
-            "rechazando esa capacidad para cualquiera. Autorizado por la migración " +
-            "RlsConcesionPorAdminDePlataforma, que amplía el WITH CHECK de RLS para admitir exactamente " +
-            "esta forma.",
+            "CapacidadPrivilegio.Aprovisionamiento y RestablecimientoSegundoFactor (ADR-011 § 8.7, punto 3), las " +
+            "dos acotadas a un tenant — la matriz de auto-concesión no se toca y sigue rechazando las dos " +
+            "para cualquiera. Autorizado por las migraciones RlsConcesionPorAdminDePlataforma y " +
+            "RestablecimientoSegundoFactorPorSoporte, que amplían el WITH CHECK de RLS para admitir " +
+            "exactamente esta forma.",
     };
 
     [Fact]

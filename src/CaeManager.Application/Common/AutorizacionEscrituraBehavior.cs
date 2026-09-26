@@ -1,5 +1,6 @@
 using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Plataforma;
 using MediatR;
 
 namespace CaeManager.Application.Common;
@@ -45,7 +46,15 @@ namespace CaeManager.Application.Common;
 /// de soporte es de solo lectura, sin excepción implícita— se escribe aquí y se
 /// prueba aquí.
 ///
-/// <b>PD-A3 abre la única excepción, y con tres condiciones a la vez, no una.</b>
+/// <b>Dos excepciones, cada una atada a su capacidad y a su propia lista de
+/// comandos.</b> La primera, ADR-011 § 8.7, punto 3: una sesión con capacidad
+/// <c>RestablecimientoSegundoFactor</c> deja pasar solo un
+/// <see cref="IComandoDeRestablecimientoSegundoFactor"/> y solo en su Tenant
+/// objetivo. No es camino de escritura —la conexión sigue con el rol de solo
+/// lectura—: el acto lo ejecuta una función de la base que repite las
+/// comprobaciones.
+///
+/// <b>La segunda, PD-A3, con tres condiciones a la vez, no una.</b>
 /// Una sesión con <c>TieneCaminoDeEscritura</c> (hoy solo <c>Aprovisionamiento</c>
 /// — <c>BreakGlass</c> permite escribir en el modelo pero su fase todavía no
 /// existe) deja pasar el comando solo si además es
@@ -123,6 +132,26 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
 
         if (await sesionPrivilegiadaActual.RevalidarAsync(cancellationToken) is { } sesion)
         {
+            // ADR-011 § 8.7, punto 3: la capacidad de restablecimiento de 2FA abre un
+            // solo acto, no un camino de escritura. Va antes que
+            // TieneCaminoDeEscritura porque no lo tiene ni debe tenerlo: la
+            // conexión sigue con el rol de solo lectura y la escritura la hace
+            // una función de la base que vuelve a comprobarlo todo.
+            if (sesion.Capacidad == CapacidadPrivilegio.RestablecimientoSegundoFactor)
+            {
+                if (request is not IComandoDeRestablecimientoSegundoFactor)
+                    return CrearRespuestaFallo<TResponse>(Error.Crear(
+                        "Autorizacion.ComandoFueraDelRestablecimiento",
+                        "Esta sesión solo permite restablecer la verificación en dos pasos del Administrador."));
+
+                if (tenantActual.TenantId != sesion.TenantObjetivoId)
+                    return CrearRespuestaFallo<TResponse>(Error.Crear(
+                        "Autorizacion.RestablecimientoFueraDelTenantObjetivo",
+                        "Esta sesión solo puede actuar en el Tenant sobre el que se abrió."));
+
+                return await next(cancellationToken);
+            }
+
             // PD-A3: una sesión con camino de escritura construido (hoy solo
             // Aprovisionamiento — ver TieneCaminoDeEscritura) puede seguir
             // adelante, pero solo si las tres condiciones se cumplen A LA VEZ.

@@ -124,6 +124,17 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
             "await db.Database.SqlQuery<CuentaResuelta>(")] = 2,
 
+        // ADR-011 § 8.7, punto 3: Soporte TALVEG restablece la 2FA del Administrador único
+        // desde una Sesión Privilegiada. Esa conexión lleva cae_app_soporte (solo
+        // SELECT), así que Identity no puede escribir: la única puerta es la
+        // función SECURITY DEFINER app_restablecer_segundo_factor_por_soporte
+        // (migración RestablecimientoSegundoFactorPorSoporte), ejecutable solo
+        // por ese rol, que vuelve a comprobar sesión, concesión y cuenta contra el
+        // contexto RLS firmado antes de escribir. No lee filas: devuelve un código.
+        // Los dos Guid van parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs",
+            ".SqlQuery<string>(")] = 1,
+
         // Comprobación de arranque de la identidad de conexión del tráfico. No
         // consulta ninguna tabla de negocio —solo current_user, pg_roles y
         // pg_class, catálogos del sistema— así que no hay filas de ningún

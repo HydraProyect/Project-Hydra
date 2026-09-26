@@ -17,7 +17,8 @@ namespace CaeManager.IntegrationTests.Plataforma;
 /// (<c>cae_app_runtime</c>) — conectar como superusuario no ejercitaría la política.
 ///
 /// La propiedad central: un AdminPlataforma solo puede acuñar
-/// <see cref="CapacidadPrivilegio.Aprovisionamiento"/>, nunca global, y solo sobre
+/// <see cref="CapacidadPrivilegio.Aprovisionamiento"/> y, desde ADR-011 § 8.7, punto 3,
+/// <see cref="CapacidadPrivilegio.RestablecimientoSegundoFactor"/>, nunca global, y solo sobre
 /// tenants que su propia concesión ya cubre — la comprobación de cobertura vive en
 /// la fila HIJA (<c>TenantsAlcanzadosPorConcesion</c>), porque es la única que lleva
 /// <c>TenantId</c>; el padre es deliberadamente más laxo (solo exige AdminPlataforma
@@ -125,16 +126,35 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
     }
 
     [Fact]
-    public async Task No_se_puede_conceder_otra_capacidad_que_no_sea_Aprovisionamiento()
+    public async Task Un_admin_concede_RestablecimientoSegundoFactor_a_un_tercero_por_el_mismo_camino()
+    {
+        // ADR-011 § 8.7, punto 3: la capacidad acotada de Soporte TALVEG se concede con las
+        // mismas condiciones que Aprovisionamiento: tercero, por Tenant, cubierto.
+        await using var conexion = await AbrirRestringidaComoAsync(_admin);
+
+        var concesionId = await InsertarConcesionAsync(
+            conexion, _beneficiario, "RestablecimientoSegundoFactor", esAlcanceGlobal: false, concedidaPor: _admin);
+
+        (await InsertarAlcanceAsync(conexion, concesionId, _tenantCubierto)).Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData("AdminPlataforma")]
+    [InlineData("BreakGlass")]
+    [InlineData("Impersonacion")]
+    [InlineData("SoporteLectura")]
+    public async Task No_se_puede_conceder_otra_capacidad_que_Aprovisionamiento_o_RestablecimientoSegundoFactor(
+        string capacidad)
     {
         await using var conexion = await AbrirRestringidaComoAsync(_admin);
 
         var accion = async () => await InsertarConcesionAsync(
-            conexion, _beneficiario, "AdminPlataforma", esAlcanceGlobal: false, concedidaPor: _admin);
+            conexion, _beneficiario, capacidad, esAlcanceGlobal: false, concedidaPor: _admin);
 
         (await accion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
-                "un admin no puede acuñar más AdminPlataforma ni BreakGlass por esta vía, solo Aprovisionamiento");
+                "un admin no puede acuñar más AdminPlataforma ni BreakGlass por esta vía, " +
+                "solo Aprovisionamiento y RestablecimientoSegundoFactor");
     }
 
     [Fact]

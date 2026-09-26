@@ -15,7 +15,6 @@ using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 
@@ -68,14 +67,6 @@ namespace CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 /// decide aquí si cuenta como Bloqueo. También corre dentro del
 /// <see cref="AmbitoTenantExplicito"/> del Tenant propietario de la cola.
 /// </para>
-///
-/// <para>
-/// Un Tenant propietario que falla al consultarse no tumba la cartera
-/// (auditoría UX de flujos sin salida, FS-07): se registra el error, ese
-/// Tenant vuelve marcado <see cref="MiTrabajoTenantDto.NoConsultado"/> y con
-/// la cola vacía, y el resto de Tenants se consulta igual. La cancelación de
-/// la petición sí se propaga.
-/// </para>
 /// </summary>
 public record ObtenerMiTrabajoAgregadoQuery : IRequest<MiTrabajoAgregadoDto>;
 
@@ -120,11 +111,6 @@ public record ResumenMiTrabajoTenantDto(
 /// cola vacía con alcance cero no es una cartera al día. Solo describe el
 /// alcance ya aplicado; no filtra ni autoriza nada.
 /// </param>
-/// <param name="NoConsultado">
-/// La consulta de este Tenant falló (FS-07). Su cola llega vacía y sus
-/// recuentos a cero, pero vacía no significa al día: la pantalla lo pinta
-/// como no consultado y excluye su trabajo de los totales.
-/// </param>
 public record MiTrabajoTenantDto(
     Guid TenantId,
     string TenantNombre,
@@ -133,8 +119,7 @@ public record MiTrabajoTenantDto(
     IReadOnlyList<ItemBandejaDto> Proximos,
     IReadOnlyList<ItemBandejaDto> Seguimiento,
     ResumenMiTrabajoTenantDto Resumen,
-    bool AlcanceCero,
-    bool NoConsultado = false);
+    bool AlcanceCero);
 
 /// <param name="Tenants">
 /// En el mismo orden que <see cref="ObtenerClientesAutorizadosQuery"/> — el
@@ -147,11 +132,9 @@ public record MiTrabajoAgregadoDto(IReadOnlyList<MiTrabajoTenantDto> Tenants);
 
 public class ObtenerMiTrabajoAgregadoQueryHandler(
     IMediator mediator, IConfiguracionQueryContext configuracionContext, IEmpresasQueryContext empresasContext,
-    ICalculoEstadoCentroService calculoEstadoCentro, IAlcanceDatosService alcanceDatos, ILoggerFactory loggerFactory)
+    ICalculoEstadoCentroService calculoEstadoCentro, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerMiTrabajoAgregadoQuery, MiTrabajoAgregadoDto>
 {
-    private readonly ILogger _logger = loggerFactory.CreateLogger<ObtenerMiTrabajoAgregadoQueryHandler>();
-
     public async Task<MiTrabajoAgregadoDto> Handle(ObtenerMiTrabajoAgregadoQuery request, CancellationToken cancellationToken)
     {
         var tenants = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
@@ -171,28 +154,12 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
             // AmbitoTenantExplicito activo).
             using (AmbitoTenantExplicito.Establecer(tenant.TenantId))
             {
-                try
-                {
-                    resultado.Add(await ConstruirTenantAsync(tenant, hoy, cancellationToken));
-                }
-                catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-                {
-                    // FS-07: un Tenant que falla no deja sin cola al resto de la
-                    // cartera. Solo se devuelve lo que ObtenerClientesAutorizadosQuery
-                    // ya autorizó (id y nombre), nunca datos parciales de su cola.
-                    _logger.LogError(ex, "Mi trabajo no pudo consultar el Tenant {TenantId}; se devuelve como no consultado.", tenant.TenantId);
-                    resultado.Add(NoConsultado(tenant));
-                }
+                resultado.Add(await ConstruirTenantAsync(tenant, hoy, cancellationToken));
             }
         }
 
         return new MiTrabajoAgregadoDto(resultado);
     }
-
-    private static MiTrabajoTenantDto NoConsultado(ClienteAutorizadoDto tenant) => new(
-        tenant.TenantId, tenant.Nombre, tenant.EsOrigen, ObtenerBandejaAgrupadaQueryHandler.Agrupar([]), [], [],
-        new ResumenMiTrabajoTenantDto(tenant.TenantId, tenant.Nombre, tenant.EsOrigen, 0, 0, 0, 0, 0),
-        AlcanceCero: false, NoConsultado: true);
 
     private async Task<MiTrabajoTenantDto> ConstruirTenantAsync(
         ClienteAutorizadoDto tenant, DateOnly hoy, CancellationToken cancellationToken)

@@ -20,10 +20,11 @@ public class CapacidadesDeEscrituraYAperturaTests
 
     [Theory]
     [MemberData(nameof(TodasLasCapacidades))]
-    public void CapacidadesQuePuedenAbrirSesion_admite_exactamente_SoporteLectura_y_Aprovisionamiento(
+    public void CapacidadesQuePuedenAbrirSesion_admite_exactamente_SoporteLectura_Aprovisionamiento_y_RestablecimientoSegundoFactor(
         CapacidadPrivilegio capacidad)
     {
-        var esperado = capacidad is CapacidadPrivilegio.SoporteLectura or CapacidadPrivilegio.Aprovisionamiento;
+        var esperado = capacidad is CapacidadPrivilegio.SoporteLectura or CapacidadPrivilegio.Aprovisionamiento
+            or CapacidadPrivilegio.RestablecimientoSegundoFactor;
 
         CapacidadesQuePuedenAbrirSesion.Admite(capacidad).Should().Be(esperado);
     }

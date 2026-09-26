@@ -35,7 +35,9 @@ public readonly record struct SesionPrivilegiadaActiva(
     /// (acceso de emergencia) y <c>Aprovisionamiento</c> (PD-A3): la inspección
     /// de soporte y la administración de plataforma no tocan datos de un
     /// cliente, así que <c>SoporteLectura</c>, <c>AdminPlataforma</c> e
-    /// <c>Impersonacion</c> quedan fuera.
+    /// <c>Impersonacion</c> quedan fuera. También <c>RestablecimientoSegundoFactor</c>
+    /// (ADR-011 § 8.7, punto 3): no escribe en el modelo por EF, sino un único acto por la
+    /// función de la base, y <c>AutorizacionEscrituraBehavior</c> lo trata aparte.
     ///
     /// Esto es la capacidad en abstracto, no si hoy existe un camino que la
     /// ejecute — eso es <see cref="TieneCaminoDeEscritura"/>.

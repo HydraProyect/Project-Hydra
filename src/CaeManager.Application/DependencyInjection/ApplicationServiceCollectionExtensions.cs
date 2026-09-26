@@ -44,10 +44,14 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<CaeManager.Application.Plataforma.OrdenMenu.CacheOrdenMenuLateral>();
         // Esqueleto común de los Commands que cambian una tarea del asistente de flujos.
         services.AddScoped<CaeManager.Application.AsistenteIa.Tareas.ModificacionTareaAsistente>();
-        // Quién puede restablecer la 2FA de otra cuenta, separado del acto (P0-8).
+        // Quién puede restablecer la 2FA de otra cuenta, separado del acto: el
+        // Administrador del Tenant (P0-8) o Soporte TALVEG con Sesión Privilegiada
+        // (ADR-011 § 8.7, punto 3). La compuesta elige por la sesión, nunca prueba los dos.
+        services.AddScoped<CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor.AutorizacionRestablecerSegundoFactorAdministrador>();
+        services.AddScoped<CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor.AutorizacionRestablecerSegundoFactorPorSoporte>();
         services.AddScoped<
             CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor.IAutorizacionRestablecerSegundoFactor,
-            CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor.AutorizacionRestablecerSegundoFactorAdministrador>();
+            CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor.AutorizacionRestablecerSegundoFactorCompuesta>();
         // TryAdd, no Add: Program.cs registra la implementación real
         // (SentryAlertaOperativa, Infrastructure) después de AddApplication()
         // y la sustituye — ver AlertaOperativaInerte para el porqué de este
