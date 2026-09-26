@@ -7,7 +7,7 @@
 @using MediatR
 @inject IMediator Mediator
 
-<Modal Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Nuevo cliente" Ancho="AnchoModal.Pequeno"
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Nuevo cliente" Ancho="AnchoModal.Pequeno"
        CerrarAlHacerClicFuera="@(!_guardando)">
     <ChildContent>
         @if (_mensajeError is not null)
@@ -15,9 +15,9 @@
             <div class="alerta-formulario" role="alert">@_mensajeError</div>
         }
 
-        <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v"
+        <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="CambiarRazonSocialAsync"
                     MensajeError="@ObtenerError(nameof(CrearClienteCommand.RazonSocial))" />
-        <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cif" ValorChanged="v => _cif = v"
+        <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cif" ValorChanged="CambiarCifAsync"
                     MensajeError="@ObtenerError(nameof(CrearClienteCommand.Cif))" />
     </ChildContent>
     <Pie>

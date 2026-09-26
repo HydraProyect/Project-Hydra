@@ -18,7 +18,7 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 
-<Drawer Visible="_visible" VisibleChanged="v => _visible = v" Titulo="Asignar trabajador"
+<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_visible" VisibleChanged="v => _visible = v" Titulo="Asignar trabajador"
         CerrarAlHacerClicFuera="@(_mensajeError is null && !_guardando)">
     <ChildContent>
         @if (_mensajeError is not null)
@@ -122,3 +122,7 @@
         </Boton>
     </Pie>
 </Drawer>
+
+@* P1-E2b: fuera del Drawer y de sus pestañas Lista/Matriz, que son dos vistas del mismo
+   formulario: pasar de una a otra no pierde nada y no debe preguntar. *@
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => _visible = false" />

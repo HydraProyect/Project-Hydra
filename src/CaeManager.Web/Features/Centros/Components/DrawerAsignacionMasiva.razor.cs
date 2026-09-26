@@ -32,6 +32,18 @@ public partial class DrawerAsignacionMasiva : ComponentBase
     private bool _guardando;
     private string? _mensajeError;
     private IReadOnlyList<DocumentoFaltanteDto> _documentosFaltantes = [];
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: si el alta tiene algo que se perdería al salir o al cerrar el drawer con la X,
+    /// Escape o el fondo: la fecha, los trabajadores y centros marcados o las celdas de la
+    /// matriz, comparados con cómo se abrió. La fecha de hoy y los centros que la pantalla
+    /// ya traía marcados no son un cambio.
+    /// </summary>
+    private bool HayCambiosSinGuardar => _visible && _instantanea.Difiere(ValoresFormulario());
+
+    private object?[] ValoresFormulario() =>
+        [_fechaAlta, _trabajadorIdsSeleccionados, _centroIdsSeleccionados, _celdasExcluidas];
 
     private IReadOnlyList<ElementoSeleccionable> _trabajadoresComoOpciones =>
         EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles).Select(e => new ElementoSeleccionable(e.Id, e.Texto)).ToList();
@@ -73,6 +85,7 @@ public partial class DrawerAsignacionMasiva : ComponentBase
         _fechaAlta = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
         _mensajeError = null;
         _visible = true;
+        _instantanea.Fijar(ValoresFormulario());
         StateHasChanged();
     }
 

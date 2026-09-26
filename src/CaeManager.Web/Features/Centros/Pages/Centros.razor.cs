@@ -91,6 +91,47 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private bool _formularioRapidoEmpresaVisible;
     private string _nombreParaCrearEmpresa = string.Empty;
 
+    private FormularioRapidoCliente? _formularioRapidoCliente;
+    private FormularioRapidoEmpresa? _formularioRapidoEmpresa;
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de alta de
+    /// Centro comparado con cómo se abrió (con lo que trajo la URL ya puesto), o algo
+    /// escrito en el modal de crear Cliente o Empresa abierto encima. Los modales rápidos
+    /// no montan su propio aviso: se suman a este, y así salir con cambios en los dos
+    /// pregunta una sola vez.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        (_drawerVisible && _instantanea.Difiere(ValoresFormulario()))
+        || (_formularioRapidoClienteVisible && _formularioRapidoCliente?.HayCambiosSinGuardar == true)
+        || (_formularioRapidoEmpresaVisible && _formularioRapidoEmpresa?.HayCambiosSinGuardar == true);
+
+    private const int IndiceClienteEnValores = 0;
+    private const int IndiceEmpresaEnValores = 1;
+
+    private object?[] ValoresFormulario() =>
+        [_clienteId, _empresaId, _nombre, _codigoCentro, _direccion, _contacto, _contratoVigenteHasta];
+
+    private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
+
+    /// <summary>
+    /// Lo escrito en un modal rápido solo repinta el modal. Este manejador existe para que
+    /// su EventCallback repinte también la página, y el aviso del navegador al recargar o
+    /// cerrar la pestaña, que se decide en el render, vea los cambios del modal.
+    /// </summary>
+    private void AlCambiarFormularioRapido()
+    {
+    }
+
+    private void CerrarFormulariosDescartando()
+    {
+        _drawerVisible = false;
+        _formularioRapidoClienteVisible = false;
+        _formularioRapidoEmpresaVisible = false;
+    }
+
     private IReadOnlyList<OpcionBuscable> ClientesComoOpciones =>
         _clientesDisponibles.Select(c => new OpcionBuscable(c.Id.ToString(), c.RazonSocial)).ToList();
 
@@ -146,19 +187,29 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             if (!string.IsNullOrWhiteSpace(Nombre))
                 _nombre = Nombre;
 
+            // Referencia de partida con lo que trae la URL. Se toma aquí, antes del siguiente
+            // await: el drawer ya está abierto y editable mientras cargan las Empresas, y lo
+            // que se teclee en esa espera sí es un cambio. Después solo se le añaden Cliente
+            // y Empresa prefijados.
+            var alAbrir = ValoresFormulario();
+
             if (ClienteId is not null && _clientesDisponibles.Any(c => c.Id == ClienteId))
             {
                 _clienteId = ClienteId.Value.ToString();
+                alAbrir[IndiceClienteEnValores] = _clienteId;
                 _clienteNombreSoloLectura = _clientesDisponibles.First(c => c.Id == ClienteId).RazonSocial;
                 await CargarEmpresasDisponiblesAsync(ClienteId);
 
                 if (EmpresaId is not null && _empresasDisponibles.Any(e => e.Id == EmpresaId))
                 {
                     _empresaId = EmpresaId.Value.ToString();
+                    alAbrir[IndiceEmpresaEnValores] = _empresaId;
                     _empresaNombreSoloLectura = _empresasDisponibles.First(e => e.Id == EmpresaId).RazonSocial;
                     _padresFijadosPorCadena = true;
                 }
             }
+
+            _instantanea.Fijar(alAbrir);
         }
     }
 
@@ -327,6 +378,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         await CargarEmpresasDisponiblesAsync(null);
 
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
     }
 
     /// <summary>
@@ -455,6 +507,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
                 _contacto = string.Empty;
                 _contratoVigenteHasta = string.Empty;
                 _erroresCampo = new Dictionary<string, string>();
+                // El siguiente centro parte de aquí: Cliente y Empresa mantenidos no son un cambio.
+                FijarInstantaneaFormulario();
                 await CargarAsync();
                 return;
             }
