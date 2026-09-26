@@ -1,6 +1,8 @@
 @implements IDisposable
 @inject ToastService ToastService
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
+<LimiteDeErrores Islote="this">
 <div class="anfitrion-toasts" aria-live="polite">
     @foreach (var toast in ToastService.Mensajes)
     {
@@ -41,6 +43,7 @@
         </div>
     }
 </div>
+</LimiteDeErrores>
 
 @code {
     /// <summary>

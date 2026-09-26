@@ -1,6 +1,8 @@
 @rendermode InteractiveServer
 @using CaeManager.Application.Operaciones.IncorporacionCartera
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
+<LimiteDeErrores Islote="this">
 @if (Visibles.Count > 0 && !EnLaBandeja)
 {
     <section class="aviso-solicitudes" role="region" aria-live="polite" aria-labelledby="aviso-solicitudes-titulo">
@@ -31,3 +33,4 @@
         </footer>
     </section>
 }
+</LimiteDeErrores>

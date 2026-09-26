@@ -2,7 +2,9 @@
 @using CaeManager.Web.Features.AtajosGlobales.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosAtajosGlobales> Textos
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
+<LimiteDeErrores Islote="this">
 <Modal Visible="_ayudaVisible" VisibleChanged="v => _ayudaVisible = v" Titulo="@Textos["TituloAyuda"]">
     <ChildContent>
         <div class="chuleta-atajos">
@@ -44,3 +46,4 @@
         </div>
     </ChildContent>
 </Modal>
+</LimiteDeErrores>

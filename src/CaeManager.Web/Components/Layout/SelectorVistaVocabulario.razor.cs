@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Components.Forms;
 
 namespace CaeManager.Web.Components.Layout;
 
-public partial class SelectorVistaVocabulario : ComponentBase
+public partial class SelectorVistaVocabulario
 {
     [Inject] private IVistaVocabularioPreviewService VistaPreview { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;

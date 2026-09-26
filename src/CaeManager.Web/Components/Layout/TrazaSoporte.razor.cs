@@ -19,7 +19,7 @@ namespace CaeManager.Web.Components.Layout;
 /// Todo esto solo se engancha si la sesión es de soporte. Para el resto de
 /// usuarios el componente no hace absolutamente nada.
 /// </summary>
-public partial class TrazaSoporte : ComponentBase, IAsyncDisposable
+public partial class TrazaSoporte : IAsyncDisposable
 {
     private bool _esSesionDeSoporte;
 

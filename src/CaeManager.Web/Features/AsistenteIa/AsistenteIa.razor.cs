@@ -8,7 +8,7 @@ using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.AsistenteIa;
 
-public partial class AsistenteIa : ComponentBase, IDisposable
+public partial class AsistenteIa : IDisposable
 {
     // DisableHtml(): el system prompt le pide al modelo un formato en
     // markdown (## Respuesta, ## Base legal…), pero nunca HTML — si de

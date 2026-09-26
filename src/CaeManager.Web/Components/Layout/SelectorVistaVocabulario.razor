@@ -8,6 +8,8 @@
     todas las pantallas (NavMenu incluido) la recojan.
 *@
 @using CaeManager.Domain.Tenants
+@inherits CaeManager.Web.Components.IsloteInteractivo
+<LimiteDeErrores Islote="this">
 <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
     <Authorized>
         <form method="post" action="/cuenta/vista-vocabulario">
@@ -28,3 +30,4 @@
         </form>
     </Authorized>
 </AuthorizeView>
+</LimiteDeErrores>

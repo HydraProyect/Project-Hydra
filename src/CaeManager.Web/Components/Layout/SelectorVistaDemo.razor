@@ -1,3 +1,4 @@
+@inherits CaeManager.Web.Components.IsloteInteractivo
 @*
     Selector de VISTA DE DEMO (Dirección / Coordinador CAE / Gestor CAE), solo para cuentas y Tenants
     de demo y apagado por defecto (VistaDemo:Activo). Es una LENTE PRESENTACIONAL: solo estrecha lo que
@@ -12,6 +13,7 @@
 
     Aprovecha <details> nativo (como los grupos de NavMenu): plegar no necesita circuito ni JS.
 *@
+<LimiteDeErrores Islote="this">
 @if (_disponible)
 {
     <details class="selector-vista-demo" data-testid="selector-vista-demo">
@@ -38,3 +40,4 @@
         </form>
     </details>
 }
+</LimiteDeErrores>

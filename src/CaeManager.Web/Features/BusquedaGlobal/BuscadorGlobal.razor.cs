@@ -8,7 +8,7 @@ using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.BusquedaGlobal;
 
-public partial class BuscadorGlobal : ComponentBase
+public partial class BuscadorGlobal
 {
     private static readonly TimeSpan RetardoDebounce = TimeSpan.FromMilliseconds(250);
 

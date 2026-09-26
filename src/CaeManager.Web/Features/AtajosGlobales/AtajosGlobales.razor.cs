@@ -3,7 +3,7 @@ using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.AtajosGlobales;
 
-public partial class AtajosGlobales : ComponentBase, IAsyncDisposable
+public partial class AtajosGlobales : IAsyncDisposable
 {
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;

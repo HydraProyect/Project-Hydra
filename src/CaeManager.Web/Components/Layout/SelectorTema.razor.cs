@@ -21,7 +21,7 @@ namespace CaeManager.Web.Components.Layout;
 /// en un dispositivo nuevo) — se acepta ese coste igual que antes, a cambio
 /// de no consultar <c>ApplicationUser.Tema</c> en cada petición HTML.
 /// </summary>
-public partial class SelectorTema : ComponentBase, IAsyncDisposable
+public partial class SelectorTema : IAsyncDisposable
 {
     [Inject] private CaeManager.Application.Common.PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
 

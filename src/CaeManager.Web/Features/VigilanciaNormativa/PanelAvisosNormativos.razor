@@ -9,12 +9,14 @@
 @inject IMediator Mediator
 @inject ILogger<ExcepcionDeCircuitoDesconectado> Logger
 @inject IStringLocalizer<TextosVigilanciaNormativa> Textos
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
 @* H-3 / DEC-8: superficie de lectura difundida, no un ítem de cola — visible
    para toda la jerarquía de un tenant y, con la misma lectura, para el
    Actor de Plataforma TALVEG (que además ve "Marcar revisado"). Sin
    avisos, el widget no se muestra — mismo criterio que
    CaeManager.Web.Features.Notificaciones.NotificacionesPopup. *@
+<LimiteDeErrores Islote="this">
 @if (_avisos.Count > 0)
 {
     <button type="button" class="boton-avisos-normativos" @onclick="() => _abierto = true" title="@Textos["TituloPanel"]">
@@ -63,6 +65,7 @@
         </ChildContent>
     </Modal>
 }
+</LimiteDeErrores>
 
 @code {
     private IReadOnlyList<AvisoRevisionNormativaDto> _avisos = [];

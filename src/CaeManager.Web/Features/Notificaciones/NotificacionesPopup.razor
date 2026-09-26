@@ -9,7 +9,9 @@
 @inject NavigationManager Navigation
 @inject ILogger<ExcepcionDeCircuitoDesconectado> Logger
 @inject IStringLocalizer<TextosNotificaciones> Textos
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
+<LimiteDeErrores Islote="this">
 @if (_pendientes.Count > 0)
 {
     var actual = _pendientes[0];
@@ -26,6 +28,7 @@
         </Pie>
     </Modal>
 }
+</LimiteDeErrores>
 
 @code {
     private IReadOnlyList<NotificacionDto> _pendientes = [];

@@ -16,7 +16,9 @@
 @using Microsoft.Extensions.Localization
 @inject IMediator Mediator
 @inject IStringLocalizer<TextosCumplimiento> Textos
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
+<LimiteDeErrores Islote="this">
 @if (_debeAceptar)
 {
     <Modal Visible="true" Titulo="@Textos["TituloModal"]" Bloqueante="true" Ancho="AnchoModal.Grande">
@@ -41,6 +43,7 @@
         </Pie>
     </Modal>
 }
+</LimiteDeErrores>
 
 @code {
     private bool _debeAceptar;

@@ -20,7 +20,9 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JsRuntime
 @inject ToastService ToastService
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
+<LimiteDeErrores Islote="this">
 @if (WorkspaceService.EstaAbierto)
 {
     var frame = WorkspaceService.FrameActual!;
@@ -82,6 +84,7 @@
         </div>
     </aside>
 }
+</LimiteDeErrores>
 
 @code {
     private ElementReference _referenciaPanel;

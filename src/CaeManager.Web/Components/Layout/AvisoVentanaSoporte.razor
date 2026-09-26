@@ -3,6 +3,7 @@
 @inject IVentanaDeSoporteActual Traza
 @inject IClienteActivoSeleccionado Seleccion
 @inject TimeProvider Tiempo
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
 @*
     Avisa, dentro de un circuito ya abierto, de que la ventana de soporte está
@@ -21,6 +22,7 @@
     Con @rendermode propio por la misma razón que TrazaSoporte: el layout es
     SSR estático y un componente sin él nunca recibiría el temporizador.
 *@
+<LimiteDeErrores Islote="this">
 @if (_terminada)
 {
     <div class="aviso-ventana-soporte aviso-ventana-soporte--terminada" role="status">
@@ -35,6 +37,7 @@ else if (_minutosRestantes is { } minutos)
         Al terminar volverás a tu organización principal.
     </div>
 }
+</LimiteDeErrores>
 
 @code {
     /// <summary>Con cuánta antelación se avisa de que la ventana va a terminar.</summary>

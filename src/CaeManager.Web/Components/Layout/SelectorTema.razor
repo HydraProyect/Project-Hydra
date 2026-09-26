@@ -3,7 +3,9 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject IJSRuntime JsRuntime
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
+<LimiteDeErrores Islote="this">
 @if (_temaActual is not null)
 {
     @* Un <select> no admite hijos que no sean <option>, así que el icono va
@@ -18,3 +20,4 @@
         </select>
     </span>
 }
+</LimiteDeErrores>
