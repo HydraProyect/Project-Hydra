@@ -32,6 +32,8 @@ public sealed class PlataformaTabBucleCorreccionTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton<IMediator>(_mediador);
         Services.AddSingleton(new ToastService());
+        // AvisoCambiosSinGuardar (P1-E2) saca sus textos de IStringLocalizer<TextosComunes>.
+        Services.AddLocalization();
     }
 
     [Fact]

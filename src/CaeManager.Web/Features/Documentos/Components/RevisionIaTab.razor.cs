@@ -339,9 +339,16 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         }
 
         _fechaEmisionManual = revision.FechaEmisionIntroducida?.ToString("yyyy-MM-dd") ?? string.Empty;
+        _fechaEmisionManualAlAbrir = _fechaEmisionManual;
         _errorFechaManual = null;
         _correccionManualVisible = true;
     }
+
+    // P1-E2: único punto de verdad de «hay cambios» en la corrección manual: la fecha
+    // tecleada frente a la precargada al abrir.
+    private string _fechaEmisionManualAlAbrir = string.Empty;
+
+    private bool HayCambiosSinGuardar => _correccionManualVisible && _fechaEmisionManual != _fechaEmisionManualAlAbrir;
 
     private void CerrarCorreccionManual()
     {
