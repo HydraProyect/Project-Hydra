@@ -57,7 +57,7 @@ public class ExtractorZipTests
 
         var extraer = () => ExtractorZip.Extraer(bomba, MaximoEntradas, MaximoPorEntrada, presupuestoTotalBytes: 60L * 1024 * 1024);
 
-        extraer.Should().Throw<InvalidDataException>();
+        extraer.Should().ThrowExactly<LimiteDeZipSuperadoException>();
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class ExtractorZipTests
 
         var extraer = () => ExtractorZip.Extraer(zip, MaximoEntradas, MaximoPorEntrada, presupuestoTotalBytes: 8 * 1024 * 1024);
 
-        extraer.Should().Throw<InvalidDataException>();
+        extraer.Should().ThrowExactly<LimiteDeZipSuperadoException>();
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class ExtractorZipTests
 
         var extraer = () => ExtractorZip.Extraer(CrearZip(entradas), maximoEntradas: 4, MaximoPorEntrada, PresupuestoHolgado);
 
-        extraer.Should().Throw<InvalidDataException>();
+        extraer.Should().ThrowExactly<LimiteDeZipSuperadoException>();
     }
 
     [Fact]
@@ -93,7 +93,23 @@ public class ExtractorZipTests
 
         var extraer = () => ExtractorZip.Extraer(zip, MaximoEntradas, maximoPorEntrada: 1024 * 1024, PresupuestoHolgado);
 
-        extraer.Should().Throw<InvalidDataException>();
+        extraer.Should().ThrowExactly<LimiteDeZipSuperadoException>();
+    }
+
+    /// <summary>
+    /// SubidaMasiva enseña al usuario el mensaje de un límite superado, y solo ese: un
+    /// .zip dañado lo rechaza ZipArchive con InvalidDataException y texto técnico del
+    /// framework, que no puede confundirse con un límite (P1-E1b).
+    /// </summary>
+    [Fact]
+    public void Un_zip_danado_no_se_confunde_con_un_limite_superado()
+    {
+        var danado = new byte[] { 0x50, 0x4B, 0x03, 0x04, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05 };
+
+        var extraer = () => ExtractorZip.Extraer(danado, MaximoEntradas, MaximoPorEntrada, PresupuestoHolgado);
+
+        extraer.Should().Throw<InvalidDataException>(
+            "no es un límite superado: su mensaje es del framework y no se enseña, va al aviso genérico de .zip ilegible");
     }
 
     [Fact]

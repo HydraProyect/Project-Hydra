@@ -24,7 +24,7 @@ using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Visitas.Pages;
 
-public partial class Visitas : ComponentBase
+public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 {
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
@@ -692,7 +692,7 @@ public partial class Visitas : ComponentBase
             var resultado = await Mediator.Send(new MarcarNotificadoClienteCommand(detalle.Id, notificado));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 await RecargarAsync();
                 if (_detalle?.Id == detalle.Id)
                     await AbrirDetalleAsync(detalle.Id);
@@ -887,7 +887,7 @@ public partial class Visitas : ComponentBase
             var resultado = await Mediator.Send(new MarcarNotificadoClienteCommand(id, notificado));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 await RecargarAsync();
                 return;
             }
@@ -924,7 +924,7 @@ public partial class Visitas : ComponentBase
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
             }
             else
             {
@@ -963,7 +963,7 @@ public partial class Visitas : ComponentBase
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
             }
             else
             {
@@ -1046,7 +1046,7 @@ public partial class Visitas : ComponentBase
             var resultado = await Mediator.Send(new CancelarVisitasCommand(_seleccionados.ToList(), _motivoCancelacion));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

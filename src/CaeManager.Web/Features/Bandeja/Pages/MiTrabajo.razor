@@ -1,5 +1,6 @@
 @page "/mi-trabajo"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Web.Features.Bandeja.Recursos
@@ -7,6 +8,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosMiTrabajo> Textos
 
+<LimiteDeErrores Pagina="this">
 @* Mi trabajo Gen2, Nivel 1 multi-Tenant: mockup «Cola operativa multi-Tenant»
    (Mi trabajo.dc.html) sobre CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.
    Toda la cola de cada Tenant está aquí: lo urgente a la vista y el resto tras
@@ -294,3 +296,4 @@
         </div>
     }
 </div>
+</LimiteDeErrores>

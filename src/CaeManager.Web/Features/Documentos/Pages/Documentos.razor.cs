@@ -33,7 +33,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Features.Documentos.Pages;
 
-public partial class Documentos : ComponentBase, IDisposable
+public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
@@ -649,7 +649,7 @@ public partial class Documentos : ComponentBase, IDisposable
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
             }
             else
             {
@@ -766,7 +766,7 @@ public partial class Documentos : ComponentBase, IDisposable
             // texto genérico que se comía el motivo que dio el servidor.
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -954,7 +954,7 @@ public partial class Documentos : ComponentBase, IDisposable
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -986,7 +986,7 @@ public partial class Documentos : ComponentBase, IDisposable
         var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(id), token);
         if (resultado.EsFallido)
         {
-            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            ToastService.MostrarError(resultado.Error);
             return;
         }
 

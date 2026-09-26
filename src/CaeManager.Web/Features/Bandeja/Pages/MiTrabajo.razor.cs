@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Components.Forms;
 
 namespace CaeManager.Web.Features.Bandeja.Pages;
 
-public partial class MiTrabajo : ComponentBase, IDisposable
+public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     /// <summary>
     /// Cultura de las fechas: catalán si la interfaz está en catalán y español en

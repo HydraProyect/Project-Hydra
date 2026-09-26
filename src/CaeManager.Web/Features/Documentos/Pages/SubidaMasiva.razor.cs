@@ -59,7 +59,7 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 /// que <see cref="DescartarArchivoHuerfanoAsync"/> ya documenta para el
 /// caso general.
 /// </summary>
-public partial class SubidaMasiva : ComponentBase, IDisposable
+public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     private const int MaximoArchivosPorLote = 60;
 
@@ -279,11 +279,13 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
                             LimitesArchivoSubido.TamanoMaximoBytes,
                             presupuestoRestante);
                     }
-                    catch (InvalidDataException ex)
+                    catch (LimiteDeZipSuperadoException ex)
                     {
                         // Límite superado: es el caso previsto, no un fallo.
                         // El .zip se descarta entero y el lote continúa con
-                        // el resto de archivos.
+                        // el resto de archivos. Solo el mensaje de ESTE tipo se
+                        // enseña: un .zip dañado lanza InvalidDataException con
+                        // texto técnico del framework, que va al bloque de abajo.
                         Logger.LogWarning(
                             "Se descartó un .zip que supera los límites de descompresión en la subida múltiple: {Motivo}",
                             ex.Message);
@@ -577,7 +579,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
             if (resultado.EsFallido)
             {
                 await DescartarArchivoHuerfanoAsync(archivoUrl);
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 if (!EsVigente(carga)) return;
                 MarcarError(item, resultado.Error.Mensaje);
                 return;

@@ -256,7 +256,7 @@ public partial class PlantillasTab : ComponentBase, IDisposable
 
             if (resultado.EsFallido)
             {
-                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                Toasts.MostrarError(resultado.Error);
                 return;
             }
 
