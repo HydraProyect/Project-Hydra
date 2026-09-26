@@ -67,4 +67,13 @@
   <data name="CambiosSinGuardarDescartar" xml:space="preserve">
     <value>Sortir i descartar</value>
   </data>
+  <data name="DescartarCambiosTitulo" xml:space="preserve">
+    <value>Vols descartar els canvis?</value>
+  </data>
+  <data name="DescartarCambiosMensaje" xml:space="preserve">
+    <value>Hi ha canvis que encara no s'han desat. Si tanques, es perden.</value>
+  </data>
+  <data name="DescartarCambiosConfirmar" xml:space="preserve">
+    <value>Descartar els canvis</value>
+  </data>
 </root>

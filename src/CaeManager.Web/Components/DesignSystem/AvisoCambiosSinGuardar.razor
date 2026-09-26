@@ -26,9 +26,10 @@
     Solo funciona en componentes interactivos: en una página estática (las de cuenta y
     2FA) no hay circuito que reciba el evento de navegación.
 
-    Qué NO cubre: cerrar el drawer o el modal que contiene el formulario (la X, Escape o
-    «Cancelar») no es navegar. Ese cierre lo gobierna cada Drawer/Modal con
-    CerrarAlHacerClicFuera.
+    Qué NO cubre: cerrar el drawer o el modal que contiene el formulario no es navegar.
+    La X, Escape o el clic en el fondo preguntan «¿Descartar cambios?» si el formulario
+    pasa ese mismo HayCambios a su Drawer/Modal (ConfirmarDescartarCambios, P1-E2b);
+    «Cancelar» es una decisión explícita y cierra sin preguntar.
 *@
 
 <NavigationLock OnBeforeInternalNavigation="AntesDeSalirAsync" ConfirmExternalNavigation="HayCambios()" />

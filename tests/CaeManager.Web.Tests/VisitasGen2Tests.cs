@@ -962,6 +962,8 @@ public class VisitasGen2Tests : BunitContext
         await AbrirNuevaVisitaAsync(cut);
         await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Acceso por la puerta 3" });
         await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+        // P1-E2b (decisión del propietario, 2026-09-26): la X con cambios pregunta antes de cerrar.
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
 
         await cut.InvokeAsync(() => navegacion.NavigateTo("/visitas"));
 

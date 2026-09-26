@@ -27,6 +27,9 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
 
     private static readonly Regex PatronUsoDelAviso = new(@"<AvisoCambiosSinGuardar\b", RegexOptions.Compiled);
 
+    /// <summary>Un Drawer o un Modal que recibe HayCambios: cerrarlo con la X, Escape o el fondo pregunta.</summary>
+    private static readonly Regex PatronContenedorQuePregunta = new(@"<(Drawer|Modal)\b[^>]*\bHayCambios=", RegexOptions.Compiled);
+
     /// <summary>
     /// Formularios con el aviso puesto. Solo crece: un formulario nuevo con estado que se
     /// pueda perder se añade aquí al protegerlo.
@@ -43,6 +46,34 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
         "src/CaeManager.Web/Features/Vehiculos/Pages/Vehiculos.razor",
         "src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor",
     ];
+
+    /// <summary>
+    /// P1-E2b (decisión del propietario, 2026-09-26): en estos ficheros el Drawer o Modal del
+    /// formulario recibe su HayCambios, así que cerrarlo con la X, Escape o un clic en el
+    /// fondo con cambios pregunta «¿Descartar cambios?». Solo crece.
+    /// </summary>
+    private static readonly string[] ContenedoresQuePreguntanAlCerrar =
+    [
+        "src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor",
+        "src/CaeManager.Web/Features/Documentos/Components/PlataformaTab.razor",
+        "src/CaeManager.Web/Features/Documentos/Components/RevisionIaTab.razor",
+        "src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor",
+    ];
+
+    [Fact]
+    public void Los_drawers_y_modales_protegidos_preguntan_al_cerrar()
+    {
+        var raiz = RaizDelRepositorio();
+
+        var sinPregunta = ContenedoresQuePreguntanAlCerrar
+            .Where(ruta => !File.Exists(Path.Combine(raiz, ruta))
+                || !PatronContenedorQuePregunta.IsMatch(File.ReadAllText(Path.Combine(raiz, ruta))))
+            .ToList();
+
+        sinPregunta.Should().BeEmpty(
+            "el Drawer o Modal de estos formularios recibía HayCambios; sin él, la X, Escape o el clic en el fondo " +
+            "vuelven a tirar lo escrito sin preguntar (o el fichero se movió sin actualizar la lista)");
+    }
 
     [Fact]
     public void Solo_el_aviso_comun_monta_un_NavigationLock()
@@ -88,6 +119,12 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
 
         PatronUsoDelAviso.IsMatch("<AvisoCambiosSinGuardar HayCambios=\"() => HayCambiosSinGuardar\" />").Should().BeTrue();
         PatronUsoDelAviso.IsMatch("<AvisoCambiosSinGuardarOtro />").Should().BeFalse();
+
+        PatronContenedorQuePregunta.IsMatch("<Drawer HayCambios=\"() => HayCambiosSinGuardar\" Visible=\"_drawerVisible\">").Should().BeTrue();
+        PatronContenedorQuePregunta.IsMatch("<Modal Visible=\"_v\" HayCambios=\"() => X\">").Should().BeTrue();
+        PatronContenedorQuePregunta.IsMatch("<Drawer Visible=\"_drawerVisible\">").Should().BeFalse();
+        PatronContenedorQuePregunta.IsMatch("<AvisoCambiosSinGuardar HayCambios=\"X\" />").Should().BeFalse(
+            "el aviso de navegación no es el Drawer ni el Modal");
     }
 
     /// <summary>Guarda: el componente existe y el recorrido ve el árbol real; si no, las reglas de arriba pasarían en vacío.</summary>
