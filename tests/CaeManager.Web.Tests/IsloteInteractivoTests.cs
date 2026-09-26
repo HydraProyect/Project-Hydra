@@ -102,11 +102,10 @@ public class IsloteInteractivoTests : BunitContext
     [Fact]
     public void Un_islote_real_de_MainLayout_que_falla_al_iniciar_no_tumba_el_circuito()
     {
-        IRenderedComponent<SesionDelCircuito>? cut = null;
-        var render = () => cut = Render<SesionDelCircuito>();
+        var render = () => Render<SesionDelCircuito>();
 
-        render.Should().NotThrow("SesionDelCircuito es IsloteInteractivo: el fallo de su OnInitializedAsync se contiene");
-        cut!.WaitForAssertion(() => cut.Find("[data-limite-errores-compacto]"));
+        var cut = render.Should().NotThrow("SesionDelCircuito es IsloteInteractivo: el fallo de su OnInitializedAsync se contiene").Subject;
+        cut.WaitForAssertion(() => cut.Find("[data-limite-errores-compacto]"));
         _alertas.Capturadas.Should().ContainSingle();
         cut.Markup.Should().NotContain(DetalleInterno);
     }
