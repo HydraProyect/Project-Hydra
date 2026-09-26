@@ -1264,6 +1264,13 @@ jobs:
       - name: deploy/vigilar-host.tests.sh
         run: bash deploy/vigilar-host.tests.sh
 
+      # P1-F1: vuelta atrás a una imagen caemanager:<sha> retenida, sin
+      # reconstruir ni deshacer esquema, con docker falso. Incluye su prueba de
+      # sensibilidad (mutaciones sobre /salud, la imagen en marcha y el
+      # esquema) y lee las migraciones reales del repositorio.
+      - name: deploy/volver-atras.tests.sh
+        run: bash deploy/volver-atras.tests.sh
+
       - name: deploy/ci-deploy-secretos.tests.sh
         run: bash deploy/ci-deploy-secretos.tests.sh
 

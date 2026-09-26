@@ -1130,6 +1130,15 @@ volcar_diagnostico_si_falla() {
 
     volcar_diagnostico_memoria
 
+    # P1-F1: el despliegue llegó a sano, así que entra en el historial del
+    # entorno (del que sale el «anterior» de deploy/volver-atras.sh) y se
+    # retiran las imágenes caemanager:<sha> que exceden las N retenidas.
+    # `|| echo`: ninguno de los dos convierte en fallo un despliegue sano.
+    bash /opt/talveg/deploy/imagenes-retenidas.sh registrar "$ENTORNO" "$SHA" < /dev/null \
+        || echo "::warning::no se pudo registrar $SHA en el historial de $ENTORNO: «volver-atras.sh $ENTORNO anterior» no lo verá."
+    bash /opt/talveg/deploy/imagenes-retenidas.sh retener < /dev/null \
+        || echo "::warning::la retención de imágenes falló: revisa 'docker image ls caemanager'."
+
     # Solo lectura y sin imprimir valores (P18b). `|| true`: una comprobación de
     # diagnóstico nunca debe convertir en fallo un despliegue que ya llegó a sano
     # (set -e está activo en este fichero).

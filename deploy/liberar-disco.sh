@@ -60,19 +60,21 @@ liberar() {
   # mismo sigue apuntando a la imagen actual, que por tanto esta en uso y
   # queda protegida sin que este guion tenga que llevar la cuenta de cual es.
   #
-  # No hay ninguna imagen vieja que el rollback necesite conservar: F3
-  # (tecnico/f3-analisis-pipeline-y-rollback-2026-08-25.md, repositorio de
-  # negocio) deja escrito que no existe rollback automatico de aplicacion —
-  # "volver a una version anterior" es volver a desplegar un SHA anterior.
-  # Desde el 2026-09-23 cada despliegue carga `caemanager:<sha>`, firmada en
-  # CI, y un rollback llega igual: con su propia imagen firmada, nunca
-  # reutilizando una local. Las etiquetas `caemanager:<sha>` que ya no usa
-  # ningun contenedor son justo lo que esta poda debe llevarse.
+  # Excepcion, desde P1-F1 (2026-09-26): las imagenes `caemanager:<sha>` que
+  # construye deploy.yml llevan la etiqueta es.talveg.despliegue y esta poda
+  # NO se las lleva — son a las que vuelve deploy/volver-atras.sh sin
+  # reconstruir. Hasta entonces, «volver a una version anterior» era volver a
+  # desplegar un SHA anterior con su propia imagen firmada. Quien las retira
+  # ahora es deploy/imagenes-retenidas.sh (`retener`, tras cada despliegue
+  # sano), que conserva las N ultimas de cada entorno: sin ella se acumularian
+  # como en el incidente del 2026-09-13. Las `caemanager:<sha>` anteriores a
+  # P1-F1 no llevan la etiqueta y siguen cayendo aqui, igual que cualquier otra
+  # imagen sin uso (postgres, caddy o seq de versiones ya retiradas).
   #
   # Hasta el 2026-09-23 esta poda tambien se llevaba la imagen intermedia
   # del build multi-stage que corria en el VPS; ya no se compila aqui, asi
   # que no queda cache de build que perder.
-  docker image prune -af || true
+  docker image prune -af --filter "label!=es.talveg.despliegue" || true
 }
 
 uso=$(uso_actual)
