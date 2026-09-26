@@ -234,6 +234,8 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
         // empresaId, y quien trae los tres retoma directamente en
         // "trabajadores".
         _pasoActual = Pasos.Select(p => p.Clave).FirstOrDefault(p => !_pasosCompletados.Contains(p)) ?? "trabajadores";
+
+        FijarInstantaneasFormulario();
     }
 
     private IReadOnlyList<BreadcrumbElemento>? _miguero;
@@ -530,6 +532,8 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
             _direccionCentro = string.Empty;
             _contactoCentro = string.Empty;
             _contratoVigenteHasta = string.Empty;
+            // El centro ya está guardado: el formulario vacío es el nuevo punto de partida.
+            FijarInstantaneasFormulario();
         }
         catch (ValidationException ex)
         {
@@ -590,6 +594,7 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
             _dniTrabajador = string.Empty;
             _emailTrabajador = string.Empty;
             _puestoTrabajador = string.Empty;
+            FijarInstantaneasFormulario();
 
             if (_ultimoCentroId is not { } centroId)
             {
@@ -662,14 +667,74 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
         return _ultimoTrabajadorAsignacionPendiente ? "" : " y asignado al centro";
     }
 
-    private Task VerClienteAsync() =>
-        _clienteId is null ? Task.CompletedTask : WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, _clienteId.Value, _clienteNombre, "informacion");
+    private Task VerClienteAsync()
+    {
+        if (_clienteId is null) return Task.CompletedTask;
+        FijarInstantaneasFormulario();
+        return WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, _clienteId.Value, _clienteNombre, "informacion");
+    }
 
-    private Task VerEmpresaAsync() =>
-        _empresaId is null ? Task.CompletedTask : WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, _empresaId.Value, _empresaNombre, "informacion");
+    private Task VerEmpresaAsync()
+    {
+        if (_empresaId is null) return Task.CompletedTask;
+        FijarInstantaneasFormulario();
+        return WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, _empresaId.Value, _empresaNombre, "informacion");
+    }
 
-    private Task AnadirRequisitosAsync() =>
-        _ultimoCentroId is null ? Task.CompletedTask : WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, _ultimoCentroId.Value, _ultimoCentroNombre, "requisitos");
+    private Task AnadirRequisitosAsync()
+    {
+        if (_ultimoCentroId is null) return Task.CompletedTask;
+        FijarInstantaneasFormulario();
+        return WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, _ultimoCentroId.Value, _ultimoCentroNombre, "requisitos");
+    }
+
+    /// <summary>«Cancelar» del primer paso: decisión explícita de salir, no pregunta.</summary>
+    private void Cancelar()
+    {
+        FijarInstantaneasFormulario();
+        NavigationManager.NavigateTo("/clientes");
+    }
+
+    // P1-E2b: una instantánea por paso. Lo ya creado en pasos anteriores no se pierde al
+    // salir; lo que se pierde es lo escrito en el paso en curso y todavía sin guardar.
+    // Guardar un centro o un trabajador vacía el formulario y refija las instantáneas.
+    private readonly InstantaneaFormulario _instantaneaEmpresa = new();
+    private readonly InstantaneaFormulario _instantaneaCliente = new();
+    private readonly InstantaneaFormulario _instantaneaCentro = new();
+    private readonly InstantaneaFormulario _instantaneaTrabajador = new();
+
+    /// <summary>
+    /// P1-E2b: si el paso en curso tiene algo escrito sin guardar. Lo lee
+    /// AvisoCambiosSinGuardar al navegar. «Cancelar» y las salidas de «Terminar aquí»
+    /// (y las fichas que se abren al acabar) son decisiones explícitas: refijan las
+    /// instantáneas antes de navegar y no preguntan.
+    /// </summary>
+    private bool HayCambiosSinGuardar => _pasoActual switch
+    {
+        "empresa" => _instantaneaEmpresa.Difiere(ValoresPasoEmpresa()),
+        // Con el Cliente empresarial ya creado el paso no pinta formulario.
+        "cliente" => _clienteId is null && _instantaneaCliente.Difiere(ValoresPasoCliente()),
+        "centro" => _instantaneaCentro.Difiere(ValoresPasoCentro()),
+        _ => _instantaneaTrabajador.Difiere(ValoresPasoTrabajadores()),
+    };
+
+    private object?[] ValoresPasoEmpresa() => [_empresaExistente, _empresaExistenteId, _razonSocialEmpresa, _cifEmpresa];
+
+    private object?[] ValoresPasoCliente() =>
+        [_clienteExistente, _clienteExistenteId, _razonSocialCliente, _cifCliente, _esCriticoCliente, _notasCliente];
+
+    private object?[] ValoresPasoCentro() => [_nombreCentro, _codigoCentro, _direccionCentro, _contactoCentro, _contratoVigenteHasta];
+
+    private object?[] ValoresPasoTrabajadores() =>
+        [_nombreTrabajador, _apellidosTrabajador, _dniTrabajador, _puestoTrabajador, _emailTrabajador];
+
+    private void FijarInstantaneasFormulario()
+    {
+        _instantaneaEmpresa.Fijar(ValoresPasoEmpresa());
+        _instantaneaCliente.Fijar(ValoresPasoCliente());
+        _instantaneaCentro.Fijar(ValoresPasoCentro());
+        _instantaneaTrabajador.Fijar(ValoresPasoTrabajadores());
+    }
 
     private static string? ObtenerError(Dictionary<string, string> errores, string campo) => errores.GetValueOrDefault(campo);
 

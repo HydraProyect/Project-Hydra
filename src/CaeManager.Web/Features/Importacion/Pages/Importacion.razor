@@ -614,5 +614,7 @@
     <DialogoConfirmacion Visible="_mostrarDialogoImportar" VisibleChanged="CambiarVisibilidadDialogoImportar"
                          Titulo="@Textos["DialogoTitulo"]" Mensaje="@MensajeDialogoImportar"
                          TextoBotonConfirmar="@Textos["DialogoBotonConfirmar"]" EnProgreso="_importando" OnConfirmar="ConfirmarImportacionAsync" />
+
+    <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" />
 </div>
 </LimiteDeErrores>

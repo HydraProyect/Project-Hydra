@@ -90,6 +90,10 @@
         {
             <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana"
                       EtiquetaGrupo="Secciones de facturación">
+                @* Dentro de Pestanas a propósito: cambiar de pestaña cierra el alta y la
+                   edición de tarifa (CambiarPestana), así que lo escrito se pierde también
+                   ahí y el cambio de pestaña pregunta con este mismo aviso. *@
+                <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
                 @if (_pestanaActiva == PestanaTarifas)
                 {
                     <section class="seccion-facturacion">
@@ -225,7 +229,7 @@
                             else if (_conceptosDisponibles.Count > 0)
                             {
                                 <div class="acciones-seccion">
-                                    <Boton OnClick="() => _mostrarFormularioNueva = true" Variante="VarianteBoton.Secundario">
+                                    <Boton OnClick="AbrirFormularioNueva" Variante="VarianteBoton.Secundario">
                                         + Añadir tarifa
                                     </Boton>
                                 </div>
