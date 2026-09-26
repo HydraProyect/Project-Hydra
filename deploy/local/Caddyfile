@@ -15,12 +15,62 @@
 	email {$ACME_EMAIL}
 }
 
+# Relevo sin corte (P1-F2). La aplicación corre en dos ranuras, azul y verde
+# (docker-compose.*.yml); deploy/relevo-app.sh arranca la versión nueva en la
+# ranura libre, espera a /salud y reescribe el fichero importado, que solo
+# contiene la línea `to <activa>:8080 [<saliente>:8080]` — la activa primero —
+# y recarga Caddy. Lo demás del proxy vive aquí, revisado, y no se genera:
+#
+# - lb_policy cookie: afinidad por cookie técnica (talveg_ranura, HMAC de la
+#   dirección del upstream). Quien ya tenía la página abierta sigue en la
+#   saliente —su circuito Blazor, sus navegaciones mejoradas, los módulos JS
+#   con huella y la reconexión de /_blazor— mientras drena; quien llega sin
+#   cookie o con la de un upstream que ya no está va a `first`, la activa.
+# - stream_close_delay: sin ella, una recarga cierra al instante (código 1001)
+#   todos los WebSocket abiertos, también los de los circuitos de la
+#   saliente. Con ella, los de la configuración anterior se cierran cuando
+#   vence el plazo, también los de la ranura ACTIVA. Por eso es de un día y no
+#   de poco más que el drenaje máximo (30 min): con 35 min, cada recarga
+#   (despliegue de staging o de producción, fin de un drenaje) habría forzado
+#   una reconexión de todos los circuitos abiertos 35 min después. Blazor
+#   recupera su circuito, que sigue vivo, pero con el aviso de reconexión. A la
+#   saliente la corta el fin del drenaje al pararla, no este plazo.
+# - lb_try_duration / fail_duration / max_fails: si la saliente cae antes de
+#   tiempo, la petición se reintenta y cae en la activa en vez de dar 502.
+#   max_fails 3 y fail_duration 2s para que un corte breve de la ÚNICA ranura
+#   (fuera de un relevo solo hay una) no se alargue: con fail_duration 10s,
+#   una parada de 1 s dio 502 durante ~10 s; con 2s, la misma petición
+#   esperó y respondió 200 en 2,05 s (antes de este cambio, 502 inmediato).
+#
+# Medido el 2026-09-26 con caddy:2.11.4-alpine (el digest del compose) en
+# WSL: con stream_close_delay el WebSocket abierto sigue en la saliente tras
+# la recarga y solo se corta al parar la saliente; sin ella, cierre 1001 en la
+# recarga. La cookie vieja va a la saliente, una petición sin cookie a la
+# activa; parada la saliente, la petición con cookie vieja reintenta y
+# responde la activa (200). Detalle en el runbook de despliegue (Negocio).
+#
+# El `import` va DENTRO del bloque a propósito: un snippet con bloque
+# invocado desde un fichero importado pierde el bloque (medido: `caddy adapt`
+# lo devolvía sin stream_close_delay).
+#
+# Los nombres de los upstream son container_name (caemanager-app-azul...),
+# únicos en la máquina; el nombre de servicio existe en los dos proyectos
+# Compose a la vez en la red "caemanager-edge" y sería ambiguo.
+(relevo_app) {
+	lb_policy cookie talveg_ranura {
+		fallback first
+	}
+	lb_try_duration 5s
+	fail_duration 2s
+	max_fails 3
+	stream_close_delay 24h
+}
+
 {$DOMINIO} {
-	# "caemanager-app" es el container_name, no el nombre de servicio "app" —
-	# en la red "caemanager-edge" (compartida con el stack de staging) el
-	# nombre de servicio "app" existe en los dos proyectos Compose a la vez y
-	# sería ambiguo; el container_name es único en toda la máquina.
-	reverse_proxy caemanager-app:8080
+	reverse_proxy {
+		import /etc/caddy/ranuras/produccion.caddy
+		import relevo_app
+	}
 }
 
 staging.talveg.es {
@@ -28,5 +78,8 @@ staging.talveg.es {
 	# Caddyfile y su .env son de producción — no tiene sentido acoplar el .env
 	# de producción a una variable que solo staging necesita. Cambiarlo aquí
 	# si el subdominio de staging cambia alguna vez.
-	reverse_proxy caemanager-staging-app:8080
+	reverse_proxy {
+		import /etc/caddy/ranuras/staging.caddy
+		import relevo_app
+	}
 }

@@ -43,8 +43,13 @@ public class SupuestosDelProxyDeBordeTests
     }
 
     [Theory]
-    [InlineData("docker-compose.produccion.yml", "caemanager-app")]
-    [InlineData("docker-compose.staging.yml", "caemanager-staging-app")]
+    // Las dos ranuras de cada entorno (P1-F2). La verde hereda la definición de
+    // la azul con `extends`: un `ports:` en la azul lo publica también la verde y
+    // lo caza el caso de la azul; uno añadido solo a la verde, el de la verde.
+    [InlineData("docker-compose.produccion.yml", "caemanager-app-azul")]
+    [InlineData("docker-compose.produccion.yml", "caemanager-app-verde")]
+    [InlineData("docker-compose.staging.yml", "caemanager-staging-app-azul")]
+    [InlineData("docker-compose.staging.yml", "caemanager-staging-app-verde")]
     public void La_aplicacion_no_publica_puertos_al_exterior(string compose, string contenedor)
     {
         var servicio = BloqueDelServicioApp(File.ReadAllText(RutaDeDespliegue(compose)), contenedor);

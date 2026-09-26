@@ -1126,7 +1126,13 @@ volcar_diagnostico_si_falla() {
     volcar_contadores_memoria_host "tras cargar la imagen"
     export IMAGEN_TAG="$SHA"
 
-    if ! docker compose "${args[@]}" up -d --wait --wait-timeout 180 --no-build; then
+    # P1-F2: relevo sin corte en vez de recrear el contenedor de la app. La
+    # versión nueva arranca en la ranura libre (app-azul/app-verde) junto a la
+    # que sirve, con el mismo `up -d --wait --no-build` de siempre para los
+    # demás servicios; cuando está sana, Caddy conmuta y la anterior drena sus
+    # circuitos. Si no llega a sana, la anterior sigue sirviendo y se sale con 1
+    # como antes. Ver la cabecera de deploy/relevo-app.sh.
+    if ! bash /opt/talveg/deploy/relevo-app.sh desplegar "$ENTORNO" "$SHA" < /dev/null; then
         echo "=== Despliegue no llego a sano — estado de los contenedores ===" >&2
         docker compose "${args[@]}" ps >&2 || true
         for contenedor in $(docker compose "${args[@]}" ps --format '{{.Name}}' 2>/dev/null || true); do
@@ -1161,7 +1167,8 @@ volcar_diagnostico_si_falla() {
 
 case "$ENTORNO" in
   staging)
-# --wait: `up -d` a secas devuelve en cuanto los contenedores ARRANCAN, no
+# --wait (el `up` lo hace ahora deploy/relevo-app.sh, con el mismo --wait y
+# --wait-timeout 180): `up -d` a secas devuelve en cuanto los contenedores ARRANCAN, no
 # cuando estan sanos. El 2026-08-29 el despliegue de 669e3108 reporto
 # "success" en staging y produccion mientras la aplicacion de staging estaba
 # en `Restarting (139)` en bucle: el CD dio por bueno un despliegue roto y el

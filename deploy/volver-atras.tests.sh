@@ -3,7 +3,8 @@
 # deploy/listar-migraciones-ef.sh (P1-F1), y de cómo los enganchan ci-deploy.sh
 # y deploy.yml.
 #
-# `docker` y `flock` son dobles: el estado del VPS (qué imagen corre cada
+# `docker`, `flock` y el relevo de la app (RELEVO_APP, deploy/relevo-app.sh,
+# que tiene sus propios tests) son dobles: el estado del VPS (qué imagen corre cada
 # contenedor, qué imágenes hay cargadas con qué etiquetas, qué migraciones tiene
 # la base, si /salud responde) vive en ficheros bajo $TMP/estado, y cada
 # llamada a docker se anota en $DOCKER_LOG. Corren en CI sin VPS ni Docker.
@@ -67,7 +68,24 @@ cat > "$TMP/bin/flock" <<'EOF'
 [ "${FLOCK_FALLA:-0}" = 1 ] && exit 1
 exit 0
 EOF
-chmod +x "$TMP/bin/docker" "$TMP/bin/flock"
+# Doble del relevo (P1-F2): `activa` da el contenedor del escenario si existe;
+# `desplegar` se anota en $DOCKER_LOG y deja ese contenedor en la imagen de
+# destino, salvo COMPOSE_FALLA (no llega a sano) o COMPOSE_NO_CAMBIA (sale 0
+# sin cambiarla: lo tiene que cazar la comprobación de salud de volver-atras).
+cat > "$TMP/bin/relevo-app.sh" <<'EOF'
+#!/bin/bash
+case "$1" in
+  activa) [ -f "$ESTADO/contenedores/$APP" ] || exit 1; echo "$APP" ;;
+  recargar) echo "relevo recargar $2" >> "$DOCKER_LOG"; [ "${RECARGA_FALLA:-0}" = 1 ] && exit 1; exit 0 ;;
+  desplegar)
+    echo "relevo desplegar $2 $3" >> "$DOCKER_LOG"
+    [ "${COMPOSE_FALLA:-0}" = 1 ] && exit 1
+    [ "${COMPOSE_NO_CAMBIA:-0}" = 1 ] || echo "caemanager:$3" > "$ESTADO/contenedores/$APP" ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod +x "$TMP/bin/docker" "$TMP/bin/flock" "$TMP/bin/relevo-app.sh"
+export RELEVO_APP="$TMP/bin/relevo-app.sh"
 export PATH="$TMP/bin:$PATH" DOCKER_LOG="$TMP/docker.log" ESTADO="$TMP/estado"
 export DIR_HISTORIAL_DESPLIEGUES="$TMP/historial" CONFIG_DESPLIEGUE="$TMP/despliegue.conf"
 export RAIZ_DESPLIEGUE="$TMP/raiz" VOLVER_ATRAS_ESPERA_SALUD=0 VOLVER_ATRAS_INTENTOS_SALUD=3
@@ -111,7 +129,7 @@ volver() {
   while [ "$1" != "--" ]; do vars+=("$1"); shift; done; shift
   salida=$(env "${vars[@]}" bash "$GUION" "$@" 2>&1); codigo=$?
 }
-llamadas_up() { grep -c " up " "$DOCKER_LOG" || true; }
+llamadas_up() { grep -c "^relevo desplegar " "$DOCKER_LOG" || true; }
 
 echo "listar-migraciones-ef.sh"
 ids="$(bash "$LISTAR" "$AQUI/..")"; codigo=$?
@@ -242,16 +260,16 @@ escenario produccion "$B"; historial produccion "$A" "$B"; imagen "$A"; imagen "
 volver -- produccion anterior
 comprobar "anterior: sale con 0" 0 "$codigo"
 comprobar "anterior: completa" si "$(contiene "VUELTA ATRÁS COMPLETADA: produccion corre caemanager:$A" "$salida")"
-comprobar "anterior: up sin build del stack de producción con IMAGEN_TAG=A" si \
-  "$(contiene "compose -f docker-compose.produccion.yml up -d --wait --wait-timeout 180 --no-build IMAGEN_TAG=$A" "$(cat "$DOCKER_LOG")")"
+comprobar "anterior: relevo de producción a A" si \
+  "$(contiene "relevo desplegar produccion $A" "$(cat "$DOCKER_LOG")")"
 comprobar "anterior: nunca build, load ni pull" 0 "$(grep -cE '(^| )(build|load|pull)( |$)' "$DOCKER_LOG")"
 comprobar "anterior: consulta /salud" si "$(contiene "exec caemanager-app curl -fsS --max-time 5 http://localhost:8080/salud" "$(cat "$DOCKER_LOG")")"
 
 escenario staging "$B"; imagen "$A"
 volver -- staging "$A"
 comprobar "staging con SHA explícito: sale con 0" 0 "$codigo"
-comprobar "staging: usa su compose y su .env" si \
-  "$(contiene "compose -f docker-compose.staging.yml --env-file .env.staging up" "$(cat "$DOCKER_LOG")")"
+comprobar "staging: relevo de staging" si \
+  "$(contiene "relevo desplegar staging $A" "$(cat "$DOCKER_LOG")")"
 comprobar "staging: lee la base de staging" si "$(contiene "exec caemanager-staging-db psql" "$(cat "$DOCKER_LOG")")"
 
 escenario produccion "$B"; imagen "$A"; printf '%s,20260301000000_Nueva' "$MIGS" > "$ESTADO/base"
@@ -311,6 +329,11 @@ comprobar "up que no llega a sano: se detiene" 1 "$codigo"
 escenario produccion "$A"; imagen "$A"
 volver -- produccion "$A"
 comprobar "destino igual al actual y sano: nada que hacer" "0 0" "$codigo $(llamadas_up)"
+comprobar "  pero antes recarga Caddy con las ranuras (un relevo interrumpido pudo dejarlo en otra)" si \
+  "$(contiene "relevo recargar produccion" "$(cat "$DOCKER_LOG")")"
+escenario produccion "$A"; imagen "$A"
+volver RECARGA_FALLA=1 -- produccion "$A"
+comprobar "  y si la recarga falla, no da por buena la vuelta atrás" 1 "$codigo"
 comprobar "  tras comprobar /salud" 1 "$(cat "$ESTADO/salud_llamadas")"
 
 escenario produccion "$A"; imagen "$A"
@@ -335,7 +358,7 @@ done
 echo "ci-deploy.sh y deploy.yml"
 FUENTE="$AQUI/ci-deploy.sh"
 linea() { grep -n -x -- "$1" "$FUENTE" | head -1 | cut -d: -f1 || true; }
-L_UP="$(linea '    if ! docker compose "\${args\[@\]}" up -d --wait --wait-timeout 180 --no-build; then')"
+L_UP="$(linea '    if ! bash /opt/talveg/deploy/relevo-app.sh desplegar "\$ENTORNO" "\$SHA" < /dev/null; then')"
 L_REG="$(linea '    bash /opt/talveg/deploy/imagenes-retenidas.sh registrar "\$ENTORNO" "\$SHA" < /dev/null \\')"
 L_RET="$(linea '    bash /opt/talveg/deploy/imagenes-retenidas.sh retener "\$ENTORNO" "\$SHA" < /dev/null \\')"
 comprobar "ci-deploy registra y retiene tras un up sano, en ese orden" si \
