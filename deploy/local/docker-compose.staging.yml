@@ -12,18 +12,18 @@
 #    80/443 del host, y levantar un segundo Caddy en puertos alternativos no
 #    sirve porque Let's Encrypt necesita el 80 (HTTP-01) o el 443 (TLS-ALPN-01)
 #    reales. Este stack no publica ningún puerto 80/443 propio — en vez de
-#    eso, el contenedor `app` se une a la red externa "caemanager-edge" que
+#    eso, la ranura de la app (app-azul/app-verde) se une a la red externa "caemanager-edge" que
 #    crea docker-compose.produccion.yml, y el Caddyfile de producción gana un
 #    segundo bloque de sitio para este dominio (ver ese Caddyfile).
 # 3. Imagen: la misma que producción, `caemanager:<sha>`. En el VPS no se
 #    compila: el job `imagen` de .github/workflows/deploy.yml la construye en
 #    el runner, la firma y la envía por SSH, y deploy/ci-deploy.sh la verifica,
 #    la carga y arranca con `--no-build` (incidente del 2026-09-22: el build en
-#    el VPS lo dejaba sin memoria). Sin `build:`: ver `app` más abajo.
+#    el VPS lo dejaba sin memoria). Sin `build:`: ver `app-azul` más abajo.
 #
 # Requisito previo: producción ya desplegada con la red "caemanager-edge"
 # (este mismo cambio, en docker-compose.produccion.yml) — sin ese requisito
-# Caddy no tiene forma de alcanzar a este `app`.
+# Caddy no tiene forma de alcanzar a las ranuras de este stack.
 #
 # Uso:  cp .env.staging.example .env.staging   (rellenar, incluida una
 #       POSTGRES_PASSWORD PROPIA — no reutilizar la de producción)
@@ -49,7 +49,7 @@ services:
     # un `up` manual sin IMAGEN_TAG falla («No such image: caemanager:sin-
     # etiqueta») en vez de compilar en el VPS (incidente del 2026-09-22) o de
     # arrancar una imagen sin firma. Para un `up` manual con la desplegada:
-    #   IMAGEN_TAG="$(docker inspect caemanager-staging-app --format '{{.Config.Image}}' | cut -d: -f2)"
+    #   IMAGEN_TAG="$(docker inspect "$(bash /opt/talveg/deploy/relevo-app.sh activa staging)" --format '{{.Config.Image}}' | cut -d: -f2)"
     image: caemanager:${IMAGEN_TAG:-sin-etiqueta}
     pull_policy: never
     container_name: caemanager-staging-migrador
@@ -66,16 +66,22 @@ services:
       db:
         condition: service_healthy
 
-  app:
+  # Dos ranuras, app-azul y app-verde, con el mismo relevo sin corte que
+  # producción (P1-F2): ver el comentario junto a "app-azul" en
+  # docker-compose.produccion.yml y deploy/relevo-app.sh. Perfil "ranura": un
+  # `up` a secas no levanta ninguna. Qué ranura sirve:
+  # `bash /opt/talveg/deploy/relevo-app.sh activa staging`.
+  app-azul:
     # Imagen construida y firmada en CI, cargada por ci-deploy.sh, que arranca
     # con IMAGEN_TAG=<sha>. Sin `build:` y con `pull_policy: never` a propósito:
     # un `up` manual sin IMAGEN_TAG falla («No such image: caemanager:sin-
     # etiqueta») en vez de compilar en el VPS (incidente del 2026-09-22) o de
     # arrancar una imagen sin firma. Para un `up` manual con la desplegada:
-    #   IMAGEN_TAG="$(docker inspect caemanager-staging-app --format '{{.Config.Image}}' | cut -d: -f2)"
+    #   IMAGEN_TAG="$(docker inspect "$(bash /opt/talveg/deploy/relevo-app.sh activa staging)" --format '{{.Config.Image}}' | cut -d: -f2)"
     image: caemanager:${IMAGEN_TAG:-sin-etiqueta}
     pull_policy: never
-    container_name: caemanager-staging-app
+    container_name: caemanager-staging-app-azul
+    profiles: ["ranura"]
     # Techo de memoria del contenedor. Sin el, un desbordamiento dentro de la
     # app no se queda en la app: el contenedor comparte maquina con Postgres,
     # Caddy y Seq, asi que el OOM killer del kernel elige victima por su propio
@@ -100,7 +106,8 @@ services:
     # conversion) y sigue muy por debajo de los varios GB que costaba un
     # archivo hostil antes de los limites de entrada. Ajustalo con
     # LIMITE_MEMORIA_APP en el .env tras mirar `free -g` y
-    # `docker stats caemanager-app` en el servidor.
+    # `docker stats` en el servidor. Durante un drenaje hay DOS contenedores
+    # de la app de staging a la vez (el techo es por contenedor).
     mem_limit: ${LIMITE_MEMORIA_APP:-3g}
     restart: unless-stopped
     # REC-017/P39 — ver el comentario largo en docker-compose.produccion.yml
@@ -153,6 +160,14 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+      # Ver el mismo ajuste en docker-compose.produccion.yml: el relevo espera
+      # a healthy antes de conmutar Caddy.
+      start_interval: 5s
+
+  app-verde:
+    extends:
+      service: app-azul
+    container_name: caemanager-staging-app-verde
 
   db:
     # SIN mem_limit — mismo hueco declarado que en docker-compose.produccion.yml
@@ -211,7 +226,7 @@ volumes:
 networks:
   # Red externa creada por docker-compose.produccion.yml — no la crea este
   # archivo (external: true), solo se une a ella para que el Caddy de
-  # producción pueda alcanzar a "caemanager-staging-app". Nombre pinneado
+  # producción pueda alcanzar a "caemanager-staging-app-azul"/"-verde". Nombre pinneado
   # explícitamente en los dos archivos para no depender de cómo se llame
   # cada proyecto Compose.
   edge:
