@@ -279,13 +279,17 @@
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
-<Modal Visible="_mostrarGuardarFiltro" VisibleChanged="v => _mostrarGuardarFiltro = v" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarGuardarFiltro" VisibleChanged="CerrarModalGuardarFiltro" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
     <ChildContent>
         <CampoTexto Etiqueta="Nombre" Valor="@_nombreFiltroNuevo" ValorChanged="v => _nombreFiltroNuevo = v" Placeholder="Vencidos de trabajadores" />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => _mostrarGuardarFiltro = false">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => CerrarModalGuardarFiltro(false)">Cancelar</Boton>
         <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
     </Pie>
 </Modal>
+
+@* Fuera de <Pestanas>, a nivel de página: el nombre del filtro no es de ninguna pestaña,
+   y registrarlo en su ámbito haría preguntar al cambiar de pestaña. *@
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => CerrarModalGuardarFiltro(false)" />
 </LimiteDeErrores>

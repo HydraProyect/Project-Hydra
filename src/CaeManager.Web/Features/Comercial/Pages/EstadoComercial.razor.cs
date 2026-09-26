@@ -240,6 +240,22 @@ public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrabl
         _errorVincular = null;
     }
 
+    /// <summary>
+    /// P1-E2b: el formulario abre siempre vacío, así que hay algo que perder en cuanto
+    /// se ha pegado un Id de suscripción de Stripe, también mientras se confirma. Lo leen
+    /// AvisoCambiosSinGuardar y el Modal; cerrado (también tras vincular) nunca.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        _tenantAVincular is not null && !string.IsNullOrWhiteSpace(_stripeSubscriptionId);
+
+    private void CerrarVincularDescartando()
+    {
+        _tenantAVincular = null;
+        _confirmandoVincular = false;
+        _stripeSubscriptionId = string.Empty;
+        _errorVincular = null;
+    }
+
     private void CambiarIdSuscripcion(string valor)
     {
         _stripeSubscriptionId = valor;

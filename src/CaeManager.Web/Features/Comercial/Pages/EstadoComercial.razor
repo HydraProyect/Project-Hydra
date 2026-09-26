@@ -114,7 +114,7 @@
     }
 </div>
 
-<Modal Visible="FormularioVincularVisible" VisibleChanged="CerrarFormularioVincular"
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="FormularioVincularVisible" VisibleChanged="CerrarFormularioVincular"
        Titulo="Vincular suscripción de Stripe" CerrarAlHacerClicFuera="!_vinculando">
     <ChildContent>
         @if (_tenantAVincular is not null)
@@ -159,6 +159,8 @@
                      TextoBotonConfirmar="Actualizar desde Stripe"
                      EnProgreso="_actualizandoTenantId is not null"
                      OnConfirmar="ActualizarDesdeStripeAsync" />
+
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarVincularDescartando" />
 </LimiteDeErrores>
 
 @code {

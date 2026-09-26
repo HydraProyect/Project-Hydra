@@ -114,6 +114,14 @@ public partial class MiFirma : CaeManager.Web.Components.PaginaInteractiva, IAsy
         }
     }
 
+    /// <summary>
+    /// P1-E2b: hay algo sin guardar mientras el lienzo tenga un trazo a mano o un nombre
+    /// escrito (los dos marcan <see cref="_trazoIniciado"/>). La página abre siempre con el
+    /// lienzo vacío —la firma guardada no se carga en él—, así que ese estado es la
+    /// instantánea de partida; guardar, «Borrar» o cambiar de modo lo vacían.
+    /// </summary>
+    private bool HayCambiosSinGuardar => _trazoIniciado;
+
     [JSInvokable]
     public void MarcarTrazoIniciadoAsync()
     {
