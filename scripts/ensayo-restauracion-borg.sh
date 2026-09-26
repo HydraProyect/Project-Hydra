@@ -39,6 +39,9 @@
 #                          (P1-F3): hace falta para leer claves de Data Protection
 #                          cifradas con certificado. Se monta en /run/secretos:ro,
 #                          como en producción. Sin él, la app solo lee claves en claro.
+#                          Cualquier otro par NOMBRE.crt + NOMBRE.key del directorio
+#                          entra como certificado anterior (rotación): hace falta
+#                          para las claves cifradas antes de rotar.
 # Entorno (opcional):
 #   ENSAYO_IMAGEN_APP      imagen de la app; si falta, se construye del Dockerfile
 #                          de este árbol.
@@ -331,6 +334,15 @@ else
         if [ -n "$CERTIFICADO_DP" ]; then
             echo "DataProtection__Certificado__CertificadoRuta=/run/secretos/dataprotection.crt"
             echo "DataProtection__Certificado__ClavePrivadaRuta=/run/secretos/dataprotection.key"
+            n=0
+            for crt in "$CERTIFICADO_DP"/*.crt; do
+                nombre="$(basename "$crt" .crt)"
+                [ "$nombre" = dataprotection ] && continue
+                [ -r "$CERTIFICADO_DP/$nombre.key" ] || continue
+                echo "DataProtection__Certificado__Anteriores__${n}__CertificadoRuta=/run/secretos/$nombre.crt"
+                echo "DataProtection__Certificado__Anteriores__${n}__ClavePrivadaRuta=/run/secretos/$nombre.key"
+                n=$((n + 1))
+            done
         fi
         echo "Migraciones__AlArrancar=false"
         echo "Siembra__AlArrancar=false"
