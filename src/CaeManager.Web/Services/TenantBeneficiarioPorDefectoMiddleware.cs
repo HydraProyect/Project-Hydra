@@ -83,7 +83,7 @@ public class TenantBeneficiarioPorDefectoMiddleware(RequestDelegate siguiente)
         await siguiente(contexto);
     }
 
-    internal static bool DebeEvaluarse(HttpContext contexto)
+    public static bool DebeEvaluarse(HttpContext contexto)
     {
         var peticion = contexto.Request;
         return contexto.User.Identity?.IsAuthenticated == true
@@ -96,7 +96,7 @@ public class TenantBeneficiarioPorDefectoMiddleware(RequestDelegate siguiente)
     }
 
     /// <returns>La URL a la que redirigir tras fijar la cookie, o <c>null</c> si no hay Tenant por defecto.</returns>
-    internal static async Task<string?> FijarTenantPorDefectoAsync(
+    public static async Task<string?> FijarTenantPorDefectoAsync(
         HttpContext contexto,
         IMediator mediator,
         ICurrentUserService currentUserService,
