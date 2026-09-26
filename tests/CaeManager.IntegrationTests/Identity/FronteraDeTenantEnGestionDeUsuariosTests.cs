@@ -283,7 +283,9 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             sp.GetRequiredService<DirectorioUsuariosTenant>(),
             sp.GetRequiredService<CaeManagerDbContext>());
         var resultado = await new CambiarActivacionUsuarioCommandHandler(
-                cuentas, new AdministradorEnSuTenant(_actorAdministrador, sp.GetRequiredService<ITenantActual>()))
+                cuentas, new AdministradorEnSuTenant(_actorAdministrador, sp.GetRequiredService<ITenantActual>()),
+                new TransaccionDeComando(sp.GetRequiredService<CaeManagerDbContext>()),
+                new CaeManager.Infrastructure.Persistence.BloqueoCarteraUsuario(sp.GetRequiredService<CaeManagerDbContext>()))
             .Handle(new CambiarActivacionUsuarioCommand(cuentaEnUso, Activar: false), default);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
@@ -471,7 +473,8 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             {
                 ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, actor).Handle(q, cancellationToken),
                 EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
-                CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(cuentas, actor).Handle(c, cancellationToken),
+                CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
+                    cuentas, actor, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, cancellationToken),
                 EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, actor).Handle(c, cancellationToken),
                 GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, actor).Handle(c, cancellationToken),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
@@ -513,5 +516,19 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "prueba"));
             return Task.FromResult(new AuthenticationState(principal));
         }
+    }
+
+    /// <summary>Para el mediador de esta pantalla, que no abre transacción: ejecuta la operación tal cual.</summary>
+    private sealed class TransaccionDirecta : ITransaccionDeComando
+    {
+        public Task<Domain.Common.Result> EjecutarAsync(
+            Func<CancellationToken, Task<Domain.Common.Result>> operacion, CancellationToken cancellationToken = default) =>
+            operacion(cancellationToken);
+    }
+
+    private sealed class SinBloqueoCartera : CaeManager.Application.Clientes.IBloqueoCarteraUsuario
+    {
+        public Task BloquearExclusivoAsync(Guid usuarioId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task BloquearCompartidoAsync(IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

@@ -297,6 +297,20 @@ public class UsuariosGen2Tests : BunitContext
             Task.FromResult<IList<UserLoginInfo>>([]);
     }
 
+    /// <summary>Sin base de datos no hay transacción que abrir: ejecuta la operación tal cual.</summary>
+    private sealed class TransaccionDirecta : CaeManager.Application.Common.ITransaccionDeComando
+    {
+        public Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default) =>
+            operacion(cancellationToken);
+    }
+
+    /// <summary>El candado de cartera se prueba contra PostgreSQL; aquí no protege nada.</summary>
+    private sealed class SinBloqueoCartera : CaeManager.Application.Clientes.IBloqueoCarteraUsuario
+    {
+        public Task BloquearExclusivoAsync(Guid usuarioId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task BloquearCompartidoAsync(IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
     private sealed class CorreoFalso : IEmailService
     {
         public List<(string Destinatario, string Cuerpo)> Enviados { get; } = [];
@@ -511,7 +525,8 @@ public class UsuariosGen2Tests : BunitContext
         {
             CrearUsuarioCommand c => await new CrearUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
             EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
-            CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(cuentas, usuarioActual).Handle(c, ct),
+            CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
+                cuentas, usuarioActual, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, ct),
             EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, usuarioActual).Handle(c, ct),
             GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, usuarioActual).Handle(c, ct),
             ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, usuarioActual).Handle(q, ct),

@@ -41,7 +41,8 @@ public class CrearClienteCommandValidator : AbstractValidator<CrearClienteComman
 /// </summary>
 public class CrearClienteCommandHandler(
     IEmpresaRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService currentUserService,
-    IAsignacionesOperativasWriter asignacionesWriter)
+    IAsignacionesOperativasWriter asignacionesWriter, ITransaccionDeComando transaccion,
+    IBloqueoCarteraUsuario bloqueoCartera, IDirectorioDestinosCartera directorio)
     : IRequestHandler<CrearClienteCommand, Result<Guid>>
 {
     // Application no puede referenciar Infrastructure.Identity.Roles — mismo
@@ -63,8 +64,22 @@ public class CrearClienteCommandHandler(
         var rol = await currentUserService.ObtenerRolEfectivoAsync();
         var ejecutivoUsuarioId = rol == RolGestorCae ? await currentUserService.ObtenerUsuarioActualIdAsync() : null;
 
-        var empresa = Empresa.CrearComoCliente(request.RazonSocial, request.Cif, request.EsCritico, request.Notas, ejecutivoUsuarioId);
-        repositorio.Agregar(empresa);
+        Guid empresaId = default;
+        var resultado = await transaccion.EjecutarAsync(async ct =>
+        {
+            // Revisión Codex de FS-25: con el candado compartido de cartera, el alta espera a una
+            // desactivación en curso de este Gestor CAE y, si la cuenta quedó desactivada, no le
+            // pone el Cliente empresarial en la cartera.
+            if (ejecutivoUsuarioId is { } gestorId)
+            {
+                await bloqueoCartera.BloquearCompartidoAsync([gestorId], ct);
+                if (await directorio.ObtenerAsync(gestorId, ct) is not { Activa: true })
+                    return Result.Fallo(ReglaDestinoCarteraCliente.Inactivo);
+            }
+
+            var empresa = Empresa.CrearComoCliente(request.RazonSocial, request.Cif, request.EsCritico, request.Notas, ejecutivoUsuarioId);
+            repositorio.Agregar(empresa);
+            empresaId = empresa.Id;
 
         // Doble escritura también aquí, y no solo al reasignar: sin esto, el
         // Gestor CAE que crea un cliente se quedaría con la proyección puesta
@@ -72,11 +87,13 @@ public class CrearClienteCommandHandler(
         // cliente que acaba de crear. La Empresa todavía no tiene TenantId
         // (lo sella el interceptor al guardar), así que el propietario se
         // resuelve del contexto, no de la entidad.
-        if (ejecutivoUsuarioId is not null)
-            await asignacionesWriter.ReasignarCarteraClienteAsync(empresa.Id, ejecutivoUsuarioId, cancellationToken);
+            if (ejecutivoUsuarioId is not null)
+                await asignacionesWriter.ReasignarCarteraClienteAsync(empresa.Id, ejecutivoUsuarioId, ct);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }, cancellationToken);
 
-        return Result.Exito(empresa.Id);
+        return resultado.EsExitoso ? Result.Exito(empresaId) : Result.Fallo<Guid>(resultado.Error);
     }
 }

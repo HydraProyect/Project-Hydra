@@ -95,7 +95,7 @@ public class DesactivarGestorCaeConCarteraBajoRuntimeTests : IAsyncLifetime
             var uno = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, _gestor);
             var dos = Empresa.CrearComoCliente("Montajes del Norte", "A58818501", false, null, _gestor);
             // Del destino: es el que una reasignación concurrente intenta pasar al Gestor CAE que se desactiva.
-            var tercero = Empresa.CrearComoCliente("Talleres del Sur", "B65432109", false, null, _destino);
+            var tercero = Empresa.CrearComoCliente("Talleres del Sur", "B65432106", false, null, _destino);
             contexto.Empresas.AddRange(uno, dos, tercero);
             foreach (var cliente in new[] { uno, dos })
                 contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
@@ -182,7 +182,7 @@ public class DesactivarGestorCaeConCarteraBajoRuntimeTests : IAsyncLifetime
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
         await using var comprobacion = ContextoPropietario();
         (await CarteraVigenteAsync(comprobacion, _gestor)).Should().BeEmpty();
-        (await CarteraVigenteAsync(comprobacion, _destino)).Should().BeEquivalentTo([_uno, _dos]);
+        (await CarteraVigenteAsync(comprobacion, _destino)).Should().BeEquivalentTo([_uno, _dos, _tercero]);
     }
 
     /// <summary>Hallazgo 3: la cartera se relee al confirmar; si no es la confirmada, no se toca nada.</summary>
