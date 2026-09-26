@@ -1800,7 +1800,10 @@ public class UsuariosGen2Tests : BunitContext
             .StartWith("Solo 1 de 2 Clientes empresariales pasaron al nuevo Gestor CAE, así que la cuenta sigue activa.");
     }
 
-    /// <summary>Revisión Codex (P1): una excepción a mitad del lote se cuenta y se dice; la cuenta sigue activa.</summary>
+    /// <summary>
+    /// Revisión Codex (P1): una excepción a mitad del lote detiene el lote —el DbContext
+    /// del circuito puede quedar con cambios a medias— y se dice; la cuenta sigue activa.
+    /// </summary>
     [Fact]
     public async Task Una_excepcion_al_pasar_un_cliente_se_dice_y_no_desactiva()
     {
@@ -1819,9 +1822,9 @@ public class UsuariosGen2Tests : BunitContext
         await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = IkerId.ToString() });
         await ConfirmarDesactivacionAsync(cut);
 
-        _mediador.Enviadas.OfType<ReasignarEjecutivoClienteCommand>().Should().HaveCount(2, "el lote sigue tras la excepción");
+        _mediador.Enviadas.OfType<ReasignarEjecutivoClienteCommand>().Should().ContainSingle("el lote se detiene en la excepción");
         _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
-        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().StartWith("Solo 1 de 2");
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().StartWith("Solo 0 de 2");
     }
 
     /// <summary>Revisión Codex (P2): si el destino se desactivó con el diálogo abierto, no se pasa nada.</summary>

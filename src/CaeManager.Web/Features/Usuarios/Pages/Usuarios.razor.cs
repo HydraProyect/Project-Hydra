@@ -1653,7 +1653,9 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 foreach (var clienteId in _clientesADesactivar)
                 {
                     // Un fallo inesperado a mitad del lote no puede dejar la cartera a
-                    // medias sin decirlo: cuenta como un cliente que no pasó.
+                    // medias sin decirlo, y el lote se detiene ahí: el DbContext del
+                    // circuito puede conservar cambios a medio guardar del cliente que
+                    // falló, y el siguiente comando los guardaría sin que se contasen.
                     try
                     {
                         var resultado = await Mediator.Send(new ReasignarEjecutivoClienteCommand(clienteId, destino), _ciclo.Token);
@@ -1664,6 +1666,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                     {
                         Logger.LogError(excepcion, "Fallo al pasar el Cliente empresarial {ClienteId} al Gestor CAE {Destino}.", clienteId, destino);
                         errores.Add(TextosUsuarios["DesactivarErrorInesperado"]);
+                        break;
                     }
                 }
 
