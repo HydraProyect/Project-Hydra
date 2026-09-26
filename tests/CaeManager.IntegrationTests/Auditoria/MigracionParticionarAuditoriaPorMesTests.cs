@@ -54,8 +54,8 @@ public class MigracionParticionarAuditoriaPorMesTests : IAsyncLifetime
             ahora.AddYears(2),
         };
         foreach (var tenant in new[] { Guid.NewGuid(), Guid.NewGuid() })
-        foreach (var fecha in fechas)
-            await SembrarAsync(conexion, tenant, fecha);
+            foreach (var fecha in fechas)
+                await SembrarAsync(conexion, tenant, fecha);
 
         var antes = new Dictionary<string, Estado>();
         foreach (var (tabla, _) in ParticionadoMensualEventos.Tablas)
@@ -82,6 +82,8 @@ public class MigracionParticionarAuditoriaPorMesTests : IAsyncLifetime
                 "la fecha anterior a diez años y la posterior al margen, de los dos Tenants, caen en la partición por defecto");
         }
 
+        await ComprobarPoliticasAjenasAsync(conexion, "al particionar");
+
         await MigrarAsync(anterior);
         await conexion.ReloadTypesAsync();
 
@@ -96,6 +98,25 @@ public class MigracionParticionarAuditoriaPorMesTests : IAsyncLifetime
             deshecho.Politicas.Should().BeEquivalentTo(antes[tabla].Politicas);
             deshecho.RlsForzada.Should().BeTrue();
         }
+
+        await ComprobarPoliticasAjenasAsync(conexion, "al deshacer");
+    }
+
+    /// <summary>
+    /// La política de lectura de AspNetUsers (P1-M1) lee los dos registros con
+    /// un EXISTS. Tras un RENAME seguiría el OID de la tabla apartada: tiene que
+    /// nombrar la tabla viva, y nunca la apartada.
+    /// </summary>
+    private static async Task ComprobarPoliticasAjenasAsync(NpgsqlConnection conexion, string momento)
+    {
+        var expresiones = string.Join(" ", await ListaAsync(conexion,
+            "SELECT coalesce(pg_get_expr(polqual, polrelid), '') || ' ' || coalesce(pg_get_expr(polwithcheck, polrelid), '') " +
+            "FROM pg_policy WHERE polrelid = 'public.\"AspNetUsers\"'::regclass;"));
+
+        foreach (var (tabla, _) in ParticionadoMensualEventos.Tablas)
+            expresiones.Should().Contain($"\"{tabla}\"", $"control positivo: las políticas de AspNetUsers leen {tabla} ({momento})");
+        expresiones.Should().NotContain("_previa").And.NotContain("_particionada",
+            $"ninguna política puede quedar leyendo una tabla apartada ({momento})");
     }
 
     private sealed record Estado(

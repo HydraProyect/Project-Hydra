@@ -81,6 +81,38 @@ public static class ParticionadoMensualEventos
 """;
 
     /// <summary>
+    /// Las políticas RLS de OTRAS tablas que leen la tabla apartada (hoy,
+    /// <c>cuentas_lectura</c> de <c>AspNetUsers</c>, P1-M1, con un EXISTS sobre
+    /// los dos registros de auditoría) siguen su OID tras el RENAME: sin esto,
+    /// el DROP de la apartada falla con 2BP01 y, peor, la política quedaría
+    /// leyendo la tabla vieja. Se reescribe su expresión para que nombre la
+    /// tabla nueva. Cualquier otro tipo de dependencia hace fallar el DROP, que
+    /// es lo correcto: no se adivina.
+    /// </summary>
+    private static string RedirigirPoliticasAjenasSql(string tabla, string apartada) => $$"""
+    FOR v_politica IN
+        SELECT DISTINCT pol.polname, cl.relname AS tabla_politica,
+               pg_get_expr(pol.polqual, pol.polrelid) AS expr_using,
+               pg_get_expr(pol.polwithcheck, pol.polrelid) AS expr_check
+          FROM pg_depend d
+          JOIN pg_policy pol ON pol.oid = d.objid
+          JOIN pg_class cl ON cl.oid = pol.polrelid
+         WHERE d.classid = 'pg_policy'::regclass
+           AND d.refobjid = 'public."{{apartada}}"'::regclass
+           AND pol.polrelid <> 'public."{{apartada}}"'::regclass
+    LOOP
+        v_sentencia := format('ALTER POLICY %I ON public.%I', v_politica.polname, v_politica.tabla_politica);
+        IF v_politica.expr_using IS NOT NULL THEN
+            v_sentencia := v_sentencia || ' USING (' || replace(v_politica.expr_using, '"{{apartada}}"', '"{{tabla}}"') || ')';
+        END IF;
+        IF v_politica.expr_check IS NOT NULL THEN
+            v_sentencia := v_sentencia || ' WITH CHECK (' || replace(v_politica.expr_check, '"{{apartada}}"', '"{{tabla}}"') || ')';
+        END IF;
+        EXECUTE v_sentencia;
+    END LOOP;
+""";
+
+    /// <summary>
     /// Las cuatro funciones. Solo <c>app_asegurar_particiones_eventos</c> es
     /// ejecutable por un rol de aplicación (<c>cae_app_runtime</c>): no recibe
     /// nombres ni SQL, solo cuántos meses por delante, recortado a
@@ -273,6 +305,8 @@ DECLARE
     v_filas_nueva bigint;
     v_hash_nueva numeric;
     r record;
+    v_politica record;
+    v_sentencia text;
 BEGIN
 {{GuardaEvitaRls}}
     IF (SELECT relkind FROM pg_class WHERE oid = 'public."{{tabla}}"'::regclass) <> 'r' THEN
@@ -338,8 +372,10 @@ BEGIN
             v_filas_previa, v_filas_nueva, v_hash_previa, v_hash_nueva;
     END IF;
 
-    -- 7. Retirar la previa y 8. recrear los índices en la madre (cada
+    -- 7. Redirigir a la madre las políticas ajenas que leían la previa,
+    --    retirar la previa y 8. recrear los índices en la madre (cada
     --    partición los hereda, también las futuras).
+{{RedirigirPoliticasAjenasSql(tabla, tabla + "_previa")}}
     DROP TABLE public."{{tabla}}_previa";
     FOREACH v_def IN ARRAY coalesce(v_indices, '{}'::text[]) LOOP
         EXECUTE v_def;
@@ -365,6 +401,8 @@ DECLARE
     v_filas_nueva bigint;
     v_hash_nueva numeric;
     r record;
+    v_politica record;
+    v_sentencia text;
 BEGIN
 {{GuardaEvitaRls}}
     IF (SELECT relkind FROM pg_class WHERE oid = 'public."{{tabla}}"'::regclass) <> 'p' THEN
@@ -407,6 +445,7 @@ BEGIN
         RAISE EXCEPTION 'P1-M2: la copia de "{{tabla}}" no cuadra: % filas antes, % después', v_filas_previa, v_filas_nueva;
     END IF;
 
+{{RedirigirPoliticasAjenasSql(tabla, tabla + "_particionada")}}
     DROP TABLE public."{{tabla}}_particionada";
     FOREACH v_def IN ARRAY coalesce(v_indices, '{}'::text[]) LOOP
         EXECUTE v_def;

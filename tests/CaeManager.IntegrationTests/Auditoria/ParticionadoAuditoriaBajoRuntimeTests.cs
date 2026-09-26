@@ -73,12 +73,12 @@ public class ParticionadoAuditoriaBajoRuntimeTests
                 .Should().BeEquivalentTo(politicasMadre, $"{particion} tiene que llevar exactamente las políticas de {tabla}");
 
             foreach (var rol in new[] { "cae_app_runtime", "cae_app_soporte", "cae_app_aprovisionamiento" })
-            foreach (var privilegio in new[] { "SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE" })
-            {
-                (await EscalarAsync<bool>(propietario,
-                    $"SELECT has_table_privilege('{rol}', 'public.\"{particion}\"', '{privilegio}');"))
-                    .Should().BeFalse($"{rol} no debe tener {privilegio} sobre la partición {particion}");
-            }
+                foreach (var privilegio in new[] { "SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE" })
+                {
+                    (await EscalarAsync<bool>(propietario,
+                        $"SELECT has_table_privilege('{rol}', 'public.\"{particion}\"', '{privilegio}');"))
+                        .Should().BeFalse($"{rol} no debe tener {privilegio} sobre la partición {particion}");
+                }
         }
     }
 
