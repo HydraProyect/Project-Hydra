@@ -52,6 +52,7 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
     private readonly Guid _gestorDesactivado = Guid.NewGuid();
     private readonly Guid _consulta = Guid.NewGuid();
     private readonly Guid _gestorDelegado = Guid.NewGuid();
+    private readonly Guid _otroGestorDelegado = Guid.NewGuid();
     private readonly Guid _coordinadorDelegado = Guid.NewGuid();
     private readonly Guid _consultaDelegada = Guid.NewGuid();
     private readonly Guid _gestorAjeno = Guid.NewGuid();
@@ -101,7 +102,8 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         Cuenta(_consulta, _propietario.Id, "Consulta");
         // Las cuentas del Operador CAE externo son GestorCae en SU organización: el rol
         // con el que operan aquí lo da la Asignación de Operador Delegado, no Identity.
-        Cuenta(_gestorDelegado, _operadorExterno.Id, "GestorCae");
+        Cuenta(_gestorDelegado, _operadorExterno.Id, "GestorCae", _coordinadorDelegado);
+        Cuenta(_otroGestorDelegado, _operadorExterno.Id, "GestorCae", _coordinadorDelegado);
         Cuenta(_coordinadorDelegado, _operadorExterno.Id, "GestorCae");
         Cuenta(_consultaDelegada, _operadorExterno.Id, "GestorCae");
         Cuenta(_gestorAjeno, _ajeno.Id, "GestorCae");
@@ -117,6 +119,7 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         contexto.DelegacionesTenant.Add(delegacion);
         contexto.AsignacionesOperadorDelegadoConRevocadas.AddRange(
             new AsignacionOperadorDelegado(delegacion.Id, _gestorDelegado, "GestorCae"),
+            new AsignacionOperadorDelegado(delegacion.Id, _otroGestorDelegado, "GestorCae"),
             new AsignacionOperadorDelegado(delegacion.Id, _coordinadorDelegado, "CoordinadorCae"),
             new AsignacionOperadorDelegado(delegacion.Id, _consultaDelegada, "Consulta"));
 
@@ -144,7 +147,7 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         (await directorio.ObtenerAsync(_gestorDesactivado))!.Activa.Should().BeFalse();
         (await directorio.ObtenerAsync(_consulta))!.RolEfectivo.Should().Be("Consulta");
         (await directorio.ObtenerAsync(_gestorDelegado)).Should()
-            .Be(new DestinoCartera(true, "GestorCae", null, EsOperadorDelegado: true));
+            .Be(new DestinoCartera(true, "GestorCae", _coordinadorDelegado, EsOperadorDelegado: true));
         (await directorio.ObtenerAsync(_coordinadorDelegado))!.RolEfectivo.Should().Be(
             "CoordinadorCae", "el rol de Identity en su organización es GestorCae; aquí opera como Coordinador CAE");
         (await directorio.ObtenerAsync(_gestorAjeno)).Should().BeNull("otro Tenant sin delegación vigente no es alcanzable");
@@ -245,6 +248,33 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         dentro.EsExitoso.Should().BeTrue(dentro.EsFallido ? dentro.Error.Codigo : null);
     }
 
+    /// <summary>
+    /// Outbound: el Coordinador CAE de un Operador CAE externo, operando el Tenant
+    /// propietario por delegación, reparte entre los Gestores CAE de su organización que
+    /// le reportan. Y un Coordinador CAE del Tenant propietario no puede ceder el Cliente
+    /// empresarial a un Gestor CAE del Operador CAE externo: no le reporta (D-001).
+    /// </summary>
+    [Fact]
+    public async Task Outbound_el_Coordinador_CAE_delegado_reparte_entre_sus_Gestores_CAE_y_el_propio_no_cede_a_uno_externo()
+    {
+        var cedido = await ReasignarAsync(_coordinador, "CoordinadorCae", _gestorDelegado);
+        cedido.EsFallido.Should().BeTrue();
+        cedido.Error.Codigo.Should().Be("Cliente.DestinoFueraDeAlcance");
+        await AfirmarSinCambiosAsync();
+
+        (await ReasignarAsync(_administrador, "Administrador", _gestorDelegado)).EsExitoso.Should().BeTrue("preparación");
+
+        var resultado = await ReasignarAsync(_coordinadorDelegado, "CoordinadorCae", _otroGestorDelegado, _operadorExterno.Id);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+        await using var contexto = ContextoPropietario();
+        (await contexto.AsignacionesCartera.AsNoTracking()
+                .Where(c => c.AmbitoRelacionClienteId == _clienteId && c.Estado == EstadoAsignacion.Vigente)
+                .Select(c => c.UsuarioId)
+                .ToListAsync())
+            .Should().Equal(_otroGestorDelegado);
+    }
+
     [Fact]
     public async Task El_writer_rechaza_por_su_cuenta_a_un_Coordinador_CAE_delegado_como_destino()
     {
@@ -281,10 +311,10 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
             .GetField(campo, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .GetValue(this)!;
 
-    private async Task<Domain.Common.Result> ReasignarAsync(Guid actor, string rol, Guid destino)
+    private async Task<Domain.Common.Result> ReasignarAsync(Guid actor, string rol, Guid destino, Guid? tenantOrigen = null)
     {
-        await using var contexto = ContextoRuntime(actor, rol);
-        var usuario = Usuario(actor, rol);
+        await using var contexto = ContextoRuntime(actor, rol, tenantOrigen);
+        var usuario = Usuario(actor, rol, tenantOrigen);
         var tenantActual = new TenantActualAmbiental { TenantId = _propietario.Id };
         var handler = new ReasignarEjecutivoClienteCommandHandler(
             new EmpresaRepository(contexto), new ConfiguracionIaDocumentoClienteRepository(contexto),
@@ -315,10 +345,10 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
     private DirectorioUsuariosTenant Directorio(CaeManagerDbContext contexto) =>
         new(null!, contexto, new TenantActualAmbiental { TenantId = _propietario.Id }, new PuertaAccesoDatos(), contexto);
 
-    private CurrentUserServiceFalso Usuario(Guid usuarioId, string rol) =>
-        new(usuarioId, rol, tenantOrigenId: _propietario.Id);
+    private CurrentUserServiceFalso Usuario(Guid usuarioId, string rol, Guid? tenantOrigen = null) =>
+        new(usuarioId, rol, tenantOrigenId: tenantOrigen ?? _propietario.Id);
 
-    private CaeManagerDbContext ContextoRuntime(Guid usuarioId, string rol)
+    private CaeManagerDbContext ContextoRuntime(Guid usuarioId, string rol, Guid? tenantOrigen = null)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _propietario.Id };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
@@ -327,7 +357,7 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
             .AddInterceptors(
                 new TenantSelladoInterceptor(tenantActual),
                 new TenantRlsConnectionInterceptor(
-                    tenantActual, new SinTenantSeleccionado(), Usuario(usuarioId, rol), BaseDatosPostgresDePruebas.FirmanteContextoRls),
+                    tenantActual, new SinTenantSeleccionado(), Usuario(usuarioId, rol, tenantOrigen), BaseDatosPostgresDePruebas.FirmanteContextoRls),
                 new ConcurrenciaOptimistaInterceptor())
             .Options;
 
