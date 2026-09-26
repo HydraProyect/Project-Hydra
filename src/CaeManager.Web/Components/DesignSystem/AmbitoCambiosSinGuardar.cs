@@ -47,4 +47,16 @@ public sealed class AmbitoCambiosSinGuardar
 
         return true;
     }
+
+    /// <summary>
+    /// Quien llamó a <see cref="ConfirmarAbandonoAsync"/> ya ha hecho el cambio (y la
+    /// navegación que lo acompañe): el permiso de salir sin preguntar que dejó el descarte
+    /// caduca aquí. Sin esto, un aviso que sigue montado (un formulario de la página dentro
+    /// de las pestañas) dejaría pasar sin preguntar la siguiente salida real.
+    /// </summary>
+    public void TerminarAbandono()
+    {
+        foreach (var aviso in _avisos.ToList())
+            aviso.TerminarAbandono();
+    }
 }

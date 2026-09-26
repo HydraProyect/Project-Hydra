@@ -144,4 +144,24 @@ public class PestanasAvisoCambiosSinGuardarTests : BunitContext
 
         _cambios.Should().Equal("firma");
     }
+
+    /// <summary>
+    /// Revisión Codex (lote E): un formulario de la página dentro de las pestañas sigue montado
+    /// tras descartar un cambio de pestaña que no navega. El descarte no puede dejar armado un
+    /// permiso de salida: lo que se escriba después y la siguiente salida real vuelven a preguntar.
+    /// </summary>
+    [Fact]
+    public async Task Tras_descartar_un_cambio_de_pestana_la_siguiente_salida_vuelve_a_preguntar()
+    {
+        _hayCambios = true;
+        var cut = Renderizar(FormularioConAviso);
+        var clic = PulsarPestanaAsync(cut, "Firma");
+        await PulsarEnElAvisoAsync(cut, "Salir y descartar");
+        await clic;
+        _cambios.Should().Equal("firma");
+
+        // Lo escrito después del descarte (el aviso sigue montado: el contenido no cambió).
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+    }
 }

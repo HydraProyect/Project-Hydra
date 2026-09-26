@@ -82,6 +82,12 @@
     }
 
     /// <summary>
+    /// Lo llama el <see cref="AmbitoCambiosSinGuardar"/> cuando quien desmontaba la zona ha
+    /// terminado: la salida autorizada por el descarte ya no deja pasar ninguna otra.
+    /// </summary>
+    internal void TerminarAbandono() => _salidaConfirmada = false;
+
+    /// <summary>
     /// Lo llama el <see cref="AmbitoCambiosSinGuardar"/> antes de desmontar la zona: sin
     /// cambios, <c>true</c> al momento; con cambios, pregunta y devuelve la respuesta.
     /// </summary>
@@ -134,7 +140,9 @@
             _abandonoPendiente = null;
             await AlDescartar.InvokeAsync();
             // Quien desmonta puede sincronizar la URL justo después (el Context Workspace
-            // escribe ?ctx=): esa navegación ya está decidida y no pregunta otra vez.
+            // escribe ?ctx=): esa navegación ya está decidida y no pregunta otra vez. Solo
+            // vale hasta que quien desmonta termina (TerminarAbandono): si el aviso sigue
+            // montado y no hubo navegación, la siguiente salida real vuelve a preguntar.
             _salidaConfirmada = true;
             abandono.TrySetResult(true);
             return;

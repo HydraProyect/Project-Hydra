@@ -89,7 +89,14 @@
         if (id == PestanaActiva || !await _ambito.ConfirmarAbandonoAsync())
             return;
 
-        await PestanaActivaChanged.InvokeAsync(id);
+        try
+        {
+            await PestanaActivaChanged.InvokeAsync(id);
+        }
+        finally
+        {
+            _ambito.TerminarAbandono();
+        }
     }
 
     private async Task ManejarTeclaAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e, int indiceActual)
