@@ -7,6 +7,7 @@ using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Documentos.Commands.EliminarDocumento;
 using CaeManager.Application.Documentos.Commands.EliminarDocumentos;
+using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -98,6 +99,7 @@ public class DocumentosGen2Tests : BunitContext
             EliminarDocumentoCommand c => AlEliminar?.Invoke(c) ?? Result.Exito(),
             EliminarDocumentosCommand c => AlEliminarLote?.Invoke(c)
                 ?? Result.Exito(new ResultadoEliminacionLoteDto(c.Ids.Count, [])),
+            RestaurarDocumentoCommand => Result.Exito(),
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -818,5 +820,36 @@ public class DocumentosGen2Tests : BunitContext
 
         mediador.Enviadas.OfType<EliminarDocumentosCommand>().Single().Ids.Should().Contain(d1.Id, "el caso solo vale si el lote pidió ese documento");
         workspace.EstaAbierto.Should().BeTrue("no cayó nada: no hay nada muerto que retirar");
+    }
+
+    /// <summary>
+    /// FS-09 (auditoría UX de flujos sin salida, 2026-09-24): el diálogo prometía
+    /// «Podrás recuperarlos desde Auditoría», pantalla que solo abre el Administrador
+    /// del Tenant. El aviso del lote ofrece ahora «Deshacer», que restaura solo lo que
+    /// el lote eliminó, y el diálogo dice quién puede recuperarlos después.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_en_lote_ofrece_deshacer_que_restaura_solo_los_documentos_eliminados()
+    {
+        var elegido = Documento("Reconocimiento médico");
+        var superviviente = Documento("Formación PRL");
+        var mediador = ConDocumentos(elegido, superviviente);
+        mediador.AlEliminarLote = _ => Result.Exito(new ResultadoEliminacionLoteDto(1, ["Un documento ya no existía."], [elegido.Id]));
+        var (cut, _) = Renderizar(mediador);
+
+        await SeleccionarFilas(cut, 2);
+        await AbrirConfirmacionDeLote(cut);
+        cut.Find("[role=dialog]").TextContent.Should().Contain(
+            "Podrás deshacer la eliminación desde el aviso que aparecerá; después, solo un Administrador del Tenant puede recuperarlos desde Auditoría.");
+        await ConfirmarDialogo(cut);
+
+        var aviso = Toasts().Single(t => t.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        mediador.Enviadas.OfType<EliminarDocumentosCommand>().Single().Ids.Should().BeEquivalentTo([elegido.Id, superviviente.Id],
+            "el caso solo vale si el superviviente iba en el lote");
+        mediador.Enviadas.OfType<RestaurarDocumentoCommand>().Select(c => c.Id).Should().Equal([elegido.Id],
+            "se restaura solo lo que el lote eliminó, no lo que pidió");
+        Toasts().Should().Contain(t => t.Mensaje == "1 documento(s) restaurado(s)." && t.Tono == TonoToast.Exito);
     }
 }

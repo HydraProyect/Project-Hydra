@@ -770,6 +770,11 @@ public partial class Documentos : ComponentBase, IDisposable
             var dto = resultado.Valor;
             var completo = dto.Eliminados == pedidos.Count && dto.Errores.Count == 0;
 
+            // FS-09: el aviso ofrece «Deshacer» sobre los que sí cayeron. Sin él, la
+            // única salida era pedir a un Administrador del Tenant que los recuperase
+            // uno a uno desde Auditoría, pantalla que el resto de roles no abre.
+            IReadOnlyList<Guid> eliminados = dto.IdsEliminados ?? [];
+
             // Tres desenlaces, no dos. Un lote que borró MENOS de lo pedido no
             // es un éxito aunque no traiga ni un error: la lista de errores no
             // es la medida de lo hecho, el recuento sí. Y cero borrados no es
@@ -780,13 +785,14 @@ public partial class Documentos : ComponentBase, IDisposable
                     : dto.Eliminados == 0
                         ? $"No se eliminó ningún documento de los {pedidos.Count} seleccionados.{DetalleDeErrores(dto.Errores)}"
                         : $"{dto.Eliminados} de {pedidos.Count} eliminado(s); el resto sigue en la lista.{DetalleDeErrores(dto.Errores)}",
-                completo ? TonoToast.Exito : dto.Eliminados == 0 ? TonoToast.Error : TonoToast.Advertencia);
+                completo ? TonoToast.Exito : dto.Eliminados == 0 ? TonoToast.Error : TonoToast.Advertencia,
+                eliminados.Count > 0 ? "Deshacer" : null,
+                eliminados.Count > 0 ? () => DeshacerEliminarLoteAsync(eliminados) : null);
 
-            // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
-            // si cayó alguno, se retiran las fichas de todos los pedidos, también la de un superviviente
-            // (con su edición sin guardar, si la tenía). Se prefiere pasarse de retirar a dejar abierta una ficha muerta.
+            // Se retiran solo las fichas de los que cayeron (IdsEliminados); un
+            // superviviente conserva la suya, con su edición sin guardar si la tenía.
             if (dto.Eliminados > 0)
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Documento, pedidos);
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Documento, dto.IdsEliminados ?? pedidos);
 
             // Ver el comentario del borrado individual. Aquí además se
             // vaciaba la selección, que al cambiar de contexto ya es la que
@@ -806,6 +812,40 @@ public partial class Documentos : ComponentBase, IDisposable
         {
             if (ContextoSigueSiendo(contexto))
                 _eliminandoLote = false;
+        }
+    }
+
+    /// <summary>
+    /// FS-09 (auditoría UX de flujos sin salida, 2026-09-24): «Deshacer» del aviso
+    /// de una eliminación en lote. Restaura los que el lote sí eliminó, uno a uno
+    /// con <see cref="RestaurarDocumentoCommand"/>, como el borrado individual.
+    /// </summary>
+    private bool _restaurandoLote;
+
+    private async Task DeshacerEliminarLoteAsync(IReadOnlyList<Guid> ids)
+    {
+        if (_desechado || _restaurandoLote)
+            return;
+
+        _restaurandoLote = true;
+        var token = _ciclo.Token;
+
+        try
+        {
+            var r = await RestauracionEnLote.RestaurarAsync(ids, id => Mediator.Send(new RestaurarDocumentoCommand(id), token));
+
+            ToastService.Mostrar(
+                r.Errores.Count == 0
+                    ? $"{r.Restaurados} documento(s) restaurado(s)."
+                    : $"{r.Restaurados} documento(s) restaurado(s); {r.Errores.Count} no se pudieron restaurar: {string.Join(" ", r.Errores)}",
+                r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (r.Restaurados > 0)
+                await RecargarAsync();
+        }
+        finally
+        {
+            _restaurandoLote = false;
         }
     }
 
