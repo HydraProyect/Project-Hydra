@@ -208,6 +208,66 @@ public class ParticionadoAuditoriaBajoRuntimeTests
             .Should().Be($"\"RegistrosAuditoria_p{fecha:yyyyMM}\"", "el evento no se pierde: cambia de partición");
     }
 
+    /// <summary>
+    /// Una escritura de auditoría del mes que se va a crear, en curso mientras
+    /// la función mueve la partición por defecto, no puede hacerla fallar: la
+    /// función espera a que confirme y la mueve también (hallazgo de Codex).
+    /// </summary>
+    [Fact]
+    public async Task Asegurar_espera_a_una_insercion_concurrente_del_mes_y_la_mueve_tambien()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        await using var escritor = new NpgsqlConnection(arnes.CadenaPropietario);
+        await escritor.OpenAsync();
+        await using var mantenimiento = new NpgsqlConnection(arnes.CadenaPropietario);
+        await mantenimiento.OpenAsync();
+
+        var fecha = DateTime.UtcNow.AddMonths(8);
+        var previa = Guid.NewGuid();
+        var concurrente = Guid.NewGuid();
+        await InsertarComoPropietarioAsync(escritor, previa, fecha);
+
+        await using var transaccion = await escritor.BeginTransactionAsync();
+        await InsertarComoPropietarioAsync(escritor, concurrente, fecha);
+
+        var pidMantenimiento = await EscalarAsync<int>(mantenimiento, "SELECT pg_backend_pid();");
+        var asegurar = AsegurarAsync(mantenimiento, 9);
+
+        // Barrera: la función está esperando un bloqueo, no ha terminado ni
+        // fallado todavía.
+        var esperando = false;
+        for (var intento = 0; intento < 100 && !esperando && !asegurar.IsCompleted; intento++)
+        {
+            await Task.Delay(100);
+            await using var consulta = new NpgsqlCommand(
+                "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = @pid AND NOT granted);", escritor);
+            consulta.Parameters.AddWithValue("pid", pidMantenimiento);
+            esperando = (bool)(await consulta.ExecuteScalarAsync())!;
+        }
+        esperando.Should().BeTrue("control positivo: la función tiene que quedar esperando a la escritura en curso");
+
+        await transaccion.CommitAsync();
+        var resultado = await asegurar;
+
+        resultado.EnDefecto.Should().Be(0);
+        foreach (var id in new[] { previa, concurrente })
+            (await EscalarAsync<string>(mantenimiento,
+                $"SELECT tableoid::regclass::text FROM \"RegistrosAuditoria\" WHERE \"Id\" = '{id}';"))
+                .Should().Be($"\"RegistrosAuditoria_p{fecha:yyyyMM}\"");
+    }
+
+    private static async Task InsertarComoPropietarioAsync(NpgsqlConnection conexion, Guid id, DateTime fecha)
+    {
+        await using var orden = new NpgsqlCommand(
+            """
+            INSERT INTO "RegistrosAuditoria" ("Id", "TenantId", "EntidadTipo", "EntidadId", "Accion", "FechaUtc")
+            VALUES (@id, @id, 'Empresa', @id, 'Creado', @fecha);
+            """, conexion);
+        orden.Parameters.AddWithValue("id", id);
+        orden.Parameters.AddWithValue("fecha", fecha);
+        await orden.ExecuteNonQueryAsync();
+    }
+
     private static async Task<(int Creadas, long EnDefecto)> AsegurarAsync(NpgsqlConnection conexion, int meses)
     {
         await using var orden = new NpgsqlCommand(

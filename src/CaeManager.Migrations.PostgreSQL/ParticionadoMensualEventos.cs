@@ -172,6 +172,11 @@ BEGIN
     -- todo en la misma transacción.
     v_defecto := to_regclass(format('public.%I', v_nombre_madre || '{{SufijoDefecto}}'));
     IF v_defecto IS NOT NULL THEN
+        -- El bloqueo que el CREATE ... PARTITION OF tomaría de todos modos, pero
+        -- ANTES de apartar las filas (hallazgo de Codex): si no, una inserción
+        -- concurrente de ese mes que confirme entre el DELETE y el CREATE deja
+        -- una fila en la partición por defecto que hace fallar el CREATE.
+        EXECUTE format('LOCK TABLE %s IN ACCESS EXCLUSIVE MODE', p_madre);
         EXECUTE format('CREATE TEMP TABLE particion_eventos_movidas (LIKE %s) ON COMMIT DROP', p_madre);
         EXECUTE format(
             'WITH m AS (DELETE FROM %s WHERE %I >= %L AND %I < %L RETURNING *) INSERT INTO pg_temp.particion_eventos_movidas SELECT * FROM m',
