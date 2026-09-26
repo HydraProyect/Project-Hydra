@@ -938,6 +938,8 @@ public class VisitasGen2Tests : BunitContext
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Salir y descartar").ClickAsync(new MouseEventArgs());
 
         navegacion.Uri.Should().EndWith("/documentos", "confirmar la salida repite la navegación sin volver a preguntar");
+        cut.FindAll(".drawer-panel").Should().BeEmpty(
+            "si la navegación no desmonta la página (otros filtros en la URL), el drawer descartado no puede quedar abierto");
     }
 
     /// <summary>

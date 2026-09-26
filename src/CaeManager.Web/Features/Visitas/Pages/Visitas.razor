@@ -254,7 +254,9 @@
     }
 </div>
 
-<AvisoCambiosSinGuardar HayCambios="HayCambiosSinGuardar" />
+@* Confirmar la salida cierra el drawer: una navegación que no desmonta la página (otros
+   filtros en la URL) lo dejaría abierto con lo ya descartado. *@
+<AvisoCambiosSinGuardar HayCambios="HayCambiosSinGuardar" AlDescartar="() => CerrarDrawerAsync(false)" />
 
 <Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? Textos["DrawerTituloNueva"].Value : Textos["DrawerTituloEditar"].Value)" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
     <ChildContent>

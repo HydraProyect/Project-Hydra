@@ -290,8 +290,11 @@ public partial class DrawerGestionDocumento : ComponentBase
 
     private async Task CerrarDrawerAsync(bool visible)
     {
-        // Cerrar sin guardar abandona el archivo que se hubiera subido ya.
-        if (!visible)
+        // Cerrar sin guardar abandona el archivo que se hubiera subido ya. Con un
+        // guardado en curso no: el comando puede estar adoptándolo en este momento, y
+        // borrarlo dejaría un Documento apuntando a un archivo que ya no existe (si el
+        // guardado falla, queda un huérfano, que es el mal menor).
+        if (!visible && !_guardando)
             await DescartarArchivoSinAdoptarAsync();
 
         _drawerVisible = visible;

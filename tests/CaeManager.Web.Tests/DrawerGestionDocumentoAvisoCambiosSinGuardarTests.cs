@@ -141,6 +141,35 @@ public class DrawerGestionDocumentoAvisoCambiosSinGuardarTests : BunitContext
 
         navegacion.Uri.Should().EndWith("/trabajadores");
         _almacen.Borrados.Should().Equal("blob-sin-adoptar");
+        cut.FindAll(".drawer-panel").Should().BeEmpty(
+            "si la navegación no desmonta la página que lo aloja, el drawer no puede quedar abierto apuntando al archivo borrado");
+    }
+
+    /// <summary>
+    /// Revisión Codex: con un guardado en curso el comando puede estar adoptando el archivo;
+    /// confirmar la salida en ese momento no lo borra (lo contrario dejaría un Documento
+    /// apuntando a un archivo que ya no existe).
+    /// </summary>
+    [Fact]
+    public async Task Salir_y_descartar_con_un_guardado_en_curso_no_borra_el_archivo()
+    {
+        var cut = Renderizar();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearAsync());
+        await cut.InvokeAsync(() =>
+        {
+            SimularArchivoSubidoSinAdoptar(cut.Instance, "blob-en-guardado");
+            var guardando = typeof(DrawerGestionDocumento).GetField("_guardando", BindingFlags.Instance | BindingFlags.NonPublic);
+            guardando.Should().NotBeNull("el test necesita simular el guardado en curso");
+            guardando!.SetValue(cut.Instance, true);
+        });
+        cut.Render();
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/trabajadores"));
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Salir y descartar").ClickAsync(new MouseEventArgs());
+
+        navegacion.Uri.Should().EndWith("/trabajadores");
+        _almacen.Borrados.Should().BeEmpty("el comando en curso puede estar adoptando ese archivo");
     }
 
     [Fact]
