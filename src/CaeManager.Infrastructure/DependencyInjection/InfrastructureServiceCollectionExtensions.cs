@@ -927,8 +927,12 @@ public static class InfrastructureServiceCollectionExtensions
                 "restringido cae_app_runtime (deploy/bootstrap/roles-de-cluster.sql) o, si de verdad " +
                 $"quieres arrancar sin esa protección, declara {ClaveDegradacionInsegura}=true.");
 
-        return cadenaPropietario
-            ?? throw new InvalidOperationException(
+        // Vacía cuenta como ausente, igual que la de runtime: el contenedor app
+        // de staging y producción la recibe vacía a propósito (P0-2), y un ""
+        // devuelto aquí no fallaba hasta el primer OpenAsync.
+        return !string.IsNullOrWhiteSpace(cadenaPropietario)
+            ? cadenaPropietario
+            : throw new InvalidOperationException(
                 "No hay ninguna conexión PostgreSQL configurada: ni ConnectionStrings:CaeManagerDbRuntime " +
                 "ni ConnectionStrings:CaeManagerDb.");
     }

@@ -1,4 +1,6 @@
+using CaeManager.Infrastructure.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Npgsql;
 
 namespace CaeManager.Infrastructure.Coordinacion;
@@ -20,16 +22,33 @@ namespace CaeManager.Infrastructure.Coordinacion;
 /// lock vive mientras dure <paramref name="trabajo"/> (potencialmente
 /// minutos, si hay mucho pendiente en la cola de IA), y un DbContext scoped
 /// se recicla por request/circuito — aquí no hay ninguno de los dos.
+///
+/// <para>
+/// <b>Con la identidad del tráfico</b>
+/// (<see cref="InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico"/>),
+/// no con <c>CaeManagerDb</c>: desde P0-2 el contenedor <c>app</c> de staging y
+/// producción recibe esa cadena vacía a propósito y solo el <c>migrador</c> la
+/// tiene. Leerla aquí hacía que cada servicio con líder fallara en cada ciclo
+/// sin hacer nada. <c>pg_try_advisory_lock</c> no exige ningún privilegio, así
+/// que <c>cae_app_runtime</c> basta; el lock no toca ninguna tabla, de modo que
+/// RLS no interviene.
+/// </para>
+///
+/// <para>
+/// La cadena se resuelve una sola vez, al construir el singleton —que ocurre al
+/// arrancar el host, porque lo inyectan los hosted services—: una configuración
+/// inválida falla el arranque con un mensaje claro en vez de un error por ciclo.
+/// </para>
 /// </summary>
-public class EleccionLiderPostgresService(IConfiguration configuration) : IEleccionLiderService
+public class EleccionLiderPostgresService(IConfiguration configuration, IHostEnvironment entorno) : IEleccionLiderService
 {
+    private readonly string _cadenaConexion =
+        InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico(configuration, entorno);
+
     public async Task<bool> IntentarEjecutarComoLiderAsync(
         string clave, Func<CancellationToken, Task> trabajo, CancellationToken cancellationToken)
     {
-        var cadenaConexion = configuration.GetConnectionString("CaeManagerDb")
-            ?? throw new InvalidOperationException("Falta el connection string CaeManagerDb.");
-
-        await using var conexion = new NpgsqlConnection(cadenaConexion);
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync(cancellationToken);
 
         await using (var comandoLock = new NpgsqlCommand(
