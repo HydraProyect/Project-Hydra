@@ -17,7 +17,7 @@ namespace CaeManager.Infrastructure.Firmas;
 /// Verificación de firmas PAdES/PKCS#7 con la BCL de .NET — SignedCms para
 /// el CMS detached, Rfc3161TimestampToken para el sello de tiempo y
 /// X509Chain con almacén propio (<see cref="AlmacenConfianzaFirmas"/>) para
-/// la confianza. Cero librerías de terceros (PLAN-FIRMA-DIGITAL-PDF.md § 3).
+/// la confianza. Cero librerías de terceros (Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md § 3).
 ///
 /// PDFsharp se usa solo para localizar el diccionario de firma y leer el
 /// /ByteRange (enteros, sin ambigüedad — spike de LecturaFirmaPdfSpikeTests);
@@ -120,7 +120,7 @@ public class VerificadorFirmaPdfService(
     }
 
     /// <summary>
-    /// Agregación de PLAN-FIRMA-DIGITAL-PDF.md § 1: cualquier firma inválida
+    /// Agregación de Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md § 1: cualquier firma inválida
     /// es manipulación; la confianza se evalúa sobre la firma válida que
     /// cubre el final del archivo — contenido añadido después de la última
     /// firma no está firmado por nadie, así que impide superar

@@ -22,7 +22,7 @@ public record ObtenerEmpresasQuery(
     : IRequest<ResultadoPaginado<EmpresaListaDto>>;
 
 /// <param name="CumplimientoPorcentaje">
-/// % de cumplimiento agregado de la Empresa (Centro 360, PLAN-EJECUCION-UX.md
+/// % de cumplimiento agregado de la Empresa (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
 /// § 0.8/0.11) — mismo cálculo que <c>ObtenerCumplimientoEmpresaQuery</c>,
 /// batcheado aquí para toda la página en vez de una consulta por fila.
 /// <c>null</c> cuando la Empresa no tiene actividad en ningún Centro o
@@ -30,7 +30,7 @@ public record ObtenerEmpresasQuery(
 /// </param>
 /// <param name="DeteccionesPendientes">
 /// Nº de altas/bajas de personal detectadas por IA sin resolver (Centro 360,
-/// docs/ux-audit/03-empresas-subcontratas.md H2) — mismo dato que
+/// Project-Hydra-Negocio/tecnico/docs/ux-audit/03-empresas-subcontratas.md H2) — mismo dato que
 /// <c>ObtenerDeteccionesPorEmpresaQuery</c>, batcheado aquí para toda la
 /// página. Antes solo visible desde una notificación transitoria.
 /// </param>
@@ -243,7 +243,7 @@ public class ObtenerEmpresasQueryHandler(
     }
 
     /// <summary>
-    /// Mismo dato que <c>ObtenerDeteccionesPorEmpresaQuery</c> (docs/ux-audit/03-empresas-subcontratas.md
+    /// Mismo dato que <c>ObtenerDeteccionesPorEmpresaQuery</c> (Project-Hydra-Negocio/tecnico/docs/ux-audit/03-empresas-subcontratas.md
     /// H2) pero contado en lote para toda la página, no una consulta por fila.
     /// </summary>
     private async Task<Dictionary<Guid, int>> ContarDeteccionesPendientesPorEmpresaAsync(

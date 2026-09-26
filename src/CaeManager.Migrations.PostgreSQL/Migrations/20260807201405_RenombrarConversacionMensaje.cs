@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     /// <summary>
-    /// Paso 0 del rediseño Communication Workspace (docs/COMUNICACIONES.md
+    /// Paso 0 del rediseño Communication Workspace (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
     /// § 16.2): salda la deuda nominal de la Fase 84 renombrando
     /// ConversacionCorreo/MensajeCorreo/AdjuntoMensajeCorreo a
     /// Conversacion/Mensaje/AdjuntoMensaje. El scaffolding de EF generó

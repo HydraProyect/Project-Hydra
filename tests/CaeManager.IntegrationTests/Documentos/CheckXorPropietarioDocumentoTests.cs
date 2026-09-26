@@ -11,7 +11,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Documentos;
 
 /// <summary>
-/// P1-14 de docs/business/MATURITY_REVIEW.md: antes de esta migración la BD
+/// P1-14 de Project-Hydra-Negocio/MATURITY_REVIEW.md: antes de esta migración la BD
 /// aceptaba un Documento con dos propietarios o ninguno — las factories de
 /// dominio (DeTrabajador, DeCliente...) ya lo impedían desde código, pero
 /// nada lo impedía a nivel de fila. CK_Documentos_PropietarioXor es el

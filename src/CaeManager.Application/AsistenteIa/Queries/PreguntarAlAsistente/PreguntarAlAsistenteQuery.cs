@@ -12,7 +12,7 @@ namespace CaeManager.Application.AsistenteIa.Queries.PreguntarAlAsistente;
 /// conversación entera para que el modelo tenga contexto de los turnos
 /// anteriores.
 ///
-/// Único de los cinco tratamientos de <c>tecnico/docs/POLITICA-TECNICA-IA.md</c>
+/// Único de los cinco tratamientos de <c>Project-Hydra-Negocio/tecnico/docs/POLITICA-TECNICA-IA.md</c>
 /// § 1 que no tenía, hasta este incremento, ningún control de cumplimiento:
 /// el Nivel 0 (DEC-33, REC-035) es el primer gate que le aplica — lo que el
 /// usuario escribe en el chat puede incluir datos personales, y viaja al

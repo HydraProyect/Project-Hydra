@@ -28,7 +28,7 @@ public interface ICommandBase;
 /// test lo detectaran.
 ///
 /// La convención de nombre no desaparece —sigue siendo obligatoria por
-/// <c>CODING_STANDARDS.md</c>— pero deja de ser el mecanismo de seguridad:
+/// <c>Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md</c>— pero deja de ser el mecanismo de seguridad:
 /// ahora es <c>ArquitecturaCommandsTests</c> quien exige que nombre e
 /// interfaz vayan siempre juntos, en ambas direcciones.
 ///

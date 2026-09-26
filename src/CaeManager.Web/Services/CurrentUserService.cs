@@ -55,7 +55,7 @@ public class CurrentUserService(
     /// guardaba y no se leía jamás: un operador asignado como Consulta sobre
     /// el tenant B, pero Administrador en el suyo, escribía en B con
     /// privilegios que nadie le había dado ahí (hallazgo N-5 de
-    /// INFORME-AUDITORIA-2.md).
+    /// Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
     ///
     /// Fallo cerrado: si se está operando un workspace delegado y no aparece
     /// asignación viva —porque la delegación se revocó mientras el token de

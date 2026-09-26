@@ -17,7 +17,7 @@ using Xunit;
 
 namespace CaeManager.IntegrationTests.Comunicaciones;
 
-/// <summary>docs/COMUNICACIONES.md § 12.3/§ 16.7 — eventos del sistema mezclados con los mensajes del hilo.</summary>
+/// <summary>Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.3/§ 16.7 — eventos del sistema mezclados con los mensajes del hilo.</summary>
 public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();

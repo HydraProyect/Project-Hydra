@@ -17,7 +17,7 @@ namespace CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 /// conserva el histórico de qué Consultora operó sobre qué tenant y cuándo.
 ///
 /// Sin esto la delegación era irrevocable por cualquier camino del producto
-/// (hallazgo N-4 de INFORME-AUDITORIA-2.md), que es justo lo contrario de lo
+/// (hallazgo N-4 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md), que es justo lo contrario de lo
 /// que promete el titular del ADR — un modelo de delegación reversible — y de
 /// lo que un responsable del tratamiento debe poder garantizar.
 /// </summary>

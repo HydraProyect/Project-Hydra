@@ -19,7 +19,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Visitas;
 
 /// <summary>
-/// docs/COMUNICACIONES.md § 16.7: "Eventos del sistema en el timeline —
+/// Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 16.7: "Eventos del sistema en el timeline —
 /// Visitas + Documentos en v1". Cubre que crear una Visita desde una
 /// SugerenciaVisitaCorreo publica VisitaCreadaEvent con la Conversacion de
 /// origen — el resto de CrearVisitaCommandHandler (validaciones, paquete

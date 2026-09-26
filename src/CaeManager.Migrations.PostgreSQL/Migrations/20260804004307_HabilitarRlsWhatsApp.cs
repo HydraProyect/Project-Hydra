@@ -10,7 +10,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// crea (<c>AgregarWhatsAppComunicaciones</c>) — mismo criterio que
     /// <c>HabilitarRlsAdjuntosMensajeCorreo</c>: no repetir el hallazgo P1-3.
     /// El filtro global de EF ya las protege; esto es la segunda línea (RLS
-    /// sobre <c>cae_app_runtime</c>, ver RUNBOOK-RLS.md). Nota: el índice
+    /// sobre <c>cae_app_runtime</c>, ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md). Nota: el índice
     /// único global de <c>LineasWhatsApp.PhoneNumberId</c> (resolución de
     /// tenant del webhook) no contradice el RLS — la consulta del resolver
     /// corre con <c>IgnoreQueryFilters</c> bajo el rol de la aplicación,

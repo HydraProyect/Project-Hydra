@@ -19,7 +19,7 @@ public class GestionConfiguration : IEntityTypeConfiguration<Gestion>
         builder.HasIndex(g => g.TrabajadorId);
         builder.HasIndex(g => g.CentroId);
 
-        // FK reales — mismo criterio que RequisitoDocumentalConfiguration (P0-1 de docs/business/MATURITY_REVIEW.md).
+        // FK reales — mismo criterio que RequisitoDocumentalConfiguration (P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
         builder.HasOne<Trabajador>().WithMany()
             .HasForeignKey(g => new { g.TenantId, g.TrabajadorId })
             .HasPrincipalKey(t => new { t.TenantId, t.Id })

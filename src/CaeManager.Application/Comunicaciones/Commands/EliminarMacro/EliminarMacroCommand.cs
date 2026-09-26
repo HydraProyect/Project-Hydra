@@ -10,7 +10,7 @@ public record EliminarMacroCommand(Guid Id, Guid UsuarioId) : ICommand;
 
 /// <summary>
 /// Era el único comando del módulo sin validador (hallazgo N-13 de
-/// INFORME-AUDITORIA-2.md). <c>UsuarioId</c> importa tanto como el Id de la
+/// Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md). <c>UsuarioId</c> importa tanto como el Id de la
 /// macro: es a quien se atribuye el borrado en la auditoría, así que un Guid
 /// vacío deja constancia de que alguien borró algo y de que ese alguien no
 /// existe.

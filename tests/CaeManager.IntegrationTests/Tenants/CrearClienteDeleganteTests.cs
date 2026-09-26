@@ -18,7 +18,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Tenants;
 
 /// <summary>
-/// Cobertura de P0-7 (docs/business/MATURITY_REVIEW.md): alta de un Cliente
+/// Cobertura de P0-7 (Project-Hydra-Negocio/MATURITY_REVIEW.md): alta de un Cliente
 /// Delegante nuevo, v1 restringida a Administrador de plataforma
 /// (ADR-004 § 12.2). Contra Postgres real para probar tanto la autorización
 /// (tenant de origen) como el sellado real de <c>TenantId</c> vía

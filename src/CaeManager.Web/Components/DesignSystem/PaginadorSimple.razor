@@ -1,6 +1,6 @@
 @*
     Paginador Anterior/Siguiente reutilizable — es el único paginador de la
-    plataforma (H2, docs/ux-audit/02-clientes.md; ver UX_PATTERNS.md §
+    plataforma (H2, Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md; ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md §
     Paginar): tanto para listas con paginación manual en memoria/página
     (`PaginaActual`/`TotalPaginas` como enteros propios) como para listas con
     `QuickGrid` + `PaginationState` (Clientes, Trabajadores, Documentos...),
@@ -40,7 +40,7 @@
     [Parameter] public EventCallback<int> PaginaActualChanged { get; set; }
 
     /// <summary>
-    /// H5 (docs/ux-audit/05-trabajadores-vehiculos.md): "20 filas por
+    /// H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): "20 filas por
     /// página, fijo en las 12 listas" — el selector solo se pinta cuando el
     /// caller conecta <see cref="TamanoPaginaChanged"/>, así que sigue
     /// siendo válido usar <c>PaginadorSimple</c> sin tamaño configurable

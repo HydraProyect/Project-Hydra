@@ -4,7 +4,7 @@ namespace CaeManager.Domain.Documentos;
 /// Calcula el estado de vigencia de un Documento. Es el corazón del producto:
 /// alimenta los semáforos de tabla, los KPIs del Dashboard y las Alertas.
 /// Lógica pura, sin dependencias — igual que las fórmulas del Excel original,
-/// pero centralizada y con umbrales configurables (ver DATABASE.md).
+/// pero centralizada y con umbrales configurables (ver Project-Hydra-Negocio/tecnico/DATABASE.md).
 /// </summary>
 public static class CalculadoraEstadoDocumento
 {

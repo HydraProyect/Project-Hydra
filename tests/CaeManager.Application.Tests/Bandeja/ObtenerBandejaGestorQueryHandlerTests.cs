@@ -288,7 +288,7 @@ public class ObtenerBandejaGestorQueryHandlerTests
     }
 
     /// <summary>
-    /// docs/blueprints/OPERATIONAL-HOME.md § 6 (DDL-068): solo SugerenciaVisitaUrgente,
+    /// Project-Hydra-Negocio/tecnico/docs/blueprints/OPERATIONAL-HOME.md § 6 (DDL-068): solo SugerenciaVisitaUrgente,
     /// DeteccionPendiente y RevisionIa tienen un momento real de "creación" que alimente el
     /// resumen de ausencia — el resto son estado derivado (Faltante/Vencido/Urgente/
     /// RequisitoPendiente/VisitaUrgente), sin CreadaEnUtc que propagar.

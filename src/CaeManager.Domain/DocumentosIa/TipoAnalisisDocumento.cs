@@ -14,6 +14,6 @@ public enum TipoAnalisisDocumento
     /// <summary>Detección de altas/bajas de personal a partir del documento (Fase 36).</summary>
     DeteccionTrabajadores = 1,
 
-    /// <summary>Validación de documento oficial: verificación criptográfica de firma + extracción determinista + cotejo (PLAN-FIRMA-DIGITAL-PDF.md). Sin IA.</summary>
+    /// <summary>Validación de documento oficial: verificación criptográfica de firma + extracción determinista + cotejo (Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md). Sin IA.</summary>
     VerificacionFirmaDigital = 2
 }

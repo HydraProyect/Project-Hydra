@@ -18,12 +18,12 @@ public enum TipoCanalGestion
 /// caso original de esta entidad, antes llamada <c>PlataformaAcceso</c>), o
 /// bien gestión por correo a un contacto concreto
 /// (<see cref="TipoCanalGestion.Email"/>, sin portal ni credenciales) — visto
-/// al diseñar el importador masivo de documentos (ver ROADMAP.md, Épico
+/// al diseñar el importador masivo de documentos (ver Project-Hydra-Negocio/tecnico/ROADMAP.md, Épico
 /// "Migración masiva de datos vía ZIP + DIE"): no todos los clientes que una
 /// consultora gestiona usan una plataforma, algunos solo requieren enviar la
 /// documentación por email.
 ///
-/// <b>N por Centro</b> (PLAN-EJECUCION-UX.md § 0.6, Lote 0-E) — antes era 1:1.
+/// <b>N por Centro</b> (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.6, Lote 0-E) — antes era 1:1.
 /// El caso real que lo rompió: un mismo Centro puede exigir el mismo portal
 /// con <i>credenciales distintas</i> según a quién se gestiona (trabajadores
 /// de una empresa del grupo con entidad legal propia entran por el canal del
@@ -35,7 +35,7 @@ public enum TipoCanalGestion
 /// índice único filtrado en Infrastructure); es el que se usa cuando algo
 /// necesita "el" canal del Centro sin poder preguntar cuál.
 ///
-/// <see cref="ProveedorPlataformaCaeId"/> (Lote 2-B, PLAN-EJECUCION-UX.md §
+/// <see cref="ProveedorPlataformaCaeId"/> (Lote 2-B, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md §
 /// Parte 2 (a)) sustituye al antiguo <c>NombrePlataforma</c> de texto libre:
 /// referencia el catálogo global <c>ProveedorPlataformaCae</c>, resuelto
 /// automáticamente por <c>IResolucionProveedorPlataformaCaeService</c> a

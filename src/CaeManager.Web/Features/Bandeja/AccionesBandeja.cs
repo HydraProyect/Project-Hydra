@@ -21,7 +21,7 @@ public static class AccionesBandeja
     /// ítem, sin navegar — la usa Mi trabajo Gen2 (multi-Tenant) para
     /// componer el <c>returnUrl</c> exacto del POST cross-Tenant a
     /// <c>/cuenta/cliente-activo</c> (contrato
-    /// CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md § 8: "pantalla
+    /// Project-Hydra-Negocio/tecnico/CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md § 8: "pantalla
     /// exacta", no un aterrizaje genérico). <c>RequisitoPendiente</c> no
     /// tiene URL propia — abre un <c>ContextWorkspacePanel</c> in-situ, sin
     /// ruta por Id — <c>null</c> documenta ese hueco en vez de inventar una

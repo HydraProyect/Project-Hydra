@@ -43,7 +43,7 @@ public class EmpresaConfiguration : IEntityTypeConfiguration<Empresa>
         builder.HasIndex(e => new { e.TenantId, e.EsPropia });
         builder.HasIndex(e => e.EjecutivoUsuarioId);
 
-        // Prerequisito de FKs compuestas — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Prerequisito de FKs compuestas — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         builder.HasIndex(e => new { e.TenantId, e.Id }).IsUnique();
 
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.

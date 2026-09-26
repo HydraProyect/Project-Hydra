@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.Components.Web;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Action Center + AI Action Review (docs/COMUNICACIONES.md § 12.6): tarjeta
+/// Action Center + AI Action Review (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.6): tarjeta
 /// compacta + RevisionSugerenciaModal. El botón principal de la tarjeta
 /// siempre abre la revisión — el modal decide solo internamente si hace
 /// falta un paso de "campos a revisar" (confianza por campo &lt; 90) antes

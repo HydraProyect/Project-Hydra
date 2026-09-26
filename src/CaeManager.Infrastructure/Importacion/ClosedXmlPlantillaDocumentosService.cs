@@ -10,13 +10,13 @@ namespace CaeManager.Infrastructure.Importacion;
 
 /// <summary>
 /// Plantilla simplificada de una sola hoja para subir en bloque fechas de
-/// emisión de Documentos (ver ROADMAP.md) — a diferencia del formato completo
+/// emisión de Documentos (ver Project-Hydra-Negocio/tecnico/ROADMAP.md) — a diferencia del formato completo
 /// multi-hoja de importación CAE (ClosedXmlImportacionParser), no da de alta
 /// Trabajadores ni Tipos de Documento: ambos deben existir ya, se rechaza
 /// con motivo explícito si el DNI o el nombre del tipo no coinciden con el
 /// catálogo actual.
 ///
-/// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis, DCR-12
+/// Invariante «nada se descarta en silencio» (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis, DCR-12
 /// B; auditada en REC-129): la única fila que este analizador salta sin
 /// registrar nada es la fila de ejemplo que <see cref="GenerarPlantilla"/>
 /// escribe con el marcador <c>EJEMPLO</c> en el DNI — legítimo y silencioso

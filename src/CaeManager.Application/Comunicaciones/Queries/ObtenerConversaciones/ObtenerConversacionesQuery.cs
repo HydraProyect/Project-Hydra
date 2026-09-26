@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 
 /// <summary>
-/// Filtros de la bandeja compartida (ver ARQUITECTURA-INTEGRACIONES.md § 12.6,
+/// Filtros de la bandeja compartida (ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 12.6,
 /// pantalla "Bandeja"). <see cref="Anio"/>/<see cref="Mes"/> van juntos (mes
 /// concreto de un año) porque la pantalla ofrece un único selector de mes, no
 /// un rango de fechas libre. <see cref="SoloAsignadasAMi"/> usa
@@ -26,7 +26,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 /// <see cref="SoloSinAsignar"/> ya eran filtros de servidor.
 ///
 /// <see cref="Busqueda"/> compara Asunto Y el cuerpo de los mensajes del hilo
-/// (H2, docs/COMUNICACIONES.md § 9 — "sin búsqueda de texto en
+/// (H2, Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 9 — "sin búsqueda de texto en
 /// conversaciones"). Es <c>Contains</c> sin índice de texto completo, mismo
 /// nivel que el resto de búsquedas de este repositorio — no se introduce
 /// tsvector/GIN de Postgres para esto (YAGNI).
@@ -63,7 +63,7 @@ public record ConversacionListaDto(
 {
     /// <summary>
     /// "Esperando cliente" es un estado derivado, no persistido (decisión
-    /// docs/COMUNICACIONES.md § 16.4): una conversación Abierta cuyo último
+    /// Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 16.4): una conversación Abierta cuyo último
     /// mensaje fue nuestro, a la espera de que el contacto responda.
     /// </summary>
     public bool EsperandoCliente => Estado == EstadoConversacion.Abierta && UltimoMensajeDireccion == DireccionMensaje.Saliente;
@@ -96,7 +96,7 @@ public class ObtenerConversacionesQueryHandler(
             // solo para los roles de gestión CAE — al rol Cliente, un contacto
             // de una empresa cliente externa, le daba acceso de lectura al
             // correo sin triar de las demás (hallazgo N-2 de
-            // INFORME-AUDITORIA-2.md).
+            // Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
             //
             // La comprobación se repite aquí y en [Authorize] de Bandeja.razor
             // a propósito: la página cierra la puerta de entrada, esto cierra

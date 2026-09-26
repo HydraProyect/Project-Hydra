@@ -70,7 +70,7 @@ public partial class Documentos : ComponentBase, IDisposable
 
     /// <summary>
     /// Permite llegar aquí desde Alertas con un documento "faltante" (P1-15
-    /// de docs/business/MATURITY_REVIEW.md — Trabajador con Asignación activa
+    /// de Project-Hydra-Negocio/MATURITY_REVIEW.md — Trabajador con Asignación activa
     /// a un Centro que exige un TipoDocumento obligatorio, sin ningún
     /// Documento de ese tipo): abre el drawer de creación con el propietario
     /// y el tipo ya elegidos, en vez de "gestionar" un Documento que todavía
@@ -291,7 +291,7 @@ public partial class Documentos : ComponentBase, IDisposable
 
     /// <summary>
     /// Los checkboxes de fila solo se pintan con esto activo (Centro 360,
-    /// PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
+    /// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
     /// ocasional. Apagarlo limpia la selección: dejar filas marcadas que ya
     /// no se ven dejaría la barra de acciones en lote apuntando a algo
     /// invisible.
@@ -375,7 +375,7 @@ public partial class Documentos : ComponentBase, IDisposable
     /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
     /// compartir la URL, volver atrás) — no solo en el primer render — para
     /// que la URL sea la fuente de verdad de los tres filtros de la rejilla,
-    /// no solo su semilla inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// no solo su semilla inicial (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     protected override void OnParametersSet()
     {
@@ -423,12 +423,12 @@ public partial class Documentos : ComponentBase, IDisposable
 
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
-    // H2 (docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
+    // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
 
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
     // página no cambie, así que refrescar además la rejilla pedía lo mismo dos
     // veces (ver RecargarAsync).

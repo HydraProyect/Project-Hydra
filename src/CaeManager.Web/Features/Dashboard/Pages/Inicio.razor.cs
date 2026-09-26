@@ -277,7 +277,7 @@ public partial class Inicio : ComponentBase, IDisposable
                     var todosLosItems = bandeja.Grupos.SelectMany(g => g.Items).Concat(bandeja.SinGrupo).ToList();
 
                     // Resuelto una única vez por circuito en MainLayout — aquí solo se lee el
-                    // resultado ya cacheado (docs/blueprints/OPERATIONAL-HOME.md § 6, DDL-068).
+                    // resultado ya cacheado (Project-Hydra-Negocio/tecnico/docs/blueprints/OPERATIONAL-HOME.md § 6, DDL-068).
                     var (ausente, desde) = await ActividadUsuario.RegistrarYEvaluarAsync(RendererInfo.IsInteractive, token);
                     if (ausente && desde is { } desdeValor)
                     {

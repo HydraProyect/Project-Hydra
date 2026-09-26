@@ -7,7 +7,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <inheritdoc />
     /// <summary>
     /// P6, fase «expandir»: infraestructura del contexto de sesión RLS firmado
-    /// (diseño <c>tecnico/DISENO-CONTEXTO-RLS-FIRMADO-P6-2026-09-23.md</c>).
+    /// (diseño <c>Project-Hydra-Negocio/tecnico/DISENO-CONTEXTO-RLS-FIRMADO-P6-2026-09-23.md</c>).
     ///
     /// <para>
     /// Hasta ahora las políticas leen <c>app.tenant_id</c>,

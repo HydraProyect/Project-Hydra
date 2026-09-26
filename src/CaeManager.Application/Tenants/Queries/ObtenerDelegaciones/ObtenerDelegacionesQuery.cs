@@ -10,7 +10,7 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
 /// Delegaciones en las que participa el tenant de origen del usuario, en
 /// cualquiera de los dos papeles: las que ha concedido (es el Cliente
 /// Delegante) y las que ha recibido (es la Consultora). Alimenta la pantalla
-/// de administración de delegaciones (hallazgo N-4 de INFORME-AUDITORIA-2.md).
+/// de administración de delegaciones (hallazgo N-4 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
 ///
 /// Tenant de <b>origen</b>, no <c>ITenantActual</c>, por el mismo motivo que
 /// los comandos de revocación: administrar delegaciones se hace desde la casa

@@ -1,6 +1,6 @@
 namespace CaeManager.Application.VigilanciaNormativa;
 
-/// <summary>Cliente del sumario diario del BOE (boe.es/datosabiertos) — ver ADR y tramo 1 bis del PLAN_MVP1_FORMATOS.md.</summary>
+/// <summary>Cliente del sumario diario del BOE (boe.es/datosabiertos) — ver ADR y tramo 1 bis del Project-Hydra-Negocio/PLAN_MVP1_FORMATOS.md.</summary>
 public interface IBoeSumarioClient
 {
     /// <summary>

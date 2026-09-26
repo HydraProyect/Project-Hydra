@@ -4,7 +4,7 @@
 # Por qué existe (Turno nocturno 2026-09-18, T4): sondear "¿ya terminó CI?" desde
 # el propio modelo, mensaje a mensaje, generó cientos de "Esperando..." en una
 # sesión anterior y no distinguía los fallos de instrumento medidos en
-# PROTOCOLO-TURNO-NOCTURNO.md § 4.1. Este guion se lanza UNA vez, en segundo
+# Project-Hydra-Negocio/tecnico/PROTOCOLO-TURNO-NOCTURNO.md § 4.1. Este guion se lanza UNA vez, en segundo
 # plano, y hace él solo todo el sondeo — el modelo no debe invocarlo en bucle.
 #
 # Uso:
@@ -24,7 +24,7 @@
 #                       guion — declarado como hueco, ver el test).
 #
 #   --timeout-min N     Por defecto 240 (4 h). Cubre cola de merge congestionada
-#                       (ver hydra-merge-queue-congestion-github-side.md, ~1h20
+#                       (ver memoria de sesión hydra-merge-queue-congestion-github-side, ~1h20
 #                       medida) más CI completo más despliegue.
 #   --intervalo-s N     Por defecto 45. No bajar de esto: cada vuelta hace hasta
 #                       4 llamadas a la API de GitHub.
@@ -543,7 +543,7 @@ fase_merge() {
       IFS=$'\t' read -r cola_estado cola_sha cola_rollup <<<"$linea_cola"
       log "fase merge: en cola, estado=$cola_estado commit_sintetico=$cola_sha rollup=$cola_rollup"
       if [[ "$cola_estado" == "UNMERGEABLE" ]]; then
-        log "fase merge: UNMERGEABLE puede ser congestión transitoria del lado de GitHub (ver hydra-merge-queue-congestion-github-side.md) — sigo esperando, no lo trato como rojo inmediato"
+        log "fase merge: UNMERGEABLE puede ser congestión transitoria del lado de GitHub (ver memoria de sesión hydra-merge-queue-congestion-github-side) — sigo esperando, no lo trato como rojo inmediato"
       fi
     fi
 

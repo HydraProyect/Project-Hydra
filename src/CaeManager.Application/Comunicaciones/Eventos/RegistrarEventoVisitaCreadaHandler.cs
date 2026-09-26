@@ -8,7 +8,7 @@ namespace CaeManager.Application.Comunicaciones.Eventos;
 
 /// <summary>
 /// Traduce un hecho de Visitas en una entrada del Unified Timeline de la
-/// Conversacion que lo originó (docs/COMUNICACIONES.md § 12.3/§ 16.7).
+/// Conversacion que lo originó (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.3/§ 16.7).
 /// Falla sola, sin deshacer la Visita ya creada — mismo criterio de "mejor
 /// esfuerzo tras el commit principal" que ya usa CrearVisitaCommandHandler
 /// para el paquete documental automático.

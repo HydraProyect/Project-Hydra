@@ -810,7 +810,7 @@ public partial class BuscadorGlobal : ComponentBase
         _debounceCts = null;
         debounce?.Cancel();
 
-        // H5 (docs/ux-audit/16-transversales.md): mismo motivo que
+        // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/16-transversales.md): mismo motivo que
         // AtajosListaTeclado.razor — el circuito puede desconectarse antes
         // de que corra este Dispose.
         // Cada referencia se anula ANTES de liberarla, igual que el CTS de

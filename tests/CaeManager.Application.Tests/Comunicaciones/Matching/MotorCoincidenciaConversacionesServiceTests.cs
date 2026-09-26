@@ -6,7 +6,7 @@ using Xunit;
 
 namespace CaeManager.Application.Tests.Comunicaciones.Matching;
 
-/// <summary>Conversation Matching Engine (docs/COMUNICACIONES.md § 13.2) — solo Mismo Cliente y Ventana temporal calculan con datos reales hoy; ver comentario de MotorCoincidenciaConversacionesService.</summary>
+/// <summary>Conversation Matching Engine (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 13.2) — solo Mismo Cliente y Ventana temporal calculan con datos reales hoy; ver comentario de MotorCoincidenciaConversacionesService.</summary>
 public class MotorCoincidenciaConversacionesServiceTests
 {
     [Fact]

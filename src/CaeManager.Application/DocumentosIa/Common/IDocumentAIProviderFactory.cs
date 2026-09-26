@@ -8,7 +8,7 @@ namespace CaeManager.Application.DocumentosIa.Common;
 /// switch/if disperso comparando nombres de proveedor. Añadir un proveedor
 /// nuevo (Gemini/Mistral) es registrarlo en Infrastructure, cero cambios
 /// aquí. Mismo patrón que <c>IIntegrationProviderFactory</c>
-/// (ARQUITECTURA-INTEGRACIONES.md § 4).
+/// (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 4).
 /// </summary>
 public interface IDocumentAIProviderFactory
 {

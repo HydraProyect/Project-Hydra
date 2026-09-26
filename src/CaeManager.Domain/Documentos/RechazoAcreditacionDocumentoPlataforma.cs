@@ -4,7 +4,7 @@ namespace CaeManager.Domain.Documentos;
 
 /// <summary>
 /// Una entrada del historial de rechazos de una <see cref="AcreditacionDocumentoPlataforma"/>
-/// (docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b)) — append-only: un
+/// (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b)) — append-only: un
 /// rechazo nuevo nunca sobreescribe ni borra los anteriores, es la invariante
 /// explícita del plan ("los rechazos anteriores se conservan como historial").
 /// Solo <see cref="AcreditacionDocumentoPlataforma.Rechazar"/> crea instancias.

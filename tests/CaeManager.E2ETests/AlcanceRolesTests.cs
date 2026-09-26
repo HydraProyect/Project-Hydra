@@ -30,8 +30,8 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     private static partial Regex PatronTotalElementos();
 
     /// <summary>
-    /// El paginador único en español (H2, docs/ux-audit/02-clientes.md;
-    /// UX_PATTERNS.md § Paginar) renderiza "Página X de Y — N cliente(s)" —
+    /// El paginador único en español (H2, Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md;
+    /// Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md § Paginar) renderiza "Página X de Y — N cliente(s)" —
     /// antes del cambio de <c>Paginator</c> de QuickGrid ("1–20 of 200
     /// items") este método buscaba el número justo antes de "items". El
     /// total ahora está justo después del guion largo, delante de la
@@ -50,7 +50,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     /// Antes este test se llamaba "Administrador ve los 200 clientes
     /// sembrados" y comprobaba justo lo contrario: que ser Administrador en
     /// la Consultora bastaba para verlo todo dentro del Delegated Workspace.
-    /// Eso era el hallazgo N-5 de INFORME-AUDITORIA-2.md —
+    /// Eso era el hallazgo N-5 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md —
     /// <c>AsignacionOperadorDelegado.Rol</c> se guardaba y no se leía nunca—,
     /// así que el test estaba fijando el defecto.
     ///

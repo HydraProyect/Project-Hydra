@@ -6,7 +6,7 @@ namespace CaeManager.E2ETests;
 /// Cubre el alta de un Cliente Delegante nuevo (crea el tenant, la
 /// delegación activa y asigna al creador como Operador Delegado en el mismo
 /// paso), operar dentro de su Delegated Workspace, y la revocación
-/// (Horizonte 1.6 de MACRO_PLAN_2026-08-13.md) — complementa a
+/// (Horizonte 1.6 de Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md) — complementa a
 /// FlujoDelegatedWorkspaceTests (que solo cambia entre workspaces ya
 /// existentes) y FlujoSoporteTests (mecanismo de acceso distinto: motivo +
 /// ventana, no alta/revocación comercial).

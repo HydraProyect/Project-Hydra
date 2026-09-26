@@ -6,7 +6,7 @@ using FluentAssertions;
 
 namespace CaeManager.Web.Tests;
 
-/// <summary>docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — badges de acreditación por plataforma.</summary>
+/// <summary>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — badges de acreditación por plataforma.</summary>
 public class BadgesAcreditacionTests : BunitContext
 {
     [Fact]

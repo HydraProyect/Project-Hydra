@@ -31,7 +31,7 @@ public record SubcontrataListaDto(
 /// (no solo desactualizado) para cualquier Subcontrata creada tras el
 /// freeze, porque <see cref="Domain.Trabajadores.Trabajador.SubcontrataId"/>
 /// ya solo puede apuntar a filas de Empresas. Ver
-/// f3b-subcontrata-inventario-fresco-2026-08-26.md.
+/// Project-Hydra-Negocio/tecnico/f3b-subcontrata-inventario-fresco-2026-08-26.md.
 /// </summary>
 public class ObtenerSubcontratasQueryHandler(
     IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoSubcontrataService calculoEstado)

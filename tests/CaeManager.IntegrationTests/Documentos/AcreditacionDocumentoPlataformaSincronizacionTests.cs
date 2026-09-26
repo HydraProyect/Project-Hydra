@@ -20,7 +20,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Documentos;
 
 /// <summary>
-/// docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b)/Lote 2-D: crear/renovar
+/// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b)/Lote 2-D: crear/renovar
 /// un Documento sincroniza sus AcreditacionDocumentoPlataforma contra los
 /// accesos de plataforma que hoy le aplican. Desde P0-7 solo aplican los de un
 /// Centro que exige el tipo: por eso los tipos de estos escenarios son

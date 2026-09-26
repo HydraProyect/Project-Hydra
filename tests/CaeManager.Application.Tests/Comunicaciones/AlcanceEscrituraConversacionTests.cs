@@ -15,7 +15,7 @@ using Xunit;
 namespace CaeManager.Application.Tests.Comunicaciones;
 
 /// <summary>
-/// Regresión del hallazgo N-3 de INFORME-AUDITORIA-2.md: los comandos del
+/// Regresión del hallazgo N-3 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md: los comandos del
 /// módulo cargaban la conversación por un repositorio filtrado por tenant
 /// —así que el cruce entre tenants estaba cerrado— pero no comprobaban el
 /// alcance *dentro* del tenant, que el lado de lectura sí comprobaba.

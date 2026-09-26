@@ -19,7 +19,7 @@ public class ParserCorrienteAeat : ParserDocumentoOficialBase
     /// gate, un desajuste de regex podía coincidir por casualidad con datos
     /// del propietario y auto-validar un certificado que nadie verificó de
     /// verdad. Revertir a <c>true</c> solo tras calibrar con muestras reales
-    /// (PLAN-FIRMA-DIGITAL-PDF.md, PR-6).
+    /// (Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md, PR-6).
     /// </summary>
     public override bool Calibrado => false;
 

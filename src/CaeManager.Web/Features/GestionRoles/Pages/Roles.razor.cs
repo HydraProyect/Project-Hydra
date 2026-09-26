@@ -300,7 +300,7 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
     private async Task NotificarUsuarioRolAsignadoAsync(Guid usuarioId, string email, string nombreCompleto, string rol)
     {
         // Plantilla mínima a propósito — contenido/diseño final pendiente de
-        // definir con el usuario (ver ROADMAP.md). Best-effort: un fallo de
+        // definir con el usuario (ver Project-Hydra-Negocio/tecnico/ROADMAP.md). Best-effort: un fallo de
         // envío no debe deshacer la asignación de rol, que ya se guardó — ni
         // tampoco hacerla pasar por fallida, que es lo que ocurría si el
         // servicio de correo lanzaba en vez de devolver un resultado fallido.

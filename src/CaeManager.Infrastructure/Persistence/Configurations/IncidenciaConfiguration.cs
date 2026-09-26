@@ -20,7 +20,7 @@ public class IncidenciaConfiguration : IEntityTypeConfiguration<Incidencia>
         builder.HasIndex(i => i.CentroId);
         builder.HasIndex(i => i.TrabajadorId);
 
-        // FKs reales — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // FKs reales — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         builder.HasOne<Centro>().WithMany()
             .HasForeignKey(i => new { i.TenantId, i.CentroId })
             .HasPrincipalKey(c => new { c.TenantId, c.Id })

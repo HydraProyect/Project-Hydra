@@ -9,7 +9,7 @@ namespace CaeManager.Application.Comunicaciones.Eventos;
 /// <summary>
 /// Traduce el envío de un lote de reclamación documental en una entrada del
 /// Unified Timeline de la Conversacion por la que salió
-/// (docs/COMUNICACIONES.md § 12.3/§ 16.7). Falla sola, sin deshacer la
+/// (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.3/§ 16.7). Falla sola, sin deshacer la
 /// reclamación ya registrada — mismo criterio de "mejor esfuerzo tras el commit
 /// principal" que <see cref="RegistrarEventoVisitaCreadaHandler"/>: el correo ya
 /// salió y el historial ya está escrito, así que perder la entrada del timeline

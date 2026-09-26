@@ -3,7 +3,7 @@ using CaeManager.Domain.Comunicaciones;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
 
-/// <summary>Fake en memoria — nunca llama a un proveedor de IA real (ver CODING_STANDARDS.md).</summary>
+/// <summary>Fake en memoria — nunca llama a un proveedor de IA real (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).</summary>
 public class SugerenciaVisitaCorreoServiceFalso : ISugerenciaVisitaCorreoService
 {
     public List<(Guid MensajeId, Guid ClienteId)> Llamadas { get; } = [];

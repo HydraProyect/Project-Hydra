@@ -8,7 +8,7 @@ namespace CaeManager.Web.Documentos;
 /// guardado como ".pdf") lo pasaría sin más comprobación. La extensión
 /// decide qué firma se espera; este validador comprueba que el contenido
 /// la cumple de verdad antes de convertirlo (PdfSharp/LibreOffice) o
-/// guardarlo — P1-16 de docs/business/MATURITY_REVIEW.md.
+/// guardarlo — P1-16 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
 /// </summary>
 public static class ValidadorFirmaArchivo
 {

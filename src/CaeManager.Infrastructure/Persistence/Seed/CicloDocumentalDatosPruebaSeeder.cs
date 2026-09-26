@@ -14,7 +14,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 
 /// <summary>
 /// Siembra el ciclo documental avanzado sobre los Documentos que
-/// <see cref="DatosPruebaSeeder"/> ya creó (PLAN-DATOS-PRUEBA.md, Tanda 2):
+/// <see cref="DatosPruebaSeeder"/> ya creó (Project-Hydra-Negocio/tecnico/PLAN-DATOS-PRUEBA.md, Tanda 2):
 /// revisiones IA pendientes y resueltas, aprobaciones automáticas y
 /// manuales, trabajos de análisis en sus estados, auditoría de extracción
 /// IA, validación oficial (verificación + firmas digitales) y detecciones

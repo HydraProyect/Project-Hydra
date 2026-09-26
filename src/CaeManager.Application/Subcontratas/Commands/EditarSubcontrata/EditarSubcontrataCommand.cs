@@ -85,7 +85,7 @@ public class EditarSubcontrataCommandHandler(
         var clienteIdsDeseados = request.ClienteIds.Distinct().ToHashSet();
         var clienteIdsActuales = contrapartes.ClienteIds.ToHashSet();
 
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         var clienteIdsNuevos = clienteIdsDeseados.Except(clienteIdsActuales).ToList();
         if (await empresasContext.Empresas.Where(e => clienteIdsNuevos.Contains(e.Id)).CountAsync(cancellationToken) != clienteIdsNuevos.Count)
             return Result.Fallo(Error.Crear("Subcontrata.ClienteNoEncontrado", "Alguno de los clientes seleccionados no existe."));

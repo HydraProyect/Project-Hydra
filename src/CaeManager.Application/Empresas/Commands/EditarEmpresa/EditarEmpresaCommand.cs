@@ -84,7 +84,7 @@ public class EditarEmpresaCommandHandler(
         var deseados = request.ClienteIds.Distinct().ToHashSet();
         var actualesClienteIds = contrapartes.ClienteIds.ToHashSet();
 
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         // Solo hace falta verificar las vinculaciones NUEVAS: las que ya
         // estaban antes ya pasaron por esta comprobación cuando se crearon.
         var clienteIdsNuevos = deseados.Except(actualesClienteIds).ToList();

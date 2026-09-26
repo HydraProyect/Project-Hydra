@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 
 /// <summary>
-/// Alimenta el acordeón de asignaciones de Centro 360 (<c>PLAN-EJECUCION-UX.md</c>
+/// Alimenta el acordeón de asignaciones de Centro 360 (<c>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md</c>
 /// § 0.1/0.2/0.4): trabajadores con Asignación activa en un Centro, con el
 /// estado de la documentación que ESE centro exige de cada uno — ver
 /// <see cref="Documentos.ResolucionTipoDocumentoCentro"/> para la semántica
@@ -41,7 +41,7 @@ public record ObtenerAsignacionesDocumentacionPorCentroQuery(Guid CentroId, Date
 /// caduca antes de que termine la próxima visita del centro (comparando
 /// <see cref="CalculadoraEstadoDocumento"/> con fecha de referencia = fin de
 /// la visita en vez de hoy) — modificador visual "vigente con riesgo en
-/// ventana", no un estado nuevo (PLAN-EJECUCION-UX.md § 0.3).
+/// ventana", no un estado nuevo (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.3).
 /// </param>
 public record DocumentoRequeridoDto(
     Guid? DocumentoId, Guid TipoDocumentoId, string TipoDocumentoNombre, EstadoDocumento Estado,

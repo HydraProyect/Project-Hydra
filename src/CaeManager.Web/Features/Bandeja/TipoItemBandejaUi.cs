@@ -139,7 +139,7 @@ public static class TipoItemBandejaUi
         && grupo.Items.Any(ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro);
 
     /// <summary>
-    /// Gate del hallazgo de P9 (2026-09-18, CAPA-USUARIO-AVANZADO-TALVEG.md
+    /// Gate del hallazgo de P9 (2026-09-18, Project-Hydra-Negocio/tecnico/CAPA-USUARIO-AVANZADO-TALVEG.md
     /// § 6.1 quinquies): «solo la vigencia es copiable», con la excepción
     /// acotada de Detección/Revisión IA para la fecha del suceso. Antes de
     /// este gate, <c>PanelResolverItem</c> envolvía <c>Item.Fecha</c> en

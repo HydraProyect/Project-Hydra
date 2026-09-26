@@ -7,7 +7,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <inheritdoc />
     /// <summary>
     /// RLS de las tareas del asistente de flujos, en la misma tanda que crea
-    /// las tablas (RUNBOOK-RLS.md). Dos capas, las dos en la base:
+    /// las tablas (Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md). Dos capas, las dos en la base:
     ///
     /// <para>
     /// <b>aislamiento_tenant</b>, idéntica a la de toda tabla con TenantId: la

@@ -13,7 +13,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Comunicaciones;
 
 /// <summary>
-/// Regresión del hallazgo N-1 de INFORME-AUDITORIA-2.md a través del handler
+/// Regresión del hallazgo N-1 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md a través del handler
 /// real, no solo del sanitizador aislado
 /// (<see cref="GanssSanitizadorHtmlServiceTests"/> cubre eso). Lo que aquí se
 /// garantiza es la cadena entera: un cuerpo malicioso guardado en base de

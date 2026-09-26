@@ -1,6 +1,6 @@
 # Solo PostgreSQL — la app se ejecuta con `dotnet run`/el IDE, no en
 # contenedor, para no perder hot-reload ni depuración en el día a día. Ver
-# Dockerfile para la imagen de despliegue real (Railway).
+# Dockerfile para la imagen de despliegue real (VPS, deploy/local/).
 #
 # Misma etiqueta y digest que producción (servicio db de
 # deploy/local/docker-compose.produccion.yml) y que los servicios de

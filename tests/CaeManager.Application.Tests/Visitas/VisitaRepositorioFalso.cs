@@ -2,7 +2,7 @@ using CaeManager.Domain.Visitas;
 
 namespace CaeManager.Application.Tests.Visitas;
 
-/// <summary>Fake en memoria — los handlers de Application se prueban sin base de datos (ver CODING_STANDARDS.md).</summary>
+/// <summary>Fake en memoria — los handlers de Application se prueban sin base de datos (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).</summary>
 public class VisitaRepositorioFalso : IVisitaRepository
 {
     public List<Visita> Visitas { get; } = [];

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 namespace CaeManager.Infrastructure.AsistenteIa;
 
 /// <summary>
-/// System prompt fijo de la Etapa 1 (ver ROADMAP.md § Iniciativa de IA):
+/// System prompt fijo de la Etapa 1 (ver Project-Hydra-Negocio/tecnico/ROADMAP.md § Iniciativa de IA):
 /// especialista general en PRL europea/española, deliberadamente sin ningún
 /// dato de negocio inyectado — nunca se le pasa nada de Clientes,
 /// Trabajadores o Documentos reales, solo la pregunta del usuario y el

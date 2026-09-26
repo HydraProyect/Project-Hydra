@@ -68,7 +68,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         // listando esas altas (REC-106: corregirlo allí exige extender
         // PlanImportacionDto sin romper el emparejamiento posicional de
         // Centros_Plataformas con Asignaciones ni la causal de Asignación que
-        // exige DCR-12, ver IMPORTACION.md § 3 bis); el paso «Revisar plan» las
+        // exige DCR-12, ver Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis); el paso «Revisar plan» las
         // saca de TotalACrear y las muestra como «No se creará»
         // (AltasClienteCentroQueNoSeHaran), igual que en la de Clientes.
         new("cae", "importar", "PlantillaCaeTitulo", "PlantillaCaeNombreCorto", "PlantillaCaeDescripcion",

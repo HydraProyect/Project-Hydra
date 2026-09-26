@@ -15,7 +15,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Firmas;
 
 /// <summary>
-/// Spike de PLAN-FIRMA-DIGITAL-PDF.md § 5 fase 1: ¿puede PDFsharp 6.2.4
+/// Spike de Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md § 5 fase 1: ¿puede PDFsharp 6.2.4
 /// (ya en el proyecto) localizar la firma de un PDF en lectura — el
 /// /ByteRange y el /Contents del diccionario de firma — con la fidelidad
 /// suficiente para verificarla criptográficamente con SignedCms?

@@ -63,7 +63,7 @@ public interface IAlertaOperativa
 
 /// <summary>
 /// Deliberadamente solo dos niveles: la guardia de una persona (ver
-/// RUNBOOK-ALERTAS.md en el repositorio de negocio) no necesita más
+/// Project-Hydra-Negocio/tecnico/RUNBOOK-ALERTAS.md en el repositorio de negocio) no necesita más
 /// granularidad que "esto puede esperar a mañana" frente a "esto hay que
 /// mirarlo ahora".
 /// </summary>

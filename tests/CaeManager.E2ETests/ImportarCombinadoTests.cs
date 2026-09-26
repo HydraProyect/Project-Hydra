@@ -134,7 +134,7 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
             // ObtenerClientesQuery sigue congelada por D2 hasta F4 y, con los
             // escritores redirigidos a Empresa, esa pantalla queda vacía en
             // cualquier entorno (decisión explícita: "aceptar el vacío", ver
-            // f3b-decision-d2-transicion-acotada-2026-08-25.md). El Cliente
+            // Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md). El Cliente
             // importado sí existe como fila en /empresas (EsCritico != null);
             // la fila con CIF inválido nunca se creó en ninguna tabla, así
             // que su ausencia ahí sigue siendo una comprobación real, no

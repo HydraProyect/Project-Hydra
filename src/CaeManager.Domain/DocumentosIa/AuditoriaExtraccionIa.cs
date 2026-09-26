@@ -4,7 +4,7 @@ namespace CaeManager.Domain.DocumentosIa;
 
 /// <summary>
 /// Registro de auditoría de cada procesamiento por <c>DocumentAIRouterService</c>
-/// (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 3): proveedor usado, tiempo,
+/// (ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 3): proveedor usado, tiempo,
 /// coste estimado, páginas, confianza e incidencias — como mínimo lo que
 /// pedía el Issue #19. Se escribe siempre, incluso cuando el procesamiento
 /// falla (para poder ver fallos recurrentes de un proveedor) o cuando el

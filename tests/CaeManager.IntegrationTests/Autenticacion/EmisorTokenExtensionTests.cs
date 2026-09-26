@@ -15,7 +15,7 @@ namespace CaeManager.IntegrationTests.Autenticacion;
 
 /// <summary>
 /// Incremento 4 del MVP1 de extensión de navegador (ver
-/// ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio):
+/// Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio):
 /// <see cref="EmisorTokenExtension"/> extrae la lógica de emisión de
 /// <c>ExtensionTokenEndpoints</c> (PR #484) para reutilizarla también desde
 /// la página Blazor "Conectar extensión" — ninguna de las dos tenía test

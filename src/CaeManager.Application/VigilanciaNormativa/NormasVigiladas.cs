@@ -1,9 +1,9 @@
 namespace CaeManager.Application.VigilanciaNormativa;
 
 /// <summary>
-/// Lista de normas vigiladas del corte mínimo (PLAN_MVP1_FORMATOS.md tramo
+/// Lista de normas vigiladas del corte mínimo (Project-Hydra-Negocio/PLAN_MVP1_FORMATOS.md tramo
 /// 1 bis, confirmado 2026-08-14): las cinco normas troncales citadas más a
-/// menudo en CATALOGO_FORMATOS_PRL.md, no el censo completo de las 110
+/// menudo en Project-Hydra-Negocio/CATALOGO_FORMATOS_PRL.md, no el censo completo de las 110
 /// bases legales del catálogo — ampliar la lista es trabajo de seguimiento,
 /// no de este corte. La detección es un `Contains` case-insensitive sobre
 /// el título de la publicación: "sin interpretar nada", tal como fija el

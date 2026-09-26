@@ -111,7 +111,7 @@ public partial class Alertas : ComponentBase
     /// <summary>
     /// Se re-ejecuta en cada navegación dentro de la propia página, no solo
     /// en el primer render, para que la URL sea la fuente de verdad del
-    /// filtro (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// filtro (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     protected override void OnParametersSet()
     {
@@ -126,7 +126,7 @@ public partial class Alertas : ComponentBase
         return Task.CompletedTask;
     }
 
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _tamanoPagina = tamano;

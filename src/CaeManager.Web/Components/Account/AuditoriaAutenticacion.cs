@@ -3,7 +3,7 @@ namespace CaeManager.Web.Components.Account;
 /// <summary>
 /// Categoría de log compartida por los eventos de autenticación (login,
 /// verificación de 2FA, activación de 2FA, cierre de sesión) — P1-13 de
-/// docs/business/MATURITY_REVIEW.md. El login vive fuera del pipeline de
+/// Project-Hydra-Negocio/MATURITY_REVIEW.md. El login vive fuera del pipeline de
 /// MediatR (es <c>SignInManager</c> directo desde componentes Razor y
 /// endpoints minimal API, antes de que exista ningún request que pase por
 /// <c>LoggingBehavior</c>), así que se audita con el mismo Serilog+Seq de

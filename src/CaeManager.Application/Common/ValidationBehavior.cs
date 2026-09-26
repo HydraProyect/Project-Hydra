@@ -7,7 +7,7 @@ namespace CaeManager.Application.Common;
 /// Pipeline behavior de MediatR: ejecuta todos los FluentValidation
 /// validators registrados para el Command/Query antes del handler. Si hay
 /// errores, lanza ValidationException — un middleware/behavior de más alto
-/// nivel en Web la traduce a microcopy en español (ver UX_PATTERNS.md).
+/// nivel en Web la traduce a microcopy en español (ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md).
 ///
 /// Es el último behavior antes del handler (ver el orden en
 /// ApplicationServiceCollectionExtensions), así que <c>next(cancellationToken)</c>

@@ -13,7 +13,7 @@ namespace CaeManager.Application.Subcontratas;
 /// <summary>
 /// Una incidencia documental de un Trabajador de la Subcontrata — a
 /// diferencia de <c>CausaEstadoCentro</c> no lleva ámbito: Documento no tiene
-/// propietario Subcontrata (ver DOMAIN.md, propietario polimórfico
+/// propietario Subcontrata (ver Project-Hydra-Negocio/tecnico/DOMAIN.md, propietario polimórfico
 /// excluyente), así que toda causa aquí es siempre de un Trabajador.
 /// </summary>
 public record IncidenciaSubcontrataDto(

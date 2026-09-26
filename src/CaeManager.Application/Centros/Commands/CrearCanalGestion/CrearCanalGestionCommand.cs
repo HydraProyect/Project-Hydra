@@ -10,9 +10,9 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Centros.Commands.CrearCanalGestion;
 
 /// <summary>
-/// Alta de un acceso de gestión documental del Centro (PLAN-EJECUCION-UX.md
+/// Alta de un acceso de gestión documental del Centro (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
 /// § 0.6, Lote 0-E). Hasta ese lote la tabla no tenía ningún escritor — ni
-/// Command ni seeder, solo la Query de lectura (ROADMAP.md, Fase "Canal de
+/// Command ni seeder, solo la Query de lectura (Project-Hydra-Negocio/tecnico/ROADMAP.md, Fase "Canal de
 /// gestión documental" § 1).
 ///
 /// <see cref="ProveedorPlataformaCaeId"/> sustituye al antiguo
@@ -77,7 +77,7 @@ public class CrearCanalGestionCommandHandler(
 {
     public async Task<Result<Guid>> Handle(CrearCanalGestionCommand request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         if (!await alcanceDatos.CentroVisibleAsync(request.CentroId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("CanalGestion.CentroNoEncontrado", "No encontramos este centro."));
 

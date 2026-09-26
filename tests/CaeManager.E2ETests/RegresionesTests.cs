@@ -3,7 +3,7 @@ using Microsoft.Playwright;
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// Un test por cada bug real ya corregido (ver ROADMAP.md, "Iniciativa de
+/// Un test por cada bug real ya corregido (ver Project-Hydra-Negocio/tecnico/ROADMAP.md, "Iniciativa de
 /// hardening" § Tests E2E automatizados) — para que no puedan volver sin
 /// que un test lo note. Por ahora cubre el bug #7 del backlog: el Drawer se
 /// cerraba al seleccionar texto con el ratón dentro del panel, porque el

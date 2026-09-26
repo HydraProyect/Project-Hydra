@@ -4,7 +4,7 @@ using FluentAssertions;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// F3b-Subcontrata (D2, <c>f3b-decision-d2-transicion-acotada-2026-08-25.md</c>
+/// F3b-Subcontrata (D2, <c>Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md</c>
 /// §2): desde la congelación de Subcontrata, <c>Subcontratas</c> pasa a ser
 /// legacy read-only — sigue existiendo y sigue siendo consultable (las tres
 /// consultas de categoría C: <c>ObtenerSubcontratasQuery</c>,

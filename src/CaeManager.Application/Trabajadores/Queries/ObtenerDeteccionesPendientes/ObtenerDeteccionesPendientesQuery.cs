@@ -10,7 +10,7 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPendient
 /// Detecciones pendientes (sin resolver) de todas las Empresas visibles para
 /// el usuario actual — alimenta el badge de Empresas y el tipo
 /// DeteccionPendiente de la Bandeja del gestor (Centro 360,
-/// docs/ux-audit/03-empresas-subcontratas.md H2): sin esta cola persistente,
+/// Project-Hydra-Negocio/tecnico/docs/ux-audit/03-empresas-subcontratas.md H2): sin esta cola persistente,
 /// la única referencia a una detección pendiente era la notificación de
 /// campana, que se pierde si se descarta.
 /// </summary>

@@ -38,7 +38,7 @@ namespace CaeManager.Infrastructure.Alertas;
 /// (EmpresaCliente/SubcontrataCliente son N:M, ver Fase 31) — un Documento
 /// compartido no tiene un único "responsable de cartera" sin una decisión de
 /// producto que no se ha tomado todavía. Acotado a los roles globales por
-/// ahora; el resumen por Gestor CAE queda en ROADMAP.md como extensión futura.
+/// ahora; el resumen por Gestor CAE queda en Project-Hydra-Negocio/tecnico/ROADMAP.md como extensión futura.
 ///
 /// Cálculo de alertas reutilizado de <see cref="ObtenerAlertasQueryHandler.CalcularAsync"/>
 /// sin pasar por <see cref="IAlcanceDatosService"/> (que depende del usuario

@@ -28,7 +28,7 @@ public static class IdentityEndpointsExtensions
             // sesión y al volver a entrar se reanudaba el workspace anterior
             // —incluido uno cuya delegación se hubiera revocado entretanto—
             // en lugar de empezar en el tenant de origen (hallazgo N-6 de
-            // INFORME-AUDITORIA-2.md).
+            // Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
             httpContext.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
 
             // Tampoco la de cultura: el siguiente que entre en este navegador

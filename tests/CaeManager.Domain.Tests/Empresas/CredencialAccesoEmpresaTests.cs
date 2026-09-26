@@ -7,7 +7,7 @@ namespace CaeManager.Domain.Tests.Empresas;
 
 /// <summary>
 /// Cubre <see cref="CredencialAccesoPortal"/> a través de una de sus dos
-/// clases derivadas (P2 #27 de docs/business/MATURITY_REVIEW.md —
+/// clases derivadas (P2 #27 de Project-Hydra-Negocio/MATURITY_REVIEW.md —
 /// unificación de CredencialAccesoEmpresa/CredencialAccesoSubcontrata en una
 /// base compartida): como la lógica vive entera en la base, probarla aquí
 /// también cubre a CredencialAccesoSubcontrata sin duplicar el test.

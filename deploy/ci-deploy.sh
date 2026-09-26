@@ -206,7 +206,7 @@ Stripe__WebhookSecret
 # rol en PostgreSQL deja al `app`/`migrador` del SIGUIENTE despliegue con una
 # contraseña que PostgreSQL rechaza — caída del stack entero, no solo de la
 # clave que se quiso rotar. `ConnectionStrings__CaeManagerDbRuntime` depende
-# del mismo orden (RUNBOOK-RLS.md, repositorio de negocio: primero
+# del mismo orden (Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md, repositorio de negocio: primero
 # `ALTER ROLE cae_app_runtime ... PASSWORD`, luego el `.env`) y aquí, a
 # diferencia de una edición manual por SSH, la escritura en `.env` queda
 # desacoplada en el tiempo del momento en que el propietario carga el

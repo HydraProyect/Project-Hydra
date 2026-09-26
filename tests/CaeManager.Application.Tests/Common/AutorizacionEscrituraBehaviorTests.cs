@@ -89,7 +89,7 @@ public class AutorizacionEscrituraBehaviorTests
     [InlineData("RolInventado")]
     public async Task Bloquea_un_command_cuando_no_hay_un_rol_de_escritura_reconocible(string? rol)
     {
-        // Lista blanca, no lista negra (hallazgo N-5 de INFORME-AUDITORIA-2.md).
+        // Lista blanca, no lista negra (hallazgo N-5 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
         // "Sin rol" ocurre de verdad en dos casos: un usuario que aún no lo
         // tiene asignado, y un Operador Delegado cuya delegación se revocó
         // mientras su token de selección seguía vigente — ahí

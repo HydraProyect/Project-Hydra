@@ -17,7 +17,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 /// si tienen algo que ver con este Centro), aquí solo se muestra lo que
 /// aplica al Centro de la visita — un Trabajador puede tener un Documento
 /// vencido de un TipoDocumento que este Centro excluye explícitamente
-/// (<c>TipoDocumentoCentro.Incluido = false</c>, PLAN-EJECUCION-UX.md § 0.4),
+/// (<c>TipoDocumentoCentro.Incluido = false</c>, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4),
 /// y eso no debe interferir en esta vista.
 ///
 /// Incluye "Faltante" (documento obligatorio sin ningún Documento) tanto

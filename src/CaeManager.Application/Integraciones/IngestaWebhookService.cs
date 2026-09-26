@@ -10,7 +10,7 @@ namespace CaeManager.Application.Integraciones;
 /// <summary>
 /// Consume la cola de <see cref="EventoWebhook"/> — invocado desde
 /// <c>IngestaWebhookHostedService</c> (Infrastructure), nunca desde el
-/// propio endpoint HTTP del webhook (ver ARQUITECTURA-INTEGRACIONES.md §
+/// propio endpoint HTTP del webhook (ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md §
 /// 6.4: nunca procesar Graph de forma síncrona dentro del request
 /// entrante). No es un Command de MediatR a propósito: el hosted service ya
 /// carga el <see cref="EventoWebhook"/> pendiente dentro de su propio scope

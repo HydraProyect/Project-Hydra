@@ -11,7 +11,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.DocumentosIa;
 
 /// <summary>
-/// PdfSharpClasificadorDocumentoService (Fase 1 de docs/ARQUITECTURA-IA-DOCUMENTAL.md)
+/// PdfSharpClasificadorDocumentoService (Fase 1 de Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md)
 /// se prueba contra PDFs reales generados con PdfSharp — una página con
 /// texto dibujado de verdad (BT/Tj real) y una con solo un rectángulo
 /// (sin ningún operador de texto), para no depender de heurísticas sobre

@@ -4,7 +4,7 @@ namespace CaeManager.Application.Cumplimiento;
 /// Único punto de consulta del Nivel 0 (DEC-33, REC-035): ¿tiene este Tenant
 /// propietario una instrucción documentada vigente que autorice tratamiento
 /// de datos personales mediante IA? Los nueve consumidores de
-/// <c>tecnico/docs/POLITICA-TECNICA-IA.md</c> § 4.4 lo llaman directamente
+/// <c>Project-Hydra-Negocio/tecnico/docs/POLITICA-TECNICA-IA.md</c> § 4.4 lo llaman directamente
 /// mientras REC-104 (gateway común de IA) no exista — cuando se construya,
 /// DEC-46 fija que el gateway consulta esta interfaz una sola vez en su punto
 /// de entrada. Los cinco del diseño original: verificación, detección de

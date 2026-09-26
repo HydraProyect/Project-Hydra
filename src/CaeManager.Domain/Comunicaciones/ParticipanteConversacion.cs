@@ -17,7 +17,7 @@ public class ParticipanteConversacion : EntidadConTenant
     /// <summary>
     /// Apunta a Trabajador/Subcontrata/Empresa/Centro según <see cref="TipoOrigen"/>.
     /// Sin FK real a propósito: es polimórfico y cada entidad relacionada
-    /// vive en su propio agregado (ver ARQUITECTURA-INTEGRACIONES.md § 12.3).
+    /// vive en su propio agregado (ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 12.3).
     /// Null cuando TipoOrigen es Desconocido o UsuarioCliente sin resolver.
     /// </summary>
     public Guid? EntidadRelacionadaId { get; private set; }

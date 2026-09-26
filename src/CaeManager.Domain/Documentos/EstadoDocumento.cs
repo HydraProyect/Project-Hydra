@@ -4,7 +4,7 @@ namespace CaeManager.Domain.Documentos;
 /// Estado de vigencia de un Documento. Nunca se persiste: se calcula siempre
 /// a partir de la vigencia explícita del Documento (<see cref="VigenciaDocumento"/>)
 /// y los umbrales configurables de
-/// ParametroSistema (ver CalculadoraEstadoDocumento y DATABASE.md).
+/// ParametroSistema (ver CalculadoraEstadoDocumento y Project-Hydra-Negocio/tecnico/DATABASE.md).
 ///
 /// <para>
 /// <b>Valores numéricos explícitos y congelados.</b> Este enum sale por la

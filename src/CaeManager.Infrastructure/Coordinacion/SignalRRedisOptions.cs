@@ -3,7 +3,7 @@ using CaeManager.Infrastructure.Configuracion;
 namespace CaeManager.Infrastructure.Coordinacion;
 
 /// <summary>
-/// Backplane de Redis para SignalR (P3-30 de docs/business/MATURITY_REVIEW.md):
+/// Backplane de Redis para SignalR (P3-30 de Project-Hydra-Negocio/MATURITY_REVIEW.md):
 /// sin él, un circuito de Blazor Server abierto contra la réplica A no puede
 /// recibir mensajes si el balanceador manda una reconexión a la réplica B —
 /// se pierde el circuito aunque la sesión HTTP siga viva.

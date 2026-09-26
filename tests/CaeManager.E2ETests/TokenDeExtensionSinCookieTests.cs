@@ -7,7 +7,7 @@ namespace CaeManager.E2ETests;
 
 /// <summary>
 /// Regresión de un hallazgo real del MVP1 de extensión de navegador (ver
-/// ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio): ninguna
+/// Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio): ninguna
 /// de las suites existentes (unitarios con fakes, integración con
 /// <c>ExtensionAuthenticationHandler</c> construido a mano) ejercita el
 /// pipeline HTTP real completo, así que ninguna detectó que

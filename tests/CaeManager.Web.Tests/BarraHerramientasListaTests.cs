@@ -5,7 +5,7 @@ using FluentAssertions;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Barra de herramientas de lista (Centro 360, PLAN-EJECUCION-UX.md § 0.9).
+/// Barra de herramientas de lista (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9).
 /// Lo que se cubre aquí es lo que las 9 listas dan por hecho al usarla: que
 /// el botón de expandir solo existe si la lista es de acordeón, y que el
 /// estado del toggle se comunica al lector de pantalla (no solo con color).

@@ -524,7 +524,7 @@ public partial class AltaGuiada : ComponentBase
             ToastService.Mostrar("Centro creado correctamente.", TonoToast.Exito);
 
             // Limpia el formulario sin abandonar el paso — "Guardar y crear
-            // otro centro" (UX_PATTERNS.md § Crear) manteniendo Cliente/Empresa.
+            // otro centro" (Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md § Crear) manteniendo Cliente/Empresa.
             _nombreCentro = string.Empty;
             _codigoCentro = string.Empty;
             _direccionCentro = string.Empty;
@@ -675,8 +675,8 @@ public partial class AltaGuiada : ComponentBase
 
     /// <summary>
     /// Validación inline al salir del campo, en los cuatro pasos del
-    /// asistente (mismo patrón que Centros.razor, UX_PATTERNS.md, P1-18 de
-    /// docs/business/MATURITY_REVIEW.md).
+    /// asistente (mismo patrón que Centros.razor, Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, P1-18 de
+    /// Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     private Task ValidarRazonSocialClienteAsync() => ValidarCampoClienteAsync(nameof(CrearClienteCommand.RazonSocial));
 

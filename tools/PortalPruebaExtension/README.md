@@ -2,7 +2,7 @@
 
 Fixture estático (sin backend) con las cuatro formas de widget de subida de
 archivo que puede tener una plataforma CAE externa real — ver
-`ARQUITECTURA-INTEGRACIONES.md` § 14.5 (repositorio de negocio): un test verde
+`Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md` § 14.5 (repositorio de negocio): un test verde
 con Playwright/`setInputFiles` no demuestra que el truco `DataTransfer` de la
 extensión (`extension/content.js`) funcione contra un portal real, porque
 Playwright inyecta el archivo por CDP, no por el mecanismo que usa la
@@ -44,5 +44,5 @@ Para probar, usa una copia de trabajo fuera del repositorio con
 `http://localhost:8766/*` y `http://127.0.0.1:8766/*` añadidos a
 `content_scripts.matches`, cárgala como *unpacked extension* en
 `chrome://extensions`, y repite para cada página. El resultado de cada caso
-se registra en `ARQUITECTURA-INTEGRACIONES.md` (repositorio de negocio), no
+se registra en `Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md` (repositorio de negocio), no
 aquí — este directorio es solo la herramienta, no el informe.

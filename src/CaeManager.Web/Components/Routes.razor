@@ -5,7 +5,7 @@
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
             <NotAuthorized Context="estadoAuth">
                 @{
-                    // H1 (docs/ux-audit/16-transversales.md): con sesión viva pero sin el
+                    // H1 (Project-Hydra-Negocio/tecnico/docs/ux-audit/16-transversales.md): con sesión viva pero sin el
                     // rol requerido, esto redirigía igual que sin sesión — el usuario creía
                     // que había caducado. Ahora solo el caso sin sesión va al login.
                     var destino = estadoAuth.User.Identity?.IsAuthenticated == true

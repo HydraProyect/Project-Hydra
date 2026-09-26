@@ -383,7 +383,7 @@ public class CaeManagerDbContext(
 
         builder.ApplyConfigurationsFromAssembly(typeof(CaeManagerDbContext).Assembly);
 
-        // Cifrado en reposo de credenciales de plataformas externas (ver ARCHITECTURE.md, "Datos sensibles").
+        // Cifrado en reposo de credenciales de plataformas externas (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Datos sensibles").
         var conversorCredenciales = new ValueConverter<string?, string?>(
             valorPlano => valorPlano == null ? null : _protectorCredenciales.Protect(valorPlano),
             valorCifrado => valorCifrado == null ? null : _protectorCredenciales.Unprotect(valorCifrado));
@@ -442,12 +442,12 @@ public class CaeManagerDbContext(
         builder.Entity<IdentityRole<Guid>>().HasData(IdentityRoleSeedData.Filas());
 
         // Filtro global de aislamiento por tenant, aplicado por reflexión
-        // sobre el modelo (P2 #27 de docs/business/MATURITY_REVIEW.md — ver
-        // docs/MULTITENANCY.md § 4.2). Antes eran ~40 líneas de
+        // sobre el modelo (P2 #27 de Project-Hydra-Negocio/MATURITY_REVIEW.md — ver
+        // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.2). Antes eran ~40 líneas de
         // HasQueryFilter enumeradas a mano, una trampa ya demostrada dos
         // veces: TarifaCliente y AprobacionDocumento se quedaron sin filtro
         // porque alguien olvidó su línea (hallazgos A-1 y M-1 de
-        // docs/archive/INFORME-AUDITORIA-TECNICA.md). Recorrer el modelo en
+        // Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-TECNICA.md). Recorrer el modelo en
         // busca de EntidadConTenant — mismo patrón que ya usaba el bucle de
         // Version de aquí abajo — hace estructuralmente imposible que una
         // entidad nueva se quede fuera: basta con heredar de
@@ -474,7 +474,7 @@ public class CaeManagerDbContext(
         // DominioProveedorPlataformaCae y las tres tablas del plano de
         // privilegio de plataforma (ConcesionPrivilegio, SesionPrivilegiada,
         // TenantAlcanzadoPorConcesion) tampoco heredan de EntidadConTenant: son
-        // catálogos globales por diseño (docs/MULTITENANCY.md § 7-8 y ADR-011
+        // catálogos globales por diseño (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7-8 y ADR-011
         // § 8), no un olvido.
         //
         // El filtro de cada entidad se construye con un método genérico real

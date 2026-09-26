@@ -12,10 +12,10 @@ namespace CaeManager.Application.Comunicaciones;
 /// <see cref="TipoParticipanteOrigen.Desconocido"/> en los tres puntos de
 /// alta (ingesta de webhook, redacción nueva, migración de WhatsApp a
 /// correo), así que <see cref="ParticipanteConversacion.EntidadRelacionadaId"/>
-/// nunca se rellenaba en ningún camino real (docs/blueprints — ronda de
+/// nunca se rellenaba en ningún camino real (Project-Hydra-Negocio/tecnico/docs/blueprints — ronda de
 /// reducción de ruido en Comunicaciones). Sin esto, ni el patrón "trabajador
 /// fuera de ventana" ni el criterio "Mismo Trabajador" del Conversation
-/// Matching Engine (docs/COMUNICACIONES.md § 13.2) tienen ninguna señal real
+/// Matching Engine (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 13.2) tienen ninguna señal real
 /// que usar.
 ///
 /// Mismo alcance que <see cref="Deteccion.SugerenciaGestionCorreoService"/>:

@@ -67,7 +67,7 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
 
         // El ámbito (Trabajador/Cliente/Vehículo/Empresa) determina contra qué
         // cartera se comprueba el alcance — son cuatro FKs mutuamente
-        // excluyentes (ver Fase 29 de ROADMAP.md), así que solo una aplica.
+        // excluyentes (ver Fase 29 de Project-Hydra-Negocio/tecnico/ROADMAP.md), así que solo una aplica.
         // Documento de Trabajador es el caso más sensible: incluye archivos de
         // vigilancia de la salud (categoría especial Art. 9 RGPD).
         var proyectoClienteId = documento.ProyectoId is { } proyectoIdVisibilidad

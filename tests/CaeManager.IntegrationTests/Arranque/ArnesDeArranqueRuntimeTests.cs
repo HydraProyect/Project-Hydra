@@ -42,8 +42,8 @@ public class ArnesDeArranqueRuntimeTests
             TenantId = TenantSeedData.IdPorDefecto,
         };
 
-        // AuditoriaInterceptor también audita ApplicationUser (CIERRE-TURNO-
-        // NOCTURNO-2026-09-18.md § 12): CreateAsync ahora escribe además un
+        // AuditoriaInterceptor también audita ApplicationUser
+        // (Project-Hydra-Negocio/tecnico/CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12): CreateAsync ahora escribe además un
         // RegistroAuditoria, una EntidadConTenant que TenantSelladoInterceptor
         // sella en fallo cerrado — hace falta el mismo ámbito explícito que
         // ya usan los seeders (ver DelegacionDemoSeeder). Y desde P1-M1

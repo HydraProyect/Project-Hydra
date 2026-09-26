@@ -13,7 +13,7 @@ using Microsoft.Extensions.Options;
 namespace CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
 
 /// <summary>
-/// Flujo "Actualizar documentación desde conversación" (docs/COMUNICACIONES.md
+/// Flujo "Actualizar documentación desde conversación" (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
 /// § 12.7): mismo espíritu que DetectarCamposDocumentoQuery (solo sugiere,
 /// el gestor conserva todos los campos editables — Issue #19), pero sobre
 /// un adjunto de mensaje en vez de una subida manual, y sin conocer el

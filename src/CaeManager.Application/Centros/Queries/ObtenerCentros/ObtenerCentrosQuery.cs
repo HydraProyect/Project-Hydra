@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Centros.Queries.ObtenerCentros;
 
 /// <param name="CentroId">
-/// Filtro exacto por Centro (Centro 360, PLAN-EJECUCION-UX.md § 0.11) — para
+/// Filtro exacto por Centro (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.11) — para
 /// el drill-down desde el desplegable de Centros con actividad de una
 /// Empresa a <c>/centros?centroId=…</c>, donde una coincidencia por texto
 /// (<paramref name="Busqueda"/>) podría ser ambigua entre varios Centros con
@@ -24,7 +24,7 @@ public record ObtenerCentrosQuery(
 
 /// <param name="CumplimientoPorcentaje">
 /// % de cumplimiento documental de los trabajadores del centro (Centro 360,
-/// PLAN-EJECUCION-UX.md § 0.5) — <c>null</c> cuando no hay ningún par
+/// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.5) — <c>null</c> cuando no hay ningún par
 /// Trabajador×TipoDocumento obligatorio aplicable, ver <see cref="FraccionCumplimiento"/>.
 /// </param>
 /// <summary>
@@ -67,7 +67,7 @@ public record CentroListaDto(
 /// El <see cref="CentroListaDto.Estado"/> no está persistido — lo calcula
 /// <see cref="ICalculoEstadoCentroService"/> a partir de los Documentos de la
 /// Empresa, los de cada Trabajador con Asignación activa y los
-/// RequisitosDocumentales bloqueantes (ver <c>DATABASE.md</c>: guardarlo lo
+/// RequisitosDocumentales bloqueantes (ver <c>Project-Hydra-Negocio/tecnico/DATABASE.md</c>: guardarlo lo
 /// desincronizaría de los umbrales configurables). Eso parte el handler en
 /// dos caminos:
 ///

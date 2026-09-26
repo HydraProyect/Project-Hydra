@@ -6,7 +6,7 @@ namespace CaeManager.Infrastructure.Identity;
 
 /// <summary>
 /// Añade el claim <c>tenant_id</c> al construir el <see cref="ClaimsPrincipal"/>
-/// de la sesión (ver docs/MULTITENANCY.md § 8, Tenant Resolution Strategy) —
+/// de la sesión (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8, Tenant Resolution Strategy) —
 /// se ejecuta en <c>SignInManager.SignInAsync</c> y en cada refresco
 /// periódico del ticket de autenticación (mismo ciclo que ya refresca los
 /// claims de rol). El valor sale directamente de <c>user.TenantId</c>, ya

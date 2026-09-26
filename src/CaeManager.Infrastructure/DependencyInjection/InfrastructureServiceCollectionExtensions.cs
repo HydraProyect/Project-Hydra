@@ -119,7 +119,7 @@ public static class InfrastructureServiceCollectionExtensions
 
                 // Bloqueo temporal por intentos fallidos — solo surte efecto
                 // porque Login.razor pasa lockoutOnFailure: true (hallazgo
-                // P0-2 de docs/business/MATURITY_REVIEW.md: fuerza bruta sin
+                // P0-2 de Project-Hydra-Negocio/MATURITY_REVIEW.md: fuerza bruta sin
                 // fricción). Ventana corta: frena un ataque de credenciales
                 // sin dejar fuera medio día a un usuario legítimo que
                 // tropieza con su gestor de contraseñas. La desactivación
@@ -172,7 +172,7 @@ public static class InfrastructureServiceCollectionExtensions
         // Fase 0/20) deja de poder descifrarse — silenciosamente, hasta que
         // alguien intenta abrir una credencial guardada. Ruta configurable para
         // apuntar a un volumen persistente en despliegues en contenedor (ver
-        // DEPLOY.md); en desarrollo local, relativa al content root como el
+        // Project-Hydra-Negocio/tecnico/DEPLOY.md); en desarrollo local, relativa al content root como el
         // resto de rutas de almacenamiento de la app.
         var rutaClavesDataProtection = configuration["DataProtection:RutaClaves"] ?? "App_Data/dataprotection-keys";
         var rutaClavesAbsoluta = Path.IsPathRooted(rutaClavesDataProtection)
@@ -220,7 +220,7 @@ public static class InfrastructureServiceCollectionExtensions
                 "El backup (scripts/backup-borg.sh) las incluye junto a la base de datos que protegen, así que viajan en claro también ahí (ver RUNBOOK-CLAVES.md).");
         }
 
-        // Llavero compartido entre réplicas (P3-30 de docs/business/MATURITY_REVIEW.md):
+        // Llavero compartido entre réplicas (P3-30 de Project-Hydra-Negocio/MATURITY_REVIEW.md):
         // reemplaza el XmlRepository de disco local configurado arriba por uno
         // en S3 — mismo patrón que el XmlEncryptor de KMS, la última
         // Configure<KeyManagementOptions> que se registra es la que gana.
@@ -247,7 +247,7 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHostedService<VerificacionDataProtectionS3HostedService>();
         }
 
-        // Backplane de SignalR (P3-30 de docs/business/MATURITY_REVIEW.md).
+        // Backplane de SignalR (P3-30 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
         // AddSignalR() aquí y AddInteractiveServerComponents() en Program.cs
         // (Web) apuntan al mismo registro interno — el orden entre ambas
         // llamadas no importa. Apagado por defecto: sin Redis provisionado,
@@ -270,9 +270,9 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHostedService<VerificacionSignalRRedisHostedService>();
         }
 
-        // Primer conector de integración (P3-33 de docs/business/MATURITY_REVIEW.md
+        // Primer conector de integración (P3-33 de Project-Hydra-Negocio/MATURITY_REVIEW.md
         // — Microsoft 365, correo bidireccional para Comunicaciones, ver
-        // ARQUITECTURA-INTEGRACIONES.md § 12). Apagado por defecto: sin App
+        // Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 12). Apagado por defecto: sin App
         // Registration de Entra ID, el endpoint de conectar buzón devuelve
         // un error explícito en vez de arrancar un flujo OAuth roto — el
         // resto de Comunicaciones (bandeja con datos sembrados) sigue
@@ -583,7 +583,7 @@ public static class InfrastructureServiceCollectionExtensions
         // nacer con el formato v2 de DiskFileStorageService, no retrofitado.
         //
         // Scoped, no Singleton: depende de ITenantActual, que es scoped — ver
-        // docs/MULTITENANCY.md § 4.6.
+        // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.6.
         services.AddScoped<IFileStorageService, DiskFileStorageService>();
 
         // El despliegue real vive en un .env que no está en el repositorio, así
@@ -609,7 +609,7 @@ public static class InfrastructureServiceCollectionExtensions
         // Kill switch de la detección previa a clasificación de Documento
         // (ver DeteccionPreviaDocumentoOptions) — apagado por defecto hasta
         // que exista DPA de subencargado para datos de salud (P0-4 de
-        // docs/business/MATURITY_REVIEW.md).
+        // Project-Hydra-Negocio/MATURITY_REVIEW.md).
         services.Configure<DeteccionPreviaDocumentoOptions>(
             configuration.GetSection(DeteccionPreviaDocumentoOptions.SeccionConfiguracion));
 
@@ -619,7 +619,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<ExtraccionDocumentoAdjuntoOptions>(
             configuration.GetSection(ExtraccionDocumentoAdjuntoOptions.SeccionConfiguracion));
 
-        // Cola durable en PostgreSQL (P2 #22 de docs/business/MATURITY_REVIEW.md
+        // Cola durable en PostgreSQL (P2 #22 de Project-Hydra-Negocio/MATURITY_REVIEW.md
         // — antes, Channel<T> en memoria: un reinicio del proceso perdía los
         // encargos pendientes sin dejar rastro). Scoped como cualquier otro
         // repositorio: el hosted service abre su propio scope de DI por
@@ -666,15 +666,15 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHostedService<CaeManager.Infrastructure.VigilanciaNormativa.VigilanciaNormativaBoeHostedService>();
 
         // Timeouts explícitos en todos los HttpClient de IA/Graph (P0-9 de
-        // docs/business/MATURITY_REVIEW.md): el procesador de la cola de IA es
+        // Project-Hydra-Negocio/MATURITY_REVIEW.md): el procesador de la cola de IA es
         // secuencial, así que una llamada colgada al proveedor detenía la cola
         // de TODOS los tenants durante los 100 s del default de HttpClient.
         // 60 s para el chat (interactivo: si tarda más, ya está roto para el
         // usuario) y 120 s para OCR/extracción sobre PDFs grandes.
         //
-        // Reintento + circuit breaker (P1-16 de docs/business/MATURITY_REVIEW.md,
+        // Reintento + circuit breaker (P1-16 de Project-Hydra-Negocio/MATURITY_REVIEW.md,
         // AddStandardResilienceHandler sobre Polly — mismo paquete que
-        // ARQUITECTURA-INTEGRACIONES.md § 6.1 ya preveía para la futura
+        // Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.1 ya preveía para la futura
         // Plataforma de Integraciones). HttpClient.Timeout pasa a
         // Timeout.InfiniteTimeSpan: con el handler de resiliencia añadido,
         // ese timeout envolvería TODO el pipeline (reintentos incluidos) y
@@ -718,7 +718,7 @@ public static class InfrastructureServiceCollectionExtensions
         // IDocumentAIProvider: registro por interfaz general (no un typed
         // client dedicado) — así IEnumerable<IDocumentAIProvider> recoge
         // todos los proveedores para la Factory (ver
-        // docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2). El ORDEN de estos
+        // Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2). El ORDEN de estos
         // registros importa: DocumentAIProviderFactory.ObtenerPorCapacidad
         // conserva el orden de registro, y DocumentAIRouterService usa el
         // primero de la lista como proveedor OCR sin reintento (a
@@ -730,7 +730,7 @@ public static class InfrastructureServiceCollectionExtensions
         // antes de tener claves reales) y Gemini el candidato de
         // reintento — cambiar cuál es "primario" para estructuración es
         // una decisión de benchmark, no algo que se cambie por tener una
-        // clave nueva (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1).
+        // clave nueva (ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1).
         //
         // ProveedorFalsoDocumentAI (Horizonte 1.6, ciclo documental E2E):
         // SIEMPRE antes que los reales, gateado por
@@ -808,7 +808,7 @@ public static class InfrastructureServiceCollectionExtensions
     /// <summary>
     /// Reintento + circuit breaker estándar (Polly vía
     /// <c>AddStandardResilienceHandler</c>, P1-16 de
-    /// docs/business/MATURITY_REVIEW.md) para un HttpClient cuyo Timeout ya
+    /// Project-Hydra-Negocio/MATURITY_REVIEW.md) para un HttpClient cuyo Timeout ya
     /// se dejó en <see cref="Timeout.InfiniteTimeSpan"/> por el llamador —
     /// el límite de tiempo real lo pone este método, no
     /// <c>HttpClient.Timeout</c> (que envolvería todo el pipeline,

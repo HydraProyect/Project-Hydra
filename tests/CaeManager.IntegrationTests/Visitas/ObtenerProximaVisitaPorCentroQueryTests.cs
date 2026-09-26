@@ -13,7 +13,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Visitas;
 
 /// <summary>
-/// Alimenta el badge "Visita dd/mm–dd/mm" de Centro 360 (docs/blueprints/CENTRO-360.md § 3.7)
+/// Alimenta el badge "Visita dd/mm–dd/mm" de Centro 360 (Project-Hydra-Negocio/tecnico/docs/blueprints/CENTRO-360.md § 3.7)
 /// y su ventana de contexto — pendiente hasta ahora: el recuento de trabajadores
 /// por visita, tanto con una sola visita como con varias sin fusionar (DDL-035).
 /// </summary>

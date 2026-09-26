@@ -20,7 +20,7 @@ public static class AuditoriaEndpoints
 {
     public static IEndpointRouteBuilder MapAuditoriaEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        // H2 (docs/ux-audit/14-administracion.md): "con los filtros aplicados"
+        // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/14-administracion.md): "con los filtros aplicados"
         // — el único filtro de la pantalla es el tipo de entidad. Resuelve
         // nombre de usuario aquí (no en Application, que no conoce Identity),
         // mismo criterio que Auditoria.razor.cs.

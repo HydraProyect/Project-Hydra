@@ -2,8 +2,8 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 
 /// <summary>
 /// El tenant #1: la organización que ya usa el sistema en producción,
-/// migrando a multi-tenant (ver ADR-003-saas-multitenant.md,
-/// PLAN-MIGRACION-MULTITENANT.md § 3, Etapa 2 — backfill). Id fijo y
+/// migrando a multi-tenant (ver Project-Hydra-Negocio/tecnico/ADR-003-saas-multitenant.md,
+/// Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 3, Etapa 2 — backfill). Id fijo y
 /// determinista, mismo criterio que <see cref="ParametroSistemaSeedData"/>
 /// y <see cref="TipoDocumentoSeedData"/>, para que la migración de backfill
 /// sea reproducible en cualquier entorno (dev, tests, producción).

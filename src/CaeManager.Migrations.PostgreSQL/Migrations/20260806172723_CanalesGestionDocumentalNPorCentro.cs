@@ -9,7 +9,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     public partial class CanalesGestionDocumentalNPorCentro : Migration
     {
         /// <inheritdoc />
-        // Lote 0-E (PLAN-EJECUCION-UX.md § 0.6): CanalGestionDocumental pasa de
+        // Lote 0-E (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.6): CanalGestionDocumental pasa de
         // 1:1 a N por Centro, y de EntidadConTenant a EntidadBase (Version +
         // soft delete, porque ahora se edita desde la UI).
         //
@@ -17,7 +17,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         // a mano sobre lo que generó `dotnet ef migrations add` (que rellenaba
         // fecha 0001-01-01, Guid vacío y cadena vacía): en la práctica la tabla
         // no tiene filas en ningún entorno — nunca existió un escritor, ni
-        // Command ni seeder, solo la Query de lectura (ROADMAP.md, fase "Canal
+        // Command ni seeder, solo la Query de lectura (Project-Hydra-Negocio/tecnico/ROADMAP.md, fase "Canal
         // de gestión documental") — pero un Version a Guid.Empty desactivaría
         // en silencio la comprobación de concurrencia de esas filas, y "" no es
         // una etiqueta de propósito válida en el dominio.

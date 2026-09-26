@@ -5,7 +5,7 @@ using FluentAssertions;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Attribute splatting (P2 #28 de docs/business/MATURITY_REVIEW.md): un
+/// Attribute splatting (P2 #28 de Project-Hydra-Negocio/MATURITY_REVIEW.md): un
 /// atributo HTML que Boton no reconoce como [Parameter] debe llegar igual
 /// al &lt;button&gt; renderizado, sin que haga falta añadirle un parámetro
 /// nuevo para cada caso (aria-label, data-testid...).

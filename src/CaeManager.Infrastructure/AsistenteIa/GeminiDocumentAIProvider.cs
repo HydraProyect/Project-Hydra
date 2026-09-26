@@ -11,7 +11,7 @@ namespace CaeManager.Infrastructure.AsistenteIa;
 
 /// <summary>
 /// Segundo <see cref="IDocumentAIProvider"/> real (ver
-/// docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1) — declara solo
+/// Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1) — declara solo
 /// <see cref="CapacidadesProveedorIa.ExtraccionEstructurada"/>, siguiendo
 /// el reparto de capacidades documentado (Gemini = estructuración, Mistral
 /// = OCR). Implementa también <c>ExtraerTextoAsync</c> porque Gemini lee
@@ -159,7 +159,7 @@ public class GeminiDocumentAIProvider(
         return ParsearEstructurado(respuesta.Valor.Texto, costeEstimado, respuesta.Valor.ModeloExacto, respuesta.Valor.RequestId);
     }
 
-    /// <summary>Coste orientativo, solo para auditoría (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2) — nunca se usa para decidir enrutado.</summary>
+    /// <summary>Coste orientativo, solo para auditoría (ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2) — nunca se usa para decidir enrutado.</summary>
     private decimal CalcularCoste(int tokensEntrada, int tokensSalida)
     {
         var config = opciones.Value;

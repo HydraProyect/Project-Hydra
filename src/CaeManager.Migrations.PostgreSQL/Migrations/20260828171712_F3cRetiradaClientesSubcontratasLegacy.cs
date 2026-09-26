@@ -49,7 +49,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <para>
     /// <b>Qué verifica el <c>Up()</c>, y por qué NO es la comparación campo a
     /// campo que describía el diseño</b>
-    /// (<c>f3c-diseno-adversario-reconciliacion-2026-08-25.md</c> § 2).
+    /// (<c>Project-Hydra-Negocio/tecnico/f3c-diseno-adversario-reconciliacion-2026-08-25.md</c> § 2).
     /// Aquel diseño asumía que entre T1 y F3c ninguna de las dos tablas se
     /// movía. La mitad es cierta —<c>Clientes</c>/<c>Subcontratas</c> quedaron
     /// congeladas— pero <c>Empresas</c> es desde F3b la fuente de escritura

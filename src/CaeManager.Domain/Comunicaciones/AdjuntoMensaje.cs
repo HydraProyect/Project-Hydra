@@ -6,7 +6,7 @@ namespace CaeManager.Domain.Comunicaciones;
 /// Un archivo adjunto a un <see cref="Mensaje"/> — entrante (recibido
 /// de verdad por Graph) o saliente (subido por un Gestor CAE al responder).
 /// El contenido en sí vive en <c>IFileStorageService</c> (mismo servicio que
-/// los PDFs de Documento, ver ARQUITECTURA-INTEGRACIONES.md § 12.3: "no un
+/// los PDFs de Documento, ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 12.3: "no un
 /// storage paralelo") — <see cref="ArchivoUrl"/> es el identificador opaco
 /// que devuelve ese servicio, nunca la ruta real ni una URL pública.
 /// </summary>

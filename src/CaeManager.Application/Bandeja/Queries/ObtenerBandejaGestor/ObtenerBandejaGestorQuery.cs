@@ -76,7 +76,7 @@ public enum TipoItemBandeja
     /// <c>/alertas</c> de la cola de trabajo real de Nivel 0). Existe como
     /// valor del enum solo para
     /// <c>ObtenerMiTrabajoAgregadoQueryHandler</c> (Mi trabajo Gen2,
-    /// CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md § 5/D-6: "el
+    /// Project-Hydra-Negocio/tecnico/CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md § 5/D-6: "el
     /// vencimiento próximo entra en Mi trabajo" a nivel agregado, sin
     /// cambiar qué ve <c>/bandeja</c> ni Inicio). <c>Fusionar</c> nunca
     /// produce este valor — /bandeja e Inicio no lo verán jamás.
@@ -107,7 +107,7 @@ public enum TipoItemBandeja
 
 /// <param name="CreadaEnUtc">
 /// Cuándo apareció este ítem — solo lo tienen SugerenciaVisitaUrgente/DeteccionPendiente/RevisionIa
-/// (docs/blueprints/OPERATIONAL-HOME.md § 6): un documento Vencido/Faltante/Urgente no "aparece",
+/// (Project-Hydra-Negocio/tecnico/docs/blueprints/OPERATIONAL-HOME.md § 6): un documento Vencido/Faltante/Urgente no "aparece",
 /// su estado cambia, así que no tiene un momento de creación que registrar. Alimenta el resumen
 /// de ausencia — null en el resto de tipos.
 /// </param>

@@ -7,7 +7,7 @@ namespace CaeManager.Infrastructure.Conversion;
 
 /// <summary>
 /// Convierte .docx a PDF invocando LibreOffice headless como proceso externo
-/// (ver ARCHITECTURE.md, "Archivos" — se descartó Aspose/GroupDocs por su
+/// (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Archivos" — se descartó Aspose/GroupDocs por su
 /// licencia comercial y un servicio cloud por sacar documentos de
 /// trabajadores fuera del servidor).
 /// </summary>

@@ -30,7 +30,7 @@ public class CrearIncidenciaCommandHandler(
 {
     public async Task<Result<Guid>> Handle(CrearIncidenciaCommand request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         if (!await centrosContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Incidencia.CentroNoEncontrado", "No encontramos este centro."));
 

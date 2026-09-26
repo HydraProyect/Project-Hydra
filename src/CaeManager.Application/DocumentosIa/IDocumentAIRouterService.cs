@@ -6,7 +6,7 @@ namespace CaeManager.Application.DocumentosIa;
 
 /// <summary>
 /// Enruta un documento al proveedor de IA adecuado según su clasificación
-/// local (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2.3, los 4 casos), sin
+/// local (ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2.3, los 4 casos), sin
 /// que el llamador conozca qué proveedor concreto se usó ni por qué.
 /// </summary>
 public interface IDocumentAIRouterService

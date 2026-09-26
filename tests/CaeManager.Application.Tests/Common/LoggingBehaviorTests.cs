@@ -48,7 +48,7 @@ public class LoggingBehaviorTests
     {
         // El DNI del record no puede acabar en ningún log: sería un
         // tratamiento de datos personales fuera del inventario de
-        // RGPD-TRATAMIENTO-DATOS.md, con su retención y sus derechos.
+        // Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md, con su retención y sus derechos.
         var fabrica = new FabricaLoggerFalsa();
         var behavior = Construir<FalsoCommand, Result>(fabrica);
 

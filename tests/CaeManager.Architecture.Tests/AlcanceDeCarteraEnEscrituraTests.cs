@@ -19,7 +19,7 @@ namespace CaeManager.Architecture.Tests;
 /// <summary>
 /// P1-4 de la revisión de madurez: hasta ahora el alcance de cartera en
 /// escritura (<see cref="IAlcanceDatosService"/>) era un ítem de checklist
-/// manual (<c>CODING_STANDARDS.md</c> § "Checklist de seguridad") — ya se
+/// manual (<c>Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md</c> § "Checklist de seguridad") — ya se
 /// olvidó una vez con <c>EliminarCliente</c>/<c>EliminarDocumento</c>/
 /// <c>EliminarTrabajador</c> (hallazgo de revisión de P3-31/P3-29, corregido)
 /// y de nuevo con <c>EliminarCentro</c>/<c>EliminarEmpresa</c>/

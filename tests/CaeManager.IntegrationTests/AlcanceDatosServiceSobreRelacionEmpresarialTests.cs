@@ -19,7 +19,7 @@ namespace CaeManager.IntegrationTests;
 /// Paridad de <see cref="AlcanceDatosService.ObtenerEmpresaIdsVisiblesAsync"/>
 /// y <see cref="AlcanceDatosService.ObtenerSubcontrataIdsVisiblesAsync"/> —
 /// primer test obligatorio de F4 (ver
-/// f4-diseno-fisico-relacionempresarial-2026-08-26.md § 6/8ter en el
+/// Project-Hydra-Negocio/tecnico/f4-diseno-fisico-relacionempresarial-2026-08-26.md § 6/8ter en el
 /// repositorio de negocio).
 ///
 /// <para>

@@ -16,14 +16,14 @@ namespace CaeManager.Web.Api.Integraciones;
 /// app para todas las líneas — por eso la ruta no lleva conexionId: la
 /// línea receptora se identifica por el phone_number_id del payload.
 ///
-/// Orden innegociable del POST (docs/MULTITENANCY.md § 8: el secreto se
+/// Orden innegociable del POST (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8: el secreto se
 /// verifica ANTES de confiar en el tenant que implica): 1) firma
 /// X-Hub-Signature-256 (HMAC-SHA256 del cuerpo crudo con el App Secret,
 /// comparación en tiempo constante — más fuerte que el clientState de
 /// Graph, aquí Meta sí firma), 2) resolver tenant por phone_number_id,
 /// 3) persistir EventoWebhook y responder — Meta exige 200 en menos de 3 s
 /// y reintenta agresivamente, así que aquí nunca se procesa nada ni se
-/// llama a Meta (ARQUITECTURA-INTEGRACIONES.md § 6.4); el trabajo real lo
+/// llama a Meta (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.4); el trabajo real lo
 /// hace IngestaWebhookWhatsAppHostedService, despertado por la señal.
 /// </summary>
 public static class WebhookWhatsAppEndpoints

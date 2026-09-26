@@ -1,9 +1,9 @@
 #!/bin/sh
 set -e
 
-# El volumen persistente de Railway (/data) puede venir de antes de que la
+# El volumen persistente (/data) puede venir de antes de que la
 # imagen empezara a correr como usuario no-root (P2 #25 de
-# docs/business/MATURITY_REVIEW.md, ver también DEPLOY.md § 2). Sin este
+# Project-Hydra-Negocio/MATURITY_REVIEW.md, ver también Project-Hydra-Negocio/tecnico/DEPLOY.md § 2). Sin este
 # chown, dataprotection-keys/ y documentos/ quedan sin permiso de escritura
 # para $APP_UID y el arranque falla en cascada: el keyring de DataProtection
 # no se puede leer -> el antiforgery token no se puede cifrar/descifrar ->

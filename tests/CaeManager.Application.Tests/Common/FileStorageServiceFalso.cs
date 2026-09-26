@@ -2,7 +2,7 @@ using CaeManager.Application.Common;
 
 namespace CaeManager.Application.Tests.Common;
 
-/// <summary>Fake en memoria — nunca toca disco ni red real (ver CODING_STANDARDS.md).</summary>
+/// <summary>Fake en memoria — nunca toca disco ni red real (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).</summary>
 public class FileStorageServiceFalso : IFileStorageService
 {
     private readonly Dictionary<string, byte[]> _archivos = [];

@@ -3,7 +3,7 @@ using CaeManager.Domain.Common;
 
 namespace CaeManager.Application.Tests.Integraciones;
 
-/// <summary>Fake en memoria — los handlers/servicios de Application se prueban sin red (ver CODING_STANDARDS.md).</summary>
+/// <summary>Fake en memoria — los handlers/servicios de Application se prueban sin red (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).</summary>
 public class WhatsAppCloudApiClientFalso : IWhatsAppCloudApiClient
 {
     public NotificacionWhatsAppDto NotificacionADevolver { get; set; } = new("111222333", [], []);

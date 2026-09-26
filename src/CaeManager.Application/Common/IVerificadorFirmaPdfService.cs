@@ -7,7 +7,7 @@ namespace CaeManager.Application.Common;
 /// Verifica criptográficamente las firmas digitales de un PDF (PAdES /
 /// PKCS#7 detached): integridad del rango firmado, cadena de confianza
 /// contra un almacén propio y revocación con degradación explícita — ver
-/// PLAN-FIRMA-DIGITAL-PDF.md § 3 (motor .NET nativo). No decide nada sobre
+/// Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md § 3 (motor .NET nativo). No decide nada sobre
 /// el Documento: devuelve hechos; la decisión de auto-validar la toma
 /// ValidacionDocumentoOficialService con sus propias reglas.
 ///

@@ -18,7 +18,7 @@ namespace CaeManager.Infrastructure.Identity;
 /// nada, se usan los valores por defecto públicos en este mismo archivo.
 /// En producción los defaults NO se usan nunca: si falta la configuración,
 /// el arranque falla con instrucciones (hallazgo P0-2 de
-/// docs/business/MATURITY_REVIEW.md — nada impedía que producción arrancara
+/// Project-Hydra-Negocio/MATURITY_REVIEW.md — nada impedía que producción arrancara
 /// con las credenciales hardcodeadas del repo). Fallar el arranque es
 /// deliberado: un despliegue de producción accesible con una contraseña
 /// pública es peor que un despliegue caído.
@@ -98,10 +98,10 @@ public static class IdentitySeeder
             NombreCompleto = "Administrador",
             EmailConfirmed = true,
             // No es una contraseña temporal: el despliegue la eligió a
-            // propósito (o acepta el default documentado en DEPLOY.md), no
+            // propósito (o acepta el default documentado en Project-Hydra-Negocio/tecnico/DEPLOY.md), no
             // hay ningún tercero esperando cambiarla en su primer acceso.
             DebeCambiarContrasena = false,
-            // Tenant #1 (ver ADR-003-saas-multitenant.md) — no hay
+            // Tenant #1 (ver Project-Hydra-Negocio/tecnico/ADR-003-saas-multitenant.md) — no hay
             // aprovisionamiento de tenants nuevos todavía (sin self-signup,
             // ver ADR-001), así que el Administrador inicial siempre
             // pertenece al tenant por defecto.

@@ -6,7 +6,7 @@ using MediatR;
 namespace CaeManager.Application.Centros.Commands.MarcarCanalGestionPrincipal;
 
 /// <summary>
-/// Designa el canal por defecto del Centro (PLAN-EJECUCION-UX.md § 0.6, Lote
+/// Designa el canal por defecto del Centro (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.6, Lote
 /// 0-E). Desmarca el anterior en la misma transacción — "a lo sumo uno" lo
 /// sostiene además un índice único filtrado, ver
 /// <c>CanalGestionDocumentalConfiguration</c>.

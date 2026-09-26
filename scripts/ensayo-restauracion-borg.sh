@@ -253,7 +253,7 @@ printf "ALTER ROLE cae_app_runtime WITH LOGIN PASSWORD '%s';\n" "$CLAVE_RUNTIME"
 
 CLAVES=$(ls "$DIR_TRABAJO/dataprotection-keys"/*.xml 2>/dev/null | wc -l)
 echo "    dataprotection-keys/: $CLAVES archivo(s) de clave"
-[ "$CLAVES" -ge 1 ] || { echo "ERROR: el backup no contiene ninguna clave XML — ver RUNBOOK-CLAVES.md (restaurar solo la BD deja las credenciales cifradas irrecuperables)"; exit 1; }
+[ "$CLAVES" -ge 1 ] || { echo "ERROR: el backup no contiene ninguna clave XML — ver Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES.md (restaurar solo la BD deja las credenciales cifradas irrecuperables)"; exit 1; }
 PDFS=$(find "$DIR_TRABAJO/documentos" -type f 2>/dev/null | wc -l)
 echo "    documentos/: $PDFS archivo(s) restaurado(s)"
 registrar OK "claves y documentos en el mismo archivo" "$CLAVES clave(s) XML, $PDFS documento(s)"
@@ -555,7 +555,7 @@ echo "El RTO NO es este total: este es el tramo automatizable (extraer, restaura
 echo "verificar) sobre una máquina que ya existe. Al RTO real (objetivo ${RTO_MAX_HORAS} h laborables) hay que"
 echo "sumarle localizar credenciales, provisionar el servidor si se perdió, DNS y la persona que lo hace."
 echo ""
-echo "Fila para docs/ENSAYO-RESTAURACION.md (repositorio de negocio):"
+echo "Fila para Project-Hydra-Negocio/tecnico/docs/ENSAYO-RESTAURACION.md (repositorio de negocio):"
 echo "| $(date -u +%F) | \`$ULTIMO\` | <quién> | <dump: ver resumen> | <claves/login/documento: ver resumen> | ${TOTAL} s automatizado; RPO ${EDAD_H} h | <notas> |"
 echo ""
 if [ "$HAY_FALLO" -ne 0 ]; then

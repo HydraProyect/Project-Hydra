@@ -23,7 +23,7 @@ namespace CaeManager.Domain.Retencion;
 /// demás— a propósito: cada tenant debe poder ver qué datos suyos están
 /// propuestos para destrucción. Quién <b>autoriza</b> es otra cuestión, y
 /// depende de una figura de administración de plataforma que hoy no existe
-/// en el modelo de roles (ver docs/MULTITENANCY.md § 7: los seis roles son de
+/// en el modelo de roles (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7: los seis roles son de
 /// negocio dentro de un tenant).
 /// </summary>
 public class SolicitudPurga : EntidadConTenant

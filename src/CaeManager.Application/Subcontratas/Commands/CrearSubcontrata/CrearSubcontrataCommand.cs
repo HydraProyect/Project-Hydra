@@ -44,7 +44,7 @@ public class CrearSubcontrataCommandHandler(
         if (!string.IsNullOrWhiteSpace(request.Cif) && await repositorio.ExisteConCifAsync(request.Cif, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Subcontrata.CifDuplicado", "Ya existe una subcontrata con este CIF."));
 
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         var clienteIds = request.ClienteIds.Distinct().ToList();
         var empresaIds = request.EmpresaIds.Distinct().ToList();
 

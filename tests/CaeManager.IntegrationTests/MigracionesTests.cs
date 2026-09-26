@@ -15,7 +15,7 @@ namespace CaeManager.IntegrationTests;
 /// <summary>
 /// Verifica que las migraciones se aplican limpiamente contra PostgreSQL real
 /// (el motor de producción tras la migración de ADR-003; antes, SQLite) y que
-/// la semilla de datos queda en el estado esperado. Ver ROADMAP.md, criterio
+/// la semilla de datos queda en el estado esperado. Ver Project-Hydra-Negocio/tecnico/ROADMAP.md, criterio
 /// de aceptación de Fase 0.
 /// </summary>
 public class MigracionesTests : IAsyncLifetime
@@ -104,7 +104,7 @@ public class MigracionesTests : IAsyncLifetime
         visible.Should().BeNull();
     }
 
-    // --- Etapa 1 de PLAN-MIGRACION-MULTITENANT.md (esquema aditivo, TenantId nullable) ---
+    // --- Etapa 1 de Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md (esquema aditivo, TenantId nullable) ---
 
     [Fact]
     public async Task Siembra_el_tenant_por_defecto_activo()

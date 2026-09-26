@@ -8,7 +8,7 @@
 # La propiedad que importa no es "el guion corre" — es que DISTINGUE los
 # seis desenlaces (VERDE/ROJO/EXPULSADA_DE_COLA/TIMEOUT/OBSOLETO/INDETERMINADO) usando el
 # dato correcto y no uno parecido, cubriendo las variantes de instrumento de
-# PROTOCOLO-TURNO-NOCTURNO.md § 4.1: condición que termina antes, campo
+# Project-Hydra-Negocio/tecnico/PROTOCOLO-TURNO-NOCTURNO.md § 4.1: condición que termina antes, campo
 # parecido/mecanismo distinto (mergeQueueEntry vs. checks del HEAD de la PR;
 # cola vs. auto-merge) y datos ciertos del árbol equivocado (check cancelado,
 # run de despliegue de un SHA ya obsoleto).

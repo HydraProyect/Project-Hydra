@@ -16,7 +16,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Comunicaciones;
 
 /// <summary>
-/// Regresión del hallazgo N-2 de INFORME-AUDITORIA-2.md. La cola de triage
+/// Regresión del hallazgo N-2 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md. La cola de triage
 /// (conversaciones con ClienteId null) quedaba visible para cualquier usuario
 /// autenticado del tenant, rol <c>Cliente</c> incluido: un contacto de una
 /// empresa cliente externa podía leer el correo entrante sin triar del resto

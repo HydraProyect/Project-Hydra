@@ -16,7 +16,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Tenants;
 
 /// <summary>
-/// Hallazgo N-5 de INFORME-AUDITORIA-2.md: <c>AsignacionOperadorDelegado.Rol</c>
+/// Hallazgo N-5 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md: <c>AsignacionOperadorDelegado.Rol</c>
 /// se validaba, se persistía y no se leía jamás. La puerta de escritura
 /// decidía con el rol del claim —el del tenant de origen—, así que un operador
 /// asignado como Consulta sobre el tenant B pero Administrador en el suyo

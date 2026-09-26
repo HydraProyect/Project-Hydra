@@ -48,11 +48,11 @@ public class CrearCentroCommandHandler(
     : IRequestHandler<CrearCentroCommand, Result<Guid>>
 {
     /// <summary>
-    /// Catálogo mínimo por defecto de todo Centro nuevo (PLAN-EJECUCION-UX.md
+    /// Catálogo mínimo por defecto de todo Centro nuevo (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     /// § 0.4) — se busca por Nombre, no por Id fijo: los Id de
     /// <c>TipoDocumentoSeedData</c> son del catálogo semilla del tenant #1
     /// únicamente (cada tenant recibe su propia copia editable al
-    /// aprovisionarse, ver docs/MULTITENANCY.md § 7), así que referenciarlos
+    /// aprovisionarse, ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7), así que referenciarlos
     /// por Id aquí crearía una fila cruzando tenants. Si un TENANT concreto
     /// no tiene (o renombró) alguno de estos tipos para su propio catálogo,
     /// simplemente no se añade esa fila — degradación silenciosa deliberada,
@@ -78,7 +78,7 @@ public class CrearCentroCommandHandler(
 
     public async Task<Result<Guid>> Handle(CrearCentroCommand request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         // Centro.ClienteId repunta contra Empresas desde F3b (CentroConfiguration):
         // "Cliente" es una Empresa contraparte (Empresa.CrearComoCliente), Clientes
         // queda congelada.

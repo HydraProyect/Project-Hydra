@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// P9 (2026-09-18, CAPA-USUARIO-AVANZADO-TALVEG.md § 6.1 quinquies): «solo la
+/// P9 (2026-09-18, Project-Hydra-Negocio/tecnico/CAPA-USUARIO-AVANZADO-TALVEG.md § 6.1 quinquies): «solo la
 /// vigencia es copiable». <see cref="PanelResolverItem"/> es el único sitio de
 /// la Bandeja del gestor que envuelve <c>Item.Fecha</c> en
 /// <see cref="TextoFechaCopiable"/>, y hasta este cambio lo hacía sin mirar el

@@ -35,7 +35,7 @@ public static class AlcanceDatosServiceExtensions
     ///
     /// Método propio en vez de repetir la condición en cada handler: invertir
     /// por error el caso "sin cliente" abre justo el agujero que esto cierra
-    /// (hallazgo N-3 de INFORME-AUDITORIA-2.md).
+    /// (hallazgo N-3 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
     /// </summary>
     public static async Task<bool> ClienteOpcionalVisibleAsync(
         this IAlcanceDatosService alcance, Guid? clienteId, CancellationToken cancellationToken = default)

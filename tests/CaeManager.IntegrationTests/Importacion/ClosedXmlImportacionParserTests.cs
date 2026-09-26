@@ -8,7 +8,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Importacion;
 
 /// <summary>
-/// Contrato «nada se descarta en silencio» (IMPORTACION.md § 3 bis, ratificado
+/// Contrato «nada se descarta en silencio» (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis, ratificado
 /// por DCR-12 decisión B, propietario 2026-08-24) sobre el paso de ANÁLISIS
 /// (<see cref="ClosedXmlImportacionParser.AnalizarAsync"/>) — la misma
 /// invariante que REC-045 (PR #419) cerró en el handler de escritura.

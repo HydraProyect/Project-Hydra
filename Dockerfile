@@ -1,4 +1,4 @@
-# Imagen de despliegue de CAE Manager (Blazor Server). Ver DEPLOY.md para
+# Imagen de despliegue de CAE Manager (Blazor Server). Ver Project-Hydra-Negocio/tecnico/DEPLOY.md para
 # variables de entorno necesarias (rutas de datos persistentes, credenciales
 # del administrador inicial).
 
@@ -64,7 +64,7 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # libreoffice-writer (no el paquete "libreoffice" completo, que instala
 # también Calc/Impress/etc. sin necesidad) aporta el binario "soffice" que
 # LibreOfficeConversorWordPdfService invoca en modo headless para convertir
-# Word (.docx) a PDF al subir un Documento — ver ARCHITECTURE.md.
+# Word (.docx) a PDF al subir un Documento — ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md.
 #
 # gosu: deja que el entrypoint arranque como root, corrija permisos del
 # volumen si hace falta, y baje de privilegios a $APP_UID sin perder el
@@ -81,9 +81,9 @@ RUN chmod +x /docker-entrypoint.sh
 EXPOSE 8080
 
 # No fijamos USER aquí a propósito (a diferencia de la primera versión de
-# este cambio, P2 #25 de docs/business/MATURITY_REVIEW.md): el contenedor
+# este cambio, P2 #25 de Project-Hydra-Negocio/MATURITY_REVIEW.md): el contenedor
 # arranca como root para que el entrypoint pueda corregir la propiedad de
-# /data si el volumen persistente de Railway viene de antes de este cambio
+# /data si el volumen persistente viene de antes de este cambio
 # (dataprotection-keys/ quedando sin permiso de escritura para $APP_UID en
 # ese caso — reproducido en producción, ver docker-entrypoint.sh), y baja de
 # privilegios a $APP_UID con gosu antes de ejecutar la app real. El proceso

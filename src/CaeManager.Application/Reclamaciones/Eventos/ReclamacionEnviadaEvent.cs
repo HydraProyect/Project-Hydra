@@ -5,7 +5,7 @@ namespace CaeManager.Application.Reclamaciones.Eventos;
 /// <summary>
 /// Publicado por <c>EnviarReclamacionCommandHandler</c> DESPUÉS de confirmar la
 /// transacción — mismo patrón que <c>VisitaCreadaEvent</c> y
-/// <c>DocumentoActualizadoEvent</c> (ARQUITECTURA-INTEGRACIONES.md § 6.5: "el
+/// <c>DocumentoActualizadoEvent</c> (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.5: "el
 /// orquestador publica, no invoca"). Solo se publica cuando la reclamación
 /// salió por un buzón conectado y por tanto tiene una <c>Conversacion</c> a la
 /// que avisar; una reclamación enviada por <c>IEmailService</c> (sin buzón) no

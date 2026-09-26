@@ -52,7 +52,7 @@ public partial class DrawerAsignacionMasiva : ComponentBase
     /// un único CentroId desde "+ Asignar trabajador" dentro de un Centro, o
     /// varios desde "Asignar a varios centros" con Selección múltiple en la
     /// lista — la matriz no se recorta después: el gestor puede seguir
-    /// añadiendo trabajadores o centros libremente (PLAN-EJECUCION-UX.md § 0.1).
+    /// añadiendo trabajadores o centros libremente (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.1).
     /// </summary>
     public async Task AbrirAsync(IReadOnlyCollection<Guid>? centroIdsPreseleccionados = null)
     {

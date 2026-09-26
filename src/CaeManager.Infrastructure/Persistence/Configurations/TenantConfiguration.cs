@@ -45,10 +45,10 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             .HasFilter("\"StripeSubscriptionId\" IS NOT NULL");
 
         // Sin HasQueryFilter: Tenant no pertenece a ningún tenant (ver
-        // docs/MULTITENANCY.md § 4.1) y no tiene soft delete (ver Tenant.cs).
+        // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.1) y no tiene soft delete (ver Tenant.cs).
 
         // El tenant #1 (la organización actual, ver Etapa 2 de
-        // PLAN-MIGRACION-MULTITENANT.md) — fecha fija, no DateTime.UtcNow,
+        // Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md) — fecha fija, no DateTime.UtcNow,
         // para que la migración generada sea reproducible.
         builder.HasData(new
         {
@@ -62,7 +62,7 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             // y no se deduce del Id, que es público y determinista.
             EsPlataforma = true,
             // El tenant #1 es la Empresa contratista de MVP-1 (Escenario 2 de
-            // docs/MULTITENANCY.md § 2) — DDL-072 lo declara ClienteDirecto
+            // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 2) — DDL-072 lo declara ClienteDirecto
             // explícitamente, nunca se infiere.
             PerfilVocabulario = PerfilVocabularioTenant.ClienteDirecto,
             // TALVEG no es Operador CAE externo por defecto (ver Tenant.PuedeActuarComoOperadorCaeExterno).

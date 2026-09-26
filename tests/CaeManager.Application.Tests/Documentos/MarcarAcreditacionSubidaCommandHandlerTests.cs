@@ -12,7 +12,7 @@ namespace CaeManager.Application.Tests.Documentos;
 
 /// <summary>
 /// Incremento 3 del MVP1 de extensión de navegador (ver
-/// ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio):
+/// Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio):
 /// <see cref="MarcarAcreditacionSubidaCommandHandler"/> no tenía ningún test
 /// (solo lo ejercitaba manualmente el botón "Marcar subido" de
 /// PlataformaTab.razor) antes de exponerlo también a la extensión vía

@@ -10,7 +10,7 @@ namespace CaeManager.E2ETests;
 /// Empleados, Extranjeros, Asignaciones — ver ClosedXmlImportacionParser).
 ///
 /// Este test guarda la invariante «nada se descarta en silencio»
-/// (IMPORTACION.md § 3 bis, ratificada por DCR-12 decisión B, propietario
+/// (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis, ratificada por DCR-12 decisión B, propietario
 /// 2026-08-24) sobre el caso que más cuesta cumplirla. Como
 /// Centros_Plataformas ya no puede crear Cliente/Centro nuevos (mismo motivo
 /// que ImportarClientesTests — Fase 10 exige CIF/Empresa que este formato no

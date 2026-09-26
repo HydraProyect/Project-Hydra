@@ -1,6 +1,6 @@
 /*
   Layout compartido por toda página de listado con tabla (Clientes, Empresas,
-  Centros, Trabajadores, ...). Ver CODING_STANDARDS.md: una vez un patrón se
+  Centros, Trabajadores, ...). Ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md: una vez un patrón se
   repite en un segundo módulo, se extrae en vez de duplicarse por página.
 */
 
@@ -82,8 +82,8 @@
 }
 
 /*
-  Chips de filtros activos y de filtros guardados (H4, docs/ux-audit/02-clientes.md;
-  UX_PATTERNS.md § Filtrar: "filtros activos se muestran como chips
+  Chips de filtros activos y de filtros guardados (H4, Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md;
+  Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md § Filtrar: "filtros activos se muestran como chips
   removibles"). Mismos tokens que .badge-neutro (Badge.razor.css), pero con
   su propio botón de quitar (icono "cerrar") — un Badge no lleva acción.
 */
@@ -331,7 +331,7 @@
     font: var(--font-body-sm);
 }
 
-/* H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor. */
+/* H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor. */
 .paginador-tamano {
     display: inline-flex;
     align-items: center;
@@ -353,7 +353,7 @@
 }
 
 /*
-  Centro 360 (PLAN-EJECUCION-UX.md § 0.1): fila de /centros como tarjeta con
+  Centro 360 (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.1): fila de /centros como tarjeta con
   SeccionColapsable anidada, en vez de <tr> de QuickGrid — QuickGrid no
   soporta filas expandibles. La cabecera con checkbox/nombre/acciones queda
   FUERA del <button> de SeccionColapsable (que solo envuelve el chevron y el
@@ -425,7 +425,7 @@
 */
 .tarjeta-fila-acordeon-identidad > .enlace-nombre-fila {
     font-weight: 600;
-    font-size: 0.8125rem; /* 13px, ESPECIFICACION-VISUAL-HYDRA.md § 3.7 ".rnombre" */
+    font-size: 0.8125rem; /* 13px, ESPECIFICACION-VISUAL-HYDRA (documento que ya no existe) § 3.7 ".rnombre" */
     line-height: 1.3;
 }
 
@@ -508,7 +508,7 @@
 }
 
 /*
-  Guía de lectura (Tier A, 07 § 3 / ESPECIFICACION-VISUAL-HYDRA.md § 3.7):
+  Guía de lectura (Tier A, 07 § 3 / ESPECIFICACION-VISUAL-HYDRA (documento que ya no existe) § 3.7):
   la fila entera se resalta al apuntarla o enfocarla — sin ella, en una fila
   ancha hay que recorrer el renglón dos veces para confirmar que se está en
   la fila correcta.
@@ -542,7 +542,7 @@
     color: var(--color-text-muted);
     cursor: pointer;
     border-radius: var(--radius-sm);
-    /* Tier B (ESPECIFICACION-VISUAL-HYDRA.md § 3.8): el chevron controla un
+    /* Tier B (ESPECIFICACION-VISUAL-HYDRA (documento que ya no existe) § 3.8): el chevron controla un
        bloque que se expande/revela, no un simple color/estado de control —
        eso es lo que separa Tier A de Tier B (07 § 8), y antes usaba el
        primero. */
@@ -602,7 +602,7 @@
 }
 
 /*
-  Badge "N detección(es)" en Empresas (docs/ux-audit/03-empresas-subcontratas.md
+  Badge "N detección(es)" en Empresas (Project-Hydra-Negocio/tecnico/docs/ux-audit/03-empresas-subcontratas.md
   H2) — mismo motivo que .badge-visita (botón clicable, no <Badge>), mismos
   tokens que .badge-advertencia de Badge.razor.css.
 */
@@ -627,7 +627,8 @@
 
 /*
   Modificador "vigente con riesgo en ventana de visita" (Centro 360 § 0.3,
-  dado de alta también en DESIGN_SYSTEM.md/UX_PATTERNS.md): sigue siendo un
+  dado de alta también en Project-Hydra-Negocio/tecnico/docs/archive/design/DESIGN_SYSTEM.md y
+  Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md): sigue siendo un
   badge Exito (el documento SÍ está vigente hoy) — el borde ámbar es la
   única señal de que caduca antes de que termine la próxima visita del
   centro. No es un cuarto color del semáforo, es un modificador encima de
@@ -753,7 +754,7 @@
 
 /*
   Enlace de acción de fila ("Detalles", "Eliminar", "Gestionar" en Centro
-  360) — ESPECIFICACION-VISUAL-HYDRA.md § 3.1/§ 3.7: en el lámina estas
+  360) — ESPECIFICACION-VISUAL-HYDRA (documento que ya no existe) § 3.1/§ 3.7: en el lámina estas
   acciones son un <a> plano (color enlace, sin relleno ni borde), no un
   botón Fantasma con borde (ese es el estilo de la barra de herramientas).
   Se aplica como clase adicional sobre <Boton Variante="Fantasma"> —
@@ -1173,7 +1174,7 @@
 }
 
 /*
-  Distintivo junto al nombre de la fila Empresa (ESPECIFICACION-VISUAL-HYDRA.md
+  Distintivo junto al nombre de la fila Empresa (ESPECIFICACION-VISUAL-HYDRA (documento que ya no existe)
   § 3.7, ".etiqueta-ambito") — el separador "Empresa" de arriba da contexto a
   todo el bloque, pero al leer solo esta fila (fuera de contexto, p. ej. al
   volver de un scroll) el nombre por sí solo no dice si es una empresa o un

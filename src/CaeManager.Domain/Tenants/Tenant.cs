@@ -4,7 +4,7 @@ namespace CaeManager.Domain.Tenants;
 
 /// <summary>
 /// Organización que compra y utiliza Hydra — la frontera absoluta de
-/// aislamiento del sistema (ver docs/MULTITENANCY.md § 1). No es lo mismo que
+/// aislamiento del sistema (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 1). No es lo mismo que
 /// la entidad <c>Cliente</c> del dominio CAE (empresa a la que un Tenant
 /// presta servicio de coordinación) — un Tenant puede tener muchos Clientes.
 ///
@@ -28,7 +28,7 @@ public class Tenant : Entity
     ///
     /// Es un marcador explícito y no "el tenant con Id …0001" a propósito: ese
     /// Id es determinista y público en el código (hallazgo N-14 de
-    /// INFORME-AUDITORIA-2.md), y hacer depender de adivinarlo un privilegio
+    /// Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md), y hacer depender de adivinarlo un privilegio
     /// que cruza la frontera entre organizaciones sería exactamente el tipo de
     /// autorización implícita que este sistema evita en todo lo demás.
     /// </summary>
@@ -37,7 +37,7 @@ public class Tenant : Entity
     /// <summary>
     /// DDL-072 — capa de presentación, nunca rama de dominio. "Se declara, no
     /// se infiere" se refiere a no derivarlo del número de Empresas del
-    /// tenant (DDL-072, tecnico/DESIGN_DECISION_LOG.md) — las tres altas
+    /// tenant (DDL-072, Project-Hydra-Negocio/tecnico/DESIGN_DECISION_LOG.md) — las tres altas
     /// reales (seed del tenant #1, CrearClienteDeleganteCommand,
     /// SegundoTenantSeeder/DelegacionDemoSeeder) lo pasan explícitamente. El
     /// valor por defecto de este parámetro es conveniencia para el resto de

@@ -10,7 +10,7 @@ namespace CaeManager.Application.Documentos.ValidacionOficial;
 
 /// <summary>
 /// El pipeline de la épica "Documentación mensual auto-validada"
-/// (PLAN-FIRMA-DIGITAL-PDF.md): verifica criptográficamente la firma del
+/// (Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md): verifica criptográficamente la firma del
 /// PDF, extrae los campos del perfil con un parser determinista (sin IA) y
 /// coteja contra lo registrado. Si todo cuadra, el documento queda
 /// <see cref="DecisionValidacionOficial.AutoValidado"/> — la excepción
@@ -163,7 +163,7 @@ public class ValidacionDocumentoOficialService(
         // no una política de firmantes por perfil: cualquier sello de
         // órgano de CUALQUIER entidad —no solo TGSS/AEAT— sigue pasando.
         // Restringir a los sellos reales de TGSS/AEAT exige su CIF/subject
-        // conocido, que PLAN-FIRMA-DIGITAL-PDF.md § 7 deja fuera de alcance
+        // conocido, que Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md § 7 deja fuera de alcance
         // (pendiente de REASS/TGSS) — hueco conocido, no una omisión.
         if (nivel >= NivelMinimoParaAutoValidar
             && !firmas.Firmas.Any(f => f.Estado == EstadoFirmaPdf.Valida && f.CubreDocumentoCompleto && f.EsSelloDeOrgano))

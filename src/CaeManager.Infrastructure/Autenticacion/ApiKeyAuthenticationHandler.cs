@@ -22,7 +22,7 @@ public class ApiKeyAuthenticationSchemeOptions : AuthenticationSchemeOptions
 /// el resto del sistema (<c>tenant_id</c> para <c>ITenantActual</c>,
 /// <see cref="ClaimTypes.Role"/> para <c>IAlcanceDatosService</c>) — así el
 /// aislamiento multi-tenant y la autorización existentes se aplican sin
-/// tocar nada más (ver docs/MULTITENANCY.md § 8, "cuando exista API pública,
+/// tocar nada más (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8, "cuando exista API pública,
 /// el tenant se resolverá del token").
 ///
 /// Siempre <see cref="Roles.Consulta"/>: una clave de la API pública nunca

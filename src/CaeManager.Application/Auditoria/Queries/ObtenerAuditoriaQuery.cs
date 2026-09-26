@@ -11,7 +11,7 @@ namespace CaeManager.Application.Auditoria.Queries;
 
 /// <summary>
 /// Historial completo de auditoría, hoy solo visible embebido en el detalle
-/// de cada entidad (ver ROADMAP.md, Fase 4). No resuelve el nombre del
+/// de cada entidad (ver Project-Hydra-Negocio/tecnico/ROADMAP.md, Fase 4). No resuelve el nombre del
 /// usuario aquí — Application no conoce Identity/ApplicationUser (vive en
 /// Infrastructure); Web resuelve UsuarioId → email/nombre después, con
 /// UserManager, igual que ya hace con el resto de pantallas de Identity.
@@ -82,8 +82,8 @@ public class ObtenerAuditoriaQueryHandler(
     : IRequestHandler<ObtenerAuditoriaQuery, ResultadoPaginado<RegistroAuditoriaListaDto>>
 {
     // Solo estas 5 tienen Restaurar*Command (patrón "Deshacer", ver
-    // UX_PATTERNS.md § Eliminar) — son las únicas para las que la Auditoría
-    // puede ofrecer una restauración real (H1, docs/ux-audit/14-administracion.md).
+    // Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md § Eliminar) — son las únicas para las que la Auditoría
+    // puede ofrecer una restauración real (H1, Project-Hydra-Negocio/tecnico/docs/ux-audit/14-administracion.md).
     private static readonly HashSet<string> EntidadesRestaurables =
         ["Cliente", "Empresa", "Centro", "Trabajador", "Documento"];
 

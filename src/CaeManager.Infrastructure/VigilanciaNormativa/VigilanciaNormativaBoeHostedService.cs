@@ -24,7 +24,7 @@ namespace CaeManager.Infrastructure.VigilanciaNormativa;
 /// <see cref="Coordinacion.EleccionLiderPostgresService"/> exige para
 /// evitar procesos duplicados entre réplicas) — el BOE es el mismo para
 /// todos los tenants y el destinatario del aviso es quien mantiene
-/// CATALOGO_FORMATOS_PRL.md, no un cliente.
+/// Project-Hydra-Negocio/CATALOGO_FORMATOS_PRL.md, no un cliente.
 /// </summary>
 public class VigilanciaNormativaBoeHostedService(
     IServiceScopeFactory ambitoFactory,

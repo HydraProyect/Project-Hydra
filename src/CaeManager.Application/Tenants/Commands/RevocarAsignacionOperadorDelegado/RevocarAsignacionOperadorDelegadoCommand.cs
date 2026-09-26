@@ -14,7 +14,7 @@ namespace CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDeleg
 /// revocar la delegación entera — el caso corriente de una persona que deja
 /// la Consultora o cambia de cartera. Sin esto, la única forma de quitarle el
 /// acceso era revocar la delegación completa, que afecta a todo el equipo
-/// (hallazgo N-4 de INFORME-AUDITORIA-2.md).
+/// (hallazgo N-4 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
 /// </summary>
 public record RevocarAsignacionOperadorDelegadoCommand(Guid AsignacionId) : ICommand;
 

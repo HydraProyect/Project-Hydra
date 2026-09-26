@@ -609,7 +609,7 @@ public static class Ayudas
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         // Solo el Administrador inicial tiene 2FA activo hoy (P1-13 de
-        // docs/business/MATURITY_REVIEW.md) — el resto de cuentas de prueba
+        // Project-Hydra-Negocio/MATURITY_REVIEW.md) — el resto de cuentas de prueba
         // pasan de largo por esta rama y siguen directas al dashboard.
         if (page.Url.Contains("/cuenta/verificar-2fa"))
         {

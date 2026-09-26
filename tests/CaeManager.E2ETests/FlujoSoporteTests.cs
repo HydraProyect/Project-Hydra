@@ -3,7 +3,7 @@ using Microsoft.Playwright;
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// P1-19 de docs/business/MATURITY_REVIEW.md: acceso de soporte (Fase 60) no
+/// P1-19 de Project-Hydra-Negocio/MATURITY_REVIEW.md: acceso de soporte (Fase 60) no
 /// tenía ningún E2E — solo cobertura de dominio (DelegacionSoporteTests).
 /// Cubre el ciclo completo desde /delegaciones: abrir acceso (motivo +
 /// ventana), operar el workspace delegado como lo haría quien atiende una

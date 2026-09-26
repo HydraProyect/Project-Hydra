@@ -1,7 +1,7 @@
 #!/bin/bash
 # Verifica en el CUERPO de una PR las dos secciones de gobernanza que el
 # check "Gobernanza — metadatos de PR" no cubría hasta ahora (registro del
-# turno nocturno 2026-09-17, PROTOCOLO-TURNO-NOCTURNO.md § 8):
+# turno nocturno 2026-09-17, Project-Hydra-Negocio/tecnico/PROTOCOLO-TURNO-NOCTURNO.md § 8):
 #
 #   1. Paso operativo de roles de clúster (PR #683). #674 añadió el rol
 #      `cae_app_aprovisionamiento` en deploy/bootstrap/roles-de-cluster.sql;

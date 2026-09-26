@@ -3,7 +3,7 @@ using CaeManager.Domain.Common;
 
 namespace CaeManager.Application.Tests.Integraciones;
 
-/// <summary>Fake en memoria — nunca llama a red real (ver CODING_STANDARDS.md).</summary>
+/// <summary>Fake en memoria — nunca llama a red real (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).</summary>
 public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
 {
     public bool FallaRefresco { get; set; }

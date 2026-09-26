@@ -5,11 +5,11 @@ namespace CaeManager.Domain.Integraciones;
 /// <summary>
 /// Plataforma externa donde una Empresa/Centro acredita su documentación CAE
 /// (Dokify, Nalanda, CTAIMA...) — Parte 2 del roadmap UX
-/// (PLAN-EJECUCION-UX.md § (a), decisión registrada en
-/// docs/business/DECISION_LOG.md 2026-08-05). Catálogo del producto: los
+/// (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § (a), decisión registrada en
+/// Project-Hydra-Negocio/DECISION_LOG.md 2026-08-05). Catálogo del producto: los
 /// mismos ~24 proveedores aplican a cualquier tenant, nadie los renombra ni
 /// tiene un catálogo paralelo — mismo criterio que los Roles o los enums de
-/// dominio en docs/MULTITENANCY.md § 7.
+/// dominio en Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7.
 ///
 /// Deliberadamente extiende <see cref="Entity"/>, no <see cref="EntidadBase"/>:
 /// es un catálogo global sin dueño de tenant (como <c>Tenant</c> mismo), y su

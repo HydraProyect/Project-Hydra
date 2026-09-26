@@ -16,7 +16,7 @@ namespace CaeManager.Application.Documentos.Commands.RenovarDocumento;
 /// "Editar" un Documento es, en la práctica, renovarlo: nueva fecha de
 /// emisión (y opcionalmente un nuevo archivo). El trabajador y el tipo de
 /// documento no cambian — si son incorrectos, se elimina y se crea de nuevo
-/// (ver UX_PATTERNS.md, "Cambiar estado").
+/// (ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, "Cambiar estado").
 ///
 /// <paramref name="Version"/> es la del registro tal como lo vio quien
 /// renueva (llega en <c>DocumentoDetalleDto</c>) — mismo patrón que
@@ -108,7 +108,7 @@ public class RenovarDocumentoCommandHandler(
 
         documento.ActualizarComentarios(request.Comentarios);
 
-        // Invariante de docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b): la
+        // Invariante de Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b): la
         // versión anterior del documento ya no es la que hay que validar en
         // ningún portal — renovar reinicia todas sus acreditaciones a
         // Pendiente de subir. El historial de rechazos no se toca (sigue

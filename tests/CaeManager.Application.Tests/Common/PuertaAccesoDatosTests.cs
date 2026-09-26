@@ -6,7 +6,7 @@ namespace CaeManager.Application.Tests.Common;
 
 /// <summary>
 /// Cubre el invariante que <c>PuertaAccesoDatos</c> existe para garantizar
-/// (ver revert de P1-11 en ROADMAP.md, PR #47) — nunca lo tuvo antes porque
+/// (ver revert de P1-11 en Project-Hydra-Negocio/tecnico/ROADMAP.md, PR #47) — nunca lo tuvo antes porque
 /// P1-11 introdujo el único test que la ejercitaba, y se borró junto con el
 /// diseño que probaba al revertir.
 /// </summary>
@@ -64,7 +64,7 @@ public class PuertaAccesoDatosTests
         // o un validador async se cuela dentro de un flujo ya reentrante, este
         // test es la prueba de que la carrera reaparece — y si algún día deja
         // de ser cierto (huboSolape empieza a dar false), el diseño cambió y
-        // la nota de ROADMAP.md hay que actualizarla, no borrar este test.
+        // la nota de Project-Hydra-Negocio/tecnico/ROADMAP.md hay que actualizarla, no borrar este test.
         //
         // El solape se fuerza con una barrera en vez de esperar a que coincida
         // por tiempo: con un Task.Delay(20), bajo CPU disputada el hilo que
@@ -102,7 +102,7 @@ public class PuertaAccesoDatosTests
         });
 
         huboSolape.Should().BeTrue(
-            "es la limitación conocida documentada en ROADMAP.md — si empieza a dar false, el diseño cambió");
+            "es la limitación conocida documentada en Project-Hydra-Negocio/tecnico/ROADMAP.md — si empieza a dar false, el diseño cambió");
     }
 
     [Fact]

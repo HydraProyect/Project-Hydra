@@ -2,7 +2,7 @@ using CaeManager.Domain.Comunicaciones;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
 
-/// <summary>Fake en memoria — los handlers/servicios de Application se prueban sin base de datos (ver CODING_STANDARDS.md).</summary>
+/// <summary>Fake en memoria — los handlers/servicios de Application se prueban sin base de datos (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).</summary>
 public class ContactoWhatsAppRepositorioFalso : IContactoWhatsAppRepository
 {
     public List<ContactoWhatsApp> Contactos { get; } = [];

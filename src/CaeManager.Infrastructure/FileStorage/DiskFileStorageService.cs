@@ -9,14 +9,14 @@ namespace CaeManager.Infrastructure.FileStorage;
 
 /// <summary>
 /// Almacenamiento sobre disco local, particionado por tenant (ver
-/// docs/MULTITENANCY.md § 4.6 y PLAN-MIGRACION-MULTITENANT.md § 5, Etapa 4):
+/// Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.6 y Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 5, Etapa 4):
 /// todo archivo nuevo se guarda bajo <c>{tenantId}/{archivo}</c>, nunca en la
 /// carpeta plana. Registrado como Scoped (antes Singleton) precisamente para
 /// poder depender de <see cref="ITenantActual"/>, que es scoped por
 /// naturaleza — inyectar un servicio scoped en un singleton sería una
 /// dependencia cautiva (capturaría el primer tenant resuelto para siempre).
 ///
-/// <b>Cifrado en reposo</b> (P1-12 de docs/business/MATURITY_REVIEW.md): el
+/// <b>Cifrado en reposo</b> (P1-12 de Project-Hydra-Negocio/MATURITY_REVIEW.md): el
 /// contenido se cifra con <see cref="IDataProtector"/> antes de escribirse a
 /// disco — mismo mecanismo que ya protege las credenciales de plataformas
 /// externas en <c>CaeManagerDbContext</c> y las propias claves de Data

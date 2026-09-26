@@ -6,7 +6,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     /// <inheritdoc />
     /// <summary>
-    /// Cola durable de análisis IA (P2 #22 de docs/business/MATURITY_REVIEW.md
+    /// Cola durable de análisis IA (P2 #22 de Project-Hydra-Negocio/MATURITY_REVIEW.md
     /// — reemplaza la cola en memoria sobre <c>Channel&lt;T&gt;</c>, que
     /// perdía los encargos pendientes en cada reinicio del proceso). Crea
     /// <c>TrabajosAnalisisDocumento</c> con RLS igual que el resto de tablas

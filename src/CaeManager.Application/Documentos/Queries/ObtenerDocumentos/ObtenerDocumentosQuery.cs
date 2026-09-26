@@ -31,7 +31,7 @@ public record ObtenerDocumentosQuery(
     string? OrdenarPor = null, bool Descendente = false, DateOnly? FechaVencimientoHasta = null)
     : IRequest<ResultadoPaginado<DocumentoListaDto>>;
 
-/// <summary>docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — una entrada por CanalGestionDocumental aplicable, no por ProveedorPlataformaCae (el mismo proveedor puede tener más de un acceso).</summary>
+/// <summary>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — una entrada por CanalGestionDocumental aplicable, no por ProveedorPlataformaCae (el mismo proveedor puede tener más de un acceso).</summary>
 public record AcreditacionResumenDto(Guid Id, string NombrePlataforma, EstadoAcreditacion Estado);
 
 public record DocumentoListaDto(
@@ -53,7 +53,7 @@ public record DocumentoListaDto(
 /// de paginar, en vez de un LEFT JOIN triple. El semáforo (Estado) se
 /// calcula en memoria con CalculadoraEstadoDocumento — la misma función que
 /// usan el Dashboard y RenovarDocumentoCommand — para que nunca haya dos
-/// sitios de la aplicación mostrando vigencias distintas (ver DATABASE.md).
+/// sitios de la aplicación mostrando vigencias distintas (ver Project-Hydra-Negocio/tecnico/DATABASE.md).
 /// </summary>
 public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos, ICentrosQueryContext centrosContext, IProveedoresPlataformaCaeQueryContext proveedoresContext)
     : IRequestHandler<ObtenerDocumentosQuery, ResultadoPaginado<DocumentoListaDto>>
@@ -302,7 +302,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         return new ResultadoPaginado<DocumentoListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
     }
 
-    /// <summary>docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — badges por plataforma. Solo sobre la página ya paginada, nunca sobre todo el tenant.</summary>
+    /// <summary>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — badges por plataforma. Solo sobre la página ya paginada, nunca sobre todo el tenant.</summary>
     private async Task<Dictionary<Guid, List<AcreditacionResumenDto>>> ObtenerAcreditacionesPorDocumentoAsync(
         List<Guid> documentoIds, CancellationToken cancellationToken)
     {

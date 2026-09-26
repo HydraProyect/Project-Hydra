@@ -9,7 +9,7 @@ namespace CaeManager.Application.Centros.Commands.EliminarDocumentacionRequerida
 /// <summary>
 /// Quita la posición explícita de un Centro sobre un TipoDocumento — vuelve a
 /// seguir el criterio global de <c>TipoDocumento.EsObligatorio</c>
-/// (PLAN-EJECUCION-UX.md § 0.4). Baja física, sin ciclo de vida propio, mismo
+/// (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4). Baja física, sin ciclo de vida propio, mismo
 /// criterio que el resto de altas/bajas de <see cref="TipoDocumentoCentro"/>.
 /// </summary>
 public record EliminarDocumentacionRequeridaCentroCommand(Guid CentroId, Guid TipoDocumentoId) : ICommand;

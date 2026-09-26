@@ -33,7 +33,7 @@ public class Mensaje : EntidadConTenant
 
     /// <summary>
     /// Canal por el que viajó este mensaje concreto — paso 1 del rediseño
-    /// Communication Workspace (docs/COMUNICACIONES.md § 16.1/13.1). Hoy
+    /// Communication Workspace (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 16.1/13.1). Hoy
     /// coincide siempre con <see cref="Conversacion.Canal"/> (una
     /// conversación todavía no mezcla canales); es el fundamento sobre el
     /// que se construirán los hilos mixtos cuando exista el Conversation
@@ -112,7 +112,7 @@ public class Mensaje : EntidadConTenant
     /// Traslada este mensaje a otra Conversacion — solo lo llama
     /// <see cref="Conversacion.AbsorberMensajesDe"/> al confirmar una
     /// vinculación propuesta por el Conversation Matching Engine
-    /// (docs/COMUNICACIONES.md § 13.2). El mensaje conserva su propio
+    /// (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 13.2). El mensaje conserva su propio
     /// <see cref="Canal"/>: es exactamente lo que hace nacer un hilo mixto de
     /// verdad.
     /// </summary>

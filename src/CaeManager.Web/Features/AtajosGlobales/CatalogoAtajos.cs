@@ -49,7 +49,7 @@ public static class CatalogoAtajos
         ["t"] = "/trabajadores",
         ["d"] = "/documentos",
         // Asignaciones ya no es una página aparte — el acordeón de /centros
-        // la absorbió (Centro 360, PLAN-EJECUCION-UX.md § 0.1).
+        // la absorbió (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.1).
         ["a"] = "/centros",
         ["b"] = "/bandeja",
         ["p"] = "/proyectos",

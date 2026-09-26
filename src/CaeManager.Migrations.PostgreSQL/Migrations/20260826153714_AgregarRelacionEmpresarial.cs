@@ -8,7 +8,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <inheritdoc />
     /// <summary>
     /// F4 — introduce RelacionEmpresarial (ADR-011 § 2.4;
-    /// f4-diseno-fisico-relacionempresarial-2026-08-26.md en el repositorio
+    /// Project-Hydra-Negocio/tecnico/f4-diseno-fisico-relacionempresarial-2026-08-26.md en el repositorio
     /// de negocio para el diseño completo, su revisión adversaria y la
     /// segunda pasada con evidencia real). NO retira las tres tablas legacy
     /// (EmpresasClientes/SubcontratasEmpresas/SubcontratasClientes): esta

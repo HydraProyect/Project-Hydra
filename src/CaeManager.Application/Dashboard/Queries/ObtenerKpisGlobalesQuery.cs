@@ -71,7 +71,7 @@ public record KpisGlobalesDto(
 /// demo), y suma/ordena en memoria. Para un usuario sin ningún Delegated
 /// Workspace, el resultado tiene un único Cliente — su propio tenant — y esta
 /// vista coincide con el Dashboard de siempre salvo por el envoltorio de
-/// "cartera" (ver ROADMAP.md, Fase 51, Capa de Reporting).
+/// "cartera" (ver Project-Hydra-Negocio/tecnico/ROADMAP.md, Fase 51, Capa de Reporting).
 /// </summary>
 public class ObtenerKpisGlobalesQueryHandler(IMediator mediator)
     : IRequestHandler<ObtenerKpisGlobalesQuery, KpisGlobalesDto>

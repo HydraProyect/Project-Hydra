@@ -14,7 +14,7 @@ namespace CaeManager.Application.Alertas.Queries.ObtenerSugerenciasPreventivas;
 /// asignado le falta, ¿a cuántos OTROS Trabajadores con Asignación activa al
 /// mismo Centro les falta también? Agrupa exactamente los mismos
 /// DocumentoFaltanteDto que ya calcula IDocumentosFaltantesService (Alertas,
-/// P1-15 de MATURITY_REVIEW.md) — no es un concepto de dominio nuevo, es una
+/// P1-15 de Project-Hydra-Negocio/MATURITY_REVIEW.md) — no es un concepto de dominio nuevo, es una
 /// vista distinta sobre el mismo hueco: en vez de N alertas sueltas de
 /// "Trabajador X, le falta Y", un patrón agrupado por Centro+TipoDocumento
 /// que vale la pena resolver de una vez, antes de que aparezca el siguiente

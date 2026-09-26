@@ -18,7 +18,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// Siembra la bandeja de correo compartida con datos de prueba en vez de
 /// ingesta real de Microsoft Graph — es la simplificación explícita de la
 /// primera pieza del módulo Comunicaciones (ver
-/// ARQUITECTURA-INTEGRACIONES.md § 12.6). Reutiliza los Clientes ya
+/// Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 12.6). Reutiliza los Clientes ya
 /// sembrados por <see cref="DatosPruebaSeeder"/> (que debe ejecutarse antes)
 /// en vez de crear datos maestros propios.
 ///
@@ -425,7 +425,7 @@ public static class ComunicacionesDatosPruebaSeeder
     /// que sí trae cambios (motivo Ninguno). Los motivos CorreoInterno y
     /// PosiblePhishing no se siembran: solo se calculan sobre mensajes de un
     /// buzón personal de gestor (ConexionIntegracion.GestorPropietarioId),
-    /// que depende de la decisión abierta nº 2 de PLAN-DATOS-PRUEBA.md.
+    /// que depende de la decisión abierta nº 2 de Project-Hydra-Negocio/tecnico/PLAN-DATOS-PRUEBA.md.
     /// </summary>
     private static async Task SembrarReduccionRuidoAsync(
         CaeManagerDbContext dbContext, CancellationToken cancellationToken)

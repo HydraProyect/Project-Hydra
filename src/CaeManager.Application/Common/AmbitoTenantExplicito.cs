@@ -2,7 +2,7 @@ namespace CaeManager.Application.Common;
 
 /// <summary>
 /// Ámbito de tenant explícito para contextos sin sesión de usuario —
-/// siembra al arrancar, jobs de fondo (ver docs/MULTITENANCY.md § 8.4,
+/// siembra al arrancar, jobs de fondo (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8.4,
 /// "ámbito de tenant explícito para procesos de fondo").
 ///
 /// La implementación Web de <see cref="ITenantActual"/> consulta este

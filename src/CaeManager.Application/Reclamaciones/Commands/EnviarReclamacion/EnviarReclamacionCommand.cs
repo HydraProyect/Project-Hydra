@@ -28,7 +28,7 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 /// (el Gestor CAE revisa la vista previa y pulsa Enviar), no hay job en
 /// segundo plano todavía. DocumentoIds llega de la vista previa, así que se
 /// recarga y revalida server-side (no basta con que la UI solo ofrezca Ids
-/// válidos, ver P0-1 de docs/business/MATURITY_REVIEW.md) con el MISMO
+/// válidos, ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md) con el MISMO
 /// criterio de "reclamable" que ObtenerLoteReclamacionQuery (incluida la
 /// ventana de 3 meses) — un Id que ya no cumple esos criterios (p. ej. el
 /// documento se renovó, o un contacto salió de la agenda, entre que se abrió

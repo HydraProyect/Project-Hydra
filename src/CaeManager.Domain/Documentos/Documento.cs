@@ -238,7 +238,7 @@ public class Documento : EntidadBase
 
     /// <summary>
     /// Suprime el contenido personal del documento cumplido su plazo
-    /// (RGPD-TRATAMIENTO-DATOS.md § 5).
+    /// (Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md § 5).
     ///
     /// Aquí la anonimización no es solo limpiar campos: <b>el dato personal
     /// está dentro del PDF</b> —un reconocimiento médico, un DNI escaneado—,

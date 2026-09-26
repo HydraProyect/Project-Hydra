@@ -35,7 +35,7 @@ public class AsignacionConfiguration : IEntityTypeConfiguration<Asignacion>
                .HasDatabaseName("IX_Asignaciones_TenantId_TrabajadorId_CentroId_Activa");
         builder.HasIndex(a => a.CentroId);
 
-        // FKs reales — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // FKs reales — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         builder.HasOne<Trabajador>().WithMany()
             .HasForeignKey(a => new { a.TenantId, a.TrabajadorId })
             .HasPrincipalKey(t => new { t.TenantId, t.Id })

@@ -17,7 +17,7 @@ namespace CaeManager.IntegrationTests.Tenants;
 /// Prueba las políticas RLS de la migración <c>HabilitarRlsPostgres</c>
 /// contra el rol restringido real (<c>cae_app_runtime</c>), no contra el
 /// propietario de las tablas — RLS nunca restringe al propietario ni a un
-/// superusuario (ver RUNBOOK-RLS.md), así que un test que solo usara el rol
+/// superusuario (ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md), así que un test que solo usara el rol
 /// por defecto (como el resto de los tests de este proyecto, ver
 /// <see cref="BaseDatosPostgresDePruebas"/>) pasaría igual aunque las
 /// políticas estuvieran completamente rotas o ni se hubieran aplicado.
@@ -235,7 +235,7 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         // Control negativo: sin SET ROLE, la misma consulta (como el rol con
         // el que migran hoy todos los entornos) debe ver la fila igual que
         // antes de esta migración — confirma que RLS es hoy inerte para el
-        // propietario, tal como documenta RUNBOOK-RLS.md, y no una regresión
+        // propietario, tal como documenta Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md, y no una regresión
         // que rompería el arranque/las queries normales.
         await using var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();

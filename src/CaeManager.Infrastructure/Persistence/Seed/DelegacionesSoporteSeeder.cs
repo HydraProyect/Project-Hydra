@@ -69,7 +69,7 @@ public static class DelegacionesSoporteSeeder
                 "Aprovisionadas {Cantidad} delegaciones de soporte (inactivas) hacia el tenant de plataforma.", pendientes.Count);
         }
 
-        // Variantes de demo (PLAN-DATOS-PRUEBA.md, Tanda 4): solo con la
+        // Variantes de demo (Project-Hydra-Negocio/tecnico/PLAN-DATOS-PRUEBA.md, Tanda 4): solo con la
         // siembra de datos de prueba activa. El aprovisionamiento anterior
         // sigue siendo "inactiva por defecto" para cualquier otro despliegue.
         if (configuration.GetValue<bool>("DatosPrueba:Activo"))

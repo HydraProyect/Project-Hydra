@@ -6,7 +6,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Coordinacion;
 
 /// <summary>
-/// P3-30 de docs/business/MATURITY_REVIEW.md: la elección de líder es lo que
+/// P3-30 de Project-Hydra-Negocio/MATURITY_REVIEW.md: la elección de líder es lo que
 /// evita que dos réplicas de <c>ProcesadorAnalisisDocumentoHostedService</c>
 /// hagan el mismo trabajo a la vez. Contra PostgreSQL real y no una base de datos de prueba con
 /// esquema propio — <c>pg_try_advisory_lock</c> no necesita ninguna tabla, el

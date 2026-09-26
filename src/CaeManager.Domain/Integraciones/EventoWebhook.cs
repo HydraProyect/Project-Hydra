@@ -4,7 +4,7 @@ namespace CaeManager.Domain.Integraciones;
 
 /// <summary>
 /// Cola de ingesta de notificaciones de Microsoft Graph y WhatsApp Cloud API
-/// — persistida ANTES de procesar (ver ARQUITECTURA-INTEGRACIONES.md § 6.4:
+/// — persistida ANTES de procesar (ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.4:
 /// el endpoint de webhook nunca procesa de forma síncrona dentro del request
 /// entrante, solo guarda esto y responde 202). Un <c>IHostedService</c>
 /// aparte la consume por proveedor.

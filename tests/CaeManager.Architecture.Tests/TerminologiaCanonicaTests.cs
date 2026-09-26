@@ -8,7 +8,7 @@ namespace CaeManager.Architecture.Tests;
 
 /// <summary>
 /// <b>Trinquete de deuda terminológica</b> — § 5 del contrato de terminología TALVEG
-/// (<c>CONTRATO_TERMINOLOGIA.md</c>, repositorio de negocio).
+/// (<c>Project-Hydra-Negocio/CONTRATO_TERMINOLOGIA.md</c>, repositorio de negocio).
 ///
 /// <para>
 /// <b>Por qué existe.</b> El contrato prohíbe renombrar automáticamente estos nombres
@@ -567,7 +567,7 @@ public class TerminologiaCanonicaTests
     /// <summary>
     /// Control 3 de DEC-65: si la implementación captura también literales de cadena o
     /// carácter, no deben contar salvo que el § 5 del contrato lo diga expresamente — y
-    /// hoy no lo dice (comprobado leyendo el § 5 de <c>CONTRATO_TERMINOLOGIA.md</c>, no
+    /// hoy no lo dice (comprobado leyendo el § 5 de <c>Project-Hydra-Negocio/CONTRATO_TERMINOLOGIA.md</c>, no
     /// asumido).
     /// </summary>
     [Fact]

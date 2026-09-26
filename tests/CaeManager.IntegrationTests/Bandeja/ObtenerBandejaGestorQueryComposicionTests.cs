@@ -104,7 +104,7 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         _dbContext.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
 
         // Requisito bloqueante sin cumplir — TipoDocumentoCentro.BloqueaAcceso=true
-        // sin ningún Documento Vigente del trabajador (PLAN-EJECUCION-UX.md § 0.4).
+        // sin ningún Documento Vigente del trabajador (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4).
         // No obligatorio globalmente (requerido: RequisitoDocumental.No), pero Incluido=true aquí
         // lo hace también "aplicar" (y por tanto Faltante en Alertas) en este Centro.
         _dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoBloqueante.Id, centro.Id, incluido: true, bloqueaAcceso: true));

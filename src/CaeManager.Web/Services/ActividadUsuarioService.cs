@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Identity;
 namespace CaeManager.Web.Services;
 
 /// <summary>
-/// Modelo de "visto" del resumen de ausencia (docs/blueprints/OPERATIONAL-HOME.md § 6,
+/// Modelo de "visto" del resumen de ausencia (Project-Hydra-Negocio/tecnico/docs/blueprints/OPERATIONAL-HOME.md § 6,
 /// DDL-068): registra la última interacción autenticada del usuario en cualquier pantalla
 /// (no solo el Home) y resuelve si vuelve tras una ausencia real.
 ///
@@ -102,7 +102,7 @@ public class ActividadUsuarioService(
     public static (bool Ausente, bool DebeEscribir) Evaluar(DateTime? anterior, DateTime ahora)
     {
         // Sin actividad previa no hay "ausencia" que resumir — es la primera vez que este
-        // usuario interactúa con la plataforma (docs/blueprints/OPERATIONAL-HOME.md § 6).
+        // usuario interactúa con la plataforma (Project-Hydra-Negocio/tecnico/docs/blueprints/OPERATIONAL-HOME.md § 6).
         var ausente = anterior is not null && ahora - anterior.Value > UmbralAusencia;
         var debeEscribir = anterior is null || ahora - anterior.Value > ThrottleEscritura;
         return (ausente, debeEscribir);

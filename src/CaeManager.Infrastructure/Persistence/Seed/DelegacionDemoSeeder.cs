@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 namespace CaeManager.Infrastructure.Persistence.Seed;
 
 /// <summary>
-/// Siembra el escenario de demo de ADR-004-delegacion-consultoras-cae.md.
+/// Siembra el escenario de demo de Project-Hydra-Negocio/tecnico/ADR-004-delegacion-consultoras-cae.md.
 ///
 /// El tenant #1 (<see cref="TenantSeedData.IdPorDefecto"/>, TALVEG) es
 /// puramente el administrador de la plataforma (<c>EsPlataforma = true</c>)
@@ -163,7 +163,7 @@ public static class DelegacionDemoSeeder
     /// Administrador propio de ArcoSPA — nunca <c>admin@caemanager.local</c>
     /// (ese es el administrador de la plataforma, TALVEG, que no debe operar
     /// ningún Delegated Workspace). Con 2FA activo (P1-13 de
-    /// docs/business/MATURITY_REVIEW.md exige 2FA para todo Administrador) y
+    /// Project-Hydra-Negocio/MATURITY_REVIEW.md exige 2FA para todo Administrador) y
     /// la misma clave TOTP fija que el resto de la siembra, para que los
     /// tests E2E puedan calcular el código sin acceso a BD.
     /// </summary>
@@ -801,7 +801,7 @@ public static class DelegacionDemoSeeder
             // HasData solo para el tenant #1 (ver TipoDocumentoConfiguration
             // y el comentario de TipoDocumentoSeedData.ComoFilasParaMigracion,
             // "un tenant nuevo recibirá su propia copia editable al
-            // aprovisionarse", docs/MULTITENANCY.md § 7) — sin esto, los
+            // aprovisionarse", Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7) — sin esto, los
             // Documento que DatosPruebaSeeder genera más abajo referencian
             // un TipoDocumentoId que solo existe bajo el tenant #1, y el
             // filtro global de tenant lo esconde: la lista de Documentos

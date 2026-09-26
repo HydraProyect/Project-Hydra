@@ -23,7 +23,7 @@ public partial class Empresas : ComponentBase, IDisposable
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
 
-    // QuickGrid no soporta filas expandibles (Centro 360, PLAN-EJECUCION-UX.md
+    // QuickGrid no soporta filas expandibles (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     // § 0.11 — migra /empresas al mismo patrón de Centros.razor § 0.1): cada
     // Empresa es una tarjeta con acordeón de Centros con actividad, así que
     // la paginación se gestiona a mano en vez de con QuickGrid+Paginator.
@@ -92,7 +92,7 @@ public partial class Empresas : ComponentBase, IDisposable
 
     /// <summary>
     /// Los checkboxes de fila solo se pintan con esto activo (Centro 360,
-    /// PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
+    /// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
     /// ocasional. Apagarlo limpia la selección: dejar filas marcadas que ya
     /// no se ven dejaría la barra de acciones en lote apuntando a algo
     /// invisible.
@@ -192,7 +192,7 @@ public partial class Empresas : ComponentBase, IDisposable
     /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
     /// compartir la URL, volver atrás) — no solo en el primer render — para
     /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
-    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// inicial (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     ///
     /// <para>
     /// Un cambio que inicia la propia página (escribir en el buscador, elegir
@@ -321,7 +321,7 @@ public partial class Empresas : ComponentBase, IDisposable
         }
     }
 
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _tamanoPagina = tamano;
@@ -535,7 +535,7 @@ public partial class Empresas : ComponentBase, IDisposable
 
     /// <summary>
     /// Validación inline al salir del campo (mismo patrón que Centros.razor,
-    /// UX_PATTERNS.md, P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     private Task ValidarRazonSocialAsync() => ValidarCampoAsync(nameof(CrearEmpresaCommand.RazonSocial));
 

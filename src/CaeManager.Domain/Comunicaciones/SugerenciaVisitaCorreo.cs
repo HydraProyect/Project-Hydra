@@ -26,7 +26,7 @@ public class SugerenciaVisitaCorreo : EntidadConTenant
     public DateOnly? FechaFinSugerida { get; private set; }
     public string Resumen { get; private set; } = string.Empty;
 
-    /// <summary>Confianza agregada de la IA (0-100) — la que se muestra en la cabecera de la tarjeta del Action Center. Sin banda calculada aquí (docs/COMUNICACIONES.md § 12.6 define los cortes: alta ≥90 / media 70-89 / baja &lt;70, es responsabilidad de quien la presenta).</summary>
+    /// <summary>Confianza agregada de la IA (0-100) — la que se muestra en la cabecera de la tarjeta del Action Center. Sin banda calculada aquí (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.6 define los cortes: alta ≥90 / media 70-89 / baja &lt;70, es responsabilidad de quien la presenta).</summary>
     public int Confianza { get; private set; }
 
     /// <summary>Confianza específica de Centro (0-100) — decide si el campo se muestra editable en la revisión (§ 33: la UI no decide fiabilidad, solo representa el estado recibido).</summary>

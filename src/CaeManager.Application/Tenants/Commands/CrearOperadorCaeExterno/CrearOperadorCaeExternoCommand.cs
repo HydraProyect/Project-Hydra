@@ -98,7 +98,7 @@ public class CrearOperadorCaeExternoCommandHandler(
 
         // Ámbito explícito contra su PROPIO Id — mismo mecanismo que
         // CrearClienteDeleganteCommand y DelegacionDemoSeeder.AprovisionarTenantClienteAsync
-        // (docs/MULTITENANCY.md § 8.4). Todo tenant necesita esta fila:
+        // (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8.4). Todo tenant necesita esta fila:
         // ObtenerKpisDashboardQuery la lee con SingleAsync() y falla si no existe.
         using (AmbitoTenantExplicito.Establecer(tenantOperador.Id))
         {

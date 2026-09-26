@@ -4,7 +4,7 @@ namespace CaeManager.Application.Common;
 
 /// <summary>
 /// Clasifica un archivo antes de mandarlo a ningún proveedor de IA —
-/// puramente local, sin llamadas externas (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md,
+/// puramente local, sin llamadas externas (ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md,
 /// Fase 1). Determina si un PDF tiene texto digital seleccionable, está
 /// escaneado (solo imágenes), es mixto, o si el archivo es directamente una
 /// imagen suelta — el <c>DocumentAIRouterService</c> (fases siguientes) usa

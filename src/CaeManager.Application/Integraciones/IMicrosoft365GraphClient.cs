@@ -60,7 +60,7 @@ public static class LimitesAdjuntosCorreo
 }
 
 /// <summary>
-/// El "proveedor de integración" de este slice (ver ARQUITECTURA-INTEGRACIONES.md
+/// El "proveedor de integración" de este slice (ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md
 /// § 4) — nombrado por el proveedor concreto en vez de una abstracción
 /// multi-proveedor genérica: con un único proveedor real (Microsoft 365) esa
 /// generalidad es especulativa (YAGNI). Se generaliza a
@@ -69,7 +69,7 @@ public static class LimitesAdjuntosCorreo
 /// La implementación real (Infrastructure) es la única que conoce el
 /// formato de wire de Graph — <see cref="ExtraerMensajeIdsDeNotificacion"/>
 /// incluido, aunque no haga ninguna llamada HTTP: el mapeo de campos de un
-/// proveedor externo vive solo en su adaptador (docs/INTEGRATION_GUIDELINES.md
+/// proveedor externo vive solo en su adaptador (Project-Hydra-Negocio/tecnico/docs/INTEGRATION_GUIDELINES.md
 /// paso 6), nunca en Application.
 /// </summary>
 public interface IMicrosoft365GraphClient
@@ -133,7 +133,7 @@ public interface IMicrosoft365GraphClient
 
     /// <summary>
     /// Puro parseo, sin llamada de red — el <c>clientState</c> que Graph
-    /// devuelve sin cambios en cada notificación (docs/MULTITENANCY.md § 8,
+    /// devuelve sin cambios en cada notificación (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8,
     /// tercer modo). El endpoint del webhook lo compara contra el secreto
     /// guardado en <c>SuscripcionWebhook</c> antes de confiar en nada más
     /// del payload. Null si el payload no trae ninguna notificación válida.

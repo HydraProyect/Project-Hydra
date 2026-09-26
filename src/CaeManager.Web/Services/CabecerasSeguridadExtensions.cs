@@ -7,7 +7,7 @@ namespace CaeManager.Web.Services;
 
 /// <summary>
 /// Content-Security-Policy y cabeceras de endurecimiento (hallazgo N-1 de
-/// INFORME-AUDITORIA-2.md). Es la segunda línea detrás del saneado de
+/// Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md). Es la segunda línea detrás del saneado de
 /// <c>ISanitizadorHtmlService</c>: el saneado impide que entre marcado
 /// peligroso, la CSP limita el daño si alguna vez entra por una vía que no
 /// hayamos previsto.
@@ -20,8 +20,8 @@ public static class CabecerasSeguridadExtensions
     // blazor.web.js), así que no dependen de ello.
     //
     // El único <script> inline que sirve el propio framework es el
-    // componente <ImportMap /> de App.razor (H6, docs/ux-audit/
-    // 16-transversales.md — "Executing inline script violates CSP" en cada
+    // componente <ImportMap /> de App.razor (H6,
+    // Project-Hydra-Negocio/tecnico/docs/ux-audit/16-transversales.md — "Executing inline script violates CSP" en cada
     // navegación, atribuido aquí): el mapa de imports con el fingerprint de
     // cada .razor.js/.js de la app (QuickGrid, ApexCharts, ReconnectModal,
     // los módulos propios en wwwroot/js). Un <script type="importmap"> no

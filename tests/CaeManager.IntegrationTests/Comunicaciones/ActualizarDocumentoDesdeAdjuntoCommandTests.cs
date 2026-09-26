@@ -23,7 +23,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Comunicaciones;
 
 /// <summary>
-/// docs/COMUNICACIONES.md § 12.7, paso 4 "Aplicar y registrar". No
+/// Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.7, paso 4 "Aplicar y registrar". No
 /// reprueba Crear/RenovarDocumentoCommand (ya cubiertos por sus propios
 /// tests) — aísla la lógica propia de este handler (crear-vs-renovar,
 /// reutilización del ArchivoUrl del adjunto, publicación del evento) con un

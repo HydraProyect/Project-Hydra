@@ -20,7 +20,7 @@ namespace CaeManager.IntegrationTests.Asignaciones;
 /// <summary>
 /// Fase B: alta y baja de Asignaciones en lote (producto cartesiano
 /// Trabajadores × Centros, la misma forma que la matriz del Excel original —
-/// ver <c>DATABASE.md</c>) y el preflight de documentos que le faltarían a
+/// ver <c>Project-Hydra-Negocio/tecnico/DATABASE.md</c>) y el preflight de documentos que le faltarían a
 /// cada Trabajador en cada Centro antes de confirmar.
 /// </summary>
 public class AsignacionesLoteTests : IAsyncLifetime

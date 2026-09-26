@@ -10,7 +10,7 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// Cubre la mezcla cronológica de Mensajes + Eventos del sistema
-/// (docs/COMUNICACIONES.md § 12.3/§ 16.7) — lo funcional (Mediator, Commands)
+/// (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.3/§ 16.7) — lo funcional (Mediator, Commands)
 /// ya lo cubren los tests de integración; esto solo comprueba qué se pinta y
 /// en qué orden.
 /// </summary>

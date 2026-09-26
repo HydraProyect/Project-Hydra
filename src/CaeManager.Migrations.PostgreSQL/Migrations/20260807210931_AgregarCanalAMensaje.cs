@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     /// <summary>
-    /// Paso 1 del rediseño Communication Workspace (docs/COMUNICACIONES.md
+    /// Paso 1 del rediseño Communication Workspace (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
     /// § 16.1/13.1): cada Mensaje pasa a conocer su propio Canal — hoy
     /// siempre coincide con el de su Conversacion (todavía no hay hilos
     /// mixtos), fundamento para el Conversation Matching Engine (§ 13.2).

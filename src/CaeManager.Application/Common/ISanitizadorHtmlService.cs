@@ -6,7 +6,7 @@ namespace CaeManager.Application.Common;
 /// quien envía el mensaje, no un usuario del sistema: cuando llegue la ingesta
 /// por Microsoft Graph (ver <c>Conversacion</c>), bastará con conocer la
 /// dirección del buzón para inyectar marcado en una pantalla autenticada
-/// (hallazgo N-1 de INFORME-AUDITORIA-2.md).
+/// (hallazgo N-1 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
 ///
 /// Se sanea en la frontera del DTO, no en la vista: es el punto por el que
 /// pasa toda lectura del cuerpo, así que cualquier UI futura (o una API) queda

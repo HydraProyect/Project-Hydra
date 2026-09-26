@@ -22,7 +22,7 @@ public class AsignarEjecutivoConversacionCommandValidator : AbstractValidator<As
 /// viene de un selector": un selector no es una frontera de autorización —
 /// nada impide enviar otro Guid— y así se podía escribir cualquier valor en
 /// <c>EjecutivoAsignadoId</c>, incluido el de un usuario de otro tenant
-/// (hallazgo N-10 de INFORME-AUDITORIA-2.md).
+/// (hallazgo N-10 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
 ///
 /// Hace falta la abstracción porque <c>ApplicationUser</c> vive en
 /// Infrastructure.Identity y Application no puede referenciarlo (mismo motivo

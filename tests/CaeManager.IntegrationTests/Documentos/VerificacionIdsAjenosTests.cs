@@ -17,7 +17,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Documentos;
 
 /// <summary>
-/// Cobertura mínima explícita de P0-1 (docs/business/MATURITY_REVIEW.md):
+/// Cobertura mínima explícita de P0-1 (Project-Hydra-Negocio/MATURITY_REVIEW.md):
 /// "verificar Ids referenciados en todos los Commands de creación/
 /// vinculación (mínimo CrearDocumentoCommandHandler, CrearAsignacionCommandHandler)".
 /// Antes de este fix, un Guid inventado se persistía sin error; ahora el

@@ -61,7 +61,7 @@ var muestreoLock = new object();
 // y mirando `ps`: aparece como "chrome-headless", no
 // "chrome_headless_shell". Un primer intento con guion bajo daba SIEMPRE
 // 0 MB sin ningún error — un cero silencioso que hubiera pasado por "sin
-// consumo" en vez de "el filtro no casa con nada" (ver INSTRUMENTOS-Y-SUS-TRAMPAS.md
+// consumo" en vez de "el filtro no casa con nada" (ver Project-Hydra-Negocio/tecnico/reconciliacion/INSTRUMENTOS-Y-SUS-TRAMPAS.md
 // en el repositorio de negocio sobre exactamente este tipo de trampa).
 string[] nombresProceso = modo == "libreoffice"
     ? ["soffice.bin", "soffice"]

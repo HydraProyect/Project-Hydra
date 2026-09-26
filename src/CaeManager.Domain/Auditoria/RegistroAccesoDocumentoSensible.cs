@@ -5,7 +5,7 @@ namespace CaeManager.Domain.Auditoria;
 /// <summary>
 /// Rastro del acceso <b>efectivo al contenido</b> de un Documento clasificado
 /// como sensible — DEC-36 (REC-099, acta en
-/// <c>decisiones/DEC-33-36-lote-D-2026-09-02.md</c> del repositorio de
+/// <c>Project-Hydra-Negocio/tecnico/reconciliacion/decisiones/DEC-33-36-lote-D-2026-09-02.md</c> del repositorio de
 /// negocio): «registrar la apertura/acceso efectivo al contenido de
 /// documentos clasificados como sensibles [...], nunca cada query EF ni cada
 /// aparición de una fila en una lista». Antes de esta entidad, un Gestor CAE

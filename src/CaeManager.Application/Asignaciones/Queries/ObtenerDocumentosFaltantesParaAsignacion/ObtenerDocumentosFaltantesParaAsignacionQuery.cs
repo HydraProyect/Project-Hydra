@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
 
 /// <summary>
-/// Preflight no bloqueante (Fase B5, UX_PATTERNS.md § "Asignar trabajador a
+/// Preflight no bloqueante (Fase B5, Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md § "Asignar trabajador a
 /// centro/cliente") — antes de confirmar una asignación en lote, qué
 /// documentos obligatorios le faltarían a cada Trabajador en cada Centro del
 /// producto cartesiano elegido. Reutiliza <see cref="IDocumentosFaltantesService"/>,

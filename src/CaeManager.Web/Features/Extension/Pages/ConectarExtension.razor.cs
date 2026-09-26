@@ -24,7 +24,7 @@ namespace CaeManager.Web.Features.Extension.Pages;
 ///
 /// <para>
 /// Enlace automático con la extensión (DEC A', 2026-09-10, ver
-/// ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio): en
+/// Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio): en
 /// cuanto se genera el token, esta página se lo manda directamente a la
 /// extensión vía <c>chrome.runtime.sendMessage</c>
 /// (<c>wwwroot/js/conexionExtension.js</c>) — Chrome solo expone esa API

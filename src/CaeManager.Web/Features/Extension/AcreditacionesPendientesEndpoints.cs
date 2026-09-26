@@ -6,7 +6,7 @@ namespace CaeManager.Web.Features.Extension;
 
 /// <summary>
 /// Incremento 2 del MVP1 de integración con plataformas CAE externas vía
-/// extensión de navegador (ver ARQUITECTURA-INTEGRACIONES.md § 14 en el
+/// extensión de navegador (ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en el
 /// repositorio de negocio, y <see cref="ExtensionTokenEndpoints"/> para el
 /// Incremento 1).
 ///

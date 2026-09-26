@@ -49,7 +49,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // RLS en la misma tanda que crea la tabla — mismo criterio que
             // AgregarValidacionDocumentoOficial: el filtro global de EF ya la
             // protege; esto es la segunda línea (RLS sobre cae_app_runtime,
-            // ver RUNBOOK-RLS.md).
+            // ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md).
             foreach (var tabla in TablasConRls)
             {
                 migrationBuilder.Sql($@"

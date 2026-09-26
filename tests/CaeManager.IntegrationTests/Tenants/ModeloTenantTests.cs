@@ -10,7 +10,7 @@ namespace CaeManager.IntegrationTests.Tenants;
 
 /// <summary>
 /// Guardarraíl estructural para el filtro global de tenant (P2 #27 de
-/// docs/business/MATURITY_REVIEW.md, tras sustituir la lista de
+/// Project-Hydra-Negocio/MATURITY_REVIEW.md, tras sustituir la lista de
 /// <c>HasQueryFilter</c> enumerada a mano en <c>CaeManagerDbContext.OnModelCreating</c>
 /// por un bucle de reflexión sobre <c>EntidadConTenant</c>): comprueba el
 /// MODELO de EF entero, no el comportamiento de una entidad concreta como

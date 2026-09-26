@@ -5,7 +5,7 @@ namespace CaeManager.Domain.Common;
 /// La auditoría detallada (quién/qué cambió) la captura el interceptor de
 /// Infrastructure, no esta clase. Extiende <see cref="EntidadConTenant"/> —
 /// todo agregado raíz de negocio pertenece a un tenant (ver
-/// docs/MULTITENANCY.md).
+/// Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md).
 /// </summary>
 public abstract class EntidadBase : EntidadConTenant, IVersionable
 {

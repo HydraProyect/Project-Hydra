@@ -15,7 +15,7 @@ namespace CaeManager.Web.Api.Comercial;
 /// <c>Stripe-Signature</c> (HMAC contra el payload crudo, ver
 /// <c>StripePaymentProvider.VerificarYLeerWebhook</c>), verificada ANTES de
 /// confiar en nada del contenido — mismo orden innegociable que los demás
-/// webhooks de este proyecto (docs/MULTITENANCY.md § 8). El cuerpo se lee
+/// webhooks de este proyecto (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8). El cuerpo se lee
 /// con <see cref="LimiteCuerpoWebhook"/> (mismo mecanismo que M365 y
 /// WhatsApp) para no vaciar un stream sin cota antes de esa verificación.
 ///

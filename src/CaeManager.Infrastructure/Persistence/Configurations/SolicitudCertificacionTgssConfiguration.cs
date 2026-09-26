@@ -21,7 +21,7 @@ public class SolicitudCertificacionTgssConfiguration : IEntityTypeConfiguration<
         // La pestaña "Blindaje 42.1" pide "todas las solicitudes de (empresa, cliente)" y "la última por cliente".
         builder.HasIndex(s => new { s.TenantId, s.EmpresaId, s.ClienteId, s.FechaSolicitud });
 
-        // FKs compuestas con TenantId — ver P0-1 de docs/business/MATURITY_REVIEW.md:
+        // FKs compuestas con TenantId — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md:
         // un Id ajeno de otro tenant no puede referenciarse ni por accidente.
         //
         // ClienteId apunta a Empresa, no a Cliente — igual que RelacionEmpresarial

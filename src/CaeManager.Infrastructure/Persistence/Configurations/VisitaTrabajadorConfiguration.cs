@@ -16,7 +16,7 @@ public class VisitaTrabajadorConfiguration : IEntityTypeConfiguration<VisitaTrab
         builder.HasIndex(vt => vt.TrabajadorId);
         builder.HasIndex(vt => new { vt.TenantId, vt.VisitaId, vt.TrabajadorId }).IsUnique();
 
-        // FKs reales — ver P0-1 de docs/business/MATURITY_REVIEW.md. Restrict
+        // FKs reales — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md. Restrict
         // en ambos extremos, igual que el resto del modelo: el borrado real
         // en este dominio es soft-delete (EstaEliminado), así que un DELETE
         // SQL nunca debería llegar aquí sin pasar antes por código que ya

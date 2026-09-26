@@ -4,7 +4,7 @@ namespace CaeManager.Domain.DocumentosIa;
 
 /// <summary>
 /// Cola durable de análisis IA sobre Documentos (P2 #22 de
-/// docs/business/MATURITY_REVIEW.md) — sustituye a la cola en memoria sobre
+/// Project-Hydra-Negocio/MATURITY_REVIEW.md) — sustituye a la cola en memoria sobre
 /// <c>Channel&lt;T&gt;</c> que existía antes: un reinicio del proceso perdía
 /// cualquier encargo pendiente sin dejar rastro. Al vivir en la misma
 /// transacción que crea el Documento (ver <c>CrearDocumentoCommandHandler</c>),
@@ -13,7 +13,7 @@ namespace CaeManager.Domain.DocumentosIa;
 ///
 /// <see cref="ProcesadorAnalisisDocumentoHostedService"/> (Infrastructure) la
 /// consume por sondeo, un tenant a la vez con <c>AmbitoTenantExplicito</c>
-/// (docs/MULTITENANCY.md § 8.4) — nunca con una consulta que cruce tenants.
+/// (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8.4) — nunca con una consulta que cruce tenants.
 /// </summary>
 public class TrabajoAnalisisDocumento : EntidadConTenant
 {

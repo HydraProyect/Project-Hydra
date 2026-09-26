@@ -13,7 +13,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         {
             // Orden importa: el scaffold por defecto ponía el DropColumn de
             // NombrePlataforma primero, lo que habría perdido cualquier fila real
-            // sin trasladar (PLAN-EJECUCION-UX.md § Parte 2 (a), Lote 2-B). La
+            // sin trasladar (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (a), Lote 2-B). La
             // columna nueva tiene que existir y poblarse ANTES de tirar la vieja.
             migrationBuilder.AddColumn<Guid>(
                 name: "ProveedorPlataformaCaeId",

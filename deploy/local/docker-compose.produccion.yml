@@ -1,10 +1,10 @@
-# Stack de producción (etapa puente post-Railway, ver RUNBOOK-DESPLIEGUE-LOCAL.md
+# Stack de producción en el VPS (ver Project-Hydra-Negocio/tecnico/RUNBOOK-DESPLIEGUE-LOCAL.md
 # en el repositorio local de negocio, tecnico/): app + PostgreSQL 18 + Caddy como
 # reverse proxy con TLS automático (Let's Encrypt). No confundir con el
 # docker-compose.yml de la raíz, que es solo el Postgres de desarrollo.
 #
 # Sin Cloudflare en la cadena a propósito: el compromiso EU-only de
-# DATA_OWNERSHIP.md (repositorio de negocio) excluye subencargados fuera del
+# Project-Hydra-Negocio/DATA_OWNERSHIP.md (repositorio de negocio) excluye subencargados fuera del
 # EEE, y el Tunnel de Cloudflare habría proxyado todo el tráfico de la app por
 # el borde de una empresa estadounidense (SCC + Data Privacy Framework, no
 # ilegal pero sí un subencargado nuevo a declarar). Caddy corre en la misma
@@ -161,7 +161,7 @@ services:
     # conexión del tráfico (Program.cs, ResolverCadenaDeTrafico). Contrato
     # vigilado por deploy/ci-deploy-secretos.tests.sh (caso 19).
     #
-    # ConnectionStrings__CaeManagerDbRuntime (RUNBOOK-RLS.md, repositorio de
+    # ConnectionStrings__CaeManagerDbRuntime (Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md, repositorio de
     # negocio) NO aparece en el bloque `environment:` de abajo a propósito:
     # es la cadena completa con la contraseña del rol restringido
     # cae_app_runtime, y vive SOLO en el `.env` real de este directorio (que
@@ -187,8 +187,8 @@ services:
       # P44b — certificado de cliente del conector de Microsoft 365 (PEM). Fuera del
       # checkout y de los volúmenes con nombre; solo lectura. Si el directorio no
       # existe, Docker lo crea vacío y no tiene efecto mientras no se configuren
-      # CertificadoRuta y ClavePrivadaRuta. Guía: Project-Hydra-Negocio/tecnico/
-      # ACCIONES-PROPIETARIO-SECRETOS-CI-2026-09-19.md
+      # CertificadoRuta y ClavePrivadaRuta. Guía:
+      # Project-Hydra-Negocio/tecnico/ACCIONES-PROPIETARIO-SECRETOS-CI-2026-09-19.md
       #
       # PROPIEDAD Y PERMISOS DEL PEM: el contenedor arranca como root, pero el
       # entrypoint baja a APP_UID:APP_UID (1654:1654, medido en la imagen aspnet
@@ -234,8 +234,9 @@ services:
     # "app" es hoy el único con techo (REC-198); su valor sale de REC-196,
     # que sigue en stop condition — no se inventa aquí.
     #
-    # Misma versión mayor que llevaba producción en Railway (18.4) y que el
-    # pg_dump de la imagen de la app (postgresql-client-18 del Dockerfile).
+    # Versión mayor 18, la de producción desde antes del VPS. Las copias
+    # (scripts/backup-borg.sh) ejecutan pg_dump dentro de este contenedor,
+    # así que el cliente siempre coincide con el servidor.
     # Versión exacta + digest (cadena de suministro, auditoría Módulo 10,
     # 2026-08-30): el tag flotante "18" apunta al último parche de la serie
     # sin dejar rastro en el repositorio de CUÁNDO cambió ni con qué CI lo
@@ -253,8 +254,8 @@ services:
     # ahora organiza los datos en subcarpetas por versión mayor (compatible
     # con pg_ctlcluster) y rechaza arrancar si el volumen apunta al layout
     # antiguo (docker-library/postgres#1259). Detectado en el primer
-    # despliegue real contra un volumen nuevo — no aparecía en Railway porque
-    # gestionaba el volumen a su manera.
+    # despliegue real contra un volumen nuevo — no aparecía en el hosting
+    # anterior porque gestionaba el volumen a su manera.
     volumes:
       - caemanager-postgres-data:/var/lib/postgresql
     # Sin `ports` a propósito: la BD solo es alcanzable desde la red interna
@@ -304,7 +305,7 @@ services:
     # SIN mem_limit — mismo hueco declarado que "db" arriba (REC-199/REC-198,
     # valor pendiente de REC-196).
     #
-    # Logs centralizados (P0-3 de RUNBOOK-HORIZONTE-0.md) — licencia
+    # Logs centralizados (P0-3 de Project-Hydra-Negocio/tecnico/RUNBOOK-HORIZONTE-0.md) — licencia
     # Individual gratuita, autoalojado, sin coste por asiento (Datalust
     # solo cobra por usuarios adicionales, no aplica con un único operador).
     # Versión exacta + digest, mismo motivo que "db" de arriba — el tag

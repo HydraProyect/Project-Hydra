@@ -6,7 +6,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 
 /// <summary>
 /// Alimenta el badge "Visita dd/mm–dd/mm" del acordeón de Centro 360
-/// (PLAN-EJECUCION-UX.md § 0.3) — proyección de Visitas, sin modelo nuevo.
+/// (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.3) — proyección de Visitas, sin modelo nuevo.
 /// Por cada Centro de la lista, la visita activa (no cancelada y <c>FechaFin >= hoy</c>,
 /// cubre "en curso" y "próxima") con el <c>FechaInicio</c> más cercano; si
 /// hay varias en curso a la vez para el mismo centro, se prioriza la que

@@ -1,5 +1,5 @@
 // Content script inyectado en las plataformas CAE externas declaradas en
-// manifest.json (ver ARQUITECTURA-INTEGRACIONES.md § 14.1, repositorio de
+// manifest.json (ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14.1, repositorio de
 // negocio, para el mecanismo completo). Dos trabajos, y los dos nacen de un
 // gesto real del Gestor CAE:
 //

@@ -168,7 +168,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 CHECK (num_nonnulls("ClienteId", "EmpresaId", "SubcontrataId", "CentroId") = 1);
                 """);
 
-            // Segunda línea de aislamiento (RUNBOOK-RLS.md). Sin esto,
+            // Segunda línea de aislamiento (Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md). Sin esto,
             // PoliticasRlsCubrenModeloTests falla en CI — que es justo para lo
             // que existe ese test.
             migrationBuilder.Sql(@"

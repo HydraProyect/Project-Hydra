@@ -5,7 +5,7 @@ namespace CaeManager.Domain.Comunicaciones;
 /// La bandeja es multicanal sobre el mismo agregado (decisión 2026-08-04;
 /// los antiguos nombres ConversacionCorreo/MensajeCorreo se renombraron a
 /// Conversacion/Mensaje en el paso 0 del rediseño Communication Workspace,
-/// ver docs/COMUNICACIONES.md § 16.2).
+/// ver Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 16.2).
 /// </summary>
 public enum CanalConversacion
 {

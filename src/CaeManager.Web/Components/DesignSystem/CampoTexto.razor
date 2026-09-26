@@ -53,13 +53,13 @@
 
     /// <summary>
     /// Se dispara al perder el foco, después de <see cref="ValorChanged"/> —
-    /// para que el padre pueda validar el campo "al salir de él" (UX_PATTERNS.md,
-    /// P1-18 de docs/business/MATURITY_REVIEW.md) sin acoplar esta clase a
+    /// para que el padre pueda validar el campo "al salir de él" (Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md,
+    /// P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md) sin acoplar esta clase a
     /// FluentValidation ni a ningún mecanismo de validación concreto.
     /// </summary>
     [Parameter] public EventCallback OnBlur { get; set; }
 
-    /// <summary>Attribute splatting — ver el comentario de Boton.razor, mismo criterio (P2 #28 de docs/business/MATURITY_REVIEW.md), incluido el merge manual de "class".</summary>
+    /// <summary>Attribute splatting — ver el comentario de Boton.razor, mismo criterio (P2 #28 de Project-Hydra-Negocio/MATURITY_REVIEW.md), incluido el merge manual de "class".</summary>
     [Parameter(CaptureUnmatchedValues = true)]
     public Dictionary<string, object>? AtributosAdicionales { get; set; }
 

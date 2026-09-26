@@ -2,7 +2,7 @@ using CaeManager.Domain.Comunicaciones;
 
 namespace CaeManager.Application.Comunicaciones.Matching;
 
-/// <summary>Desglose de puntos por criterio, tal cual la tabla de pesos de docs/COMUNICACIONES.md § 13.2 — expuesto siempre, aunque varios criterios estén en 0 hoy, para que la UI explique el porqué del score.</summary>
+/// <summary>Desglose de puntos por criterio, tal cual la tabla de pesos de Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 13.2 — expuesto siempre, aunque varios criterios estén en 0 hoy, para que la UI explique el porqué del score.</summary>
 public record DesgloseCoincidenciaDto(
     int MismoCliente, int SimilaridadSemantica, int MismoTrabajador, int MismoCentro,
     int MismoDocumento, int MismoProyecto, int VentanaTemporal)
@@ -13,7 +13,7 @@ public record DesgloseCoincidenciaDto(
 public record CandidatoCoincidenciaDto(Guid ConversacionId, string Asunto, DesgloseCoincidenciaDto Desglose);
 
 /// <summary>
-/// Conversation Matching Engine (docs/COMUNICACIONES.md § 13.2). Nunca
+/// Conversation Matching Engine (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 13.2). Nunca
 /// decide: solo propone. El gestor confirma siempre, vía
 /// VincularConversacionCommand — mientras no confirme, el mensaje sigue
 /// viviendo en su propia conversación (el enrutamiento de § 4 es el

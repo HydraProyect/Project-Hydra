@@ -7,7 +7,7 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// Cubre el debounce de CampoTexto y el fix real de la Fase 11 (ver
-/// ROADMAP.md, backlog "#11 Lag al escribir rápido"): escribir no debe
+/// Project-Hydra-Negocio/tecnico/ROADMAP.md, backlog "#11 Lag al escribir rápido"): escribir no debe
 /// disparar ValorChanged en cada tecla, pero perder el foco sí debe volcar
 /// el valor pendiente de inmediato, aunque el debounce (300ms) todavía no
 /// haya terminado — si no, un clic rápido tras escribir (p. ej. en
@@ -78,7 +78,7 @@ public class CampoTextoTests : BunitContext
     }
 
     /// <summary>
-    /// P1-18 de docs/business/MATURITY_REVIEW.md: OnBlur es lo que permite
+    /// P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md: OnBlur es lo que permite
     /// al padre validar "al salir del campo" sin acoplar este componente a
     /// FluentValidation. Debe dispararse al perder el foco, independiente de
     /// ValorChanged, y no antes (mientras el usuario todavía escribe).

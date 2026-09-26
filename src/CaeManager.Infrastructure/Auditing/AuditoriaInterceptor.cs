@@ -16,13 +16,13 @@ namespace CaeManager.Infrastructure.Auditing;
 
 /// <summary>
 /// Registra en RegistroAuditoria cada alta/modificación/baja de una entidad
-/// de dominio (ver ARCHITECTURE.md, "Auditoría y soft delete"), y también de
+/// de dominio (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Auditoría y soft delete"), y también de
 /// las cuatro entidades de Identity que dejan rastro de quién gestiona a
 /// quién y de cómo se entra a una cuenta: <see cref="ApplicationUser"/> (alta,
 /// edición, baja, activación/desactivación de una cuenta),
 /// <see cref="IdentityUserRole{TKey}"/> (concesión y revocación de un rol — el
 /// caso más grave, "quién hizo Administrador a quién", ver
-/// CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12), <see cref="IdentityUserLogin{TKey}"/>
+/// Project-Hydra-Negocio/tecnico/CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12), <see cref="IdentityUserLogin{TKey}"/>
 /// (vinculación de un login externo/SSO) e <see cref="IdentityUserToken{TKey}"/>
 /// (el secreto del segundo factor). Identity vive fuera del namespace
 /// CaeManager.Domain (Infrastructure.Identity), así que estas cuatro entran
@@ -34,7 +34,7 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    (CanalGestionDocumental, CredencialAccesoEmpresa,
 ///    CredencialAccesoSubcontrata, CredencialIntegracion, SuscripcionWebhook,
 ///    LineaWhatsApp): nunca deben quedar en texto plano en el historial (ver
-///    DATABASE.md). Esta lista debe crecer junto con cualquier propiedad
+///    Project-Hydra-Negocio/tecnico/DATABASE.md). Esta lista debe crecer junto con cualquier propiedad
 ///    nueva que se cifre en reposo — el cifrado en la BD no protege el
 ///    historial de auditoría, que lee el valor plano directamente del
 ///    ChangeTracker antes de que el ValueConverter lo cifre.
@@ -190,7 +190,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
     /// <summary>
     /// La vía síncrona también audita — este interceptor era el único de los
     /// tres sin este override, exactamente la clase de agujero por omisión
-    /// que el hallazgo N-15 (INFORME-AUDITORIA-2.md) cerró en los otros dos:
+    /// que el hallazgo N-15 (Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md) cerró en los otros dos:
     /// un SaveChanges() corriente guardaba sin dejar rastro de auditoría.
     /// Diferencia con TenantSelladoInterceptor: aquí el trabajo compartido
     /// necesita el usuario actual, cuyo contrato es asíncrono. Bloquear con

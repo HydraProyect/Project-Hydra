@@ -7,7 +7,7 @@ namespace CaeManager.Infrastructure.DataProtection;
 ///
 /// Sin esto, las claves viven en claro en el volumen y —lo que de verdad
 /// importa— viajan en claro dentro del mismo backup que la base de datos
-/// (RUNBOOK-CLAVES.md: BD y claves se suben siempre juntas a S3). Ese backup
+/// (Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES.md: BD y claves se suben siempre juntas a S3). Ese backup
 /// contiene además las credenciales de portales externos de Empresas,
 /// Subcontratas y Centros, cifradas justamente con esas claves: quien
 /// consiguiera el archivo tenía a la vez el candado y la llave.
@@ -30,7 +30,7 @@ public class DataProtectionKmsOptions : IOpcionesConGate
     /// <summary>
     /// ARN o alias de la clave KMS (p. ej. <c>alias/caemanager-dataprotection</c>).
     /// Debe vivir en la misma región que el bucket de backups para no sacar
-    /// datos de España — ver RGPD-TRATAMIENTO-DATOS.md § 6.
+    /// datos de España — ver Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md § 6.
     /// </summary>
     public string? KeyId { get; set; }
 

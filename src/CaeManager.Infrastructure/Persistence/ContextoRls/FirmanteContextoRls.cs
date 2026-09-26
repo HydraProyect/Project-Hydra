@@ -12,7 +12,7 @@ namespace CaeManager.Infrastructure.Persistence.ContextoRls;
 
 /// <summary>
 /// Firma el contexto de sesión RLS de cada conexión (P6, diseño
-/// <c>tecnico/DISENO-CONTEXTO-RLS-FIRMADO-P6-2026-09-23.md</c>).
+/// <c>Project-Hydra-Negocio/tecnico/DISENO-CONTEXTO-RLS-FIRMADO-P6-2026-09-23.md</c>).
 ///
 /// <para>
 /// <b>La clave.</b> Este proceso no la registra: la registra el migrador con la
