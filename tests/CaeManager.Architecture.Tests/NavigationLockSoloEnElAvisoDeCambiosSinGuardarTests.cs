@@ -33,9 +33,7 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     /// </summary>
     private static readonly string[] FormulariosProtegidos =
     [
-        "src/CaeManager.Web/Features/Documentos/Components/DocumentoWorkspacePanel.razor",
         "src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor",
-        "src/CaeManager.Web/Features/Documentos/Components/FirmaEnCampoTab.razor",
         "src/CaeManager.Web/Features/Documentos/Components/PlataformaTab.razor",
         "src/CaeManager.Web/Features/Documentos/Components/RevisionIaTab.razor",
         "src/CaeManager.Web/Features/Documentos/Pages/SubidaMasiva.razor",

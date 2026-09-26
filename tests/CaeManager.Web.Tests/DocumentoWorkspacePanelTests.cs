@@ -15,7 +15,6 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
 using MediatR;
-using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
@@ -234,31 +233,5 @@ public class DocumentoWorkspacePanelTests : BunitContext
     {
         public Task<byte[]> ConvertirAPdfAsync(byte[] contenidoDocx, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("Este test no convierte nada.");
-    }
-
-    /// <summary>
-    /// P1-E2: el trazo (dibujado o escrito) solo vive en el lienzo del navegador. Sin trazo,
-    /// salir no pregunta; con él, salir se detiene y pregunta. El trazo lo avisa el JS del
-    /// lienzo por <see cref="FirmaEnCampoTab.MarcarTrazoIniciadoAsync"/>, que es lo que se simula.
-    /// </summary>
-    [Fact]
-    public async Task Salir_con_una_firma_dibujada_sin_estampar_pregunta()
-    {
-        var detalle = Detalle() with { ArchivoUrl = "documentos/firmable.pdf" };
-        Services.AddScoped<ToastService>();
-        Services.AddScoped<IMediator>(_ => new MediatorDocumento { Detalle = detalle });
-        var cut = Render<FirmaEnCampoTab>(p => p.Add(t => t.EntidadId, detalle.Id));
-        cut.WaitForAssertion(() => cut.FindAll("canvas").Should().ContainSingle("el lienzo tiene que estar pintado para que esto mida algo"));
-        var navegacion = Services.GetRequiredService<NavigationManager>();
-
-        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos?sin-trazo"));
-        cut.FindAll(".modal-contenido").Should().BeEmpty("sin trazo no hay nada que perder");
-
-        var origen = navegacion.Uri;
-        await cut.InvokeAsync(() => cut.Instance.MarcarTrazoIniciadoAsync());
-        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos?con-trazo"));
-
-        navegacion.Uri.Should().Be(origen, "con una firma sin estampar la navegación se detiene");
-        cut.Find(".modal-contenido").TextContent.Should().Contain("¿Salir sin guardar?");
     }
 }

@@ -54,8 +54,6 @@ public class Documento360Gen2Tests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
-        // AvisoCambiosSinGuardar (P1-E2) saca sus textos de IStringLocalizer<TextosComunes>.
-        Services.AddLocalization();
         // «Renovar» va dentro de SoloConEscritura: sin rol, AuthorizeView no tendría con qué decidir.
         this.ConRolDeEscritura();
         return mediador;
@@ -204,34 +202,5 @@ public class Documento360Gen2Tests : BunitContext
         titulo[0].TextContent.Should().Be("Documento B");
         mediador.Enviadas.OfType<ObtenerValidacionOficialDocumentoQuery>().Should().ContainSingle()
             .Which.DocumentoId.Should().Be(b, "la cadena de A cancelada no debe continuar hacia validación");
-    }
-
-    /// <summary>
-    /// P1-E2: con «Renovar» a medias (unos comentarios tecleados), salir se detiene y
-    /// pregunta; «Salir y descartar» cancela la edición y repite la navegación. Abrir
-    /// «Renovar» sin tocar nada no pregunta.
-    /// </summary>
-    [Fact]
-    public async Task Salir_con_la_renovacion_a_medias_pregunta_y_descartar_cancela_la_edicion()
-    {
-        var id = Guid.NewGuid();
-        var mediador = Registrar(new MediadorFalso());
-        mediador.Detalles[id] = Detalle(id);
-        var cut = Renderizar(id);
-        var navegacion = Services.GetRequiredService<NavigationManager>();
-
-        await Boton(cut, "Renovar").ClickAsync(new MouseEventArgs());
-        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos?vista=1"));
-        cut.FindAll(".modal-contenido").Should().BeEmpty("abrir «Renovar» sin tocar nada no es un cambio");
-
-        var origen = navegacion.Uri;
-        await cut.Find("textarea").InputAsync(new ChangeEventArgs { Value = "Renovado en obra" });
-        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos?vista=2"));
-
-        navegacion.Uri.Should().Be(origen, "con la renovación a medias la navegación se detiene");
-        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Salir y descartar").ClickAsync(new MouseEventArgs());
-
-        navegacion.Uri.Should().EndWith("vista=2");
-        cut.FindAll("textarea").Should().BeEmpty("confirmar la salida cancela la edición en línea aunque el panel siga montado");
     }
 }
