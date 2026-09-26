@@ -7,6 +7,7 @@ using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Configuracion;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
@@ -126,6 +127,15 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         {
             using var ambito = AmbitoTenantExplicito.Establecer(tenant);
             _propietario.ParametrosSistema.Add(new ParametroSistema(umbralAmbarDias: 30, umbralRojoDias: 15));
+            await _propietario.SaveChangesAsync();
+        }
+
+        // Un Cliente empresarial en A: sin él, cualquier cartera ve cero clientes
+        // y el KPI diría «sin cartera» con o sin rol efectivo — el test del
+        // Dashboard no distinguiría nada.
+        using (AmbitoTenantExplicito.Establecer(_a))
+        {
+            _propietario.Empresas.Add(Empresa.CrearComoCliente("Cliente empresarial de A", "B10380186", false, null, null));
             await _propietario.SaveChangesAsync();
         }
 
@@ -407,6 +417,19 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         kpis.TotalClientes.Should().Be(2, "origen + A, alcanzado solo por Operación");
         kpis.ClientesConMasRiesgo.Should().Contain(c => c.TenantId == _a && !c.SinCarteraAsignada,
             "en la vuelta de A el rol efectivo sale de su Asignación de Cartera: no es alcance cero");
+    }
+
+    [Fact]
+    public async Task En_el_fan_out_el_rol_de_un_Tenant_alcanzado_solo_por_Operacion_es_el_de_su_cartera()
+    {
+        await using var runtime = CrearRuntime(_gestorUnico, tenantDeLaPeticion: _origen);
+        var usuario = CrearCurrentUserService(runtime, _gestorUnico);
+
+        using (AmbitoTenantExplicito.Establecer(_a))
+            (await usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.GestorCae,
+                "el mismo rol que tendría seleccionando A por /cuenta/cliente-activo");
+        using (AmbitoTenantExplicito.Establecer(_otroOperadorTenant))
+            (await usuario.ObtenerRolEfectivoAsync()).Should().BeNull("ese Tenant no está en su conjunto autorizado");
     }
 
     [Fact]
