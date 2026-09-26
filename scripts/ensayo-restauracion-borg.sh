@@ -35,6 +35,14 @@
 #   --sin-app              solo BD + claves + PDFs (sin migrador ni app).
 #   --copia-claves F.age   segunda ubicación de las claves (P38), cifrada con age.
 #   --identidad-age FICH   identidad (clave privada age) para abrir --copia-claves.
+#   --certificado-dp DIR   directorio con dataprotection.crt y dataprotection.key
+#                          (P1-F3): hace falta para leer claves de Data Protection
+#                          cifradas con certificado. Se monta en /run/secretos:ro,
+#                          como en producción. Sin él, la app solo lee claves en claro.
+#                          Cada par dataprotection-*.crt + .key del directorio entra
+#                          como certificado anterior (rotación): hace falta para las
+#                          claves cifradas antes de rotar. Solo ese prefijo: el
+#                          directorio de secretos guarda también otros certificados.
 # Entorno (opcional):
 #   ENSAYO_IMAGEN_APP      imagen de la app; si falta, se construye del Dockerfile
 #                          de este árbol.
@@ -56,6 +64,7 @@ MARCA_BACKUP=""
 SIN_APP=0
 COPIA_CLAVES=""
 IDENTIDAD_AGE=""
+CERTIFICADO_DP=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --desde-dir)      DESDE_DIR="${2:?--desde-dir necesita un directorio}"; shift 2 ;;
@@ -63,9 +72,17 @@ while [ $# -gt 0 ]; do
         --sin-app)        SIN_APP=1; shift ;;
         --copia-claves)   COPIA_CLAVES="${2:?--copia-claves necesita un fichero .age}"; shift 2 ;;
         --identidad-age)  IDENTIDAD_AGE="${2:?--identidad-age necesita un fichero}"; shift 2 ;;
+        --certificado-dp) CERTIFICADO_DP="${2:?--certificado-dp necesita un directorio}"; shift 2 ;;
         *) echo "ERROR: opción desconocida: $1"; exit 2 ;;
     esac
 done
+MONTAJE_DP=()
+if [ -n "$CERTIFICADO_DP" ]; then
+    for f in dataprotection.crt dataprotection.key; do
+        [ -r "$CERTIFICADO_DP/$f" ] || { echo "ERROR: --certificado-dp: falta o no se puede leer $CERTIFICADO_DP/$f"; exit 2; }
+    done
+    MONTAJE_DP=(-v "$(cd "$CERTIFICADO_DP" && pwd)":/run/secretos:ro)
+fi
 if [ -n "$COPIA_CLAVES" ] && [ -z "$IDENTIDAD_AGE" ]; then
     echo "ERROR: --copia-claves exige --identidad-age"; exit 2
 fi
@@ -311,6 +328,24 @@ else
         echo "ConnectionStrings__CaeManagerDbRuntime=$CADENA_RUNTIME"
         echo "AlmacenamientoArchivos__Ruta=/data/documentos"
         echo "DataProtection__RutaClaves=/data/dataprotection-keys"
+        # P1-F3: la imagen arranca en Production, que se niega a un llavero sin
+        # cifrar salvo declaración. Con --certificado-dp se usa el certificado
+        # (y la bandera se ignora); sin él, solo se leen claves escritas en claro.
+        echo "DataProtection__PermitirClavesSinCifrar=true"
+        if [ -n "$CERTIFICADO_DP" ]; then
+            echo "DataProtection__Certificado__CertificadoRuta=/run/secretos/dataprotection.crt"
+            echo "DataProtection__Certificado__ClavePrivadaRuta=/run/secretos/dataprotection.key"
+            n=0
+            for crt in "$CERTIFICADO_DP"/dataprotection-*.crt; do
+                [ -e "$crt" ] || continue
+                nombre="$(basename "$crt" .crt)"
+                [ "$nombre" = dataprotection ] && continue
+                [ -r "$CERTIFICADO_DP/$nombre.key" ] || continue
+                echo "DataProtection__Certificado__Anteriores__${n}__CertificadoRuta=/run/secretos/$nombre.crt"
+                echo "DataProtection__Certificado__Anteriores__${n}__ClavePrivadaRuta=/run/secretos/$nombre.key"
+                n=$((n + 1))
+            done
+        fi
         echo "Migraciones__AlArrancar=false"
         echo "Siembra__AlArrancar=false"
         echo "DatosPrueba__Activo=false"
@@ -334,7 +369,7 @@ else
         # compatible con el código de este árbol.
         local antes despues
         antes=$(consulta "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";")
-        if docker run --rm --network "$RED" -v "$vol":/data --env-file "$ENV_MIGRADOR" "$IMAGEN_APP" --preparar-arranque \
+        if docker run --rm --network "$RED" -v "$vol":/data ${MONTAJE_DP[@]+"${MONTAJE_DP[@]}"} --env-file "$ENV_MIGRADOR" "$IMAGEN_APP" --preparar-arranque \
                 >"$DIR_TRABAJO/migrador-$etiqueta.log" 2>&1; then
             despues=$(consulta "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";")
             registrar OK "migrador [$etiqueta]" "exit 0; migraciones aplicadas en la BD: $antes -> $despues"
@@ -345,7 +380,7 @@ else
         fi
         fase_hecha "migrador [$etiqueta]"
 
-        docker run -d --name "$app" --network "$RED" -v "$vol":/data --env-file "$ENV_APP" "$IMAGEN_APP" >/dev/null
+        docker run -d --name "$app" --network "$RED" -v "$vol":/data ${MONTAJE_DP[@]+"${MONTAJE_DP[@]}"} --env-file "$ENV_APP" "$IMAGEN_APP" >/dev/null
         local listo=0 i
         for i in $(seq 1 90); do
             if docker exec "$app" curl -fsS http://localhost:8080/salud >/dev/null 2>&1; then listo=1; break; fi

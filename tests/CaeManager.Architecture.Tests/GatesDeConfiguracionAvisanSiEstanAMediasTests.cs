@@ -101,6 +101,8 @@ public class GatesDeConfiguracionAvisanSiEstanAMediasTests
         {
             Path.Combine(raiz, "src", "CaeManager.Infrastructure", "DependencyInjection", "InfrastructureServiceCollectionExtensions.cs"),
             Path.Combine(raiz, "src", "CaeManager.Web", "Program.cs"),
+            // El registro de Data Protection se separó de AddInfrastructure (P1-F3) para probarlo tal cual.
+            Path.Combine(raiz, "src", "CaeManager.Infrastructure", "DataProtection", "RegistroDataProtection.cs"),
         }.Select(File.ReadAllText));
 
         var adheridos = TiposConGate().Where(t => typeof(IOpcionesConGate).IsAssignableFrom(t)).ToList();

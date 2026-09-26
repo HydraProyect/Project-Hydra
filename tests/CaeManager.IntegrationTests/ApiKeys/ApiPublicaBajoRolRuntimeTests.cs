@@ -184,6 +184,9 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
         {
             ["ConnectionStrings:CaeManagerDb"] = _cadenaPropietario,
             ["ConnectionStrings:CaeManagerDbRuntime"] = cadenaDeTrafico,
+            // WebApplication.CreateBuilder() arranca en Production: sin esto, el registro
+            // de Data Protection se niega por falta de certificado (P1-F3), que aquí no se prueba.
+            ["DataProtection:PermitirClavesSinCifrar"] = "true",
         });
 
         builder.Services.AddApplication();
