@@ -2,7 +2,6 @@ using CaeManager.Application.Common;
 using System.Security.Claims;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
-using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -120,42 +119,7 @@ public class CurrentUserService(
         // determinista cuando un usuario tenía dos autorizaciones vivas sobre
         // el mismo tenant.
         if (clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is { } asignacionOperacionId)
-        {
-            var operaciones = serviceProvider.GetRequiredService<IOperacionesQueryContext>();
-            var ahora = DateTime.UtcNow;
-
-            // El par (operación, usuario) NO es único: los índices admiten una
-            // cartera universal y varias por cliente del mismo usuario bajo la
-            // misma operación, y el backfill genera esa combinación. Sin un
-            // orden explícito, FirstOrDefault elegiría el rol de una de ellas
-            // arbitrariamente — el mismo no determinismo que este cambio venía a
-            // corregir. Se ordena por ámbito universal primero y luego por Id:
-            // la universal es la que describe el rol en el workspace, y el Id
-            // desempata de forma estable.
-            return await (
-                from cartera in operaciones.AsignacionesCartera
-                join operacion in operaciones.AsignacionesOperacion
-                    on cartera.AsignacionOperacionId equals operacion.Id
-                where cartera.AsignacionOperacionId == asignacionOperacionId
-                      && cartera.UsuarioId == usuarioId.Value
-                      && cartera.Estado == EstadoAsignacion.Vigente
-                      && cartera.VigenciaDesde <= ahora
-                      && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
-                      && operacion.Estado == EstadoAsignacion.Vigente
-                      && operacion.PropietarioTenantId == tenantSeleccionado
-                      && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
-                      // Una cartera EXTERNA solo aporta roles de Operación
-                      // (decisión del propietario, 2026-09-23): una fila
-                      // heredada con Administrador o Dirección CAE no da ese
-                      // rol en el Tenant propietario aunque siga vigente.
-                      // Desde P8 la migración las cierra (Revocada); esta
-                      // condición queda como defensa en profundidad.
-                      && (operacion.OperadorTenantId == operacion.PropietarioTenantId
-                          || (cartera.Rol != null && RolesDelegables.Contains(cartera.Rol)))
-                orderby cartera.AmbitoRelacionClienteId == null ? 0 : 1, cartera.Id
-                select cartera.Rol)
-                .FirstOrDefaultAsync();
-        }
+            return await ResolverRolViaOperacionAsync(tenantSeleccionado, usuarioId.Value, asignacionOperacionId);
 
         return await ResolverRolViaHeredadaAsync(tenantSeleccionado, usuarioId.Value);
     }
@@ -209,10 +173,11 @@ public class CurrentUserService(
     /// seleccionado, el claim ya es el de la cartera del Tenant propietario
     /// (defecto de la decisión P7, 2026-09-23).
     ///
-    /// Solo resuelve por la vía heredada (<c>AsignacionOperadorDelegado</c>):
-    /// es la misma que usa <c>ObtenerClientesAutorizadosQuery</c> para
-    /// enumerar qué tenants entran en el fan-out, así que es la única fuente
-    /// de la que puede venir un tenant distinto del propio en este ámbito.
+    /// Fuera del origen resuelve por las mismas vías y el mismo predicado
+    /// (<see cref="TenantsBeneficiariosAutorizados"/>) con los que
+    /// <c>ObtenerClientesAutorizadosQuery</c> enumera qué Tenants entran en el
+    /// fan-out: la de Operación y la heredada. Un Tenant de la lista siempre
+    /// tiene aquí el rol que tendría seleccionado.
     /// </summary>
     private async Task<string?> ResolverRolParaAmbitoExplicitoAsync(Guid tenantAmbito, string? rolDeSesionEnOrigen)
     {
@@ -222,7 +187,67 @@ public class CurrentUserService(
         var tenantOrigenId = await ObtenerTenantOrigenIdAsync();
         if (tenantOrigenId == tenantAmbito) return rolDeSesionEnOrigen;
 
-        return await ResolverRolViaHeredadaAsync(tenantAmbito, usuarioId.Value);
+        // Mismo orden de vías que /cuenta/cliente-activo: primero la operación,
+        // después la heredada. Un Tenant alcanzado por Operación entra en el
+        // fan-out (ObtenerClientesAutorizadosQuery, lote 0 del selector de Tenant
+        // beneficiario) y en su vuelta tiene el mismo rol que tendría el usuario
+        // si lo seleccionara: sin esto su alcance sería cero y Mi trabajo y el
+        // Dashboard lo pintarían «sin cartera» aunque la tenga.
+        return await ResolverRolViaOperacionAsync(tenantAmbito, usuarioId.Value, asignacionOperacionId: null)
+               ?? await ResolverRolViaHeredadaAsync(tenantAmbito, usuarioId.Value);
+    }
+
+    /// <summary>
+    /// Vía de Operación, con el predicado único de
+    /// <see cref="TenantsBeneficiariosAutorizados"/>: la cartera vigente del
+    /// usuario bajo una Asignación de Operación vigente, no raíz, de su Operador
+    /// CAE de origen sobre <paramref name="tenantId"/>. Con
+    /// <paramref name="asignacionOperacionId"/> (selección del token) es un lookup
+    /// por esa operación; sin él (fan-out), la operación que elegiría
+    /// <c>/cuenta/cliente-activo</c>: la vigente más reciente y, a igualdad, la de
+    /// menor Id.
+    ///
+    /// <para>
+    /// El par (operación, usuario) NO es único: los índices admiten una cartera
+    /// universal y varias por cliente del mismo usuario bajo la misma operación,
+    /// y el backfill genera esa combinación. Se ordena por ámbito universal
+    /// primero y luego por Id: la universal es la que describe el rol en el
+    /// Tenant, y el Id desempata de forma estable.
+    /// </para>
+    ///
+    /// <para>
+    /// Una cartera EXTERNA solo aporta roles de Operación (decisión del
+    /// propietario, 2026-09-23): una fila heredada con Administrador o Dirección
+    /// CAE no da ese rol en el Tenant propietario aunque siga vigente. Desde P8 la
+    /// migración las cierra (Revocada); esta condición queda como defensa en
+    /// profundidad. El predicado solo devuelve operaciones externas, así que la
+    /// lista blanca aplica siempre.
+    /// </para>
+    /// </summary>
+    private async Task<string?> ResolverRolViaOperacionAsync(
+        Guid tenantId, Guid usuarioId, Guid? asignacionOperacionId)
+    {
+        if (await ObtenerTenantOrigenIdAsync() is not { } tenantOrigenId) return null;
+
+        var operaciones = serviceProvider.GetRequiredService<IOperacionesQueryContext>();
+        var candidatas = TenantsBeneficiariosAutorizados
+            .CarterasPorOperacion(operaciones, usuarioId, tenantOrigenId, DateTime.UtcNow)
+            .Where(v => v.Operacion.PropietarioTenantId == tenantId
+                        && v.Cartera.Rol != null && RolesDelegables.Contains(v.Cartera.Rol));
+
+        candidatas = asignacionOperacionId is { } operacionId
+            ? candidatas.Where(v => v.Operacion.Id == operacionId)
+            : candidatas.Where(v => v.Operacion.Id == candidatas
+                .OrderByDescending(o => o.Operacion.VigenciaDesde)
+                .ThenBy(o => o.Operacion.Id)
+                .Select(o => o.Operacion.Id)
+                .First());
+
+        return await candidatas
+            .OrderBy(v => v.Cartera.AmbitoRelacionClienteId == null ? 0 : 1)
+            .ThenBy(v => v.Cartera.Id)
+            .Select(v => v.Cartera.Rol)
+            .FirstOrDefaultAsync();
     }
 
     /// <summary>
@@ -236,21 +261,16 @@ public class CurrentUserService(
     {
         var dbContext = serviceProvider.GetRequiredService<ITenantsQueryContext>();
 
-        return await (
-            from asignacion in dbContext.AsignacionesOperadorDelegado
-            join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
-            where asignacion.UsuarioId == usuarioId
-                  // Activa y no caducada — ver DelegacionTenant.EstaVigente.
-                  && delegacion.Activa
-                  && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
-                  && delegacion.TenantClienteId == tenantClienteId
-                  // Misma frontera que la vía nueva: una asignación heredada
-                  // con un rol de Propiedad no concede nada (falla cerrado).
-                  // Desde P8 esas filas están revocadas y la vista
-                  // AsignacionesOperadorDelegado ya no las devuelve; esta
-                  // lista blanca queda como defensa en profundidad.
-                  && RolesDelegables.Contains(asignacion.Rol)
-            select asignacion.Rol)
+        return await TenantsBeneficiariosAutorizados
+            .AsignacionesHeredadasVigentes(dbContext, usuarioId, DateTime.UtcNow)
+            .Where(v => v.Concesion.TenantClienteId == tenantClienteId
+                        // Misma frontera que la vía de Operación: una asignación
+                        // heredada con un rol de Propiedad no concede nada (falla
+                        // cerrado). Desde P8 esas filas están revocadas y la vista
+                        // AsignacionesOperadorDelegado ya no las devuelve; esta
+                        // lista blanca queda como defensa en profundidad.
+                        && RolesDelegables.Contains(v.Asignacion.Rol))
+            .Select(v => v.Asignacion.Rol)
             .FirstOrDefaultAsync();
     }
 

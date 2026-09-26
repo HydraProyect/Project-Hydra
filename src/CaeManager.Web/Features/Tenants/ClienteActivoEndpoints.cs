@@ -1,12 +1,10 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
-using CaeManager.Domain.Operaciones;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Web.Features.Tenants;
 
@@ -44,96 +42,35 @@ public static class ClienteActivoEndpoints
 
             var ahora = DateTime.UtcNow;
 
-            // La operación por la que este usuario puede abrir ese workspace.
-            // Se resuelve exigiendo cartera vigente, así que encontrarla ya es
-            // autorización suficiente por sí sola — no es un dato decorativo
-            // que se añada al token después de autorizar por otra vía.
+            // Las tres vías del predicado único (TenantsBeneficiariosAutorizados),
+            // el mismo que aplican la lista del selector y la revalidación
+            // (invariante I2): nunca una copia aquí.
             //
-            // Se excluye la raíz: es el fallback del propietario sobre sí
-            // mismo, no un workspace que se seleccione. La entrada del tenant
-            // propio sale del claim de sesión, como siempre.
-            //
-            // REC-136: si el usuario tiene cartera vigente sobre más de una
-            // Asignación de Operación hacia el mismo tenantId (dos relaciones
-            // de operación distintas y solapadas, o una operación cerrada y
-            // otra reabierta), el `where` de arriba no las distingue y
-            // `FirstOrDefaultAsync` sin criterio de orden elegía una de forma
-            // no determinista — mismo defecto de forma que
-            // `CurrentUserService.ObtenerRolEfectivoAsync` ya corrigió en su
-            // sitio. Se ordena por la operación vigente más reciente
-            // (`VigenciaDesde` descendente) y, a igualdad, por `Id` como
-            // desempate estable — el token embebe una operación concreta y
-            // reproducible, no la que el planificador de PostgreSQL devuelva
-            // primero. No se ha demostrado que esta no-determinación causara
-            // el fallo intermitente de REC-136; se corrige de todos modos
-            // porque es un defecto real por derecho propio.
-            var asignacionOperacionId = await (
-                from cartera in operacionesContext.AsignacionesCartera
-                join operacion in operacionesContext.AsignacionesOperacion
-                    on cartera.AsignacionOperacionId equals operacion.Id
-                where cartera.UsuarioId == usuarioId.Value
-                      && cartera.Estado == EstadoAsignacion.Vigente
-                      && cartera.VigenciaDesde <= ahora
-                      && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
-                      && !operacion.EsRaiz
-                      && operacion.PropietarioTenantId == tenantId
-                      && operacion.OperadorTenantId == tenantOrigenId.Value
-                      && operacion.Estado == EstadoAsignacion.Vigente
-                      && operacion.VigenciaDesde <= ahora
-                      && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
-                orderby operacion.VigenciaDesde descending, operacion.Id
-                select (Guid?)operacion.Id)
-                .FirstOrDefaultAsync(cancellationToken);
+            // La operación por la que este usuario puede abrir ese Tenant. Se
+            // resuelve exigiendo cartera vigente, así que encontrarla ya es
+            // autorización suficiente por sí sola, y se embebe en el token para
+            // revalidar esa misma operación en cada petición. Determinista
+            // (REC-136): la vigente más reciente y, a igualdad, la de menor Id.
+            var asignacionOperacionId = tenantId == tenantOrigenId.Value
+                ? null
+                : await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
+                    operacionesContext, usuarioId.Value, tenantOrigenId.Value, tenantId, ahora, cancellationToken);
 
-            // El tenant de origen del usuario siempre está autorizado sobre
-            // sí mismo — mismo criterio que ObtenerClientesAutorizadosQuery.
-            // La vía heredada se conserva porque es la del acceso de soporte,
-            // que todavía no tiene operación propia.
-            var autorizado = tenantId == tenantOrigenId.Value || asignacionOperacionId is not null || await (
-                from asignacion in dbContext.AsignacionesOperadorDelegado
-                join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
-                // Activa y no caducada — ver DelegacionTenant.EstaVigente.
-                where asignacion.UsuarioId == usuarioId.Value && delegacion.Activa
-                      && delegacion.TenantClienteId == tenantId
-                      && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
-                select delegacion.Id)
-                .AnyAsync(cancellationToken);
+            // El Tenant de origen del usuario siempre está autorizado sobre sí
+            // mismo. La vía heredada se conserva porque es la del acceso de
+            // soporte, que todavía no tiene operación propia.
+            var autorizado = tenantId == tenantOrigenId.Value || asignacionOperacionId is not null
+                || await TenantsBeneficiariosAutorizados.AutorizadoPorViaHeredadaAsync(
+                    dbContext, usuarioId.Value, tenantId, ahora, cancellationToken);
 
             if (!autorizado)
                 return Results.Forbid();
 
             if (tenantId == tenantOrigenId.Value)
-            {
-                // Volver al propio tenant de origen: basta con borrar la
-                // cookie, no hace falta que "seleccione explícitamente" su
-                // propio tenant — así el claim de sesión vuelve a mandar.
-                httpContext.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
-            }
+                CookieDeContextoTenant.VolverAlOrigen(httpContext, usuarioId.Value);
             else
-            {
-                // Token protegido y ligado a este usuario, no el GUID en
-                // claro: esta autorización se comprueba al escribir, y el
-                // sellado criptográfico es lo que hace que siga valiendo al
-                // leer. Sin él, la comprobación de arriba era trivialmente
-                // esquivable escribiendo la cookie a mano (C-1).
-                var token = ClienteActivoSeleccionado.Proteger(
-                    dataProtectionProvider, usuarioId.Value, tenantId, asignacionOperacionId);
-
-                httpContext.Response.Cookies.Append(ClienteActivoSeleccionado.NombreCookie, token, new CookieOptions
-                {
-                    HttpOnly = true,
-                    // Igual que la política por defecto de la cookie de Identity
-                    // (SameAsRequest): en local sobre HTTP la marca Secure haría
-                    // que el navegador descartara la cookie sin avisar. Detrás
-                    // del proxy de despliegue, UseForwardedHeaders ya hace que
-                    // IsHttps refleje el esquema original, no el interno.
-                    Secure = httpContext.Request.IsHttps,
-                    SameSite = SameSiteMode.Lax,
-                    // Misma vigencia que la del propio token, que es la que
-                    // de verdad se comprueba en servidor al descifrarlo.
-                    MaxAge = ClienteActivoSeleccionado.Vigencia,
-                });
-            }
+                CookieDeContextoTenant.EmitirSeleccion(
+                    httpContext, dataProtectionProvider, usuarioId.Value, tenantId, asignacionOperacionId);
 
             // Saneado explícito (no solo LocalRedirect) por la misma razón que
             // IdentityEndpointsExtensions: un returnUrl malicioso hace que

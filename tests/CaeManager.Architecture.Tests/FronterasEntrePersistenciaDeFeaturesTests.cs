@@ -53,6 +53,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
     // interfaz de persistencia ajena de la que depende).
     private static readonly HashSet<(string Handler, string Interfaz)> ReferenciasCruzadasPermitidas = new()
     {
+        // La lista de Tenants beneficiarios autorizados incluye la vía de
+        // Operación (lote 0 del selector de Tenant beneficiario): lee los
+        // catálogos de asignación a través del predicado único
+        // TenantsBeneficiariosAutorizados, acotado al Tenant de origen.
+        ("Tenants.ObtenerClientesAutorizadosQueryHandler", "IOperacionesQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IAsignacionesQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "ICentrosQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IClientesQueryContext"),
