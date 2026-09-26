@@ -349,7 +349,7 @@ public class DocumentosGen2Tests : BunitContext
     {
         // Sin FechaEmision: fuera de Detección/Revisión IA solo la vigencia es
         // copiable (P9, 2026-09-18) — la emisión ya tiene su propia columna,
-        // sin Alt+clic (hallazgo corregido, CAPA-USUARIO-AVANZADO-TALVEG.md
+        // sin Alt+clic (hallazgo corregido, Project-Hydra-Negocio/tecnico/CAPA-USUARIO-AVANZADO-TALVEG.md
         // § 6.1 quinquies).
         var documento = Documento("Reconocimiento médico");
         var (cut, _) = Renderizar(ConDocumentos(documento));

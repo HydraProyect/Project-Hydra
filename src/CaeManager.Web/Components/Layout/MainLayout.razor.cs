@@ -127,7 +127,7 @@ public partial class MainLayout
                 }
 
                 // 2FA obligatoria para Administrador (P1-13 de
-                // docs/business/MATURITY_REVIEW.md): es el rol con más alcance
+                // Project-Hydra-Negocio/MATURITY_REVIEW.md): es el rol con más alcance
                 // del sistema, y hoy activar la autenticación en dos pasos era
                 // opt-in — nadie la exigía. ConfigurarAutenticadorDosFactores.razor
                 // usa AuthLayout, no este Layout, así que no vuelve a pasar por

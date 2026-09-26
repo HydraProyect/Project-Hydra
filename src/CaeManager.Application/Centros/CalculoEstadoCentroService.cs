@@ -48,7 +48,7 @@ public record CausaEstadoCentro(
 public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEstadoCentro> Causas);
 
 /// <summary>
-/// % de cumplimiento documental de un Centro (Centro 360, PLAN-EJECUCION-UX.md
+/// % de cumplimiento documental de un Centro (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
 /// § 0.5/0.8) — <c>Requeridos</c> es el número de pares Trabajador×TipoDocumento
 /// aplicables a ese Centro (ver <see cref="Documentos.ResolucionTipoDocumentoCentro"/>),
 /// <c>AlDia</c> cuántos de esos pares tienen hoy un Documento Vigente o SinCaducidad
@@ -82,7 +82,7 @@ public interface ICalculoEstadoCentroService
         IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Método aparte de <see cref="CalcularAsync"/> a propósito (PLAN-EJECUCION-UX.md
+    /// Método aparte de <see cref="CalcularAsync"/> a propósito (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     /// § 0.5): mismas fuentes de datos (asignaciones activas, tipos
     /// obligatorios, allow-list de <c>TipoDocumentoCentro</c>) pero una
     /// pregunta distinta ("qué fracción" en vez de "cuál es el peor caso") —
@@ -444,7 +444,7 @@ public class CalculoEstadoCentroService(
         // Huecos requeridos — misma lógica que ObtenerAlertasQuery.ObtenerFaltantesAsync,
         // reacotada a estos Centros. Candidatos = todo el catálogo de Trabajador, no solo
         // EsObligatorio=true: un Centro puede exigir explícitamente un tipo no obligatorio
-        // globalmente (PLAN-EJECUCION-UX.md § 0.4, TipoDocumentoCentro.Incluido).
+        // globalmente (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4, TipoDocumentoCentro.Incluido).
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
             .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
@@ -494,7 +494,7 @@ public class CalculoEstadoCentroService(
     /// <summary>
     /// Alcance igual al de "huecos obligatorios" de <see cref="AgregarCausasDeTrabajadorAsync"/>
     /// (Trabajador únicamente, sin Documentos de Empresa — así lo pide
-    /// PLAN-EJECUCION-UX.md § 0.5: "por trabajador dentro de un centro"),
+    /// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.5: "por trabajador dentro de un centro"),
     /// pero contando el universo completo de pares aplicables en vez de solo
     /// los que fallan.
     /// </summary>
