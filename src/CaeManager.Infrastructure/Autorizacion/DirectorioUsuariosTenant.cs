@@ -571,11 +571,11 @@ public class DirectorioUsuariosTenant(
     /// (<see cref="ObtenerCarterasVigentesAsync"/>): lo que el Administrador vio al abrir el
     /// diálogo y lo que el Command compara al confirmar salen de la misma consulta.
     /// </summary>
-    public async Task<IReadOnlyList<Guid>> ObtenerClientesEnCarteraAsync(
+    public async Task<CaeManager.Application.Clientes.CarteraVigente> ObtenerCarteraVigenteAsync(
         Guid usuarioId, CancellationToken cancellationToken = default) =>
         (await ObtenerCarterasVigentesAsync(cancellationToken)).TryGetValue(usuarioId, out var cartera)
-            ? cartera.ClienteIds
-            : [];
+            ? new(cartera.EsUniversal, cartera.ClienteIds)
+            : CaeManager.Application.Clientes.CarteraVigente.Vacia;
 
     private async Task<Dictionary<Guid, string>> ObtenerRolesDeOperadoresDelegadosAsync(Guid tenantId, CancellationToken cancellationToken) =>
         await OperadoresDelegadosVigentes(tenantId)

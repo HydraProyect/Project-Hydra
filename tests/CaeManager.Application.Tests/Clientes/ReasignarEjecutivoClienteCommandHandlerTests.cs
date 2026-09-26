@@ -329,9 +329,9 @@ public class DirectorioDestinosCarteraFalso(DestinoCartera? destino) : IDirector
     /// Lo que devuelve cada lectura de cartera, en orden; la última se repite. Permite
     /// simular un Cliente empresarial que llega entre dos lecturas.
     /// </summary>
-    public Queue<IReadOnlyList<Guid>> Carteras { get; } = new();
+    public Queue<CarteraVigente> Carteras { get; } = new();
 
-    private IReadOnlyList<Guid> _ultimaCartera = [];
+    private CarteraVigente _ultimaCartera = CarteraVigente.Vacia;
 
     public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default)
     {
@@ -339,7 +339,7 @@ public class DirectorioDestinosCarteraFalso(DestinoCartera? destino) : IDirector
         return Task.FromResult(destino);
     }
 
-    public Task<IReadOnlyList<Guid>> ObtenerClientesEnCarteraAsync(Guid usuarioId, CancellationToken cancellationToken = default)
+    public Task<CarteraVigente> ObtenerCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken = default)
     {
         if (Carteras.TryDequeue(out var siguiente)) _ultimaCartera = siguiente;
         return Task.FromResult(_ultimaCartera);

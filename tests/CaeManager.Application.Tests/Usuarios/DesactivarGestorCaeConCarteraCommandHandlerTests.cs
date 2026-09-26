@@ -53,7 +53,7 @@ public class DesactivarGestorCaeConCarteraCommandHandlerTests
 
     private void CarteraLeida(params IReadOnlyList<Guid>[] lecturas)
     {
-        foreach (var lectura in lecturas) _directorio.Carteras.Enqueue(lectura);
+        foreach (var lectura in lecturas) _directorio.Carteras.Enqueue(new CarteraVigente(false, lectura));
     }
 
     private void AfirmarQueNoSeConfirmoNada()
@@ -138,6 +138,36 @@ public class DesactivarGestorCaeConCarteraCommandHandlerTests
         _transaccion.Confirmadas.Should().Be(0);
     }
 
+    /// <summary>Revisión puente: una Asignación de Cartera universal que aparece con el diálogo abierto.</summary>
+    [Fact]
+    public async Task Si_aparecio_una_cartera_universal_no_pasa_nada_ni_desactiva()
+    {
+        _directorio.Carteras.Enqueue(new CarteraVigente(true, [_uno.Id, _dos.Id]));
+
+        var resultado = await Handler().Handle(Comando(), CancellationToken.None);
+
+        resultado.Error.Should().Be(DesactivarGestorCaeConCarteraCommandHandler.CarteraCambiada);
+        _writer.CarterasReasignadas.Should().BeEmpty();
+        AfirmarQueNoSeConfirmoNada();
+    }
+
+    /// <summary>
+    /// Revisión puente: la proyección Empresa ya apunta al destino pero la Asignación de
+    /// Cartera sigue siendo de quien se desactiva. Se alinea la cartera sin repetir avisos.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_proyeccion_ya_apunta_al_destino_alinea_la_cartera_igualmente()
+    {
+        _dos.AsignarEjecutivo(Destino);
+        CarteraLeida([_uno.Id, _dos.Id], []);
+
+        var resultado = await Handler().Handle(Comando(), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+        _writer.CarterasReasignadas.Should().BeEquivalentTo([(_uno.Id, (Guid?)Destino), (_dos.Id, (Guid?)Destino)]);
+        _transaccion.Confirmadas.Should().Be(1);
+    }
+
     [Fact]
     public async Task Un_destino_invalido_no_pasa_nada_ni_desactiva()
     {
@@ -175,7 +205,8 @@ public class DesactivarGestorCaeConCarteraCommandHandlerTests
 
         var resultado = await Handler().Handle(Comando(), CancellationToken.None);
 
-        resultado.Error.Codigo.Should().Be("Cliente.ConflictoDeReasignacion");
+        resultado.Error.Should().Be(DesactivarGestorCaeConCarteraCommandHandler.TraspasoNoGuardado,
+            "un fallo de guardado no se presenta como una carrera con otra persona");
         AfirmarQueNoSeConfirmoNada();
     }
 

@@ -124,6 +124,28 @@ public class DesactivarGestorCaeConCarteraBajoRuntimeTests : IAsyncLifetime
         (await contexto.Users.AsNoTracking().SingleAsync(u => u.Id == _gestor)).EstaDesactivada(DateTimeOffset.UtcNow).Should().BeTrue();
     }
 
+    /// <summary>
+    /// Revisión puente: la proyección Empresa del segundo Cliente empresarial ya apunta al
+    /// destino, pero su Asignación de Cartera sigue siendo de quien se desactiva. Sin alinear la
+    /// cartera, la relectura final la encontraba y el traspaso fallaba siempre.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_proyeccion_ya_apunta_al_destino_la_cartera_se_alinea_y_se_desactiva()
+    {
+        await using (var contexto = ContextoPropietario())
+        {
+            (await contexto.Empresas.SingleAsync(e => e.Id == _dos)).AsignarEjecutivo(_destino);
+            await contexto.SaveChangesAsync();
+        }
+
+        var resultado = await EjecutarAsync([_uno, _dos]);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+        await using var comprobacion = ContextoPropietario();
+        (await CarteraVigenteAsync(comprobacion, _gestor)).Should().BeEmpty();
+        (await CarteraVigenteAsync(comprobacion, _destino)).Should().BeEquivalentTo([_uno, _dos]);
+    }
+
     /// <summary>Hallazgo 3: la cartera se relee al confirmar; si no es la confirmada, no se toca nada.</summary>
     [Fact]
     public async Task Si_la_cartera_no_es_la_confirmada_no_se_escribe_nada()
@@ -211,9 +233,11 @@ public class DesactivarGestorCaeConCarteraBajoRuntimeTests : IAsyncLifetime
         servicios.AddSingleton<ISesionPrivilegiadaActual, SesionPrivilegiadaAusente>();
         servicios.AddScoped<PuertaAccesoDatos>();
 
+        // Con reintentos, como producción (ConfiguracionDeContexto): la transacción explícita
+        // solo se admite dentro de CreateExecutionStrategy, y eso es lo que se prueba.
         servicios.AddDbContext<CaeManagerDbContext>(opciones => opciones
             .UseNpgsql(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion),
-                npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+                npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL").EnableRetryOnFailure())
             .AddInterceptors(
                 new TenantSelladoInterceptor(tenantActual),
                 new TenantRlsConnectionInterceptor(tenantActual, new SinTenantSeleccionado(), usuario, BaseDatosPostgresDePruebas.FirmanteContextoRls),

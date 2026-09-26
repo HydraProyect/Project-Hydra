@@ -32,18 +32,27 @@ public class ReasignadorCarteraCliente(
 {
     public static readonly Error ClienteNoEncontrado = Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente.");
 
+    /// <param name="alinearCartera">
+    /// Aunque la proyección <c>Empresa</c> ya apunte al destino, cerrar las Asignaciones de
+    /// Cartera de otros y abrir la del destino. Lo usa el traspaso de cartera al desactivar,
+    /// que parte de las Asignaciones de Cartera: si la proyección y la cartera divergen, sin
+    /// esto el Cliente empresarial se quedaba en la cartera de quien se desactiva
+    /// (revisión puente del incremento B).
+    /// </param>
     /// <returns>
     /// <c>true</c> si dejó cambios que guardar; <c>false</c> si el Cliente empresarial ya
     /// era de ese Gestor CAE y no hay nada que hacer.
     /// </returns>
-    public async Task<Result<bool>> ReasignarAsync(Guid clienteId, Guid? nuevoGestorId, CancellationToken cancellationToken)
+    public async Task<Result<bool>> ReasignarAsync(
+        Guid clienteId, Guid? nuevoGestorId, CancellationToken cancellationToken, bool alinearCartera = false)
     {
         var empresa = await empresaRepositorio.ObtenerPorIdAsync(clienteId, cancellationToken);
         if (empresa is null || !await alcanceDatos.ClienteVisibleAsync(empresa.Id, cancellationToken))
             return Result.Fallo<bool>(ClienteNoEncontrado);
 
         var gestorAnteriorId = empresa.EjecutivoUsuarioId;
-        if (gestorAnteriorId == nuevoGestorId)
+        var cambiaDeGestor = gestorAnteriorId != nuevoGestorId;
+        if (!cambiaDeGestor && !alinearCartera)
             return Result.Exito(false);
 
         if (nuevoGestorId is { } destinoId)
@@ -54,6 +63,20 @@ public class ReasignadorCarteraCliente(
                 return Result.Fallo<bool>(destinoValido.Error);
         }
 
+        if (cambiaDeGestor)
+            await AplicarCambioDeGestorAsync(empresa, gestorAnteriorId, nuevoGestorId, cancellationToken);
+
+        // Doble escritura: la cartera nueva entra en el mismo guardado que la
+        // proyección Empresa, así que o se guardan las dos o ninguna. La
+        // proyección sigue siendo la autoritativa durante F1.
+        await asignacionesWriter.ReasignarCarteraClienteAsync(empresa.Id, nuevoGestorId, cancellationToken);
+
+        return Result.Exito(true);
+    }
+
+    private async Task AplicarCambioDeGestorAsync(
+        Empresa empresa, Guid? gestorAnteriorId, Guid? nuevoGestorId, CancellationToken cancellationToken)
+    {
         empresa.AsignarEjecutivo(nuevoGestorId);
 
         if (gestorAnteriorId is not null)
@@ -78,12 +101,5 @@ public class ReasignadorCarteraCliente(
                     urlAccion: $"/clientes/{empresa.Id}/lectura-ia",
                     textoAccion: "Gestionar"));
         }
-
-        // Doble escritura: la cartera nueva entra en el mismo guardado que la
-        // proyección Empresa, así que o se guardan las dos o ninguna. La
-        // proyección sigue siendo la autoritativa durante F1.
-        await asignacionesWriter.ReasignarCarteraClienteAsync(empresa.Id, nuevoGestorId, cancellationToken);
-
-        return Result.Exito(true);
     }
 }

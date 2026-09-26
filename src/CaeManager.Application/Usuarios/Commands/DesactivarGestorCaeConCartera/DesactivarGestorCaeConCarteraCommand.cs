@@ -1,5 +1,4 @@
 using CaeManager.Application.Clientes;
-using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -48,6 +47,14 @@ public class DesactivarGestorCaeConCarteraCommandHandler(
         "Usuarios.CarteraCambiada",
         "La cartera de este Gestor CAE cambió mientras decidías. Revísala y vuelve a confirmar: no se ha pasado nada ni se ha desactivado la cuenta.");
 
+    /// <summary>
+    /// Un fallo de guardado que no es de la regla de negocio (índice único, RLS, restricción):
+    /// no se presenta como una carrera con otra persona porque podría no serlo.
+    /// </summary>
+    public static readonly Error TraspasoNoGuardado = Error.Crear(
+        "Usuarios.TraspasoNoGuardado",
+        "No pudimos guardar el traspaso de la cartera. No se ha pasado ningún Cliente empresarial ni se ha desactivado la cuenta; vuelve a intentarlo.");
+
     public static readonly Error DestinoEsElMismo = Error.Crear(
         "Usuarios.DestinoEsElMismo", "La cartera no puede pasar al mismo Gestor CAE que se desactiva.");
 
@@ -74,13 +81,15 @@ public class DesactivarGestorCaeConCarteraCommandHandler(
         {
             return await transaccion.EjecutarAsync(async ct =>
             {
-                var enCartera = await directorio.ObtenerClientesEnCarteraAsync(request.UsuarioId, ct);
-                if (!confirmados.SetEquals(enCartera))
+                // Una cartera universal no se reparte: si apareció con el diálogo abierto,
+                // lo que se confirmó ya no describe la cartera.
+                var enCartera = await directorio.ObtenerCarteraVigenteAsync(request.UsuarioId, ct);
+                if (enCartera.EsUniversal || !confirmados.SetEquals(enCartera.ClienteIds))
                     return Result.Fallo(CarteraCambiada);
 
                 foreach (var clienteId in confirmados)
                 {
-                    var reasignado = await reasignador.ReasignarAsync(clienteId, request.DestinoUsuarioId, ct);
+                    var reasignado = await reasignador.ReasignarAsync(clienteId, request.DestinoUsuarioId, ct, alinearCartera: true);
                     if (reasignado.EsFallido)
                         return Result.Fallo(reasignado.Error);
                 }
@@ -94,7 +103,7 @@ public class DesactivarGestorCaeConCarteraCommandHandler(
 
                 // Un Cliente empresarial asignado a esta cuenta por otro circuito mientras
                 // corría la transacción la deshace entera: nada se pasa a medias.
-                if ((await directorio.ObtenerClientesEnCarteraAsync(request.UsuarioId, ct)).Count > 0)
+                if (!(await directorio.ObtenerCarteraVigenteAsync(request.UsuarioId, ct)).EstaVacia)
                     return Result.Fallo(CarteraCambiada);
 
                 return Result.Exito();
@@ -103,7 +112,7 @@ public class DesactivarGestorCaeConCarteraCommandHandler(
         catch (DbUpdateException)
         {
             // La transacción ya se deshizo y el contexto quedó vacío (ITransaccionDeComando).
-            return Result.Fallo(ReasignarEjecutivoClienteCommandHandler.ConflictoDeReasignacion);
+            return Result.Fallo(TraspasoNoGuardado);
         }
     }
 }
