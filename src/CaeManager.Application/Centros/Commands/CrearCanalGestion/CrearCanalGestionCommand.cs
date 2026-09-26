@@ -35,10 +35,12 @@ public record CrearCanalGestionCommand(
     string? NombreContacto,
     string? Notas) : ICommand<Guid>, IEscrituraDeDatosDeCredencial
 {
-    // Un canal sin usuario ni contraseña (un buzón de correo, una plataforma
-    // cuyo acceso se apunta después) no escribe nada que proteger.
+    // Solo un canal de Plataforma guarda usuario y contraseña: uno de correo los
+    // descarta (el formulario puede enviarlos ocultos tras cambiar de tipo), y
+    // una plataforma cuyo acceso se apunta después no escribe nada que proteger.
     bool IEscrituraDeDatosDeCredencial.EscribeDatosDeCredencial =>
-        !string.IsNullOrEmpty(Usuario) || !string.IsNullOrEmpty(Contrasena);
+        Tipo == TipoCanalGestion.Plataforma
+        && (!string.IsNullOrEmpty(Usuario) || !string.IsNullOrEmpty(Contrasena));
 }
 
 public class CrearCanalGestionCommandValidator : AbstractValidator<CrearCanalGestionCommand>

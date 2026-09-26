@@ -5,6 +5,7 @@ using CaeManager.Application.Empresas.Commands.BorrarCredencialAccesoEmpresaCont
 using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcontrata;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using FluentAssertions;
@@ -365,9 +366,12 @@ public class AutorizacionSecretosDeTenantBehaviorTests
         { new GuardarCredencialAccesoEmpresaCommand(Guid.NewGuid(), null, null, "u", null), true },
         { new GuardarCredencialAccesoSubcontrataCommand(Guid.NewGuid(), null, null, null, null), true },
         { new BorrarCredencialAccesoEmpresaContrasenaCommand(Guid.NewGuid()), true },
-        { new CrearCanalGestionCommand(Guid.NewGuid(), default, "x", null, null, "u", null, null, null, null), true },
-        { new CrearCanalGestionCommand(Guid.NewGuid(), default, "x", null, null, null, "p", null, null, null), true },
-        { new CrearCanalGestionCommand(Guid.NewGuid(), default, "x", null, null, null, null, null, null, null), false },
+        { new CrearCanalGestionCommand(Guid.NewGuid(), TipoCanalGestion.Plataforma, "x", null, null, "u", null, null, null, null), true },
+        { new CrearCanalGestionCommand(Guid.NewGuid(), TipoCanalGestion.Plataforma, "x", null, null, null, "p", null, null, null), true },
+        { new CrearCanalGestionCommand(Guid.NewGuid(), TipoCanalGestion.Plataforma, "x", null, null, null, null, null, null, null), false },
+        // Revisión Codex: uno de correo descarta el usuario y la contraseña que el
+        // formulario envíe ocultos tras cambiar de tipo; no guarda credencial.
+        { new CrearCanalGestionCommand(Guid.NewGuid(), TipoCanalGestion.Email, "x", null, null, "u", "p", "a@b.es", null, null), false },
         { new EditarCanalGestionCommand(Guid.NewGuid(), "x", null, null, null, null, null, CambiarCredenciales: true), true },
         { new EditarCanalGestionCommand(Guid.NewGuid(), "x", null, null, null, null, null, CambiarCredenciales: false, Usuario: "u"), false },
     };
