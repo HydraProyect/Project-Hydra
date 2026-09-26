@@ -130,6 +130,13 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
 
     private bool PuedeFirmarAhora() => _usarFirmaGuardada || _trazoIniciado;
 
+    /// <summary>
+    /// P1-E2: único punto de verdad de «hay cambios» en la firma en campo. Un trazo dibujado
+    /// o un nombre escrito (los dos acaban en _trazoIniciado) solo vive en el lienzo del
+    /// navegador; salir lo pierde. La firma guardada no se pierde: está en /mi-firma.
+    /// </summary>
+    private bool HayCambiosSinGuardar => _firmando || (_trazoIniciado && !_usarFirmaGuardada);
+
     [JSInvokable]
     public void MarcarTrazoIniciadoAsync()
     {

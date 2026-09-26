@@ -60,6 +60,8 @@ public class RevisionIaGen2Tests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
+        // AvisoCambiosSinGuardar (P1-E2) saca sus textos de IStringLocalizer<TextosComunes>.
+        Services.AddLocalization();
         return mediador;
     }
 
@@ -138,6 +140,35 @@ public class RevisionIaGen2Tests : BunitContext
         cut.FindComponents<Drawer>().Should().ContainSingle(d => !d.Instance.Visible, "el éxito cierra el drawer");
         Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Exito && m.Mensaje.Contains("corregido"));
         mediador.Enviadas.OfType<ObtenerRevisionesIaPendientesQuery>().Should().HaveCount(2, "el éxito recarga la cola");
+    }
+
+    /// <summary>
+    /// P1-E2: con la fecha de la corrección manual cambiada, salir se detiene y pregunta;
+    /// «Salir y descartar» cierra la corrección. Abrirla sin cambiar la fecha precargada no pregunta.
+    /// </summary>
+    [Fact]
+    public async Task Salir_con_la_correccion_manual_a_medias_pregunta_y_descartar_la_cierra()
+    {
+        var revision = Revision("A corregir", 80, new DateOnly(2026, 8, 1)) with
+        {
+            FechaEmisionIntroducida = new DateOnly(2026, 9, 1)
+        };
+        var cut = Renderizar(new MediadorFalso { Revisiones = [revision] });
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos/revision-ia?sin-cambio"));
+        cut.FindAll(".modal-contenido").Should().BeEmpty("la fecha precargada sin tocar no es un cambio");
+
+        var origen = navegacion.Uri;
+        await cut.Find(".drawer-panel input[type=date]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos/revision-ia?con-cambio"));
+
+        navegacion.Uri.Should().Be(origen, "con la fecha cambiada la navegación se detiene");
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Salir y descartar").ClickAsync(new MouseEventArgs());
+
+        navegacion.Uri.Should().EndWith("con-cambio");
+        cut.FindComponents<Drawer>().Should().OnlyContain(d => !d.Instance.Visible, "confirmar la salida cierra la corrección manual");
     }
 
     [Fact]

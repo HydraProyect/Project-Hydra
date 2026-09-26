@@ -152,6 +152,9 @@ else
     </Pestanas>
 }
 
+@* P1-E2: salir con «Renovar» a medias pregunta antes; confirmar la salida cancela la edición. *@
+<AvisoCambiosSinGuardar HayCambios="HayCambiosSinGuardar" AlDescartar="CancelarEdicionInformacion" />
+
 @code {
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanas = [new("informacion", "Información"), new("validacion", "Validación"), new("firma", "Firma"), new("historial", "Historial")];
     [Parameter, EditorRequired] public Guid EntidadId { get; set; }
@@ -246,9 +249,20 @@ else
         _comentariosEditados = _detalle.Comentarios ?? string.Empty;
         _mensajeErrorInformacion = null;
         _editandoInformacion = true;
+        _instantaneaEdicion = InstantaneaEdicion();
     }
 
     private void CancelarEdicionInformacion() => _editandoInformacion = false;
+
+    // P1-E2: único punto de verdad de «hay cambios» en la edición en línea («Renovar»):
+    // lo tecleado frente a lo que se precargó al empezar, o un guardado todavía en curso.
+    private string? _instantaneaEdicion;
+
+    private bool HayCambiosSinGuardar =>
+        _editandoInformacion && (_guardandoInformacion || InstantaneaEdicion() != _instantaneaEdicion);
+
+    private string InstantaneaEdicion() => string.Join('\u001f',
+        _fechaEmisionEditada, _fechaVencimientoEditada, _noCaducaEditado, _comentariosEditados);
 
     private async Task GuardarInformacionAsync()
     {

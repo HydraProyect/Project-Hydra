@@ -220,7 +220,27 @@ else
     </Pie>
 </Modal>
 
+@* P1-E2: salir con la vigencia o el rechazo a medias pregunta antes; confirmar la salida
+   cierra los dos modales. Va después de ellos para quedar encima (mismo z-index). *@
+<AvisoCambiosSinGuardar HayCambios="HayCambiosSinGuardar" AlDescartar="CerrarModalesDeEdicion" />
+
 @code {
+    /// <summary>
+    /// P1-E2: único punto de verdad de «hay cambios» en esta pestaña: lo tecleado en el
+    /// modal de vigencia (la fecha) o en el de rechazo (el detalle), o su confirmación en
+    /// curso. La causa del rechazo y el estado de la vigencia vienen preseleccionados y
+    /// elegir otro valor sin escribir nada no se pierde de forma que cueste recuperarlo.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        (_vigenciaVisible && (_confirmandoVigencia || !string.IsNullOrWhiteSpace(_fechaVigencia)))
+        || (_rechazoVisible && (_rechazando || !string.IsNullOrWhiteSpace(_motivoRechazo)));
+
+    private void CerrarModalesDeEdicion()
+    {
+        _vigenciaVisible = false;
+        _rechazoVisible = false;
+    }
+
     /// <summary>
     /// La acreditación a la que lleva el enlace (<c>/documentos?pestana=plataforma&amp;acreditacionId=</c>,
     /// desde Mi trabajo y /bandeja): la pestaña muestra solo su plataforma y resalta su fila.
