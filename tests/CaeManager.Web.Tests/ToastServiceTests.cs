@@ -84,4 +84,24 @@ public class ToastServiceTests
 
         servicio.Mensajes.Single().TextoAccion.Should().Be("Deshacer");
     }
+
+    /// <summary>
+    /// P1-E1: el canal único de avisos no se traga los errores de autorización ni
+    /// los de una Sesión Privilegiada — tienen interfaz propia y, cuando llegan como
+    /// resultado de una acción, se ven con su propio texto, como error persistente.
+    /// Códigos y textos copiados de AutorizacionEscrituraBehavior.
+    /// </summary>
+    [Theory]
+    [InlineData("Autorizacion.SoloLectura", "Tu rol no permite crear, editar ni eliminar datos — solo consultarlos.")]
+    [InlineData("Autorizacion.SesionPrivilegiadaSoloLectura", "Un acceso de soporte de plataforma es de solo lectura: no puede crear, editar ni eliminar datos.")]
+    public void MostrarError_no_generaliza_los_errores_de_autorizacion_ni_de_Sesion_Privilegiada(string codigo, string mensaje)
+    {
+        var servicio = new ToastService();
+
+        servicio.MostrarError(CaeManager.Domain.Common.Error.Crear(codigo, mensaje));
+
+        var toast = servicio.Mensajes.Should().ContainSingle().Subject;
+        toast.Mensaje.Should().Be(mensaje);
+        toast.Tono.Should().Be(TonoToast.Error, "un error no se autodescarta: el usuario tiene que verlo");
+    }
 }

@@ -50,6 +50,10 @@
         </header>
 
         <div class="workspace-cuerpo">
+            @* P1-E1: un fallo de un panel 360 se queda en el cuerpo; cabecera, migas y
+               cerrar siguen funcionando. La @key rehace el límite al cambiar de ficha,
+               para que un fallo de una no deje el aviso puesto en la siguiente. *@
+            <LimiteDeErrores @key="(frame.Tipo, frame.EntidadId)">
             @switch (frame.Tipo)
             {
                 case EntidadWorkspace.Cliente:
@@ -74,6 +78,7 @@
                     <DocumentoWorkspacePanel EntidadId="@frame.EntidadId" PestanaActiva="@frame.PestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" />
                     break;
             }
+            </LimiteDeErrores>
         </div>
     </aside>
 }

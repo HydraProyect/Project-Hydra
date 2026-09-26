@@ -1112,7 +1112,7 @@ else
         var resultado = await Mediator.Send(new EliminarDocumentacionRequeridaCentroCommand(EntidadId, item.TipoDocumentoId));
         if (resultado.EsFallido)
         {
-            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            ToastService.MostrarError(resultado.Error);
             return;
         }
 
@@ -1400,7 +1400,7 @@ else
             var resultado = await Mediator.Send(new EstablecerGestionCaeCentroCommand(_detalle.Id, nueva, _detalle.Version));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1428,7 +1428,7 @@ else
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1460,7 +1460,7 @@ else
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

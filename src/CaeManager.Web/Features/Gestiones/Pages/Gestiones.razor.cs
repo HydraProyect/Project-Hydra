@@ -273,7 +273,7 @@ public partial class Gestiones : ComponentBase
             var resultado = await Mediator.Send(new CompletarGestionCommand(id, completada));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -311,7 +311,7 @@ public partial class Gestiones : ComponentBase
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
             }
             else
             {

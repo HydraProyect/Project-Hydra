@@ -234,7 +234,7 @@ public partial class MiFirma : ComponentBase, IAsyncDisposable
 
         if (resultado.EsFallido)
         {
-            Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            Toasts.MostrarError(resultado.Error);
             return;
         }
 

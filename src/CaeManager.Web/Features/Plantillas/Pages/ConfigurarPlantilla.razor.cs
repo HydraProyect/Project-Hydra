@@ -369,7 +369,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
             if (resultado.EsFallido)
             {
-                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                Toasts.MostrarError(resultado.Error);
                 return;
             }
 
@@ -487,7 +487,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
             if (resultado.EsFallido)
             {
-                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                Toasts.MostrarError(resultado.Error);
                 return;
             }
 
@@ -555,7 +555,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
             if (resultado.EsFallido)
             {
-                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                Toasts.MostrarError(resultado.Error);
                 return;
             }
 
@@ -818,7 +818,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
             if (resultado.EsFallido)
             {
-                if (avisarFallo) Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                if (avisarFallo) Toasts.MostrarError(resultado.Error);
                 return false;
             }
 
@@ -886,7 +886,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
             if (resultado.EsFallido)
             {
-                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                Toasts.MostrarError(resultado.Error);
                 return;
             }
 

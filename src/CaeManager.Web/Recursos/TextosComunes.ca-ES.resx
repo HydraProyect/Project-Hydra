@@ -43,4 +43,10 @@
     <value>Consultar {0} d’un cop d’ull</value>
     <comment>{0}: nom de l’entitat (Centre, Empresa, Client…) que obre el panell 360.</comment>
   </data>
+  <data name="LimiteErroresTitulo" xml:space="preserve">
+    <value>Alguna cosa ha fallat; torna-ho a provar</value>
+  </data>
+  <data name="LimiteErroresDescripcion" xml:space="preserve">
+    <value>Aquesta part de la pantalla no s’ha pogut carregar. La resta continua funcionant.</value>
+  </data>
 </root>

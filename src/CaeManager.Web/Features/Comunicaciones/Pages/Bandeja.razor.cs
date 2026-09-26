@@ -829,7 +829,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
                 // Fallo de negocio: se dice cuál, y NO se toca lo escrito ni
                 // los adjuntos — el gestor corrige y vuelve a darle a Enviar
                 // sin reescribir la respuesta entera.
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -878,7 +878,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
                 _conversacionSeleccionadaId.Value, _emailFallback.Trim(), _textoRespuesta), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -954,7 +954,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new CambiarEstadoConversacionCommand(_conversacionSeleccionadaId.Value, nuevoEstado), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -980,7 +980,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new AsignarEjecutivoConversacionCommand(_conversacionSeleccionadaId.Value, ejecutivoId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1002,7 +1002,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new AsignarClienteConversacionCommand(_conversacionSeleccionadaId.Value, clienteId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1039,7 +1039,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new DescartarSugerenciaVisitaCorreoCommand(sugerenciaId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1067,7 +1067,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new CrearGestionesParaTrabajadorCommand(trabajadorId, tipoDocumentoId, sugerenciaId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1098,7 +1098,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new VincularConversacionCommand(conversacionOrigenId, conversacionDestinoId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1121,7 +1121,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new ConfirmarClasificacionRuidoMensajeCommand(mensajeId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1142,7 +1142,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new DescartarSugerenciaGestionCorreoCommand(sugerenciaId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

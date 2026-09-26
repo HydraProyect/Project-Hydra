@@ -99,7 +99,7 @@ public partial class ConfiguracionIaCliente : ComponentBase, IDisposable
             if (resultado.EsFallido)
             {
                 if (EsOperacionVigente(version, clienteId) && _actualizandoId == tipoDocumentoId)
-                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                    ToastService.MostrarError(resultado.Error);
                 return;
             }
             if (!EsOperacionVigente(version, clienteId) || _actualizandoId != tipoDocumentoId) return;
