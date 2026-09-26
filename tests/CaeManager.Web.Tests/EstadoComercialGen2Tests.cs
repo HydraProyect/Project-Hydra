@@ -37,7 +37,7 @@ namespace CaeManager.Web.Tests;
 /// (<c>GateComercialTenantBehavior</c>) ni el aspecto (bUnit no evalúa CSS).
 /// </para>
 /// </summary>
-public class EstadoComercialGen2Tests : BunitContext
+public partial class EstadoComercialGen2Tests : BunitContext
 {
     /// <summary><see cref="Modal"/> importa dialogo-foco.js y <see cref="AtajosListaTeclado"/> atajos-lista.js.</summary>
     public EstadoComercialGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
@@ -230,6 +230,8 @@ public class EstadoComercialGen2Tests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddSingleton<ILogger<EstadoComercial>>(logger);
+        // AvisoCambiosSinGuardar (P1-E2b) pinta sus textos con IStringLocalizer<TextosComunes>.
+        Services.AddLocalization();
 
         var cut = Render<EstadoComercial>(p => p.Add(x => x.IntegradaEnConfiguracion, integrada));
         return (cut, mediador, logger);

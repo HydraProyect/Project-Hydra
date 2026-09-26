@@ -79,6 +79,7 @@ public partial class DialogoSolicitarIncorporacion : ComponentBase
 
         if (resultado.EsFallido)
         {
+            FijarInstantaneaFormulario();
             Toasts.Mostrar(TextosIncorporacionCartera.MensajeDeError(Textos, resultado.Error), TonoToast.Error);
             return;
         }
@@ -87,7 +88,22 @@ public partial class DialogoSolicitarIncorporacion : ComponentBase
         _tenantSeleccionado = TenantPropietarioId is { } id && _candidatos.Any(c => c.TenantId == id)
             ? id.ToString()
             : _candidatos.Count == 1 ? _candidatos[0].TenantId.ToString() : string.Empty;
+        // La Empresa preseleccionada (por quien abre o por ser la única) no es un cambio.
+        FijarInstantaneaFormulario();
     }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: hay algo que perder si, con el diálogo abierto y los candidatos ya
+    /// cargados, la Empresa elegida o el mensaje difieren de cómo se abrió. Lo leen
+    /// AvisoCambiosSinGuardar y el Modal; cerrado (también tras enviar) nunca.
+    /// </summary>
+    private bool HayCambiosSinGuardar => Visible && !_cargando && _instantanea.Difiere(ValoresFormulario());
+
+    private object?[] ValoresFormulario() => [_tenantSeleccionado, _mensaje];
+
+    private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
 
     private void CambiarEmpresa(string valor)
     {
@@ -112,6 +128,8 @@ public partial class DialogoSolicitarIncorporacion : ComponentBase
             }
 
             Toasts.Mostrar(Textos["ToastSolicitada"], TonoToast.Exito);
+            // Ya enviada: lo escrito no se pierde aunque quien abrió navegue al enterarse.
+            FijarInstantaneaFormulario();
             await OnSolicitada.InvokeAsync(resultado.Valor);
             await CerrarAsync();
         }

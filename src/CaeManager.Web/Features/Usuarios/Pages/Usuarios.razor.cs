@@ -756,6 +756,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _mensajeErrorFormulario = null;
         _guardando = false;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
     }
 
     private async Task AbrirEditarAsync(Guid id)
@@ -851,6 +852,32 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
+    }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de alta y
+    /// edición de Usuario comparado con cómo se abrió (con la ficha ya cargada), o un
+    /// Gestor CAE de destino ya elegido en la desactivación con traspaso de cartera. Lo
+    /// leen AvisoCambiosSinGuardar, el Drawer y el Modal; cerrados (también tras guardar
+    /// o desactivar) nunca hay nada que perder.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        (_drawerVisible && _instantanea.Difiere(ValoresFormulario()))
+        || (_usuarioADesactivar is not null && !string.IsNullOrEmpty(_gestorDestinoCartera));
+
+    private object?[] ValoresFormulario() =>
+        [_email, _nombreCompleto, _rol, _permisoConsultarAccesoDocumentosSensibles, _coordinadorUsuarioId, _clienteCif];
+
+    private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
+
+    private async Task CerrarFormulariosDescartandoAsync()
+    {
+        await CerrarDrawerAsync(false);
+        _usuarioADesactivar = null;
+        _gestorDestinoCartera = string.Empty;
     }
 
     private Task CerrarDrawerAsync(bool visible)

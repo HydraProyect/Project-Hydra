@@ -218,7 +218,7 @@
     }
 </div>
 
-<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo usuario" : "Editar usuario")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
+<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo usuario" : "Editar usuario")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
@@ -336,6 +336,8 @@
     </Pie>
 </Drawer>
 
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartandoAsync" />
+
 @* El mismo enlace que se acaba de enviar por correo, para poder entregarlo por
    otra vía si no llega. No es una credencial equivalente a la contraseña que
    antes se enviaba: caduca, solo sirve una vez, y quien acaba de crear la
@@ -372,7 +374,7 @@
    y, si es un Gestor CAE con Clientes empresariales en su Asignación de Cartera,
    se ofrece pasarlos a otro Gestor CAE activo. Sin elegir a nadie la cartera sigue
    abierta y la conserva su Coordinador CAE (decisión del 2026-09-24). *@
-<Modal Visible="@(_usuarioADesactivar is not null)"
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="@(_usuarioADesactivar is not null)"
        VisibleChanged="@(v => { if (!v && !_desactivando) _usuarioADesactivar = null; })"
        Titulo="@TextosUsuarios["DesactivarTitulo", _usuarioADesactivar?.NombreCompleto ?? string.Empty]"
        CerrarAlHacerClicFuera="!_desactivando">
