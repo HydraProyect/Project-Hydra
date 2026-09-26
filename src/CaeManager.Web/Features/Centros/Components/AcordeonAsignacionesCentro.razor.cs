@@ -163,6 +163,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private bool _confirmarBajaLoteVisible;
     private string _fechaBajaLote = string.Empty;
+    private readonly InstantaneaFormulario _instantaneaBajaLote = new();
     private bool _procesandoBajaLote;
 
     private DrawerAsignacionMasiva _drawerAsignacion = default!;
@@ -568,7 +569,15 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     {
         _fechaBajaLote = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
         _confirmarBajaLoteVisible = true;
+        _instantaneaBajaLote.Fijar(_fechaBajaLote);
     }
+
+    /// <summary>
+    /// P1-E2b: la baja en lote solo pide la fecha, y llega puesta a hoy: dejarla así no es
+    /// un cambio, pero haberla cambiado sí (es lo que se perdería al salir o al cerrar el
+    /// modal con la X, Escape o el fondo).
+    /// </summary>
+    private bool HayCambiosSinGuardar => _confirmarBajaLoteVisible && _instantaneaBajaLote.Difiere(_fechaBajaLote);
 
     /// <summary>
     /// Baja en lote. Tres cosas que el botón no puede garantizar por sí solo:
