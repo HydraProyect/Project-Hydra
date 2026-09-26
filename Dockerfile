@@ -57,7 +57,7 @@ COPY src/ src/
 # donde deciden algo, en el `dotnet build -warnaserror` de CI.
 RUN dotnet publish src/CaeManager.Web/CaeManager.Web.csproj -c Release -o /app/publish -r linux-x64 --self-contained false -p:UseSharedCompilation=false -p:RunAnalyzers=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.12@sha256:6a94333d37514e385650a3c81a55e5350b67253dbe136e9cf17e499c35606a8c AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.12@sha256:2d584d8147faddb0d678c5748d47953e5b8e18621ed4fb7049a91381d9d7746f AS final
 WORKDIR /app
 ENV ASPNETCORE_ENVIRONMENT=Production
 
