@@ -25,7 +25,7 @@
 # herramienta, contra el repo de negocio en local):
 #   ./scripts/detectar-referencias-docs.sh \
 #     ../Project-Hydra-Negocio/tecnico/DESIGN_DECISION_LOG.md
-#   -> señaló `scripts/validar-gobernanza-docs.py` y `Project-Hydra-Negocio/tecnico/docs/README.md` como no
+#   -> señaló `scripts/validar-gobernanza-docs.py` y `docs/README.md` como no
 #      encontrados en este repo — confirmado a mano: ese script y esa ruta no
 #      existen en Project-Hydra (grep -r del repo entero, cero resultados).
 #      La afirmación de DDL-055 sobre un gate de CI de "frontera de autoridad

@@ -16,6 +16,8 @@ dotnet run --project src/CaeManager.Web
 
 ```bash
 docker compose up -d          # los tests de integración y E2E necesitan PostgreSQL
+dotnet build CaeManager.slnx
+pwsh tests/CaeManager.E2ETests/bin/Debug/net10.0/playwright.ps1 install chromium   # solo para los E2E
 dotnet test CaeManager.slnx
 ```
 
