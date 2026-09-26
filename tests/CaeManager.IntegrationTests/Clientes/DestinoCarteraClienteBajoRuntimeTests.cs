@@ -55,6 +55,7 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
     private readonly Guid _coordinadorDelegado = Guid.NewGuid();
     private readonly Guid _consultaDelegada = Guid.NewGuid();
     private readonly Guid _gestorAjeno = Guid.NewGuid();
+    private readonly Guid _gestorOperadorSinAsignacion = Guid.NewGuid();
 
     private Guid _clienteId;
 
@@ -104,6 +105,7 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         Cuenta(_coordinadorDelegado, _operadorExterno.Id, "GestorCae");
         Cuenta(_consultaDelegada, _operadorExterno.Id, "GestorCae");
         Cuenta(_gestorAjeno, _ajeno.Id, "GestorCae");
+        Cuenta(_gestorOperadorSinAsignacion, _operadorExterno.Id, "GestorCae");
 
         var raiz = AsignacionOperacion.Raiz(_propietario.Id, ServicioCae.Outbound, ahora.AddDays(-1), ahora);
         contexto.AsignacionesOperacion.Add(raiz);
@@ -146,7 +148,27 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         (await directorio.ObtenerAsync(_coordinadorDelegado))!.RolEfectivo.Should().Be(
             "CoordinadorCae", "el rol de Identity en su organización es GestorCae; aquí opera como Coordinador CAE");
         (await directorio.ObtenerAsync(_gestorAjeno)).Should().BeNull("otro Tenant sin delegación vigente no es alcanzable");
+        (await directorio.ObtenerAsync(_gestorOperadorSinAsignacion)).Should().BeNull(
+            "la delegación del Operador CAE externo no alcanza a quien no tiene Asignación de Operador Delegado");
         (await directorio.ObtenerAsync(Guid.NewGuid())).Should().BeNull();
+    }
+
+    /// <summary>
+    /// Defensa en profundidad: bajo <c>cae_app_runtime</c> la RLS de <c>AspNetUsers</c> ya
+    /// esconde la cuenta de otro Tenant, así que el test anterior no puede observar el
+    /// filtro de delegación del propio directorio (una mutación que lo quitaba seguía en
+    /// verde). Sobre una conexión sin RLS, ese filtro es lo único que queda.
+    /// </summary>
+    [Fact]
+    public async Task Sin_RLS_el_directorio_sigue_sin_alcanzar_una_cuenta_de_otro_Tenant_sin_delegacion()
+    {
+        await using var contexto = ContextoPropietario();
+        var directorio = Directorio(contexto);
+
+        (await contexto.Users.AsNoTracking().AnyAsync(u => u.Id == _gestorAjeno)).Should().BeTrue("control: sin RLS la fila se ve");
+        (await directorio.ObtenerAsync(_gestorAjeno)).Should().BeNull();
+        (await directorio.ObtenerAsync(_gestorOperadorSinAsignacion)).Should().BeNull();
+        (await directorio.ObtenerAsync(_gestorDelegado))!.RolEfectivo.Should().Be("GestorCae", "control positivo");
     }
 
     [Fact]
@@ -176,6 +198,7 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         { nameof(_coordinadorDelegado), "Cliente.DestinoNoEsGestorCae" },
         { nameof(_consultaDelegada), "Cliente.DestinoNoEsGestorCae" },
         { nameof(_gestorAjeno), "Cliente.DestinoNoAlcanzable" },
+        { nameof(_gestorOperadorSinAsignacion), "Cliente.DestinoNoAlcanzable" },
     };
 
     [Theory]
