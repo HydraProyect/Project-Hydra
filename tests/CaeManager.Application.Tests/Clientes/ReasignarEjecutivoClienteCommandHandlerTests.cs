@@ -1,4 +1,7 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
+using CaeManager.Application.Common;
+using Microsoft.EntityFrameworkCore;
 using CaeManager.Application.Tests.Notificaciones;
 using CaeManager.Application.Tests.Operaciones;
 using CaeManager.Application.Tests.TiposDocumento;
@@ -10,16 +13,24 @@ namespace CaeManager.Application.Tests.Clientes;
 
 public class ReasignarEjecutivoClienteCommandHandlerTests
 {
+    /// <summary>Quien reasigna en todos los tests: el Coordinador CAE de los destinos que da por buenos el directorio falso.</summary>
+    private static readonly Guid ActorId = Guid.NewGuid();
+
     private static ReasignarEjecutivoClienteCommandHandler CrearHandler(
         EmpresaRepositorioFalso clienteRepositorio,
         ConfiguracionIaDocumentoClienteRepositorioFalso configuracionIaRepositorio,
         NotificacionUsuarioRepositorioFalso notificacionRepositorio,
         UnitOfWorkFalso unitOfWork,
         string? rol,
-        AlcanceDatosServiceFalso? alcanceDatos = null) =>
+        AlcanceDatosServiceFalso? alcanceDatos = null,
+        DirectorioDestinosCarteraFalso? directorio = null,
+        DescarteCambiosPendientesFalso? descarte = null,
+        AsignacionesOperativasWriterFalso? writer = null) =>
         new(clienteRepositorio, configuracionIaRepositorio, notificacionRepositorio, unitOfWork,
-            new CurrentUserServiceFalso(Guid.NewGuid(), rol), alcanceDatos ?? new AlcanceDatosServiceFalso(),
-            new AsignacionesOperativasWriterFalso());
+            new CurrentUserServiceFalso(ActorId, rol), alcanceDatos ?? new AlcanceDatosServiceFalso(),
+            writer ?? new AsignacionesOperativasWriterFalso(),
+            directorio ?? new DirectorioDestinosCarteraFalso(new DestinoCartera(true, "GestorCae", ActorId, false)),
+            descarte ?? new DescarteCambiosPendientesFalso());
 
     [Fact]
     public async Task Reasigna_y_avisa_al_gestor_anterior_y_al_nuevo()
@@ -178,4 +189,128 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         notificacionRepositorio.Notificaciones.Should().BeEmpty();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
+
+    // ── Destino de la cartera (revisión Codex de la PR #931) ────────────────
+
+    public static TheoryData<string, DestinoCartera?, string> DestinosInvalidos => new()
+    {
+        { "Administrador", null, "Cliente.DestinoNoAlcanzable" },
+        { "Administrador", new DestinoCartera(false, "GestorCae", ActorId, false), "Cliente.DestinoInactivo" },
+        { "Administrador", new DestinoCartera(true, "CoordinadorCae", ActorId, false), "Cliente.DestinoNoEsGestorCae" },
+        { "Administrador", new DestinoCartera(true, "Consulta", ActorId, false), "Cliente.DestinoNoEsGestorCae" },
+        { "Administrador", new DestinoCartera(true, "Administrador", ActorId, false), "Cliente.DestinoNoEsGestorCae" },
+        { "Administrador", new DestinoCartera(true, null, ActorId, false), "Cliente.DestinoNoEsGestorCae" },
+        { "Administrador", new DestinoCartera(true, "CoordinadorCae", ActorId, true), "Cliente.DestinoNoEsGestorCae" },
+        { "Administrador", new DestinoCartera(true, "Consulta", ActorId, true), "Cliente.DestinoNoEsGestorCae" },
+        { "Administrador", new DestinoCartera(false, "GestorCae", ActorId, true), "Cliente.DestinoInactivo" },
+        { "CoordinadorCae", new DestinoCartera(true, "GestorCae", Guid.NewGuid(), false), "Cliente.DestinoFueraDeAlcance" },
+        { "CoordinadorCae", new DestinoCartera(true, "GestorCae", null, false), "Cliente.DestinoFueraDeAlcance" },
+        { "CoordinadorCae", new DestinoCartera(true, "GestorCae", Guid.NewGuid(), true), "Cliente.DestinoFueraDeAlcance" },
+    };
+
+    [Theory]
+    [MemberData(nameof(DestinosInvalidos))]
+    public async Task Rechaza_un_destino_que_no_puede_llevar_la_cartera_sin_escribir_nada(
+        string rolActor, DestinoCartera? destino, string codigoEsperado)
+    {
+        var gestorAnteriorId = Guid.NewGuid();
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, gestorAnteriorId);
+        var clienteRepositorio = new EmpresaRepositorioFalso();
+        clienteRepositorio.Agregar(cliente);
+        var notificacionRepositorio = new NotificacionUsuarioRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var writer = new AsignacionesOperativasWriterFalso();
+        var directorio = new DirectorioDestinosCarteraFalso(destino);
+        var handler = CrearHandler(
+            clienteRepositorio, new ConfiguracionIaDocumentoClienteRepositorioFalso(), notificacionRepositorio, unitOfWork,
+            rolActor, directorio: directorio, writer: writer);
+        var destinoId = Guid.NewGuid();
+
+        var resultado = await handler.Handle(new ReasignarEjecutivoClienteCommand(cliente.Id, destinoId), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(codigoEsperado);
+        directorio.Consultados.Should().Equal(destinoId);
+        cliente.EjecutivoUsuarioId.Should().Be(gestorAnteriorId, "el cliente no cambia de manos");
+        notificacionRepositorio.Notificaciones.Should().BeEmpty();
+        writer.CarterasReasignadas.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CoordinadorCae_pasa_la_cartera_a_un_Gestor_CAE_activo_que_le_reporta(bool esOperadorDelegado)
+    {
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, Guid.NewGuid());
+        var clienteRepositorio = new EmpresaRepositorioFalso();
+        clienteRepositorio.Agregar(cliente);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(
+            clienteRepositorio, new ConfiguracionIaDocumentoClienteRepositorioFalso(), new NotificacionUsuarioRepositorioFalso(),
+            unitOfWork, "CoordinadorCae",
+            directorio: new DirectorioDestinosCarteraFalso(new DestinoCartera(true, "GestorCae", ActorId, esOperadorDelegado)));
+        var destinoId = Guid.NewGuid();
+
+        var resultado = await handler.Handle(new ReasignarEjecutivoClienteCommand(cliente.Id, destinoId), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        cliente.EjecutivoUsuarioId.Should().Be(destinoId);
+        unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Quitar_el_Gestor_CAE_no_consulta_ningun_destino()
+    {
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, Guid.NewGuid());
+        var clienteRepositorio = new EmpresaRepositorioFalso();
+        clienteRepositorio.Agregar(cliente);
+        var directorio = new DirectorioDestinosCarteraFalso(null);
+        var handler = CrearHandler(
+            clienteRepositorio, new ConfiguracionIaDocumentoClienteRepositorioFalso(), new NotificacionUsuarioRepositorioFalso(),
+            new UnitOfWorkFalso(), "Administrador", directorio: directorio);
+
+        var resultado = await handler.Handle(new ReasignarEjecutivoClienteCommand(cliente.Id, null), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        cliente.EjecutivoUsuarioId.Should().BeNull();
+        directorio.Consultados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_conflicto_al_guardar_descarta_los_cambios_pendientes_del_contexto()
+    {
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, Guid.NewGuid());
+        var clienteRepositorio = new EmpresaRepositorioFalso();
+        clienteRepositorio.Agregar(cliente);
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new DbUpdateException("índice único de responsable vigente") };
+        var descarte = new DescarteCambiosPendientesFalso();
+        var handler = CrearHandler(
+            clienteRepositorio, new ConfiguracionIaDocumentoClienteRepositorioFalso(), new NotificacionUsuarioRepositorioFalso(),
+            unitOfWork, "Administrador", descarte: descarte);
+
+        var resultado = await handler.Handle(new ReasignarEjecutivoClienteCommand(cliente.Id, Guid.NewGuid()), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Cliente.ConflictoDeReasignacion");
+        descarte.VecesDescartado.Should().Be(1);
+    }
+}
+
+public class DirectorioDestinosCarteraFalso(DestinoCartera? destino) : IDirectorioDestinosCartera
+{
+    public List<Guid> Consultados { get; } = [];
+
+    public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default)
+    {
+        Consultados.Add(usuarioId);
+        return Task.FromResult(destino);
+    }
+}
+
+public class DescarteCambiosPendientesFalso : IDescarteCambiosPendientes
+{
+    public int VecesDescartado { get; private set; }
+
+    public void DescartarCambiosPendientes() => VecesDescartado++;
 }

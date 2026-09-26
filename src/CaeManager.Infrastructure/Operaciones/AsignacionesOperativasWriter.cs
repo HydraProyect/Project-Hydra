@@ -92,6 +92,18 @@ public class AsignacionesOperativasWriter(
 
         var rol = await ObtenerRolDelegadoAsync(ejecutivoId, propietarioTenantId, tenantDelEjecutivo.Value, cancellationToken);
 
+        // La cartera de un Cliente empresarial solo la lleva un Gestor CAE, también
+        // por delegación (revisión Codex de la PR #931). Un Coordinador CAE delegado
+        // no deriva su alcance de sus propias carteras sino de las de sus Gestores
+        // CAE, y Consulta ya lo ve todo por su rol: con cualquiera de los dos el
+        // Cliente empresarial quedaba sin nadie que lo gestionara. Coordinador CAE
+        // y Consulta siguen siendo roles delegables (RolesDelegadosPermitidos): lo
+        // que no pueden es recibir la cartera de un cliente.
+        if (rol != Roles.GestorCae)
+            throw new UnauthorizedAccessException(
+                $"El usuario {ejecutivoId} opera este tenant como {rol} por delegación: la cartera del cliente " +
+                $"{clienteId} solo puede ir a un {Roles.GestorCae}.");
+
         dbContext.AsignacionesCartera.Add(AsignacionCartera.Externa(
             externa, ejecutivoId, rol, ambito, ahora, vigenciaHasta: null, ahora, actorId));
     }

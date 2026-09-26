@@ -41,7 +41,7 @@ namespace CaeManager.Infrastructure.Autorizacion;
 public class DirectorioUsuariosTenant(
     UserManager<ApplicationUser> userManager, ITenantsQueryContext dbContext, ITenantActual tenantActual,
     PuertaAccesoDatos puertaAccesoDatos, Persistence.CaeManagerDbContext identidad)
-    : IDirectorioUsuariosService
+    : IDirectorioUsuariosService, CaeManager.Application.Clientes.IDirectorioDestinosCartera
 {
     /// <summary>
     /// Usuarios del tenant activo, más sus Operadores Delegados. Sin tenant
@@ -512,16 +512,90 @@ public class DirectorioUsuariosTenant(
                             .ToList()));
         }, cancellationToken);
 
+    /// <summary>
+    /// Lectura sin rastreo, a propósito: el <c>DbContext</c> del circuito puede tener
+    /// la cuenta rastreada desde que <c>/usuarios</c> pintó la lista, y el mapa de
+    /// identidad devolvería su <c>LockoutEnd</c> de entonces — una cuenta desactivada
+    /// después seguiría pareciendo activa (ver <c>GestionCuentasUsuarioIdentity.CargarEnFrescoAsync</c>).
+    ///
+    /// <para>
+    /// El rol efectivo de un Operador CAE externo es el de su Asignación de Operador
+    /// Delegado desde SU Tenant sobre el activo, no el de Identity —que es el de su
+    /// organización—, con el mismo filtro de vigencia que
+    /// <see cref="ObtenerRolesDeOperadoresDelegadosAsync(Guid, CancellationToken)"/> y la misma
+    /// terna que exige <c>AsignacionesOperativasWriter</c>: propietario, operador y usuario.
+    /// </para>
+    /// </summary>
+    public Task<CaeManager.Application.Clientes.DestinoCartera?> ObtenerAsync(
+        Guid usuarioId, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<CaeManager.Application.Clientes.DestinoCartera?>(async () =>
+        {
+            if (tenantActual.TenantId is not { } tenantId) return null;
+
+            var cuenta = await identidad.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == usuarioId, cancellationToken);
+
+            if (cuenta is null) return null;
+
+            var activa = !cuenta.EstaDesactivada(DateTimeOffset.UtcNow);
+
+            if (cuenta.TenantId == tenantId)
+            {
+                var roles = await (
+                    from usuarioRol in identidad.UserRoles
+                    where usuarioRol.UserId == usuarioId
+                    join rol in identidad.Roles on usuarioRol.RoleId equals rol.Id
+                    select rol.Name)
+                    .ToListAsync(cancellationToken);
+
+                return new(activa, roles.Count == 1 ? roles[0] : null, cuenta.CoordinadorUsuarioId, EsOperadorDelegado: false);
+            }
+
+            var rolesDelegados = await OperadoresDelegadosVigentes(tenantId)
+                .Where(o => o.UsuarioId == usuarioId && o.OperadorTenantId == cuenta.TenantId)
+                .Select(o => o.Rol)
+                .Distinct()
+                .Take(2)
+                .ToListAsync(cancellationToken);
+
+            // Sin delegación vigente la cuenta no es alcanzable desde aquí: null, no
+            // "inactiva" ni "sin rol", para no revelar nada de una cuenta ajena.
+            if (rolesDelegados.Count == 0) return null;
+
+            return new(activa, rolesDelegados.Count == 1 ? rolesDelegados[0] : null, cuenta.CoordinadorUsuarioId, EsOperadorDelegado: true);
+        }, cancellationToken);
+
     private async Task<Dictionary<Guid, string>> ObtenerRolesDeOperadoresDelegadosAsync(Guid tenantId, CancellationToken cancellationToken) =>
-        await (
-            from asignacion in dbContext.AsignacionesOperadorDelegado
-            join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
-            // Activa y no caducada — ver DelegacionTenant.EstaVigente.
-            where delegacion.Activa && delegacion.TenantClienteId == tenantId
-                  && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
-            select new { asignacion.UsuarioId, asignacion.Rol })
+        await OperadoresDelegadosVigentes(tenantId)
+            .Select(o => new { o.UsuarioId, o.Rol })
             .Distinct()
             .ToDictionaryAsync(x => x.UsuarioId, x => x.Rol, cancellationToken);
+
+    /// <summary>
+    /// Asignaciones de Operador Delegado vigentes sobre <paramref name="tenantId"/>, con el
+    /// Tenant del Operador CAE externo del que vienen. Una sola definición de "vigente"
+    /// para la lista de <c>/usuarios</c> y para el destino de una cartera.
+    /// </summary>
+    private IQueryable<OperadorDelegadoVigente> OperadoresDelegadosVigentes(Guid tenantId) =>
+        from asignacion in dbContext.AsignacionesOperadorDelegado
+        join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
+        // Activa y no caducada — ver DelegacionTenant.EstaVigente.
+        where delegacion.Activa && delegacion.TenantClienteId == tenantId
+              && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
+        select new OperadorDelegadoVigente
+        {
+            UsuarioId = asignacion.UsuarioId,
+            OperadorTenantId = delegacion.TenantConsultoraId,
+            Rol = asignacion.Rol,
+        };
+
+    private sealed class OperadorDelegadoVigente
+    {
+        public Guid UsuarioId { get; init; }
+        public Guid OperadorTenantId { get; init; }
+        public string Rol { get; init; } = string.Empty;
+    }
 }
 
 /// <summary>

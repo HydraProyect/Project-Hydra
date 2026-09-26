@@ -38,7 +38,9 @@ public interface IAsignacionesOperativasWriter
     /// <exception cref="UnauthorizedAccessException">
     /// Si el nuevo ejecutivo pertenece al tenant operador pero no tiene una
     /// asignación de Operador Delegado única y vigente sobre este tenant
-    /// propietario — fallo cerrado, nunca se le concede un rol por omisión.
+    /// propietario — fallo cerrado, nunca se le concede un rol por omisión —, o si
+    /// la tiene con un rol distinto de Gestor CAE: la cartera de un cliente solo la
+    /// lleva un Gestor CAE, también por delegación.
     /// </exception>
     Task ReasignarCarteraClienteAsync(
         Guid clienteId, Guid? nuevoEjecutivoUsuarioId, CancellationToken cancellationToken = default);
@@ -86,8 +88,10 @@ public interface IAsignacionesOperativasWriter
     /// por su rol, así que su cartera es universal y no le añade nada. Un rol de
     /// cartera (GestorCae, CoordinadorCae) ve exactamente los clientes que
     /// tenga asignados: darle una cartera universal le ensancharía el alcance
-    /// respecto a lo que tiene hoy, y F1 no cambia comportamiento. Sus carteras
-    /// las crea <see cref="ReasignarCarteraClienteAsync"/> cliente a cliente.
+    /// respecto a lo que tiene hoy, y F1 no cambia comportamiento. Las de un
+    /// Gestor CAE las crea <see cref="ReasignarCarteraClienteAsync"/> cliente a
+    /// cliente; un Coordinador CAE no recibe por ahí cartera de cliente propia
+    /// (su alcance se deriva de los Gestores CAE a su cargo).
     /// </summary>
     /// <param name="operacion">
     /// La operación sobre la que cuelga, ya sea recién creada en este mismo

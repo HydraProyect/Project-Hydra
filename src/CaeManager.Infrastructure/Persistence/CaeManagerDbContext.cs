@@ -89,10 +89,13 @@ public class CaeManagerDbContext(
         IBusquedaGlobalQueryContext,
         CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext,
         CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext,
-        IDesenganchadorDeEntidadesRastreadas
+        IDesenganchadorDeEntidadesRastreadas,
+        IDescarteCambiosPendientes
 {
     void IDesenganchadorDeEntidadesRastreadas.Desenganchar<TEntidad>(TEntidad entidad) =>
         Entry(entidad).State = EntityState.Detached;
+
+    void IDescarteCambiosPendientes.DescartarCambiosPendientes() => ChangeTracker.Clear();
 
     private readonly IDataProtector _protectorCredenciales =
         dataProtectionProvider.CreateProtector("CaeManager.PlataformaAcceso.Credenciales.v1"); // nombre de protector sin cambiar: renombrar rompería el descifrado de filas ya cifradas.

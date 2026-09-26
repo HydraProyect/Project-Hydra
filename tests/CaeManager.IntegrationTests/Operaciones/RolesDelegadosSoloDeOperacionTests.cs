@@ -20,7 +20,8 @@ namespace CaeManager.IntegrationTests.Operaciones;
 /// propietario (ADR-011 § 1) y <see cref="AsignacionesOperativasWriter"/> no
 /// los concede por ninguno de sus dos caminos: la cartera universal
 /// (<c>AbrirCarteraOperadorAsync</c>) y la cartera de un Cliente empresarial
-/// (<c>ReasignarCarteraClienteAsync</c>, que lee el rol de la delegación).
+/// (<c>ReasignarCarteraClienteAsync</c>, que lee el rol de la delegación). Esta
+/// última, además, solo la recibe un Gestor CAE (revisión Codex de la PR #931).
 ///
 /// <para>
 /// Las filas de delegación con Administrador o Dirección CAE se siembran a mano:
@@ -130,13 +131,35 @@ public class RolesDelegadosSoloDeOperacionTests : IAsyncLifetime
         (await CarterasDeLaPersonaAsync()).Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Revisión Codex de la PR #931: Coordinador CAE y Consulta siguen siendo roles de
+    /// Operación delegables, pero no reciben la cartera de un Cliente empresarial — el
+    /// alcance de un Coordinador CAE se deriva de sus Gestores CAE, y Consulta ya lo ve
+    /// todo por su rol; con cualquiera de los dos el cliente quedaba sin quien lo gestionara.
+    /// </summary>
     [Theory]
     [InlineData(Roles.CoordinadorCae)]
-    [InlineData(Roles.GestorCae)]
     [InlineData(Roles.Consulta)]
-    public async Task Control_positivo_la_cartera_de_un_Cliente_empresarial_hereda_un_rol_de_Operacion(string rol)
+    public async Task La_cartera_de_un_Cliente_empresarial_no_va_a_un_rol_de_Operacion_que_no_sea_Gestor_CAE(string rol)
     {
         await SembrarAsignacionDelegadaAsync(rol);
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            await CrearWriter(contexto)
+                .Invoking(w => w.ReasignarCarteraClienteAsync(_clienteId, _personaDelOperador))
+                .Should().ThrowAsync<UnauthorizedAccessException>();
+
+            await contexto.SaveChangesAsync();
+        }
+
+        (await CarterasDeLaPersonaAsync()).Should().BeEmpty("el rechazo no puede dejar escrita ninguna cartera");
+    }
+
+    [Fact]
+    public async Task Control_positivo_la_cartera_de_un_Cliente_empresarial_la_hereda_un_Gestor_CAE_delegado()
+    {
+        await SembrarAsignacionDelegadaAsync(Roles.GestorCae);
 
         await using (var contexto = CrearContexto(_propietario))
         {
@@ -145,7 +168,7 @@ public class RolesDelegadosSoloDeOperacionTests : IAsyncLifetime
         }
 
         var carteras = await CarterasDeLaPersonaAsync();
-        carteras.Should().ContainSingle(c => c.AmbitoRelacionClienteId == _clienteId).Which.Rol.Should().Be(rol);
+        carteras.Should().ContainSingle(c => c.AmbitoRelacionClienteId == _clienteId).Which.Rol.Should().Be(Roles.GestorCae);
     }
 
     /// <summary>

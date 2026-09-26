@@ -1322,8 +1322,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             {
                 // El destino se eligió al abrir el diálogo: se vuelve a comprobar ahora
                 // que sigue siendo un Gestor CAE visible y activo, por si entretanto se
-                // desactivó. ReasignarEjecutivoClienteCommand no lo comprueba (hueco
-                // preexistente, registrado aparte).
+                // desactivó. Es solo para avisar antes de empezar: la regla la impone
+                // ReasignarEjecutivoClienteCommand (ReglaDestinoCarteraCliente).
                 var ahora = DateTimeOffset.UtcNow;
                 var vigente = (await ObtenerVisiblesEnRolAsync(Roles.GestorCae, _ciclo.Token))
                     .Any(g => g.Id == destino && g.Id != usuario.Id && !g.EstaDesactivada(ahora));

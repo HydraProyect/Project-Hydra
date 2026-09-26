@@ -355,11 +355,17 @@ public class TerminologiaCanonicaTests
     /// <c>Features.Delegaciones.Recursos</c> (1), como <c>TextosAutorizarOperadorCaeExterno</c>.
     /// Baja con el renombrado de esa interfaz y de la carpeta.
     /// </para>
+    /// <para>
+    /// <b>EjecutivoUsuarioId 48 → 43 (destino de la cartera, revisión Codex de la PR #931,
+    /// 2026-09-26): −5.</b> <c>ReasignarEjecutivoClienteCommandHandler</c> lee
+    /// <c>request.NuevoEjecutivoUsuarioId</c> una sola vez en una variable local
+    /// (<c>nuevoGestorId</c>) en vez de seis.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
         ["Hydra"] = 48,
-        ["EjecutivoUsuarioId"] = 48,
+        ["EjecutivoUsuarioId"] = 43,
         ["Delegacion"] = 335,
         ["ClienteActivo"] = 72,
     };

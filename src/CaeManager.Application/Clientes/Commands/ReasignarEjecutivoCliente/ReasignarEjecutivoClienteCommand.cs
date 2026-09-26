@@ -24,6 +24,12 @@ namespace CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 /// acotaba su lectura (<see cref="IAlcanceDatosService"/>), que hasta esta
 /// decisión no se comprobaba aquí. Administrador y DireccionCae conservan
 /// alcance total, coherente con su rol.
+///
+/// <b>El destino también se valida aquí, no solo en la pantalla</b> (revisión
+/// Codex de la PR #931): tiene que ser un Gestor CAE activo alcanzable desde el
+/// Tenant activo y, para un Coordinador CAE, uno de los que le reportan — ver
+/// <see cref="ReglaDestinoCarteraCliente"/>. Quitar el Gestor CAE (destino
+/// <c>null</c>) no necesita destino que validar.
 /// </summary>
 public record ReasignarEjecutivoClienteCommand(Guid ClienteId, Guid? NuevoEjecutivoUsuarioId) : ICommand;
 
@@ -34,7 +40,9 @@ public class ReasignarEjecutivoClienteCommandHandler(
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUserService,
     IAlcanceDatosService alcanceDatos,
-    IAsignacionesOperativasWriter asignacionesWriter)
+    IAsignacionesOperativasWriter asignacionesWriter,
+    IDirectorioDestinosCartera directorioDestinos,
+    IDescarteCambiosPendientes descarteCambios)
     : IRequestHandler<ReasignarEjecutivoClienteCommand, Result>
 {
     // Application no puede referenciar Infrastructure.Identity.Roles — mismo motivo que en AutorizacionEscrituraBehavior.
@@ -51,10 +59,19 @@ public class ReasignarEjecutivoClienteCommandHandler(
             return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
 
         var ejecutivoAnteriorId = empresa.EjecutivoUsuarioId;
-        if (ejecutivoAnteriorId == request.NuevoEjecutivoUsuarioId)
+        var nuevoGestorId = request.NuevoEjecutivoUsuarioId;
+        if (ejecutivoAnteriorId == nuevoGestorId)
             return Result.Exito();
 
-        empresa.AsignarEjecutivo(request.NuevoEjecutivoUsuarioId);
+        if (nuevoGestorId is { } destinoId)
+        {
+            var destinoValido = await ReglaDestinoCarteraCliente.ValidarAsync(
+                destinoId, directorioDestinos, currentUserService, cancellationToken);
+            if (destinoValido.EsFallido)
+                return destinoValido;
+        }
+
+        empresa.AsignarEjecutivo(nuevoGestorId);
 
         if (ejecutivoAnteriorId is not null)
             notificacionRepositorio.Agregar(new NotificacionUsuario(
@@ -62,17 +79,17 @@ public class ReasignarEjecutivoClienteCommandHandler(
                 "Cambio en tu cartera de clientes",
                 $"Se te ha quitado el cliente \"{empresa.RazonSocial}\" de tu cartera."));
 
-        if (request.NuevoEjecutivoUsuarioId is not null)
+        if (nuevoGestorId is not null)
         {
             notificacionRepositorio.Agregar(new NotificacionUsuario(
-                request.NuevoEjecutivoUsuarioId.Value,
+                nuevoGestorId.Value,
                 "Cambio en tu cartera de clientes",
                 $"Se te ha asignado el cliente \"{empresa.RazonSocial}\" en tu cartera."));
 
             var tiposSinLecturaIa = await configuracionIaRepositorio.ObtenerNombresTiposDocumentoSinLecturaIaAsync(empresa.Id, cancellationToken);
             if (tiposSinLecturaIa.Count > 0)
                 notificacionRepositorio.Agregar(new NotificacionUsuario(
-                    request.NuevoEjecutivoUsuarioId.Value,
+                    nuevoGestorId.Value,
                     "Lectura automática por IA desactivada",
                     $"El cliente \"{empresa.RazonSocial}\" tiene la lectura automática por IA desactivada para: {string.Join(", ", tiposSinLecturaIa)}.",
                     urlAccion: $"/clientes/{empresa.Id}/lectura-ia",
@@ -83,7 +100,7 @@ public class ReasignarEjecutivoClienteCommandHandler(
         // la proyección Empresa.EjecutivoUsuarioId, así que o se guardan las
         // dos o ninguna. La proyección sigue siendo la autoritativa durante F1.
         await asignacionesWriter.ReasignarCarteraClienteAsync(
-            empresa.Id, request.NuevoEjecutivoUsuarioId, cancellationToken);
+            empresa.Id, nuevoGestorId, cancellationToken);
 
         try
         {
@@ -91,6 +108,11 @@ public class ReasignarEjecutivoClienteCommandHandler(
         }
         catch (DbUpdateException)
         {
+            // El DbContext del circuito conserva la Empresa modificada, las
+            // notificaciones y las carteras añadidas: sin descartarlas, el
+            // siguiente Command del mismo circuito las guardaría por su cuenta.
+            descarteCambios.DescartarCambiosPendientes();
+
             // El índice único global de responsable vigente (auditoría Módulo 5,
             // hallazgo crítico 3/9) puede chocar si otra reasignación concurrente
             // sobre este mismo cliente terminó primero — la traducción evita un

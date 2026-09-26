@@ -454,6 +454,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDesenganchadorDeEntidadesRastreadas>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Empresas.IEmpresasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Subcontratas.ISubcontratasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Blindaje42.IBlindaje42QueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -552,6 +553,7 @@ public static class InfrastructureServiceCollectionExtensions
         // comprobación de IDirectorioUsuariosService.
         services.AddScoped<DirectorioUsuariosTenant>();
         services.AddScoped<IDirectorioUsuariosService>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
+        services.AddScoped<CaeManager.Application.Clientes.IDirectorioDestinosCartera>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Usuarios.ISegundoFactorDeCuentas, SegundoFactorDeCuentasIdentity>();
         // P1-I2: las escrituras de cuentas de Identity pasan por Commands de
         // Application; este es su único camino hasta UserManager fuera del login.
