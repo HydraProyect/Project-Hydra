@@ -7,6 +7,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
+using CaeManager.Application.Asignaciones.Commands.ReactivarAsignacion;
 using CaeManager.Application.Gestiones.Commands.CompletarGestion;
 using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
@@ -118,6 +119,10 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
     private bool _cargandoGestiones = true;
     private readonly HashSet<Guid> _completandoGestion = [];
     private readonly HashSet<Guid> _dandoDeBajaAsignacion = [];
+    private bool _confirmarBajaAsignacionVisible;
+    private Guid? _asignacionABajar;
+    private string _centroABajar = string.Empty;
+    private readonly HashSet<Guid> _reactivandoAsignacion = [];
 
     /// <summary>Trabajador cuya ficha se está pintando: al cambiar, lo que quedara preparado en una modal deja de valer.</summary>
     private Guid _trabajadorEnPantalla;
@@ -477,6 +482,31 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
 
     private async Task ManejarDocumentoGuardadoAsync() => await CargarAsync();
 
+    /// <summary>
+    /// FS-13 (auditoría UX de flujos sin salida, 2026-09-24): la baja salía al
+    /// primer clic y sin vuelta atrás; la única corrección era un alta nueva,
+    /// que partía la historia en dos filas. Ahora se confirma y el aviso
+    /// ofrece «Deshacer».
+    /// </summary>
+    private void AbrirBajaAsignacionConfirm(Guid asignacionId, string centroNombre)
+    {
+        _asignacionABajar = asignacionId;
+        _centroABajar = centroNombre;
+        _confirmarBajaAsignacionVisible = true;
+    }
+
+    private async Task ConfirmarBajaAsignacionAsync()
+    {
+        if (_asignacionABajar is not { } asignacionId) return;
+        await DarDeBajaAsignacionAsync(asignacionId);
+
+        // Si mientras tanto se abrió otro diálogo (otro trabajador, otra fila),
+        // es del usuario: solo se cierra el que confirmó esta baja.
+        if (_asignacionABajar != asignacionId) return;
+        _confirmarBajaAsignacionVisible = false;
+        _asignacionABajar = null;
+    }
+
     private async Task DarDeBajaAsignacionAsync(Guid asignacionId)
     {
         // Guarda de reentrada por asignación, como en CompletarGestionAsync:
@@ -503,9 +533,11 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
                     TonoToast.Error);
             }
             else if (errores.Count > 0)
-                ToastService.Mostrar(Textos["ToastBajaConAvisos", string.Join("; ", errores)], TonoToast.Advertencia);
+                ToastService.Mostrar(Textos["ToastBajaConAvisos", string.Join("; ", errores)], TonoToast.Advertencia,
+                    Textos["ToastAccionDeshacer"], () => DeshacerBajaAsignacionAsync(asignacionId));
             else
-                ToastService.Mostrar(Textos["ToastBaja"], TonoToast.Exito);
+                ToastService.Mostrar(Textos["ToastBaja"], TonoToast.Exito,
+                    Textos["ToastAccionDeshacer"], () => DeshacerBajaAsignacionAsync(asignacionId));
 
             await CargarAsync();
         }
@@ -664,6 +696,33 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
     }
 
     /// <summary>
+    /// «Deshacer» del aviso de baja: reabre la misma asignación, con su fecha
+    /// de alta de siempre. El comando comprueba otra vez la autoridad y que no
+    /// haya otra alta del trabajador en ese centro.
+    /// </summary>
+    private async Task DeshacerBajaAsignacionAsync(Guid asignacionId)
+    {
+        if (!_reactivandoAsignacion.Add(asignacionId)) return;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ReactivarAsignacionCommand(asignacionId));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar(Textos["ToastBajaDeshecha"], TonoToast.Exito);
+            await CargarAsync();
+        }
+        finally
+        {
+            _reactivandoAsignacion.Remove(asignacionId);
+        }
+    }
+
+    /// <summary>
     /// Cierra las modales y tira lo que tuvieran preparado. Se llama al cambiar
     /// de trabajador: lo elegido para uno no puede ejecutarse sobre otro.
     /// </summary>
@@ -672,6 +731,8 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
         _crearGestionVisible = false;
         _tipoDocumentoParaGestion = string.Empty;
         _reclamarFaltantesVisible = false;
+        _confirmarBajaAsignacionVisible = false;
+        _asignacionABajar = null;
         _clientesReclamables = [];
         _clientesSeleccionadosReclamar.Clear();
     }

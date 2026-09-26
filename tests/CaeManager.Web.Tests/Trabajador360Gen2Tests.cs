@@ -2,6 +2,7 @@ using CaeManager.Infrastructure.Identity;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
+using CaeManager.Application.Asignaciones.Commands.ReactivarAsignacion;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
@@ -80,6 +81,8 @@ public class Trabajador360Gen2Tests : BunitContext
         public Result<ResultadoBajaLoteDto> ResultadoDarDeBajaAsignacion { get; set; } =
             Result.Exito(new ResultadoBajaLoteDto(1, []));
 
+        public Result ResultadoReactivar { get; set; } = Result.Exito();
+
         /// <summary>Si devuelve una tarea, la respuesta espera a que se complete.</summary>
         public Func<object, Task?>? Retener { get; set; }
 
@@ -108,6 +111,7 @@ public class Trabajador360Gen2Tests : BunitContext
             ObtenerDocumentosQuery when FallarDocumentos => throw new InvalidOperationException("Fallo simulado de la consulta de documentos."),
             ObtenerDocumentosQuery q => PaginarDocumentos(q),
             DarDeBajaAsignacionesCommand => ResultadoDarDeBajaAsignacion,
+            ReactivarAsignacionCommand => ResultadoReactivar,
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -775,6 +779,100 @@ public class Trabajador360Gen2Tests : BunitContext
 
     private const string BotonBajaAsignacion = "[aria-label='Asignaciones activas'] .columna-accion button";
 
+    private static IElement BotonDelDialogo(IRenderedComponent<TrabajadorDetalle> cut, string texto) =>
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == texto);
+
+    private static async Task ConfirmarBajaAsignacionAsync(IRenderedComponent<TrabajadorDetalle> cut)
+    {
+        await cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
+    }
+
+    // --------------- FS-13 (auditoría UX de flujos sin salida, 2026-09-24)
+
+    /// <summary>
+    /// La baja salía al primer clic y sin vuelta atrás. Ahora se pregunta
+    /// antes, nombrando a quién y de qué centro, y cancelar no envía nada.
+    /// </summary>
+    [Fact]
+    public async Task Dar_de_baja_una_asignacion_pide_confirmacion_y_cancelar_no_envia_nada()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+
+        var cut = Renderizar(id);
+        await cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<DarDeBajaAsignacionesCommand>().Should().BeEmpty("sin confirmar no se da de baja");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Javier Salas Moreno").And.Contain("Centro Norte")
+            .And.Contain("Podrás deshacerlo desde el aviso");
+
+        await BotonDelDialogo(cut, "Cancelar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<DarDeBajaAsignacionesCommand>().Should().BeEmpty();
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Confirmar_da_de_baja_esa_asignacion_y_cierra_el_dialogo()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        var norte = mediador.Centros[id][0];
+
+        var cut = Renderizar(id);
+        await ConfirmarBajaAsignacionAsync(cut);
+
+        mediador.Enviadas.OfType<DarDeBajaAsignacionesCommand>().Should().ContainSingle()
+            .Which.Ids.Should().Equal([norte.AsignacionId]);
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// «Deshacer» reabre la MISMA asignación (no crea otra) y recarga la ficha.
+    /// </summary>
+    [Fact]
+    public async Task Deshacer_del_aviso_reabre_la_asignacion_dada_de_baja()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        var norte = mediador.Centros[id][0];
+
+        var cut = Renderizar(id);
+        await ConfirmarBajaAsignacionAsync(cut);
+
+        var aviso = Avisos.Mensajes.Should().ContainSingle().Subject;
+        aviso.TextoAccion.Should().Be("Deshacer");
+        var cargasAntes = mediador.Enviadas.OfType<ObtenerDocumentacionPorCentroDeTrabajadorQuery>().Count();
+
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        mediador.Enviadas.OfType<ReactivarAsignacionCommand>().Should().ContainSingle()
+            .Which.Id.Should().Be(norte.AsignacionId);
+        Avisos.Mensajes.Select(m => (m.Mensaje, m.Tono)).Should().Contain(
+            ("Baja deshecha: la asignación vuelve a estar activa.", TonoToast.Exito));
+        mediador.Enviadas.OfType<ObtenerDocumentacionPorCentroDeTrabajadorQuery>().Count().Should().BeGreaterThan(cargasAntes,
+            "la asignación reabierta tiene que volver a verse en la tabla");
+    }
+
+    /// <summary>Si el comando rechaza la reapertura, se dice por qué y no se anuncia como hecha.</summary>
+    [Fact]
+    public async Task Deshacer_rechazado_muestra_el_motivo_y_no_se_anuncia_como_hecho()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        mediador.ResultadoReactivar = Result.Fallo(Error.Crear(
+            "Asignacion.SolapaConOtra", "Este trabajador tiene otra asignación a este centro posterior a esta; no se puede reabrir."));
+
+        var cut = Renderizar(id);
+        await ConfirmarBajaAsignacionAsync(cut);
+        await cut.InvokeAsync(Avisos.Mensajes.Single().OnAccion!);
+
+        Avisos.Mensajes.Select(m => (m.Mensaje, m.Tono)).Should().Contain(
+            ("Este trabajador tiene otra asignación a este centro posterior a esta; no se puede reabrir.", TonoToast.Error));
+        Avisos.Mensajes.Should().NotContain(m => m.Mensaje.StartsWith("Baja deshecha"));
+    }
+
     private static async Task AbrirModalCrearGestionAsync(IRenderedComponent<TrabajadorDetalle> cut)
     {
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
@@ -831,7 +929,7 @@ public class Trabajador360Gen2Tests : BunitContext
             new ResultadoBajaLoteDto(0, ["La asignación ya estaba cerrada."]));
 
         var cut = Renderizar(id);
-        await cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
+        await ConfirmarBajaAsignacionAsync(cut);
 
         Avisos.Mensajes.Select(m => (m.Mensaje, m.Tono)).Should().Equal(
             [("La asignación ya estaba cerrada.", TonoToast.Error)]);
@@ -845,7 +943,7 @@ public class Trabajador360Gen2Tests : BunitContext
         ConTrabajador(id);
 
         var cut = Renderizar(id);
-        await cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
+        await ConfirmarBajaAsignacionAsync(cut);
 
         Avisos.Mensajes.Select(m => (m.Mensaje, m.Tono)).Should().Equal(
             [("Asignación dada de baja.", TonoToast.Exito)]);
@@ -863,11 +961,15 @@ public class Trabajador360Gen2Tests : BunitContext
         var id = Guid.NewGuid();
         var puerta = new TaskCompletionSource();
         var mediador = ConTrabajador(id);
-        mediador.Retener = p => p is DarDeBajaAsignacionesCommand ? puerta.Task : null;
 
         var cut = Renderizar(id);
-        var primera = cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
-        var segunda = cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
+        await cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
+        // Se retiene después de abrir el diálogo: si la fila mandara la baja sin
+        // confirmar, el caso tiene que fallar al buscar el diálogo, no colgarse.
+        mediador.Retener = p => p is DarDeBajaAsignacionesCommand ? puerta.Task : null;
+        var confirmar = BotonDelDialogo(cut, "Dar de baja");
+        var primera = confirmar.ClickAsync(new MouseEventArgs());
+        var segunda = confirmar.ClickAsync(new MouseEventArgs());
 
         mediador.Retener = null;
         await cut.InvokeAsync(puerta.SetResult);

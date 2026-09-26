@@ -1,5 +1,6 @@
 using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
+using CaeManager.Application.Asignaciones.Commands.ReactivarAsignacion;
 using CaeManager.Application.Centros.Commands.CrearCanalGestion;
 using CaeManager.Application.Centros.Commands.EstablecerDocumentacionRequeridaCentro;
 using CaeManager.Application.Common;
@@ -133,6 +134,30 @@ public class CaminosDeAltaAcreditacionesTests
         resultado.EsExitoso.Should().BeTrue();
         mundo.Agregadas.Should().BeEquivalentTo([(delTrabajador.Id, acceso.Id), (deLaEmpresa.Id, acceso.Id)],
             "el Documento cuyo tipo el Centro no exige no se acredita");
+    }
+
+    /// <summary>
+    /// FS-13: reabrir una asignación es volver a darla de alta. Lo que el Centro
+    /// exige y se subió mientras estaba cerrada nace pendiente de acreditar.
+    /// </summary>
+    [Fact]
+    public async Task Reabrir_una_asignacion_acredita_los_documentos_que_el_centro_exige()
+    {
+        var mundo = new MundoAcreditaciones();
+        var trabajador = mundo.Trabajador();
+        var centro = mundo.Centro();
+        var acceso = mundo.AccesoPlataforma(centro);
+        var delTrabajador = mundo.DocumentoDe(trabajador, mundo.Tipo(RequisitoDocumental.Si));
+        var repositorio = new AsignacionRepositorioFalso();
+        var cerrada = new Domain.Asignaciones.Asignacion(trabajador.Id, centro.Id, Hoy.AddDays(-30));
+        cerrada.DarDeBaja(Hoy);
+        repositorio.Asignaciones.Add(cerrada);
+        var handler = new ReactivarAsignacionCommandHandler(repositorio, new AutoridadTotal(), mundo.Servicio(), new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(new ReactivarAsignacionCommand(cerrada.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        mundo.Agregadas.Should().Contain((delTrabajador.Id, acceso.Id));
     }
 
     [Fact]
