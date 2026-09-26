@@ -36,9 +36,14 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     /// </summary>
     private static readonly string[] FormulariosProtegidos =
     [
+        "src/CaeManager.Web/Components/DesignSystem/RedactarMensajeDrawer.razor",
         "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
+        "src/CaeManager.Web/Features/Bandeja/Components/DrawerReclamacionLote.razor",
         "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
         "src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Buzon.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor",
         "src/CaeManager.Web/Features/Delegaciones/OperadoresCaeExternosPanel.razor",
         "src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor",
         "src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor",
@@ -70,9 +75,14 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     /// </summary>
     private static readonly string[] ContenedoresQuePreguntanAlCerrar =
     [
+        "src/CaeManager.Web/Components/DesignSystem/RedactarMensajeDrawer.razor",
         "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
+        "src/CaeManager.Web/Features/Bandeja/Components/DrawerReclamacionLote.razor",
         "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
         "src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Buzon.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor",
         "src/CaeManager.Web/Features/Delegaciones/OperadoresCaeExternosPanel.razor",
         "src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor",
         "src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor",

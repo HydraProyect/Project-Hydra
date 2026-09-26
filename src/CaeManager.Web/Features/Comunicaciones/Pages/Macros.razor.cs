@@ -243,6 +243,7 @@ public partial class Macros : CaeManager.Web.Components.PaginaIntegrableConfigur
         _mensajeErrorFormulario = null;
         _conflicto = false;
         _recargandoVersion = false;
+        FijarInstantaneaFormulario();
         _drawerVisible = true;
     }
 
@@ -259,8 +260,23 @@ public partial class Macros : CaeManager.Web.Components.PaginaIntegrableConfigur
         _mensajeErrorFormulario = null;
         _conflicto = false;
         _recargandoVersion = false;
+        FijarInstantaneaFormulario();
         _drawerVisible = true;
     }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en la página: la macro que se está
+    /// dando de alta o editando comparada con cómo se abrió (el Cliente empresarial que
+    /// preselecciona el filtro no es un cambio) o con la versión actual recargada tras un
+    /// conflicto. Lo leen el Drawer (X, Escape, fondo) y AvisoCambiosSinGuardar.
+    /// </summary>
+    private bool HayCambiosSinGuardar => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+
+    private object?[] ValoresFormulario() => [_clienteIdFormulario, _titulo, _cuerpo];
+
+    private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
 
     private Task CerrarDrawerAsync(bool visible)
     {
@@ -377,6 +393,8 @@ public partial class Macros : CaeManager.Web.Components.PaginaIntegrableConfigur
             _erroresCampo = new Dictionary<string, string>();
             _mensajeErrorFormulario = null;
             _conflicto = false;
+            // Lo recargado es el nuevo punto de partida: quien edita pidió descartar lo suyo.
+            FijarInstantaneaFormulario();
             recargada = true;
         }
         catch (Exception ex)

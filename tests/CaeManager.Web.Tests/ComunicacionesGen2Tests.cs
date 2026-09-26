@@ -5,6 +5,13 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
+using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
+using CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrioridad;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCentro;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Application.Comunicaciones.Eventos;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
@@ -30,6 +37,7 @@ using FluentValidation;
 using FluentValidation.Results;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -663,5 +671,278 @@ public class ComunicacionesGen2Tests : BunitContext
             .NotContain("Esperando cliente")
             .And.NotContain("Todos los clientes")
             .And.NotContain("Sin cliente asignado");
+    }
+
+    // ---------------------------------------------------------------- cambios sin guardar (P1-E2b)
+
+    private static readonly Guid CentroNorteId = Guid.NewGuid();
+    private static readonly Guid AdjuntoId = Guid.NewGuid();
+
+    /// <summary>
+    /// Una conversación de Refrielectric con un adjunto, un Centro para «Pedir prioridad» y un
+    /// buzón para «Redactar»: lo mínimo para abrir los cinco formularios de la página.
+    /// </summary>
+    private async Task<(IRenderedComponent<Bandeja> Cut, NavigationManager Navegacion)> RenderizarConversacionAbiertaAsync()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var detalle = DetalleDe(conversacion);
+        detalle = detalle with
+        {
+            Mensajes = [detalle.Mensajes[0] with { Adjuntos = [new AdjuntoDetalleDto(AdjuntoId, "tc2.pdf", "application/pdf", 2048)] }],
+        };
+        var escenario = new Escenario
+        {
+            Detalle = _ => detalle,
+            Interceptar = peticion => peticion switch
+            {
+                ObtenerCentrosParaSelectorQuery => Task.FromResult<object?>(new List<CentroSelectorDto>
+                    { new(CentroNorteId, "Centro Norte", ClienteRefrielectric.RazonSocial, "Refrielectric S.A.") }),
+                ObtenerFormatosRequeridosCentroQuery => Task.FromResult<object?>(null),
+                ObtenerBorradorPedirPrioridadQuery => Task.FromResult<object?>(Result.Exito(new BorradorPedirPrioridadDto(
+                    "validacion@example.invalid", "Prioridad Centro Norte", "<p>Rogamos prioridad.</p>", true, null, 2))),
+                ObtenerConexionesIntegracionQuery => Task.FromResult<object?>(new List<ConexionIntegracionListaDto>
+                    { new(Guid.NewGuid(), "cae@example.invalid", "CAE Norte", null, null, EstadoConexionIntegracion.Habilitada, DateTime.UtcNow, null, null) }),
+                EnviarMensajeNuevoCommand => Task.FromResult<object?>(Result.Exito(Guid.NewGuid())),
+                ObtenerEmpresasParaSelectorQuery => Task.FromResult<object?>(new List<EmpresaSelectorDto>()),
+                DetectarActualizacionDocumentoDesdeAdjuntoQuery => Task.FromResult<object?>(Result.Exito(new DeteccionActualizacionDocumentoDto(
+                    AdjuntoId, null, null, null, null, null, null, null, new DateOnly(2026, 9, 1), null, 80))),
+                _ => null,
+            },
+        };
+        escenario.Conversaciones.Add(conversacion);
+
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-nota-interna").Should().ContainSingle());
+        return (cut, Services.GetRequiredService<NavigationManager>());
+    }
+
+    private static Task EscribirRespuestaAsync(IRenderedComponent<Bandeja> cut, string texto) =>
+        cut.FindAll(".composer-correo textarea").Single().InputAsync(new ChangeEventArgs { Value = texto });
+
+    [Fact]
+    public async Task Salir_con_la_respuesta_a_medias_pregunta()
+    {
+        var (cut, navegacion) = await RenderizarConversacionAbiertaAsync();
+        await EscribirRespuestaAsync(cut, "Gracias, lo revisamos hoy.");
+
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+    }
+
+    [Fact]
+    public async Task Abrir_una_conversacion_sin_escribir_nada_y_salir_no_pregunta()
+    {
+        var (cut, navegacion) = await RenderizarConversacionAbiertaAsync();
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "abrir una conversación no deja nada que perder");
+    }
+
+    /// <summary>
+    /// Filtrar navega (los filtros viven en la URL) pero no sale de la página ni borra la
+    /// respuesta a medias: esa navegación propia no pregunta y lo escrito sigue ahí.
+    /// </summary>
+    [Fact]
+    public async Task Filtrar_con_la_respuesta_a_medias_no_pregunta_y_la_conserva()
+    {
+        var (cut, navegacion) = await RenderizarConversacionAbiertaAsync();
+        await EscribirRespuestaAsync(cut, "Gracias, lo revisamos hoy.");
+
+        await SelectorDeEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Abierta) });
+
+        navegacion.Uri.Should().Contain("estado=" + nameof(EstadoConversacion.Abierta));
+        cut.FindAll(".modal-pie button").Should().NotContain(b => b.TextContent.Trim() == "Salir y descartar");
+        cut.FindComponents<CampoTextarea>().Should().Contain(c => c.Instance.Valor == "Gracias, lo revisamos hoy.");
+    }
+
+    [Fact]
+    public async Task Salir_con_la_nota_interna_a_medias_pregunta()
+    {
+        var (cut, navegacion) = await RenderizarConversacionAbiertaAsync();
+
+        await cut.Find(".composer-nota-interna textarea").InputAsync(new ChangeEventArgs { Value = "Llamar antes de las 10." });
+
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+    }
+
+    [Fact]
+    public async Task Redactar_sin_tocar_no_pregunta_escribir_si_y_enviar_filtra_sin_preguntar()
+    {
+        var (cut, navegacion) = await RenderizarConversacionAbiertaAsync();
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".drawer-panel").Should().ContainSingle("el test necesita el drawer de redactar abierto");
+        await cut.Find(".drawer-panel button.drawer-cerrar").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-panel").Should().BeEmpty("sin cambios, la X cierra sin preguntar");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-panel input.campo-input")[0].InputAsync(new ChangeEventArgs { Value = "contacto@example.invalid" });
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+        cut.FindAll(".modal-pie button").Should().NotContain(b => b.TextContent.Trim() == "Salir y descartar",
+            "enviar recarga la lista navegando a la propia URL: lo escrito ya se envió");
+        await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "lo escrito ya se envió");
+    }
+
+    [Fact]
+    public async Task Lo_detectado_en_el_adjunto_no_es_un_cambio_y_corregirlo_si()
+    {
+        var (cut, navegacion) = await RenderizarConversacionAbiertaAsync();
+        await cut.Find(".timeline-adjunto-actualizar-documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle());
+        cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "2026-09-01",
+            "el test necesita que la detección haya rellenado la fecha de emisión");
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "lo que rellenó la detección no es un cambio de quien revisa");
+    }
+
+    [Fact]
+    public async Task Corregir_lo_detectado_y_salir_pregunta()
+    {
+        var (cut, navegacion) = await RenderizarConversacionAbiertaAsync();
+        await cut.Find(".timeline-adjunto-actualizar-documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle());
+
+        await cut.Find(".modal-actualizar-documento-formulario textarea").InputAsync(new ChangeEventArgs { Value = "Renovado en septiembre." });
+
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+    }
+
+    [Fact]
+    public async Task El_borrador_de_pedir_prioridad_no_es_un_cambio_y_editarlo_si()
+    {
+        var (cut, navegacion) = await RenderizarConversacionAbiertaAsync();
+        await cut.FindAll(".composer-correo select")[1].ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte"));
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "el borrador propuesto no es un cambio de quien lo revisa");
+    }
+
+    [Fact]
+    public async Task Editar_el_borrador_de_pedir_prioridad_y_salir_pregunta()
+    {
+        var (cut, navegacion) = await RenderizarConversacionAbiertaAsync();
+        await cut.FindAll(".composer-correo select")[1].ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte"));
+
+        await cut.FindAll(".drawer-panel textarea").Single().InputAsync(new ChangeEventArgs { Value = "Otro texto." });
+
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+    }
+
+    /// <summary>Dos conversaciones de Refrielectric, con la primera abierta.</summary>
+    private async Task<(IRenderedComponent<Bandeja> Cut, NavigationManager Navegacion, MediadorControlado Mediador, ConversacionListaDto Otra)>
+        RenderizarDosConversacionesAsync()
+    {
+        var primera = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var otra = Conversacion("Alta de trabajador", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = id => DetalleDe(id == primera.Id ? primera : otra) };
+        escenario.Conversaciones.AddRange([primera, otra]);
+
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        cut.WaitForAssertion(() => cut.FindAll(".composer-nota-interna").Should().ContainSingle());
+        return (cut, Services.GetRequiredService<NavigationManager>(), mediador, otra);
+    }
+
+    /// <summary>
+    /// Revisión Codex (lote C, ronda 2): pulsar la conversación ya abierta con una nota a
+    /// medias no pregunta ni la borra, y la siguiente salida real sigue preguntando.
+    /// </summary>
+    [Fact]
+    public async Task Pulsar_la_conversacion_ya_abierta_no_pregunta_y_la_salida_sigue_protegida()
+    {
+        var (cut, navegacion, _, _) = await RenderizarDosConversacionesAsync();
+        await cut.Find(".composer-nota-interna textarea").InputAsync(new ChangeEventArgs { Value = "Llamar antes de las 10." });
+
+        // Sin esperar el clic: si preguntara, el manejador quedaría esperando la respuesta.
+        var seleccion = SeleccionarFila(cut, "Documentación pendiente");
+
+        cut.FindAll(".modal-pie button").Should().NotContain(b => b.TextContent.Trim() == "Salir y descartar");
+        await seleccion;
+        cut.FindComponents<CampoTextarea>().Should().Contain(c => c.Instance.Valor == "Llamar antes de las 10.");
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+    }
+
+    /// <summary>
+    /// Revisión Codex (lote C): elegir otra conversación con una nota a medias pregunta ANTES
+    /// de cambiar la selección, la URL o el detalle; «Seguir editando» deja la nota y la
+    /// conversación como estaban.
+    /// </summary>
+    [Fact]
+    public async Task Elegir_otra_conversacion_con_la_nota_a_medias_pregunta_antes_y_seguir_la_conserva()
+    {
+        var (cut, navegacion, mediador, otra) = await RenderizarDosConversacionesAsync();
+        await cut.Find(".composer-nota-interna textarea").InputAsync(new ChangeEventArgs { Value = "Llamar antes de las 10." });
+        var origen = navegacion.Uri;
+
+        var seleccion = SeleccionarFila(cut, "Alta de trabajador");
+
+        cut.WaitForAssertion(() => cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Seguir editando"));
+        mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Should().NotContain(q => q.Id == otra.Id,
+            "no se carga la otra conversación mientras se pregunta");
+        navegacion.Uri.Should().Be(origen);
+
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+        await seleccion;
+
+        mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Should().NotContain(q => q.Id == otra.Id);
+        navegacion.Uri.Should().Be(origen);
+        cut.FindComponents<CampoTextarea>().Should().Contain(c => c.Instance.Valor == "Llamar antes de las 10.");
+    }
+
+    [Fact]
+    public async Task Elegir_otra_conversacion_y_descartar_abre_la_otra()
+    {
+        var (cut, navegacion, mediador, otra) = await RenderizarDosConversacionesAsync();
+        await EscribirRespuestaAsync(cut, "Gracias, lo revisamos hoy.");
+
+        var seleccion = SeleccionarFila(cut, "Alta de trabajador");
+        cut.WaitForAssertion(() => cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Salir y descartar"));
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await seleccion;
+
+        mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Should().Contain(q => q.Id == otra.Id);
+        navegacion.Uri.Should().Contain("conversacion=" + otra.Id);
+        cut.FindComponents<CampoTextarea>().Should().NotContain(c => c.Instance.Valor == "Gracias, lo revisamos hoy.");
+    }
+
+    [Fact]
+    public async Task Cambiar_a_Mi_buzon_personal_con_la_respuesta_a_medias_pregunta_antes()
+    {
+        var (cut, navegacion, _, _) = await RenderizarDosConversacionesAsync();
+        await EscribirRespuestaAsync(cut, "Gracias, lo revisamos hoy.");
+        var origen = navegacion.Uri;
+
+        var cambio = cut.FindAll(".bandeja-toggle").Single(b => b.TextContent.Contains("personal", StringComparison.OrdinalIgnoreCase))
+            .ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Seguir editando"));
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+        await cambio;
+
+        navegacion.Uri.Should().Be(origen);
+        cut.FindComponents<CampoTextarea>().Should().Contain(c => c.Instance.Valor == "Gracias, lo revisamos hoy.");
+    }
+
+    /// <summary>
+    /// Revisión Codex (lote C): el aviso del navegador al recargar o cerrar la pestaña se
+    /// calcula en el render de la página; escribir la nota en su composer tiene que
+    /// re-renderizarla.
+    /// </summary>
+    [Fact]
+    public async Task Escribir_la_nota_interna_arma_el_aviso_del_navegador()
+    {
+        var (cut, _, _, _) = await RenderizarDosConversacionesAsync();
+        cut.FindComponent<NavigationLock>().Instance.ConfirmExternalNavigation.Should().BeFalse();
+
+        await cut.Find(".composer-nota-interna textarea").InputAsync(new ChangeEventArgs { Value = "Llamar antes de las 10." });
+
+        cut.FindComponent<NavigationLock>().Instance.ConfirmExternalNavigation.Should().BeTrue(
+            "recargar o cerrar la pestaña con la nota a medias tiene que avisar");
     }
 }
