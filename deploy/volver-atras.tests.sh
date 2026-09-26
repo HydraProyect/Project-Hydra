@@ -165,6 +165,8 @@ comprobar "retener quita solo lo que excede N por entorno" \
   "$(printf '%s\n' "$(sha 11)" "$(sha 88)" | sort | paste -sd' ')" \
   "$(sed -n 's/^image rm caemanager:\([^ ]*\) .*/\1/p' "$DOCKER_LOG" | sort | paste -sd' ')"
 comprobar "quedan 5 de staging, producción, la usada y la no-SHA" 10 "$(ls "$ESTADO/imagenes" | wc -l)"
+comprobar "retener poda las colgantes de despliegue (sin -a)" 1 \
+  "$(grep -cx 'image prune -f --filter label=es.talveg.despliegue IMAGEN_TAG=' "$DOCKER_LOG")"
 # Historial largo (hallazgo de Codex): 20000 SHAs distintos superan el búfer de
 # la tubería; con `| head -n N` el SIGPIPE abortaba retener sin borrar nada.
 escenario produccion "$(sha 23)"

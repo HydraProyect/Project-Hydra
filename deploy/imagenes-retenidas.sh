@@ -127,6 +127,13 @@ retener_imagenes() {
         docker image rm "${REPOSITORIO_IMAGEN_DESPLIEGUE}:${etiqueta}" > /dev/null \
             || echo "::warning::no se pudo retirar ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${etiqueta}." >&2
     done < <(docker image ls "$REPOSITORIO_IMAGEN_DESPLIEGUE" --format '{{.Tag}}')
+
+    # Redesplegar un SHA con otra imagen (otro ID) deja la anterior sin
+    # etiqueta: el bucle de arriba ya no la ve y liberar-disco.sh la excluye por
+    # su es.talveg.despliegue (hallazgo de Codex). Sin -a, `image prune` solo
+    # quita las colgantes, y nunca una que use un contenedor.
+    docker image prune -f --filter "label=es.talveg.despliegue" > /dev/null \
+        || echo "::warning::no se pudieron retirar las imágenes de despliegue sin etiqueta." >&2
 }
 
 main_imagenes_retenidas() {
