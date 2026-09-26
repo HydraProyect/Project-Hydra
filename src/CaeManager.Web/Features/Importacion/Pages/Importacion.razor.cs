@@ -601,6 +601,14 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
     private bool TienePlan => _planSimple is not null || _planCombinada is not null;
 
+    /// <summary>
+    /// P1-E2b: hay un archivo analizado cuyo plan todavía no se ha importado (con lo que
+    /// se haya marcado en el paso 4). Salir lo tira y obliga a volver a subirlo y
+    /// revisarlo; lo lee AvisoCambiosSinGuardar. Tras importar hay reporte y ya no
+    /// pregunta: los enlaces del paso 5 salen sin aviso.
+    /// </summary>
+    private bool HayCambiosSinGuardar => TienePlan && _resultadoSimple is null && _resultadoCombinada is null;
+
     private void ContinuarARevisarPlan()
     {
         if (!TienePlan) return;

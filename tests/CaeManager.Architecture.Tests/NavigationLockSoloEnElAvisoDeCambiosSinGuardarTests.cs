@@ -37,6 +37,7 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     private static readonly string[] FormulariosProtegidos =
     [
         "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
+        "src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor",
         "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
         "src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor",
         "src/CaeManager.Web/Features/Documentos/Components/FirmaEnCampoTab.razor",
@@ -45,7 +46,10 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
         "src/CaeManager.Web/Features/Documentos/Components/RevisionIaTab.razor",
         "src/CaeManager.Web/Features/Documentos/Pages/SubidaMasiva.razor",
         "src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor",
+        "src/CaeManager.Web/Features/Facturacion/Pages/Facturacion.razor",
+        "src/CaeManager.Web/Features/Importacion/Pages/Importacion.razor",
         "src/CaeManager.Web/Features/Incidencias/Pages/Incidencias.razor",
+        "src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor",
         "src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor",
         "src/CaeManager.Web/Features/Retencion/Pages/Retencion.razor",
         "src/CaeManager.Web/Features/Subcontratas/Pages/Subcontratas.razor",

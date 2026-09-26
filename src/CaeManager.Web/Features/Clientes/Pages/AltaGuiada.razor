@@ -98,7 +98,7 @@
                        Deshabilitado="@(_empresaExistente && !_cargandoCatalogoEmpresas && _empresasCatalogo.Count == 0)">
                     @(_empresaExistente ? "Vincular y continuar" : "Guardar y continuar")
                 </Boton>
-                <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_guardandoEmpresa" OnClick='() => NavigationManager.NavigateTo("/clientes")'>
+                <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_guardandoEmpresa" OnClick="Cancelar">
                     Cancelar
                 </Boton>
             </div>
@@ -322,4 +322,6 @@
         }
     </Tarjeta>
 </div>
+
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" />
 </LimiteDeErrores>

@@ -36,7 +36,7 @@ namespace CaeManager.Web.Tests;
 /// servidor, excepción) sin perder lo tecleado, que confirmar no siga adelante
 /// sobre un guardado fallido, y las guardas de carga vigente y de cancelación.
 /// </summary>
-public class ConfigurarPlantillaEditorGen2Tests : BunitContext
+public partial class ConfigurarPlantillaEditorGen2Tests : BunitContext
 {
     private const string Modulo = "./js/editorPlantilla.js";
 
@@ -165,6 +165,8 @@ public class ConfigurarPlantillaEditorGen2Tests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<IFileStorageService, AlmacenamientoFalso>();
         Services.AddScoped<IRasterizadorPaginasPdfService, RasterizadorFalso>();
+        // Los textos del aviso de cambios sin guardar (P1-E2b) salen de TextosComunes.
+        Services.AddLocalization();
     }
 
     private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
