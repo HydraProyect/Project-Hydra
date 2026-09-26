@@ -227,6 +227,14 @@ l_up="$(grep -n ' app-azul IMAGEN_TAG='"$C" "$LOG" | head -1 | cut -d: -f1)"
 comprobar "  y eso va antes del up" si "$([ -n "$l_saca" ] && [ -n "$l_up" ] && [ "$l_saca" -lt "$l_up" ] && echo si || echo "no ($l_saca/$l_up)")"
 comprobar "  y termina con azul activa y verde drenando" "0 to caemanager-app-azul:8080 caemanager-app-verde:8080" "$codigo $(ranuras produccion)"
 
+echo "desplegar: relevo a la MISMA imagen (cambio de configuración, p. ej. P1-F3)"
+limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo -- desplegar produccion "$A"
+comprobar "arranca la otra ranura con la misma imagen y drena la anterior" \
+  "0 to caemanager-app-verde:8080 caemanager-app-azul:8080 caemanager:$A" \
+  "$codigo $(ranuras produccion) $(cat "$ESTADO/c/caemanager-app-verde/imagen")"
+comprobar "  la anterior sigue en marcha, drenando" true "$(en_marcha caemanager-app-azul)"
+
 echo "desplegar: saliente huérfana (su drenaje murió, p. ej. tras reiniciar el VPS)"
 limpio; contenedor caemanager-app-azul "$A"; contenedor caemanager-app "$C"
 fichero produccion "to caemanager-app-azul:8080 caemanager-app:8080"; fichero staging "to caemanager-staging-app-azul:8080"
