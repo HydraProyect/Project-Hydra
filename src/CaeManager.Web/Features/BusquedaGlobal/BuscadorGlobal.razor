@@ -4,7 +4,9 @@
 @inject MediatR.IMediator Mediator
 @inject NavigationManager Navigation
 @using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
+<LimiteDeErrores Islote="this">
 @if (_visible)
 {
     var grupos = GruposVisibles;
@@ -111,3 +113,4 @@
         </div>
     </div>
 }
+</LimiteDeErrores>

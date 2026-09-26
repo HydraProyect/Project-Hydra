@@ -1,6 +1,7 @@
 @implements IDisposable
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager NavigationManager
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
 @*
     Sin marcado: devuelve a la pantalla de acceso a quien tenía sesión y la ha
@@ -18,6 +19,8 @@
     Solo actúa en la transición autenticado → anónimo: la pantalla de acceso
     también usa este layout y nace anónima.
 *@
+
+<LimiteDeErrores Islote="this" />
 
 @code {
     private bool _teniaSesion;

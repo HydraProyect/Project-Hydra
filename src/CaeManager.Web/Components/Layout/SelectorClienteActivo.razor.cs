@@ -21,7 +21,7 @@ namespace CaeManager.Web.Components.Layout;
 /// secundario es que el selector ya no necesita circuito interactivo para
 /// funcionar, porque el envío lo hace el propio navegador.
 /// </summary>
-public partial class SelectorClienteActivo : ComponentBase
+public partial class SelectorClienteActivo
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;

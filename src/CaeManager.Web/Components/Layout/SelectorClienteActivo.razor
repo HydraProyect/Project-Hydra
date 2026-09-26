@@ -1,3 +1,4 @@
+@inherits CaeManager.Web.Components.IsloteInteractivo
 @*
     Project-Hydra-Negocio/tecnico/ADR-004-delegacion-consultoras-cae.md § 6 y § 12.1: solo se muestra
     cuando el usuario tiene más de un cliente autorizado (Operador Delegado
@@ -10,6 +11,7 @@
     de Blazor esté interactivo — el submit lo hace el navegador, sin viaje
     por SignalR.
 *@
+<LimiteDeErrores Islote="this">
 @if (_clientes is { Count: > 1 })
 {
     <form method="post" action="/cuenta/cliente-activo">
@@ -35,3 +37,4 @@
         <noscript><button type="submit">Cambiar</button></noscript>
     </form>
 }
+</LimiteDeErrores>

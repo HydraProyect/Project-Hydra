@@ -25,7 +25,7 @@ namespace CaeManager.Web.Features.IncorporacionCartera.Components;
 /// solo omite las que no puede resolver (las suyas propias).
 /// «Más tarde» pospone las que hay ahora; una solicitud nueva vuelve a abrirlo.
 /// </summary>
-public partial class AvisoSolicitudesCartera : ComponentBase, IDisposable
+public partial class AvisoSolicitudesCartera : IDisposable
 {
     private const int MaximoEnAviso = 3;
     private static readonly TimeSpan IntervaloRefresco = TimeSpan.FromSeconds(60);

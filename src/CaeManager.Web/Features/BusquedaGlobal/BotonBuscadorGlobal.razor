@@ -1,6 +1,9 @@
 @rendermode InteractiveServer
 @inject BusquedaGlobalService BusquedaGlobalService
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
+<LimiteDeErrores Islote="this">
 <button type="button" class="boton-buscador-global" aria-label="Buscar" @onclick="() => BusquedaGlobalService.Abrir()">
     <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /> <span class="boton-buscador-global-texto">Buscar</span> <span class="atajo-teclado">Ctrl+K</span>
 </button>
+</LimiteDeErrores>

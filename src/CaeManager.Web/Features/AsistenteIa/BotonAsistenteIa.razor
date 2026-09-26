@@ -6,13 +6,16 @@
 @using Microsoft.Extensions.Options
 @inject IOptions<AnthropicOptions> Opciones
 @inject IStringLocalizer<TextosAsistenteIa> Textos
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
 @* Sin Anthropic:ApiKey configurada el botón ni se muestra — el chat queda
    completamente inerte en vez de mostrar algo roto (mismo principio que
    Sentry/Backups: funciona sin configurar, se activa con una variable). *@
+<LimiteDeErrores Islote="this">
 @if (!string.IsNullOrWhiteSpace(Opciones.Value.ApiKey))
 {
     <button type="button" class="boton-asistente-ia" @onclick="() => AsistenteIaService.Abrir()" title="@Textos["Titulo"]">
         <Icono Nombre="chat" Tamano="TamanoIcono.Medio" />
     </button>
 }
+</LimiteDeErrores>

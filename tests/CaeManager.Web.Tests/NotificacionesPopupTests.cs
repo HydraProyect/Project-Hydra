@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.Common;
 using CaeManager.Application.Notificaciones.Commands.MarcarNotificacionLeida;
 using CaeManager.Application.Notificaciones.Queries.ObtenerNotificacionesPendientes;
 using CaeManager.Web.Components.Layout;
@@ -7,6 +8,7 @@ using FluentAssertions;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 
 namespace CaeManager.Web.Tests;
@@ -23,7 +25,11 @@ namespace CaeManager.Web.Tests;
 /// <para>
 /// <b>Lo que SÍ observa:</b> si <c>OnInitializedAsync</c> deja escapar la
 /// excepción (que en un circuito real tumba el componente entero — "Unhandled
-/// exception in circuit") y si queda registrada.
+/// exception in circuit") y por dónde queda registrada: la carrera, como aviso
+/// en el log y nada más; un fallo real, como error en Sentry y con el aviso
+/// compacto del islote (P1-E1c: el popup es IsloteInteractivo y ya no deja
+/// escapar ninguna excepción al circuito, así que "no desaparecer" se mide en
+/// Sentry y en la pantalla, no en que el render lance).
 /// </para>
 /// <para>
 /// <b>Lo que NO observa:</b> que un circuito real de Blazor Server se
@@ -33,9 +39,24 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class NotificacionesPopupTests : BunitContext
 {
+    private readonly AlertaOperativaQueCuenta _alertas = new();
+
     public NotificacionesPopupTests()
     {
         Services.AddLocalization();
+        // Lo que necesita LimiteDeErrores para registrar un fallo contenido (P1-E1c).
+        Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        Services.AddSingleton<IAlertaOperativa>(_alertas);
+    }
+
+    private sealed class AlertaOperativaQueCuenta : IAlertaOperativa
+    {
+        public List<Exception> Capturadas { get; } = [];
+        public void Emitir(string mensaje, NivelAlertaOperativa nivel) { }
+        public void CapturarExcepcion(Exception excepcion) => Capturadas.Add(excepcion);
+        public void DejarMigaDePan(string mensaje) { }
+        public IDisposable IniciarAmbitoDeCaptura() => new Nada();
+        private sealed class Nada : IDisposable { public void Dispose() { } }
     }
 
     private sealed class MediatorConPendientes(params NotificacionDto[] pendientes) : IMediator
@@ -103,6 +124,8 @@ public class NotificacionesPopupTests : BunitContext
         var logger = new LoggerQueGuarda();
         Services.AddScoped<IMediator>(_ => new MediatorQueFalla(excepcionDeMediator));
         Services.AddSingleton<ILogger<ExcepcionDeCircuitoDesconectado>>(logger);
+        // Después de registrar: SetRendererInfo ya resuelve servicios. El aviso del límite lo lee.
+        SetRendererInfo(new Microsoft.AspNetCore.Components.RendererInfo("Server", isInteractive: true));
         return logger;
     }
 
@@ -119,6 +142,7 @@ public class NotificacionesPopupTests : BunitContext
 
         render.Should().NotThrow("la carrera de desconexión no debe tumbar el circuito");
         logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Warning && e.Mensaje.Contains("NpgsqlException"));
+        _alertas.Capturadas.Should().BeEmpty("la carrera no es un fallo que alertar: nadie espera ya el popup");
     }
 
     [Fact]
@@ -128,11 +152,14 @@ public class NotificacionesPopupTests : BunitContext
         // servidor SÍ llegó a reportar (aquí, una violación de constraint) —
         // tragarlo sería peor que el ruido de la carrera.
         var excepcion = new PostgresException("duplicate key value violates unique constraint", "ERROR", "ERROR", "23505");
-        Preparar(excepcion);
+        var logger = Preparar(excepcion);
 
-        var render = () => Render<NotificacionesPopup>();
+        var cut = Render<NotificacionesPopup>();
 
-        render.Should().Throw<PostgresException>("un error real de PostgreSQL no se traga");
+        _alertas.Capturadas.Should().ContainSingle().Which.Should().BeSameAs(excepcion,
+            "un error real de PostgreSQL no se traga: llega a Sentry como error");
+        logger.Entradas.Should().BeEmpty("no se confunde con la carrera de desconexión");
+        cut.Find("[data-limite-errores-compacto]");
     }
 
     [Fact]
@@ -141,12 +168,14 @@ public class NotificacionesPopupTests : BunitContext
         // Segundo contrario: la base inalcanzable (IsTransient == true, por
         // llevar un IOException dentro) tampoco es esta carrera.
         var excepcion = new NpgsqlException("Exception while reading from stream", new IOException("Connection reset by peer"));
-        Preparar(excepcion);
+        var logger = Preparar(excepcion);
 
-        var render = () => Render<NotificacionesPopup>();
+        var cut = Render<NotificacionesPopup>();
 
-        render.Should().Throw<NpgsqlException>("una base inalcanzable no es la carrera de desconexión de circuito")
-            .Which.InnerException.Should().BeOfType<IOException>();
+        _alertas.Capturadas.Should().ContainSingle().Which.Should().BeSameAs(excepcion,
+            "una base inalcanzable no es la carrera de desconexión de circuito: llega a Sentry como error");
+        logger.Entradas.Should().BeEmpty("no se confunde con la carrera de desconexión");
+        cut.Find("[data-limite-errores-compacto]");
     }
 
     [Fact]

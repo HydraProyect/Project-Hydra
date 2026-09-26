@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Components.Forms;
 
 namespace CaeManager.Web.Components.Layout;
 
-public partial class SelectorVistaDemo : ComponentBase
+public partial class SelectorVistaDemo
 {
     [Inject] private IServiceProvider Servicios { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;

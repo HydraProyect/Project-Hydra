@@ -3,6 +3,7 @@
 @inject IJSRuntime JSRuntime
 @inject CaeManager.Web.Services.TrazaSoporteService Traza
 @inject CaeManager.Application.Common.IClienteActivoSeleccionado ClienteActivoSeleccionado
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
 @*
     Sin marcado propio salvo el aviso: este componente existe para registrar,
@@ -12,6 +13,7 @@
     el tenant de un cliente debe ver que está dentro de datos ajenos y que
     queda registrado. Sin él, es fácil olvidar en qué organización estás.
 *@
+<LimiteDeErrores Islote="this">
 @if (_esSesionDeSoporte)
 {
     <div class="aviso-sesion-soporte" role="status">
@@ -35,3 +37,4 @@ else if (_sesionPrivilegiadaId is not null)
         </form>
     </div>
 }
+</LimiteDeErrores>

@@ -70,7 +70,13 @@
    @rendermode explícito o nunca recibe eventos interactivos (bug real
    encontrado al construir el buscador global: los toasts llevaban toda la
    Fase 2 sin funcionar por este mismo motivo, sin que ningún test lo
-   hubiera detectado). *@
+   hubiera detectado).
+
+   Cada componente con @rendermode="InteractiveServer" de este layout es otra raíz
+   del mismo circuito que la página: una excepción no contenida en cualquiera de
+   ellos tumba la pantalla entera. Por eso cada uno hereda de IsloteInteractivo y
+   envuelve su marcado en <LimiteDeErrores Islote="this"> (P1-E1c; lo exige
+   IslotesInteractivosConLimiteDeErroresTests). Uno nuevo tiene que hacer lo mismo. *@
 <AnfitrionToasts @rendermode="InteractiveServer" />
 <CaeManager.Web.Features.BusquedaGlobal.BuscadorGlobal @rendermode="InteractiveServer" />
 <AuthorizeView>

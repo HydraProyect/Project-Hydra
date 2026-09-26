@@ -1,0 +1,15 @@
+/* Aviso compacto de un islote interactivo (P1-E1c): cabe en la cabecera junto a los
+   selectores. *-700 sobre *-50, como el semáforo de Badge, por contraste WCAG AA. */
+.limite-errores-compacto {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    background-color: var(--color-danger-50);
+    color: var(--color-danger-700);
+    font: var(--font-label-md);
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    white-space: nowrap;
+}

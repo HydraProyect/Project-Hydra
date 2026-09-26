@@ -9,7 +9,9 @@
 @rendermode InteractiveServer
 @implements IDisposable
 @inject NavigationManager Navigation
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
+<LimiteDeErrores Islote="this">
 <button type="button" class="boton-menu-movil" aria-label="Abrir menú de navegación" @onclick="Abrir">
     <Icono Nombre="menu" />
 </button>
@@ -17,6 +19,7 @@
 <Drawer Visible="_visible" VisibleChanged="v => _visible = v" Titulo="Menú">
     <NavMenu />
 </Drawer>
+</LimiteDeErrores>
 
 @code {
     private bool _visible;

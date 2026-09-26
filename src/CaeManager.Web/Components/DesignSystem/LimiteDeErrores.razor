@@ -31,6 +31,13 @@
     (ciclo de vida y manejadores), que ningún límite interior puede ver. Cuando la página
     ha fallado, este límite muestra el aviso y el reintento recarga la página entera.
 
+    Lo mismo para los islotes interactivos (P1-E1c): cada componente de MainLayout con
+    @rendermode="InteractiveServer" y cada componente sin ruta con @rendermode propio es
+    otra raíz del MISMO circuito que la página, y una excepción no contenida en uno de ellos
+    tumba la pantalla entera. Heredan de IsloteInteractivo y envuelven su marcado en
+    <LimiteDeErrores Islote="this">; con Islote el aviso es compacto (icono, "No disponible"
+    y reintento en línea), porque el estado vacío de región no cabe en una cabecera.
+
     El aviso nunca enseña el mensaje de la excepción ni su tipo: puede llevar datos del
     Tenant propietario o detalles internos. Esos van al log y a Sentry, no a la pantalla.
 
@@ -39,9 +46,26 @@
     precondición para pintar una página sana.
 *@
 
-@if (CurrentException is null && Pagina?.FalloDePagina != true)
+@if (CurrentException is null && Raiz?.FalloDeRaiz != true)
 {
     @ChildContent
+}
+else if (Islote is not null)
+{
+    var comunes = Servicios.GetRequiredService<IStringLocalizer<TextosComunes>>();
+    <span class="limite-errores-compacto" role="alert" data-limite-errores data-limite-errores-compacto
+          title="@comunes["LimiteErroresCompactoDescripcion"]">
+        <Icono Nombre="error-circulo" Tamano="TamanoIcono.Pequeno" />
+        <span>@comunes["LimiteErroresCompacto"]</span>
+        @if (RendererInfo.IsInteractive && !Islote.FalloDeRaiz)
+        {
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="Recover">@comunes["Reintentar"]</Boton>
+        }
+        else
+        {
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Href="@Navigation.Uri" data-enhance-nav="false">@comunes["Reintentar"]</Boton>
+        }
+    </span>
 }
 else
 {
@@ -51,7 +75,7 @@ else
                      Titulo="@comunes["LimiteErroresTitulo"]"
                      Descripcion="@comunes["LimiteErroresDescripcion"]">
             <Accion>
-                @if (RendererInfo.IsInteractive && Pagina?.FalloDePagina != true)
+                @if (RendererInfo.IsInteractive && Pagina?.FalloDeRaiz != true)
                 {
                     <Boton Variante="VarianteBoton.Secundario" OnClick="Recover">@comunes["Reintentar"]</Boton>
                 }
@@ -59,7 +83,7 @@ else
                 {
                     @* Pintado en estático (el límite de MainLayout, o un prerenderizado) no hay
                        circuito que reciba un @onclick; y si lo que falló es la propia página
-                       (Pagina.FalloDePagina), su estado no es de fiar. En los dos casos el
+                       (Pagina.FalloDeRaiz), su estado no es de fiar. En los dos casos el
                        reintento es volver a pedir la página entera. Enlace y no un onclick en
                        línea, porque la CSP (script-src 'self', ver CabecerasSeguridadExtensions)
                        bloquea los manejadores inline. *@
@@ -73,10 +97,19 @@ else
 @code {
     /// <summary>
     /// La página InteractiveServer que envuelve este límite (P1-E1b). Si su ciclo de vida o
-    /// un manejador suyo lanzó (<see cref="PaginaInteractiva.FalloDePagina"/>), el límite
-    /// muestra el aviso aunque su propio contenido no haya fallado.
+    /// un manejador suyo lanzó (<see cref="RaizInteractiva.FalloDeRaiz"/>), el límite
+    /// muestra el aviso de región aunque su propio contenido no haya fallado.
     /// </summary>
     [Parameter] public PaginaInteractiva? Pagina { get; set; }
+
+    /// <summary>
+    /// El islote interactivo que envuelve este límite (P1-E1c). Como <see cref="Pagina"/>,
+    /// pero con el aviso compacto en línea. Se pasa uno u otro, nunca los dos (lo vigilan
+    /// los trinquetes de Architecture.Tests, que exigen la forma exacta de la apertura).
+    /// </summary>
+    [Parameter] public IsloteInteractivo? Islote { get; set; }
+
+    private RaizInteractiva? Raiz => (RaizInteractiva?)Pagina ?? Islote;
 
     protected override Task OnErrorAsync(Exception exception)
     {

@@ -1,5 +1,7 @@
 @using CaeManager.Application.Common
+@inherits CaeManager.Web.Components.IsloteInteractivo
 
+<LimiteDeErrores Islote="this">
 @if (_visible)
 {
     <div class="asistente-superposicion" @onmousedown="() => _mouseDownEnSuperposicion = true" @onclick="ManejarClicSuperposicion">
@@ -54,3 +56,4 @@
         </div>
     </div>
 }
+</LimiteDeErrores>

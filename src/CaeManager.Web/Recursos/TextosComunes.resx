@@ -51,6 +51,12 @@
   <data name="LimiteErroresDescripcion" xml:space="preserve">
     <value>Esta parte de la pantalla no ha podido cargarse. El resto sigue funcionando.</value>
   </data>
+  <data name="LimiteErroresCompacto" xml:space="preserve">
+    <value>No disponible</value>
+  </data>
+  <data name="LimiteErroresCompactoDescripcion" xml:space="preserve">
+    <value>Esta parte no ha podido cargarse. El resto de la pantalla sigue funcionando.</value>
+  </data>
   <data name="CambiosSinGuardarTitulo" xml:space="preserve">
     <value>¿Salir sin guardar?</value>
   </data>
