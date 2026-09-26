@@ -1,4 +1,4 @@
-using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
+using CaeManager.Application.Usuarios.Commands.DesactivarGestorCaeConCartera;
 using System.Security.Claims;
 using AngleSharp.Dom;
 using Bunit;
@@ -320,11 +320,11 @@ public class UsuariosGen2Tests : BunitContext
         /// </summary>
         public IReadOnlyList<string> RolesNoAsignables { get; set; } = [];
 
-        /// <summary>FS-25: el Cliente empresarial cuya reasignación falla, si alguno.</summary>
-        public Guid? FallaReasignarCliente { get; set; }
+        /// <summary>FS-25: lo que responde Application a pasar la cartera y desactivar.</summary>
+        public Result RespuestaDesactivarConCartera { get; set; } = Result.Exito();
 
-        /// <summary>FS-25: el Cliente empresarial cuya reasignación lanza una excepción, si alguno.</summary>
-        public Guid? LanzaReasignarCliente { get; set; }
+        /// <summary>FS-25: si pasar la cartera y desactivar lanza en vez de responder.</summary>
+        public bool LanzaDesactivarConCartera { get; set; }
 
         /// <summary>Si devuelve una tarea para la petición, esa es la respuesta: permite retenerla y resolverla fuera de orden.</summary>
         public Func<object, Task<object?>?>? Retener { get; set; }
@@ -360,11 +360,9 @@ public class UsuariosGen2Tests : BunitContext
             ObtenerClientePorIdQuery => null,
             ObtenerRolesNoAsignablesQuery => RolesNoAsignables,
             RestablecerSegundoFactorCommand => Result.Exito(),
-            ReasignarEjecutivoClienteCommand c when LanzaReasignarCliente == c.ClienteId =>
+            DesactivarGestorCaeConCarteraCommand when LanzaDesactivarConCartera =>
                 throw new InvalidOperationException("la base se cayó"),
-            ReasignarEjecutivoClienteCommand c => FallaReasignarCliente == c.ClienteId
-                ? Result.Fallo(Error.Crear("Cliente.NoEncontrado", "Un Cliente empresarial ya no estaba."))
-                : Result.Exito(),
+            DesactivarGestorCaeConCarteraCommand => RespuestaDesactivarConCartera,
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -1793,11 +1791,12 @@ public class UsuariosGen2Tests : BunitContext
 
     /// <summary>
     /// A un Gestor CAE con Clientes empresariales en su cartera se le ofrece pasarla a otro
-    /// Gestor CAE activo (ni él mismo ni uno desactivado). Elegido, cada Cliente se reasigna
-    /// con ReasignarEjecutivoClienteCommand y después se desactiva la cuenta.
+    /// Gestor CAE activo (ni él mismo ni uno desactivado). Elegido, la pantalla envía un solo
+    /// DesactivarGestorCaeConCarteraCommand con la cartera que mostró: pasar y desactivar
+    /// van juntos, en una transacción, en Application.
     /// </summary>
     [Fact]
-    public async Task Desactivar_a_un_Gestor_CAE_con_cartera_ofrece_pasarla_a_otro_y_la_pasa_antes_de_desactivar()
+    public async Task Desactivar_a_un_Gestor_CAE_con_cartera_ofrece_pasarla_y_lo_hace_en_un_solo_Command()
     {
         var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
         var inactivo = Cuenta(Guid.NewGuid(), "baja@talveg.es", "Gestor De Baja", activa: false);
@@ -1821,9 +1820,11 @@ public class UsuariosGen2Tests : BunitContext
         await dialogo.QuerySelector("select")!.ChangeAsync(new ChangeEventArgs { Value = IkerId.ToString() });
         await ConfirmarDesactivacionAsync(cut);
 
-        _mediador.Enviadas.OfType<ReasignarEjecutivoClienteCommand>().Should().BeEquivalentTo(
-            [new ReasignarEjecutivoClienteCommand(ClienteUno, IkerId), new ReasignarEjecutivoClienteCommand(ClienteDos, IkerId)]);
-        _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue, "pasada la cartera, se desactiva");
+        var enviado = _mediador.Enviadas.OfType<DesactivarGestorCaeConCarteraCommand>().Should().ContainSingle().Subject;
+        enviado.UsuarioId.Should().Be(AnderId);
+        enviado.DestinoUsuarioId.Should().Be(IkerId);
+        enviado.ClienteIdsConfirmados.Should().BeEquivalentTo([ClienteUno, ClienteDos]);
+        _mediador.Enviadas.OfType<CambiarActivacionUsuarioCommand>().Should().BeEmpty("la desactivación va dentro del mismo Command");
         _toasts.Mensajes.Select(m => m.Mensaje).Should().Contain("2 Cliente(s) empresarial(es) pasaron a Iker Larrañaga.");
     }
 
@@ -1841,66 +1842,13 @@ public class UsuariosGen2Tests : BunitContext
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
         await ConfirmarDesactivacionAsync(cut);
 
-        _mediador.Enviadas.OfType<ReasignarEjecutivoClienteCommand>().Should().BeEmpty();
+        _mediador.Enviadas.OfType<DesactivarGestorCaeConCarteraCommand>().Should().BeEmpty();
         _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue);
     }
 
-    /// <summary>Si un Cliente no se pudo pasar, la cuenta no se desactiva y se dice cuántos pasaron.</summary>
+    /// <summary>Si Application rechaza (p. ej. el destino ya no es un Gestor CAE activo), se dice y no se toca nada.</summary>
     [Fact]
-    public async Task Si_la_cartera_no_pasa_entera_la_cuenta_sigue_activa_y_se_dice()
-    {
-        var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
-        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
-        Sembrar(
-            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
-            (ander, RolesIdentidad.GestorCae),
-            (iker, RolesIdentidad.GestorCae));
-        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(false, [ClienteUno, ClienteDos]) };
-        _fuente.EnRol = _ => [ander, iker];
-        _mediador.FallaReasignarCliente = ClienteUno;
-
-        var cut = Renderizar(actorId: MartaId);
-        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
-        await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = IkerId.ToString() });
-        await ConfirmarDesactivacionAsync(cut);
-
-        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull("sin la cartera entera pasada, no se desactiva");
-        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should()
-            .StartWith("Solo 0 de 2 Clientes empresariales pasaron al nuevo Gestor CAE, así que la cuenta sigue activa.");
-        _mediador.Enviadas.OfType<ReasignarEjecutivoClienteCommand>().Should().ContainSingle(
-            "un fallo devuelto también detiene el lote: el DbContext del circuito puede quedar con cambios a medias");
-    }
-
-    /// <summary>
-    /// Revisión Codex (P1): una excepción a mitad del lote detiene el lote —el DbContext
-    /// del circuito puede quedar con cambios a medias— y se dice; la cuenta sigue activa.
-    /// </summary>
-    [Fact]
-    public async Task Una_excepcion_al_pasar_un_cliente_se_dice_y_no_desactiva()
-    {
-        var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
-        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
-        Sembrar(
-            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
-            (ander, RolesIdentidad.GestorCae),
-            (iker, RolesIdentidad.GestorCae));
-        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(false, [ClienteUno, ClienteDos]) };
-        _fuente.EnRol = _ => [ander, iker];
-        _mediador.LanzaReasignarCliente = ClienteUno;
-
-        var cut = Renderizar(actorId: MartaId);
-        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
-        await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = IkerId.ToString() });
-        await ConfirmarDesactivacionAsync(cut);
-
-        _mediador.Enviadas.OfType<ReasignarEjecutivoClienteCommand>().Should().ContainSingle("el lote se detiene en la excepción");
-        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
-        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().StartWith("Solo 0 de 2");
-    }
-
-    /// <summary>Revisión Codex (P2): si el destino se desactivó con el diálogo abierto, no se pasa nada.</summary>
-    [Fact]
-    public async Task Si_el_destino_ya_no_esta_activo_al_confirmar_no_se_pasa_nada_ni_se_desactiva()
+    public async Task Si_Application_rechaza_el_traspaso_se_dice_y_la_cuenta_sigue_activa()
     {
         var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
         var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
@@ -1910,15 +1858,70 @@ public class UsuariosGen2Tests : BunitContext
             (iker, RolesIdentidad.GestorCae));
         _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(false, [ClienteUno]) };
         _fuente.EnRol = _ => [ander, iker];
+        _mediador.RespuestaDesactivarConCartera = Result.Fallo(Error.Crear(
+            "Cliente.DestinoInactivo", "Ese Gestor CAE tiene la cuenta desactivada: elige otro."));
 
         var cut = Renderizar(actorId: MartaId);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
         await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = IkerId.ToString() });
-        iker.Desactivar();
         await ConfirmarDesactivacionAsync(cut);
 
-        _mediador.Enviadas.OfType<ReasignarEjecutivoClienteCommand>().Should().BeEmpty();
         _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
-        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().StartWith("El Gestor CAE elegido ya no está activo.");
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be(
+            "Ese Gestor CAE tiene la cuenta desactivada: elige otro. No se ha pasado ningún Cliente empresarial ni se ha desactivado la cuenta.");
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_excepcion_al_pasar_la_cartera_se_dice_y_no_desactiva()
+    {
+        var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae),
+            (iker, RolesIdentidad.GestorCae));
+        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(false, [ClienteUno, ClienteDos]) };
+        _fuente.EnRol = _ => [ander, iker];
+        _mediador.LanzaDesactivarConCartera = true;
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = IkerId.ToString() });
+        await ConfirmarDesactivacionAsync(cut);
+
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().StartWith("No pudimos pasar la cartera por un error inesperado.");
+    }
+
+    /// <summary>
+    /// Revisión Codex de la PR #931 (hallazgo 3): si al confirmar la cartera ya no es la que
+    /// se mostró, no se toca nada y se vuelve a preguntar con la cartera de ahora.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_cartera_cambio_con_el_dialogo_abierto_se_vuelve_a_preguntar_con_la_nueva()
+    {
+        var clienteTres = Guid.NewGuid();
+        var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae),
+            (iker, RolesIdentidad.GestorCae));
+        IReadOnlyList<Guid> cartera = [ClienteUno];
+        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(false, cartera) };
+        _fuente.EnRol = _ => [ander, iker];
+        _mediador.RespuestaDesactivarConCartera = Result.Fallo(DesactivarGestorCaeConCarteraCommandHandler.CarteraCambiada);
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = IkerId.ToString() });
+        cartera = [ClienteUno, clienteTres];
+        await ConfirmarDesactivacionAsync(cut);
+
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be(DesactivarGestorCaeConCarteraCommandHandler.CarteraCambiada.Mensaje);
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+        cut.WaitForAssertion(() =>
+            cut.Find("[role=dialog]").TextContent.Should().Contain("Tiene 2 Cliente(s) empresarial(es)"));
     }
 }

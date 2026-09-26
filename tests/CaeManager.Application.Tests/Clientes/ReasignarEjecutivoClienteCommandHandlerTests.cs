@@ -26,11 +26,35 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         DirectorioDestinosCarteraFalso? directorio = null,
         DescarteCambiosPendientesFalso? descarte = null,
         AsignacionesOperativasWriterFalso? writer = null) =>
-        new(clienteRepositorio, configuracionIaRepositorio, notificacionRepositorio, unitOfWork,
-            new CurrentUserServiceFalso(ActorId, rol), alcanceDatos ?? new AlcanceDatosServiceFalso(),
-            writer ?? new AsignacionesOperativasWriterFalso(),
-            directorio ?? new DirectorioDestinosCarteraFalso(new DestinoCartera(true, "GestorCae", ActorId, false)),
-            descarte ?? new DescarteCambiosPendientesFalso());
+        CrearHandlerCon(new CurrentUserServiceFalso(ActorId, rol), clienteRepositorio, configuracionIaRepositorio,
+            notificacionRepositorio, unitOfWork, alcanceDatos, directorio, descarte, writer);
+
+    private static ReasignarEjecutivoClienteCommandHandler CrearHandlerCon(
+        CurrentUserServiceFalso usuario,
+        EmpresaRepositorioFalso clienteRepositorio,
+        ConfiguracionIaDocumentoClienteRepositorioFalso configuracionIaRepositorio,
+        NotificacionUsuarioRepositorioFalso notificacionRepositorio,
+        UnitOfWorkFalso unitOfWork,
+        AlcanceDatosServiceFalso? alcanceDatos,
+        DirectorioDestinosCarteraFalso? directorio,
+        DescarteCambiosPendientesFalso? descarte,
+        AsignacionesOperativasWriterFalso? writer) =>
+        new(Reasignador(usuario, clienteRepositorio, configuracionIaRepositorio, notificacionRepositorio,
+                alcanceDatos, directorio, writer),
+            unitOfWork, usuario, descarte ?? new DescarteCambiosPendientesFalso());
+
+    internal static ReasignadorCarteraCliente Reasignador(
+        CurrentUserServiceFalso usuario,
+        EmpresaRepositorioFalso clienteRepositorio,
+        ConfiguracionIaDocumentoClienteRepositorioFalso? configuracionIaRepositorio = null,
+        NotificacionUsuarioRepositorioFalso? notificacionRepositorio = null,
+        AlcanceDatosServiceFalso? alcanceDatos = null,
+        DirectorioDestinosCarteraFalso? directorio = null,
+        AsignacionesOperativasWriterFalso? writer = null) =>
+        new(clienteRepositorio, configuracionIaRepositorio ?? new ConfiguracionIaDocumentoClienteRepositorioFalso(),
+            notificacionRepositorio ?? new NotificacionUsuarioRepositorioFalso(), usuario,
+            alcanceDatos ?? new AlcanceDatosServiceFalso(), writer ?? new AsignacionesOperativasWriterFalso(),
+            directorio ?? new DirectorioDestinosCarteraFalso(new DestinoCartera(true, "GestorCae", ActorId, false)));
 
     [Fact]
     public async Task Reasigna_y_avisa_al_gestor_anterior_y_al_nuevo()
@@ -301,10 +325,24 @@ public class DirectorioDestinosCarteraFalso(DestinoCartera? destino) : IDirector
 {
     public List<Guid> Consultados { get; } = [];
 
+    /// <summary>
+    /// Lo que devuelve cada lectura de cartera, en orden; la última se repite. Permite
+    /// simular un Cliente empresarial que llega entre dos lecturas.
+    /// </summary>
+    public Queue<IReadOnlyList<Guid>> Carteras { get; } = new();
+
+    private IReadOnlyList<Guid> _ultimaCartera = [];
+
     public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default)
     {
         Consultados.Add(usuarioId);
         return Task.FromResult(destino);
+    }
+
+    public Task<IReadOnlyList<Guid>> ObtenerClientesEnCarteraAsync(Guid usuarioId, CancellationToken cancellationToken = default)
+    {
+        if (Carteras.TryDequeue(out var siguiente)) _ultimaCartera = siguiente;
+        return Task.FromResult(_ultimaCartera);
     }
 }
 

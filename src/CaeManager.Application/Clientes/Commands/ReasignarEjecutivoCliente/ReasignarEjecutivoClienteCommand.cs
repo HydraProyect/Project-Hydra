@@ -1,9 +1,5 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
-using CaeManager.Domain.Empresas;
-using CaeManager.Application.Operaciones;
-using CaeManager.Domain.Documentos;
-using CaeManager.Domain.Notificaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -29,19 +25,16 @@ namespace CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 /// Codex de la PR #931): tiene que ser un Gestor CAE activo alcanzable desde el
 /// Tenant activo y, para un Coordinador CAE, uno de los que le reportan — ver
 /// <see cref="ReglaDestinoCarteraCliente"/>. Quitar el Gestor CAE (destino
-/// <c>null</c>) no necesita destino que validar.
+/// <c>null</c>) no necesita destino que validar. Todo eso lo aplica
+/// <see cref="ReasignadorCarteraCliente"/>, que comparte con la desactivación de un
+/// Gestor CAE con traspaso de cartera.
 /// </summary>
 public record ReasignarEjecutivoClienteCommand(Guid ClienteId, Guid? NuevoEjecutivoUsuarioId) : ICommand;
 
 public class ReasignarEjecutivoClienteCommandHandler(
-    IEmpresaRepository empresaRepositorio,
-    IConfiguracionIaDocumentoClienteRepository configuracionIaRepositorio,
-    INotificacionUsuarioRepository notificacionRepositorio,
+    ReasignadorCarteraCliente reasignador,
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUserService,
-    IAlcanceDatosService alcanceDatos,
-    IAsignacionesOperativasWriter asignacionesWriter,
-    IDirectorioDestinosCartera directorioDestinos,
     IDescarteCambiosPendientes descarteCambios)
     : IRequestHandler<ReasignarEjecutivoClienteCommand, Result>
 {
@@ -54,53 +47,11 @@ public class ReasignarEjecutivoClienteCommandHandler(
         if (rol is null || !RolesPermitidos.Contains(rol))
             return Result.Fallo(Error.Crear("Cliente.SinPermisoReasignar", "Tu rol no puede reasignar la cartera de un cliente."));
 
-        var empresa = await empresaRepositorio.ObtenerPorIdAsync(request.ClienteId, cancellationToken);
-        if (empresa is null || !await alcanceDatos.ClienteVisibleAsync(empresa.Id, cancellationToken))
-            return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
-
-        var ejecutivoAnteriorId = empresa.EjecutivoUsuarioId;
-        var nuevoGestorId = request.NuevoEjecutivoUsuarioId;
-        if (ejecutivoAnteriorId == nuevoGestorId)
+        var reasignado = await reasignador.ReasignarAsync(request.ClienteId, request.NuevoEjecutivoUsuarioId, cancellationToken);
+        if (reasignado.EsFallido)
+            return Result.Fallo(reasignado.Error);
+        if (!reasignado.Valor)
             return Result.Exito();
-
-        if (nuevoGestorId is { } destinoId)
-        {
-            var destinoValido = await ReglaDestinoCarteraCliente.ValidarAsync(
-                destinoId, directorioDestinos, currentUserService, cancellationToken);
-            if (destinoValido.EsFallido)
-                return destinoValido;
-        }
-
-        empresa.AsignarEjecutivo(nuevoGestorId);
-
-        if (ejecutivoAnteriorId is not null)
-            notificacionRepositorio.Agregar(new NotificacionUsuario(
-                ejecutivoAnteriorId.Value,
-                "Cambio en tu cartera de clientes",
-                $"Se te ha quitado el cliente \"{empresa.RazonSocial}\" de tu cartera."));
-
-        if (nuevoGestorId is not null)
-        {
-            notificacionRepositorio.Agregar(new NotificacionUsuario(
-                nuevoGestorId.Value,
-                "Cambio en tu cartera de clientes",
-                $"Se te ha asignado el cliente \"{empresa.RazonSocial}\" en tu cartera."));
-
-            var tiposSinLecturaIa = await configuracionIaRepositorio.ObtenerNombresTiposDocumentoSinLecturaIaAsync(empresa.Id, cancellationToken);
-            if (tiposSinLecturaIa.Count > 0)
-                notificacionRepositorio.Agregar(new NotificacionUsuario(
-                    nuevoGestorId.Value,
-                    "Lectura automática por IA desactivada",
-                    $"El cliente \"{empresa.RazonSocial}\" tiene la lectura automática por IA desactivada para: {string.Join(", ", tiposSinLecturaIa)}.",
-                    urlAccion: $"/clientes/{empresa.Id}/lectura-ia",
-                    textoAccion: "Gestionar"));
-        }
-
-        // Doble escritura: la cartera nueva entra en el mismo SaveChanges que
-        // la proyección Empresa.EjecutivoUsuarioId, así que o se guardan las
-        // dos o ninguna. La proyección sigue siendo la autoritativa durante F1.
-        await asignacionesWriter.ReasignarCarteraClienteAsync(
-            empresa.Id, nuevoGestorId, cancellationToken);
 
         try
         {
@@ -117,11 +68,13 @@ public class ReasignarEjecutivoClienteCommandHandler(
             // hallazgo crítico 3/9) puede chocar si otra reasignación concurrente
             // sobre este mismo cliente terminó primero — la traducción evita un
             // error de base de datos sin explicación en pantalla.
-            return Result.Fallo(Error.Crear(
-                "Cliente.ConflictoDeReasignacion",
-                "Otro cambio sobre la cartera de este cliente se completó primero. Vuelve a intentarlo."));
+            return Result.Fallo(ConflictoDeReasignacion);
         }
 
         return Result.Exito();
     }
+
+    public static readonly Error ConflictoDeReasignacion = Error.Crear(
+        "Cliente.ConflictoDeReasignacion",
+        "Otro cambio sobre la cartera de este cliente se completó primero. Vuelve a intentarlo.");
 }

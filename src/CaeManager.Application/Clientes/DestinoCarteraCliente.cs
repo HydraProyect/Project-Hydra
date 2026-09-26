@@ -19,6 +19,13 @@ public interface IDirectorioDestinosCartera
     /// hay Tenant resuelto (fallo cerrado).
     /// </summary>
     Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Los Clientes empresariales concretos de las Asignaciones de Cartera vigentes de la
+    /// cuenta en el Tenant activo, leídos en el momento. Una cartera universal no aporta
+    /// ninguno: no se reparte cliente a cliente.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> ObtenerClientesEnCarteraAsync(Guid usuarioId, CancellationToken cancellationToken = default);
 }
 
 /// <param name="Activa">La cuenta no está desactivada.</param>

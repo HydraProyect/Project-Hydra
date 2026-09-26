@@ -316,12 +316,13 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         await using var contexto = ContextoRuntime(actor, rol, tenantOrigen);
         var usuario = Usuario(actor, rol, tenantOrigen);
         var tenantActual = new TenantActualAmbiental { TenantId = _propietario.Id };
-        var handler = new ReasignarEjecutivoClienteCommandHandler(
+        var reasignador = new ReasignadorCarteraCliente(
             new EmpresaRepository(contexto), new ConfiguracionIaDocumentoClienteRepository(contexto),
-            new NotificacionUsuarioRepository(contexto), contexto, usuario,
+            new NotificacionUsuarioRepository(contexto), usuario,
             new AlcanceDatosService(contexto, usuario, tenantActual, new SesionPrivilegiadaAusente()),
             new AsignacionesOperativasWriter(contexto, tenantActual, usuario),
-            Directorio(contexto), contexto);
+            Directorio(contexto));
+        var handler = new ReasignarEjecutivoClienteCommandHandler(reasignador, contexto, usuario, contexto);
 
         return await handler.Handle(new ReasignarEjecutivoClienteCommand(_clienteId, destino), CancellationToken.None);
     }

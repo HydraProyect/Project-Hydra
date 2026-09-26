@@ -566,6 +566,17 @@ public class DirectorioUsuariosTenant(
             return new(activa, rolesDelegados.Count == 1 ? rolesDelegados[0] : null, cuenta.CoordinadorUsuarioId, EsOperadorDelegado: true);
         }, cancellationToken);
 
+    /// <summary>
+    /// Misma lectura, y mismo ámbito efectivo, que la columna de cartera de <c>/usuarios</c>
+    /// (<see cref="ObtenerCarterasVigentesAsync"/>): lo que el Administrador vio al abrir el
+    /// diálogo y lo que el Command compara al confirmar salen de la misma consulta.
+    /// </summary>
+    public async Task<IReadOnlyList<Guid>> ObtenerClientesEnCarteraAsync(
+        Guid usuarioId, CancellationToken cancellationToken = default) =>
+        (await ObtenerCarterasVigentesAsync(cancellationToken)).TryGetValue(usuarioId, out var cartera)
+            ? cartera.ClienteIds
+            : [];
+
     private async Task<Dictionary<Guid, string>> ObtenerRolesDeOperadoresDelegadosAsync(Guid tenantId, CancellationToken cancellationToken) =>
         await OperadoresDelegadosVigentes(tenantId)
             .Select(o => new { o.UsuarioId, o.Rol })
