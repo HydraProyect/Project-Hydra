@@ -2,13 +2,14 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Usuarios.Commands.AsignarRolACuenta;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
-using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
 using CaeManager.Domain.Common;
 using MediatR;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
+using GestionCuentasUsuarioIdentity = CaeManager.Infrastructure.Identity.GestionCuentasUsuarioIdentity;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.GestionRoles.Pages;
@@ -72,17 +73,23 @@ public class RolesGen2Tests : BunitContext
     {
         public IReadOnlyList<string> RolesNoAsignables { get; set; } = [];
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        /// <summary>
+        /// <see cref="AsignarRolACuentaCommand"/> no se simula: va a su handler real
+        /// (lo monta <see cref="Renderizar"/>).
+        /// </summary>
+        public Func<AsignarRolACuentaCommand, Task<Result<CuentaConRolAsignado>>>? Asignar { get; set; }
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is AsignarRolACuentaCommand asignar && Asignar is not null)
+                return (TResponse)(object)await Asignar(asignar);
+
             object respuesta = request switch
             {
                 ObtenerRolesNoAsignablesQuery => RolesNoAsignables,
-                VerificarRolAsignableQuery q => RolesNoAsignables.Contains(q.Rol)
-                    ? Result.Fallo(Error.Crear("Usuarios.RolReservadoAlTenantDeOrigen", "Rol reservado al Tenant de origen."))
-                    : Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             };
-            return Task.FromResult((TResponse)respuesta);
+            return (TResponse)respuesta;
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -137,11 +144,44 @@ public class RolesGen2Tests : BunitContext
         protected override Task<IReadOnlyList<UsuarioPendienteDto>> ObtenerPendientesAsync() =>
             Task.FromResult(Fuente.Pendientes(++Fuente.LlamadasPendientes));
 
-        protected override Task<bool> EsCuentaPropiaAsync(Guid usuarioId)
+    }
+
+    /// <summary>
+    /// El adaptador de Identity real sobre el <see cref="UserManagerFalso"/> del
+    /// arnés, con la propiedad de la cuenta decidida por la fuente del test.
+    /// </summary>
+    private sealed class GestionCuentasControlada(
+        UserManager<ApplicationUser> userManager, DirectorioUsuariosTenant directorio, FuenteRolesFalsa fuente)
+        : GestionCuentasUsuarioIdentity(userManager, new PuertaAccesoDatos(), directorio, ContextoSinProveedor())
+    {
+        // El contexto del arnés no tiene proveedor: no hay nada rastreado que soltar.
+        protected override void DesengancharCuenta(Guid usuarioId) { }
+        public override Task<bool> EsPropiaDelTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default)
         {
-            Fuente.ConsultasDePropiedad.Add(usuarioId);
-            return Task.FromResult(Fuente.EsPropia(usuarioId));
+            fuente.ConsultasDePropiedad.Add(usuarioId);
+            return Task.FromResult(fuente.EsPropia(usuarioId));
         }
+    }
+
+    /// <summary>
+    /// Un Administrador. Opera en su Tenant de origen salvo que el test declare
+    /// roles no asignables: entonces está en un Context Workspace ajeno.
+    /// </summary>
+    private sealed class AdministradorFalso(Func<bool> enWorkspaceAjeno) : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.Parse("99999999-9999-9999-9999-999999999999"));
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(RolesIdentidad.Administrador);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() =>
+            Task.FromResult<Guid?>(enWorkspaceAjeno() ? Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb") : ContextWorkspaceDelArnes.Id);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    private sealed class ContextWorkspaceDelArnes : ITenantActual
+    {
+        public static readonly Guid? Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        public static ContextWorkspaceDelArnes Instancia { get; } = new();
+        public Guid? TenantId => Id;
     }
 
     /// <summary>
@@ -170,6 +210,12 @@ public class RolesGen2Tests : BunitContext
             Asignaciones.Add((user.Id, role));
             return Task.FromResult(IdentityResult.Success);
         }
+
+        // El adaptador lee la cuenta entera antes de asignar; ninguna de este arnés tiene rol ni es SSO.
+        public override Task<IList<string>> GetRolesAsync(ApplicationUser user) => Task.FromResult<IList<string>>([]);
+
+        public override Task<IList<UserLoginInfo>> GetLoginsAsync(ApplicationUser user) =>
+            Task.FromResult<IList<UserLoginInfo>>([]);
     }
 
     private sealed class CorreoFalso : IEmailService
@@ -224,6 +270,11 @@ public class RolesGen2Tests : BunitContext
     /// pasan por <see cref="FuenteRolesFalsa"/>). Se construye de verdad, sin
     /// proveedor de base de datos: si alguien lo consultara, lanzaría.
     /// </summary>
+    private static CaeManagerDbContext ContextoSinProveedor() => new(
+        new DbContextOptionsBuilder<CaeManagerDbContext>().Options,
+        DataProtectionProvider.Create(nameof(RolesGen2Tests)),
+        new TenantActualFalso());
+
     private static DirectorioUsuariosTenant CrearDirectorio()
     {
         var tenantActual = new TenantActualFalso();
@@ -248,6 +299,11 @@ public class RolesGen2Tests : BunitContext
         Services.AddSingleton<UserManager<ApplicationUser>>(_usuarios);
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped(_ => CrearDirectorio());
+
+        var cuentas = new GestionCuentasControlada(_usuarios, CrearDirectorio(), _fuente);
+        var administrador = new AdministradorFalso(() => _mediador.RolesNoAsignables.Count > 0);
+        _mediador.Asignar = c => new AsignarRolACuentaCommandHandler(cuentas, administrador, ContextWorkspaceDelArnes.Instancia)
+            .Handle(c, CancellationToken.None);
 
         return Render<RolesControlados>(p => p.Add(c => c.IntegradaEnConfiguracion, integrada));
     }
@@ -608,7 +664,7 @@ public class RolesGen2Tests : BunitContext
     /// Decisión del propietario, 2026-09-23: en el Context Workspace de otro
     /// Tenant, Administrador y Dirección CAE no se conceden. El selector no los
     /// ofrece (comodidad) y, si llegan igualmente, manda la respuesta de
-    /// Application (<c>VerificarRolAsignableQuery</c>): no se escribe nada.
+    /// Application (<c>AsignarRolACuentaCommand</c>): no se escribe nada.
     /// </summary>
     [Fact]
     public async Task En_un_Context_Workspace_cruzado_no_se_ofrece_ni_se_asigna_un_rol_reservado()
@@ -628,7 +684,7 @@ public class RolesGen2Tests : BunitContext
         await BotonDelDialogo(cut, "Asignar rol").ClickAsync(new MouseEventArgs());
 
         _usuarios.Asignaciones.Should().BeEmpty("Application rechaza el rol reservado");
-        _toasts.Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Error && m.Mensaje.Contains("Rol reservado"));
+        _toasts.Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Error && m.Mensaje.Contains("solo se asignan desde tu propia organización"));
     }
 
     [Fact]

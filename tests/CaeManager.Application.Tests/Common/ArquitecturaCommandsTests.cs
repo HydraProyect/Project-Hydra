@@ -162,9 +162,19 @@ public class ArquitecturaCommandsTests
     // editarse con más frecuencia/concurrencia real, esta exclusión hay que
     // revisitarla — no es una garantía permanente, es la lectura del estado
     // actual del código.
+    //
+    // EditarUsuarioCommand (P1-I2, 2026-09-26) nace aquí sin Version porque
+    // hereda tal cual el comportamiento de la página de la que sale:
+    // Usuarios.razor.cs releía la cuenta justo antes de guardar, y el
+    // ConcurrencyStamp de Identity solo protege entre esa lectura y su
+    // UpdateAsync, no frente a lo que quien edita vio al abrir la ficha. Dos
+    // ediciones simultáneas de la misma cuenta: gana la última. Llevarle
+    // Version exige exponer el ConcurrencyStamp en CuentaUsuario y en el
+    // formulario, un contrato nuevo que no es el de ese incremento.
     private static readonly HashSet<string> HuecosConocidosSinVersion =
     [
         "CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento.EditarTipoDocumentoCommand",
+        "CaeManager.Application.Usuarios.Commands.EditarUsuario.EditarUsuarioCommand",
     ];
 
     private static IEnumerable<Type> ComandosDeEdicion() => TiposDeApplication()
