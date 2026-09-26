@@ -148,7 +148,12 @@ main_volver_atras() {
     fi
     es_sha "$sha" || detener "SHA no válido: '$sha' (se esperan 40 caracteres hexadecimales)."
     if [ "$sha" = "$actual" ]; then
-        echo "$entorno ya corre ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${sha}: nada que hacer."
+        # `.Config.Image` también existe en un contenedor parado o insano (p. ej.
+        # tras una vuelta atrás anterior que no llegó a sano): coincidir con el
+        # destino no basta, tiene que responder /salud (hallazgo de Codex).
+        comprobar_salud "$entorno" "$sha" \
+            || detener "$entorno está configurado con ${sha} pero no está sano: no hay imagen distinta a la que volver con esta orden. Revisa los logs y decide a mano."
+        echo "$entorno ya corre ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${sha} y /salud responde: nada que hacer."
         exit 0
     fi
     echo "Destino: ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${sha}"

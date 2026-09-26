@@ -251,7 +251,12 @@ comprobar "up que no llega a sano: se detiene" 1 "$codigo"
 
 escenario produccion "$A"; imagen "$A"
 volver -- produccion "$A"
-comprobar "destino igual al actual: nada que hacer" "0 0" "$codigo $(llamadas_up)"
+comprobar "destino igual al actual y sano: nada que hacer" "0 0" "$codigo $(llamadas_up)"
+comprobar "  tras comprobar /salud" 1 "$(cat "$ESTADO/salud_llamadas")"
+
+escenario produccion "$A"; imagen "$A"
+volver SALUD_FALLA_PRIMERAS=99 -- produccion "$A"
+comprobar "destino igual al actual pero insano: no devuelve éxito" "1 0" "$codigo $(llamadas_up)"
 
 escenario produccion "$B"; historial produccion "$B"
 volver -- produccion anterior
