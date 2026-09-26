@@ -641,7 +641,7 @@ SELECT c.relname,
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 LEFT JOIN pg_policy p ON p.polrelid = c.oid
-WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname = ANY(@tablas);";
+WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relname = ANY(@tablas);";
         comando.Parameters.AddWithValue("tablas", tablas.ToArray());
 
         var estado = new Dictionary<string, (bool, bool, List<PoliticaRls>)>();
