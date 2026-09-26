@@ -17,12 +17,26 @@ public static class CookieDeContextoTenant
     /// Preferencia: el usuario volvió a su Tenant de origen a propósito (POST a
     /// <c>/cuenta/cliente-activo</c> con su propio Tenant), así que
     /// <see cref="TenantBeneficiarioPorDefectoMiddleware"/> no vuelve a activarle
-    /// el Tenant por defecto de su cartera. <b>No tiene valor de seguridad</b>: su
-    /// único efecto es no seleccionar nada, y quedarse en el Tenant de origen
-    /// siempre está autorizado. Guarda el Id del usuario en claro solo para no
-    /// aplicarse a otra cuenta en el mismo navegador.
+    /// el Tenant por defecto de su cartera mientras dure (8 h, la vigencia de una
+    /// selección; después se vuelve a evaluar). <b>No tiene valor de
+    /// seguridad</b>: su único efecto es no seleccionar nada, y quedarse en el
+    /// Tenant de origen siempre está autorizado. Guarda el Id del usuario en claro
+    /// solo para no aplicarse a otra cuenta en el mismo navegador.
     /// </summary>
     public const string NombreOrigenElegido = "cae_origen_elegido";
+
+    /// <summary>
+    /// Marca «Tenant por defecto ya evaluado, sin resultado»: evita que
+    /// <see cref="TenantBeneficiarioPorDefectoMiddleware"/> repita la consulta de
+    /// Tenants autorizados en cada navegación de página de un usuario que no tiene
+    /// Tenant por defecto (la inmensa mayoría, mono-Tenant). Mismo carácter que
+    /// <see cref="NombreOrigenElegido"/>: sin valor de seguridad, ligada al usuario.
+    /// Una cartera nueva se nota como mucho <see cref="VigenciaDefectoEvaluado"/>
+    /// después.
+    /// </summary>
+    public const string NombreDefectoEvaluado = "cae_defecto_evaluado";
+
+    public static readonly TimeSpan VigenciaDefectoEvaluado = TimeSpan.FromMinutes(15);
 
     public static bool HaySeleccion(HttpRequest peticion) =>
         !string.IsNullOrEmpty(peticion.Cookies[NombreSeleccion]);
@@ -60,7 +74,14 @@ public static class CookieDeContextoTenant
     public static bool OrigenElegido(HttpRequest peticion, Guid usuarioId) =>
         peticion.Cookies[NombreOrigenElegido] == usuarioId.ToString("N");
 
-    private static CookieOptions Opciones(HttpContext httpContext) => new()
+    public static void RecordarDefectoEvaluado(HttpContext httpContext, Guid usuarioId) =>
+        httpContext.Response.Cookies.Append(
+            NombreDefectoEvaluado, usuarioId.ToString("N"), Opciones(httpContext, VigenciaDefectoEvaluado));
+
+    public static bool DefectoEvaluado(HttpRequest peticion, Guid usuarioId) =>
+        peticion.Cookies[NombreDefectoEvaluado] == usuarioId.ToString("N");
+
+    private static CookieOptions Opciones(HttpContext httpContext, TimeSpan? vigencia = null) => new()
     {
         HttpOnly = true,
         // Igual que la política por defecto de la cookie de Identity
@@ -72,6 +93,6 @@ public static class CookieDeContextoTenant
         SameSite = SameSiteMode.Lax,
         // Misma vigencia que la del propio token, que es la que
         // de verdad se comprueba en servidor al descifrarlo.
-        MaxAge = ClienteActivoSeleccionado.Vigencia,
+        MaxAge = vigencia ?? ClienteActivoSeleccionado.Vigencia,
     };
 }

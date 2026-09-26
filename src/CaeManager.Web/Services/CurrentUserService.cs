@@ -187,25 +187,32 @@ public class CurrentUserService(
         var tenantOrigenId = await ObtenerTenantOrigenIdAsync();
         if (tenantOrigenId == tenantAmbito) return rolDeSesionEnOrigen;
 
-        // Mismo orden de vías que /cuenta/cliente-activo: primero la operación,
-        // después la heredada. Un Tenant alcanzado por Operación entra en el
-        // fan-out (ObtenerClientesAutorizadosQuery, lote 0 del selector de Tenant
-        // beneficiario) y en su vuelta tiene el mismo rol que tendría el usuario
-        // si lo seleccionara: sin esto su alcance sería cero y Mi trabajo y el
-        // Dashboard lo pintarían «sin cartera» aunque la tenga.
-        return await ResolverRolViaOperacionAsync(tenantAmbito, usuarioId.Value, asignacionOperacionId: null)
-               ?? await ResolverRolViaHeredadaAsync(tenantAmbito, usuarioId.Value);
+        // La misma decisión que /cuenta/cliente-activo: si una operación
+        // autoriza el Tenant, el POST la embebe en el token y el rol sale SOLO
+        // de ella, sin recurso a la vía heredada (una cartera con rol no
+        // delegable da null aunque haya delegación); si ninguna autoriza, la
+        // heredada. Un Tenant alcanzado por Operación entra en el fan-out
+        // (ObtenerClientesAutorizadosQuery, lote 0 del selector de Tenant
+        // beneficiario) con el mismo rol que tendría seleccionado: sin esto su
+        // alcance sería cero y Mi trabajo y el Dashboard lo pintarían «sin
+        // cartera» aunque la tenga.
+        if (tenantOrigenId is null) return null;
+        var operacionId = await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
+            serviceProvider.GetRequiredService<IOperacionesQueryContext>(),
+            usuarioId.Value, tenantOrigenId.Value, tenantAmbito, DateTime.UtcNow, CancellationToken.None);
+
+        return operacionId is not null
+            ? await ResolverRolViaOperacionAsync(tenantAmbito, usuarioId.Value, operacionId.Value)
+            : await ResolverRolViaHeredadaAsync(tenantAmbito, usuarioId.Value);
     }
 
     /// <summary>
     /// Vía de Operación, con el predicado único de
     /// <see cref="TenantsBeneficiariosAutorizados"/>: la cartera vigente del
     /// usuario bajo una Asignación de Operación vigente, no raíz, de su Operador
-    /// CAE de origen sobre <paramref name="tenantId"/>. Con
-    /// <paramref name="asignacionOperacionId"/> (selección del token) es un lookup
-    /// por esa operación; sin él (fan-out), la operación que elegiría
-    /// <c>/cuenta/cliente-activo</c>: la vigente más reciente y, a igualdad, la de
-    /// menor Id.
+    /// CAE de origen sobre <paramref name="tenantId"/>, bajo la operación
+    /// <paramref name="asignacionOperacionId"/>: la del token de la selección o,
+    /// en el fan-out, la que elegiría <c>/cuenta/cliente-activo</c>.
     ///
     /// <para>
     /// El par (operación, usuario) NO es único: los índices admiten una cartera
@@ -225,25 +232,18 @@ public class CurrentUserService(
     /// </para>
     /// </summary>
     private async Task<string?> ResolverRolViaOperacionAsync(
-        Guid tenantId, Guid usuarioId, Guid? asignacionOperacionId)
+        Guid tenantId, Guid usuarioId, Guid asignacionOperacionId)
     {
         if (await ObtenerTenantOrigenIdAsync() is not { } tenantOrigenId) return null;
 
-        var operaciones = serviceProvider.GetRequiredService<IOperacionesQueryContext>();
-        var ahora = DateTime.UtcNow;
-
-        // Sin operación en el token (fan-out), la misma que embebería el POST.
-        // Dos consultas a propósito: componer la elección dentro de la misma
-        // expresión que se filtra creaba una expresión autorreferente que
-        // desbordaba la pila del funcletizador de EF.
-        var operacionId = asignacionOperacionId
-            ?? await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                operaciones, usuarioId, tenantOrigenId, tenantId, ahora, CancellationToken.None);
-        if (operacionId is null) return null;
-
+        // La operación llega ya elegida (token o, en el fan-out, la misma que
+        // embebería el POST). Elegirla dentro de esta misma expresión creaba una
+        // expresión autorreferente que desbordaba la pila del funcletizador de EF.
         return await TenantsBeneficiariosAutorizados
-            .CarterasPorOperacion(operaciones, usuarioId, tenantOrigenId, ahora)
-            .Where(v => v.Operacion.Id == operacionId.Value
+            .CarterasPorOperacion(
+                serviceProvider.GetRequiredService<IOperacionesQueryContext>(),
+                usuarioId, tenantOrigenId, DateTime.UtcNow)
+            .Where(v => v.Operacion.Id == asignacionOperacionId
                         && v.Operacion.PropietarioTenantId == tenantId
                         && v.Cartera.Rol != null && RolesDelegables.Contains(v.Cartera.Rol))
             .OrderBy(v => v.Cartera.AmbitoRelacionClienteId == null ? 0 : 1)

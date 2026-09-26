@@ -37,8 +37,11 @@ namespace CaeManager.Web.Services;
 ///
 /// <para>
 /// Si el usuario vuelve a su Tenant de origen a propósito, el endpoint lo
-/// recuerda (<see cref="CookieDeContextoTenant.NombreOrigenElegido"/>) y
-/// aquí no se le vuelve a activar el Tenant por defecto.
+/// recuerda (<see cref="CookieDeContextoTenant.NombreOrigenElegido"/>, 8 h) y
+/// aquí no se le vuelve a activar el Tenant por defecto mientras dure. Un usuario
+/// sin Tenant por defecto se marca durante
+/// <see cref="CookieDeContextoTenant.VigenciaDefectoEvaluado"/> para no repetir
+/// la consulta en cada navegación.
 /// </para>
 /// </summary>
 public class TenantBeneficiarioPorDefectoMiddleware(RequestDelegate siguiente)
@@ -107,12 +110,17 @@ public class TenantBeneficiarioPorDefectoMiddleware(RequestDelegate siguiente)
 
         if (await currentUserService.ObtenerUsuarioActualIdAsync() is not { } usuarioId
             || await currentUserService.ObtenerTenantOrigenIdAsync() is not { } tenantOrigenId
-            || CookieDeContextoTenant.OrigenElegido(contexto.Request, usuarioId))
+            || CookieDeContextoTenant.OrigenElegido(contexto.Request, usuarioId)
+            || CookieDeContextoTenant.DefectoEvaluado(contexto.Request, usuarioId))
             return null;
 
         var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancelacion);
         if (ClientesAutorizados.TenantPorDefecto(autorizados) is not { } porDefecto)
+        {
+            // Sin Tenant por defecto: no repetir la consulta en cada página.
+            CookieDeContextoTenant.RecordarDefectoEvaluado(contexto, usuarioId);
             return null;
+        }
 
         // La misma operación que embebería el POST: la selección por defecto se
         // revalida por ella en cada petición, igual que una explícita.

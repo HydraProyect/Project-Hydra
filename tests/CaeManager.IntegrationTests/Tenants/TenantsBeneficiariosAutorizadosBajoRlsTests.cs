@@ -415,6 +415,12 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task La_revalidacion_descarta_un_token_cuyo_Tenant_no_es_el_de_su_operacion()
     {
+        // Control del instrumento: con el Tenant del token como app.tenant_id,
+        // RLS sigue dejando ver la operación de A por la posición del Operador
+        // CAE; el rechazo tiene que venir del predicado.
+        await using (var runtime = CrearRuntime(_gestor, tenantDeLaPeticion: _heredado))
+            (await runtime.AsignacionesOperacion.CountAsync(o => o.Id == _operacionA)).Should().Be(1);
+
         var seleccion = await RevalidarAsync(_gestor, _heredado, _operacionA);
 
         seleccion.TenantIdSeleccionado.Should().BeNull("la operación del token pertenece a otro Tenant");
@@ -469,6 +475,58 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             _protector, CookieEmitida(httpContext, ClienteActivoSeleccionado.NombreCookie), _gestorUnico);
         tenant.Should().Be(_a);
         operacion.Should().Be(_operacionA, "se revalida por la operación, igual que una selección explícita");
+    }
+
+    [Fact]
+    public async Task Sin_Tenant_por_defecto_el_middleware_lo_recuerda_para_no_repetir_la_consulta()
+    {
+        var httpContext = PeticionDePagina(_gestor, "/", "");
+
+        (await FijarPorDefectoAsync(httpContext, _gestor)).Should().BeNull();
+        CookieEmitida(httpContext, CookieDeContextoTenant.NombreDefectoEvaluado).Should().Be(_gestor.ToString("N"));
+        CookieEmitida(httpContext, ClienteActivoSeleccionado.NombreCookie).Should().BeNull();
+
+        var siguiente = PeticionDePagina(_gestor, "/", "");
+        siguiente.Request.Headers.Cookie = $"{CookieDeContextoTenant.NombreDefectoEvaluado}={_gestor:N}";
+        (await FijarPorDefectoAsync(siguiente, _gestor)).Should().BeNull();
+        siguiente.Response.Headers.SetCookie.Should().BeEmpty("con la marca no se vuelve a evaluar");
+    }
+
+    [Fact]
+    public async Task En_el_fan_out_una_operacion_que_autoriza_manda_aunque_su_rol_no_sea_delegable_y_haya_via_heredada()
+    {
+        // D1 de la revisión puente: seleccionado, el POST embebe la operación y el
+        // rol sale solo de ella (null si no es delegable). El fan-out no puede
+        // caer a la vía heredada y dar más.
+        var ahora = DateTime.UtcNow;
+        var usuario = Guid.NewGuid();
+        using (AmbitoTenantExplicito.Establecer(_a))
+        {
+            _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                await _propietario.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionA),
+                usuario, Roles.Administrador, AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
+            await _propietario.SaveChangesAsync();
+        }
+        var delegacion = new DelegacionTenant(_origen, _a);
+        _propietario.DelegacionesTenant.Add(delegacion);
+        _propietario.AsignacionesOperadorDelegadoConRevocadas.Add(
+            new AsignacionOperadorDelegado(delegacion.Id, usuario, Roles.GestorCae));
+        await _propietario.SaveChangesAsync();
+
+        await using var runtime = CrearRuntime(usuario, tenantDeLaPeticion: _origen);
+        var servicio = CrearCurrentUserService(runtime, usuario);
+        using (AmbitoTenantExplicito.Establecer(_a))
+            (await servicio.ObtenerRolEfectivoAsync()).Should().BeNull();
+
+        // Control: la vía heredada sola sí da GestorCae (sin cartera, otro usuario).
+        var soloHeredado = Guid.NewGuid();
+        _propietario.AsignacionesOperadorDelegadoConRevocadas.Add(
+            new AsignacionOperadorDelegado(delegacion.Id, soloHeredado, Roles.GestorCae));
+        await _propietario.SaveChangesAsync();
+        await using var runtimeHeredado = CrearRuntime(soloHeredado, tenantDeLaPeticion: _origen);
+        using (AmbitoTenantExplicito.Establecer(_a))
+            (await CrearCurrentUserService(runtimeHeredado, soloHeredado).ObtenerRolEfectivoAsync())
+                .Should().Be(Roles.GestorCae);
     }
 
     [Fact]
