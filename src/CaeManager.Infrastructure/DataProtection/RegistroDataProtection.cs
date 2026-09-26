@@ -112,7 +112,7 @@ public static class RegistroDataProtection
             // construir el contenedor, así que sale en el arranque.
             Console.WriteLine(
                 "[AVISO] Ni DataProtection:Certificado ni DataProtection:Kms están configurados — las claves de Data Protection se guardan SIN CIFRAR. " +
-                "El backup (scripts/backup-borg.sh) las incluye junto a la base de datos que protegen, así que viajan en claro también ahí (ver RUNBOOK-CLAVES.md).");
+                "El backup (scripts/backup-borg.sh) las incluye junto a la base de datos que protegen, así que viajan en claro también ahí (ver Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES.md).");
         }
 
         // Llavero compartido entre réplicas (P3-30 de Project-Hydra-Negocio/MATURITY_REVIEW.md):

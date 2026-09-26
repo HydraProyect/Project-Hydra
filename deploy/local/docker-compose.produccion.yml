@@ -104,8 +104,19 @@ services:
       ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
       AlmacenamientoArchivos__Ruta: /data/documentos
       DataProtection__RutaClaves: /data/dataprotection-keys
+      # P1-F3 — TRANSITORIO. El arranque en Production se niega si las claves de
+      # Data Protection se van a guardar sin cifrar; esta línea lo permite mientras
+      # el certificado no esté en el servidor. Cuando lo esté, sus rutas van al
+      # .env (DataProtection__Certificado__CertificadoRuta y __ClavePrivadaRuta,
+      # bajo /run/secretos) y se cifra aunque esta línea siga: con certificado la
+      # bandera se ignora. Retirarla en la PR siguiente a cargar el certificado en
+      # staging y producción. Runbook: Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES.md.
+      DataProtection__PermitirClavesSinCifrar: "true"
     volumes:
       - caemanager-data:/data
+      # P1-F3 — el migrador construye el mismo DbContext con Data Protection y puede
+      # crear o leer claves del llavero: necesita el mismo certificado que "app".
+      - "${SECRETOS_DIR:-/opt/talveg-secretos/produccion}:/run/secretos:ro"
     depends_on:
       db:
         condition: service_healthy
@@ -179,6 +190,8 @@ services:
       ConnectionStrings__CaeManagerDb: ""
       AlmacenamientoArchivos__Ruta: /data/documentos
       DataProtection__RutaClaves: /data/dataprotection-keys
+      # P1-F3 — TRANSITORIO; ver el comentario equivalente del servicio "migrador".
+      DataProtection__PermitirClavesSinCifrar: "true"
       # REC-017/P39 y P0-2 — ver el comentario de más arriba, junto a `restart:`.
       Migraciones__AlArrancar: "false"
       Siembra__AlArrancar: "false"
