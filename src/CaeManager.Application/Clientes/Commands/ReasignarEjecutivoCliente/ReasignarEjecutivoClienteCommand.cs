@@ -35,7 +35,8 @@ public class ReasignarEjecutivoClienteCommandHandler(
     ReasignadorCarteraCliente reasignador,
     IUnitOfWork unitOfWork,
     ICurrentUserService currentUserService,
-    IDescarteCambiosPendientes descarteCambios)
+    IDescarteCambiosPendientes descarteCambios,
+    ITransaccionDeComando transaccion)
     : IRequestHandler<ReasignarEjecutivoClienteCommand, Result>
 {
     // Application no puede referenciar Infrastructure.Identity.Roles — mismo motivo que en AutorizacionEscrituraBehavior.
@@ -47,15 +48,21 @@ public class ReasignarEjecutivoClienteCommandHandler(
         if (rol is null || !RolesPermitidos.Contains(rol))
             return Result.Fallo(Error.Crear("Cliente.SinPermisoReasignar", "Tu rol no puede reasignar la cartera de un cliente."));
 
-        var reasignado = await reasignador.ReasignarAsync(request.ClienteId, request.NuevoEjecutivoUsuarioId, cancellationToken);
-        if (reasignado.EsFallido)
-            return Result.Fallo(reasignado.Error);
-        if (!reasignado.Valor)
-            return Result.Exito();
-
         try
         {
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+            // En transacción para que el candado compartido de cartera que toma el
+            // reasignador dure hasta el guardado (IBloqueoCarteraUsuario).
+            return await transaccion.EjecutarAsync(async ct =>
+            {
+                var reasignado = await reasignador.ReasignarAsync(request.ClienteId, request.NuevoEjecutivoUsuarioId, ct);
+                if (reasignado.EsFallido)
+                    return Result.Fallo(reasignado.Error);
+                if (!reasignado.Valor)
+                    return Result.Exito();
+
+                await unitOfWork.SaveChangesAsync(ct);
+                return Result.Exito();
+            }, cancellationToken);
         }
         catch (DbUpdateException)
         {
@@ -70,8 +77,6 @@ public class ReasignarEjecutivoClienteCommandHandler(
             // error de base de datos sin explicación en pantalla.
             return Result.Fallo(ConflictoDeReasignacion);
         }
-
-        return Result.Exito();
     }
 
     public static readonly Error ConflictoDeReasignacion = Error.Crear(

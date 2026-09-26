@@ -321,8 +321,9 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
             new NotificacionUsuarioRepository(contexto), usuario,
             new AlcanceDatosService(contexto, usuario, tenantActual, new SesionPrivilegiadaAusente()),
             new AsignacionesOperativasWriter(contexto, tenantActual, usuario),
-            Directorio(contexto));
-        var handler = new ReasignarEjecutivoClienteCommandHandler(reasignador, contexto, usuario, contexto);
+            Directorio(contexto), new BloqueoCarteraUsuario(contexto));
+        var handler = new ReasignarEjecutivoClienteCommandHandler(
+            reasignador, contexto, usuario, contexto, new TransaccionDeComando(contexto));
 
         return await handler.Handle(new ReasignarEjecutivoClienteCommand(_clienteId, destino), CancellationToken.None);
     }

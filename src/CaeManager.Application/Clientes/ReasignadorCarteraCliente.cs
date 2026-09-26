@@ -28,7 +28,8 @@ public class ReasignadorCarteraCliente(
     ICurrentUserService currentUserService,
     IAlcanceDatosService alcanceDatos,
     IAsignacionesOperativasWriter asignacionesWriter,
-    IDirectorioDestinosCartera directorioDestinos)
+    IDirectorioDestinosCartera directorioDestinos,
+    IBloqueoCarteraUsuario bloqueoCartera)
 {
     public static readonly Error ClienteNoEncontrado = Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente.");
 
@@ -54,6 +55,12 @@ public class ReasignadorCarteraCliente(
         var cambiaDeGestor = gestorAnteriorId != nuevoGestorId;
         if (!cambiaDeGestor && !alinearCartera)
             return Result.Exito(false);
+
+        // Antes de validar el destino: si una desactivación con traspaso está en curso sobre
+        // cualquiera de las dos cuentas, se espera a que termine y se valida lo que dejó
+        // (IBloqueoCarteraUsuario). Exige estar dentro de una transacción.
+        await bloqueoCartera.BloquearCompartidoAsync(
+            new[] { gestorAnteriorId, nuevoGestorId }.OfType<Guid>().ToList(), cancellationToken);
 
         if (nuevoGestorId is { } destinoId)
         {

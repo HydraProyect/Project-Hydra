@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using CaeManager.Application.Tests.Notificaciones;
 using CaeManager.Application.Tests.Operaciones;
 using CaeManager.Application.Tests.TiposDocumento;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentAssertions;
 using Xunit;
@@ -25,9 +26,11 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         AlcanceDatosServiceFalso? alcanceDatos = null,
         DirectorioDestinosCarteraFalso? directorio = null,
         DescarteCambiosPendientesFalso? descarte = null,
-        AsignacionesOperativasWriterFalso? writer = null) =>
+        AsignacionesOperativasWriterFalso? writer = null,
+        BloqueoCarteraUsuarioFalso? bloqueo = null,
+        TransaccionDeComandoFalsa? transaccion = null) =>
         CrearHandlerCon(new CurrentUserServiceFalso(ActorId, rol), clienteRepositorio, configuracionIaRepositorio,
-            notificacionRepositorio, unitOfWork, alcanceDatos, directorio, descarte, writer);
+            notificacionRepositorio, unitOfWork, alcanceDatos, directorio, descarte, writer, bloqueo, transaccion);
 
     private static ReasignarEjecutivoClienteCommandHandler CrearHandlerCon(
         CurrentUserServiceFalso usuario,
@@ -38,10 +41,12 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         AlcanceDatosServiceFalso? alcanceDatos,
         DirectorioDestinosCarteraFalso? directorio,
         DescarteCambiosPendientesFalso? descarte,
-        AsignacionesOperativasWriterFalso? writer) =>
+        AsignacionesOperativasWriterFalso? writer,
+        BloqueoCarteraUsuarioFalso? bloqueo,
+        TransaccionDeComandoFalsa? transaccion) =>
         new(Reasignador(usuario, clienteRepositorio, configuracionIaRepositorio, notificacionRepositorio,
-                alcanceDatos, directorio, writer),
-            unitOfWork, usuario, descarte ?? new DescarteCambiosPendientesFalso());
+                alcanceDatos, directorio, writer, bloqueo),
+            unitOfWork, usuario, descarte ?? new DescarteCambiosPendientesFalso(), transaccion ?? new TransaccionDeComandoFalsa());
 
     internal static ReasignadorCarteraCliente Reasignador(
         CurrentUserServiceFalso usuario,
@@ -50,11 +55,13 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         NotificacionUsuarioRepositorioFalso? notificacionRepositorio = null,
         AlcanceDatosServiceFalso? alcanceDatos = null,
         DirectorioDestinosCarteraFalso? directorio = null,
-        AsignacionesOperativasWriterFalso? writer = null) =>
+        AsignacionesOperativasWriterFalso? writer = null,
+        BloqueoCarteraUsuarioFalso? bloqueo = null) =>
         new(clienteRepositorio, configuracionIaRepositorio ?? new ConfiguracionIaDocumentoClienteRepositorioFalso(),
             notificacionRepositorio ?? new NotificacionUsuarioRepositorioFalso(), usuario,
             alcanceDatos ?? new AlcanceDatosServiceFalso(), writer ?? new AsignacionesOperativasWriterFalso(),
-            directorio ?? new DirectorioDestinosCarteraFalso(new DestinoCartera(true, "GestorCae", ActorId, false)));
+            directorio ?? new DirectorioDestinosCarteraFalso(new DestinoCartera(true, "GestorCae", ActorId, false)),
+            bloqueo ?? new BloqueoCarteraUsuarioFalso());
 
     [Fact]
     public async Task Reasigna_y_avisa_al_gestor_anterior_y_al_nuevo()
@@ -301,6 +308,35 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         directorio.Consultados.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Revisión Codex del incremento B (P1): la reasignación toma el candado compartido del
+    /// Gestor CAE anterior y del destino, dentro de una transacción que dura hasta el guardado,
+    /// y antes de validar el destino.
+    /// </summary>
+    [Fact]
+    public async Task Reasigna_en_una_transaccion_con_el_candado_compartido_de_las_dos_cuentas()
+    {
+        var gestorAnteriorId = Guid.NewGuid();
+        var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, gestorAnteriorId);
+        var clienteRepositorio = new EmpresaRepositorioFalso();
+        clienteRepositorio.Agregar(cliente);
+        var eventos = new List<string>();
+        var bloqueo = new BloqueoCarteraUsuarioFalso { Eventos = eventos };
+        var directorio = new DirectorioDestinosCarteraFalso(new DestinoCartera(true, "GestorCae", ActorId, false)) { Eventos = eventos };
+        var transaccion = new TransaccionDeComandoFalsa();
+        var destinoId = Guid.NewGuid();
+        var handler = CrearHandler(
+            clienteRepositorio, new ConfiguracionIaDocumentoClienteRepositorioFalso(), new NotificacionUsuarioRepositorioFalso(),
+            new UnitOfWorkFalso(), "Administrador", directorio: directorio, bloqueo: bloqueo, transaccion: transaccion);
+
+        var resultado = await handler.Handle(new ReasignarEjecutivoClienteCommand(cliente.Id, destinoId), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        transaccion.Confirmadas.Should().Be(1);
+        bloqueo.Compartidos.Should().BeEquivalentTo([gestorAnteriorId, destinoId]);
+        eventos.Should().StartWith("compartido", "el destino se valida después de esperar a una desactivación en curso");
+    }
+
     [Fact]
     public async Task Un_conflicto_al_guardar_descarta_los_cambios_pendientes_del_contexto()
     {
@@ -325,6 +361,9 @@ public class DirectorioDestinosCarteraFalso(DestinoCartera? destino) : IDirector
 {
     public List<Guid> Consultados { get; } = [];
 
+    /// <summary>Registro compartido con <see cref="BloqueoCarteraUsuarioFalso"/> para comprobar el orden.</summary>
+    public List<string>? Eventos { get; init; }
+
     /// <summary>
     /// Lo que devuelve cada lectura de cartera, en orden; la última se repite. Permite
     /// simular un Cliente empresarial que llega entre dos lecturas.
@@ -336,11 +375,13 @@ public class DirectorioDestinosCarteraFalso(DestinoCartera? destino) : IDirector
     public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default)
     {
         Consultados.Add(usuarioId);
+        Eventos?.Add("leer-destino");
         return Task.FromResult(destino);
     }
 
     public Task<CarteraVigente> ObtenerCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken = default)
     {
+        Eventos?.Add("leer-cartera");
         if (Carteras.TryDequeue(out var siguiente)) _ultimaCartera = siguiente;
         return Task.FromResult(_ultimaCartera);
     }
@@ -351,4 +392,53 @@ public class DescarteCambiosPendientesFalso : IDescarteCambiosPendientes
     public int VecesDescartado { get; private set; }
 
     public void DescartarCambiosPendientes() => VecesDescartado++;
+}
+
+public class BloqueoCarteraUsuarioFalso : IBloqueoCarteraUsuario
+{
+    public List<Guid> Exclusivos { get; } = [];
+    public List<Guid> Compartidos { get; } = [];
+    public List<string>? Eventos { get; init; }
+
+    public Task BloquearExclusivoAsync(Guid usuarioId, CancellationToken cancellationToken = default)
+    {
+        Exclusivos.Add(usuarioId);
+        Eventos?.Add("exclusivo");
+        return Task.CompletedTask;
+    }
+
+    public Task BloquearCompartidoAsync(IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default)
+    {
+        Compartidos.AddRange(usuarioIds);
+        Eventos?.Add("compartido");
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// Doble de <see cref="ITransaccionDeComando"/>: ejecuta la operación y anota si se habría
+/// confirmado o deshecho. Que el rollback deshaga de verdad lo prueba la integración.
+/// </summary>
+public class TransaccionDeComandoFalsa : ITransaccionDeComando
+{
+    public int Ejecutadas { get; private set; }
+    public int Confirmadas { get; private set; }
+    public int Deshechas { get; private set; }
+
+    public async Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
+    {
+        Ejecutadas++;
+        try
+        {
+            var resultado = await operacion(cancellationToken);
+            if (resultado.EsFallido) Deshechas++;
+            else Confirmadas++;
+            return resultado;
+        }
+        catch
+        {
+            Deshechas++;
+            throw;
+        }
+    }
 }

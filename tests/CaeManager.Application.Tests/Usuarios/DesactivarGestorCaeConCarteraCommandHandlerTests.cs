@@ -29,12 +29,16 @@ public class DesactivarGestorCaeConCarteraCommandHandlerTests
     private readonly EmpresaRepositorioFalso _empresas = new();
     private readonly CuentasFalsas _cuentas = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
-    private readonly TransaccionFalsa _transaccion = new();
+    private readonly TransaccionDeComandoFalsa _transaccion = new();
+    private readonly List<string> _eventos = [];
+    private readonly BloqueoCarteraUsuarioFalso _bloqueo;
     private readonly AsignacionesOperativasWriterFalso _writer = new();
-    private DirectorioDestinosCarteraFalso _directorio = new(new DestinoCartera(true, "GestorCae", null, false));
+    private DirectorioDestinosCarteraFalso _directorio;
 
     public DesactivarGestorCaeConCarteraCommandHandlerTests()
     {
+        _bloqueo = new BloqueoCarteraUsuarioFalso { Eventos = _eventos };
+        _directorio = new(new DestinoCartera(true, "GestorCae", null, false)) { Eventos = _eventos };
         _empresas.Agregar(_uno);
         _empresas.Agregar(_dos);
         _cuentas.Cuentas[Gestor] = new CuentaUsuario(Gestor, "g@x.test", "Gestor", true, ["GestorCae"], false, true, false);
@@ -44,8 +48,8 @@ public class DesactivarGestorCaeConCarteraCommandHandlerTests
     {
         var usuario = new CurrentUserServiceFalso(Actor, rol);
         return new(_cuentas, usuario, _directorio,
-            ReasignarEjecutivoClienteCommandHandlerTests.Reasignador(usuario, _empresas, directorio: _directorio, writer: _writer),
-            _unitOfWork, _transaccion);
+            ReasignarEjecutivoClienteCommandHandlerTests.Reasignador(usuario, _empresas, directorio: _directorio, writer: _writer, bloqueo: _bloqueo),
+            _unitOfWork, _transaccion, _bloqueo);
     }
 
     private DesactivarGestorCaeConCarteraCommand Comando(params Guid[] confirmados) =>
@@ -76,6 +80,9 @@ public class DesactivarGestorCaeConCarteraCommandHandlerTests
         _cuentas.Desactivadas.Should().Equal(Gestor);
         _unitOfWork.VecesGuardado.Should().Be(1);
         _transaccion.Confirmadas.Should().Be(1);
+        _bloqueo.Exclusivos.Should().Equal(Gestor);
+        _eventos.Should().StartWith(["exclusivo", "leer-cartera"],
+            "el candado exclusivo se toma antes de leer la cartera y dura hasta el COMMIT (revisión Codex, P1)");
     }
 
     [Theory]
@@ -171,7 +178,7 @@ public class DesactivarGestorCaeConCarteraCommandHandlerTests
     [Fact]
     public async Task Un_destino_invalido_no_pasa_nada_ni_desactiva()
     {
-        _directorio = new DirectorioDestinosCarteraFalso(new DestinoCartera(false, "GestorCae", null, false));
+        _directorio = new DirectorioDestinosCarteraFalso(new DestinoCartera(false, "GestorCae", null, false)) { Eventos = _eventos };
         CarteraLeida([_uno.Id, _dos.Id]);
 
         var resultado = await Handler().Handle(Comando(), CancellationToken.None);
@@ -208,35 +215,6 @@ public class DesactivarGestorCaeConCarteraCommandHandlerTests
         resultado.Error.Should().Be(DesactivarGestorCaeConCarteraCommandHandler.TraspasoNoGuardado,
             "un fallo de guardado no se presenta como una carrera con otra persona");
         AfirmarQueNoSeConfirmoNada();
-    }
-
-    /// <summary>
-    /// Doble de <see cref="ITransaccionDeComando"/>: ejecuta la operación y anota si se
-    /// habría confirmado o deshecho. Que el rollback deshaga de verdad lo prueba la
-    /// integración contra PostgreSQL.
-    /// </summary>
-    private sealed class TransaccionFalsa : ITransaccionDeComando
-    {
-        public int Ejecutadas { get; private set; }
-        public int Confirmadas { get; private set; }
-        public int Deshechas { get; private set; }
-
-        public async Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
-        {
-            Ejecutadas++;
-            try
-            {
-                var resultado = await operacion(cancellationToken);
-                if (resultado.EsFallido) Deshechas++;
-                else Confirmadas++;
-                return resultado;
-            }
-            catch
-            {
-                Deshechas++;
-                throw;
-            }
-        }
     }
 
     private sealed class CuentasFalsas : IGestionCuentasUsuario

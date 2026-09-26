@@ -1,4 +1,5 @@
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Plataforma;
@@ -50,9 +51,11 @@ public class DesactivarGestorCaeConCarteraBajoRuntimeTests : IAsyncLifetime
     private readonly Guid _destino = Guid.NewGuid();
 
     private readonly FalloAlGuardarCuenta _fallo = new();
+    private readonly AccionAlConfirmar _alConfirmar = new();
     private ServiceProvider _servicios = null!;
     private Guid _uno;
     private Guid _dos;
+    private Guid _tercero;
 
     public async Task InitializeAsync()
     {
@@ -91,14 +94,19 @@ public class DesactivarGestorCaeConCarteraBajoRuntimeTests : IAsyncLifetime
 
             var uno = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, _gestor);
             var dos = Empresa.CrearComoCliente("Montajes del Norte", "A58818501", false, null, _gestor);
-            contexto.Empresas.AddRange(uno, dos);
+            // Del destino: es el que una reasignación concurrente intenta pasar al Gestor CAE que se desactiva.
+            var tercero = Empresa.CrearComoCliente("Talleres del Sur", "B65432109", false, null, _destino);
+            contexto.Empresas.AddRange(uno, dos, tercero);
             foreach (var cliente in new[] { uno, dos })
                 contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
                     raiz, _gestor, AmbitoAsignacion.DeRelacionCliente(cliente.Id), ahora.AddDays(-1), vigenciaHasta: null, ahora, null));
+            contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
+                raiz, _destino, AmbitoAsignacion.DeRelacionCliente(tercero.Id), ahora.AddDays(-1), vigenciaHasta: null, ahora, null));
 
             await contexto.SaveChangesAsync();
             _uno = uno.Id;
             _dos = dos.Id;
+            _tercero = tercero.Id;
         }
 
         _servicios = Componer();
@@ -120,8 +128,39 @@ public class DesactivarGestorCaeConCarteraBajoRuntimeTests : IAsyncLifetime
         (await contexto.Empresas.AsNoTracking().Where(e => e.Id == _uno || e.Id == _dos).Select(e => e.EjecutivoUsuarioId).ToListAsync())
             .Should().AllBeEquivalentTo(_destino);
         (await CarteraVigenteAsync(contexto, _gestor)).Should().BeEmpty();
-        (await CarteraVigenteAsync(contexto, _destino)).Should().BeEquivalentTo([_uno, _dos]);
+        (await CarteraVigenteAsync(contexto, _destino)).Should().BeEquivalentTo([_uno, _dos, _tercero]);
         (await contexto.Users.AsNoTracking().SingleAsync(u => u.Id == _gestor)).EstaDesactivada(DateTimeOffset.UtcNow).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Revisión Codex del incremento B (P1). En el instante del COMMIT de la desactivación
+    /// —después de la última relectura— otro circuito intenta pasar un Cliente empresarial
+    /// al Gestor CAE que se desactiva. Con el candado exclusivo, esa reasignación espera al
+    /// COMMIT y después ve la cuenta desactivada; sin él, se colaba y la cuenta quedaba
+    /// desactivada con cartera.
+    /// </summary>
+    [Fact]
+    public async Task Una_reasignacion_concurrente_al_Gestor_CAE_que_se_desactiva_espera_y_se_rechaza()
+    {
+        Task<Domain.Common.Result>? concurrente = null;
+        var terminoAntesDelCommit = false;
+        _alConfirmar.Accion = async () =>
+        {
+            concurrente = Task.Run(() => ReasignarAsync(_tercero, _gestor));
+            terminoAntesDelCommit = await Task.WhenAny(concurrente, Task.Delay(TimeSpan.FromSeconds(3))) == concurrente;
+        };
+
+        var resultado = await EjecutarAsync([_uno, _dos]);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+        concurrente.Should().NotBeNull("control: la reasignación concurrente llegó a lanzarse en el COMMIT");
+        terminoAntesDelCommit.Should().BeFalse("con el candado, la reasignación concurrente espera al COMMIT");
+        var otro = await concurrente!;
+        otro.Error.Codigo.Should().Be("Cliente.DestinoInactivo");
+
+        await using var contexto = ContextoPropietario();
+        (await contexto.Users.AsNoTracking().SingleAsync(u => u.Id == _gestor)).EstaDesactivada(DateTimeOffset.UtcNow).Should().BeTrue();
+        (await CarteraVigenteAsync(contexto, _gestor)).Should().BeEmpty("una cuenta desactivada no puede quedarse con cartera");
     }
 
     /// <summary>
@@ -196,6 +235,13 @@ public class DesactivarGestorCaeConCarteraBajoRuntimeTests : IAsyncLifetime
         (await comprobacion.NotificacionesUsuario.AsNoTracking().CountAsync()).Should().Be(0);
     }
 
+    private async Task<Domain.Common.Result> ReasignarAsync(Guid clienteId, Guid destino)
+    {
+        await using var ambito = _servicios.CreateAsyncScope();
+        var handler = ActivatorUtilities.CreateInstance<ReasignarEjecutivoClienteCommandHandler>(ambito.ServiceProvider);
+        return await handler.Handle(new ReasignarEjecutivoClienteCommand(clienteId, destino), CancellationToken.None);
+    }
+
     private async Task<Domain.Common.Result> EjecutarAsync(IReadOnlyCollection<Guid> confirmados)
     {
         await using var ambito = _servicios.CreateAsyncScope();
@@ -209,7 +255,7 @@ public class DesactivarGestorCaeConCarteraBajoRuntimeTests : IAsyncLifetime
         (await contexto.Empresas.AsNoTracking().Where(e => e.Id == _uno || e.Id == _dos).Select(e => e.EjecutivoUsuarioId).ToListAsync())
             .Should().AllBeEquivalentTo(_gestor);
         (await CarteraVigenteAsync(contexto, _gestor)).Should().BeEquivalentTo([_uno, _dos]);
-        (await CarteraVigenteAsync(contexto, _destino)).Should().BeEmpty();
+        (await CarteraVigenteAsync(contexto, _destino)).Should().Equal(_tercero);
         (await contexto.NotificacionesUsuario.AsNoTracking().CountAsync()).Should().Be(0);
         (await contexto.Users.AsNoTracking().SingleAsync(u => u.Id == _gestor)).EstaDesactivada(DateTimeOffset.UtcNow).Should().BeFalse();
     }
@@ -242,7 +288,8 @@ public class DesactivarGestorCaeConCarteraBajoRuntimeTests : IAsyncLifetime
                 new TenantSelladoInterceptor(tenantActual),
                 new TenantRlsConnectionInterceptor(tenantActual, new SinTenantSeleccionado(), usuario, BaseDatosPostgresDePruebas.FirmanteContextoRls),
                 new ConcurrenciaOptimistaInterceptor(),
-                _fallo));
+                _fallo,
+                _alConfirmar));
         servicios.AddScoped<ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
 
@@ -261,6 +308,8 @@ public class DesactivarGestorCaeConCarteraBajoRuntimeTests : IAsyncLifetime
         servicios.AddScoped<IAsignacionesOperativasWriter, AsignacionesOperativasWriter>();
         servicios.AddScoped<ReasignadorCarteraCliente>();
         servicios.AddScoped<ITransaccionDeComando, TransaccionDeComando>();
+        servicios.AddScoped<IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
+        servicios.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());
 
         return servicios.BuildServiceProvider();
     }
@@ -294,6 +343,23 @@ public class DesactivarGestorCaeConCarteraBajoRuntimeTests : IAsyncLifetime
             if (Activo && entradas.Any(e => e.Entity is ApplicationUser && e.State == EntityState.Modified))
                 throw new InvalidOperationException("desactivación simulada: Identity no pudo guardar la cuenta.");
             return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+    }
+
+    /// <summary>Ejecuta una vez <see cref="Accion"/> justo antes del primer COMMIT que vea.</summary>
+    private sealed class AccionAlConfirmar : DbTransactionInterceptor
+    {
+        private Func<Task>? _accion;
+
+        public Func<Task>? Accion { set => _accion = value; }
+
+        public override async ValueTask<InterceptionResult> TransactionCommittingAsync(
+            System.Data.Common.DbTransaction transaction, TransactionEventData eventData, InterceptionResult result,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Exchange(ref _accion, null) is { } accion)
+                await accion();
+            return result;
         }
     }
 

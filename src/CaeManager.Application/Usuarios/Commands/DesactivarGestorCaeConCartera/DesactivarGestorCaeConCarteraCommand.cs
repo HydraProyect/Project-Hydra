@@ -17,9 +17,12 @@ namespace CaeManager.Application.Usuarios.Commands.DesactivarGestorCaeConCartera
 /// <para>
 /// <see cref="ClienteIdsConfirmados"/> es lo que el Administrador vio y confirmó. Dentro
 /// de la transacción se vuelve a leer la cartera: si no coincide, no se escribe nada y se
-/// devuelve <see cref="CarteraCambiada"/> para que la pantalla vuelva a preguntar. Tras
-/// pasarla y desactivar, se lee una última vez: un Cliente empresarial que llegara
-/// durante la transacción también la deshace entera.
+/// devuelve <see cref="CarteraCambiada"/> para que la pantalla vuelva a preguntar. Antes
+/// de esa lectura se toma un candado exclusivo sobre la cuenta hasta el COMMIT
+/// (<see cref="IBloqueoCarteraUsuario"/>): toda reasignación hacia o desde ella lo pide
+/// compartido, así que ninguna se cuela entre la lectura y la confirmación. La relectura
+/// final tras desactivar queda como red para cualquier escritura que no pase por
+/// <see cref="ReasignadorCarteraCliente"/>.
 /// </para>
 ///
 /// <para>
@@ -40,7 +43,8 @@ public class DesactivarGestorCaeConCarteraCommandHandler(
     IDirectorioDestinosCartera directorio,
     ReasignadorCarteraCliente reasignador,
     IUnitOfWork unitOfWork,
-    ITransaccionDeComando transaccion)
+    ITransaccionDeComando transaccion,
+    IBloqueoCarteraUsuario bloqueoCartera)
     : IRequestHandler<DesactivarGestorCaeConCarteraCommand, Result>
 {
     public static readonly Error CarteraCambiada = Error.Crear(
@@ -81,6 +85,11 @@ public class DesactivarGestorCaeConCarteraCommandHandler(
         {
             return await transaccion.EjecutarAsync(async ct =>
             {
+                // Candado exclusivo sobre la cuenta hasta el COMMIT: ninguna reasignación hacia
+                // ni desde ella puede colarse entre esta lectura y la confirmación (revisión
+                // Codex, P1). Las que ya estaban en curso terminan antes y se ven aquí.
+                await bloqueoCartera.BloquearExclusivoAsync(request.UsuarioId, ct);
+
                 // Una cartera universal no se reparte: si apareció con el diálogo abierto,
                 // lo que se confirmó ya no describe la cartera.
                 var enCartera = await directorio.ObtenerCarteraVigenteAsync(request.UsuarioId, ct);
