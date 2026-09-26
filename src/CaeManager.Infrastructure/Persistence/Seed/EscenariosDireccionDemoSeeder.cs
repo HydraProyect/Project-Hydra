@@ -284,7 +284,7 @@ public static class EscenariosDireccionDemoSeeder
     /// escritor de asignaciones lo trata como «actor desconocido» (mismo
     /// resultado que el backfill de asignaciones operativas).
     /// </summary>
-    private sealed class ActorDeSiembra : ICurrentUserService
+    internal sealed class ActorDeSiembra : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(null);
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();

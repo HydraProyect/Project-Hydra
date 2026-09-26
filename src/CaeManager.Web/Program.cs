@@ -866,6 +866,7 @@ using (var scope = app.Services.CreateScope())
         // cualquier siembra: con el flag activo allí, el resto de seeders de demo habrían
         // escrito ya cuando la suya lanzara. Inerte sin DatosPrueba:EscenariosDireccion.
         EscenariosDireccionDemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
+        GestorCaeCarteraMultiTenantSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
 
         // Identidad ADMINISTRATIVA para los dos seeders que no son trafico de
         // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
@@ -897,6 +898,11 @@ using (var scope = app.Services.CreateScope())
         // DatosPrueba:EscenariosDireccion esté activo además de DatosPrueba:Activo,
         // y lanza en Producción (ver EscenariosDireccionDemoSeeder).
         await EscenariosDireccionDemoSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
+
+        // Operador CAE externo con un Gestor CAE en cartera sobre dos Tenants
+        // beneficiarios y un tercero fuera de ella, solo para su colección E2E —
+        // inerte salvo DatosPrueba:GestorCaeCarteraMultiTenant, y lanza en Producción.
+        await GestorCaeCarteraMultiTenantSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
 
         // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
         // navegador real (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo

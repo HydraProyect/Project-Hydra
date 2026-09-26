@@ -271,6 +271,22 @@ public class WebAppFixture : IAsyncLifetime
         return await comando.ExecuteNonQueryAsync();
     }
 
+    /// <summary>
+    /// Lee un único valor de la base de esta instancia (el id de una fila sembrada,
+    /// por ejemplo), con la cadena propietaria de la fixture. Falla si no hay fila.
+    /// </summary>
+    public async Task<string> LeerValorSqlAsync(string sql, params (string Nombre, string Valor)[] parametros)
+    {
+        await using var conexion = new Npgsql.NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = sql;
+        foreach (var (nombre, valor) in parametros)
+            comando.Parameters.AddWithValue(nombre, valor);
+        return (await comando.ExecuteScalarAsync())?.ToString()
+               ?? throw new InvalidOperationException($"La consulta no devolvió ninguna fila: {sql}");
+    }
+
     public async Task DisposeAsync()
     {
         if (Browser is not null)
@@ -458,4 +474,20 @@ public sealed class WebAppFixtureVentanaSoporte : WebAppFixture
 {
     protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
         new Dictionary<string, string> { ["Circuit__RevalidacionIntervaloSegundos"] = "2" };
+}
+
+/// <summary>
+/// Instancia propia con la siembra del Gestor CAE de un Operador CAE externo con
+/// Asignación de Cartera en dos Tenants beneficiarios y un tercero fuera de ella
+/// (ver GestorCaeCarteraMultiTenantSeeder). En su colección: el recorrido corrige,
+/// crea y cancela datos de esos Tenants, y el resto de la suite no debe ver tres
+/// Tenants más en ningún selector.
+/// </summary>
+[CollectionDefinition("AppCollectionGestorCaeCarteraMultiTenant")]
+public class AppCollectionGestorCaeCarteraMultiTenant : ICollectionFixture<WebAppFixtureGestorCaeCarteraMultiTenant>;
+
+public sealed class WebAppFixtureGestorCaeCarteraMultiTenant : WebAppFixture
+{
+    protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
+        new Dictionary<string, string> { ["DatosPrueba__GestorCaeCarteraMultiTenant"] = "true" };
 }
