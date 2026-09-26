@@ -264,8 +264,8 @@ else
                                             {
                                                 <div class="valor-con-copia-subcontrata-360">
                                                     <strong class="contrasena-subcontrata-360">@(_contrasenaVisible ? _credencial.Contrasena : "••••••••••")</strong>
-                                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-pressed="@(_contrasenaVisible ? "true" : "false")" OnClick="AlternarContrasena">@(_contrasenaVisible ? Textos["BotonOcultarContrasena"] : Textos["BotonRevelarContrasena"])</Boton>
-                                                    <BotonCopiar Valor="@_credencial.Contrasena" Etiqueta="@Textos["CopiarLaContrasena"]" />
+                                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-pressed="@(_contrasenaVisible ? "true" : "false")" OnClick="AlternarContrasenaAsync">@(_contrasenaVisible ? Textos["BotonOcultarContrasena"] : Textos["BotonRevelarContrasena"])</Boton>
+                                                    <BotonCopiar ValorAsync="ObtenerContrasenaParaCopiarAsync" Etiqueta="@Textos["CopiarLaContrasena"]" />
                                                 </div>
                                             }
                                         </div>
@@ -991,9 +991,12 @@ else
     private Task AbrirCentroAsync(CentroConActividadDto centro) =>
         WorkspaceService.NavegarAAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
 
-    private async Task MostrarCredencialAsync()
+    private Task MostrarCredencialAsync() => CargarCredencialAsync();
+
+    /// <returns>true si la credencial se cargó y sigue siendo la de esta carga.</returns>
+    private async Task<bool> CargarCredencialAsync()
     {
-        if (_detalle is null || _cargandoCredencial) return;
+        if (_detalle is null || _cargandoCredencial) return false;
 
         var carga = ++_cargaCredencial;
         var id = _detalle.Id;
@@ -1003,20 +1006,27 @@ else
         try
         {
             var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(id), _cancelacion);
-            if (carga != _cargaCredencial) return;
+            if (carga != _cargaCredencial) return false;
             _credencial = credencial;
             _credencialConsultada = true;
             _contrasenaVisible = false;
+            return true;
         }
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
             if (carga == _cargaCredencial)
+            {
+                // Sin 2FA la credencial ya cargada tampoco se queda en el circuito.
+                OcultarCredencial();
                 NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+            }
+            return false;
         }
         catch (Exception)
         {
             if (carga == _cargaCredencial)
                 _errorCredencial = true;
+            return false;
         }
         finally
         {
@@ -1025,7 +1035,22 @@ else
         }
     }
 
-    private void AlternarContrasena() => _contrasenaVisible = !_contrasenaVisible;
+    /// <summary>
+    /// Revelar vuelve a pedir la credencial en vez de enseñar la ya cargada: el
+    /// 2FA (P1-I1) se comprueba en el momento de revelar, así que si se
+    /// restableció después de abrirla, la contraseña no sale del circuito.
+    /// </summary>
+    private async Task AlternarContrasenaAsync()
+    {
+        if (_contrasenaVisible)
+        {
+            _contrasenaVisible = false;
+            return;
+        }
+
+        if (await CargarCredencialAsync())
+            _contrasenaVisible = true;
+    }
 
     /// <summary>Suelta la credencial de la memoria del circuito, no solo de la vista.</summary>
     private void OcultarCredencial()
@@ -1113,6 +1138,10 @@ else
         }
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
+            // El clic llega por BotonCopiar (componente hijo): sin
+            // StateHasChanged este panel no se repinta sin la credencial.
+            OcultarCredencial();
+            StateHasChanged();
             NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
             return null;
         }

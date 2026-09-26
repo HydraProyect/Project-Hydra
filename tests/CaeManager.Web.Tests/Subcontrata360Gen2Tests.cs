@@ -83,6 +83,9 @@ public class Subcontrata360Gen2Tests : BunitContext
         public Result ResultadoEditar { get; set; } = Result.Exito();
         public Result ResultadoGuardarCredenciales { get; set; } = Result.Exito();
 
+        /// <summary>P1-I1: la cuenta no tiene 2FA y Application deniega la credencial con contraseña.</summary>
+        public bool SinDobleFactor { get; set; }
+
         /// <summary>Si devuelve una tarea, la respuesta espera a que se complete.</summary>
         public Func<object, Task?>? Retener { get; set; }
 
@@ -97,6 +100,8 @@ public class Subcontrata360Gen2Tests : BunitContext
             Tokens.Add((request, cancellationToken));
             if (Retener?.Invoke(request) is { } retenida)
                 await retenida;
+            if (SinDobleFactor && request is ObtenerCredencialAccesoSubcontrataQuery)
+                throw new SegundoFactorRequeridoParaCredencialesException();
             return (TResponse)Responder(request)!;
         }
 
@@ -360,6 +365,42 @@ public class Subcontrata360Gen2Tests : BunitContext
         await Boton(cut, "Ocultar credenciales").ClickAsync(new MouseEventArgs());
 
         cut.Markup.Should().NotContain("lauburu.prl").And.NotContain("Lauburu.2026");
+    }
+
+    /// <summary>
+    /// P1-I1 (hallazgo de Codex en #900): con la credencial ya cargada, un 2FA
+    /// restablecido después no puede dejar revelar ni copiar la contraseña que
+    /// quedó en el circuito. Revelar y copiar vuelven a pedirla; sin 2FA la
+    /// credencial se suelta de la memoria y la pantalla lleva a configurarlo.
+    /// </summary>
+    [Theory]
+    [InlineData("revelar")]
+    [InlineData("copiar")]
+    public async Task Con_la_credencial_ya_cargada_y_el_2FA_restablecido_revelar_o_copiar_no_da_la_contrasena(string accion)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+        mediador.Credenciales[id] = new("app.dokify.net/acceso", null, "lauburu.prl", "Lauburu.2026", null);
+        var modulo = JSInterop.SetupModule("./js/clipboard.js");
+        modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
+        var cut = Renderizar(id);
+        await Boton(cut, "Ver credenciales").ClickAsync(new MouseEventArgs());
+        cut.Markup.Should().Contain("lauburu.prl", "control positivo: con 2FA la credencial se carga");
+
+        mediador.SinDobleFactor = true;
+        if (accion == "revelar")
+            await Boton(cut, "Revelar").ClickAsync(new MouseEventArgs());
+        else
+            await cut.Find(".contrasena-subcontrata-360").ParentElement!.QuerySelector(".boton-copiar")!
+                .ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<ObtenerCredencialAccesoSubcontrataQuery>().Should().HaveCount(2,
+            "revelar y copiar vuelven a pedir la credencial en vez de usar la cargada");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/cuenta/configurar-2fa?motivo=credenciales");
+        cut.Markup.Should().NotContain("Lauburu.2026").And.NotContain("lauburu.prl",
+            "sin 2FA la credencial cargada se suelta del circuito");
+        modulo.Invocations.Should().BeEmpty("sin 2FA no hay nada que copiar");
     }
 
     /// <summary>
