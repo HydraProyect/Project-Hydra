@@ -130,6 +130,9 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
 
     private bool PuedeFirmarAhora() => _usarFirmaGuardada || _trazoIniciado;
 
+    /// <summary>P1-E2b: hay una firma dibujada o escrita que todavía no se ha firmado.</summary>
+    private bool HayCambiosSinGuardar => _trazoIniciado;
+
     [JSInvokable]
     public void MarcarTrazoIniciadoAsync()
     {

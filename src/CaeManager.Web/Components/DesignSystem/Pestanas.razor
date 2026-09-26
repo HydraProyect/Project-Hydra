@@ -47,7 +47,9 @@
          id="@ObtenerIdPanel(PestanaActiva)"
          aria-labelledby="@ObtenerIdPestana(PestanaActiva)"
          tabindex="0">
-        @ChildContent
+        <CascadingValue Value="_ambito" IsFixed="true">
+            @ChildContent
+        </CascadingValue>
     </div>
 </div>
 
@@ -61,6 +63,18 @@
     [Parameter] public string EtiquetaGrupo { get; set; } = "Secciones";
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
+    /// <summary>Las pestañas que contienen a estas, si las hay: su ámbito encadena este.</summary>
+    [CascadingParameter] public AmbitoCambiosSinGuardar? AmbitoExterior { get; set; }
+
+    /// <summary>
+    /// P1-E2b: el contenido de la pestaña activa se desmonta al cambiarla, antes de que cambie
+    /// la URL si es que cambia; los avisos de cambios sin guardar de dentro se registran aquí
+    /// y se pregunta antes de cambiar.
+    /// </summary>
+    private AmbitoCambiosSinGuardar _ambito = new();
+
+    protected override void OnInitialized() => _ambito = new AmbitoCambiosSinGuardar(AmbitoExterior);
+
     protected override void OnParametersSet()
     {
         if (_referencias.Length != Definiciones.Count)
@@ -70,8 +84,13 @@
     private string ObtenerIdPestana(string id) => $"{_grupoId}-tab-{id}";
     private string ObtenerIdPanel(string id) => $"{_grupoId}-panel-{id}";
 
-    private Task ActivarAsync(string id) =>
-        id == PestanaActiva ? Task.CompletedTask : PestanaActivaChanged.InvokeAsync(id);
+    private async Task ActivarAsync(string id)
+    {
+        if (id == PestanaActiva || !await _ambito.ConfirmarAbandonoAsync())
+            return;
+
+        await PestanaActivaChanged.InvokeAsync(id);
+    }
 
     private async Task ManejarTeclaAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e, int indiceActual)
     {

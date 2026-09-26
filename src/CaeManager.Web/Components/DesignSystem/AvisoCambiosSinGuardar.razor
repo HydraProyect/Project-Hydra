@@ -1,8 +1,6 @@
-@using CaeManager.Web.Recursos
 @using Microsoft.AspNetCore.Components.Routing
-@using Microsoft.Extensions.Localization
-@inject IStringLocalizer<TextosComunes> Comunes
 @inject NavigationManager Navegacion
+@implements IDisposable
 
 @*
     Aviso de cambios sin guardar (P1-E2): el único sitio de la aplicación que monta un
@@ -23,6 +21,11 @@
     Para decidir HayCambios en un drawer o modal, InstantaneaFormulario compara los
     campos con cómo se abrió el formulario.
 
+    Dentro de un AmbitoCambiosSinGuardar en cascada (la pestaña de un panel del Context
+    Workspace o de /documentos), además se registra en él: cambiar de pestaña no navega
+    antes de desmontar, así que quien cambia pregunta con este mismo aviso
+    (ConfirmarAbandonoAsync) antes de hacerlo.
+
     Solo funciona en componentes interactivos: en una página estática (las de cuenta y
     2FA) no hay circuito que reciba el evento de navegación.
 
@@ -34,15 +37,11 @@
 
 <NavigationLock OnBeforeInternalNavigation="AntesDeSalirAsync" ConfirmExternalNavigation="HayCambios()" />
 
-<Modal Visible="_preguntando" VisibleChanged="v => { if (!v) SeguirEditando(); }" Titulo="@(Titulo ?? Comunes["CambiosSinGuardarTitulo"])">
-    <ChildContent>
-        <p>@(Mensaje ?? Comunes["CambiosSinGuardarMensaje"])</p>
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" OnClick="SeguirEditando">@(TextoSeguir ?? Comunes["CambiosSinGuardarSeguir"])</Boton>
-        <Boton Variante="VarianteBoton.Destructivo" OnClick="SalirDescartandoAsync">@(TextoDescartar ?? Comunes["CambiosSinGuardarDescartar"])</Boton>
-    </Pie>
-</Modal>
+@if (_preguntando)
+{
+    <PreguntaSalirSinGuardar AlSeguir="SeguirEditando" AlDescartar="SalirDescartandoAsync"
+                             Titulo="@Titulo" Mensaje="@Mensaje" TextoSeguir="@TextoSeguir" TextoDescartar="@TextoDescartar" />
+}
 
 @code {
     /// <summary>
@@ -65,9 +64,39 @@
     [Parameter] public string? TextoSeguir { get; set; }
     [Parameter] public string? TextoDescartar { get; set; }
 
+    /// <summary>La zona que se desmonta sin navegar (pestaña), si la hay.</summary>
+    [CascadingParameter] public AmbitoCambiosSinGuardar? Ambito { get; set; }
+
     private bool _preguntando;
     private string? _destinoPendiente;
     private bool _salidaConfirmada;
+    private TaskCompletionSource<bool>? _abandonoPendiente;
+
+    protected override void OnInitialized() => Ambito?.Registrar(this);
+
+    public void Dispose()
+    {
+        Ambito?.Retirar(this);
+        // Desmontado mientras preguntaba: quien espera no se queda colgado.
+        _abandonoPendiente?.TrySetResult(true);
+    }
+
+    /// <summary>
+    /// Lo llama el <see cref="AmbitoCambiosSinGuardar"/> antes de desmontar la zona: sin
+    /// cambios, <c>true</c> al momento; con cambios, pregunta y devuelve la respuesta.
+    /// </summary>
+    internal Task<bool> ConfirmarAbandonoAsync()
+    {
+        if (!HayCambios())
+            return Task.FromResult(true);
+
+        _abandonoPendiente?.TrySetResult(false);
+        _abandonoPendiente = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _destinoPendiente = null;
+        _preguntando = true;
+        StateHasChanged();
+        return _abandonoPendiente.Task;
+    }
 
     private Task AntesDeSalirAsync(LocationChangingContext contexto)
     {
@@ -93,11 +122,24 @@
     {
         _preguntando = false;
         _destinoPendiente = null;
+        _abandonoPendiente?.TrySetResult(false);
+        _abandonoPendiente = null;
     }
 
     private async Task SalirDescartandoAsync()
     {
         _preguntando = false;
+        if (_abandonoPendiente is { } abandono)
+        {
+            _abandonoPendiente = null;
+            await AlDescartar.InvokeAsync();
+            // Quien desmonta puede sincronizar la URL justo después (el Context Workspace
+            // escribe ?ctx=): esa navegación ya está decidida y no pregunta otra vez.
+            _salidaConfirmada = true;
+            abandono.TrySetResult(true);
+            return;
+        }
+
         if (_destinoPendiente is not { } destino)
             return;
 
