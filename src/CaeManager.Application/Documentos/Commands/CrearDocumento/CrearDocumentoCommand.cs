@@ -67,8 +67,7 @@ public class CrearDocumentoCommandHandler(
     IUnitOfWork unitOfWork,
     ITrabajoAnalisisDocumentoRepository colaAnalisis,
     ICurrentUserService currentUserService,
-    IDerivarCanalesAplicablesDocumentoService derivarCanalesAplicables,
-    IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio,
+    IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IPublisher publisher,
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
@@ -92,7 +91,7 @@ public class CrearDocumentoCommandHandler(
                 "Documento.AmbitoIncorrecto",
                 $"\"{tipoDocumento.Nombre}\" es un tipo de documento de {DescribirAmbito(tipoDocumento.AmbitoAplicacion)}, no de {DescribirAmbito(ambitoSolicitado)}."));
 
-        // Verificación del propietario (P0-1 de docs/business/MATURITY_REVIEW.md):
+        // Verificación del propietario (P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md):
         // sin esto, un Id de otro tenant se persistía sin error, sellado con
         // el tenant actual — hallazgo explícito del comité sobre este mismo
         // handler. El filtro global de EF ya deja "no encontrado" un Id ajeno.
@@ -147,15 +146,13 @@ public class CrearDocumentoCommandHandler(
 
         repositorio.Agregar(documento);
 
-        // Acreditación por plataforma destino (docs/ux-audit/PLAN-EJECUCION-UX.md
-        // § Parte 2 (b)/Lote 2-D): al nacer el Documento, se derivan los accesos
-        // de plataforma que hoy le aplican (Trabajador/Empresa → asignaciones
-        // activas → centro → canal) y se crea una AcreditacionDocumentoPlataforma
-        // por cada uno, en Pendiente de subir. Mismo SaveChangesAsync que el
-        // Documento — o se confirman juntas o ninguna.
-        var canalesAplicables = await derivarCanalesAplicables.ObtenerCanalGestionDocumentalIdsAplicablesAsync(documento, cancellationToken);
-        foreach (var canalId in canalesAplicables)
-            acreditacionRepositorio.Agregar(new AcreditacionDocumentoPlataforma(documento.Id, canalId));
+        // Acreditación por plataforma destino: al nacer el Documento, una
+        // AcreditacionDocumentoPlataforma en Pendiente de subir por cada acceso de
+        // plataforma de los Centros de su propietario que exigen su tipo. Regla
+        // única de IAltaAcreditacionesPlataformaService, compartida con los demás
+        // caminos de alta. Mismo SaveChangesAsync que el Documento: o se
+        // confirman juntas o ninguna.
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] }, cancellationToken);
 
         // Los dos análisis pesados se encolan en vez de ejecutarse aquí: son
         // llamadas a un modelo externo, con su latencia, y hacerlas dentro del
@@ -199,7 +196,7 @@ public class CrearDocumentoCommandHandler(
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Después del commit: este documento puede ser el último que le faltaba al
-        // expediente de una visita pendiente (ARQUITECTURA-INTEGRACIONES.md § 6.5).
+        // expediente de una visita pendiente (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.5).
         await publisher.Publish(new DocumentacionCambiadaEvent(documento.Id), cancellationToken);
 
         return Result.Exito(documento.Id);

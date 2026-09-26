@@ -8,14 +8,14 @@ namespace CaeManager.Application.Common;
 /// <summary>
 /// Traza cada request de MediatR: qué se ejecutó, cuánto tardó, con qué
 /// tenant y usuario, y cómo terminó (P1-10 de
-/// docs/business/MATURITY_REVIEW.md — antes no había un solo <c>ILogger</c>
+/// Project-Hydra-Negocio/MATURITY_REVIEW.md — antes no había un solo <c>ILogger</c>
 /// en los 73 Command handlers ni en los 76 Query handlers, así que la
 /// pregunta "¿qué comandos fallan y con qué latencia?" no tenía respuesta).
 ///
 /// <b>Nunca registra el contenido del request.</b> Los Commands llevan DNI,
 /// nombres, correos y datos de salud de trabajadores; volcarlos al log los
 /// convertiría en un tratamiento de datos personales más, con su propia
-/// retención y sus propios derechos de acceso (RGPD-TRATAMIENTO-DATOS.md).
+/// retención y sus propios derechos de acceso (Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md).
 /// Se registra el <i>tipo</i> del request, no sus valores.
 ///
 /// Va el primero del pipeline —por fuera incluso de
@@ -119,12 +119,30 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
                 "{Request} cancelado tras {DuracionMs} ms", nombre, cronometro.ElapsedMilliseconds);
             throw;
         }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            // Denegación esperada (P1-I1), no un error del sistema: se trata
+            // como un Result fallido —aviso con código, fallo en la ventana de
+            // alertas igual que cualquier otra denegación— y sin la traza
+            // completa, que llenaría Sentry cada vez que alguien sin 2FA pulsa
+            // «Copiar contraseña».
+            cronometro.Stop();
+            const string codigo = "Credenciales.SegundoFactorRequerido";
+            actividad?.SetTag("DuracionMs", cronometro.ElapsedMilliseconds);
+            actividad?.SetTag("CodigoError", codigo);
+            actividad?.SetStatus(ActivityStatusCode.Error, codigo);
+            _logger.LogWarning(
+                "{Request} falló con {CodigoError} en {DuracionMs} ms",
+                nombre, codigo, cronometro.ElapsedMilliseconds);
+            _ventanaSalud.RegistrarDesenlace(fallo: true, lento: cronometro.ElapsedMilliseconds >= UmbralLentitudMs);
+            throw;
+        }
         catch (Exception ex)
         {
             cronometro.Stop();
             // Lo verdaderamente inesperado: aquí sí interesa la excepción
             // completa, porque no hay Result que la describa (ver
-            // ARCHITECTURE.md, "Manejo de errores"). El span lo refleja con
+            // Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Manejo de errores"). El span lo refleja con
             // el mismo criterio: Error, no un Result de negocio.
             actividad?.SetTag("DuracionMs", cronometro.ElapsedMilliseconds);
             actividad?.SetTag("exception.type", ex.GetType().FullName);

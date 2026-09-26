@@ -7,7 +7,7 @@ using MediatR;
 namespace CaeManager.Web.Features.Empresas;
 
 /// <summary>
-/// Mismo patrón que ClientesEndpoints.cs (docs/ux-audit/03-empresas-subcontratas.md H7).
+/// Mismo patrón que ClientesEndpoints.cs (Project-Hydra-Negocio/tecnico/docs/ux-audit/03-empresas-subcontratas.md H7).
 /// </summary>
 public static class EmpresasEndpoints
 {

@@ -80,6 +80,10 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
         var centroIds = asignaciones.Select(a => a.CentroId).ToList();
 
+        // P1-X2: la Asignación a un Centro sin gestión CAE se sigue viendo, pero
+        // no exige ningún tipo.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(centrosContext, centroIds, cancellationToken);
+
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
             .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
@@ -93,19 +97,24 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
         var documentosDelTrabajador = await documentosContext.Documentos
             .Where(d => d.TrabajadorId == request.TrabajadorId)
-            .Select(d => new { d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
+            .Select(d => new { d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
             .ToListAsync(cancellationToken);
-        var documentosPorTipo = documentosDelTrabajador.ToDictionary(d => d.TipoDocumentoId);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        // Puede haber varios del mismo tipo (el vencido y su renovación): el
+        // índice (TrabajadorId, TipoDocumentoId) no es único.
+        var documentosPorTipo = PreferenciaDocumentoPorTipo.UnoPorClave(
+            documentosDelTrabajador, d => d.TipoDocumentoId, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, hoy);
 
         var resultado = new List<CentroDocumentacionTrabajadorDto>();
 
         foreach (var asignacion in asignaciones)
         {
             var tiposRequeridos = tiposCandidatos
-                .Where(t => ResolucionTipoDocumentoCentro.Aplica(filasDeLosCentros, t.Id, asignacion.CentroId, t.CuentaParaCumplimiento))
+                .Where(t => !sinGestionCae.Contains(asignacion.CentroId)
+                    && ResolucionTipoDocumentoCentro.Aplica(filasDeLosCentros, t.Id, asignacion.CentroId, t.CuentaParaCumplimiento))
                 .ToList();
 
             var items = new List<DocumentoRequeridoDto>();

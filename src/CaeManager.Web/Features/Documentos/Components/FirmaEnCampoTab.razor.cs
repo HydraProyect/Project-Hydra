@@ -218,7 +218,7 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
 
             if (resultado.EsFallido)
             {
-                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                Toasts.MostrarError(resultado.Error);
                 return;
             }
 

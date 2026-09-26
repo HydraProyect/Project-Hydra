@@ -14,7 +14,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // Orden importa: las columnas nuevas de TiposDocumentoCentros tienen que
             // existir antes de la migración de datos de abajo, y esa migración de
             // datos tiene que correr antes del DropTable de RequisitosDocumentales
-            // (PLAN-EJECUCION-UX.md § 0.4) — el scaffold por defecto ponía el
+            // (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4) — el scaffold por defecto ponía el
             // DropTable primero, lo que habría perdido cualquier fila real sin
             // trasladar.
             migrationBuilder.AddColumn<string>(
@@ -60,7 +60,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             // Migración de datos: cada RequisitoDocumental se convierte en un
             // TipoDocumento nuevo (Ámbito Trabajador — era el uso real de la
-            // funcionalidad, ver PLAN-EJECUCION-UX.md § 0.4) más su fila
+            // funcionalidad, ver Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4) más su fila
             // TipoDocumentoCentro (Incluido, BloqueaAcceso, adjunto de plantilla
             // trasladados tal cual). PeriodicidadEspecial NO se traslada a
             // PeriodicidadEspecialMeses: era texto libre ("cada 6 meses",

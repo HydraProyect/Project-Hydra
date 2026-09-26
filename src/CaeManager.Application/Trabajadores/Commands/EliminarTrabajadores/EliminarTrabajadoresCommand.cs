@@ -33,6 +33,7 @@ public class EliminarTrabajadoresCommandHandler(
             return Result.Fallo<ResultadoEliminacionLoteDto>(Error.Crear("Trabajador.SinIdentidad", "No se pudo confirmar tu identidad. Vuelve a iniciar sesión e inténtalo de nuevo."));
 
         var eliminados = 0;
+        var idsEliminados = new List<Guid>();
         var errores = new List<string>();
 
         foreach (var id in request.Ids)
@@ -47,10 +48,11 @@ public class EliminarTrabajadoresCommandHandler(
             trabajador.MarcarComoEliminado(usuarioId.Value);
             await CierreDeAsignaciones.PorTrabajadorEliminadoAsync(asignaciones, trabajador.Id, cancellationToken);
             eliminados++;
+            idsEliminados.Add(trabajador.Id);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result.Exito(new ResultadoEliminacionLoteDto(eliminados, errores));
+        return Result.Exito(new ResultadoEliminacionLoteDto(eliminados, errores, idsEliminados));
     }
 }

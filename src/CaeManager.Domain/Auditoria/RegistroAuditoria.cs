@@ -5,14 +5,14 @@ namespace CaeManager.Domain.Auditoria;
 /// <summary>
 /// Registro de un cambio sobre una entidad de dominio. Lo escribe el
 /// interceptor de EF Core en Infrastructure en cada SaveChanges — nunca se
-/// crea manualmente desde Application (ver ARCHITECTURE.md, "Auditoría y
+/// crea manualmente desde Application (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Auditoría y
 /// soft delete").
 /// </summary>
 public class RegistroAuditoria : EntidadConTenant
 {
     /// <summary>
     /// Acción de una <b>lectura</b> de un dato cifrado en reposo (credenciales de
-    /// plataformas externas), no de un cambio: ARCHITECTURE.md § Datos sensibles
+    /// plataformas externas), no de un cambio: Project-Hydra-Negocio/tecnico/ARCHITECTURE.md § Datos sensibles
     /// — «queda registrado en auditoría como acceso a dato sensible». La fila
     /// nunca lleva el dato: <see cref="DatosAntes"/> y <see cref="DatosDespues"/>
     /// van vacíos. La escribe <c>IRegistroAccesoDatoSensibleService</c>, no el

@@ -121,4 +121,19 @@ public class IdentidadDeTraficoFallaCerradaTests
         accion.Should().Throw<InvalidOperationException>()
             .WithMessage("*ninguna conexión PostgreSQL*");
     }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Una_cadena_de_propietario_en_blanco_tampoco_cuenta_en_desarrollo(string cadenaPropietario)
+    {
+        // `??` no veía la cadena vacía: se devolvía "" y el fallo llegaba al
+        // primer OpenAsync, lejos de la causa (el mismo defecto que dejó muda la
+        // elección de líder en staging y producción).
+        var accion = () => InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico(
+            Configuracion(("ConnectionStrings:CaeManagerDb", cadenaPropietario)), EntornoDePrueba.Desarrollo);
+
+        accion.Should().Throw<InvalidOperationException>()
+            .WithMessage("*ninguna conexión PostgreSQL*");
+    }
 }

@@ -15,7 +15,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Alertas;
 
 /// <summary>
-/// DEC-4 (PLAN-SESIONES-NOCTURNAS-2026-09-02.md): `/alertas` es la única
+/// DEC-4 (Project-Hydra-Negocio/tecnico/PLAN-SESIONES-NOCTURNAS-2026-09-02.md): `/alertas` es la única
 /// superficie que conserva <see cref="EstadoDocumento.Proximo"/> —
 /// <c>ObtenerBandejaGestorQuery</c> lo excluye a propósito (ver su
 /// comentario de cabecera: "Sigue disponible completo en /alertas, que no
@@ -70,7 +70,7 @@ public class ObtenerAlertasQueryProximoTests : IAsyncLifetime
         var handler = new ObtenerAlertasQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto,
             new ResolverClientePrincipalService(contexto, contexto, contexto),
-            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(contexto, contexto));
+            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(contexto, contexto, contexto));
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 

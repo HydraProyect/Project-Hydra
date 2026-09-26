@@ -1,5 +1,6 @@
 @page "/subcontratas"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata
@@ -9,14 +10,17 @@
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector
 @using CaeManager.Application.Common
 @using CaeManager.Domain.Subcontratas
+@using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Subcontratas
 @using CaeManager.Web.Features.Subcontratas.Components
 @using FluentValidation
 @using MediatR
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -27,7 +31,10 @@
     <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["KickerNegocio"]">
         <Acciones>
             <a class="enlace-exportar" href="/subcontratas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceExportarExcel"]</a>
-            <SoloConEscritura><Boton OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
+            @if (!_alcanceCero)
+            {
+                <SoloConEscritura><Boton OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
+            }
         </Acciones>
     </CabeceraPagina>
 
@@ -87,11 +94,14 @@
     }
     else if (_elementosPagina.Count == 0)
     {
-        <EstadoVacio NombreIcono="subcontratas" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
-            <Accion>
-                <SoloConEscritura><Boton OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
-            </Accion>
-        </EstadoVacio>
+        @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
+        <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
+            <EstadoVacio NombreIcono="subcontratas" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
+                <Accion>
+                    <SoloConEscritura><Boton OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
+                </Accion>
+            </EstadoVacio>
+        </VacioSegunAlcance>
     }
     else
     {
@@ -204,7 +214,7 @@
                         <span class="celda-recuento-subcontrata">
                             @if (subcontrata.Recuentos.TotalProximas > 0)
                             {
-                                <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Proximas.Count, "RecuentoDocumentosProximosUno", "AriaRecuentoDocumentosProximosVarios")"
+                                <VentanaContexto Etiqueta="@EtiquetaProximos(subcontrata.Recuentos.Proximas)"
                                                  Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalProximas, "RecuentoDocumentosProximosUno", "RecuentoDocumentosProximosVarios")">
                                     <Disparador>
                                         <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">
@@ -214,7 +224,13 @@
                                     <Detalle>
                                         @foreach (var incidencia in subcontrata.Recuentos.Proximas)
                                         {
-                                            <span class="ventana-linea">@incidencia.Descripcion</span>
+                                            @* Urgente y Proximo comparten badge Advertencia arriba (Codex,
+                                               oleada 3): sin el tono por incidencia aquí, un documento urgente
+                                               era indistinguible de uno próximo normal en esta lista. *@
+                                            <span class="ventana-linea">
+                                                <Badge Tono="EstadoDocumentoUi.Tono(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                                                @incidencia.Descripcion
+                                            </span>
                                         }
                                     </Detalle>
                                 </VentanaContexto>
@@ -325,3 +341,4 @@
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
 <SubcontrataPreviewDrawer Fila="FilaEnVistaPrevia" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" OnOperar="AbrirDesdePreviewAsync" />
+</LimiteDeErrores>

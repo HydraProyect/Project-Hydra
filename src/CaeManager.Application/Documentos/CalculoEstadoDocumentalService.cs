@@ -15,7 +15,7 @@ namespace CaeManager.Application.Documentos;
 /// de verdad ("enséñame los trabajadores con algo vencido") se responde con
 /// el mismo semáforo que rige en el resto del sistema, no con un concepto
 /// nuevo: el estado se deriva con <see cref="CalculadoraEstadoDocumento"/>, la
-/// única fuente de verdad de vigencias (ver <c>DATABASE.md</c>), y se queda
+/// única fuente de verdad de vigencias (ver <c>Project-Hydra-Negocio/tecnico/DATABASE.md</c>), y se queda
 /// con el peor de los documentos de cada propietario.
 ///
 /// Un propietario sin ningún Documento <b>no aparece</b> en el diccionario:

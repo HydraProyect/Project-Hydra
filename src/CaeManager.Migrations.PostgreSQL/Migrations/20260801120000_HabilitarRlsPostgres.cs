@@ -7,15 +7,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <inheritdoc />
     /// <summary>
     /// Segunda línea de aislamiento por tenant bajo el filtro global de EF
-    /// Core (ver docs/MULTITENANCY.md § 4.2 y RUNBOOK-RLS.md, P2 #21 de
-    /// docs/business/MATURITY_REVIEW.md). Habilita Row-Level Security con
+    /// Core (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.2 y Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md, P2 #21 de
+    /// Project-Hydra-Negocio/MATURITY_REVIEW.md). Habilita Row-Level Security con
     /// FORCE en las 40 tablas que llevan TenantId (ver
     /// CaeManagerDbContext.OnModelCreating — las mismas 15+25 de la lista de
     /// HasQueryFilter, ni una más ni una menos) y crea el rol restringido
-    /// <c>cae_app_runtime</c> que RUNBOOK-RLS.md documenta cómo activar en
+    /// <c>cae_app_runtime</c> que Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md documenta cómo activar en
     /// producción. No toca AspNetUsers/Tenants/DelegacionesTenant/
     /// AsignacionesOperadorDelegado: son catálogos globales o de Identity sin
-    /// TenantId por diseño (docs/MULTITENANCY.md § 7-8), igual que en el
+    /// TenantId por diseño (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7-8), igual que en el
     /// filtro de EF.
     ///
     /// Pura DDL/SQL de servidor: no cambia el modelo de EF (ninguna entidad

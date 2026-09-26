@@ -30,6 +30,8 @@ public class ComandosDeAutoservicioInventariadosTests
         "RegistrarUsoRecienteCommand",
         "GuardarPreferenciaDashboardCommand",
         "MarcarNotificacionLeidaCommand",
+        // P0-8: los códigos de recuperación de la 2FA de la propia cuenta.
+        "GenerarCodigosRecuperacionCommand",
     ];
 
     // Admite record o class, con o sin lista de parámetros (AceptarTerminosCommand no

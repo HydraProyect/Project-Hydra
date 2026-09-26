@@ -2,7 +2,7 @@ using CaeManager.Domain.Vehiculos;
 
 namespace CaeManager.Application.Tests.Vehiculos;
 
-/// <summary>Fake en memoria — los handlers de Application se prueban sin base de datos (ver CODING_STANDARDS.md).</summary>
+/// <summary>Fake en memoria — los handlers de Application se prueban sin base de datos (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).</summary>
 public class VehiculoRepositorioFalso : IVehiculoRepository
 {
     public List<Vehiculo> Vehiculos { get; } = [];

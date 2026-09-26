@@ -27,7 +27,7 @@ namespace CaeManager.Web.Features.Dashboard.Pages;
 /// por plataforma" (<see cref="ObtenerPendientePorPlataformaQuery"/>,
 /// hallazgo P-04).
 /// </summary>
-public partial class Inicio : ComponentBase, IDisposable
+public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     private const int MaximoGruposAtencion = 5;
     private const int MaximoVisitasProximas = 3;
@@ -277,7 +277,7 @@ public partial class Inicio : ComponentBase, IDisposable
                     var todosLosItems = bandeja.Grupos.SelectMany(g => g.Items).Concat(bandeja.SinGrupo).ToList();
 
                     // Resuelto una única vez por circuito en MainLayout — aquí solo se lee el
-                    // resultado ya cacheado (docs/blueprints/OPERATIONAL-HOME.md § 6, DDL-068).
+                    // resultado ya cacheado (Project-Hydra-Negocio/tecnico/docs/blueprints/OPERATIONAL-HOME.md § 6, DDL-068).
                     var (ausente, desde) = await ActividadUsuario.RegistrarYEvaluarAsync(RendererInfo.IsInteractive, token);
                     if (ausente && desde is { } desdeValor)
                     {
@@ -412,6 +412,16 @@ public partial class Inicio : ComponentBase, IDisposable
             .Select(i => i.CentroId!.Value)
             .Distinct()
             .Count();
+
+    /// <summary>
+    /// Aviso bajo el anillo cuando la consulta de KPI cuenta Centros de Trabajo
+    /// bloqueados (<see cref="KpisDashboardDto.CentrosBloqueados"/>, P2.4): el
+    /// porcentaje mide documentos vigentes y no puede leerse como acceso.
+    /// </summary>
+    private string TextoCentrosBloqueadosKpi => _kpis is not { CentrosBloqueados: > 0 } k ? string.Empty
+        : k.CentrosBloqueados == 1
+            ? Textos["CentrosBloqueadosKpiUno"]
+            : Textos["CentrosBloqueadosKpiVarios", k.CentrosBloqueados];
 
     private string TextoCierreAtencion =>
         _proximoVencimiento is { } proximo

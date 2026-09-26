@@ -6,7 +6,7 @@ using MediatR;
 namespace CaeManager.Application.Centros.Commands.EliminarCanalGestion;
 
 /// <summary>
-/// Baja de un acceso de gestión documental del Centro (PLAN-EJECUCION-UX.md
+/// Baja de un acceso de gestión documental del Centro (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
 /// § 0.6, Lote 0-E). Soft delete, como el resto de agregados: son credenciales
 /// de acceso a un portal de cliente, borrarlas de verdad por un clic no tiene
 /// vuelta atrás.

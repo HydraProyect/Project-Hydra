@@ -11,6 +11,7 @@
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
 
+<LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Macros de respuesta — @Marca.Nombre</PageTitle>
@@ -243,3 +244,4 @@
     Mensaje="Dejará de ofrecerse al responder desde la bandeja. El borrado queda registrado en Auditoría, pero no se puede deshacer desde la aplicación."
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+</LimiteDeErrores>

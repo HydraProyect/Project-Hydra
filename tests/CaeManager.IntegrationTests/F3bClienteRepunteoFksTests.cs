@@ -1,4 +1,3 @@
-using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -15,8 +14,8 @@ namespace CaeManager.IntegrationTests;
 
 /// <summary>
 /// F3b-Cliente, mitad de repunteo de FKs
-/// (f3b-inventario-fks-dependientes-2026-08-25.md,
-/// f3b-decision-d2-transicion-acotada-2026-08-25.md §0-2).
+/// (Project-Hydra-Negocio/tecnico/f3b-inventario-fks-dependientes-2026-08-25.md,
+/// Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md §0-2).
 ///
 /// <para>
 /// Existe por un hallazgo real, no por precaución: redirigir los 9
@@ -90,7 +89,7 @@ public class F3bClienteRepunteoFksTests : IAsyncLifetime
         // Reproduce el hallazgo real: un Cliente creado DESPUÉS de que F3b
         // redirigiera los escritores solo existe en Empresas — nunca se
         // escribe en Clientes. Antes del repunteo, esto fallaba con 23503
-        // (ver f3b-inventario-fks-dependientes-2026-08-25.md).
+        // (ver Project-Hydra-Negocio/tecnico/f3b-inventario-fks-dependientes-2026-08-25.md).
         var tenantId = Guid.NewGuid();
         await AplicarMigracionF3aAsync(tenantId);
         await AplicarMigracionF3bAsync(tenantId);
@@ -104,9 +103,8 @@ public class F3bClienteRepunteoFksTests : IAsyncLifetime
         contexto.Empresas.Add(empresaTitular);
         await contexto.SaveChangesAsync();
 
-        var centroReal = new Centro(clienteNuevo.Id, empresaTitular.Id, "Centro de prueba");
-        contexto.Centros.Add(centroReal);
-        var accion = async () => await contexto.SaveChangesAsync();
+        var accion = async () => await SiembraCentroEnEsquemaAnterior.InsertarAsync(
+            contexto, Guid.NewGuid(), tenantId, clienteNuevo.Id, empresaTitular.Id, "Centro de prueba");
 
         await accion.Should().NotThrowAsync(
             "tras el repunteo, ClienteId del Centro debe validarse contra Empresas, donde el cliente nuevo sí existe");
@@ -133,11 +131,14 @@ public class F3bClienteRepunteoFksTests : IAsyncLifetime
         contexto.Empresas.Add(empresaTitular);
         await contexto.SaveChangesAsync();
 
-        contexto.Centros.Add(new Centro(clienteSoloLegacyId, empresaTitular.Id, "Centro imposible"));
-        var accion = async () => await contexto.SaveChangesAsync();
+        var accion = async () => await SiembraCentroEnEsquemaAnterior.InsertarAsync(
+            contexto, Guid.NewGuid(), tenantId, clienteSoloLegacyId, empresaTitular.Id, "Centro imposible");
 
-        await accion.Should().ThrowAsync<DbUpdateException>(
-            "clienteSoloLegacyId no existe en Empresas — la FK repuntada debe rechazarlo aunque exista en Clientes");
+        // 23503 = violación de FK: el rechazo tiene que venir de la FK
+        // repuntada, no de cualquier otro fallo del INSERT.
+        (await accion.Should().ThrowAsync<PostgresException>(
+                "clienteSoloLegacyId no existe en Empresas — la FK repuntada debe rechazarlo aunque exista en Clientes"))
+            .Which.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation);
     }
 
     [Fact]
@@ -167,8 +168,8 @@ public class F3bClienteRepunteoFksTests : IAsyncLifetime
         contexto.Empresas.Add(empresaTitular);
         await contexto.SaveChangesAsync();
 
-        contexto.Centros.Add(new Centro(clienteId, empresaTitular.Id, "Centro de cliente preexistente"));
-        var accion = async () => await contexto.SaveChangesAsync();
+        var accion = async () => await SiembraCentroEnEsquemaAnterior.InsertarAsync(
+            contexto, Guid.NewGuid(), tenantId, clienteId, empresaTitular.Id, "Centro de cliente preexistente");
 
         await accion.Should().NotThrowAsync("F3a ya copió este Cliente a Empresas antes del repunteo");
     }

@@ -61,6 +61,14 @@ public class RamasPorDefectoDeEstadosUiTests
     }
 
     [Fact]
+    public void Un_centro_sin_gestion_cae_se_pinta_neutro_y_nunca_en_verde()
+    {
+        EstadoCentroUi.Tono(EstadoCentro.SinGestionCae).Should().Be(TonoBadge.Neutro,
+            "no exigir documentación no es estar al día: el verde sería un verde falso");
+        EstadoCentroUi.Texto(EstadoCentro.SinGestionCae).Should().Be("No requiere gestión CAE");
+    }
+
+    [Fact]
     public void Un_estado_de_centro_desconocido_no_se_pinta_como_sano()
     {
         var desconocido = (EstadoCentro)9999;

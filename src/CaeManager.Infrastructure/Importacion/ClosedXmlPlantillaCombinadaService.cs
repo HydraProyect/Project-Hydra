@@ -13,12 +13,12 @@ namespace CaeManager.Infrastructure.Importacion;
 /// Plantilla combinada de 4 hojas (Clientes, Empresas, Centros,
 /// Trabajadores) — a diferencia de ClosedXmlPlantillaClientesService (Fase
 /// 7), esta sí recoge CIF y Empresa, así que puede crear Clientes y Centros
-/// nuevos de verdad (ver ROADMAP.md, "Fuera de alcance" de Fase 10). Las
+/// nuevos de verdad (ver Project-Hydra-Negocio/tecnico/ROADMAP.md, "Fuera de alcance" de Fase 10). Las
 /// referencias entre hojas son por nombre (Cliente/Empresa en texto), no
 /// por Id — más cómodo de rellenar a mano en Excel — y se resuelven contra
 /// la base de datos y contra las propias hojas anteriores del archivo.
 ///
-/// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis, DCR-12
+/// Invariante «nada se descarta en silencio» (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis, DCR-12
 /// B; auditada en REC-129): las cuatro hojas saltan sin registrar nada solo
 /// la fila de ejemplo que <see cref="GenerarPlantilla"/> escribe con el
 /// marcador <c>EJEMPLO</c> — legítimo y silencioso a propósito, verificado

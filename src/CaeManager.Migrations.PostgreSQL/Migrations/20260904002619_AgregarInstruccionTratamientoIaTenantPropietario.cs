@@ -47,7 +47,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // ratchets CoberturaRlsDelModeloTests/PoliticasRlsCubrenModeloTests
             // exigen política para toda tabla con TenantId. El filtro global
             // de EF ya la protege; esto es la segunda línea, sobre
-            // cae_app_runtime (RUNBOOK-RLS.md). Categoría 1 ("tabla
+            // cae_app_runtime (Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md). Categoría 1 ("tabla
             // tenantizada"): FORCE + política aislamiento_tenant, ninguna
             // otra — es un registro evidenciario de cumplimiento de un único
             // Tenant propietario, no un catálogo global que enlace dos

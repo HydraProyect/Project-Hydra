@@ -140,6 +140,52 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         await DisposeComponentsAsync();
     }
 
+    /// <summary>
+    /// FS-14 (auditoría UX de flujos sin salida, 2026-09-24): el lote vive solo en la
+    /// memoria del circuito y salir lo perdía sin aviso. Con archivos sin confirmar,
+    /// salir por la aplicación se detiene y pregunta; «Seguir con el lote» conserva la
+    /// página y el lote, y «Salir y descartar» repite la navegación.
+    /// </summary>
+    [Fact]
+    public async Task Salir_con_archivos_sin_confirmar_pregunta_y_deja_seguir_con_el_lote()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "propuesta.pdf");
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var origen = navegacion.Uri;
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos"));
+
+        navegacion.Uri.Should().Be(origen, "con un archivo sin confirmar la navegación se detiene");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("¿Salir sin terminar el lote?").And.Contain("1 archivo(s)");
+
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Seguir con el lote").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        navegacion.Uri.Should().Be(origen);
+        cut.Find(".item-subida-masiva").TextContent.Should().Contain("Pendiente de confirmar", "el lote sigue donde estaba");
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos"));
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Salir y descartar").ClickAsync(new MouseEventArgs());
+
+        navegacion.Uri.Should().EndWith("/documentos", "confirmar la salida repite la navegación sin volver a preguntar");
+        await DisposeComponentsAsync();
+    }
+
+    [Fact]
+    public async Task Sin_archivos_pendientes_salir_no_pregunta()
+    {
+        var cut = Render<SubidaMasiva>();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos"));
+
+        navegacion.Uri.Should().EndWith("/documentos");
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        await DisposeComponentsAsync();
+    }
+
     [Fact]
     public async Task Tras_confirmar_existe_el_Documento_con_las_fechas_leidas_del_archivo()
     {
@@ -398,6 +444,49 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
             "solo el válido llega a la detección; el grande no se lee");
         cut.Find(".resumen-subida-masiva").TextContent.Should().Contain("1 con error").And.Contain("1 pendiente(s)");
         await DisposeComponentsAsync();
+    }
+
+    /// <summary>
+    /// P1-E1b: la fila de un .zip rechazado enseñaba el <c>ex.Message</c> de cualquier
+    /// <see cref="InvalidDataException"/>, y <c>ZipArchive</c> lanza ese tipo con texto técnico
+    /// del framework (en inglés) ante un .zip dañado. Ahora solo un límite superado enseña su
+    /// mensaje, redactado para el usuario; el .zip dañado cae en el aviso genérico.
+    /// </summary>
+    [Fact]
+    public async Task Un_zip_danado_se_avisa_con_el_texto_generico_y_un_zip_que_no_cabe_con_el_suyo()
+    {
+        var cut = Render<SubidaMasiva>();
+        var danado = InputFileContent.CreateFromBinary(
+            [0x50, 0x4B, 0x03, 0x04, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05], "danado.zip", contentType: "application/zip");
+        var demasiados = InputFileContent.CreateFromBinary(CrearZipConEntradas(200), "demasiados.zip", contentType: "application/zip");
+
+        await cut.InvokeAsync(() => cut.FindComponent<InputFile>().UploadFiles([danado, demasiados]));
+        cut.WaitForAssertion(() => cut.FindAll(".item-subida-masiva").Should().HaveCount(2), TimeSpan.FromSeconds(10));
+
+        string ErrorDe(string nombre) => cut.FindAll(".item-subida-masiva")
+            .Single(f => f.QuerySelector(".item-subida-masiva-nombre")!.TextContent == nombre)
+            .QuerySelector(".item-subida-masiva-error")!.TextContent;
+
+        ErrorDe("danado.zip").Should().Be("No pudimos abrir este archivo .zip.",
+            "el mensaje de ZipArchive es técnico y no se enseña");
+        ErrorDe("demasiados.zip").Should().Be("El .zip contiene 200 archivos y no caben en esta subida.",
+            "un límite superado es el caso previsto y su mensaje está redactado para el usuario");
+        await DisposeComponentsAsync();
+    }
+
+    private static byte[] CrearZipConEntradas(int cuantas)
+    {
+        using var memoria = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(memoria, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            for (var i = 0; i < cuantas; i++)
+            {
+                using var flujo = zip.CreateEntry($"doc{i}.pdf").Open();
+                flujo.Write([0x25, 0x50, 0x44, 0x46]);
+            }
+        }
+
+        return memoria.ToArray();
     }
 
     private (Guid TrabajadorId, Guid TipoId) PrepararPropuesta(int confianza, DateOnly? emision)

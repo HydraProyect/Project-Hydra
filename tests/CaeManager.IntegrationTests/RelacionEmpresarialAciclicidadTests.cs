@@ -13,7 +13,7 @@ namespace CaeManager.IntegrationTests;
 /// <summary>
 /// F4 — aciclicidad de <c>RelacionEmpresarial.EnmarcadaEnId</c>. Demostrado
 /// experimentalmente (revisión adversaria del 2026-08-26,
-/// f4-diseno-fisico-relacionempresarial-2026-08-26.md § 8ter) que el esquema
+/// Project-Hydra-Negocio/tecnico/f4-diseno-fisico-relacionempresarial-2026-08-26.md § 8ter) que el esquema
 /// físico, por sí solo, ACEPTA un ciclo de 2 pasos: los dos `CHECK` de
 /// autorreferencia no lo impiden. La única garantía real es
 /// <see cref="IRelacionEmpresarialRepository.CreariaUnCicloAsync"/>, y este

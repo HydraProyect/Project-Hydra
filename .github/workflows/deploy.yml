@@ -130,7 +130,7 @@ name: Desplegar
 # VPS_SSH_KEY (la clave única de antes, que sin argumentos en el comando forzado
 # admite los cuatro modos). Cada job imprime qué clave usó. La clave antigua y
 # ese modo de compatibilidad se retiran juntos, al final de
-# RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md (repositorio de negocio).
+# Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md (repositorio de negocio).
 #
 # Por eso el job `produccion` (el que lanza `produccion <SHA>`) declara
 # TAMBIÉN `environment: produccion` (decisión del propietario, 2026-09-19,
@@ -141,7 +141,7 @@ name: Desplegar
 # que decían DEC-39/40 (ver la sección siguiente): el despliegue ya no queda
 # fuera del environment. VPS_SSH_KEY y el modo de compatibilidad de
 # ci-deploy.sh se retiran cuando este cambio esté verificado en un despliegue
-# real (RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md, pasos 12 y 13).
+# real (Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md, pasos 12 y 13).
 #
 # --- La imagen se construye en el runner, no en el VPS (2026-09-23) ---------
 #
@@ -261,7 +261,7 @@ name: Desplegar
 # deja a los `produccion` de los runs posteriores en «pending» hasta que se
 # apruebe o rechace (un pending más nuevo cancela a otro pending más viejo,
 # nunca al que ocupa el grupo). Se mide con dos despliegues seguidos en cuanto
-# los secretos nuevos estén cargados (RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md,
+# los secretos nuevos estén cargados (Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md,
 # paso 11): dejar la segunda aprobación del primero sin dar y observar si el
 # `produccion` del segundo arranca, queda en pending o se cancela.
 #
@@ -470,11 +470,17 @@ jobs:
 
       - name: Construir la imagen
         # La etiqueta OCI de revisión la comprueba cargar_imagen_verificada
-        # en el VPS tras el `docker load`.
+        # en el VPS tras el `docker load`. Las dos es.talveg.* son de P1-F1:
+        # `despliegue` saca la imagen de la poda de liberar-disco.sh (la
+        # retiene imagenes-retenidas.sh) y `migraciones-ef` es el inventario
+        # que volver-atras.sh compara con __EFMigrationsHistory.
         run: |
           set -euo pipefail
+          MIGRACIONES_EF="$(bash deploy/listar-migraciones-ef.sh .)"
           docker build \
             --label "org.opencontainers.image.revision=$SHA_DESPLEGADO" \
+            --label "es.talveg.despliegue=caemanager" \
+            --label "es.talveg.migraciones-ef=$MIGRACIONES_EF" \
             -t "caemanager:$SHA_DESPLEGADO" .
 
       - name: Exportar la imagen y escribir el manifiesto

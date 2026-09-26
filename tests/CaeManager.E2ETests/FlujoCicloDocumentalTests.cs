@@ -5,7 +5,7 @@ namespace CaeManager.E2ETests;
 
 /// <summary>
 /// Cubre el último flujo de demo pendiente de Horizonte 1.6
-/// (MACRO_PLAN_2026-08-13.md § 1.6, "el ciclo documental entero"): subida →
+/// (Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md § 1.6, "el ciclo documental entero"): subida →
 /// IA → validación → vencimiento → reclamación → renovación. Un único test
 /// encadenado, mismo criterio que FlujoCriticoTests: cada paso depende del
 /// resultado del anterior (la revisión IA solo existe si la subida activó

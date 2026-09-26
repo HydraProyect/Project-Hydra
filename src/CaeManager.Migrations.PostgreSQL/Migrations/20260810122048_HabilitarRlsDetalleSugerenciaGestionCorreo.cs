@@ -10,7 +10,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// (RediseñarSugerenciaGestionCorreoMultiItem) — mismo criterio que
     /// HabilitarRlsSolicitudPrioridadDocumento: no repetir el hallazgo P1-3.
     /// El filtro global de EF ya la protege; esto es la segunda línea (RLS
-    /// sobre cae_app_runtime, ver RUNBOOK-RLS.md).
+    /// sobre cae_app_runtime, ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md).
     /// </summary>
     public partial class HabilitarRlsDetalleSugerenciaGestionCorreo : Migration
     {

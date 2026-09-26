@@ -13,7 +13,7 @@ namespace CaeManager.Infrastructure.AlertasOperativas;
 /// patrón "funciona sin configurar" que el resto de integraciones opcionales
 /// de este despliegue (ver el comentario de <c>UseSentry</c> en Program.cs).
 /// Better Stack ya está enganchado a Sentry para la notificación real al
-/// operador de guardia (RUNBOOK-ALERTAS.md, repositorio de negocio) — esta
+/// operador de guardia (Project-Hydra-Negocio/tecnico/RUNBOOK-ALERTAS.md, repositorio de negocio) — esta
 /// clase es deliberadamente la única vía de alerta operativa nueva: no abre
 /// un canal aparte.
 /// </summary>

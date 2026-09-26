@@ -1,6 +1,7 @@
 using Bunit;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentros;
+using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
@@ -42,6 +43,8 @@ public class CentrosListaGen2Tests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.ConRolDeEscritura();
         ComponentFactories.AddStub<AcordeonAsignacionesCentro>();
+        // Centros pinta con IStringLocalizer<TextosCentros> (el aviso de «Deshacer» del lote).
+        Services.AddLocalization();
     }
 
     private sealed class MediatorPorTipo : IMediator
@@ -49,12 +52,18 @@ public class CentrosListaGen2Tests : BunitContext
         public required IReadOnlyList<CentroListaDto> Centros { get; init; }
         public List<object> Enviadas { get; } = [];
         public int? EliminadosDelLote { get; set; }
+        /// <summary>Ids que el lote pide y no elimina: no entran en IdsEliminados.</summary>
+        public HashSet<Guid> NoEliminables { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(object)(Registrar(request) switch
             {
                 ObtenerClientesParaSelectorQuery => (object)Array.Empty<ClienteSelectorDto>(),
-                EliminarCentrosCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(EliminadosDelLote ?? lote.Ids.Count, [])),
+                EliminarCentrosCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(
+                    EliminadosDelLote ?? lote.Ids.Count(id => !NoEliminables.Contains(id)),
+                    lote.Ids.Where(NoEliminables.Contains).Select(_ => "No se pudo borrar.").ToList(),
+                    EliminadosDelLote is null ? lote.Ids.Where(id => !NoEliminables.Contains(id)).ToList() : null)),
+                RestaurarCentroCommand => Result.Exito(),
                 ObtenerProximaVisitaPorCentroQuery => (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>(),
                 ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>(
                     Centros, Centros.Count, q.Pagina, q.TamanoPagina),
@@ -193,5 +202,35 @@ public class CentrosListaGen2Tests : BunitContext
         _mediador.Enviadas.OfType<EliminarCentrosCommand>().Single().Ids.Should().Equal([elegido.Id],
             "el caso solo vale si el lote pidió ese centro y ninguno más");
         workspace.EstaAbierto.Should().Be(seQuedaAbierta);
+    }
+
+    /// <summary>
+    /// FS-09 (auditoría UX de flujos sin salida, 2026-09-24): el aviso de una
+    /// eliminación en lote ofrece «Deshacer», que restaura los centros que cayeron.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_en_lote_ofrece_deshacer_que_restaura_solo_los_centros_eliminados()
+    {
+        var elegido = Centro("Centro Logístico Norte");
+        var superviviente = Centro("Centro Logístico Sur");
+        var cut = Renderizar(elegido, superviviente);
+        _mediador.NoEliminables.Add(superviviente.Id);
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Sur']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .ClickAsync(new MouseEventArgs());
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja");
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        _mediador.Enviadas.OfType<EliminarCentrosCommand>().Single().Ids.Should().BeEquivalentTo([elegido.Id, superviviente.Id],
+            "el caso solo vale si el superviviente iba en el lote");
+        _mediador.Enviadas.OfType<RestaurarCentroCommand>().Select(c => c.Id).Should().Equal([elegido.Id],
+            "se restaura solo lo que el lote eliminó, no lo que pidió");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje == "1 centro(s) restaurado(s).");
     }
 }

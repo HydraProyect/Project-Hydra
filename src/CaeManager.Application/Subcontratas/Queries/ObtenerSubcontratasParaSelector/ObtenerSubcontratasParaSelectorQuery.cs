@@ -17,7 +17,7 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSel
 /// el drawer "Nuevo trabajador" (radio "Subcontrata") lo usa para poblar el
 /// desplegable, y una Subcontrata creada en la misma sesión necesita
 /// aparecer ahí de inmediato. Ver
-/// f3b-subcontrata-selector-adelantado-2026-08-26.md.
+/// Project-Hydra-Negocio/tecnico/f3b-subcontrata-selector-adelantado-2026-08-26.md.
 /// </summary>
 public record ObtenerSubcontratasParaSelectorQuery(Guid? EmpresaId = null) : IRequest<IReadOnlyList<SubcontrataSelectorDto>>;
 

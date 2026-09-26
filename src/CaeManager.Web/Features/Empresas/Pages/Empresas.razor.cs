@@ -17,9 +17,13 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Empresas.Pages;
 
-public partial class Empresas : ComponentBase, IDisposable
+public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
-    // QuickGrid no soporta filas expandibles (Centro 360, PLAN-EJECUCION-UX.md
+    /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
+    /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
+    private bool _alcanceCero;
+
+    // QuickGrid no soporta filas expandibles (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     // § 0.11 — migra /empresas al mismo patrón de Centros.razor § 0.1): cada
     // Empresa es una tarjeta con acordeón de Centros con actividad, así que
     // la paginación se gestiona a mano en vez de con QuickGrid+Paginator.
@@ -88,7 +92,7 @@ public partial class Empresas : ComponentBase, IDisposable
 
     /// <summary>
     /// Los checkboxes de fila solo se pintan con esto activo (Centro 360,
-    /// PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
+    /// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
     /// ocasional. Apagarlo limpia la selección: dejar filas marcadas que ya
     /// no se ven dejaría la barra de acciones en lote apuntando a algo
     /// invisible.
@@ -188,7 +192,7 @@ public partial class Empresas : ComponentBase, IDisposable
     /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
     /// compartir la URL, volver atrás) — no solo en el primer render — para
     /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
-    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// inicial (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     ///
     /// <para>
     /// Un cambio que inicia la propia página (escribir en el buscador, elegir
@@ -317,7 +321,7 @@ public partial class Empresas : ComponentBase, IDisposable
         }
     }
 
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _tamanoPagina = tamano;
@@ -531,7 +535,7 @@ public partial class Empresas : ComponentBase, IDisposable
 
     /// <summary>
     /// Validación inline al salir del campo (mismo patrón que Centros.razor,
-    /// UX_PATTERNS.md, P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     private Task ValidarRazonSocialAsync() => ValidarCampoAsync(nameof(CrearEmpresaCommand.RazonSocial));
 
@@ -575,7 +579,7 @@ public partial class Empresas : ComponentBase, IDisposable
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
             }
             else
             {
@@ -708,17 +712,22 @@ public partial class Empresas : ComponentBase, IDisposable
             var resultado = await Mediator.Send(new EliminarEmpresasCommand(idsPedidos));
             var dto = resultado.Valor;
 
+            // FS-09: el aviso ofrece «Deshacer» sobre los que sí cayeron.
+            IReadOnlyList<Guid> eliminados = dto.IdsEliminados ?? [];
+
             ToastService.Mostrar(
                 dto.Errores.Count == 0
                     ? $"{dto.Eliminados} empresa(s) eliminada(s)."
                     : $"{dto.Eliminados} eliminada(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
-                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia,
+                eliminados.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
+                eliminados.Count > 0 ? () => DeshacerEliminarLoteAsync(eliminados) : null);
 
-            // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
-            // si cayó alguno, se retiran las fichas de todos los pedidos, también la de un superviviente
-            // (con su edición sin guardar, si la tenía). Se prefiere pasarse de retirar a dejar abierta una ficha muerta.
+            // Se retiran solo las fichas de los que cayeron (IdsEliminados); un superviviente
+            // conserva la suya y su edición sin guardar. Sin ids en el DTO se retiran todas las
+            // pedidas: mejor pasarse de retirar que dejar abierta una ficha muerta.
             if (dto.Eliminados > 0)
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Empresa, idsPedidos);
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Empresa, dto.IdsEliminados ?? idsPedidos);
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
@@ -731,6 +740,38 @@ public partial class Empresas : ComponentBase, IDisposable
         finally
         {
             _eliminandoLote = false;
+        }
+    }
+
+    /// <summary>
+    /// FS-09 (auditoría UX de flujos sin salida, 2026-09-24): «Deshacer» del aviso
+    /// de una eliminación en lote. Restaura los que el lote sí eliminó; sin esto, la
+    /// única salida era pedir a un Administrador del Tenant que los recuperase uno a
+    /// uno desde Auditoría.
+    /// </summary>
+    private bool _restaurandoLote;
+
+    private async Task DeshacerEliminarLoteAsync(IReadOnlyList<Guid> ids)
+    {
+        if (_restaurandoLote) return;
+        _restaurandoLote = true;
+
+        try
+        {
+            var r = await RestauracionEnLote.RestaurarAsync(ids, id => Mediator.Send(new RestaurarEmpresaCommand(id)));
+
+            ToastService.Mostrar(
+                r.Errores.Count == 0
+                    ? Textos["ToastLoteRestaurados", r.Restaurados].Value
+                    : Textos["ToastLoteRestauradosConErrores", r.Restaurados, r.Errores.Count, string.Join(" ", r.Errores)].Value,
+                r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (r.Restaurados > 0)
+                await CargarAsync();
+        }
+        finally
+        {
+            _restaurandoLote = false;
         }
     }
 

@@ -53,6 +53,17 @@ public class WebAppFixture : IAsyncLifetime
     protected virtual IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
         new Dictionary<string, string>();
 
+    /// <summary>
+    /// Punto de extensión para preparar el clúster antes de arrancar el proceso
+    /// (ver <see cref="WebAppFixtureBajoRuntime"/>, que da LOGIN al rol
+    /// <c>cae_app_runtime</c>). Corre con <see cref="CadenaConexion"/> ya asignada.
+    /// </summary>
+    protected virtual Task PrepararAntesDeArrancarAsync() => Task.CompletedTask;
+
+    /// <summary>La cadena propietaria de la base de esta fixture.</summary>
+    protected string CadenaConexion => _cadenaConexion
+        ?? throw new InvalidOperationException("La fixture todavía no ha creado su base.");
+
     public async Task InitializeAsync()
     {
         var puerto = ObtenerPuertoLibre();
@@ -132,6 +143,7 @@ public class WebAppFixture : IAsyncLifetime
         // vez lo necesita.
         infoInicio.Environment["Logging__RutaArchivo"] = $"App_Data/logs/log-{tipoFixture}-.txt";
 
+        await PrepararAntesDeArrancarAsync();
         foreach (var (clave, valor) in VariablesDeEntornoAdicionales())
             infoInicio.Environment[clave] = valor;
 
@@ -381,7 +393,7 @@ public class AppCollection : ICollectionFixture<WebAppFixture>;
 /// <summary>
 /// Arranca CaeManager.Web con un segundo tenant sembrado (ver
 /// SegundoTenantSeeder) para poder verificar el aislamiento multi-tenant
-/// con un navegador real (PLAN-MIGRACION-MULTITENANT.md § 6, Etapa 5). En
+/// con un navegador real (Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6, Etapa 5). En
 /// una colección propia — no "AppCollection" — para no forzar el sembrado
 /// del segundo tenant en el resto de la suite E2E.
 /// </summary>
@@ -398,7 +410,7 @@ public class AppCollectionMultiTenant : ICollectionFixture<WebAppFixtureConSegun
 /// Arranca CaeManager.Web con la política de retención activa
 /// (RetencionDatos:Activa, apagada por defecto en cualquier otro sitio —
 /// ver CLAUDE.md) para poder ejercitar /retencion de verdad con Playwright
-/// (P1-19 de docs/business/MATURITY_REVIEW.md). En su propia colección: el
+/// (P1-19 de Project-Hydra-Negocio/MATURITY_REVIEW.md). En su propia colección: el
 /// resto de la suite E2E no necesita ni debe activar retención.
 /// </summary>
 public sealed class WebAppFixtureConRetencionActiva : WebAppFixture

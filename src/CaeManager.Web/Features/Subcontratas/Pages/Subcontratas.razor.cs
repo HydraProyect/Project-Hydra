@@ -6,6 +6,7 @@ using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
@@ -19,8 +20,12 @@ using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Subcontratas.Pages;
 
-public partial class Subcontratas : ComponentBase
+public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva
 {
+    /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
+    /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
+    private bool _alcanceCero;
+
     // Igual que Centros.razor.cs (Centro 360): QuickGrid no soporta filas
     // expandibles, así que la paginación se gestiona a mano — la Query sigue
     // paginando en servidor, solo cambia el control visual.
@@ -330,7 +335,7 @@ public partial class Subcontratas : ComponentBase
 
     /// <summary>
     /// Validación inline al salir del campo (mismo patrón que Centros.razor,
-    /// UX_PATTERNS.md, P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     private Task ValidarRazonSocialAsync() => ValidarCampoAsync(nameof(CrearSubcontrataCommand.RazonSocial));
 
@@ -410,7 +415,7 @@ public partial class Subcontratas : ComponentBase
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -507,6 +512,24 @@ public partial class Subcontratas : ComponentBase
     /// </summary>
     private string DescribirRecuento(int total, string claveUno, string claveVarios) =>
         total == 1 ? Textos[claveUno] : Textos[claveVarios, total];
+
+    /// <summary>
+    /// Nombre accesible de la ventana de Próximas. El badge visual ya
+    /// distingue Urgente de Próximo por incidencia (Codex, oleada 3); sin
+    /// este aviso en el nombre accesible, quien usa lector de pantalla no
+    /// recibe esa misma distinción de severidad — solo el recuento genérico.
+    /// </summary>
+    private string EtiquetaProximos(IReadOnlyList<IncidenciaSubcontrataDto> proximas)
+    {
+        var etiquetaBase = DescribirRecuento(proximas.Count, "RecuentoDocumentosProximosUno", "AriaRecuentoDocumentosProximosVarios");
+        var totalUrgentes = proximas.Count(i => i.Estado == EstadoDocumento.Urgente);
+        return totalUrgentes switch
+        {
+            0 => etiquetaBase,
+            1 => $"{etiquetaBase}, {Textos["AriaAvisoUnUrgenteEnProximos"]}",
+            _ => $"{etiquetaBase}, {Textos["AriaAvisoVariosUrgentesEnProximos", totalUrgentes]}",
+        };
+    }
 
     /// <summary>
     /// Nombre accesible del anillo. Antes se interpolaba el porcentaje sin

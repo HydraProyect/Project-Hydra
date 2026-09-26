@@ -4,8 +4,8 @@ using FluentAssertions;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// "Nunca apilar más de 3 visibles simultáneamente" (UX_PATTERNS.md,
-/// "Toasts", P2 #28 de docs/business/MATURITY_REVIEW.md). Servicio de C#
+/// "Nunca apilar más de 3 visibles simultáneamente" (Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md,
+/// "Toasts", P2 #28 de Project-Hydra-Negocio/MATURITY_REVIEW.md). Servicio de C#
 /// puro, sin Blazor de por medio — no hace falta bUnit.
 /// </summary>
 public class ToastServiceTests
@@ -83,5 +83,25 @@ public class ToastServiceTests
         servicio.Mostrar("Elemento eliminado", TonoToast.Exito, "Deshacer", () => Task.CompletedTask);
 
         servicio.Mensajes.Single().TextoAccion.Should().Be("Deshacer");
+    }
+
+    /// <summary>
+    /// P1-E1: el canal único de avisos no se traga los errores de autorización ni
+    /// los de una Sesión Privilegiada — tienen interfaz propia y, cuando llegan como
+    /// resultado de una acción, se ven con su propio texto, como error persistente.
+    /// Códigos y textos copiados de AutorizacionEscrituraBehavior.
+    /// </summary>
+    [Theory]
+    [InlineData("Autorizacion.SoloLectura", "Tu rol no permite crear, editar ni eliminar datos — solo consultarlos.")]
+    [InlineData("Autorizacion.SesionPrivilegiadaSoloLectura", "Un acceso de soporte de plataforma es de solo lectura: no puede crear, editar ni eliminar datos.")]
+    public void MostrarError_no_generaliza_los_errores_de_autorizacion_ni_de_Sesion_Privilegiada(string codigo, string mensaje)
+    {
+        var servicio = new ToastService();
+
+        servicio.MostrarError(CaeManager.Domain.Common.Error.Crear(codigo, mensaje));
+
+        var toast = servicio.Mensajes.Should().ContainSingle().Subject;
+        toast.Mensaje.Should().Be(mensaje);
+        toast.Tono.Should().Be(TonoToast.Error, "un error no se autodescarta: el usuario tiene que verlo");
     }
 }

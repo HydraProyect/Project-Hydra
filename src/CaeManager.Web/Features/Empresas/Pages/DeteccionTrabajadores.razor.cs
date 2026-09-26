@@ -31,7 +31,7 @@ namespace CaeManager.Web.Features.Empresas.Pages;
 /// </list>
 /// </para>
 /// </summary>
-public partial class DeteccionTrabajadores : ComponentBase, IDisposable
+public partial class DeteccionTrabajadores : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     [Parameter] public Guid EmpresaId { get; set; }
 
@@ -231,7 +231,7 @@ public partial class DeteccionTrabajadores : ComponentBase, IDisposable
                 // «Dar de alta» puede fallar por DNI ya existente o por datos
                 // no válidos: la detección sigue pendiente y el mensaje del
                 // handler dice qué hacer.
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return false;
             }
 
@@ -310,7 +310,7 @@ public partial class DeteccionTrabajadores : ComponentBase, IDisposable
             var resultado = await Mediator.Send(new ResolverDeteccionAusenteCommand(deteccion.Id, desactivar));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return false;
             }
 

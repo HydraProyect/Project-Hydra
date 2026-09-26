@@ -1,4 +1,9 @@
 using Npgsql;
+using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.ContextoRls;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 namespace CaeManager.IntegrationTests;
 
 /// <summary>
@@ -9,7 +14,7 @@ namespace CaeManager.IntegrationTests;
 /// del <c>ClearAllPools</c> que exigía SQLite.
 ///
 /// Por defecto apunta al servidor local (sin Docker en la máquina de
-/// desarrollo, ver ROADMAP.md § migración a PostgreSQL); en CI se apunta al
+/// desarrollo, ver Project-Hydra-Negocio/tecnico/ROADMAP.md § migración a PostgreSQL); en CI se apunta al
 /// servicio de postgres del workflow con la variable
 /// <c>CAEMANAGER_TESTS_PG</c> (cadena sin <c>Database=</c>, que se añade
 /// aquí).
@@ -64,6 +69,26 @@ internal static class BaseDatosPostgresDePruebas
     internal static string CadenaDeMantenimientoSinPool() =>
         $"{Servidor};Database=postgres;Pooling=false";
 
+    /// <summary>
+    /// Anillo de DataProtection del proceso de tests: el que cifra la clave del
+    /// contexto RLS al registrarla y el que la descifra al firmar, como el
+    /// volumen que comparten migrador y app en producción.
+    /// </summary>
+    internal static IDataProtectionProvider ProteccionDePruebas { get; } = new EphemeralDataProtectionProvider();
+
+    /// <summary>
+    /// Firmante del contexto RLS (P6) para los tests que montan
+    /// <c>TenantRlsConnectionInterceptor</c> a mano. Uno por proceso, como en
+    /// producción. Ninguna base de test pasa por el migrador, así que usa el
+    /// registro de respaldo con cadena propietaria: registra una clave en cada
+    /// base la primera vez que firma una conexión de esa base, y la lee por la
+    /// vía de producción. Sin pool: la conexión propietaria se usa una vez por
+    /// base y no debe quedar viva sumando a <c>max_connections</c>.
+    /// </summary>
+    internal static FirmanteContextoRls FirmanteContextoRls { get; } = new(
+        CadenaDeMantenimientoSinPool(), ProteccionDePruebas, TimeProvider.System,
+        FirmanteContextoRls.TtlPorDefecto, FirmanteContextoRls.RotacionPorDefecto);
+
     internal static string CadenaConexionUnica() =>
         $"{Servidor};Database=caemanager_tests_{Guid.NewGuid():N};{LimitesDePool}";
 
@@ -101,6 +126,26 @@ internal static class BaseDatosPostgresDePruebas
         };
 
         return constructor.ConnectionString;
+    }
+
+    /// <summary>
+    /// Crea y migra la base con un contexto propietario SIN interceptores, como
+    /// el migrador de producción (<c>MigrarBaseDeDatosAsync</c> en
+    /// <c>Program.cs</c>). Migrar con un contexto que ya lleva
+    /// <c>TenantRlsConnectionInterceptor</c> no sirve desde P6: el interceptor
+    /// firma el contexto RLS al abrir cada conexión, y las que abre la migración
+    /// —la de mantenimiento que crea la base y la de la base aún sin migrar— no
+    /// tienen <c>app_privado.claves_contexto</c> donde registrar la clave
+    /// (42P01).
+    /// </summary>
+    internal static async Task MigrarAsync(string cadenaConexion)
+    {
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .Options;
+        await using var contexto = new CaeManagerDbContext(
+            opciones, new EphemeralDataProtectionProvider(), new TenantActualAmbiental());
+        await contexto.Database.MigrateAsync();
     }
 
     /// <summary>

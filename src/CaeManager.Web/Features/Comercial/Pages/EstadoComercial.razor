@@ -12,6 +12,7 @@
    la ruta y el comando la rechace no es una vulnerabilidad. *@
 @using CaeManager.Domain.Tenants
 
+<LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Estado comercial — @Marca.Nombre</PageTitle>
@@ -158,6 +159,7 @@
                      TextoBotonConfirmar="Actualizar desde Stripe"
                      EnProgreso="_actualizandoTenantId is not null"
                      OnConfirmar="ActualizarDesdeStripeAsync" />
+</LimiteDeErrores>
 
 @code {
     private static TonoBadge TonoDe(EstadoComercialTenant estado) => estado switch

@@ -64,16 +64,13 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         // ya existan (mismo motivo que la Plantilla de Clientes, más abajo).
         // "CAE completa" reimporta una cartera CAE que ya existe en otro
         // sitio, no da de alta una cartera nueva — para eso está "combinada",
-        // la única de las cuatro que sí recoge CIF y Empresa. El recuento del
-        // paso "Revisar plan" sigue sin corregirse para este formato (a
-        // diferencia de Clientes): AltasClienteCentroQueNoSeHaran avisa de
-        // cuántas de sus altas no se harán, pero las cuenta igual en
-        // TotalACrear — brecha registrada como REC-106
-        // (Project-Hydra-Negocio/tecnico/reconciliacion/REGISTRO-REC.md),
-        // NOT READY porque su cierre exige extender el contrato de
+        // la única de las cuatro que sí recoge CIF y Empresa. El análisis sigue
+        // listando esas altas (REC-106: corregirlo allí exige extender
         // PlanImportacionDto sin romper el emparejamiento posicional de
-        // Centros_Plataformas con Asignaciones ni la causal de Asignación
-        // que exige DCR-12 (ver IMPORTACION.md § 3 bis).
+        // Centros_Plataformas con Asignaciones ni la causal de Asignación que
+        // exige DCR-12, ver Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis); el paso «Revisar plan» las
+        // saca de TotalACrear y las muestra como «No se creará»
+        // (AltasClienteCentroQueNoSeHaran), igual que en la de Clientes.
         new("cae", "importar", "PlantillaCaeTitulo", "PlantillaCaeNombreCorto", "PlantillaCaeDescripcion",
             null, TamanoMaximoCaeCompletaBytes, "CAE completa"),
         // La descripción NO es la del mockup («Solo clientes con sus datos
@@ -129,10 +126,56 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private const string ColumnaCriticoCorta = "Crítico";
     private const string ValorCriticoSi = "C";
 
+    private const string IdPlantillaDocumentos = "documentos";
+    private const string NombreHojaDocumentos = "Documentos";
+    private const string RutaSubidaMultiple = "/documentos/subida-masiva";
+
+    /// <summary>Qué hará la escritura con la fila; lo usan los filtros del plan (<see cref="FiltroPlan"/>).</summary>
+    private enum TipoFilaPlan { Crear, NoSeCrea, Aviso, Omitir }
+
     /// <summary>Fila unificada de plan, proyectada desde PlanImportacionDto o PlanImportacionCombinadaDto — ver ProyectarFilas.</summary>
-    private sealed record FilaPlan(string Entidad, string Accion, TonoBadge Tono, string Motivo);
+    private sealed record FilaPlan(string Entidad, string Accion, TonoBadge Tono, string Motivo, TipoFilaPlan Tipo);
+
+    /// <summary>Filtros del plan del mockup «Importar Documentos»: Todas / Se crearán / Se omitirán.</summary>
+    private enum FiltroPlan { Todas, Crear, Omitir }
+
+    private static readonly IReadOnlyList<FiltroPlan> FiltrosPlan = [FiltroPlan.Todas, FiltroPlan.Crear, FiltroPlan.Omitir];
+
+    private static string ClaveFiltroPlan(FiltroPlan filtro) => filtro switch
+    {
+        FiltroPlan.Crear => "FiltroPlanCrear",
+        FiltroPlan.Omitir => "FiltroPlanOmitir",
+        _ => "FiltroPlanTodas"
+    };
+
+    private FiltroPlan _filtroPlan = FiltroPlan.Todas;
+
+    private IReadOnlyList<FilaPlan> FilasFiltradas()
+    {
+        var filas = ProyectarFilas();
+        return _filtroPlan switch
+        {
+            FiltroPlan.Crear => [.. filas.Where(f => f.Tipo == TipoFilaPlan.Crear)],
+            FiltroPlan.Omitir => [.. filas.Where(f => f.Tipo == TipoFilaPlan.Omitir)],
+            _ => filas
+        };
+    }
 
     private sealed record ColumnaPlantilla(string Nombre, string Ejemplo, bool Obligatoria);
+
+    /// <summary>
+    /// Columnas de la hoja «Documentos», en el orden y con los rótulos que
+    /// escribe ClosedXmlPlantillaDocumentosService.GenerarPlantilla —el test
+    /// ImportarDocumentosGen2Tests las compara con la plantilla real—, con su
+    /// fila de ejemplo. Las tres son obligatorias: sin DNI el lector deja de
+    /// leer, y sin tipo o fecha la fila se omite con su motivo.
+    /// </summary>
+    private static readonly IReadOnlyList<ColumnaPlantilla> ColumnasPlantillaDocumentos =
+    [
+        new("DNI", "12345678Z", true),
+        new("Tipo de documento", "Certificado de aptitud médica", true),
+        new("Fecha de emisión", "01/01/2026", true)
+    ];
 
     /// <summary>
     /// Columnas de la hoja «Clientes», en el orden y con los rótulos que
@@ -213,6 +256,24 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private bool EsPlantillaClientes => _plantillaId == IdPlantillaClientes;
 
     private bool EsPlantillaCombinada => _plantillaId == IdPlantillaCombinada;
+
+    private bool EsPlantillaDocumentos => _plantillaId == IdPlantillaDocumentos;
+
+    /// <summary>
+    /// El libro no trae la hoja «Documentos». ClosedXmlPlantillaDocumentosService
+    /// lo dice con un único omitido de esa hoja en la fila 0 y devuelve el plan
+    /// vacío; ninguna fila de datos tiene número 0 (los datos empiezan en la 2).
+    /// </summary>
+    private bool DocumentosSinHoja => EsPlantillaDocumentos && _planSimple is { } ps
+        && ps.Documentos.Count == 0 && ps.Omitidos.Count == 1
+        && ps.Omitidos[0] is { Hoja: NombreHojaDocumentos, Fila: 0 };
+
+    /// <summary>
+    /// La hoja existe y se leyó, pero no había ni una fila con DNI aparte de la
+    /// de ejemplo: el plan no trae nada, ni altas ni omitidos ni avisos.
+    /// </summary>
+    private bool DocumentosSinFilas => EsPlantillaDocumentos && _planSimple is { } ps
+        && ps.Documentos.Count == 0 && ps.Omitidos.Count == 0 && ps.Advertencias.Count == 0;
 
     // La entrada explícita de /documentos/importar abre el flujo documental
     // directamente en el paso de archivo. ?plantilla=documentos conserva el
@@ -459,6 +520,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         _planCombinada = null;
         _confirmado = false;
         _reemplazarExistentes = false;
+        _filtroPlan = FiltroPlan.Todas;
     }
 
     private void ContinuarAAnalizar()
@@ -546,9 +608,15 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         _pasoMaximoAlcanzado = Math.Max(_pasoMaximoAlcanzado, 3);
     }
 
+    /// <summary>
+    /// Altas que la escritura sí puede hacer. En las plantillas simples NO
+    /// incluye las de Cliente empresarial y Centro con nombre nuevo: el análisis
+    /// las lista, pero EjecutarImportacionCommandHandler nunca las crea (ver
+    /// <see cref="AltasClienteCentroQueNoSeHaran"/>), así que la pantalla las
+    /// cuenta aparte como «No se creará» (REC-106).
+    /// </summary>
     private int TotalACrear => _planSimple is { } ps
-        ? ps.ClientesCentros.Count(c => !c.YaExisteCliente) + ps.ClientesCentros.Count(c => !c.YaExisteCentro)
-            + ps.Empresas.Count(e => !e.YaExiste) + ps.Trabajadores.Count(t => !t.YaExiste)
+        ? ps.Empresas.Count(e => !e.YaExiste) + ps.Trabajadores.Count(t => !t.YaExiste)
             + ps.Documentos.Count(d => !d.YaExiste) + ps.Asignaciones.Count(a => !a.YaExiste)
         : _planCombinada is { } pc
             ? pc.Clientes.Count(c => !c.YaExiste) + pc.Empresas.Count(e => !e.YaExiste)
@@ -559,16 +627,16 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private int TotalOmitidos => _planSimple?.Omitidos.Count ?? _planCombinada?.Omitidos.Count ?? 0;
 
     /// <summary>
-    /// Altas de Cliente empresarial o Centro que el plan cuenta en «se
-    /// crearán» (las filas «Crear cliente» y «Crear centro») y que la
-    /// escritura NO hará. EjecutarImportacionCommandHandler solo reutiliza
-    /// Cliente/Centro que ya existían: el Cliente empresarial exige CIF y el
-    /// Centro una Empresa, y ni la Plantilla de Clientes ni la CAE completa
-    /// recogen esos datos, así que cada una se omite con motivo explícito. El
-    /// análisis (AnalizarPlantillaClientesQuery, AnalizarImportacionExcelQuery)
-    /// no lo sabe y las sigue contando; esta pantalla no cambia su recuento
-    /// —es el del análisis— pero tampoco lo presenta como lo que se escribirá.
-    /// Si el handler llega a crearlas, esto y sus textos tienen que irse con él.
+    /// Altas de Cliente empresarial o Centro con nombre nuevo que el análisis
+    /// lista y que la escritura NO hará. EjecutarImportacionCommandHandler solo
+    /// reutiliza Cliente/Centro que ya existían: el Cliente empresarial exige
+    /// CIF y el Centro una Empresa, y ni la Plantilla de Clientes ni la CAE
+    /// completa recogen esos datos, así que cada una se omite con motivo
+    /// explícito. El análisis (AnalizarPlantillaClientesQuery,
+    /// AnalizarImportacionExcelQuery) no lo sabe; esta pantalla las saca de
+    /// «se crearán» (<see cref="TotalACrear"/>) y las cuenta y pinta como «No
+    /// se creará» (REC-106). Si el handler llega a crearlas, esto y sus textos
+    /// tienen que irse con él.
     /// </summary>
     private int AltasClienteCentroQueNoSeHaran => _planSimple is { } ps
         ? ps.ClientesCentros.Count(c => !c.YaExisteCliente) + ps.ClientesCentros.Count(c => !c.YaExisteCentro)
@@ -592,23 +660,14 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         }
     }
 
-    private string? TituloBadgeCrear => _planSimple is { ClientesCentros.Count: > 0 } ps
-        ? Textos["TituloBadgeCrear", ps.ClientesCentros.Count(c => !c.YaExisteCliente), ps.ClientesCentros.Count(c => !c.YaExisteCentro)].Value
+    /// <summary>Desglose del badge «No se creará»: cuántas son de Cliente empresarial y cuántas de Centro.</summary>
+    private string? TituloBadgeNoSeCrearan => _planSimple is { ClientesCentros.Count: > 0 } ps
+        ? Textos["TituloBadgeNoSeCrearan", ps.ClientesCentros.Count(c => !c.YaExisteCliente), ps.ClientesCentros.Count(c => !c.YaExisteCentro)].Value
         : null;
 
-    /// <summary>
-    /// Ámbar en vez de verde cuando el plan ya sabe que alguna de sus altas de
-    /// Cliente empresarial o Centro no se hará (ver
-    /// <see cref="AltasClienteCentroQueNoSeHaran"/>): la cifra de
-    /// <see cref="TotalACrear"/> sigue siendo la del análisis —corregirla es
-    /// trabajo de REC-106, no de esta pantalla—, pero el color no debe leer
-    /// como éxito garantizado algo que ya se sabe que no lo es del todo.
-    /// </summary>
-    private TonoBadge TonoBadgeCrear => AltasClienteCentroQueNoSeHaran > 0 ? TonoBadge.Advertencia : TonoBadge.Exito;
-
-    private string TituloAvisoAltas => AltasClienteCentroQueNoSeHaran == TotalACrear
-        ? Textos["AvisoAltasNinguna"].Value
-        : Textos["AvisoAltasAlgunas", AltasClienteCentroQueNoSeHaran].Value;
+    private string TituloAvisoAltas => AltasClienteCentroQueNoSeHaran == 1
+        ? Textos["AvisoAltasUna"].Value
+        : Textos["AvisoAltasVarias", AltasClienteCentroQueNoSeHaran].Value;
 
     private string TituloConfirmacion
     {
@@ -616,12 +675,16 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         {
             var noSeHaran = AltasClienteCentroQueNoSeHaran;
             if (noSeHaran == 0)
-                return Textos["ConfirmacionSinOmitir", TotalACrear];
-            if (noSeHaran == TotalACrear)
-                return Textos["ConfirmacionNinguna", TotalACrear];
+                return TotalACrear == 1
+                    ? Textos["ConfirmacionSinOmitirUno"]
+                    : Textos["ConfirmacionSinOmitir", TotalACrear];
+            if (TotalACrear == 0)
+                return Textos["ConfirmacionNinguna"];
             // «Como máximo»: la escritura aún puede omitir filas que dependían
             // de las que no se crean (una Asignación a un Centro nuevo).
-            return Textos["ConfirmacionComoMaximo", TotalACrear - noSeHaran, TotalACrear];
+            return TotalACrear == 1
+                ? Textos["ConfirmacionComoMaximoUno"]
+                : Textos["ConfirmacionComoMaximo", TotalACrear];
         }
     }
 
@@ -642,9 +705,10 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
             var noSeHaran = AltasClienteCentroQueNoSeHaran;
             var partes = new List<string>
             {
-                noSeHaran == 0 ? Textos["DialogoSeCrearan", TotalACrear].Value
-                    : noSeHaran == TotalACrear ? Textos["DialogoNingunElemento"].Value
-                    : Textos["DialogoComoMaximo", TotalACrear - noSeHaran].Value
+                noSeHaran == 0 ? (TotalACrear == 1 ? Textos["DialogoSeCrearaUno"].Value : Textos["DialogoSeCrearan", TotalACrear].Value)
+                    : TotalACrear == 0 ? Textos["DialogoNingunElemento"].Value
+                    : TotalACrear == 1 ? Textos["DialogoComoMaximoUno"].Value
+                    : Textos["DialogoComoMaximo", TotalACrear].Value
             };
 
             if (noSeHaran > 0)
@@ -679,36 +743,35 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
         if (_planSimple is { } ps)
         {
-            // La Plantilla de Clientes lee la hoja «Clientes»; solo la CAE
-            // completa trae Centros_Plataformas.
-            // Ámbar, no verde: por construcción (ver AltasClienteCentroQueNoSeHaran)
-            // toda fila que cae en estos dos Where es una que
-            // EjecutarImportacionCommandHandler nunca creará — el análisis la
-            // sigue contando en TotalACrear (REC-106), pero la fila no debe
-            // pintarse como una alta ya garantizada.
-            var motivoNombreNuevo = EsPlantillaClientes
-                ? Textos["MotivoNombreNuevoEnHoja", NombreHojaClientes].Value
-                : Textos["MotivoNombreNuevoEn", NombreHojaCentrosPlataformas].Value;
-            filas.AddRange(ps.ClientesCentros.Where(c => !c.YaExisteCliente).Select(c => new FilaPlan(c.Nombre, Textos["AccionCrearCliente"], TonoBadge.Advertencia, motivoNombreNuevo)));
-            filas.AddRange(ps.ClientesCentros.Where(c => !c.YaExisteCentro).Select(c => new FilaPlan(c.Nombre, Textos["AccionCrearCentro"], TonoBadge.Advertencia, motivoNombreNuevo)));
-            filas.AddRange(ps.Empresas.Where(e => !e.YaExiste).Select(e => new FilaPlan(e.RazonSocial, Textos["AccionCrearEmpresa"], TonoBadge.Exito, Textos["MotivoRazonSocialNueva"])));
-            filas.AddRange(ps.Trabajadores.Where(t => !t.YaExiste).Select(t => new FilaPlan($"{t.Nombre} {t.Apellidos} ({t.Dni})", Textos["AccionCrearTrabajador"], TonoBadge.Exito, Textos["MotivoDniNuevo", t.RazonSocialEmpresa])));
-            filas.AddRange(ps.Documentos.Where(d => !d.YaExiste).Select(d => new FilaPlan($"{d.Dni} — {d.NombreTipoDocumento}", Textos["AccionCrearDocumento"], TonoBadge.Exito, Textos["MotivoEmitido", d.FechaEmision.ToString("dd/MM/yyyy")])));
-            filas.AddRange(ps.Asignaciones.Where(a => !a.YaExiste).Select(a => new FilaPlan($"{a.Dni} → {a.NombreCentro}", Textos["AccionCrearAsignacion"], TonoBadge.Exito, Textos["MotivoAsignacionNueva"])));
+            // «No se creará», en ámbar: por construcción (ver
+            // AltasClienteCentroQueNoSeHaran) toda fila que cae en estos dos
+            // Where es una que EjecutarImportacionCommandHandler nunca creará, y
+            // no cuenta en TotalACrear (REC-106). El motivo dice qué dato falta
+            // y en qué hoja: la Plantilla de Clientes lee la hoja «Clientes»,
+            // la CAE completa trae Centros_Plataformas.
+            var origen = EsPlantillaClientes
+                ? Textos["OrigenPlantillaClientes"].Value
+                : Textos["OrigenHoja", NombreHojaCentrosPlataformas].Value;
+            filas.AddRange(ps.ClientesCentros.Where(c => !c.YaExisteCliente).Select(c => new FilaPlan(c.Nombre, Textos["AccionNoSeCreara"], TonoBadge.Advertencia, Textos["MotivoNoSeCreaCliente", origen], TipoFilaPlan.NoSeCrea)));
+            filas.AddRange(ps.ClientesCentros.Where(c => !c.YaExisteCentro).Select(c => new FilaPlan(c.Nombre, Textos["AccionNoSeCreara"], TonoBadge.Advertencia, Textos["MotivoNoSeCreaCentro", origen], TipoFilaPlan.NoSeCrea)));
+            filas.AddRange(ps.Empresas.Where(e => !e.YaExiste).Select(e => new FilaPlan(e.RazonSocial, Textos["AccionCrearEmpresa"], TonoBadge.Exito, Textos["MotivoRazonSocialNueva"], TipoFilaPlan.Crear)));
+            filas.AddRange(ps.Trabajadores.Where(t => !t.YaExiste).Select(t => new FilaPlan($"{t.Nombre} {t.Apellidos} ({t.Dni})", Textos["AccionCrearTrabajador"], TonoBadge.Exito, Textos["MotivoDniNuevo", t.RazonSocialEmpresa], TipoFilaPlan.Crear)));
+            filas.AddRange(ps.Documentos.Where(d => !d.YaExiste).Select(d => new FilaPlan($"{d.Dni} — {d.NombreTipoDocumento}", Textos["AccionCrearDocumento"], TonoBadge.Exito, Textos["MotivoEmitido", d.FechaEmision.ToString("dd/MM/yyyy")], TipoFilaPlan.Crear)));
+            filas.AddRange(ps.Asignaciones.Where(a => !a.YaExiste).Select(a => new FilaPlan($"{a.Dni} → {a.NombreCentro}", Textos["AccionCrearAsignacion"], TonoBadge.Exito, Textos["MotivoAsignacionNueva"], TipoFilaPlan.Crear)));
         }
         else if (_planCombinada is { } pc)
         {
-            filas.AddRange(pc.Clientes.Where(c => !c.YaExiste).Select(c => new FilaPlan(c.RazonSocial, Textos["AccionCrearCliente"], TonoBadge.Exito, Textos["MotivoCifNuevo", c.Cif])));
-            filas.AddRange(pc.Empresas.Where(e => !e.YaExiste).Select(e => new FilaPlan(e.RazonSocial, Textos["AccionCrearEmpresa"], TonoBadge.Exito, Textos["MotivoRazonSocialNueva"])));
-            filas.AddRange(pc.Centros.Where(c => !c.YaExiste).Select(c => new FilaPlan(c.Nombre, Textos["AccionCrearCentro"], TonoBadge.Exito, Textos["MotivoClienteDelCentro", c.RazonSocialCliente])));
-            filas.AddRange(pc.Trabajadores.Where(t => !t.YaExiste).Select(t => new FilaPlan($"{t.Nombre} {t.Apellidos} ({t.Dni})", Textos["AccionCrearTrabajador"], TonoBadge.Exito, Textos["MotivoDniNuevo", t.RazonSocialEmpresa])));
+            filas.AddRange(pc.Clientes.Where(c => !c.YaExiste).Select(c => new FilaPlan(c.RazonSocial, Textos["AccionCrearCliente"], TonoBadge.Exito, Textos["MotivoCifNuevo", c.Cif], TipoFilaPlan.Crear)));
+            filas.AddRange(pc.Empresas.Where(e => !e.YaExiste).Select(e => new FilaPlan(e.RazonSocial, Textos["AccionCrearEmpresa"], TonoBadge.Exito, Textos["MotivoRazonSocialNueva"], TipoFilaPlan.Crear)));
+            filas.AddRange(pc.Centros.Where(c => !c.YaExiste).Select(c => new FilaPlan(c.Nombre, Textos["AccionCrearCentro"], TonoBadge.Exito, Textos["MotivoClienteDelCentro", c.RazonSocialCliente], TipoFilaPlan.Crear)));
+            filas.AddRange(pc.Trabajadores.Where(t => !t.YaExiste).Select(t => new FilaPlan($"{t.Nombre} {t.Apellidos} ({t.Dni})", Textos["AccionCrearTrabajador"], TonoBadge.Exito, Textos["MotivoDniNuevo", t.RazonSocialEmpresa], TipoFilaPlan.Crear)));
         }
 
         var advertencias = _planSimple?.Advertencias ?? _planCombinada?.Advertencias ?? [];
         var omitidos = _planSimple?.Omitidos ?? _planCombinada?.Omitidos ?? [];
 
-        filas.AddRange(advertencias.Select(a => new FilaPlan(a.Descripcion, Textos["AccionAviso"], TonoBadge.Advertencia, a.Motivo)));
-        filas.AddRange(omitidos.Select(o => new FilaPlan(o.Descripcion, Textos["AccionOmitir"], TonoBadge.Peligro, o.Motivo)));
+        filas.AddRange(advertencias.Select(a => new FilaPlan(a.Descripcion, Textos["AccionAviso"], TonoBadge.Advertencia, a.Motivo, TipoFilaPlan.Aviso)));
+        filas.AddRange(omitidos.Select(o => new FilaPlan(o.Descripcion, Textos["AccionOmitir"], TonoBadge.Peligro, o.Motivo, TipoFilaPlan.Omitir)));
 
         return filas;
     }

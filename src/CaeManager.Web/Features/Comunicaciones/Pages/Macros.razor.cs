@@ -73,7 +73,7 @@ public partial class Macros : CaeManager.Web.Components.PaginaIntegrableConfigur
     protected override async Task OnInitializedAsync()
     {
         // Módulo congelado por defecto (ComunicacionesOptions, P2 #26 de
-        // docs/business/MATURITY_REVIEW.md): sin ingesta real de Graph
+        // Project-Hydra-Negocio/MATURITY_REVIEW.md): sin ingesta real de Graph
         // detrás, se presenta como si la ruta no existiera en vez de
         // mostrar una bandeja que nadie va a alimentar de verdad.
         if (!OpcionesComunicaciones.Value.Activo)
@@ -422,7 +422,7 @@ public partial class Macros : CaeManager.Web.Components.PaginaIntegrableConfigur
             // Guid.Empty no: atribuía el borrado a un usuario inexistente en
             // vez de fallar, y eso deja una pista falsa en la auditoría —
             // justo lo contrario de para qué existe (hallazgo N-13 de
-            // INFORME-AUDITORIA-2.md).
+            // Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
             var usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
             if (usuarioId is null)
             {
@@ -434,7 +434,7 @@ public partial class Macros : CaeManager.Web.Components.PaginaIntegrableConfigur
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
             }
             else
             {

@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Plataforma.Commands.ConcederPrivilegio;
 using CaeManager.Application.Tests.Clientes;
@@ -16,6 +17,24 @@ public class PlataformaWriterFalso : IPlataformaWriter
     public void AnadirConcesion(ConcesionPrivilegio concesion) => ConcesionAnadida = concesion;
 }
 
+/// <summary>Directorio que solo sabe el Tenant de cada cuenta; null si no la ve.</summary>
+public class DirectorioTenantDeCuenta(IReadOnlyDictionary<Guid, Guid> tenantPorCuenta) : IDirectorioUsuariosService
+{
+    public Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<Guid?>(tenantPorCuenta.TryGetValue(usuarioId, out var tenant) ? tenant : null);
+
+    public Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+
+    public Task<bool> EsCuentaActivaConRolAsync(
+        Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+}
+
 public class ConcederPrivilegioCommandHandlerTests
 {
     private static readonly Guid Concedente = Guid.NewGuid();
@@ -23,24 +42,79 @@ public class ConcederPrivilegioCommandHandlerTests
     private static readonly Guid TenantObjetivo = Guid.NewGuid();
     private static readonly Guid TenantDelConcedente = Guid.NewGuid();
 
-    private static ConcederPrivilegioCommand Comando(Guid? beneficiario = null, Guid? tenant = null) =>
-        new(beneficiario ?? Beneficiario, tenant ?? TenantObjetivo, DiasDeVigencia: 30, Motivo: "Aprovisionamiento inicial de Refrielectric");
+    private static ConcederPrivilegioCommand Comando(
+        Guid? beneficiario = null, Guid? tenant = null,
+        CapacidadPrivilegio capacidad = CapacidadPrivilegio.Aprovisionamiento) =>
+        new(beneficiario ?? Beneficiario, tenant ?? TenantObjetivo, DiasDeVigencia: 30,
+            Motivo: "Aprovisionamiento inicial de Refrielectric", Capacidad: capacidad);
 
     private static ConcederPrivilegioCommandHandler Handler(
         out PlataformaWriterFalso writer,
         out UnitOfWorkFalso unitOfWork,
         bool dobleFactor = true,
         AutorizacionAdminPlataformaFalsa? autorizacion = null,
-        Guid? tenantOrigenConcedente = null)
+        Guid? tenantOrigenConcedente = null,
+        IReadOnlyDictionary<Guid, Guid>? tenantPorCuenta = null)
     {
         writer = new PlataformaWriterFalso();
         unitOfWork = new UnitOfWorkFalso();
         var currentUser = new CurrentUserServiceFalso(
             usuarioId: Concedente, tenantOrigenId: tenantOrigenConcedente ?? TenantDelConcedente,
             tieneDobleFactorActivo: dobleFactor);
+        // Por defecto el beneficiario es de la casa del concedente.
+        var directorio = new DirectorioTenantDeCuenta(
+            tenantPorCuenta ?? new Dictionary<Guid, Guid> { [Beneficiario] = TenantDelConcedente });
 
         return new ConcederPrivilegioCommandHandler(
-            writer, autorizacion ?? AutorizacionAdminPlataformaFalsa.AcotadaA(TenantObjetivo), currentUser, unitOfWork);
+            writer, autorizacion ?? AutorizacionAdminPlataformaFalsa.AcotadaA(TenantObjetivo), currentUser,
+            directorio, unitOfWork);
+    }
+
+    /// <summary>
+    /// Toda capacidad que abre una Sesión Privilegiada exige que el beneficiario
+    /// sea un Actor de Plataforma TALVEG (cuenta del Tenant de origen de quien
+    /// concede). Aprovisionamiento no lo exigía antes: se podía conceder a una
+    /// cuenta de un Tenant cliente, que después abriría una Sesión Privilegiada.
+    /// </summary>
+    [Theory]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento)]
+    [InlineData(CapacidadPrivilegio.RestablecimientoSegundoFactor)]
+    public async Task Rechaza_una_capacidad_que_abre_sesion_a_una_cuenta_de_otro_Tenant(CapacidadPrivilegio capacidad)
+    {
+        var handler = Handler(out var writer, out var unitOfWork,
+            tenantPorCuenta: new Dictionary<Guid, Guid> { [Beneficiario] = TenantObjetivo });
+
+        var resultado = await handler.Handle(Comando(capacidad: capacidad), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("ConcesionPrivilegio.BeneficiarioNoEsDePlataforma");
+        writer.ConcesionAnadida.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento)]
+    [InlineData(CapacidadPrivilegio.RestablecimientoSegundoFactor)]
+    public async Task Rechaza_una_capacidad_que_abre_sesion_a_una_cuenta_que_no_se_ve(CapacidadPrivilegio capacidad)
+    {
+        var handler = Handler(out var writer, out var unitOfWork, tenantPorCuenta: new Dictionary<Guid, Guid>());
+
+        var resultado = await handler.Handle(Comando(capacidad: capacidad), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("ConcesionPrivilegio.BeneficiarioNoEsDePlataforma");
+        writer.ConcesionAnadida.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Ata la lista de concedibles a la de apertura: si mañana entra una
+    /// capacidad concedible que NO abre sesión, el control de beneficiario deja
+    /// de cubrirla y este test obliga a decidir a propósito si lo necesita.
+    /// </summary>
+    [Fact]
+    public void Toda_capacidad_concedible_abre_sesion_y_por_tanto_pasa_por_el_control_de_beneficiario()
+    {
+        ConcederPrivilegioCommand.CapacidadesConcedibles
+            .Should().OnlyContain(c => CapacidadesQuePuedenAbrirSesion.Admite(c));
     }
 
     [Fact]
@@ -57,6 +131,22 @@ public class ConcederPrivilegioCommandHandlerTests
         writer.ConcesionAnadida.ConcedidaPorUsuarioId.Should().Be(Concedente);
         writer.ConcesionAnadida.EsAlcanceGlobal.Should().BeFalse();
         unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Concede_RestablecimientoSegundoFactor_acotado_al_tenant_objetivo()
+    {
+        var handler = Handler(out var writer, out _);
+
+        var resultado = await handler.Handle(
+            Comando(capacidad: CapacidadPrivilegio.RestablecimientoSegundoFactor), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        writer.ConcesionAnadida!.Capacidad.Should().Be(CapacidadPrivilegio.RestablecimientoSegundoFactor,
+            "la capacidad concedida es la pedida, no Aprovisionamiento fijo");
+        writer.ConcesionAnadida.EsAlcanceGlobal.Should().BeFalse();
+        writer.ConcesionAnadida.CubreEn(TenantObjetivo, DateTime.UtcNow).Should().BeTrue();
+        writer.ConcesionAnadida.ConcedidaPorUsuarioId.Should().Be(Concedente);
     }
 
     [Fact]

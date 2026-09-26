@@ -6,7 +6,7 @@ namespace CaeManager.Web.Services;
 
 /// <summary>
 /// Resuelve el tenant de la sesión Blazor desde el claim <c>tenant_id</c>
-/// (ver <see cref="TenantClaimsPrincipalFactory"/> y docs/MULTITENANCY.md
+/// (ver <see cref="TenantClaimsPrincipalFactory"/> y Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md
 /// § 8). Mismo patrón que <see cref="CurrentUserService"/>: dentro de un
 /// circuito de Blazor, <c>AuthenticationStateProvider</c> ya trae el
 /// <c>ClaimsPrincipal</c> correcto. Fuera de uno — endpoints minimal API
@@ -34,7 +34,7 @@ namespace CaeManager.Web.Services;
 /// cerrado). La selección aporta además su propia garantía: viaja en un token
 /// protegido y ligado al usuario, no en un GUID en claro que cualquiera
 /// pudiera escribir a mano (ver <see cref="ClienteActivoSeleccionado"/> y el
-/// hallazgo C-1 de INFORME-AUDITORIA-TECNICA.md).
+/// hallazgo C-1 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-TECNICA.md).
 ///
 /// <see cref="ITenantActual.TenantId"/> es síncrono porque EF Core necesita
 /// evaluarlo dentro de un <c>HasQueryFilter</c>; tanto
@@ -48,7 +48,7 @@ namespace CaeManager.Web.Services;
 /// resolvía una única vez por instancia (scoped) bajo el supuesto de que
 /// "sin I/O real" implicaba "sin motivo para cambiar dentro de la misma
 /// petición". Ese supuesto era falso para <c>ExtensionAuthenticationHandler</c>
-/// (MVP1 de extensión de navegador, ver ARQUITECTURA-INTEGRACIONES.md § 14 en
+/// (MVP1 de extensión de navegador, ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en
 /// el repositorio de negocio): a diferencia de la cookie de Identity, ese
 /// esquema llama a <c>UserManager.FindByIdAsync</c> en cada petición para
 /// comprobar el security stamp, y esa consulta pasa por

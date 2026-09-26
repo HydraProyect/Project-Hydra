@@ -26,7 +26,7 @@ public class GeminiOptions
     /// <summary>
     /// Precio orientativo por millón de tokens de entrada/salida (USD),
     /// usado solo para el coste estimado de auditoría (ver
-    /// docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2 — nunca un criterio de
+    /// Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2 — nunca un criterio de
     /// enrutado). Valores de Gemini 3.5 Flash, más caro que el 2.5 Flash ya
     /// retirado — revisar si cambia el modelo o su tarifa.
     /// </summary>

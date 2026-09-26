@@ -129,7 +129,7 @@ public class MiTrabajoAlcanceCeroBajoRlsTests : IAsyncLifetime
             .UseNpgsql(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion))
             .AddInterceptors(
                 new TenantSelladoInterceptor(tenantDeLaPeticion),
-                new TenantRlsConnectionInterceptor(tenantDeLaPeticion, new SinClienteActivo(), usuarioInterceptor))
+                new TenantRlsConnectionInterceptor(tenantDeLaPeticion, new SinClienteActivo(), usuarioInterceptor, BaseDatosPostgresDePruebas.FirmanteContextoRls))
             .Options;
         _runtime = new CaeManagerDbContext(opcionesRuntime, new EphemeralDataProtectionProvider(), tenantDeLaPeticion);
 

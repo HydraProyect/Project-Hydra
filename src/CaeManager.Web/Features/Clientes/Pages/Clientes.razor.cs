@@ -26,8 +26,12 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 
 public record GestorCaeSelectorDto(Guid Id, string NombreCompleto, string Email);
 
-public partial class Clientes : ComponentBase
+public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
 {
+    /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
+    /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
+    private bool _alcanceCero;
+
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private IValidator<CrearClienteCommand> ValidadorCrear { get; set; } = default!;
@@ -38,7 +42,7 @@ public partial class Clientes : ComponentBase
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
     private QuickGrid<ClienteListaDto>? _grid;
 
-    // H2 (docs/ux-audit/02-clientes.md): el `Paginator` de QuickGrid no está
+    // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): el `Paginator` de QuickGrid no está
     // localizado — `PaginadorSimple` (mismo componente que el resto de listas
     // sin QuickGrid) cubre el copy en español; sigue delegando el movimiento
     // real de página en `_paginacion.SetCurrentPageIndexAsync` para que
@@ -47,7 +51,7 @@ public partial class Clientes : ComponentBase
 
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
     // página no cambie, así que refrescar además la rejilla pedía lo mismo dos
     // veces (ver RecargarAsync).
@@ -125,7 +129,7 @@ public partial class Clientes : ComponentBase
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
-    /// <summary>H4 (docs/ux-audit/02-clientes.md): antes solo `q` viajaba en la URL, `soloCriticos` se perdía al recargar o compartir el enlace.</summary>
+    /// <summary>H4 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): antes solo `q` viajaba en la URL, `soloCriticos` se perdía al recargar o compartir el enlace.</summary>
     [SupplyParameterFromQuery(Name = "critico")]
     public bool? SoloCriticosInicial { get; set; }
 
@@ -154,7 +158,7 @@ public partial class Clientes : ComponentBase
 
     /// <summary>
     /// Los checkboxes de fila solo se pintan con esto activo (Centro 360,
-    /// PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
+    /// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
     /// ocasional. Apagarlo limpia la selección: dejar filas marcadas que ya
     /// no se ven dejaría la barra de acciones en lote apuntando a algo
     /// invisible.
@@ -232,11 +236,11 @@ public partial class Clientes : ComponentBase
     /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
     /// compartir la URL, volver atrás) — no solo en el primer render — para
     /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
-    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md). Permite además
+    /// inicial (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md). Permite además
     /// que el buscador global (Ctrl/Cmd+K) navegue aquí con el filtro ya
     /// cargado, p. ej. /clientes?q=Cadena+Industrial.
     ///
-    /// H4 (docs/ux-audit/02-clientes.md): la navegación mejorada de Blazor
+    /// H4 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): la navegación mejorada de Blazor
     /// reutiliza esta instancia de componente entre URLs (no la recrea desde
     /// cero), así que un cambio de filtro que llega solo por la URL —abrir
     /// un enlace compartido, "atrás/adelante"— actualizaba estos campos pero
@@ -370,7 +374,7 @@ public partial class Clientes : ComponentBase
         await RecargarAsync();
     }
 
-    // --- H4 (docs/ux-audit/02-clientes.md): chips de filtros activos ---
+    // --- H4 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): chips de filtros activos ---
 
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || _soloCriticos
@@ -639,7 +643,7 @@ public partial class Clientes : ComponentBase
                 var nuevoEjecutivoId = Guid.TryParse(_ejecutivoUsuarioId, out var idGestor) ? idGestor : (Guid?)null;
                 var resultadoReasignar = await Mediator.Send(new ReasignarEjecutivoClienteCommand(_editandoId.Value, nuevoEjecutivoId));
                 if (resultadoReasignar.EsFallido)
-                    ToastService.Mostrar(resultadoReasignar.Error.Mensaje, TonoToast.Error);
+                    ToastService.MostrarError(resultadoReasignar.Error);
             }
 
             ToastService.Mostrar(
@@ -677,7 +681,7 @@ public partial class Clientes : ComponentBase
 
     /// <summary>
     /// Validación inline al salir del campo (mismo patrón que Centros.razor,
-    /// UX_PATTERNS.md, P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     private async Task ValidarRazonSocialAsync() => await ValidarCampoAsync(nameof(CrearClienteCommand.RazonSocial));
 
@@ -717,7 +721,7 @@ public partial class Clientes : ComponentBase
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
             }
             else
             {
@@ -1024,7 +1028,7 @@ public partial class Clientes : ComponentBase
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1057,7 +1061,7 @@ public partial class Clientes : ComponentBase
             var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(filtro.Id));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

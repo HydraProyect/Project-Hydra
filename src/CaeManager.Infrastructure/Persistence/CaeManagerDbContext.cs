@@ -30,6 +30,7 @@ using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Vehiculos;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.ApiKeys;
+using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Auditoria;
@@ -87,6 +88,7 @@ public class CaeManagerDbContext(
         IBlindaje42QueryContext,
         IBusquedaGlobalQueryContext,
         CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext,
+        CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext,
         IDesenganchadorDeEntidadesRastreadas
 {
     void IDesenganchadorDeEntidadesRastreadas.Desenganchar<TEntidad>(TEntidad entidad) =>
@@ -327,6 +329,12 @@ public class CaeManagerDbContext(
     IQueryable<EventoConversacion> IComunicacionesQueryContext.EventosConversacion => EventosConversacion;
     public DbSet<NotaInternaConversacion> NotasInternasConversacion => Set<NotaInternaConversacion>();
     IQueryable<NotaInternaConversacion> IComunicacionesQueryContext.NotasInternasConversacion => NotasInternasConversacion;
+    public DbSet<TareaAsistente> TareasAsistente => Set<TareaAsistente>();
+    IQueryable<TareaAsistente> CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext.TareasAsistente => TareasAsistente;
+    public DbSet<TurnoTareaAsistente> TurnosTareaAsistente => Set<TurnoTareaAsistente>();
+    IQueryable<TurnoTareaAsistente> CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext.TurnosTareaAsistente => TurnosTareaAsistente;
+    public DbSet<PasoTareaAsistente> PasosTareaAsistente => Set<PasoTareaAsistente>();
+    IQueryable<PasoTareaAsistente> CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext.PasosTareaAsistente => PasosTareaAsistente;
     public DbSet<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje => Set<ClasificacionRuidoMensaje>();
     IQueryable<ClasificacionRuidoMensaje> IComunicacionesQueryContext.ClasificacionesRuidoMensaje => ClasificacionesRuidoMensaje;
     public DbSet<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae => Set<ClasificacionRelevanciaCae>();
@@ -375,7 +383,7 @@ public class CaeManagerDbContext(
 
         builder.ApplyConfigurationsFromAssembly(typeof(CaeManagerDbContext).Assembly);
 
-        // Cifrado en reposo de credenciales de plataformas externas (ver ARCHITECTURE.md, "Datos sensibles").
+        // Cifrado en reposo de credenciales de plataformas externas (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Datos sensibles").
         var conversorCredenciales = new ValueConverter<string?, string?>(
             valorPlano => valorPlano == null ? null : _protectorCredenciales.Protect(valorPlano),
             valorCifrado => valorCifrado == null ? null : _protectorCredenciales.Unprotect(valorCifrado));
@@ -434,12 +442,12 @@ public class CaeManagerDbContext(
         builder.Entity<IdentityRole<Guid>>().HasData(IdentityRoleSeedData.Filas());
 
         // Filtro global de aislamiento por tenant, aplicado por reflexión
-        // sobre el modelo (P2 #27 de docs/business/MATURITY_REVIEW.md — ver
-        // docs/MULTITENANCY.md § 4.2). Antes eran ~40 líneas de
+        // sobre el modelo (P2 #27 de Project-Hydra-Negocio/MATURITY_REVIEW.md — ver
+        // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.2). Antes eran ~40 líneas de
         // HasQueryFilter enumeradas a mano, una trampa ya demostrada dos
         // veces: TarifaCliente y AprobacionDocumento se quedaron sin filtro
         // porque alguien olvidó su línea (hallazgos A-1 y M-1 de
-        // docs/archive/INFORME-AUDITORIA-TECNICA.md). Recorrer el modelo en
+        // Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-TECNICA.md). Recorrer el modelo en
         // busca de EntidadConTenant — mismo patrón que ya usaba el bucle de
         // Version de aquí abajo — hace estructuralmente imposible que una
         // entidad nueva se quede fuera: basta con heredar de
@@ -459,12 +467,14 @@ public class CaeManagerDbContext(
         // AspNetUsers queda deliberadamente sin filtro (no hereda de
         // EntidadConTenant) — el login necesita poder resolver el usuario
         // (y por tanto su tenant) antes de conocerlo, ver
-        // TenantClaimsPrincipalFactory. Tenant, DelegacionTenant,
+        // TenantClaimsPrincipalFactory. Sí tiene RLS en PostgreSQL (P1-M1,
+        // migración RlsAspNetUsers): el login la atraviesa por
+        // AmbitoIdentificacionSinTenant, no por este filtro. Tenant, DelegacionTenant,
         // AsignacionOperadorDelegado, ProveedorPlataformaCae,
         // DominioProveedorPlataformaCae y las tres tablas del plano de
         // privilegio de plataforma (ConcesionPrivilegio, SesionPrivilegiada,
         // TenantAlcanzadoPorConcesion) tampoco heredan de EntidadConTenant: son
-        // catálogos globales por diseño (docs/MULTITENANCY.md § 7-8 y ADR-011
+        // catálogos globales por diseño (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7-8 y ADR-011
         // § 8), no un olvido.
         //
         // El filtro de cada entidad se construye con un método genérico real

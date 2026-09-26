@@ -38,7 +38,7 @@ public class ObtenerVisitasParaCalendarioQueryHandler(ICentrosQueryContext centr
             join centro in centrosContext.Centros on visita.CentroId equals centro.Id
             // F3b — ClienteId ahora repunta contra Empresas.
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
-            where visita.FechaInicio <= ultimoDia && visita.FechaFin >= primerDia
+            where !visita.EstaCancelada && visita.FechaInicio <= ultimoDia && visita.FechaFin >= primerDia
             where centroIdsVisibles == null || centroIdsVisibles.Contains(centro.Id)
             select new
             {

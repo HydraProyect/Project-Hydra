@@ -106,3 +106,28 @@
     gap: var(--space-2);
     margin-left: auto;
 }
+
+/* Fila a la que lleva ?acreditacionId= (P0-9b): se distingue sin depender
+   del color de estado, que ya usa el badge. */
+.plataforma-fila-documento--destacada {
+    background: var(--color-primary-50);
+    box-shadow: inset 3px 0 0 var(--color-primary-500);
+}
+
+.plataforma-fila-documento--destacada:focus {
+    outline: none;
+}
+
+.plataforma-fila-documento--destacada:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: -2px;
+}
+
+.plataforma-aviso-destino {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin: 0;
+    color: var(--color-text-muted);
+}

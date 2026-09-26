@@ -77,6 +77,6 @@ public class PoliticasRlsCubrenModeloTests : IAsyncLifetime
             "toda entidad que extiende EntidadConTenant debe tener una política RLS " +
             "'aislamiento_tenant' — si esto falla, falta una migración " +
             "'HabilitarRlsX' para la(s) tabla(s) listada(s) (ver HabilitarRlsClavesApi/" +
-            "HabilitarRlsIntegraciones como plantilla, y RUNBOOK-RLS.md)");
+            "HabilitarRlsIntegraciones como plantilla, y Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md)");
     }
 }

@@ -20,7 +20,7 @@
   hueco entre "xUnit termina de ejecutar tests" y "dotnet test reporta su
   resumen final" (el cierre de coverlet.collector) es de 4,9 a 10,2
   minutos por bloque — en 3 de los 4, mayor que el tiempo de ejecutar los
-  tests. Ver tecnico/ci-diagnostico-regresion-22min-2026-09-08.md en el
+  tests. Ver Project-Hydra-Negocio/tecnico/ci-diagnostico-regresion-22min-2026-09-08.md en el
   repositorio de negocio.
 
   Esto SI cambia el numero que produce el ratchet (el denominador de
@@ -29,7 +29,7 @@
   sobre el universo contaminado por migraciones). El umbral de "Umbral de
   cobertura" en ci.yml se recalibro a 37.0% como parte de este mismo
   cambio — ver el comentario de ese paso para el rebaseline completo y
-  tecnico/ci-diagnostico-regresion-22min-2026-09-08.md en el repositorio de
+  Project-Hydra-Negocio/tecnico/ci-diagnostico-regresion-22min-2026-09-08.md en el repositorio de
   negocio para las tres muestras y su justificacion.
 
   SEGUNDO CAMBIO DE UNIVERSO (2026-09-11, decisión del propietario): el

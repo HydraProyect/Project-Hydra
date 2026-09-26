@@ -10,7 +10,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// la crea — mismo criterio que HabilitarRlsSolicitudCertificacionTgss:
     /// no repetir el hallazgo P1-3 (una tabla EntidadConTenant nueva sin su
     /// política). El filtro global de EF ya la protege; esto es la segunda
-    /// línea (RLS sobre cae_app_runtime, ver RUNBOOK-RLS.md) — DEC-36
+    /// línea (RLS sobre cae_app_runtime, ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md) — DEC-36
     /// (REC-099) la exige explícitamente para este rastro.
     ///
     /// <para>

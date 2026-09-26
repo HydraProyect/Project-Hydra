@@ -54,7 +54,7 @@ public interface ICurrentUserService
 
     /// <summary>
     /// Tenant de origen del usuario (el claim de sesión, ver
-    /// docs/MULTITENANCY.md § 8) — a diferencia de <c>ITenantActual.TenantId</c>,
+    /// Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8) — a diferencia de <c>ITenantActual.TenantId</c>,
     /// nunca refleja un Delegated Workspace elegido (ADR-004 § 6); es
     /// siempre el tenant al que pertenece la cuenta. Null en las mismas
     /// condiciones que <see cref="ObtenerUsuarioActualIdAsync"/>.
@@ -63,7 +63,7 @@ public interface ICurrentUserService
 
     /// <summary>
     /// Si el usuario actual tiene la autenticación en dos pasos activada
-    /// (P1-13 de docs/business/MATURITY_REVIEW.md — se exige para abrir un
+    /// (P1-13 de Project-Hydra-Negocio/MATURITY_REVIEW.md — se exige para abrir un
     /// acceso de soporte, ver AbrirAccesoSoporteCommand). Application no
     /// puede consultar Identity directamente (vive en Infrastructure/Web);
     /// falso también si no hay usuario resuelto — fallo cerrado, igual que

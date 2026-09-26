@@ -19,7 +19,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Visitas;
 
 /// <summary>
-/// docs/COMUNICACIONES.md § 16.7: "Eventos del sistema en el timeline —
+/// Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 16.7: "Eventos del sistema en el timeline —
 /// Visitas + Documentos en v1". Cubre que crear una Visita desde una
 /// SugerenciaVisitaCorreo publica VisitaCreadaEvent con la Conversacion de
 /// origen — el resto de CrearVisitaCommandHandler (validaciones, paquete
@@ -72,7 +72,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
             contexto, contexto,
             new SugerenciaVisitaCorreoRepository(contexto), contexto,
             new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), publicador, contexto,
-            NullLogger<CrearVisitaCommandHandler>.Instance);
+            NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());
 
         var comando = new CrearVisitaCommand(
             centro.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
@@ -109,7 +109,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
             contexto, contexto,
             new SugerenciaVisitaCorreoRepository(contexto), contexto,
             new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), publicador, contexto,
-            NullLogger<CrearVisitaCommandHandler>.Instance);
+            NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());
 
         var comando = new CrearVisitaCommand(
             centro.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
@@ -136,6 +136,9 @@ public class CrearVisitaCommandTests : IAsyncLifetime
     {
         public Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionId, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+
+        public Task<PaqueteDocumentalZip?> ConstruirAsync(Guid visitaId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<PaqueteDocumentalZip?>(null);
     }
 
     private class EvaluadorExpedienteDeMentira : IEvaluadorExpedienteVisitaService

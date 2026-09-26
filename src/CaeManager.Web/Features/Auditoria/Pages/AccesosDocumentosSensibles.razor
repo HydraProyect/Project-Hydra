@@ -3,6 +3,7 @@
 @attribute [Authorize(Policy = CaeManager.Infrastructure.Identity.Policies.ConsultarAccesoDocumentosSensibles)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 
+<LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Accesos a documentos sensibles — @Marca.Nombre</PageTitle>
@@ -16,8 +17,8 @@
    - «Documento» sigue siendo el identificador: el título es un dato nuevo de
      la consulta, y el enlace al documento exigiría saber si quien mira puede
      abrirlo — ver el rastro no implica poder abrir el documento.
-   - Sin entrada en el hub: dónde vive y cómo se comporta sin el permiso es
-     una pregunta abierta de producto en el propio mockup.
+   - Vive en Configuración › Auditoría (FS-26, 2026-09-26), como entrada que
+     solo ve quien tiene el permiso granular; sin él, ni la entrada ni la ruta.
    - Cada afirmación de los dos avisos está comprobada en el código: el
      alcance, en la entidad RegistroAccesoDocumentoSensible; la puerta, en la
      política de Program.cs, en Usuarios.razor.cs (EsAutogestionDelPermisoSensible
@@ -126,3 +127,4 @@
                           OpcionesTamanoPagina="TamanosPagina" />
     }
 </div>
+</LimiteDeErrores>

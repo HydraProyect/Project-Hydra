@@ -1,7 +1,7 @@
 namespace CaeManager.Domain.Tenants;
 
 /// <summary>
-/// Perfil de vocabulario del tenant (DDL-072, tecnico/DESIGN_DECISION_LOG.md):
+/// Perfil de vocabulario del tenant (DDL-072, Project-Hydra-Negocio/tecnico/DESIGN_DECISION_LOG.md):
 /// capa de presentación pura, nunca rama de dominio — decide qué etiqueta y
 /// qué forma (registro único / lista) usa la interfaz para <c>Empresa</c>,
 /// nunca cambia el esquema ni la lógica. Se declara explícitamente en cada
@@ -11,7 +11,7 @@ public enum PerfilVocabularioTenant
 {
     /// <summary>
     /// El tenant ES la Empresa contratista (Escenario 2 de
-    /// docs/MULTITENANCY.md § 2 — el usuario de MVP-1). "Empresa" se muestra
+    /// Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 2 — el usuario de MVP-1). "Empresa" se muestra
     /// como "Mi empresa", registro único.
     /// </summary>
     ClienteDirecto,

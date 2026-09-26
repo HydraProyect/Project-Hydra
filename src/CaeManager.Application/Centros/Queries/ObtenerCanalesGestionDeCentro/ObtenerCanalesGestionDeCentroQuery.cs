@@ -9,11 +9,11 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 
 /// <summary>
 /// Respalda la pestaña "Plataforma" del Context Workspace. Devuelve los N
-/// canales del Centro (PLAN-EJECUCION-UX.md § 0.6, Lote 0-E — antes era uno
+/// canales del Centro (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.6, Lote 0-E — antes era uno
 /// solo), con el principal primero.
 ///
 /// Deliberadamente NO proyecta Usuario/Contrasena (dato cifrado en reposo, ver
-/// ARCHITECTURE.md — "el acceso a verlas está restringido por policy y queda
+/// Project-Hydra-Negocio/tecnico/ARCHITECTURE.md — "el acceso a verlas está restringido por policy y queda
 /// registrado en auditoría como acceso a dato sensible") — solo expone <see cref="CanalGestionResumenDto.TieneCredenciales"/>.
 /// La lectura de Usuario/Contrasena vive aparte, en
 /// <see cref="CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion.ObtenerCredencialCanalGestionQuery"/>

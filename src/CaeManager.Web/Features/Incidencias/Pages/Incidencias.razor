@@ -1,5 +1,6 @@
 @page "/incidencias"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Incidencias.Commands.CrearIncidencia
 @using CaeManager.Application.Incidencias.Commands.EditarIncidencia
@@ -23,6 +24,7 @@
 @inject ContextWorkspaceService WorkspaceService
 @inject IStringLocalizer<TextosIncidencias> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -259,3 +261,4 @@
     Mensaje="@Textos["ConfirmarEliminarLoteMensaje"]"
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
+</LimiteDeErrores>

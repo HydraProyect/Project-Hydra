@@ -4,7 +4,7 @@ using FluentAssertions;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// Horizonte 2.5 (MACRO_PLAN_2026-08-13.md § 2.5, regla 2): CLAUDE.md documenta
+/// Horizonte 2.5 (Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md § 2.5, regla 2): CLAUDE.md documenta
 /// hoy la regla "nada de <c>IgnoreQueryFilters()</c> ni SQL crudo fuera de los
 /// usos ya revisados" como convención — nada la hacía cumplir. Este test la
 /// convierte en gate.
@@ -111,6 +111,30 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Persistence/Repositories/ClaveApiRepository.cs",
             """.SqlQuery<Guid?>($"SELECT app_tenant_de_clave_api({hashClave}) AS \"Value\"")""")] = 1,
 
+        // Mismo patrón para las cuentas de Identity (P1-M1): con RLS en
+        // AspNetUsers, el login, la 2FA, la recuperación de contraseña y la
+        // revalidación de la cookie buscan una cuenta antes de que exista
+        // contexto de Tenant. Estas funciones SECURITY DEFINER (migración
+        // 20260925184521_RlsAspNetUsers) devuelven solo Id y TenantId; la fila
+        // se lee después por EF dentro del AmbitoTenantExplicito de su Tenant.
+        // Las mismas dos de búsqueda sostienen la unicidad global de nombre y
+        // correo (ValidadorUnicidadGlobalCuenta). Parámetros por EF.
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            """db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")""")] = 1,
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            "await db.Database.SqlQuery<CuentaResuelta>(")] = 2,
+
+        // ADR-011 § 8.7, punto 3: Soporte TALVEG restablece la 2FA del Administrador único
+        // desde una Sesión Privilegiada. Esa conexión lleva cae_app_soporte (solo
+        // SELECT), así que Identity no puede escribir: la única puerta es la
+        // función SECURITY DEFINER app_restablecer_segundo_factor_por_soporte
+        // (migración RestablecimientoSegundoFactorPorSoporte), ejecutable solo
+        // por ese rol, que vuelve a comprobar sesión, concesión y cuenta contra el
+        // contexto RLS firmado antes de escribir. No lee filas: devuelve un código.
+        // Los dos Guid van parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs",
+            ".SqlQuery<string>(")] = 1,
+
         // Comprobación de arranque de la identidad de conexión del tráfico. No
         // consulta ninguna tabla de negocio —solo current_user, pg_roles y
         // pg_class, catálogos del sistema— así que no hay filas de ningún
@@ -178,12 +202,37 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // mutación revertida que confirmó sensibilidad.
         [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = connection.CreateCommand();")] = 3,
 
+        // P6 (contexto RLS firmado): renovación del token app.contexto antes
+        // de un comando en autocommit o de un BEGIN cuando pasó la mitad del
+        // TTL. Mismo set_config parametrizado que la apertura, sobre la
+        // conexión que el interceptor ya preparó; no lee ni escribe filas.
+        [("src/CaeManager.Infrastructure/Persistence/Interceptors/TenantRlsConnectionInterceptor.cs", "await using var comando = conexion.CreateCommand();")] = 1,
+
+        // P6: registro de la clave del contexto RLS en
+        // app_privado.claves_contexto con la conexión PROPIETARIA — la única
+        // identidad que puede escribir ese esquema (cae_app_runtime no tiene
+        // ningún permiso sobre él); en staging y producción solo lo hace el
+        // migrador. INSERT y DELETE de caducadas, parametrizados, sobre una
+        // tabla fuera del modelo EF a propósito: la clave no debe ser una
+        // entidad alcanzable desde ningún DbContext.
+        [("src/CaeManager.Infrastructure/Persistence/ContextoRls/ClaveContextoRls.cs", "await using var comando = conexionPropietaria.CreateCommand();")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/ContextoRls/ClaveContextoRls.cs", "await using var limpieza = conexionPropietaria.CreateCommand();")] = 1,
+        // P6: lectura de la clave cifrada por la conexión de tráfico. Solo
+        // llama a app_claves_contexto_protegidas() (SECURITY DEFINER), que no
+        // devuelve filas de ningún Tenant ni los rellenos HMAC.
+        [("src/CaeManager.Infrastructure/Persistence/ContextoRls/ClaveContextoRls.cs", "await using var comando = conexion.CreateCommand();")] = 1,
+
         // Elección de líder entre réplicas con pg_try_advisory_lock/
         // pg_advisory_unlock: no existe equivalente en EF Core, así que va
         // por una conexión Npgsql propia con comandos parametrizados (uno
         // para adquirir el lock, otro para liberarlo).
         [("src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs", "await using (var comandoLock = new NpgsqlCommand(")] = 1,
         [("src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs", "await using var comandoUnlock = new NpgsqlCommand(")] = 1,
+
+        // P1-M2: llamada parametrizada a app_asegurar_particiones_eventos, la
+        // única función del particionado que runtime puede ejecutar (SECURITY
+        // DEFINER; ni nombres ni SQL del llamador). No existe equivalente EF.
+        [("src/CaeManager.Infrastructure/Auditing/ParticionesEventosHostedService.cs", "await using var orden = new NpgsqlCommand(")] = 1,
 
         // Retirada de tenant de demo (incidente de siembra parcial del
         // 2026-08-28): borra POR COMPLETO un tenant, así que tiene que
@@ -299,7 +348,7 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         string.Join("\n", infractores).Should().BeEmpty(
             "un uso nuevo de IgnoreQueryFilters()/SQL crudo tiene que ser una decisión deliberada y revisada " +
             "(el filtro global de tenant/borrado lógico es la primera línea de defensa multi-tenant, ver " +
-            "docs/MULTITENANCY.md) — si el uso listado está justificado, añádelo (o sube el contador) en " +
+            "Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md) — si el uso listado está justificado, añádelo (o sube el contador) en " +
             "UsosPermitidos en este mismo commit explicando por qué");
     }
 

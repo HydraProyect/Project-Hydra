@@ -15,7 +15,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Comunicaciones;
 
 /// <summary>
-/// docs/COMUNICACIONES.md § 12.7 — decisión del usuario, 2026-08-08: la
+/// Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.7 — decisión del usuario, 2026-08-08: la
 /// llamada a IA externa sobre adjuntos de conversación queda apagada por
 /// defecto (<see cref="ExtraccionDocumentoAdjuntoOptions"/>). Este es el test
 /// de seguridad que fija ese comportamiento: sin activar el flag, la query

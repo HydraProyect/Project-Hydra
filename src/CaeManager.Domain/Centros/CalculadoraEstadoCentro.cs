@@ -42,4 +42,13 @@ public static class CalculadoraEstadoCentro
 
         return EstadoCentro.Vigente;
     }
+
+    /// <summary>
+    /// Clave para ordenar por gravedad (mayor = peor). Coincide con el valor
+    /// numérico salvo <see cref="EstadoCentro.SinGestionCae"/>, que no es un
+    /// grado de incumplimiento y va por debajo de <see cref="EstadoCentro.Vigente"/>:
+    /// sin esta clave, ordenar «peor primero» lo pondría encima de Bloqueado.
+    /// </summary>
+    public static int Gravedad(EstadoCentro estado) =>
+        estado == EstadoCentro.SinGestionCae ? -1 : (int)estado;
 }

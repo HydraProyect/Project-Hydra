@@ -24,7 +24,7 @@ namespace CaeManager.IntegrationTests.TiposDocumento;
 /// capturar (500), y la pantalla no lo sabía ni lo avisaba.
 ///
 /// <para>
-/// Contrato fijado tras revisar quién crea las exclusiones (tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
+/// Contrato fijado tras revisar quién crea las exclusiones (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
 /// § 0.4): <c>TipoDocumentoCentro.Incluido</c> es UNA fila explícita por par, con "la fila
 /// explícita manda" sobre el valor general — no dos flujos que compiten por filas separadas.
 /// Marcar aquí un Centro ya excluido es una acción tan explícita como la exclusión original:
@@ -75,7 +75,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
 
         // La exclusión, dada de alta como lo haría "Requisitos del Centro" (Gestionar en vivo).
         var establecerHandler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
-            new TipoDocumentoCentroRepository(contexto), contexto, contexto, contexto);
+            new TipoDocumentoCentroRepository(contexto), contexto, contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto);
         var resultadoExclusion = await establecerHandler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(
                 centro.Id, tipo.Id, Incluido: false, PeriodicidadEspecialMeses: 6, BloqueaAcceso: true,
@@ -93,7 +93,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         var (tipo, centro) = await CrearTipoYCentroConExclusionAsync(contexto);
 
         var editarHandler = new EditarTipoDocumentoCommandHandler(
-            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, contexto);
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await editarHandler.Handle(
             new EditarTipoDocumentoCommand(
@@ -112,7 +112,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         var (tipo, centro) = await CrearTipoYCentroConExclusionAsync(contexto);
 
         var editarHandler = new EditarTipoDocumentoCommandHandler(
-            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, contexto);
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         await editarHandler.Handle(
             new EditarTipoDocumentoCommand(
@@ -143,7 +143,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         var (tipo, centro) = await CrearTipoYCentroConExclusionAsync(contexto);
 
         var editarHandler = new EditarTipoDocumentoCommandHandler(
-            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, contexto);
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         // Ningún centro marcado en el picker: la exclusión no se ve desde aquí y no debe borrarse.
         var resultado = await editarHandler.Handle(

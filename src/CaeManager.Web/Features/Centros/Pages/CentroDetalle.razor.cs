@@ -1,4 +1,5 @@
 using CaeManager.Application.Centros;
+using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
@@ -9,6 +10,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 
@@ -27,7 +29,7 @@ namespace CaeManager.Web.Features.Centros.Pages;
 /// de cumplimiento, próxima visita y la lista de trabajadores COMPLETA (a
 /// diferencia de la vista previa) — y remite al panel para operar.
 /// </summary>
-public partial class CentroDetalle : ComponentBase, IDisposable
+public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     [Parameter] public Guid CentroId { get; set; }
 
@@ -271,7 +273,17 @@ public partial class CentroDetalle : ComponentBase, IDisposable
     private Func<Task<string?>> CopiarCredencial(Guid canalId, bool contrasena) => async () =>
     {
         var centroId = CentroId;
-        var credencial = await Mediator.Send(new ObtenerCredencialCanalGestionQuery(centroId, canalId), _cancelacion);
+        CredencialCanalGestionDto? credencial;
+        try
+        {
+            credencial = await Mediator.Send(new ObtenerCredencialCanalGestionQuery(centroId, canalId), _cancelacion);
+        }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (centroId == CentroId)
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+            return null;
+        }
         if (centroId != CentroId) return null;
 
         var valor = contrasena ? credencial?.Contrasena : credencial?.Usuario;

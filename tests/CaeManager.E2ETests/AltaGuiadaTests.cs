@@ -4,7 +4,7 @@ namespace CaeManager.E2ETests;
 
 /// <summary>
 /// Cubre el asistente de alta encadenada Empresa → Cliente → Centro →
-/// Trabajadores (Horizonte 1.6 de MACRO_PLAN_2026-08-13.md, flujo de demo
+/// Trabajadores (Horizonte 1.6 de Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md, flujo de demo
 /// "alta guiada completa") — sin ningún E2E hasta ahora, a diferencia del
 /// alta manual paso a paso que ya cubre FlujoCriticoTests. Verifica en
 /// particular el guardado incremental real (cada paso persiste antes de
@@ -112,7 +112,7 @@ public class AltaGuiadaTests(WebAppFixture fixture)
         // la tabla legacy Clientes hasta F4, y con los escritores
         // redirigidos a Empresa esa pantalla queda vacía en cualquier
         // entorno (decisión explícita: "aceptar el vacío", ver
-        // f3b-decision-d2-transicion-acotada-2026-08-25.md). El Cliente
+        // Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md). El Cliente
         // recién creado sí existe como fila en /empresas (EsCritico != null,
         // sin consulta congelada), así que la verificación se reancla ahí.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");

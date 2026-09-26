@@ -14,7 +14,7 @@ namespace CaeManager.Application.Dashboard.Queries;
 
 /// <summary>
 /// Desglose adicional del Dashboard, mostrado según el rol del usuario (ver
-/// ROADMAP.md, Fase 3): "documentos que requieren atención" para
+/// Project-Hydra-Negocio/tecnico/ROADMAP.md, Fase 3): "documentos que requieren atención" para
 /// EjecutivoCae, "centros en riesgo" añadido para Supervisor, "empresas en
 /// riesgo" añadido para Administrador. Consulta no ve nada de esto, solo
 /// los KPI base de ObtenerKpisDashboardQuery. Solo cubre Documentos de

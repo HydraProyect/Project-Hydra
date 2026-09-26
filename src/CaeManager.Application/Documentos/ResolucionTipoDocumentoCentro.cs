@@ -4,7 +4,7 @@ namespace CaeManager.Application.Documentos;
 
 /// <summary>
 /// Lectura centralizada de si un TipoDocumento aplica a un Centro concreto
-/// (PLAN-EJECUCION-UX.md § 0.4) — antes duplicada en 4 sitios
+/// (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4) — antes duplicada en 4 sitios
 /// (CalculoEstadoCentroService, ObtenerAsignacionesDocumentacionPorCentroQuery,
 /// ObtenerDocumentacionVisitaQuery, IDocumentosFaltantesService) con la
 /// semántica antigua de "allow-list global". Se extrae aquí porque los 4

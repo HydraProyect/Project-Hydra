@@ -2,9 +2,9 @@ namespace CaeManager.Domain.DocumentosIa;
 
 /// <summary>
 /// Qué sabe hacer un proveedor de IA documental — el enrutador (fases
-/// siguientes de docs/ARQUITECTURA-IA-DOCUMENTAL.md) decide contra estas
+/// siguientes de Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md) decide contra estas
 /// capacidades, nunca contra el nombre de un proveedor concreto. Mismo
-/// principio que <c>CapacidadesIntegracion</c> (ARQUITECTURA-INTEGRACIONES.md
+/// principio que <c>CapacidadesIntegracion</c> (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md
 /// § 3.1) aplicado a IA en vez de a conectores CAE.
 /// </summary>
 [Flags]

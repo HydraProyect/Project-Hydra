@@ -69,7 +69,7 @@ public static class DelegacionesSoporteSeeder
                 "Aprovisionadas {Cantidad} delegaciones de soporte (inactivas) hacia el tenant de plataforma.", pendientes.Count);
         }
 
-        // Variantes de demo (PLAN-DATOS-PRUEBA.md, Tanda 4): solo con la
+        // Variantes de demo (Project-Hydra-Negocio/tecnico/PLAN-DATOS-PRUEBA.md, Tanda 4): solo con la
         // siembra de datos de prueba activa. El aprovisionamiento anterior
         // sigue siendo "inactiva por defecto" para cualquier otro despliegue.
         if (configuration.GetValue<bool>("DatosPrueba:Activo"))
@@ -138,7 +138,11 @@ public static class DelegacionesSoporteSeeder
 
         // Traza de una visita de soporte completa en el tenant visitado.
         var emailSoporte = configuration["AdministradorInicial:Email"] ?? IdentitySeeder.EmailAdministradorInicial;
-        var usuarioSoporte = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == emailSoporte, cancellationToken);
+        // La cuenta de soporte de demo es del Tenant de plataforma, y AspNetUsers
+        // tiene RLS (P1-M1): sin Tenant en el contexto no se vería.
+        ApplicationUser? usuarioSoporte;
+        using (AmbitoTenantExplicito.Establecer(tenantPlataformaId))
+            usuarioSoporte = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == emailSoporte, cancellationToken);
         if (usuarioSoporte is null)
             return;
 

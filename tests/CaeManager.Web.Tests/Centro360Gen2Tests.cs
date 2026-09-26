@@ -87,10 +87,15 @@ public class Centro360Gen2Tests : BunitContext
         /// <summary>El token con el que llegó cada petición, en el mismo orden que <see cref="Enviadas"/>.</summary>
         public List<(object Peticion, CancellationToken Token)> Tokens { get; } = [];
 
+        /// <summary>Como AutorizacionSecretosDeTenantBehavior con un rol que lee secretos y sin 2FA (P1-I1).</summary>
+        public bool SinDobleFactor { get; set; }
+
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
             Tokens.Add((request, cancellationToken));
+            if (SinDobleFactor && request is IConsultaDeSecretosDeTenant or IConsultaDeDatosDeCredencial)
+                throw new SegundoFactorRequeridoParaCredencialesException();
             if (Retener?.Invoke(request) is { } retenida)
                 await retenida;
             return (TResponse)Responder(request)!;
@@ -236,6 +241,44 @@ public class Centro360Gen2Tests : BunitContext
     /// «Copiar». Sin <c>noopener</c> la pestaña abierta tendría acceso a
     /// <c>window.opener</c>, la de TALVEG.
     /// </summary>
+    /// <summary>
+    /// P1-X2: un Centro sin gestión CAE se rotula como tal, en tono neutro, sin
+    /// anillo de cumplimiento (un 0 % o un 100 % afirmaría algo que no se
+    /// mide) y con la explicación en lugar de los canales de gestión.
+    /// </summary>
+    [Fact]
+    public void Un_centro_sin_gestion_cae_dice_que_no_la_requiere_y_no_muestra_cumplimiento_ni_verde()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Almacén Sur") with { GestionCae = ModalidadGestionCae.SinGestionCae };
+        mediador.Resumenes[id] = Resumen(id, "Almacén Sur", porcentaje: null, estado: EstadoCentro.SinGestionCae);
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => cut.Find(".centro360-indicadores").TextContent.Should().Contain("No requiere gestión CAE"));
+        cut.Find(".centro360-indicadores .badge").ClassList.Should().Contain("badge-neutro").And.NotContain("badge-exito");
+        // Por componente, no por clase: con porcentaje null el anillo pinta «—»
+        // sin su svg, y la clase no distinguiría si la página lo monta o no.
+        cut.FindComponents<AnilloCumplimiento>().Should().BeEmpty();
+        cut.Find(".centro360-sin-gestion-cae").TextContent.Should().Contain("no requiere gestión CAE");
+    }
+
+    [Fact]
+    public void Un_centro_con_gestion_cae_conserva_el_anillo_y_no_se_rotula_sin_gestion()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte");
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => cut.FindComponents<AnilloCumplimiento>().Should().NotBeEmpty());
+        cut.Markup.Should().NotContain("No requiere gestión CAE");
+        cut.FindAll(".centro360-sin-gestion-cae").Should().BeEmpty();
+    }
+
     [Fact]
     public void La_direccion_del_portal_es_un_enlace_que_abre_pestana_nueva_y_no_un_boton_de_copiar()
     {
@@ -372,6 +415,28 @@ public class Centro360Gen2Tests : BunitContext
         Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(t => t.Mensaje.Contains("No hay ninguna contraseña"));
     }
 
+    // P1-I1: sin 2FA, Application no entrega la credencial y la pantalla lleva
+    // a activarlo, con el motivo para que la página de 2FA explique por qué.
+    [Theory]
+    [InlineData("Copiar usuario")]
+    [InlineData("Copiar contraseña")]
+    public async Task Sin_2FA_el_clic_lleva_a_configurar_el_2FA_y_no_copia(string boton)
+    {
+        var (id, canal, mediador) = CentroConCanal(CanalPlataforma("app.twind.io"));
+        mediador.Credenciales[(id, canal.Id)] = new("usuario.secreto", "clave-secreta-123");
+        mediador.SinDobleFactor = true;
+        var modulo = JSInterop.SetupModule("./js/clipboard.js");
+        modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
+        var cut = Renderizar(id);
+
+        await cut.FindAll(".boton-copiar").Single(b => b.TextContent.Trim() == boton).ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<ObtenerCredencialCanalGestionQuery>().Should().ContainSingle();
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/cuenta/configurar-2fa?motivo=credenciales&returnUrl=%2F",
+            "vuelve a la ruta en la que estaba la ficha (en bUnit, la raíz)");
+        modulo.Invocations.Should().BeEmpty("sin 2FA no hay nada que copiar");
+    }
+
     // ── El mockup ─────────────────────────────────────────────────────────
 
     /// <summary>
@@ -399,6 +464,10 @@ public class Centro360Gen2Tests : BunitContext
         entradilla.Should().NotContain("Cliente empresarial",
             "en pantalla el Cliente empresarial se rotula «Cliente» (contrato Gen2 § 14)");
         cut.Markup.Should().Contain("61");
+        // El anillo va a la izquierda de la identidad, como en las cuatro páginas 360
+        // (decisión del propietario 2026-09-24), no entre las acciones.
+        cut.Find(".cabecera-pagina-inicio [role=img]").GetAttribute("aria-label").Should().StartWith("61% de cumplimiento");
+        cut.Find(".acciones-cabecera").QuerySelector("[role=img]").Should().BeNull();
     }
 
     /// <summary>

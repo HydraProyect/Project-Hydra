@@ -110,6 +110,48 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         lote.UltimaReclamacionFechaUtc.Should().BeNull();
     }
 
+    /// <summary>
+    /// P1-X2: un Centro de Trabajo sin gestión CAE no exige documentación, así
+    /// que su asignación no da pie a reclamar nada: ni la vista previa lo
+    /// ofrece ni el envío lo acepta aunque llegue el DocumentoId a mano.
+    /// </summary>
+    [Fact]
+    public async Task Un_centro_sin_gestion_cae_no_ofrece_ni_acepta_reclamaciones()
+    {
+        Guid documentoId;
+        await using (var contexto = CrearContexto())
+        {
+            var centro = await contexto.Centros.SingleAsync();
+            centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+            var documento = Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoId,
+                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(2)));
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+            documentoId = documento.Id;
+        }
+
+        await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
+
+        await using (var lectura = CrearContexto())
+        {
+            var lotes = await CrearQueryHandler(lectura).Handle(new ObtenerLoteReclamacionQuery(), CancellationToken.None);
+            lotes.Should().NotContain(l => l.ClienteId == _clienteId);
+        }
+
+        var emailServiceFalso = new EmailServiceFalso();
+        await using (var contexto = CrearContexto())
+        {
+            var resultado = await CrearCommandHandler(contexto, emailServiceFalso, new MediatorFalso(Guid.NewGuid()))
+                .Handle(new EnviarReclamacionCommand(_clienteId, [documentoId]), CancellationToken.None);
+
+            resultado.EsFallido.Should().BeTrue();
+            resultado.Error.Codigo.Should().Be("Reclamacion.SinDocumentosValidos");
+        }
+
+        emailServiceFalso.Enviados.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Filtrar_por_CentroId_acota_el_lote_a_ese_centro_aunque_el_cliente_tenga_otros_documentos_pendientes()
     {

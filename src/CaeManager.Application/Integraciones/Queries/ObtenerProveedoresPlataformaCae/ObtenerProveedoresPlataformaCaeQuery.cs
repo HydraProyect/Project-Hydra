@@ -7,7 +7,7 @@ namespace CaeManager.Application.Integraciones.Queries.ObtenerProveedoresPlatafo
 /// <summary>
 /// Catálogo completo de <c>ProveedorPlataformaCae</c> con sus dominios — para
 /// el selector de proveedor de un canal de gestión (Parte 2 § (a),
-/// PLAN-EJECUCION-UX.md) y para la futura pantalla de administración del
+/// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md) y para la futura pantalla de administración del
 /// catálogo. <paramref name="SoloActivos"/> filtra los sembrados sin foco CAE
 /// real (Arch, Opground) fuera de los selectores de alta.
 /// </summary>

@@ -1,3 +1,4 @@
+using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 using System.Security.Claims;
 using AngleSharp.Dom;
 using Bunit;
@@ -5,12 +6,20 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Usuarios;
+using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
+using CaeManager.Application.Usuarios.Commands.CrearUsuario;
+using CaeManager.Application.Usuarios.Commands.EditarUsuario;
+using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
+using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
+using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
+using CaeManager.Application.Usuarios.Queries.ObtenerCuentaUsuario;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
-using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
@@ -94,13 +103,16 @@ public class UsuariosGen2Tests : BunitContext
 
         public Func<string, IReadOnlyList<ApplicationUser>> EnRol { get; set; } = _ => [];
 
+        /// <summary>El rol de cada cuenta: por defecto, el que tenga en el <see cref="UserManagerFalso"/> del arnés.</summary>
+        public Func<IReadOnlyDictionary<Guid, string>> RolesDeCuentas { get; set; } = () => new Dictionary<Guid, string>();
+
         /// <summary>Por defecto, ninguna cuenta del arnés inicia sesión por SSO — ver <see cref="UsuariosControlados.ObtenerIdsConLoginExternoAsync"/>.</summary>
         public Func<IReadOnlySet<Guid>> IdsConLoginExterno { get; set; } = () => new HashSet<Guid>();
 
-        /// <summary>Por defecto, ninguna cuenta del arnés tiene vínculo operativo — ver <see cref="UsuariosControlados.TieneVinculoOperativoAsync"/>.</summary>
+        /// <summary>Por defecto, ninguna cuenta del arnés tiene vínculo operativo — ver <see cref="GestionCuentasControlada"/>.</summary>
         public Func<Guid, bool> TieneVinculoOperativo { get; set; } = _ => false;
 
-        /// <summary>Por defecto, toda cuenta es propia del tenant activo — ver <see cref="UsuariosControlados.EsCuentaPropiaAsync"/>.</summary>
+        /// <summary>Por defecto, toda cuenta es propia del tenant activo — ver <see cref="GestionCuentasControlada"/>.</summary>
         public Func<Guid, bool> EsPropia { get; set; } = _ => true;
 
         public int LlamadasVisibles { get; set; }
@@ -139,26 +151,55 @@ public class UsuariosGen2Tests : BunitContext
             IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken) =>
             Task.FromResult(Fuente.IdsConLoginExterno());
 
-        protected override Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken) =>
-            Task.FromResult(Fuente.TieneVinculoOperativo(usuarioId));
-
-        /// <summary>
-        /// Por defecto todas las cuentas son propias: los tests de esta clase
-        /// editan y desactivan cuentas del propio tenant, no Operadores
-        /// Delegados (eso lo cubre <c>FronteraDeTenantEnGestionDeUsuariosTests</c>
-        /// contra PostgreSQL real, que es la capa que de verdad garantiza esta
-        /// propiedad). Igual que las otras tres lecturas, sin sustituirla el
-        /// guardián caería en el <see cref="DirectorioUsuariosTenant"/> real
-        /// —construido sin proveedor de base de datos a propósito— y lanzaría.
-        /// </summary>
-        protected override Task<bool> EsCuentaPropiaAsync(Guid usuarioId, CancellationToken cancellationToken) =>
-            Task.FromResult(Fuente.EsPropia(usuarioId));
+        protected override Task<IReadOnlyDictionary<Guid, string>> ObtenerRolesDeCuentasAsync(
+            IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken) =>
+            Task.FromResult(Fuente.RolesDeCuentas());
 
         /// <summary>
         /// Una segunda carga mientras la primera sigue retenida. Desde la
         /// interfaz no se llega: durante una carga solo hay esqueleto.
         /// </summary>
         public Task RecargarAsync() => CargarAsync();
+    }
+
+    /// <summary>
+    /// El adaptador de Identity real (<see cref="GestionCuentasUsuarioIdentity"/>)
+    /// sobre el <see cref="UserManagerFalso"/> del arnés, con sus dos lecturas de
+    /// directorio sustituidas por la fuente del test. Los Commands de
+    /// <c>Usuarios/Commands</c> corren de verdad (ver <see cref="MediatorFalso.Despachar"/>):
+    /// lo que se observa en <c>_identidad</c> es el efecto de la página, su
+    /// Command y el adaptador juntos. Por defecto toda cuenta es propia: los
+    /// Operadores Delegados los cubre <c>FronteraDeTenantEnGestionDeUsuariosTests</c>
+    /// contra PostgreSQL real, que es la capa que garantiza esa propiedad.
+    /// </summary>
+    private sealed class GestionCuentasControlada(
+        UserManager<ApplicationUser> userManager, DirectorioUsuariosTenant directorio, FuenteUsuariosFalsa fuente)
+        : GestionCuentasUsuarioIdentity(userManager, new PuertaAccesoDatos(), directorio, ContextoSinProveedor())
+    {
+        // El contexto del arnés no tiene proveedor: no hay nada rastreado que soltar.
+        protected override void DesengancharCuenta(Guid usuarioId) { }
+        public override Task<bool> EsPropiaDelTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(fuente.EsPropia(usuarioId));
+
+        public override Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(fuente.TieneVinculoOperativo(usuarioId));
+    }
+
+    /// <summary>
+    /// Quién envía los Commands: el mismo actor y rol que <see cref="AutenticacionFalsa"/>.
+    /// El Tenant de origen es el del arnés salvo que el test declare roles no
+    /// asignables (<see cref="MediatorFalso.RolesNoAsignables"/>): entonces el
+    /// actor opera en un Context Workspace ajeno, que es lo que hace a esos roles
+    /// no asignables en <c>RolesReservadosAlTenantDeOrigen</c>.
+    /// </summary>
+    private sealed class UsuarioActualFalso(Guid usuarioId, string rol, Func<bool> enWorkspaceAjeno) : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() =>
+            Task.FromResult<Guid?>(enWorkspaceAjeno() ? Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb") : TenantDelArnes);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
     /// <summary>
@@ -279,12 +320,29 @@ public class UsuariosGen2Tests : BunitContext
         /// </summary>
         public IReadOnlyList<string> RolesNoAsignables { get; set; } = [];
 
+        /// <summary>FS-25: el Cliente empresarial cuya reasignación falla, si alguno.</summary>
+        public Guid? FallaReasignarCliente { get; set; }
+
+        /// <summary>FS-25: el Cliente empresarial cuya reasignación lanza una excepción, si alguno.</summary>
+        public Guid? LanzaReasignarCliente { get; set; }
+
         /// <summary>Si devuelve una tarea para la petición, esa es la respuesta: permite retenerla y resolverla fuera de orden.</summary>
         public Func<object, Task<object?>?>? Retener { get; set; }
+
+        /// <summary>
+        /// Los Commands y la Query de cuentas de <c>Usuarios</c> no se simulan: se
+        /// pasan a su handler real (lo monta <see cref="Renderizar"/>).
+        /// </summary>
+        public Func<object, CancellationToken, Task<object?>>? Despachar { get; set; }
 
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+
+            if (Despachar is not null && request is CrearUsuarioCommand or EditarUsuarioCommand
+                    or CambiarActivacionUsuarioCommand or EliminarUsuarioPendienteCommand
+                    or GenerarActivacionUsuarioCommand or ObtenerCuentaUsuarioQuery)
+                return (TResponse)(await Despachar(request, cancellationToken))!;
 
             // TResponse es anulable en las dos consultas de esta pantalla
             // (EmpresaPorCifDto?, ClienteDetalleDto?): "no encontrado" es una
@@ -301,8 +359,11 @@ public class UsuariosGen2Tests : BunitContext
             BuscarEmpresaPorCifQuery q => EmpresasPorCif.GetValueOrDefault(q.Cif.Trim().ToUpperInvariant()),
             ObtenerClientePorIdQuery => null,
             ObtenerRolesNoAsignablesQuery => RolesNoAsignables,
-            VerificarRolAsignableQuery q => RolesNoAsignables.Contains(q.Rol)
-                ? Result.Fallo(Error.Crear("Usuarios.RolReservadoAlTenantDeOrigen", "Rol reservado al Tenant de origen."))
+            RestablecerSegundoFactorCommand => Result.Exito(),
+            ReasignarEjecutivoClienteCommand c when LanzaReasignarCliente == c.ClienteId =>
+                throw new InvalidOperationException("la base se cayó"),
+            ReasignarEjecutivoClienteCommand c => FallaReasignarCliente == c.ClienteId
+                ? Result.Fallo(Error.Crear("Cliente.NoEncontrado", "Un Cliente empresarial ya no estaba."))
                 : Result.Exito(),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
@@ -377,6 +438,11 @@ public class UsuariosGen2Tests : BunitContext
     /// métodos virtuales. Se construye de verdad, sin proveedor de base de
     /// datos: si alguien lo consultara, lanzaría en vez de pasar en silencio.
     /// </summary>
+    private static CaeManagerDbContext ContextoSinProveedor() => new(
+        new DbContextOptionsBuilder<CaeManagerDbContext>().Options,
+        DataProtectionProvider.Create(nameof(UsuariosGen2Tests)),
+        new TenantActualFalso());
+
     private static DirectorioUsuariosTenant CrearDirectorio()
     {
         var tenantActual = new TenantActualFalso();
@@ -427,6 +493,7 @@ public class UsuariosGen2Tests : BunitContext
         Services.AddSingleton<ILogger<PaginaUsuarios>>(NullLogger<PaginaUsuarios>.Instance);
         Services.AddSingleton(_fuente);
         Services.AddSingleton(_toasts);
+        Services.AddLocalization();
         Services.AddSingleton<IMediator>(_mediador);
         Services.AddSingleton<IEmailService>(_correo);
         Services.AddSingleton<UserManager<ApplicationUser>>(_identidad);
@@ -435,6 +502,23 @@ public class UsuariosGen2Tests : BunitContext
             _ => new AutenticacionFalsa(actorId ?? MartaId, rolActor));
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped(_ => CrearDirectorio());
+
+        var tenantActual = new TenantActualFalso();
+        var usuarioActual = new UsuarioActualFalso(actorId ?? MartaId, rolActor, () => _mediador.RolesNoAsignables.Count > 0);
+        var cuentas = new GestionCuentasControlada(_identidad, CrearDirectorio(), _fuente);
+        _fuente.RolesDeCuentas = () => _identidad.RolesPorCuenta
+            .Where(r => r.Value.Count > 0)
+            .ToDictionary(r => r.Key, r => r.Value[0]);
+        _mediador.Despachar = async (peticion, ct) => peticion switch
+        {
+            CrearUsuarioCommand c => await new CrearUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
+            EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
+            CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(cuentas, usuarioActual).Handle(c, ct),
+            EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, usuarioActual).Handle(c, ct),
+            GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, usuarioActual).Handle(c, ct),
+            ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, usuarioActual).Handle(q, ct),
+            _ => throw new NotSupportedException(peticion.GetType().Name),
+        };
 
         return Render<UsuariosControlados>(p => p.Add(c => c.IntegradaEnConfiguracion, integrada));
     }
@@ -456,6 +540,10 @@ public class UsuariosGen2Tests : BunitContext
         await Fila(cut, email).QuerySelectorAll(".menu-acciones-item")
             .Single(b => b.TextContent.Trim() == texto).ClickAsync(new());
     }
+
+    /// <summary>FS-25: el botón destructivo del diálogo de desactivar.</summary>
+    private static Task ConfirmarDesactivacionAsync(IRenderedComponent<UsuariosControlados> cut) =>
+        cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Desactivar").ClickAsync(new());
 
     private static IElement CampoPorEtiqueta(IRenderedComponent<UsuariosControlados> cut, string etiqueta)
     {
@@ -741,7 +829,7 @@ public class UsuariosGen2Tests : BunitContext
     /// <summary>
     /// Decisión del propietario, 2026-09-23. En el Context Workspace de otro
     /// Tenant el selector no ofrece Administrador ni Dirección CAE. Es
-    /// comodidad: la autoridad es <c>VerificarRolAsignableQuery</c> en
+    /// comodidad: la autoridad son los Commands de <c>Usuarios/Commands</c> en
     /// Application, probada en Application.Tests y contra PostgreSQL.
     /// </summary>
     [Fact]
@@ -807,7 +895,7 @@ public class UsuariosGen2Tests : BunitContext
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Administrador });
         await GuardarAsync(cut);
 
-        cut.Find(".alerta-formulario").TextContent.Should().Contain("Rol reservado");
+        cut.Find(".alerta-formulario").TextContent.Should().Contain("solo se asignan desde tu propia organización");
         _identidad.RolesPorCuenta[AnderId].Should().Equal(RolesIdentidad.Consulta);
     }
 
@@ -1302,6 +1390,7 @@ public class UsuariosGen2Tests : BunitContext
 
         var cut = Renderizar(actorId: MartaId);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ConfirmarDesactivacionAsync(cut);
 
         _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue);
         _identidad.Cuentas[AnderId].LockoutEnabled.Should().BeTrue();
@@ -1390,6 +1479,60 @@ public class UsuariosGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// P0-8 (FS-01): el Administrador ofrece restablecer la verificación en dos
+    /// pasos de otra cuenta de su organización que la tenga activa, y lo que se
+    /// envía es el comando (la autorización real está en Application). Ni sobre
+    /// la propia cuenta —que se recupera con sus códigos— ni sobre una sin 2FA.
+    /// </summary>
+    [Fact]
+    public async Task Un_Administrador_restablece_la_2FA_de_otra_cuenta_tras_confirmar()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        ander.TwoFactorEnabled = true;
+        var marta = Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez");
+        marta.TwoFactorEnabled = true;
+        Sembrar((marta, RolesIdentidad.Administrador), (ander, RolesIdentidad.GestorCae));
+
+        var cut = Renderizar(actorId: MartaId);
+        await AbrirMenuAsync(cut, "marta.r@talveg.es");
+        Fila(cut, "marta.r@talveg.es").QuerySelectorAll(".menu-acciones-item").Select(b => b.TextContent.Trim())
+            .Should().NotContain(TextoRestablecer2fa, "la propia cuenta se recupera con sus códigos de recuperación");
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", TextoRestablecer2fa);
+        var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == TextoRestablecer2fa);
+        dialogo.Instance.Visible.Should().BeTrue();
+        dialogo.Instance.Mensaje.Should().Contain("a.beitia@talveg.es");
+        await cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
+
+        _mediador.Enviadas.OfType<RestablecerSegundoFactorCommand>().Should().ContainSingle()
+            .Which.UsuarioId.Should().Be(AnderId);
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Contain("a.beitia@talveg.es");
+    }
+
+    [Theory]
+    [InlineData(RolesIdentidad.Administrador, false)]
+    [InlineData(RolesIdentidad.DireccionCae, true)]
+    public async Task No_se_ofrece_sin_2FA_activa_ni_a_quien_no_es_Administrador(string rolActor, bool dosFactoresActivo)
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        ander.TwoFactorEnabled = dosFactoresActivo;
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), rolActor), (ander, RolesIdentidad.GestorCae));
+
+        var cut = Renderizar(actorId: MartaId, rolActor: rolActor);
+        var disparador = Fila(cut, "a.beitia@talveg.es").QuerySelector(".menu-acciones-disparador");
+        if (disparador is not null)
+        {
+            await AbrirMenuAsync(cut, "a.beitia@talveg.es");
+            Fila(cut, "a.beitia@talveg.es").QuerySelectorAll(".menu-acciones-item").Select(b => b.TextContent.Trim())
+                .Should().NotContain(TextoRestablecer2fa);
+        }
+
+        cut.Markup.Should().NotContain(TextoRestablecer2fa);
+    }
+
+    private const string TextoRestablecer2fa = "Restablecer verificación en dos pasos";
+
+    /// <summary>
     /// Revisión de Codex (2026-09-18): <c>AsignacionCartera.UsuarioId</c> no
     /// lleva FK hacia <c>ApplicationUser</c>. Un Gestor CAE pendiente puede
     /// haber recibido ya una Asignación de Cartera antes de aceptar la
@@ -1426,6 +1569,7 @@ public class UsuariosGen2Tests : BunitContext
 
         var cut = Renderizar(actorId: MartaId);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ConfirmarDesactivacionAsync(cut);
 
         _toasts.Mensajes.Should().ContainSingle()
             .Which.Mensaje.Should().Be("No pudimos desactivar esta cuenta. Vuelve a intentarlo.");
@@ -1450,6 +1594,7 @@ public class UsuariosGen2Tests : BunitContext
 
         var cut = Renderizar(actorId: MartaId);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ConfirmarDesactivacionAsync(cut);
 
         _toasts.Mensajes.Should().ContainSingle()
             .Which.Mensaje.Should().Contain("la cuenta está bloqueada por otra escritura");
@@ -1616,5 +1761,164 @@ public class UsuariosGen2Tests : BunitContext
 
         Filas(cut).Should().HaveCount(3);
         CorreosEnfocados(cut).Should().BeEmpty("el foco se descartó al filtrar, no se guardó");
+    }
+
+    // ------------------------------------------- FS-25: desactivar con confirmación
+
+    private static readonly Guid ClienteUno = Guid.Parse("c1c1c1c1-0000-0000-0000-000000000001");
+    private static readonly Guid ClienteDos = Guid.Parse("c2c2c2c2-0000-0000-0000-000000000002");
+
+    /// <summary>
+    /// FS-25 (auditoría UX de flujos sin salida, 2026-09-24): desactivar actuaba al primer
+    /// clic. Ahora abre un diálogo y, hasta confirmar, la cuenta sigue activa.
+    /// </summary>
+    [Fact]
+    public async Task Desactivar_pide_confirmacion_y_volver_no_toca_la_cuenta()
+    {
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia"), RolesIdentidad.GestorCae));
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+
+        cut.Find("[role=dialog]").TextContent.Should().Contain("¿Desactivar a Ander Beitia?");
+        _identidad.Actualizadas.Should().BeEmpty("abrir el diálogo no desactiva");
+
+        await cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Volver").ClickAsync(new());
+
+        _identidad.Actualizadas.Should().BeEmpty();
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+    }
+
+    /// <summary>
+    /// A un Gestor CAE con Clientes empresariales en su cartera se le ofrece pasarla a otro
+    /// Gestor CAE activo (ni él mismo ni uno desactivado). Elegido, cada Cliente se reasigna
+    /// con ReasignarEjecutivoClienteCommand y después se desactiva la cuenta.
+    /// </summary>
+    [Fact]
+    public async Task Desactivar_a_un_Gestor_CAE_con_cartera_ofrece_pasarla_a_otro_y_la_pasa_antes_de_desactivar()
+    {
+        var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
+        var inactivo = Cuenta(Guid.NewGuid(), "baja@talveg.es", "Gestor De Baja", activa: false);
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae),
+            (iker, RolesIdentidad.GestorCae));
+        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(false, [ClienteUno, ClienteDos]) };
+        _fuente.EnRol = rol => rol == RolesIdentidad.GestorCae ? [ander, iker, inactivo] : [];
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.TextContent.Should().Contain("Tiene 2 Cliente(s) empresarial(es)").And.Contain("la conserva su Coordinador CAE");
+        var opciones = dialogo.QuerySelectorAll("select option").Select(o => o.TextContent.Trim()).ToList();
+        opciones.Should().Equal(["No reasignar (la conserva su Coordinador CAE)", "Iker Larrañaga"],
+            "solo otros Gestores CAE activos: ni él mismo ni uno desactivado");
+
+        await dialogo.QuerySelector("select")!.ChangeAsync(new ChangeEventArgs { Value = IkerId.ToString() });
+        await ConfirmarDesactivacionAsync(cut);
+
+        _mediador.Enviadas.OfType<ReasignarEjecutivoClienteCommand>().Should().BeEquivalentTo(
+            [new ReasignarEjecutivoClienteCommand(ClienteUno, IkerId), new ReasignarEjecutivoClienteCommand(ClienteDos, IkerId)]);
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue, "pasada la cartera, se desactiva");
+        _toasts.Mensajes.Select(m => m.Mensaje).Should().Contain("2 Cliente(s) empresarial(es) pasaron a Iker Larrañaga.");
+    }
+
+    /// <summary>Sin elegir destino no se reasigna nada: la cartera sigue abierta (decisión del 2026-09-24).</summary>
+    [Fact]
+    public async Task Desactivar_sin_elegir_destino_no_reasigna_y_desactiva()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae));
+        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(false, [ClienteUno]) };
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await ConfirmarDesactivacionAsync(cut);
+
+        _mediador.Enviadas.OfType<ReasignarEjecutivoClienteCommand>().Should().BeEmpty();
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue);
+    }
+
+    /// <summary>Si un Cliente no se pudo pasar, la cuenta no se desactiva y se dice cuántos pasaron.</summary>
+    [Fact]
+    public async Task Si_la_cartera_no_pasa_entera_la_cuenta_sigue_activa_y_se_dice()
+    {
+        var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae),
+            (iker, RolesIdentidad.GestorCae));
+        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(false, [ClienteUno, ClienteDos]) };
+        _fuente.EnRol = _ => [ander, iker];
+        _mediador.FallaReasignarCliente = ClienteUno;
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = IkerId.ToString() });
+        await ConfirmarDesactivacionAsync(cut);
+
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull("sin la cartera entera pasada, no se desactiva");
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should()
+            .StartWith("Solo 0 de 2 Clientes empresariales pasaron al nuevo Gestor CAE, así que la cuenta sigue activa.");
+        _mediador.Enviadas.OfType<ReasignarEjecutivoClienteCommand>().Should().ContainSingle(
+            "un fallo devuelto también detiene el lote: el DbContext del circuito puede quedar con cambios a medias");
+    }
+
+    /// <summary>
+    /// Revisión Codex (P1): una excepción a mitad del lote detiene el lote —el DbContext
+    /// del circuito puede quedar con cambios a medias— y se dice; la cuenta sigue activa.
+    /// </summary>
+    [Fact]
+    public async Task Una_excepcion_al_pasar_un_cliente_se_dice_y_no_desactiva()
+    {
+        var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae),
+            (iker, RolesIdentidad.GestorCae));
+        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(false, [ClienteUno, ClienteDos]) };
+        _fuente.EnRol = _ => [ander, iker];
+        _mediador.LanzaReasignarCliente = ClienteUno;
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = IkerId.ToString() });
+        await ConfirmarDesactivacionAsync(cut);
+
+        _mediador.Enviadas.OfType<ReasignarEjecutivoClienteCommand>().Should().ContainSingle("el lote se detiene en la excepción");
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().StartWith("Solo 0 de 2");
+    }
+
+    /// <summary>Revisión Codex (P2): si el destino se desactivó con el diálogo abierto, no se pasa nada.</summary>
+    [Fact]
+    public async Task Si_el_destino_ya_no_esta_activo_al_confirmar_no_se_pasa_nada_ni_se_desactiva()
+    {
+        var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae),
+            (iker, RolesIdentidad.GestorCae));
+        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(false, [ClienteUno]) };
+        _fuente.EnRol = _ => [ander, iker];
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = IkerId.ToString() });
+        iker.Desactivar();
+        await ConfirmarDesactivacionAsync(cut);
+
+        _mediador.Enviadas.OfType<ReasignarEjecutivoClienteCommand>().Should().BeEmpty();
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull();
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().StartWith("El Gestor CAE elegido ya no está activo.");
     }
 }

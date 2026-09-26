@@ -28,8 +28,8 @@ public record PendientePorPlataformaDto(
 /// <summary>
 /// Cierra el hallazgo P-04 de la auditoría de producto 2026-08-16: la cadena
 /// catálogo → canal → acreditación (Lotes 2-A/2-B/2-C/2-D) ya deriva y
-/// persiste <see cref="AcreditacionDocumentoPlataforma"/> al crear/renovar un
-/// Documento (ver <c>IDerivarCanalesAplicablesDocumentoService</c>), pero
+/// persiste <see cref="AcreditacionDocumentoPlataforma"/> en cada camino de alta
+/// (ver <c>IAltaAcreditacionesPlataformaService</c>), pero
 /// hasta ahora ninguna query la agregaba para responder "¿qué me queda por
 /// dejar acreditado en qué portal?" de un vistazo (grep verificado en la
 /// auditoría). Solo cuenta PendienteDeSubir y Rechazada: Subida/Aceptada ya
@@ -53,6 +53,13 @@ public class ObtenerPendientePorPlataformaQueryHandler(
 
         var canalesQuery = centrosContext.CanalesGestionDocumental
             .Where(c => c.Tipo == TipoCanalGestion.Plataforma);
+        // P1-X2: un Centro sin gestión CAE conserva sus canales y acreditaciones,
+        // pero no exige nada: sus pendientes no cuentan en el panel.
+        canalesQuery =
+            from canal in canalesQuery
+            join centro in centrosContext.Centros on canal.CentroId equals centro.Id
+            where centro.GestionCae != ModalidadGestionCae.SinGestionCae
+            select canal;
         if (centroIdsVisibles is not null)
             canalesQuery = canalesQuery.Where(c => centroIdsVisibles.Contains(c.CentroId));
 

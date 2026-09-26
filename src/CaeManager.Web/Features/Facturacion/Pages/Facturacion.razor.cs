@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Facturacion.Pages;
 
-public partial class Facturacion : ComponentBase
+public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
@@ -361,7 +361,7 @@ public partial class Facturacion : ComponentBase
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

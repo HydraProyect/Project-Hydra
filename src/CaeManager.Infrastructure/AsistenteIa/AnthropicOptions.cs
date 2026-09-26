@@ -19,7 +19,7 @@ public class AnthropicOptions
     /// Precio orientativo por millón de tokens de entrada/salida (USD),
     /// usado solo para el coste estimado de auditoría de
     /// <see cref="AnthropicDocumentAIProvider"/> (ver
-    /// docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2 — nunca un criterio de
+    /// Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2 — nunca un criterio de
     /// enrutado). Valores por defecto orientativos para Claude Sonnet;
     /// revisar si cambia el modelo o su tarifa.
     /// </summary>

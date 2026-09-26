@@ -16,7 +16,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequerido
 /// formatos automáticamente cuando sea un formulario de centro necesario"
 /// del pedido del usuario. Hydra no guarda plantillas de archivo en blanco
 /// por Centro (salvo el adjunto opcional de <c>TipoDocumentoCentro</c>, no
-/// enlazado aquí — ver DATABASE.md), así que "formato" aquí es este resumen
+/// enlazado aquí — ver Project-Hydra-Negocio/tecnico/DATABASE.md), así que "formato" aquí es este resumen
 /// generado, no un archivo preexistente. Null cuando el Centro no es visible
 /// para el usuario actual o no tiene ningún requisito configurado que
 /// compartir.
@@ -70,6 +70,10 @@ public class ObtenerFormatosRequeridosCentroQueryHandler(
     /// <summary>Ver ResolucionTipoDocumentoCentro — universo completo (Empresa+Trabajador), fila explícita manda, sin fila sigue EsObligatorio.</summary>
     private async Task<List<TipoAplicableDto>> ObtenerTiposAplicablesAsync(Guid centroId, CancellationToken cancellationToken)
     {
+        // P1-X2: un Centro sin gestión CAE no exige ningún formato.
+        if ((await CentrosSinGestionCae.FiltrarAsync(centrosContext, [centroId], cancellationToken)).Count > 0)
+            return [];
+
         var tipos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
             .OrderBy(t => t.Orden)

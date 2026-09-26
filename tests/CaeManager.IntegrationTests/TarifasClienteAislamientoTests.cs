@@ -11,7 +11,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests;
 
 /// <summary>
-/// Regresión del hallazgo A-1 de INFORME-AUDITORIA-TECNICA.md.
+/// Regresión del hallazgo A-1 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-TECNICA.md.
 /// <c>TarifaCliente</c> heredaba de <c>EntidadBase</c> (y por tanto tenía
 /// <c>TenantId</c> y <c>EstaEliminado</c>) pero se quedó fuera de la lista de
 /// <c>HasQueryFilter</c> de <c>CaeManagerDbContext</c>, y

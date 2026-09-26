@@ -7,7 +7,7 @@ namespace CaeManager.Domain.Integraciones;
 /// notificaciones de Microsoft Graph sobre el buzón. <see cref="ClientState"/>
 /// es el secreto que Hydra elige al crear la suscripción y que Graph
 /// devuelve sin cambios en cada notificación — es lo que el endpoint de
-/// webhook compara para confiar en el payload (ver docs/MULTITENANCY.md § 8,
+/// webhook compara para confiar en el payload (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8,
 /// tercer modo de resolución de tenant). No es una firma criptográfica sobre
 /// el cuerpo — Graph no firma notificaciones, solo hace eco del secreto
 /// compartido.

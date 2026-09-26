@@ -12,7 +12,7 @@ namespace CaeManager.Infrastructure.AsistenteIa;
 
 /// <summary>
 /// Tercer <see cref="IDocumentAIProvider"/> real (ver
-/// docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1) — declara
+/// Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1) — declara
 /// <see cref="CapacidadesProveedorIa.OcrImagenAEscaneado"/> y
 /// <see cref="CapacidadesProveedorIa.ExtraccionEstructurada"/>. OCR vía
 /// la API <c>/v1/ocr</c> de Mistral; estructuración vía

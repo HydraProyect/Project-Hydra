@@ -6,23 +6,6 @@
         @ChildContent
     </a>
 }
-else if (!string.IsNullOrEmpty(OnClickScript))
-{
-    @* "onclick" plano y "@onclick" (delegado de servidor) son, para Razor, el
-       MISMO atributo del elemento — RZ10008 si aparecen los dos a la vez.
-       Nunca conviven: si hay OnClickScript, no hace falta @onclick. *@
-    <button type="@Type"
-            class="@ClaseCompleta"
-            disabled="@(Deshabilitado || Cargando)"
-            onclick="@OnClickScript"
-            @attributes="AtributosSinClase">
-        @if (Cargando)
-        {
-            <span class="boton-spinner" aria-hidden="true"></span>
-        }
-        @ChildContent
-    </button>
-}
 else
 {
     <button type="@Type"
@@ -60,16 +43,7 @@ else
     [Parameter] public string? Href { get; set; }
 
     /// <summary>
-    /// Script JS plano (p. ej. "window.location.reload()") para acciones que
-    /// no necesitan al servidor y por tanto tampoco @rendermode interactivo.
-    /// Se renderiza como atributo "onclick" nativo, distinto de OnClick (que
-    /// es el delegado de servidor vía @onclick) — un botón usa uno u otro,
-    /// nunca los dos con sentido.
-    /// </summary>
-    [Parameter] public string? OnClickScript { get; set; }
-
-    /// <summary>
-    /// Attribute splatting (P2 #28 de docs/business/MATURITY_REVIEW.md): deja
+    /// Attribute splatting (P2 #28 de Project-Hydra-Negocio/MATURITY_REVIEW.md): deja
     /// pasar cualquier atributo HTML no reconocido como parámetro
     /// (aria-label, data-testid, title...) directo al &lt;button&gt; sin
     /// tener que añadir un [Parameter] nuevo por cada uno. "class" es un caso

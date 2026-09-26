@@ -12,7 +12,7 @@ using Xunit;
 
 namespace CaeManager.IntegrationTests.Comunicaciones;
 
-/// <summary>docs/COMUNICACIONES.md § 12.3/§ 16.7 — el evento de dominio se traduce en una entrada del timeline.</summary>
+/// <summary>Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.3/§ 16.7 — el evento de dominio se traduce en una entrada del timeline.</summary>
 public class RegistrarEventoVisitaCreadaHandlerTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();

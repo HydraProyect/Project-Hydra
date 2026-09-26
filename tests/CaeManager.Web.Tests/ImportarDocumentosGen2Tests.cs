@@ -153,7 +153,7 @@ public class ImportarDocumentosGen2Tests : BunitContext
         hace.Should().HaveCount(3, "el control positivo confirma que se observan las tres promesas");
         hace.Should().Contain("Crea los documentos nuevos de trabajador, con fecha de emisión y vencimiento calculado.");
         hace.Should().Contain("Cruza el DNI con los trabajadores dados de alta y el nombre con el catálogo de tipos.");
-        hace.Should().Contain("Deja constancia de cada fila que no entra, con su motivo, en el reporte.");
+        hace.Should().Contain("Deja constancia de cada fila que no entra, con su motivo, en el reporte, y de cuántas fueron en el historial.");
 
         var noHace = tarjetas.Single(t => Texto(t.QuerySelector("h3")!) == "No hace").QuerySelectorAll("li").Select(Texto);
         noHace.Should().HaveCount(3, "el control positivo confirma que se observan las tres limitaciones");

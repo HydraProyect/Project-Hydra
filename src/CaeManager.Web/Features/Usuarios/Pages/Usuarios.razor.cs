@@ -1,20 +1,28 @@
 using System.Globalization;
 using System.Security.Claims;
+using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Common;
+using CaeManager.Application.Usuarios;
+using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
+using CaeManager.Application.Usuarios.Commands.CrearUsuario;
+using CaeManager.Application.Usuarios.Commands.EditarUsuario;
+using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
+using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
+using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
+using CaeManager.Application.Usuarios.Queries.ObtenerCuentaUsuario;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
-using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Web.Features.Usuarios.Recursos;
 using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Features.Usuarios.Pages;
@@ -32,9 +40,14 @@ namespace CaeManager.Web.Features.Usuarios.Pages;
 /// Distinta de <paramref name="Activo"/>: una cuenta puede estar activa
 /// (sin bloquear) y aun así pendiente de que alguien complete el alta.
 /// </param>
+/// <param name="DosFactoresActivo">
+/// Si la cuenta tiene la verificación en dos pasos activada. Solo decide si se
+/// ofrece «Restablecer verificación en dos pasos» (P0-8); quién puede hacerlo lo
+/// decide <c>RestablecerSegundoFactorCommand</c>.
+/// </param>
 public record UsuarioListaDto(
     Guid Id, string Email, string NombreCompleto, string Rol, bool Activo, bool EsOperadorDelegado,
-    bool PendienteActivacion, AlcanceUsuarioDto Alcance);
+    bool PendienteActivacion, AlcanceUsuarioDto Alcance, bool DosFactoresActivo = false);
 
 /// <summary>
 /// Qué alcanza una cuenta, ya resuelto a texto. Es presentación y por eso vive
@@ -55,12 +68,12 @@ public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
 
 public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosUsuarios> TextosUsuarios { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IEmailService EmailService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -134,8 +147,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// El filtrado es en memoria a propósito: <see cref="CargarAsync"/> ya trae
     /// la lista entera de usuarios del tenant —son decenas, no miles— y la
     /// paginación también es de cliente. Llevarlo a consulta obligaría a
-    /// rehacer una carga que no pasa por MediatR sino por UserManager, y no
-    /// ganaría nada.
+    /// rehacer una carga que no pasa por MediatR sino por el directorio de
+    /// tenant, y no ganaría nada.
     ///
     /// <para>
     /// El rol que se compara es el de <see cref="UsuarioListaDto"/>, que para
@@ -178,8 +191,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     ///
     /// <para>
     /// Público solo para poder probarlo: montar la página entera en bUnit
-    /// exigiría registrar UserManager, MediatR, Identity y el directorio de
-    /// tenant para comprobar una función pura de dos cadenas.
+    /// exigiría registrar MediatR, Identity y el directorio de tenant para
+    /// comprobar una función pura de dos cadenas.
     /// </para>
     /// </summary>
     public static bool Contiene(string texto, string termino) =>
@@ -213,10 +226,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// </summary>
     public static bool EsAutogestionDelPermisoSensible(
         Guid idEditado, Guid? idActor, string rolNuevo, bool valorNuevo, bool valorActual) =>
-        idActor is not null
-        && idEditado == idActor.Value
-        && rolNuevo == Roles.Administrador
-        && valorNuevo != valorActual;
+        AutoridadSobreCuentas.EsAutogestionDelPermisoSensible(idEditado, idActor, rolNuevo, valorNuevo, valorActual);
 
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(UsuariosFiltrados.Count / (double)_tamanoPagina));
     private IReadOnlyList<UsuarioListaDto> UsuariosDePagina => UsuariosFiltrados.Skip((_pagina - 1) * _tamanoPagina).Take(_tamanoPagina).ToList();
@@ -351,8 +361,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// Roles que el selector no ofrece en el Context Workspace activo
     /// (<see cref="ObtenerRolesNoAsignablesQuery"/>): Administrador y Dirección
     /// CAE cuando el Context Workspace no es el Tenant de origen de quien
-    /// actúa. Comodidad, no autoridad: la autoridad es
-    /// <see cref="VerificarRolAsignableQuery"/>, que se consulta al guardar.
+    /// actúa. Comodidad, no autoridad: la autoridad son
+    /// <see cref="CrearUsuarioCommand"/> y <see cref="EditarUsuarioCommand"/>.
     /// </summary>
     private IReadOnlyList<string> _rolesNoAsignables = [];
 
@@ -404,11 +414,10 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             _rolesNoAsignables = await Mediator.Send(new ObtenerRolesNoAsignablesQuery(), token) ?? [];
 
             var usuarios = new List<UsuarioListaDto>();
-            // Acotado al tenant activo: UserManager.Users no filtra nada
-            // (AspNetUsers es la única tabla sin filtro global) y esta pantalla
-            // listaba los usuarios de todas las organizaciones con nombre y
-            // correo. Ver DirectorioUsuariosTenant.
-            // Por la puerta: UserManager no pasa por MediatR y esta carga corre
+            // Acotado al tenant activo por DirectorioUsuariosTenant: AspNetUsers
+            // no tiene filtro global, y esta pantalla llegó a listar los usuarios
+            // de todas las organizaciones con nombre y correo.
+            // Por la puerta: el directorio no pasa por MediatR y esta carga corre
             // en paralelo con los componentes del layout (ver PuertaAccesoDatos).
             await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
@@ -434,6 +443,11 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 var idsConLoginExterno = await ObtenerIdsConLoginExternoAsync(
                     visibles.Select(u => u.Id).ToList(), token);
 
+                // Cuarta consulta de lote (P1-I2): el rol de cada cuenta, en vez de
+                // UserManager.GetRolesAsync fila a fila.
+                var rolesPorCuenta = await ObtenerRolesDeCuentasAsync(
+                    visibles.Select(u => u.Id).ToList(), token);
+
                 var gestoresPorCoordinador = visibles
                     .Where(u => u.CoordinadorUsuarioId is not null)
                     .ToLookup(u => u.CoordinadorUsuarioId!.Value, u => u.Id);
@@ -446,12 +460,13 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                     if (esOperadorDelegado)
                         rol = rolDelegado!;
                     else
-                        rol = (await UserManager.GetRolesAsync(usuario)).FirstOrDefault() ?? "—";
+                        rol = rolesPorCuenta.GetValueOrDefault(usuario.Id) ?? "—";
 
                     usuarios.Add(new UsuarioListaDto(
                         usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, rol, activo, esOperadorDelegado,
                         EsPendienteActivacion(usuario, idsConLoginExterno),
-                        CalcularAlcance(usuario, rol, carteras, gestoresPorCoordinador)));
+                        CalcularAlcance(usuario, rol, carteras, gestoresPorCoordinador),
+                        usuario.TwoFactorEnabled));
                 }
             }, token);
 
@@ -532,35 +547,12 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         DirectorioUsuarios.ObtenerIdsConLoginExternoAsync(usuarioIds, cancellationToken);
 
     /// <inheritdoc cref="ObtenerRolesDelegadosAsync"/>
-    protected virtual Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken) =>
-        DirectorioUsuarios.TieneVinculoOperativoAsync(usuarioId, cancellationToken);
+    protected virtual Task<IReadOnlyDictionary<Guid, string>> ObtenerRolesDeCuentasAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken) =>
+        DirectorioUsuarios.ObtenerRolesDeCuentasAsync(usuarioIds, cancellationToken);
 
     /// <summary>
-    /// Si la cuenta pertenece al tenant activo — propiedad, no visibilidad:
-    /// ver <c>DirectorioUsuariosTenant.EsCuentaPropiaDelTenantActualAsync</c>.
-    /// Un Operador Delegado se ve en esta misma lista (fila marcada
-    /// "Delegado"), pero su cuenta es de otra organización y no se gobierna
-    /// desde aquí — mismo criterio que ya aplica <c>Roles.razor.cs</c> para el
-    /// mismo riesgo. Toda operación que MODIFIQUE una cuenta tiene que pasar
-    /// por aquí antes de escribir.
-    /// </summary>
-    protected virtual Task<bool> EsCuentaPropiaAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
-        DirectorioUsuarios.EsCuentaPropiaDelTenantActualAsync(usuarioId, cancellationToken);
-
-    /// <summary>
-    /// <c>PasswordHash is null</c> no basta (hallazgo de revisión, PR de
-    /// reenvío/eliminación): una cuenta autoaprovisionada por SSO
-    /// (<c>IdentityEndpointsExtensions.cs</c>, el endpoint de callback de
-    /// Microsoft) nace igual de vacía y nunca establece una — se autentica
-    /// siempre por su <c>AspNetUserLogins</c> externo. Sin esta distinción,
-    /// "Eliminar" podía borrar una cuenta SSO en uso real, y "Pendiente de
-    /// activación" la marcaba como si nadie hubiera entrado nunca.
-    /// </summary>
-    private async Task<bool> EsPendienteActivacionAsync(ApplicationUser usuario) =>
-        string.IsNullOrEmpty(usuario.PasswordHash) && (await UserManager.GetLoginsAsync(usuario)).Count == 0;
-
-    /// <summary>
-    /// Misma regla que <see cref="EsPendienteActivacionAsync"/>, pero contra un
+    /// Misma regla que <c>CuentaUsuario.PendienteActivacion</c> de Application, pero contra un
     /// conjunto de logins ya resuelto en lote (revisión de Codex, 2026-09-18):
     /// para pintar la lista completa, N llamadas a <c>GetLoginsAsync</c> —una
     /// por fila— serializaban N viajes a <c>AspNetUserLogins</c>. Usar
@@ -771,35 +763,25 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         var version = ++_versionApertura;
         var token = _ciclo.Token;
 
-        ApplicationUser? usuario;
-        IList<string> roles;
+        CuentaUsuario usuario;
         try
         {
-            usuario = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.FindByIdAsync(id.ToString()), token);
-            if (usuario is null)
+            // Autoridad y propiedad en Application (P1-I2): la fila de un Operador
+            // Delegado aparece en esta lista, pero su ficha es la cuenta de otra
+            // organización (Usuarios.NoEncontrado). Una que ya no existe pide
+            // recargar la lista (Usuarios.CuentaInexistente).
+            var cuenta = await Mediator.Send(new ObtenerCuentaUsuarioQuery(id), token);
+            if (cuenta.EsFallido)
             {
                 if (version != _versionApertura) return;
 
                 ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
-                await CargarAsync();
+                if (cuenta.Error.Codigo == AutoridadSobreCuentas.CuentaInexistente.Codigo)
+                    await CargarAsync();
                 return;
             }
 
-            // Propiedad, no visibilidad (ver EsCuentaPropiaAsync): un Operador
-            // Delegado aparece en esta lista, pero editar su ficha desde aquí
-            // sería escribir sobre la cuenta de otra organización. Antes esta
-            // comprobación no existía y el Id de cualquier fila —delegada o
-            // no— bastaba para abrir su ficha con FindByIdAsync, que no
-            // filtra por tenant.
-            if (!await EsCuentaPropiaAsync(id, token))
-            {
-                if (version != _versionApertura) return;
-
-                ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
-                return;
-            }
-
-            roles = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.GetRolesAsync(usuario), token);
+            usuario = cuenta.Valor;
         }
         catch (OperationCanceledException)
         {
@@ -821,10 +803,10 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _buscandoCliente = false;
         _errorBusquedaCif = false;
         _editandoId = usuario.Id;
-        _email = usuario.Email ?? string.Empty;
+        _email = usuario.Email;
         _nombreCompleto = usuario.NombreCompleto;
         _enlaceActivacion = null;
-        _rol = roles.FirstOrDefault() ?? Roles.Consulta;
+        _rol = usuario.Roles.FirstOrDefault() ?? Roles.Consulta;
         _rolCargado = _rol;
         _coordinadorUsuarioId = usuario.CoordinadorUsuarioId?.ToString() ?? string.Empty;
         _clienteCif = string.Empty;
@@ -904,7 +886,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// <para>
     /// A prueba de doble clic: el segundo clic no vuelve a entrar mientras el
     /// primero está en vuelo. Sin esto, dos clics sobre «Guardar» en un alta
-    /// crean dos cuentas —<c>UserManager.CreateAsync</c> no es idempotente— y
+    /// crean dos cuentas —<c>CrearUsuarioCommand</c> no es idempotente— y
     /// el segundo alta se lleva el enlace de activación del modal, dejando la
     /// primera cuenta sin forma de activarse.
     /// </para>
@@ -947,114 +929,54 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         }
     }
 
-    /// <summary>El motivo que da Identity, en una sola línea legible. Nunca un mensaje genérico para un fallo suyo.</summary>
-    private static string DescribirErrores(IdentityResult resultado) =>
-        string.Join(" ", resultado.Errors.Select(e => e.Description));
-
+    /// <summary>
+    /// Alta en Application (P1-I2): <see cref="CrearUsuarioCommand"/> decide quién
+    /// puede, qué rol se concede y con qué permiso, y crea la cuenta sin
+    /// contraseña. La página solo arma el enlace y envía el correo.
+    /// </summary>
     private async Task CrearUsuarioAsync()
     {
-        if (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_nombreCompleto))
+        var resultado = await Mediator.Send(new CrearUsuarioCommand(
+            _email,
+            _nombreCompleto,
+            _rol,
+            Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null,
+            _clienteEncontrado?.Id,
+            _permisoConsultarAccesoDocumentosSensibles));
+        if (resultado.EsFallido)
         {
-            // Sin "contraseña": el formulario ya no la pide — la cuenta nace sin
-            // ninguna y el usuario la establece desde su enlace de activación.
-            _mensajeErrorFormulario = "Correo y nombre son obligatorios.";
+            _mensajeErrorFormulario = resultado.Error.Mensaje;
             return;
         }
 
-        // ApplicationUser no lo sella el interceptor de tenant (no extiende
-        // EntidadConTenant, ver CaeManagerDbContext), así que hay que
-        // asignarlo aquí: sin esto el usuario nacía con TenantId vacío pese a
-        // que el propio ApplicationUser documenta que "todo usuario nuevo debe
-        // crearse con un TenantId explícito", y al iniciar sesión su claim de
-        // tenant no correspondía a ninguna organización.
-        if (TenantActual.TenantId is not { } tenantId)
-        {
-            _mensajeErrorFormulario = "No pudimos determinar tu organización. Vuelve a iniciar sesión.";
-            return;
-        }
-
-        // Autoridad en Application, no en el selector (decisión del
-        // propietario, 2026-09-23): la cuenta nace en el Context Workspace
-        // activo, así que Administrador o Dirección CAE solo se conceden si ese
-        // Context Workspace es el Tenant de origen de quien da el alta. Ver
-        // RolesReservadosAlTenantDeOrigen.
-        var rolAsignable = await Mediator.Send(new VerificarRolAsignableQuery(_rol));
-        if (rolAsignable.EsFallido)
-        {
-            _mensajeErrorFormulario = rolAsignable.Error.Mensaje;
-            return;
-        }
-
-        var usuario = new ApplicationUser
-        {
-            UserName = _email,
-            Email = _email,
-            NombreCompleto = _nombreCompleto,
-            EmailConfirmed = true,
-            TenantId = tenantId,
-            CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null,
-            ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null,
-            // Servidor, no solo UI (Codex, HO-099-01): DireccionCae también
-            // abre esta página, y sin esta comprobación podría crear un
-            // Administrador con el permiso ya concedido en el mismo alta.
-            PermisoConsultarAccesoDocumentosSensibles =
-                _usuarioActualEsAdministrador && _rol == Roles.Administrador && _permisoConsultarAccesoDocumentosSensibles,
-            // Nadie más que el propio usuario llega a conocer su contraseña:
-            // la cuenta nace SIN ninguna y él la establece desde el enlace de
-            // activación. Por eso DebeCambiarContrasena queda en false — ya no
-            // hay una contraseña ajena que haya que obligar a sustituir, que
-            // era todo el sentido de esa marca.
-            DebeCambiarContrasena = false
-        };
-
-        // Sin contraseña: CreateAsync(usuario) a secas. Antes se creaba con la
-        // que escribía el Administrador y se le enviaba EN CLARO en el cuerpo
-        // del correo — una credencial válida, sin caducidad propia, que queda
-        // en dos buzones para siempre y que además el Administrador conocía.
-        var resultado = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.CreateAsync(usuario));
-        if (!resultado.Succeeded)
-        {
-            _mensajeErrorFormulario = DescribirErrores(resultado);
-            return;
-        }
-
-        var resultadoRol = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.AddToRoleAsync(usuario, _rol));
-
+        var creado = resultado.Valor;
         _reenvioEnCurso = false;
-        _enlaceActivacion = await GenerarEnlaceActivacionAsync(usuario);
+        _enlaceActivacion = EnlaceActivacion(creado.UsuarioId, creado.TokenActivacion);
 
-        // La cuenta ya quedó creada en Identity —CreateAsync sí tuvo éxito—,
-        // así que un fallo aquí no deshace el alta: se dice tal cual, nunca
-        // como "creado correctamente", porque sin rol la cuenta no da acceso
-        // a nada y nadie lo sabría por el toast.
-        if (resultadoRol.Succeeded)
+        // La cuenta ya quedó creada —el alta sí tuvo éxito—, así que un fallo del
+        // rol no la deshace: se dice tal cual, nunca como "creado correctamente",
+        // porque sin rol la cuenta no da acceso a nada y nadie lo sabría por el toast.
+        if (creado.FalloAlAsignarRol is null)
             ToastService.Mostrar("Usuario creado correctamente.", TonoToast.Exito);
         else
             ToastService.Mostrar(
-                $"Usuario creado, pero no pudimos asignarle el rol {_rol}: {DescribirErrores(resultadoRol)} Ábrelo y vuelve a intentarlo.",
+                $"Usuario creado, pero no pudimos asignarle el rol {_rol}: {creado.FalloAlAsignarRol.Mensaje} Ábrelo y vuelve a intentarlo.",
                 TonoToast.Error);
 
-        await EnviarCorreoActivacionAsync(usuario.Id, _email, _nombreCompleto, _enlaceActivacion);
+        await EnviarCorreoActivacionAsync(creado.UsuarioId, _email, _nombreCompleto, _enlaceActivacion);
         _drawerVisible = false;
         await CargarAsync();
     }
 
     /// <summary>
     /// Token de un solo uso de Identity —el mismo <c>DataProtectorTokenProvider</c>
-    /// que usa "olvidé mi contraseña"— sobre la página que ya sabe consumirlo.
-    /// No se inventa un mecanismo nuevo: el que hay ya es de un solo uso,
-    /// caduca, y está probado.
+    /// que usa "olvidé mi contraseña", ya codificado por Application— sobre la
+    /// página que ya sabe consumirlo.
     /// </summary>
-    private async Task<string> GenerarEnlaceActivacionAsync(ApplicationUser usuario)
-    {
-        var token = await PuertaAccesoDatos.EjecutarAsync(
-            () => UserManager.GeneratePasswordResetTokenAsync(usuario));
-        var tokenCodificado = WebEncoders.Base64UrlEncode(System.Text.Encoding.UTF8.GetBytes(token));
-
-        return NavigationManager
-            .ToAbsoluteUri($"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={tokenCodificado}")
+    private string EnlaceActivacion(Guid usuarioId, string tokenCodificado) =>
+        NavigationManager
+            .ToAbsoluteUri($"/cuenta/restablecer-contrasena?userId={usuarioId}&code={tokenCodificado}")
             .ToString();
-    }
 
     /// <summary>
     /// El correo lleva un ENLACE de activación, nunca una contraseña.
@@ -1113,38 +1035,20 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         var token = _ciclo.Token;
         try
         {
-            var usuario = await PuertaAccesoDatos.EjecutarAsync(
-                () => UserManager.FindByIdAsync(usuarioLista.Id.ToString()), token);
-            if (usuario is null)
+            // Application revalida contra la cuenta recién leída, no contra el DTO
+            // con el que se pulsó el menú: si la persona completó su activación
+            // entretanto, no se emite un token válido para una cuenta con contraseña.
+            var activacion = await Mediator.Send(new GenerarActivacionUsuarioCommand(usuarioLista.Id), token);
+            if (activacion.EsFallido)
             {
-                ToastService.Mostrar("Esta cuenta ya no existe.", TonoToast.Error);
+                ToastService.MostrarError(activacion.Error);
+                if (activacion.Error.Codigo == GenerarActivacionUsuarioCommandHandler.YaActivada.Codigo)
+                    await CargarAsync();
                 return;
             }
 
-            if (!await EsCuentaPropiaAsync(usuarioLista.Id, token))
-            {
-                ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
-                return;
-            }
-
-            // Revalida contra la cuenta recién leída, no contra el DTO con el que se pulsó el
-            // menú: si la persona completó su activación entre la carga de la lista y este clic,
-            // emitir el enlace igual mostraría a quien administra un token de restablecimiento
-            // válido para una cuenta que ya tiene contraseña (hallazgo de revisión).
-            //
-            // Por la puerta (revisión de Codex, 2026-09-18): EsPendienteActivacionAsync llama
-            // UserManager.GetLoginsAsync, que toca el mismo CaeManagerDbContext scoped que el
-            // resto de este método — sin PuertaAccesoDatos, una lectura concurrente del layout
-            // en el mismo circuito puede reventar con la excepción de operación simultánea de EF.
-            if (!await PuertaAccesoDatos.EjecutarAsync(() => EsPendienteActivacionAsync(usuario), token))
-            {
-                ToastService.Mostrar("Esta cuenta ya no está pendiente de activación; recargamos la lista.", TonoToast.Error);
-                await CargarAsync();
-                return;
-            }
-
-            var enlace = await GenerarEnlaceActivacionAsync(usuario);
-            var resultado = await EnviarCorreoActivacionAsync(usuario.Id, usuarioLista.Email, usuarioLista.NombreCompleto, enlace);
+            var enlace = EnlaceActivacion(usuarioLista.Id, activacion.Valor);
+            var resultado = await EnviarCorreoActivacionAsync(usuarioLista.Id, usuarioLista.Email, usuarioLista.NombreCompleto, enlace);
 
             if (resultado.EsFallido)
             {
@@ -1188,8 +1092,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// aquí — eso es una decisión de producto distinta (qué pasa con lo que
     /// ya creó, firmó o le asignaron) que esta pantalla no resuelve; para esa
     /// sigue existiendo Desactivar. La comprobación se repite en el servidor
-    /// (nunca solo en la UI, ver EsCuentaPropiaAsync): alcance no es
-    /// autorización.
+    /// (nunca solo en la UI: <c>EliminarUsuarioPendienteCommand</c>): alcance no
+    /// es autorización.
     /// </summary>
     private async Task EliminarUsuarioAsync()
     {
@@ -1204,66 +1108,37 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         _eliminandoUsuario = true;
         var token = _ciclo.Token;
-        IdentityResult? falloAlEliminar = null;
 
         try
         {
-            var resultado = await PuertaAccesoDatos.EjecutarAsync(async () =>
+            // Propiedad, pendiente de activación y cartera vigente los decide
+            // Application (P1-I2), contra la cuenta recién leída.
+            var resultado = await Mediator.Send(new EliminarUsuarioPendienteCommand(usuarioLista.Id), token);
+
+            if (resultado.EsExitoso)
             {
-                var usuario = await UserManager.FindByIdAsync(usuarioLista.Id.ToString());
-                if (usuario is null) return ResultadoActivacionUsuario.NoEncontrado;
-                if (!await EsCuentaPropiaAsync(usuarioLista.Id, token)) return ResultadoActivacionUsuario.NoPropia;
-
-                if (!await EsPendienteActivacionAsync(usuario))
-                    return ResultadoActivacionUsuario.NoPendiente;
-
-                // Revisión de Codex: AsignacionCartera.UsuarioId no lleva FK hacia
-                // ApplicationUser. Un Gestor CAE pendiente puede haber recibido ya
-                // una Asignación de Cartera (p. ej. como operador delegado) antes
-                // de aceptar la invitación; borrar la cuenta de Identity dejaría
-                // esa asignación — y el Empresa.EjecutivoUsuarioId que dependa de
-                // ella — apuntando a un GUID sin cuenta resoluble.
-                if (await TieneVinculoOperativoAsync(usuarioLista.Id, token))
-                    return ResultadoActivacionUsuario.TieneCarteraVigente;
-
-                var borrado = await UserManager.DeleteAsync(usuario);
-                if (borrado.Succeeded) return ResultadoActivacionUsuario.Actualizado;
-
-                falloAlEliminar = borrado;
-                return ResultadoActivacionUsuario.FalloAlEliminar;
-            }, token);
-
-            switch (resultado)
+                ToastService.Mostrar("Usuario eliminado.", TonoToast.Exito);
+                _usuarioAEliminar = null;
+                await CargarAsync();
+            }
+            else if (resultado.Error.Codigo == EliminarUsuarioPendienteCommandHandler.NoPendiente.Codigo)
             {
-                case ResultadoActivacionUsuario.NoPropia:
-                case ResultadoActivacionUsuario.NoEncontrado:
-                    ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
-                    break;
-                case ResultadoActivacionUsuario.NoPendiente:
-                    // No debería alcanzarse desde la UI (el botón no se ofrece) salvo que la
-                    // persona activó su cuenta justo entre la carga de la lista y este clic — el
-                    // servidor no confía en lo que la UI decidió mostrar.
-                    ToastService.Mostrar("Esta cuenta ya tiene contraseña o inicia sesión por SSO; no se puede eliminar desde aquí.", TonoToast.Error);
-                    _usuarioAEliminar = null;
-                    await CargarAsync();
-                    break;
-                case ResultadoActivacionUsuario.FalloAlEliminar:
-                    // Encontrada, propia y pendiente: la escritura en sí falló (concurrencia,
-                    // almacén). Decirlo tal cual, no "no encontramos este usuario" — la cuenta
-                    // sigue ahí y quien administra necesita el motivo real para reintentar.
-                    ToastService.Mostrar($"No pudimos eliminar esta cuenta. {DescribirErrores(falloAlEliminar!)}", TonoToast.Error);
-                    break;
-                case ResultadoActivacionUsuario.TieneCarteraVigente:
-                    ToastService.Mostrar(
-                        "Esta persona ya tiene una Asignación de Cartera vigente; reasígnala o retírala antes de eliminar la cuenta.",
-                        TonoToast.Error);
-                    _usuarioAEliminar = null;
-                    break;
-                default:
-                    ToastService.Mostrar("Usuario eliminado.", TonoToast.Exito);
-                    _usuarioAEliminar = null;
-                    await CargarAsync();
-                    break;
+                // Solo alcanzable si la persona activó su cuenta entre la carga de
+                // la lista y este clic: el servidor no confía en lo que la UI mostró.
+                ToastService.MostrarError(resultado.Error);
+                _usuarioAEliminar = null;
+                await CargarAsync();
+            }
+            else if (resultado.Error.Codigo == EliminarUsuarioPendienteCommandHandler.CarteraVigente.Codigo)
+            {
+                ToastService.MostrarError(resultado.Error);
+                _usuarioAEliminar = null;
+            }
+            else
+            {
+                // Incluye el fallo de Identity al borrar, con su motivo: la cuenta
+                // sigue ahí y quien administra lo necesita para reintentar.
+                ToastService.MostrarError(resultado.Error);
             }
         }
         catch (OperationCanceledException)
@@ -1283,142 +1158,20 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             return;
         }
 
-        // Misma autoridad que en el alta (RolesReservadosAlTenantDeOrigen):
-        // se pregunta a Application aquí, fuera de la puerta, y se aplica
-        // dentro solo si el guardado CONCEDE el rol — conservar el rol que la
-        // cuenta ya tenía no es concederlo, y editar el nombre de un
-        // Administrador existente no debe bloquearse.
-        var verificacionRol = await Mediator.Send(new VerificarRolAsignableQuery(_rol));
+        // Propiedad, rol asignable, permiso sensible y el orden de las dos
+        // escrituras de Identity los decide Application (P1-I2). Sus errores
+        // traen ya el mensaje, con el motivo de Identity cuando es suyo.
+        var resultado = await Mediator.Send(new EditarUsuarioCommand(
+            id,
+            _nombreCompleto,
+            _rol,
+            Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null,
+            _clienteEncontrado?.Id,
+            _permisoConsultarAccesoDocumentosSensibles));
 
-        var resultado = await PuertaAccesoDatos.EjecutarAsync(async () =>
+        if (resultado.EsFallido)
         {
-            var usuario = await UserManager.FindByIdAsync(id.ToString());
-            if (usuario is null) return ResultadoEdicionUsuario.NoEncontrado;
-
-            // Autoridad por PROPIEDAD del tenant activo sobre esta cuenta, no
-            // por su visibilidad en la lista: un Operador Delegado se ve aquí,
-            // pero su cuenta y su rol se gobiernan en su propia organización
-            // (ver EsCuentaPropiaAsync). Mismo resultado que "no encontrado",
-            // para no revelar con un mensaje distinto que el Id pertenece a
-            // otra organización.
-            if (!await EsCuentaPropiaAsync(id)) return ResultadoEdicionUsuario.NoEncontrado;
-
-            usuario.NombreCompleto = _nombreCompleto;
-            usuario.CoordinadorUsuarioId = _rol == Roles.GestorCae && Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null;
-            usuario.ClienteId = _rol == Roles.Cliente ? _clienteEncontrado?.Id : null;
-
-            // Necesario ANTES de decidir el permiso: distingue "seguía siendo
-            // Administrador" de "acaba de convertirse en Administrador en
-            // este mismo guardado" (ver más abajo). UpdateAsync no toca roles,
-            // así que leerlo aquí o después de él da el mismo resultado.
-            var rolesActuales = await UserManager.GetRolesAsync(usuario);
-            var eraAdministrador = rolesActuales.Contains(Roles.Administrador);
-
-            // Antes de tocar nada: un rechazo aquí no deja datos a medias.
-            if (!rolesActuales.Contains(_rol) && verificacionRol.EsFallido)
-                return ResultadoEdicionUsuario.RolNoAsignable;
-
-            // Solo un Administrador puede tocar este permiso (Codex,
-            // HO-099-01): un DireccionCae editando otros campos de la misma
-            // cuenta no debe poder cambiarlo en ninguna dirección, ni
-            // concederlo ni revocarlo — el valor existente en base se
-            // conserva tal cual si quien edita no es Administrador Y el rol
-            // editado sigue siendo Administrador Y ya lo era antes de este
-            // guardado.
-            //
-            // Pero la RETIRADA por dejar de ser Administrador no es "tocar el
-            // permiso": es la consecuencia automática de perder el rol que la
-            // política exige junto al permiso (ver Policies.cs), y el rol
-            // también lo puede cambiar un DireccionCae desde esta misma
-            // pantalla (ver el <select> de "Rol" en el .razor, sin guarda por
-            // actor). Antes esta retirada vivía dentro del "si quien edita es
-            // Administrador": un DireccionCae que degradaba a un Administrador
-            // dejaba el permiso vivo en base, inerte mientras el rol no
-            // volviera — y recuperable sin que ningún Administrador lo
-            // concediera, en cuanto alguien reasignara el rol Administrador
-            // sin tocar el interruptor. Hueco detectado 2026-09-12, corregido
-            // aquí: la retirada por rol se ejecuta siempre, la decida quien la
-            // decida.
-            //
-            // Simétricamente (Codex, revisión 2026-09-12): una PROMOCIÓN a
-            // Administrador hecha por un DireccionCae tampoco puede heredar un
-            // flag que quedara en `true` de antes —por ejemplo, de una cuenta
-            // degradada antes de este fix, o de cualquier otro camino que deje
-            // el dato así—. Solo un Administrador concede el permiso, y aquí
-            // no lo está concediendo ninguno: se fuerza a `false` igual que en
-            // la retirada.
-            if (_rol != Roles.Administrador)
-            {
-                usuario.PermisoConsultarAccesoDocumentosSensibles = false;
-            }
-            else if (_usuarioActualEsAdministrador)
-            {
-                var nuevoValorPermiso = _permisoConsultarAccesoDocumentosSensibles;
-
-                // Autogestión (Codex, revisión 2026-09-11): ni siquiera un
-                // Administrador puede concederse o revocarse este permiso a
-                // sí mismo — ver EsAutogestionDelPermisoSensible. El UI ya
-                // oculta el interruptor en la propia fila; esto es lo que de
-                // verdad lo impide si esa defensa se saltara.
-                if (EsAutogestionDelPermisoSensible(id, _usuarioActualId, _rol, nuevoValorPermiso, usuario.PermisoConsultarAccesoDocumentosSensibles))
-                    return ResultadoEdicionUsuario.AutogestionPermisoSensibleRechazada;
-
-                usuario.PermisoConsultarAccesoDocumentosSensibles = nuevoValorPermiso;
-            }
-            else if (!eraAdministrador)
-            {
-                usuario.PermisoConsultarAccesoDocumentosSensibles = false;
-            }
-
-            var resultadoDatos = await UserManager.UpdateAsync(usuario);
-            if (!resultadoDatos.Succeeded)
-            {
-                _mensajeErrorFormulario = $"No pudimos guardar los cambios. {DescribirErrores(resultadoDatos)}";
-                return ResultadoEdicionUsuario.FalloAlActualizarDatos;
-            }
-
-            if (!rolesActuales.Contains(_rol))
-            {
-                var resultadoQuitar = await UserManager.RemoveFromRolesAsync(usuario, rolesActuales);
-                if (!resultadoQuitar.Succeeded)
-                {
-                    // No se intenta AddToRoleAsync sobre un Remove que no
-                    // llegó a completarse: el usuario conserva su rol
-                    // anterior, que es un estado válido, en vez de arriesgar
-                    // dos roles a la vez (la invariante es exactamente uno).
-                    _mensajeErrorFormulario =
-                        $"Los datos se guardaron, pero no pudimos cambiar el rol. {DescribirErrores(resultadoQuitar)} El usuario conserva su rol anterior.";
-                    return ResultadoEdicionUsuario.FalloAlCambiarRolConservado;
-                }
-
-                var resultadoAsignar = await UserManager.AddToRoleAsync(usuario, _rol);
-                if (!resultadoAsignar.Succeeded)
-                {
-                    // El Remove sí completó: el usuario se queda sin ningún
-                    // rol. No se reintenta ni se inventa una compensación que
-                    // Identity no ofrece como transacción — se dice tal cual,
-                    // porque es el peor de los tres desenlaces posibles.
-                    _mensajeErrorFormulario =
-                        $"Los datos se guardaron, pero el cambio de rol quedó a medias. {DescribirErrores(resultadoAsignar)} El usuario se quedó sin ningún rol asignado: revísalo y asígnaselo a mano.";
-                    return ResultadoEdicionUsuario.FalloAlCambiarRolSinNinguno;
-                }
-            }
-
-            return ResultadoEdicionUsuario.Actualizado;
-        });
-
-        if (resultado != ResultadoEdicionUsuario.Actualizado)
-        {
-            if (resultado == ResultadoEdicionUsuario.NoEncontrado)
-                _mensajeErrorFormulario = "No encontramos este usuario.";
-            else if (resultado == ResultadoEdicionUsuario.AutogestionPermisoSensibleRechazada)
-                _mensajeErrorFormulario = "No puedes conceder ni revocar tu propio permiso de rastro de acceso a documentos sensibles. Da de alta a otro Administrador y pídele que lo gestione.";
-            else if (resultado == ResultadoEdicionUsuario.RolNoAsignable)
-                _mensajeErrorFormulario = verificacionRol.Error.Mensaje;
-            // Los fallos de escritura en Identity (datos o rol) ya dejaron su
-            // propio mensaje en _mensajeErrorFormulario, con el motivo que dio
-            // Identity — no se sobrescribe aquí con uno genérico.
-
+            _mensajeErrorFormulario = resultado.Error.Mensaje;
             return;
         }
 
@@ -1426,19 +1179,6 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _drawerVisible = false;
         await CargarAsync();
     }
-
-    private enum ResultadoEdicionUsuario
-    {
-        Actualizado,
-        NoEncontrado,
-        AutogestionPermisoSensibleRechazada,
-        RolNoAsignable,
-        FalloAlActualizarDatos,
-        FalloAlCambiarRolConservado,
-        FalloAlCambiarRolSinNinguno
-    }
-
-    private enum ResultadoActivacionUsuario { Actualizado, NoEncontrado, NoPropia, NoPendiente, FalloAlEliminar, TieneCarteraVigente }
 
     /// <summary>
     /// Nada cambia en pantalla hasta que responde el servidor: la fila no se
@@ -1465,62 +1205,20 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         try
         {
-            // La escritura puede volver sin lanzar y sin haber escrito nada
-            // (IdentityResult.Failed): el motivo viaja aquí fuera del comando
-            // porque "encontrado"/"propia" y "se escribió" son preguntas
-            // distintas.
-            string? motivoFallo = null;
+            // Propiedad y la prohibición sobre la propia cuenta las decide
+            // Application (P1-I2). Desactivar rota además el security stamp en
+            // la misma escritura (ApplicationUser.Desactivar).
+            var resultado = await Mediator.Send(
+                new CambiarActivacionUsuarioCommand(usuarioLista.Id, Activar: !usuarioLista.Activo), token);
 
-            var resultado = await PuertaAccesoDatos.EjecutarAsync(async () =>
+            if (resultado.EsFallido)
             {
-                var usuario = await UserManager.FindByIdAsync(usuarioLista.Id.ToString());
-                if (usuario is null) return ResultadoActivacionUsuario.NoEncontrado;
+                ToastService.MostrarError(resultado.Error);
 
-                // Sin esto, la fila "Delegado" de un Operador Delegado
-                // —cuenta de otra organización, visible aquí porque opera
-                // este tenant— se podía desactivar o reactivar igual que una
-                // propia: FindByIdAsync no filtra por tenant y esta acción no
-                // pasaba por EsCuentaPropiaAsync en ningún punto. No es el
-                // mismo desenlace que "no encontrado": la fila sigue siendo
-                // una fila legítima de esta lista, así que no hay nada que
-                // recargar.
-                if (!await EsCuentaPropiaAsync(usuarioLista.Id, token)) return ResultadoActivacionUsuario.NoPropia;
-
-                // Desactivar rota además el security stamp, en la misma
-                // escritura (ver ApplicationUser.Desactivar): la cookie y el
-                // circuito ya abiertos seguían leyendo y escribiendo con la
-                // cuenta desactivada (auditoría de seguridad 2026-09-20).
-                if (usuarioLista.Activo)
-                    usuario.Desactivar();
-                else
-                    usuario.Reactivar();
-
-                var resultadoEscritura = await UserManager.UpdateAsync(usuario);
-                if (!resultadoEscritura.Succeeded)
-                    motivoFallo = DescribirErrores(resultadoEscritura);
-
-                return ResultadoActivacionUsuario.Actualizado;
-            }, token);
-
-            if (resultado == ResultadoActivacionUsuario.NoPropia)
-            {
-                ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
-                return;
-            }
-
-            if (resultado == ResultadoActivacionUsuario.NoEncontrado)
-            {
-                ToastService.Mostrar(
-                    "Esta cuenta ya no existe. Recargamos la lista.", TonoToast.Error);
-                await CargarAsync();
-                return;
-            }
-
-            if (motivoFallo is not null)
-            {
-                ToastService.Mostrar(
-                    $"No pudimos {(usuarioLista.Activo ? "desactivar" : "reactivar")} esta cuenta. {motivoFallo}",
-                    TonoToast.Error);
+                // Una cuenta que ya no existe pide recargar; la fila de otra
+                // organización es legítima y no hay nada que recargar.
+                if (resultado.Error.Codigo == AutoridadSobreCuentas.CuentaInexistente.Codigo)
+                    await CargarAsync();
                 return;
             }
 
@@ -1549,6 +1247,154 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         }
     }
 
+    // --- FS-25: desactivar con confirmación y, si procede, pasar la cartera ---
+
+    private UsuarioListaDto? _usuarioADesactivar;
+    private CarteraDeUsuario? _carteraADesactivar;
+    private IReadOnlyList<Guid> _clientesADesactivar = [];
+    private IReadOnlyList<ApplicationUser> _gestoresDestino = [];
+    private string _gestorDestinoCartera = string.Empty;
+    private bool _desactivando;
+
+    /// <summary>
+    /// Abre la confirmación de desactivar. A un Gestor CAE se le lee la cartera
+    /// en el momento (no la de la última carga de la lista) y, si tiene Clientes
+    /// empresariales concretos, se ofrecen como destino los demás Gestores CAE
+    /// activos. Una cartera universal no se reparte cliente a cliente: se dice.
+    /// </summary>
+    private async Task PedirDesactivacionAsync(UsuarioListaDto usuarioLista)
+    {
+        if (usuarioLista.Id == _usuarioActualId)
+        {
+            ToastService.Mostrar("No puedes desactivar tu propia cuenta.", TonoToast.Error);
+            return;
+        }
+
+        _carteraADesactivar = null;
+        _clientesADesactivar = [];
+        _gestoresDestino = [];
+        _gestorDestinoCartera = string.Empty;
+
+        if (usuarioLista.Rol == Roles.GestorCae && !usuarioLista.EsOperadorDelegado)
+        {
+            var token = _ciclo.Token;
+            try
+            {
+                var carteras = await ObtenerCarterasVigentesAsync(token);
+                if (carteras.TryGetValue(usuarioLista.Id, out var cartera))
+                {
+                    _carteraADesactivar = cartera;
+                    if (!cartera.EsUniversal && cartera.ClienteIds.Count > 0)
+                    {
+                        _clientesADesactivar = cartera.ClienteIds.Distinct().ToList();
+                        var ahora = DateTimeOffset.UtcNow;
+                        _gestoresDestino = (await ObtenerVisiblesEnRolAsync(Roles.GestorCae, token))
+                            .Where(g => g.Id != usuarioLista.Id && !g.EstaDesactivada(ahora))
+                            .OrderBy(g => g.NombreCompleto, StringComparer.CurrentCulture)
+                            .ToList();
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+
+        _usuarioADesactivar = usuarioLista;
+    }
+
+    /// <summary>
+    /// Primero pasa la cartera, cliente a cliente, con ReasignarEjecutivoClienteCommand
+    /// —el mismo comando del drawer de Clientes, con su autorización y su aviso a los
+    /// Gestores afectados—; solo si todo pasó, desactiva. Si alguno falla no se
+    /// desactiva: la cuenta sigue activa y su cartera a medias se ve en la lista.
+    /// </summary>
+    private async Task ConfirmarDesactivacionAsync()
+    {
+        if (_usuarioADesactivar is not { } usuario || _desactivando)
+            return;
+
+        _desactivando = true;
+        try
+        {
+            if (Guid.TryParse(_gestorDestinoCartera, out var destino) && _clientesADesactivar.Count > 0)
+            {
+                // El destino se eligió al abrir el diálogo: se vuelve a comprobar ahora
+                // que sigue siendo un Gestor CAE visible y activo, por si entretanto se
+                // desactivó. ReasignarEjecutivoClienteCommand no lo comprueba (hueco
+                // preexistente, registrado aparte).
+                var ahora = DateTimeOffset.UtcNow;
+                var vigente = (await ObtenerVisiblesEnRolAsync(Roles.GestorCae, _ciclo.Token))
+                    .Any(g => g.Id == destino && g.Id != usuario.Id && !g.EstaDesactivada(ahora));
+                if (!vigente)
+                {
+                    ToastService.Mostrar(TextosUsuarios["DesactivarDestinoNoVigente"], TonoToast.Error);
+                    _usuarioADesactivar = null;
+                    await CargarAsync();
+                    return;
+                }
+
+                var pasados = 0;
+                var errores = new List<string>();
+                foreach (var clienteId in _clientesADesactivar)
+                {
+                    // Un fallo inesperado a mitad del lote no puede dejar la cartera a
+                    // medias sin decirlo, y el lote se detiene ahí: el DbContext del
+                    // circuito puede conservar cambios a medio guardar del cliente que
+                    // falló, y el siguiente comando los guardaría sin que se contasen.
+                    try
+                    {
+                        var resultado = await Mediator.Send(new ReasignarEjecutivoClienteCommand(clienteId, destino), _ciclo.Token);
+                        if (resultado.EsExitoso)
+                        {
+                            pasados++;
+                        }
+                        else
+                        {
+                            // Mismo motivo que la excepción de abajo: un fallo devuelto
+                            // (p. ej. un DbUpdateException que el comando traduce) también
+                            // puede dejar cambios a medias en el DbContext del circuito.
+                            errores.Add(resultado.Error.Mensaje);
+                            break;
+                        }
+                    }
+                    catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+                    {
+                        Logger.LogError(excepcion, "Fallo al pasar el Cliente empresarial {ClienteId} al Gestor CAE {Destino}.", clienteId, destino);
+                        errores.Add(TextosUsuarios["DesactivarErrorInesperado"]);
+                        break;
+                    }
+                }
+
+                if (errores.Count > 0)
+                {
+                    ToastService.Mostrar(
+                        TextosUsuarios["DesactivarCarteraParcial", pasados, _clientesADesactivar.Count, string.Join(" ", errores.Distinct())],
+                        TonoToast.Advertencia);
+                    _usuarioADesactivar = null;
+                    await CargarAsync();
+                    return;
+                }
+
+                ToastService.Mostrar(
+                    TextosUsuarios["DesactivarCarteraPasada", pasados, _gestoresDestino.FirstOrDefault(g => g.Id == destino)?.NombreCompleto ?? string.Empty],
+                    TonoToast.Exito);
+            }
+
+            _usuarioADesactivar = null;
+            await CambiarActivacionAsync(usuario);
+        }
+        catch (OperationCanceledException)
+        {
+            // La pantalla ya no está.
+        }
+        finally
+        {
+            _desactivando = false;
+        }
+    }
+
     /// <summary>
     /// Las cuentas con un cambio de activación en vuelo. A prueba de doble
     /// clic por fila, no por pantalla: desactivar a una persona no debe
@@ -1572,6 +1418,59 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     private UsuarioListaDto? _usuarioAEliminar;
     private bool _eliminandoUsuario;
+
+    private UsuarioListaDto? _usuarioARestablecerSegundoFactor;
+    private bool _restableciendoSegundoFactor;
+
+    /// <summary>
+    /// Solo presentación: un Operador Delegado es una cuenta de otro Tenant, y la
+    /// propia se recupera con un código de recuperación. El servidor lo vuelve a
+    /// comprobar todo, incluido que quien pulsa sea Administrador.
+    /// </summary>
+    private bool PuedeOfrecerRestablecerSegundoFactor(UsuarioListaDto usuario) =>
+        _usuarioActualEsAdministrador && usuario.DosFactoresActivo && !usuario.EsOperadorDelegado
+        && usuario.Id != _usuarioActualId;
+
+    private void PedirRestablecerSegundoFactor(UsuarioListaDto usuario)
+    {
+        if (!_restableciendoSegundoFactor) _usuarioARestablecerSegundoFactor = usuario;
+    }
+
+    private void CerrarRestablecerSegundoFactor(bool visible)
+    {
+        if (!visible && !_restableciendoSegundoFactor) _usuarioARestablecerSegundoFactor = null;
+    }
+
+    private async Task RestablecerSegundoFactorAsync()
+    {
+        if (_usuarioARestablecerSegundoFactor is not { } usuarioLista || _restableciendoSegundoFactor) return;
+
+        _restableciendoSegundoFactor = true;
+        try
+        {
+            var resultado = await Mediator.Send(new RestablecerSegundoFactorCommand(usuarioLista.Id), _ciclo.Token);
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            ToastService.Mostrar(TextosUsuarios["RestablecerSegundoFactorHecho", usuarioLista.Email], TonoToast.Exito);
+            _usuarioARestablecerSegundoFactor = null;
+            await CargarAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _restableciendoSegundoFactor = false;
+        }
+    }
+
+    private string MensajeRestablecerSegundoFactor => _usuarioARestablecerSegundoFactor is null
+        ? string.Empty
+        : TextosUsuarios["RestablecerSegundoFactorMensaje", _usuarioARestablecerSegundoFactor.Email];
 
     private string MensajeEliminacion => _usuarioAEliminar is null
         ? string.Empty

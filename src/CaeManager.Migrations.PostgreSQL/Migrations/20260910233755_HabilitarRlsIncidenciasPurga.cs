@@ -10,7 +10,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// criterio que HabilitarRlsExtraccionIaCacheDocumento: no repetir el
     /// hallazgo P1-3 (una tabla EntidadConTenant nueva sin su política). El
     /// filtro global de EF ya la protege; esto es la segunda línea (RLS sobre
-    /// cae_app_runtime, ver RUNBOOK-RLS.md).
+    /// cae_app_runtime, ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md).
     /// </summary>
     public partial class HabilitarRlsIncidenciasPurga : Migration
     {

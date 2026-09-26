@@ -47,8 +47,8 @@ name: Integraciones con clave de CI (IA y Stripe modo prueba)
 # sobre el .trx, no sobre el código de salida de `dotnet test`.
 #
 # NOMBRES DE SECRETO (secretos del environment `ci-integraciones`; los crea el
-# propietario — guía paso a paso en Project-Hydra-Negocio/tecnico/
-# ACCIONES-PROPIETARIO-SECRETOS-CI-2026-09-19.md):
+# propietario — guía paso a paso en
+# Project-Hydra-Negocio/tecnico/ACCIONES-PROPIETARIO-SECRETOS-CI-2026-09-19.md):
 #   CI_ANTHROPIC_API_KEY     — clave de la API de Anthropic EXCLUSIVA de CI,
 #                              distinta de la de producción (`Anthropic__ApiKey`,
 #                              environment `produccion`).
@@ -82,7 +82,7 @@ jobs:
     # bien los tests (ver el comentario de ci.yml, "Repartir las clases").
     services:
       postgres:
-        image: postgres:17
+        image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
         env:
           POSTGRES_PASSWORD: postgres
         ports:

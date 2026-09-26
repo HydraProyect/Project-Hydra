@@ -18,6 +18,9 @@ public class ConfiguracionTests : BunitContext
         // El hub pregunta si quien mira es Actor de Plataforma TALVEG (entrada «Orden del menú»):
         // aquí no lo es, así que el catálogo es el del Administrador de Tenant.
         Services.AddScoped<IMediator>(_ => new MediadorSinPlataforma());
+        // Y comprueba las políticas de las entradas que las piden (FS-26): un
+        // Administrador sin permisos granulares.
+        AddAuthorization().SetAuthorized("administrador@tenant.test");
     }
 
     private sealed class MediadorSinPlataforma : IMediator

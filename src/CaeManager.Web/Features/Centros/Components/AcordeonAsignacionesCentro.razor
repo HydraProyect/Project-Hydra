@@ -1,6 +1,6 @@
 @*
     Contenido del acordeón "Asignaciones" de una fila de /centros (Centro 360,
-    PLAN-EJECUCION-UX.md § 0.1/0.2). Autocontenido: solo se instancia cuando
+    Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.1/0.2). Autocontenido: solo se instancia cuando
     el usuario expande la fila (SeccionColapsable no renderiza su
     ChildContent hasta entonces), así que la Query de este componente ya es
     en sí misma la carga perezosa — no hace falta ningún guard adicional.
@@ -110,11 +110,20 @@ else
                             @incidencia.Descripcion
                         </button>
                     </span>
-                    @* Estado siempre presente: IncidenciasEmpresa solo contiene causas ya calculadas con un valor real. *@
+                    @* Estado null: un rechazo en plataforma no tiene vigencia documental que describir (CalculoEstadoCentroService). *@
                     <span role="cell">
-                        <Badge Tono="EstadoDocumentoUi.Tono(incidencia.Estado!.Value)" ConIcono Tamano="TamanoBadge.Pequeno">
-                            @EstadoDocumentoUi.Texto(incidencia.Estado!.Value)
-                        </Badge>
+                        @if (incidencia.Estado is { } estadoIncidencia)
+                        {
+                            <Badge Tono="EstadoDocumentoUi.Tono(estadoIncidencia)" ConIcono Tamano="TamanoBadge.Pequeno">
+                                @EstadoDocumentoUi.Texto(estadoIncidencia)
+                            </Badge>
+                        }
+                        else
+                        {
+                            <Badge Tono="TonoBadge.Peligro" ConIcono Tamano="TamanoBadge.Pequeno">
+                                @Textos["BadgeRechazadoPlataforma"]
+                            </Badge>
+                        }
                     </span>
                     <span role="cell">
                         <TextoFechaCopiable Fecha="incidencia.FechaVencimiento" Class="celda-documento-vigencia">

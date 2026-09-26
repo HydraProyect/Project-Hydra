@@ -100,7 +100,7 @@ public class ObtenerDocumentacionVisitaQueryTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             // Exclusión explícita del tipo obligatorio de trabajador en ESTE
-            // centro (Incluido=false, PLAN-EJECUCION-UX.md § 0.4) — sustituye a
+            // centro (Incluido=false, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4) — sustituye a
             // la semántica antigua de "restringir a otro centro" (allow-list
             // global): ahora la posición se declara por par (Tipo, Centro), no
             // por presencia de filas en otros centros.

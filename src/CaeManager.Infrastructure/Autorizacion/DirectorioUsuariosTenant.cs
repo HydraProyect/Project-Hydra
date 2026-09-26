@@ -54,11 +54,14 @@ public class DirectorioUsuariosTenant(
     /// scoped.
     /// </summary>
     /// <summary>
-    /// Sin filtro de visibilidad a propósito: la pregunta que responde es "¿de
-    /// qué tenant es este usuario?", y quien la hace la necesita justamente
-    /// para decidir si ese usuario es aceptable — filtrarla por el tenant
-    /// activo la volvería circular. No revela nada: devuelve un Guid de tenant
-    /// a partir de un Guid de usuario que el llamante ya tenía.
+    /// Sin filtro de visibilidad en C#: la pregunta que responde es "¿de qué
+    /// Tenant es este usuario?", y quien la hace la necesita justamente para
+    /// decidir si ese usuario es aceptable. Desde P1-M1 la RLS de
+    /// <c>AspNetUsers</c> sí la acota: una cuenta que el contexto no puede ver
+    /// devuelve <c>null</c>, que el llamante trata como "no es de la
+    /// organización esperada" (fallo cerrado). Su único llamante,
+    /// <c>CrearAsignacionOperadorDelegado</c>, ya exige antes que la cuenta sea
+    /// visible en el Tenant activo.
     /// </summary>
     public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
@@ -192,6 +195,35 @@ public class DirectorioUsuariosTenant(
             return conLogin.ToHashSet();
         }, cancellationToken);
 
+    /// <summary>
+    /// El rol de Identity de cada cuenta del lote, en una sola consulta contra
+    /// <c>AspNetUserRoles</c> (P1-I2): la lista de <c>/usuarios</c> llamaba
+    /// <c>UserManager.GetRolesAsync</c> una vez por fila, y la página ya no toca
+    /// <c>UserManager</c>. Es el rol del Tenant de origen de cada cuenta; para un
+    /// Operador CAE externo delegado la página muestra el de su asignación. Una
+    /// cuenta sin rol no aparece en el diccionario.
+    /// </summary>
+    public Task<IReadOnlyDictionary<Guid, string>> ObtenerRolesDeCuentasAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyDictionary<Guid, string>>(async () =>
+        {
+            if (usuarioIds.Count == 0) return new Dictionary<Guid, string>();
+
+            var roles = await (
+                from usuarioRol in identidad.UserRoles
+                where usuarioIds.Contains(usuarioRol.UserId)
+                join rol in identidad.Roles on usuarioRol.RoleId equals rol.Id
+                select new { usuarioRol.UserId, rol.Name })
+                .ToListAsync(cancellationToken);
+
+            // La invariante es un rol por cuenta; si alguna tuviera dos, se
+            // muestra uno de forma estable en vez de fallar la lista entera.
+            return roles
+                .Where(r => r.Name is not null)
+                .GroupBy(r => r.UserId)
+                .ToDictionary(g => g.Key, g => g.Select(r => r.Name!).Min(StringComparer.Ordinal)!);
+        }, cancellationToken);
+
     public Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesAsync(CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ApplicationUser>>(async () =>
         {
@@ -247,7 +279,7 @@ public class DirectorioUsuariosTenant(
     /// <summary>
     /// Para revalidar en servidor un Id que llegó de un selector: que la UI
     /// solo ofrezca opciones válidas no impide escribir otro Guid a mano
-    /// (hallazgo N-10 de INFORME-AUDITORIA-2.md).
+    /// (hallazgo N-10 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
     /// </summary>
     public Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>

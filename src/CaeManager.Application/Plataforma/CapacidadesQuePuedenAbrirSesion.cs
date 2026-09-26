@@ -20,11 +20,13 @@ namespace CaeManager.Application.Plataforma;
 /// </para>
 ///
 /// <para>
-/// <b>Por qué hoy <c>SoporteLectura</c> y <c>Aprovisionamiento</c>.</b> No es una
-/// elección de diseño ampliada a la ligera: son los dos caminos de creación que
-/// existen. La auto-concesión solo emite <c>SoporteLectura</c>; PD-A3 añadió
-/// <c>ConcederPrivilegioCommand</c>, que solo emite <c>Aprovisionamiento</c>
-/// (<c>ConcesionesSoloPorActoExplicitoTests</c> mantiene esa lista cerrada).
+/// <b>Por qué hoy <c>SoporteLectura</c>, <c>Aprovisionamiento</c> y
+/// <c>RestablecimientoSegundoFactor</c>.</b> No es una elección de diseño
+/// ampliada a la ligera: son los caminos de creación que existen. La
+/// auto-concesión solo emite <c>SoporteLectura</c>; <c>ConcederPrivilegioCommand</c>
+/// emite <c>Aprovisionamiento</c> (PD-A3) y <c>RestablecimientoSegundoFactor</c>
+/// (ADR-011 § 8.7, punto 3, restablecimiento del Administrador único), y
+/// <c>ConcesionesSoloPorActoExplicitoTests</c> mantiene esa lista cerrada.
 /// Ninguna otra capacidad puede materializarse en una fila hoy, así que poner
 /// más aquí seguiría afirmando algo que el sistema no sabe honrar.
 /// </para>
@@ -40,7 +42,11 @@ namespace CaeManager.Application.Plataforma;
 public static class CapacidadesQuePuedenAbrirSesion
 {
     private static readonly HashSet<CapacidadPrivilegio> Admitidas =
-        [CapacidadPrivilegio.SoporteLectura, CapacidadPrivilegio.Aprovisionamiento];
+        [
+            CapacidadPrivilegio.SoporteLectura,
+            CapacidadPrivilegio.Aprovisionamiento,
+            CapacidadPrivilegio.RestablecimientoSegundoFactor,
+        ];
 
     public static bool Admite(CapacidadPrivilegio capacidad) => Admitidas.Contains(capacidad);
 }

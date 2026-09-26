@@ -4,8 +4,10 @@ using CaeManager.Web.Recursos;
 using Microsoft.Extensions.Localization;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
+using CaeManager.Application.Asignaciones.Commands.ReactivarAsignacion;
 using CaeManager.Application.Gestiones.Commands.CompletarGestion;
 using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
@@ -43,7 +45,7 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 /// confirme, y nunca se inventa un criterio automático (próxima visita,
 /// "el más urgente"...) que el usuario no pidió.
 /// </summary>
-public partial class TrabajadorDetalle : ComponentBase, IDisposable
+public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     private static readonly IReadOnlyDictionary<EstadoDocumento, int> OrdenSeveridad = new Dictionary<EstadoDocumento, int>
     {
@@ -88,10 +90,39 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
 
     private record ClienteReclamableDto(Guid ClienteId, string ClienteRazonSocial, IReadOnlyList<Guid> DocumentoIds);
 
+    /// <summary>
+    /// Tope de la lista de documentos del trabajador. Un trabajador real tiene
+    /// decenas; si alguna vez pasa del tope, la pestaña lo dice («Mostrando N
+    /// de M») en vez de callarlo.
+    /// </summary>
+    private const int TopeDocumentos = 200;
+
+    /// <summary>
+    /// Documentación del trabajador a día de hoy, sin pasar por los Centros
+    /// (decisión del propietario 2026-09-24, Q1–Q4 = (a)): alimenta la franja
+    /// «Por vencer» de Operación y la pestaña Documentación. Es la misma
+    /// ObtenerDocumentosQuery que la pestaña del panel, con su alcance.
+    /// </summary>
+    private IReadOnlyList<DocumentoListaDto> _documentos = [];
+    private int _totalDocumentos;
+
+    /// <summary>
+    /// Tipos de ámbito Trabajador que se piden con carácter general
+    /// (<see cref="RequisitoDocumental.Si"/>). Lo que un Centro exige fuera de
+    /// esta lista lo incluyó la configuración de ese Centro. Null hasta cargar.
+    /// </summary>
+    private HashSet<Guid>? _tiposGenerales;
+    private bool _cargandoDocumentos = true;
+    private bool _errorDocumentos;
+
     private IReadOnlyList<GestionListaDto> _gestionesPendientes = [];
     private bool _cargandoGestiones = true;
     private readonly HashSet<Guid> _completandoGestion = [];
     private readonly HashSet<Guid> _dandoDeBajaAsignacion = [];
+    private bool _confirmarBajaAsignacionVisible;
+    private Guid? _asignacionABajar;
+    private string _centroABajar = string.Empty;
+    private readonly HashSet<Guid> _reactivandoAsignacion = [];
 
     /// <summary>Trabajador cuya ficha se está pintando: al cambiar, lo que quedara preparado en una modal deja de valer.</summary>
     private Guid _trabajadorEnPantalla;
@@ -131,7 +162,8 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
     private string? NombreCompleto => _detalle is null ? null : $"{_detalle.Nombre} {_detalle.Apellidos}";
 
     /// <summary>
-    /// Las tres pestañas de esta ficha. No es estático porque el recuento de
+    /// Las pestañas de esta ficha. «Contactos» ya no es pestaña: sus datos
+    /// viven en el lateral (decisión del propietario 2026-09-24). No es estático porque el recuento de
     /// «Operación» depende de los datos cargados: el mockup Gen 2 pinta ahí
     /// la píldora con los documentos que hoy tienen incidencia.
     /// </summary>
@@ -146,8 +178,8 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
                     TotalConIncidencia == 1 ? Textos["ContadorIncidenciasUno"] : Textos["ContadorIncidenciasVarios"],
                     EnAlerta: true)
         },
-        new("historial", Textos["PestanaHistorial"]),
-        new("contactos", Textos["PestanaContactos"])
+        new("documentacion", Textos["PestanaDocumentacion"]),
+        new("historial", Textos["PestanaHistorial"])
     ];
 
     private int TotalConIncidencia =>
@@ -188,6 +220,15 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
         {
             _trabajadorEnPantalla = trabajadorId;
             CerrarModalesPendientes();
+
+            // Los documentos llegan en una carga aparte, después del detalle
+            // y los centros: sin vaciarlos aquí, la franja «Por vencer» de B
+            // enseñaría los de A mientras tanto.
+            _documentos = [];
+            _totalDocumentos = 0;
+            _tiposGenerales = null;
+            _cargandoDocumentos = true;
+            _errorDocumentos = false;
         }
 
         _cargando = true;
@@ -230,7 +271,10 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
             // Esperar a la fase interactiva evita la carrera sin perder la
             // carga en paralelo: sigue sin bloquear el resto de la página.
             if (RendererInfo.IsInteractive)
+            {
                 _ = CargarGestionesAsync();
+                _ = CargarDocumentosAsync();
+            }
         }
         catch (Exception) when (!EsVigente(carga))
         {
@@ -290,6 +334,119 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// Carga los documentos del trabajador y los tipos generales. Mismo
+    /// patrón que <see cref="CargarGestionesAsync"/>: en paralelo con el resto
+    /// y solo para la carga que la pidió. Un fallo aquí no tumba la página:
+    /// se queda en la pestaña Documentación, con su reintento.
+    /// </summary>
+    private async Task CargarDocumentosAsync()
+    {
+        if (_desechado)
+            return;
+
+        var carga = _cargaVigente;
+        var trabajadorId = TrabajadorId;
+
+        _cargandoDocumentos = true;
+        _errorDocumentos = false;
+        try
+        {
+            // Orden por Estado ascendente, resuelto en la base de datos: si hay
+            // más documentos que el tope, lo que se queda fuera es lo vigente o
+            // lo que no caduca, nunca lo que alimenta la franja «Por vencer».
+            var documentos = await Mediator.Send(new ObtenerDocumentosQuery(
+                trabajadorId, AmbitoAplicacion.Trabajador, Busqueda: null, TamanoPagina: TopeDocumentos,
+                OrdenarPor: nameof(DocumentoListaDto.Estado)), _ciclo.Token);
+            if (!EsVigente(carga))
+                return;
+
+            var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador), _ciclo.Token);
+            if (!EsVigente(carga))
+                return;
+
+            _documentos = documentos.Elementos;
+            _totalDocumentos = documentos.TotalElementos;
+            _tiposGenerales = tipos.Where(t => t.Requerido == RequisitoDocumental.Si).Select(t => t.Id).ToHashSet();
+        }
+        catch (Exception) when (!EsVigente(carga))
+        {
+            return;
+        }
+        catch (Exception)
+        {
+            _documentos = [];
+            _totalDocumentos = 0;
+            _tiposGenerales = null;
+            _errorDocumentos = true;
+        }
+        finally
+        {
+            if (EsVigente(carga))
+            {
+                _cargandoDocumentos = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Franja «Por vencer» de Operación (Q3 = (a)): los estados Próximo y
+    /// Urgente de CalculadoraEstadoDocumento, que ya aplican el umbral ámbar
+    /// del tenant. Lo vencido no entra: ya lo señalan los Centros.
+    /// </summary>
+    private IReadOnlyList<DocumentoListaDto> DocumentosPorVencer =>
+        _documentos.Where(d => d.Estado is EstadoDocumento.Proximo or EstadoDocumento.Urgente)
+            .OrderBy(d => d.FechaVencimiento ?? DateOnly.MaxValue)
+            .ThenBy(d => d.TipoDocumentoNombre, StringComparer.CurrentCulture)
+            .ToList();
+
+    /// <summary>Lo peor primero y, a igualdad, lo que antes caduca.</summary>
+    private IReadOnlyList<DocumentoListaDto> DocumentosOrdenados =>
+        _documentos.OrderBy(d => OrdenSeveridad.GetValueOrDefault(d.Estado, OrdenSeveridad.Count))
+            .ThenBy(d => d.FechaVencimiento ?? DateOnly.MaxValue)
+            .ThenBy(d => d.TipoDocumentoNombre, StringComparer.CurrentCulture)
+            .ToList();
+
+    /// <summary>Un tipo exigido en un Centro de trabajo concreto, con la fecha del documento que lo cubre.</summary>
+    private sealed record ExigenciaDeCentro(
+        Guid CentroId, string CentroNombre, string ClienteRazonSocial, DocumentoRequeridoDto Documento, DateOnly? FechaEmision);
+
+    /// <summary>
+    /// «Lo que es puro del cliente» (Q2 = (a)): los tipos que un Centro exige y
+    /// que no se piden con carácter general, por par Trabajador–Centro. El
+    /// modelo no guarda quién originó la exigencia, así que se rotula como
+    /// «exigido en el Centro X (del Cliente empresarial Y)», nunca como
+    /// «exigido por Y». La fecha de renovación es la caducidad del documento
+    /// (Q1 = (a)): la misma en todos los Centros, porque Documento no tiene
+    /// CentroId.
+    /// </summary>
+    private IReadOnlyList<ExigenciaDeCentro> ExigenciasPropiasDeCentros
+    {
+        get
+        {
+            if (_tiposGenerales is not { } generales)
+                return [];
+
+            var emisionPorDocumento = _documentos.ToDictionary(d => d.Id, d => d.FechaEmision);
+            return _centros
+                .SelectMany(c => c.Documentos
+                    .Where(d => !generales.Contains(d.TipoDocumentoId))
+                    .Select(d => new ExigenciaDeCentro(
+                        c.CentroId, c.CentroNombre, c.ClienteRazonSocial, d,
+                        d.DocumentoId is { } id && emisionPorDocumento.TryGetValue(id, out var emision) ? emision : null)))
+                .OrderBy(e => e.ClienteRazonSocial, StringComparer.CurrentCulture)
+                .ThenBy(e => e.CentroNombre, StringComparer.CurrentCulture)
+                .ThenBy(e => e.Documento.TipoDocumentoNombre, StringComparer.CurrentCulture)
+                .ToList();
+        }
+    }
+
+    private string TextoVence(DateOnly? fechaVencimiento, EstadoDocumento estado) =>
+        fechaVencimiento is { } vence ? vence.ToString("dd/MM/yyyy")
+        : estado == EstadoDocumento.SinCaducidad ? Textos["SinCaducidad"]
+        : "—";
+
     private void IrABreadcrumb(int indice)
     {
         if (indice == 0)
@@ -325,6 +482,31 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
 
     private async Task ManejarDocumentoGuardadoAsync() => await CargarAsync();
 
+    /// <summary>
+    /// FS-13 (auditoría UX de flujos sin salida, 2026-09-24): la baja salía al
+    /// primer clic y sin vuelta atrás; la única corrección era un alta nueva,
+    /// que partía la historia en dos filas. Ahora se confirma y el aviso
+    /// ofrece «Deshacer».
+    /// </summary>
+    private void AbrirBajaAsignacionConfirm(Guid asignacionId, string centroNombre)
+    {
+        _asignacionABajar = asignacionId;
+        _centroABajar = centroNombre;
+        _confirmarBajaAsignacionVisible = true;
+    }
+
+    private async Task ConfirmarBajaAsignacionAsync()
+    {
+        if (_asignacionABajar is not { } asignacionId) return;
+        await DarDeBajaAsignacionAsync(asignacionId);
+
+        // Si mientras tanto se abrió otro diálogo (otro trabajador, otra fila),
+        // es del usuario: solo se cierra el que confirmó esta baja.
+        if (_asignacionABajar != asignacionId) return;
+        _confirmarBajaAsignacionVisible = false;
+        _asignacionABajar = null;
+    }
+
     private async Task DarDeBajaAsignacionAsync(Guid asignacionId)
     {
         // Guarda de reentrada por asignación, como en CompletarGestionAsync:
@@ -336,7 +518,7 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
             var resultado = await Mediator.Send(new DarDeBajaAsignacionesCommand([asignacionId], DateOnly.FromDateTime(DateTime.UtcNow)));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -351,9 +533,11 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
                     TonoToast.Error);
             }
             else if (errores.Count > 0)
-                ToastService.Mostrar(Textos["ToastBajaConAvisos", string.Join("; ", errores)], TonoToast.Advertencia);
+                ToastService.Mostrar(Textos["ToastBajaConAvisos", string.Join("; ", errores)], TonoToast.Advertencia,
+                    Textos["ToastAccionDeshacer"], () => DeshacerBajaAsignacionAsync(asignacionId));
             else
-                ToastService.Mostrar(Textos["ToastBaja"], TonoToast.Exito);
+                ToastService.Mostrar(Textos["ToastBaja"], TonoToast.Exito,
+                    Textos["ToastAccionDeshacer"], () => DeshacerBajaAsignacionAsync(asignacionId));
 
             await CargarAsync();
         }
@@ -477,7 +661,7 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
             var resultado = await Mediator.Send(new CrearGestionesParaTrabajadorCommand(TrabajadorId, tipoDocumentoId));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -499,7 +683,7 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
             var resultado = await Mediator.Send(new CompletarGestionCommand(gestionId, Completada: true));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -512,6 +696,33 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
     }
 
     /// <summary>
+    /// «Deshacer» del aviso de baja: reabre la misma asignación, con su fecha
+    /// de alta de siempre. El comando comprueba otra vez la autoridad y que no
+    /// haya otra alta del trabajador en ese centro.
+    /// </summary>
+    private async Task DeshacerBajaAsignacionAsync(Guid asignacionId)
+    {
+        if (!_reactivandoAsignacion.Add(asignacionId)) return;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ReactivarAsignacionCommand(asignacionId));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            ToastService.Mostrar(Textos["ToastBajaDeshecha"], TonoToast.Exito);
+            await CargarAsync();
+        }
+        finally
+        {
+            _reactivandoAsignacion.Remove(asignacionId);
+        }
+    }
+
+    /// <summary>
     /// Cierra las modales y tira lo que tuvieran preparado. Se llama al cambiar
     /// de trabajador: lo elegido para uno no puede ejecutarse sobre otro.
     /// </summary>
@@ -520,6 +731,8 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
         _crearGestionVisible = false;
         _tipoDocumentoParaGestion = string.Empty;
         _reclamarFaltantesVisible = false;
+        _confirmarBajaAsignacionVisible = false;
+        _asignacionABajar = null;
         _clientesReclamables = [];
         _clientesSeleccionadosReclamar.Clear();
     }

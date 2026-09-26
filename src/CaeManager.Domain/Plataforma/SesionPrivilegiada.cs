@@ -52,6 +52,15 @@ public class SesionPrivilegiada : Entity, IVersionable
 
     public Guid ConcesionPrivilegioId { get; private set; }
 
+    /// <summary>
+    /// La capacidad de la concesión que la abrió, copiada al abrir. Existe para
+    /// que el Tenant objetivo sepa qué clase de acceso tuvo (lectura de soporte o
+    /// aprovisionamiento con escritura) sin poder leer la concesión, que sigue
+    /// siendo del plano de privilegio. La base impide que discrepe de la
+    /// concesión: clave foránea compuesta (concesión, capacidad).
+    /// </summary>
+    public CapacidadPrivilegio Capacidad { get; private set; }
+
     /// <summary>El tenant cuyos datos se abren. Uno, y elegido al abrir la sesión.</summary>
     public Guid TenantObjetivoId { get; private set; }
 
@@ -90,6 +99,7 @@ public class SesionPrivilegiada : Entity, IVersionable
 
     private SesionPrivilegiada(
         Guid concesionPrivilegioId,
+        CapacidadPrivilegio capacidad,
         Guid tenantObjetivoId,
         Guid? usuarioSimuladoId,
         string motivo,
@@ -111,6 +121,7 @@ public class SesionPrivilegiada : Entity, IVersionable
             throw new ArgumentException("La ventana debe terminar después de empezar.", nameof(expiraEnUtc));
 
         ConcesionPrivilegioId = concesionPrivilegioId;
+        Capacidad = capacidad;
         TenantObjetivoId = tenantObjetivoId;
         UsuarioSimuladoId = usuarioSimuladoId;
         Motivo = motivo.Trim();
@@ -155,7 +166,7 @@ public class SesionPrivilegiada : Entity, IVersionable
                 $"La ventana no puede superar {VentanaMaxima.TotalHours:0} horas.", nameof(ventana));
 
         return new SesionPrivilegiada(
-            concesion.Id, tenantObjetivoId, usuarioSimuladoId, motivo, ticket, ahora, ahora + ventana);
+            concesion.Id, concesion.Capacidad, tenantObjetivoId, usuarioSimuladoId, motivo, ticket, ahora, ahora + ventana);
     }
 
     /// <summary>

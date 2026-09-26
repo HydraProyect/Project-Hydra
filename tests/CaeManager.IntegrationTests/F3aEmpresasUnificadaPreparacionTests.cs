@@ -14,11 +14,11 @@ namespace CaeManager.IntegrationTests;
 /// <summary>
 /// Verificación de F3a (preparación física de Empresas unificada) contra
 /// Postgres real. Alcance estricto de F3a
-/// (f3-diseno-fisico-empresa-unificada-2026-08-25.md §8,
-/// f3-comparativa-alcance-abcd-2026-08-25.md, camino D): crear columnas +
+/// (Project-Hydra-Negocio/tecnico/f3-diseno-fisico-empresa-unificada-2026-08-25.md §8,
+/// Project-Hydra-Negocio/tecnico/f3-comparativa-alcance-abcd-2026-08-25.md, camino D): crear columnas +
 /// backfill + índices — SIN redirigir lectores, SIN repuntear FKs, SIN
 /// retirar tablas antiguas. El repunteo de FKs y los CHECK anti-
-/// autorreferencia son F3c — ver f3c-diseno-adversario-reconciliacion-2026-08-25.md.
+/// autorreferencia son F3c — ver Project-Hydra-Negocio/tecnico/f3c-diseno-adversario-reconciliacion-2026-08-25.md.
 ///
 /// Cada test siembra datos ANTES de que la migración F3a se aplique y
 /// deja que sea la migración REAL (<see cref="IMigrator.MigrateAsync"/>
@@ -203,7 +203,7 @@ public class F3aEmpresasUnificadaPreparacionTests : IAsyncLifetime
     public async Task F3a_no_toca_las_FKs_de_Centro_siguen_apuntando_a_Clientes_no_a_Empresas()
     {
         // Confirmación explícita de que F3a se quedó estrictamente dentro
-        // de su alcance (f3-comparativa-alcance-abcd-2026-08-25.md): el
+        // de su alcance (Project-Hydra-Negocio/tecnico/f3-comparativa-alcance-abcd-2026-08-25.md): el
         // repunteo de FKs es F3c, no debe haber ocurrido todavía.
         var tenantId = Guid.NewGuid();
         await AplicarMigracionF3aAsync(tenantId);

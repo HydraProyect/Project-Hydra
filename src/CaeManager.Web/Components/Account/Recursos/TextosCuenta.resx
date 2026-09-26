@@ -15,4 +15,90 @@
   <data name="DosFactoresObligatorioPorRol" xml:space="preserve">
     <value>Tu rol de Administrador exige la autenticación en dos pasos. Actívala para continuar: hasta entonces no podrás acceder al resto de {0}.</value>
   </data>
+  <data name="DosFactoresObligatorioParaCredenciales" xml:space="preserve">
+    <value>Para consultar, copiar o guardar credenciales de acceso a plataformas CAE necesitas la autenticación en dos pasos. Actívala y vuelve a la ficha.</value>
+    <comment>P1-I1: se muestra cuando se llega con ?motivo=credenciales, desde una pantalla que pidió datos de credencial sin 2FA.</comment>
+  </data>
+  <data name="CodigosPasoTresTitulo" xml:space="preserve">
+    <value>3. Guarda tus códigos de recuperación</value>
+  </data>
+  <data name="CodigosNuevosTitulo" xml:space="preserve">
+    <value>Guarda tus nuevos códigos de recuperación</value>
+  </data>
+  <data name="CodigosAviso" xml:space="preserve">
+    <value>Guárdalos ahora: no volverán a mostrarse. Sin la aplicación y sin estos códigos, solo un Administrador de tu organización puede devolverte el acceso.</value>
+  </data>
+  <data name="CodigosAvisoAdministradorUnico" xml:space="preserve">
+    <value>Si eres el único Administrador de tu organización y pierdes la aplicación y estos códigos, nadie podrá devolverte el acceso. Guárdalos en un sitio seguro y da de alta a un segundo Administrador.</value>
+  </data>
+  <data name="CodigosLista" xml:space="preserve">
+    <value>Códigos de recuperación</value>
+  </data>
+  <data name="CodigosDescargar" xml:space="preserve">
+    <value>Descargar en un fichero</value>
+  </data>
+  <data name="CodigosUnSoloUso" xml:space="preserve">
+    <value>Cada código sirve una sola vez.</value>
+  </data>
+  <data name="CodigosContinuar" xml:space="preserve">
+    <value>He guardado los códigos, continuar</value>
+  </data>
+  <data name="CodigosRegenerarAyuda" xml:space="preserve">
+    <value>Si los has perdido o se te acaban, genera unos nuevos: los que tuvieras dejarán de valer.</value>
+  </data>
+  <data name="CodigosRegenerar" xml:space="preserve">
+    <value>Generar códigos nuevos</value>
+  </data>
+  <data name="CodigosRestantesNinguno" xml:space="preserve">
+    <value>No te queda ningún código de recuperación.</value>
+  </data>
+  <data name="CodigosRestantesUno" xml:space="preserve">
+    <value>Te queda 1 código de recuperación sin usar.</value>
+  </data>
+  <data name="CodigosRestantesVarios" xml:space="preserve">
+    <value>Te quedan {0} códigos de recuperación sin usar.</value>
+  </data>
+  <data name="CodigosFicheroCabecera" xml:space="preserve">
+    <value>Códigos de recuperación de {0} — {1}</value>
+  </data>
+  <data name="RecuperacionExplicacion" xml:space="preserve">
+    <value>Introduce uno de los códigos de recuperación que guardaste al activar la verificación.</value>
+  </data>
+  <data name="RecuperacionEtiqueta" xml:space="preserve">
+    <value>Código de recuperación</value>
+  </data>
+  <data name="RecuperacionAyuda" xml:space="preserve">
+    <value>Cada código de recuperación sirve una sola vez.</value>
+  </data>
+  <data name="RecuperacionVerificar" xml:space="preserve">
+    <value>Verificar</value>
+  </data>
+  <data name="RecuperacionVolverAplicacion" xml:space="preserve">
+    <value>Volver al código de la aplicación</value>
+  </data>
+  <data name="RecuperacionVolverInicio" xml:space="preserve">
+    <value>Volver a iniciar sesión</value>
+  </data>
+  <data name="RecuperacionUsarCodigo" xml:space="preserve">
+    <value>No tengo acceso a la aplicación: usar un código de recuperación</value>
+  </data>
+  <data name="RecuperacionEnCurso" xml:space="preserve">
+    <value>Ya se está verificando un código para esta cuenta. Espera un momento e inténtalo de nuevo.</value>
+  </data>
+  <data name="RecuperacionVacio" xml:space="preserve">
+    <value>Introduce un código de recuperación.</value>
+  </data>
+  <data name="RecuperacionIntentoNoRegistrado" xml:space="preserve">
+    <value>No pudimos registrar el intento. Por seguridad, vuelve a iniciar sesión.</value>
+  </data>
+  <data name="RecuperacionNoValido" xml:space="preserve">
+    <value>Código de recuperación no válido o ya usado. Revisa que lo has copiado bien.</value>
+  </data>
+  <data name="RecuperacionMarcador" xml:space="preserve">
+    <value>xxxxx-xxxxx</value>
+  </data>
+  <data name="VolverALaFicha" xml:space="preserve">
+    <value>Volver a la ficha</value>
+    <comment>P1-I2: salida de la página de 2FA cuando se llegó con un returnUrl local desde una ficha.</comment>
+  </data>
 </root>

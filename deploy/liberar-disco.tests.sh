@@ -130,6 +130,13 @@ if grep -q "^image prune" "$DOCKER_LOG"; then
   else
     comprobar "poda de imagenes pide -a (sin usar) y -f" "si" "no ($linea_imagenes)"
   fi
+  # P1-F1: las caemanager:<sha> etiquetadas por deploy.yml quedan fuera de la
+  # poda (las retira deploy/imagenes-retenidas.sh); sin esto, volver-atras.sh
+  # no encontraria ninguna imagen anterior tras un disco por encima del umbral.
+  case " $linea_imagenes " in
+    *" --filter label!=es.talveg.despliegue "*) comprobar "poda de imagenes respeta las retenidas para volver atras" "si" "si" ;;
+    *) comprobar "poda de imagenes respeta las retenidas para volver atras" "si" "no ($linea_imagenes)" ;;
+  esac
 else
   comprobar "se invoca 'docker image prune'" "si" "no ($(cat "$DOCKER_LOG"))"
 fi

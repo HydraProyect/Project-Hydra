@@ -9,7 +9,12 @@ public class RegistroAuditoriaConfiguration : IEntityTypeConfiguration<RegistroA
     public void Configure(EntityTypeBuilder<RegistroAuditoria> builder)
     {
         builder.ToTable("RegistrosAuditoria");
-        builder.HasKey(r => r.Id);
+        // PK (Id, FechaUtc) y no (Id): la tabla está particionada por mes sobre
+        // FechaUtc (P1-M2, ParticionadoMensualEventos) y PostgreSQL exige que
+        // toda clave única de una tabla particionada incluya la columna de
+        // partición. Declararla aquí mantiene el snapshot fiel al esquema, para
+        // que ninguna migración futura intente "devolver" la PK a (Id).
+        builder.HasKey(r => new { r.Id, r.FechaUtc });
 
         builder.Property(r => r.EntidadTipo).IsRequired().HasMaxLength(200);
         builder.Property(r => r.Accion).IsRequired().HasMaxLength(20);

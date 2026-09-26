@@ -2,7 +2,7 @@ using CaeManager.Domain.Tenants;
 
 namespace CaeManager.Application.Tests.Tenants;
 
-/// <summary>Fake en memoria — los handlers de Application se prueban sin base de datos (ver CODING_STANDARDS.md).</summary>
+/// <summary>Fake en memoria — los handlers de Application se prueban sin base de datos (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).</summary>
 public class DelegacionTenantRepositorioFalso : IDelegacionTenantRepository
 {
     public List<DelegacionTenant> Delegaciones { get; } = [];

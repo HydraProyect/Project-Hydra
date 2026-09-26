@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Importacion.Commands.EjecutarImportacion;
 using CaeManager.Application.Plataforma;
@@ -50,6 +51,7 @@ internal sealed class EscenarioImportacion
     public DocumentosFalsos.DocumentoRepositorioFalso DocumentoRepositorio { get; } = new();
     public Tests.Asignaciones.AsignacionRepositorioFalso AsignacionRepositorio { get; } = new();
     public OperacionImportacionRepositorioFalso OperacionImportacionRepositorio { get; } = new();
+    public DocumentosFalsos.AcreditacionDocumentoPlataformaRepositorioFalso AcreditacionRepositorio { get; } = new();
 
     public Trabajador? TrabajadorExistente { get; private set; }
     public Centro? CentroExistente { get; private set; }
@@ -139,7 +141,12 @@ internal sealed class EscenarioImportacion
         // Implementación REAL de IAutorizacionEscrituraEfectiva, no un doble —
         // ver RegistrarHistorialImportacionCommandAutorizacionTests.
         new AutorizacionEscrituraEfectiva(
-            new CurrentUserServiceFalso(Guid.NewGuid(), rol), new SesionPrivilegiadaAusente(), new TenantActualFalso()));
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), new SesionPrivilegiadaAusente(), new TenantActualFalso()),
+        // Servicio REAL de acreditaciones sobre los mismos fakes: la importación
+        // es un camino de alta y su prueba observa la regla de verdad.
+        new AltaAcreditacionesPlataformaService(
+            AsignacionesContexto, CentrosContexto, TrabajadoresContexto, DocumentosContexto,
+            TiposDocumentoContexto, AcreditacionRepositorio));
 
     private sealed class TenantActualFalso : ITenantActual
     {

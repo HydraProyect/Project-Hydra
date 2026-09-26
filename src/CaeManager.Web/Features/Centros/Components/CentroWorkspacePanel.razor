@@ -1,6 +1,6 @@
 @*
     Panel de Centro para el Context Workspace. Pestañas: Información,
-    Requisitos del Centro (PLAN-EJECUCION-UX.md § 0.4 — selector sobre el
+    Requisitos del Centro (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4 — selector sobre el
     catálogo de TipoDocumento del tenant, ya no texto libre; sustituye a
     RequisitoDocumental, retirado), Trabajadores, Vehículos, Plataforma,
     Historial.
@@ -9,6 +9,7 @@
 @using CaeManager.Application.Centros.Commands.EditarCentro
 @using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro
 @using CaeManager.Application.Centros.Commands.CrearCanalGestion
+@using CaeManager.Application.Centros.Commands.EstablecerGestionCaeCentro
 @using CaeManager.Application.Centros.Commands.EditarCanalGestion
 @using CaeManager.Application.Centros.Commands.EliminarCanalGestion
 @using CaeManager.Application.Centros.Commands.MarcarCanalGestionPrincipal
@@ -28,7 +29,10 @@
 @using CaeManager.Application.Centros.Commands.EliminarDocumentacionRequeridaCentro
 @using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro
 @using CaeManager.Web.Features.Centros
+@using CaeManager.Web.Features.Centros.Recursos
+@using Microsoft.Extensions.Localization
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Services
 @using CaeManager.Domain.Common
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Documentos
@@ -39,10 +43,12 @@
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
+@inject IStringLocalizer<TextosCentros> Textos
 @inject IFileStorageService AlmacenamientoArchivos
 @inject ILogger<CentroWorkspacePanel> Logger
 @inject ICurrentUserService CurrentUserService
 @inject IResolucionProveedorPlataformaCaeService ResolucionProveedor
+@inject NavigationManager NavigationManager
 
 @if (_cargando)
 {
@@ -92,7 +98,7 @@ else
             Última reclamación a este cliente: @reclamacion.FechaEnvioUtc.ToLocalTime().ToString("dd/MM/yyyy")
             (@reclamacion.TotalDocumentos documento@(reclamacion.TotalDocumentos == 1 ? "" : "s")).
             @* Al cliente, no al hilo: el deep-link a una conversación concreta
-               no existe todavía (05_WORKSPACE_PATTERNS.md § 3.6). *@
+               no existe todavía (Project-Hydra-Negocio/tecnico/05_WORKSPACE_PATTERNS.md § 3.6). *@
             @if (reclamacion.ConversacionId is not null)
             {
                 <a href="@($"/comunicaciones?cliente={clienteIdDelCentro}")">Ver en Comunicaciones</a>
@@ -295,6 +301,27 @@ else
                 break;
 
             case "plataforma":
+                @*
+                    P1-X2: modalidad de gestión CAE del Centro. Un Centro sin
+                    gestión CAE no exige documentación ni acredita en ningún
+                    canal: el técnico solo llega y la visita se avisa con el
+                    texto copiable del cajón de Visitas. Cambiarla no borra los
+                    canales: dejan de usarse y vuelven al restaurarla.
+                *@
+                <div class="workspace-cabecera-seccion">
+                    <h3>@Textos["GestionCaeTitulo"]</h3>
+                    <SoloConEscritura>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_cambiandoGestionCae"
+                               OnClick="CambiarGestionCaeAsync">
+                            @(_detalle.GestionCae == ModalidadGestionCae.SinGestionCae ? Textos["GestionCaeExigir"] : Textos["GestionCaeMarcarSin"])
+                        </Boton>
+                    </SoloConEscritura>
+                </div>
+                @if (_detalle.GestionCae == ModalidadGestionCae.SinGestionCae)
+                {
+                    <p class="texto-vacio-seccion">@Textos["GestionCaeExplicacionPanel"]</p>
+                    break;
+                }
                 @if (_cargandoPlataforma)
                 {
                     <EstadoCargando Filas="2" />
@@ -573,7 +600,7 @@ else
 
     @* "Disparo desde Centro 360": el mismo EnviarReclamacionCommand que usa
        /documentos, pero ya acotado a este Centro por ObtenerLoteReclamacionQuery
-       (CentroId). Confirmación explícita antes de enviar (docs/COMUNICACIONES.md
+       (CentroId). Confirmación explícita antes de enviar (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
        § 16.3, "Automatización: siempre confirmar") — el botón abre esto, no
        manda nada solo. El cuerpo del correo lo compone el propio Command
        (ConstruirCuerpoHtml), por eso aquí solo se revisa la lista, no se edita
@@ -684,7 +711,7 @@ else
 
     /// <summary>
     /// Edición in situ de la pestaña "Información" (Centro 360,
-    /// PLAN-EJECUCION-UX.md § 0.10) — sustituye al Drawer de "Editar", que
+    /// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.10) — sustituye al Drawer de "Editar", que
     /// se retiró: la lista de Centros ya no ofrece un camino distinto para
     /// lo mismo. No hace falta recargar el Centro al entrar en modo edición:
     /// <c>_detalle</c> (con su <c>Version</c>) ya está cargado por la propia
@@ -1085,7 +1112,7 @@ else
         var resultado = await Mediator.Send(new EliminarDocumentacionRequeridaCentroCommand(EntidadId, item.TipoDocumentoId));
         if (resultado.EsFallido)
         {
-            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            ToastService.MostrarError(resultado.Error);
             return;
         }
 
@@ -1177,7 +1204,7 @@ else
     }
 
     /// <summary>
-    /// Resuelve la plataforma a partir de la URL (Lote 2-B, PLAN-EJECUCION-UX.md
+    /// Resuelve la plataforma a partir de la URL (Lote 2-B, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     /// § Parte 2 (a)) — 1 candidato se auto-selecciona, 0 o varios muestran el
     /// selector manual (candidatos si hay multi-match como Sabentis/Quirón, el
     /// catálogo completo si no hay ninguno).
@@ -1342,6 +1369,11 @@ else
             _mensajeErrorCanal = ex.Errors.FirstOrDefault()?.ErrorMessage
                 ?? "No pudimos guardar el acceso. Revisa los datos introducidos.";
         }
+        // P1-I2: guardar un usuario o una contraseña del acceso exige 2FA activo.
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+        }
         catch (Exception)
         {
             _mensajeErrorCanal = "No pudimos guardar el acceso. Intenta nuevamente en unos segundos.";
@@ -1349,6 +1381,42 @@ else
         finally
         {
             _guardandoCanal = false;
+        }
+    }
+
+    private bool _cambiandoGestionCae;
+
+    private async Task CambiarGestionCaeAsync()
+    {
+        if (_detalle is null || _cambiandoGestionCae) return;
+
+        var nueva = _detalle.GestionCae == ModalidadGestionCae.SinGestionCae
+            ? ModalidadGestionCae.ConGestionCae
+            : ModalidadGestionCae.SinGestionCae;
+
+        _cambiandoGestionCae = true;
+        try
+        {
+            var resultado = await Mediator.Send(new EstablecerGestionCaeCentroCommand(_detalle.Id, nueva, _detalle.Version));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            ToastService.Mostrar(nueva == ModalidadGestionCae.SinGestionCae
+                ? Textos["GestionCaeToastSin"]
+                : Textos["GestionCaeToastCon"], TonoToast.Exito);
+            await CargarCabeceraAsync();
+            await CargarEstadoAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["GestionCaeErrorCambio"], TonoToast.Error);
+        }
+        finally
+        {
+            _cambiandoGestionCae = false;
         }
     }
 
@@ -1360,7 +1428,7 @@ else
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1392,7 +1460,7 @@ else
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

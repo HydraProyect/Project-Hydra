@@ -58,7 +58,8 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
         bool datosDePruebaActivos,
         bool segundoTenantActivo = false,
         ITenantActual? tenantActualPersonalizado = null,
-        IActorAuditoria? actorAuditoriaPersonalizado = null)
+        IActorAuditoria? actorAuditoriaPersonalizado = null,
+        ICurrentUserService? currentUserServicePersonalizado = null)
     {
         var cadenaPropietario = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
@@ -108,7 +109,10 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
         // real de la cuenta de Identity que se está auditando).
         servicios.AddSingleton<ITenantActual>(tenantActualPersonalizado ?? new TenantActualDeArranque());
         servicios.AddSingleton<IClienteActivoSeleccionado>(new SinClienteActivo());
-        servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso());
+        // Sin usuario por defecto, como el arranque. Un test que mida una
+        // política por persona (app.usuario_id, que el interceptor toma de
+        // aquí) pasa el suyo — mismo patrón que tenantActualPersonalizado.
+        servicios.AddSingleton<ICurrentUserService>(currentUserServicePersonalizado ?? new CurrentUserServiceFalso());
         // LOS CUATRO interceptores de produccion, no solo el de sesion. Montar
         // solo TenantRlsConnectionInterceptor dejaba las filas SIN TenantId
         // —lo sella TenantSelladoInterceptor— y cualquier escritura tenantizada
@@ -125,6 +129,7 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
         servicios.AddScoped<AuditoriaInterceptor>();
         servicios.AddScoped<TenantSelladoInterceptor>();
         servicios.AddScoped<TenantRlsConnectionInterceptor>();
+        servicios.AddSingleton(BaseDatosPostgresDePruebas.FirmanteContextoRls);
         servicios.AddSingleton<ConcurrenciaOptimistaInterceptor>();
 
         servicios.AddDbContext<CaeManagerDbContext>((sp, opciones) =>
@@ -152,7 +157,13 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
 
         servicios.AddIdentityCore<ApplicationUser>()
             .AddRoles<IdentityRole<Guid>>()
-            .AddEntityFrameworkStores<CaeManagerDbContext>();
+            .AddEntityFrameworkStores<CaeManagerDbContext>()
+            // El mismo almacén que producción: los códigos de recuperación de
+            // 2FA se guardan con hash (P0-8).
+            .AddUserStore<CaeManager.Infrastructure.Identity.AlmacenUsuarios>()
+            // Y la unicidad entre Tenants que la RLS de AspNetUsers (P1-M1)
+            // ya no deja comprobar al validador de serie.
+            .AddUserValidator<CaeManager.Infrastructure.Identity.ValidadorUnicidadGlobalCuenta>();
 
         return new ArnesDeArranqueRuntime(servicios.BuildServiceProvider(), cadenaPropietario);
     }

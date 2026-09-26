@@ -55,7 +55,7 @@ public class CrearYEditarTipoDocumentoAliasesTests
         tipo.EstablecerAliases(["TC2"]);
         repositorio.Agregar(tipo);
         var handler = new EditarTipoDocumentoCommandHandler(
-            repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(), new UnitOfWorkFalso());
+            repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(), new AltaAcreditacionesPlataformaServiceFalso(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(

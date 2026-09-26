@@ -2,8 +2,8 @@ namespace CaeManager.Application.Common;
 
 /// <summary>
 /// Delegated Workspace activo elegido explícitamente por el usuario —
-/// cuarto modo de la Tenant Resolution Strategy (ver docs/MULTITENANCY.md
-/// § 8 y ADR-004-delegacion-consultoras-cae.md § 6).
+/// cuarto modo de la Tenant Resolution Strategy (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md
+/// § 8 y Project-Hydra-Negocio/tecnico/ADR-004-delegacion-consultoras-cae.md § 6).
 ///
 /// <see cref="TenantIdSeleccionado"/> es null cuando el usuario no ha
 /// elegido ningún cliente distinto del suyo — <c>ITenantActual</c> cae

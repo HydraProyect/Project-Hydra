@@ -72,11 +72,11 @@ public sealed record EnlaceMenuLateral(
 /// fijo, y vive como marcado en <c>NavMenu.razor</c>.
 ///
 /// <para>
-/// Solo se listan los módulos que ya existen y funcionan (ver ROADMAP.md): un enlace a una
+/// Solo se listan los módulos que ya existen y funcionan (ver Project-Hydra-Negocio/tecnico/ROADMAP.md): un enlace a una
 /// pantalla que todavía no existe es peor que no tener el enlace. Los datos que ve cada enlace ya
 /// quedan acotados por IAlcanceDatosService en las Queries — este catálogo solo decide qué
 /// pestañas existen, no qué filas aparecen dentro. Un único set de iconos outline (ver
-/// DESIGN_SYSTEM.md, "Iconografía").
+/// Project-Hydra-Negocio/tecnico/docs/archive/design/DESIGN_SYSTEM.md, "Iconografía").
 /// </para>
 /// </summary>
 public static class CatalogoMenuLateral
@@ -89,7 +89,7 @@ public static class CatalogoMenuLateral
     /// <summary>
     /// Distinto de <see cref="RolesDeAdministracionAmpliada"/> a propósito: Consulta ve todo el
     /// negocio en solo lectura (Roles.cs) y el Dashboard actual ya le mostraba "Empresas en
-    /// riesgo" — al migrar esa pieza a Dashboard Ejecutivo (docs/blueprints/OPERATIONAL-HOME.md
+    /// riesgo" — al migrar esa pieza a Dashboard Ejecutivo (Project-Hydra-Negocio/tecnico/docs/blueprints/OPERATIONAL-HOME.md
     /// § 7) no debía perder esa visibilidad. No se añade Consulta al rol de administración
     /// ampliada porque ese también gatea Facturación y Administración, que Consulta no debe ver.
     /// </summary>
@@ -107,7 +107,7 @@ public static class CatalogoMenuLateral
         // de consolidación de menú, 2026-09-01 § 6) deja esa pregunta de producto abierta.
         new("dashboards", "Dashboards", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 
-        // Orden por DDL-073 (03_INFORMATION_ARCHITECTURE.md § 3.2): Negocio sigue la cadena de
+        // Orden por DDL-073 (Project-Hydra-Negocio/tecnico/03_INFORMATION_ARCHITECTURE.md § 3.2): Negocio sigue la cadena de
         // titularidad, de lo mío a lo ajeno, con Documentos al final por ser la vista transversal.
         new("negocio", "Negocio", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 

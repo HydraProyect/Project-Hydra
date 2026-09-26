@@ -16,16 +16,20 @@ using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Vehiculos.Pages;
 
-public partial class Vehiculos : ComponentBase, IDisposable
+public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
+    /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
+    /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
+    private bool _alcanceCero;
+
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
-    // H2 (docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
+    // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
 
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
     // página no cambie, así que refrescar además la rejilla pedía lo mismo dos
     // veces (ver RecargarAsync).
@@ -92,7 +96,7 @@ public partial class Vehiculos : ComponentBase, IDisposable
 
     /// <summary>
     /// Los checkboxes de fila solo se pintan con esto activo (Centro 360,
-    /// PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
+    /// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
     /// ocasional. Apagarlo limpia la selección: dejar filas marcadas que ya
     /// no se ven dejaría la barra de acciones en lote apuntando a algo
     /// invisible.
@@ -169,7 +173,7 @@ public partial class Vehiculos : ComponentBase, IDisposable
     /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
     /// compartir la URL, volver atrás) — no solo en el primer render — para
     /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
-    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// inicial (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     protected override void OnParametersSet()
     {
@@ -443,7 +447,7 @@ public partial class Vehiculos : ComponentBase, IDisposable
 
     /// <summary>
     /// Validación inline al salir del campo (mismo patrón que Centros.razor,
-    /// UX_PATTERNS.md, P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     private Task ValidarNombreAsync() => ValidarCampoAsync(nameof(CrearVehiculoCommand.Nombre));
 
@@ -484,7 +488,7 @@ public partial class Vehiculos : ComponentBase, IDisposable
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
             }
             else
             {

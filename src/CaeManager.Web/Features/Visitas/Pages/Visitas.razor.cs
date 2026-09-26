@@ -3,10 +3,13 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciaVisitaCorre
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
-using CaeManager.Application.Visitas.Commands.EliminarVisita;
-using CaeManager.Application.Visitas.Commands.EliminarVisitas;
+using CaeManager.Application.Visitas.Commands.CancelarVisita;
+using CaeManager.Application.Visitas.Commands.CancelarVisitas;
+using CaeManager.Application.Visitas.Commands.ReactivarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
+using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
+using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
@@ -21,16 +24,16 @@ using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Visitas.Pages;
 
-public partial class Visitas : ComponentBase
+public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 {
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
-    // H2 (docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
+    // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
 
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
     // página no cambie, así que refrescar además la rejilla pedía lo mismo dos
     // veces (ver RecargarAsync).
@@ -69,6 +72,9 @@ public partial class Visitas : ComponentBase
     private HashSet<Guid> _trabajadorIdsSeleccionados = [];
     private bool _notificadoCliente;
     private string _notas = string.Empty;
+    // P1-E2: el formulario tal como quedó al abrir el drawer (ya prellenado). Es la
+    // referencia de HayCambiosSinGuardar; null mientras no hay formulario abierto.
+    private string? _instantaneaAlAbrir;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
@@ -83,7 +89,7 @@ public partial class Visitas : ComponentBase
     public string? SugerenciaVisitaIdInicial { get; set; }
 
     // Overrides opcionales del Action Center de Comunicaciones
-    // (docs/COMUNICACIONES.md § 12.6): cuando el gestor corrigió Centro o
+    // (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.6): cuando el gestor corrigió Centro o
     // fechas en la revisión previa a confirmar, viajan aquí y prevalecen
     // sobre lo que trae la propia SugerenciaVisitaCorreo almacenada — la
     // corrección "se manda junto con la confirmación", sin persistirse antes.
@@ -96,10 +102,19 @@ public partial class Visitas : ComponentBase
     [SupplyParameterFromQuery(Name = "fechaFin")]
     public string? FechaFinOverride { get; set; }
 
-    private bool _confirmarEliminarVisible;
-    private Guid _idAEliminar;
-    private string _centroAEliminar = string.Empty;
-    private bool _eliminando;
+    private bool _confirmarCancelarVisible;
+    private Guid _idACancelar;
+    private string _centroACancelar = string.Empty;
+    private bool _cancelando;
+
+    // FS-11: el motivo es opcional y lo comparten la cancelación individual y la del lote.
+    private string _motivoCancelacion = string.Empty;
+
+    private bool _confirmarReactivarVisible;
+    private Guid _idAReactivar;
+    private string _centroAReactivar = string.Empty;
+    private bool _reactivando;
+    private string _motivoReactivacion = string.Empty;
 
     private bool _detalleVisible;
     private bool _cargandoDetalle;
@@ -129,6 +144,16 @@ public partial class Visitas : ComponentBase
     private bool _errorDocumentacion;
     private DocumentacionVisitaDto? _documentacion;
 
+    // P1-X2: aviso copiable de una visita a un Centro sin gestión CAE.
+    private bool _cargandoAviso;
+    private AvisoVisitaDto? _aviso;
+    private string? _errorAviso;
+
+    // P1-X1: correo de solicitud de acceso de una visita a un Centro gestionado por correo.
+    private bool _cargandoSolicitudCorreo;
+    private SolicitudAccesoCorreoDto? _solicitudCorreo;
+    private string? _errorSolicitudCorreo;
+
     private bool _visorVisible;
     private Guid _visorDocumentoId;
     private string _visorTitulo = string.Empty;
@@ -137,7 +162,7 @@ public partial class Visitas : ComponentBase
 
     /// <summary>
     /// Los checkboxes de fila solo se pintan con esto activo (Centro 360,
-    /// PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
+    /// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
     /// ocasional. Apagarlo limpia la selección: dejar filas marcadas que ya
     /// no se ven dejaría la barra de acciones en lote apuntando a algo
     /// invisible.
@@ -152,8 +177,8 @@ public partial class Visitas : ComponentBase
     }
     private List<VisitaListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
-    private bool _eliminandoLote;
-    private bool _confirmarEliminarLoteVisible;
+    private bool _cancelandoLote;
+    private bool _confirmarCancelarLoteVisible;
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
@@ -184,7 +209,7 @@ public partial class Visitas : ComponentBase
     /// <summary>
     /// Se re-ejecuta en cada navegación dentro de la propia página, no solo
     /// en el primer render — la URL como fuente de verdad de los filtros
-    /// (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     protected override void OnParametersSet()
     {
@@ -359,6 +384,7 @@ public partial class Visitas : ComponentBase
         _sugerenciaVisitaCorreoId = null;
         _sugerenciaVisitaResumen = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
         return true;
     }
 
@@ -396,13 +422,19 @@ public partial class Visitas : ComponentBase
             _fechaFin = fechaFinCorregida.ToString("yyyy-MM-dd");
         else if (sugerencia.FechaFin is not null)
             _fechaFin = sugerencia.FechaFin.Value.ToString("yyyy-MM-dd");
+
+        // Lo prellenado desde el correo no lo ha escrito quien mira: no cuenta como cambio.
+        FijarInstantaneaFormulario();
     }
 
     /// <summary>Variante de AbrirCrearAsync para "Programar visita" desde Centro 360: mismo drawer, con el Centro ya elegido en el CampoSelect — el Gestor solo pone fechas y trabajadores.</summary>
     private async Task AbrirCrearParaCentroAsync(Guid centroId)
     {
         if (await PrepararCrearAsync() && _centrosDisponibles.Any(c => c.Id == centroId))
+        {
             _centroId = centroId.ToString();
+            FijarInstantaneaFormulario();
+        }
     }
 
     private async Task AbrirEditarAsync(Guid id)
@@ -441,6 +473,7 @@ public partial class Visitas : ComponentBase
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
     }
 
     /// <summary>
@@ -462,6 +495,10 @@ public partial class Visitas : ComponentBase
         _detalle = null;
         _documentacion = null;
         _errorDocumentacion = false;
+        _aviso = null;
+        _errorAviso = null;
+        _solicitudCorreo = null;
+        _errorSolicitudCorreo = null;
 
         try
         {
@@ -476,7 +513,19 @@ public partial class Visitas : ComponentBase
                 return;
             }
 
-            await CargarDocumentacionAsync(id);
+            if (detalle.EstaCancelada)
+            {
+                // FS-11: sin acciones operativas que cargar para una cancelada.
+            }
+            else if (detalle.CentroRequiereGestionCae)
+            {
+                if (detalle.CentroGestionadoPorCorreo)
+                    await CargarSolicitudCorreoAsync(id, carga);
+                if (carga == _cargaDetalle)
+                    await CargarDocumentacionAsync(id);
+            }
+            else
+                await CargarAvisoAsync(id, carga);
         }
         catch (Exception)
         {
@@ -489,6 +538,66 @@ public partial class Visitas : ComponentBase
                 _cargandoDetalle = false;
         }
     }
+
+    private async Task CargarAvisoAsync(Guid visitaId, int carga)
+    {
+        _cargandoAviso = true;
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerAvisoVisitaQuery(visitaId));
+            if (carga != _cargaDetalle) return;
+
+            if (resultado.EsFallido)
+                _errorAviso = resultado.Error.Mensaje;
+            else
+                _aviso = resultado.Valor;
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaDetalle)
+                _errorAviso = null;
+        }
+        finally
+        {
+            if (carga == _cargaDetalle)
+                _cargandoAviso = false;
+        }
+    }
+
+    private async Task CargarSolicitudCorreoAsync(Guid visitaId, int carga)
+    {
+        _cargandoSolicitudCorreo = true;
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerSolicitudAccesoCorreoQuery(visitaId));
+            if (carga != _cargaDetalle) return;
+
+            if (resultado.EsFallido)
+                _errorSolicitudCorreo = resultado.Error.Mensaje;
+            else
+                _solicitudCorreo = resultado.Valor;
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaDetalle)
+                _errorSolicitudCorreo = null;
+        }
+        finally
+        {
+            if (carga == _cargaDetalle)
+                _cargandoSolicitudCorreo = false;
+        }
+    }
+
+    /// <summary>Lo que se pega en el correo: asunto en la primera línea y el cuerpo debajo; los destinatarios se muestran aparte.</summary>
+    private static string TextoSolicitudParaCopiar(SolicitudAccesoCorreoDto solicitud) =>
+        solicitud.Asunto + "\n\n" + solicitud.Cuerpo;
+
+    private static string RutaPaqueteDocumental(Guid visitaId) => $"/visitas/{visitaId}/paquete-documental.zip";
+
+    /// <summary>Lo que se pega en el correo: asunto en la primera línea y el cuerpo debajo.</summary>
+    private static string TextoAvisoParaCopiar(AvisoVisitaDto aviso) =>
+        aviso.Asunto + "\n\n" + aviso.Cuerpo;
 
     private Task ReintentarDocumentacionAsync() =>
         _detalle is { } detalle ? CargarDocumentacionAsync(detalle.Id) : Task.CompletedTask;
@@ -583,7 +692,7 @@ public partial class Visitas : ComponentBase
             var resultado = await Mediator.Send(new MarcarNotificadoClienteCommand(detalle.Id, notificado));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 await RecargarAsync();
                 if (_detalle?.Id == detalle.Id)
                     await AbrirDetalleAsync(detalle.Id);
@@ -680,6 +789,21 @@ public partial class Visitas : ComponentBase
             _trabajadorIdsSeleccionados.Remove(trabajadorId);
     }
 
+    /// <summary>
+    /// P1-E2: único punto de verdad de «hay cambios» en el drawer de alta y edición de
+    /// Visita. Lo lee AvisoCambiosSinGuardar para detener la salida de la página; con el
+    /// drawer cerrado (también tras guardar) nunca hay nada que perder.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        _drawerVisible && _instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir;
+
+    private string InstantaneaFormulario() => string.Join('\u001f',
+        _centroId, _fechaInicio, _fechaFin, _horaEstimadaAcceso,
+        string.Join(',', _trabajadorIdsSeleccionados.Order()),
+        _notificadoCliente, _notas);
+
+    private void FijarInstantaneaFormulario() => _instantaneaAlAbrir = InstantaneaFormulario();
+
     private Task CerrarDrawerAsync(bool visible)
     {
         _drawerVisible = visible;
@@ -763,7 +887,7 @@ public partial class Visitas : ComponentBase
             var resultado = await Mediator.Send(new MarcarNotificadoClienteCommand(id, notificado));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 await RecargarAsync();
                 return;
             }
@@ -781,39 +905,112 @@ public partial class Visitas : ComponentBase
         }
     }
 
-    private void AbrirEliminar(Guid id, string centroNombre)
+    private void AbrirCancelar(Guid id, string centroNombre)
     {
-        _idAEliminar = id;
-        _centroAEliminar = centroNombre;
-        _confirmarEliminarVisible = true;
+        _idACancelar = id;
+        _centroACancelar = centroNombre;
+        _motivoCancelacion = string.Empty;
+        _confirmarCancelarVisible = true;
     }
 
-    private async Task ConfirmarEliminarAsync()
+    private async Task ConfirmarCancelarAsync()
     {
-        _eliminando = true;
+        _cancelando = true;
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarVisitaCommand(_idAEliminar));
+            var id = _idACancelar;
+            var resultado = await Mediator.Send(new CancelarVisitaCommand(id, _motivoCancelacion));
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
             }
             else
             {
-                ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito);
-                _confirmarEliminarVisible = false;
+                // FS-11: el aviso ofrece deshacer, que es reactivarla sin motivo.
+                ToastService.Mostrar(Textos["ToastCancelada"], TonoToast.Exito,
+                    Textos["ToastAccionDeshacer"].Value, () => DeshacerCancelarAsync([id]));
+                _confirmarCancelarVisible = false;
                 await RecargarAsync();
             }
         }
         catch (Exception)
         {
-            ToastService.Mostrar(Textos["ToastErrorEliminar"], TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorCancelar"], TonoToast.Error);
         }
         finally
         {
-            _eliminando = false;
+            _cancelando = false;
+        }
+    }
+
+    private void AbrirReactivar(Guid id, string centroNombre)
+    {
+        _idAReactivar = id;
+        _centroAReactivar = centroNombre;
+        _motivoReactivacion = string.Empty;
+        _confirmarReactivarVisible = true;
+    }
+
+    private async Task ConfirmarReactivarAsync()
+    {
+        _reactivando = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ReactivarVisitaCommand(_idAReactivar, _motivoReactivacion));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+            }
+            else
+            {
+                ToastService.Mostrar(Textos["ToastReactivada"], TonoToast.Exito);
+                _confirmarReactivarVisible = false;
+                _detalleVisible = false;
+                await RecargarAsync();
+            }
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ToastErrorReactivar"], TonoToast.Error);
+        }
+        finally
+        {
+            _reactivando = false;
+        }
+    }
+
+    /// <summary>
+    /// «Deshacer» del aviso de cancelar (FS-11): reactiva, una a una y sin
+    /// motivo, las Visitas que se acaban de cancelar. Cada reactivación pasa por
+    /// ReactivarVisitaCommand, con la misma autorización y alcance que cancelar.
+    /// </summary>
+    private bool _deshaciendoCancelacion;
+
+    private async Task DeshacerCancelarAsync(IReadOnlyList<Guid> ids)
+    {
+        if (_deshaciendoCancelacion) return;
+        _deshaciendoCancelacion = true;
+
+        try
+        {
+            var r = await RestauracionEnLote.RestaurarAsync(ids, id => Mediator.Send(new ReactivarVisitaCommand(id)));
+
+            ToastService.Mostrar(
+                r.Errores.Count == 0
+                    ? (ids.Count == 1 ? Textos["ToastReactivada"].Value : Textos["ToastLoteReactivadas", r.Restaurados].Value)
+                    : Textos["ToastLoteReactivadasConErrores", r.Restaurados, r.Errores.Count, string.Join(" ", r.Errores)].Value,
+                r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (r.Restaurados > 0)
+                await RecargarAsync();
+        }
+        finally
+        {
+            _deshaciendoCancelacion = false;
         }
     }
 
@@ -834,32 +1031,48 @@ public partial class Visitas : ComponentBase
         else _seleccionados.Remove(id);
     }
 
-    private async Task ConfirmarEliminarLoteAsync()
+    private void AbrirCancelarLote()
     {
-        _eliminandoLote = true;
+        _motivoCancelacion = string.Empty;
+        _confirmarCancelarLoteVisible = true;
+    }
+
+    private async Task ConfirmarCancelarLoteAsync()
+    {
+        _cancelandoLote = true;
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarVisitasCommand(_seleccionados.ToList()));
-            var dto = resultado.Valor;
+            var resultado = await Mediator.Send(new CancelarVisitasCommand(_seleccionados.ToList(), _motivoCancelacion));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
 
+            var dto = resultado.Valor;
+            var canceladas = dto.IdsCanceladas;
+
+            // FS-11: el aviso ofrece «Deshacer» sobre las que sí se cancelaron.
             ToastService.Mostrar(
                 dto.Errores.Count == 0
-                    ? Textos["ToastLoteEliminadas", dto.Eliminados].Value
-                    : Textos["ToastLoteParcial", dto.Eliminados, dto.Errores.Count, string.Join(" ", dto.Errores)].Value,
-                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+                    ? Textos["ToastLoteCanceladas", dto.Canceladas].Value
+                    : Textos["ToastLoteParcial", dto.Canceladas, dto.Errores.Count, string.Join(" ", dto.Errores)].Value,
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia,
+                canceladas.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
+                canceladas.Count > 0 ? () => DeshacerCancelarAsync(canceladas) : null);
 
             _seleccionados.Clear();
-            _confirmarEliminarLoteVisible = false;
+            _confirmarCancelarLoteVisible = false;
             await RecargarAsync();
         }
         catch (Exception)
         {
-            ToastService.Mostrar(Textos["ToastErrorEliminarLote"], TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorCancelarLote"], TonoToast.Error);
         }
         finally
         {
-            _eliminandoLote = false;
+            _cancelandoLote = false;
         }
     }
 

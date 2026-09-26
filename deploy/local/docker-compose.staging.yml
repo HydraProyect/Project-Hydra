@@ -1,5 +1,5 @@
 # Stack de STAGING — segundo stack en la MISMA máquina que
-# docker-compose.produccion.yml (ver RUNBOOK-DESPLIEGUE-LOCAL.md en el
+# docker-compose.produccion.yml (ver Project-Hydra-Negocio/tecnico/RUNBOOK-DESPLIEGUE-LOCAL.md en el
 # repositorio local de negocio, tecnico/). Mismo Dockerfile, mismo servicio
 # postgres:18, misma estructura que producción — con las diferencias que
 # importan para convivir en la misma máquina sin pisarse con producción:
@@ -40,7 +40,10 @@ services:
   migrador:
     # Job de migración de vida corta (REC-017/P39) — mismo mecanismo que
     # docker-compose.produccion.yml, ver el comentario largo de ese fichero
-    # junto a este mismo servicio.
+    # junto a este mismo servicio. Desde P0-2 migra Y siembra
+    # (`--preparar-arranque`) y es el único servicio con la credencial del
+    # superusuario postgres; los modos administrativos que la necesitan se
+    # lanzan con `run --rm migrador <modo>`.
     # Imagen construida y firmada en CI, cargada por ci-deploy.sh, que arranca
     # con IMAGEN_TAG=<sha>. Sin `build:` y con `pull_policy: never` a propósito:
     # un `up` manual sin IMAGEN_TAG falla («No such image: caemanager:sin-
@@ -51,7 +54,7 @@ services:
     pull_policy: never
     container_name: caemanager-staging-migrador
     restart: "no"
-    command: ["--migrate-only"]
+    command: ["--preparar-arranque"]
     env_file: .env.staging
     environment:
       ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
@@ -101,22 +104,28 @@ services:
     mem_limit: ${LIMITE_MEMORIA_APP:-3g}
     restart: unless-stopped
     # REC-017/P39 — ver el comentario largo en docker-compose.produccion.yml
-    # junto al mismo apagador: las migraciones las aplica ahora el servicio
-    # "migrador" de arriba, no este contenedor.
+    # junto al mismo apagador: las migraciones y la siembra las hace ahora el
+    # servicio "migrador" de arriba, no este contenedor. Por eso este no
+    # recibe la credencial del superusuario: `environment:` vacía
+    # POSTGRES_PASSWORD y ConnectionStrings__CaeManagerDb aunque
+    # `.env.staging` los traiga (P0-2, mismo contrato que producción, vigilado
+    # por deploy/ci-deploy-secretos.tests.sh, caso 19).
     #
     # Ver el comentario de docker-compose.produccion.yml sobre
     # ConnectionStrings__CaeManagerDbRuntime: se inyecta entero vía
     # `.env.staging` (env_file), nunca compuesto en este YAML.
     env_file: .env.staging
     environment:
-      ConnectionStrings__CaeManagerDb: "Host=db;Port=5432;Database=caemanager;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      POSTGRES_PASSWORD: ""
+      ConnectionStrings__CaeManagerDb: ""
       AlmacenamientoArchivos__Ruta: /data/documentos
       DataProtection__RutaClaves: /data/dataprotection-keys
       # Sin backup real: staging es desechable por diseño (datos de prueba
       # re-sembrables con DatosPrueba__Activo=true), no vale la pena montar
       # scripts/backup-borg.sh contra un segundo repo Borg para esto.
-      # REC-017/P39 — ver el comentario de más arriba, junto a `restart:`.
+      # REC-017/P39 y P0-2 — ver el comentario de más arriba, junto a `restart:`.
       Migraciones__AlArrancar: "false"
+      Siembra__AlArrancar: "false"
     volumes:
       - caemanager-staging-data:/data
       # P44b — certificado de cliente del conector de Microsoft 365 (PEM); ver el

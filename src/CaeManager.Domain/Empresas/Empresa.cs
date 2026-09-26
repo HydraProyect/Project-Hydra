@@ -41,14 +41,14 @@ public class Empresa : EntidadBase
     /// Sigue siendo opcional — hay Empresas ya creadas (sembradas o
     /// importadas) sin identificación, y las plantillas de importación
     /// tampoco la recogen todavía. El alta nueva (CrearEmpresaCommand) sí la
-    /// exige para MVP-1 (Escenario 2, tecnico/docs/MULTITENANCY.md § 2): sin
+    /// exige para MVP-1 (Escenario 2, Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 2): sin
     /// ella no se puede emitir un F-22 válido — va en cabecera y en la
     /// cláusula RGPD.
     /// </para>
     /// </summary>
     public string? Cif { get; private set; }
 
-    /// <summary>Código CNAE de la actividad — eje E1 de la capa sectorial (MATRIZ_SECTORIAL_PRL.md § 9.1).</summary>
+    /// <summary>Código CNAE de la actividad — eje E1 de la capa sectorial (Project-Hydra-Negocio/MATRIZ_SECTORIAL_PRL.md § 9.1).</summary>
     public string? Cnae { get; private set; }
 
     /// <summary>Convenio colectivo aplicado — eje E2 de la capa sectorial. Lo declara el cliente, nunca se deduce.</summary>

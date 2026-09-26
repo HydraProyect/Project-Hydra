@@ -16,8 +16,8 @@ namespace CaeManager.IntegrationTests;
 
 /// <summary>
 /// F3b-Subcontrata, repunteo de FKs
-/// (f3b-subcontrata-inventario-fresco-2026-08-26.md §2,
-/// f3b-decision-d2-transicion-acotada-2026-08-25.md §0-2). Mismo patrón que
+/// (Project-Hydra-Negocio/tecnico/f3b-subcontrata-inventario-fresco-2026-08-26.md §2,
+/// Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md §0-2). Mismo patrón que
 /// <see cref="F3bClienteRepunteoFksTests"/>: redirigir los 6 escritores de
 /// Subcontrata a <c>Empresa</c> sin repuntar estas FKs en el mismo
 /// despliegue rompería la creación de Trabajador/Vehiculo/etc. para

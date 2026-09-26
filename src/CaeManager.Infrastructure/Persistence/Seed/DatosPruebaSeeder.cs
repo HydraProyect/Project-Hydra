@@ -335,7 +335,7 @@ public static class DatosPruebaSeeder
         var resumen = await SembrarDatosOperativosAsync(
             dbContext, aleatorio, RazonesSocialesClientes.Length, numeroEmpresas: 24, numeroSubcontratas: 8, cancellationToken);
 
-        await SembrarUsuariosYCarteraAsync(dbContext, userManager, userStore, credenciales, logger, cancellationToken);
+        await SembrarUsuariosYCarteraAsync(dbContext, userManager, userStore, entorno, credenciales, logger, cancellationToken);
 
         tenant.MarcarDatosDemoCompletados();
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -420,7 +420,7 @@ public static class DatosPruebaSeeder
     ///
     /// Deliberadamente NO reconcilia todos los tenants de demo, solo el
     /// tenant #1 (<see cref="TenantSeedData.IdPorDefecto"/>): el diseño de
-    /// HO-035-02 (<c>tecnico/docs/POLITICA-TECNICA-IA.md</c> § 5, punto 4)
+    /// HO-035-02 (<c>Project-Hydra-Negocio/tecnico/docs/POLITICA-TECNICA-IA.md</c> § 5, punto 4)
     /// pide poder demostrar los dos estados en la misma demo — un tenant CON
     /// instrucción vigente y otro SIN ella — y el tenant #1 es el que usan
     /// los flujos E2E existentes que ya ejercitan IA de verdad
@@ -433,7 +433,7 @@ public static class DatosPruebaSeeder
     ///
     /// Idempotente: si el tenant #1 ya tiene una instrucción vigente, no
     /// hace nada. Las versiones son las filas Draft de HO-035-01
-    /// (<c>legal/LISTA_SUBENCARGADOS.md</c> § 3) — texto de demo, nunca una
+    /// (<c>Project-Hydra-Negocio/legal/LISTA_SUBENCARGADOS.md</c> § 3) — texto de demo, nunca una
     /// aceptación real: ver la prohibición de HO-035-02 § 9 de publicar
     /// nada legal en firme.
     /// </summary>
@@ -475,7 +475,7 @@ public static class DatosPruebaSeeder
     }
 
     /// <summary>
-    /// Versión Draft de <c>legal/DPA.md</c> a efectos de demo — HO-035-01
+    /// Versión Draft de <c>Project-Hydra-Negocio/legal/DPA.md</c> a efectos de demo — HO-035-01
     /// todavía no versiona ese documento formalmente (fuera de su alcance);
     /// esta cadena solo tiene que ser estable y no vacía, nunca se compara
     /// contra una versión "vigente" (ver diseño § 4.3 del documento
@@ -484,7 +484,7 @@ public static class DatosPruebaSeeder
     /// </summary>
     internal const string VersionDpaDemo = "Draft-2026-09-03";
 
-    /// <summary>Versión de <c>legal/LISTA_SUBENCARGADOS.md</c> § 3 tras las filas de IA que añadió HO-035-01.</summary>
+    /// <summary>Versión de <c>Project-Hydra-Negocio/legal/LISTA_SUBENCARGADOS.md</c> § 3 tras las filas de IA que añadió HO-035-01.</summary>
     internal const string VersionAnexoSubencargadosDemo = "Draft-2026-09-03";
 
     /// <summary>Clave de configuracion que decide si hay proveedor de IA real.</summary>
@@ -602,7 +602,8 @@ public static class DatosPruebaSeeder
     /// duplicaría filas sin ningún control de qué falta — pero el log deja
     /// de sonar a "todo en orden": dice exactamente qué pasa y cómo se
     /// arregla (retirar el tenant con <c>--retirar-tenant-demo</c> y dejar
-    /// que la siembra lo complete desde cero en el próximo arranque). Ese
+    /// que la siembra lo complete desde cero en la próxima preparación del
+    /// arranque — el servicio migrador en staging y producción). Ese
     /// "cómo se arregla" es la retirada, no una auto-reparación aquí: encajar
     /// una reconciliación fila a fila en este método arriesgaba
     /// duplicaciones sutiles por una ganancia que la retirada ya cubre.
@@ -629,7 +630,9 @@ public static class DatosPruebaSeeder
                 "DatosPrueba:Activo está en true y este tenant YA TIENE Clientes, pero NUNCA se marcó como " +
                 "siembra completa — es un estado A MEDIAS (volcado externo o siembra interrumpida), no 'ya está " +
                 "listo'. Se omite igual que antes para no duplicar filas, pero esto necesita una acción manual: " +
-                "retira este tenant con --retirar-tenant-demo <TenantId> y reinicia para que la siembra lo complete desde cero.");
+                "retira este tenant con --retirar-tenant-demo <TenantId> y vuelve a preparar el arranque para que la " +
+                "siembra lo complete desde cero (en staging y producción, el servicio migrador con --preparar-arranque; " +
+                "en desarrollo, reiniciar).");
             return true;
         }
 
@@ -1466,6 +1469,7 @@ public static class DatosPruebaSeeder
     private static async Task SembrarUsuariosYCarteraAsync(
         CaeManagerDbContext dbContext, UserManager<ApplicationUser> userManager,
         IUserStore<ApplicationUser> userStore,
+        IHostEnvironment entorno,
         CredencialesDemo credenciales, ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -1518,18 +1522,16 @@ public static class DatosPruebaSeeder
                 await userManager.AddToRoleAsync(usuario, rol);
 
                 // P1-13 exige 2FA a todo Administrador, y MainLayout lo hace
-                // cumplir redirigiendo a /cuenta/configurar-2fa. Sin sembrar la
-                // clave, estas tres cuentas de Administrador nacían atrapadas
-                // ahí: existían, tenían contraseña, y no servían para nada —
-                // un defecto silencioso del sembrador, no de la regla. Se usa
-                // la misma clave fija que IdentitySeeder y que el Administrador
-                // de demo 2, que es lo que permite a los E2E calcular el código
-                // (ver Ayudas.ClaveTotpAdministrador).
-                if (rol == Roles.Administrador && userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
+                // cumplir redirigiendo a /cuenta/configurar-2fa. En Development
+                // estas tres cuentas nacen con la misma clave fija que
+                // IdentitySeeder, que es lo que permite a los E2E calcular el
+                // código (ver Ayudas.ClaveTotpAdministrador). Fuera de
+                // Development nacen sin segundo factor y dan de alta el suyo en
+                // el primer acceso (P0-1, D-5): la clave fija es pública.
+                if (rol == Roles.Administrador)
                 {
-                    await claveStore.SetAuthenticatorKeyAsync(
-                        usuario, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);
-                    await userManager.SetTwoFactorEnabledAsync(usuario, true);
+                    await IdentitySeeder.AsignarSegundoFactorDeSiembraAsync(
+                        usuario, userManager, userStore, entorno, cancellationToken);
                 }
 
                 await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, usuario.Id, cancellationToken);

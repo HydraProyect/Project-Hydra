@@ -1,5 +1,6 @@
 @page "/calendario"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Calendario.Queries
 @using CaeManager.Web.Features.Documentos
@@ -7,6 +8,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -181,3 +183,4 @@
         }
     }
 </Modal>
+</LimiteDeErrores>

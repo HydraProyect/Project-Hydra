@@ -28,7 +28,7 @@ public static class IdentityEndpointsExtensions
             // sesión y al volver a entrar se reanudaba el workspace anterior
             // —incluido uno cuya delegación se hubiera revocado entretanto—
             // en lugar de empezar en el tenant de origen (hallazgo N-6 de
-            // INFORME-AUDITORIA-2.md).
+            // Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
             httpContext.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
 
             // Tampoco la de cultura: el siguiente que entre en este navegador
@@ -85,6 +85,12 @@ public static class IdentityEndpointsExtensions
                 await signInManager.SignOutAsync();
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
             }
+
+            // Vuelta del SSO: todavía no hay sesión ni Tenant, y AspNetUsers tiene
+            // RLS (P1-M1). Búsqueda, alta y vinculación del login pasan por el
+            // camino declarado de identificación, que las acota al Tenant de la
+            // propia cuenta.
+            using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
 
             var usuario = await userManager.FindByEmailAsync(email);
             var esUsuarioNuevo = usuario is null;
@@ -192,23 +198,28 @@ public static class IdentityEndpointsExtensions
     /// cuenta nueva.
     ///
     /// <para>
-    /// <c>GetUsersInRoleAsync</c> no filtra por tenant —<c>AspNetUsers</c> es la
-    /// única tabla sin filtro global ni RLS— así que este correo enviaba el
-    /// nombre y la dirección de la persona recién registrada a los
-    /// Administradores de <b>todas</b> las organizaciones del SaaS: difusión
-    /// automática de datos personales entre clientes, cada vez que alguien
-    /// entraba por primera vez. El filtro se aplica sobre la lista porque en
-    /// este punto no hay sesión ni tenant activo del que tirar
-    /// (<c>DirectorioUsuariosTenant</c> resuelve contra el tenant de la sesión,
-    /// y aquí todavía no hay ninguna).
+    /// <c>GetUsersInRoleAsync</c> no filtra por Tenant, y antes de P1-M1
+    /// <c>AspNetUsers</c> no tenía RLS, así que este correo enviaba el nombre y
+    /// la dirección de la persona recién registrada a los Administradores de
+    /// <b>todas</b> las organizaciones del SaaS. Ahora la lectura corre dentro
+    /// de <see cref="AmbitoTenantExplicito"/> con el Tenant de la cuenta nueva
+    /// —aquí todavía no hay sesión de la que tirar— y la RLS la acota. El
+    /// filtro en memoria se conserva: la política deja ver también a quien
+    /// opera ese Tenant desde otro (Operador Delegado, Gestor CAE con cartera,
+    /// actores de su auditoría), y el aviso es solo para los Administradores
+    /// del Tenant propietario de la cuenta.
     /// </para>
     /// </summary>
     private static async Task NotificarAdministradoresUsuarioPendienteAsync(
         UserManager<ApplicationUser> userManager, IEmailService emailService, ILogger logger, ApplicationUser usuarioPendiente)
     {
-        var administradores = (await userManager.GetUsersInRoleAsync(Roles.Administrador))
-            .Where(a => a.TenantId == usuarioPendiente.TenantId)
-            .ToList();
+        List<ApplicationUser> administradores;
+        using (AmbitoTenantExplicito.Establecer(usuarioPendiente.TenantId))
+        {
+            administradores = (await userManager.GetUsersInRoleAsync(Roles.Administrador))
+                .Where(a => a.TenantId == usuarioPendiente.TenantId)
+                .ToList();
+        }
         var cuerpo = $"""
             <p>{System.Net.WebUtility.HtmlEncode(usuarioPendiente.NombreCompleto)} ({System.Net.WebUtility.HtmlEncode(usuarioPendiente.Email)}) inició sesión con su cuenta de Microsoft y está a la espera de que le asignes un rol.</p>
             <p>Puedes hacerlo desde la pestaña "Pendientes de asignar" en Roles.</p>

@@ -26,9 +26,9 @@ namespace CaeManager.Application.Documentos.Verificacion;
 /// comprueba el Nivel 2 (ConfiguracionIaDocumentoCliente): un Documento de
 /// Trabajador no tiene un ClienteId directo, y derivarlo exige recorrer sus
 /// Asignaciones a Centro — deliberadamente fuera de alcance de esta fase
-/// (ver ROADMAP.md).
+/// (ver Project-Hydra-Negocio/tecnico/ROADMAP.md).
 ///
-/// <b>Fuente de referencia pendiente de usar</b> (PLAN-EJECUCION-UX.md § 0.7,
+/// <b>Fuente de referencia pendiente de usar</b> (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.7,
 /// Lote 0-E): <see cref="TipoDocumento.CriteriosValidacion"/> es el texto de
 /// criterios de aceptación copiado de la plataforma documental del cliente —
 /// el campo que dice qué hace válido un documento de este tipo, en las

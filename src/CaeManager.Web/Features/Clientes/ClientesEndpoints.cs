@@ -8,7 +8,7 @@ namespace CaeManager.Web.Features.Clientes;
 
 /// <summary>
 /// Exportación a Excel: patrón de referencia que el resto de módulos con
-/// tabla replican (ver ROADMAP.md, Fase 1). Se sirve como endpoint aparte en
+/// tabla replican (ver Project-Hydra-Negocio/tecnico/ROADMAP.md, Fase 1). Se sirve como endpoint aparte en
 /// vez de generarse dentro del circuito de Blazor porque descargar un
 /// archivo binario grande no encaja bien con SignalR.
 /// </summary>

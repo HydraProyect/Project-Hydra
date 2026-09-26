@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentros;
+using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
@@ -17,9 +18,13 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Centros.Pages;
 
-public partial class Centros : ComponentBase
+public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 {
-    // QuickGrid no soporta filas expandibles (Centro 360, PLAN-EJECUCION-UX.md
+    /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
+    /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
+    private bool _alcanceCero;
+
+    // QuickGrid no soporta filas expandibles (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     // § 0.1): cada Centro es una tarjeta con SeccionColapsable anidada, así
     // que la paginación se gestiona a mano en vez de con QuickGrid+Paginator
     // — la Query sigue paginando en servidor, solo cambia el control visual
@@ -122,7 +127,7 @@ public partial class Centros : ComponentBase
 
     /// <summary>
     /// Drill-down desde el desplegable de Centros con actividad de una
-    /// Empresa (Centro 360, PLAN-EJECUCION-UX.md § 0.11) — filtro exacto por
+    /// Empresa (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.11) — filtro exacto por
     /// Id, no reutiliza <c>q</c> (texto libre) porque un nombre parecido
     /// entre Centros distintos haría el prefiltro ambiguo.
     /// </summary>
@@ -161,7 +166,7 @@ public partial class Centros : ComponentBase
     /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
     /// compartir la URL, volver atrás) — no solo en el primer render — para
     /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
-    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md). El primer paso
+    /// inicial (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md). El primer paso
     /// (justo después de OnInitializedAsync) siempre coincide con lo que ya
     /// se cargó ahí, así que esto no duplica la primera consulta.
     /// </summary>
@@ -266,7 +271,7 @@ public partial class Centros : ComponentBase
         return CargarAsync();
     }
 
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _tamanoPagina = tamano;
@@ -476,8 +481,8 @@ public partial class Centros : ComponentBase
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
 
     /// <summary>
-    /// Validación inline al salir del campo (UX_PATTERNS.md, P1-18 de
-    /// docs/business/MATURITY_REVIEW.md) — hasta ahora el error de "nombre
+    /// Validación inline al salir del campo (Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, P1-18 de
+    /// Project-Hydra-Negocio/MATURITY_REVIEW.md) — hasta ahora el error de "nombre
     /// obligatorio" solo aparecía tras el viaje de ida y vuelta al servidor
     /// en Guardar. Valida solo <see cref="CrearCentroCommand.Nombre"/> con
     /// el mismo validador que ya corre al guardar — el resto del formulario
@@ -501,7 +506,7 @@ public partial class Centros : ComponentBase
         _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
 
     /// <summary>
-    /// Apagar el modo limpia la selección (PLAN-EJECUCION-UX.md § 0.9):
+    /// Apagar el modo limpia la selección (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9):
     /// dejar filas marcadas que ya no se ven dejaría la barra de acciones en
     /// lote apuntando a algo invisible.
     /// </summary>
@@ -553,17 +558,22 @@ public partial class Centros : ComponentBase
             var resultado = await Mediator.Send(new EliminarCentrosCommand(idsPedidos));
             var dto = resultado.Valor;
 
+            // FS-09: el aviso ofrece «Deshacer» sobre los que sí cayeron.
+            IReadOnlyList<Guid> eliminados = dto.IdsEliminados ?? [];
+
             ToastService.Mostrar(
                 dto.Errores.Count == 0
                     ? $"{dto.Eliminados} centro(s) eliminado(s)."
                     : $"{dto.Eliminados} eliminado(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
-                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia,
+                eliminados.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
+                eliminados.Count > 0 ? () => DeshacerEliminarLoteAsync(eliminados) : null);
 
-            // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
-            // si cayó alguno, se retiran las fichas de todos los pedidos, también la de un superviviente
-            // (con su edición sin guardar, si la tenía). Se prefiere pasarse de retirar a dejar abierta una ficha muerta.
+            // Se retiran solo las fichas de los que cayeron (IdsEliminados); un superviviente
+            // conserva la suya y su edición sin guardar. Sin ids en el DTO se retiran todas las
+            // pedidas: mejor pasarse de retirar que dejar abierta una ficha muerta.
             if (dto.Eliminados > 0)
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Centro, idsPedidos);
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Centro, dto.IdsEliminados ?? idsPedidos);
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
@@ -576,6 +586,38 @@ public partial class Centros : ComponentBase
         finally
         {
             _eliminandoLote = false;
+        }
+    }
+
+    /// <summary>
+    /// FS-09 (auditoría UX de flujos sin salida, 2026-09-24): «Deshacer» del aviso
+    /// de una eliminación en lote. Restaura los que el lote sí eliminó; sin esto, la
+    /// única salida era pedir a un Administrador del Tenant que los recuperase uno a
+    /// uno desde Auditoría.
+    /// </summary>
+    private bool _restaurandoLote;
+
+    private async Task DeshacerEliminarLoteAsync(IReadOnlyList<Guid> ids)
+    {
+        if (_restaurandoLote) return;
+        _restaurandoLote = true;
+
+        try
+        {
+            var r = await RestauracionEnLote.RestaurarAsync(ids, id => Mediator.Send(new RestaurarCentroCommand(id)));
+
+            ToastService.Mostrar(
+                r.Errores.Count == 0
+                    ? Textos["ToastLoteRestaurados", r.Restaurados].Value
+                    : Textos["ToastLoteRestauradosConErrores", r.Restaurados, r.Errores.Count, string.Join(" ", r.Errores)].Value,
+                r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (r.Restaurados > 0)
+                await CargarAsync();
+        }
+        finally
+        {
+            _restaurandoLote = false;
         }
     }
 
@@ -659,10 +701,12 @@ public partial class Centros : ComponentBase
     /// <c>ObtenerCentrosQuery.Desglosar</c>), así que repetirlos aquí era
     /// justo la redundancia que hacía desbordar la columna. Bloqueado
     /// (el peor caso posible) sí necesita la ranura. Urgente también: desde
-    /// que <c>Desglosar</c> lo cuenta, aparece en el mismo recuento de
-    /// "próximas" que Próximo, sin distinguir severidad — el Badge de Estado
-    /// es la única señal que sí la distingue. "Sin incidencias" (0 y 0)
-    /// también, para que la fila no quede completamente muda.
+    /// que <c>Desglosar</c> lo funde con Vencido/Faltante en "vencidas"
+    /// (mismo tono Peligro que ya le da <c>EstadoDocumentoUi.Tono</c>), el
+    /// recuento por sí solo ya no distingue Urgente de un vencimiento
+    /// consumado — el Badge de Estado es la única señal que sí lo hace.
+    /// "Sin incidencias" (0 y 0) también, para que la fila no quede
+    /// completamente muda.
     /// </summary>
     private static bool MostrarEstadoEnIndicadores(CentroListaDto centro) =>
         centro.Estado is EstadoCentro.Bloqueado or EstadoCentro.Urgente

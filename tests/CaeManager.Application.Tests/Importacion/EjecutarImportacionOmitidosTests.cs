@@ -5,7 +5,7 @@ using Xunit;
 namespace CaeManager.Application.Tests.Importacion;
 
 /// <summary>
-/// Contrato «nada se descarta en silencio» (IMPORTACION.md § 3 bis, ratificado
+/// Contrato «nada se descarta en silencio» (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis, ratificado
 /// por DCR-12 decisión B, propietario 2026-08-24): ninguna fila de un flujo
 /// soportado puede desaparecer sin quedar registrada en <c>Omitidos</c> con
 /// hoja, descripción y motivo concreto.
@@ -264,6 +264,46 @@ public class EjecutarImportacionOmitidosTests
         omitido.Motivo.Should().Contain("ya tenía un documento de tipo");
         escenario.DocumentoRepositorio.Documentos.Should().BeEmpty();
         resultado.DocumentosCreados.Should().Be(0);
+    }
+
+    /// <summary>
+    /// La plantilla de Documentos tiene una sola hoja, «Documentos»: un documento
+    /// suyo que se omite al escribir se reporta en esa hoja, no en «Empleados»
+    /// (la hoja de trabajadores de la CAE completa, antes fija en las cuatro
+    /// ramas). Una rama por caso, cada una con su motivo.
+    /// </summary>
+    [Theory]
+    [InlineData("trabajador no resuelto", "no tiene a quién asociarse")]
+    [InlineData("tipo inexistente", "no existe en el catálogo")]
+    [InlineData("ya existe al confirmar", "ya tenía un documento de tipo")]
+    public async Task Documento_de_la_plantilla_de_Documentos_se_omite_en_su_propia_hoja(string caso, string motivo)
+    {
+        var escenario = new EscenarioImportacion();
+        var dni = EscenarioImportacion.DniConocido;
+        var tipo = EscenarioImportacion.TipoDocumentoConocido;
+        switch (caso)
+        {
+            case "trabajador no resuelto":
+                escenario.ConTipoDocumentoExistente();
+                dni = EscenarioImportacion.DniDesconocido;
+                break;
+            case "tipo inexistente":
+                escenario.ConTrabajadorExistente();
+                tipo = EscenarioImportacion.TipoDocumentoInexistente;
+                break;
+            default:
+                escenario.ConTrabajadorExistente().ConTipoDocumentoExistente().ConDocumentoExistente();
+                break;
+        }
+        var plan = EscenarioImportacion.Plan(documentos:
+            [new DocumentoImportadoDto(dni, tipo, new DateOnly(2026, 2, 1), YaExiste: false, Hoja: "Documentos")]);
+
+        var resultado = await escenario.EjecutarAsync(plan);
+
+        var omitido = resultado.Omitidos.Should().ContainSingle().Subject;
+        omitido.Hoja.Should().Be("Documentos");
+        omitido.Motivo.Should().Contain(motivo);
+        escenario.DocumentoRepositorio.Documentos.Should().BeEmpty();
     }
 
     /// <summary>

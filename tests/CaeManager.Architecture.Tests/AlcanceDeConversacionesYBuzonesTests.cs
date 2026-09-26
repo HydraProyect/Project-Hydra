@@ -7,8 +7,8 @@ using MediatR;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// § 8 de MACRO_PLAN_2026-08-13.md ("Checklist de seguridad como gate duro"):
-/// el checklist de <c>CODING_STANDARDS.md</c> § "Checklist de seguridad para
+/// § 8 de Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md ("Checklist de seguridad como gate duro"):
+/// el checklist de <c>Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md</c> § "Checklist de seguridad para
 /// módulos nuevos" ya pedía comprobar "alcance de datos en escritura" e "IDs
 /// referenciados, cargados bajo el filtro de tenant" — y aun así el PR #190
 /// tuvo que corregir exactamente esa clase de fallo dos veces en Comunicaciones:

@@ -68,6 +68,7 @@
 @using MediatR
 @using CaeManager.Web.Features.Subcontratas.Recursos
 @using CaeManager.Web.Recursos
+@using CaeManager.Web.Services
 @using Microsoft.Extensions.Localization
 @using System.Globalization
 @implements IDisposable
@@ -76,6 +77,7 @@
 @inject IStringLocalizer<TextosComunes> Comunes
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
+@inject NavigationManager NavigationManager
 
 @if (_cargando)
 {
@@ -262,8 +264,8 @@ else
                                             {
                                                 <div class="valor-con-copia-subcontrata-360">
                                                     <strong class="contrasena-subcontrata-360">@(_contrasenaVisible ? _credencial.Contrasena : "••••••••••")</strong>
-                                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-pressed="@(_contrasenaVisible ? "true" : "false")" OnClick="AlternarContrasena">@(_contrasenaVisible ? Textos["BotonOcultarContrasena"] : Textos["BotonRevelarContrasena"])</Boton>
-                                                    <BotonCopiar Valor="@_credencial.Contrasena" Etiqueta="@Textos["CopiarLaContrasena"]" />
+                                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-pressed="@(_contrasenaVisible ? "true" : "false")" OnClick="AlternarContrasenaAsync">@(_contrasenaVisible ? Textos["BotonOcultarContrasena"] : Textos["BotonRevelarContrasena"])</Boton>
+                                                    <BotonCopiar ValorAsync="ObtenerContrasenaParaCopiarAsync" Etiqueta="@Textos["CopiarLaContrasena"]" />
                                                 </div>
                                             }
                                         </div>
@@ -633,7 +635,7 @@ else
             : NivelServicioSubcontrata.Supervisada;
 
     /// <summary>
-    /// Edición in situ de "Información" (Centro 360, PLAN-EJECUCION-UX.md
+    /// Edición in situ de "Información" (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     /// § 0.10) — sustituye al Drawer de "Editar" de <c>/subcontratas</c>,
     /// retirado. Las credenciales de acceso vivían dentro de ese mismo
     /// Drawer (solo en modo edición) — se mueven aquí en vez de perderse.
@@ -989,9 +991,12 @@ else
     private Task AbrirCentroAsync(CentroConActividadDto centro) =>
         WorkspaceService.NavegarAAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
 
-    private async Task MostrarCredencialAsync()
+    private Task MostrarCredencialAsync() => CargarCredencialAsync();
+
+    /// <returns>true si la credencial se cargó y sigue siendo la de esta carga.</returns>
+    private async Task<bool> CargarCredencialAsync()
     {
-        if (_detalle is null || _cargandoCredencial) return;
+        if (_detalle is null || _cargandoCredencial) return false;
 
         var carga = ++_cargaCredencial;
         var id = _detalle.Id;
@@ -1001,15 +1006,27 @@ else
         try
         {
             var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(id), _cancelacion);
-            if (carga != _cargaCredencial) return;
+            if (carga != _cargaCredencial) return false;
             _credencial = credencial;
             _credencialConsultada = true;
             _contrasenaVisible = false;
+            return true;
+        }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (carga == _cargaCredencial)
+            {
+                // Sin 2FA la credencial ya cargada tampoco se queda en el circuito.
+                OcultarCredencial();
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+            }
+            return false;
         }
         catch (Exception)
         {
             if (carga == _cargaCredencial)
                 _errorCredencial = true;
+            return false;
         }
         finally
         {
@@ -1018,7 +1035,22 @@ else
         }
     }
 
-    private void AlternarContrasena() => _contrasenaVisible = !_contrasenaVisible;
+    /// <summary>
+    /// Revelar vuelve a pedir la credencial en vez de enseñar la ya cargada: el
+    /// 2FA (P1-I1) se comprueba en el momento de revelar, así que si se
+    /// restableció después de abrirla, la contraseña no sale del circuito.
+    /// </summary>
+    private async Task AlternarContrasenaAsync()
+    {
+        if (_contrasenaVisible)
+        {
+            _contrasenaVisible = false;
+            return;
+        }
+
+        if (await CargarCredencialAsync())
+            _contrasenaVisible = true;
+    }
 
     /// <summary>Suelta la credencial de la memoria del circuito, no solo de la vista.</summary>
     private void OcultarCredencial()
@@ -1068,6 +1100,14 @@ else
 
             _editandoInformacion = true;
         }
+        // P1-I1: la edición carga el usuario de la credencial, y sin 2FA no se
+        // entrega. No se abre con los campos vacíos: guardarla así podría pisar
+        // la credencial que el usuario no pudo ver.
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (generacion == _generacion)
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+        }
         catch (Exception)
         {
             if (generacion == _generacion)
@@ -1091,7 +1131,25 @@ else
     {
         if (_detalle is null) return null;
 
-        var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(_detalle.Id), _cancelacion);
+        // Si el usuario cambia de Subcontrata con la consulta en vuelo, ni se
+        // copia la contraseña de la anterior ni se toca el estado de la nueva.
+        var generacion = _generacion;
+        CredencialAccesoSubcontrataDto? credencial;
+        try
+        {
+            credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(_detalle.Id), _cancelacion);
+        }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (generacion != _generacion) return null;
+            // El clic llega por BotonCopiar (componente hijo): sin
+            // StateHasChanged este panel no se repinta sin la credencial.
+            OcultarCredencial();
+            StateHasChanged();
+            SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+            return null;
+        }
+        if (generacion != _generacion) return null;
         if (string.IsNullOrEmpty(credencial?.Contrasena))
         {
             ToastService.Mostrar(Textos["ToastSinContrasenaGuardada"], TonoToast.Info);
@@ -1173,7 +1231,7 @@ else
     /// Sin diálogo de confirmación a propósito: el cambio de nivel es
     /// reversible en ambos sentidos y conserva todo el historial (ADR-005 §
     /// 2.1) — no cumple el criterio de "destructivo o irreversible en la
-    /// práctica" que exige una confirmación (04_UX_PATTERNS.md § 7.2). Mismo
+    /// práctica" que exige una confirmación (Project-Hydra-Negocio/tecnico/04_UX_PATTERNS.md § 7.2). Mismo
     /// tratamiento que "Reactivar" en Delegaciones.razor: acción directa con
     /// estado de carga, aviso del resultado en el toast. La guarda de
     /// <c>_cambiandoNivel</c> es la que impide que un doble clic mande el
@@ -1195,7 +1253,7 @@ else
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1367,7 +1425,7 @@ else
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1417,6 +1475,12 @@ else
             ToastService.Mostrar(Textos["ToastCredencialesGuardadas"], TonoToast.Exito);
             // La tarjeta de lectura tenía la versión anterior: se suelta.
             OcultarCredencial();
+        }
+        // P1-I2: escribir la credencial exige el mismo 2FA que leerla.
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (generacion == _generacion)
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
         }
         catch (Exception)
         {

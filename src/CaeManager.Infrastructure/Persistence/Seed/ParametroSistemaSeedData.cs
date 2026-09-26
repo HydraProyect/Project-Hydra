@@ -2,7 +2,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 
 /// <summary>
 /// Fila única de configuración, con los umbrales reales de la hoja
-/// "Parametros" del Excel original (ver DATABASE.md).
+/// "Parametros" del Excel original (ver Project-Hydra-Negocio/tecnico/DATABASE.md).
 /// </summary>
 public static class ParametroSistemaSeedData
 {

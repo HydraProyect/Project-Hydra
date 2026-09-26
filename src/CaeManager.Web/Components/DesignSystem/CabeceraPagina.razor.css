@@ -28,6 +28,21 @@
    alto del título y no al centro del bloque entero, que las dejaría flotando
    a media entradilla. Gana a la regla global por especificidad (clase +
    atributo de ámbito). */
+/* Con Inicio: la pieza de la izquierda y el texto van juntos, 24px entre
+   ellos (gap de .centro360-cabecera en el mockup de Empresa 360), y las
+   acciones siguen a la derecha. */
+.cabecera-pagina-principal {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-6);
+    min-width: 0;
+}
+
+.cabecera-pagina-inicio {
+    flex: none;
+    display: inline-flex;
+}
+
 .cabecera-pagina-con-descripcion {
     align-items: flex-start;
 }

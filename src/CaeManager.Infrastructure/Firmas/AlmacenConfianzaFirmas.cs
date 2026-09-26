@@ -6,7 +6,7 @@ namespace CaeManager.Infrastructure.Firmas;
 /// Almacén de confianza propio para la verificación de firmas de PDF —
 /// nunca el del sistema operativo: la pregunta no es "¿es un certificado
 /// válido de internet?" sino "¿lo emitió una CA de la Administración
-/// española?" (PLAN-FIRMA-DIGITAL-PDF.md § 3, opción B).
+/// española?" (Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md § 3, opción B).
 ///
 /// Las CA van fijadas (pinned) en código como PEM — texto, no binarios,
 /// conservando la convención del repo. Mantenimiento: las raíces FNMT

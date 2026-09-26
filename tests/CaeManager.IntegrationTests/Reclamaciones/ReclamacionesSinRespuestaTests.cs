@@ -12,7 +12,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Reclamaciones;
 
 /// <summary>
-/// "Sin respuesta" como estado derivado (docs/COMUNICACIONES.md § 16.4): lo que
+/// "Sin respuesta" como estado derivado (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 16.4): lo que
 /// se comprueba aquí es que la condición se calcula bien contra los mensajes
 /// reales del hilo, y que nadie aparece marcado sin motivo.
 /// </summary>

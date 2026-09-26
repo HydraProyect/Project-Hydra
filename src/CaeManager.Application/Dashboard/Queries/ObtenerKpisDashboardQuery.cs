@@ -51,7 +51,7 @@ public record KpisDashboardDto(
     bool SinDatos = false);
 
 /// <summary>
-/// Los seis KPI del Dashboard (ver DATABASE.md, hoja "Dashboard" del Excel
+/// Los seis KPI del Dashboard (ver Project-Hydra-Negocio/tecnico/DATABASE.md, hoja "Dashboard" del Excel
 /// original). El semáforo de cada documento se calcula en memoria con
 /// CalculadoraEstadoDocumento — la misma función que usan las tablas de
 /// Documentos — para que Dashboard y detalle nunca puedan mostrar
@@ -102,7 +102,7 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         var centrosBloqueados = estadosCentro.Values.Count(r => r.Estado == EstadoCentro.Bloqueado);
 
         var hoyParaVisitas = DateOnly.FromDateTime(DateTime.UtcNow);
-        var visitasQuery = visitasContext.Visitas.Where(v => v.FechaFin >= hoyParaVisitas);
+        var visitasQuery = visitasContext.Visitas.Where(v => !v.EstaCancelada && v.FechaFin >= hoyParaVisitas); // FS-11: una cancelada no se cuenta
         if (centroIdsVisibles is not null) visitasQuery = visitasQuery.Where(v => centroIdsVisibles.Contains(v.CentroId));
         var visitasProgramadas = await visitasQuery.CountAsync(cancellationToken);
 
@@ -115,25 +115,32 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         var documentosQuery = documentosContext.Documentos.Where(d => d.TrabajadorId != null);
         if (trabajadorIdsVisibles is not null) documentosQuery = documentosQuery.Where(d => trabajadorIdsVisibles.Contains(d.TrabajadorId!.Value));
 
+        // Agregado en PostgreSQL: una fila por par distinto (EstadoVigencia,
+        // FechaVencimiento) con su recuento, no una por Documento — el volumen
+        // ya no crece con el histórico documental del Tenant (P1-D1,
+        // ConsultasKpiAcotadasBajoRlsTests). El estado de cada par lo sigue
+        // decidiendo CalculadoraEstadoDocumento, así que la clasificación es la
+        // misma por construcción.
         var vigencias = await documentosQuery
-            .Select(d => new { d.EstadoVigencia, d.FechaVencimiento })
+            .GroupBy(d => new { d.EstadoVigencia, d.FechaVencimiento })
+            .Select(g => new { g.Key.EstadoVigencia, g.Key.FechaVencimiento, Cantidad = g.Count() })
             .ToListAsync(cancellationToken);
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var estados = vigencias
-            .Select(v => CalculadoraEstadoDocumento.Calcular(
+        var documentosPorEstado = vigencias
+            .GroupBy(v => CalculadoraEstadoDocumento.Calcular(
                 v.EstadoVigencia, v.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias))
-            .ToList();
+            .ToDictionary(g => g.Key, g => g.Sum(v => v.Cantidad));
 
-        var vigentes = estados.Count(e => e == EstadoDocumento.Vigente);
-        var proximos = estados.Count(e => e == EstadoDocumento.Proximo);
-        var urgentes = estados.Count(e => e == EstadoDocumento.Urgente);
-        var vencidos = estados.Count(e => e == EstadoDocumento.Vencido);
+        var vigentes = documentosPorEstado.GetValueOrDefault(EstadoDocumento.Vigente);
+        var proximos = documentosPorEstado.GetValueOrDefault(EstadoDocumento.Proximo);
+        var urgentes = documentosPorEstado.GetValueOrDefault(EstadoDocumento.Urgente);
+        var vencidos = documentosPorEstado.GetValueOrDefault(EstadoDocumento.Vencido);
         // Un documento sin vigencia confirmada no está al día: entra en el
         // denominador y no en el numerador, igual que en el cumplimiento del
         // Centro (CalculoEstadoCentroService). Solo «no caduca» queda fuera.
-        var sinConfirmar = estados.Count(e => e == EstadoDocumento.SinConfirmar);
+        var sinConfirmar = documentosPorEstado.GetValueOrDefault(EstadoDocumento.SinConfirmar);
         var totalConVigencia = vigentes + proximos + urgentes + vencidos + sinConfirmar;
         var tasa = totalConVigencia == 0 ? 100 : vigentes * 100 / totalConVigencia;
 

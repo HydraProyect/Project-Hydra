@@ -4,7 +4,7 @@ namespace CaeManager.Application.Tests.Clientes;
 
 /// <summary>
 /// Fake en memoria — los handlers de Application se prueban sin base de
-/// datos (ver CODING_STANDARDS.md). F3b: reemplaza a
+/// datos (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md). F3b: reemplaza a
 /// <c>ClienteRepositorioFalso</c> — desde la congelación, "Cliente" es
 /// Empresa contraparte (<see cref="Empresa.CrearComoCliente"/>).
 /// </summary>

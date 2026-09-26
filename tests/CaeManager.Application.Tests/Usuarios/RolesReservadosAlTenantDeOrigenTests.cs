@@ -1,7 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
-using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
 using FluentAssertions;
 using Xunit;
 
@@ -92,9 +91,10 @@ public class RolesReservadosAlTenantDeOrigenTests
         RolesReservadosAlTenantDeOrigen.Roles.Should().BeEquivalentTo("Administrador", "DireccionCae");
     }
 
+    // La regla la aplican los Commands de Usuarios/Commands (P1-I2); aquí se prueba
+    // la regla misma, que es la que esos Commands llaman.
     private static Task<CaeManager.Domain.Common.Result> VerificarAsync(string rol, Guid? tenantOrigen, Guid? contexto) =>
-        new VerificarRolAsignableQueryHandler(new CurrentUserServiceFalso(tenantOrigenId: tenantOrigen), new TenantActualFalso(contexto))
-            .Handle(new VerificarRolAsignableQuery(rol), CancellationToken.None);
+        Task.FromResult(RolesReservadosAlTenantDeOrigen.Verificar(rol, tenantOrigen, contexto));
 
     private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
     {

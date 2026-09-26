@@ -276,9 +276,20 @@
     <value>No pudimos cargar el acceso.</value>
     <comment>Error de carga de la tarjeta de acceso.</comment>
   </data>
-  <data name="DatoUrl" xml:space="preserve">
-    <value>URL</value>
-    <comment>Dirección de la plataforma CAE de la credencial.</comment>
+  <data name="AccesoRequiereDosFactores" xml:space="preserve">
+    <value>Activa la autenticación en dos pasos para ver el acceso.</value>
+    <comment>P1-I1: el rol lee credenciales, pero la cuenta no tiene 2FA. Depende solo de la cuenta, no revela si la Empresa tiene credencial.</comment>
+  </data>
+  <data name="ActivarDosFactores" xml:space="preserve">
+    <value>Activar ahora</value>
+  </data>
+  <data name="BadgeCredencialesTerceros" xml:space="preserve">
+    <value>Credenciales de terceros</value>
+    <comment>Badge junto a la URL de la plataforma CAE en la tarjeta Acceso: la credencial es de un tercero (mockup Empresa 360 página).</comment>
+  </data>
+  <data name="PieMostrando" xml:space="preserve">
+    <value>Mostrando {0} de {1}</value>
+    <comment>Pie de la lista de trabajadores cuando la página no los enseña todos. {0} = filas visibles, {1} = total del filtro.</comment>
   </data>
   <data name="SeAccedeComo" xml:space="preserve">
     <value>Se accede como</value>
@@ -295,6 +306,10 @@
   <data name="CopiarContrasena" xml:space="preserve">
     <value>Copiar contraseña</value>
     <comment>Botón: pide la contraseña al servidor solo al pulsar; nunca se pinta.</comment>
+  </data>
+  <data name="ElDni" xml:space="preserve">
+    <value>el DNI</value>
+    <comment>Complemento del botón copiar en la fila de trabajador («Copiar el DNI»).</comment>
   </data>
   <data name="ElUsuario" xml:space="preserve">
     <value>el usuario</value>
@@ -323,5 +338,14 @@
   <data name="AbrirEmpresa360" xml:space="preserve">
     <value>Abrir Empresa 360</value>
     <comment>Ítem del menú de fila de la lista Empresas: navega a la página /empresas/{id}.</comment>
+  </data>
+  <data name="ToastLoteRestaurados" xml:space="preserve">
+    <value>{0} empresa(s) restaurada(s).</value>
+  </data>
+  <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
+    <value>{0} restaurada(s). {1} no se pudieron restaurar: {2}</value>
+  </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
   </data>
 </root>

@@ -30,17 +30,17 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Tenants;
 
 /// <summary>
-/// Cierre de la Etapa 5 de PLAN-MIGRACION-MULTITENANT.md: test de
+/// Cierre de la Etapa 5 de Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md: test de
 /// aislamiento por cada uno de los <b>43</b> tipos que heredan de
 /// <c>EntidadConTenant</c>/<c>EntidadBase</c> — uno por cada línea de
 /// <c>HasQueryFilter</c> de <c>CaeManagerDbContext</c>, sin excepciones
-/// (regla de docs/MULTITENANCY.md § 9 — "los tests de aislamiento se
+/// (regla de Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 9 — "los tests de aislamiento se
 /// escriben por agregado... toda entidad nueva añade el suyo").
 ///
 /// El fichero nació cubriendo 25 y se quedó atrás según crecía el modelo:
 /// llegó a faltar el test de 9 entidades, dos de las cuales (TarifaCliente y
 /// AprobacionDocumento) resultaron no tener siquiera el filtro — hallazgos
-/// A-1 y M-1 de INFORME-AUDITORIA-TECNICA.md. Las 4 de Comunicaciones
+/// A-1 y M-1 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-TECNICA.md. Las 4 de Comunicaciones
 /// (Fase 59) sí traían filtro pero llegaron sin test. Si añades una entidad
 /// con TenantId, añade aquí su test.
 ///
@@ -189,7 +189,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
             async contexto => centroId = await SembrarCentroAsync(contexto));
     }
 
-    // Hallazgo A-1 de INFORME-AUDITORIA-TECNICA.md: TarifaCliente heredaba de
+    // Hallazgo A-1 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-TECNICA.md: TarifaCliente heredaba de
     // EntidadBase pero se quedó sin HasQueryFilter, así que
     // ObtenerTarifasClienteQuery devolvía tarifas de cualquier tenant (y
     // también las borradas lógicamente). Divulgación cruzada de precios
@@ -500,7 +500,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     }
 
     // --- Siembra de dependencias para las entidades con FK real (P0-1 de
-    // docs/business/MATURITY_REVIEW.md) — antes se podía insertar cualquier
+    // Project-Hydra-Negocio/MATURITY_REVIEW.md) — antes se podía insertar cualquier
     // Guid inventado como propietario; ahora la base de datos lo rechaza,
     // así que estos tests necesitan un padre real en el contexto del tenant A.
     // Varios tests siembran el mismo tipo de padre más de una vez en el mismo

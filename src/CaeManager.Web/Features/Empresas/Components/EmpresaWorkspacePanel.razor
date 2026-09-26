@@ -21,10 +21,12 @@
 @using FluentValidation
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using MediatR
+@using CaeManager.Web.Services
 @implements IDisposable
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
+@inject NavigationManager NavigationManager
 
 @if (_cargando)
 {
@@ -246,7 +248,7 @@ else
     private CancellationToken _cancelacion;
 
     /// <summary>
-    /// Edición in situ de "Información" (Centro 360, PLAN-EJECUCION-UX.md
+    /// Edición in situ de "Información" (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     /// § 0.10) — sustituye al Drawer de "Editar" de <c>/empresas</c>, retirado.
     /// Las credenciales de acceso vivían dentro de ese mismo Drawer (solo en
     /// modo edición, nunca al crear) — se mueven aquí en vez de perderse:
@@ -414,6 +416,14 @@ else
             _editandoInformacion = true;
         }
         catch (OperationCanceledException) when (cancelacion.IsCancellationRequested) { }
+        // P1-I1: la edición carga el usuario de la credencial, y sin 2FA no se
+        // entrega. No se abre con los campos vacíos: guardarla así podría pisar
+        // la credencial que el usuario no pudo ver.
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (generacion == _generacion)
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+        }
         catch (Exception)
         {
             if (generacion == _generacion)
@@ -527,6 +537,12 @@ else
             _hayCredencialGuardada = true;
             _credencialContrasena = string.Empty;
         }
+        // P1-I2: escribir la credencial exige el mismo 2FA que leerla.
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (generacion == _generacion)
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+        }
         catch (Exception)
         {
             if (generacion == _generacion)
@@ -554,7 +570,17 @@ else
 
         var cancelacion = _cancelacion;
         var generacion = _generacion;
-        var credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaQuery(_detalle.Id), cancelacion);
+        CredencialAccesoEmpresaDto? credencial;
+        try
+        {
+            credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaQuery(_detalle.Id), cancelacion);
+        }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (generacion == _generacion)
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+            return null;
+        }
         if (generacion != _generacion) return null;
         if (string.IsNullOrEmpty(credencial?.Contrasena))
         {
@@ -589,6 +615,11 @@ else
             if (generacion != _generacion) return;
             _credencialContrasena = string.Empty;
             _confirmarBorrarContrasenaVisible = false;
+        }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (generacion == _generacion)
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
         }
         catch (Exception)
         {

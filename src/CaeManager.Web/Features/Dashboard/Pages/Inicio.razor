@@ -1,5 +1,6 @@
 @page "/"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Web.Features.Bandeja
 @using CaeManager.Web.Features.Bandeja.Components
@@ -7,8 +8,10 @@
 @using CaeManager.Web.Features.Visitas
 @using CaeManager.Web.Features.Dashboard.Recursos
 @using Microsoft.Extensions.Localization
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IStringLocalizer<TextosInicio> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Dashboard — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -60,7 +63,9 @@
     }
     else if (_kpis.SinCarteraAsignada)
     {
-        <EstadoVacio Titulo="@Textos["SinCarteraTitulo"]" Descripcion="@Textos["SinCarteraDescripcion"]" />
+        @* Con la salida que ofrece Mi trabajo: «Añadir a mi cartera» si hay
+           Empresas que pedir (P0-9a, FS-06). *@
+        <AvisoSinAsignacionCartera Titulo="@Textos["SinCarteraTitulo"]" Descripcion="@Textos["SinCarteraDescripcion"]" />
     }
     else if (SinNingunDatoEnEsteContexto)
     {
@@ -172,11 +177,28 @@
            que no tiene cola que gestionar pero sí su propio cumplimiento. *@
         <div class="dashboard-resumen">
             <div class="dashboard-resumen-tarjeta-anillo">
-                <AnilloCumplimiento Porcentaje="_kpis.TasaCumplimientoDocumental" Tamano="TamanoAnillo.Grande" Leyenda="Cumplimiento"
-                                     Etiqueta="@($"{_kpis.TasaCumplimientoDocumental}% de cumplimiento documental")" />
+                @* P2.4 (D-7): sin Centros de Trabajo ni documentos con vigencia, el
+                   100 % de la consulta es «nada que medir», no «al día» (SinDatos); y
+                   el porcentaje cuenta documentos, no acceso: un Centro de Trabajo
+                   bloqueado (CalculoEstadoCentroService, el mismo cálculo que Centro
+                   360) se declara junto a él para que no se lea como cumplimiento. *@
+                <AnilloCumplimiento Porcentaje="@(_kpis.SinDatos ? null : _kpis.TasaCumplimientoDocumental)" Tamano="TamanoAnillo.Grande" Leyenda="Cumplimiento"
+                                     Etiqueta="@(_kpis.SinDatos ? Textos["AnilloSinDatos"].Value : $"{_kpis.TasaCumplimientoDocumental}% de cumplimiento documental")" />
                 <div>
-                    <p class="dashboard-resumen-anillo-titulo">@_kpis.TasaCumplimientoDocumental% de cumplimiento documental</p>
-                    <p class="dashboard-resumen-anillo-detalle">@_kpis.DocumentosVigentes.ToString("N0") de @TotalDocumentosConVigencia.ToString("N0") documentos vigentes en cartera</p>
+                    @if (_kpis.SinDatos)
+                    {
+                        <p class="dashboard-resumen-anillo-titulo">@Textos["AnilloSinDatos"]</p>
+                        <p class="dashboard-resumen-anillo-detalle">@Textos["AnilloSinDatosDetalle"]</p>
+                    }
+                    else
+                    {
+                        <p class="dashboard-resumen-anillo-titulo">@_kpis.TasaCumplimientoDocumental% de cumplimiento documental</p>
+                        <p class="dashboard-resumen-anillo-detalle">@_kpis.DocumentosVigentes.ToString("N0") de @TotalDocumentosConVigencia.ToString("N0") documentos vigentes en cartera</p>
+                    }
+                    @if (_kpis.CentrosBloqueados > 0)
+                    {
+                        <p class="dashboard-resumen-anillo-bloqueo">@TextoCentrosBloqueadosKpi</p>
+                    }
                     @* "Desglosar por cliente" del mockup no tiene destino real todavía
                        (no hay vista de cumplimiento agrupada por cliente para este rol —
                        Visión de cartera exige Coordinador+; Reportes, P-14, es de todo el
@@ -289,3 +311,4 @@
         }
     }
 </div>
+</LimiteDeErrores>

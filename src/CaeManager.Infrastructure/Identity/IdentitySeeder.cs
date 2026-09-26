@@ -18,20 +18,27 @@ namespace CaeManager.Infrastructure.Identity;
 /// nada, se usan los valores por defecto públicos en este mismo archivo.
 /// En producción los defaults NO se usan nunca: si falta la configuración,
 /// el arranque falla con instrucciones (hallazgo P0-2 de
-/// docs/business/MATURITY_REVIEW.md — nada impedía que producción arrancara
+/// Project-Hydra-Negocio/MATURITY_REVIEW.md — nada impedía que producción arrancara
 /// con las credenciales hardcodeadas del repo). Fallar el arranque es
 /// deliberado: un despliegue de producción accesible con una contraseña
 /// pública es peor que un despliegue caído.
 ///
-/// El Administrador inicial nace con 2FA ya activo (P1-13 de
-/// docs/business/MATURITY_REVIEW.md exige 2FA para todo Administrador —
-/// sembrarlo sin ella dejaría la propia cuenta bootstrap fuera de su
-/// propia regla, y MainLayout la redirigiría a /cuenta/configurar-2fa en
-/// cuanto iniciara sesión). La clave TOTP es fija y pública a propósito
-/// (no una credencial real — un despliegue compartido debe reconfigurar
-/// el autenticador desde /cuenta/configurar-2fa igual que cambiaría la
-/// contraseña por defecto) para que los tests E2E (Ayudas.cs, que no
-/// referencia este proyecto) puedan calcular el código sin acceso a BD.
+/// Segundo factor del Administrador inicial (P1-13 exige 2FA para todo
+/// Administrador; P0-1 de MATURITY_REVIEW_2026-09-24 cierra la clave fija):
+/// <list type="bullet">
+/// <item><b>Development</b> (arranque local, CI y arnés E2E, que arranca
+/// con ASPNETCORE_ENVIRONMENT=Development): nace con 2FA activo y la clave
+/// TOTP fija y pública <see cref="ClaveTotpAdministradorInicial"/>, para que
+/// los E2E (Ayudas.cs, que no referencia este proyecto) calculen el código
+/// sin acceso a BD.</item>
+/// <item><b>Cualquier otro entorno</b> (staging y producción arrancan como
+/// Production): nace <b>sin</b> segundo factor, y MainLayout lo manda a
+/// /cuenta/configurar-2fa en su primer acceso, donde da de alta su propio
+/// autenticador. Una clave aleatoria no serviría: nadie podría leerla sin
+/// escribirla en un log, y una clave en un log es otra clave conocida.</item>
+/// </list>
+/// Solo afecta a la creación: un Administrador inicial ya sembrado no se
+/// toca (reconfigurar el autenticador de uno existente es un paso manual).
 /// </summary>
 public static class IdentitySeeder
 {
@@ -91,10 +98,10 @@ public static class IdentitySeeder
             NombreCompleto = "Administrador",
             EmailConfirmed = true,
             // No es una contraseña temporal: el despliegue la eligió a
-            // propósito (o acepta el default documentado en DEPLOY.md), no
+            // propósito (o acepta el default documentado en Project-Hydra-Negocio/tecnico/DEPLOY.md), no
             // hay ningún tercero esperando cambiarla en su primer acceso.
             DebeCambiarContrasena = false,
-            // Tenant #1 (ver ADR-003-saas-multitenant.md) — no hay
+            // Tenant #1 (ver Project-Hydra-Negocio/tecnico/ADR-003-saas-multitenant.md) — no hay
             // aprovisionamiento de tenants nuevos todavía (sin self-signup,
             // ver ADR-001), así que el Administrador inicial siempre
             // pertenece al tenant por defecto.
@@ -112,13 +119,13 @@ public static class IdentitySeeder
 
         await userManager.AddToRoleAsync(administrador, Identity.Roles.Administrador);
 
-        if (userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
+        if (!await AsignarSegundoFactorDeSiembraAsync(administrador, userManager, userStore, entorno, cancellationToken))
         {
-            await claveStore.SetAuthenticatorKeyAsync(administrador, ClaveTotpAdministradorInicial, CancellationToken.None);
-            await userManager.UpdateAsync(administrador);
+            logger.LogInformation(
+                "Administrador inicial {UsuarioId} creado sin segundo factor: en su primer acceso " +
+                "MainLayout lo lleva a /cuenta/configurar-2fa para dar de alta su propio autenticador.",
+                administrador.Id);
         }
-
-        await userManager.SetTwoFactorEnabledAsync(administrador, true);
 
         await DesignarRaizDePlataformaAsync(
             administrador, dbContext, userManager, logger, cancellationToken);
@@ -133,6 +140,40 @@ public static class IdentitySeeder
             await Persistence.Seed.AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(
                 dbContext, administrador.Id, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Único punto donde la siembra da segundo factor a una cuenta (el
+    /// Administrador inicial y las cuentas de demo con 2FA de
+    /// DelegacionDemoSeeder, SegundoTenantSeeder y DatosPruebaSeeder).
+    /// <para>
+    /// Solo en Development activa 2FA con <see cref="ClaveTotpAdministradorInicial"/>,
+    /// la clave pública que los E2E usan para calcular el código. En cualquier
+    /// otro entorno —staging y producción arrancan como Production— no hace
+    /// nada: la cuenta nace sin segundo factor y, si es Administrador,
+    /// MainLayout la lleva a /cuenta/configurar-2fa en su primer acceso
+    /// (P0-1 y decisión D-5 de 2026-09-24).
+    /// </para>
+    /// </summary>
+    /// <returns><c>true</c> si ha activado 2FA con la clave fija.</returns>
+    public static async Task<bool> AsignarSegundoFactorDeSiembraAsync(
+        ApplicationUser usuario,
+        UserManager<ApplicationUser> userManager,
+        IUserStore<ApplicationUser> userStore,
+        IHostEnvironment entorno,
+        CancellationToken cancellationToken)
+    {
+        if (!entorno.IsDevelopment())
+            return false;
+
+        if (userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
+        {
+            await claveStore.SetAuthenticatorKeyAsync(usuario, ClaveTotpAdministradorInicial, cancellationToken);
+            await userManager.UpdateAsync(usuario);
+        }
+
+        await userManager.SetTwoFactorEnabledAsync(usuario, true);
+        return true;
     }
 
     /// <summary>

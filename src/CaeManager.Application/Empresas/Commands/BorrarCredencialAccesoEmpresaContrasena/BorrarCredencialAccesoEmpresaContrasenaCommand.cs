@@ -11,7 +11,7 @@ namespace CaeManager.Application.Empresas.Commands.BorrarCredencialAccesoEmpresa
 /// almacenada cuando el campo llega vacío, ya no hay ninguna otra forma de
 /// borrarla — esta es la única.
 /// </summary>
-public record BorrarCredencialAccesoEmpresaContrasenaCommand(Guid EmpresaId) : ICommand;
+public record BorrarCredencialAccesoEmpresaContrasenaCommand(Guid EmpresaId) : ICommand, IEscrituraDeDatosDeCredencial;
 
 public class BorrarCredencialAccesoEmpresaContrasenaCommandHandler(
     IEmpresaRepository empresaRepositorio,

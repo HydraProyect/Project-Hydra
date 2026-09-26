@@ -1,10 +1,10 @@
-// Prueba de carga base — P1-19 de docs/business/MATURITY_REVIEW.md: "prueba
+// Prueba de carga base — P1-19 de Project-Hydra-Negocio/MATURITY_REVIEW.md: "prueba
 // de carga base para tener una cifra defendible". No existía ninguna hasta
 // ahora (ni k6, ni NBomber, ni nada) — greenfield.
 //
 // k6 (Grafana Labs, AGPLv3, ejecutable independiente) en vez de un paquete
 // NuGet: se evaluó NBomber y se descartó por el mismo motivo que QuestPDF en
-// ARCHITECTURE.md — su licencia exige suscripción comercial para cualquier
+// Project-Hydra-Negocio/tecnico/ARCHITECTURE.md — su licencia exige suscripción comercial para cualquier
 // uso más allá de personal (NBOMBER LICENSE AGREEMENT v3.0 § 2.1/2.3-b:
 // "solely in connection with the Customer's internal operations", prohíbe
 // SaaS/ASP). k6 es de verdad libre para este uso — se ejecuta como

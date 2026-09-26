@@ -1,3 +1,5 @@
+using CaeManager.Domain.Common;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
@@ -42,6 +44,8 @@ public class VehiculosVacioPorFiltroTests : BunitContext
 
     private sealed class MediatorPorTipo : IMediator
     {
+        public bool AlcanceCero { get; init; }
+
         public required IReadOnlyList<VehiculoListaDto> Vehiculos { get; init; }
 
         public List<object> Enviadas { get; } = [];
@@ -56,6 +60,8 @@ public class VehiculosVacioPorFiltroTests : BunitContext
                 ObtenerSubcontratasParaSelectorQuery => new[] { new SubcontrataSelectorDto(SubcontrataId, "Aislamientos Nervión S.L.") },
                 ObtenerVehiculosQuery q => new ResultadoPaginado<VehiculoListaDto>(
                     Vehiculos, Vehiculos.Count, q.Pagina, q.TamanoPagina),
+                ObtenerAlcanceCeroQuery => (object)AlcanceCero,
+                ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
         }
@@ -94,7 +100,7 @@ public class VehiculosVacioPorFiltroTests : BunitContext
     private (IRenderedComponent<Vehiculos> Cut, MediatorPorTipo Mediador) RenderizarConMediador(
         string? busqueda = null, string? estado = null, params VehiculoListaDto[] vehiculos)
     {
-        var mediador = new MediatorPorTipo { Vehiculos = vehiculos };
+        var mediador = new MediatorPorTipo { Vehiculos = vehiculos, AlcanceCero = _alcanceCero };
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
@@ -233,5 +239,35 @@ public class VehiculosVacioPorFiltroTests : BunitContext
         mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Last().Busqueda.Should().Be("1234-ABC");
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
             "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
+    }
+
+    // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
+    // vigente en este Tenant— el vacío no es «Aún no hay vehículos»: la pantalla dice que
+    // falta la Asignación de Cartera y a quién pedirla.
+    private bool _alcanceCero;
+
+    [Fact]
+    public void Con_alcance_cero_y_sin_registros_dice_que_falta_la_Asignacion_de_Cartera()
+    {
+        _alcanceCero = true;
+
+        var cut = Renderizar();
+
+        cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
+            .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+        cut.Markup.Should().NotContain("Aún no hay vehículos");
+        cut.Markup.Should().NotContain("+ Nuevo vehículo", "invitar a crear con alcance cero termina en un duplicado");
+    }
+
+    [Fact]
+    public void Con_alcance_y_sin_registros_el_vacio_no_cambia()
+    {
+        _alcanceCero = false;
+
+        var cut = Renderizar();
+
+        cut.Markup.Should().Contain("Aún no hay vehículos");
+        cut.Markup.Should().Contain("+ Nuevo vehículo");
+        cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }
 }

@@ -56,7 +56,7 @@ public partial class AtajosGlobales : ComponentBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        // H5 (docs/ux-audit/16-transversales.md): mismo motivo que
+        // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/16-transversales.md): mismo motivo que
         // AtajosListaTeclado.razor — el circuito puede desconectarse antes
         // de que corra este Dispose.
         try

@@ -76,7 +76,7 @@ public enum TipoItemBandeja
     /// <c>/alertas</c> de la cola de trabajo real de Nivel 0). Existe como
     /// valor del enum solo para
     /// <c>ObtenerMiTrabajoAgregadoQueryHandler</c> (Mi trabajo Gen2,
-    /// CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md § 5/D-6: "el
+    /// Project-Hydra-Negocio/tecnico/CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md § 5/D-6: "el
     /// vencimiento próximo entra en Mi trabajo" a nivel agregado, sin
     /// cambiar qué ve <c>/bandeja</c> ni Inicio). <c>Fusionar</c> nunca
     /// produce este valor — /bandeja e Inicio no lo verán jamás.
@@ -107,7 +107,7 @@ public enum TipoItemBandeja
 
 /// <param name="CreadaEnUtc">
 /// Cuándo apareció este ítem — solo lo tienen SugerenciaVisitaUrgente/DeteccionPendiente/RevisionIa
-/// (docs/blueprints/OPERATIONAL-HOME.md § 6): un documento Vencido/Faltante/Urgente no "aparece",
+/// (Project-Hydra-Negocio/tecnico/docs/blueprints/OPERATIONAL-HOME.md § 6): un documento Vencido/Faltante/Urgente no "aparece",
 /// su estado cambia, así que no tiene un momento de creación que registrar. Alimenta el resumen
 /// de ausencia — null en el resto de tipos.
 /// </param>
@@ -168,6 +168,12 @@ public enum TipoItemBandeja
 /// consume la vigilancia de visitas urgentes, a la que no le hace falta—: allí
 /// false significa «no calculado», no «no bloquea».
 /// </param>
+/// <param name="AcreditacionId">
+/// Solo en los ítems de plataforma (pendiente, rechazada, en seguimiento,
+/// vencida en plataforma): la acreditación concreta, para que la acción lleve
+/// a su fila en la pestaña Plataforma (<c>?acreditacionId=</c>, P0-9b) y no a
+/// la lista entera de todas las plataformas.
+/// </param>
 public record ItemBandejaDto(
     string Id,
     TipoItemBandeja Tipo,
@@ -189,7 +195,8 @@ public record ItemBandejaDto(
     string? ProveedorNombre = null,
     bool EsAltaNueva = false,
     bool? EmpresaEsPropia = null,
-    bool RechazoBloqueaCentro = false);
+    bool RechazoBloqueaCentro = false,
+    Guid? AcreditacionId = null);
 
 public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracionQueryContext configuracionContext)
     : IRequestHandler<ObtenerBandejaGestorQuery, IReadOnlyList<ItemBandejaDto>>
@@ -379,7 +386,8 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             ClienteNombre: x.cliente.ClienteNombre,
             EmpresaId: x.d.EmpresaId,
             TrabajadorNombre: x.d.TrabajadorId is not null ? x.d.PropietarioNombre : null,
-            ProveedorNombre: x.proveedor.ProveedorNombre)));
+            ProveedorNombre: x.proveedor.ProveedorNombre,
+            AcreditacionId: x.d.AcreditacionId)));
 
         // Una sugerencia sin confirmar pesa más que cualquier otra cosa: sin
         // confirmarla no hay ni Visita ni documentación que verificar. Entre

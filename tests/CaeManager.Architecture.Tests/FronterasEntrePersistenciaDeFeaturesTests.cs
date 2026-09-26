@@ -7,7 +7,7 @@ using MediatR;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// Horizonte 2.5 (MACRO_PLAN_2026-08-13.md § 2.5, regla 1): el código está
+/// Horizonte 2.5 (Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md § 2.5, regla 1): el código está
 /// organizado por feature bajo <c>src/CaeManager.Application/&lt;Feature&gt;/</c>,
 /// cada una dueña en principio de sus propias interfaces de persistencia
 /// (<c>I*QueryContext</c> del lado de lectura en Application, <c>I*Repository</c>
@@ -73,6 +73,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Asignaciones.CrearAsignacionCommandHandler", "ITrabajadoresQueryContext"),
         ("Asignaciones.CrearAsignacionesCommandHandler", "ICentrosQueryContext"),
         ("Asignaciones.CrearAsignacionesCommandHandler", "ITrabajadoresQueryContext"),
+        // P1-X2: el acordeón no exige nada a un Centro sin gestión CAE (CentrosSinGestionCae).
+        ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "ICentrosQueryContext"),
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "IConfiguracionQueryContext"),
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "IDocumentosQueryContext"),
         ("Asignaciones.ObtenerAsignacionesDocumentacionPorCentroQueryHandler", "ITiposDocumentoQueryContext"),
@@ -195,8 +197,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.ObtenerSubcontrataPorIdQueryHandler", "IEmpresasQueryContext"),
         // F3b-Subcontrata (revisión adversaria, 2026-08-26): adelantadas por
         // evidencia real, no por reclasificación — ver
-        // f3b-subcontrata-obtenersubcontratasquery-adelantada-2026-08-26.md
-        // y f3b-subcontrata-selector-adelantado-2026-08-26.md.
+        // Project-Hydra-Negocio/tecnico/f3b-subcontrata-obtenersubcontratasquery-adelantada-2026-08-26.md
+        // y Project-Hydra-Negocio/tecnico/f3b-subcontrata-selector-adelantado-2026-08-26.md.
         ("Subcontratas.ObtenerSubcontratasQueryHandler", "IEmpresasQueryContext"),
         ("Subcontratas.ObtenerSubcontratasParaSelectorQueryHandler", "IEmpresasQueryContext"),
         // Comercial (Horizonte 1.7, "Billing mínimo viable") opera
@@ -319,7 +321,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.EliminarDocumentosCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionAceptadaCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionRechazadaCommandHandler", "IProyectosQueryContext"),
-        // MVP2 § 14.5 (kill switch remoto, ver ARQUITECTURA-INTEGRACIONES.md en
+        // MVP2 § 14.5 (kill switch remoto, ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md en
         // el repositorio de negocio): ExigirProveedorActivo necesita resolver
         // el proveedor del canal de la acreditación (ICentrosQueryContext) y
         // comprobar su Activo (IProveedoresPlataformaCaeQueryContext), solo
@@ -452,7 +454,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // Trazabilidad: nombre del trabajador/empresa de cada DocumentoGenerado.
         ("Plantillas.ObtenerDocumentosGeneradosQueryHandler", "ITrabajadoresQueryContext"),
         ("Plantillas.ObtenerDocumentosGeneradosQueryHandler", "IEmpresasQueryContext"),
-        ("Proyectos.AsignarTecnicoProyectoCommandHandler", "ITrabajadoresQueryContext"),
+        // Soporte TALVEG universal (ADR-011 § 8.9): una concesión global de
+        // SoporteLectura cubre cualquier Guid, así que la apertura comprueba que
+        // el Tenant objetivo existe. Solo lee Tenants, nunca contenido del Tenant.
+        ("Plataforma.AbrirSesionPrivilegiadaCommandHandler", "ITenantsQueryContext"),
+        ("Proyectos.AsignarTecnicoProyectoCommandHandler","ITrabajadoresQueryContext"),
         ("Proyectos.CrearProyectoCommandHandler", "ICentrosQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "ICentrosQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "IClientesQueryContext"),
@@ -514,6 +520,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "ITiposDocumentoQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "ITrabajadoresQueryContext"),
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "IAsignacionesQueryContext"),
+        // P1-X2: un Centro sin gestión CAE no exige nada al personal de la subcontrata (CentrosSinGestionCae).
+        ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "ICentrosQueryContext"),
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "IConfiguracionQueryContext"),
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "IDocumentosQueryContext"),
         ("Subcontratas.ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler", "ITiposDocumentoQueryContext"),
@@ -585,6 +593,20 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IClientesQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IEmpresasQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "ITrabajadoresQueryContext"),
+        // P1-X2: el aviso de visita de un Centro sin gestión CAE lee el Centro (nombre,
+        // modalidad), las Empresas (proveedora y la de cada Trabajador) y los
+        // Trabajadores (solo nombre y apellidos), igual que ObtenerDetalleVisita.
+        ("Visitas.ObtenerAvisoVisitaQueryHandler", "ICentrosQueryContext"),
+        ("Visitas.ObtenerAvisoVisitaQueryHandler", "IEmpresasQueryContext"),
+        ("Visitas.ObtenerAvisoVisitaQueryHandler", "ITrabajadoresQueryContext"),
+        // P1-X1: la solicitud de acceso de un Centro gestionado por correo lee el Centro y
+        // sus canales (nombre, destinatarios, contacto), la Empresa y los Trabajadores de la
+        // Visita (solo nombre, apellidos y razón social), igual que el aviso de P1-X2; la
+        // descarga del zip solo lee el Centro y sus canales para decidir si se ofrece.
+        ("Visitas.ObtenerSolicitudAccesoCorreoQueryHandler", "ICentrosQueryContext"),
+        ("Visitas.ObtenerSolicitudAccesoCorreoQueryHandler", "IEmpresasQueryContext"),
+        ("Visitas.ObtenerSolicitudAccesoCorreoQueryHandler", "ITrabajadoresQueryContext"),
+        ("Visitas.ObtenerPaqueteDocumentalVisitaQueryHandler", "ICentrosQueryContext"),
         ("Visitas.ObtenerDocumentacionVisitaQueryHandler", "ICentrosQueryContext"),
         ("Visitas.ObtenerDocumentacionVisitaQueryHandler", "IConfiguracionQueryContext"),
         ("Visitas.ObtenerDocumentacionVisitaQueryHandler", "IDocumentosQueryContext"),
@@ -658,7 +680,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // en rojo: el asistente de alta guiada crea un Cliente y lo vincula
         // en la misma sesión vía este selector; congelado, el selector nunca
         // lo encontraba). Las otras 5 consultas de D2 §3 siguen intactas —
-        // ver f3b-selectores-adelantados-2026-08-26.md.
+        // ver Project-Hydra-Negocio/tecnico/f3b-selectores-adelantados-2026-08-26.md.
         ("Clientes.ObtenerClientesParaSelectorQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ObtenerClientePorIdQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ObtenerResumenClienteQueryHandler", "IEmpresasQueryContext"),

@@ -5,7 +5,7 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 
 /// <summary>
 /// Implementación de <see cref="ITenantActual"/> para contextos sin sesión
-/// de usuario: procesos de fondo (ver PLAN-MIGRACION-MULTITENANT.md § 4.7,
+/// de usuario: procesos de fondo (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 4.7,
 /// "ámbito de tenant explícito para jobs"), migraciones y tests de
 /// integración. A diferencia de la implementación Web (que resuelve el
 /// claim de la sesión), aquí el tenant se asigna explícitamente antes de

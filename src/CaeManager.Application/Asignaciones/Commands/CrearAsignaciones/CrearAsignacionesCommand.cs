@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -12,7 +13,7 @@ namespace CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 /// da de alta el producto cartesiano de Trabajadores × Centros (N
 /// trabajadores a 1 centro, 1 trabajador a N centros, o ambos a la vez). Es
 /// exactamente la forma del Excel original (matriz Trabajador × Centro,
-/// ver <c>DATABASE.md</c>), y el vehículo tanto del Drawer de alta múltiple
+/// ver <c>Project-Hydra-Negocio/tecnico/DATABASE.md</c>), y el vehículo tanto del Drawer de alta múltiple
 /// como de la vista matriz de <c>/asignaciones</c> — la matriz llama a este
 /// Command una vez por columna (un Centro, los Trabajadores recién marcados
 /// en esa columna), que sigue siendo un producto cartesiano válido.
@@ -56,7 +57,8 @@ public class CrearAsignacionesCommandValidator : AbstractValidator<CrearAsignaci
 
 public class CrearAsignacionesCommandHandler(
     IAsignacionRepository repositorio, IAsignacionesQueryContext asignacionesContext,
-    IAutoridadAsignacionesService autoridad, IUnitOfWork unitOfWork)
+    IAutoridadAsignacionesService autoridad, IAltaAcreditacionesPlataformaService altaAcreditaciones,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<CrearAsignacionesCommand, Result<ResultadoAsignacionLoteDto>>
 {
     public async Task<Result<ResultadoAsignacionLoteDto>> Handle(CrearAsignacionesCommand request, CancellationToken cancellationToken)
@@ -123,6 +125,7 @@ public class CrearAsignacionesCommandHandler(
                 solapadasSet.Add(clave);
         }
 
+        var asignacionesNuevas = new List<Asignacion>();
         var creadas = 0;
         var yaActivas = 0;
         var solapadas = 0;
@@ -144,7 +147,9 @@ public class CrearAsignacionesCommandHandler(
                     continue;
                 }
 
-                repositorio.Agregar(new Asignacion(trabajadorId, centroId, request.FechaAlta));
+                var asignacion = new Asignacion(trabajadorId, centroId, request.FechaAlta);
+                repositorio.Agregar(asignacion);
+                asignacionesNuevas.Add(asignacion);
                 creadas++;
             }
         }
@@ -152,6 +157,10 @@ public class CrearAsignacionesCommandHandler(
         if (solapadas > 0)
             errores.Add(
                 $"{solapadas} combinación(es) se omitieron: la fecha de alta solapa con un periodo ya registrado (activo o cerrado) para ese mismo trabajador y centro.");
+
+        // Misma regla que CrearAsignacionCommand, para todo el lote a la vez y en
+        // el mismo SaveChangesAsync.
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Asignaciones = asignacionesNuevas }, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

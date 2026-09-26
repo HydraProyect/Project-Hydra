@@ -27,4 +27,16 @@
   <data name="EnlaceMiTrabajo" xml:space="preserve">
     <value>Ir a Mi trabajo →</value>
   </data>
+  <data name="AnilloSinDatos" xml:space="preserve">
+    <value>Sense dades de compliment documental</value>
+  </data>
+  <data name="AnilloSinDatosDetalle" xml:space="preserve">
+    <value>No hi ha centres de treball ni documents amb vigència en cartera per mesurar.</value>
+  </data>
+  <data name="CentrosBloqueadosKpiUno" xml:space="preserve">
+    <value>1 centre de treball amb l'accés bloquejat: el percentatge compta documents, no accés.</value>
+  </data>
+  <data name="CentrosBloqueadosKpiVarios" xml:space="preserve">
+    <value>{0} centres de treball amb l'accés bloquejat: el percentatge compta documents, no accés.</value>
+  </data>
 </root>

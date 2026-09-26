@@ -1,5 +1,6 @@
 @page "/centros"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Centros.Commands.CrearCentro
 @using CaeManager.Application.Centros.Commands.EditarCentro
@@ -12,15 +13,20 @@
 @using CaeManager.Application.Common
 @using CaeManager.Web.Features.Centros
 @using CaeManager.Web.Features.Centros.Components
+@using CaeManager.Web.Features.Centros.Recursos
+@using Microsoft.Extensions.Localization
 @using CaeManager.Web.Features.Clientes.Components
 @using CaeManager.Web.Features.Empresas.Components
 @using FluentValidation
 @using MediatR
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IMediator Mediator
+@inject IStringLocalizer<TextosCentros> Textos
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
 @inject ContextWorkspaceService WorkspaceService
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Centros — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -71,7 +77,10 @@
         </Boton>
         <a class="enlace-exportar" href="/centros/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
         <a class="enlace-exportar" href="/asignaciones/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar asignaciones</a>
-        <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>
+        @if (!_alcanceCero)
+        {
+            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>
+        }
     </div>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -106,11 +115,14 @@
     }
     else if (_elementosPagina.Count == 0)
     {
-        <EstadoVacio NombreIcono="centros" Titulo="Aún no hay centros" Descripcion="Crea el primero para empezar a asignar trabajadores.">
-            <Accion>
-                <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>
-            </Accion>
-        </EstadoVacio>
+        @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
+        <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
+            <EstadoVacio NombreIcono="centros" Titulo="Aún no hay centros" Descripcion="Crea el primero para empezar a asignar trabajadores.">
+                <Accion>
+                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>
+                </Accion>
+            </EstadoVacio>
+        </VacioSegunAlcance>
     }
     else
     {
@@ -394,6 +406,7 @@
     Visible="_confirmarEliminarLoteVisible"
     VisibleChanged="v => _confirmarEliminarLoteVisible = v"
     Titulo="@($"¿Eliminar {_seleccionados.Count} centro(s)?")"
-    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría."
+    Mensaje="Se ocultarán de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador del Tenant puede recuperarlos desde Auditoría."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
+</LimiteDeErrores>

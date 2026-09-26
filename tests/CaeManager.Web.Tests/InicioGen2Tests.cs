@@ -1,3 +1,5 @@
+using CaeManager.Domain.Common;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using System.Globalization;
 using System.Reflection;
 using System.Security.Claims;
@@ -82,6 +84,44 @@ public class InicioGen2Tests : BunitContext
 
         cut.Markup.Should().NotContain("Este contexto todavía no tiene datos");
         cut.FindAll(".dashboard-resumen").Should().NotBeEmpty();
+    }
+
+    // ------------------------------------------------ anillo: sin datos y bloqueos (P2.4)
+
+    /// <summary>
+    /// Con trabajadores pero sin Centros de Trabajo ni documentos con vigencia,
+    /// la consulta devuelve 100 (nada que medir) y SinDatos: el anillo no puede
+    /// afirmar «100 % de cumplimiento», que se lee como «al día».
+    /// </summary>
+    [Fact]
+    public void Sin_datos_que_medir_el_anillo_no_afirma_un_cien_por_cien_de_cumplimiento()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            Kpis = KpisACero() with { TrabajadoresActivos = 3, TasaCumplimientoDocumental = 100, SinDatos = true }
+        });
+
+        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("Sin datos de cumplimiento documental");
+        cut.Find(".dashboard-resumen").TextContent.Should().NotContain("100%");
+    }
+
+    [Fact]
+    public void Con_centros_de_trabajo_bloqueados_el_anillo_declara_que_el_porcentaje_no_mide_el_acceso()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 2 } });
+
+        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("87% de cumplimiento documental");
+        cut.Find(".dashboard-resumen-anillo-bloqueo").TextContent.Should()
+            .Be("2 centros de trabajo con el acceso bloqueado: el porcentaje cuenta documentos, no acceso.");
+    }
+
+    [Fact]
+    public void Sin_centros_de_trabajo_bloqueados_no_hay_aviso_de_bloqueo_junto_al_anillo()
+    {
+        var cut = Renderizar(new MediadorDeInicio());
+
+        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("87% de cumplimiento documental");
+        cut.FindAll(".dashboard-resumen-anillo-bloqueo").Should().BeEmpty();
     }
 
     [Fact]
@@ -231,6 +271,34 @@ public class InicioGen2Tests : BunitContext
         cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin cartera asignada");
         mediador.PeticionesAutorizados.Should().Be(1);
         mediador.PeticionesVision.Should().Be(0, "sin otro Tenant autorizado no hay cartera fuera que buscar");
+    }
+
+    // P0-9a (FS-06): un Gestor CAE recién dado de alta, sin cartera en ningún
+    // Tenant propietario, tenía un estado vacío sin salida. Ahora ofrece lo
+    // mismo que Mi trabajo: «Añadir a mi cartera» si hay Empresas que pedir.
+
+    [Fact]
+    public void Sin_cartera_y_con_Empresas_que_pedir_ofrece_anadir_a_mi_cartera()
+    {
+        var mediador = new MediadorDeInicio
+        {
+            Kpis = KpisACero() with { SinCarteraAsignada = true },
+            Candidatos = [new CandidatoIncorporacionCarteraDto(Guid.NewGuid(), "Refrielectric", null)],
+        };
+        var cut = Renderizar(mediador);
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin cartera asignada");
+        cut.Find(".estado-vacio button").TextContent.Should().Contain("Añadir a mi cartera");
+    }
+
+    [Fact]
+    public void Sin_cartera_y_sin_Empresas_que_pedir_no_ofrece_boton()
+    {
+        var mediador = new MediadorDeInicio { Kpis = KpisACero() with { SinCarteraAsignada = true } };
+        var cut = Renderizar(mediador);
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin cartera asignada");
+        cut.FindAll(".estado-vacio button").Should().BeEmpty();
     }
 
     // ------------------------------------------------------------ cabecera
@@ -762,6 +830,9 @@ public class InicioGen2Tests : BunitContext
         /// </summary>
         public int Pulsos { get; private set; }
 
+        /// <summary>Empresas que el Gestor CAE puede pedir añadir a su cartera (el aviso de alcance cero de FS-06).</summary>
+        public IReadOnlyList<CandidatoIncorporacionCarteraDto> Candidatos { get; init; } = [];
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             TokensDeCarga.Add(cancellationToken);
@@ -798,6 +869,8 @@ public class InicioGen2Tests : BunitContext
                         Autorizados.Count, 0, 0, 0, 0, 0, 100,
                         [.. Autorizados.Select(t => new ClienteRiesgoDto(t.TenantId, t.Nombre, 0, 0, 100,
                             SinCarteraAsignada: !CarteraPorTenant.GetValueOrDefault(t.TenantId)))]));
+                case ObtenerCandidatosIncorporacionCarteraQuery:
+                    return Task.FromResult((TResponse)(object)Result.Exito(Candidatos));
                 default:
                     throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.");
             }

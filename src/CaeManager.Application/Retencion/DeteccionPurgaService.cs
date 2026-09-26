@@ -27,7 +27,7 @@ public record ResultadoDiagnosticoPurga(int DocumentosPurgables, int Trabajadore
 ///
 /// Trabaja sobre el tenant que tenga resuelto quien lo invoque: el barrido que
 /// recorre varios tenants es responsabilidad de quien orquesta, con ámbito
-/// explícito por tenant (docs/MULTITENANCY.md § 8.4).
+/// explícito por tenant (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8.4).
 /// </summary>
 public class DeteccionPurgaService(
     IAsignacionesQueryContext asignacionesContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext,
@@ -109,7 +109,7 @@ public class DeteccionPurgaService(
     /// deliberada, ver CLAUDE.md): el filtro global oculta también las
     /// filas EstaEliminado, así que un Documento borrado lógicamente
     /// nunca entraba en detección — hallazgo P0-3 de
-    /// docs/business/MATURITY_REVIEW.md. Se reemplaza el filtro completo
+    /// Project-Hydra-Negocio/MATURITY_REVIEW.md. Se reemplaza el filtro completo
     /// (tenant + soft-delete) por uno que solo exige el tenant, para
     /// ver también lo soft-deleted sin dejar de acotar al tenant actual.
     ///
@@ -152,7 +152,7 @@ public class DeteccionPurgaService(
     /// Mismo criterio que en Documentos: IgnoreQueryFilters() + Where(TenantId)
     /// explícito para alcanzar también a los Trabajadores dados de baja
     /// (soft-delete) — son justamente el caso que esta categoría existe
-    /// para cubrir (P0-3 de docs/business/MATURITY_REVIEW.md). Las
+    /// para cubrir (P0-3 de Project-Hydra-Negocio/MATURITY_REVIEW.md). Las
     /// subconsultas sobre Asignaciones no necesitan el mismo tratamiento:
     /// Asignacion no tiene soft-delete y su filtro de tenant normal ya es
     /// el correcto.

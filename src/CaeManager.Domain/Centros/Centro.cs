@@ -6,7 +6,7 @@ namespace CaeManager.Domain.Centros;
 /// Ubicación física de un Cliente donde trabajan nuestros trabajadores.
 /// Normaliza el problema del Excel original, donde varios centros de un
 /// mismo cliente aparecían fusionados como texto libre en una sola fila
-/// (ver DATABASE.md).
+/// (ver Project-Hydra-Negocio/tecnico/DATABASE.md).
 /// </summary>
 public class Centro : EntidadBase
 {
@@ -22,6 +22,14 @@ public class Centro : EntidadBase
     public string? Direccion { get; private set; }
     public string? Contacto { get; private set; }
     public DateOnly? ContratoVigenteHasta { get; private set; }
+
+    /// <summary>
+    /// Si el Centro exige documentación CAE. Por defecto sí; ver
+    /// <see cref="ModalidadGestionCae"/>.
+    /// </summary>
+    public ModalidadGestionCae GestionCae { get; private set; } = ModalidadGestionCae.ConGestionCae;
+
+    public bool RequiereGestionCae => GestionCae == ModalidadGestionCae.ConGestionCae;
 
     private Centro()
     {
@@ -62,6 +70,14 @@ public class Centro : EntidadBase
         Direccion = direccion;
         Contacto = contacto;
         ContratoVigenteHasta = contratoVigenteHasta;
+    }
+
+    public void EstablecerGestionCae(ModalidadGestionCae modalidad)
+    {
+        if (!Enum.IsDefined(modalidad))
+            throw new ArgumentOutOfRangeException(nameof(modalidad), modalidad, "Modalidad de gestión CAE desconocida.");
+
+        GestionCae = modalidad;
     }
 
     public bool ContratoCaducado(DateOnly hoy) => ContratoVigenteHasta is not null && ContratoVigenteHasta < hoy;

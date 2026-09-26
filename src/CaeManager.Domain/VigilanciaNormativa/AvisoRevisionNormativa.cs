@@ -4,7 +4,7 @@ namespace CaeManager.Domain.VigilanciaNormativa;
 
 /// <summary>
 /// Aviso de que una publicación del BOE toca una norma de la lista vigilada
-/// (PLAN_MVP1_FORMATOS.md tramo 1 bis, corte mínimo). Extiende
+/// (Project-Hydra-Negocio/PLAN_MVP1_FORMATOS.md tramo 1 bis, corte mínimo). Extiende
 /// <see cref="Entity"/>, no <see cref="EntidadConTenant"/>: el BOE es el
 /// mismo para todos los tenants, y el aviso es para quien mantiene el
 /// catálogo de formatos (el propietario del producto), no para un cliente —
@@ -96,7 +96,7 @@ public class AvisoRevisionNormativa : Entity, IVersionable
     /// <summary>
     /// Registra que una persona revisó el aviso y decidió qué hacer con él.
     /// No traslada ninguna conclusión al catálogo de formatos — eso, si
-    /// procede, es un cambio aparte hecho a mano en CATALOGO_FORMATOS_PRL.md.
+    /// procede, es un cambio aparte hecho a mano en Project-Hydra-Negocio/CATALOGO_FORMATOS_PRL.md.
     /// </summary>
     public void MarcarRevisado(Guid usuarioId, string? notas, DateTime ahoraUtc)
     {

@@ -1,5 +1,5 @@
 /*
-  Design tokens de CAE Manager (ver DESIGN_SYSTEM.md — identidad ProjectHydra).
+  Design tokens de CAE Manager (ver Project-Hydra-Negocio/tecnico/docs/archive/design/DESIGN_SYSTEM.md — identidad ProjectHydra).
   Fuente de verdad única: ningún componente hardcodea un color, tamaño de
   fuente o espaciado — todo se referencia a través de estas variables.
   Los nombres de variable se mantienen estables entre rediseños (más de 50
@@ -9,7 +9,7 @@
 
 :root {
   /* Color — primario, identidad propia CAE Manager: azul acero, no azul SaaS
-     genérico (ver DESIGN_SYSTEM.md § Historial — realineación 2026-07). */
+     genérico (ver Project-Hydra-Negocio/tecnico/docs/archive/design/DESIGN_SYSTEM.md § Historial — realineación 2026-07). */
   --color-primary-50: #eef5ff;
   --color-primary-100: #dcebff;
   --color-primary-200: #bdd9ff;

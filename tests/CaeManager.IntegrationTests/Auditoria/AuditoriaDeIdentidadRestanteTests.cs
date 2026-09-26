@@ -166,15 +166,23 @@ public class AuditoriaDeIdentidadRestanteTests
         var tenantOperador = Guid.NewGuid();
         var tenantBeneficiario = Guid.NewGuid();
         var tenantActualDeTest = new TenantActualFijo { TenantId = tenantOperador };
+        var titular = new CurrentUserServiceMutable();
 
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(
-            datosDePruebaActivos: false, tenantActualPersonalizado: tenantActualDeTest);
+            datosDePruebaActivos: false, tenantActualPersonalizado: tenantActualDeTest,
+            currentUserServicePersonalizado: titular);
         using var ambito = arnes.Servicios.CreateScope();
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
         var usuario = await CrearUsuarioAsync(userManager, "gestor-cae-operador@caemanager.local", tenantOperador);
 
-        // A partir de aquí la sesión "ve" el tenant del workspace delegado.
+        // A partir de aquí la sesión es la del propio Gestor CAE y "ve" el
+        // tenant del workspace delegado. Desde P1-M1 el titular de la sesión es
+        // parte del escenario: solo sobre la PROPIA cuenta se traslada
+        // app.tenant_id al Tenant propietario; sin él, la política de
+        // AspNetUsers rechaza la escritura desde el Tenant beneficiario.
+        titular.UsuarioId = usuario.Id;
+        titular.TenantOrigenId = tenantOperador;
         tenantActualDeTest.TenantId = tenantBeneficiario;
 
         (await userManager.ResetAuthenticatorKeyAsync(usuario)).Succeeded.Should().BeTrue();

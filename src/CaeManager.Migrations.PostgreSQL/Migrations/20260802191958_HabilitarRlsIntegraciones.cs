@@ -11,7 +11,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// se crearon después de 20260801120000_HabilitarRlsPostgres y se quedaron
     /// fuera de la lista de tablas con RLS — el filtro global de EF (primera
     /// línea) ya las protegía, pero la segunda línea (RLS sobre
-    /// <c>cae_app_runtime</c>, ver RUNBOOK-RLS.md) no las cubría. Inofensivo hoy
+    /// <c>cae_app_runtime</c>, ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md) no las cubría. Inofensivo hoy
     /// porque ese rol restringido no está activado en ningún entorno. Misma
     /// política exacta que el resto de tablas — no reinventa el criterio, solo
     /// lo extiende a estas 4.

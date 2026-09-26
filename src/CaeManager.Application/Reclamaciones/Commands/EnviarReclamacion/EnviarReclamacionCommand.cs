@@ -6,6 +6,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -27,7 +28,7 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 /// (el Gestor CAE revisa la vista previa y pulsa Enviar), no hay job en
 /// segundo plano todavía. DocumentoIds llega de la vista previa, así que se
 /// recarga y revalida server-side (no basta con que la UI solo ofrezca Ids
-/// válidos, ver P0-1 de docs/business/MATURITY_REVIEW.md) con el MISMO
+/// válidos, ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md) con el MISMO
 /// criterio de "reclamable" que ObtenerLoteReclamacionQuery (incluida la
 /// ventana de 3 meses) — un Id que ya no cumple esos criterios (p. ej. el
 /// documento se renovó, o un contacto salió de la agenda, entre que se abrió
@@ -101,6 +102,10 @@ public class EnviarReclamacionCommandHandler(
             where asignacion.FechaBaja == null
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
             where centro.ClienteId == request.ClienteId
+            // P1-X2: un Centro sin gestión CAE no exige documentación, así que
+            // tampoco da pie a reclamarla (ObtenerLoteReclamacion y
+            // EnviarReclamacion comparten el filtro: lo que no se ofrece no se envía).
+            where centro.GestionCae != ModalidadGestionCae.SinGestionCae
             select new
             {
                 DocumentoId = documento.Id,

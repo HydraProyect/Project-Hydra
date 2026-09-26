@@ -19,7 +19,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Tenants;
 
 /// <summary>
-/// Hallazgo N-6 de INFORME-AUDITORIA-2.md: la delegación se comprobaba una
+/// Hallazgo N-6 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md: la delegación se comprobaba una
 /// sola vez, al emitir el token de selección, y su lectura no hace I/O a
 /// propósito. Revocada la delegación, un token vivo seguía concediendo acceso
 /// al ex-cliente hasta caducar.

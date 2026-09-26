@@ -7,7 +7,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <inheritdoc />
     /// <summary>
     /// Segunda línea de aislamiento para <c>RegistrosTiempoGestion</c> (tabla nueva
-    /// con <c>TenantId</c>, ver RUNBOOK-RLS.md). Misma política exacta que las 46
+    /// con <c>TenantId</c>, ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md). Misma política exacta que las 46
     /// tablas anteriores — no reinventa el criterio, solo lo extiende. Sin esta
     /// migración, <c>PoliticasRlsCubrenModeloTests</c> falla en CI, que es
     /// precisamente para lo que existe ese test.

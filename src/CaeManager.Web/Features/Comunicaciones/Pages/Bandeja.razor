@@ -1,10 +1,11 @@
 @page "/comunicaciones"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @* Mismos roles que el menú completo de CatalogoMenuLateral: la bandeja es una pantalla de
    gestión CAE y el rol Cliente no entra. Que el menú le oculte el enlace no
    basta — decide qué pestañas existen, no qué puede pedirse por URL
-   (hallazgo N-2 de INFORME-AUDITORIA-2.md).
-   Communication Workspace unificado (docs/COMUNICACIONES.md § 16, paso 2 del
+   (hallazgo N-2 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
+   Communication Workspace unificado (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 16, paso 2 del
    rediseño): una sola bandeja para Correo y WhatsApp — /comunicaciones/chat
    ya no existe como pantalla aparte (principio § 10.2). *@
 @attribute [Authorize(Roles = RolesComunicaciones.Gestion)]
@@ -20,6 +21,7 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Comunicaciones — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina bandeja-contenedor">
@@ -592,3 +594,4 @@
         </Pie>
     </Drawer>
 </div>
+</LimiteDeErrores>

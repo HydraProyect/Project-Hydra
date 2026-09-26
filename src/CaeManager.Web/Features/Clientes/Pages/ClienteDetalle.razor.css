@@ -42,16 +42,20 @@
     outline-offset: 2px;
 }
 
-/* «3 centros de este cliente, del peor estado al mejor.» sobre la lista. */
+/* «3 centros de este cliente, del peor estado al mejor.» sobre la lista
+   (.texto-apoyo del mockup, body-md). */
 .cliente360-resumen-lista {
     margin: 0 0 var(--space-3);
-    font: var(--font-body-sm);
+    font: var(--font-body-md);
     color: var(--color-text-muted);
 }
 
+/* .fila-rel-pct del mockup: label, ancho mínimo y a la derecha, para que
+   los porcentajes de la lista queden en columna. */
 .cliente360-cumplimiento {
-    font: var(--font-body-sm);
-    font-weight: 600;
+    min-width: 42px;
+    text-align: right;
+    font: var(--font-label);
     font-variant-numeric: tabular-nums;
     color: var(--color-text-muted);
 }

@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Comunicaciones.Commands.MigrarConversacionACorreo;
 
 /// <summary>
-/// Fallback de canal (docs/COMUNICACIONES.md § 16.5): la ventana de servicio
+/// Fallback de canal (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 16.5): la ventana de servicio
 /// de WhatsApp (24 h desde el último entrante) ya cerró, así que el envío
 /// libre por ese canal está bloqueado — en vez del bloqueo seco, el gestor
 /// puede continuar la MISMA conversación por correo. No hay ningún hilo de

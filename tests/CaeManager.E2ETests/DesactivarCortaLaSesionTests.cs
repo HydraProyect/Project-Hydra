@@ -168,6 +168,13 @@ public class DesactivarCortaLaSesionTests(WebAppFixtureConRevalidacionRapida fix
         var fila = paginaAdmin.Locator("tr").Filter(new LocatorFilterOptions { HasText = emailUsuario });
         await Ayudas.PulsarAccionDeMenuAsync(fila.Locator(".menu-acciones-disparador"), accion);
 
+        // FS-25: desactivar pide confirmación en un diálogo (reactivar no). Sin elegir a
+        // quién pasar la cartera, no se reasigna nada.
+        if (accion == "Desactivar")
+            await paginaAdmin.GetByRole(AriaRole.Dialog)
+                .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Desactivar", Exact = true })
+                .ClickAsync();
+
         await Assertions.Expect(paginaAdmin.Locator(".toast").Filter(new LocatorFilterOptions { HasText = textoToast }))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
     }

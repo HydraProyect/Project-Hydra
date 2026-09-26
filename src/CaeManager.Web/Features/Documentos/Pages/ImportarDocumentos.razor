@@ -1,7 +1,10 @@
 @page "/documentos/importar"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @inject NavigationManager Navigation
+
+<LimiteDeErrores Pagina="this" />
 
 @code {
     // La entrada documental abre el paso 2 del asistente unificado.

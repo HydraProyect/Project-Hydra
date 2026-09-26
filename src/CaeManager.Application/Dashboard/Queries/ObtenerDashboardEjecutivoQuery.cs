@@ -44,7 +44,7 @@ public record DashboardEjecutivoDto(
 /// <see cref="ObtenerCatalogoKpisQuery"/> con <see cref="AmbitoTenantExplicito"/>
 /// fijado a ese tenant, y los resultados se fusionan **en memoria** — nunca
 /// una query cruza el filtro global de tenant (ver
-/// ADR-004-delegacion-consultoras-cae.md § 7.2).
+/// Project-Hydra-Negocio/tecnico/ADR-004-delegacion-consultoras-cae.md § 7.2).
 ///
 /// El fan-out es secuencial a propósito, no <c>Task.WhenAll</c>: el
 /// <c>DbContext</c> scoped no admite llamadas EF concurrentes sobre la misma

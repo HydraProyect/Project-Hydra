@@ -12,7 +12,7 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRe
 /// Reclamaciones que salieron por una conversación y siguen sin contestar
 /// pasados <paramref name="DiasSinRespuesta"/> días.
 ///
-/// "Sin respuesta" es un estado DERIVADO, no persistido (docs/COMUNICACIONES.md
+/// "Sin respuesta" es un estado DERIVADO, no persistido (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
 /// § 16.4): la conversación no tiene ningún mensaje entrante posterior al envío.
 /// No se añade columna de estado ni se marca nada — si el cliente contesta, la
 /// fila deja de aparecer sola.

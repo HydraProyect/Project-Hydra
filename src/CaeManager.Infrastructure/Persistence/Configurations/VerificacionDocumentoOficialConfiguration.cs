@@ -24,7 +24,7 @@ public class VerificacionDocumentoOficialConfiguration : IEntityTypeConfiguratio
         builder.HasOne<Documento>().WithMany().HasForeignKey(v => v.DocumentoId).OnDelete(DeleteBehavior.Cascade);
 
         // 0..1 por Documento: única con TenantId primero, como el resto de
-        // índices únicos compuestos del multi-tenant (docs/MULTITENANCY.md).
+        // índices únicos compuestos del multi-tenant (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md).
         builder.HasIndex(v => new { v.TenantId, v.DocumentoId }).IsUnique();
     }
 }

@@ -38,6 +38,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 
     private readonly SignInManagerFalso _signIn = new();
     private readonly RegistroCapturado _registro = new();
+    private MediatorCodigosRecuperacionFalso _mediador = new();
 
     public ConfigurarAutenticadorDosFactoresEscrituraTests()
     {
@@ -45,6 +46,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         Services.AddSingleton<SignInManager<ApplicationUser>>(_signIn);
         Services.AddSingleton<ILoggerFactory>(new LoggerFactory([_registro]));
         Services.AddLocalization();
+        Services.AddSingleton<MediatR.IMediator>(_mediador);
         Services.AddSingleton<AuthenticationStateProvider>(new AutenticacionFalsa(UsuarioId));
     }
 
@@ -99,6 +101,137 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         _almacen.DosFactoresActivo.Should().BeTrue();
         _signIn.SesionReemitida.Should().BeTrue();
         _registro.Mensajes.Should().ContainSingle(m => m.Contains("2FA activado"));
+    }
+
+    /// <summary>
+    /// P0-8 (FS-01): los códigos de recuperación nacen con la 2FA y se enseñan
+    /// una sola vez, en esta misma respuesta. La salida a "/" ya no es automática:
+    /// es el enlace de continuar, con carga completa (ver la página).
+    /// </summary>
+    [Fact]
+    public async Task Al_activar_la_2FA_enseña_una_vez_los_codigos_de_recuperacion_y_una_salida()
+    {
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo("/cuenta/configurar-2fa");
+        var uriAntes = navegacion.Uri;
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarCodigoAsync(cut);
+
+        _mediador.Enviados.Should().Be(1);
+        cut.FindAll(".lista-codigos code").Select(c => c.TextContent).Should()
+            .Equal(MediatorCodigosRecuperacionFalso.Codigos);
+        cut.Find(".tarjeta-codigos-recuperacion h2").TextContent.Should().Be("3. Guarda tus códigos de recuperación");
+        cut.Find(".aviso-administrador-unico").TextContent.Should().Contain(
+            "nadie podrá devolverte el acceso",
+            "opción C (25-09): sin segundo Administrador no hay vía de recuperación, y hay que decirlo aquí");
+        var continuar = cut.Find("a.boton-continuar");
+        continuar.GetAttribute("href").Should().Be("/");
+        continuar.GetAttribute("data-enhance-nav").Should().Be("false",
+            "el menú y los gates de rol solo se recalculan en una carga completa");
+        cut.Find("a[download]").GetAttribute("href").Should().StartWith("data:text/plain;charset=utf-8,")
+            .And.Contain(Uri.EscapeDataString(MediatorCodigosRecuperacionFalso.Codigos[0]));
+        navegacion.Uri.Should().Be(uriAntes, "sin esperar al usuario, los códigos se perderían al navegar");
+    }
+
+    [Fact]
+    public async Task Si_generar_los_codigos_falla_la_2FA_queda_activa_y_sale_como_antes()
+    {
+        _mediador = new MediatorCodigosRecuperacionFalso(
+            CaeManager.Domain.Common.Error.Crear("SegundoFactor.CodigosNoGuardados", "No pudimos guardar los códigos."));
+        Services.AddSingleton<MediatR.IMediator>(_mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        // Se parte de otra ruta: en bUnit la inicial ya es "/", y comprobar que
+        // se llegó ahí sin salir de ella no observaría nada.
+        navegacion.NavigateTo("/cuenta/configurar-2fa");
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarCodigoAsync(cut);
+
+        _almacen.DosFactoresActivo.Should().BeTrue();
+        cut.FindAll(".lista-codigos").Should().BeEmpty();
+        navegacion.Uri.Should().Be(navegacion.BaseUri,
+            "sin salida, quien llega forzado por la 2FA obligatoria se quedaría atrapado en esta pantalla");
+        _registro.Mensajes.Should().Contain(m => m.Contains("sin códigos de recuperación"));
+    }
+
+    /// <summary>
+    /// P1-I2 (hueco de #900): la ficha que mandó aquí por una credencial pasa su
+    /// ruta, y al terminar se vuelve a ella en vez de al inicio.
+    /// </summary>
+    [Fact]
+    public async Task Con_un_returnUrl_local_la_salida_tras_activar_vuelve_a_la_ficha()
+    {
+        const string ficha = "/empresas/3f2a?pestana=informacion&ver=1";
+        Services.GetRequiredService<NavigationManager>().NavigateTo(
+            "/cuenta/configurar-2fa?motivo=credenciales&returnUrl=" + Uri.EscapeDataString(ficha));
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarCodigoAsync(cut);
+
+        cut.Find("a.boton-continuar").GetAttribute("href").Should().Be(ficha);
+    }
+
+    /// <summary>
+    /// Nunca una redirección abierta: una URL absoluta, relativa al protocolo,
+    /// con barra invertida o con esquema se ignora y la salida es el inicio.
+    /// </summary>
+    [Theory]
+    [InlineData("https://evil.example/empresas")]
+    [InlineData("//evil.example/empresas")]
+    [InlineData("/\\evil.example/empresas")]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("empresas/3f2a")]
+    [InlineData("/empresas\r\n/3f2a")]
+    public async Task Un_returnUrl_que_no_es_una_ruta_local_se_ignora_y_la_salida_es_el_inicio(string returnUrl)
+    {
+        Services.GetRequiredService<NavigationManager>().NavigateTo(
+            "/cuenta/configurar-2fa?motivo=credenciales&returnUrl=" + Uri.EscapeDataString(returnUrl));
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarCodigoAsync(cut);
+
+        cut.Find("a.boton-continuar").GetAttribute("href").Should().Be("/");
+    }
+
+    [Fact]
+    public async Task Si_generar_los_codigos_falla_con_un_returnUrl_local_sale_a_la_ficha()
+    {
+        _mediador = new MediatorCodigosRecuperacionFalso(
+            CaeManager.Domain.Common.Error.Crear("SegundoFactor.CodigosNoGuardados", "No pudimos guardar los códigos."));
+        Services.AddSingleton<MediatR.IMediator>(_mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo("/cuenta/configurar-2fa?motivo=credenciales&returnUrl=%2Fsubcontratas%2F9c1d");
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarCodigoAsync(cut);
+
+        navegacion.Uri.Should().Be(navegacion.BaseUri + "subcontratas/9c1d");
+    }
+
+    /// <summary>
+    /// Quien ya tiene el 2FA activo (lo activó en otra pestaña) y llega desde una
+    /// ficha tiene por dónde volver; sin returnUrl la tarjeta no ofrece nada nuevo.
+    /// </summary>
+    [Theory]
+    [InlineData("%2Fcentros%2F77", "/centros/77")]
+    [InlineData("https%3A%2F%2Fevil.example", null)]
+    [InlineData(null, null)]
+    public void Con_el_2FA_ya_activo_la_vuelta_a_la_ficha_solo_se_ofrece_con_un_returnUrl_local(
+        string? returnUrlCodificado, string? vueltaEsperada)
+    {
+        _almacen.DosFactoresActivo = true;
+        Services.GetRequiredService<NavigationManager>().NavigateTo(
+            "/cuenta/configurar-2fa?motivo=credenciales" + (returnUrlCodificado is null ? "" : "&returnUrl=" + returnUrlCodificado));
+
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        cut.WaitForElement(".tarjeta-2fa-activa");
+        var volver = cut.FindAll(".tarjeta-2fa-activa a.boton-continuar");
+        if (vueltaEsperada is null)
+            volver.Should().BeEmpty();
+        else
+            volver.Should().ContainSingle().Which.GetAttribute("href").Should().Be(vueltaEsperada);
     }
 
     private static async Task EnviarCodigoAsync(IRenderedComponent<ConfigurarAutenticadorDosFactores> cut)
@@ -222,8 +355,14 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         IUserStore<ApplicationUser>,
         IUserEmailStore<ApplicationUser>,
         IUserAuthenticatorKeyStore<ApplicationUser>,
-        IUserTwoFactorStore<ApplicationUser>
+        IUserTwoFactorStore<ApplicationUser>,
+        IUserTwoFactorRecoveryCodeStore<ApplicationUser>
     {
+        // Solo para pintar la tarjeta de 2FA ya activo, que cuenta los códigos restantes.
+        public Task ReplaceCodesAsync(ApplicationUser user, IEnumerable<string> recoveryCodes, CancellationToken ct) => Task.CompletedTask;
+        public Task<bool> RedeemCodeAsync(ApplicationUser user, string code, CancellationToken ct) => Task.FromResult(false);
+        public Task<int> CountCodesAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(10);
+
         // Set...Async es el paso que Identity hace SIEMPRE, sobre la entidad en
         // memoria, antes de intentar guardar — igual que un DbContext rastrea un
         // cambio antes de SaveChangesAsync. Solo UpdateAsync (el guardado real)
@@ -237,7 +376,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         public ApplicationUser? Usuario { get; set; }
         public bool FallaAlActualizar { get; set; }
         public string? MensajeError { get; set; }
-        public bool DosFactoresActivo { get; private set; }
+        public bool DosFactoresActivo { get; set; }
 
         public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken ct) =>
             Task.FromResult(Usuario is not null && Usuario.Id.ToString() == userId ? Usuario : null);

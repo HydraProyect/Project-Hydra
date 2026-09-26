@@ -11,7 +11,7 @@ public enum RolMensajeChat
 public record MensajeChatDto(RolMensajeChat Rol, string Texto);
 
 /// <summary>
-/// Chat "Pregúntale a Hydra" — Etapa 1 (ver ROADMAP.md § Iniciativa de IA):
+/// Chat "Pregúntale a Hydra" — Etapa 1 (ver Project-Hydra-Negocio/tecnico/ROADMAP.md § Iniciativa de IA):
 /// especialista general en legislación PRL europea/española, sin acceso a
 /// datos reales de Clientes/Trabajadores/Documentos. No confundir con un
 /// futuro asistente con contexto de "lo que estoy viendo" (Etapa 2, todavía

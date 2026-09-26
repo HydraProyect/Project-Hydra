@@ -1,4 +1,4 @@
-/* AI Action Review (docs/COMUNICACIONES.md § 12.6) — composición nueva,
+/* AI Action Review (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.6) — composición nueva,
    pero el ancho más generoso de este modal en concreto (dos columnas de
    datos) es la única razón para ampliar Modal más allá de "Grande": se hace
    con ::deep sobre el propio contenedor de Modal, sin tocar su CSS

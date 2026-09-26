@@ -33,7 +33,7 @@ public class ParametroSistemaConfiguration : IEntityTypeConfiguration<ParametroS
             SegundosInactividadPausa = ParametroSistemaSeedData.SegundosInactividadPausa,
             ExcluirFueraDeJornadaEnMetricas = ParametroSistemaSeedData.ExcluirFueraDeJornadaEnMetricas,
             // Un tenant nuevo siembra su propia fila al aprovisionarse (ver
-            // docs/MULTITENANCY.md § 7) — esta es la del tenant #1.
+            // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7) — esta es la del tenant #1.
             TenantId = TenantSeedData.IdPorDefecto
         });
     }

@@ -8,7 +8,21 @@ public class ConcesionPrivilegioConfiguration : IEntityTypeConfiguration<Concesi
 {
     public void Configure(EntityTypeBuilder<ConcesionPrivilegio> builder)
     {
-        builder.ToTable("ConcesionesPrivilegio");
+        // El invariante de alcance global de ConcesionPrivilegio (ADR-011 § 8.8
+        // y § 8.9), repetido en la base. No es redundancia: el WITH CHECK de RLS
+        // admite cualquier fila que nombre a app.usuario_id como beneficiario,
+        // así que sin esta restricción una escritura que no pase por el dominio
+        // podría acuñar una concesión global de escritura. Y la llave universal
+        // de lectura nunca es perpetua: caduca y se renueva.
+        builder.ToTable("ConcesionesPrivilegio", t =>
+        {
+            t.HasCheckConstraint(
+                "CK_ConcesionesPrivilegio_AlcanceGlobalSoloCapacidadesAdmitidas",
+                "NOT \"EsAlcanceGlobal\" OR \"Capacidad\" IN ('AdminPlataforma', 'SoporteLectura')");
+            t.HasCheckConstraint(
+                "CK_ConcesionesPrivilegio_SoporteGlobalConVigenciaFinita",
+                "NOT (\"EsAlcanceGlobal\" AND \"Capacidad\" = 'SoporteLectura') OR \"VigenciaHasta\" IS NOT NULL");
+        });
         builder.HasKey(c => c.Id);
 
         builder.Property(c => c.UsuarioPlataformaId).IsRequired();

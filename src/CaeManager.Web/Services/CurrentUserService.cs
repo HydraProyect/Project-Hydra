@@ -55,7 +55,7 @@ public class CurrentUserService(
     /// guardaba y no se leía jamás: un operador asignado como Consulta sobre
     /// el tenant B, pero Administrador en el suyo, escribía en B con
     /// privilegios que nadie le había dado ahí (hallazgo N-5 de
-    /// INFORME-AUDITORIA-2.md).
+    /// Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
     ///
     /// Fallo cerrado: si se está operando un workspace delegado y no aparece
     /// asignación viva —porque la delegación se revocó mientras el token de
@@ -271,9 +271,17 @@ public class CurrentUserService(
         var usuarioId = await ObtenerUsuarioActualIdAsync();
         if (usuarioId is null) return false;
 
+        // Consulta sin rastreo y no FindByIdAsync: en un circuito, FindByIdAsync
+        // devuelve la cuenta ya rastreada sin refrescarla, y un 2FA restablecido
+        // desde otro ámbito (RestablecerSegundoFactorCommand) seguiría leyéndose
+        // como activo — y abriendo credenciales (P1-I1) — hasta cerrar el
+        // circuito. Mismo defecto que SegundoFactorDeCuentasIdentity.CargarEnFrescoAsync.
         var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var usuario = await userManager.FindByIdAsync(usuarioId.Value.ToString());
-        return usuario is not null && await userManager.GetTwoFactorEnabledAsync(usuario);
+        var id = usuarioId.Value;
+        return await userManager.Users.AsNoTracking()
+            .Where(u => u.Id == id)
+            .Select(u => u.TwoFactorEnabled)
+            .FirstOrDefaultAsync();
     }
 
     // Dentro de un circuito de Blazor, AuthenticationStateProvider ya trae el

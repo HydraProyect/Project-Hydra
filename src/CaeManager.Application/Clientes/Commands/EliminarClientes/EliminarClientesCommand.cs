@@ -14,7 +14,13 @@ namespace CaeManager.Application.Clientes.Commands.EliminarClientes;
 /// </summary>
 public record EliminarClientesCommand(IReadOnlyList<Guid> Ids) : ICommand<ResultadoEliminacionLoteDto>;
 
-public record ResultadoEliminacionLoteDto(int Eliminados, IReadOnlyList<string> Errores);
+/// <param name="IdsEliminados">
+/// Los ids que el lote sí eliminó, para que la UI ofrezca «Deshacer» con el
+/// Restaurar{Tipo}Command correspondiente y retire solo las fichas muertas
+/// (FS-09). Lo rellenan los lotes de tipos restaurables (Empresa, Centro,
+/// Trabajador); el resto lo deja en <c>null</c>.
+/// </param>
+public record ResultadoEliminacionLoteDto(int Eliminados, IReadOnlyList<string> Errores, IReadOnlyList<Guid>? IdsEliminados = null);
 
 public class EliminarClientesCommandValidator : AbstractValidator<EliminarClientesCommand>
 {

@@ -2,7 +2,7 @@ namespace CaeManager.Application.Common;
 
 /// <summary>
 /// Kill switch de <see cref="Documentos.Queries.DetectarCamposDocumento.DetectarCamposDocumentoQuery"/>
-/// (hallazgo P0-4 de docs/business/MATURITY_REVIEW.md). Esa detección envía
+/// (hallazgo P0-4 de Project-Hydra-Negocio/MATURITY_REVIEW.md). Esa detección envía
 /// el PDF completo a un proveedor de IA externo (Anthropic/Mistral/Gemini)
 /// **antes** de que el usuario elija el tipo de documento — así que un
 /// reconocimiento médico subido en Ámbito Trabajador sale hacia el

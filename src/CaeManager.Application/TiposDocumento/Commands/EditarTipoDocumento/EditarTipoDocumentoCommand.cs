@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -56,7 +57,8 @@ public class EditarTipoDocumentoCommandValidator : AbstractValidator<EditarTipoD
 
 public class EditarTipoDocumentoCommandHandler(
     ITipoDocumentoRepository repositorio, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio,
-    ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
+    ICentrosQueryContext centrosContext, IAltaAcreditacionesPlataformaService altaAcreditaciones,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<EditarTipoDocumentoCommand, Result>
 {
     public async Task<Result> Handle(EditarTipoDocumentoCommand request, CancellationToken cancellationToken)
@@ -85,7 +87,7 @@ public class EditarTipoDocumentoCommandHandler(
 
         // Solo se BORRAN las filas Incluido=true (creadas desde este mismo picker) que
         // dejen de marcarse — las Incluido=false son exclusiones explícitas por Centro
-        // dadas de alta desde Requisitos del Centro (PLAN-EJECUCION-UX.md § 0.4) y una
+        // dadas de alta desde Requisitos del Centro (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4) y una
         // ausencia en CentroIds no las borra ni las lee como "quitadas". Pero SÍ es la
         // misma fila (TenantId, TipoDocumentoId, CentroId) que este picker gestiona
         // (índice único): si el centro que se marca aquí ya tiene esa fila con
@@ -97,7 +99,7 @@ public class EditarTipoDocumentoCommandHandler(
         var deseados = request.CentroIds.Distinct().ToHashSet();
         var actualesCentroIds = actuales.Select(tc => tc.CentroId).ToHashSet();
 
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md
         // (hallazgo de la auditoría de PR #48). Solo hace falta verificar las
         // vinculaciones NUEVAS: las que ya estaban antes ya pasaron por esta
         // comprobación cuando se crearon.
@@ -109,13 +111,27 @@ public class EditarTipoDocumentoCommandHandler(
             tipoDocumentoCentroRepositorio.Eliminar(tc);
 
         var filaExcluidaPorCentroId = todasLasFilas.Where(tc => !tc.Incluido).ToDictionary(tc => tc.CentroId);
+        var requisitosNuevos = new List<TipoDocumentoCentro>();
         foreach (var centroId in centroIdsNuevos)
         {
             if (filaExcluidaPorCentroId.TryGetValue(centroId, out var filaExcluida))
+            {
                 filaExcluida.Actualizar(true, filaExcluida.PeriodicidadEspecialMeses, filaExcluida.BloqueaAcceso, filaExcluida.ArchivoUrl, filaExcluida.NombreArchivoOriginal);
+                requisitosNuevos.Add(filaExcluida);
+            }
             else
-                tipoDocumentoCentroRepositorio.Agregar(new TipoDocumentoCentro(tipoDocumento.Id, centroId));
+            {
+                var fila = new TipoDocumentoCentro(tipoDocumento.Id, centroId);
+                tipoDocumentoCentroRepositorio.Agregar(fila);
+                requisitosNuevos.Add(fila);
+            }
         }
+
+        // Los Centros que pasan a exigir el tipo: los Documentos de ese tipo de
+        // quienes ya trabajan en ellos nacen pendientes de acreditar (misma regla
+        // que EstablecerDocumentacionRequeridaCentroCommand). Cambiar el valor
+        // general de Requerido no se propaga aquí: ver IAltaAcreditacionesPlataformaService.
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Requisitos = requisitosNuevos }, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

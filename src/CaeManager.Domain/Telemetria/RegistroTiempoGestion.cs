@@ -11,7 +11,7 @@ namespace CaeManager.Domain.Telemetria;
 /// pantalla, ni actividad fuera de la aplicación. Solo el intervalo agregado de
 /// una gestión concreta. Esa minimización es lo que hace el módulo proporcionado
 /// (art. 5.1.c RGPD) y defendible como medición de un proceso de trabajo y no
-/// como vigilancia de una persona — ver RGPD-TRATAMIENTO-DATOS.md.
+/// como vigilancia de una persona — ver Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md.
 ///
 /// Se escribe una fila por tramo cerrado, no un evento por interacción, y la
 /// captura entera está condicionada a

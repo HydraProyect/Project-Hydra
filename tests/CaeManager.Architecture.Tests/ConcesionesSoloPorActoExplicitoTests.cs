@@ -38,7 +38,7 @@ namespace CaeManager.Architecture.Tests;
 public class ConcesionesSoloPorActoExplicitoTests
 {
     /// <summary>
-    /// Las tres formas de crear una concesión. El constructor es privado, así que
+    /// Las formas de crear una concesión. El constructor es privado, así que
     /// las fábricas son la única puerta del dominio; y <c>Add</c> sobre el DbSet
     /// es la única de persistencia.
     ///
@@ -50,11 +50,13 @@ public class ConcesionesSoloPorActoExplicitoTests
     /// creación que la usara pasaba en verde: demostrado por mutación el
     /// 2026-08-23 antes de corregirlo. Si mañana aparece una cuarta fábrica,
     /// tiene que entrar aquí en el mismo commit, y el test de abajo lo obliga.
+    /// Así entró la cuarta, <c>SoporteLecturaGlobal</c> (Soporte TALVEG
+    /// universal, ADR-011 § 8.9, 2026-09-25): el test de abajo la detectó.
     /// </para>
     /// </summary>
     private static readonly Regex PatronCreacion = new(
         @"ConcesionPrivilegio\.SobreTenants\(|ConcesionPrivilegio\.Global\(" +
-        @"|ConcesionPrivilegio\.RaizDeBootstrap\(" +
+        @"|ConcesionPrivilegio\.RaizDeBootstrap\(|ConcesionPrivilegio\.SoporteLecturaGlobal\(" +
         @"|ConcesionesPrivilegio\.Add(Range|Async)?\(",
         RegexOptions.Compiled);
 
@@ -101,10 +103,11 @@ public class ConcesionesSoloPorActoExplicitoTests
             "sesión, así que solo puede crear concesiones a nombre de quien ejecuta. Tiene dos variantes " +
             "del mismo acto — la fundacional (OrigenConcesion.BootstrapPlataforma: identidad raíz " +
             "designada por el despliegue, bootstrap sin consumir, AdminPlataforma global, una sola vez) " +
-            "y la ordinaria (SoporteLectura, que exige AdminPlataforma vigente). Qué capacidad puede " +
+            "y la ordinaria (SoporteLectura GLOBAL con vigencia finita, que exige AdminPlataforma vigente; " +
+            "cada entrada sigue siendo una Sesión Privilegiada sobre un Tenant ajeno, ADR-011 § 8.9). Qué capacidad puede " +
             "darse cada quien lo decide una matriz cerrada, no una regla general: ver " +
             "IAutorizacionAutoConcesion. 2FA en ambas. Conceder a un TERCERO sigue sin existir, así que " +
-            "la segregación de funciones de ADR-011 § 4bis.7.7 no queda adelantada.",
+            "la segregación de funciones de ADR-011 § 8.5.7 no queda adelantada.",
 
         // El escritor recibe el agregado ya construido: no puede fabricar una
         // concesión, solo persistir la que le den.
@@ -116,10 +119,11 @@ public class ConcesionesSoloPorActoExplicitoTests
             "beneficiario SÍ es un parámetro. Exige AdminPlataforma vigente del concedente SOBRE EL " +
             "TENANT OBJETIVO (IAutorizacionAdminPlataforma.PuedeSobreTenantAsync), 2FA, " +
             "beneficiario != concedente, y el tenant objetivo ajeno al del concedente. Solo puede emitir " +
-            "CapacidadPrivilegio.Aprovisionamiento — la matriz de auto-concesión no se toca y sigue " +
-            "rechazando esa capacidad para cualquiera. Autorizado por la migración " +
-            "RlsConcesionPorAdminDePlataforma, que amplía el WITH CHECK de RLS para admitir exactamente " +
-            "esta forma.",
+            "CapacidadPrivilegio.Aprovisionamiento y RestablecimientoSegundoFactor (ADR-011 § 8.7, punto 3), las " +
+            "dos acotadas a un tenant — la matriz de auto-concesión no se toca y sigue rechazando las dos " +
+            "para cualquiera. Autorizado por las migraciones RlsConcesionPorAdminDePlataforma y " +
+            "RestablecimientoSegundoFactorPorSoporte, que amplían el WITH CHECK de RLS para admitir " +
+            "exactamente esta forma.",
     };
 
     [Fact]

@@ -22,6 +22,8 @@ namespace CaeManager.Web.Tests;
 /// <summary>Marcado Gen 2 de la configuración personal de segundo factor.</summary>
 public class ConfigurarDosFactoresGen2Tests : BunitContext
 {
+    private readonly MediatorCodigosRecuperacionFalso _mediador = new();
+
     // Clave base32 de prueba, partida a proposito: escrita de una pieza tras «secret=», gitleaks
     // la marca como credencial (generic-api-key) y escanea tambien el historial de la rama.
     private static readonly string ClavePrueba = string.Concat("WVZQ4NLT", "HS2BJD7F", "XK9MPR3A");
@@ -44,6 +46,7 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
         Services.AddSingleton<AuthenticationStateProvider>(new AutenticacionFalsa(_usuario.Id));
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         Services.AddLocalization();
+        Services.AddSingleton<MediatR.IMediator>(_mediador);
         // Sin AddAuthorization(): registra su propio AuthenticationStateProvider, sin autenticar,
         // y como gana el ultimo registro pisaba a AutenticacionFalsa. La pagina no encontraba la
         // claim NameIdentifier, retornaba en la primera guarda y no pintaba nada. El [Authorize]
@@ -134,7 +137,25 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
         texto.Should().Contain("autenticación en dos pasos",
             "control del instrumento: el texto se lee entero y con acentos, o los NotContain no observan nada");
         foreach (var promesa in new[] { "recuperación", "descargar", "copiar", "portapapeles" })
-            texto.Should().NotContain(promesa, "esa capacidad no existe en esta pagina");
+            texto.Should().NotContain(promesa,
+                "antes de activar la 2FA no hay codigos de recuperacion: nacen al activarla (P0-8)");
+    }
+
+    /// <summary>
+    /// Revisión Codex (P0-8): regenerar es un EditForm con FormName, como el resto de
+    /// formularios de esta página estática; enviarlo genera y enseña los códigos nuevos.
+    /// </summary>
+    [Fact]
+    public async Task Regenerar_los_codigos_los_genera_y_los_ensena_una_vez()
+    {
+        var cut = Renderizar(activa: true);
+        cut.FindAll(".lista-codigos").Should().BeEmpty("control del instrumento: antes de regenerar no hay códigos en claro");
+
+        await cut.Find(".tarjeta-regenerar form").SubmitAsync();
+
+        _mediador.Enviados.Should().Be(1);
+        cut.FindAll(".lista-codigos code").Select(c => c.TextContent).Should()
+            .Equal(MediatorCodigosRecuperacionFalso.Codigos);
     }
 
     [Fact]
@@ -148,6 +169,12 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
             .Contain("cuando sea necesario");
         cut.FindAll(".clave-manual, .uri-otpauth, .dos-factores-alta").Should().BeEmpty(
             "control del instrumento: una clave visible distinguiría este estado del alta");
+
+        // P0-8: con la 2FA activa se ve cuántos códigos de recuperación quedan y se
+        // pueden regenerar, pero los existentes no se vuelven a enseñar (solo hay hash).
+        cut.Find(".codigos-restantes").TextContent.Should().Be("Te quedan 7 códigos de recuperación sin usar.");
+        cut.Find(".tarjeta-regenerar button[type=submit]").TextContent.Trim().Should().Be("Generar códigos nuevos");
+        cut.FindAll(".lista-codigos").Should().BeEmpty();
 
         // Independiente de los selectores: la clave no puede aparecer bajo ninguna clase. Sin espacios
         // y en minusculas, porque el alta la ensena agrupada; ese mismo caso es el control positivo.
@@ -198,8 +225,14 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
     }
 
     private sealed class AlmacenAutenticador : IUserStore<ApplicationUser>, IUserAuthenticatorKeyStore<ApplicationUser>,
-        IUserTwoFactorStore<ApplicationUser>, IUserRoleStore<ApplicationUser>
+        IUserTwoFactorStore<ApplicationUser>, IUserRoleStore<ApplicationUser>, IUserTwoFactorRecoveryCodeStore<ApplicationUser>
     {
+        public int CodigosRestantes { get; set; } = 7;
+
+        public Task<int> CountCodesAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(CodigosRestantes);
+        public Task ReplaceCodesAsync(ApplicationUser user, IEnumerable<string> recoveryCodes, CancellationToken ct) => throw new NotSupportedException();
+        public Task<bool> RedeemCodeAsync(ApplicationUser user, string code, CancellationToken ct) => throw new NotSupportedException();
+
         public ApplicationUser? Usuario { get; set; }
         public string? Clave { get; set; }
         public bool Activa { get; set; }

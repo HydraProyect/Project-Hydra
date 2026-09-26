@@ -9,7 +9,9 @@ public class RegistroAccesoDocumentoSensibleConfiguration : IEntityTypeConfigura
     public void Configure(EntityTypeBuilder<RegistroAccesoDocumentoSensible> builder)
     {
         builder.ToTable("RegistrosAccesoDocumentoSensible");
-        builder.HasKey(r => r.Id);
+        // PK (Id, OcurridoEnUtc): particionada por mes sobre OcurridoEnUtc
+        // (P1-M2), mismo motivo que RegistroAuditoriaConfiguration.
+        builder.HasKey(r => new { r.Id, r.OcurridoEnUtc });
 
         builder.Property(r => r.DocumentoId).IsRequired();
         builder.Property(r => r.Sensibilidad).IsRequired().HasConversion<string>().HasMaxLength(30);
@@ -32,6 +34,12 @@ public class RegistroAccesoDocumentoSensibleConfiguration : IEntityTypeConfigura
         // índice compuesto que RegistroActividadSoporteConfiguration.
         builder.HasIndex(r => new { r.TenantId, r.OcurridoEnUtc });
         builder.HasIndex(r => new { r.DocumentoId, r.OcurridoEnUtc });
+
+        // La rama G2 de la política de lectura de AspNetUsers (P1-M1) pregunta,
+        // por cada cuenta, si actuó en el Tenant: sin estos índices, cada fila
+        // recorrería todos los accesos del Tenant.
+        builder.HasIndex(r => new { r.TenantId, r.UsuarioId });
+        builder.HasIndex(r => new { r.TenantId, r.ActorRealUsuarioId });
 
         // Sin FK hacia Documento (DocumentoId es un Guid suelto, ver el
         // comentario de la entidad): el rastro debe sobrevivir a la baja del

@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Clientes.Pages;
 
-public partial class ConfiguracionIaCliente : ComponentBase, IDisposable
+public partial class ConfiguracionIaCliente : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     [Parameter] public Guid ClienteId { get; set; }
     private CancellationTokenSource? _cicloCarga;
@@ -99,7 +99,7 @@ public partial class ConfiguracionIaCliente : ComponentBase, IDisposable
             if (resultado.EsFallido)
             {
                 if (EsOperacionVigente(version, clienteId) && _actualizandoId == tipoDocumentoId)
-                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                    ToastService.MostrarError(resultado.Error);
                 return;
             }
             if (!EsOperacionVigente(version, clienteId) || _actualizandoId != tipoDocumentoId) return;

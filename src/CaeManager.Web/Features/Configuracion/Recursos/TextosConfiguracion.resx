@@ -520,7 +520,7 @@
     <value>Actor real</value>
   </data>
   <data name="OrdenMenuActorRealPista" xml:space="preserve">
-    <value>Quien guardó (ActorRealUsuarioId).</value>
+    <value>Quién guardó el orden. En una impersonación se registra el Actor real, no el Usuario simulado.</value>
   </data>
   <data name="OrdenMenuActorDesconocido" xml:space="preserve">
     <value>Usuario no encontrado</value>
@@ -560,5 +560,11 @@
   </data>
   <data name="OrdenMenuErrorCargaTexto" xml:space="preserve">
     <value>El error ya ha quedado registrado. Recarga la página para volver a intentarlo.</value>
+  </data>
+  <data name="EntradaAccesosSensiblesNombre" xml:space="preserve">
+    <value>Accesos a documentos sensibles</value>
+  </data>
+  <data name="EntradaAccesosSensiblesResumen" xml:space="preserve">
+    <value>Quién abrió o descargó datos de salud</value>
   </data>
 </root>

@@ -1,5 +1,12 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Centros.Commands.CrearCanalGestion;
+using CaeManager.Application.Centros.Commands.EditarCanalGestion;
+using CaeManager.Application.Empresas.Commands.BorrarCredencialAccesoEmpresaContrasena;
+using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSubcontrata;
+using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using FluentAssertions;
 using MediatR;
@@ -151,6 +158,93 @@ public class AutorizacionSecretosDeTenantBehaviorTests
         resultado.Should().Be(Secreto);
     }
 
+    // P1-I1: el rol que lee secretos los lee solo con el 2FA activo. La
+    // denegación lanza, para que la pantalla pueda llevar a configurarlo, y el
+    // handler no llega a ejecutarse (ni descifra ni deja rastro de lectura).
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    public async Task Un_rol_con_escritura_sin_2FA_no_obtiene_los_secretos_del_tenant(string rol)
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeCredencialQuery, CredencialDto?>(
+            SinSesion, UsuarioSinDobleFactor(rol));
+
+        var handlerFueLlamado = false;
+        var accion = () => behavior.Handle(new ConsultaDeCredencialQuery(), _ =>
+        {
+            handlerFueLlamado = true;
+            return Task.FromResult<CredencialDto?>(Secreto);
+        }, CancellationToken.None);
+
+        await accion.Should().ThrowAsync<SegundoFactorRequeridoParaCredencialesException>();
+        handlerFueLlamado.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("GestorCae")]
+    public async Task Un_rol_con_escritura_sin_2FA_tampoco_obtiene_los_datos_de_una_credencial(string rol)
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeDatosDeCredencialQuery, CredencialDto?>(
+            SinSesion, UsuarioSinDobleFactor(rol));
+
+        var handlerFueLlamado = false;
+        var accion = () => behavior.Handle(new ConsultaDeDatosDeCredencialQuery(), _ =>
+        {
+            handlerFueLlamado = true;
+            return Task.FromResult<CredencialDto?>(Secreto);
+        }, CancellationToken.None);
+
+        await accion.Should().ThrowAsync<SegundoFactorRequeridoParaCredencialesException>();
+        handlerFueLlamado.Should().BeFalse();
+    }
+
+    // Un rol que no lee secretos recibe el null de siempre, tenga o no 2FA:
+    // invitarle a activarlo le prometería un acceso que su rol no le da.
+    [Theory]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
+    [InlineData(null)]
+    public async Task Un_rol_sin_escritura_y_sin_2FA_recibe_null_no_la_invitacion_a_activarlo(string? rol)
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeCredencialQuery, CredencialDto?>(
+            SinSesion, UsuarioSinDobleFactor(rol));
+
+        var resultado = await behavior.Handle(
+            new ConsultaDeCredencialQuery(), _ => Task.FromResult<CredencialDto?>(Secreto), CancellationToken.None);
+
+        resultado.Should().BeNull();
+    }
+
+    // En una Sesión Privilegiada nada cambia: denegado con null, antes de mirar el 2FA.
+    [Theory]
+    [InlineData(CapacidadPrivilegio.SoporteLectura)]
+    [InlineData(CapacidadPrivilegio.BreakGlass)]
+    public async Task En_sesion_privilegiada_sin_2FA_sigue_siendo_null(CapacidadPrivilegio capacidad)
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeCredencialQuery, CredencialDto?>(
+            SesionCon(capacidad), UsuarioSinDobleFactor("Administrador"));
+
+        var resultado = await behavior.Handle(
+            new ConsultaDeCredencialQuery(), _ => Task.FromResult<CredencialDto?>(Secreto), CancellationToken.None);
+
+        resultado.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Una_consulta_sin_marcar_no_exige_2FA()
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaNormalQuery, string?>(
+            SinSesion, UsuarioSinDobleFactor("GestorCae"));
+
+        var resultado = await behavior.Handle(
+            new ConsultaNormalQuery(), _ => Task.FromResult<string?>("dato normal"), CancellationToken.None);
+
+        resultado.Should().Be("dato normal");
+    }
+
     [Fact]
     public async Task Una_consulta_sin_marcar_no_se_toca_para_un_rol_de_solo_lectura()
     {
@@ -216,21 +310,133 @@ public class AutorizacionSecretosDeTenantBehaviorTests
         handlerFueLlamado.Should().BeFalse();
     }
 
+    /// <summary>
+    /// P1-I2, hueco declarado en #900: quien puede fijar la llave de una
+    /// plataforma de terceros puede sustituirla por una que conozca. Escribirla
+    /// exige el mismo 2FA que leerla, y el handler no llega a correr.
+    /// </summary>
+    [Fact]
+    public async Task Escribir_datos_de_credencial_sin_2FA_lanza_la_excepcion_y_no_llega_al_handler()
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<EscrituraDeCredencialCommand, Result>(
+            SinSesion, UsuarioSinDobleFactor("Administrador"));
+
+        var handlerFueLlamado = false;
+        var accion = async () => await behavior.Handle(new EscrituraDeCredencialCommand(true), _ =>
+        {
+            handlerFueLlamado = true;
+            return Task.FromResult(Result.Exito());
+        }, CancellationToken.None);
+
+        await accion.Should().ThrowAsync<SegundoFactorRequeridoParaCredencialesException>();
+        handlerFueLlamado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Escribir_datos_de_credencial_con_2FA_llega_al_handler()
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<EscrituraDeCredencialCommand, Result>(
+            SinSesion, UsuarioConRol("GestorCae"));
+
+        var resultado = await behavior.Handle(
+            new EscrituraDeCredencialCommand(true), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Un canal de gestión sin usuario ni contraseña, o editado sin cambiarlas,
+    /// no escribe nada que proteger: exigir 2FA ahí bloquearía dar de alta un
+    /// buzón de correo sin ganar nada.
+    /// </summary>
+    [Fact]
+    public async Task Un_Command_marcado_que_no_toca_la_credencial_no_exige_2FA()
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<EscrituraDeCredencialCommand, Result>(
+            SinSesion, UsuarioSinDobleFactor("GestorCae"));
+
+        var resultado = await behavior.Handle(
+            new EscrituraDeCredencialCommand(false), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
+    public static TheoryData<IBaseRequest, bool> CommandsRealesDeCredencial => new()
+    {
+        { new GuardarCredencialAccesoEmpresaCommand(Guid.NewGuid(), null, null, "u", null), true },
+        { new GuardarCredencialAccesoSubcontrataCommand(Guid.NewGuid(), null, null, null, null), true },
+        { new BorrarCredencialAccesoEmpresaContrasenaCommand(Guid.NewGuid()), true },
+        { new CrearCanalGestionCommand(Guid.NewGuid(), TipoCanalGestion.Plataforma, "x", null, null, "u", null, null, null, null), true },
+        { new CrearCanalGestionCommand(Guid.NewGuid(), TipoCanalGestion.Plataforma, "x", null, null, null, "p", null, null, null), true },
+        { new CrearCanalGestionCommand(Guid.NewGuid(), TipoCanalGestion.Plataforma, "x", null, null, null, null, null, null, null), false },
+        // Revisión Codex: uno de correo descarta el usuario y la contraseña que el
+        // formulario envíe ocultos tras cambiar de tipo; no guarda credencial.
+        { new CrearCanalGestionCommand(Guid.NewGuid(), TipoCanalGestion.Email, "x", null, null, "u", "p", "a@b.es", null, null), false },
+        { new EditarCanalGestionCommand(Guid.NewGuid(), "x", null, null, null, null, null, CambiarCredenciales: true), true },
+        { new EditarCanalGestionCommand(Guid.NewGuid(), "x", null, null, null, null, null, CambiarCredenciales: false, Usuario: "u"), false },
+    };
+
+    /// <summary>
+    /// Los Commands de verdad, no el de prueba: cuáles escriben datos de
+    /// credencial y cuándo. Guardar sin contraseña también cuenta (fija el
+    /// usuario); borrar la contraseña también (es cambiar la llave).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CommandsRealesDeCredencial))]
+    public void Los_Commands_de_credencial_declaran_cuando_escriben_datos_de_credencial(IBaseRequest command, bool escribe)
+    {
+        command.Should().BeAssignableTo<IEscrituraDeDatosDeCredencial>();
+        ((IEscrituraDeDatosDeCredencial)command).EscribeDatosDeCredencial.Should().Be(escribe);
+    }
+
+    /// <summary>
+    /// Detector para el siguiente Command: todo Command o Query de Application con
+    /// una propiedad <c>Contrasena</c> escribe una credencial y debe llevar la
+    /// marca. La contraseña de una cuenta de usuario no pasa por Application con
+    /// ese nombre; si algún día lo hace, este test obliga a decidirlo.
+    /// </summary>
+    [Fact]
+    public void Todo_Command_con_Contrasena_lleva_la_marca_de_escritura_de_credencial()
+    {
+        var conContrasena = typeof(IEscrituraDeDatosDeCredencial).Assembly.GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(ICommandBase).IsAssignableFrom(t))
+            .Where(t => t.GetProperty("Contrasena") is not null)
+            .ToList();
+
+        // Control positivo: si el detector deja de ver los cuatro que existen hoy,
+        // ha dejado de observar y la comprobación de abajo pasaría en vacío.
+        conContrasena.Should().Contain(
+        [
+            typeof(GuardarCredencialAccesoEmpresaCommand), typeof(GuardarCredencialAccesoSubcontrataCommand),
+            typeof(CrearCanalGestionCommand), typeof(EditarCanalGestionCommand),
+        ]);
+
+        conContrasena.Where(t => !typeof(IEscrituraDeDatosDeCredencial).IsAssignableFrom(t))
+            .Should().BeEmpty("un Command que escribe una contraseña de plataforma exige 2FA (P1-I2)");
+    }
+
+    private record EscrituraDeCredencialCommand(bool Escribe) : ICommand, IEscrituraDeDatosDeCredencial
+    {
+        bool IEscrituraDeDatosDeCredencial.EscribeDatosDeCredencial => Escribe;
+    }
+
     private static ISesionPrivilegiadaActual SesionCon(CapacidadPrivilegio capacidad) =>
         new SesionPrivilegiadaActualFalsa(
             new SesionPrivilegiadaActiva(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), capacidad, null));
 
     private static readonly ISesionPrivilegiadaActual SinSesion = new SesionPrivilegiadaActualFalsa(null);
 
-    private static ICurrentUserService UsuarioConRol(string? rol) => new CurrentUserServiceFalso(rol);
+    private static ICurrentUserService UsuarioConRol(string? rol) => new CurrentUserServiceFalso(rol, dobleFactorActivo: true);
 
-    private sealed class CurrentUserServiceFalso(string? rol) : ICurrentUserService
+    private static ICurrentUserService UsuarioSinDobleFactor(string? rol) => new CurrentUserServiceFalso(rol, dobleFactorActivo: false);
+
+    private sealed class CurrentUserServiceFalso(string? rol, bool dobleFactorActivo) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult(rol);
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
-        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(dobleFactorActivo);
     }
 
     private sealed class SesionPrivilegiadaActualFalsa(SesionPrivilegiadaActiva? sesion) : ISesionPrivilegiadaActual

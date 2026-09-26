@@ -5,7 +5,7 @@ using Xunit;
 namespace CaeManager.Domain.Tests.Documentos;
 
 /// <summary>
-/// Regla de retención de Documentos (RGPD-TRATAMIENTO-DATOS.md § 5).
+/// Regla de retención de Documentos (Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md § 5).
 ///
 /// El criterio predeterminado —contar desde el evento más temprano— lo decidió
 /// el propietario del producto con este razonamiento: un documento subido el

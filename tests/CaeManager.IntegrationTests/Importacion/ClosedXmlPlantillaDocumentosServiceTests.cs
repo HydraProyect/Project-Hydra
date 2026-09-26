@@ -8,7 +8,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Importacion;
 
 /// <summary>
-/// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis, DCR-12
+/// Invariante «nada se descarta en silencio» (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis, DCR-12
 /// B) sobre <see cref="ClosedXmlPlantillaDocumentosService.AnalizarAsync"/>
 /// — auditada por REC-129. Antes de este incremento, tipo de documento
 /// ausente, fecha de emisión ausente y fecha de emisión ilegible compartían
@@ -101,6 +101,7 @@ public class ClosedXmlPlantillaDocumentosServiceTests
         var documento = plan.Documentos.Should().ContainSingle().Subject;
         documento.Dni.Should().Be(DniValido);
         documento.NombreTipoDocumento.Should().Be(TipoDocumentoConocido);
+        documento.Hoja.Should().Be("Documentos", "si la escritura lo omite, se reporta en la hoja de la que salió");
     }
 
     [Fact]

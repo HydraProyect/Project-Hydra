@@ -17,7 +17,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Documentos;
 
 /// <summary>
-/// Cobertura mínima explícita de P0-1 (docs/business/MATURITY_REVIEW.md):
+/// Cobertura mínima explícita de P0-1 (Project-Hydra-Negocio/MATURITY_REVIEW.md):
 /// "verificar Ids referenciados en todos los Commands de creación/
 /// vinculación (mínimo CrearDocumentoCommandHandler, CrearAsignacionCommandHandler)".
 /// Antes de este fix, un Guid inventado se persistía sin error; ahora el
@@ -54,7 +54,7 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
     public async Task CrearAsignacion_rechaza_un_TrabajadorId_inexistente()
     {
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionCommandHandler(new AsignacionRepository(contexto), new AutoridadAsignacionesServiceFalso(contexto), contexto);
+        var handler = new CrearAsignacionCommandHandler(new AsignacionRepository(contexto), new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionCommand(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1)),
@@ -76,8 +76,8 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
         var handler = new CrearDocumentoCommandHandler(
             new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto,
             contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
-            new DerivarCanalesAplicablesDocumentoService(contexto, contexto, contexto),
-            new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso(), new AlcanceDatosServiceFalso());
+            AltaAcreditacionesDePrueba.Con(contexto),
+            new PublisherFalso(), new AlcanceDatosServiceFalso());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(
@@ -125,7 +125,7 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var handler = new EditarTipoDocumentoCommandHandler(
-            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, contexto);
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(

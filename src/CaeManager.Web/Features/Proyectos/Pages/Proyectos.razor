@@ -1,5 +1,6 @@
-@page "/proyectos"
+﻿@page "/proyectos"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
@@ -12,6 +13,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosProyectos> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -168,6 +170,10 @@
                                         @if (proyecto.EstaAbierto)
                                         {
                                             <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirCerrarConfirm(proyecto.Id)">@Textos["AccionCerrarProyecto"]</ItemMenuAccion></SoloConEscritura>
+                                        }
+                                        else
+                                        {
+                                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirReabrirConfirm(proyecto.Id)">@Textos["AccionReabrirProyecto"]</ItemMenuAccion></SoloConEscritura>
                                         }
                                         <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(proyecto.Id, proyecto.Nombre)">@Textos["MenuEliminar"]</ItemMenuAccion></SoloConEscritura>
                                     </MenuAcciones>
@@ -345,6 +351,10 @@
                     {
                         <Boton OnClick="() => AbrirCerrarConfirm(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionCerrarProyecto"]</Boton>
                     }
+                    else
+                    {
+                        <Boton OnClick="() => AbrirReabrirConfirm(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionReabrirProyecto"]</Boton>
+                    }
                 </div>
             </SoloConEscritura>
         }
@@ -397,12 +407,22 @@
 </Modal>
 
 <DialogoConfirmacion
+    Visible="_confirmarReabrirVisible"
+    VisibleChanged="v => _confirmarReabrirVisible = v"
+    Titulo="@Textos["ConfirmarReabrirTitulo"]"
+    Mensaje="@Textos["ConfirmarReabrirMensaje", _nombreAReabrir, _fechaCierreAReabrir?.ToString() ?? string.Empty].Value"
+    TextoBotonConfirmar="@Textos["AccionReabrirProyecto"]"
+    EnProgreso="_reabriendo"
+    OnConfirmar="ConfirmarReabrirAsync" />
+
+<DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
     Titulo="@Textos["ConfirmarEliminarTitulo"]"
     Mensaje="@Textos["ConfirmarEliminarMensaje", _nombreAEliminar]"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+</LimiteDeErrores>
 
 @code {
     // De instancia, no static: las etiquetas salen del localizador inyectado.

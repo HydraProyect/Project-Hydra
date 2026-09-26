@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Persistence.ContextoRls;
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -10,7 +11,7 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 
 /// <summary>
 /// Sella <c>TenantId</c> en toda entidad nueva desde <see cref="ITenantActual"/>
-/// (ver docs/MULTITENANCY.md § 4.3) y rechaza cualquier modificación o
+/// (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.3) y rechaza cualquier modificación o
 /// eliminación de una entidad que pertenezca a otro tenant — defensa en
 /// profundidad además del filtro global de lectura (ver
 /// <c>CaeManagerDbContext.OnModelCreating</c>), para el caso de una entidad
@@ -20,7 +21,8 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// mismo principio arquitectónico que <c>AuditoriaInterceptor</c> para los
 /// campos de auditoría.
 /// </summary>
-public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesInterceptor, IDbCommandInterceptor, IDbTransactionInterceptor
+public class TenantSelladoInterceptor(ITenantActual tenantActual, ICurrentUserService? currentUserService = null)
+    : SaveChangesInterceptor, IDbCommandInterceptor, IDbTransactionInterceptor
 {
     /// <summary>
     /// <c>true</c> cuando un conflicto de concurrencia terminó el
@@ -80,7 +82,7 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
 
     /// <summary>
     /// La versión síncrona también sella (hallazgo N-15 de
-    /// INFORME-AUDITORIA-2.md). Hoy no hay ningún <c>SaveChanges()</c>
+    /// Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md). Hoy no hay ningún <c>SaveChanges()</c>
     /// síncrono en el código, así que sobrescribir solo la asíncrona era
     /// inocuo — pero el día que aparezca uno, saltarse el sellado no daría
     /// ningún error: guardaría la fila con <c>TenantId</c> vacío o permitiría
@@ -433,7 +435,24 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
                     // entidades (dominio), ResolverTenantDeIdentidadAuditada
                     // siempre devuelve null, así que el comportamiento no
                     // cambia: sigue siendo tenantId (el único caso posible).
-                    var tenantParaEsta = ResolverTenantDeIdentidadAuditada(context, entrada.Entity) ?? tenantId;
+                    //
+                    // P1-M1: ese traslado de app.tenant_id vale para TODO el
+                    // lote, también para el UPDATE de AspNetUsers, cuya
+                    // política de modificación compara contra él. Por eso
+                    // solo se hace en los dos casos legítimos —sin Tenant de
+                    // sesión (identificación previa al login) o sobre la
+                    // PROPIA cuenta—: con Tenant de sesión X y la cuenta de
+                    // otra persona del Tenant Y, trasladarlo convertiría la
+                    // auditoría en un salvoconducto para escribir cuentas de
+                    // Y desde X. En ese caso manda la sesión, la política
+                    // deja el UPDATE en cero filas y el lote entero se
+                    // revierte (DbUpdateConcurrencyException).
+                    var tenantDeLaCuenta = ResolverTenantDeIdentidadAuditada(context, entrada.Entity);
+                    var tenantParaEsta = tenantDeLaCuenta is not null
+                        && (tenantId is null || tenantDeLaCuenta == tenantId
+                            || await EsLaPropiaCuentaAsync((RegistroAuditoria)entrada.Entity))
+                        ? tenantDeLaCuenta
+                        : tenantId;
                     if (tenantParaEsta is null)
                         throw new InvalidOperationException(
                             $"No se puede crear una entidad de tipo {entrada.Entity.GetType().Name} sin un tenant resuelto (ver ITenantActual).");
@@ -537,14 +556,46 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
         await context.Database.OpenConnectionAsync(cancellationToken);
         _aperturasRlsPendientes++;
 
-        var conexion = context.Database.GetDbConnection();
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText = "SELECT set_config('app.tenant_id', @tenantId, false);";
-        var parametro = comando.CreateParameter();
-        parametro.ParameterName = "tenantId";
-        parametro.Value = valorTenantId;
-        comando.Parameters.Add(parametro);
-        await comando.ExecuteNonQueryAsync(cancellationToken);
+        try
+        {
+            var conexion = context.Database.GetDbConnection();
+
+            // P6: el contexto firmado (app.contexto) se vuelve a firmar con el
+            // Tenant del sellado, o se restaura el de base al volver. Null si la
+            // conexión no la abrió TenantRlsConnectionInterceptor: entonces solo
+            // hay GUC antiguo que tocar, como hasta ahora.
+            var tokenContexto = await FirmanteContextoRls.FirmarConTenantAsync(
+                conexion, Guid.TryParse(valorTenantId, out var tenantSellado) ? tenantSellado : null, cancellationToken);
+
+            await using var comando = conexion.CreateCommand();
+            comando.CommandText = tokenContexto is null
+                ? "SELECT set_config('app.tenant_id', @tenantId, false);"
+                : "SELECT set_config('app.tenant_id', @tenantId, false), set_config('app.contexto', @contexto, false);";
+            var parametro = comando.CreateParameter();
+            parametro.ParameterName = "tenantId";
+            parametro.Value = valorTenantId;
+            comando.Parameters.Add(parametro);
+            if (tokenContexto is not null)
+            {
+                var parametroContexto = comando.CreateParameter();
+                parametroContexto.ParameterName = "contexto";
+                parametroContexto.Value = tokenContexto.Token;
+                comando.Parameters.Add(parametroContexto);
+            }
+            await comando.ExecuteNonQueryAsync(cancellationToken);
+            tokenContexto?.Confirmar();
+        }
+        catch
+        {
+            // Hallazgo P2 de Codex (P6, ronda 1): si firmar o fijar falla en
+            // el primer sellado, _tenantDeSesionARestaurar aún no está puesto
+            // y ningún final de SaveChanges cerraría esta apertura: la
+            // conexión quedaría retenida en un DbContext de vida larga. Se
+            // cierra aquí la apertura que este mismo método acaba de sumar.
+            _aperturasRlsPendientes--;
+            await context.Database.CloseConnectionAsync();
+            throw;
+        }
     }
 
     /// <summary>
@@ -584,6 +635,11 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual) : SaveChangesI
     /// tenant lo pondrá la sesión, o no habrá tenant y el <c>SaveChanges</c>
     /// se rechazará en vez de escribir una fila que no se sabe de quién es.
     /// </summary>
+    private async Task<bool> EsLaPropiaCuentaAsync(RegistroAuditoria registro) =>
+        currentUserService is not null
+        && await currentUserService.ObtenerUsuarioActualIdAsync() is { } usuarioId
+        && usuarioId == registro.EntidadId;
+
     private static Guid? ResolverTenantDeIdentidadAuditada(DbContext context, object entidad)
     {
         if (entidad is not RegistroAuditoria registro) return null;

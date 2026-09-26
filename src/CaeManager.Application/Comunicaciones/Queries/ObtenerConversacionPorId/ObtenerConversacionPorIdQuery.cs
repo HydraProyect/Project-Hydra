@@ -22,7 +22,7 @@ public record ObtenerConversacionPorIdQuery(Guid Id) : IRequest<ConversacionDeta
 /// <see cref="ISanitizadorHtmlService"/> — es la única forma en que el cuerpo
 /// de un mensaje abandona la capa de aplicación, y por eso puede renderizarse
 /// como <c>MarkupString</c>. Quien añada otra ruta de lectura del cuerpo tiene
-/// que sanear igual (hallazgo N-1 de INFORME-AUDITORIA-2.md).
+/// que sanear igual (hallazgo N-1 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
 /// </summary>
 public record AdjuntoDetalleDto(Guid Id, string NombreArchivo, string TipoContenido, long TamanoBytes);
 
@@ -62,7 +62,7 @@ public record ParticipanteDetalleDto(
     Guid Id, string Email, RolParticipante Rol, TipoParticipanteOrigen TipoOrigen, Guid? EntidadRelacionadaId);
 
 /// <summary>
-/// Entrada "Sistema/Evento" del Unified Timeline (docs/COMUNICACIONES.md
+/// Entrada "Sistema/Evento" del Unified Timeline (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
 /// § 12.3/§ 16.7). <paramref name="Descripcion"/> se calcula aquí, en el
 /// momento de leer — EventoConversacion no la guarda para no quedar
 /// desfasada si la entidad referenciada cambia después.

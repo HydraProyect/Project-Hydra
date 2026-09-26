@@ -21,7 +21,7 @@ public static class AccionesBandeja
     /// ítem, sin navegar — la usa Mi trabajo Gen2 (multi-Tenant) para
     /// componer el <c>returnUrl</c> exacto del POST cross-Tenant a
     /// <c>/cuenta/cliente-activo</c> (contrato
-    /// CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md § 8: "pantalla
+    /// Project-Hydra-Negocio/tecnico/CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md § 8: "pantalla
     /// exacta", no un aterrizaje genérico). <c>RequisitoPendiente</c> no
     /// tiene URL propia — abre un <c>ContextWorkspacePanel</c> in-situ, sin
     /// ruta por Id — <c>null</c> documenta ese hueco en vez de inventar una
@@ -45,9 +45,14 @@ public static class AccionesBandeja
         // La acción real (MarcarAcreditacionSubidaCommand) vive en la pestaña
         // Plataforma de /documentos, no en DocumentoWorkspacePanel (el
         // fallback genérico de abajo) — ese panel no tiene ningún control de
-        // acreditación por plataforma.
+        // acreditación por plataforma. Con la acreditación concreta (P0-9b),
+        // la pestaña abre solo su plataforma y resalta su fila: «Corregir en
+        // Nalanda» tiene que llevar al documento rechazado, no a la lista de
+        // todas las plataformas.
         TipoItemBandeja.PlataformaPendiente or TipoItemBandeja.PlataformaRechazada or TipoItemBandeja.EnPlataformaSeguimiento
-            or TipoItemBandeja.PlataformaVencida => "/documentos?pestana=plataforma",
+            or TipoItemBandeja.PlataformaVencida => item.AcreditacionId is { } acreditacionId
+                ? $"/documentos?pestana=plataforma&acreditacionId={acreditacionId}"
+                : "/documentos?pestana=plataforma",
         _ => item.DocumentoId is { } documentoId
             ? $"/documentos?documentoId={documentoId}"
             : $"/documentos?trabajadorId={item.TrabajadorId}&tipoDocumentoId={item.TipoDocumentoId}"

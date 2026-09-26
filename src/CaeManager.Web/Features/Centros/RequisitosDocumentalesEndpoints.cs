@@ -5,7 +5,7 @@ namespace CaeManager.Web.Features.Centros;
 
 /// <summary>
 /// Sirve la plantilla en blanco adjunta a un TipoDocumentoCentro (Requisitos
-/// del Centro, PLAN-EJECUCION-UX.md § 0.4) vía un endpoint autenticado —
+/// del Centro, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4) vía un endpoint autenticado —
 /// mismo motivo que DocumentosEndpoints: IFileStorageService guarda fuera de
 /// wwwroot, nunca como archivo estático público.
 /// </summary>

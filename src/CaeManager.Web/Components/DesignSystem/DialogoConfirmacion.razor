@@ -1,16 +1,17 @@
 @*
-    Patrón estándar de confirmación destructiva (ver UX_PATTERNS.md, "Eliminar").
+    Patrón estándar de confirmación destructiva (ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, "Eliminar").
     Nunca usar confirm() del navegador — siempre este diálogo.
 *@
 <Modal Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" CerrarAlHacerClicFuera="!EnProgreso">
     <ChildContent>
         <p>@Mensaje</p>
+        @ChildContent
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="EnProgreso" OnClick="CancelarAsync">
-            Cancelar
+            @TextoBotonDescartar
         </Boton>
-        <Boton Variante="VarianteBoton.Destructivo" Cargando="EnProgreso" OnClick="ConfirmarAsync">
+        <Boton Variante="VarianteConfirmar" Cargando="EnProgreso" OnClick="ConfirmarAsync">
             @TextoBotonConfirmar
         </Boton>
     </Pie>
@@ -24,6 +25,22 @@
     [Parameter] public string TextoBotonConfirmar { get; set; } = "Eliminar";
     [Parameter] public bool EnProgreso { get; set; }
     [Parameter] public EventCallback OnConfirmar { get; set; }
+
+    /// <summary>
+    /// Contenido opcional bajo el mensaje, p. ej. el motivo de cancelar una
+    /// Visita (FS-11). Aditivo: sin él el diálogo es el de siempre.
+    /// </summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Texto del botón que cierra sin hacer nada. «Cancelar» por defecto; se
+    /// cambia cuando la propia acción se llama «cancelar» (cancelar una Visita),
+    /// para que los dos botones no digan lo mismo.
+    /// </summary>
+    [Parameter] public string TextoBotonDescartar { get; set; } = "Cancelar";
+
+    /// <summary>Variante del botón de confirmar: destructiva por defecto; una acción que deshace (reactivar) no lo es.</summary>
+    [Parameter] public VarianteBoton VarianteConfirmar { get; set; } = VarianteBoton.Destructivo;
 
     private Task CancelarAsync() => VisibleChanged.InvokeAsync(false);
 

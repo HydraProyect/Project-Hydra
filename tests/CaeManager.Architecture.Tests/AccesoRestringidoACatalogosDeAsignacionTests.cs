@@ -172,6 +172,15 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         "src/CaeManager.Application/Plataforma/IPlataformaQueryContext.cs",
         "src/CaeManager.Infrastructure/Plataforma/SesionPrivilegiadaActual.cs",
         "src/CaeManager.Application/Plataforma/Queries/ObtenerSesionPrivilegiadaPorId/ObtenerSesionPrivilegiadaPorIdQuery.cs",
+        // La otra posición que el contrato de IPlataformaQueryContext prevé:
+        // "el tenant visitado ve las que le apuntan". SÍ enumera, pero no el
+        // plano de privilegio: solo las sesiones cuyo TenantObjetivoId es el
+        // Tenant de ORIGEN de un Administrador de ese Tenant (resuelto contra
+        // la base), y RLS (administrador_del_tenant_objetivo) exige lo mismo
+        // por debajo. No proyecta concesión, capacidad ni técnico. Es la
+        // transparencia que compensa la concesión global de SoporteLectura
+        // (ADR-011 § 8.7 y § 8.9).
+        "src/CaeManager.Application/Plataforma/Queries/ObtenerAccesosSoporteTalveg/ObtenerAccesosSoporteTalvegQuery.cs",
 
         // NOTA: aqui vivia InfrastructureServiceCollectionExtensions.cs, justificado
         // como "registro del contrato en el contenedor". Nunca caso con el patron:

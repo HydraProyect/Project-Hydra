@@ -56,8 +56,9 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
     private int _versionCarga;
 
     /// <summary>
-    /// Identity no encuentra el Id. AspNetUsers no tiene RLS ni filtro de
-    /// tenant, así que no es un usuario de otro tenant oculto: no existe.
+    /// Identity no encuentra el Id. La RLS de AspNetUsers (P1-M1) deja ver en este
+    /// Tenant a todo actor de su auditoría, así que no es una cuenta de otro Tenant
+    /// oculta: no existe.
     /// </summary>
     private const string UsuarioNoEncontrado = "(usuario eliminado)";
 
@@ -88,7 +89,7 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
     /// <para>
     /// Los cambios que inicia la propia página los recarga su manejador, no
     /// este método, para no depender del timing del router (P1-18 de
-    /// docs/business/MATURITY_REVIEW.md): cuando llegan aquí, el filtro ya
+    /// Project-Hydra-Negocio/MATURITY_REVIEW.md): cuando llegan aquí, el filtro ya
     /// coincide con la URL y no se hace nada. Solo recarga cuando la URL trae
     /// un filtro DISTINTO del que enseña la página, que es lo que pasa al
     /// volver atrás. Antes solo cambiaba el filtro: el desplegable y el enlace

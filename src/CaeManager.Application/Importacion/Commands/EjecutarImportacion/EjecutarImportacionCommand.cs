@@ -2,6 +2,7 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -72,7 +73,7 @@ public record ResultadoImportacionDto(
 }
 
 /// <summary>
-/// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis,
+/// Invariante «nada se descarta en silencio» (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis,
 /// ratificada por DCR-12 decisión B, propietario 2026-08-24): la importación
 /// admite éxito parcial con errores reportados, pero ninguna fila de un flujo
 /// soportado —Centros_Plataformas incluido— puede desaparecer sin quedar
@@ -101,7 +102,8 @@ public class EjecutarImportacionCommandHandler(
     IAsignacionRepository asignacionRepositorio,
     IOperacionImportacionRepository operacionImportacionRepositorio,
     IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
-    IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva)
+    IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva,
+    IAltaAcreditacionesPlataformaService altaAcreditaciones)
     : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
     // Restaura en Application el límite que ya exponen las 4 páginas de importación (@attribute [Authorize(Roles = Administrador)]):
@@ -184,6 +186,12 @@ public class EjecutarImportacionCommandHandler(
         // válida — se reporta como omitida igual que los casos ya detectados
         // al analizar.
         var omitidosEnEscritura = new List<ItemImportacionDto>();
+
+        // Altas de esta importación que pueden hacer nacer acreditaciones de
+        // plataforma (ver IAltaAcreditacionesPlataformaService más abajo).
+        var trabajadoresNuevos = new List<Trabajador>();
+        var documentosNuevos = new List<Documento>();
+        var asignacionesNuevas = new List<Asignacion>();
 
         // Centros que este archivo declaraba en Centros_Plataformas, con lo que el
         // análisis sabía de cada uno. Sirve para que una Asignación huérfana
@@ -273,6 +281,7 @@ public class EjecutarImportacionCommandHandler(
             {
                 var trabajador = Trabajador.DeEmpresa(empresaId, fila.Nombre, fila.Apellidos, fila.Dni, fila.FechaNacimiento, fila.Email);
                 trabajadorRepositorio.Agregar(trabajador);
+                trabajadoresNuevos.Add(trabajador);
                 trabajadoresPorDni[fila.Dni] = trabajador.Id;
                 trabajadoresCreados++;
             }
@@ -296,7 +305,7 @@ public class EjecutarImportacionCommandHandler(
                 // El documento se queda sin titular: su trabajador no existía ni
                 // pudo crearse (su propia fila se omitió más arriba, con su motivo).
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Empleados", 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                    fila.Hoja, 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
                     $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; su documento no tiene a quién asociarse."));
                 continue;
             }
@@ -307,7 +316,7 @@ public class EjecutarImportacionCommandHandler(
                 // del caso anterior, este archivo nunca pudo crearla — el catálogo
                 // de tipos de documento no se alimenta desde la importación.
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Empleados", 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                    fila.Hoja, 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
                     $"El tipo de documento «{fila.NombreTipoDocumento}» no existe en el catálogo del sistema y la importación no lo crea; da de alta el tipo en Tipos de documento y vuelve a importar."));
                 continue;
             }
@@ -317,7 +326,7 @@ public class EjecutarImportacionCommandHandler(
                 // Reutilización anunciada por el análisis (ver nota de la clase).
                 if (!fila.YaExiste)
                     omitidosEnEscritura.Add(new ItemImportacionDto(
-                        "Empleados", 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                        fila.Hoja, 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
                         $"El trabajador {fila.Dni} ya tenía un documento de tipo «{fila.NombreTipoDocumento}» al confirmar la importación, aunque no lo tenía al analizar el archivo; se conserva el que ya había en vez de duplicarlo."));
                 continue;
             }
@@ -331,11 +340,12 @@ public class EjecutarImportacionCommandHandler(
                     CalculadoraEstadoDocumento.CalcularFechaVencimiento(fila.FechaEmision, tipoDocumento.VigenciaMeses));
                 var documento = Documento.DeTrabajador(trabajadorId, tipoDocumento.Id, fila.FechaEmision, vigencia);
                 documentoRepositorio.Agregar(documento);
+                documentosNuevos.Add(documento);
                 documentosCreados++;
             }
             catch (ArgumentException ex)
             {
-                omitidosEnEscritura.Add(new ItemImportacionDto("Empleados", 0, $"{fila.Dni} — {fila.NombreTipoDocumento}", ex.Message));
+                omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, 0, $"{fila.Dni} — {fila.NombreTipoDocumento}", ex.Message));
             }
         }
 
@@ -436,6 +446,7 @@ public class EjecutarImportacionCommandHandler(
             {
                 var asignacion = new Asignacion(trabajadorId, centroId, hoy);
                 asignacionRepositorio.Agregar(asignacion);
+                asignacionesNuevas.Add(asignacion);
                 // Marca el par como ocupado para que una fila repetida más
                 // adelante en este mismo archivo caiga en la rama de arriba
                 // ("ya venía antes en este mismo archivo") en vez de crear una
@@ -449,8 +460,21 @@ public class EjecutarImportacionCommandHandler(
             }
         }
 
-        // Guarda TODO lo pendiente (Empresa/Trabajador/Documento/Asignación de
-        // los bucles de arriba, junto con la fila de OperacionImportacion
+        // Acreditaciones de plataforma de lo importado, con la misma regla que
+        // el alta manual: cada Documento nuevo ante los Centros de su Trabajador
+        // que exigen su tipo, y cada Asignación nueva para los Documentos del
+        // Trabajador y de su Empresa que ese Centro exige. Una importación
+        // repetida no crea Documentos ni Asignaciones nuevas, así que tampoco
+        // duplica acreditaciones.
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
+        {
+            Documentos = documentosNuevos,
+            Asignaciones = asignacionesNuevas,
+            Trabajadores = trabajadoresNuevos,
+        }, cancellationToken);
+
+        // Guarda TODO lo pendiente (Empresa/Trabajador/Documento/Asignación/
+        // Acreditación de los bucles de arriba, junto con la fila de OperacionImportacion
         // agregada al principio) en un único SaveChangesAsync — así, si dos
         // confirmaciones de la MISMA operación compiten, la perdedora choca en
         // el índice único de OperacionImportacion y su transacción entera se

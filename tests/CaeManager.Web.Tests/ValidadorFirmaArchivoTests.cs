@@ -5,7 +5,7 @@ using Xunit;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// P1-16 de docs/business/MATURITY_REVIEW.md: la extensión del nombre de
+/// P1-16 de Project-Hydra-Negocio/MATURITY_REVIEW.md: la extensión del nombre de
 /// archivo es trivial de falsificar (renombrar cualquier cosa a ".pdf") —
 /// estos casos cubren que la firma de bytes real manda, no el nombre.
 /// </summary>

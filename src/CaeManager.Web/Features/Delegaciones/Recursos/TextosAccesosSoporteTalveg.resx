@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="SeccionTitulo" xml:space="preserve">
+    <value>Accesos de Soporte TALVEG</value>
+  </data>
+  <data name="SeccionDescripcion" xml:space="preserve">
+    <value>Las Sesiones Privilegiadas que Soporte TALVEG abre sobre los datos de tu organización, cada una con motivo, una ventana de 4 horas como máximo y doble factor.</value>
+  </data>
+  <data name="Vacio" xml:space="preserve">
+    <value>Soporte TALVEG no ha abierto ninguna Sesión Privilegiada sobre los datos de tu organización.</value>
+  </data>
+  <data name="ColumnaQuien" xml:space="preserve">
+    <value>Quién</value>
+  </data>
+  <data name="ValorQuien" xml:space="preserve">
+    <value>Soporte TALVEG</value>
+  </data>
+  <data name="ColumnaTipo" xml:space="preserve">
+    <value>Tipo de acceso</value>
+  </data>
+  <data name="TipoSoporteLectura" xml:space="preserve">
+    <value>Lectura de soporte</value>
+  </data>
+  <data name="TipoAprovisionamiento" xml:space="preserve">
+    <value>Aprovisionamiento, con escritura</value>
+  </data>
+  <data name="TipoOtro" xml:space="preserve">
+    <value>Otro acceso de plataforma</value>
+  </data>
+  <data name="ColumnaMotivo" xml:space="preserve">
+    <value>Motivo</value>
+  </data>
+  <data name="ColumnaTicket" xml:space="preserve">
+    <value>Ticket</value>
+  </data>
+  <data name="ColumnaVentana" xml:space="preserve">
+    <value>Ventana</value>
+  </data>
+  <data name="ColumnaEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="EstadoAbierto" xml:space="preserve">
+    <value>Ventana abierta</value>
+  </data>
+  <data name="EstadoCerrado" xml:space="preserve">
+    <value>Cerrado</value>
+  </data>
+  <data name="EstadoCaducado" xml:space="preserve">
+    <value>Caducado</value>
+  </data>
+  <data name="SinTicket" xml:space="preserve">
+    <value>—</value>
+  </data>
+</root>

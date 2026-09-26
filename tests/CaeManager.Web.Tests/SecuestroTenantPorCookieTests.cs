@@ -10,12 +10,12 @@ using Microsoft.AspNetCore.Http;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Regresión del hallazgo C-1 de INFORME-AUDITORIA-TECNICA.md: la cookie
+/// Regresión del hallazgo C-1 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-TECNICA.md: la cookie
 /// <c>cae_cliente_activo</c> ganaba al claim firmado <c>tenant_id</c> dentro de
 /// <see cref="TenantActual"/>, que es el único valor que alimenta el filtro
 /// global de EF Core, el <c>TenantSelladoInterceptor</c> y el particionado de
 /// almacenamiento. Si esa cookie se puede fabricar, la frontera de aislamiento
-/// que docs/MULTITENANCY.md define como absoluta se rompe entera.
+/// que Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md define como absoluta se rompe entera.
 ///
 /// El ataque no necesitaba filtrar información previa: el tenant #1 tiene un Id
 /// determinista y público en el código (<see cref="TenantSeedData.IdPorDefecto"/>,

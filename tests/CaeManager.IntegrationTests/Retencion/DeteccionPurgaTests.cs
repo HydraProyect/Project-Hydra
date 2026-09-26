@@ -163,7 +163,7 @@ public class DeteccionPurgaTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// P0-3 de docs/business/MATURITY_REVIEW.md: el filtro global
+    /// P0-3 de Project-Hydra-Negocio/MATURITY_REVIEW.md: el filtro global
     /// (!EstaEliminado) ocultaba también estas filas de la propia detección
     /// de retención — un trabajador dado de baja Y eliminado lógicamente (el
     /// caso más claro de "ya no hay relación") no entraba nunca en la purga.

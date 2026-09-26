@@ -14,7 +14,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Comunicaciones;
 
 /// <summary>
-/// Conversation Matching Engine end-to-end (docs/COMUNICACIONES.md § 13.2)
+/// Conversation Matching Engine end-to-end (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 13.2)
 /// contra Postgres real: la propuesta que calcula ObtenerConversacionPorIdQuery
 /// y la fusión real que ejecuta VincularConversacionCommand al confirmarla.
 /// </summary>

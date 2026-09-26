@@ -4,6 +4,7 @@
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Infrastructure.Identity
 
+<LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Usuarios — @Marca.Nombre</PageTitle>
@@ -188,10 +189,22 @@
                                 }
                                 @* Destructivo solo al desactivar: reactivar
                                    devuelve un acceso, no lo quita. *@
+                                @* FS-25: desactivar pide confirmación (y, a un Gestor CAE con
+                                   cartera, ofrece pasarla a otro); reactivar no la necesita. *@
                                 <ItemMenuAccion Destructivo="usuario.Activo"
-                                                OnClick="() => CambiarActivacionAsync(usuario)">
+                                                OnClick="() => usuario.Activo ? PedirDesactivacionAsync(usuario) : CambiarActivacionAsync(usuario)">
                                     @(usuario.Activo ? "Desactivar" : "Reactivar")
                                 </ItemMenuAccion>
+                                @* P0-8 (FS-01): la salida de quien perdió el móvil y los
+                                   códigos de recuperación. Solo se ofrece a un Administrador,
+                                   sobre otra cuenta de su organización con la 2FA activa; la
+                                   autorización real la decide RestablecerSegundoFactorCommand. *@
+                                @if (PuedeOfrecerRestablecerSegundoFactor(usuario))
+                                {
+                                    <ItemMenuAccion Destructivo="true" OnClick="() => PedirRestablecerSegundoFactor(usuario)">
+                                        @TextosUsuarios["RestablecerSegundoFactorAccion"]
+                                    </ItemMenuAccion>
+                                }
                             </MenuAcciones>
                         </td>
                     </tr>
@@ -354,7 +367,46 @@
     </Pie>
 </Modal>
 
+@* FS-25 (auditoría UX de flujos sin salida, 2026-09-24): desactivar actuaba al
+   primer clic y dejaba la cartera del Gestor CAE sin decir nada. Ahora se confirma
+   y, si es un Gestor CAE con Clientes empresariales en su Asignación de Cartera,
+   se ofrece pasarlos a otro Gestor CAE activo. Sin elegir a nadie la cartera sigue
+   abierta y la conserva su Coordinador CAE (decisión del 2026-09-24). *@
+<Modal Visible="@(_usuarioADesactivar is not null)"
+       VisibleChanged="@(v => { if (!v && !_desactivando) _usuarioADesactivar = null; })"
+       Titulo="@TextosUsuarios["DesactivarTitulo", _usuarioADesactivar?.NombreCompleto ?? string.Empty]"
+       CerrarAlHacerClicFuera="!_desactivando">
+    <ChildContent>
+        <p>@TextosUsuarios["DesactivarMensaje"]</p>
+        @if (_carteraADesactivar is { EsUniversal: true })
+        {
+            <p>@TextosUsuarios["DesactivarCarteraUniversal"]</p>
+        }
+        else if (_clientesADesactivar.Count > 0)
+        {
+            <p>@TextosUsuarios["DesactivarCarteraClientes", _clientesADesactivar.Count]</p>
+            <CampoSelect Etiqueta="@TextosUsuarios["DesactivarPasarCarteraA"].Value" Valor="@_gestorDestinoCartera" ValorChanged="v => _gestorDestinoCartera = v">
+                <option value="">@TextosUsuarios["DesactivarNoReasignar"]</option>
+                @foreach (var gestor in _gestoresDestino)
+                {
+                    <option value="@gestor.Id">@gestor.NombreCompleto</option>
+                }
+            </CampoSelect>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_desactivando" OnClick="() => _usuarioADesactivar = null">@TextosUsuarios["DesactivarVolver"]</Boton>
+        <Boton Variante="VarianteBoton.Destructivo" Cargando="_desactivando" OnClick="ConfirmarDesactivacionAsync">@TextosUsuarios["DesactivarConfirmar"]</Boton>
+    </Pie>
+</Modal>
+
 <DialogoConfirmacion Visible="@(_usuarioAEliminar is not null)" VisibleChanged="CerrarEliminacion"
                       Titulo="Eliminar usuario" Mensaje="@MensajeEliminacion"
                       TextoBotonConfirmar="Eliminar" EnProgreso="_eliminandoUsuario"
                       OnConfirmar="EliminarUsuarioAsync" />
+
+<DialogoConfirmacion Visible="@(_usuarioARestablecerSegundoFactor is not null)" VisibleChanged="CerrarRestablecerSegundoFactor"
+                      Titulo="@TextosUsuarios["RestablecerSegundoFactorTitulo"]" Mensaje="@MensajeRestablecerSegundoFactor"
+                      TextoBotonConfirmar="@TextosUsuarios["RestablecerSegundoFactorConfirmar"]" EnProgreso="_restableciendoSegundoFactor"
+                      OnConfirmar="RestablecerSegundoFactorAsync" />
+</LimiteDeErrores>

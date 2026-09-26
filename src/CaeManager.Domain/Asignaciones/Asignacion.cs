@@ -5,7 +5,7 @@ namespace CaeManager.Domain.Asignaciones;
 /// <summary>
 /// Relación entre un Trabajador y un Centro, con fecha de alta/baja. Mejora
 /// directa sobre la matriz de "X" del Excel original, que no guardaba
-/// historial de fechas (ver DATABASE.md).
+/// historial de fechas (ver Project-Hydra-Negocio/tecnico/DATABASE.md).
 /// </summary>
 public class Asignacion : EntidadConTenant
 {

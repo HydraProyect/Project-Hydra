@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     /// <summary>
-    /// P1-14 de docs/business/MATURITY_REVIEW.md: índice parcial orientado al
+    /// P1-14 de Project-Hydra-Negocio/MATURITY_REVIEW.md: índice parcial orientado al
     /// filtro global sobre Documentos, CHECK XOR del propietario polimórfico,
     /// y pg_trgm + índices GIN para las 32 búsquedas Contains de texto libre
     /// (ver ObtenerCentrosQuery, ObtenerTrabajadoresQuery, ObtenerVehiculosQuery,
@@ -38,8 +38,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 WHERE NOT "EstaEliminado";
                 """);
 
-            // CHECK XOR del propietario polimórfico (DATABASE.md documentaba la
-            // intención, nunca fue una constraint real — MATURITY_REVIEW.md § hallazgo:
+            // CHECK XOR del propietario polimórfico (Project-Hydra-Negocio/tecnico/DATABASE.md documentaba la
+            // intención, nunca fue una constraint real — Project-Hydra-Negocio/MATURITY_REVIEW.md § hallazgo:
             // "la BD acepta un documento con dos propietarios o ninguno").
             // num_nonnulls() es más difícil de escribir mal que una suma de CASE WHEN.
             migrationBuilder.Sql(

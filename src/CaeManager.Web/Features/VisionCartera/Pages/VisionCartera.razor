@@ -1,8 +1,10 @@
 @page "/vision-cartera"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
 @using CaeManager.Application.Dashboard.Queries
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 @*
@@ -329,3 +331,4 @@
         </div>
     }
 </div>
+</LimiteDeErrores>

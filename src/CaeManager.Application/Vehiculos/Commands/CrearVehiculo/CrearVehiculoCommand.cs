@@ -48,7 +48,7 @@ public class CrearVehiculoCommandHandler(
 {
     public async Task<Result<Guid>> Handle(CrearVehiculoCommand request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         if (request.EmpresaId is { } empresaId
             && !await empresasContext.Empresas.AnyAsync(e => e.Id == empresaId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Vehiculo.EmpresaNoEncontrada", "No encontramos esta empresa."));

@@ -6,7 +6,7 @@ namespace CaeManager.Domain.RelacionesEmpresariales;
 /// Arista dirigida de prestación de servicio entre dos Empresas del mismo
 /// tenant (ADR-011 § 2.4). Sustituye a <c>EmpresaCliente</c>,
 /// <c>SubcontrataEmpresa</c> y <c>SubcontrataCliente</c> — ver
-/// <c>f4-diseno-fisico-relacionempresarial-2026-08-26.md</c> en el
+/// <c>Project-Hydra-Negocio/tecnico/f4-diseno-fisico-relacionempresarial-2026-08-26.md</c> en el
 /// repositorio de negocio para el diseño completo y su revisión adversaria.
 ///
 /// <b>Append-only, igual que <c>AsignacionResponsabilidad</c></b>: no hay

@@ -9,7 +9,7 @@ using Opciones = Microsoft.Extensions.Options.Options;
 
 namespace CaeManager.Web.Tests;
 
-/// <summary>Umbral de ausencia y throttle de escritura del resumen (docs/blueprints/OPERATIONAL-HOME.md § 6, DDL-068).</summary>
+/// <summary>Umbral de ausencia y throttle de escritura del resumen (Project-Hydra-Negocio/tecnico/docs/blueprints/OPERATIONAL-HOME.md § 6, DDL-068).</summary>
 public class ActividadUsuarioServiceTests
 {
     private static readonly DateTime Ahora = new(2026, 8, 10, 12, 0, 0, DateTimeKind.Utc);

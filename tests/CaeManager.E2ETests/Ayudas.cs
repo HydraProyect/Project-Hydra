@@ -22,9 +22,11 @@ public static class Ayudas
     /// clase en CaeManager.Infrastructure.Identity) — duplicada aquí en vez
     /// de referenciada porque este proyecto de test no referencia
     /// Infrastructure (mismo criterio que NombreClienteDelegadoDemo); si
-    /// cambia allí, este test debe actualizarse también. El Administrador
-    /// inicial nace con 2FA activo (P1-13 de docs/business/MATURITY_REVIEW.md),
-    /// así que IniciarSesionAsync tiene que poder calcular el código TOTP.
+    /// cambia allí, este test debe actualizarse también. En Development —el
+    /// entorno con el que arranca WebAppFixture— el Administrador inicial nace
+    /// con 2FA activo y esta clave, así que IniciarSesionAsync tiene que poder
+    /// calcular el código TOTP. Fuera de Development nace sin segundo factor
+    /// (P0-1): esta clave no vale contra staging ni producción.
     /// </summary>
     public const string ClaveTotpAdministrador = "JBSWY3DPEHPK3PXP";
 
@@ -607,7 +609,7 @@ public static class Ayudas
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         // Solo el Administrador inicial tiene 2FA activo hoy (P1-13 de
-        // docs/business/MATURITY_REVIEW.md) — el resto de cuentas de prueba
+        // Project-Hydra-Negocio/MATURITY_REVIEW.md) — el resto de cuentas de prueba
         // pasan de largo por esta rama y siguen directas al dashboard.
         if (page.Url.Contains("/cuenta/verificar-2fa"))
         {

@@ -7,7 +7,7 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// Cubre a nivel de componente la lógica de estado detrás del fix del bug
-/// #7 del backlog (ver ROADMAP.md, "Drawer se cierra al seleccionar
+/// #7 del backlog (ver Project-Hydra-Negocio/tecnico/ROADMAP.md, "Drawer se cierra al seleccionar
 /// texto"): Drawer.razor no usa JS interop en absoluto — todo el mecanismo
 /// vive en el campo <c>_mouseDownEnSuperposicion</c> y los manejadores
 /// @onmousedown/@onclick de Drawer.razor, así que sí es testable aquí sin
@@ -90,7 +90,7 @@ public class DrawerTests : BunitContext
     }
 
     /// <summary>
-    /// Hallazgo P0-8 de docs/business/MATURITY_REVIEW.md: DESIGN_SYSTEM.md
+    /// Hallazgo P0-8 de Project-Hydra-Negocio/MATURITY_REVIEW.md: Project-Hydra-Negocio/tecnico/docs/archive/design/DESIGN_SYSTEM.md
     /// prometía "Escape para cerrar overlays" y Drawer no lo implementaba.
     /// </summary>
     [Fact]

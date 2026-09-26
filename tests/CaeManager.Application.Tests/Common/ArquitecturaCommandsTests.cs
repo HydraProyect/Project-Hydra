@@ -9,7 +9,7 @@ namespace CaeManager.Application.Tests.Common;
 
 /// <summary>
 /// Red de seguridad de <see cref="ICommand"/> (P1-17 de
-/// docs/business/MATURITY_REVIEW.md).
+/// Project-Hydra-Negocio/MATURITY_REVIEW.md).
 ///
 /// <see cref="AutorizacionEscrituraBehavior{TRequest,TResponse}"/> autoriza
 /// por interfaz, no por nombre. Eso quita el fallo silencioso que tenía la
@@ -54,7 +54,7 @@ public class ArquitecturaCommandsTests
     public void Todo_ICommand_se_llama_Command()
     {
         // La otra dirección: un request de escritura con un nombre que no
-        // delata que lo es rompe la convención de CODING_STANDARDS.md y hace
+        // delata que lo es rompe la convención de Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md y hace
         // ilegible el resto del código (los handlers, los validators y la
         // carpeta Commands/ se nombran a partir de él).
         var infractores = TiposDeApplication()
@@ -64,7 +64,7 @@ public class ArquitecturaCommandsTests
             .ToList();
 
         string.Join(", ", infractores).Should()
-            .BeEmpty("todo ICommand debe llamarse ...Command (CODING_STANDARDS.md)");
+            .BeEmpty("todo ICommand debe llamarse ...Command (Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md)");
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public class ArquitecturaCommandsTests
             .Should().BeGreaterThan(50);
     }
 
-    // Horizonte 2.5 (MACRO_PLAN_2026-08-13.md § 2.5, regla 3): "todo Command
+    // Horizonte 2.5 (Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md § 2.5, regla 3): "todo Command
     // de edición declara Version" era revisión manual — CLAUDE.md la
     // documenta, nada la hacía cumplir. La convención de nombre de este repo
     // para "edita un agregado ya existente" es el prefijo Editar (10 de 11
@@ -162,9 +162,19 @@ public class ArquitecturaCommandsTests
     // editarse con más frecuencia/concurrencia real, esta exclusión hay que
     // revisitarla — no es una garantía permanente, es la lectura del estado
     // actual del código.
+    //
+    // EditarUsuarioCommand (P1-I2, 2026-09-26) nace aquí sin Version porque
+    // hereda tal cual el comportamiento de la página de la que sale:
+    // Usuarios.razor.cs releía la cuenta justo antes de guardar, y el
+    // ConcurrencyStamp de Identity solo protege entre esa lectura y su
+    // UpdateAsync, no frente a lo que quien edita vio al abrir la ficha. Dos
+    // ediciones simultáneas de la misma cuenta: gana la última. Llevarle
+    // Version exige exponer el ConcurrencyStamp en CuentaUsuario y en el
+    // formulario, un contrato nuevo que no es el de ese incremento.
     private static readonly HashSet<string> HuecosConocidosSinVersion =
     [
         "CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento.EditarTipoDocumentoCommand",
+        "CaeManager.Application.Usuarios.Commands.EditarUsuario.EditarUsuarioCommand",
     ];
 
     private static IEnumerable<Type> ComandosDeEdicion() => TiposDeApplication()

@@ -9,7 +9,7 @@ namespace CaeManager.Infrastructure.Importacion;
 
 /// <summary>
 /// Plantilla simplificada de una sola hoja para dar de alta clientes en masa
-/// (ver ROADMAP.md) — a diferencia del formato completo multi-hoja de
+/// (ver Project-Hydra-Negocio/tecnico/ROADMAP.md) — a diferencia del formato completo multi-hoja de
 /// importación CAE (ClosedXmlImportacionParser). Mismo principio que allí:
 /// cada fila es a la vez un Cliente y un Centro con el mismo nombre
 /// (ver Centro.cs).
@@ -27,7 +27,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// null</c> (Cliente empresarial), no cualquier Empresa con ese nombre — una
 /// Subcontrata u otra Empresa homónima no cuenta como "el cliente ya existe".
 ///
-/// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis, DCR-12
+/// Invariante «nada se descarta en silencio» (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis, DCR-12
 /// B; auditada en REC-129): la única fila que este analizador salta sin
 /// registrar nada es la fila de ejemplo que <see cref="GenerarPlantilla"/>
 /// escribe con el marcador <c>EJEMPLO</c> — legítimo y silencioso a

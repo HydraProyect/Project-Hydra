@@ -36,7 +36,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // los ratchets CoberturaRlsDelModeloTests/PoliticasRlsCubrenModeloTests
             // exigen política para toda tabla con TenantId. El filtro global de EF
             // ya la protege; esto es la segunda línea, sobre cae_app_runtime
-            // (RUNBOOK-RLS.md).
+            // (Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md).
             migrationBuilder.Sql(@"
 ALTER TABLE ""SolicitudesConexionMicrosoft365"" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ""SolicitudesConexionMicrosoft365"" FORCE ROW LEVEL SECURITY;

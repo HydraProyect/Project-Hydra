@@ -5,7 +5,7 @@ namespace CaeManager.Domain.Tenants;
 /// <summary>
 /// Un Operador Delegado (usuario de la Consultora) autorizado a operar sobre
 /// un <see cref="DelegacionTenant"/> concreto, con un rol específico para ese
-/// Delegated Workspace — ver ADR-004-delegacion-consultoras-cae.md § 5.3. Un
+/// Delegated Workspace — ver Project-Hydra-Negocio/tecnico/ADR-004-delegacion-consultoras-cae.md § 5.3. Un
 /// mismo usuario puede tener roles distintos en delegaciones distintas (p.
 /// ej. GestorCae en un cliente, Consulta en otro).
 ///

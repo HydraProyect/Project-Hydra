@@ -5,7 +5,7 @@ namespace CaeManager.Application.Common;
 /// Existe para que un Command pueda revalidar en servidor un Id de usuario
 /// que llegó de un selector: que la interfaz solo ofrezca opciones válidas no
 /// impide que alguien envíe otro Guid (hallazgo N-10 de
-/// INFORME-AUDITORIA-2.md).
+/// Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
 ///
 /// Es una abstracción y no una consulta directa porque <c>ApplicationUser</c>
 /// vive en Infrastructure.Identity, que Application no puede referenciar

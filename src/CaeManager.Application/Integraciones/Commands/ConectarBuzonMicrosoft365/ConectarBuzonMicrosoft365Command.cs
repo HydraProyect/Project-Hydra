@@ -53,7 +53,7 @@ public class ConectarBuzonMicrosoft365CommandHandler(
 {
     public async Task<Result<Guid>> Handle(ConectarBuzonMicrosoft365Command request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         if (request.ClienteId is { } clienteId)
         {
             var cliente = await empresaRepositorio.ObtenerPorIdAsync(clienteId, cancellationToken);
@@ -99,7 +99,7 @@ public class ConectarBuzonMicrosoft365CommandHandler(
 
         // Secreto propio de Hydra, nunca elegido por Graph — se guarda
         // cifrado en SuscripcionWebhook y se compara en cada notificación
-        // entrante (ver docs/MULTITENANCY.md § 8, tercer modo).
+        // entrante (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8, tercer modo).
         var clientState = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         var notificationUrl = $"{request.NotificationUrlBase.TrimEnd('/')}/api/integraciones/webhooks/microsoft365/{conexion.Id}";
 

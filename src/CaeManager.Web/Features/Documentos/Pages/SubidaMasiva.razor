@@ -1,9 +1,11 @@
 @page "/documentos/subida-masiva"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Web.Features.Documentos.Recursos
 @using Microsoft.AspNetCore.Components.Forms
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Subida múltiple — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina subida-masiva">
@@ -86,3 +88,15 @@
     else if (_procesandoLote)
     { <section class="esqueleto-lote-subida-masiva" aria-busy="true" aria-label="Procesando el lote"><span>Convirtiendo a PDF y leyendo cada archivo…</span>@for (var i = 0; i < 5; i++) { <div></div> }</section> }
 </div>
+
+@* FS-14 (auditoría UX de flujos sin salida, 2026-09-24): el lote vive solo en la
+   memoria del circuito —nada se guarda hasta confirmar cada archivo—, y salir lo
+   perdía sin aviso. Mientras quedan archivos en curso o sin confirmar, salir por la
+   aplicación pide confirmación y ofrece seguir con el lote; recargar o cerrar la
+   pestaña dispara el aviso del propio navegador. *@
+<AvisoCambiosSinGuardar HayCambios="HayTrabajoSinGuardar"
+                        Titulo="@Textos["SalirTitulo"]"
+                        Mensaje="@Textos["SalirMensaje", ArchivosSinGuardar]"
+                        TextoSeguir="@Textos["SalirSeguir"]"
+                        TextoDescartar="@Textos["SalirDescartar"]" />
+</LimiteDeErrores>

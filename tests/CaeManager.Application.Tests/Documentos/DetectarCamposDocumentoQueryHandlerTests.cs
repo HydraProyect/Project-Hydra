@@ -12,7 +12,7 @@ using Xunit;
 namespace CaeManager.Application.Tests.Documentos;
 
 /// <summary>
-/// Cubre el kill switch de P0-4 (docs/business/MATURITY_REVIEW.md) y el
+/// Cubre el kill switch de P0-4 (Project-Hydra-Negocio/MATURITY_REVIEW.md) y el
 /// Nivel 0 (DEC-33/REC-035, instrucción de tratamiento IA por Tenant
 /// propietario): en cualquiera de los dos, esta detección no debe enviar
 /// ningún PDF de Trabajador al proveedor de IA.

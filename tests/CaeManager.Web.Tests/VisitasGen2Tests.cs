@@ -5,10 +5,13 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
-using CaeManager.Application.Visitas.Commands.EliminarVisita;
+using CaeManager.Application.Visitas.Commands.CancelarVisita;
+using CaeManager.Application.Visitas.Commands.ReactivarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
+using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
+using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Common;
@@ -84,7 +87,18 @@ public class VisitasGen2Tests : BunitContext
             v.Id, v.CentroNombre, v.ClienteRazonSocial, v.EmpresaId, v.EmpresaRazonSocial, v.FechaInicio, v.FechaFin,
             Notas: null, v.NotificadoCliente, Trabajadores: [], HoraEstimadaAcceso: null, FechaHoraSolicitudUtc: null,
             FechaHoraExpedienteCompletoUtc: null, AntelacionNominalHoras: 36m, AntelacionEfectivaHoras: 11m, tramo,
-            AtribucionUrgencia.SinUrgencia);
+            AtribucionUrgencia.SinUrgencia, CentroRequiereGestionCae: v.CentroRequiereGestionCae,
+            EstaCancelada: v.EstaCancelada, MotivoCancelacion: v.MotivoCancelacion);
+
+        public HashSet<Guid> VisitasPorCorreo { get; } = [];
+
+        public SolicitudAccesoCorreoDto Solicitud { get; set; } = new("acceso@centronorte.es", "Solicitud de acceso — Centro Norte — 01/10/2026", "Buenos días, Marta:\n\n- Ana Garcia (Contratista Demo SL)");
+
+        public int ConsultasSolicitud { get; private set; }
+
+        public AvisoVisitaDto Aviso { get; set; } = new("Aviso de visita — Almacén Sur — 01/10/2026", "Buenos días:\n\n- Ana Garcia (Contratista Demo SL)");
+
+        public int ConsultasDocumentacion { get; private set; }
 
         public static VisitaDetalleDto ParaEditar(VisitaListaDto v) => new(
             v.Id, v.CentroId, v.CentroNombre, v.ClienteRazonSocial, v.EmpresaRazonSocial, v.FechaInicio, v.FechaFin,
@@ -93,7 +107,7 @@ public class VisitasGen2Tests : BunitContext
         private List<VisitaListaDto> Aplicar(ObtenerVisitasQuery consulta) => Visitas
             .Where(v => consulta.NotificadoCliente is null || v.NotificadoCliente == consulta.NotificadoCliente)
             .Where(v => !consulta.SoloUrgentes || v.NivelUrgencia != NivelUrgenciaVisita.Normal)
-            .Where(v => !consulta.SoloActivas || v.FechaFin >= Hoy)
+            .Where(v => !consulta.SoloActivas || (v.FechaFin >= Hoy && !v.EstaCancelada))
             .Where(v => string.IsNullOrWhiteSpace(consulta.Busqueda)
                 || $"{v.CentroNombre} {v.ClienteRazonSocial} {v.EmpresaRazonSocial}".Contains(consulta.Busqueda, StringComparison.OrdinalIgnoreCase))
             .ToList();
@@ -119,14 +133,22 @@ public class VisitasGen2Tests : BunitContext
                 case ObtenerDetalleVisitaQuery detalle:
                     return DetallesDiferidos.TryGetValue(detalle.Id, out var detalleDiferido)
                         ? (Task<TResponse>)(object)detalleDiferido.Task
-                        : Respuesta<TResponse>(Detalle(Visitas.Single(v => v.Id == detalle.Id), Tramo));
+                        : Respuesta<TResponse>(Detalle(Visitas.Single(v => v.Id == detalle.Id), Tramo) with { CentroGestionadoPorCorreo = VisitasPorCorreo.Contains(detalle.Id) });
 
                 case ObtenerVisitaPorIdQuery edicion:
                     return EdicionesDiferidas.TryGetValue(edicion.Id, out var edicionDiferida)
                         ? (Task<TResponse>)(object)edicionDiferida.Task
                         : Respuesta<TResponse>(ParaEditar(Visitas.Single(v => v.Id == edicion.Id)));
 
+                case ObtenerSolicitudAccesoCorreoQuery:
+                    ConsultasSolicitud++;
+                    return Respuesta<TResponse>(Result.Exito(Solicitud));
+
+                case ObtenerAvisoVisitaQuery:
+                    return Respuesta<TResponse>(Result.Exito(Aviso));
+
                 case ObtenerDocumentacionVisitaQuery:
+                    ConsultasDocumentacion++;
                     if (DiferirDocumentacion)
                     {
                         var pendiente = new TaskCompletionSource<DocumentacionVisitaDto>();
@@ -149,10 +171,21 @@ public class VisitasGen2Tests : BunitContext
                     Visitas[indice] = Visitas[indice] with { NotificadoCliente = marcar.Notificado };
                     return Respuesta<TResponse>(Result.Exito());
 
-                case EliminarVisitaCommand eliminar:
-                    Comandos.Add(eliminar);
-                    Visitas.RemoveAll(v => v.Id == eliminar.Id);
-                    return Respuesta<TResponse>(Result.Exito());
+                case CancelarVisitaCommand cancelar:
+                    {
+                        Comandos.Add(cancelar);
+                        var i = Visitas.FindIndex(v => v.Id == cancelar.Id);
+                        Visitas[i] = Visitas[i] with { EstaCancelada = true, MotivoCancelacion = cancelar.Motivo };
+                        return Respuesta<TResponse>(Result.Exito());
+                    }
+
+                case ReactivarVisitaCommand reactivar:
+                    {
+                        Comandos.Add(reactivar);
+                        var i = Visitas.FindIndex(v => v.Id == reactivar.Id);
+                        Visitas[i] = Visitas[i] with { EstaCancelada = false, MotivoCancelacion = null };
+                        return Respuesta<TResponse>(Result.Exito());
+                    }
 
                 case ObtenerCentrosParaSelectorQuery:
                     return Respuesta<TResponse>(Array.Empty<CentroSelectorDto>());
@@ -403,6 +436,94 @@ public class VisitasGen2Tests : BunitContext
         Interruptor(cut, "Planta Zaragoza").GetAttribute("aria-label").Should().StartWith("Notificada a la empresa titular: Planta Zaragoza");
     }
 
+    /// <summary>
+    /// P1-X2: la visita a un Centro sin gestión CAE no tiene documentación que
+    /// completar. La columna no dice «Completa» (verde falso) ni «Por
+    /// gestionar» (pendiente que no existe): dice que no requiere gestión CAE.
+    /// </summary>
+    [Fact]
+    public void La_fila_de_un_centro_sin_gestion_cae_no_pinta_ni_completa_ni_por_gestionar()
+    {
+        var mediator = new MediatorVisitas
+        {
+            Visitas = { Visita("Almacén Sur") with { CentroRequiereGestionCae = false }, Visita("Centro Norte") }
+        };
+        var cut = Renderizar(mediator);
+
+        cut.WaitForAssertion(() => Fila(cut, "Almacén Sur").TextContent.Should().Contain("No requiere gestión CAE"));
+        Fila(cut, "Almacén Sur").TextContent.Should().NotContain("Completa").And.NotContain("Por gestionar");
+        Fila(cut, "Almacén Sur").QuerySelectorAll(".badge").Should().NotContain(b => b.ClassList.Contains("badge-exito") || b.ClassList.Contains("badge-peligro"),
+            "ni verde ni rojo: el Centro no está al día ni en falta, no se le exige nada");
+        Fila(cut, "Centro Norte").TextContent.Should().NotContain("No requiere gestión CAE", "control positivo: el Centro con gestión sigue igual");
+    }
+
+    /// <summary>
+    /// P1-X2: en el cajón, un Centro sin gestión CAE ofrece el aviso de la
+    /// visita para copiar (asunto y cuerpo, tal como los compone Application)
+    /// en lugar de la comprobación previa de documentación, que ni se pide.
+    /// </summary>
+    [Fact]
+    public async Task El_cajon_de_un_centro_sin_gestion_cae_ofrece_el_aviso_copiable_y_no_la_documentacion()
+    {
+        var sur = Visita("Almacén Sur") with { CentroRequiereGestionCae = false };
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(sur);
+        var cut = Renderizar(mediator);
+
+        await ItemDeMenu(cut, "Almacén Sur", "Ver").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".visitas-aviso").TextContent.Should().Contain("Ana Garcia (Contratista Demo SL)"));
+        var panel = cut.Find(".drawer-panel").TextContent;
+        panel.Should().Contain("Este centro no requiere gestión CAE");
+        panel.Should().NotContain("Comprobación previa");
+        cut.FindComponents<BotonCopiar>().Should().ContainSingle()
+            .Which.Instance.Valor.Should().Be(mediator.Aviso.Asunto + "\n\n" + mediator.Aviso.Cuerpo,
+                "lo que se pega en el correo es el asunto y el cuerpo, sin nada añadido por la página");
+        mediator.ConsultasDocumentacion.Should().Be(0, "sin gestión CAE no hay documentación que consultar");
+    }
+
+    /// <summary>
+    /// P1-X1: en el cajón, un Centro gestionado por correo ofrece la solicitud de
+    /// acceso para copiar (asunto y cuerpo tal como los compone Application) y el
+    /// enlace de descarga del zip, sin quitar la comprobación previa de documentación.
+    /// </summary>
+    [Fact]
+    public async Task El_cajon_de_un_centro_gestionado_por_correo_ofrece_la_solicitud_copiable_y_el_zip()
+    {
+        var norte = Visita("Centro Norte");
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(norte);
+        mediator.VisitasPorCorreo.Add(norte.Id);
+        var cut = Renderizar(mediator);
+
+        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".visitas-aviso-destinatarios").TextContent.Should().Contain("acceso@centronorte.es"));
+        cut.FindComponents<BotonCopiar>().Should().ContainSingle()
+            .Which.Instance.Valor.Should().Be(mediator.Solicitud.Asunto + "\n\n" + mediator.Solicitud.Cuerpo,
+                "lo que se pega en el correo es el asunto y el cuerpo, sin nada añadido por la página");
+        var descarga = cut.Find($"a[href='/visitas/{norte.Id}/paquete-documental.zip']");
+        descarga.HasAttribute("download").Should().BeTrue("el zip se descarga, no se navega a él");
+        descarga.GetAttribute("data-enhance-nav").Should().Be("false", "la navegación mejorada de Blazor no debe interceptar la descarga");
+        cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1, "la comprobación previa sigue: el Centro requiere gestión CAE"));
+    }
+
+    [Fact]
+    public async Task El_cajon_de_un_centro_con_gestion_que_no_es_por_correo_no_ofrece_solicitud_ni_zip()
+    {
+        var norte = Visita("Centro Norte");
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(norte);
+        var cut = Renderizar(mediator);
+
+        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1));
+        cut.FindAll("a[href$='paquete-documental.zip']").Should().BeEmpty();
+        cut.FindComponents<BotonCopiar>().Should().BeEmpty();
+        mediator.ConsultasSolicitud.Should().Be(0, "sin canal de correo no se compone la solicitud");
+    }
+
     [Fact]
     public async Task El_interruptor_de_la_fila_envia_false_al_quitar_la_marca()
     {
@@ -505,9 +626,9 @@ public class VisitasGen2Tests : BunitContext
     [Theory]
     [InlineData(Roles.GestorCae, true)]
     [InlineData(Roles.Consulta, false)]
-    public async Task Eliminar_seleccionados_solo_se_ofrece_a_los_roles_con_escritura(string rol, bool seOfrece)
+    public async Task Cancelar_seleccionadas_solo_se_ofrece_a_los_roles_con_escritura(string rol, bool seOfrece)
     {
-        // EliminarVisitasCommand es ICommand: a Consulta no se le ofrece la barra del
+        // CancelarVisitasCommand es ICommand: a Consulta no se le ofrece la barra del
         // lote. El caso con escritura es el control de que la selección llegó a hacerse.
         this.ConRolDeEscritura(rol);
         var mediator = new MediatorVisitas();
@@ -518,12 +639,16 @@ public class VisitasGen2Tests : BunitContext
         await Fila(cut, "Centro Norte").QuerySelector("input[type=checkbox]:not(.visitas-interruptor)")!
             .ChangeAsync(new ChangeEventArgs { Value = true });
 
-        cut.FindAll(".barra-acciones-lote button").Any(b => b.TextContent.Trim() == "Eliminar seleccionados")
+        cut.FindAll(".barra-acciones-lote button").Any(b => b.TextContent.Trim() == "Cancelar seleccionadas")
             .Should().Be(seOfrece);
     }
 
+    /// <summary>
+    /// FS-11: cancelar pide confirmación con motivo opcional, deja la Visita fuera de la
+    /// lista activa y el aviso ofrece «Deshacer», que la reactiva.
+    /// </summary>
     [Fact]
-    public async Task Eliminar_pide_confirmacion_y_solo_al_confirmar_borra_esa_visita()
+    public async Task Cancelar_pide_confirmacion_con_motivo_y_el_aviso_la_deshace()
     {
         var norte = Visita("Centro Norte");
         var zaragoza = Visita("Planta Zaragoza");
@@ -531,16 +656,99 @@ public class VisitasGen2Tests : BunitContext
         mediator.Visitas.AddRange([norte, zaragoza]);
         var cut = Renderizar(mediator);
 
-        await ItemDeMenu(cut, "Planta Zaragoza", "Eliminar").ClickAsync(new MouseEventArgs());
+        await ItemDeMenu(cut, "Planta Zaragoza", "Cancelar visita").ClickAsync(new MouseEventArgs());
 
-        cut.Markup.Should().Contain("¿Eliminar la visita a Planta Zaragoza?");
-        mediator.Comandos.Should().BeEmpty("abrir el diálogo no borra nada");
+        cut.Markup.Should().Contain("¿Cancelar la visita a Planta Zaragoza?");
+        cut.Markup.Should().Contain("se conserva en el historial");
+        mediator.Comandos.Should().BeEmpty("abrir el diálogo no cancela nada");
 
-        await cut.FindAll(".modal-pie button").First(b => b.TextContent.Contains("Eliminar")).ClickAsync(new MouseEventArgs());
+        await cut.Find("[role=dialog] textarea").InputAsync(new ChangeEventArgs { Value = "Obra aplazada" });
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar visita").ClickAsync(new MouseEventArgs());
 
-        mediator.Comandos.Should().ContainSingle().Which.Should().Be(new EliminarVisitaCommand(zaragoza.Id));
+        mediator.Comandos.Should().ContainSingle().Which.Should().Be(new CancelarVisitaCommand(zaragoza.Id, "Obra aplazada"));
         cut.WaitForAssertion(() => cut.FindAll("tbody tr").Should().NotContain(tr => tr.TextContent.Contains("Planta Zaragoza")));
         cut.FindAll("tbody tr").Should().Contain(tr => tr.TextContent.Contains("Centro Norte"));
+
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        mediator.Comandos.OfType<ReactivarVisitaCommand>().Should().ContainSingle().Which.Id.Should().Be(zaragoza.Id);
+        cut.WaitForAssertion(() => cut.FindAll("tbody tr").Should().Contain(tr => tr.TextContent.Contains("Planta Zaragoza")));
+    }
+
+    /// <summary>
+    /// FS-11: en el historial una Visita cancelada se marca como tal y ofrece
+    /// «Reactivar», no «Editar» ni «Cancelar visita», a los mismos roles que pueden
+    /// cancelar (los de escritura); a Consulta, no.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.CoordinadorCae, true)]
+    [InlineData(Roles.DireccionCae, true)]
+    [InlineData(Roles.Administrador, true)]
+    [InlineData(Roles.Consulta, false)]
+    public async Task Una_visita_cancelada_se_marca_y_ofrece_reactivar_solo_a_quien_puede(string rol, bool seOfrece)
+    {
+        this.ConRolDeEscritura(rol);
+        var cancelada = Visita("Planta Zaragoza") with { EstaCancelada = true, MotivoCancelacion = "Obra aplazada" };
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(cancelada);
+        var cut = Renderizar(mediator);
+        await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
+            .ChangeAsync(new ChangeEventArgs { Value = false });
+
+        var fila = Fila(cut, "Planta Zaragoza");
+        fila.TextContent.Should().Contain("Cancelada");
+        fila.QuerySelector("[title='Obra aplazada']").Should().NotBeNull("el motivo acompaña a la marca");
+        fila.QuerySelector(".menu-acciones-disparador")!.Click();
+        var acciones = Fila(cut, "Planta Zaragoza").QuerySelectorAll(".menu-acciones-item").Select(e => e.TextContent.Trim()).ToList();
+        acciones.Should().Contain("Ver", "control positivo: el menú se abrió");
+        acciones.Should().NotContain(["Editar", "Cancelar visita"]);
+        acciones.Contains("Reactivar").Should().Be(seOfrece);
+    }
+
+    /// <summary>
+    /// FS-11: la ficha de una Visita cancelada no carga ni ofrece acciones
+    /// operativas (solicitud de acceso, paquete, comprobación previa): solo reactivar.
+    /// </summary>
+    [Fact]
+    public async Task La_ficha_de_una_visita_cancelada_no_ofrece_acciones_operativas()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var cancelada = Visita("Planta Zaragoza") with { EstaCancelada = true, MotivoCancelacion = "Obra aplazada" };
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(cancelada);
+        mediator.VisitasPorCorreo.Add(cancelada.Id);
+        var cut = Renderizar(mediator);
+        await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
+            .ChangeAsync(new ChangeEventArgs { Value = false });
+
+        Interruptor(cut, "Planta Zaragoza").HasAttribute("disabled").Should().BeTrue("una cancelada no se marca como notificada");
+        await ItemDeMenu(cut, "Planta Zaragoza", "Ver").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Visita cancelada. Motivo: Obra aplazada"));
+        cut.Markup.Should().Contain("Reactívala para retomarla");
+        cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should().Equal(["Reactivar", "Cerrar"]);
+        mediator.ConsultasSolicitud.Should().Be(0, "no se compone la solicitud de acceso de una visita cancelada");
+    }
+
+    [Fact]
+    public async Task Reactivar_pide_confirmacion_con_motivo_opcional_y_manda_el_comando()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var cancelada = Visita("Planta Zaragoza") with { EstaCancelada = true };
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(cancelada);
+        var cut = Renderizar(mediator);
+        await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
+            .ChangeAsync(new ChangeEventArgs { Value = false });
+
+        await ItemDeMenu(cut, "Planta Zaragoza", "Reactivar").ClickAsync(new MouseEventArgs());
+        cut.Markup.Should().Contain("¿Reactivar la visita a Planta Zaragoza?");
+        await cut.Find("[role=dialog] textarea").InputAsync(new ChangeEventArgs { Value = "Se retoma" });
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Reactivar").ClickAsync(new MouseEventArgs());
+
+        mediator.Comandos.Should().ContainSingle().Which.Should().Be(new ReactivarVisitaCommand(cancelada.Id, "Se retoma"));
     }
 
     /// <summary>
@@ -696,5 +904,68 @@ public class VisitasGen2Tests : BunitContext
         var textoAntelacion = cut.FindAll(".texto-vacio-seccion")
             .First(p => p.TextContent.Contains("Aviso recibido")).TextContent;
         textoAntelacion.Should().NotContain("empresa titular");
+    }
+
+    private async Task AbrirNuevaVisitaAsync(IRenderedComponent<Visitas> cut) =>
+        await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
+
+    /// <summary>
+    /// P1-E2: con el drawer de alta a medias (unas notas escritas), salir por la aplicación
+    /// se detiene y pregunta. «Seguir editando» conserva el formulario tal cual; «Salir y
+    /// descartar» repite la navegación sin volver a preguntar.
+    /// </summary>
+    [Fact]
+    public async Task Salir_con_el_formulario_a_medias_pregunta_y_deja_seguir_editando()
+    {
+        var cut = Renderizar(new MediatorVisitas());
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var origen = navegacion.Uri;
+        await AbrirNuevaVisitaAsync(cut);
+        await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Acceso por la puerta 3" });
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos"));
+
+        navegacion.Uri.Should().Be(origen, "con cambios sin guardar la navegación se detiene");
+        cut.Find(".modal-contenido").TextContent.Should().Contain("¿Salir sin guardar?");
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".modal-contenido").Should().BeEmpty();
+        navegacion.Uri.Should().Be(origen);
+        cut.FindComponents<CampoTextarea>().Should().Contain(c => c.Instance.Valor == "Acceso por la puerta 3", "el formulario sigue donde estaba");
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos"));
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Salir y descartar").ClickAsync(new MouseEventArgs());
+
+        navegacion.Uri.Should().EndWith("/documentos", "confirmar la salida repite la navegación sin volver a preguntar");
+        cut.FindAll(".drawer-panel").Should().BeEmpty(
+            "si la navegación no desmonta la página (otros filtros en la URL), el drawer descartado no puede quedar abierto");
+    }
+
+    /// <summary>
+    /// P1-E2, la otra mitad: abrir el formulario sin tocar nada, o cerrarlo con algo escrito,
+    /// no deja nada que perder — salir no pregunta. Sin esto el aviso saltaría siempre y
+    /// enseñaría a descartarlo sin leer.
+    /// </summary>
+    [Fact]
+    public async Task Salir_sin_cambios_o_con_el_drawer_cerrado_no_pregunta()
+    {
+        var cut = Renderizar(new MediatorVisitas());
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await AbrirNuevaVisitaAsync(cut);
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos"));
+
+        navegacion.Uri.Should().EndWith("/documentos", "abrir el formulario sin escribir nada no es un cambio");
+        cut.FindAll(".modal-contenido").Should().BeEmpty();
+
+        await AbrirNuevaVisitaAsync(cut);
+        await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Acceso por la puerta 3" });
+        await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/visitas"));
+
+        navegacion.Uri.Should().EndWith("/visitas", "con el drawer cerrado ya no hay formulario que perder");
+        cut.FindAll(".modal-contenido").Should().BeEmpty();
     }
 }

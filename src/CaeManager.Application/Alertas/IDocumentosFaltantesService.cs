@@ -1,3 +1,4 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
@@ -9,7 +10,7 @@ namespace CaeManager.Application.Alertas;
 /// Un Trabajador con Asignación (real o hipotética) a un Centro que exige
 /// (ver <see cref="Documentos.ResolucionTipoDocumentoCentro"/>) un
 /// <c>TipoDocumento</c>, sin ningún <c>Documento</c> de ese tipo. Extraído de
-/// <c>ObtenerAlertasQuery</c> (P1-15 de docs/business/MATURITY_REVIEW.md)
+/// <c>ObtenerAlertasQuery</c> (P1-15 de Project-Hydra-Negocio/MATURITY_REVIEW.md)
 /// para que el mismo cálculo sirva tanto para "qué le falta a quien ya está
 /// asignado" (Alertas) como para "qué le faltaría a quien estoy a punto de
 /// asignar" (preflight de asignación en lote, Fase B) — misma regla de
@@ -26,12 +27,23 @@ public interface IDocumentosFaltantesService
         IReadOnlyList<ParejaTrabajadorCentro> parejas, CancellationToken cancellationToken);
 }
 
-public class DocumentosFaltantesService(ITiposDocumentoQueryContext tiposDocumentoContext, IDocumentosQueryContext documentosContext)
+public class DocumentosFaltantesService(
+    ITiposDocumentoQueryContext tiposDocumentoContext, IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext)
     : IDocumentosFaltantesService
 {
     public async Task<IReadOnlyList<DocumentoFaltanteDto>> CalcularAsync(
         IReadOnlyList<ParejaTrabajadorCentro> parejas, CancellationToken cancellationToken)
     {
+        if (parejas.Count == 0)
+            return [];
+
+        // P1-X2: un Centro sin gestión CAE no exige documentación — ningún
+        // par Trabajador×Centro suyo puede tener un documento faltante.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(
+            centrosContext, parejas.Select(p => p.CentroId), cancellationToken);
+        if (sinGestionCae.Count > 0)
+            parejas = parejas.Where(p => !sinGestionCae.Contains(p.CentroId)).ToList();
+
         if (parejas.Count == 0)
             return [];
 

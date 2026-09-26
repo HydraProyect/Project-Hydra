@@ -28,7 +28,7 @@ public class TipoDocumento : EntidadConTenant
 
     /// <summary>
     /// Los términos de validación tal como los describe la plataforma
-    /// documental del cliente (PLAN-EJECUCION-UX.md § 0.7, Lote 0-E) —
+    /// documental del cliente (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.7, Lote 0-E) —
     /// texto pegado del portal, no una reescritura: es lo que decide si un
     /// documento de este tipo se acepta o se rechaza allí. Marcado como
     /// <b>fuente de referencia para la automatización de lectura IA</b>
@@ -161,7 +161,7 @@ public class TipoDocumento : EntidadConTenant
     /// oficial de la Administración es este tipo, a efectos de la validación
     /// automática (verificación criptográfica de firma + parser determinista
     /// + cotejo — sin IA, ver ValidacionDocumentoOficialService y
-    /// PLAN-FIRMA-DIGITAL-PDF.md). Empieza en <see cref="PerfilDocumentoOficial.Ninguno"/>
+    /// Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md). Empieza en <see cref="PerfilDocumentoOficial.Ninguno"/>
     /// (apagado), mismo criterio que <see cref="DeteccionTrabajadoresActiva"/>:
     /// el Administrador lo asigna explícitamente a los tipos que corresponden
     /// (corriente TGSS/AEAT, RNT, RLC, ITA — TipoDocumentoSeedData ya los

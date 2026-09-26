@@ -62,6 +62,12 @@ public class ConexionesFueraDelInterceptorTests
         // servicio de fondo, sin petición ni usuario en juego.
         "src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs",
 
+        // P1-M2: particiones mensuales futuras de la auditoría. Solo llama a
+        // app_asegurar_particiones_eventos (SECURITY DEFINER, sin nombres ni
+        // SQL del llamador), que no devuelve filas de ningún Tenant: dos
+        // recuentos. No hay filas que aislar; corre en un servicio de fondo.
+        "src/CaeManager.Infrastructure/Auditing/ParticionesEventosHostedService.cs",
+
         // Comprobación de arranque de que la identidad de conexión del tráfico
         // está sometida a RLS. No lee ninguna tabla de negocio: solo
         // current_user, sus atributos en pg_roles y si es propietaria de alguna
@@ -107,6 +113,23 @@ public class ConexionesFueraDelInterceptorTests
         // valor que TenantRlsConnectionInterceptor ya fija al abrir, solo que
         // aquí puede hacer falta a mitad de SaveChanges.
         "src/CaeManager.Infrastructure/MultiTenancy/TenantSelladoInterceptor.cs",
+
+        // P6: ClaveContextoRls registra la clave del contexto RLS firmado con
+        // la cadena PROPIETARIA (el migrador en staging y producción; el
+        // registro de respaldo de FirmanteContextoRls en desarrollo y tests), a
+        // propósito fuera de EF y del interceptor: es la única identidad que
+        // puede escribir en app_privado.claves_contexto, y la conexión solo toca
+        // esa tabla (INSERT de la clave nueva y DELETE de las caducadas). No lee
+        // ni escribe filas de ningún Tenant, así que no hay nada que aislar; y
+        // pasar por el interceptor sería circular: el interceptor necesita la
+        // clave para firmar la conexión que abre.
+        "src/CaeManager.Infrastructure/Persistence/ContextoRls/ClaveContextoRls.cs",
+
+        // P6: el /salud de la clave abre una conexión de TRÁFICO cruda y solo
+        // llama a app_claves_contexto_protegidas(), que devuelve la clave
+        // cifrada. No lee filas de ningún Tenant; por el interceptor no
+        // serviría, porque comprobaría la clave usándola para firmar.
+        "src/CaeManager.Infrastructure/Persistence/ContextoRls/ClaveContextoRlsHealthCheck.cs",
     ];
 
     [Fact]

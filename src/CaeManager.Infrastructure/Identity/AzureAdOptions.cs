@@ -8,7 +8,7 @@ namespace CaeManager.Infrastructure.Identity;
 /// externo queda inerte (mismo patrón que Sentry/Backups/Anthropic): el
 /// botón "Iniciar sesión con Microsoft" ni se muestra, y el login local
 /// sigue funcionando exactamente igual que hoy — ver
-/// RestriccionLoginLocalClaimsTransformation y ARCHITECTURE.md.
+/// RestriccionLoginLocalClaimsTransformation y Project-Hydra-Negocio/tecnico/ARCHITECTURE.md.
 /// </summary>
 public class AzureAdOptions : IOpcionesConGate
 {

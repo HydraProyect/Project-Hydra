@@ -3,7 +3,7 @@ namespace CaeManager.Domain.Common;
 /// <summary>
 /// Representa el resultado de una operación que puede fallar por una razón de
 /// negocio esperable. Se usa en vez de excepciones para esos casos (ver
-/// ARCHITECTURE.md, "Manejo de errores").
+/// Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Manejo de errores").
 /// </summary>
 public class Result
 {

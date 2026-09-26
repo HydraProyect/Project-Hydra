@@ -5,6 +5,12 @@
     rechazados", pero hasta ahora no había ningún sitio para ver CUÁLES son
     esos 14 documentos ni marcarlos — solo el recuento existía.
     Proveedor → Cliente → Documento, con las tres acciones reales del mockup.
+
+    Bucle de corrección (P0-9b, FS-02): con ?acreditacionId= la pestaña muestra
+    solo la plataforma de esa acreditación y resalta su fila. Sobre una
+    Rechazada, la acción es «Subir versión corregida» (el drawer del Documento,
+    que renueva y devuelve la acreditación a Pendiente de subir), no «Marcar
+    subido»: MarcarAcreditacionSubidaCommand la rechaza sin versión nueva.
 *@
 @using CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditacion
 @using CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada
@@ -14,6 +20,8 @@
 @using CaeManager.Domain.Common
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.Centros.Components
+@using CaeManager.Web.Features.Documentos.Recursos
 @using MediatR
 @inject IMediator Mediator
 @inject ToastService ToastService
@@ -32,12 +40,31 @@ else if (_error)
 }
 else if (_proveedores.Count == 0)
 {
+    @* El aviso del enlace va también aquí: sin él, «Todo acreditado» sugiere que el
+       enlace nunca apuntó a nada. *@
+    @if (_acreditacionNoEncontrada)
+    {
+        <p class="plataforma-aviso-destino" role="status">@TextosPlataformaAcreditacion.Texto("AcreditacionYaNoPendiente")</p>
+    }
     <EstadoVacio Titulo="Todo acreditado." Descripcion="No hay documentos pendientes de subir ni rechazados en ningún portal." />
 }
 else
 {
     <div class="plataforma-tab">
-        @foreach (var proveedor in _proveedores)
+        @if (_acreditacionNoEncontrada)
+        {
+            <p class="plataforma-aviso-destino" role="status">@TextosPlataformaAcreditacion.Texto("AcreditacionYaNoPendiente")</p>
+        }
+        else if (ProveedorDestacado is { } destacado)
+        {
+            <p class="plataforma-aviso-destino" role="status">
+                @TextosPlataformaAcreditacion.Formato("SoloUnaPlataforma", destacado.ProveedorNombre)
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _verTodas = true">
+                    @TextosPlataformaAcreditacion.Texto("VerTodasLasPlataformas")
+                </Boton>
+            </p>
+        }
+        @foreach (var proveedor in ProveedoresVisibles)
         {
             <div class="plataforma-proveedor" @key="proveedor.ProveedorPlataformaCaeId">
                 <div class="plataforma-proveedor-cabecera">
@@ -54,7 +81,11 @@ else
                         <div class="plataforma-cliente-cabecera">@cliente.ClienteNombre</div>
                         @foreach (var documento in cliente.Documentos)
                         {
-                            <div class="plataforma-fila-documento" @key="documento.AcreditacionId">
+                            var destacada = documento.AcreditacionId == _acreditacionDestacadaId;
+                            <div class="plataforma-fila-documento @(destacada ? "plataforma-fila-documento--destacada" : null)"
+                                 @key="documento.AcreditacionId" data-acreditacion-id="@documento.AcreditacionId"
+                                 tabindex="@(destacada ? "-1" : null)" aria-current="@(destacada ? "true" : null)"
+                                 @ref="_referenciasFilas[documento.AcreditacionId]">
                                 <span class="plataforma-documento-propietario">@documento.PropietarioNombre</span>
                                 <span class="plataforma-documento-tipo">@documento.TipoDocumentoNombre</span>
                                 <span class="plataforma-documento-estado">
@@ -91,12 +122,36 @@ else
                                     }
                                     else
                                     {
-                                        @* Una acreditación ya subida está esperando la
-                                           respuesta de la plataforma: no se «vuelve a marcar
-                                           subida», solo se anota lo que la plataforma
-                                           contestó. Sin esta rama, la fila desaparecía al
-                                           marcarla y el estado no tenía salida. *@
-                                        @if (documento.Estado != EstadoAcreditacion.Subida)
+                                        @* Una Rechazada no se marca subida sin versión nueva
+                                           (MarcarAcreditacionSubidaCommand lo rechaza): la salida
+                                           es subir la corregida, que la devuelve a Pendiente. *@
+                                        @if (documento.Estado == EstadoAcreditacion.Rechazada && OnSubirVersionCorregida.HasDelegate)
+                                        {
+                                            <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
+                                                   title="@TextosPlataformaAcreditacion.Texto("SubirVersionCorregidaAyuda")"
+                                                   OnClick="() => OnSubirVersionCorregida.InvokeAsync(documento.DocumentoId)">
+                                                @TextosPlataformaAcreditacion.Texto("SubirVersionCorregida")
+                                            </Boton>
+                                        }
+                                        @if ((documento.Estado is EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir)
+                                             && UrlPortalCae.Normalizar(documento.UrlAccesoCanal) is { } portal)
+                                        {
+                                            @* La dirección del canal, nunca la credencial: se abre en
+                                               pestaña nueva y el Gestor CAE entra allí con la suya.
+                                               Solo http(s) (UrlPortalCae), igual que en Centro 360. *@
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                   Href="@portal" target="_blank" rel="noopener noreferrer"
+                                                   aria-label="@TextosPlataformaAcreditacion.Formato("AbrirPortalEtiqueta", proveedor.ProveedorNombre)">
+                                                @TextosPlataformaAcreditacion.Texto("AbrirPortal")
+                                            </Boton>
+                                        }
+                                        @* Solo una Pendiente de subir se marca subida. Una ya
+                                           subida está esperando la respuesta de la plataforma:
+                                           no se «vuelve a marcar subida», solo se anota lo que
+                                           la plataforma contestó (sin esta rama, la fila
+                                           desaparecía al marcarla y el estado no tenía salida).
+                                           Una Rechazada necesita antes su versión corregida. *@
+                                        @if (documento.Estado == EstadoAcreditacion.PendienteDeSubir)
                                         {
                                             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                    Cargando="@(_procesando == documento.AcreditacionId)"
@@ -165,7 +220,47 @@ else
     </Pie>
 </Modal>
 
+@* P1-E2: salir con la vigencia o el rechazo a medias pregunta antes; confirmar la salida
+   cierra los dos modales. Va después de ellos para quedar encima (mismo z-index). *@
+<AvisoCambiosSinGuardar HayCambios="HayCambiosSinGuardar" AlDescartar="CerrarModalesDeEdicion" />
+
 @code {
+    /// <summary>
+    /// P1-E2: único punto de verdad de «hay cambios» en esta pestaña: lo tecleado en el
+    /// modal de vigencia (la fecha) o en el de rechazo (el detalle), o su confirmación en
+    /// curso. La causa del rechazo y el estado de la vigencia vienen preseleccionados y
+    /// elegir otro valor sin escribir nada no se pierde de forma que cueste recuperarlo.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        (_vigenciaVisible && (_confirmandoVigencia || !string.IsNullOrWhiteSpace(_fechaVigencia)))
+        || (_rechazoVisible && (_rechazando || !string.IsNullOrWhiteSpace(_motivoRechazo)));
+
+    private void CerrarModalesDeEdicion()
+    {
+        _vigenciaVisible = false;
+        _rechazoVisible = false;
+    }
+
+    /// <summary>
+    /// La acreditación a la que lleva el enlace (<c>/documentos?pestana=plataforma&amp;acreditacionId=</c>,
+    /// desde Mi trabajo y /bandeja): la pestaña muestra solo su plataforma y resalta su fila.
+    /// </summary>
+    [Parameter] public Guid? AcreditacionId { get; set; }
+
+    /// <summary>
+    /// «Subir versión corregida» de una fila Rechazada, con el Id del Documento: la página
+    /// abre su drawer de gestión, que renueva el Documento y devuelve la acreditación a
+    /// Pendiente de subir. Sin delegado, el botón no se pinta.
+    /// </summary>
+    [Parameter] public EventCallback<Guid> OnSubirVersionCorregida { get; set; }
+
+    private Guid? _acreditacionDestacadaId;
+    private bool _acreditacionNoEncontrada;
+    private bool _verTodas;
+    private bool _enfocarDestacada;
+    private Guid? _acreditacionIdAplicado;
+    private readonly Dictionary<Guid, ElementReference> _referenciasFilas = [];
+
     private bool _cargando = true;
     private bool _error;
     private IReadOnlyList<ProveedorAcreditacionesDto> _proveedores = [];
@@ -188,6 +283,42 @@ else
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
+    /// <summary>
+    /// Otro enlace a la misma página (p. ej. volver a Mi trabajo y abrir otro rechazo)
+    /// cambia el parámetro sin montar la pestaña de nuevo: el destino se vuelve a
+    /// resolver sobre lo ya cargado, y «ver todas» deja de aplicar.
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        if (AcreditacionId == _acreditacionIdAplicado) return;
+        _acreditacionIdAplicado = AcreditacionId;
+        _verTodas = false;
+        if (!_cargando && !_error) ResolverDestino();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Una sola vez por destino: el foco lleva la fila a la vista (sin JS
+        // propio) y la anuncia a un lector de pantalla. Volver a enfocarla en
+        // cada render robaría el foco a lo que el Gestor CAE esté usando.
+        if (!_enfocarDestacada || _acreditacionDestacadaId is not { } id
+            || !_referenciasFilas.TryGetValue(id, out var fila)) return;
+
+        _enfocarDestacada = false;
+        await fila.FocusAsync();
+    }
+
+    /// <summary>Recarga la lista: la usa la página tras guardar la versión corregida.</summary>
+    public Task RecargarAsync() => CargarAsync();
+
+    private ProveedorAcreditacionesDto? ProveedorDestacado =>
+        _verTodas || _acreditacionDestacadaId is not { } id
+            ? null
+            : _proveedores.FirstOrDefault(p => p.Clientes.Any(c => c.Documentos.Any(d => d.AcreditacionId == id)));
+
+    private IEnumerable<ProveedorAcreditacionesDto> ProveedoresVisibles =>
+        ProveedorDestacado is { } destacado ? [destacado] : _proveedores;
+
     private async Task CargarAsync()
     {
         _cargando = true;
@@ -200,6 +331,7 @@ else
             // que se puede anotar o corregir hasta cuándo vale un documento en
             // una plataforma, así que dejarlas fuera las volvería ilocalizables.
             _proveedores = await Mediator.Send(new ObtenerAcreditacionesPorProveedorQuery(IncluirAceptadas: true, IncluirSubidas: true));
+            ResolverDestino();
         }
         catch (Exception)
         {
@@ -208,7 +340,35 @@ else
         finally
         {
             _cargando = false;
+            // Hace falta cuando la recarga llega de fuera (RecargarAsync, tras
+            // guardar el drawer del padre): ahí ningún evento propio repinta
+            // la pestaña y se quedaba en el esqueleto de carga.
+            StateHasChanged();
         }
+    }
+
+    /// <summary>
+    /// Tras cada carga: la acreditación del enlace sigue destacada mientras esté en la
+    /// lista (también tras corregirla, ya como Pendiente de subir). Si no está —ya se
+    /// resolvió o no es de la cartera— se dice, en vez de enseñar la lista entera como
+    /// si el enlace hubiera funcionado.
+    /// </summary>
+    private void ResolverDestino()
+    {
+        if (AcreditacionId is not { } id)
+        {
+            _acreditacionDestacadaId = null;
+            _acreditacionNoEncontrada = false;
+            return;
+        }
+
+        var encontrada = _proveedores.Any(p => p.Clientes.Any(c => c.Documentos.Any(d => d.AcreditacionId == id)));
+        // Solo se activa, nunca se apaga aquí: resolver dos veces el mismo
+        // destino (carga y OnParametersSet) no puede cancelar el foco pendiente.
+        if (encontrada && _acreditacionDestacadaId != id)
+            _enfocarDestacada = true;
+        _acreditacionDestacadaId = encontrada ? id : null;
+        _acreditacionNoEncontrada = !encontrada;
     }
 
     private static int ContarPendientes(ProveedorAcreditacionesDto proveedor) =>
@@ -227,7 +387,7 @@ else
 
         if (resultado.EsFallido)
         {
-            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            ToastService.MostrarError(resultado.Error);
             return;
         }
 
@@ -304,7 +464,7 @@ else
 
         if (resultado.EsFallido)
         {
-            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            ToastService.MostrarError(resultado.Error);
             return;
         }
 
@@ -368,7 +528,7 @@ else
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

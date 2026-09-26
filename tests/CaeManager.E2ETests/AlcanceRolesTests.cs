@@ -30,8 +30,8 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     private static partial Regex PatronTotalElementos();
 
     /// <summary>
-    /// El paginador único en español (H2, docs/ux-audit/02-clientes.md;
-    /// UX_PATTERNS.md § Paginar) renderiza "Página X de Y — N cliente(s)" —
+    /// El paginador único en español (H2, Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md;
+    /// Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md § Paginar) renderiza "Página X de Y — N cliente(s)" —
     /// antes del cambio de <c>Paginator</c> de QuickGrid ("1–20 of 200
     /// items") este método buscaba el número justo antes de "items". El
     /// total ahora está justo después del guion largo, delante de la
@@ -50,7 +50,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     /// Antes este test se llamaba "Administrador ve los 200 clientes
     /// sembrados" y comprobaba justo lo contrario: que ser Administrador en
     /// la Consultora bastaba para verlo todo dentro del Delegated Workspace.
-    /// Eso era el hallazgo N-5 de INFORME-AUDITORIA-2.md —
+    /// Eso era el hallazgo N-5 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md —
     /// <c>AsignacionOperadorDelegado.Rol</c> se guardaba y no se leía nunca—,
     /// así que el test estaba fijando el defecto.
     ///
@@ -117,14 +117,24 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         // esa exigencia, una /clientes rota por cualquier otro motivo pasaría
         // por "acotada correctamente", que es justo el falso verde que la
         // cuarentena de F3b dejó vivo durante dos días.
+        //
+        // Con alcance cero, desde P0-9a (FS-05) el estado vacío ya no es «Aún no
+        // hay clientes» —que invitaba a crear lo que existe fuera de su
+        // cartera— sino el aviso «Sin Asignación de Cartera», y la cabecera
+        // deja de ofrecer «+ Nuevo cliente».
         var contador = page.GetByText(PatronContadorElementos()).First;
         var totalVisible = await contador.IsVisibleAsync();
 
         if (totalVisible)
             Assert.True(ExtraerTotalElementos(await contador.InnerTextAsync()) < 9);
         else
-            await Assertions.Expect(page.GetByText("Aún no hay clientes"))
-                .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
+        {
+            await Assertions.Expect(page.Locator("[data-estado=sin-asignacion-cartera]"))
+                .ToContainTextAsync("Sin Asignación de Cartera", new LocatorAssertionsToContainTextOptions { Timeout = 10_000 });
+            await Assertions.Expect(page.GetByText("Aún no hay clientes")).Not.ToBeVisibleAsync();
+            await Assertions.Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo cliente" }))
+                .Not.ToBeVisibleAsync();
+        }
     }
 
     /// <summary>

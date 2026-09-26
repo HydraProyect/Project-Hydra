@@ -30,7 +30,7 @@ public class ProhibicionGodInterfaceTests
         var application = ReflexionArquitecturaHelper.CargarAssembly("CaeManager.Application");
 
         application.GetType("CaeManager.Application.Common.IApplicationDbContext").Should().BeNull(
-            "se partió en interfaces segregadas por feature (P3-32, docs/business/MATURITY_REVIEW.md); si reaparece, algo volvió a acoplar todos los agregados en un solo contrato");
+            "se partió en interfaces segregadas por feature (P3-32, Project-Hydra-Negocio/MATURITY_REVIEW.md); si reaparece, algo volvió a acoplar todos los agregados en un solo contrato");
     }
 
     /// <summary>

@@ -105,6 +105,29 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// </summary>
     private static readonly Dictionary<string, string> ExcepcionesDocumentadas = new();
 
+    /// <summary>
+    /// Políticas <c>AS RESTRICTIVE</c> revisadas, además de
+    /// <c>aislamiento_tenant</c>, por tabla. Una restrictiva se combina con AND
+    /// con la de tenant, así que solo puede estrechar el acceso, nunca
+    /// ensancharlo; aun así cada una tiene que quedar escrita aquí, con motivo,
+    /// en el commit que la introduce. Una restrictiva que no esté en la lista, o
+    /// una de la lista que falte en la base, pone el test en rojo. <c>Menciona</c>
+    /// son los fragmentos que su USING y su WITH CHECK tienen que contener: sin
+    /// ellos, una restrictiva reescrita a <c>true</c> seguiría contando como revisada.
+    /// </summary>
+    private static readonly Dictionary<string, (string Politica, string Motivo, string[] Menciona)> PoliticasRestrictivasRevisadas = new()
+    {
+        ["TareasAsistente"] = ("solo_su_persona",
+            "cada Tarea del asistente es de una sola persona dentro del Tenant: ActorRealUsuarioId = app.usuario_id",
+            ["\"ActorRealUsuarioId\"", "'app.usuario_id'"]),
+        ["TurnosTareaAsistente"] = ("solo_su_persona",
+            "un turno solo es visible si su Tarea del asistente lo es (EXISTS sobre la raíz)",
+            ["EXISTS", "FROM \"TareasAsistente\"", "\"TurnosTareaAsistente\".\"TareaAsistenteId\""]),
+        ["PasosTareaAsistente"] = ("solo_su_persona",
+            "un paso solo es visible si su Tarea del asistente lo es (EXISTS sobre la raíz)",
+            ["EXISTS", "FROM \"TareasAsistente\"", "\"PasosTareaAsistente\".\"TareaAsistenteId\""]),
+    };
+
     /// <summary>Política de los catálogos globales de asignación.</summary>
     private const string PoliticaPosicion = "posicion_en_la_asignacion";
 
@@ -120,6 +143,13 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
 
     /// <summary>Política del plano de privilegio de plataforma.</summary>
     private const string PoliticaPrivilegio = "privilegio_del_usuario";
+
+    /// <summary>
+    /// La única política adicional de un catálogo de privilegio (ADR-011 § 8.7,
+    /// incremento 2): el Administrador del Tenant propietario lee las Sesiones
+    /// Privilegiadas que apuntan a su Tenant. Solo SELECT, sin WITH CHECK.
+    /// </summary>
+    private const string PoliticaAdministradorTenantObjetivo = "administrador_del_tenant_objetivo";
 
     /// <summary>
     /// Categoría 3: <b>catálogo de privilegio</b>. Sin <c>TenantId</c> —una
@@ -169,8 +199,38 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         // demás, así que ensancha el acceso. Es exactamente el "accidentalmente
         // demasiado permisiva" que un recuento de políticas no vería.
         var conPoliticasDeMas = conRls
-            .Where(t => estado[t].Politicas.Any(p => p.Nombre != PoliticaAislamiento))
-            .Select(t => $"{t} ({string.Join("+", estado[t].Politicas.Select(p => p.Nombre).Where(n => n != PoliticaAislamiento))})")
+            .Where(t => estado[t].Politicas.Any(p => p.Nombre != PoliticaAislamiento && !EsRestrictivaRevisada(t, p)))
+            .Select(t => $"{t} ({string.Join("+", estado[t].Politicas.Where(p => p.Nombre != PoliticaAislamiento && !EsRestrictivaRevisada(t, p)).Select(p => p.Permisiva ? p.Nombre : $"{p.Nombre} RESTRICTIVE sin revisar"))})")
+            .ToList();
+
+        // La lista de revisadas no es solo una lista blanca: cada entrada
+        // afirma que la política existe, es restrictiva y sigue ahí.
+        var restrictivasAusentes = PoliticasRestrictivasRevisadas
+            .Where(r => !estado.TryGetValue(r.Key, out var e)
+                        || !e.Politicas.Any(p => p.Nombre == r.Value.Politica && !p.Permisiva))
+            .Select(r => $"{r.Key}.{r.Value.Politica}")
+            .ToList();
+
+        var restrictivasQueNoDicenLoQueToca = PoliticasRestrictivasRevisadas
+            .Select(r => (r.Key, r.Value, Politica: estado.TryGetValue(r.Key, out var e)
+                ? e.Politicas.FirstOrDefault(p => p.Nombre == r.Value.Politica)
+                : null))
+            .Where(x => x.Politica is not null
+                        && (!x.Value.Menciona.All(m => (x.Politica.Using ?? "").Contains(m, StringComparison.Ordinal)
+                                                       && (x.Politica.WithCheck ?? "").Contains(m, StringComparison.Ordinal))
+                            // Ninguna de estas tres lleva disyunciones: un "... OR true" conservaría
+                            // los fragmentos y dejaría de restringir. Que restringe de verdad lo
+                            // prueban los tests de runtime (TareasAsistenteRlsRuntimeTests); esto
+                            // solo cierra la reescritura más barata.
+                            || TieneDisyuncion(x.Politica.Using) || TieneDisyuncion(x.Politica.WithCheck)))
+            .Select(x => $"{x.Key}.{x.Value.Politica} → USING {x.Politica!.Using ?? "(ninguna)"} / WITH CHECK {x.Politica.WithCheck ?? "(ninguna)"}")
+            .ToList();
+
+        // La de tenant tiene que ser PERMISSIVE: una tabla con solo políticas
+        // restrictivas no deja ver nada, y una aislamiento_tenant restrictiva
+        // dejaría de ser la que abre el acceso por tenant.
+        var aislamientoNoPermisivo = conRls
+            .Where(t => estado[t].Politicas.Any(p => p.Nombre == PoliticaAislamiento && !p.Permisiva))
             .ToList();
 
         // La política existe y se llama como toca, pero ¿dice lo que toca? Se
@@ -203,7 +263,17 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         string.Join(", ", conPoliticasDeMas).Should().BeEmpty(
             "una política PERMISSIVE adicional se combina con OR, así que ENSANCHA el acceso en vez de acotarlo; " +
             "si hace falta una política nueva sobre una tabla con TenantId, tiene que revisarse aquí en el mismo " +
-            "commit que la introduce");
+            "commit que la introduce (las RESTRICTIVE, en PoliticasRestrictivasRevisadas)");
+
+        string.Join(", ", restrictivasAusentes).Should().BeEmpty(
+            "PoliticasRestrictivasRevisadas afirma que estas políticas restrictivas existen; si una desaparece o " +
+            "pasa a PERMISSIVE, la tabla pierde la barrera que la lista documenta");
+
+        string.Join(", ", restrictivasQueNoDicenLoQueToca).Should().BeEmpty(
+            "una restrictiva revisada tiene que seguir diciendo, en USING y en WITH CHECK, lo que la lista documenta");
+
+        string.Join(", ", aislamientoNoPermisivo).Should().BeEmpty(
+            $"'{PoliticaAislamiento}' tiene que ser PERMISSIVE: es la que concede el acceso por tenant");
 
         string.Join(" | ", conExpresionSospechosa).Should().BeEmpty(
             $"la política '{PoliticaAislamiento}' tiene que comparar la columna TenantId contra la variable de " +
@@ -428,8 +498,26 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
                 "bajo sesión de usuario, y ningún escritor. Sin FORCE la política no ataría al propietario, que " +
                 "es el rol con el que la aplicación conecta hoy");
 
-            e.Politicas.Select(p => p.Nombre).Should().BeEquivalentTo([PoliticaPrivilegio],
-                $"{tabla} tiene que llevar exactamente '{PoliticaPrivilegio}' y ninguna otra");
+            string[] esperadas = tabla == "SesionesPrivilegiadas"
+                ? [PoliticaPrivilegio, PoliticaAdministradorTenantObjetivo]
+                : [PoliticaPrivilegio];
+            e.Politicas.Select(p => p.Nombre).Should().BeEquivalentTo(esperadas,
+                $"{tabla} tiene que llevar exactamente esas políticas y ninguna otra");
+
+            var transparencia = e.Politicas.FirstOrDefault(p => p.Nombre == PoliticaAdministradorTenantObjetivo);
+            if (transparencia is not null)
+            {
+                transparencia.Comando.Should().Be('r',
+                    "la transparencia para el Tenant propietario es solo lectura: una política permisiva FOR ALL " +
+                    "dejaría a su Administrador crear o cerrar Sesiones Privilegiadas de Soporte TALVEG");
+                transparencia.WithCheck.Should().BeNull();
+                transparencia.Permisiva.Should().BeTrue();
+                transparencia.Using.Should().NotBeNull()
+                    .And.Subject.As<string>().Should().Contain("app.tenant_id")
+                    .And.Contain("app_es_administrador_del_tenant(",
+                        "por Tenant a secas cualquier usuario del Tenant leería el historial de accesos de soporte: " +
+                        "la autoridad (Administrador) se exige en la misma frontera que el aislamiento");
+            }
 
             var politica = e.Politicas.FirstOrDefault(p => p.Nombre == PoliticaPrivilegio);
             if (politica is null) continue;
@@ -518,12 +606,21 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         return actual.FullName;
     }
 
+    private static bool TieneDisyuncion(string? expresion) =>
+        expresion is not null && System.Text.RegularExpressions.Regex.IsMatch(expresion, @"OR", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
     private static bool MencionaElAislamiento(string? expresion) =>
         expresion is not null
         && expresion.Contains("TenantId", StringComparison.Ordinal)
         && expresion.Contains("app.tenant_id", StringComparison.Ordinal);
 
-    private sealed record PoliticaRls(string Nombre, string? Using, string? WithCheck);
+    private sealed record PoliticaRls(
+        string Nombre, string? Using, string? WithCheck, bool Permisiva = true, char Comando = '*');
+
+    private static bool EsRestrictivaRevisada(string tabla, PoliticaRls politica) =>
+        !politica.Permisiva
+        && PoliticasRestrictivasRevisadas.TryGetValue(tabla, out var revisada)
+        && revisada.Politica == politica.Nombre;
 
     private async Task<Dictionary<string, (bool Habilitado, bool Forzado, List<PoliticaRls> Politicas)>> LeerEstadoRlsAsync(
         IReadOnlyCollection<string> tablas)
@@ -538,11 +635,13 @@ SELECT c.relname,
        c.relforcerowsecurity,
        p.polname,
        pg_get_expr(p.polqual, p.polrelid),
-       pg_get_expr(p.polwithcheck, p.polrelid)
+       pg_get_expr(p.polwithcheck, p.polrelid),
+       p.polpermissive,
+       p.polcmd
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 LEFT JOIN pg_policy p ON p.polrelid = c.oid
-WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname = ANY(@tablas);";
+WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relname = ANY(@tablas);";
         comando.Parameters.AddWithValue("tablas", tablas.ToArray());
 
         var estado = new Dictionary<string, (bool, bool, List<PoliticaRls>)>();
@@ -557,7 +656,9 @@ WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname = ANY(@tablas);";
                 actual.Item3.Add(new PoliticaRls(
                     lector.GetString(3),
                     lector.IsDBNull(4) ? null : lector.GetString(4),
-                    lector.IsDBNull(5) ? null : lector.GetString(5)));
+                    lector.IsDBNull(5) ? null : lector.GetString(5),
+                    lector.GetBoolean(6),
+                    lector.GetChar(7)));
         }
 
         return estado;

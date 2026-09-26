@@ -15,7 +15,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Reportes.Pages;
 
-public partial class Reportes : ComponentBase
+public partial class Reportes : CaeManager.Web.Components.PaginaInteractiva
 {
     // El título y la descripción visibles salen de TextosReportes
     // (TituloInforme/DescripcionInforme): aquí solo queda el orden de la

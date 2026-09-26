@@ -53,7 +53,7 @@
 .PARAMETER IncluirDatosSubidos
     Incluye src/CaeManager.Web/App_Data (documentos subidos). Apagado a proposito: son
     datos personales de trabajadores, y una cuenta personal de Google Drive no figura
-    como subencargado en RGPD-TRATAMIENTO-DATOS.md. Actívalo solo si esa carpeta
+    como subencargado en Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md. Actívalo solo si esa carpeta
     contiene unicamente datos de prueba.
 
 .EXAMPLE
@@ -347,9 +347,9 @@ Generado por scripts/respaldo-local.ps1. Ultima actualizacion: $(Get-Date -Forma
 
    - Los documentos subidos (App_Data): excluidos a proposito, son datos personales
      de trabajadores y esta cuenta de Drive no figura como subencargado en
-     RGPD-TRATAMIENTO-DATOS.md. Se respaldan por la via que decida ese documento.
-   - Los secretos de produccion (variables de entorno de Railway, secreto de cliente
-     de Graph): nunca han estado en disco. Ver DEPLOY.md y RUNBOOK-CLAVES.md.
+     Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md. Se respaldan por la via que decida ese documento.
+   - Los secretos de produccion (fichero .env del servidor, secreto de cliente
+     de Graph): nunca han estado en este equipo. Ver Project-Hydra-Negocio/tecnico/DEPLOY.md y Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES.md.
    - node_modules, bin, obj, .claude/worktrees: se regeneran solos.
 "@
     Set-Content -Path (Join-Path $Destino "COMO-RESTAURAR.txt") -Value $comoRestaurar -Encoding utf8

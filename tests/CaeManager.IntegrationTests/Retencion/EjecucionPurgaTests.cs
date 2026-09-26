@@ -19,7 +19,7 @@ namespace CaeManager.IntegrationTests.Retencion;
 
 /// <summary>
 /// La ejecución ya autorizada — el único punto que destruye datos
-/// personales. P0-3 de docs/business/MATURITY_REVIEW.md: comprueba que
+/// personales. P0-3 de Project-Hydra-Negocio/MATURITY_REVIEW.md: comprueba que
 /// alcanza también a las filas soft-deleted (EstaEliminado), que antes del
 /// fix quedaban invisibles tanto para detectar como para anonimizar.
 /// </summary>

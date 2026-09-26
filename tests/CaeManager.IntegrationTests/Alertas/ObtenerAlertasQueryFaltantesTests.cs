@@ -17,7 +17,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Alertas;
 
 /// <summary>
-/// P1-15 de docs/business/MATURITY_REVIEW.md: un Trabajador con Asignación
+/// P1-15 de Project-Hydra-Negocio/MATURITY_REVIEW.md: un Trabajador con Asignación
 /// activa a un Centro que exige un TipoDocumento obligatorio, sin ningún
 /// Documento de ese tipo, no aparecía en ningún sitio — ni "Vencido" (no hay
 /// fila que evaluar) ni "SinCaducidad" (ese estado es para Documentos existentes
@@ -73,7 +73,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         var handler = new ObtenerAlertasQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto,
             new ResolverClientePrincipalService(contexto, contexto, contexto),
-            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(contexto, contexto));
+            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(contexto, contexto, contexto));
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 
@@ -98,7 +98,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         var handler = new ObtenerAlertasQueryHandler(
             lectura, lectura, lectura, lectura, lectura, lectura, lectura,
             new ResolverClientePrincipalService(lectura, lectura, lectura),
-            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(lectura, lectura));
+            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(lectura, lectura, lectura));
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 
@@ -119,7 +119,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         var handler = new ObtenerAlertasQueryHandler(
             lectura, lectura, lectura, lectura, lectura, lectura, lectura,
             new ResolverClientePrincipalService(lectura, lectura, lectura),
-            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(lectura, lectura));
+            new AlcanceDatosServiceFalso(), new DocumentosFaltantesService(lectura, lectura, lectura));
 
         var alertas = await handler.Handle(new ObtenerAlertasQuery(), CancellationToken.None);
 

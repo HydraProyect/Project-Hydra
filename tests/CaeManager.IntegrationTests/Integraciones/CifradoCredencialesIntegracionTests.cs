@@ -13,7 +13,7 @@ namespace CaeManager.IntegrationTests.Integraciones;
 /// <summary>
 /// P3-33: el refresh token OAuth y el ClientState del webhook (secreto que
 /// permite confiar en una notificación sin sesión, ver
-/// docs/MULTITENANCY.md § 8) tienen que salir cifrados a la base de datos —
+/// Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8) tienen que salir cifrados a la base de datos —
 /// mismo mecanismo que CredencialAccesoEmpresa. Contra Postgres real, no un
 /// fake de IDataProtector: lo que hay que garantizar es la columna tal como
 /// queda en disco.

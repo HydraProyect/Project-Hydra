@@ -22,4 +22,26 @@ namespace CaeManager.Application.Visitas.PaqueteDocumental;
 public interface IPaqueteDocumentalVisitaService
 {
     Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Construye el zip con la misma selección que <see cref="GenerarYEnviarAsync"/>
+    /// (vigentes, uno por titular y tipo, nunca vencidos) sin adjuntarlo a ninguna
+    /// conversación. Lo usa la descarga manual de un Centro gestionado por correo
+    /// (P1-X1). <b>No autoriza</b>: quien lo llame comprueba antes Tenant y alcance, y
+    /// registra el acceso a cada documento de <see cref="PaqueteDocumentalZip.Documentos"/>
+    /// que sea sensible. Null si no hay nada que empaquetar o el Centro no requiere
+    /// gestión CAE.
+    /// </summary>
+    Task<PaqueteDocumentalZip?> ConstruirAsync(Guid visitaId, CancellationToken cancellationToken = default);
 }
+
+/// <summary>Un documento que entró de verdad en el zip (su archivo se pudo abrir).</summary>
+public record DocumentoEnPaquete(Guid DocumentoId, Guid TipoDocumentoId);
+
+public record PaqueteDocumentalZip(
+    string NombreArchivo,
+    byte[] Contenido,
+    IReadOnlyList<DocumentoEnPaquete> Documentos,
+    string CentroNombre,
+    DateOnly FechaInicio,
+    DateOnly FechaFin);

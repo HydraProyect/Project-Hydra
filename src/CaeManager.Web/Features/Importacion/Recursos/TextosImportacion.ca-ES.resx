@@ -142,7 +142,7 @@
     <value>Cruza el DNI con los trabajadores dados de alta y el nombre con el catálogo de tipos.</value>
   </data>
   <data name="QueHaceConstancia" xml:space="preserve">
-    <value>Deja constancia de cada fila que no entra, con su motivo, en el reporte.</value>
+    <value>Deja constancia de cada fila que no entra, con su motivo, en el reporte, y de cuántas fueron en el historial.</value>
   </data>
   <data name="TituloNoHace" xml:space="preserve">
     <value>No hace</value>
@@ -243,7 +243,7 @@
   <data name="BadgeSeCrearan" xml:space="preserve">
     <value>{0} se crearán</value>
   </data>
-  <data name="TituloBadgeCrear" xml:space="preserve">
+  <data name="TituloBadgeNoSeCrearan" xml:space="preserve">
     <value>{0} Clientes empresariales y {1} Centros con nombre nuevo</value>
   </data>
   <data name="TituloBadgeReutilizados" xml:space="preserve">
@@ -258,11 +258,11 @@
   <data name="BadgeSeOmitiran" xml:space="preserve">
     <value>{0} se omitirán</value>
   </data>
-  <data name="AvisoAltasNinguna" xml:space="preserve">
-    <value>Ninguna de estas altas se hará al importar.</value>
+  <data name="AvisoAltasUna" xml:space="preserve">
+    <value>1 alta de Cliente empresarial o Centro no se hará al importar.</value>
   </data>
-  <data name="AvisoAltasAlgunas" xml:space="preserve">
-    <value>{0} de estas altas no se harán al importar.</value>
+  <data name="AvisoAltasVarias" xml:space="preserve">
+    <value>{0} altas de Cliente empresarial o Centro no se harán al importar.</value>
   </data>
   <data name="IndicacionAltaManual" xml:space="preserve">
     <value>Dalos de alta a mano en Clientes y Centros.</value>
@@ -330,12 +330,6 @@
   <data name="AccionOmitir" xml:space="preserve">
     <value>Omitir</value>
   </data>
-  <data name="MotivoNombreNuevoEnHoja" xml:space="preserve">
-    <value>Nombre nuevo en la hoja «{0}».</value>
-  </data>
-  <data name="MotivoNombreNuevoEn" xml:space="preserve">
-    <value>Nombre nuevo en {0}.</value>
-  </data>
   <data name="MotivoRazonSocialNueva" xml:space="preserve">
     <value>Razón social nueva.</value>
   </data>
@@ -366,11 +360,17 @@
   <data name="ConfirmacionSinOmitir" xml:space="preserve">
     <value>Se crearán {0} elementos. Esta acción escribe datos reales.</value>
   </data>
+  <data name="ConfirmacionSinOmitirUno" xml:space="preserve">
+    <value>Se creará 1 elemento. Esta acción escribe datos reales.</value>
+  </data>
   <data name="ConfirmacionNinguna" xml:space="preserve">
-    <value>Ninguna de las {0} altas del plan se hará.</value>
+    <value>No se creará ningún elemento.</value>
   </data>
   <data name="ConfirmacionComoMaximo" xml:space="preserve">
-    <value>Se crearán como máximo {0} de las {1} altas del plan. Esta acción escribe datos reales.</value>
+    <value>Se crearán como máximo {0} elementos. Esta acción escribe datos reales.</value>
+  </data>
+  <data name="ConfirmacionComoMaximoUno" xml:space="preserve">
+    <value>Se creará como máximo 1 elemento. Esta acción escribe datos reales.</value>
   </data>
   <data name="DetalleConfirmacionSinOmitir" xml:space="preserve">
     <value>Punto de no retorno. Los {0} omitidos y {1} avisos no se tocan.</value>
@@ -444,11 +444,17 @@
   <data name="DialogoSeCrearan" xml:space="preserve">
     <value>Se crearán {0} elementos.</value>
   </data>
+  <data name="DialogoSeCrearaUno" xml:space="preserve">
+    <value>Se creará 1 elemento.</value>
+  </data>
   <data name="DialogoNingunElemento" xml:space="preserve">
     <value>No se creará ningún elemento.</value>
   </data>
   <data name="DialogoComoMaximo" xml:space="preserve">
     <value>Se crearán como máximo {0} elementos.</value>
+  </data>
+  <data name="DialogoComoMaximoUno" xml:space="preserve">
+    <value>Se creará como máximo 1 elemento.</value>
   </data>
   <data name="DialogoReemplazara" xml:space="preserve">
     <value>En los registros que ya existen se reemplazarán los campos ya rellenados.</value>
@@ -491,5 +497,71 @@
   </data>
   <data name="ArbolMetaSinCodigo" xml:space="preserve">
     <value>Sin código</value>
+  </data>
+  <data name="BadgeNoSeCrearan" xml:space="preserve">
+    <value>{0} no se crearán</value>
+  </data>
+  <data name="AccionNoSeCreara" xml:space="preserve">
+    <value>No se creará</value>
+  </data>
+  <data name="OrigenPlantillaClientes" xml:space="preserve">
+    <value>La plantilla de Clientes</value>
+  </data>
+  <data name="OrigenHoja" xml:space="preserve">
+    <value>La hoja «{0}»</value>
+  </data>
+  <data name="MotivoNoSeCreaCliente" xml:space="preserve">
+    <value>{0} no recoge CIF, y el Cliente empresarial lo exige. Créalo a mano en Clientes.</value>
+  </data>
+  <data name="MotivoNoSeCreaCentro" xml:space="preserve">
+    <value>{0} no recoge Empresa, y el Centro la exige. Créalo a mano en Centros.</value>
+  </data>
+  <data name="EnlaceSubidaMultiple" xml:space="preserve">
+    <value>Subida múltiple →</value>
+  </data>
+  <data name="TituloHojaDocumentosNoEncontrada" xml:space="preserve">
+    <value>No se encontró la hoja «{0}» en el archivo</value>
+  </data>
+  <data name="DetalleHojaDocumentosNoEncontrada" xml:space="preserve">
+    <value>No se ha escrito nada. Descarga la plantilla en blanco y vuelve a intentarlo con ella.</value>
+  </data>
+  <data name="TituloHojaDocumentosSinFilas" xml:space="preserve">
+    <value>La hoja «{0}» no tiene ninguna fila que importar</value>
+  </data>
+  <data name="DetalleHojaDocumentosSinFilas" xml:space="preserve">
+    <value>El archivo se leyó bien, pero justo debajo de la cabecera no hay ninguna fila con DNI aparte de la de ejemplo. Rellena las filas desde ahí y vuelve a subirlo.</value>
+  </data>
+  <data name="NotaColumnasPlantillaDocumentos" xml:space="preserve">
+    <value>La plantilla trae una fila de ejemplo que empieza por «{0}»: es la única que el análisis salta sin decir nada. La lectura termina en la primera fila sin DNI; todo lo demás que se deje fuera aparece con su motivo.</value>
+  </data>
+  <data name="AriaFiltroPlan" xml:space="preserve">
+    <value>Filtrar las filas del plan</value>
+  </data>
+  <data name="FiltroPlanTodas" xml:space="preserve">
+    <value>Todas</value>
+  </data>
+  <data name="FiltroPlanCrear" xml:space="preserve">
+    <value>Se crearán</value>
+  </data>
+  <data name="FiltroPlanOmitir" xml:space="preserve">
+    <value>Se omitirán</value>
+  </data>
+  <data name="PlanFiltroSinFilas" xml:space="preserve">
+    <value>Ninguna fila del plan corresponde a este filtro.</value>
+  </data>
+  <data name="TituloSiguientePasoPdf" xml:space="preserve">
+    <value>Y ahora, los PDF</value>
+  </data>
+  <data name="TextoSiguientePasoPdfUno" xml:space="preserve">
+    <value>El documento importado existe con su fecha de emisión, pero todavía sin archivo adjunto. Los PDF se aportan con la subida múltiple.</value>
+  </data>
+  <data name="TextoSiguientePasoPdfVarios" xml:space="preserve">
+    <value>Los {0} documentos importados existen con su fecha de emisión, pero todavía sin archivo adjunto. Los PDF se aportan con la subida múltiple.</value>
+  </data>
+  <data name="EnlaceIrASubidaMultiple" xml:space="preserve">
+    <value>Ir a subida múltiple →</value>
+  </data>
+  <data name="BotonVerDocumentosImportados" xml:space="preserve">
+    <value>Ver los documentos importados</value>
   </data>
 </root>

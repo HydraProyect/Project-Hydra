@@ -25,7 +25,7 @@ namespace CaeManager.Web.Services;
 /// <c>TenantSelladoInterceptor</c> y del particionado de almacenamiento, una
 /// cookie fabricada bastaba para tomar el control de cualquier tenant —
 /// incluido el #1, cuyo Id es determinista y público en el código (hallazgo
-/// C-1 de INFORME-AUDITORIA-TECNICA.md; regresión cubierta en
+/// C-1 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-TECNICA.md; regresión cubierta en
 /// <c>SecuestroTenantPorCookieTests</c>).
 ///
 /// El token lo emite <see cref="Proteger"/> únicamente desde el endpoint, que
@@ -82,7 +82,7 @@ public class ClienteActivoSeleccionado(
     /// un día de trabajo. Lo que cierra la revocación no es esto sino
     /// <see cref="RevalidacionClienteActivoMiddleware"/>, que comprueba la
     /// delegación viva en cada petición (hallazgo N-6 de
-    /// INFORME-AUDITORIA-2.md); acortarla a minutos habría obligado a
+    /// Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md); acortarla a minutos habría obligado a
     /// reelegir cliente a mitad de jornada sin cerrar nada que el middleware
     /// no cierre ya.
     /// </summary>

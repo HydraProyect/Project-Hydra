@@ -8,7 +8,7 @@ using Xunit;
 namespace CaeManager.Application.Tests.Integraciones;
 
 /// <summary>
-/// El *kill switch* remoto de MVP2 (ARQUITECTURA-INTEGRACIONES.md § 14.5, en
+/// El *kill switch* remoto de MVP2 (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14.5, en
 /// el repositorio de negocio): antes de este Command, <c>Activar()</c>/
 /// <c>Desactivar()</c> existían en <see cref="ProveedorPlataformaCae"/> pero
 /// nada los disparaba — el catálogo solo se sembraba activo/inactivo, sin

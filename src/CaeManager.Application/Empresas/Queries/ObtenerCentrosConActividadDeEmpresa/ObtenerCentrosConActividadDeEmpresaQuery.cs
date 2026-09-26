@@ -9,7 +9,7 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEm
 
 /// <summary>
 /// Respalda la pestaña "Centros" del Context Workspace de Empresa. Centro
-/// cuelga de Cliente, no de Empresa (ver DATABASE.md) — no existe una lista
+/// cuelga de Cliente, no de Empresa (ver Project-Hydra-Negocio/tecnico/DATABASE.md) — no existe una lista
 /// de "todos los centros del cliente" aquí a propósito: una Empresa puede
 /// trabajar para un Cliente con cientos de centros y operar solo en unos
 /// pocos, así que se deriva la actividad real: Empresa → Trabajadores →

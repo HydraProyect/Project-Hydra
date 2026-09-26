@@ -10,7 +10,7 @@ namespace CaeManager.Application.Centros.Commands.EditarCanalGestion;
 
 /// <summary>
 /// Edición de un acceso de gestión documental del Centro
-/// (PLAN-EJECUCION-UX.md § 0.6, Lote 0-E). El <see cref="Tipo"/> no se edita:
+/// (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.6, Lote 0-E). El <see cref="Tipo"/> no se edita:
 /// Plataforma y Email no comparten campos, cambiarlo sería crear otro canal.
 ///
 /// <see cref="ProveedorPlataformaCaeId"/> sustituye al antiguo
@@ -34,7 +34,12 @@ public record EditarCanalGestionCommand(
     bool CambiarCredenciales = false,
     string? Usuario = null,
     string? Contrasena = null,
-    Guid Version = default) : ICommand;
+    Guid Version = default) : ICommand, IEscrituraDeDatosDeCredencial
+{
+    // Sin CambiarCredenciales el handler no toca usuario ni contraseña; con él,
+    // también borrarlas (los dos campos vacíos) es escribir la credencial.
+    bool IEscrituraDeDatosDeCredencial.EscribeDatosDeCredencial => CambiarCredenciales;
+}
 
 public class EditarCanalGestionCommandValidator : AbstractValidator<EditarCanalGestionCommand>
 {

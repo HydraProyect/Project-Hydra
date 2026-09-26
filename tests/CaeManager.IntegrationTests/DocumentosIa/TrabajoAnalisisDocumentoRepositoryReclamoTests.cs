@@ -94,7 +94,7 @@ public class TrabajoAnalisisDocumentoRepositoryReclamoTests : IAsyncLifetime
                 // Sin sesión privilegiada ni usuario (proceso de fondo), igual
                 // que ProcesadorAnalisisDocumentoHostedService en producción.
                 new TenantRlsConnectionInterceptor(
-                    tenantActual, new ClienteActivoSeleccionadoAusente(), new CurrentUserServiceFalso()))
+                    tenantActual, new ClienteActivoSeleccionadoAusente(), new CurrentUserServiceFalso(), BaseDatosPostgresDePruebas.FirmanteContextoRls))
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);

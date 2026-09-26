@@ -6,7 +6,7 @@ namespace CaeManager.Application.Documentos.ValidacionOficial.Parsers;
 /// Extracción determinista de los campos de un documento oficial a partir de
 /// su texto digital — sin IA: el texto de un PDF firmado por la
 /// Administración es capa digital exacta, y una regex sobre anclas conocidas
-/// es gratis, reproducible y testeable (PLAN-FIRMA-DIGITAL-PDF.md).
+/// es gratis, reproducible y testeable (Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md).
 /// </summary>
 public interface IParserDocumentoOficial
 {
@@ -14,7 +14,7 @@ public interface IParserDocumentoOficial
 
     /// <summary>
     /// Falso mientras las anclas del perfil sigan pendientes de calibración
-    /// con muestras reales (PLAN-FIRMA-DIGITAL-PDF.md, PR-6): un desajuste de
+    /// con muestras reales (Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md, PR-6): un desajuste de
     /// regex en un perfil no calibrado puede no ser "campos faltantes" (que
     /// ya cae a revisión) sino un cotejo que coincide por casualidad con
     /// anclas mal ajustadas — <see cref="ValidacionOficial.ValidacionDocumentoOficialService"/>
@@ -42,7 +42,7 @@ public interface IParserDocumentoOficial
 /// cruzado por periodo (razón social + importe + número/código de
 /// liquidación de cada RLC contra su recibo) queda pendiente de una muestra
 /// real para calibrar cómo se repiten los bloques en el texto (PR-7,
-/// PLAN-FIRMA-DIGITAL-PDF.md). Hasta entonces, solo se detecta la
+/// Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md). Hasta entonces, solo se detecta la
 /// ambigüedad (más de un periodo distinto en el mismo archivo) y se manda a
 /// revisión — nunca se empareja a ciegas.
 /// </summary>

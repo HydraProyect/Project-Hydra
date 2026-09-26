@@ -8,7 +8,7 @@ namespace CaeManager.Application.Comunicaciones.Commands.VincularConversacion;
 
 /// <summary>
 /// Confirma una propuesta del Conversation Matching Engine
-/// (docs/COMUNICACIONES.md § 13.2): fusiona los mensajes de la conversación
+/// (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 13.2): fusiona los mensajes de la conversación
 /// WhatsApp <paramref name="ConversacionOrigenId"/> dentro de
 /// <paramref name="ConversacionDestinoId"/> — nace un hilo mixto de verdad
 /// (§ 13.1). Nunca lo dispara nada automático: el gestor confirma siempre,

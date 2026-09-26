@@ -59,7 +59,7 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 /// que <see cref="DescartarArchivoHuerfanoAsync"/> ya documenta para el
 /// caso general.
 /// </summary>
-public partial class SubidaMasiva : ComponentBase, IDisposable
+public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     private const int MaximoArchivosPorLote = 60;
 
@@ -171,6 +171,16 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
     private int TotalRecibidos => _totalRecibidos;
     private int ArchivosEnCurso => _items.Count(i => i.Estado == EstadoItem.Procesando);
     private bool HayArchivosEnCurso => ArchivosEnCurso > 0;
+
+    /// <summary>
+    /// FS-14: lo que se perdería al salir. En curso (leyéndose), sin confirmar
+    /// (propuesta de la IA a la vista) o confirmándose en este momento: nada de
+    /// eso existe todavía fuera de la memoria del circuito.
+    /// </summary>
+    private int ArchivosSinGuardar => _items.Count(i =>
+        i.Estado is EstadoItem.Procesando or EstadoItem.PendienteConfirmar || i.Confirmando);
+
+    private bool HayTrabajoSinGuardar => ArchivosSinGuardar > 0;
     private int ArchivosLeidos => TotalRecibidos - ArchivosEnCurso;
     private int PorcentajeProgreso => TotalRecibidos == 0 ? 0 : ArchivosLeidos * 100 / TotalRecibidos;
     private IReadOnlyList<ItemLote> ItemsFiltrados => _items.Where(item => _filtro switch
@@ -269,11 +279,13 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
                             LimitesArchivoSubido.TamanoMaximoBytes,
                             presupuestoRestante);
                     }
-                    catch (InvalidDataException ex)
+                    catch (LimiteDeZipSuperadoException ex)
                     {
                         // Límite superado: es el caso previsto, no un fallo.
                         // El .zip se descarta entero y el lote continúa con
-                        // el resto de archivos.
+                        // el resto de archivos. Solo el mensaje de ESTE tipo se
+                        // enseña: un .zip dañado lanza InvalidDataException con
+                        // texto técnico del framework, que va al bloque de abajo.
                         Logger.LogWarning(
                             "Se descartó un .zip que supera los límites de descompresión en la subida múltiple: {Motivo}",
                             ex.Message);
@@ -567,7 +579,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
             if (resultado.EsFallido)
             {
                 await DescartarArchivoHuerfanoAsync(archivoUrl);
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 if (!EsVigente(carga)) return;
                 MarcarError(item, resultado.Error.Mensaje);
                 return;

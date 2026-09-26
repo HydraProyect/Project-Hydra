@@ -15,4 +15,88 @@
   <data name="DosFactoresObligatorioPorRol" xml:space="preserve">
     <value>El teu rol d’Administrador exigeix l’autenticació en dos passos. Activa-la per continuar: fins aleshores no podràs accedir a la resta de {0}.</value>
   </data>
+  <data name="DosFactoresObligatorioParaCredenciales" xml:space="preserve">
+    <value>Per consultar, copiar o desar credencials d’accés a plataformes CAE necessites l’autenticació en dos passos. Activa-la i torna a la fitxa.</value>
+  </data>
+  <data name="CodigosPasoTresTitulo" xml:space="preserve">
+    <value>3. Desa els teus codis de recuperació</value>
+  </data>
+  <data name="CodigosNuevosTitulo" xml:space="preserve">
+    <value>Desa els teus codis de recuperació nous</value>
+  </data>
+  <data name="CodigosAviso" xml:space="preserve">
+    <value>Desa'ls ara: no es tornaran a mostrar. Sense l'aplicació i sense aquests codis, només un Administrador de la teva organització et pot tornar l'accés.</value>
+  </data>
+  <data name="CodigosAvisoAdministradorUnico" xml:space="preserve">
+    <value>Si ets l'únic Administrador de la teva organització i perds l'aplicació i aquests codis, ningú no et podrà tornar l'accés. Desa'ls en un lloc segur i dona d'alta un segon Administrador.</value>
+  </data>
+  <data name="CodigosLista" xml:space="preserve">
+    <value>Codis de recuperació</value>
+  </data>
+  <data name="CodigosDescargar" xml:space="preserve">
+    <value>Descarregar en un fitxer</value>
+  </data>
+  <data name="CodigosUnSoloUso" xml:space="preserve">
+    <value>Cada codi serveix una sola vegada.</value>
+  </data>
+  <data name="CodigosContinuar" xml:space="preserve">
+    <value>He desat els codis, continuar</value>
+  </data>
+  <data name="CodigosRegenerarAyuda" xml:space="preserve">
+    <value>Si els has perdut o se t'acaben, genera'n de nous: els que tinguessis deixaran de ser vàlids.</value>
+  </data>
+  <data name="CodigosRegenerar" xml:space="preserve">
+    <value>Generar codis nous</value>
+  </data>
+  <data name="CodigosRestantesNinguno" xml:space="preserve">
+    <value>No et queda cap codi de recuperació.</value>
+  </data>
+  <data name="CodigosRestantesUno" xml:space="preserve">
+    <value>Et queda 1 codi de recuperació sense utilitzar.</value>
+  </data>
+  <data name="CodigosRestantesVarios" xml:space="preserve">
+    <value>Et queden {0} codis de recuperació sense utilitzar.</value>
+  </data>
+  <data name="CodigosFicheroCabecera" xml:space="preserve">
+    <value>Codis de recuperació de {0} — {1}</value>
+  </data>
+  <data name="RecuperacionExplicacion" xml:space="preserve">
+    <value>Introdueix un dels codis de recuperació que vas desar en activar la verificació.</value>
+  </data>
+  <data name="RecuperacionEtiqueta" xml:space="preserve">
+    <value>Codi de recuperació</value>
+  </data>
+  <data name="RecuperacionAyuda" xml:space="preserve">
+    <value>Cada codi de recuperació serveix una sola vegada.</value>
+  </data>
+  <data name="RecuperacionVerificar" xml:space="preserve">
+    <value>Verificar</value>
+  </data>
+  <data name="RecuperacionVolverAplicacion" xml:space="preserve">
+    <value>Tornar al codi de l'aplicació</value>
+  </data>
+  <data name="RecuperacionVolverInicio" xml:space="preserve">
+    <value>Tornar a iniciar sessió</value>
+  </data>
+  <data name="RecuperacionUsarCodigo" xml:space="preserve">
+    <value>No tinc accés a l'aplicació: utilitzar un codi de recuperació</value>
+  </data>
+  <data name="RecuperacionEnCurso" xml:space="preserve">
+    <value>Ja s'està verificant un codi per a aquest compte. Espera un moment i torna-ho a provar.</value>
+  </data>
+  <data name="RecuperacionVacio" xml:space="preserve">
+    <value>Introdueix un codi de recuperació.</value>
+  </data>
+  <data name="RecuperacionIntentoNoRegistrado" xml:space="preserve">
+    <value>No hem pogut registrar l'intent. Per seguretat, torna a iniciar la sessió.</value>
+  </data>
+  <data name="RecuperacionNoValido" xml:space="preserve">
+    <value>Codi de recuperació no vàlid o ja utilitzat. Revisa que l'has copiat bé.</value>
+  </data>
+  <data name="RecuperacionMarcador" xml:space="preserve">
+    <value>xxxxx-xxxxx</value>
+  </data>
+  <data name="VolverALaFicha" xml:space="preserve">
+    <value>Tornar a la fitxa</value>
+  </data>
 </root>

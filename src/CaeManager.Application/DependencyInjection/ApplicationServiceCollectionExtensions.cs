@@ -42,6 +42,16 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<VentanaSaludOperativa>();
         // Orden global del menú lateral: una caché por proceso, invalidada al guardar.
         services.AddSingleton<CaeManager.Application.Plataforma.OrdenMenu.CacheOrdenMenuLateral>();
+        // Esqueleto común de los Commands que cambian una tarea del asistente de flujos.
+        services.AddScoped<CaeManager.Application.AsistenteIa.Tareas.ModificacionTareaAsistente>();
+        // Quién puede restablecer la 2FA de otra cuenta, separado del acto: el
+        // Administrador del Tenant (P0-8) o Soporte TALVEG con Sesión Privilegiada
+        // (ADR-011 § 8.7, punto 3). La compuesta elige por la sesión, nunca prueba los dos.
+        services.AddScoped<CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor.AutorizacionRestablecerSegundoFactorAdministrador>();
+        services.AddScoped<CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor.AutorizacionRestablecerSegundoFactorPorSoporte>();
+        services.AddScoped<
+            CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor.IAutorizacionRestablecerSegundoFactor,
+            CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor.AutorizacionRestablecerSegundoFactorCompuesta>();
         // TryAdd, no Add: Program.cs registra la implementación real
         // (SentryAlertaOperativa, Infrastructure) después de AddApplication()
         // y la sustituye — ver AlertaOperativaInerte para el porqué de este
@@ -118,7 +128,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IClasificacionRuidoMensajeService, ClasificacionRuidoMensajeService>();
         services.AddScoped<IRelevanciaCaeService, RelevanciaCaeService>();
         services.AddScoped<IMotorCoincidenciaConversacionesService, MotorCoincidenciaConversacionesService>();
-        services.AddScoped<IDerivarCanalesAplicablesDocumentoService, DerivarCanalesAplicablesDocumentoService>();
+        services.AddScoped<IAltaAcreditacionesPlataformaService, AltaAcreditacionesPlataformaService>();
         services.AddScoped<IPaqueteDocumentalVisitaService, PaqueteDocumentalVisitaService>();
         services.AddScoped<IEvaluadorExpedienteVisitaService, EvaluadorExpedienteVisitaService>();
         services.AddScoped<IVerificacionIaDocumentoService, VerificacionIaDocumentoService>();
@@ -143,7 +153,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IResolucionProveedorPlataformaCaeService, ResolucionProveedorPlataformaCaeService>();
 
         // Factory pura (Application) — cada IDocumentAIProvider real se
-        // registra en Infrastructure (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2).
+        // registra en Infrastructure (ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2).
         services.AddScoped<IDocumentAIProviderFactory, DocumentAIProviderFactory>();
         services.AddScoped<IDocumentAIRouterService, DocumentAIRouterService>();
         services.AddSingleton<ILocalizadorPaginasRelevantesService, LocalizadorPaginasRelevantesService>();

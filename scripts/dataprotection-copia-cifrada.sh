@@ -5,7 +5,7 @@
 #
 # Por qué existe: dataprotection-keys/ no es «solo cookies». Cifra en reposo las
 # credenciales de portales externos, los documentos subidos (por tenant) y los
-# tokens de sesión (RUNBOOK-CLAVES.md). Sin ellas todo eso es basura
+# tokens de sesión (Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES.md). Sin ellas todo eso es basura
 # permanente, aunque la BD y los PDFs se recuperen enteros. Hoy KMS no está
 # configurado, así que el llavero es un XML en claro dentro del volumen del VPS
 # y dentro del archivo Borg: la única protección de la copia 1 es la passphrase

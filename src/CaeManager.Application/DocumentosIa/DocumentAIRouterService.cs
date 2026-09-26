@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace CaeManager.Application.DocumentosIa;
 
 /// <summary>
-/// Implementa los 4 casos de docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2.3:
+/// Implementa los 4 casos de Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2.3:
 /// Digital → texto local, sin OCR (Caso 1); Escaneado/Imagen → OCR del
 /// archivo completo (Casos 2-3); Mixto → texto digital de las páginas con
 /// texto + OCR de las páginas escaneadas (Caso 4, con rasterización).

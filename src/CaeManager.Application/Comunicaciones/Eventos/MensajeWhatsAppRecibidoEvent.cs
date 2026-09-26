@@ -3,7 +3,7 @@ using MediatR;
 namespace CaeManager.Application.Comunicaciones.Eventos;
 
 /// <summary>
-/// Primer <see cref="INotification"/> del repositorio (ARQUITECTURA-INTEGRACIONES.md
+/// Primer <see cref="INotification"/> del repositorio (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md
 /// § 6.5: "el orquestador publica, no invoca"): la ingesta de WhatsApp lo
 /// publica DESPUÉS de confirmar la transacción — nunca antes, un aviso de un
 /// mensaje no persistido rompería a los suscriptores — y no conoce a sus

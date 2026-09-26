@@ -1,17 +1,25 @@
 @page "/configuracion/plataforma"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio
 @using CaeManager.Application.Plataforma.Queries.ObtenerSesionPrivilegiadaPorId
 @using CaeManager.Application.Plataforma.Queries.ObtenerIdentidadPlataforma
 @using CaeManager.Application.Plataforma.Queries.PuedeInicializarPlataforma
+@using CaeManager.Application.Usuarios
+@using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor
+@using CaeManager.Application.Usuarios.Queries.ObtenerRestablecimientoPorSoporte
+@using CaeManager.Web.Features.Plataforma.Recursos
+@using Microsoft.Extensions.Localization
 @using CaeManager.Domain.Plataforma
 @using MediatR
 @using Microsoft.AspNetCore.Components.Forms
 @inject IMediator Mediator
+@inject IStringLocalizer<TextosPlataforma> Textos
 @inject AntiforgeryStateProvider AntiforgeryStateProvider
 @implements IDisposable
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Administración global — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina administracion-global">
@@ -211,6 +219,56 @@
         </section>
     }
 
+    @* ADR-011 § 8.7, punto 3: solo existe dentro de una Sesión Privilegiada con la
+       capacidad RestablecimientoSegundoFactor sobre la organización visitada. La
+       autorización real la deciden RestablecerSegundoFactorCommand y la base. *@
+    @if (_restablecimiento is { } restablecimiento)
+    {
+        <section class="administracion-global-seccion" aria-labelledby="restablecer-segundo-factor">
+            <h2 id="restablecer-segundo-factor">@Textos["RestablecerTitulo"]</h2>
+            <div class="administracion-global-sesion">
+                @if (restablecimiento.Administrador is { } administrador)
+                {
+                    <p>@Textos["RestablecerExplicacion"]</p>
+                    <dl class="administracion-global-detalle-sesion">
+                        <div>
+                            <dt>@Textos["RestablecerCampoAdministrador"]</dt>
+                            <dd>@administrador.NombreCompleto</dd>
+                        </div>
+                        <div>
+                            <dt>@Textos["RestablecerCampoCorreo"]</dt>
+                            <dd>@administrador.Email</dd>
+                        </div>
+                        <div>
+                            <dt>@Textos["RestablecerCampoVerificacion"]</dt>
+                            <dd>@(administrador.DosFactoresActivo ? Textos["RestablecerVerificacionActiva"] : Textos["RestablecerVerificacionNoActiva"])</dd>
+                        </div>
+                    </dl>
+                    @if (_segundoFactorRestablecido)
+                    {
+                        <p class="administracion-global-exito" role="status">
+                            <Icono Nombre="exito-circulo" Tamano="TamanoIcono.Pequeno" />@Textos["RestablecerExito"]
+                        </p>
+                    }
+                    else if (administrador.DosFactoresActivo)
+                    {
+                        <Boton Variante="VarianteBoton.Destructivo" OnClick="() => AbrirConfirmacionRestablecer(administrador)">
+                            @Textos["RestablecerTitulo"]
+                        </Boton>
+                    }
+                    else
+                    {
+                        <p>@Textos["RestablecerSinSegundoFactor"]</p>
+                    }
+                }
+                else
+                {
+                    <p>@Textos["RestablecerSinAdministradorUnico"]</p>
+                }
+            </div>
+        </section>
+    }
+
     <section class="administracion-global-seccion" aria-labelledby="registro-global">
         <h2 id="registro-global">Qué queda registrado</h2>
         <div class="administracion-global-registro">
@@ -278,8 +336,37 @@
     </Pie>
 </Modal>
 
+<Modal Visible="_administradorARestablecer is not null"
+       VisibleChanged="(bool visible) => CerrarConfirmacionRestablecer(visible)"
+       Titulo="@Textos["RestablecerTitulo"]"
+       CerrarAlHacerClicFuera="!_restableciendo">
+    <ChildContent>
+        <p>@Textos["RestablecerConfirmacion", _administradorARestablecer?.NombreCompleto ?? ""]</p>
+        @if (_errorRestablecer is not null)
+        {
+            <p class="administracion-global-error-comando" role="alert">@_errorRestablecer</p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario"
+               Deshabilitado="_restableciendo"
+               OnClick="() => CerrarConfirmacionRestablecer(false)">
+            @Textos["RestablecerCancelar"]
+        </Boton>
+        <Boton Variante="VarianteBoton.Destructivo" Cargando="_restableciendo" OnClick="RestablecerSegundoFactorAsync">
+            @Textos["RestablecerConfirmar"]
+        </Boton>
+    </Pie>
+</Modal>
+</LimiteDeErrores>
+
 @code {
     private CancellationTokenSource? _ciclo;
+    private RestablecimientoPorSoporteDto? _restablecimiento;
+    private AdministradorUnicoActivo? _administradorARestablecer;
+    private bool _restableciendo;
+    private bool _segundoFactorRestablecido;
+    private string? _errorRestablecer;
     private long _generacion;
     private bool _cargando = true;
     private bool _errorCarga;
@@ -321,14 +408,17 @@
         _errorCarga = false;
         _detalleSesion = null;
         _identidad = null;
+        _restablecimiento = null;
 
         try
         {
             var puedeInicializarTask = Mediator.Send(new PuedeInicializarPlataformaQuery(), cancellationToken);
             var identidadTask = Mediator.Send(new ObtenerIdentidadPlataformaQuery(), cancellationToken);
-            await Task.WhenAll(puedeInicializarTask, identidadTask);
+            var restablecimientoTask = Mediator.Send(new ObtenerRestablecimientoPorSoporteQuery(), cancellationToken);
+            await Task.WhenAll(puedeInicializarTask, identidadTask, restablecimientoTask);
             var puedeInicializar = await puedeInicializarTask;
             var identidad = await identidadTask;
+            var restablecimiento = await restablecimientoTask;
             SesionPrivilegiadaDetalleDto? detalle = null;
 
             if (SesionParaCerrar is { } sesion)
@@ -344,6 +434,7 @@
             _puedeInicializar = puedeInicializar;
             _identidad = identidad;
             _detalleSesion = detalle;
+            _restablecimiento = restablecimiento;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -402,7 +493,6 @@
         {
             var resultado = await Mediator.Send(
                 new AutoConcederPrivilegioCommand(
-                    Guid.Empty,
                     CapacidadPrivilegio.AdminPlataforma,
                     DiasDeVigencia: 1));
             var esFallido = resultado.EsFallido;
@@ -428,6 +518,62 @@
             if (generacion == Volatile.Read(ref _generacion))
             {
                 _ejecutando = false;
+            }
+        }
+    }
+
+    private void AbrirConfirmacionRestablecer(AdministradorUnicoActivo administrador)
+    {
+        _errorRestablecer = null;
+        _administradorARestablecer = administrador;
+    }
+
+    private void CerrarConfirmacionRestablecer(bool visible)
+    {
+        if (visible || _restableciendo)
+        {
+            return;
+        }
+
+        _administradorARestablecer = null;
+        _errorRestablecer = null;
+    }
+
+    private async Task RestablecerSegundoFactorAsync()
+    {
+        if (_restableciendo || _administradorARestablecer is not { } administrador)
+        {
+            return;
+        }
+
+        var generacion = Volatile.Read(ref _generacion);
+        _restableciendo = true;
+        _errorRestablecer = null;
+
+        try
+        {
+            var resultado = await Mediator.Send(new RestablecerSegundoFactorCommand(administrador.UsuarioId));
+            var mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
+
+            if (generacion != Volatile.Read(ref _generacion))
+            {
+                return;
+            }
+
+            if (mensajeError is not null)
+            {
+                _errorRestablecer = mensajeError;
+                return;
+            }
+
+            _segundoFactorRestablecido = true;
+            _administradorARestablecer = null;
+        }
+        finally
+        {
+            if (generacion == Volatile.Read(ref _generacion))
+            {
+                _restableciendo = false;
             }
         }
     }

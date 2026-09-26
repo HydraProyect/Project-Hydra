@@ -206,7 +206,7 @@ Stripe__WebhookSecret
 # rol en PostgreSQL deja al `app`/`migrador` del SIGUIENTE despliegue con una
 # contraseña que PostgreSQL rechaza — caída del stack entero, no solo de la
 # clave que se quiso rotar. `ConnectionStrings__CaeManagerDbRuntime` depende
-# del mismo orden (RUNBOOK-RLS.md, repositorio de negocio: primero
+# del mismo orden (Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md, repositorio de negocio: primero
 # `ALTER ROLE cae_app_runtime ... PASSWORD`, luego el `.env`) y aquí, a
 # diferencia de una edición manual por SSH, la escritura en `.env` queda
 # desacoplada en el tiempo del momento en que el propietario carga el
@@ -1066,6 +1066,14 @@ fi
 # Si tras liberar el disco sigue critico, liberar-disco.sh corta aqui: mejor
 # un despliegue que no arranca con un mensaje claro que uno que se rompe a
 # medias y se lleva la base de datos por delante.
+#
+# Antes, la retención de P1-F1: liberar-disco.sh ya no poda las caemanager:<sha>
+# etiquetadas, y las de despliegues que fallaron tras cargarse nunca llegan al
+# `retener` que sigue a un despliegue sano. Conserva el historial y lo que usa
+# un contenedor; sin historial legible no retira ninguna; nunca hace fallar el
+# despliegue.
+bash /opt/talveg/deploy/imagenes-retenidas.sh retener < /dev/null \
+    || echo "::warning::la retención de imágenes previa falló: revisa 'docker image ls caemanager'."
 bash /opt/talveg/deploy/liberar-disco.sh < /dev/null
 exigir_espacio_para_recibir /var/tmp || exit 1
 
@@ -1129,6 +1137,18 @@ volcar_diagnostico_si_falla() {
     fi
 
     volcar_diagnostico_memoria
+
+    # P1-F1: el despliegue llegó a sano, así que entra en el historial del
+    # entorno (del que sale el «anterior» de deploy/volver-atras.sh) y se
+    # retiran las imágenes caemanager:<sha> que exceden las N retenidas.
+    # `retener` recibe el entorno y el SHA para comprobar que el registro llegó
+    # al historial: si no llegó (o el historial no se puede leer), no retira
+    # ninguna imagen, solo avisa.
+    # `|| echo`: ninguno de los dos convierte en fallo un despliegue sano.
+    bash /opt/talveg/deploy/imagenes-retenidas.sh registrar "$ENTORNO" "$SHA" < /dev/null \
+        || echo "::warning::no se pudo registrar $SHA en el historial de $ENTORNO: «volver-atras.sh $ENTORNO anterior» no lo verá y la retención no retirará ninguna imagen."
+    bash /opt/talveg/deploy/imagenes-retenidas.sh retener "$ENTORNO" "$SHA" < /dev/null \
+        || echo "::warning::la retención de imágenes falló: revisa 'docker image ls caemanager'."
 
     # Solo lectura y sin imprimir valores (P18b). `|| true`: una comprobación de
     # diagnóstico nunca debe convertir en fallo un despliegue que ya llegó a sano

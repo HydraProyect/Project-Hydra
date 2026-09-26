@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -9,9 +10,9 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Centros.Commands.CrearCanalGestion;
 
 /// <summary>
-/// Alta de un acceso de gestión documental del Centro (PLAN-EJECUCION-UX.md
+/// Alta de un acceso de gestión documental del Centro (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
 /// § 0.6, Lote 0-E). Hasta ese lote la tabla no tenía ningún escritor — ni
-/// Command ni seeder, solo la Query de lectura (ROADMAP.md, Fase "Canal de
+/// Command ni seeder, solo la Query de lectura (Project-Hydra-Negocio/tecnico/ROADMAP.md, Fase "Canal de
 /// gestión documental" § 1).
 ///
 /// <see cref="ProveedorPlataformaCaeId"/> sustituye al antiguo
@@ -32,7 +33,15 @@ public record CrearCanalGestionCommand(
     string? Contrasena,
     string? EmailsDestinatarios,
     string? NombreContacto,
-    string? Notas) : ICommand<Guid>;
+    string? Notas) : ICommand<Guid>, IEscrituraDeDatosDeCredencial
+{
+    // Solo un canal de Plataforma guarda usuario y contraseña: uno de correo los
+    // descarta (el formulario puede enviarlos ocultos tras cambiar de tipo), y
+    // una plataforma cuyo acceso se apunta después no escribe nada que proteger.
+    bool IEscrituraDeDatosDeCredencial.EscribeDatosDeCredencial =>
+        Tipo == TipoCanalGestion.Plataforma
+        && (!string.IsNullOrEmpty(Usuario) || !string.IsNullOrEmpty(Contrasena));
+}
 
 public class CrearCanalGestionCommandValidator : AbstractValidator<CrearCanalGestionCommand>
 {
@@ -62,14 +71,22 @@ public class CrearCanalGestionCommandValidator : AbstractValidator<CrearCanalGes
 
 public class CrearCanalGestionCommandHandler(
     ICanalGestionDocumentalRepository repositorio, IAlcanceDatosService alcanceDatos,
-    IProveedoresPlataformaCaeQueryContext proveedoresContext, IUnitOfWork unitOfWork)
+    IProveedoresPlataformaCaeQueryContext proveedoresContext, ICentrosQueryContext centrosContext,
+    IAltaAcreditacionesPlataformaService altaAcreditaciones, IUnitOfWork unitOfWork)
     : IRequestHandler<CrearCanalGestionCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearCanalGestionCommand request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         if (!await alcanceDatos.CentroVisibleAsync(request.CentroId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("CanalGestion.CentroNoEncontrado", "No encontramos este centro."));
+
+        // P1-X2: un Centro sin gestión CAE no recibe documentación, así que un
+        // canal nuevo no tendría a qué servir. Los que ya tuviera se conservan.
+        if (await centrosContext.Centros.AnyAsync(
+                c => c.Id == request.CentroId && c.GestionCae == ModalidadGestionCae.SinGestionCae, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear(
+                "CanalGestion.CentroSinGestionCae", "Este centro no requiere gestión CAE: no necesita canales de gestión."));
 
         if (request.Tipo == TipoCanalGestion.Plataforma
             && !await proveedoresContext.ProveedoresPlataformaCae.AnyAsync(p => p.Id == request.ProveedorPlataformaCaeId, cancellationToken))
@@ -89,6 +106,13 @@ public class CrearCanalGestionCommandHandler(
             canal.MarcarComoPrincipal();
 
         repositorio.Agregar(canal);
+
+        // Un acceso de plataforma nuevo es un sitio más donde acreditar: los
+        // Documentos que el Centro exige a quienes ya trabajan en él nacen
+        // pendientes de subir a este acceso. Un acceso por correo no acredita.
+        // Mismo SaveChangesAsync que el acceso.
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Canales = [canal] }, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito(canal.Id);

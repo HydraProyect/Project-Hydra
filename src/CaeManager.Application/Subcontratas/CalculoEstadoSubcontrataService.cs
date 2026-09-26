@@ -13,7 +13,7 @@ namespace CaeManager.Application.Subcontratas;
 /// <summary>
 /// Una incidencia documental de un Trabajador de la Subcontrata — a
 /// diferencia de <c>CausaEstadoCentro</c> no lleva ámbito: Documento no tiene
-/// propietario Subcontrata (ver DOMAIN.md, propietario polimórfico
+/// propietario Subcontrata (ver Project-Hydra-Negocio/tecnico/DOMAIN.md, propietario polimórfico
 /// excluyente), así que toda causa aquí es siempre de un Trabajador.
 /// </summary>
 public record IncidenciaSubcontrataDto(
@@ -56,6 +56,7 @@ public class CalculoEstadoSubcontrataService(
     IDocumentosQueryContext documentosContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IConfiguracionQueryContext configuracionContext,
+    ICentrosQueryContext centrosContext,
     IAlcanceDatosService alcanceDatos)
     : ICalculoEstadoSubcontrataService
 {
@@ -117,6 +118,10 @@ public class CalculoEstadoSubcontrataService(
             .GroupBy(a => a.TrabajadorId)
             .ToDictionary(g => g.Key, g => g.Select(a => a.CentroId).Distinct().ToList());
 
+        // P1-X2: un Centro sin gestión CAE no exige ningún tipo a quien trabaja allí.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(
+            centrosContext, asignacionesActivas.Select(a => a.CentroId), cancellationToken);
+
         var centroIds = asignacionesActivas.Select(a => a.CentroId).Distinct().ToList();
 
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
@@ -149,7 +154,7 @@ public class CalculoEstadoSubcontrataService(
             }
 
             tiposRequeridosPorTrabajador[trabajadorId] = tiposCandidatos
-                .Where(t => centrosDelTrabajador.Any(centroId => ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
+                .Where(t => centrosDelTrabajador.Any(centroId => !sinGestionCae.Contains(centroId) && ResolucionTipoDocumentoCentro.Aplica(filasPorPar, t.Id, centroId, t.CuentaParaCumplimiento)))
                 .Select(t => t.Id)
                 .ToList();
         }
@@ -162,13 +167,16 @@ public class CalculoEstadoSubcontrataService(
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsRequeridosGlobal.Contains(d.TipoDocumentoId))
-            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
+            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
             .ToListAsync(cancellationToken);
-
-        var documentosPorPar = documentosExistentes.ToDictionary(d => (d.TrabajadorId, d.TipoDocumentoId));
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        // Puede haber varios por par (el vencido y su renovación): el índice
+        // (TrabajadorId, TipoDocumentoId) no es único.
+        var documentosPorPar = PreferenciaDocumentoPorTipo.UnoPorClave(
+            documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, hoy);
 
         foreach (var trabajadorId in trabajadorIds)
         {

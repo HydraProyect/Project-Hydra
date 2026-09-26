@@ -16,7 +16,7 @@ namespace CaeManager.Domain.Integraciones;
 ///
 /// El propio <see cref="Entity.Id"/> (aleatorio, generado en el servidor) es
 /// el valor que se manda como <c>state</c> — no hace falta cifrarlo, porque
-/// la fila en sí es la fuente de verdad: RLS (docs/MULTITENANCY.md) ya
+/// la fila en sí es la fuente de verdad: RLS (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md) ya
 /// impide que la sesión de la víctima vea una fila sembrada bajo el tenant
 /// del atacante, y <see cref="UsuarioSolicitanteId"/> exige además que quien
 /// completa el callback sea la misma sesión que inició el flujo. Se borra

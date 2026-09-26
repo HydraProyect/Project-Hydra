@@ -10,7 +10,7 @@ using PdfSharp.Pdf.IO;
 namespace CaeManager.Infrastructure.DocumentosIa;
 
 /// <summary>
-/// Clasificación local de documentos (Fase 1 de docs/ARQUITECTURA-IA-DOCUMENTAL.md),
+/// Clasificación local de documentos (Fase 1 de Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md),
 /// sin ninguna llamada a IA. Reutiliza PdfSharp (ya dependencia del proyecto
 /// para generar/combinar PDFs, ver ConversorArchivosPdf) en vez de añadir una
 /// librería nueva de extracción de texto — su lector de contenido

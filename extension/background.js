@@ -1,5 +1,5 @@
 // Service worker (MV3) del MVP1 de integración con plataformas CAE externas.
-// Ver ARQUITECTURA-INTEGRACIONES.md § 14 (repositorio de negocio) para el
+// Ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 (repositorio de negocio) para el
 // diseño completo. Este fichero es el único que guarda el token y habla con
 // Hydra; el popup y el content script solo le mandan mensajes.
 //

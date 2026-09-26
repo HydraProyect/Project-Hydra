@@ -1,5 +1,6 @@
 @page "/empresas/{EmpresaId:guid}/deteccion-trabajadores"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @implements IDisposable
 @using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
@@ -12,6 +13,7 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Detección de personal — @(_empresa?.RazonSocial ?? "Empresa") — @Marca.Nombre</PageTitle>
 
 @* j/k recorren UNA sola secuencia —primero los nuevos, después los
@@ -274,3 +276,4 @@
         </div>
     }
 </div>
+</LimiteDeErrores>

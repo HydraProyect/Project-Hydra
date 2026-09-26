@@ -9,7 +9,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Tenants;
 
 /// <summary>
-/// Hallazgo N-15 de INFORME-AUDITORIA-2.md: <c>TenantSelladoInterceptor</c>
+/// Hallazgo N-15 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md: <c>TenantSelladoInterceptor</c>
 /// solo sobrescribía <c>SavingChangesAsync</c>. Como en el código no hay
 /// ningún <c>SaveChanges()</c> síncrono, era inocuo — y por eso mismo
 /// peligroso: el primero que apareciera se saltaría el sellado sin dar ningún

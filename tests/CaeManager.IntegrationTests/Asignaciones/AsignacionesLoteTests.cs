@@ -20,7 +20,7 @@ namespace CaeManager.IntegrationTests.Asignaciones;
 /// <summary>
 /// Fase B: alta y baja de Asignaciones en lote (producto cartesiano
 /// Trabajadores × Centros, la misma forma que la matriz del Excel original —
-/// ver <c>DATABASE.md</c>) y el preflight de documentos que le faltarían a
+/// ver <c>Project-Hydra-Negocio/tecnico/DATABASE.md</c>) y el preflight de documentos que le faltarían a
 /// cada Trabajador en cada Centro antes de confirmar.
 /// </summary>
 public class AsignacionesLoteTests : IAsyncLifetime
@@ -75,7 +75,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
     public async Task Crea_el_producto_cartesiano_y_omite_en_silencio_lo_ya_activo()
     {
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
+        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand(
@@ -109,7 +109,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         }
 
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
+        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand(
@@ -145,7 +145,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         }
 
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
+        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand([_trabajador2Id], [_centro2Id], hoy),
@@ -160,7 +160,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
     public async Task Un_id_de_trabajador_inexistente_se_reporta_como_error_sin_bloquear_el_resto()
     {
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
+        var handler = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand(
@@ -180,7 +180,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var creacion = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), contexto);
+            var creacion = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
             await creacion.Handle(
                 new CrearAsignacionesCommand([_trabajador2Id], [_centro1Id, _centro2Id], DateOnly.FromDateTime(DateTime.UtcNow)),
                 CancellationToken.None);
@@ -209,7 +209,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
     public async Task El_preflight_detecta_lo_que_le_faltaria_a_cada_trabajador_en_cada_centro()
     {
         await using var contexto = CrearContexto();
-        var servicio = new DocumentosFaltantesService(contexto, contexto);
+        var servicio = new DocumentosFaltantesService(contexto, contexto, contexto);
         var handler = new ObtenerDocumentosFaltantesParaAsignacionQueryHandler(contexto, contexto, servicio, new AlcanceDatosServiceFalso());
 
         // Ninguno de los dos trabajadores tiene el Apto médico todavía —
@@ -232,7 +232,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         // rechazara. Contra Postgres real (no un fake en memoria) para
         // comprobar que el filtro sobrevive a la traducción EF → SQL.
         await using var contexto = CrearContexto();
-        var servicio = new DocumentosFaltantesService(contexto, contexto);
+        var servicio = new DocumentosFaltantesService(contexto, contexto, contexto);
         var handler = new ObtenerDocumentosFaltantesParaAsignacionQueryHandler(
             contexto, contexto, servicio, new AlcanceDatosServiceFalso(centroIds: [_centro1Id]));
 
@@ -254,7 +254,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         }
 
         await using var contexto2 = CrearContexto();
-        var servicio = new DocumentosFaltantesService(contexto2, contexto2);
+        var servicio = new DocumentosFaltantesService(contexto2, contexto2, contexto2);
         var handler = new ObtenerDocumentosFaltantesParaAsignacionQueryHandler(contexto2, contexto2, servicio, new AlcanceDatosServiceFalso());
 
         var faltantes = await handler.Handle(

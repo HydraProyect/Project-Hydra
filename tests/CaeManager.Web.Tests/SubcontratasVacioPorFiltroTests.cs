@@ -1,3 +1,5 @@
+using CaeManager.Domain.Common;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
@@ -48,6 +50,8 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
 
     private sealed class MediatorPorTipo : IMediator
     {
+        public bool AlcanceCero { get; init; }
+
         public required IReadOnlyList<SubcontrataListaDto> Subcontratas { get; init; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
@@ -58,6 +62,8 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
                 ObtenerEmpresasParaSelectorQuery => Array.Empty<EmpresaSelectorDto>(),
                 ObtenerSubcontratasQuery q => new ResultadoPaginado<SubcontrataListaDto>(
                     Subcontratas, Subcontratas.Count, q.Pagina, q.TamanoPagina),
+                ObtenerAlcanceCeroQuery => (object)AlcanceCero,
+                ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 
@@ -96,7 +102,7 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
     private IRenderedComponent<Subcontratas> Renderizar(string? busqueda = null,
         params SubcontrataListaDto[] subcontratas)
     {
-        Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Subcontratas = subcontratas });
+        Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Subcontratas = subcontratas, AlcanceCero = _alcanceCero });
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
@@ -180,5 +186,35 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("Ninguna subcontrata con esta búsqueda");
         cut.Markup.Should().NotContain("Aún no hay subcontratas");
         cut.Markup.Should().Contain("Aislamientos Nervión S.L.");
+    }
+
+    // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
+    // vigente en este Tenant— el vacío no es «Aún no hay subcontratas»: la pantalla dice que
+    // falta la Asignación de Cartera y a quién pedirla.
+    private bool _alcanceCero;
+
+    [Fact]
+    public void Con_alcance_cero_y_sin_registros_dice_que_falta_la_Asignacion_de_Cartera()
+    {
+        _alcanceCero = true;
+
+        var cut = Renderizar();
+
+        cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
+            .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
+        cut.Markup.Should().NotContain("Aún no hay subcontratas");
+        cut.Markup.Should().NotContain("+ Nueva subcontrata", "invitar a crear con alcance cero termina en un duplicado");
+    }
+
+    [Fact]
+    public void Con_alcance_y_sin_registros_el_vacio_no_cambia()
+    {
+        _alcanceCero = false;
+
+        var cut = Renderizar();
+
+        cut.Markup.Should().Contain("Aún no hay subcontratas");
+        cut.Markup.Should().Contain("+ Nueva subcontrata");
+        cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }
 }

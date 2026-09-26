@@ -10,7 +10,7 @@ using Microsoft.Extensions.Localization;
 namespace CaeManager.Web.Features.Incidencias;
 
 /// <summary>
-/// Mismo patrón que ClientesEndpoints.cs (docs/ux-audit/08-visitas-gestiones-incidencias-evaluaciones.md
+/// Mismo patrón que ClientesEndpoints.cs (Project-Hydra-Negocio/tecnico/docs/ux-audit/08-visitas-gestiones-incidencias-evaluaciones.md
 /// H4 — valor probatorio, prioridad sobre las otras tres listas sin export).
 /// </summary>
 public static class IncidenciasEndpoints

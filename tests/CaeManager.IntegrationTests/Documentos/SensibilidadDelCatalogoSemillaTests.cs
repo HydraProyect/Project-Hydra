@@ -7,7 +7,7 @@ namespace CaeManager.IntegrationTests.Documentos;
 /// <summary>
 /// DEC-34/36 (REC-132): clasificación canónica de sensibilidad documental,
 /// propuesta del catálogo semilla — revisable por el propietario, ver
-/// <c>tecnico/docs/SENSIBILIDAD-DOCUMENTAL.md</c> en el repositorio de
+/// <c>Project-Hydra-Negocio/tecnico/docs/SENSIBILIDAD-DOCUMENTAL.md</c> en el repositorio de
 /// negocio. Este ratchet fija dos cosas: que <b>ningún</b> tipo del catálogo
 /// se quede sin una clasificación explícita, y las afirmaciones concretas que
 /// más importa no perder por descuido — los dos tipos que revelan salud.

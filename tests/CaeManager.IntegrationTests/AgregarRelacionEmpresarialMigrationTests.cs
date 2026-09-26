@@ -19,7 +19,7 @@ namespace CaeManager.IntegrationTests;
 /// <c>SubcontratasClientes</c>) se pueblan en <c>RelacionesEmpresariales</c>
 /// una sola vez, con la resolución de <c>EnmarcadaEnId</c> verificada en la
 /// segunda revisión adversaria de F4 (ver
-/// f4-diseno-fisico-relacionempresarial-2026-08-26.md § 8ter en el
+/// Project-Hydra-Negocio/tecnico/f4-diseno-fisico-relacionempresarial-2026-08-26.md § 8ter en el
 /// repositorio de negocio): 1 candidato coherente → automático; 0 o 2+ →
 /// <c>EnmarcadaEnId</c> queda NULL, nunca una heurística silenciosa.
 ///

@@ -12,7 +12,7 @@ namespace CaeManager.Infrastructure.AsistenteIa;
 /// <summary>
 /// Primer <see cref="IDocumentAIProvider"/> real, sobre Anthropic — para
 /// pruebas puntuales mientras no haya claves de Gemini/Mistral (ver
-/// docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1). A diferencia del reparto real
+/// Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1). A diferencia del reparto real
 /// (Mistral = solo OCR, Gemini = solo estructuración), Claude sabe hacer
 /// ambas cosas — de ahí que declare las dos capacidades a la vez. Mismo
 /// patrón "inerte por defecto" que el resto de servicios de Anthropic:
@@ -173,7 +173,7 @@ public class AnthropicDocumentAIProvider(
         return ParsearEstructurado(respuesta.Valor.Texto, costeEstimado, respuesta.Valor.ModeloExacto, respuesta.Valor.RequestId);
     }
 
-    /// <summary>Coste orientativo, solo para auditoría (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2) — nunca se usa para decidir enrutado.</summary>
+    /// <summary>Coste orientativo, solo para auditoría (ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2) — nunca se usa para decidir enrutado.</summary>
     private decimal CalcularCoste(int tokensEntrada, int tokensSalida)
     {
         var config = opciones.Value;

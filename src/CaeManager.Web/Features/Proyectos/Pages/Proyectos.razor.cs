@@ -3,6 +3,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
 using CaeManager.Application.Proyectos.Commands.AsignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.CerrarProyecto;
+using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Proyectos.Commands.CrearProyecto;
 using CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.EliminarProyecto;
@@ -18,7 +19,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Proyectos.Pages;
 
-public partial class Proyectos : ComponentBase
+public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
@@ -661,6 +662,58 @@ public partial class Proyectos : ComponentBase
         }
     }
 
+    // ---- Reabrir proyecto ----
+
+    /// <summary>
+    /// Salida del cierre (FS-12): un cierre con la fecha equivocada afecta a la
+    /// facturación por días, así que el proyecto cerrado ofrece «Reabrir». Pide
+    /// confirmación nombrando la fecha de cierre, porque reabrir la borra y volver
+    /// a cerrar propone la de hoy, no la anterior.
+    /// </summary>
+    private bool _confirmarReabrirVisible;
+    private Guid _idAReabrir;
+    private string _nombreAReabrir = string.Empty;
+    private DateOnly? _fechaCierreAReabrir;
+    private bool _reabriendo;
+
+    private void AbrirReabrirConfirm(Guid id)
+    {
+        var fila = _proyectos.FirstOrDefault(p => p.Id == id);
+        _idAReabrir = id;
+        _nombreAReabrir = fila?.Nombre ?? _detalle?.Nombre ?? string.Empty;
+        _fechaCierreAReabrir = fila?.FechaCierreReal ?? _detalle?.FechaCierreReal;
+        _confirmarReabrirVisible = true;
+    }
+
+    private async Task ConfirmarReabrirAsync()
+    {
+        if (_reabriendo) return;
+        _reabriendo = true;
+        var id = _idAReabrir;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ReabrirProyectoCommand(id));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            ToastService.Mostrar(Textos["ToastReabierto"], TonoToast.Exito);
+            _confirmarReabrirVisible = false;
+            await CargarProyectosAsync();
+
+            if (_detalle is not null && _detalle.Id == id)
+                await SeleccionarProyectoAsync(_detalle.Id);
+        }
+        finally
+        {
+            _reabriendo = false;
+        }
+    }
+
     // ---- Eliminar proyecto ----
 
     private bool _confirmarEliminarVisible;
@@ -685,7 +738,7 @@ public partial class Proyectos : ComponentBase
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -796,7 +849,7 @@ public partial class Proyectos : ComponentBase
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

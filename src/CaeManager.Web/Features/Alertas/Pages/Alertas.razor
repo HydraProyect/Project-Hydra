@@ -1,5 +1,6 @@
 @page "/alertas"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Alertas.Queries.ObtenerAlertas
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
@@ -13,11 +14,13 @@
 @using CaeManager.Web.Recursos
 @using MediatR
 @using Microsoft.Extensions.Localization
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IMediator Mediator
 @inject IStringLocalizer<TextosAlertas> Textos
 @inject IStringLocalizer<TextosComunes> Comunes
 @inject ToastService ToastService
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -53,7 +56,7 @@
        falta conservar. *@
     <a href="/bandeja" class="enlace-nombre-fila">@Textos["EnlaceColaTrabajo"]</a>
 
-    @* Reclamación agregada (DEC-4 + DEC-7, PLAN-SESIONES-NOCTURNAS-2026-09-02.md):
+    @* Reclamación agregada (DEC-4 + DEC-7, Project-Hydra-Negocio/tecnico/PLAN-SESIONES-NOCTURNAS-2026-09-02.md):
        SelectorLoteDocumental (PR #408) es el mismo componente que usa el
        lote de /bandeja — aquí solo se le pasa Alertas.AmbitosSoportados
        (Trabajador y Empresa; AlertasTests.cs protege que no se amplíe a
@@ -276,8 +279,11 @@
     }
     else if (AlertasFiltradas.Count == 0)
     {
-        <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-700)" FondoIcono="var(--color-success-50)"
-                     Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDetalle"]" />
+        @* Con alcance cero «nada que reclamar» no es un cumplimiento (P0-9a, FS-04). *@
+        <VacioSegunAlcance>
+            <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-700)" FondoIcono="var(--color-success-50)"
+                         Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDetalle"]" />
+        </VacioSegunAlcance>
     }
     else
     {
@@ -360,3 +366,4 @@
                           TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
     }
 </div>
+</LimiteDeErrores>

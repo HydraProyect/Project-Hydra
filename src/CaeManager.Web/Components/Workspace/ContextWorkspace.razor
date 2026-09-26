@@ -50,6 +50,10 @@
         </header>
 
         <div class="workspace-cuerpo">
+            @* P1-E1: un fallo de un panel 360 se queda en el cuerpo; cabecera, migas y
+               cerrar siguen funcionando. La @key rehace el límite al cambiar de ficha,
+               para que un fallo de una no deje el aviso puesto en la siguiente. *@
+            <LimiteDeErrores @key="(frame.Tipo, frame.EntidadId)">
             @switch (frame.Tipo)
             {
                 case EntidadWorkspace.Cliente:
@@ -74,6 +78,7 @@
                     <DocumentoWorkspacePanel EntidadId="@frame.EntidadId" PestanaActiva="@frame.PestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" />
                     break;
             }
+            </LimiteDeErrores>
         </div>
     </aside>
 }
@@ -87,7 +92,7 @@
 
     /// <summary>
     /// Parámetro de query que serializa el nivel ACTUAL del panel —
-    /// <c>?ctx=Tipo:Id:pestaña</c> (05_WORKSPACE_PATTERNS.md § 3.6, primer
+    /// <c>?ctx=Tipo:Id:pestaña</c> (Project-Hydra-Negocio/tecnico/05_WORKSPACE_PATTERNS.md § 3.6, primer
     /// hueco declarado: "no serializa su estado en la URL, sin deep-link, y
     /// recargar lo pierde entero").
     ///
@@ -203,7 +208,7 @@
     ///
     /// El Context Panel no es modal y no bloquea el puntero sobre la página,
     /// pero sí es una capa de interacción: el teclado no puede escapar a la
-    /// página de debajo ni perder el origen al cerrarlo (04_UX_PATTERNS.md
+    /// página de debajo ni perder el origen al cerrarlo (Project-Hydra-Negocio/tecnico/04_UX_PATTERNS.md
     /// § 11). dialogo-foco.js conserva el elemento previo, recorre los
     /// enfocables reales y lo restaura solo si aún existe en el documento.
     /// </summary>
@@ -303,7 +308,7 @@
     private IJSObjectReference? _moduloClipboard;
 
     /// <summary>
-    /// "Copiar enlace" (§ 7 punto 3 y Horizonte 2.6 de MACRO_PLAN_2026-08-13.md):
+    /// "Copiar enlace" (§ 7 punto 3 y Horizonte 2.6 de Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md):
     /// como <see cref="ActualizarUrlDesdeEstado"/> ya mantiene <c>ctx</c>
     /// sincronizado con el nivel actual de la pila, la URL del navegador EN
     /// ESTE MOMENTO ya es el deep-link — no hace falta construir nada aparte,

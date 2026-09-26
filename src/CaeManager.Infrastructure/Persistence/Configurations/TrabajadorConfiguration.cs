@@ -43,7 +43,7 @@ public class TrabajadorConfiguration : IEntityTypeConfiguration<Trabajador>
         builder.HasIndex(t => t.EmpresaId);
         builder.HasIndex(t => t.SubcontrataId);
 
-        // FKs reales — ver P0-1 de docs/business/MATURITY_REVIEW.md. Un
+        // FKs reales — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md. Un
         // Trabajador es de Empresa O de Subcontrata (nunca ambas, ver
         // Trabajador.DeEmpresa/DeSubcontrata): con una columna nula la FK
         // compuesta correspondiente queda sin comprobar (MATCH SIMPLE de

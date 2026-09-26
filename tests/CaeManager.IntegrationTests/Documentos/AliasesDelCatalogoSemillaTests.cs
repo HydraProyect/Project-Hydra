@@ -10,7 +10,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Documentos;
 
 /// <summary>
-/// T3 (taxonomia-documental-cae-propuesta-2026-08-27.md §2bis): cada tipo del
+/// T3 (Project-Hydra-Negocio/tecnico/taxonomia-documental-cae-propuesta-2026-08-27.md §2bis): cada tipo del
 /// catálogo semilla renombrado conserva su nombre contaminado anterior como
 /// <c>TipoDocumentoAlias</c>, para que nada que buscara por el nombre viejo
 /// deje de encontrar la fila. A diferencia de <c>NaturalezaDelCatalogoSemillaTests</c>

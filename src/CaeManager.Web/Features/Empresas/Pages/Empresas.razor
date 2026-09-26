@@ -1,5 +1,6 @@
 @page "/empresas"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Empresas.Commands.CrearEmpresa
 @using CaeManager.Application.Empresas.Commands.EditarEmpresa
@@ -20,12 +21,14 @@
 @using CaeManager.Web.Features.Empresas.Components
 @using CaeManager.Web.Features.Empresas.Recursos
 @using Microsoft.Extensions.Localization
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ContextWorkspaceService WorkspaceService
 @inject ICurrentUserService CurrentUserService
 @inject IStringLocalizer<TextosEmpresas> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@_tituloPagina — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -35,7 +38,10 @@
     <CabeceraPagina Titulo="@_tituloPagina" Kicker="Negocio">
         <Acciones>
             <a class="enlace-exportar" href="/empresas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-            <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva empresa</Boton></SoloConEscritura>
+            @if (!_alcanceCero)
+            {
+                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva empresa</Boton></SoloConEscritura>
+            }
         </Acciones>
     </CabeceraPagina>
 
@@ -116,11 +122,14 @@
     }
     else if (_elementosPagina.Count == 0)
     {
-        <EstadoVacio NombreIcono="empresas" Titulo="Aún no hay empresas" Descripcion="Crea la primera para poder dar de alta trabajadores.">
-            <Accion>
-                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva empresa</Boton></SoloConEscritura>
-            </Accion>
-        </EstadoVacio>
+        @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
+        <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
+            <EstadoVacio NombreIcono="empresas" Titulo="Aún no hay empresas" Descripcion="Crea la primera para poder dar de alta trabajadores.">
+                <Accion>
+                    <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva empresa</Boton></SoloConEscritura>
+                </Accion>
+            </EstadoVacio>
+        </VacioSegunAlcance>
     }
     else
     {
@@ -367,7 +376,8 @@
     Visible="_confirmarEliminarLoteVisible"
     VisibleChanged="v => _confirmarEliminarLoteVisible = v"
     Titulo="@($"¿Eliminar {_seleccionados.Count} empresa(s)?")"
-    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlas desde Auditoría."
+    Mensaje="Se ocultarán de las listas activas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador del Tenant puede recuperarlas desde Auditoría."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
+</LimiteDeErrores>
 

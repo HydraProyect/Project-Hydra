@@ -24,11 +24,11 @@ public class VerificacionExternaSubcontrataConfiguration : IEntityTypeConfigurat
         // cada (subcontrata, centro, tipo)" — índice exacto de esa pregunta.
         builder.HasIndex(v => new { v.TenantId, v.SubcontrataId, v.CentroId, v.TipoDocumentoId });
 
-        // FKs compuestas con TenantId — ver P0-1 de docs/business/MATURITY_REVIEW.md:
+        // FKs compuestas con TenantId — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md:
         // un Id ajeno de otro tenant no puede referenciarse ni por accidente.
         // F3b-Subcontrata — SubcontrataId repunta contra Empresas; CASCADE se
         // conserva tal cual (asimetría ya existente frente al resto de F3b,
-        // que usa RESTRICT — ver f3b-subcontrata-inventario-fresco-2026-08-26.md).
+        // que usa RESTRICT — ver Project-Hydra-Negocio/tecnico/f3b-subcontrata-inventario-fresco-2026-08-26.md).
         builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(v => new { v.TenantId, v.SubcontrataId })
             .HasPrincipalKey(s => new { s.TenantId, s.Id })

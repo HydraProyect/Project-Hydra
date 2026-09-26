@@ -11,7 +11,7 @@ using Xunit;
 namespace CaeManager.Application.Tests.Tenants;
 
 /// <summary>
-/// Hallazgo N-4 de INFORME-AUDITORIA-2.md: la delegación era create-only —
+/// Hallazgo N-4 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md: la delegación era create-only —
 /// los repositorios no exponían borrado ni desactivación, y
 /// <c>DelegacionTenant.Desactivar()</c>/<c>Reactivar()</c> eran código muerto.
 /// En la práctica una Consultora no podía perder el acceso a los datos de un

@@ -115,13 +115,13 @@
     <value>¿Eliminar el vehículo {0}?</value>
   </data>
   <data name="ConfirmarEliminarMensaje" xml:space="preserve">
-    <value>Se ocultará de las listas activas. Podrás recuperarlo desde Auditoría.</value>
+    <value>Dejará de aparecer en las listas. No se puede recuperar desde la aplicación.</value>
   </data>
   <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
     <value>¿Eliminar {0} vehículo(s)?</value>
   </data>
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría.</value>
+    <value>Dejarán de aparecer en las listas. No se pueden recuperar desde la aplicación.</value>
   </data>
   <data name="ErrorSeleccionaEmpresa" xml:space="preserve">
     <value>Selecciona una empresa.</value>

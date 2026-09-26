@@ -1,15 +1,18 @@
 @*
-    Badges "Acreditado en [plataforma]" de un Documento — docs/ux-audit/PLAN-EJECUCION-UX.md
+    Badges "Acreditado en [plataforma]" de un Documento — Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     § Parte 2 (c). Reutilizado en /documentos y en PestanaDocumentacion del
     Context Workspace (Trabajador/Empresa/Cliente/Vehículo) — mismo criterio
     transversal que el resto del Design System, un componente aplicado en
     ambas pantallas del mismo PR.
 
-    Nunca usa TonoBadge.Exito/Advertencia/Peligro: esos tres están
-    reservados en exclusiva para el semáforo de vigencia documental
-    (DESIGN_SYSTEM.md § Identidad visual — "no negociable"). El estado de
-    acreditación es un semáforo distinto (aceptación en portal, no vigencia)
-    y se distingue solo por Info/Neutro + el texto del estado.
+    Los tonos del semáforo (Exito/Advertencia/Peligro) son exclusivos de
+    vigencia y cumplimiento (DDL-010, Project-Hydra-Negocio/tecnico/06_DESIGN_SYSTEM.md § 2.3). El estado de
+    acreditación no es vigencia, así que por defecto va en Info/Neutro + el
+    texto del estado. Rechazada es la excepción (P0-9b, FS-02): desde D-7 una
+    Rechazada aplicable bloquea el cumplimiento del Centro, y pintada igual que
+    la Pendiente de subir parecía solo un documento por subir. Va en Peligro,
+    como en el mockup «Documentos TALVEG» (portal 'rej') y como ya la pintan
+    PlataformaTab y la Bandeja.
 *@
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
 @using CaeManager.Domain.Documentos
@@ -31,7 +34,8 @@
 
     private static TonoBadge TonoDe(EstadoAcreditacion estado) => estado switch
     {
-        EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir => TonoBadge.Info,
+        EstadoAcreditacion.Rechazada => TonoBadge.Peligro,
+        EstadoAcreditacion.PendienteDeSubir => TonoBadge.Info,
         _ => TonoBadge.Neutro
     };
 

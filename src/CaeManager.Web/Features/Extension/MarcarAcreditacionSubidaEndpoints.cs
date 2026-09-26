@@ -6,7 +6,7 @@ namespace CaeManager.Web.Features.Extension;
 
 /// <summary>
 /// Incremento 3 del MVP1 de integración con plataformas CAE externas vía
-/// extensión de navegador (ver ARQUITECTURA-INTEGRACIONES.md § 14 en el
+/// extensión de navegador (ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en el
 /// repositorio de negocio; Incremento 1 en <see cref="ExtensionTokenEndpoints"/>,
 /// Incremento 2 en <see cref="AcreditacionesPendientesEndpoints"/>).
 ///
@@ -43,7 +43,10 @@ public static class MarcarAcreditacionSubidaEndpoints
             // genérico que el gestor confundiría con un documento inexistente.
             if (!resultado.EsFallido) return Results.NoContent();
 
-            var statusCode = resultado.Error.Codigo == "Acreditacion.ConectorInactivo"
+            // Una Rechazada tampoco es un 404: existe, pero sin versión nueva
+            // no se puede dar por subida (MarcarAcreditacionSubidaCommand).
+            var statusCode = resultado.Error.Codigo is "Acreditacion.ConectorInactivo"
+                    or MarcarAcreditacionSubidaCommandHandler.CodigoRechazadaSinVersionNueva
                 ? StatusCodes.Status409Conflict
                 : StatusCodes.Status404NotFound;
             return Results.Problem(resultado.Error.Mensaje, statusCode: statusCode);

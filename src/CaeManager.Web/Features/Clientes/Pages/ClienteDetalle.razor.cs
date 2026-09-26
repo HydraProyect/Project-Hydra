@@ -47,7 +47,7 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 /// se hace en el panel: los «Editar» de esta página lo abren en su pestaña.
 /// </para>
 /// </summary>
-public partial class ClienteDetalle : ComponentBase, IDisposable
+public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     /// <summary>Tope de centros pintados. El coste de la consulta no depende de él (ver la clase).</summary>
     internal const int MaximoCentros = 200;

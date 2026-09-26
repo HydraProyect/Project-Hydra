@@ -39,11 +39,7 @@ public class EscrituraAprovisionamientoEnLaCapaDeDatosTests : IAsyncLifetime
     private readonly Guid _tenantObjetivo = Guid.NewGuid();
     private readonly Guid _otroTenant = Guid.NewGuid();
 
-    public async Task InitializeAsync()
-    {
-        await using var contexto = CrearContexto(_tenantObjetivo);
-        await contexto.Database.MigrateAsync();
-    }
+    public Task InitializeAsync() => BaseDatosPostgresDePruebas.MigrarAsync(_cadenaConexion);
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
@@ -255,7 +251,7 @@ public class EscrituraAprovisionamientoEnLaCapaDeDatosTests : IAsyncLifetime
                 new TenantRlsConnectionInterceptor(
                     tenantActual,
                     new ClienteActivoSeleccionadoFalso(tenantSeleccionado, sesionPrivilegiadaId),
-                    new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: tenantId)))
+                    new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: tenantId), BaseDatosPostgresDePruebas.FirmanteContextoRls))
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);

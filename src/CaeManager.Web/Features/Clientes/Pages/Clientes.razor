@@ -1,5 +1,6 @@
 @page "/clientes"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = CaeManager.Web.Features.Comunicaciones.RolesComunicaciones.Gestion)]
 @using CaeManager.Application.Clientes.Commands.CrearCliente
 @using CaeManager.Application.Clientes.Commands.EditarCliente
@@ -14,11 +15,13 @@
 @using FluentValidation
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
 @inject ContextWorkspaceService WorkspaceService
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Clientes — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -37,8 +40,11 @@
                 <a class="enlace-exportar" href="/importacion?plantilla=clientes">Importar clientes</a>
                 <a class="enlace-exportar" href="/importacion?plantilla=combinada">Importación combinada</a>
             </AuthorizeView>
-            <SoloConEscritura><a class="enlace-exportar" href="/clientes/alta-guiada">Alta guiada</a></SoloConEscritura>
-            <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton></SoloConEscritura>
+            @if (!_alcanceCero)
+            {
+                <SoloConEscritura><a class="enlace-exportar" href="/clientes/alta-guiada">Alta guiada</a></SoloConEscritura>
+                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton></SoloConEscritura>
+            }
         </Acciones>
     </CabeceraPagina>
 
@@ -303,14 +309,17 @@
         }
         else if (_totalElementos == 0 && !_cargando)
         {
-            <EstadoVacio NombreIcono="clientes" Titulo="Aún no hay clientes" Descripcion="Crea el primero para empezar a organizar tus centros de trabajo.">
-                <Accion>
-                    <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton></SoloConEscritura>
-                    <Boton Variante="VarianteBoton.Secundario" OnClick='() => NavigationManager.NavigateTo("/clientes/alta-guiada")'>
-                        Alta guiada (Cliente + Empresa + Centro)
-                    </Boton>
-                </Accion>
-            </EstadoVacio>
+            @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
+            <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
+                <EstadoVacio NombreIcono="clientes" Titulo="Aún no hay clientes" Descripcion="Crea el primero para empezar a organizar tus centros de trabajo.">
+                    <Accion>
+                        <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton></SoloConEscritura>
+                        <Boton Variante="VarianteBoton.Secundario" OnClick='() => NavigationManager.NavigateTo("/clientes/alta-guiada")'>
+                            Alta guiada (Cliente + Empresa + Centro)
+                        </Boton>
+                    </Accion>
+                </EstadoVacio>
+            </VacioSegunAlcance>
         }
     }
 </div>
@@ -400,4 +409,5 @@
         <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
     </Pie>
 </Modal>
+</LimiteDeErrores>
 

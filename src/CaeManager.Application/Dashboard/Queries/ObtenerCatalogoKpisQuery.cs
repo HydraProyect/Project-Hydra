@@ -122,7 +122,7 @@ public class ObtenerCatalogoKpisQueryHandler(
 
     /// <summary>
     /// Reutiliza <see cref="ICalculoEstadoCentroService.CalcularCumplimientoAsync"/>
-    /// (Centro 360, PLAN-EJECUCION-UX.md § 0.5) — sustituye al antiguo KPI de
+    /// (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.5) — sustituye al antiguo KPI de
     /// Evaluaciones (retirado). <c>TotalRequeridosCumplimiento</c> es el
     /// denominador que <see cref="ObtenerDashboardEjecutivoQuery"/> necesita
     /// para ponderar el % al fusionar varios tenants.
@@ -316,7 +316,8 @@ public class ObtenerCatalogoKpisQueryHandler(
         if (centroIds.Count == 0) return new Dictionary<Guid, int>();
 
         var visitas = await visitasContext.Visitas
-            .Where(v => centroIds.Contains(v.CentroId) && v.FechaInicio >= inicio && v.FechaInicio <= fin)
+            // FS-11: una Visita cancelada no cuenta, igual que cuando cancelar era borrarla.
+            .Where(v => centroIds.Contains(v.CentroId) && !v.EstaCancelada && v.FechaInicio >= inicio && v.FechaInicio <= fin)
             .Select(v => new { v.Id, v.CentroId })
             .ToListAsync(cancellationToken);
 

@@ -525,7 +525,7 @@ public class AlcanceDatosService(
     /// <summary>
     /// F4 — reescrito sobre <c>RelacionEmpresarial</c> en vez de
     /// <c>EmpresaCliente</c> (contrato verificado con paridad exacta OLD/NEW,
-    /// ver f4-diseno-fisico-relacionempresarial-2026-08-26.md § 6/8ter).
+    /// ver Project-Hydra-Negocio/tecnico/f4-diseno-fisico-relacionempresarial-2026-08-26.md § 6/8ter).
     /// <c>porCentro</c> no cambia: F4 no toca <c>Centro</c> (eso es F5).
     ///
     /// D-8 (piloto Outbound): además, un Gestor/Coordinador CAE con cartera no vacía ve las Empresas

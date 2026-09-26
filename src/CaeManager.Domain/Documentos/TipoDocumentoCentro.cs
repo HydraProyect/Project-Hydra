@@ -6,7 +6,7 @@ namespace CaeManager.Domain.Documentos;
 /// Posición explícita de un Centro sobre un Tipo de Documento — <see cref="Incluido"/>
 /// manda sobre el criterio global de <see cref="TipoDocumento.EsObligatorio"/> cuando
 /// existe una fila para el par; sin fila, el par sigue el criterio global
-/// (PLAN-EJECUCION-UX.md § 0.4, redacción 2026-08-06 — antes de esta fecha la mera
+/// (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4, redacción 2026-08-06 — antes de esta fecha la mera
 /// presencia de CUALQUIER fila para un Tipo restringía ese Tipo a solo esos Centros
 /// en todo el tenant, sin permitir excluir un único Centro de un tipo obligatorio;
 /// ver <see cref="Documentos.ResolucionTipoDocumentoCentro"/> para la lectura

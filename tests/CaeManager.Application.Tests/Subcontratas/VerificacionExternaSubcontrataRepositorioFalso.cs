@@ -2,7 +2,7 @@ using CaeManager.Domain.Subcontratas;
 
 namespace CaeManager.Application.Tests.Subcontratas;
 
-/// <summary>Fake en memoria — los handlers de Application se prueban sin base de datos (ver CODING_STANDARDS.md).</summary>
+/// <summary>Fake en memoria — los handlers de Application se prueban sin base de datos (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).</summary>
 public class VerificacionExternaSubcontrataRepositorioFalso : IVerificacionExternaSubcontrataRepository
 {
     public List<VerificacionExternaSubcontrata> Verificaciones { get; } = [];

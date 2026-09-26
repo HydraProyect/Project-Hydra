@@ -48,7 +48,7 @@ public record CausaEstadoCentro(
 public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEstadoCentro> Causas);
 
 /// <summary>
-/// % de cumplimiento documental de un Centro (Centro 360, PLAN-EJECUCION-UX.md
+/// % de cumplimiento documental de un Centro (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
 /// § 0.5/0.8) — <c>Requeridos</c> es el número de pares Trabajador×TipoDocumento
 /// aplicables a ese Centro (ver <see cref="Documentos.ResolucionTipoDocumentoCentro"/>),
 /// <c>AlDia</c> cuántos de esos pares tienen hoy un Documento Vigente o SinCaducidad
@@ -82,7 +82,7 @@ public interface ICalculoEstadoCentroService
         IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Método aparte de <see cref="CalcularAsync"/> a propósito (PLAN-EJECUCION-UX.md
+    /// Método aparte de <see cref="CalcularAsync"/> a propósito (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     /// § 0.5): mismas fuentes de datos (asignaciones activas, tipos
     /// obligatorios, allow-list de <c>TipoDocumentoCentro</c>) pero una
     /// pregunta distinta ("qué fracción" en vez de "cuál es el peor caso") —
@@ -112,20 +112,35 @@ public class CalculoEstadoCentroService(
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var causasPorCentro = centroIds.Distinct().ToDictionary(id => id, _ => new List<CausaEstadoCentro>());
+        // P1-X2: un Centro sin gestión CAE no exige documentación, así que no
+        // se buscan causas en él (ni de Empresa, ni de Trabajador, ni de las
+        // acreditaciones en plataforma de canales que conserve de antes): su
+        // estado es SinGestionCae, nunca un Vigente que nadie ha comprobado.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(centrosContext, centroIds, cancellationToken);
+        var conGestionCae = centroIds.Where(id => !sinGestionCae.Contains(id)).Distinct().ToList();
 
-        await AgregarCausasDeEmpresaAsync(centroIds, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
-        await AgregarCausasDeTrabajadorAsync(centroIds, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
-        await AgregarCausasDeVigenciaEnPlataformaAsync(centroIds, hoy, causasPorCentro, cancellationToken);
-        await AgregarCausasDeRechazoEnPlataformaAsync(centroIds, causasPorCentro, cancellationToken);
+        var causasPorCentro = conGestionCae.ToDictionary(id => id, _ => new List<CausaEstadoCentro>());
 
-        return causasPorCentro.ToDictionary(
+        if (conGestionCae.Count > 0)
+        {
+            await AgregarCausasDeEmpresaAsync(conGestionCae, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
+            await AgregarCausasDeTrabajadorAsync(conGestionCae, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
+            await AgregarCausasDeVigenciaEnPlataformaAsync(conGestionCae, hoy, causasPorCentro, cancellationToken);
+            await AgregarCausasDeRechazoEnPlataformaAsync(conGestionCae, causasPorCentro, cancellationToken);
+        }
+
+        var resultado = causasPorCentro.ToDictionary(
             par => par.Key,
             par => new ResultadoEstadoCentro(
                 CalculadoraEstadoCentro.Calcular(
                     par.Value.Where(c => c.Estado is not null).Select(c => c.Estado!.Value).ToList(),
                     par.Value.Any(c => c.Bloqueante)),
                 par.Value));
+
+        foreach (var centroId in sinGestionCae)
+            resultado[centroId] = new ResultadoEstadoCentro(EstadoCentro.SinGestionCae, []);
+
+        return resultado;
     }
 
     /// <summary>
@@ -301,14 +316,19 @@ public class CalculoEstadoCentroService(
             var propietario = fila.TrabajadorId is { } id && nombres.TryGetValue(id, out var nombre)
                 ? $" — {nombre}"
                 : " — Empresa";
-            // Sin vigencia documental que describir (no es un vencimiento de fecha),
-            // pero el Badge de la UI (AcordeonAsignacionesCentro) indexa por
-            // EstadoDocumento y no admite null: mismo criterio que su causa hermana
-            // "vencido en la plataforma" (arriba, misma familia — vigencia decidida
-            // por la plataforma del Cliente empresarial, no por archivo documental).
+            // Sin vigencia documental que describir: no es un vencimiento de
+            // fecha, es un rechazo activo de la plataforma del Cliente
+            // empresarial (a diferencia de su causa hermana "vencido en la
+            // plataforma", que sí tiene una FechaVencimientoEnPlataforma real
+            // y por eso reutiliza EstadoDocumento.Vencido con propiedad). Forzar
+            // aquí un EstadoDocumento sería una clasificación documental falsa
+            // — un rechazo no es un vencimiento — así que Estado se deja sin
+            // valor a propósito. ObtenerCentrosQuery.Desglosar la bucketiza por
+            // Bloqueante, y AcordeonAsignacionesCentro ya sabe renderizar esta
+            // causa sin badge de vigencia documental.
             causas.Add(new CausaEstadoCentro(
                 $"{fila.TipoDocumentoNombre}{propietario} — rechazado por la plataforma",
-                Estado: EstadoDocumento.Vencido,
+                Estado: null,
                 Bloqueante: true,
                 fila.TrabajadorId is null ? AmbitoCausa.Empresa : AmbitoCausa.Trabajador,
                 fila.Id, fila.TipoDocumentoId, FechaVencimiento: null));
@@ -390,18 +410,25 @@ public class CalculoEstadoCentroService(
         // el bloque "alertasVigencia" de ObtenerAlertasQuery, sin filtrar por
         // EsObligatorio: un Documento vencido cuenta para el Centro exista o
         // no exista una fila de obligatoriedad para su TipoDocumento.
-        var documentosTrabajador = await (
+        //
+        // Con vencimiento más allá del umbral ámbar el estado es SIEMPRE
+        // Vigente (CalculadoraEstadoDocumento) y el bucle de abajo lo salta:
+        // la cota superior lo deja en PostgreSQL en vez de traerlo y
+        // descartarlo aquí (mismo límite que ObtenerAlertasQuery; P1-D1).
+        var fechaLimiteCausa = hoy.AddDays(umbralAmbarDias);
+        var documentosTrabajador = (await (
             from documento in documentosContext.Documentos
             where documento.TrabajadorId != null && trabajadorIds.Contains(documento.TrabajadorId!.Value)
             // Solo con fecha: mismo criterio que en AgregarCausasDeEmpresaAsync.
-            where documento.FechaVencimiento != null
+            where documento.FechaVencimiento != null && documento.FechaVencimiento <= fechaLimiteCausa
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new { TrabajadorId = documento.TrabajadorId!.Value, documento.FechaVencimiento, tipoDocumento.Nombre })
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken))
+            .ToLookup(d => d.TrabajadorId);
 
         foreach (var asignacion in asignacionesActivas)
         {
-            foreach (var documento in documentosTrabajador.Where(d => d.TrabajadorId == asignacion.TrabajadorId))
+            foreach (var documento in documentosTrabajador[asignacion.TrabajadorId])
             {
                 var estado = CalculadoraEstadoDocumento.Calcular(
                     VigenciaDocumento.VenceEl(documento.FechaVencimiento!.Value), hoy, umbralAmbarDias, umbralRojoDias);
@@ -417,7 +444,7 @@ public class CalculoEstadoCentroService(
         // Huecos requeridos — misma lógica que ObtenerAlertasQuery.ObtenerFaltantesAsync,
         // reacotada a estos Centros. Candidatos = todo el catálogo de Trabajador, no solo
         // EsObligatorio=true: un Centro puede exigir explícitamente un tipo no obligatorio
-        // globalmente (PLAN-EJECUCION-UX.md § 0.4, TipoDocumentoCentro.Incluido).
+        // globalmente (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4, TipoDocumentoCentro.Incluido).
         var tiposCandidatos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
             .Select(t => new { t.Id, t.Nombre, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si })
@@ -467,7 +494,7 @@ public class CalculoEstadoCentroService(
     /// <summary>
     /// Alcance igual al de "huecos obligatorios" de <see cref="AgregarCausasDeTrabajadorAsync"/>
     /// (Trabajador únicamente, sin Documentos de Empresa — así lo pide
-    /// PLAN-EJECUCION-UX.md § 0.5: "por trabajador dentro de un centro"),
+    /// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.5: "por trabajador dentro de un centro"),
     /// pero contando el universo completo de pares aplicables en vez de solo
     /// los que fallan.
     /// </summary>
@@ -478,8 +505,13 @@ public class CalculoEstadoCentroService(
         if (centroIds.Count == 0)
             return acumulado.ToDictionary(p => p.Key, p => new FraccionCumplimiento(p.Value.AlDia, p.Value.Requeridos));
 
+        // P1-X2: un Centro sin gestión CAE no exige nada — queda en 0/0, cuyo
+        // porcentaje es null («sin requisitos»), nunca un 100 %.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(centrosContext, centroIds, cancellationToken);
+        var conGestionCae = centroIds.Where(id => !sinGestionCae.Contains(id)).Distinct().ToList();
+
         var asignacionesActivas = await asignacionesContext.Asignaciones
-            .Where(a => a.FechaBaja == null && centroIds.Contains(a.CentroId))
+            .Where(a => a.FechaBaja == null && conGestionCae.Contains(a.CentroId))
             .Select(a => new { a.CentroId, a.TrabajadorId })
             .ToListAsync(cancellationToken);
 
@@ -505,15 +537,22 @@ public class CalculoEstadoCentroService(
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var estadosPorPareja = (await documentosContext.Documentos
+        var documentosExistentes = await documentosContext.Documentos
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsCandidatos.Contains(d.TipoDocumentoId))
-            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
-            .ToListAsync(cancellationToken))
+            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
+            .ToListAsync(cancellationToken);
+
+        // Puede haber varios por par (el vencido y su renovación): el índice
+        // (TrabajadorId, TipoDocumentoId) no es único y la subida no rechaza un
+        // segundo documento del mismo tipo. Manda el mismo que elige el paquete
+        // de acreditación (P1-D3).
+        var estadosPorPareja = PreferenciaDocumentoPorTipo.UnoPorClave(
+                documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, hoy)
             .ToDictionary(
-                d => (d.TrabajadorId, d.TipoDocumentoId),
-                d => CalculadoraEstadoDocumento.Calcular(d.EstadoVigencia, d.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
+                p => p.Key,
+                p => CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
 
         foreach (var asignacion in asignacionesActivas)
         {

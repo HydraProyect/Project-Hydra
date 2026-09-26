@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Centros.Queries.ObtenerCentros;
 
 /// <param name="CentroId">
-/// Filtro exacto por Centro (Centro 360, PLAN-EJECUCION-UX.md § 0.11) — para
+/// Filtro exacto por Centro (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.11) — para
 /// el drill-down desde el desplegable de Centros con actividad de una
 /// Empresa a <c>/centros?centroId=…</c>, donde una coincidencia por texto
 /// (<paramref name="Busqueda"/>) podría ser ambigua entre varios Centros con
@@ -24,7 +24,7 @@ public record ObtenerCentrosQuery(
 
 /// <param name="CumplimientoPorcentaje">
 /// % de cumplimiento documental de los trabajadores del centro (Centro 360,
-/// PLAN-EJECUCION-UX.md § 0.5) — <c>null</c> cuando no hay ningún par
+/// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.5) — <c>null</c> cuando no hay ningún par
 /// Trabajador×TipoDocumento obligatorio aplicable, ver <see cref="FraccionCumplimiento"/>.
 /// </param>
 /// <summary>
@@ -67,7 +67,7 @@ public record CentroListaDto(
 /// El <see cref="CentroListaDto.Estado"/> no está persistido — lo calcula
 /// <see cref="ICalculoEstadoCentroService"/> a partir de los Documentos de la
 /// Empresa, los de cada Trabajador con Asignación activa y los
-/// RequisitosDocumentales bloqueantes (ver <c>DATABASE.md</c>: guardarlo lo
+/// RequisitosDocumentales bloqueantes (ver <c>Project-Hydra-Negocio/tecnico/DATABASE.md</c>: guardarlo lo
 /// desincronizaría de los umbrales configurables). Eso parte el handler en
 /// dos caminos:
 ///
@@ -208,24 +208,29 @@ public class ObtenerCentrosQueryHandler(
     /// día, y el lexico cerrado no tiene una tercera casilla en la fila.
     ///
     /// <para>
-    /// <see cref="EstadoDocumento.Urgente"/> — más severa que
-    /// <see cref="EstadoDocumento.Proximo"/> pero el documento aún no venció —
-    /// antes se descartaba en silencio (una causa bloqueante del Centro que no
-    /// aparecía en ningún recuento ni texto — D-7 del piloto Outbound). Va con
-    /// "próximas" y no con "vencidas": el documento aún no venció, y es la
-    /// misma agrupación Rojo/Ámbar de las Alertas (Vencido y Falta en rojo,
-    /// Urgente y Próximo en ámbar).
+    /// <see cref="EstadoDocumento.Urgente"/> antes se descartaba en silencio
+    /// (una causa bloqueante del Centro que no aparecía en ningún recuento ni
+    /// texto — D-7 del piloto Outbound). Va con "próximas", no con "vencidas":
+    /// el documento aún no venció, y estos dos buckets no son solo un tono de
+    /// color — se leen literalmente como texto ("N vencido(s)", ver
+    /// CentroDetalle.razor) en Centro 360. Meter Urgente en "vencidas"
+    /// afirmaría una fecha vencida que no lo está (hallazgo de Codex, oleada 3
+    /// sobre esta misma PR). La severidad de color de Urgente se resuelve en
+    /// el badge de cada incidencia (<c>EstadoDocumentoUi.Tono</c>), no en qué
+    /// bucket de conteo agregado cae.
     /// </para>
     /// <para>
-    /// Toda causa que llega aquí trae un <see cref="EstadoDocumento"/> real —
-    /// incluida la rechazada en plataforma (<see cref="CalculoEstadoCentroService"/>),
-    /// que no tiene vigencia documental que describir pero usa
-    /// <see cref="EstadoDocumento.Vencido"/> por el mismo motivo que su causa
-    /// hermana "vencido en la plataforma": el Badge de Centro 360
-    /// (<c>AcordeonAsignacionesCentro</c>) indexa por <see cref="EstadoDocumento"/>
-    /// y no admite <c>null</c>. El switch no cubre <c>null</c> a propósito: si
-    /// una causa bloqueante futura no trajera un estado real, es un defecto en
-    /// su origen, no un caso más que enmascarar aquí.
+    /// El rechazo en plataforma (<see cref="CalculoEstadoCentroService"/>) no
+    /// tiene vigencia documental que describir — es una decisión activa de la
+    /// plataforma del Cliente empresarial, no un vencimiento de fecha — así
+    /// que llega con <see cref="CausaEstadoCentro.Estado"/> en <c>null</c> a
+    /// propósito: forzarle un <see cref="EstadoDocumento"/> sería una
+    /// clasificación documental falsa. El switch cubre ese <c>null</c> solo
+    /// cuando la causa es <see cref="CausaEstadoCentro.Bloqueante"/> (el único
+    /// caso real hoy) y la manda a "vencidas": es una causa roja que bloquea
+    /// el acceso, aunque no describa un vencimiento. Una causa no bloqueante
+    /// sin estado sería un defecto en su origen, no un caso más que enmascarar
+    /// aquí.
     /// </para>
     /// </summary>
     private static RecuentosCentroDto Desglosar(ResultadoEstadoCentro resultado)
@@ -244,6 +249,9 @@ public class ObtenerCentrosQueryHandler(
                     break;
                 case EstadoDocumento.Urgente or EstadoDocumento.Proximo:
                     proximas.Add(incidencia);
+                    break;
+                case null when causa.Bloqueante:
+                    vencidas.Add(incidencia);
                     break;
             }
         }
@@ -266,8 +274,8 @@ public class ObtenerCentrosQueryHandler(
             // El orden del enum va de mejor a peor (Vigente … Bloqueado), así
             // que descendente deja arriba lo que más urge — que es lo que el
             // gestor espera al ordenar por cumplimiento.
-            (nameof(CentroListaDto.Estado), false) => elementos.OrderBy(x => x.Estado).ThenBy(x => x.Nombre),
-            (nameof(CentroListaDto.Estado), true) => elementos.OrderByDescending(x => x.Estado).ThenBy(x => x.Nombre),
+            (nameof(CentroListaDto.Estado), false) => elementos.OrderBy(x => CalculadoraEstadoCentro.Gravedad(x.Estado)).ThenBy(x => x.Nombre),
+            (nameof(CentroListaDto.Estado), true) => elementos.OrderByDescending(x => CalculadoraEstadoCentro.Gravedad(x.Estado)).ThenBy(x => x.Nombre),
             // Orden por cumplimiento (blueprint § 3.1, DDL-036): existe para
             // atacar los peores centros SIN depender de que haya una visita
             // próxima. Ascendente deja arriba el porcentaje más bajo, que es lo

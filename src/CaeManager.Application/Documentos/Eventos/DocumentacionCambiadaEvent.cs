@@ -4,7 +4,7 @@ namespace CaeManager.Application.Documentos.Eventos;
 
 /// <summary>
 /// Un Documento acaba de nacer o de renovarse. Se publica DESPUÉS de confirmar
-/// la transacción (ARQUITECTURA-INTEGRACIONES.md § 6.5) desde los flujos que
+/// la transacción (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.5) desde los flujos que
 /// pueden dejar completo el expediente de una Visita: alta, renovación,
 /// aplicación de una detección IA y actualización desde un adjunto de correo.
 ///

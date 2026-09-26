@@ -4,7 +4,7 @@ namespace CaeManager.E2ETests;
 
 /// <summary>
 /// Verificación end-to-end del aislamiento multi-tenant con un navegador
-/// real (PLAN-MIGRACION-MULTITENANT.md § 6, Etapa 5) — complementa los
+/// real (Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6, Etapa 5) — complementa los
 /// tests de integración de aislamiento (AislamientoMultiTenantTests,
 /// AislamientoPorAgregadoTests en CaeManager.IntegrationTests), que
 /// prueban el filtro de EF Core directamente pero no la ruta real
@@ -29,7 +29,7 @@ public class AislamientoMultiTenantE2ETests(WebAppFixtureConSegundoTenant fixtur
     // que D2 deja leyendo la tabla legacy Clientes hasta F4. Con los
     // escritores de Cliente redirigidos a Empresa, /clientes queda vacío en
     // cualquier entorno para cualquier tenant (decisión explícita: "aceptar
-    // el vacío", ver f3b-decision-d2-transicion-acotada-2026-08-25.md) — una
+    // el vacío", ver Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md) — una
     // aserción de "no visible"/"vacío" sobre esa pantalla pasaría siempre,
     // aislamiento aparte, y dejaría de probar nada. Se reancla a /empresas
     // (ObtenerEmpresasQuery, sin congelar) para seguir probando el filtro

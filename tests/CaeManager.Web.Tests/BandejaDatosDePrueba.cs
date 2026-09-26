@@ -1,3 +1,5 @@
+using CaeManager.Domain.Common;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
@@ -51,6 +53,9 @@ internal static class BandejaDatosDePrueba
     {
         public PerfilVocabularioTenant Perfil { get; init; } = PerfilVocabularioTenant.ClienteDirecto;
 
+        /// <summary>Respuesta de <see cref="ObtenerAlcanceCeroQuery"/>: por defecto, con alcance.</summary>
+        public bool AlcanceCero { get; init; }
+
         /// <summary>Token con el que viajó cada consulta de la bandeja, en orden de llegada — para comprobar que se cancelan al retirar la pantalla.</summary>
         public List<CancellationToken> TokensDeCarga { get; } = [];
 
@@ -90,6 +95,10 @@ internal static class BandejaDatosDePrueba
                 case ObtenerPerfilVocabularioActualQuery:
                     Perfiles++;
                     return Task.FromResult((TResponse)(object)Perfil);
+                case ObtenerAlcanceCeroQuery:
+                    return Task.FromResult((TResponse)(object)AlcanceCero);
+                case ObtenerCandidatosIncorporacionCarteraQuery:
+                    return Task.FromResult((TResponse)(object)Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]));
                 default:
                     throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.");
             }

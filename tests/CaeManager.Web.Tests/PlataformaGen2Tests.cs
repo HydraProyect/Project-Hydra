@@ -4,6 +4,9 @@ using CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma.Queries.ObtenerIdentidadPlataforma;
 using CaeManager.Application.Plataforma.Queries.PuedeInicializarPlataforma;
+using CaeManager.Application.Usuarios;
+using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
+using CaeManager.Application.Usuarios.Queries.ObtenerRestablecimientoPorSoporte;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Web.Features.Plataforma.Pages;
@@ -25,7 +28,8 @@ public class PlataformaGen2Tests : BunitContext
             => new("prueba-antiforgery", "__RequestVerificationToken");
     }
 
-    private sealed class MediatorRegistrador(Func<object, object> responder) : IMediator
+    private sealed class MediatorRegistrador(
+        Func<object, object> responder, RestablecimientoPorSoporteDto? restablecimiento = null) : IMediator
     {
         public List<object> Enviados { get; } = [];
         public List<CancellationToken> TokensDeConsulta { get; } = [];
@@ -43,6 +47,12 @@ public class PlataformaGen2Tests : BunitContext
             if (request is ObtenerIdentidadPlataformaQuery)
             {
                 TokensDeIdentidad.Add(cancellationToken);
+            }
+            // Fuera de una Sesión Privilegiada con la capacidad la consulta devuelve
+            // null: es el caso por defecto de todos los tests de esta clase.
+            if (request is ObtenerRestablecimientoPorSoporteQuery)
+            {
+                return Task.FromResult((TResponse)(object?)restablecimiento!);
             }
             var respuesta = responder(request);
             return respuesta is Task<TResponse> tarea ? tarea : Task.FromResult((TResponse)respuesta);
@@ -79,13 +89,15 @@ public class PlataformaGen2Tests : BunitContext
     public PlataformaGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         AddAuthorization().SetAuthorized("raiz@ejemplo.test");
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
     }
 
-    private (IRenderedComponent<Plataforma> Cut, MediatorRegistrador Mediator) Renderizar(Func<object, object> responder)
+    private (IRenderedComponent<Plataforma> Cut, MediatorRegistrador Mediator) Renderizar(
+        Func<object, object> responder, RestablecimientoPorSoporteDto? restablecimiento = null)
     {
-        var mediator = new MediatorRegistrador(responder);
+        var mediator = new MediatorRegistrador(responder, restablecimiento);
         Services.AddScoped<IMediator>(_ => mediator);
         return (Render<Plataforma>(), mediator);
     }
@@ -140,7 +152,6 @@ public class PlataformaGen2Tests : BunitContext
         await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Sí, inicializar").ClickAsync(new MouseEventArgs());
 
         var comando = mediator.Enviados.OfType<AutoConcederPrivilegioCommand>().Should().ContainSingle().Subject;
-        comando.TenantObjetivoId.Should().Be(Guid.Empty);
         comando.Capacidad.Should().Be(CapacidadPrivilegio.AdminPlataforma);
         comando.DiasDeVigencia.Should().Be(1);
         cut.FindAll("[role=dialog]").Should().BeEmpty();
@@ -331,5 +342,111 @@ public class PlataformaGen2Tests : BunitContext
         aviso.Should().Contain("El actor real se conserva en auditoría.");
         aviso.Should().Contain("todavía no habilita autorización como ese usuario.");
         aviso.Should().NotContain("La autorización se evalúa con el contexto del usuario simulado");
+    }
+
+    private static readonly AdministradorUnicoActivo AdministradorUnico = new(
+        Guid.Parse("55555555-5555-5555-5555-555555555555"), "Ana Administradora", "ana@ejemplo.test", true);
+
+    private const string BotonRestablecer = "Restablecer la verificación en dos pasos";
+
+    private static object ResponderBase(object peticion, Func<object, object?>? extra = null) =>
+        extra?.Invoke(peticion) ?? peticion switch
+        {
+            PuedeInicializarPlataformaQuery => false,
+            ObtenerIdentidadPlataformaQuery => IdentidadNormal,
+            _ => throw new NotSupportedException()
+        };
+
+    [Fact]
+    public void Sin_sesion_con_la_capacidad_la_seccion_de_restablecimiento_no_existe()
+    {
+        var (cut, mediator) = Renderizar(peticion => ResponderBase(peticion));
+
+        mediator.Enviados.OfType<ObtenerRestablecimientoPorSoporteQuery>()
+            .Should().ContainSingle("control positivo: la pantalla preguntó por el restablecimiento");
+        cut.FindAll("#restablecer-segundo-factor").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Restablecer_muestra_a_quien_exige_confirmacion_y_solo_entonces_envia_el_comando()
+    {
+        var (cut, mediator) = Renderizar(
+            peticion => ResponderBase(peticion, p => p is RestablecerSegundoFactorCommand ? Result.Exito() : null),
+            new RestablecimientoPorSoporteDto(AdministradorUnico));
+
+        var seccion = cut.Find("[aria-labelledby=restablecer-segundo-factor]");
+        seccion.TextContent.Should().Contain("Ana Administradora").And.Contain("ana@ejemplo.test").And.Contain("Activa");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == BotonRestablecer).ClickAsync(new MouseEventArgs());
+        mediator.Enviados.OfType<RestablecerSegundoFactorCommand>().Should().BeEmpty("abrir la confirmación no escribe nada");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Ana Administradora");
+
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Sí, restablecer")
+            .ClickAsync(new MouseEventArgs());
+
+        mediator.Enviados.OfType<RestablecerSegundoFactorCommand>().Should().ContainSingle()
+            .Which.UsuarioId.Should().Be(AdministradorUnico.UsuarioId);
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        cut.Find("[aria-labelledby=restablecer-segundo-factor]").TextContent
+            .Should().Contain("Verificación en dos pasos restablecida.");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == BotonRestablecer);
+    }
+
+    [Fact]
+    public async Task Cancelar_la_confirmacion_no_envia_el_comando()
+    {
+        var (cut, mediator) = Renderizar(
+            peticion => ResponderBase(peticion),
+            new RestablecimientoPorSoporteDto(AdministradorUnico));
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == BotonRestablecer).ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Cancelar")
+            .ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        mediator.Enviados.OfType<RestablecerSegundoFactorCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_negativa_del_comando_se_muestra_y_no_se_afirma_el_restablecimiento()
+    {
+        var (cut, mediator) = Renderizar(
+            peticion => ResponderBase(peticion, p => p is RestablecerSegundoFactorCommand
+                ? Result.Fallo(Error.Crear(
+                    "SegundoFactor.RestablecimientoPorSoporteDenegado",
+                    "La base de datos no autorizó el restablecimiento (sesion_no_autorizada)."))
+                : null),
+            new RestablecimientoPorSoporteDto(AdministradorUnico));
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == BotonRestablecer).ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Sí, restablecer")
+            .ClickAsync(new MouseEventArgs());
+
+        mediator.Enviados.OfType<RestablecerSegundoFactorCommand>().Should().ContainSingle();
+        cut.FindAll("[role=dialog]").Should().ContainSingle("la negativa no se trata como éxito");
+        cut.Find("[role=dialog] .administracion-global-error-comando").TextContent.Should().Contain("sesion_no_autorizada");
+        cut.Find("[aria-labelledby=restablecer-segundo-factor]").TextContent
+            .Should().NotContain("Verificación en dos pasos restablecida.");
+    }
+
+    [Fact]
+    public void Sin_Administrador_unico_la_seccion_lo_explica_y_no_ofrece_el_boton()
+    {
+        var (cut, _) = Renderizar(peticion => ResponderBase(peticion), new RestablecimientoPorSoporteDto(null));
+
+        cut.Find("[aria-labelledby=restablecer-segundo-factor]").TextContent
+            .Should().Contain("no tiene un único Administrador activo");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == BotonRestablecer);
+    }
+
+    [Fact]
+    public void Sin_segundo_factor_activo_no_hay_nada_que_restablecer()
+    {
+        var (cut, _) = Renderizar(
+            peticion => ResponderBase(peticion),
+            new RestablecimientoPorSoporteDto(AdministradorUnico with { DosFactoresActivo = false }));
+
+        cut.Find("[aria-labelledby=restablecer-segundo-factor]").TextContent.Should().Contain("no hay nada que restablecer");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == BotonRestablecer);
     }
 }

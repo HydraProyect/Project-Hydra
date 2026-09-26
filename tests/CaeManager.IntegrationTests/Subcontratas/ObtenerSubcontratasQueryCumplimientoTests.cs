@@ -93,6 +93,33 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Con_el_vencido_y_su_renovacion_del_mismo_tipo_cuenta_el_vigente_y_no_falla()
+    {
+        // El índice (TrabajadorId, TipoDocumentoId) de Documento no es único: el
+        // vencido sigue ahí cuando se sube la renovación. Se inserta primero la
+        // renovación para que «el último leído» no acierte por casualidad.
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        await using (var contexto = CrearContexto())
+        {
+            var trabajador = Trabajador.DeSubcontrata(_subcontrataId, "Iris", "Renovada", "77189989B");
+            contexto.Trabajadores.Add(trabajador);
+            await contexto.SaveChangesAsync();
+
+            contexto.Asignaciones.Add(new Asignacion(trabajador.Id, _centroId, hoy));
+            contexto.Documentos.Add(Documento.DeTrabajador(trabajador.Id, _tipoObligatorioId, hoy.AddDays(-1), VigenciaDocumento.VenceEl(hoy.AddYears(1))));
+            await contexto.SaveChangesAsync();
+            contexto.Documentos.Add(Documento.DeTrabajador(trabajador.Id, _tipoObligatorioId, hoy.AddYears(-2), VigenciaDocumento.VenceEl(hoy.AddDays(-10))));
+            await contexto.SaveChangesAsync();
+        }
+
+        var resultado = await EjecutarAsync();
+
+        var fila = resultado.Elementos.Should().ContainSingle().Subject;
+        fila.CumplimientoPorcentaje.Should().Be(100);
+        fila.Recuentos.TotalVencidas.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Un_documento_vigente_cuenta_como_cumplimiento_al_100_por_ciento()
     {
         await using (var contexto = CrearContexto())
@@ -136,7 +163,11 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         // Mismo defecto que tenía ObtenerCentrosQuery.Desglosar (D-7, piloto
         // Outbound), ahora corregido también aquí: Urgente (dentro del
         // umbral rojo de 15 días, sin llegar a vencer) no es una tercera
-        // casilla fuera del recuento.
+        // casilla fuera del recuento. Se agrupa con Proximas, no con
+        // Vencidas: el documento aún no venció, y ambos buckets se leen como
+        // texto literal ("N vencido(s)") en la UI — meterlo en Vencidas
+        // afirmaría una fecha vencida que no lo está (hallazgo de Codex,
+        // oleada 3 sobre esta misma PR).
         await using (var contexto = CrearContexto())
         {
             var trabajador = Trabajador.DeSubcontrata(_subcontrataId, "Ines", "Urgente", "99887766P");
@@ -154,9 +185,9 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
 
         var fila = resultado.Elementos.Should().ContainSingle().Subject;
         fila.Recuentos.TotalProximas.Should().Be(1,
-            "Urgente es más severo que Proximo pero el documento aún no venció");
+            "el documento aún no venció: Vencidas se lee como texto literal en la UI y Urgente no es un vencimiento real");
         fila.Recuentos.TotalVencidas.Should().Be(0,
-            "el documento aún no venció: no es correcto contarlo como si lo estuviera");
+            "Urgente no es Vencido: el recuento de vencidas no debe mezclar severidad de color con vencimiento real");
     }
 
     [Fact]
@@ -191,7 +222,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     private async Task<CaeManager.Application.Common.ResultadoPaginado<SubcontrataListaDto>> EjecutarAsync(AlcanceDatosServiceFalso alcance)
     {
         await using var contexto = CrearContexto();
-        var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, alcance);
+        var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance);
         var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio);
 
         return await handler.Handle(new ObtenerSubcontratasQuery(Busqueda: null), CancellationToken.None);

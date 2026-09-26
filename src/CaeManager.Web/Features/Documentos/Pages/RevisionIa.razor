@@ -1,8 +1,10 @@
 @page "/documentos/revision-ia"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Web.Features.Documentos.Components
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Revisión IA — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -11,3 +13,4 @@
 
     <RevisionIaTab />
 </div>
+</LimiteDeErrores>

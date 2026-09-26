@@ -3,7 +3,7 @@ using Microsoft.Playwright;
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// P1-19 de docs/business/MATURITY_REVIEW.md: uno de los 3 "flujos
+/// P1-19 de Project-Hydra-Negocio/MATURITY_REVIEW.md: uno de los 3 "flujos
 /// diferenciadores" (Delegated Workspace, retención, soporte) que no tenían
 /// ningún E2E dedicado — AlcanceRolesTests ya usa
 /// Ayudas.CambiarClienteActivoAsync como parte de un test de alcance por

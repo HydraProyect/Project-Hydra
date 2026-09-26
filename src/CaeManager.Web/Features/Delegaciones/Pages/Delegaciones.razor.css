@@ -40,7 +40,8 @@
     gap: var(--space-2);
 }
 
-.delegaciones-titulo {
+.delegaciones-titulo,
+.accesos-soporte-talveg-titulo {
     font: var(--font-heading-sm);
     margin: var(--space-3) 0 var(--space-1);
 }
@@ -83,7 +84,8 @@
     overflow-x: auto;
 }
 
-.delegaciones-tabla {
+.delegaciones-tabla,
+.accesos-soporte-talveg-tabla {
     margin: 0;
     width: 100%;
 }
@@ -180,4 +182,14 @@
 .delegaciones-candidato-seleccionado {
     background: var(--color-primary-50);
     font-weight: 600;
+}
+
+.accesos-soporte-talveg {
+    margin-top: var(--space-6);
+}
+
+.accesos-soporte-talveg-descripcion {
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-3);
+    font: var(--font-body-md);
 }

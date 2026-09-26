@@ -1,5 +1,6 @@
 @page "/documentos"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Web.Features.Documentos.Recursos
 @using CaeManager.Application.Documentos.Commands.CrearDocumento
@@ -20,6 +21,7 @@
 @using MediatR
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.QuickGrid
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject IFileStorageService AlmacenamientoArchivos
@@ -27,6 +29,7 @@
 @inject ContextWorkspaceService WorkspaceService
 @inject ILogger<Documentos> Logger
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Documentos — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -42,7 +45,10 @@
                 <a class="enlace-exportar" href="/documentos/importar">Importar documentos</a>
             </AuthorizeView>
             <SoloConEscritura><a class="enlace-exportar" href="/documentos/subida-masiva">Subida múltiple</a></SoloConEscritura>
-            <SoloConEscritura><Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
+            @if (!_alcanceCero)
+            {
+                <SoloConEscritura><Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
+            }
         </Acciones>
     </CabeceraPagina>
 
@@ -51,7 +57,8 @@
         {
             <AuthorizeView Roles="@RolesDeGestionDocumental">
                 <Authorized>
-                    <PlataformaTab />
+                    <PlataformaTab @ref="_plataformaTab" AcreditacionId="AcreditacionId"
+                                   OnSubirVersionCorregida="AbrirVersionCorregidaAsync" />
                 </Authorized>
                 <NotAuthorized>
                     <SinPermisoEnSeccion Seccion="Plataformas CAE" />
@@ -232,11 +239,14 @@
                 }
                 else                 @if (_totalElementos == 0 && !_cargando)
                 {
-                    <EstadoVacio NombreIcono="documentos" Titulo="Aún no hay documentos" Descripcion="Sube el primero para empezar a controlar vigencias.">
-                        <Accion>
-                            <SoloConEscritura><Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
-                        </Accion>
-                    </EstadoVacio>
+                    @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
+                    <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
+                        <EstadoVacio NombreIcono="documentos" Titulo="Aún no hay documentos" Descripcion="Sube el primero para empezar a controlar vigencias.">
+                            <Accion>
+                                <SoloConEscritura><Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
+                            </Accion>
+                        </EstadoVacio>
+                    </VacioSegunAlcance>
                 }
             }
         }
@@ -265,7 +275,7 @@
     Visible="_confirmarEliminarLoteVisible"
     VisibleChanged="v => _confirmarEliminarLoteVisible = v"
     Titulo="@($"¿Eliminar {_seleccionados.Count} documento(s)?")"
-    Mensaje="Se ocultarán de las listas activas. Podrás recuperarlos desde Auditoría."
+    Mensaje="@Textos["ConfirmarEliminarLoteMensaje"]"
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
@@ -278,3 +288,4 @@
         <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
     </Pie>
 </Modal>
+</LimiteDeErrores>

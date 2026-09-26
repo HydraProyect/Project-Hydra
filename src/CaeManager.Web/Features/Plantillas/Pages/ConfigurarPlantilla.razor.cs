@@ -25,7 +25,7 @@ using PdfSharp.Pdf.IO;
 
 namespace CaeManager.Web.Features.Plantillas.Pages;
 
-public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
+public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInteractiva, IAsyncDisposable
 {
     private const double AnchoPorDefectoCampo = 150;
     private const double AltoPorDefectoCampo = 22;
@@ -369,7 +369,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
             if (resultado.EsFallido)
             {
-                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                Toasts.MostrarError(resultado.Error);
                 return;
             }
 
@@ -487,7 +487,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
             if (resultado.EsFallido)
             {
-                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                Toasts.MostrarError(resultado.Error);
                 return;
             }
 
@@ -555,7 +555,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
             if (resultado.EsFallido)
             {
-                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                Toasts.MostrarError(resultado.Error);
                 return;
             }
 
@@ -818,7 +818,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
             if (resultado.EsFallido)
             {
-                if (avisarFallo) Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                if (avisarFallo) Toasts.MostrarError(resultado.Error);
                 return false;
             }
 
@@ -886,7 +886,7 @@ public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
 
             if (resultado.EsFallido)
             {
-                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                Toasts.MostrarError(resultado.Error);
                 return;
             }
 

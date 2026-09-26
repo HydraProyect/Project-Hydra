@@ -4,7 +4,7 @@ namespace CaeManager.E2ETests;
 
 /// <summary>
 /// Cubre el flujo de negocio crítico end-to-end, priorizado explícitamente
-/// por el usuario sobre la cobertura módulo a módulo (ver ROADMAP.md,
+/// por el usuario sobre la cobertura módulo a módulo (ver Project-Hydra-Negocio/tecnico/ROADMAP.md,
 /// "Iniciativa de hardening" § Tests E2E automatizados): login → crear
 /// Cliente → crear Empresa asociada → crear Trabajador de esa Empresa →
 /// subir un Documento suyo → el semáforo de vigencia muestra el estado

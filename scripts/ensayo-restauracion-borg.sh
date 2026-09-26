@@ -38,7 +38,9 @@
 # Entorno (opcional):
 #   ENSAYO_IMAGEN_APP      imagen de la app; si falta, se construye del Dockerfile
 #                          de este árbol.
-#   ENSAYO_IMAGEN_PG       imagen de PostgreSQL (por defecto postgres:18).
+#   ENSAYO_IMAGEN_PG       imagen de PostgreSQL (por defecto, la misma etiqueta y
+#                          digest que deploy/local/docker-compose.produccion.yml;
+#                          lo vigila MismaVersionDePostgresTests).
 #   ENSAYO_CUENTA / ENSAYO_CLAVE   (opcionales) cuenta SIN 2FA para el login. Sin
 #                          ellas el guion prepara una credencial de ensayo EN LA
 #                          COPIA desechable (ver preparar_cuenta). Nunca van en el
@@ -89,7 +91,7 @@ if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qxE 'caemanager-(app|d
     fi
 fi
 
-IMAGEN_PG="${ENSAYO_IMAGEN_PG:-postgres:18}"
+IMAGEN_PG="${ENSAYO_IMAGEN_PG:-postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280}"
 RPO_MAX_HORAS="${RPO_MAX_HORAS:-24}"
 RTO_MAX_HORAS="${RTO_MAX_HORAS:-4}"
 
@@ -251,7 +253,7 @@ printf "ALTER ROLE cae_app_runtime WITH LOGIN PASSWORD '%s';\n" "$CLAVE_RUNTIME"
 
 CLAVES=$(ls "$DIR_TRABAJO/dataprotection-keys"/*.xml 2>/dev/null | wc -l)
 echo "    dataprotection-keys/: $CLAVES archivo(s) de clave"
-[ "$CLAVES" -ge 1 ] || { echo "ERROR: el backup no contiene ninguna clave XML — ver RUNBOOK-CLAVES.md (restaurar solo la BD deja las credenciales cifradas irrecuperables)"; exit 1; }
+[ "$CLAVES" -ge 1 ] || { echo "ERROR: el backup no contiene ninguna clave XML — ver Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES.md (restaurar solo la BD deja las credenciales cifradas irrecuperables)"; exit 1; }
 PDFS=$(find "$DIR_TRABAJO/documentos" -type f 2>/dev/null | wc -l)
 echo "    documentos/: $PDFS archivo(s) restaurado(s)"
 registrar OK "claves y documentos en el mismo archivo" "$CLAVES clave(s) XML, $PDFS documento(s)"
@@ -298,20 +300,26 @@ else
     # guion borra al salir) y `--env-file`, no `-e VAR=valor`: así ningún valor
     # (cadenas de conexión, contraseña del administrador de ensayo) queda en el
     # argv del cliente docker, visible en `ps` a cualquier usuario de la máquina.
+    #
+    # Dos ficheros, como los dos servicios de docker-compose.produccion.yml (P0-2):
+    # solo el del migrador lleva la cadena del rol propietario; la app arranca sin
+    # ella y sin sembrar (la siembra, como la migración, la hace el migrador).
     ENV_APP="$DIR_TRABAJO/app.env"
+    ENV_MIGRADOR="$DIR_TRABAJO/migrador.env"
     ( umask 077
       {
-        echo "ConnectionStrings__CaeManagerDb=$CADENA_OWNER"
         echo "ConnectionStrings__CaeManagerDbRuntime=$CADENA_RUNTIME"
         echo "AlmacenamientoArchivos__Ruta=/data/documentos"
         echo "DataProtection__RutaClaves=/data/dataprotection-keys"
         echo "Migraciones__AlArrancar=false"
+        echo "Siembra__AlArrancar=false"
         echo "DatosPrueba__Activo=false"
-        # En Producción el arranque exige un administrador inicial (IdentitySeeder):
+        # En Producción la siembra exige un administrador inicial (IdentitySeeder):
         # un valor desechable de esta copia, nunca el de verdad.
         echo "AdministradorInicial__Email=ensayo-admin@ensayo.invalid"
         echo "AdministradorInicial__Contrasena=$CLAVE_ADMIN_ENSAYO"
-      } > "$ENV_APP" )
+      } > "$ENV_APP"
+      { cat "$ENV_APP"; echo "ConnectionStrings__CaeManagerDb=$CADENA_OWNER"; } > "$ENV_MIGRADOR" )
 
     # Migraciones y arranque + login + documento, una vez por origen de claves.
     verificar_app() {   # verificar_app ETIQUETA DIR_CLAVES
@@ -326,7 +334,7 @@ else
         # compatible con el código de este árbol.
         local antes despues
         antes=$(consulta "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";")
-        if docker run --rm --network "$RED" -v "$vol":/data --env-file "$ENV_APP" "$IMAGEN_APP" --migrate-only \
+        if docker run --rm --network "$RED" -v "$vol":/data --env-file "$ENV_MIGRADOR" "$IMAGEN_APP" --preparar-arranque \
                 >"$DIR_TRABAJO/migrador-$etiqueta.log" 2>&1; then
             despues=$(consulta "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";")
             registrar OK "migrador [$etiqueta]" "exit 0; migraciones aplicadas en la BD: $antes -> $despues"
@@ -547,7 +555,7 @@ echo "El RTO NO es este total: este es el tramo automatizable (extraer, restaura
 echo "verificar) sobre una máquina que ya existe. Al RTO real (objetivo ${RTO_MAX_HORAS} h laborables) hay que"
 echo "sumarle localizar credenciales, provisionar el servidor si se perdió, DNS y la persona que lo hace."
 echo ""
-echo "Fila para docs/ENSAYO-RESTAURACION.md (repositorio de negocio):"
+echo "Fila para Project-Hydra-Negocio/tecnico/docs/ENSAYO-RESTAURACION.md (repositorio de negocio):"
 echo "| $(date -u +%F) | \`$ULTIMO\` | <quién> | <dump: ver resumen> | <claves/login/documento: ver resumen> | ${TOTAL} s automatizado; RPO ${EDAD_H} h | <notas> |"
 echo ""
 if [ "$HAY_FALLO" -ne 0 ]; then

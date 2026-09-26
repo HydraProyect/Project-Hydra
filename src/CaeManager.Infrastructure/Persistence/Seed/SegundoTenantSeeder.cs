@@ -14,7 +14,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// Sembrado opcional de un segundo tenant — exclusivamente para poder
 /// verificar en desarrollo/E2E que el aislamiento multi-tenant funciona de
 /// extremo a extremo con un navegador real, no solo en tests de integración
-/// (ver PLAN-MIGRACION-MULTITENANT.md § 6, Etapa 5). Apagado por defecto,
+/// (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6, Etapa 5). Apagado por defecto,
 /// mismo principio "inerte por defecto" que <see cref="DatosPruebaSeeder"/>
 /// — nunca se ejecuta salvo que <c>SegundoTenant:Activo</c> sea true.
 /// </summary>
@@ -85,13 +85,18 @@ public static class SegundoTenantSeeder
             tenantId = tenantExistente.Id;
         }
 
-        if (await userManager.FindByEmailAsync(EmailAdministradorSegundoTenant) is not null)
-            return tenantId;
+        // En el segundo Tenant, por la RLS de AspNetUsers (P1-M1): sin Tenant no
+        // vería la cuenta ya sembrada y el alta de abajo chocaría con ella.
+        using (AmbitoTenantExplicito.Establecer(tenantId))
+        {
+            if (await userManager.FindByEmailAsync(EmailAdministradorSegundoTenant) is not null)
+                return tenantId;
+        }
 
         // Este usuario pertenece al segundo tenant — el ámbito explícito
         // asegura que tanto las entidades de dominio que este alta pueda
         // escribir como el propio ApplicationUser (AuditoriaInterceptor
-        // también lo audita desde CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12)
+        // también lo audita desde Project-Hydra-Negocio/tecnico/CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12)
         // queden selladas al tenant correcto.
         using (AmbitoTenantExplicito.Establecer(tenantId))
         {
@@ -110,18 +115,12 @@ public static class SegundoTenantSeeder
             {
                 await userManager.AddToRoleAsync(administrador, Roles.Administrador);
 
-                // Mismo motivo que IdentitySeeder: P1-13 de
-                // docs/business/MATURITY_REVIEW.md exige 2FA para todo
-                // Administrador, así que este también nace con ella activa
-                // (misma clave fija, reutilizada por Ayudas.IniciarSesionAsync
-                // en el proyecto E2E).
-                if (userStore is IUserAuthenticatorKeyStore<ApplicationUser> claveStore)
-                {
-                    await claveStore.SetAuthenticatorKeyAsync(
-                        administrador, IdentitySeeder.ClaveTotpAdministradorInicial, cancellationToken);
-                    await userManager.UpdateAsync(administrador);
-                }
-                await userManager.SetTwoFactorEnabledAsync(administrador, true);
+                // Mismo motivo que IdentitySeeder: P1-13 exige 2FA para todo
+                // Administrador. En Development nace con ella activa y la clave
+                // fija que usa Ayudas.IniciarSesionAsync en el proyecto E2E;
+                // fuera de Development, sin segundo factor (P0-1, D-5).
+                await IdentitySeeder.AsignarSegundoFactorDeSiembraAsync(
+                    administrador, userManager, userStore, entorno, cancellationToken);
                 await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, administrador.Id, cancellationToken);
 
                 logger.LogInformation("Administrador del segundo tenant de verificación sembrado.");

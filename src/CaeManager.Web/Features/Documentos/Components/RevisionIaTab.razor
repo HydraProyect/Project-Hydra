@@ -242,3 +242,7 @@
     TextoBotonConfirmar="Descartar la lectura"
     EnProgreso="@(_procesandoId is not null)"
     OnConfirmar="ResolverSeleccionadaAsync" />
+
+@* P1-E2: salir con la corrección manual de la fecha a medias pregunta antes; confirmar la
+   salida cierra la corrección. Va al final para quedar encima de los demás diálogos. *@
+<AvisoCambiosSinGuardar HayCambios="HayCambiosSinGuardar" AlDescartar="CerrarCorreccionManual" />

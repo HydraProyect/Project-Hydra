@@ -7,7 +7,7 @@
 # Este script SOLO fetchea y guarda — no analiza nada, no escribe ningún
 # informe, no abre ningún issue ni PR. El análisis (hipótesis de causa raíz +
 # enlace al código, formato auditoría-adversarial) lo hace un agente después,
-# siguiendo tecnico/RUNBOOK-ANALISIS-INCIDENTES-IA.md del repo de negocio
+# siguiendo Project-Hydra-Negocio/tecnico/RUNBOOK-ANALISIS-INCIDENTES-IA.md del repo de negocio
 # (Project-Hydra-Negocio) contra la salida de este script.
 #
 # Deliberadamente NO está enganchado a ningún cron/scheduler — es una
@@ -30,7 +30,7 @@
 #                        producción) para no duplicar configuración.
 #
 # Estado de partida honesto (2026-08-15): Sentry y Seq siguen "inertes" en el
-# sentido de RUNBOOK-HORIZONTE-0.md — 0.3 ("Encender el monitoreo ya
+# sentido de Project-Hydra-Negocio/tecnico/RUNBOOK-HORIZONTE-0.md — 0.3 ("Encender el monitoreo ya
 # escrito") todavía no se ha ejecutado, así que hoy no hay DSN de Sentry ni
 # URL de Seq reales contra las que probar este script de punta a punta. La
 # llamada a Seq en concreto usa la API HTTP clásica de eventos
@@ -130,7 +130,7 @@ fi
   echo
   echo "Siguiente paso: pega la ruta de este directorio en una sesión de"
   echo "Claude Code junto con el prompt de"
-  echo "tecnico/RUNBOOK-ANALISIS-INCIDENTES-IA.md (repo de negocio)."
+  echo "Project-Hydra-Negocio/tecnico/RUNBOOK-ANALISIS-INCIDENTES-IA.md (repo de negocio)."
 } > "$SALIDA/resumen.txt"
 
 cat "$SALIDA/resumen.txt"

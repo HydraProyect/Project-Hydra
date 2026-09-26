@@ -14,8 +14,17 @@
     Cliente 360) pasa OnNombre en vez de Href, y su nombre es un botón que
     abre el panel — el mismo destino que el botón 360.
 *@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
 <li class="fila-relacion">
-    @if (!string.IsNullOrWhiteSpace(NombreIcono))
+    @if (!string.IsNullOrWhiteSpace(Iniciales))
+    {
+        @* El nombre va al lado: las iniciales son decoración, no se anuncian. *@
+        <span class="fila-relacion-avatar" aria-hidden="true">@Iniciales</span>
+    }
+    else if (!string.IsNullOrWhiteSpace(NombreIcono))
     {
         <span class="fila-relacion-icono"><Icono Nombre="@NombreIcono" Tamano="TamanoIcono.Pequeno" /></span>
     }
@@ -23,11 +32,11 @@
     <span class="fila-relacion-texto">
         @if (!string.IsNullOrWhiteSpace(Href))
         {
-            <a class="fila-relacion-nombre" href="@Href" title="@Nombre">@Nombre</a>
+            <a class="fila-relacion-nombre" href="@Href" title="@(Comunes["IrAPaginaDe", Nombre])">@Nombre</a>
         }
         else if (OnNombre.HasDelegate)
         {
-            <button type="button" class="fila-relacion-nombre fila-relacion-nombre-boton" title="@Nombre" @onclick="OnNombre">@Nombre</button>
+            <button type="button" class="fila-relacion-nombre fila-relacion-nombre-boton" title="@(Comunes["AbrirPanelDe", Nombre])" @onclick="OnNombre">@Nombre</button>
         }
         else
         {
@@ -61,6 +70,9 @@
 
     /// <summary>Nombre de un icono del catálogo de <see cref="DesignSystem.Icono"/> para la casilla de la izquierda. Opcional.</summary>
     [Parameter] public string? NombreIcono { get; set; }
+
+    /// <summary>Iniciales para la casilla de la izquierda (filas de personas). Si hay, ganan al icono.</summary>
+    [Parameter] public string? Iniciales { get; set; }
 
     /// <summary>Línea pequeña bajo el nombre («Empresa: Ibertec GmbH · 3 vencidos»).</summary>
     [Parameter] public RenderFragment? Detalle { get; set; }

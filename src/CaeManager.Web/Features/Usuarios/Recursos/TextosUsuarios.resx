@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="RestablecerSegundoFactorAccion" xml:space="preserve">
+    <value>Restablecer verificación en dos pasos</value>
+  </data>
+  <data name="RestablecerSegundoFactorTitulo" xml:space="preserve">
+    <value>Restablecer verificación en dos pasos</value>
+  </data>
+  <data name="RestablecerSegundoFactorConfirmar" xml:space="preserve">
+    <value>Restablecer</value>
+  </data>
+  <data name="RestablecerSegundoFactorMensaje" xml:space="preserve">
+    <value>Se desactivará la verificación en dos pasos de «{0}»: se borran su aplicación autenticadora y sus códigos de recuperación, y se cierran sus sesiones abiertas. Si es Administrador, tendrá que configurarla de nuevo al entrar. Queda registrado en la auditoría a tu nombre.</value>
+  </data>
+  <data name="RestablecerSegundoFactorHecho" xml:space="preserve">
+    <value>Verificación en dos pasos restablecida para {0}. Tendrá que configurarla de nuevo.</value>
+  </data>
+  <data name="DesactivarTitulo" xml:space="preserve">
+    <value>¿Desactivar a {0}?</value>
+  </data>
+  <data name="DesactivarMensaje" xml:space="preserve">
+    <value>Perderá el acceso en cuanto confirmes: su sesión abierta se cierra. Podrás reactivarla después.</value>
+  </data>
+  <data name="DesactivarCarteraClientes" xml:space="preserve">
+    <value>Tiene {0} Cliente(s) empresarial(es) en su Asignación de Cartera. Si no la pasas a otro Gestor CAE, sigue abierta y la conserva su Coordinador CAE.</value>
+  </data>
+  <data name="DesactivarCarteraUniversal" xml:space="preserve">
+    <value>Su Asignación de Cartera es toda la operación de esta organización: no se reparte cliente a cliente. Sigue abierta y la conserva su Coordinador CAE.</value>
+  </data>
+  <data name="DesactivarPasarCarteraA" xml:space="preserve">
+    <value>Pasar su cartera a</value>
+  </data>
+  <data name="DesactivarNoReasignar" xml:space="preserve">
+    <value>No reasignar (la conserva su Coordinador CAE)</value>
+  </data>
+  <data name="DesactivarVolver" xml:space="preserve">
+    <value>Volver</value>
+  </data>
+  <data name="DesactivarConfirmar" xml:space="preserve">
+    <value>Desactivar</value>
+  </data>
+  <data name="DesactivarCarteraPasada" xml:space="preserve">
+    <value>{0} Cliente(s) empresarial(es) pasaron a {1}.</value>
+  </data>
+  <data name="DesactivarCarteraParcial" xml:space="preserve">
+    <value>Solo {0} de {1} Clientes empresariales pasaron al nuevo Gestor CAE, así que la cuenta sigue activa. {2}</value>
+  </data>
+  <data name="DesactivarDestinoNoVigente" xml:space="preserve">
+    <value>El Gestor CAE elegido ya no está activo. No se ha pasado ninguna cartera ni se ha desactivado la cuenta; vuelve a intentarlo.</value>
+  </data>
+  <data name="DesactivarErrorInesperado" xml:space="preserve">
+    <value>Un Cliente empresarial no pudo pasarse por un error inesperado.</value>
+  </data>
+</root>

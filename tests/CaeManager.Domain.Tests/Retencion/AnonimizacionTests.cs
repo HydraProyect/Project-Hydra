@@ -7,7 +7,7 @@ namespace CaeManager.Domain.Tests.Retencion;
 
 /// <summary>
 /// Qué significa purgar en Hydra: anonimizar, no borrar
-/// (RGPD-TRATAMIENTO-DATOS.md § 5, decidido por el propietario del producto
+/// (Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md § 5, decidido por el propietario del producto
 /// el 2026-07-31).
 ///
 /// Lo que estos tests protegen es la propiedad que hace válida la

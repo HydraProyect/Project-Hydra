@@ -72,7 +72,7 @@ else
             var resultado = await Mediator.Send(new GuardarSelloEmpresaCommand(EntidadId, memoria.ToArray()));
             if (resultado.EsFallido)
             {
-                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                Toasts.MostrarError(resultado.Error);
                 return;
             }
 

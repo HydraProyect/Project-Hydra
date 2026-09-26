@@ -158,6 +158,9 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
 
     private void RegistrarServicios(MediatorPorTipo mediator)
     {
+        // El acordeón inyecta IStringLocalizer<TextosCentros> (badge "Rechazado"
+        // y "No aplica" de la fila de Empresa sin Estado, Codex oleada 3).
+        Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => mediator);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();

@@ -13,7 +13,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueanteP
 /// <summary>
 /// Fase C (Bandeja del gestor): un Trabajador con Asignación activa a un
 /// Centro donde falta un Documento Vigente de un TipoDocumento marcado
-/// <c>TipoDocumentoCentro.BloqueaAcceso</c> (PLAN-EJECUCION-UX.md § 0.4) —
+/// <c>TipoDocumentoCentro.BloqueaAcceso</c> (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4) —
 /// sustituye a ObtenerRequisitosDocumentalesPendientesQuery/RequisitoDocumental
 /// (retirados): antes era un check manual a nivel de Centro
 /// (BloqueaAcceso+Cumplido sin trabajador asociado), ahora es automático y
@@ -65,6 +65,13 @@ public class ObtenerDocumentacionBloqueantePendienteQueryHandler(
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         if (centroIdsVisibles is not null)
             filasBloqueantes = filasBloqueantes.Where(f => centroIdsVisibles.Contains(f.CentroId)).ToList();
+
+        // P1-X2: una fila BloqueaAcceso que quedó de cuando el Centro exigía
+        // gestión CAE no bloquea nada en un Centro que ya no la requiere.
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(
+            centrosContext, filasBloqueantes.Select(f => f.CentroId), cancellationToken);
+        if (sinGestionCae.Count > 0)
+            filasBloqueantes = filasBloqueantes.Where(f => !sinGestionCae.Contains(f.CentroId)).ToList();
 
         if (filasBloqueantes.Count == 0)
             return [];

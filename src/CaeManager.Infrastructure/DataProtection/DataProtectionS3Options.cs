@@ -4,7 +4,7 @@ namespace CaeManager.Infrastructure.DataProtection;
 
 /// <summary>
 /// Llavero de Data Protection compartido en S3 en vez de en el disco local de
-/// cada réplica (P3-30 de docs/business/MATURITY_REVIEW.md — junto con el
+/// cada réplica (P3-30 de Project-Hydra-Negocio/MATURITY_REVIEW.md — junto con el
 /// backplane de SignalR y la elección de líder de los <c>BackgroundService</c>,
 /// la última pieza que ataba la app a una sola réplica: en disco local, cada
 /// réplica genera/lee su propio juego de claves, así que una cookie o
@@ -13,7 +13,7 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// Apagado por defecto, mismo patrón que <c>DataProtection:Kms</c>: sin cuenta de AWS provisionada, las claves
 /// siguen en <c>PersistKeysToFileSystem</c> (ruta local), que es lo correcto
 /// para un despliegue de una sola réplica. Credenciales propias, separadas de
-/// las de Backups y KMS (ver DEPLOY.md).
+/// las de Backups y KMS (ver Project-Hydra-Negocio/tecnico/DEPLOY.md).
 /// </summary>
 public class DataProtectionS3Options : IOpcionesConGate
 {

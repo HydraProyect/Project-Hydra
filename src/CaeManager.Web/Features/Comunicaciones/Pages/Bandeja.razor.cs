@@ -51,14 +51,14 @@ namespace CaeManager.Web.Features.Comunicaciones.Pages;
 public record EjecutivoSelectorDto(Guid Id, string NombreCompleto);
 
 /// <summary>
-/// Communication Workspace unificado (docs/COMUNICACIONES.md § 16, paso 2
+/// Communication Workspace unificado (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 16, paso 2
 /// del rediseño): fusiona lo que antes eran Bandeja (correo) y Chat
 /// (WhatsApp) — una sola bandeja, una sola conversación seleccionada, un
 /// único ComposerBar que cambia de modo según Canal. El principio rector
 /// (§ 10.2) es que el gestor nunca elige "voy a Correo" o "voy a WhatsApp":
 /// entra a Comunicaciones y ve conversaciones.
 /// </summary>
-public partial class Bandeja : ComponentBase, IAsyncDisposable
+public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsyncDisposable
 {
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ILogger<Bandeja> Logger { get; set; } = default!;
@@ -75,7 +75,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
 
     /// <summary>
     /// Deep-link a una conversación concreta (Horizonte 2.6 de
-    /// MACRO_PLAN_2026-08-13.md, § 7 punto 3): a diferencia de "ctx" en el
+    /// Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md, § 7 punto 3): a diferencia de "ctx" en el
     /// Context Workspace (ContextWorkspace.razor), aquí no hay un mecanismo
     /// genérico que restaurar — la Bandeja unificada es maestro-detalle
     /// propio, así que este parámetro y su sincronización viven en la propia
@@ -106,7 +106,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
     private bool _errorCargaLista;
     private IReadOnlyList<ConversacionListaDto> _conversaciones = [];
 
-    // --- Paginación en SQL (CODING_STANDARDS.md § Paginación/volumen — la
+    // --- Paginación en SQL (Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md § Paginación/volumen — la
     // bandeja no tenía techo, cargaba TODAS las conversaciones que cumplieran
     // los filtros en cada visita). Enteros propios, no PaginationState de
     // QuickGrid: esto no es una tabla, es una lista agrupada por cliente con
@@ -203,7 +203,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             ? ultimo.Add(Conversacion.DuracionVentanaServicio).ToLocalTime().ToString("dd/MM 'a las' HH:mm")
             : string.Empty;
 
-    // --- Action Center (docs/COMUNICACIONES.md § 12.6): agrega las sugerencias
+    // --- Action Center (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.6): agrega las sugerencias
     // de todos los mensajes de la conversación — antes cada una se pintaba
     // junto a su propio mensaje en UnifiedTimeline, ahora viven todas juntas
     // en AccionCenter, en la columna derecha. ---
@@ -219,7 +219,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
     protected override async Task OnInitializedAsync()
     {
         // Módulo congelado por defecto (ComunicacionesOptions, P2 #26 de
-        // docs/business/MATURITY_REVIEW.md): sin ingesta real detrás, se
+        // Project-Hydra-Negocio/MATURITY_REVIEW.md): sin ingesta real detrás, se
         // presenta como si la ruta no existiera en vez de mostrar una
         // bandeja que nadie va a alimentar de verdad.
         if (!OpcionesComunicaciones.Value.Activo)
@@ -232,7 +232,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         // no solo en OnParametersSet porque en el primer render
         // OnInitializedAsync corre ANTES que OnParametersSet, y la carga
         // inicial de abajo necesita los filtros ya resueltos (P1-18 de
-        // docs/business/MATURITY_REVIEW.md).
+        // Project-Hydra-Negocio/MATURITY_REVIEW.md).
         SincronizarFiltrosDesdeUrl();
 
         _clientesSelector = await Mediator.Send(new ObtenerClientesParaSelectorQuery(), _ciclo.Token);
@@ -433,7 +433,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             // vuelve aquí ya no es la lista que el gestor está mirando.
             if (carga != _cargaListaVigente) return;
 
-            // Sin filtro de Canal a propósito (docs/COMUNICACIONES.md § 10.2):
+            // Sin filtro de Canal a propósito (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 10.2):
             // el gestor ve conversaciones, no "correo" o "WhatsApp" por separado.
             _conversaciones = resultado.Elementos;
             _totalConversaciones = resultado.TotalElementos;
@@ -593,7 +593,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
         _centroFormatosSeleccionado = string.Empty;
         _emailFallback = string.Empty;
 
-        // Deep-link (Horizonte 2.6 de MACRO_PLAN_2026-08-13.md): la URL queda
+        // Deep-link (Horizonte 2.6 de Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md): la URL queda
         // como la fuente de verdad de qué conversación está abierta, mismo
         // patrón que el resto de filtros de esta página (y que "ctx" en el
         // Context Workspace). replace: seleccionar un hilo no es un paso de
@@ -700,7 +700,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
                 _centrosClienteActivo = [];
             }
 
-            // Selectores del Action Center (docs/COMUNICACIONES.md § 12.6): se
+            // Selectores del Action Center (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.6): se
             // cargan aquí en vez de solo al abrir el modal de "Actualizar
             // documento" (más abajo) porque la revisión de una sugerencia de
             // gestión puede necesitarlos antes de que el gestor toque ese
@@ -829,7 +829,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
                 // Fallo de negocio: se dice cuál, y NO se toca lo escrito ni
                 // los adjuntos — el gestor corrige y vuelve a darle a Enviar
                 // sin reescribir la respuesta entera.
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -878,7 +878,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
                 _conversacionSeleccionadaId.Value, _emailFallback.Trim(), _textoRespuesta), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -911,7 +911,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
 
     /// <summary>
     /// "Copiar enlace" (§ 7 punto 3 y Horizonte 2.6 de
-    /// MACRO_PLAN_2026-08-13.md): con "conversacion" ya sincronizado en la
+    /// Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md): con "conversacion" ya sincronizado en la
     /// URL por SeleccionarConversacionAsync, la URL actual del navegador ya
     /// es el deep-link — mismo criterio que ContextWorkspace.CopiarEnlaceAsync
     /// y mismo módulo clipboard.js que BotonCopiar.
@@ -954,7 +954,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new CambiarEstadoConversacionCommand(_conversacionSeleccionadaId.Value, nuevoEstado), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -980,7 +980,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new AsignarEjecutivoConversacionCommand(_conversacionSeleccionadaId.Value, ejecutivoId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1002,7 +1002,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new AsignarClienteConversacionCommand(_conversacionSeleccionadaId.Value, clienteId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1039,7 +1039,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new DescartarSugerenciaVisitaCorreoCommand(sugerenciaId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1067,7 +1067,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new CrearGestionesParaTrabajadorCommand(trabajadorId, tipoDocumentoId, sugerenciaId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1098,7 +1098,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new VincularConversacionCommand(conversacionOrigenId, conversacionDestinoId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1121,7 +1121,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new ConfirmarClasificacionRuidoMensajeCommand(mensajeId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1142,7 +1142,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
             var resultado = await Mediator.Send(new DescartarSugerenciaGestionCorreoCommand(sugerenciaId), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1158,7 +1158,7 @@ public partial class Bandeja : ComponentBase, IAsyncDisposable
 
     /// <summary>
     /// Abre el flujo "Actualizar documentación desde conversación"
-    /// (docs/COMUNICACIONES.md § 12.7) para un adjunto concreto. Carga los
+    /// (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.7) para un adjunto concreto. Carga los
     /// selectores y lanza la detección en el mismo gesto — si
     /// ExtraccionDocumentoAdjuntoOptions está apagado (por defecto), la
     /// detección vuelve vacía y el gestor rellena los campos a mano.

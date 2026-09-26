@@ -3,7 +3,7 @@
 # autor son datos locales sintéticos, no una PR real.
 #
 # La propiedad que importa no es "el guion se ejecuta" — es que HABRÍA
-# CAZADO los incidentes reales que lo motivan (PROTOCOLO-TURNO-NOCTURNO.md
+# CAZADO los incidentes reales que lo motivan (Project-Hydra-Negocio/tecnico/PROTOCOLO-TURNO-NOCTURNO.md
 # § 8, registros 2026-09-17):
 #
 #   #674  añadió cae_app_aprovisionamiento a roles-de-cluster.sql sin paso

@@ -14,8 +14,8 @@ namespace CaeManager.Domain.Plataforma;
 /// <para>
 /// Sin esto habría que reconocer la raíz por su aspecto —<c>AdminPlataforma</c>
 /// global— y eso <b>no discrimina</b>: <c>ConcesionPrivilegio.Global</c> obliga a
-/// esa capacidad, así que toda concesión global futura tendría exactamente la
-/// misma forma y pasaría por fundacional.
+/// esa capacidad, así que toda concesión global de <c>AdminPlataforma</c>
+/// futura tendría exactamente la misma forma y pasaría por fundacional.
 /// </para>
 /// </summary>
 public enum OrigenConcesion

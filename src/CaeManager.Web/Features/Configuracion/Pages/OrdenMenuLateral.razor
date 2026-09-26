@@ -1,8 +1,10 @@
 @page "/configuracion/orden-menu"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Web.Components.Layout
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["OrdenMenuTituloDocumento"] — @Marca.Nombre</PageTitle>
 
 @* Mockup «Orden del Menu TALVEG.dc.html», aprobado por el propietario el 2026-09-23 con la
@@ -209,6 +211,7 @@
         </div>
     }
 </div>
+</LimiteDeErrores>
 
 @code {
     /// <summary>Una fila reordenable: asa (teclado y arrastre), posición, nombre, distintivos y Subir/Bajar.</summary>

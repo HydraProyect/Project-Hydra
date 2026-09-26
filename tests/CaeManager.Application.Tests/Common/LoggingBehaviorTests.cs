@@ -48,7 +48,7 @@ public class LoggingBehaviorTests
     {
         // El DNI del record no puede acabar en ningún log: sería un
         // tratamiento de datos personales fuera del inventario de
-        // RGPD-TRATAMIENTO-DATOS.md, con su retención y sus derechos.
+        // Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md, con su retención y sus derechos.
         var fabrica = new FabricaLoggerFalsa();
         var behavior = Construir<FalsoCommand, Result>(fabrica);
 
@@ -116,6 +116,26 @@ public class LoggingBehaviorTests
         var evento = fabrica.Logger.Eventos.Should().ContainSingle().Subject;
         evento.Nivel.Should().Be(LogLevel.Error);
         evento.Excepcion.Should().BeOfType<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task Pedir_credenciales_sin_2FA_se_registra_como_aviso_con_codigo_y_se_deja_subir()
+    {
+        // P1-I1: es una denegación esperada, no un fallo del sistema; como
+        // error llenaría Sentry cada vez que alguien sin 2FA pulsa «Copiar».
+        var fabrica = new FabricaLoggerFalsa();
+        var behavior = Construir<FalsaQuery, string>(fabrica);
+
+        var acto = async () => await behavior.Handle(
+            new FalsaQuery(),
+            _ => throw new SegundoFactorRequeridoParaCredencialesException(),
+            CancellationToken.None);
+
+        await acto.Should().ThrowAsync<SegundoFactorRequeridoParaCredencialesException>();
+        var evento = fabrica.Logger.Eventos.Should().ContainSingle().Subject;
+        evento.Nivel.Should().Be(LogLevel.Warning);
+        evento.Excepcion.Should().BeNull();
+        evento.Mensaje.Should().Contain("Credenciales.SegundoFactorRequerido");
     }
 
     [Fact]

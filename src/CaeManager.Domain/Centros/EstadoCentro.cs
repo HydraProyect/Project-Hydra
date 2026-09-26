@@ -24,5 +24,15 @@ public enum EstadoCentro
     /// sigue sin Cumplido. Es el peor caso posible: aunque toda la
     /// documentación esté Vigente, el acceso al Centro sigue bloqueado.
     /// </summary>
-    Bloqueado = 5
+    Bloqueado = 5,
+
+    /// <summary>
+    /// El Centro no requiere gestión CAE (<see cref="ModalidadGestionCae.SinGestionCae"/>):
+    /// no exige documentación, así que no hay nada que pueda estar al día ni
+    /// fallar. No es <see cref="Vigente"/> a propósito — un verde ahí afirmaría
+    /// un cumplimiento que nadie ha comprobado. No es un grado de gravedad: al
+    /// ordenar por gravedad va antes que <see cref="Vigente"/>
+    /// (<see cref="CalculadoraEstadoCentro.Gravedad"/>).
+    /// </summary>
+    SinGestionCae = 6
 }

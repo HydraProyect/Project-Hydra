@@ -28,6 +28,7 @@ using CaeManager.Web.Features.Facturacion;
 using CaeManager.Web.Features.Incidencias;
 using CaeManager.Web.Features.Integraciones.Endpoints;
 using CaeManager.Web.Features.Subcontratas;
+using CaeManager.Web.Features.Visitas;
 using CaeManager.Web.Features.Plataforma;
 using CaeManager.Web.Features.Tenants;
 using CaeManager.Web.Features.Trabajadores;
@@ -93,7 +94,7 @@ var rutaLogsAbsoluta = Path.IsPathRooted(rutaLogs)
 // una variable de entorno en producción" que Sentry, KMS o Backups. Sin él,
 // los logs viven solo en el volumen del contenedor y desaparecen con él, que
 // es justo lo que hace indiagnosticable un incidente (P1-10 de
-// docs/business/MATURITY_REVIEW.md). Seq acepta tanto una instancia propia
+// Project-Hydra-Negocio/MATURITY_REVIEW.md). Seq acepta tanto una instancia propia
 // como Seq cloud; la ApiKey es opcional porque una instancia sin
 // autenticación no la pide.
 var urlSeq = builder.Configuration["Serilog:Seq:ServerUrl"];
@@ -127,7 +128,7 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 // IStartupFilter y envuelve TODO el pipeline HTTP, incluido
 // app.UseExceptionHandler("/Error", ...) más abajo — captura la excepción
 // real para reportarla y la deja seguir su curso normal hacia la página de
-// error genérica ya existente (ver ARCHITECTURE.md, "Excepciones reservadas
+// error genérica ya existente (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Excepciones reservadas
 // para errores verdaderamente inesperados"). EXCEPCIÓN medida (2026-09-23,
 // ver RevalidacionClienteActivoMiddleware): una petición abortada por el
 // cliente (OperationCanceledException de contexto.RequestAborted) nunca llega
@@ -274,11 +275,11 @@ var authenticationBuilder = builder.Services
     });
 authenticationBuilder.AddIdentityCookies();
 
-// API pública (P3-29, docs/business/MATURITY_REVIEW.md) — todavía no
+// API pública (P3-29, Project-Hydra-Negocio/MATURITY_REVIEW.md) — todavía no
 // anunciada/publicada, pero completa: esquema propio para no heredar el
 // FallbackPolicy de cookie (ver policy "ApiPublica" más abajo). El tenant se
 // resuelve del claim que rellena el propio handler a partir de la clave, no
-// de un parámetro suelto — ver docs/MULTITENANCY.md § 8.
+// de un parámetro suelto — ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8.
 authenticationBuilder.AddScheme<ApiKeyAuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
     ApiKeyAuthenticationSchemeOptions.NombreEsquema, options => { });
 
@@ -351,7 +352,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddAuthorization(options =>
 {
     // Toda página/endpoint requiere sesión iniciada salvo que declare [AllowAnonymous]
-    // (como Login) — ver ARCHITECTURE.md, "Autenticación y autorización".
+    // (como Login) — ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Autenticación y autorización".
     options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();
@@ -420,7 +421,7 @@ builder.Services.AddRateLimiter(options =>
 // recibía un número.
 //
 // Ya no afecta solo a la API pública: desde el Incremento 2 del MVP1 de
-// extensión de navegador (ver ARQUITECTURA-INTEGRACIONES.md § 14 en el
+// extensión de navegador (ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en el
 // repositorio de negocio), `/extension/acreditaciones-pendientes` también
 // devuelve JSON, y esta vez sí lo consume JavaScript de verdad (el popup de
 // la extensión, en extension/popup.js) — la razón de fondo de arriba sigue
@@ -437,7 +438,7 @@ builder.Services.AddOpenApi("v1", options =>
 
 // Rate limiting por IP sobre los POST de autenticación en /cuenta/* (login
 // local, callback de Microsoft, verificación 2FA) — junto con el lockout de
-// Identity, cierra el hallazgo P0-2 de docs/business/MATURITY_REVIEW.md
+// Identity, cierra el hallazgo P0-2 de Project-Hydra-Negocio/MATURITY_REVIEW.md
 // (fuerza bruta sin fricción): el lockout protege cada cuenta concreta, este
 // límite frena el barrido de muchas cuentas distintas desde una misma IP.
 // Solo se limitan los POST — un GET a /cuenta/iniciar-sesion es simplemente
@@ -449,7 +450,7 @@ builder.Services.AddOpenApi("v1", options =>
 // la aplicación no se limita: es Blazor Server con sesión iniciada, el
 // tráfico útil viaja por el circuito SignalR, no por peticiones HTTP
 // repetidas. Limitador en memoria: suficiente mientras el techo sea 1
-// réplica (autodocumentado en ARCHITECTURE.md); con multi-réplica habría que
+// réplica (autodocumentado en Project-Hydra-Negocio/tecnico/ARCHITECTURE.md); con multi-réplica habría que
 // moverlo a un almacén compartido, igual que el resto de estado de proceso.
 // Techos configurables con los mismos valores de siempre por defecto: la
 // suite E2E hace logins reales en serie (cada login del Administrador son
@@ -509,7 +510,7 @@ builder.Services.AddRateLimiter(opciones =>
 // reales (login + interacción sostenida sobre /documentos) sin errores, con
 // ~1.8 MB de RAM marginal por circuito — la memoria no es el recurso que se
 // agota a esta escala, muy por debajo de los "10 usuarios concurrentes
-// iniciales, con crecimiento moderado" de ARCHITECTURE.md. El ajuste de abajo
+// iniciales, con crecimiento moderado" de Project-Hydra-Negocio/tecnico/ARCHITECTURE.md. El ajuste de abajo
 // no reacciona a un problema medido; es gestión preventiva de un presupuesto
 // de RAM ajustado:
 // PersistedCircuitInMemoryMaxRetained (novedad de .NET 10, estado persistido
@@ -524,7 +525,7 @@ builder.Services.AddRateLimiter(opciones =>
 //
 // Configurables (mismo patrón que RateLimiting:Cuenta:* más arriba) para
 // poder ajustarlos en producción sin recompilar si la telemetría real (una
-// vez haya observabilidad, ver RUNBOOK-HORIZONTE-0.md § 0.3) apunta a otro
+// vez haya observabilidad, ver Project-Hydra-Negocio/tecnico/RUNBOOK-HORIZONTE-0.md § 0.3) apunta a otro
 // número.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(opcionesCircuito =>
@@ -573,18 +574,35 @@ builder.Services.AddScoped<CircuitHandler>(sp => sp.GetRequiredService<CaeManage
 // de la conexión y la deja en el pool: ver la clase.
 builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.LiberacionDeAccesoADatosAlCerrarCircuito>();
 
-// Health check real (P0-5 de docs/business/MATURITY_REVIEW.md): /salud
+// Health check real (P0-5 de Project-Hydra-Negocio/MATURITY_REVIEW.md): /salud
 // respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
 // cualquier uptime check externo veía un servicio sano que no podía servir
 // ni el login. Ahora ejecuta un SELECT 1 contra la base de datos: 200
 // "Healthy" solo si el proceso vive Y la BD responde. Sigue siendo anónimo
 // y barato a propósito (es lo que sondea el healthcheck de Docker Compose y
 // el uptime check externo — ver deploy/local/docker-compose.produccion.yml).
+//
+// Con la identidad del TRÁFICO (P0-2, plan de madurez 2026-09-24), no con
+// CaeManagerDb: el contenedor "app" de staging y producción ya no recibe la
+// credencial del rol propietario —solo el "migrador" la tiene—, y /salud
+// responde por la conexión que de verdad sirve las peticiones. Misma función
+// que decide la conexión del DbContext inyectado, así que en desarrollo sin
+// CaeManagerDbRuntime sigue siendo CaeManagerDb.
 builder.Services.AddHealthChecks()
     .AddNpgSql(
-        sp => builder.Configuration.GetConnectionString("CaeManagerDb")
-            ?? throw new InvalidOperationException("Falta el connection string CaeManagerDb."),
-        name: "postgresql");
+        sp => InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico(builder.Configuration, builder.Environment),
+        name: "postgresql")
+    // P6: clave del contexto RLS firmado. Degraded, nunca Unhealthy, en la
+    // fase «expandir» (ver ClaveContextoRlsHealthCheck).
+    .Add(new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
+        "contexto-rls-clave",
+        sp => new CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRlsHealthCheck(
+            () => InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico(builder.Configuration, builder.Environment),
+            sp.GetRequiredService<IDataProtectionProvider>(),
+            sp.GetService<TimeProvider>() ?? TimeProvider.System,
+            sp.GetRequiredService<ILogger<CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRlsHealthCheck>>()),
+        failureStatus: null,
+        tags: null));
 
 // El nombre comercial se resuelve una sola vez, antes de que nada lo pinte.
 // Sin configuración se queda en el histórico; ver CaeManager.Application.Common.Marca.
@@ -592,26 +610,36 @@ CaeManager.Application.Common.Marca.Configurar(builder.Configuration["Marca:Nomb
 
 var app = builder.Build();
 
-// Modo dedicado para un paso de "pre-deploy" (ver DEPLOY.md § 4 — P2 #22 de
-// docs/business/MATURITY_REVIEW.md, una de las tres cosas que desbloquean
+// Modo dedicado para un paso de "pre-deploy" (ver Project-Hydra-Negocio/tecnico/DEPLOY.md § 4 — P2 #22 de
+// Project-Hydra-Negocio/MATURITY_REVIEW.md, una de las tres cosas que desbloquean
 // multi-réplica): aplica las migraciones pendientes y termina, sin levantar
 // Kestrel ni sembrar datos. Así el esquema se cierra una única vez, antes de
 // que arranque ninguna réplica del proceso web — no N réplicas compitiendo
 // por aplicar DDL a la vez en cada redeploy/reinicio.
 //
-// Desde REC-017/P39 SÍ está wireado: es el comando del servicio "migrador" en
-// docker-compose.produccion.yml y docker-compose.staging.yml, que corre como
-// contenedor efímero antes de que "app" arranque (`depends_on: migrador:
-// condition: service_completed_successfully`) — con Migraciones:AlArrancar en
-// false en ambos, "app" ya no vuelve a aplicar migraciones por su cuenta. La
-// topología de hoy sigue siendo de una sola réplica; el pre-deploy explícito
-// para multi-réplica queda para cuando esa réplica exista de verdad.
+// Fue el comando del servicio "migrador" de docker-compose.produccion.yml y
+// docker-compose.staging.yml desde REC-017/P39 hasta P0-2, que lo sustituyó
+// por --preparar-arranque (migrar Y sembrar, ver debajo). Sigue disponible
+// para quien solo quiera el esquema.
 if (args.Contains("--migrate-only"))
 {
     using var scopeMigracion = app.Services.CreateScope();
     await MigrarBaseDeDatosAsync(app.Configuration, scopeMigracion.ServiceProvider);
     return;
 }
+
+// Modo del servicio "migrador" de staging y producción desde P0-2 (plan de
+// madurez 2026-09-24): hace TODO lo que el arranque normal hace con la base
+// —migrar y sembrar, en el mismo orden— y termina sin levantar Kestrel. Existe
+// porque dos seeders del arranque (IdentitySeeder y el backfill de asignaciones,
+// ver FabricaContextoDeBootstrap) necesitan la identidad del rol propietario, y
+// mientras la siembra corría en "app" ese contenedor tenía que recibir la
+// credencial del superusuario postgres durante toda su vida. Con este modo, esa
+// credencial vive solo en el contenedor de un solo uso; "app" arranca con
+// Siembra:AlArrancar=false y Migraciones:AlArrancar=false y no la recibe
+// (deploy/ci-deploy-secretos.tests.sh lo vigila). La lógica es la del bloque
+// `using (var scope …)` de más abajo, no una copia: ahí se ramifica.
+var prepararArranque = args.Contains("--preparar-arranque");
 
 // Modo administrativo explícito para retirar por completo un tenant de demo
 // (ver RetiradaTenantDemoService, motivado por el incidente de siembra
@@ -622,6 +650,11 @@ if (args.Contains("--migrate-only"))
 // tenant que no esté en su allowlist de nombres de demo conocidos, empezando
 // por el de plataforma — ese rechazo es la garantía real, no esta capa de
 // entrada.
+//
+// En staging y producción se lanza con el servicio "migrador", no con "app"
+// (`docker compose run --rm migrador --retirar-tenant-demo <TenantId>`): desde
+// P0-2 es el único contenedor que recibe CaeManagerDb. Igual para
+// --retirar-demo-direccion, más abajo.
 //
 // Identidad de BOOTSTRAP (FabricaContextoDeBootstrap), no el contexto
 // inyectado: igual que AsignacionesOperativasBackfillSeeder, la retirada es
@@ -750,7 +783,7 @@ if (args.Contains(SiembraDemoDireccionAdministrativa.ArgumentoRetirar))
     return;
 }
 
-// Detrás de un proxy inverso (Caddy, ver deploy/local/Caddyfile y DEPLOY.md),
+// Detrás de un proxy inverso (Caddy, ver deploy/local/Caddyfile y Project-Hydra-Negocio/tecnico/DEPLOY.md),
 // Kestrel solo ve tráfico HTTP interno; sin esto,
 // UseHttpsRedirection/UseHsts no reconocen la petición original como HTTPS
 // y pueden entrar en bucle de redirección.
@@ -767,7 +800,7 @@ using (var scope = app.Services.CreateScope())
 {
     // Migraciones__AlArrancar=false en staging y producción desde REC-017/P39
     // (docker-compose.*.yml, servicio "migrador"): el pre-deploy de arriba
-    // (--migrate-only) ya es quien aplica el esquema en esos dos entornos, así
+    // (--preparar-arranque) ya es quien aplica el esquema en esos dos entornos, así
     // que este bloque no vuelve a tocarlo ahí. El valor por defecto (true)
     // sigue en pie para cualquier entorno que NO declare la variable — el
     // desarrollo local (docker-compose.yml, solo Postgres, sin contenedor
@@ -777,7 +810,7 @@ using (var scope = app.Services.CreateScope())
     // se escalase a varias réplicas simultáneas volvería la carrera que
     // migrate-only existe para evitar — de ahí el apagador explícito en vez
     // de dejarlo siempre encendido.
-    if (app.Configuration.GetValue("Migraciones:AlArrancar", defaultValue: true))
+    if (prepararArranque || app.Configuration.GetValue("Migraciones:AlArrancar", defaultValue: true))
     {
         await MigrarBaseDeDatosAsync(app.Configuration, scope.ServiceProvider);
     }
@@ -820,77 +853,91 @@ using (var scope = app.Services.CreateScope())
             app.Environment.EnvironmentName);
     }
 
-    // La matriz de escenarios de la demo a dirección se rechaza en Producción ANTES de
-    // cualquier siembra: con el flag activo allí, el resto de seeders de demo habrían
-    // escrito ya cuando la suya lanzara. Inerte sin DatosPrueba:EscenariosDireccion.
-    EscenariosDireccionDemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
-
-    // Identidad ADMINISTRATIVA para los dos seeders que no son trafico de
-    // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
-    // usuario, y el backfill de asignaciones es cross-tenant por diseno.
-    // Ninguno de los dos puede ejecutarse bajo un rol sometido a RLS por-tenant
-    // — ver FabricaContextoDeBootstrap, que explica los dos fallos concretos.
-    // Los demas seeders siguen con el contexto inyectado a proposito: operan
-    // dentro de un AmbitoTenantExplicito, que es lo que las politicas piden.
-    await using var dbContextBootstrap = scope.ServiceProvider
-        .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>()
-        .Crear();
-
-    // Sin sesión de usuario en el arranque no hay tenant que resolver por
-    // claim — la siembra del Administrador inicial se ejecuta explícitamente
-    // como tenant #1 (ver AmbitoTenantExplicito, docs/MULTITENANCY.md § 8.4).
-    using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
+    // Siembra:AlArrancar=false en "app" de staging y producción desde P0-2: allí
+    // siembra el servicio "migrador" con --preparar-arranque (ver el modo, más
+    // arriba), que es el único contenedor con la credencial del rol propietario
+    // que piden FabricaContextoDeBootstrap y sus dos seeders. Sin ese apagador,
+    // "app" intentaría crear el contexto de bootstrap sin CaeManagerDb y el
+    // arranque moriría. Por defecto (true) siembra aquí, como siempre: el
+    // desarrollo local y el arnés E2E no declaran la variable.
+    if (prepararArranque || app.Configuration.GetValue("Siembra:AlArrancar", defaultValue: true))
     {
-        await IdentitySeeder.SeedAsync(userManager, roleManager, userStore, logger, app.Configuration, app.Environment, dbContextBootstrap);
+        // La matriz de escenarios de la demo a dirección se rechaza en Producción ANTES de
+        // cualquier siembra: con el flag activo allí, el resto de seeders de demo habrían
+        // escrito ya cuando la suya lanzara. Inerte sin DatosPrueba:EscenariosDireccion.
+        EscenariosDireccionDemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
+
+        // Identidad ADMINISTRATIVA para los dos seeders que no son trafico de
+        // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
+        // usuario, y el backfill de asignaciones es cross-tenant por diseno.
+        // Ninguno de los dos puede ejecutarse bajo un rol sometido a RLS por-tenant
+        // — ver FabricaContextoDeBootstrap, que explica los dos fallos concretos.
+        // Los demas seeders siguen con el contexto inyectado a proposito: operan
+        // dentro de un AmbitoTenantExplicito, que es lo que las politicas piden.
+        await using var dbContextBootstrap = scope.ServiceProvider
+            .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>()
+            .Crear();
+
+        // Sin sesión de usuario en el arranque no hay tenant que resolver por
+        // claim — la siembra del Administrador inicial se ejecuta explícitamente
+        // como tenant #1 (ver AmbitoTenantExplicito, Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8.4).
+        using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
+        {
+            await IdentitySeeder.SeedAsync(userManager, roleManager, userStore, logger, app.Configuration, app.Environment, dbContextBootstrap);
+        }
+
+        // Los datos de prueba de CAE ya no se siembran en el tenant #1: en el
+        // escenario de demo de Project-Hydra-Negocio/tecnico/ADR-004-delegacion-consultoras-cae.md, el tenant
+        // #1 juega el papel de Consultora (sin datos operativos propios, § 5.1)
+        // — DelegacionDemoSeeder los siembra en un tenant Cliente Delegante
+        // nuevo y establece su propio AmbitoTenantExplicito internamente.
+        await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
+
+        // Matriz de estados de la demo a dirección — inerte salvo que
+        // DatosPrueba:EscenariosDireccion esté activo además de DatosPrueba:Activo,
+        // y lanza en Producción (ver EscenariosDireccionDemoSeeder).
+        await EscenariosDireccionDemoSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
+
+        // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
+        // navegador real (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
+        // que SegundoTenant:Activo esté configurado explícitamente.
+        await SegundoTenantSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
+
+        // Despues de TODOS los sembradores, no dentro de ninguno: la verificacion
+        // IA se reconcilia sobre los tenants de demo que ya existen, no solo sobre
+        // los que se acaban de crear. Colgarla de un camino de siembra dejo cinco
+        // de seis tenants sin encender en produccion (ver el metodo).
+        await DatosPruebaSeeder.ReconciliarVerificacionIaEnTenantsDeDemoAsync(
+            dbContext, app.Configuration, logger);
+
+        // Nivel 0 (DEC-33, REC-035): sin esto, el Nivel 1 que la reconciliación
+        // de arriba acaba de encender no basta — la instrucción documentada de
+        // tratamiento IA es el gate que se comprueba primero, y sin ella ningún
+        // tenant de demo llega a ejercitar IA de verdad. Deliberadamente solo el
+        // tenant #1 (ver el método): el segundo tenant y el Cliente Delegante de
+        // demo quedan sin instrucción, como control negativo vivo.
+        await DatosPruebaSeeder.SembrarInstruccionTratamientoIaTenantPrincipalAsync(
+            dbContext, app.Configuration, logger);
+
+        // Al final a propósito: aprovisiona la delegación de soporte —apagada—
+        // de todo tenant que exista, incluidos los que acaben de sembrarse.
+        // Idempotente, así que cubre también los tenants creados en arranques
+        // anteriores. Aprovisionar no concede acceso: abrirlo exige motivo y
+        // ventana (ver DelegacionesSoporteSeeder).
+        await DelegacionesSoporteSeeder.SeedAsync(dbContext, app.Configuration, logger);
+
+        // Después de todo lo anterior: traslada el reparto de responsabilidad
+        // operativa (delegaciones comerciales y ejecutivos de cliente) a las tablas
+        // de asignación, incluyendo los tenants que se acaben de sembrar. Es
+        // idempotente y reconciliador, así que se ejecuta en cada arranque hasta
+        // que la doble escritura quede establecida (F1 del plan de migración).
+        await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);
     }
-
-    // Los datos de prueba de CAE ya no se siembran en el tenant #1: en el
-    // escenario de demo de ADR-004-delegacion-consultoras-cae.md, el tenant
-    // #1 juega el papel de Consultora (sin datos operativos propios, § 5.1)
-    // — DelegacionDemoSeeder los siembra en un tenant Cliente Delegante
-    // nuevo y establece su propio AmbitoTenantExplicito internamente.
-    await DelegacionDemoSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
-
-    // Matriz de estados de la demo a dirección — inerte salvo que
-    // DatosPrueba:EscenariosDireccion esté activo además de DatosPrueba:Activo,
-    // y lanza en Producción (ver EscenariosDireccionDemoSeeder).
-    await EscenariosDireccionDemoSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
-
-    // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
-    // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
-    // que SegundoTenant:Activo esté configurado explícitamente.
-    await SegundoTenantSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
-
-    // Despues de TODOS los sembradores, no dentro de ninguno: la verificacion
-    // IA se reconcilia sobre los tenants de demo que ya existen, no solo sobre
-    // los que se acaban de crear. Colgarla de un camino de siembra dejo cinco
-    // de seis tenants sin encender en produccion (ver el metodo).
-    await DatosPruebaSeeder.ReconciliarVerificacionIaEnTenantsDeDemoAsync(
-        dbContext, app.Configuration, logger);
-
-    // Nivel 0 (DEC-33, REC-035): sin esto, el Nivel 1 que la reconciliación
-    // de arriba acaba de encender no basta — la instrucción documentada de
-    // tratamiento IA es el gate que se comprueba primero, y sin ella ningún
-    // tenant de demo llega a ejercitar IA de verdad. Deliberadamente solo el
-    // tenant #1 (ver el método): el segundo tenant y el Cliente Delegante de
-    // demo quedan sin instrucción, como control negativo vivo.
-    await DatosPruebaSeeder.SembrarInstruccionTratamientoIaTenantPrincipalAsync(
-        dbContext, app.Configuration, logger);
-
-    // Al final a propósito: aprovisiona la delegación de soporte —apagada—
-    // de todo tenant que exista, incluidos los que acaben de sembrarse.
-    // Idempotente, así que cubre también los tenants creados en arranques
-    // anteriores. Aprovisionar no concede acceso: abrirlo exige motivo y
-    // ventana (ver DelegacionesSoporteSeeder).
-    await DelegacionesSoporteSeeder.SeedAsync(dbContext, app.Configuration, logger);
-
-    // Después de todo lo anterior: traslada el reparto de responsabilidad
-    // operativa (delegaciones comerciales y ejecutivos de cliente) a las tablas
-    // de asignación, incluyendo los tenants que se acaben de sembrar. Es
-    // idempotente y reconciliador, así que se ejecuta en cada arranque hasta
-    // que la doble escritura quede establecida (F1 del plan de migración).
-    await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);
 }
+
+// --preparar-arranque termina aquí: esquema migrado y siembra hecha, sin Kestrel.
+if (prepararArranque)
+    return;
 
 // Registrado antes del manejo de excepciones para envolverlo por completo:
 // una petición que termina en 500 vía UseExceptionHandler se sigue
@@ -989,6 +1036,7 @@ app.MapFirmasGuardadasEndpoints();
 app.MapRequisitosDocumentalesEndpoints();
 app.MapComunicacionesEndpoints();
 app.MapSubcontratasEndpoints();
+app.MapVisitasEndpoints();
 app.MapReportesEndpoints();
 app.MapAuditoriaEndpoints();
 app.MapClienteActivoEndpoints();
@@ -1037,7 +1085,7 @@ app.Run();
 
 // Las migraciones (DDL: CreateTable, y desde HabilitarRlsPostgres además
 // ENABLE ROW LEVEL SECURITY / CREATE POLICY) exigen el rol propietario de
-// las tablas — el rol de runtime que RUNBOOK-RLS.md provisiona para
+// las tablas — el rol de runtime que Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md provisiona para
 // ConnectionStrings:CaeManagerDbRuntime no tiene privilegios de DDL a
 // propósito (es justo lo que hace que RLS lo restrinja de verdad). Por eso
 // las migraciones se aplican con una instancia propia apuntando siempre a
@@ -1057,6 +1105,16 @@ static async Task MigrarBaseDeDatosAsync(IConfiguration configuration, IServiceP
         servicios.GetRequiredService<IDataProtectionProvider>(),
         new TenantActualAmbiental());
     await dbContextMigraciones.Database.MigrateAsync();
+
+    // P6: la clave del contexto RLS firmado la registra quien tiene la
+    // identidad propietaria, y en staging y producción ese es solo el
+    // migrador. Cada ejecución registra una nueva: rota en cada despliegue, y
+    // relanzar el migrador la renueva sin desplegar.
+    await CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRls.RegistrarAsync(
+        cadenaMigraciones!,
+        servicios.GetRequiredService<IDataProtectionProvider>(),
+        CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRls.VigenciaPorDefecto,
+        CancellationToken.None);
 }
 
 namespace CaeManager.Web.Services

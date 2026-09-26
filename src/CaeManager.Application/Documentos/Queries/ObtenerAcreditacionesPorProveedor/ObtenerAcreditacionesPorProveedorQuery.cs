@@ -23,7 +23,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// de "dónde hay que subir esto" es el CanalGestionDocumental).
 ///
 /// Segundo consumidor (Incremento 2 del MVP1 de extensión de navegador, ver
-/// ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio):
+/// Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio):
 /// <c>AcreditacionesPendientesEndpoints</c> expone esta misma query sin
 /// duplicar su alcance por cartera ni su agrupación por proveedor — solo
 /// necesitó dos campos más en <see cref="AcreditacionDrillDownDto"/> que la
@@ -89,6 +89,12 @@ public record ClienteAcreditacionesDto(Guid ClienteId, string ClienteNombre, IRe
 /// que quien lo lea no necesita volver a comparar fechas ni leer el reloj por
 /// su cuenta (entre las dos lecturas podía cambiar el día).
 /// </param>
+/// <param name="UrlAccesoCanal">
+/// La dirección del portal tal como la anotó el Gestor CAE en el canal del
+/// Centro (<c>CanalGestionDocumental.UrlAcceso</c>), para «Abrir portal» desde
+/// la fila (P0-9b). Es la dirección, nunca la credencial: la credencial vive en
+/// Empresa 360 y no viaja por esta consulta.
+/// </param>
 public record AcreditacionDrillDownDto(
     Guid AcreditacionId, Guid DocumentoId, string PropietarioNombre, string TipoDocumentoNombre,
     EstadoAcreditacion Estado, string? UltimoMotivoRechazo,
@@ -96,7 +102,8 @@ public record AcreditacionDrillDownDto(
     Guid? CanalGestionDocumentalId = null, string? TrabajadorDni = null,
     EstadoVigenciaEnPlataforma EstadoVigencia = EstadoVigenciaEnPlataforma.SinConfirmar,
     DateOnly? FechaVencimientoEnPlataforma = null,
-    bool VencidaEnPlataforma = false);
+    bool VencidaEnPlataforma = false,
+    string? UrlAccesoCanal = null);
 
 public class ObtenerAcreditacionesPorProveedorQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,
@@ -136,6 +143,9 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                       && acreditacion.FechaVencimientoEnPlataforma < hoy)
             join canal in canalesQuery on acreditacion.CanalGestionDocumentalId equals canal.Id
             join centro in centrosContext.Centros on canal.CentroId equals centro.Id
+            // P1-X2: los canales que conserve un Centro sin gestión CAE no
+            // generan trabajo de acreditación (ni pendientes ni rechazos).
+            where centro.GestionCae != ModalidadGestionCae.SinGestionCae
             join documento in documentosContext.Documentos on acreditacion.DocumentoId equals documento.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new
@@ -147,6 +157,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                 acreditacion.FechaVencimientoEnPlataforma,
                 ProveedorId = canal.ProveedorPlataformaCaeId,
                 CanalGestionDocumentalId = canal.Id,
+                canal.UrlAcceso,
                 CentroId = centro.Id,
                 centro.ClienteId,
                 documento.TrabajadorId,
@@ -194,7 +205,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             : "—";
 
         // Solo un Documento de Trabajador tiene NIF/NIE que emparejar — el de
-        // Empresa no lo necesita (ARQUITECTURA-INTEGRACIONES.md § 14.5 del
+        // Empresa no lo necesita (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14.5 del
         // repositorio de negocio: la extensión empareja por NIF, nunca por
         // nombre, para no subir el documento de un trabajador a la ficha de
         // otro).
@@ -219,7 +230,8 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                                 f.CanalGestionDocumentalId, TrabajadorDni(f.TrabajadorId),
                                 f.EstadoVigencia, f.FechaVencimientoEnPlataforma,
                                 VencidaEnPlataforma: f.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
-                                                     && f.FechaVencimientoEnPlataforma < hoy))
+                                                     && f.FechaVencimientoEnPlataforma < hoy,
+                                UrlAccesoCanal: f.UrlAcceso))
                             .OrderBy(d => d.PropietarioNombre)
                             .ToList()))
                     .OrderBy(c => c.ClienteNombre)

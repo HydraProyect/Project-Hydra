@@ -1,3 +1,4 @@
+using CaeManager.Domain.Centros;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -94,6 +95,8 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
             join clienteReal in empresasContext.Empresas.Where(e => e.EsCritico != null)
                 on r.ClienteId equals clienteReal.Id
             join centro in centrosContext.Centros on clienteReal.Id equals centro.ClienteId
+            // P1-X2: un Centro sin gestión CAE no acredita nada: no se ofrece para verificar.
+            where centro.GestionCae != ModalidadGestionCae.SinGestionCae
             select new CentroSeleccionableDto(centro.Id, centro.Nombre, clienteReal.RazonSocial))
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -135,7 +138,7 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
             from centro in centrosContext.Centros
             where centroIds.Contains(centro.Id)
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
-            select new { centro.Id, centro.Nombre, ClienteRazonSocial = cliente.RazonSocial })
+            select new { centro.Id, centro.Nombre, ClienteRazonSocial = cliente.RazonSocial, centro.GestionCae })
             .ToListAsync(cancellationToken);
 
         // El portal del titular exige documentación de la empresa subcontratista
@@ -173,7 +176,10 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
 
             foreach (var tipo in tiposCandidatos)
             {
-                var exigido = ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, centro.Id, tipo.CuentaParaCumplimiento);
+                // P1-X2: sin gestión CAE nada es exigido; las verificaciones ya
+                // registradas se siguen mostrando (se conserva todo).
+                var exigido = centro.GestionCae != ModalidadGestionCae.SinGestionCae
+                    && ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, centro.Id, tipo.CuentaParaCumplimiento);
                 var tieneVerificacion = ultimaPorPar.TryGetValue((centro.Id, tipo.Id), out var ultima);
 
                 // Un tipo no exigido sin verificaciones no es una fila: el

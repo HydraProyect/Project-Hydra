@@ -23,16 +23,22 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Documentos;
 using CaeManager.Web.Features.Documentos.Components;
+using CaeManager.Web.Features.Documentos.Recursos;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Localization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.QuickGrid;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Features.Documentos.Pages;
 
-public partial class Documentos : ComponentBase, IDisposable
+public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
+    /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
+    /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
+    private bool _alcanceCero;
+
     /// <summary>
     /// Plataforma, Reclamaciones, Revisión IA y Plantillas son pestañas de
     /// gestión interna (acreditaciones, reclamaciones, revisión y aplicación
@@ -64,7 +70,7 @@ public partial class Documentos : ComponentBase, IDisposable
 
     /// <summary>
     /// Permite llegar aquí desde Alertas con un documento "faltante" (P1-15
-    /// de docs/business/MATURITY_REVIEW.md — Trabajador con Asignación activa
+    /// de Project-Hydra-Negocio/MATURITY_REVIEW.md — Trabajador con Asignación activa
     /// a un Centro que exige un TipoDocumento obligatorio, sin ningún
     /// Documento de ese tipo): abre el drawer de creación con el propietario
     /// y el tipo ya elegidos, en vez de "gestionar" un Documento que todavía
@@ -83,12 +89,20 @@ public partial class Documentos : ComponentBase, IDisposable
     [SupplyParameterFromQuery] public string? Ambito { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosDocumentos> Textos { get; set; } = default!;
 
     /// <summary>Comando del palette "Crear documento" (P3-31): /documentos?accion=crear abre el Drawer directamente.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
 
     /// <summary>Pestaña con la que abrir la página — deep-link desde otras superficies (hoy, el timeline de Comunicaciones).</summary>
     [SupplyParameterFromQuery] public string? Pestana { get; set; }
+
+    /// <summary>
+    /// Deep-link de la pestaña Plataforma a una acreditación concreta (P0-9b):
+    /// «Corregir en {plataforma}» de Mi trabajo y /bandeja llega con
+    /// <c>?pestana=plataforma&amp;acreditacionId=</c>, y la pestaña resalta su fila.
+    /// </summary>
+    [SupplyParameterFromQuery] public Guid? AcreditacionId { get; set; }
 
     private GridItemsProvider<DocumentoListaDto>? _proveedorElementos;
 
@@ -277,7 +291,7 @@ public partial class Documentos : ComponentBase, IDisposable
 
     /// <summary>
     /// Los checkboxes de fila solo se pintan con esto activo (Centro 360,
-    /// PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
+    /// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
     /// ocasional. Apagarlo limpia la selección: dejar filas marcadas que ya
     /// no se ven dejaría la barra de acciones en lote apuntando a algo
     /// invisible.
@@ -303,6 +317,7 @@ public partial class Documentos : ComponentBase, IDisposable
     private record FiltrosDocumentosJson(string? Busqueda, string? Ambito, string? Estado);
 
     private DrawerGestionDocumento _drawerGestion = default!;
+    private PlataformaTab? _plataformaTab;
 
     protected override async Task OnInitializedAsync()
     {
@@ -337,13 +352,30 @@ public partial class Documentos : ComponentBase, IDisposable
         StateHasChanged();
     }
 
-    private Task ManejarDocumentoGuardadoAsync() => RecargarAsync();
+    private async Task ManejarDocumentoGuardadoAsync()
+    {
+        // La versión corregida devuelve las acreditaciones del Documento a
+        // Pendiente de subir: la pestaña Plataforma tiene que enseñarlo ya,
+        // no la fila Rechazada que había antes de guardar. La rejilla del
+        // listado no está montada en esa pestaña (su @ref sería la de una
+        // QuickGrid ya desmontada) y se recarga sola al volver a ella.
+        if (_pestanaActiva == "plataforma" && _plataformaTab is not null)
+            await _plataformaTab.RecargarAsync();
+        else
+            await RecargarAsync();
+    }
+
+    /// <summary>
+    /// «Subir versión corregida» de una acreditación Rechazada: el mismo drawer que
+    /// «Renovar» del listado, que guarda con <c>RenovarDocumentoCommand</c>.
+    /// </summary>
+    private Task AbrirVersionCorregidaAsync(Guid documentoId) => _drawerGestion.AbrirEditarAsync(documentoId);
 
     /// <summary>
     /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
     /// compartir la URL, volver atrás) — no solo en el primer render — para
     /// que la URL sea la fuente de verdad de los tres filtros de la rejilla,
-    /// no solo su semilla inicial (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// no solo su semilla inicial (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     protected override void OnParametersSet()
     {
@@ -391,12 +423,12 @@ public partial class Documentos : ComponentBase, IDisposable
 
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
-    // H2 (docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
+    // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
 
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
     // página no cambie, así que refrescar además la rejilla pedía lo mismo dos
     // veces (ver RecargarAsync).
@@ -617,7 +649,7 @@ public partial class Documentos : ComponentBase, IDisposable
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
             }
             else
             {
@@ -734,12 +766,17 @@ public partial class Documentos : ComponentBase, IDisposable
             // texto genérico que se comía el motivo que dio el servidor.
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
             var dto = resultado.Valor;
             var completo = dto.Eliminados == pedidos.Count && dto.Errores.Count == 0;
+
+            // FS-09: el aviso ofrece «Deshacer» sobre los que sí cayeron. Sin él, la
+            // única salida era pedir a un Administrador del Tenant que los recuperase
+            // uno a uno desde Auditoría, pantalla que el resto de roles no abre.
+            IReadOnlyList<Guid> eliminados = dto.IdsEliminados ?? [];
 
             // Tres desenlaces, no dos. Un lote que borró MENOS de lo pedido no
             // es un éxito aunque no traiga ni un error: la lista de errores no
@@ -751,13 +788,14 @@ public partial class Documentos : ComponentBase, IDisposable
                     : dto.Eliminados == 0
                         ? $"No se eliminó ningún documento de los {pedidos.Count} seleccionados.{DetalleDeErrores(dto.Errores)}"
                         : $"{dto.Eliminados} de {pedidos.Count} eliminado(s); el resto sigue en la lista.{DetalleDeErrores(dto.Errores)}",
-                completo ? TonoToast.Exito : dto.Eliminados == 0 ? TonoToast.Error : TonoToast.Advertencia);
+                completo ? TonoToast.Exito : dto.Eliminados == 0 ? TonoToast.Error : TonoToast.Advertencia,
+                eliminados.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
+                eliminados.Count > 0 ? () => DeshacerEliminarLoteAsync(eliminados) : null);
 
-            // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
-            // si cayó alguno, se retiran las fichas de todos los pedidos, también la de un superviviente
-            // (con su edición sin guardar, si la tenía). Se prefiere pasarse de retirar a dejar abierta una ficha muerta.
+            // Se retiran solo las fichas de los que cayeron (IdsEliminados); un
+            // superviviente conserva la suya, con su edición sin guardar si la tenía.
             if (dto.Eliminados > 0)
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Documento, pedidos);
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Documento, dto.IdsEliminados ?? pedidos);
 
             // Ver el comentario del borrado individual. Aquí además se
             // vaciaba la selección, que al cambiar de contexto ya es la que
@@ -777,6 +815,40 @@ public partial class Documentos : ComponentBase, IDisposable
         {
             if (ContextoSigueSiendo(contexto))
                 _eliminandoLote = false;
+        }
+    }
+
+    /// <summary>
+    /// FS-09 (auditoría UX de flujos sin salida, 2026-09-24): «Deshacer» del aviso
+    /// de una eliminación en lote. Restaura los que el lote sí eliminó, uno a uno
+    /// con <see cref="RestaurarDocumentoCommand"/>, como el borrado individual.
+    /// </summary>
+    private bool _restaurandoLote;
+
+    private async Task DeshacerEliminarLoteAsync(IReadOnlyList<Guid> ids)
+    {
+        if (_desechado || _restaurandoLote)
+            return;
+
+        _restaurandoLote = true;
+        var token = _ciclo.Token;
+
+        try
+        {
+            var r = await RestauracionEnLote.RestaurarAsync(ids, id => Mediator.Send(new RestaurarDocumentoCommand(id), token));
+
+            ToastService.Mostrar(
+                r.Errores.Count == 0
+                    ? Textos["ToastLoteRestaurados", r.Restaurados].Value
+                    : Textos["ToastLoteRestauradosConErrores", r.Restaurados, r.Errores.Count, string.Join(" ", r.Errores)].Value,
+                r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (r.Restaurados > 0)
+                await RecargarAsync();
+        }
+        finally
+        {
+            _restaurandoLote = false;
         }
     }
 
@@ -882,7 +954,7 @@ public partial class Documentos : ComponentBase, IDisposable
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -914,7 +986,7 @@ public partial class Documentos : ComponentBase, IDisposable
         var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(id), token);
         if (resultado.EsFallido)
         {
-            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            ToastService.MostrarError(resultado.Error);
             return;
         }
 
