@@ -189,6 +189,33 @@
     }
 
     /// <summary>Un <c>ctx</c> corrupto (enlace viejo, tipo retirado) se ignora en silencio: mejor la página sin panel que un error.</summary>
+    /// <summary>
+    /// P1-E2b: si de <paramref name="actual"/> a <paramref name="destino"/> solo cambia la
+    /// pestaña de la misma ficha del Context Workspace (el <c>?ctx=</c> que escribe
+    /// ActualizarUrlDesdeEstado tras un cambio de pestaña). Esa navegación no es salir de
+    /// nada: AvisoCambiosSinGuardar la deja pasar. Abrir otra ficha, cerrar el panel o
+    /// cambiar cualquier otra cosa de la URL sí es salir.
+    /// </summary>
+    public static bool EsSoloCambioDePestana(Uri actual, Uri destino)
+    {
+        if (!string.Equals(actual.GetLeftPart(UriPartial.Path), destino.GetLeftPart(UriPartial.Path), StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var consultaActual = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(actual.Query);
+        var consultaDestino = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(destino.Query);
+
+        if (!consultaActual.TryGetValue(ParametroCtx, out var ctxActual)
+            || !consultaDestino.TryGetValue(ParametroCtx, out var ctxDestino)
+            || !TryParsearCtx(ctxActual.ToString(), out var tipoActual, out var idActual, out var pestanaActual)
+            || !TryParsearCtx(ctxDestino.ToString(), out var tipoDestino, out var idDestino, out var pestanaDestino)
+            || tipoActual != tipoDestino || idActual != idDestino || pestanaActual == pestanaDestino)
+            return false;
+
+        var restoActual = consultaActual.Where(p => p.Key != ParametroCtx).OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}");
+        var restoDestino = consultaDestino.Where(p => p.Key != ParametroCtx).OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}");
+        return restoActual.SequenceEqual(restoDestino);
+    }
+
     private static bool TryParsearCtx(string ctx, out EntidadWorkspace tipo, out Guid entidadId, out string pestana)
     {
         tipo = default;
