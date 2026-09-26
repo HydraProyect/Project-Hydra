@@ -183,6 +183,13 @@ public class VerificacionIaDocumentoService(
         // termine. Una decisión manual siempre prevalece sobre la automática.
         return await transaccion.EjecutarAsync(documentoId, async (versionActual, ct) =>
         {
+            // Idempotencia ante la estrategia de reintentos: si un intento
+            // anterior llegó a confirmar (commit ambiguo) y la operación se
+            // repite, lo escrito ya está y no se vuelve a escribir — ni se
+            // confunde la revisión propia, ya pendiente, con una ajena.
+            if (await YaSeAplicoAsync(aprobacion, revision, ct))
+                return (string?)null;
+
             var motivoDescarte = await MotivoDescarteAsync(encargo, versionActual, ct);
             if (motivoDescarte is not null)
                 return motivoDescarte;
@@ -222,6 +229,11 @@ public class VerificacionIaDocumentoService(
             return (string?)null;
         }, cancellationToken);
     }
+
+    private Task<bool> YaSeAplicoAsync(AprobacionDocumento? aprobacion, RevisionIaDocumento? revision, CancellationToken cancellationToken) =>
+        aprobacion is not null
+            ? documentosContext.AprobacionesDocumento.AnyAsync(a => a.Id == aprobacion.Id, cancellationToken)
+            : documentosContext.RevisionesIaDocumento.AnyAsync(r => r.Id == revision!.Id, cancellationToken);
 
     /// <summary>
     /// Por qué el resultado de esta verificación ya no puede aplicarse, o
