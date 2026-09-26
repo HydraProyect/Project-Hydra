@@ -3,6 +3,7 @@
 @attribute [Authorize(Policy = CaeManager.Infrastructure.Identity.Policies.ConsultarAccesoDocumentosSensibles)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 
+<LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Accesos a documentos sensibles — @Marca.Nombre</PageTitle>
@@ -126,3 +127,4 @@
                           OpcionesTamanoPagina="TamanosPagina" />
     }
 </div>
+</LimiteDeErrores>

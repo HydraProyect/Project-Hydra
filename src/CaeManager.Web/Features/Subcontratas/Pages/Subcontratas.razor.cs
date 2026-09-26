@@ -20,7 +20,7 @@ using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Subcontratas.Pages;
 
-public partial class Subcontratas : ComponentBase
+public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva
 {
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>

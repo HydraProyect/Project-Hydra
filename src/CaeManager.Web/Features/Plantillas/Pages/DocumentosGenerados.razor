@@ -1,8 +1,10 @@
 @page "/plantillas/documentos-generados"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Web.Features.Plantillas.Components
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Documentos generados — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -20,3 +22,4 @@
 
     <DocumentosGeneradosPanel />
 </div>
+</LimiteDeErrores>

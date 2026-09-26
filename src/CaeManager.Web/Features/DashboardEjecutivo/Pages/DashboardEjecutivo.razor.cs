@@ -34,7 +34,7 @@ namespace CaeManager.Web.Features.DashboardEjecutivo.Pages;
 /// de una carga que ya no es la vigente no toca el estado, ni datos ni error.
 /// </para>
 /// </summary>
-public partial class DashboardEjecutivo : ComponentBase, IDisposable
+public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     /// <summary>
     /// El producto es monolingüe: el nombre del mes del rótulo de periodo no

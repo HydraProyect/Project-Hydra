@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 
 namespace CaeManager.Web.Features.Configuracion.Pages;
 
-public partial class Configuracion : ComponentBase
+public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
 {
     [Parameter]
     public string? EntradaRuta { get; set; }

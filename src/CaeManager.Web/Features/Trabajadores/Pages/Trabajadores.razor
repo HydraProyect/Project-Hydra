@@ -1,5 +1,6 @@
 @page "/trabajadores"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Trabajadores.Commands.CrearTrabajador
 @using CaeManager.Application.Trabajadores.Commands.EditarTrabajador
@@ -24,6 +25,7 @@
 @inject ICurrentUserService CurrentUserService
 @inject ContextWorkspaceService WorkspaceService
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@TituloPagina — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -401,3 +403,4 @@
         <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">@Textos["BotonGuardar"]</Boton>
     </Pie>
 </Modal>
+</LimiteDeErrores>

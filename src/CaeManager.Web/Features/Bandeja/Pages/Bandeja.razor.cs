@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Bandeja.Pages;
 
-public partial class Bandeja : ComponentBase, IDisposable
+public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 

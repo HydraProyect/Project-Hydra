@@ -3,9 +3,8 @@
 @using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
-@inject ILogger<LimiteDeErrores> Logger
-@inject IAlertaOperativa AlertaOperativa
-@inject IStringLocalizer<TextosComunes> Comunes
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProvider Servicios
 @inject NavigationManager Navigation
 
 @*
@@ -26,32 +25,45 @@
     ella en ese árbol. Por eso el de MainLayout cubre el renderizado estático (y el
     prerenderizado), y las regiones interactivas llevan el suyo propio (ContextWorkspace).
 
+    Para eso (P1-E1b) toda página InteractiveServer hereda de PaginaInteractiva y envuelve
+    su marcado entero en <LimiteDeErrores Pagina="this">: el límite contiene lo que falle
+    al pintar ese marcado y en los hijos, y la base contiene lo que lanza la propia página
+    (ciclo de vida y manejadores), que ningún límite interior puede ver. Cuando la página
+    ha fallado, este límite muestra el aviso y el reintento recarga la página entera.
+
     El aviso nunca enseña el mensaje de la excepción ni su tipo: puede llevar datos del
     Tenant propietario o detalles internos. Esos van al log y a Sentry, no a la pantalla.
+
+    El log, Sentry y los textos se piden al proveedor de servicios solo al fallar: este
+    límite envuelve páginas enteras, y lo que necesita para el aviso no puede ser una
+    precondición para pintar una página sana.
 *@
 
-@if (CurrentException is null)
+@if (CurrentException is null && Pagina?.FalloDePagina != true)
 {
     @ChildContent
 }
 else
 {
+    var comunes = Servicios.GetRequiredService<IStringLocalizer<TextosComunes>>();
     <div class="limite-errores" role="alert" data-limite-errores>
         <EstadoVacio NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)"
-                     Titulo="@Comunes["LimiteErroresTitulo"]"
-                     Descripcion="@Comunes["LimiteErroresDescripcion"]">
+                     Titulo="@comunes["LimiteErroresTitulo"]"
+                     Descripcion="@comunes["LimiteErroresDescripcion"]">
             <Accion>
-                @if (RendererInfo.IsInteractive)
+                @if (RendererInfo.IsInteractive && Pagina?.FalloDePagina != true)
                 {
-                    <Boton Variante="VarianteBoton.Secundario" OnClick="Recover">@Comunes["Reintentar"]</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="Recover">@comunes["Reintentar"]</Boton>
                 }
                 else
                 {
                     @* Pintado en estático (el límite de MainLayout, o un prerenderizado) no hay
-                       circuito que reciba un @onclick: el reintento es volver a pedir la página
-                       entera. Enlace y no OnClickScript, porque la CSP (script-src 'self', ver
-                       CabecerasSeguridadExtensions) bloquea los manejadores inline. *@
-                    <Boton Variante="VarianteBoton.Secundario" Href="@Navigation.Uri" data-enhance-nav="false">@Comunes["Reintentar"]</Boton>
+                       circuito que reciba un @onclick; y si lo que falló es la propia página
+                       (Pagina.FalloDePagina), su estado no es de fiar. En los dos casos el
+                       reintento es volver a pedir la página entera. Enlace y no un onclick en
+                       línea, porque la CSP (script-src 'self', ver CabecerasSeguridadExtensions)
+                       bloquea los manejadores inline. *@
+                    <Boton Variante="VarianteBoton.Secundario" Href="@Navigation.Uri" data-enhance-nav="false">@comunes["Reintentar"]</Boton>
                 }
             </Accion>
         </EstadoVacio>
@@ -59,17 +71,34 @@ else
 }
 
 @code {
+    /// <summary>
+    /// La página InteractiveServer que envuelve este límite (P1-E1b). Si su ciclo de vida o
+    /// un manejador suyo lanzó (<see cref="PaginaInteractiva.FalloDePagina"/>), el límite
+    /// muestra el aviso aunque su propio contenido no haya fallado.
+    /// </summary>
+    [Parameter] public PaginaInteractiva? Pagina { get; set; }
+
     protected override Task OnErrorAsync(Exception exception)
+    {
+        Registrar(Servicios, exception);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Log y Sentry de un fallo contenido — la vía única del límite y de
+    /// <see cref="PaginaInteractiva"/>.
+    /// </summary>
+    internal static void Registrar(IServiceProvider servicios, Exception excepcion)
     {
         // El tipo y la pila van al log y a Sentry, que es donde se diagnostican; la
         // plantilla no interpola el mensaje de la excepción para no copiarlo a un
         // campo estructurado más.
-        Logger.LogError(exception, "Excepción no controlada contenida por un límite de errores de la interfaz.");
+        servicios.GetRequiredService<ILogger<LimiteDeErrores>>()
+            .LogError(excepcion, "Excepción no controlada contenida por un límite de errores de la interfaz.");
 
         // Serilog sustituye a los proveedores de ILogger (UseSerilog, Program.cs), así
         // que el LogError de arriba no llega al proveedor de Sentry: la captura es
         // explícita, por la única vía de alerta operativa que ya existe.
-        AlertaOperativa.CapturarExcepcion(exception);
-        return Task.CompletedTask;
+        servicios.GetRequiredService<IAlertaOperativa>().CapturarExcepcion(excepcion);
     }
 }

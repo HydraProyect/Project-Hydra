@@ -33,7 +33,7 @@ namespace CaeManager.Web.Features.Configuracion.Pages;
 /// es <see cref="GuardarOrdenMenuLateralCommand"/> en Application y la RLS de la tabla.
 /// </para>
 /// </summary>
-public partial class OrdenMenuLateral : ComponentBase
+public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteractiva
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;

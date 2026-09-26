@@ -1,5 +1,6 @@
 @page "/mi-firma"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Documentos.Commands.GuardarFirmaGuardadaUsuario
 @using CaeManager.Application.Documentos.Queries.ObtenerFirmaGuardadaUsuario
@@ -10,6 +11,7 @@
 @inject IJSRuntime JSRuntime
 @inject ILogger<MiFirma> Logger
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Mi firma — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -166,3 +168,4 @@
         </div>
     }
 </div>
+</LimiteDeErrores>

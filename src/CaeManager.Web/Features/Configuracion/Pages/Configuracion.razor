@@ -1,11 +1,13 @@
 @page "/configuracion/{EntradaRuta?}"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @using CaeManager.Web.Features.Configuracion.Components
 @using CaeManager.Web.Features.Configuracion.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosConfiguracion> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@TituloDocumento — @Marca.Nombre</PageTitle>
 
 @{
@@ -94,6 +96,7 @@
         </div>
     </div>
 </div>
+</LimiteDeErrores>
 
 @code {
     private string GrupoDe(string entradaId) =>

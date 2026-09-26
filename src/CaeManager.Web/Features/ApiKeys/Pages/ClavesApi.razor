@@ -3,6 +3,7 @@
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 
+<LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Claves API — @Marca.Nombre</PageTitle>
@@ -70,3 +71,4 @@
 </Modal>
 
 <DialogoConfirmacion Visible="@(_claveARevocar is not null)" VisibleChanged="CerrarRevocacion" Titulo="Revocar la clave" Mensaje="@MensajeRevocacion" TextoBotonConfirmar="Revocar" EnProgreso="_revocando" OnConfirmar="RevocarAsync" />
+</LimiteDeErrores>

@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Alertas.Pages;
 
-public partial class Alertas : ComponentBase
+public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
 {
     private int _tamanoPagina = 20;
 

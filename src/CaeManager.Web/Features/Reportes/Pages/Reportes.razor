@@ -1,11 +1,13 @@
 @page "/reportes"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Reportes.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosReportes> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 @*
@@ -291,3 +293,4 @@
 
 <RedactarMensajeDrawer Visible="_composerVisible" VisibleChanged="v => _composerVisible = v"
                        AsuntoInicial="@TituloGenerado" Adjunto="_adjuntoInforme" />
+</LimiteDeErrores>

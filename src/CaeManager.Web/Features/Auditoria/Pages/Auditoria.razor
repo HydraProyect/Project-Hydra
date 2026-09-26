@@ -3,6 +3,7 @@
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 
+<LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Auditoría — @Marca.Nombre</PageTitle>
@@ -165,3 +166,4 @@
                           PaginaActualChanged="IrAPaginaAsync" />
     }
 </div>
+</LimiteDeErrores>

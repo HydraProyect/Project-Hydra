@@ -36,7 +36,7 @@ namespace CaeManager.Web.Features.Extension.Pages;
 /// <see cref="Services.TenantActual"/>).
 /// </para>
 /// </summary>
-public partial class ConectarExtension : ComponentBase, IAsyncDisposable
+public partial class ConectarExtension : CaeManager.Web.Components.PaginaInteractiva, IAsyncDisposable
 {
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Calendario.Pages;
 
-public partial class Calendario : ComponentBase
+public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
 {
     // Rejilla en lunes: las claves van en ese orden. Los nombres salen del
     // recurso y no de DateTimeFormat.AbbreviatedDayNames, que en es-ES da

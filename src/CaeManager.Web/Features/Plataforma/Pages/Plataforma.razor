@@ -1,5 +1,6 @@
 @page "/configuracion/plataforma"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio
 @using CaeManager.Application.Plataforma.Queries.ObtenerSesionPrivilegiadaPorId
@@ -18,6 +19,7 @@
 @inject AntiforgeryStateProvider AntiforgeryStateProvider
 @implements IDisposable
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Administración global — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina administracion-global">
@@ -356,6 +358,7 @@
         </Boton>
     </Pie>
 </Modal>
+</LimiteDeErrores>
 
 @code {
     private CancellationTokenSource? _ciclo;

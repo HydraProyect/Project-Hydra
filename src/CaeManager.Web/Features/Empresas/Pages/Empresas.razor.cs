@@ -17,7 +17,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Empresas.Pages;
 
-public partial class Empresas : ComponentBase, IDisposable
+public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>

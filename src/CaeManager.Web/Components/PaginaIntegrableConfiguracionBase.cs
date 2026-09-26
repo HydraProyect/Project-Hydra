@@ -7,7 +7,7 @@ namespace CaeManager.Web.Components;
 /// componente dentro del hub de Configuración, sin duplicar lógica ni envolver
 /// el contenido con el padding y el título de una página completa.
 /// </summary>
-public abstract class PaginaIntegrableConfiguracionBase : ComponentBase
+public abstract class PaginaIntegrableConfiguracionBase : PaginaInteractiva
 {
     [Parameter]
     public bool IntegradaEnConfiguracion { get; set; }

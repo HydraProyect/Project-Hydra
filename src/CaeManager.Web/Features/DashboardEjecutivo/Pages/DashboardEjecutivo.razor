@@ -1,11 +1,13 @@
 @page "/dashboard-ejecutivo"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Dashboard.Catalogo
 @using CaeManager.Web.Features.DashboardEjecutivo.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosDashboardEjecutivo> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 @*
@@ -389,3 +391,4 @@
         }
     }
 </div>
+</LimiteDeErrores>

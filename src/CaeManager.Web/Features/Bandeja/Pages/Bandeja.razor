@@ -1,5 +1,6 @@
 @page "/bandeja"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada
 @using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
@@ -11,6 +12,7 @@
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 
+<LimiteDeErrores Pagina="this">
 @* "Mi trabajo" en vez de "Bandeja" — ver el enlace «mi-trabajo» de CatalogoMenuLateral
    (H3, decisión provisional 2026-08-13). La ruta sigue siendo /bandeja.
 
@@ -130,3 +132,4 @@
                        AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
                        AmbitoInicial="_ambitoPreseed" EntidadIdInicial="_entidadIdPreseed"
                        OnReclamacionEnviada="CargarAsync" />
+</LimiteDeErrores>

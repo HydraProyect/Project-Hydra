@@ -5,6 +5,7 @@
 *@
 @page "/centros/{CentroId:guid}"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Centros
 @using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro
@@ -16,6 +17,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosCentros> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.Nombre ?? "Centro") — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -293,3 +295,4 @@
         </div>
     }
 </div>
+</LimiteDeErrores>

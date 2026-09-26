@@ -1,5 +1,6 @@
 @page "/clientes"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = CaeManager.Web.Features.Comunicaciones.RolesComunicaciones.Gestion)]
 @using CaeManager.Application.Clientes.Commands.CrearCliente
 @using CaeManager.Application.Clientes.Commands.EditarCliente
@@ -20,6 +21,7 @@
 @inject ICurrentUserService CurrentUserService
 @inject ContextWorkspaceService WorkspaceService
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Clientes — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -407,4 +409,5 @@
         <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
     </Pie>
 </Modal>
+</LimiteDeErrores>
 

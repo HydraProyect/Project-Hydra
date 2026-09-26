@@ -45,7 +45,7 @@ namespace CaeManager.Web.Features.Empresas.Pages;
 /// no son de ningún trabajador.
 /// </para>
 /// </summary>
-public partial class EmpresaDetalle : ComponentBase, IDisposable
+public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     internal const string PestanaTrabajadores = "trabajadores";
     internal const string PestanaClientes = "clientes";

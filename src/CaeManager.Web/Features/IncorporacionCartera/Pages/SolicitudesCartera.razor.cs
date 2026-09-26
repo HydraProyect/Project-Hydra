@@ -19,7 +19,7 @@ namespace CaeManager.Web.Features.IncorporacionCartera.Pages;
 /// nueva y revoca las que tiene aceptadas. Qué ve cada uno lo decide la Query
 /// por su rol en su propia organización, no esta página.
 /// </summary>
-public partial class SolicitudesCartera : ComponentBase
+public partial class SolicitudesCartera : CaeManager.Web.Components.PaginaInteractiva
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService Toasts { get; set; } = default!;

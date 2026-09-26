@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Integraciones.Pages;
 
-public partial class ConectoresCae : ComponentBase
+public partial class ConectoresCae : CaeManager.Web.Components.PaginaInteractiva
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
 

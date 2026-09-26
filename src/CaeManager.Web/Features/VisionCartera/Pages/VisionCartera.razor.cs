@@ -25,7 +25,7 @@ namespace CaeManager.Web.Features.VisionCartera.Pages;
 /// carga que ya no es la vigente no toca el estado.
 /// </para>
 /// </summary>
-public partial class VisionCartera : ComponentBase, IDisposable
+public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     /// <summary>Mismos cortes que el tono del cumplimiento en el resto de la pantalla: verde desde 90, ámbar desde 70.</summary>
     private const int UmbralVerde = 90;

@@ -1,5 +1,6 @@
 @page "/gestiones"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Gestiones.Commands.CompletarGestion
 @using CaeManager.Application.Gestiones.Commands.EliminarGestion
@@ -16,6 +17,7 @@
 @inject ContextWorkspaceService WorkspaceService
 @inject IStringLocalizer<TextosGestiones> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -224,3 +226,4 @@
     Mensaje="@Textos["DialogoEliminarMensaje"]"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+</LimiteDeErrores>

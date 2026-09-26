@@ -1,11 +1,13 @@
 @page "/facturacion"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}")]
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
 @using CaeManager.Application.Facturacion.Queries.ObtenerTarifasCliente
 @using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion
 @using CaeManager.Domain.Facturacion
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Facturación — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -378,3 +380,4 @@
         }
     }
 </div>
+</LimiteDeErrores>

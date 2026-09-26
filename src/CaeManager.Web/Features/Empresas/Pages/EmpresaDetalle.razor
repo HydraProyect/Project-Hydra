@@ -5,6 +5,7 @@
 *@
 @page "/empresas/{EmpresaId:guid}"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using CaeManager.Domain.Documentos
@@ -16,6 +17,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosEmpresas> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.RazonSocial ?? Textos["TituloPestanaNavegador"]) — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -263,6 +265,7 @@
         </CuerpoConLateral>
     }
 </div>
+</LimiteDeErrores>
 
 @code {
     private RenderFragment PestanaDeTrabajadores => __builder =>

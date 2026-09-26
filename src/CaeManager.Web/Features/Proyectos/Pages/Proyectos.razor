@@ -1,5 +1,6 @@
 ﻿@page "/proyectos"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
@@ -12,6 +13,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosProyectos> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -420,6 +422,7 @@
     Mensaje="@Textos["ConfirmarEliminarMensaje", _nombreAEliminar]"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+</LimiteDeErrores>
 
 @code {
     // De instancia, no static: las etiquetas salen del localizador inyectado.
