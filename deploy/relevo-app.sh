@@ -309,7 +309,13 @@ desplegar() {
     # cerrojo, que tiene este despliegue, y si su contenedor se recrea, lo
     # detecta por el Id y termina.
     previas="$(ranuras_en_fichero "$entorno" | grep -vx -- "${activa_:-<ninguna>}" || true)"
-    if [ -n "$activa_" ] && sana "$activa_" && [[ $'\n'"$previas"$'\n' == *$'\n'"$cont_nueva"$'\n'* ]]; then
+    # Sin aprobado no se recarga aquí: esa recarga haría el arranque del
+    # aprobado desde el checkout ANTES de saber si el up va bien (revisión de
+    # Codex, pasada 4). La ranura libre se recrea igual; mientras, la cookie
+    # vieja reintenta en la activa, y el arranque del aprobado queda para la
+    # conmutación, tras un up sano.
+    if [ -n "$activa_" ] && sana "$activa_" && [ -f "$(caddyfile_aprobado)" ] \
+            && [[ $'\n'"$previas"$'\n' == *$'\n'"$cont_nueva"$'\n'* ]]; then
         escribir_ranuras "$entorno" "$activa_" \
             $(printf '%s\n' "$previas" | grep -vx -- "$cont_nueva" | awk 'NR == 1')
         # Con el aprobado, no con el del checkout: esta recarga solo cambia

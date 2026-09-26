@@ -329,6 +329,12 @@ comprobar "sacar la ranura libre antes del up recarga el APROBADO; si el up fall
   "1 FUENTE MARCA_APROBADO 0 1" \
   "$codigo $(grep '^FUENTE' "$LOG" | sort -u | tr '\n' ' ' | sed 's/ $//') $(grep -c 'MARCA_CHECKOUT' "$DIR_RANURAS/Caddyfile.aprobado") $(grep -c 'MARCA_APROBADO' "$DIR_RANURAS/Caddyfile.aprobado")"
 
+limpio; contenedor caemanager-app-verde "$B"; contenedor caemanager-app-azul "$A"
+fichero produccion "to caemanager-app-verde:8080 caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo COMPOSE_FALLA=1 -- desplegar produccion "$C"
+comprobar "sin aprobado, no hay recarga previa al up: si el up falla, ni Caddy ni el aprobado cambian" "1 0 no" \
+  "$codigo $(grep -c '^FUENTE' "$LOG") $([ -f "$DIR_RANURAS/Caddyfile.aprobado" ] && echo si || echo no)"
+
 echo "fallos que antes acababan en éxito (errexit no actúa a la izquierda de || y &&)"
 limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
 relevo SYSTEMD_FALLA=1 -- desplegar produccion "$B"
