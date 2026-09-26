@@ -905,4 +905,67 @@ public class VisitasGen2Tests : BunitContext
             .First(p => p.TextContent.Contains("Aviso recibido")).TextContent;
         textoAntelacion.Should().NotContain("empresa titular");
     }
+
+    private async Task AbrirNuevaVisitaAsync(IRenderedComponent<Visitas> cut) =>
+        await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
+
+    /// <summary>
+    /// P1-E2: con el drawer de alta a medias (unas notas escritas), salir por la aplicación
+    /// se detiene y pregunta. «Seguir editando» conserva el formulario tal cual; «Salir y
+    /// descartar» repite la navegación sin volver a preguntar.
+    /// </summary>
+    [Fact]
+    public async Task Salir_con_el_formulario_a_medias_pregunta_y_deja_seguir_editando()
+    {
+        var cut = Renderizar(new MediatorVisitas());
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var origen = navegacion.Uri;
+        await AbrirNuevaVisitaAsync(cut);
+        await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Acceso por la puerta 3" });
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos"));
+
+        navegacion.Uri.Should().Be(origen, "con cambios sin guardar la navegación se detiene");
+        cut.Find(".modal-contenido").TextContent.Should().Contain("¿Salir sin guardar?");
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".modal-contenido").Should().BeEmpty();
+        navegacion.Uri.Should().Be(origen);
+        cut.FindComponents<CampoTextarea>().Should().Contain(c => c.Instance.Valor == "Acceso por la puerta 3", "el formulario sigue donde estaba");
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos"));
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Salir y descartar").ClickAsync(new MouseEventArgs());
+
+        navegacion.Uri.Should().EndWith("/documentos", "confirmar la salida repite la navegación sin volver a preguntar");
+        cut.FindAll(".drawer-panel").Should().BeEmpty(
+            "si la navegación no desmonta la página (otros filtros en la URL), el drawer descartado no puede quedar abierto");
+    }
+
+    /// <summary>
+    /// P1-E2, la otra mitad: abrir el formulario sin tocar nada, o cerrarlo con algo escrito,
+    /// no deja nada que perder — salir no pregunta. Sin esto el aviso saltaría siempre y
+    /// enseñaría a descartarlo sin leer.
+    /// </summary>
+    [Fact]
+    public async Task Salir_sin_cambios_o_con_el_drawer_cerrado_no_pregunta()
+    {
+        var cut = Renderizar(new MediatorVisitas());
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await AbrirNuevaVisitaAsync(cut);
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos"));
+
+        navegacion.Uri.Should().EndWith("/documentos", "abrir el formulario sin escribir nada no es un cambio");
+        cut.FindAll(".modal-contenido").Should().BeEmpty();
+
+        await AbrirNuevaVisitaAsync(cut);
+        await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Acceso por la puerta 3" });
+        await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/visitas"));
+
+        navegacion.Uri.Should().EndWith("/visitas", "con el drawer cerrado ya no hay formulario que perder");
+        cut.FindAll(".modal-contenido").Should().BeEmpty();
+    }
 }

@@ -95,6 +95,8 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
         Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
         Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        // AvisoCambiosSinGuardar (P1-E2) saca sus textos de IStringLocalizer<TextosComunes>.
+        Services.AddLocalization();
 
         return Render<DrawerGestionDocumento>();
     }

@@ -622,3 +622,9 @@
     OnConfirmar="ConfirmarCancelarLoteAsync">
     <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v" Filas="2" />
 </DialogoConfirmacion>
+
+@* Confirmar la salida cierra el drawer: una navegación que no desmonta la página (otros
+   filtros en la URL) lo dejaría abierto con lo ya descartado.
+   Va al final del marcado: con el mismo z-index que los demás diálogos, el último
+   del DOM queda encima y la pregunta nunca se esconde detrás de otro. *@
+<AvisoCambiosSinGuardar HayCambios="HayCambiosSinGuardar" AlDescartar="() => CerrarDrawerAsync(false)" />

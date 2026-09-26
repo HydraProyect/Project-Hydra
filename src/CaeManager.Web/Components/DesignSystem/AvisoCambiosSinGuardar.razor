@@ -1,0 +1,100 @@
+@using CaeManager.Web.Recursos
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+@inject NavigationManager Navegacion
+
+@*
+    Aviso de cambios sin guardar (P1-E2): el único sitio de la aplicación que monta un
+    NavigationLock (lo vigila NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests).
+
+    Cada formulario decide una sola cosa, HayCambios, con un único punto de verdad propio
+    (normalmente: el estado actual del formulario comparado con una instantánea tomada al
+    abrirlo). Lo demás es de aquí:
+    - salir por la aplicación (menú lateral, miga, enlace, NavigateTo) con cambios se
+      detiene y pregunta; «Seguir editando» se queda donde estaba y «Salir y descartar»
+      repite la navegación ya sin volver a preguntar;
+    - recargar o cerrar la pestaña con cambios dispara el aviso del propio navegador
+      (ConfirmExternalNavigation), que no admite texto propio.
+
+    Solo funciona en componentes interactivos: en una página estática (las de cuenta y
+    2FA) no hay circuito que reciba el evento de navegación.
+
+    Qué NO cubre: cerrar el drawer o el modal que contiene el formulario (la X, Escape o
+    «Cancelar») no es navegar. Ese cierre lo gobierna cada Drawer/Modal con
+    CerrarAlHacerClicFuera.
+*@
+
+<NavigationLock OnBeforeInternalNavigation="AntesDeSalirAsync" ConfirmExternalNavigation="HayCambios" />
+
+<Modal Visible="_preguntando" VisibleChanged="v => { if (!v) SeguirEditando(); }" Titulo="@(Titulo ?? Comunes["CambiosSinGuardarTitulo"])">
+    <ChildContent>
+        <p>@(Mensaje ?? Comunes["CambiosSinGuardarMensaje"])</p>
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="SeguirEditando">@(TextoSeguir ?? Comunes["CambiosSinGuardarSeguir"])</Boton>
+        <Boton Variante="VarianteBoton.Destructivo" OnClick="SalirDescartandoAsync">@(TextoDescartar ?? Comunes["CambiosSinGuardarDescartar"])</Boton>
+    </Pie>
+</Modal>
+
+@code {
+    /// <summary>
+    /// Si el formulario tiene algo escrito que se perdería al salir. Es el único dato
+    /// que el formulario aporta: mientras sea <c>false</c>, este componente no hace nada.
+    /// </summary>
+    [Parameter, EditorRequired] public bool HayCambios { get; set; }
+
+    /// <summary>
+    /// Se invoca tras confirmar la salida y antes de repetir la navegación: para limpiar lo
+    /// que el formulario dejaría a medias (p. ej. un archivo subido que nadie adoptó).
+    /// </summary>
+    [Parameter] public EventCallback AlDescartar { get; set; }
+
+    /// <summary>Textos propios del formulario; si faltan, los genéricos de TextosComunes.</summary>
+    [Parameter] public string? Titulo { get; set; }
+    [Parameter] public string? Mensaje { get; set; }
+    [Parameter] public string? TextoSeguir { get; set; }
+    [Parameter] public string? TextoDescartar { get; set; }
+
+    private bool _preguntando;
+    private string? _destinoPendiente;
+    private bool _salidaConfirmada;
+
+    private Task AntesDeSalirAsync(LocationChangingContext contexto)
+    {
+        // La salida ya confirmada pasa una sola vez: si la navegación no desmonta el
+        // formulario (misma página, otra query string), lo siguiente vuelve a preguntar.
+        if (_salidaConfirmada)
+        {
+            _salidaConfirmada = false;
+            return Task.CompletedTask;
+        }
+
+        if (!HayCambios)
+            return Task.CompletedTask;
+
+        contexto.PreventNavigation();
+        _destinoPendiente = contexto.TargetLocation;
+        _preguntando = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void SeguirEditando()
+    {
+        _preguntando = false;
+        _destinoPendiente = null;
+    }
+
+    private async Task SalirDescartandoAsync()
+    {
+        _preguntando = false;
+        if (_destinoPendiente is not { } destino)
+            return;
+
+        _destinoPendiente = null;
+        await AlDescartar.InvokeAsync();
+        _salidaConfirmada = true;
+        Navegacion.NavigateTo(destino);
+    }
+}

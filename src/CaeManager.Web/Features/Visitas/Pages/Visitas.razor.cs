@@ -72,6 +72,9 @@ public partial class Visitas : ComponentBase
     private HashSet<Guid> _trabajadorIdsSeleccionados = [];
     private bool _notificadoCliente;
     private string _notas = string.Empty;
+    // P1-E2: el formulario tal como quedó al abrir el drawer (ya prellenado). Es la
+    // referencia de HayCambiosSinGuardar; null mientras no hay formulario abierto.
+    private string? _instantaneaAlAbrir;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
@@ -381,6 +384,7 @@ public partial class Visitas : ComponentBase
         _sugerenciaVisitaCorreoId = null;
         _sugerenciaVisitaResumen = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
         return true;
     }
 
@@ -418,13 +422,19 @@ public partial class Visitas : ComponentBase
             _fechaFin = fechaFinCorregida.ToString("yyyy-MM-dd");
         else if (sugerencia.FechaFin is not null)
             _fechaFin = sugerencia.FechaFin.Value.ToString("yyyy-MM-dd");
+
+        // Lo prellenado desde el correo no lo ha escrito quien mira: no cuenta como cambio.
+        FijarInstantaneaFormulario();
     }
 
     /// <summary>Variante de AbrirCrearAsync para "Programar visita" desde Centro 360: mismo drawer, con el Centro ya elegido en el CampoSelect — el Gestor solo pone fechas y trabajadores.</summary>
     private async Task AbrirCrearParaCentroAsync(Guid centroId)
     {
         if (await PrepararCrearAsync() && _centrosDisponibles.Any(c => c.Id == centroId))
+        {
             _centroId = centroId.ToString();
+            FijarInstantaneaFormulario();
+        }
     }
 
     private async Task AbrirEditarAsync(Guid id)
@@ -463,6 +473,7 @@ public partial class Visitas : ComponentBase
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
     }
 
     /// <summary>
@@ -777,6 +788,21 @@ public partial class Visitas : ComponentBase
         else
             _trabajadorIdsSeleccionados.Remove(trabajadorId);
     }
+
+    /// <summary>
+    /// P1-E2: único punto de verdad de «hay cambios» en el drawer de alta y edición de
+    /// Visita. Lo lee AvisoCambiosSinGuardar para detener la salida de la página; con el
+    /// drawer cerrado (también tras guardar) nunca hay nada que perder.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        _drawerVisible && _instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir;
+
+    private string InstantaneaFormulario() => string.Join('\u001f',
+        _centroId, _fechaInicio, _fechaFin, _horaEstimadaAcceso,
+        string.Join(',', _trabajadorIdsSeleccionados.Order()),
+        _notificadoCliente, _notas);
+
+    private void FijarInstantaneaFormulario() => _instantaneaAlAbrir = InstantaneaFormulario();
 
     private Task CerrarDrawerAsync(bool visible)
     {
