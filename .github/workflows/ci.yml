@@ -1042,7 +1042,7 @@ jobs:
         run: dotnet build CaeManager.slnx --no-restore
 
       - name: Instalar k6
-        uses: grafana/setup-k6-action@db07bd9765aac508ef18982e52ab937fe633a065 # v1
+        uses: grafana/setup-k6-action@43b9fc21641a76002687994433dd586f56e791b1 # v1
 
       # Arranca el mismo binario que se despliega en el VPS, en segundo plano,
       # contra el Postgres del job — mismo patrón que WebAppFixture en los
