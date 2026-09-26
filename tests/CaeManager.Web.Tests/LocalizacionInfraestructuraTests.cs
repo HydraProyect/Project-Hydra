@@ -34,6 +34,12 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class LocalizacionInfraestructuraTests
 {
+    // La infraestructura ca-ES se prueba con el catalán encendido
+    // (Localizacion:CatalanHabilitado); lo que cambia con él apagado —el
+    // valor por defecto— tiene su propio bloque más abajo.
+    private static readonly OpcionesLocalizacion ConCatalan = new() { CatalanHabilitado = true };
+    private static readonly OpcionesLocalizacion SinCatalan = new();
+
     // ── Resolución de la cultura por petición ─────────────────────────────
 
     [Fact]
@@ -113,6 +119,65 @@ public class LocalizacionInfraestructuraTests
         }
     }
 
+    // ── Catalán apagado (Localizacion:CatalanHabilitado = false) ──────────
+
+    [Fact]
+    public async Task Con_el_catalan_apagado_una_cookie_ca_ES_sale_en_es_ES()
+    {
+        var (cultura, culturaUi, contentLanguage) = await ResolverAsync(peticion =>
+            peticion.Headers.Cookie = CabeceraCookie("ca-ES"), SinCatalan);
+
+        cultura.Should().Be("es-ES");
+        culturaUi.Should().Be("es-ES");
+        contentLanguage.Should().Be("es-ES");
+    }
+
+    [Fact]
+    public async Task Con_el_catalan_apagado_una_cookie_es_ES_sigue_saliendo_en_es_ES()
+    {
+        var (_, culturaUi, _) = await ResolverAsync(peticion =>
+            peticion.Headers.Cookie = CabeceraCookie("es-ES"), SinCatalan);
+
+        culturaUi.Should().Be("es-ES");
+    }
+
+    [Theory]
+    [InlineData(false, new[] { "es-ES" })]
+    [InlineData(true, new[] { "es-ES", "ca-ES" })]
+    public void Las_culturas_activas_dependen_del_interruptor(bool catalanHabilitado, string[] esperadas) =>
+        CulturaUsuarioCookie.CulturasActivas(new OpcionesLocalizacion { CatalanHabilitado = catalanHabilitado })
+            .Should().Equal(esperadas);
+
+    [Fact]
+    public async Task Con_el_catalan_apagado_cambiar_a_ca_ES_se_rechaza_sin_tocar_la_cuenta_ni_la_cookie()
+    {
+        var usuario = NuevoUsuario();
+        var usuarios = new UsuariosFalsos(usuario);
+        var contexto = ContextoAutenticado(usuario.Id);
+
+        var resultado = await IdiomaEndpoints.CambiarAsync(
+            "ca-ES", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), SinCatalan, NullLogger.Instance);
+
+        resultado.Should().BeOfType<BadRequest>();
+        usuarios.IntentosDeGuardado.Should().Be(0, "la preferencia guardada no se toca");
+        contexto.Response.Headers.SetCookie.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_el_catalan_apagado_cambiar_a_es_ES_sigue_funcionando()
+    {
+        var usuario = NuevoUsuario();
+        var usuarios = new UsuariosFalsos(usuario);
+        var contexto = ContextoAutenticado(usuario.Id);
+
+        var resultado = await IdiomaEndpoints.CambiarAsync(
+            "es-ES", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), SinCatalan, NullLogger.Instance);
+
+        resultado.Should().BeOfType<RedirectHttpResult>();
+        usuarios.Guardados.Should().ContainSingle().Which.Should().Be(IdiomaPreferido.Espanol);
+        UnicoSetCookie(contexto).Should().StartWith(".AspNetCore.Culture=c%3Des-ES%7Cuic%3Des-ES;");
+    }
+
     // ── Cookie de cultura ─────────────────────────────────────────────────
 
     [Theory]
@@ -177,7 +242,7 @@ public class LocalizacionInfraestructuraTests
         var contexto = ContextoAutenticado(usuario.Id);
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "ca-ES", "/documentos?pestana=pendientes", contexto, usuarios, new DesenganchadorFalso(), Textos(), NullLogger.Instance);
+            "ca-ES", "/documentos?pestana=pendientes", contexto, usuarios, new DesenganchadorFalso(), Textos(), ConCatalan, NullLogger.Instance);
 
         usuarios.Guardados.Should().ContainSingle().Which.Should().Be(IdiomaPreferido.Catalan);
         resultado.Should().BeOfType<RedirectHttpResult>().Which.Url.Should().Be("/documentos?pestana=pendientes");
@@ -191,7 +256,7 @@ public class LocalizacionInfraestructuraTests
         var contexto = ContextoAutenticado(usuario.Id);
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "ca-ES", "//atacante.example", contexto, new UsuariosFalsos(usuario), new DesenganchadorFalso(), Textos(), NullLogger.Instance);
+            "ca-ES", "//atacante.example", contexto, new UsuariosFalsos(usuario), new DesenganchadorFalso(), Textos(), ConCatalan, NullLogger.Instance);
 
         resultado.Should().BeOfType<RedirectHttpResult>().Which.Url.Should().Be("/");
     }
@@ -204,7 +269,7 @@ public class LocalizacionInfraestructuraTests
         var contexto = ContextoAutenticado(usuario.Id);
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "en-US", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), NullLogger.Instance);
+            "en-US", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), ConCatalan, NullLogger.Instance);
 
         resultado.Should().BeOfType<BadRequest>();
         usuarios.IntentosDeGuardado.Should().Be(0);
@@ -219,7 +284,7 @@ public class LocalizacionInfraestructuraTests
         var contexto = new DefaultHttpContext();
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "ca-ES", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), NullLogger.Instance);
+            "ca-ES", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), ConCatalan, NullLogger.Instance);
 
         resultado.Should().BeOfType<UnauthorizedHttpResult>();
         usuarios.IntentosDeGuardado.Should().Be(0);
@@ -235,7 +300,7 @@ public class LocalizacionInfraestructuraTests
         var contexto = ContextoAutenticado(usuario.Id);
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "ca-ES", "/", contexto, usuarios, desenganchador, Textos(), NullLogger.Instance);
+            "ca-ES", "/", contexto, usuarios, desenganchador, Textos(), ConCatalan, NullLogger.Instance);
 
         usuarios.IntentosDeGuardado.Should().Be(2);
         desenganchador.Desenganchados.Should().ContainSingle().Which.Should().BeSameAs(usuario,
@@ -253,7 +318,7 @@ public class LocalizacionInfraestructuraTests
         var contexto = ContextoAutenticado(usuario.Id);
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "ca-ES", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), NullLogger.Instance);
+            "ca-ES", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), ConCatalan, NullLogger.Instance);
 
         usuarios.IntentosDeGuardado.Should().Be(2, "un solo reintento, no más");
         usuarios.Guardados.Should().BeEmpty();
@@ -271,7 +336,7 @@ public class LocalizacionInfraestructuraTests
         var contexto = ContextoAutenticado(usuario.Id);
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "ca-ES", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), NullLogger.Instance);
+            "ca-ES", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), ConCatalan, NullLogger.Instance);
 
         usuarios.IntentosDeGuardado.Should().Be(1);
         contexto.Response.Headers.SetCookie.Should().BeEmpty();
@@ -313,10 +378,10 @@ public class LocalizacionInfraestructuraTests
     // ── Ayudas ────────────────────────────────────────────────────────────
 
     private static async Task<(string Cultura, string CulturaUi, string? ContentLanguage)> ResolverAsync(
-        Action<HttpRequest> preparar)
+        Action<HttpRequest> preparar, OpcionesLocalizacion? localizacion = null)
     {
         var opciones = new RequestLocalizationOptions();
-        CulturaUsuarioCookie.ConfigurarLocalizacion(opciones);
+        CulturaUsuarioCookie.ConfigurarLocalizacion(opciones, localizacion ?? ConCatalan);
 
         string? cultura = null, culturaUi = null;
         var middleware = new RequestLocalizationMiddleware(

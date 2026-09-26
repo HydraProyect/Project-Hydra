@@ -62,8 +62,9 @@ var builder = WebApplication.CreateBuilder(args);
 // es-ES es el fallback del proceso para toda ejecución sin una cultura de
 // petición explícita (HostedServices, workers, arranque). Dentro de cada
 // petición, RequestLocalization (más abajo) sustituye CurrentCulture y
-// CurrentUICulture por la del usuario —es-ES o ca-ES, desde la cookie que
-// proyecta ApplicationUser.Idioma, ver CulturaUsuarioCookie—. No se retira
+// CurrentUICulture por la del usuario —es-ES, o ca-ES con el catalán
+// encendido, desde la cookie que proyecta ApplicationUser.Idioma, ver
+// CulturaUsuarioCookie—. No se retira
 // este default: los procesos fuera de una petición no están auditados para
 // fijar su cultura por sí mismos, y sin él pasarían a la del contenedor.
 var culturaEspanola = new CultureInfo(CulturaUsuarioCookie.CulturaEspanol);
@@ -235,7 +236,13 @@ builder.Services.AddLocalization();
 
 // Idioma por usuario, no por navegador: el único proveedor es la cookie de
 // cultura, que proyecta ApplicationUser.Idioma (ver CulturaUsuarioCookie).
-builder.Services.Configure<RequestLocalizationOptions>(CulturaUsuarioCookie.ConfigurarLocalizacion);
+// El catalán, apagado por defecto (Localizacion:CatalanHabilitado, ver
+// OpcionesLocalizacion): mientras lo esté, solo se sirve es-ES.
+builder.Services.Configure<OpcionesLocalizacion>(
+    builder.Configuration.GetSection(OpcionesLocalizacion.SeccionConfiguracion));
+builder.Services.AddOptions<RequestLocalizationOptions>()
+    .Configure<Microsoft.Extensions.Options.IOptions<OpcionesLocalizacion>>((opciones, localizacion) =>
+        CulturaUsuarioCookie.ConfigurarLocalizacion(opciones, localizacion.Value));
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 // Identidad de AUDITORIA, separada de la de autorizacion (ADR-011 § 8.5): hoy
 // resuelven al mismo usuario, pero solo la primera sera simulable el dia que
