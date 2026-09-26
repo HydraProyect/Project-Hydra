@@ -57,5 +57,25 @@ public enum CapacidadPrivilegio
     /// comandos marcados <c>IComandoDeAprovisionamiento</c> — ver
     /// <c>AutorizacionEscrituraBehavior</c>.
     /// </summary>
-    Aprovisionamiento = 4
+    Aprovisionamiento = 4,
+
+    /// <summary>
+    /// Soporte TALVEG restablece la verificación en dos pasos del
+    /// <b>Administrador único</b> de un Tenant que ha perdido el móvil y los
+    /// códigos de recuperación (ADR-011 § 8.7, punto 3, opción B de P0-8). Es una
+    /// capacidad acotada a un solo acto, no una vía de escritura general:
+    /// <list type="bullet">
+    /// <item>concesión por Tenant, nunca global (<c>AdmiteAlcanceGlobal</c>), y
+    /// solo por <c>ConcederPrivilegioCommand</c>: la emite un AdminPlataforma a
+    /// otro usuario de plataforma, nunca uno a sí mismo;</item>
+    /// <item>se ejerce desde una <see cref="SesionPrivilegiada"/> abierta sobre ese
+    /// Tenant, que sigue leyendo con el rol de solo lectura;</item>
+    /// <item>el único comando que admite es el restablecimiento de P0-8, y la
+    /// escritura la hace una función de la base que vuelve a comprobar la
+    /// sesión, la concesión y la cuenta (<c>app_restablecer_segundo_factor_por_soporte</c>).</item>
+    /// </list>
+    /// No convierte a Soporte TALVEG en Administrador, Gestor CAE ni Operador CAE
+    /// del Tenant: dentro de la sesión su rol efectivo sigue siendo nulo.
+    /// </summary>
+    RestablecimientoSegundoFactor = 5
 }

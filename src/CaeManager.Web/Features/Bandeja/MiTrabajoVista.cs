@@ -41,8 +41,7 @@ public sealed record GrupoMiTrabajo(
     string? ResumenCabecera);
 
 /// <param name="AlcanceCero">Quien mira no alcanza nada en este Tenant (<see cref="MiTrabajoTenantDto.AlcanceCero"/>).</param>
-/// <param name="NoConsultado">La consulta de este Tenant falló (<see cref="MiTrabajoTenantDto.NoConsultado"/>).</param>
-public sealed record FilaCarteraMiTrabajo(Guid TenantId, string Nombre, int Total, int Bloqueos, bool AlcanceCero, bool NoConsultado = false);
+public sealed record FilaCarteraMiTrabajo(Guid TenantId, string Nombre, int Total, int Bloqueos, bool AlcanceCero);
 
 /// <summary>
 /// Lógica de presentación de Mi trabajo Gen2 (mockup «Cola operativa
@@ -62,18 +61,12 @@ public sealed class MiTrabajoVista
         // devuelva no basta para meterlo en la cartera.
         var gestionados = datos.Tenants.Where(t => !t.EsOrigen).ToList();
         Cartera = gestionados
-            .Select(t => new FilaCarteraMiTrabajo(t.TenantId, t.TenantNombre, t.Resumen.TotalAcciones, t.Resumen.Bloqueos, t.AlcanceCero, t.NoConsultado))
+            .Select(t => new FilaCarteraMiTrabajo(t.TenantId, t.TenantNombre, t.Resumen.TotalAcciones, t.Resumen.Bloqueos, t.AlcanceCero))
             .ToList();
         _cartera = gestionados.SelectMany((t, orden) => Aplanar(t, orden)).ToList();
     }
 
     public IReadOnlyList<FilaCarteraMiTrabajo> Cartera { get; }
-
-    /// <summary>
-    /// Empresas de la cartera cuya consulta falló (FS-07, aviso «Cartera
-    /// incompleta» del mockup). Su trabajo no está en ningún total.
-    /// </summary>
-    public int NoConsultados => Cartera.Count(t => t.NoConsultado);
 
     /// <summary>
     /// Nada que vigilar en el ámbito elegido (P2.3 de la demo a Dirección): la

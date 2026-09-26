@@ -4,6 +4,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace CaeManager.Infrastructure.Identity;
 
@@ -84,6 +85,69 @@ public class SegundoFactorDeCuentasIdentity(
                     "No pudimos restablecer la verificación en dos pasos. Vuelve a cargar la página e inténtalo de nuevo."));
         }, cancellationToken);
 
+    public async Task<bool> EsAdministradorUnicoActivoAsync(
+        Guid usuarioId, Guid tenantId, CancellationToken cancellationToken = default) =>
+        (await ObtenerAdministradorUnicoActivoAsync(tenantId, cancellationToken))?.UsuarioId == usuarioId;
+
+    public Task<AdministradorUnicoActivo?> ObtenerAdministradorUnicoActivoAsync(
+        Guid tenantId, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            // Mismo criterio de «desactivada» que ApplicationUser.EstaDesactivada,
+            // traducible a SQL: un bloqueo temporal por intentos fallidos no saca a
+            // nadie de la cuenta de Administradores.
+            var limiteDesactivada = DateTimeOffset.UtcNow.Add(ApplicationUser.UmbralDeCuentaDesactivada);
+            var administradoresActivos = await (
+                    from u in contexto.Users
+                    where u.TenantId == tenantId
+                          && (u.LockoutEnd == null || u.LockoutEnd <= limiteDesactivada)
+                          && contexto.UserRoles.Any(ur => ur.UserId == u.Id
+                                                          && contexto.Roles.Any(r => r.Id == ur.RoleId
+                                                                                     && r.Name == Roles.Administrador))
+                    select new AdministradorUnicoActivo(u.Id, u.NombreCompleto, u.Email ?? "", u.TwoFactorEnabled))
+                .AsNoTracking()
+                .Take(2)
+                .ToListAsync(cancellationToken);
+
+            return administradoresActivos.Count == 1 ? administradoresActivos[0] : null;
+        }, cancellationToken);
+
+    public Task<Result> RestablecerPorSesionPrivilegiadaAsync(
+        Guid sesionPrivilegiadaId, Guid usuarioId, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            // La función es la única puerta de escritura de esta sesión: su conexión
+            // lleva cae_app_soporte (solo SELECT), y solo ese rol puede ejecutarla.
+            // Devuelve un código en vez de lanzar para que cada negativa llegue con
+            // su mensaje; los valores van parametrizados por EF.
+            string codigo;
+            try
+            {
+                codigo = await contexto.Database
+                    .SqlQuery<string>(
+                        $"SELECT app_restablecer_segundo_factor_por_soporte({sesionPrivilegiadaId}, {usuarioId}) AS \"Value\"")
+                    .SingleAsync(cancellationToken);
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.InsufficientPrivilege)
+            {
+                // Contexto RLS firmado inválido o conexión sin el rol de soporte:
+                // nunca una escritura, y nunca un 500.
+                codigo = "contexto_no_valido";
+            }
+
+            // La función escribió por debajo de EF: lo que el circuito tuviera
+            // rastreado de esta cuenta y de sus tokens (la clave TOTP y los
+            // códigos que acaba de borrar) ya no es cierto.
+            DesengancharCuentaYTokens(usuarioId);
+
+            return codigo == "restablecido"
+                ? Result.Exito()
+                : Result.Fallo(Error.Crear(
+                    "SegundoFactor.RestablecimientoPorSoporteDenegado",
+                    "La base de datos no autorizó el restablecimiento (" + codigo + "). " +
+                    "Comprueba que la sesión sigue abierta y que la cuenta es el Administrador único del Tenant."));
+        }, cancellationToken);
+
     // El nombre que usa UserStoreBase para la clave TOTP (constante privada allí).
     private const string NombreTokenClaveAutenticador = "AuthenticatorKey";
 
@@ -99,6 +163,12 @@ public class SegundoFactorDeCuentasIdentity(
     /// </summary>
     private async Task<ApplicationUser?> CargarEnFrescoAsync(Guid usuarioId)
     {
+        DesengancharCuentaYTokens(usuarioId);
+        return await userManager.FindByIdAsync(usuarioId.ToString());
+    }
+
+    private void DesengancharCuentaYTokens(Guid usuarioId)
+    {
         foreach (var entrada in contexto.ChangeTracker.Entries<ApplicationUser>()
                      .Where(e => e.Entity.Id == usuarioId).ToList())
             entrada.State = EntityState.Detached;
@@ -106,7 +176,5 @@ public class SegundoFactorDeCuentasIdentity(
         foreach (var entrada in contexto.ChangeTracker.Entries<IdentityUserToken<Guid>>()
                      .Where(e => e.Entity.UserId == usuarioId).ToList())
             entrada.State = EntityState.Detached;
-
-        return await userManager.FindByIdAsync(usuarioId.ToString());
     }
 }

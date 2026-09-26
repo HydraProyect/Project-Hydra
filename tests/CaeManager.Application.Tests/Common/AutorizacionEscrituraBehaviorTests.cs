@@ -27,6 +27,7 @@ public class AutorizacionEscrituraBehaviorTests
     // PD-A3: comando marcado, para distinguir de FalsoCommand en las pruebas
     // de la tercera condición.
     private record FalsoComandoDeAprovisionamiento : ICommand, IComandoDeAprovisionamiento;
+    private record FalsoComandoDeRestablecimiento : ICommand, IComandoDeRestablecimientoSegundoFactor;
 
     // Autoservicio: escribe solo datos del propio usuario.
     private record FalsoComandoDeAutoservicio : ICommand, IComandoDeAutoservicio;
@@ -278,6 +279,76 @@ public class AutorizacionEscrituraBehaviorTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Autorizacion.BreakGlassSinCaminoDeEscritura");
+    }
+
+    // ── ADR-011 § 8.7, punto 3: la sesión de restablecimiento de 2FA ────────────────
+
+    [Fact]
+    public async Task Restablecimiento_deja_pasar_su_comando_marcado_dentro_del_tenant_objetivo()
+    {
+        var tenantObjetivo = Guid.NewGuid();
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeRestablecimiento, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol: null),
+            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.RestablecimientoSegundoFactor, tenantObjetivo)),
+            new TenantActualFalso(tenantObjetivo));
+
+        var resultado = await behavior.Handle(
+            new FalsoComandoDeRestablecimiento(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("con rol efectivo nulo: la sesión no da rol de negocio, da un acto");
+    }
+
+    [Fact]
+    public async Task Restablecimiento_bloquea_cualquier_otro_comando_incluido_uno_de_aprovisionamiento()
+    {
+        var tenantObjetivo = Guid.NewGuid();
+        var sesion = SesionCon(CapacidadPrivilegio.RestablecimientoSegundoFactor, tenantObjetivo);
+
+        var normal = await new AutorizacionEscrituraBehavior<FalsoCommand, Result>(
+                new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+                new SesionPrivilegiadaActualFalsa(sesion), new TenantActualFalso(tenantObjetivo))
+            .Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+        var aprovisionamiento = await new AutorizacionEscrituraBehavior<FalsoComandoDeAprovisionamiento, Result>(
+                new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+                new SesionPrivilegiadaActualFalsa(sesion), new TenantActualFalso(tenantObjetivo))
+            .Handle(new FalsoComandoDeAprovisionamiento(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        normal.Error!.Codigo.Should().Be("Autorizacion.ComandoFueraDelRestablecimiento");
+        aprovisionamiento.Error!.Codigo.Should().Be("Autorizacion.ComandoFueraDelRestablecimiento",
+            "una capacidad no es la llave de los comandos de otra");
+    }
+
+    [Fact]
+    public async Task Restablecimiento_bloquea_su_comando_fuera_del_tenant_objetivo()
+    {
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeRestablecimiento, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol: null),
+            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.RestablecimientoSegundoFactor, Guid.NewGuid())),
+            new TenantActualFalso(Guid.NewGuid()));
+
+        var resultado = await behavior.Handle(
+            new FalsoComandoDeRestablecimiento(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("Autorizacion.RestablecimientoFueraDelTenantObjetivo");
+    }
+
+    [Theory]
+    [InlineData(CapacidadPrivilegio.SoporteLectura, "Autorizacion.SesionPrivilegiadaSoloLectura")]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento, "Autorizacion.ComandoFueraDelAprovisionamiento")]
+    public async Task Otra_capacidad_no_deja_pasar_el_comando_de_restablecimiento(
+        CapacidadPrivilegio capacidad, string codigoEsperado)
+    {
+        var tenantObjetivo = Guid.NewGuid();
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeRestablecimiento, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+            new SesionPrivilegiadaActualFalsa(SesionCon(capacidad, tenantObjetivo)),
+            new TenantActualFalso(tenantObjetivo));
+
+        var resultado = await behavior.Handle(
+            new FalsoComandoDeRestablecimiento(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be(codigoEsperado,
+            "la capacidad universal de lectura no restablece nada: hace falta la concesión explícita por Tenant");
     }
 
     // ── PD-A3, commit 4: las tres condiciones de Aprovisionamiento ─────────

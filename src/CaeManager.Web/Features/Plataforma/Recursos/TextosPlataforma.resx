@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="RestablecerTitulo" xml:space="preserve">
+    <value>Restablecer la verificación en dos pasos</value>
+  </data>
+  <data name="RestablecerExplicacion" xml:space="preserve">
+    <value>Para el Administrador único de la organización visitada que ha perdido el móvil y los códigos de recuperación. Confirma su identidad por otro canal antes de restablecer: al volver a entrar tendrá que configurar la verificación de nuevo.</value>
+  </data>
+  <data name="RestablecerCampoAdministrador" xml:space="preserve">
+    <value>Administrador</value>
+  </data>
+  <data name="RestablecerCampoCorreo" xml:space="preserve">
+    <value>Correo</value>
+  </data>
+  <data name="RestablecerCampoVerificacion" xml:space="preserve">
+    <value>Verificación en dos pasos</value>
+  </data>
+  <data name="RestablecerVerificacionActiva" xml:space="preserve">
+    <value>Activa</value>
+  </data>
+  <data name="RestablecerVerificacionNoActiva" xml:space="preserve">
+    <value>No activa</value>
+  </data>
+  <data name="RestablecerExito" xml:space="preserve">
+    <value>Verificación en dos pasos restablecida. Queda registrado con tu identidad y esta sesión de soporte.</value>
+  </data>
+  <data name="RestablecerSinSegundoFactor" xml:space="preserve">
+    <value>La cuenta no tiene la verificación en dos pasos activa: no hay nada que restablecer.</value>
+  </data>
+  <data name="RestablecerSinAdministradorUnico" xml:space="preserve">
+    <value>Esta organización no tiene un único Administrador activo. Soporte TALVEG no restablece la verificación en ese caso: lo hace un Administrador desde Usuarios.</value>
+  </data>
+  <data name="RestablecerConfirmacion" xml:space="preserve">
+    <value>Vas a desactivar la verificación en dos pasos de {0} y a borrar su clave y sus códigos de recuperación. Se cerrarán sus sesiones abiertas.</value>
+  </data>
+  <data name="RestablecerCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="RestablecerConfirmar" xml:space="preserve">
+    <value>Sí, restablecer</value>
+  </data>
+</root>

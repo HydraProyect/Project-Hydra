@@ -56,6 +56,7 @@ public class PrivilegioDePlataformaTests
     [InlineData(CapacidadPrivilegio.Impersonacion, false)]
     [InlineData(CapacidadPrivilegio.BreakGlass, false)]
     [InlineData(CapacidadPrivilegio.Aprovisionamiento, false)]
+    [InlineData(CapacidadPrivilegio.RestablecimientoSegundoFactor, false)]
     public void Solo_administracion_y_soporte_de_lectura_admiten_alcance_global(
         CapacidadPrivilegio capacidad, bool admite)
     {
@@ -67,8 +68,8 @@ public class PrivilegioDePlataformaTests
     public void La_lista_de_alcance_global_cubre_todas_las_capacidades_del_enum()
     {
         // Una capacidad nueva en el enum tiene que decidir aquí si admite
-        // alcance global; el Theory de arriba enumera las cinco de hoy.
-        Enum.GetValues<CapacidadPrivilegio>().Should().HaveCount(5,
+        // alcance global; el Theory de arriba enumera las seis de hoy.
+        Enum.GetValues<CapacidadPrivilegio>().Should().HaveCount(6,
             "si se añade una capacidad, añádela al Theory de alcance global con su decisión explícita");
     }
 

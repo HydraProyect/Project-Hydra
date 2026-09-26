@@ -8,8 +8,11 @@ namespace CaeManager.Application.Plataforma.Commands.ConcederPrivilegio;
 
 /// <summary>
 /// Un Actor de Plataforma TALVEG con <see cref="CapacidadPrivilegio.AdminPlataforma"/>
-/// concede la capacidad <see cref="CapacidadPrivilegio.Aprovisionamiento"/> a
-/// OTRO usuario de plataforma, sobre un tenant concreto (PD-A3).
+/// concede a OTRO usuario de plataforma, sobre un tenant concreto, una de las
+/// dos capacidades acotadas que admiten concesión por un tercero:
+/// <see cref="CapacidadPrivilegio.Aprovisionamiento"/> (PD-A3) o
+/// <see cref="CapacidadPrivilegio.RestablecimientoSegundoFactor"/> (ADR-011 § 8.7, punto 3:
+/// Soporte TALVEG restablece la 2FA del Administrador único de ese Tenant).
 ///
 /// <para>
 /// <b>Segunda vía de concesión, no una generalización de la primera.</b>
@@ -17,11 +20,13 @@ namespace CaeManager.Application.Plataforma.Commands.ConcederPrivilegio;
 /// siendo el único punto donde alguien se concede algo a sí mismo, y su
 /// contrato no cambia. Este comando es la vía —deliberadamente distinta,
 /// deliberadamente más estrecha— por la que un tercero recibe una capacidad:
-/// solo <see cref="CapacidadPrivilegio.Aprovisionamiento"/>, nunca
-/// <c>AdminPlataforma</c> ni <c>BreakGlass</c> ni <c>SoporteLectura</c>. La
-/// matriz cerrada de auto-concesión (<see cref="IAutorizacionAutoConcesion"/>)
-/// NO se toca: sigue rechazando <c>Aprovisionamiento</c> para cualquiera,
-/// incluida la raíz de bootstrap.
+/// solo <see cref="CapacidadPrivilegio.Aprovisionamiento"/> y
+/// <see cref="CapacidadPrivilegio.RestablecimientoSegundoFactor"/>, siempre sobre un
+/// tenant concreto y nunca <c>AdminPlataforma</c> ni <c>BreakGlass</c> ni
+/// <c>SoporteLectura</c>. La matriz cerrada de auto-concesión
+/// (<see cref="IAutorizacionAutoConcesion"/>) NO se toca: sigue rechazando las dos
+/// para cualquiera, incluida la raíz de bootstrap. Para el restablecimiento de 2FA
+/// eso es lo que da los cuatro ojos: quien la ejerce nunca es quien la concede.
 /// </para>
 ///
 /// <para>
@@ -47,11 +52,26 @@ namespace CaeManager.Application.Plataforma.Commands.ConcederPrivilegio;
 /// <param name="Motivo">Por qué se concede — obligatorio, a diferencia de la
 /// auto-concesión: aquí el motivo no es "equipo unipersonal", es una decisión
 /// que involucra a otra persona y tiene que quedar dicha.</param>
+/// <param name="Capacidad">Qué se concede: <see cref="CapacidadesConcedibles"/>.</param>
 public record ConcederPrivilegioCommand(
     Guid UsuarioPlataformaBeneficiarioId,
     Guid TenantObjetivoId,
     int DiasDeVigencia,
-    string Motivo) : ICommand<Guid>;
+    string Motivo,
+    CapacidadPrivilegio Capacidad) : ICommand<Guid>
+{
+    /// <summary>
+    /// Lista cerrada. Una capacidad nueva no entra aquí por existir en el enum:
+    /// hace falta ampliar también el <c>WITH CHECK</c> de la política de
+    /// las concesiones de privilegio, que impone la misma lista en la base.
+    /// </summary>
+    public static readonly IReadOnlySet<CapacidadPrivilegio> CapacidadesConcedibles =
+        new HashSet<CapacidadPrivilegio>
+        {
+            CapacidadPrivilegio.Aprovisionamiento,
+            CapacidadPrivilegio.RestablecimientoSegundoFactor,
+        };
+}
 
 public class ConcederPrivilegioCommandValidator : AbstractValidator<ConcederPrivilegioCommand>
 {
@@ -70,6 +90,9 @@ public class ConcederPrivilegioCommandValidator : AbstractValidator<ConcederPriv
     {
         RuleFor(c => c.UsuarioPlataformaBeneficiarioId).NotEmpty();
         RuleFor(c => c.TenantObjetivoId).NotEmpty();
+        RuleFor(c => c.Capacidad)
+            .Must(ConcederPrivilegioCommand.CapacidadesConcedibles.Contains)
+            .WithMessage("Solo se conceden a otra persona el aprovisionamiento y el restablecimiento de la verificación en dos pasos.");
 
         RuleFor(c => c.DiasDeVigencia)
             .InclusiveBetween(1, MaximoDiasDeVigencia)
@@ -87,6 +110,7 @@ public class ConcederPrivilegioCommandHandler(
     IPlataformaWriter writer,
     IAutorizacionAdminPlataforma autorizacionAdminPlataforma,
     ICurrentUserService currentUserService,
+    IDirectorioUsuariosService directorioUsuarios,
     IUnitOfWork unitOfWork)
     : IRequestHandler<ConcederPrivilegioCommand, Result<Guid>>
 {
@@ -124,18 +148,33 @@ public class ConcederPrivilegioCommandHandler(
         // Mismo control que la auto-concesión: el privilegio de plataforma no
         // se ejerce sobre la propia casa. Se evalúa contra el tenant de
         // origen de quien concede (no del beneficiario, que puede diferir):
-        // conceder acceso de aprovisionamiento sobre el propio tenant de
-        // plataforma no tendría sentido — el aprovisionamiento es siempre
+        // conceder aprovisionamiento o restablecimiento de 2FA sobre el propio
+        // tenant de plataforma no tendría sentido — los dos se ejercen siempre
         // sobre un tenant ajeno.
         if (!await ReglaTenantObjetivoAjeno.SeCumpleAsync(currentUserService, request.TenantObjetivoId))
             return Result.Fallo<Guid>(Error.Crear(
                 "ConcesionPrivilegio.TenantPropio",
-                "No se concede aprovisionamiento sobre el propio tenant de plataforma."));
+                "No se conceden privilegios sobre el propio tenant de plataforma."));
+
+        // El restablecimiento de 2FA solo lo ejerce un Actor de Plataforma TALVEG:
+        // el beneficiario tiene que ser una cuenta del Tenant de origen de quien
+        // concede. Bajo la RLS de cuentas, una de otro Tenant ni se ve (null).
+        // La función de base lo vuelve a exigir al ejercerla.
+        if (request.Capacidad == CapacidadPrivilegio.RestablecimientoSegundoFactor)
+        {
+            var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
+            var tenantBeneficiarioId = await directorioUsuarios.ObtenerTenantDeUsuarioAsync(
+                request.UsuarioPlataformaBeneficiarioId, cancellationToken);
+            if (tenantOrigenId is null || tenantBeneficiarioId != tenantOrigenId)
+                return Result.Fallo<Guid>(Error.Crear(
+                    "ConcesionPrivilegio.BeneficiarioNoEsDePlataforma",
+                    "El restablecimiento de la verificación en dos pasos solo se concede a personas de Soporte TALVEG."));
+        }
 
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.SobreTenants(
             usuarioPlataformaId: request.UsuarioPlataformaBeneficiarioId,
-            CapacidadPrivilegio.Aprovisionamiento,
+            request.Capacidad,
             tenantIds: [request.TenantObjetivoId],
             vigenciaDesde: ahora,
             vigenciaHasta: ahora.AddDays(request.DiasDeVigencia),

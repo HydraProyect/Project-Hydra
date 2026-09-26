@@ -14,23 +14,34 @@ namespace CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
 /// administración y la única vía era la base de datos.
 ///
 /// <para>
-/// <b>Quién puede</b> lo decide <see cref="IAutorizacionRestablecerSegundoFactor"/>;
-/// hoy, solo un Administrador del Tenant propietario sobre otra cuenta de su mismo
-/// Tenant (<see cref="AutorizacionRestablecerSegundoFactorAdministrador"/>). Este
-/// handler es el acto: autorizar, comprobar que la cuenta tiene la 2FA activa y
-/// restablecer. Soporte TALVEG no llega: <c>AutorizacionEscrituraBehavior</c> solo
-/// deja pasar a una Sesión Privilegiada comandos de aprovisionamiento, y este no lo es.
+/// <b>Quién puede</b> lo decide <see cref="IAutorizacionRestablecerSegundoFactor"/>, y
+/// hay dos caminos:
+/// <list type="bullet">
+/// <item>un Administrador del Tenant propietario sobre otra cuenta de su mismo Tenant
+/// (<see cref="AutorizacionRestablecerSegundoFactorAdministrador"/>);</item>
+/// <item>Soporte TALVEG, desde una Sesión Privilegiada con la capacidad
+/// <c>RestablecimientoSegundoFactor</c>, sobre el Administrador único de ese Tenant
+/// (<see cref="AutorizacionRestablecerSegundoFactorPorSoporte"/>, ADR-011 § 8.7, punto 3). Es
+/// el único comando que esa sesión puede ejecutar: lo marca
+/// <see cref="IComandoDeRestablecimientoSegundoFactor"/>, y
+/// <c>AutorizacionEscrituraBehavior</c> no deja pasar ningún otro.</item>
+/// </list>
+/// Este handler es el acto: autorizar, comprobar que la cuenta tiene la 2FA activa y
+/// restablecer por el camino que la autorización devuelve.
 /// </para>
 ///
 /// <para>
-/// <b>Auditoría</b>: la escribe <c>AuditoriaInterceptor</c> sobre la cuenta afectada
-/// (<c>EntidadId</c> = Usuario afectado, <c>TwoFactorEnabled</c> de true a false) con el
-/// Actor real en <c>UsuarioId</c>/<c>ActorRealUsuarioId</c>, y una fila por cada token
-/// borrado con su valor enmascarado. La separación entre Actor real y Usuario afectado
-/// la da la fila misma; nada de eso se escribe a mano desde aquí.
+/// <b>Auditoría</b>: en el camino del Administrador la escribe
+/// <c>AuditoriaInterceptor</c> sobre la cuenta afectada (<c>EntidadId</c> = Usuario
+/// afectado, <c>TwoFactorEnabled</c> de true a false) con el Actor real en
+/// <c>UsuarioId</c>/<c>ActorRealUsuarioId</c>, y una fila por cada token borrado con su
+/// valor enmascarado. En el de Soporte TALVEG la escribe la función de la base en la
+/// misma transacción que el cambio, con la misma forma más la vía
+/// (<c>SesionPrivilegiada</c>) y la sesión que lo ampara. La separación entre Actor real
+/// y Usuario afectado la da la fila misma; nada de eso se escribe a mano desde aquí.
 /// </para>
 /// </summary>
-public record RestablecerSegundoFactorCommand(Guid UsuarioId) : ICommand;
+public record RestablecerSegundoFactorCommand(Guid UsuarioId) : ICommand, IComandoDeRestablecimientoSegundoFactor;
 
 public class RestablecerSegundoFactorCommandValidator : AbstractValidator<RestablecerSegundoFactorCommand>
 {
@@ -54,7 +65,7 @@ public class RestablecerSegundoFactorCommandHandler(
     {
         var autorizado = await autorizacion.AutorizarAsync(request.UsuarioId, cancellationToken);
         if (autorizado.EsFallido)
-            return autorizado;
+            return Result.Fallo(autorizado.Error);
 
         var estado = await segundoFactor.ObtenerEstadoAsync(request.UsuarioId, cancellationToken);
         if (estado is null)
@@ -64,6 +75,9 @@ public class RestablecerSegundoFactorCommandHandler(
             return Result.Fallo(Error.Crear(
                 "SegundoFactor.NoActivo", "Esa cuenta no tiene activada la verificación en dos pasos."));
 
-        return await segundoFactor.RestablecerAsync(request.UsuarioId, cancellationToken);
+        return autorizado.Valor!.SesionPrivilegiadaId is { } sesionPrivilegiadaId
+            ? await segundoFactor.RestablecerPorSesionPrivilegiadaAsync(
+                sesionPrivilegiadaId, request.UsuarioId, cancellationToken)
+            : await segundoFactor.RestablecerAsync(request.UsuarioId, cancellationToken);
     }
 }
