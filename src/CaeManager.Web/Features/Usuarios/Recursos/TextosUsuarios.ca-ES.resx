@@ -27,4 +27,40 @@
   <data name="RestablecerSegundoFactorHecho" xml:space="preserve">
     <value>Verificació en dos passos restablerta per a {0}. L'haurà de tornar a configurar.</value>
   </data>
+  <data name="DesactivarTitulo" xml:space="preserve">
+    <value>¿Desactivar a {0}?</value>
+  </data>
+  <data name="DesactivarMensaje" xml:space="preserve">
+    <value>Perderá el acceso en cuanto confirmes: su sesión abierta se cierra. Podrás reactivarla después.</value>
+  </data>
+  <data name="DesactivarCarteraClientes" xml:space="preserve">
+    <value>Tiene {0} Cliente(s) empresarial(es) en su Asignación de Cartera. Si no la pasas a otro Gestor CAE, sigue abierta y la conserva su Coordinador CAE.</value>
+  </data>
+  <data name="DesactivarCarteraUniversal" xml:space="preserve">
+    <value>Su Asignación de Cartera es toda la operación de esta organización: no se reparte cliente a cliente. Sigue abierta y la conserva su Coordinador CAE.</value>
+  </data>
+  <data name="DesactivarPasarCarteraA" xml:space="preserve">
+    <value>Pasar su cartera a</value>
+  </data>
+  <data name="DesactivarNoReasignar" xml:space="preserve">
+    <value>No reasignar (la conserva su Coordinador CAE)</value>
+  </data>
+  <data name="DesactivarVolver" xml:space="preserve">
+    <value>Volver</value>
+  </data>
+  <data name="DesactivarConfirmar" xml:space="preserve">
+    <value>Desactivar</value>
+  </data>
+  <data name="DesactivarCarteraPasada" xml:space="preserve">
+    <value>{0} Cliente(s) empresarial(es) pasaron a {1}.</value>
+  </data>
+  <data name="DesactivarCarteraParcial" xml:space="preserve">
+    <value>Solo {0} de {1} Clientes empresariales pasaron al nuevo Gestor CAE, así que la cuenta sigue activa. {2}</value>
+  </data>
+  <data name="DesactivarDestinoNoVigente" xml:space="preserve">
+    <value>El Gestor CAE elegido ya no está activo. No se ha pasado ninguna cartera ni se ha desactivado la cuenta; vuelve a intentarlo.</value>
+  </data>
+  <data name="DesactivarErrorInesperado" xml:space="preserve">
+    <value>Un Cliente empresarial no pudo pasarse por un error inesperado.</value>
+  </data>
 </root>

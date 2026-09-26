@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Claims;
+using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Common;
@@ -1243,6 +1244,154 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         finally
         {
             _cambiandoActivacionDe.Remove(usuarioLista.Id);
+        }
+    }
+
+    // --- FS-25: desactivar con confirmación y, si procede, pasar la cartera ---
+
+    private UsuarioListaDto? _usuarioADesactivar;
+    private CarteraDeUsuario? _carteraADesactivar;
+    private IReadOnlyList<Guid> _clientesADesactivar = [];
+    private IReadOnlyList<ApplicationUser> _gestoresDestino = [];
+    private string _gestorDestinoCartera = string.Empty;
+    private bool _desactivando;
+
+    /// <summary>
+    /// Abre la confirmación de desactivar. A un Gestor CAE se le lee la cartera
+    /// en el momento (no la de la última carga de la lista) y, si tiene Clientes
+    /// empresariales concretos, se ofrecen como destino los demás Gestores CAE
+    /// activos. Una cartera universal no se reparte cliente a cliente: se dice.
+    /// </summary>
+    private async Task PedirDesactivacionAsync(UsuarioListaDto usuarioLista)
+    {
+        if (usuarioLista.Id == _usuarioActualId)
+        {
+            ToastService.Mostrar("No puedes desactivar tu propia cuenta.", TonoToast.Error);
+            return;
+        }
+
+        _carteraADesactivar = null;
+        _clientesADesactivar = [];
+        _gestoresDestino = [];
+        _gestorDestinoCartera = string.Empty;
+
+        if (usuarioLista.Rol == Roles.GestorCae && !usuarioLista.EsOperadorDelegado)
+        {
+            var token = _ciclo.Token;
+            try
+            {
+                var carteras = await ObtenerCarterasVigentesAsync(token);
+                if (carteras.TryGetValue(usuarioLista.Id, out var cartera))
+                {
+                    _carteraADesactivar = cartera;
+                    if (!cartera.EsUniversal && cartera.ClienteIds.Count > 0)
+                    {
+                        _clientesADesactivar = cartera.ClienteIds.Distinct().ToList();
+                        var ahora = DateTimeOffset.UtcNow;
+                        _gestoresDestino = (await ObtenerVisiblesEnRolAsync(Roles.GestorCae, token))
+                            .Where(g => g.Id != usuarioLista.Id && !g.EstaDesactivada(ahora))
+                            .OrderBy(g => g.NombreCompleto, StringComparer.CurrentCulture)
+                            .ToList();
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+
+        _usuarioADesactivar = usuarioLista;
+    }
+
+    /// <summary>
+    /// Primero pasa la cartera, cliente a cliente, con ReasignarEjecutivoClienteCommand
+    /// —el mismo comando del drawer de Clientes, con su autorización y su aviso a los
+    /// Gestores afectados—; solo si todo pasó, desactiva. Si alguno falla no se
+    /// desactiva: la cuenta sigue activa y su cartera a medias se ve en la lista.
+    /// </summary>
+    private async Task ConfirmarDesactivacionAsync()
+    {
+        if (_usuarioADesactivar is not { } usuario || _desactivando)
+            return;
+
+        _desactivando = true;
+        try
+        {
+            if (Guid.TryParse(_gestorDestinoCartera, out var destino) && _clientesADesactivar.Count > 0)
+            {
+                // El destino se eligió al abrir el diálogo: se vuelve a comprobar ahora
+                // que sigue siendo un Gestor CAE visible y activo, por si entretanto se
+                // desactivó. ReasignarEjecutivoClienteCommand no lo comprueba (hueco
+                // preexistente, registrado aparte).
+                var ahora = DateTimeOffset.UtcNow;
+                var vigente = (await ObtenerVisiblesEnRolAsync(Roles.GestorCae, _ciclo.Token))
+                    .Any(g => g.Id == destino && g.Id != usuario.Id && !g.EstaDesactivada(ahora));
+                if (!vigente)
+                {
+                    ToastService.Mostrar(TextosUsuarios["DesactivarDestinoNoVigente"], TonoToast.Error);
+                    _usuarioADesactivar = null;
+                    await CargarAsync();
+                    return;
+                }
+
+                var pasados = 0;
+                var errores = new List<string>();
+                foreach (var clienteId in _clientesADesactivar)
+                {
+                    // Un fallo inesperado a mitad del lote no puede dejar la cartera a
+                    // medias sin decirlo, y el lote se detiene ahí: el DbContext del
+                    // circuito puede conservar cambios a medio guardar del cliente que
+                    // falló, y el siguiente comando los guardaría sin que se contasen.
+                    try
+                    {
+                        var resultado = await Mediator.Send(new ReasignarEjecutivoClienteCommand(clienteId, destino), _ciclo.Token);
+                        if (resultado.EsExitoso)
+                        {
+                            pasados++;
+                        }
+                        else
+                        {
+                            // Mismo motivo que la excepción de abajo: un fallo devuelto
+                            // (p. ej. un DbUpdateException que el comando traduce) también
+                            // puede dejar cambios a medias en el DbContext del circuito.
+                            errores.Add(resultado.Error.Mensaje);
+                            break;
+                        }
+                    }
+                    catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+                    {
+                        Logger.LogError(excepcion, "Fallo al pasar el Cliente empresarial {ClienteId} al Gestor CAE {Destino}.", clienteId, destino);
+                        errores.Add(TextosUsuarios["DesactivarErrorInesperado"]);
+                        break;
+                    }
+                }
+
+                if (errores.Count > 0)
+                {
+                    ToastService.Mostrar(
+                        TextosUsuarios["DesactivarCarteraParcial", pasados, _clientesADesactivar.Count, string.Join(" ", errores.Distinct())],
+                        TonoToast.Advertencia);
+                    _usuarioADesactivar = null;
+                    await CargarAsync();
+                    return;
+                }
+
+                ToastService.Mostrar(
+                    TextosUsuarios["DesactivarCarteraPasada", pasados, _gestoresDestino.FirstOrDefault(g => g.Id == destino)?.NombreCompleto ?? string.Empty],
+                    TonoToast.Exito);
+            }
+
+            _usuarioADesactivar = null;
+            await CambiarActivacionAsync(usuario);
+        }
+        catch (OperationCanceledException)
+        {
+            // La pantalla ya no está.
+        }
+        finally
+        {
+            _desactivando = false;
         }
     }
 
