@@ -35,7 +35,10 @@ public record VisitaListaDto(
     NivelUrgenciaVisita NivelUrgencia,
     // P1-X2: en un Centro sin gestión CAE no hay documentación que completar;
     // la columna no debe decir «por gestionar» ni «completa».
-    bool CentroRequiereGestionCae = true);
+    bool CentroRequiereGestionCae = true,
+    // FS-11: la Visita cancelada solo aparece en el historial (sin SoloActivas).
+    bool EstaCancelada = false,
+    string? MotivoCancelacion = null);
 
 /// <summary>
 /// Igual que Dashboard/Alertas, el semáforo de cada Documento se calcula en
@@ -68,6 +71,13 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         if (centroIdsVisibles is not null)
             consulta = consulta.Where(x => centroIdsVisibles.Contains(x.centro.Id));
+
+        // FS-11: una Visita cancelada no está activa ni es urgente, aunque sus
+        // fechas lo digan. Sale de la lista activa, de Mi trabajo y de la
+        // Bandeja (que piden SoloActivas/SoloUrgentes); el historial (sin
+        // SoloActivas) la sigue mostrando, marcada como cancelada.
+        if (request.SoloActivas || request.SoloUrgentes)
+            consulta = consulta.Where(x => !x.visita.EstaCancelada);
 
         if (request.SoloActivas)
             consulta = consulta.Where(x => x.visita.FechaFin >= hoy);
@@ -140,7 +150,9 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 x.visita.FechaFin,
                 x.visita.NotificadoCliente,
                 x.visita.Origen,
-                x.centro.GestionCae
+                x.centro.GestionCae,
+                x.visita.EstaCancelada,
+                x.visita.MotivoCancelacion
             })
             .ToListAsync(cancellationToken);
 
@@ -209,9 +221,14 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 p.FechaInicio, p.FechaFin, trabajadorIdsDeEstaVisita.Count,
                 DocumentacionCompleta: empresaOk && trabajadoresOk,
                 p.NotificadoCliente, p.Origen,
-                NivelUrgencia: CalculadoraUrgenciaVisita.Calcular(
-                    p.FechaInicio, p.FechaFin, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita),
-                CentroRequiereGestionCae: p.GestionCae != ModalidadGestionCae.SinGestionCae);
+                // Una cancelada no es urgente, aunque sus fechas lo fueran.
+                NivelUrgencia: p.EstaCancelada
+                    ? NivelUrgenciaVisita.Normal
+                    : CalculadoraUrgenciaVisita.Calcular(
+                        p.FechaInicio, p.FechaFin, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita),
+                CentroRequiereGestionCae: p.GestionCae != ModalidadGestionCae.SinGestionCae,
+                EstaCancelada: p.EstaCancelada,
+                MotivoCancelacion: p.MotivoCancelacion);
         }).ToList();
 
         return new ResultadoPaginado<VisitaListaDto>(elementos, total, request.Pagina, request.TamanoPagina);

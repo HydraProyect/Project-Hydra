@@ -56,6 +56,10 @@ public class EditarVisitaCommandHandler(
         if (visita is null || !await alcanceDatos.CentroParaGestionVisibleAsync(visita.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("Visita.NoEncontrada", "No encontramos esta visita."));
 
+        // FS-11: una Visita cancelada no se modifica; primero se reactiva.
+        if (visita.EstaCancelada)
+            return Result.Fallo(Error.Crear("Visita.Cancelada", "Esta visita está cancelada. Reactívala antes de modificarla."));
+
         if (ConcurrenciaOptimista.Verificar(visita, request.Version, "esta visita") is { } conflicto)
             return Result.Fallo(conflicto);
 

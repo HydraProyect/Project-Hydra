@@ -163,7 +163,8 @@ public class ObtenerKpisBpoQueryHandler(
     {
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
 
-        var visitasQuery = visitasContext.Visitas.Where(v => v.Tramo != null && v.FechaHoraExpedienteCompletoUtc >= inicioMes && v.FechaHoraExpedienteCompletoUtc < finMes);
+        // FS-11: una Visita cancelada no cuenta, igual que cuando cancelar era borrarla.
+        var visitasQuery = visitasContext.Visitas.Where(v => !v.EstaCancelada && v.Tramo != null && v.FechaHoraExpedienteCompletoUtc >= inicioMes && v.FechaHoraExpedienteCompletoUtc < finMes);
         if (centroIdsVisibles is not null)
             visitasQuery = visitasQuery.Where(v => centroIdsVisibles.Contains(v.CentroId));
 

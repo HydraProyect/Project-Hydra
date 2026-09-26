@@ -13,6 +13,8 @@ public class VisitaConfiguration : IEntityTypeConfiguration<Visita>
         builder.HasKey(v => v.Id);
 
         builder.Property(v => v.Notas).HasMaxLength(Visita.LongitudMaximaNotas);
+        builder.Property(v => v.MotivoCancelacion).HasMaxLength(Visita.LongitudMaximaMotivo);
+        builder.Property(v => v.MotivoReactivacion).HasMaxLength(Visita.LongitudMaximaMotivo);
 
         // Sin navigation property hacia Centro a propósito: cada agregado se
         // consulta por su propio repositorio/query (ver ARCHITECTURE.md). La
@@ -27,8 +29,9 @@ public class VisitaConfiguration : IEntityTypeConfiguration<Visita>
 
         // Índice del barrido del evaluador: "visitas con solicitud, sin sellar y
         // todavía vigentes" es exactamente lo que filtra EvaluarPorDocumentoAsync.
+        // FS-11: una Visita cancelada no está vigente, tampoco para el barrido.
         builder.HasIndex(v => new { v.TenantId, v.FechaFin })
-            .HasFilter("\"FechaHoraSolicitudUtc\" IS NOT NULL AND \"FechaHoraExpedienteCompletoUtc\" IS NULL AND NOT \"EstaEliminado\"")
+            .HasFilter("\"FechaHoraSolicitudUtc\" IS NOT NULL AND \"FechaHoraExpedienteCompletoUtc\" IS NULL AND NOT \"EstaEliminado\" AND NOT \"EstaCancelada\"")
             .HasDatabaseName("IX_Visitas_ExpedientePendiente");
 
         // Sin FK hacia Conversacion a propósito: ConversacionOrigenId es una referencia

@@ -56,7 +56,8 @@ public class EvaluadorExpedienteVisitaService(
 
         // Sin solicitud de origen no hay nada que medir (visita creada a mano), y con el
         // expediente ya sellado no hay nada que rehacer. Se sale antes de consultar nada.
-        if (visita is null || visita.FechaHoraSolicitudUtc is null || visita.FechaHoraExpedienteCompletoUtc is not null)
+        // Una cancelada tampoco (FS-11): no está vigente; al reactivarla se evalúa de nuevo.
+        if (visita is null || visita.EstaCancelada || visita.FechaHoraSolicitudUtc is null || visita.FechaHoraExpedienteCompletoUtc is not null)
             return false;
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
@@ -100,7 +101,7 @@ public class EvaluadorExpedienteVisitaService(
         // Solo las que todavía tienen algo que sellar: con solicitud de origen, sin sello
         // previo y sin haber pasado ya. Una visita antigua no gana nada por reevaluarse.
         var pendientes = visitasContext.Visitas
-            .Where(v => v.FechaHoraSolicitudUtc != null && v.FechaHoraExpedienteCompletoUtc == null && v.FechaFin >= hoy);
+            .Where(v => v.FechaHoraSolicitudUtc != null && v.FechaHoraExpedienteCompletoUtc == null && !v.EstaCancelada && v.FechaFin >= hoy);
 
         List<Guid> visitaIds;
 

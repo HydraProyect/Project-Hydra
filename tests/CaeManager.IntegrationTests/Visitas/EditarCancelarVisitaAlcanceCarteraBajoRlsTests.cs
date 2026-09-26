@@ -1,10 +1,10 @@
-using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
-using CaeManager.Application.Visitas.Commands.EliminarVisita;
-using CaeManager.Application.Visitas.Commands.EliminarVisitas;
+using CaeManager.Application.Visitas.Commands.CancelarVisita;
+using CaeManager.Application.Visitas.Commands.CancelarVisitas;
+using CaeManager.Application.Visitas.Commands.ReactivarVisita;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
@@ -27,7 +27,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Visitas;
 
 /// <summary>
-/// Alcance de cartera al EDITAR y al ELIMINAR una Visita (uno a uno y en lote), con el mismo
+/// Alcance de cartera al EDITAR, CANCELAR y REACTIVAR una Visita (uno a uno y en lote), con el mismo
 /// criterio que <c>CrearVisitaCommand</c> desde #889: existir en el Tenant no basta; el Centro de
 /// la Visita tiene que estar dentro del alcance de GESTIÓN de quien la toca (su Asignación de
 /// Cartera, si es Gestor CAE). Fuera de alcance se responde igual que "no existe".
@@ -48,7 +48,7 @@ namespace CaeManager.IntegrationTests.Visitas;
 /// Trabajador de su Centro.
 /// </para>
 /// </summary>
-public class EditarEliminarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
+public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
 {
     private static readonly DateOnly FechaOriginal = new(2026, 1, 1);
 
@@ -226,83 +226,134 @@ public class EditarEliminarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         }
 
         var edicion = await EditarAsync(usuarioPortal, "Cliente", _visitaDentro, [_trabajadorDentro]);
-        var eliminacion = await EliminarAsync(usuarioPortal, "Cliente", _visitaDentro);
+        var cancelacion = await CancelarAsync(usuarioPortal, "Cliente", _visitaDentro);
 
         edicion.Error.Codigo.Should().Be("Visita.NoEncontrada");
-        eliminacion.Error.Codigo.Should().Be("Visita.NoEncontrada");
+        cancelacion.Error.Codigo.Should().Be("Visita.NoEncontrada");
         (await FechaInicioAsync(_visitaDentro)).Should().Be(FechaOriginal);
-        (await EstaEliminadaAsync(_visitaDentro)).Should().BeFalse();
+        (await EstaCanceladaAsync(_visitaDentro)).Should().BeFalse();
     }
 
-    // ── Eliminar ──────────────────────────────────────────────────────────
+    // ── Cancelar (FS-11: estado reversible, ya no borrado lógico) ────────
 
     [Fact]
-    public async Task Gestor_CAE_elimina_la_Visita_de_un_Centro_dentro_de_su_cartera()
+    public async Task Gestor_CAE_cancela_la_Visita_de_un_Centro_dentro_de_su_cartera_sin_borrarla()
     {
-        var resultado = await EliminarAsync(_gestor, "GestorCae", _visitaDentro);
+        var resultado = await CancelarAsync(_gestor, "GestorCae", _visitaDentro);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
-        (await EstaEliminadaAsync(_visitaDentro)).Should().BeTrue();
+        (await EstaCanceladaAsync(_visitaDentro)).Should().BeTrue();
+        (await EstaEliminadaAsync(_visitaDentro)).Should().BeFalse("cancelar ya no es un borrado lógico");
     }
 
     [Fact]
-    public async Task Gestor_CAE_no_elimina_una_Visita_fuera_de_su_cartera()
+    public async Task Gestor_CAE_no_cancela_una_Visita_fuera_de_su_cartera()
     {
-        var resultado = await EliminarAsync(_gestor, "GestorCae", _visitaFuera);
+        var resultado = await CancelarAsync(_gestor, "GestorCae", _visitaFuera);
 
         resultado.Error.Codigo.Should().Be("Visita.NoEncontrada");
-        (await EstaEliminadaAsync(_visitaFuera)).Should().BeFalse();
+        (await EstaCanceladaAsync(_visitaFuera)).Should().BeFalse();
     }
 
     [Fact]
-    public async Task Gestor_CAE_sin_cartera_no_elimina_ninguna_Visita()
+    public async Task Gestor_CAE_sin_cartera_no_cancela_ninguna_Visita()
     {
-        var resultado = await EliminarAsync(Guid.NewGuid(), "GestorCae", _visitaDentro);
+        var resultado = await CancelarAsync(Guid.NewGuid(), "GestorCae", _visitaDentro);
 
         resultado.Error.Codigo.Should().Be("Visita.NoEncontrada");
-        (await EstaEliminadaAsync(_visitaDentro)).Should().BeFalse();
+        (await EstaCanceladaAsync(_visitaDentro)).Should().BeFalse();
     }
 
     /// <summary>Roles de Propiedad: sin restricción de cartera, igual que antes de este cambio.</summary>
     [Theory]
     [InlineData("Administrador")]
     [InlineData("DireccionCae")]
-    public async Task Un_rol_de_Propiedad_edita_y_elimina_la_Visita_de_cualquier_Centro_del_Tenant(string rol)
+    public async Task Un_rol_de_Propiedad_edita_y_cancela_la_Visita_de_cualquier_Centro_del_Tenant(string rol)
     {
         var edicion = await EditarAsync(Guid.NewGuid(), rol, _visitaFuera, [_trabajadorFuera]);
-        var eliminacion = await EliminarAsync(Guid.NewGuid(), rol, _visitaFuera);
+        var cancelacion = await CancelarAsync(Guid.NewGuid(), rol, _visitaFuera);
 
         edicion.EsExitoso.Should().BeTrue(edicion.EsFallido ? edicion.Error.Codigo : "");
-        eliminacion.EsExitoso.Should().BeTrue(eliminacion.EsFallido ? eliminacion.Error.Codigo : "");
-        (await EstaEliminadaAsync(_visitaFuera)).Should().BeTrue();
+        cancelacion.EsExitoso.Should().BeTrue(cancelacion.EsFallido ? cancelacion.Error.Codigo : "");
+        (await EstaCanceladaAsync(_visitaFuera)).Should().BeTrue();
     }
 
-    // ── Eliminar en lote ──────────────────────────────────────────────────
+    [Fact]
+    public async Task Una_Visita_cancelada_no_se_edita()
+    {
+        (await CancelarAsync(_gestor, "GestorCae", _visitaDentro)).EsExitoso.Should().BeTrue("control positivo");
+
+        var edicion = await EditarAsync(_gestor, "GestorCae", _visitaDentro, [_trabajadorDentro]);
+
+        edicion.Error.Codigo.Should().Be("Visita.Cancelada");
+        (await FechaInicioAsync(_visitaDentro)).Should().Be(FechaOriginal);
+    }
+
+    // ── Cancelar en lote ──────────────────────────────────────────────────
 
     /// <summary>
     /// En lote, la Visita fuera de cartera cuenta como una que ya no existía (éxito parcial) y la
-    /// de dentro se borra: la barrera es por Visita, no todo o nada.
+    /// de dentro se cancela: la barrera es por Visita, no todo o nada.
     /// </summary>
     [Fact]
-    public async Task Gestor_CAE_en_lote_solo_elimina_las_Visitas_de_su_cartera()
+    public async Task Gestor_CAE_en_lote_solo_cancela_las_Visitas_de_su_cartera()
     {
-        var resultado = await EliminarLoteAsync(_gestor, "GestorCae", [_visitaDentro, _visitaFuera]);
+        var resultado = await CancelarLoteAsync(_gestor, "GestorCae", [_visitaDentro, _visitaFuera]);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
-        resultado.Valor.Eliminados.Should().Be(1);
+        resultado.Valor.Canceladas.Should().Be(1);
+        resultado.Valor.IdsCanceladas.Should().Equal([_visitaDentro]);
         resultado.Valor.Errores.Should().ContainSingle();
-        (await EstaEliminadaAsync(_visitaDentro)).Should().BeTrue();
-        (await EstaEliminadaAsync(_visitaFuera)).Should().BeFalse();
+        (await EstaCanceladaAsync(_visitaDentro)).Should().BeTrue();
+        (await EstaCanceladaAsync(_visitaFuera)).Should().BeFalse();
     }
 
     [Fact]
-    public async Task Gestor_CAE_sin_cartera_en_lote_no_elimina_ninguna_Visita()
+    public async Task Gestor_CAE_sin_cartera_en_lote_no_cancela_ninguna_Visita()
     {
-        var resultado = await EliminarLoteAsync(Guid.NewGuid(), "GestorCae", [_visitaDentro, _visitaFuera]);
+        var resultado = await CancelarLoteAsync(Guid.NewGuid(), "GestorCae", [_visitaDentro, _visitaFuera]);
 
-        resultado.Valor.Eliminados.Should().Be(0);
-        (await EstaEliminadaAsync(_visitaDentro)).Should().BeFalse();
-        (await EstaEliminadaAsync(_visitaFuera)).Should().BeFalse();
+        resultado.Valor.Canceladas.Should().Be(0);
+        (await EstaCanceladaAsync(_visitaDentro)).Should().BeFalse();
+        (await EstaCanceladaAsync(_visitaFuera)).Should().BeFalse();
+    }
+
+    // ── Reactivar: mismos roles y alcance que cancelar (decisión de la coordinadora, 2026-09-26) ──
+
+    [Fact]
+    public async Task Gestor_CAE_reactiva_una_Visita_cancelada_de_su_cartera()
+    {
+        (await CancelarAsync(_gestor, "GestorCae", _visitaDentro)).EsExitoso.Should().BeTrue("control positivo");
+
+        var resultado = await ReactivarAsync(_gestor, "GestorCae", _visitaDentro);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
+        (await EstaCanceladaAsync(_visitaDentro)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Gestor_CAE_no_reactiva_una_Visita_cancelada_fuera_de_su_cartera()
+    {
+        (await CancelarAsync(Guid.NewGuid(), "Administrador", _visitaFuera)).EsExitoso.Should().BeTrue("control positivo");
+
+        var resultado = await ReactivarAsync(_gestor, "GestorCae", _visitaFuera);
+
+        resultado.Error.Codigo.Should().Be("Visita.NoEncontrada");
+        (await EstaCanceladaAsync(_visitaFuera)).Should().BeTrue();
+    }
+
+    /// <summary>Simetría: cada rol de Propiedad que cancela fuera de cartera también reactiva.</summary>
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    public async Task Un_rol_de_Propiedad_que_cancela_una_Visita_la_reactiva(string rol)
+    {
+        (await CancelarAsync(Guid.NewGuid(), rol, _visitaFuera)).EsExitoso.Should().BeTrue("control positivo: puede cancelar");
+
+        var resultado = await ReactivarAsync(Guid.NewGuid(), rol, _visitaFuera);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
+        (await EstaCanceladaAsync(_visitaFuera)).Should().BeFalse();
     }
 
     // ── Composición ───────────────────────────────────────────────────────
@@ -321,22 +372,33 @@ public class EditarEliminarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
             CancellationToken.None);
     }
 
-    private async Task<Result> EliminarAsync(Guid usuarioId, string rol, Guid visitaId)
+    private async Task<Result> CancelarAsync(Guid usuarioId, string rol, Guid visitaId)
     {
         var usuario = new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant);
         await using var runtime = CrearContextoRuntime(usuario);
-        var handler = new EliminarVisitaCommandHandler(new VisitaRepository(runtime), runtime, usuario, CrearAlcance(runtime, usuario));
+        var handler = new CancelarVisitaCommandHandler(new VisitaRepository(runtime), runtime, CrearAlcance(runtime, usuario));
 
-        return await handler.Handle(new EliminarVisitaCommand(visitaId), CancellationToken.None);
+        return await handler.Handle(new CancelarVisitaCommand(visitaId), CancellationToken.None);
     }
 
-    private async Task<Result<ResultadoEliminacionLoteDto>> EliminarLoteAsync(Guid usuarioId, string rol, IReadOnlyList<Guid> visitaIds)
+    private async Task<Result<ResultadoCancelacionLoteDto>> CancelarLoteAsync(Guid usuarioId, string rol, IReadOnlyList<Guid> visitaIds)
     {
         var usuario = new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant);
         await using var runtime = CrearContextoRuntime(usuario);
-        var handler = new EliminarVisitasCommandHandler(new VisitaRepository(runtime), runtime, usuario, CrearAlcance(runtime, usuario));
+        var handler = new CancelarVisitasCommandHandler(new VisitaRepository(runtime), runtime, CrearAlcance(runtime, usuario));
 
-        return await handler.Handle(new EliminarVisitasCommand(visitaIds), CancellationToken.None);
+        return await handler.Handle(new CancelarVisitasCommand(visitaIds), CancellationToken.None);
+    }
+
+    private async Task<Result> ReactivarAsync(Guid usuarioId, string rol, Guid visitaId)
+    {
+        var usuario = new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant);
+        await using var runtime = CrearContextoRuntime(usuario);
+        var handler = new ReactivarVisitaCommandHandler(
+            new VisitaRepository(runtime), runtime, CrearAlcance(runtime, usuario), new EvaluadorExpedienteNulo(),
+            NullLogger<ReactivarVisitaCommandHandler>.Instance);
+
+        return await handler.Handle(new ReactivarVisitaCommand(visitaId), CancellationToken.None);
     }
 
     private AlcanceDatosService CrearAlcance(CaeManagerDbContext runtime, CurrentUserServiceFalso usuario) =>
@@ -367,6 +429,10 @@ public class EditarEliminarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
     private async Task<bool> EstaEliminadaAsync(Guid visitaId) =>
         await _propietario.Visitas.IgnoreQueryFilters().AsNoTracking()
             .Where(v => v.Id == visitaId).Select(v => v.EstaEliminado).SingleAsync();
+
+    private async Task<bool> EstaCanceladaAsync(Guid visitaId) =>
+        await _propietario.Visitas.IgnoreQueryFilters().AsNoTracking()
+            .Where(v => v.Id == visitaId).Select(v => v.EstaCancelada).SingleAsync();
 
     private async Task<List<Guid>> TrabajadoresDeAsync(Guid visitaId) =>
         await _propietario.VisitasTrabajadores.IgnoreQueryFilters().AsNoTracking()

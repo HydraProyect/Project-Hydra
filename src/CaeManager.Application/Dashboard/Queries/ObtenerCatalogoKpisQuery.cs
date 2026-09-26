@@ -316,7 +316,8 @@ public class ObtenerCatalogoKpisQueryHandler(
         if (centroIds.Count == 0) return new Dictionary<Guid, int>();
 
         var visitas = await visitasContext.Visitas
-            .Where(v => centroIds.Contains(v.CentroId) && v.FechaInicio >= inicio && v.FechaInicio <= fin)
+            // FS-11: una Visita cancelada no cuenta, igual que cuando cancelar era borrarla.
+            .Where(v => centroIds.Contains(v.CentroId) && !v.EstaCancelada && v.FechaInicio >= inicio && v.FechaInicio <= fin)
             .Select(v => new { v.Id, v.CentroId })
             .ToListAsync(cancellationToken);
 

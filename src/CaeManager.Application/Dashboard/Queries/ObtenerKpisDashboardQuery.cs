@@ -102,7 +102,7 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         var centrosBloqueados = estadosCentro.Values.Count(r => r.Estado == EstadoCentro.Bloqueado);
 
         var hoyParaVisitas = DateOnly.FromDateTime(DateTime.UtcNow);
-        var visitasQuery = visitasContext.Visitas.Where(v => v.FechaFin >= hoyParaVisitas);
+        var visitasQuery = visitasContext.Visitas.Where(v => !v.EstaCancelada && v.FechaFin >= hoyParaVisitas); // FS-11: una cancelada no se cuenta
         if (centroIdsVisibles is not null) visitasQuery = visitasQuery.Where(v => centroIdsVisibles.Contains(v.CentroId));
         var visitasProgramadas = await visitasQuery.CountAsync(cancellationToken);
 
