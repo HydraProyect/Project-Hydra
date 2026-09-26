@@ -4,6 +4,7 @@
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Infrastructure.Identity
 
+<LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Usuarios — @Marca.Nombre</PageTitle>
@@ -408,3 +409,4 @@
                       Titulo="@TextosUsuarios["RestablecerSegundoFactorTitulo"]" Mensaje="@MensajeRestablecerSegundoFactor"
                       TextoBotonConfirmar="@TextosUsuarios["RestablecerSegundoFactorConfirmar"]" EnProgreso="_restableciendoSegundoFactor"
                       OnConfirmar="RestablecerSegundoFactorAsync" />
+</LimiteDeErrores>

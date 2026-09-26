@@ -3,6 +3,7 @@
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 
+<LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Roles — @Marca.Nombre</PageTitle>
@@ -183,3 +184,4 @@
                          EnProgreso="@(_asignandoId is not null)"
                          OnConfirmar="ConfirmarAsignacionAsync" />
 </div>
+</LimiteDeErrores>
