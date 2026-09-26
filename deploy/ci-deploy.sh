@@ -1070,7 +1070,8 @@ fi
 # Antes, la retención de P1-F1: liberar-disco.sh ya no poda las caemanager:<sha>
 # etiquetadas, y las de despliegues que fallaron tras cargarse nunca llegan al
 # `retener` que sigue a un despliegue sano. Conserva el historial y lo que usa
-# un contenedor; nunca hace fallar el despliegue.
+# un contenedor; sin historial legible no retira ninguna; nunca hace fallar el
+# despliegue.
 bash /opt/talveg/deploy/imagenes-retenidas.sh retener < /dev/null \
     || echo "::warning::la retención de imágenes previa falló: revisa 'docker image ls caemanager'."
 bash /opt/talveg/deploy/liberar-disco.sh < /dev/null
@@ -1140,10 +1141,13 @@ volcar_diagnostico_si_falla() {
     # P1-F1: el despliegue llegó a sano, así que entra en el historial del
     # entorno (del que sale el «anterior» de deploy/volver-atras.sh) y se
     # retiran las imágenes caemanager:<sha> que exceden las N retenidas.
+    # `retener` recibe el entorno y el SHA para comprobar que el registro llegó
+    # al historial: si no llegó (o el historial no se puede leer), no retira
+    # ninguna imagen, solo avisa.
     # `|| echo`: ninguno de los dos convierte en fallo un despliegue sano.
     bash /opt/talveg/deploy/imagenes-retenidas.sh registrar "$ENTORNO" "$SHA" < /dev/null \
-        || echo "::warning::no se pudo registrar $SHA en el historial de $ENTORNO: «volver-atras.sh $ENTORNO anterior» no lo verá."
-    bash /opt/talveg/deploy/imagenes-retenidas.sh retener < /dev/null \
+        || echo "::warning::no se pudo registrar $SHA en el historial de $ENTORNO: «volver-atras.sh $ENTORNO anterior» no lo verá y la retención no retirará ninguna imagen."
+    bash /opt/talveg/deploy/imagenes-retenidas.sh retener "$ENTORNO" "$SHA" < /dev/null \
         || echo "::warning::la retención de imágenes falló: revisa 'docker image ls caemanager'."
 
     # Solo lectura y sin imprimir valores (P18b). `|| true`: una comprobación de

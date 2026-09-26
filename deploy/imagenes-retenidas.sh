@@ -4,7 +4,7 @@
 #
 # Uso:
 #   imagenes-retenidas.sh registrar <staging|produccion> <sha>
-#   imagenes-retenidas.sh retener
+#   imagenes-retenidas.sh retener [<staging|produccion> <sha recién registrado>]
 #   imagenes-retenidas.sh anterior <staging|produccion> <sha actual>
 #
 # `registrar` y `retener` los llama ci-deploy.sh tras un despliegue que llegó a
@@ -31,6 +31,15 @@
 # liberar-disco.sh ya no poda estas imágenes (las marca la etiqueta
 # es.talveg.despliegue que les pone deploy.yml): esta retención es lo único que
 # las retira, y por eso corre en cada despliegue sano.
+#
+# `retener` falla CERRADO: si el historial de cualquiera de los dos entornos no
+# existe, no se puede leer o no tiene ninguna entrada válida —o, cuando se le
+# pasa <entorno> <sha>, si ese SHA no es la última entrada del historial de su
+# entorno (el `registrar` de este despliegue falló)—, no retira ninguna
+# caemanager:<sha>, lo avisa con ::warning:: y sale con 0. Sin historial, la
+# lista de retenidas quedaría reducida a las que usa un contenedor y se
+# borrarían las imágenes que guarda volver-atras.sh (hallazgo de Codex
+# posterior a #922). La poda de las colgantes (sin -a) sí se hace siempre.
 
 set -euo pipefail
 
@@ -75,7 +84,7 @@ registrar_despliegue() {
 shas_recientes() {
     local fichero limite="${2:-0}"
     fichero="$(fichero_historial "$1")"
-    [ -r "$fichero" ] || return 0
+    [ -f "$fichero" ] && [ -r "$fichero" ] || return 1
     awk '$2 ~ /^[0-9a-f]{40}$/ { print $2 }' "$fichero" | tac \
         | awk -v limite="$limite" '!visto[$0]++ && (limite == 0 || n < limite) { print; n++ }'
 }
@@ -106,14 +115,58 @@ imagen_anterior() {
     }
 }
 
+# Imprime por qué el historial de <entorno> no sirve para decidir qué se
+# retiene, o nada si sirve. Un directorio en su lugar cuenta como ilegible: awk
+# lo saltaría con un aviso y saldría con 0, como un historial vacío.
+motivo_historial_inservible() {
+    local fichero
+    fichero="$(fichero_historial "$1")"
+    if [ ! -e "$fichero" ]; then
+        echo "no existe el historial de $1 ($fichero)"
+    elif [ ! -f "$fichero" ] || [ ! -r "$fichero" ]; then
+        echo "no se puede leer el historial de $1 ($fichero)"
+    elif ! awk '$2 ~ /^[0-9a-f]{40}$/ { hay = 1 } END { exit hay ? 0 : 1 }' "$fichero" 2> /dev/null; then
+        echo "el historial de $1 ($fichero) no tiene ninguna entrada válida"
+    fi
+}
+
+podar_colgantes_de_despliegue() {
+    # Redesplegar un SHA con otra imagen (otro ID) deja la anterior sin
+    # etiqueta: la retención ya no la ve y liberar-disco.sh la excluye por su
+    # es.talveg.despliegue (hallazgo de Codex). Sin -a, `image prune` solo
+    # quita las colgantes, y nunca una que use un contenedor.
+    docker image prune -f --filter "label=es.talveg.despliegue" > /dev/null \
+        || echo "::warning::no se pudieron retirar las imágenes de despliegue sin etiqueta." >&2
+}
+
 retener_imagenes() {
-    local n entorno sha etiqueta
+    local entorno_actual="${1:-}" sha_actual="${2:-}"
+    local n entorno etiqueta motivo="" recientes
+    if [ -n "$entorno_actual$sha_actual" ]; then
+        es_entorno "$entorno_actual" || { echo "::error::entorno no válido: '$entorno_actual'" >&2; return 1; }
+        es_sha "$sha_actual" || { echo "::error::SHA no válido: '$sha_actual'" >&2; return 1; }
+    fi
     n="$(imagenes_retenidas_n)" || return 1
 
     local conservar=""
     for entorno in staging produccion; do
-        conservar+="$(shas_recientes "$entorno" "$n")"$'\n'
+        motivo="$(motivo_historial_inservible "$entorno")"
+        [ -z "$motivo" ] || break
+        if ! recientes="$(shas_recientes "$entorno" "$n")"; then
+            motivo="no se pudo leer el historial de $entorno"
+            break
+        fi
+        conservar+="$recientes"$'\n'
     done
+    if [ -z "$motivo" ] && [ -n "$entorno_actual" ] \
+        && [ "$(shas_recientes "$entorno_actual" 1)" != "$sha_actual" ]; then
+        motivo="$sha_actual no es el último despliegue del historial de $entorno_actual (¿falló registrar?)"
+    fi
+    if [ -n "$motivo" ]; then
+        echo "::warning::retención de imágenes omitida: $motivo. No se retira ninguna ${REPOSITORIO_IMAGEN_DESPLIEGUE}:<sha> (volver-atras.sh depende de ellas); revisa el historial en $DIR_HISTORIAL_DESPLIEGUES." >&2
+        podar_colgantes_de_despliegue
+        return 0
+    fi
     # Las que usa cualquier contenedor, aunque esté parado.
     conservar+="$(docker ps -a --format '{{.Image}}' | sed -n "s/^${REPOSITORIO_IMAGEN_DESPLIEGUE}://p")"$'\n'
 
@@ -128,21 +181,16 @@ retener_imagenes() {
             || echo "::warning::no se pudo retirar ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${etiqueta}." >&2
     done < <(docker image ls "$REPOSITORIO_IMAGEN_DESPLIEGUE" --format '{{.Tag}}')
 
-    # Redesplegar un SHA con otra imagen (otro ID) deja la anterior sin
-    # etiqueta: el bucle de arriba ya no la ve y liberar-disco.sh la excluye por
-    # su es.talveg.despliegue (hallazgo de Codex). Sin -a, `image prune` solo
-    # quita las colgantes, y nunca una que use un contenedor.
-    docker image prune -f --filter "label=es.talveg.despliegue" > /dev/null \
-        || echo "::warning::no se pudieron retirar las imágenes de despliegue sin etiqueta." >&2
+    podar_colgantes_de_despliegue
 }
 
 main_imagenes_retenidas() {
     case "${1:-}" in
         registrar) registrar_despliegue "${2:-}" "${3:-}" ;;
-        retener) retener_imagenes ;;
+        retener) retener_imagenes "${2:-}" "${3:-}" ;;
         anterior) imagen_anterior "${2:-}" "${3:-}" ;;
         *)
-            echo "uso: imagenes-retenidas.sh registrar <staging|produccion> <sha> | retener | anterior <staging|produccion> <sha>" >&2
+            echo "uso: imagenes-retenidas.sh registrar <staging|produccion> <sha> | retener [<staging|produccion> <sha>] | anterior <staging|produccion> <sha>" >&2
             return 2
             ;;
     esac
