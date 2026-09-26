@@ -1,4 +1,5 @@
 @using Microsoft.AspNetCore.Components.Routing
+@using CaeManager.Web.Components.Workspace
 @inject NavigationManager Navegacion
 @implements IDisposable
 
@@ -108,6 +109,16 @@
             return Task.CompletedTask;
         }
 
+        // Cambiar de pestaña en el Context Workspace escribe ?ctx= con la pestaña nueva de la
+        // misma ficha. Un formulario fuera de las pestañas (sin ámbito) no se desmonta con
+        // eso: no es una salida. Uno dentro de una pestaña sí se desmonta, así que solo pasa
+        // si esa navegación acompaña a un cambio que Pestanas ya confirmó; un enlace o
+        // atrás/adelante hacia otra pestaña sigue preguntando.
+        if ((Ambito is null || Ambito.EnAbandonoAutorizado)
+            && ContextWorkspace.EsSoloCambioDePestana(
+                Navegacion.ToAbsoluteUri(Navegacion.Uri), Navegacion.ToAbsoluteUri(contexto.TargetLocation)))
+            return Task.CompletedTask;
+
         if (!HayCambios())
             return Task.CompletedTask;
 
@@ -133,9 +144,6 @@
         {
             _abandonoPendiente = null;
             await AlDescartar.InvokeAsync();
-            // Quien desmonta puede sincronizar la URL justo después (el Context Workspace
-            // escribe ?ctx=): esa navegación ya está decidida y no pregunta otra vez.
-            _salidaConfirmada = true;
             abandono.TrySetResult(true);
             return;
         }

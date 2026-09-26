@@ -21,6 +21,32 @@ public sealed class AmbitoCambiosSinGuardar
 
     public AmbitoCambiosSinGuardar(AmbitoCambiosSinGuardar? padre = null) => _padre = padre;
 
+    private bool _abandonoEnCurso;
+
+    /// <summary>
+    /// Si este ámbito (o uno que lo contiene) está terminando un cambio ya confirmado con
+    /// <see cref="ConfirmarAbandonoAsync"/>: la sincronización de la URL que lo acompaña
+    /// (el ?ctx= del Context Workspace) no vuelve a preguntar a los avisos de dentro.
+    /// </summary>
+    internal bool EnAbandonoAutorizado => _abandonoEnCurso || (_padre?.EnAbandonoAutorizado ?? false);
+
+    /// <summary>
+    /// Ejecuta el cambio ya confirmado (cambiar de pestaña) marcando el abandono como
+    /// autorizado mientras dura, con la navegación que lo acompañe.
+    /// </summary>
+    public async Task EjecutarAbandonoAutorizadoAsync(Func<Task> cambio)
+    {
+        _abandonoEnCurso = true;
+        try
+        {
+            await cambio();
+        }
+        finally
+        {
+            _abandonoEnCurso = false;
+        }
+    }
+
     internal void Registrar(AvisoCambiosSinGuardar aviso)
     {
         _avisos.Add(aviso);
