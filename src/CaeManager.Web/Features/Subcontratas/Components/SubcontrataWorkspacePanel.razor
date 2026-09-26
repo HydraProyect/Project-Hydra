@@ -1131,6 +1131,9 @@ else
     {
         if (_detalle is null) return null;
 
+        // Si el usuario cambia de Subcontrata con la consulta en vuelo, ni se
+        // copia la contraseña de la anterior ni se toca el estado de la nueva.
+        var generacion = _generacion;
         CredencialAccesoSubcontrataDto? credencial;
         try
         {
@@ -1138,6 +1141,7 @@ else
         }
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
+            if (generacion != _generacion) return null;
             // El clic llega por BotonCopiar (componente hijo): sin
             // StateHasChanged este panel no se repinta sin la credencial.
             OcultarCredencial();
@@ -1145,6 +1149,7 @@ else
             NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
             return null;
         }
+        if (generacion != _generacion) return null;
         if (string.IsNullOrEmpty(credencial?.Contrasena))
         {
             ToastService.Mostrar(Textos["ToastSinContrasenaGuardada"], TonoToast.Info);

@@ -404,6 +404,51 @@ public class Subcontrata360Gen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Segunda pasada de Codex en #900: copiar la contraseña consulta en el
+    /// momento, así que la respuesta puede llegar con otra Subcontrata ya
+    /// abierta. Ni se copia la contraseña de la anterior ni, sin 2FA, se toca
+    /// el estado de la nueva ni se navega.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Copiar_la_contrasena_de_la_primera_con_la_segunda_ya_abierta_no_copia_ni_toca_la_segunda(bool sinDobleFactor)
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[a] = Detalle(a, "Pinturas Lauburu S.A.");
+        mediador.Detalles[b] = Detalle(b, "Andamios Deusto S.L.");
+        mediador.Credenciales[a] = new("app.dokify.net/acceso", null, "lauburu.prl", "Lauburu.2026", null);
+        mediador.Credenciales[b] = new("app.twind.io", null, "deusto.prl", "Deusto.2026", null);
+        var modulo = JSInterop.SetupModule("./js/clipboard.js");
+        modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
+        var cut = Renderizar(a);
+        await Boton(cut, "Ver credenciales").ClickAsync(new MouseEventArgs());
+
+        var copiaDeA = new TaskCompletionSource();
+        mediador.Retener = q => q is ObtenerCredencialAccesoSubcontrataQuery c && c.SubcontrataId == a ? copiaDeA.Task : null;
+        mediador.SinDobleFactor = sinDobleFactor;
+        // Sin await: la consulta de la copia de A está retenida.
+        var clic = cut.Find(".contrasena-subcontrata-360").ParentElement!.QuerySelector(".boton-copiar")!
+            .ClickAsync(new MouseEventArgs());
+
+        cut.Render(p => p.Add(x => x.EntidadId, b).Add(x => x.PestanaActiva, "informacion"));
+        mediador.SinDobleFactor = false;
+        mediador.Retener = null;
+        await Boton(cut, "Ver credenciales").ClickAsync(new MouseEventArgs());
+        cut.Markup.Should().Contain("deusto.prl", "control positivo: la segunda tiene su credencial abierta");
+
+        mediador.SinDobleFactor = sinDobleFactor;
+        await cut.InvokeAsync(() => copiaDeA.SetResult());
+        await clic;
+
+        modulo.Invocations.Should().BeEmpty("la contraseña pedida era la de otra subcontrata");
+        cut.Markup.Should().Contain("deusto.prl", "la respuesta tardía no suelta la credencial de la segunda");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("configurar-2fa");
+    }
+
+    /// <summary>
     /// P41b (decisión del propietario, 2026-09-19): «Dar de baja» de la
     /// subcontrata solo vive en la lista. La ficha no la ofrece —ni botón, ni
     /// diálogo— y el doble de mediador ya no responde a
