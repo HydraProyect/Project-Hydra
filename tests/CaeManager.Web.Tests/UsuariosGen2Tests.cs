@@ -1788,7 +1788,7 @@ public class UsuariosGen2Tests : BunitContext
             (iker, RolesIdentidad.GestorCae));
         _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(false, [ClienteUno, ClienteDos]) };
         _fuente.EnRol = _ => [ander, iker];
-        _mediador.FallaReasignarCliente = ClienteDos;
+        _mediador.FallaReasignarCliente = ClienteUno;
 
         var cut = Renderizar(actorId: MartaId);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
@@ -1797,7 +1797,9 @@ public class UsuariosGen2Tests : BunitContext
 
         _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull("sin la cartera entera pasada, no se desactiva");
         _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should()
-            .StartWith("Solo 1 de 2 Clientes empresariales pasaron al nuevo Gestor CAE, así que la cuenta sigue activa.");
+            .StartWith("Solo 0 de 2 Clientes empresariales pasaron al nuevo Gestor CAE, así que la cuenta sigue activa.");
+        _mediador.Enviadas.OfType<ReasignarEjecutivoClienteCommand>().Should().ContainSingle(
+            "un fallo devuelto también detiene el lote: el DbContext del circuito puede quedar con cambios a medias");
     }
 
     /// <summary>

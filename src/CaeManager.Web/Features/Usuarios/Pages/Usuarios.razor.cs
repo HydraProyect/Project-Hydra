@@ -1659,8 +1659,18 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                     try
                     {
                         var resultado = await Mediator.Send(new ReasignarEjecutivoClienteCommand(clienteId, destino), _ciclo.Token);
-                        if (resultado.EsExitoso) pasados++;
-                        else errores.Add(resultado.Error.Mensaje);
+                        if (resultado.EsExitoso)
+                        {
+                            pasados++;
+                        }
+                        else
+                        {
+                            // Mismo motivo que la excepción de abajo: un fallo devuelto
+                            // (p. ej. un DbUpdateException que el comando traduce) también
+                            // puede dejar cambios a medias en el DbContext del circuito.
+                            errores.Add(resultado.Error.Mensaje);
+                            break;
+                        }
                     }
                     catch (Exception excepcion) when (excepcion is not OperationCanceledException)
                     {
