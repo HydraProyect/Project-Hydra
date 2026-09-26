@@ -437,6 +437,8 @@ public class ClientesListaGen2Tests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
+        // AvisoCambiosSinGuardar (P1-E2b) pinta sus textos con IStringLocalizer<TextosComunes>.
+        Services.AddLocalization();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<AuthenticationStateProvider>(_ => new AutenticacionFalsa(rol));

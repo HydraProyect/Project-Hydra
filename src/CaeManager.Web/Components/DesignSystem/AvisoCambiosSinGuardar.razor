@@ -15,7 +15,13 @@
       detiene y pregunta; «Seguir editando» se queda donde estaba y «Salir y descartar»
       repite la navegación ya sin volver a preguntar;
     - recargar o cerrar la pestaña con cambios dispara el aviso del propio navegador
-      (ConfirmExternalNavigation), que no admite texto propio.
+      (ConfirmExternalNavigation), que no admite texto propio;
+    HayCambios es una función y se consulta en el momento de navegar, no el valor del
+    último render: así la navegación que el propio formulario lanza justo después de
+    cerrarse (limpiar ?accion= de la URL, «Continuar con…» tras guardar) ya ve el
+    formulario cerrado y no pregunta.
+    Para decidir HayCambios en un drawer o modal, InstantaneaFormulario compara los
+    campos con cómo se abrió el formulario.
 
     Solo funciona en componentes interactivos: en una página estática (las de cuenta y
     2FA) no hay circuito que reciba el evento de navegación.
@@ -25,7 +31,7 @@
     CerrarAlHacerClicFuera.
 *@
 
-<NavigationLock OnBeforeInternalNavigation="AntesDeSalirAsync" ConfirmExternalNavigation="HayCambios" />
+<NavigationLock OnBeforeInternalNavigation="AntesDeSalirAsync" ConfirmExternalNavigation="HayCambios()" />
 
 <Modal Visible="_preguntando" VisibleChanged="v => { if (!v) SeguirEditando(); }" Titulo="@(Titulo ?? Comunes["CambiosSinGuardarTitulo"])">
     <ChildContent>
@@ -40,9 +46,11 @@
 @code {
     /// <summary>
     /// Si el formulario tiene algo escrito que se perdería al salir. Es el único dato
-    /// que el formulario aporta: mientras sea <c>false</c>, este componente no hace nada.
+    /// que el formulario aporta: mientras devuelva <c>false</c>, este componente no hace
+    /// nada. Se consulta al navegar (no el valor del último render): el formulario que
+    /// acaba de cerrarse y navega en el mismo manejador ya no tiene nada que perder.
     /// </summary>
-    [Parameter, EditorRequired] public bool HayCambios { get; set; }
+    [Parameter, EditorRequired] public Func<bool> HayCambios { get; set; } = () => false;
 
     /// <summary>
     /// Se invoca tras confirmar la salida y antes de repetir la navegación: para limpiar lo
@@ -70,7 +78,7 @@
             return Task.CompletedTask;
         }
 
-        if (!HayCambios)
+        if (!HayCambios())
             return Task.CompletedTask;
 
         contexto.PreventNavigation();
