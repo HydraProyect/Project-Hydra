@@ -187,6 +187,18 @@ public class VerificacionIaDocumentoService(
             if (motivoDescarte is not null)
                 return motivoDescarte;
 
+            // Cierra la carrera con una decisión manual que aún no ha
+            // confirmado: toda aprobación manual resuelve una revisión
+            // pendiente en su misma transacción, y esas filas están
+            // bloqueadas. Si la revisión sigue pendiente aquí, la decisión
+            // manual está por llegar (o en curso) y prevalece; si ya se
+            // resolvió, este bloqueo esperó a su commit y la comprobación de
+            // arriba vio su AprobacionDocumento.
+            var hayRevisionPendiente = await documentosContext.RevisionesIaDocumento
+                .AnyAsync(r => r.DocumentoId == documentoId && !r.Resuelta, ct);
+            if (hayRevisionPendiente)
+                return "Hay una revisión del Documento pendiente de decisión manual.";
+
             // La auditoría se escribió al terminar esta extracción.
             var auditoria = await auditoriaRepositorio.ObtenerUltimaSinDecisionPorDocumentoAsync(documentoId, ct);
 

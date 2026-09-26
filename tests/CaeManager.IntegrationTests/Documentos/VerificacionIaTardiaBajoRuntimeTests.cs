@@ -117,6 +117,88 @@ public class VerificacionIaTardiaBajoRuntimeTests
         (await LeerAprobacionesComoPropietarioAsync(arnes, documentoId)).Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Una_revision_pendiente_aparecida_durante_la_extraccion_descarta_la_aprobacion()
+    {
+        await using var arnes = await CrearArnesAsync();
+        var (documentoId, encargo) = await SembrarDocumentoEncoladoAsync(arnes);
+
+        var extraccion = new ExtraccionQueCoincide(async () => await CrearRevisionPendienteAsync(arnes, documentoId));
+        var descarte = await ProcesarAsync(arnes, encargo, extraccion);
+
+        descarte.Should().Contain("pendiente de decisión manual");
+        (await LeerAprobacionesComoPropietarioAsync(arnes, documentoId)).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// La carrera que señaló la revisión de Codex: una decisión manual en
+    /// curso, sin confirmar, mientras la verificación escribe. La aprobación
+    /// manual no bloquea nada por sí sola; lo que serializa es que resuelve la
+    /// revisión en la misma transacción. La verificación debe esperar a ese
+    /// commit y entonces ver la decisión — no adelantarse con la revisión
+    /// todavía pendiente ni coexistir con la aprobación manual.
+    /// </summary>
+    [Fact]
+    public async Task Una_decision_manual_sin_confirmar_bloquea_la_verificacion_y_prevalece()
+    {
+        await using var arnes = await CrearArnesAsync();
+        var (documentoId, encargo) = await SembrarDocumentoEncoladoAsync(arnes);
+        var retardoCommit = TimeSpan.FromSeconds(2);
+        Task? decisionEnCurso = null;
+
+        var extraccion = new ExtraccionQueCoincide(async () =>
+        {
+            var revisionId = await CrearRevisionPendienteAsync(arnes, documentoId);
+            decisionEnCurso = await EmpezarDecisionManualSinConfirmarAsync(arnes, revisionId, retardoCommit);
+        });
+
+        var cronometro = System.Diagnostics.Stopwatch.StartNew();
+        var descarte = await ProcesarAsync(arnes, encargo, extraccion);
+        cronometro.Stop();
+        await decisionEnCurso!;
+
+        descarte.Should().Contain("a mano", "esperó al commit de la decisión manual y la vio");
+        cronometro.Elapsed.Should().BeGreaterThan(retardoCommit - TimeSpan.FromMilliseconds(300),
+            "el bloqueo de la revisión obliga a esperar a la transacción manual");
+        (await LeerAprobacionesComoPropietarioAsync(arnes, documentoId))
+            .Should().ContainSingle().Which.Tipo.Should().Be(TipoAprobacionDocumento.Manual);
+    }
+
+    private async Task<Guid> CrearRevisionPendienteAsync(ArnesDeArranqueRuntime arnes, Guid documentoId)
+    {
+        await using var scope = arnes.Servicios.CreateAsyncScope();
+        var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var revision = RevisionIaDocumento.Crear(documentoId, 60, "Apto médico", Emision, null, true, "Confianza baja (60%)");
+        contexto.RevisionesIaDocumento.Add(revision);
+        await contexto.SaveChangesAsync();
+        return revision.Id;
+    }
+
+    /// <summary>
+    /// Como <c>ResolverRevisionIaDocumentoCommand</c>, pero con la transacción
+    /// abierta: resuelve la revisión y añade la aprobación manual, y confirma
+    /// pasado <paramref name="retardo"/> en segundo plano.
+    /// </summary>
+    private static async Task<Task> EmpezarDecisionManualSinConfirmarAsync(
+        ArnesDeArranqueRuntime arnes, Guid revisionId, TimeSpan retardo)
+    {
+        var scope = arnes.Servicios.CreateAsyncScope();
+        var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var transaccion = await contexto.Database.BeginTransactionAsync();
+        var revision = await contexto.RevisionesIaDocumento.SingleAsync(r => r.Id == revisionId);
+        revision.Resolver();
+        contexto.AprobacionesDocumento.Add(AprobacionDocumento.CrearManual(revision.DocumentoId, revision.ConfianzaGeneral, Guid.NewGuid()));
+        await contexto.SaveChangesAsync();
+
+        return Task.Run(async () =>
+        {
+            await Task.Delay(retardo);
+            await transaccion.CommitAsync();
+            await transaccion.DisposeAsync();
+            await scope.DisposeAsync();
+        });
+    }
+
     private Task<ArnesDeArranqueRuntime> CrearArnesAsync() =>
         ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false, tenantActualPersonalizado: _tenant);
 

@@ -13,6 +13,14 @@ namespace CaeManager.Application.Documentos.Verificacion;
 /// que él confirme y entonces ve su versión nueva; resolver una revisión
 /// (que no toca el Documento) actualiza su fila de RevisionIaDocumento, que
 /// también queda bloqueada.
+///
+/// <b>Protocolo del que depende</b>: toda AprobacionDocumento manual nace
+/// resolviendo una RevisionIaDocumento pendiente en la misma transacción
+/// (ResolverRevisionIaDocumento, CorregirRevisionIaDocumento,
+/// AplicarDeteccionIaDocumento). Insertar la aprobación no bloquea nada; es
+/// la actualización de la revisión la que choca con este bloqueo. Un camino
+/// manual nuevo que apruebe sin resolver una revisión, o sin tocar el
+/// Documento, rompería la serialización.
 /// </summary>
 public interface ITransaccionDocumentoBloqueado
 {
