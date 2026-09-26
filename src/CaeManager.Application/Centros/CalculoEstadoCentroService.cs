@@ -537,15 +537,22 @@ public class CalculoEstadoCentroService(
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var estadosPorPareja = (await documentosContext.Documentos
+        var documentosExistentes = await documentosContext.Documentos
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsCandidatos.Contains(d.TipoDocumentoId))
-            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
-            .ToListAsync(cancellationToken))
+            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
+            .ToListAsync(cancellationToken);
+
+        // Puede haber varios por par (el vencido y su renovación): el índice
+        // (TrabajadorId, TipoDocumentoId) no es único y la subida no rechaza un
+        // segundo documento del mismo tipo. Manda el mismo que elige el paquete
+        // de acreditación (P1-D3).
+        var estadosPorPareja = PreferenciaDocumentoPorTipo.UnoPorClave(
+                documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, hoy)
             .ToDictionary(
-                d => (d.TrabajadorId, d.TipoDocumentoId),
-                d => CalculadoraEstadoDocumento.Calcular(d.EstadoVigencia, d.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
+                p => p.Key,
+                p => CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
 
         foreach (var asignacion in asignacionesActivas)
         {
