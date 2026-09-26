@@ -5,7 +5,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         /// <summary>
         /// Esquema que dejaban las 185 migraciones previas, generado con
         /// <c>pg_dump --schema-only</c> + <c>pg_restore -O</c> de una base migrada con ellas
-        /// (origin/main 0fcb8b87), sin cabecera de sesión, sin <c>__EFMigrationsHistory</c>
+        /// (origin/main 0fcb8b87) en PostgreSQL 18.6, la imagen de CI, staging y producción. En 18
+        /// los NOT NULL son restricciones con nombre y el volcado conserva los que dejaron los
+        /// renombrados del historial; PostgreSQL 17 acepta esa sintaxis e ignora el nombre. Sin
+        /// cabecera de sesión, sin <c>__EFMigrationsHistory</c>
         /// (la crea EF), sin las particiones de auditoría ni las cuatro funciones del
         /// particionado (las crea <see cref="ParticionadoMensualEventos"/>, en el paso 3) y
         /// con las dos madres de auditoría como tablas ordinarias, que el helper convierte.
@@ -418,7 +421,7 @@ CREATE TABLE public."AceptacionesTerminos" (
 CREATE TABLE public."AcreditacionesDocumentoPlataforma" (
     "Id" uuid NOT NULL,
     "DocumentoId" uuid NOT NULL,
-    "CanalGestionDocumentalId" uuid NOT NULL,
+    "CanalGestionDocumentalId" uuid CONSTRAINT "AcreditacionesDocumentoPlataf_CanalGestionDocumentalId_not_null" NOT NULL,
     "Estado" integer NOT NULL,
     "TenantId" uuid NOT NULL,
     "Version" uuid NOT NULL,
@@ -433,13 +436,13 @@ CREATE TABLE public."AcreditacionesDocumentoPlataforma" (
 ALTER TABLE ONLY public."AcreditacionesDocumentoPlataforma" FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE public."AdjuntosMensaje" (
-    "Id" uuid NOT NULL,
-    "MensajeId" uuid NOT NULL,
-    "NombreArchivo" character varying(260) NOT NULL,
-    "TipoContenido" character varying(150) NOT NULL,
-    "TamanoBytes" bigint NOT NULL,
-    "ArchivoUrl" character varying(500) NOT NULL,
-    "TenantId" uuid NOT NULL
+    "Id" uuid CONSTRAINT "AdjuntosMensajeCorreo_Id_not_null" NOT NULL,
+    "MensajeId" uuid CONSTRAINT "AdjuntosMensajeCorreo_MensajeCorreoId_not_null" NOT NULL,
+    "NombreArchivo" character varying(260) CONSTRAINT "AdjuntosMensajeCorreo_NombreArchivo_not_null" NOT NULL,
+    "TipoContenido" character varying(150) CONSTRAINT "AdjuntosMensajeCorreo_TipoContenido_not_null" NOT NULL,
+    "TamanoBytes" bigint CONSTRAINT "AdjuntosMensajeCorreo_TamanoBytes_not_null" NOT NULL,
+    "ArchivoUrl" character varying(500) CONSTRAINT "AdjuntosMensajeCorreo_ArchivoUrl_not_null" NOT NULL,
+    "TenantId" uuid CONSTRAINT "AdjuntosMensajeCorreo_TenantId_not_null" NOT NULL
 );
 
 ALTER TABLE ONLY public."AdjuntosMensaje" FORCE ROW LEVEL SECURITY;
@@ -699,9 +702,9 @@ ALTER TABLE ONLY public."ClasificacionesRelevanciaCae" FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE public."ClasificacionesRuidoDetalleGestion" (
     "Id" uuid NOT NULL,
-    "DetalleSugerenciaGestionCorreoId" uuid NOT NULL,
-    "ReclamacionDocumentalDocumentoId" uuid NOT NULL,
-    "ConfirmadaManualmente" boolean NOT NULL,
+    "DetalleSugerenciaGestionCorreoId" uuid CONSTRAINT "ClasificacionesRuidoDetalle_DetalleSugerenciaGestionCo_not_null" NOT NULL,
+    "ReclamacionDocumentalDocumentoId" uuid CONSTRAINT "ClasificacionesRuidoDetalle_ReclamacionDocumentalDocum_not_null" NOT NULL,
+    "ConfirmadaManualmente" boolean CONSTRAINT "ClasificacionesRuidoDetalleGesti_ConfirmadaManualmente_not_null" NOT NULL,
     "CreadaEnUtc" timestamp with time zone NOT NULL,
     "TenantId" uuid NOT NULL
 );
@@ -849,22 +852,22 @@ CREATE TABLE public."ContactosWhatsApp" (
 ALTER TABLE ONLY public."ContactosWhatsApp" FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE public."Conversaciones" (
-    "Id" uuid NOT NULL,
+    "Id" uuid CONSTRAINT "ConversacionesCorreo_Id_not_null" NOT NULL,
     "ClienteId" uuid,
-    "Asunto" character varying(300) NOT NULL,
-    "Estado" integer NOT NULL,
+    "Asunto" character varying(300) CONSTRAINT "ConversacionesCorreo_Asunto_not_null" NOT NULL,
+    "Estado" integer CONSTRAINT "ConversacionesCorreo_Estado_not_null" NOT NULL,
     "EjecutivoAsignadoId" uuid,
     "Etiquetas" character varying(500),
-    "FechaUltimoMensajeUtc" timestamp with time zone NOT NULL,
-    "TenantId" uuid NOT NULL,
-    "Version" uuid NOT NULL,
-    "CreadoEnUtc" timestamp with time zone NOT NULL,
-    "EstaEliminado" boolean NOT NULL,
+    "FechaUltimoMensajeUtc" timestamp with time zone CONSTRAINT "ConversacionesCorreo_FechaUltimoMensajeUtc_not_null" NOT NULL,
+    "TenantId" uuid CONSTRAINT "ConversacionesCorreo_TenantId_not_null" NOT NULL,
+    "Version" uuid CONSTRAINT "ConversacionesCorreo_Version_not_null" NOT NULL,
+    "CreadoEnUtc" timestamp with time zone CONSTRAINT "ConversacionesCorreo_CreadoEnUtc_not_null" NOT NULL,
+    "EstaEliminado" boolean CONSTRAINT "ConversacionesCorreo_EstaEliminado_not_null" NOT NULL,
     "EliminadoEnUtc" timestamp with time zone,
     "EliminadoPorUsuarioId" uuid,
     "ConexionIntegracionId" uuid,
     "HiloExternoId" character varying(300),
-    "Canal" integer DEFAULT 0 NOT NULL,
+    "Canal" integer DEFAULT 0 CONSTRAINT "ConversacionesCorreo_Canal_not_null" NOT NULL,
     "FechaUltimoMensajeEntranteUtc" timestamp with time zone,
     "TelefonoContacto" character varying(20),
     "EmpresaId" uuid,
@@ -925,7 +928,7 @@ CREATE TABLE public."DelegacionesTenant" (
 
 CREATE TABLE public."DetallesSugerenciaGestionCorreo" (
     "Id" uuid NOT NULL,
-    "SugerenciaGestionCorreoId" uuid NOT NULL,
+    "SugerenciaGestionCorreoId" uuid CONSTRAINT "DetallesSugerenciaGestionCor_SugerenciaGestionCorreoId_not_null" NOT NULL,
     "TrabajadorId" uuid,
     "TipoDocumentoId" uuid,
     "ConfianzaTrabajador" integer NOT NULL,
@@ -1008,7 +1011,7 @@ ALTER TABLE ONLY public."DocumentosGenerados" FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE public."DominiosProveedorPlataformaCae" (
     "Id" uuid NOT NULL,
-    "ProveedorPlataformaCaeId" uuid NOT NULL,
+    "ProveedorPlataformaCaeId" uuid CONSTRAINT "DominiosProveedorPlataformaCa_ProveedorPlataformaCaeId_not_null" NOT NULL,
     "Dominio" character varying(200) NOT NULL
 );
 
@@ -1258,11 +1261,11 @@ ALTER TABLE ONLY public."IncidenciasPurga" FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE public."InstruccionesTratamientoIaTenantPropietario" (
     "Id" uuid NOT NULL,
-    "VersionDpaAceptada" character varying(20) NOT NULL,
-    "VersionAnexoSubencargadosAceptada" character varying(20) NOT NULL,
-    "FechaAceptacionUtc" timestamp with time zone NOT NULL,
-    "OrigenInstruccion" character varying(30) NOT NULL,
-    "RegistradaPorUsuarioId" uuid NOT NULL,
+    "VersionDpaAceptada" character varying(20) CONSTRAINT "InstruccionesTratamientoIaTenantPro_VersionDpaAceptada_not_null" NOT NULL,
+    "VersionAnexoSubencargadosAceptada" character varying(20) CONSTRAINT "InstruccionesTratamientoIaT_VersionAnexoSubencargadosA_not_null" NOT NULL,
+    "FechaAceptacionUtc" timestamp with time zone CONSTRAINT "InstruccionesTratamientoIaTenantPro_FechaAceptacionUtc_not_null" NOT NULL,
+    "OrigenInstruccion" character varying(30) CONSTRAINT "InstruccionesTratamientoIaTenantProp_OrigenInstruccion_not_null" NOT NULL,
+    "RegistradaPorUsuarioId" uuid CONSTRAINT "InstruccionesTratamientoIaTenan_RegistradaPorUsuarioId_not_null" NOT NULL,
     "RevocadaEnUtc" timestamp with time zone,
     "MotivoRevocacion" character varying(500),
     "TenantId" uuid NOT NULL
@@ -1330,13 +1333,13 @@ CREATE TABLE public."MacrosRespuesta" (
 ALTER TABLE ONLY public."MacrosRespuesta" FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE public."Mensajes" (
-    "Id" uuid NOT NULL,
-    "ConversacionId" uuid NOT NULL,
-    "Direccion" integer NOT NULL,
-    "Remitente" character varying(320) NOT NULL,
-    "CuerpoHtml" text NOT NULL,
-    "FechaUtc" timestamp with time zone NOT NULL,
-    "TenantId" uuid NOT NULL,
+    "Id" uuid CONSTRAINT "MensajesCorreo_Id_not_null" NOT NULL,
+    "ConversacionId" uuid CONSTRAINT "MensajesCorreo_ConversacionCorreoId_not_null" NOT NULL,
+    "Direccion" integer CONSTRAINT "MensajesCorreo_Direccion_not_null" NOT NULL,
+    "Remitente" character varying(320) CONSTRAINT "MensajesCorreo_RemitenteEmail_not_null" NOT NULL,
+    "CuerpoHtml" text CONSTRAINT "MensajesCorreo_CuerpoHtml_not_null" NOT NULL,
+    "FechaUtc" timestamp with time zone CONSTRAINT "MensajesCorreo_FechaUtc_not_null" NOT NULL,
+    "TenantId" uuid CONSTRAINT "MensajesCorreo_TenantId_not_null" NOT NULL,
     "MensajeExternoId" character varying(300),
     "ErrorEntrega" character varying(500),
     "EstadoEntrega" integer,
@@ -1420,7 +1423,7 @@ ALTER TABLE ONLY public."ParametrosSistema" FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE public."ParticipantesConversacion" (
     "Id" uuid NOT NULL,
-    "ConversacionId" uuid NOT NULL,
+    "ConversacionId" uuid CONSTRAINT "ParticipantesConversacion_ConversacionCorreoId_not_null" NOT NULL,
     "Email" character varying(320) NOT NULL,
     "Rol" integer NOT NULL,
     "TipoOrigen" integer NOT NULL,
@@ -1592,7 +1595,7 @@ ALTER TABLE ONLY public."ReclamacionesDocumentales" FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE public."ReclamacionesDocumentalesDocumentos" (
     "Id" uuid NOT NULL,
-    "ReclamacionDocumentalId" uuid NOT NULL,
+    "ReclamacionDocumentalId" uuid CONSTRAINT "ReclamacionesDocumentalesDocum_ReclamacionDocumentalId_not_null" NOT NULL,
     "DocumentoId" uuid NOT NULL,
     "TenantId" uuid NOT NULL
 );
@@ -1806,7 +1809,7 @@ ALTER TABLE ONLY public."SolicitudesPurga" FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE public."SugerenciasGestionCorreo" (
     "Id" uuid NOT NULL,
-    "MensajeId" uuid NOT NULL,
+    "MensajeId" uuid CONSTRAINT "SugerenciasGestionCorreo_MensajeCorreoId_not_null" NOT NULL,
     "Resumen" character varying(500) NOT NULL,
     "CreadaEnUtc" timestamp with time zone NOT NULL,
     "TenantId" uuid NOT NULL,
@@ -1817,7 +1820,7 @@ ALTER TABLE ONLY public."SugerenciasGestionCorreo" FORCE ROW LEVEL SECURITY;
 
 CREATE TABLE public."SugerenciasVisitaCorreo" (
     "Id" uuid NOT NULL,
-    "MensajeId" uuid NOT NULL,
+    "MensajeId" uuid CONSTRAINT "SugerenciasVisitaCorreo_MensajeCorreoId_not_null" NOT NULL,
     "CentroId" uuid,
     "FechaInicioSugerida" date,
     "FechaFinSugerida" date,
@@ -2013,11 +2016,11 @@ ALTER TABLE ONLY public."TurnosTareaAsistente" FORCE ROW LEVEL SECURITY;
 CREATE TABLE public."UltimosResumenesNotificacionPlataforma" (
     "Id" uuid NOT NULL,
     "ClienteId" uuid NOT NULL,
-    "ProveedorPlataformaCaeId" uuid NOT NULL,
+    "ProveedorPlataformaCaeId" uuid CONSTRAINT "UltimosResumenesNotificacionP_ProveedorPlataformaCaeId_not_null" NOT NULL,
     "Pendientes" integer NOT NULL,
     "Vencidos" integer NOT NULL,
     "Rechazados" integer NOT NULL,
-    "ActualizadoEnUtc" timestamp with time zone NOT NULL,
+    "ActualizadoEnUtc" timestamp with time zone CONSTRAINT "UltimosResumenesNotificacionPlataform_ActualizadoEnUtc_not_null" NOT NULL,
     "TenantId" uuid NOT NULL
 );
 
