@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components.Web;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using Bunit;
@@ -216,5 +217,23 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
         cut.Markup.Should().Contain("Aún no hay subcontratas");
         cut.Markup.Should().Contain("+ Nueva subcontrata");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
+    }
+
+    /// <summary>P1-E2b: salir con el alta de Subcontrata a medias pregunta; abrirla y salir sin tocar nada, no.</summary>
+    [Fact]
+    public async Task Salir_con_el_alta_a_medias_pregunta_y_sin_tocar_nada_no()
+    {
+        var cut = Renderizar();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await cut.FindAll("button").First(b => b.TextContent.Contains("Nueva subcontrata")).ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+
+        await cut.FindComponents<CampoTexto>().Last().Find("input").InputAsync(new ChangeEventArgs { Value = "B12345678" });
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+        cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "B12345678");
+
+        await cut.FindComponents<CampoTexto>().Last().Find("input").InputAsync(new ChangeEventArgs { Value = "" });
+        await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "volver al valor con el que se abrió no deja nada que perder");
     }
 }

@@ -233,4 +233,4 @@
    se borra), porque una navegación que no desmonta la página lo dejaría abierto.
    Va al final del marcado: con el mismo z-index que los demás diálogos, el último
    del DOM queda encima y la pregunta nunca se esconde detrás de otro. *@
-<AvisoCambiosSinGuardar HayCambios="HayCambiosSinGuardar" AlDescartar="() => CerrarDrawerAsync(false)" />
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => CerrarDrawerAsync(false)" />

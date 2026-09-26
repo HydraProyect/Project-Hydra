@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components.Web;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using System.Security.Claims;
@@ -63,6 +64,7 @@ public class ClientesVacioPorFiltroTests : BunitContext
             Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerFiltrosGuardadosQuery => (object)Array.Empty<FiltroGuardadoDto>(),
+                CrearClienteCommand => Result.Exito(ClienteCreadoId),
                 ObtenerClientesQuery q => new ResultadoPaginado<ClienteListaDto>(
                     Clientes, Clientes.Count, q.Pagina, q.TamanoPagina),
                 ObtenerAlcanceCeroQuery => (object)AlcanceCero,
@@ -364,5 +366,76 @@ public class ClientesVacioPorFiltroTests : BunitContext
         cut.Markup.Should().Contain("+ Nuevo cliente");
         cut.Markup.Should().Contain("Alta guiada");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
+    }
+
+    private static readonly Guid ClienteCreadoId = Guid.NewGuid();
+
+    /// <summary>P1-E2b: salir con el alta de Cliente a medias pregunta.</summary>
+    [Fact]
+    public async Task Salir_con_el_alta_a_medias_pregunta()
+    {
+        var cut = Renderizar();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await cut.InvokeAsync(() => navegacion.NavigateTo("clientes?accion=crear"));
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+        await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "abrir el alta sin tocar nada no deja nada que perder");
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("clientes?accion=crear&n=2"));
+        await cut.InvokeAsync(() => navegacion.NavigateTo("clientes"));
+        await cut.InvokeAsync(() => navegacion.NavigateTo("clientes?accion=crear"));
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+        await cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Razón social").Find("input")
+            .InputAsync(new ChangeEventArgs { Value = "Refrigeración Norte" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+    }
+
+    /// <summary>P1-E2b: el modal de guardar filtro con un nombre ya escrito también pregunta.</summary>
+    [Fact]
+    public async Task Salir_con_el_nombre_del_filtro_escrito_pregunta()
+    {
+        var cut = Renderizar();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await cut.InvokeAsync(() => navegacion.NavigateTo("clientes?accion=guardar-filtro"));
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Etiqueta == "Nombre"));
+
+        await cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Nombre").Find("input")
+            .InputAsync(new ChangeEventArgs { Value = "Críticos" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+    }
+
+    /// <summary>Revisión puente (PR 2): cancelar el modal de filtro descarta el nombre; reabrirlo sin tocarlo y salir no pregunta.</summary>
+    [Fact]
+    public async Task Cancelar_el_filtro_y_reabrirlo_sin_tocar_nada_no_pregunta()
+    {
+        var cut = Renderizar();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await cut.InvokeAsync(() => navegacion.NavigateTo("clientes?accion=guardar-filtro"));
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Etiqueta == "Nombre"));
+        await cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Nombre").Find("input")
+            .InputAsync(new ChangeEventArgs { Value = "Críticos" });
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("clientes?accion=guardar-filtro"));
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Etiqueta == "Nombre"));
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "reabrir el modal sin escribir no deja nada que perder");
+    }
+
+    /// <summary>P1-E2b: «Continuar con la empresa» tras guardar es la navegación del propio formulario: no pregunta.</summary>
+    [Fact]
+    public async Task Continuar_con_la_empresa_tras_guardar_no_pregunta()
+    {
+        var cut = Renderizar();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await cut.InvokeAsync(() => navegacion.NavigateTo("clientes?accion=crear"));
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+        await cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Razón social").Find("input")
+            .InputAsync(new ChangeEventArgs { Value = "Refrigeración Norte" });
+
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Continuar con la empresa").ClickAsync(new MouseEventArgs());
+
+        navegacion.Uri.Should().EndWith($"/empresas?accion=crear&clienteId={ClienteCreadoId}");
     }
 }

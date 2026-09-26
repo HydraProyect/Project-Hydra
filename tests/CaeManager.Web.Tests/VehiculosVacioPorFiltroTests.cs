@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components.Web;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using AngleSharp.Dom;
@@ -269,5 +270,24 @@ public class VehiculosVacioPorFiltroTests : BunitContext
         cut.Markup.Should().Contain("Aún no hay vehículos");
         cut.Markup.Should().Contain("+ Nuevo vehículo");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
+    }
+
+    /// <summary>P1-E2b: salir con el alta de Vehículo a medias pregunta y «Salir y descartar» llega al destino.</summary>
+    [Fact]
+    public async Task Salir_con_el_alta_a_medias_pregunta_y_descartar_llega_al_destino()
+    {
+        var cut = Renderizar();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nuevo vehículo").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+        await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "abrir el alta sin tocar nada no deja nada que perder");
+
+        navegacion.NavigateTo("vehiculos");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nuevo vehículo").ClickAsync(new MouseEventArgs());
+        await cut.FindComponents<CampoTexto>().Last().Find("input").InputAsync(new ChangeEventArgs { Value = "1234 ABC" });
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+
+        navegacion.Uri.Should().EndWith(AvisoCambiosSinGuardarPrueba.DestinoFuera);
     }
 }

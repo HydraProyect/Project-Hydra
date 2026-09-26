@@ -536,6 +536,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
     }
 
     private async Task AbrirEditarAsync(Guid id)
@@ -579,6 +580,33 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
+    }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de alta y
+    /// edición de Cliente comparado con cómo se abrió, o un nombre ya escrito en el modal
+    /// de guardar filtro. Lo lee AvisoCambiosSinGuardar para detener la salida de la
+    /// página; cerrados (también tras guardar) nunca hay nada que perder.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        (_drawerVisible && _instantanea.Difiere(ValoresFormulario()))
+        || (_mostrarGuardarFiltro && !string.IsNullOrWhiteSpace(_nombreFiltroNuevo));
+
+    private object?[] ValoresFormulario() => [_razonSocial, _cif, _esCritico, _notas, _ejecutivoUsuarioId];
+
+    private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
+
+    private void CerrarFormulariosDescartando()
+    {
+        _drawerVisible = false;
+        _mostrarGuardarFiltro = false;
+        _nombreFiltroNuevo = string.Empty;
+        // Si la salida descartada vuelve a esta misma página con ?accion= (el atajo
+        // «n»), esa acción tiene que volver a atenderse.
+        _accionAtendida = null;
     }
 
     private Task CerrarDrawerAsync(bool visible)
@@ -654,6 +682,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
 
             if (continuarACrearEmpresa && clienteCreadoId is not null)
             {
+                // Guardado: la navegación que sigue es la del propio formulario y no pregunta.
                 NavigationManager.NavigateTo($"/empresas?accion=crear&clienteId={clienteCreadoId}");
                 return;
             }
@@ -1006,7 +1035,11 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
     {
         _mostrarGuardarFiltro = visible;
         if (!visible)
+        {
+            // Cancelar descarta el nombre: reabrir el modal sin tocarlo no es un cambio.
+            _nombreFiltroNuevo = string.Empty;
             QuitarAccionDeLaUrl();
+        }
     }
 
     private async Task GuardarFiltroActualAsync()
