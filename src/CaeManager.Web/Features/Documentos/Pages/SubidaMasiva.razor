@@ -92,14 +92,8 @@
    perdía sin aviso. Mientras quedan archivos en curso o sin confirmar, salir por la
    aplicación pide confirmación y ofrece seguir con el lote; recargar o cerrar la
    pestaña dispara el aviso del propio navegador. *@
-<NavigationLock OnBeforeInternalNavigation="AntesDeSalirAsync" ConfirmExternalNavigation="HayTrabajoSinGuardar" />
-
-<Modal Visible="_confirmarSalidaVisible" VisibleChanged="v => _confirmarSalidaVisible = v" Titulo="@Textos["SalirTitulo"]">
-    <ChildContent>
-        <p>@Textos["SalirMensaje", ArchivosSinGuardar]</p>
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" OnClick="SeguirConElLote">@Textos["SalirSeguir"]</Boton>
-        <Boton Variante="VarianteBoton.Destructivo" OnClick="SalirDescartandoElLote">@Textos["SalirDescartar"]</Boton>
-    </Pie>
-</Modal>
+<AvisoCambiosSinGuardar HayCambios="HayTrabajoSinGuardar"
+                        Titulo="@Textos["SalirTitulo"]"
+                        Mensaje="@Textos["SalirMensaje", ArchivosSinGuardar]"
+                        TextoSeguir="@Textos["SalirSeguir"]"
+                        TextoDescartar="@Textos["SalirDescartar"]" />

@@ -49,4 +49,16 @@
   <data name="LimiteErroresDescripcion" xml:space="preserve">
     <value>Aquesta part de la pantalla no s’ha pogut carregar. La resta continua funcionant.</value>
   </data>
+  <data name="CambiosSinGuardarTitulo" xml:space="preserve">
+    <value>Vols sortir sense desar?</value>
+  </data>
+  <data name="CambiosSinGuardarMensaje" xml:space="preserve">
+    <value>Hi ha canvis que encara no s'han desat. Si surts, es perden.</value>
+  </data>
+  <data name="CambiosSinGuardarSeguir" xml:space="preserve">
+    <value>Continuar editant</value>
+  </data>
+  <data name="CambiosSinGuardarDescartar" xml:space="preserve">
+    <value>Sortir i descartar</value>
+  </data>
 </root>

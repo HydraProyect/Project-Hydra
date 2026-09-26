@@ -84,6 +84,9 @@ public partial class DrawerGestionDocumento : ComponentBase
     private string _tipoSospechosoDetectadoNombre = string.Empty;
     private string _tipoSospechosoSeleccionadoNombre = string.Empty;
     private string _comentarios = string.Empty;
+    // P1-E2: el formulario tal como quedó al abrir el drawer (ya preseleccionado). Es la
+    // referencia de HayCambiosSinGuardar; null mientras no hay formulario abierto.
+    private string? _instantaneaAlAbrir;
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
@@ -153,6 +156,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
         StateHasChanged();
     }
 
@@ -176,6 +180,8 @@ public partial class DrawerGestionDocumento : ComponentBase
             // Mismo texto para los dos casos, igual que el comando: no revela si existe fuera.
             _mensajeErrorFormulario = TextosDrawerGestionDocumento.Texto("TrabajadorPreseleccionadoNoEncontrado");
         CambiarTipoDocumento(tipoDocumentoId.ToString());
+        // La preselección la hace la pantalla que abre, no quien mira: no cuenta como cambio.
+        FijarInstantaneaFormulario();
         StateHasChanged();
     }
 
@@ -186,6 +192,8 @@ public partial class DrawerGestionDocumento : ComponentBase
         if (_empresasDisponibles.Any(e => e.Id == empresaId))
             _empresaId = empresaId.ToString();
         CambiarTipoDocumento(tipoDocumentoId.ToString());
+        // La preselección la hace la pantalla que abre, no quien mira: no cuenta como cambio.
+        FijarInstantaneaFormulario();
         StateHasChanged();
     }
 
@@ -224,6 +232,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
         StateHasChanged();
     }
 
@@ -263,6 +272,21 @@ public partial class DrawerGestionDocumento : ComponentBase
         _glosarioSeSolicitaA = tipo?.SeSolicitaA;
         _glosarioObservaciones = tipo?.Observaciones;
     }
+
+    /// <summary>
+    /// P1-E2: único punto de verdad de «hay cambios» en este drawer. Lo lee
+    /// AvisoCambiosSinGuardar para detener la salida de la página que lo aloja; con el
+    /// drawer cerrado (también tras guardar) nunca hay nada que perder. Subir un archivo
+    /// cambia _archivoUrl, así que también cuenta.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        _drawerVisible && _instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir;
+
+    private string InstantaneaFormulario() => string.Join('\u001f',
+        _ambitoAplicacion, _trabajadorId, _clienteId, _empresaId, _vehiculoId, _proyectoId,
+        _tipoDocumentoId, _fechaEmision, _fechaVencimientoManual, _noCaduca, _archivoUrl, _comentarios);
+
+    private void FijarInstantaneaFormulario() => _instantaneaAlAbrir = InstantaneaFormulario();
 
     private async Task CerrarDrawerAsync(bool visible)
     {
