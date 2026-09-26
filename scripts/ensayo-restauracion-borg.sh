@@ -39,9 +39,10 @@
 #                          (P1-F3): hace falta para leer claves de Data Protection
 #                          cifradas con certificado. Se monta en /run/secretos:ro,
 #                          como en producción. Sin él, la app solo lee claves en claro.
-#                          Cualquier otro par NOMBRE.crt + NOMBRE.key del directorio
-#                          entra como certificado anterior (rotación): hace falta
-#                          para las claves cifradas antes de rotar.
+#                          Cada par dataprotection-*.crt + .key del directorio entra
+#                          como certificado anterior (rotación): hace falta para las
+#                          claves cifradas antes de rotar. Solo ese prefijo: el
+#                          directorio de secretos guarda también otros certificados.
 # Entorno (opcional):
 #   ENSAYO_IMAGEN_APP      imagen de la app; si falta, se construye del Dockerfile
 #                          de este árbol.
@@ -335,7 +336,8 @@ else
             echo "DataProtection__Certificado__CertificadoRuta=/run/secretos/dataprotection.crt"
             echo "DataProtection__Certificado__ClavePrivadaRuta=/run/secretos/dataprotection.key"
             n=0
-            for crt in "$CERTIFICADO_DP"/*.crt; do
+            for crt in "$CERTIFICADO_DP"/dataprotection-*.crt; do
+                [ -e "$crt" ] || continue
                 nombre="$(basename "$crt" .crt)"
                 [ "$nombre" = dataprotection ] && continue
                 [ -r "$CERTIFICADO_DP/$nombre.key" ] || continue
