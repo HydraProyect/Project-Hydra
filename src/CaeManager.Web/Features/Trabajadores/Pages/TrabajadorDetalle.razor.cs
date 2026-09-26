@@ -518,7 +518,7 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
             var resultado = await Mediator.Send(new DarDeBajaAsignacionesCommand([asignacionId], DateOnly.FromDateTime(DateTime.UtcNow)));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -661,7 +661,7 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
             var resultado = await Mediator.Send(new CrearGestionesParaTrabajadorCommand(TrabajadorId, tipoDocumentoId));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -683,7 +683,7 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
             var resultado = await Mediator.Send(new CompletarGestionCommand(gestionId, Completada: true));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -709,7 +709,7 @@ public partial class TrabajadorDetalle : ComponentBase, IDisposable
             var resultado = await Mediator.Send(new ReactivarAsignacionCommand(asignacionId));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

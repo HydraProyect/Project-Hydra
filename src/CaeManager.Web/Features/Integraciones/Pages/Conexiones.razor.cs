@@ -288,7 +288,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -317,7 +317,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
             var resultado = await Mediator.Send(new ReactivarConexionCommand(conexion.Id));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

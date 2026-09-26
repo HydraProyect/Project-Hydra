@@ -73,7 +73,7 @@ public partial class AutomatizacionesPanel : ComponentBase
             var resultado = await Mediator.Send(new ActualizarEstadoAutomatizacionCommand(trabajo.Id, !trabajo.Activo));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

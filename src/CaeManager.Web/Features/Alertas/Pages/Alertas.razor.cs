@@ -461,7 +461,7 @@ public partial class Alertas : ComponentBase
                     envio.TitularId, envio.DocumentoIds, CentroId: null, ContactoIdsSeleccionados: envio.ContactoIds));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

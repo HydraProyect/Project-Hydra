@@ -1,3 +1,5 @@
+using CaeManager.Domain.Common;
+
 namespace CaeManager.Web.Components.DesignSystem;
 
 public enum TonoToast
@@ -11,6 +13,33 @@ public enum TonoToast
 public record ToastMensaje(Guid Id, string Mensaje, TonoToast Tono, string? TextoAccion = null, Func<Task>? OnAccion = null);
 
 /// <summary>
+/// Servicio de avisos de la interfaz (P1-E1): el único canal para comunicar al
+/// usuario el resultado de una acción, incluidos los errores esperados.
+///
+/// <para><b>Los tres canales de error, y cuándo se usa cada uno.</b></para>
+/// <list type="number">
+/// <item><b>Aviso en línea</b>, junto al campo o al formulario: validación de lo
+/// que el usuario está escribiendo (<c>_erroresCampo</c>, <c>ValidationMessage</c>,
+/// el <c>ValidationException</c> de un Command). El usuario tiene que corregir algo
+/// que está viendo, así que el mensaje va donde está mirando y no desaparece solo.
+/// También en línea: una región que no pudo cargar sus datos (<c>_errorCarga</c>),
+/// porque lo que falta es esa región, no el resultado de un clic.</item>
+/// <item><b>Toast, por este servicio</b>: el resultado de una acción ya lanzada
+/// —guardar, eliminar, enviar, asignar—, con éxito o con un fallo esperado. Un
+/// <see cref="Result"/> fallido se muestra con <see cref="MostrarError"/>, nunca
+/// recomponiendo el texto a mano. Una excepción capturada en un manejador de acción
+/// se registra en el log y se avisa con un texto genérico de la acción ("No pudimos
+/// eliminar la empresa…"), nunca con <c>ex.Message</c>.</item>
+/// <item><b><see cref="LimiteDeErrores"/></b>: lo que nadie esperaba — una excepción
+/// no capturada. No se llama: se coloca alrededor de una región de contenido.</item>
+/// </list>
+///
+/// <para>Los errores de autorización (<c>Autorizacion.*</c>, incluidos los de una
+/// Sesión Privilegiada de soporte TALVEG) son errores esperados con interfaz propia
+/// —<c>AccesoDenegado</c>, <c>SoloConEscritura</c>, <c>AvisoSoloConsulta</c>,
+/// <c>TrazaSoporte</c>— y, cuando además llegan como resultado de una acción, este
+/// servicio los muestra con su propio mensaje, sin sustituirlo por uno genérico.</para>
+///
 /// Servicio scoped (una instancia por circuito de Blazor Server). Los toasts
 /// se autodescartan a los 5s salvo los de error, que exigen descarte manual
 /// (ver UX_PATTERNS.md, "Toasts"). Un toast con acción ("Deshacer", Fase D)
@@ -53,6 +82,19 @@ public class ToastService
 
         if (tono != TonoToast.Error)
             _ = AutoDescartarAsync(toast.Id, onAccion is not null ? DuracionAutoDescarteConAccion : DuracionAutoDescarte);
+    }
+
+    /// <summary>
+    /// Avisa del fallo esperado de una acción: el <see cref="Error"/> de un
+    /// <see cref="Result"/> de Application, cuyo <see cref="Error.Mensaje"/> ya está
+    /// redactado para el usuario. Se muestra tal cual —también los de autorización y
+    /// los de Sesión Privilegiada, que nunca se generalizan— y como error, que no se
+    /// autodescarta.
+    /// </summary>
+    public void MostrarError(Error error)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+        Mostrar(error.Mensaje, TonoToast.Error);
     }
 
     public void Descartar(Guid id)
