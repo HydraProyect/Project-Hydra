@@ -1,9 +1,11 @@
 @page "/documentos/subida-masiva"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Web.Features.Documentos.Recursos
 @using Microsoft.AspNetCore.Components.Forms
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Subida múltiple — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina subida-masiva">
@@ -97,3 +99,4 @@
                         Mensaje="@Textos["SalirMensaje", ArchivosSinGuardar]"
                         TextoSeguir="@Textos["SalirSeguir"]"
                         TextoDescartar="@Textos["SalirDescartar"]" />
+</LimiteDeErrores>

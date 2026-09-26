@@ -89,7 +89,7 @@ public static class ExtractorZip
             // anunciarlo como "el máximo es N" mentiría en cuanto el lote
             // llevara algún archivo — al usuario le diría que el límite es 5
             // cuando son 60.
-            throw new InvalidDataException(
+            throw new LimiteDeZipSuperadoException(
                 $"El .zip contiene {entradas.Count} archivos y no caben en esta subida.");
 
         var presupuestoRestante = presupuestoTotalBytes;
@@ -101,7 +101,7 @@ public static class ExtractorZip
             // falsificable no lo hace inútil — solo insuficiente, y por eso
             // el tope real se aplica abajo sobre los bytes leídos.
             if (entrada.Length > maximoPorEntrada)
-                throw new InvalidDataException(
+                throw new LimiteDeZipSuperadoException(
                     "Un archivo del .zip supera el máximo por archivo.");
 
             using var flujoEntrada = entrada.Open();
@@ -114,11 +114,11 @@ public static class ExtractorZip
                 while ((leidos = flujoEntrada.Read(bufer, 0, bufer.Length)) > 0)
                 {
                     if (memoria.Length + leidos > maximoPorEntrada)
-                        throw new InvalidDataException(
+                        throw new LimiteDeZipSuperadoException(
                             "Un archivo del .zip supera el máximo por archivo al descomprimirse.");
 
                     if (leidos > presupuestoRestante)
-                        throw new InvalidDataException(
+                        throw new LimiteDeZipSuperadoException(
                             "El contenido descomprimido del .zip supera el máximo admitido para una subida.");
 
                     presupuestoRestante -= leidos;
@@ -145,3 +145,12 @@ public static class ExtractorZip
         return resultado;
     }
 }
+
+/// <summary>
+/// Un .zip de la subida múltiple supera uno de los límites de descompresión. Es el
+/// caso previsto, no un fallo, y su mensaje —redactado aquí— es el único de una
+/// excepción de la extracción que puede enseñarse al usuario. Tipo propio porque
+/// <see cref="ZipArchive"/> lanza <see cref="InvalidDataException"/> con texto
+/// técnico ante un .zip dañado, y antes los dos casos compartían tipo y pantalla.
+/// </summary>
+public sealed class LimiteDeZipSuperadoException(string mensaje) : Exception(mensaje);

@@ -113,7 +113,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             {
                 if (!_dispose && generacionEntidad == _generacionEntidad)
                 {
-                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                    ToastService.MostrarError(resultado.Error);
                 }
 
                 return;
@@ -157,7 +157,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             {
                 if (!_dispose && generacionEntidad == _generacionEntidad)
                 {
-                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                    ToastService.MostrarError(resultado.Error);
                 }
 
                 return;
@@ -209,7 +209,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             {
                 if (!_dispose && generacionEntidad == _generacionEntidad)
                 {
-                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                    ToastService.MostrarError(resultado.Error);
                 }
 
                 return;

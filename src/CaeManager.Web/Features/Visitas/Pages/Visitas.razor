@@ -1,5 +1,6 @@
 @page "/visitas"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Visitas.Commands.CrearVisita
 @using CaeManager.Application.Visitas.Commands.EditarVisita
@@ -32,6 +33,7 @@
 @inject IStringLocalizer<TextosVisitas> Textos
 @inject IStringLocalizer<TextosComunes> Comunes
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 @*
@@ -628,3 +630,4 @@
    Va al final del marcado: con el mismo z-index que los demás diálogos, el último
    del DOM queda encima y la pregunta nunca se esconde detrás de otro. *@
 <AvisoCambiosSinGuardar HayCambios="HayCambiosSinGuardar" AlDescartar="() => CerrarDrawerAsync(false)" />
+</LimiteDeErrores>

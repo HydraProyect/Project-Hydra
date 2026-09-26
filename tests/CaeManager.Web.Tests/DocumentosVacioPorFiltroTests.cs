@@ -299,6 +299,12 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     public async Task Buscar_sin_cambiar_el_total_hace_una_sola_consulta()
     {
         var (cut, mediador) = RenderizarConMediador(documentos: [Documento("Reconocimiento médico"), Documento("Formación PRL")]);
+        // QuickGrid vuelve a pedir la lista la primera vez que recibe parámetros tras
+        // conocer el total (el hash de PaginationState incluye TotalItemCount, que pasa
+        // de nulo a 2). Esa repetición es de QuickGrid, no de la búsqueda, y dónde cae
+        // depende de la profundidad del árbol: con la página envuelta en LimiteDeErrores
+        // (P1-E1b) ya no llega antes de la foto de abajo. Un repintado la deja atrás.
+        cut.Render();
         var consultasAntes = ConsultasDeLista(mediador);
 
         await cut.InvokeAsync(() => CajaDeBusqueda(cut).Instance.ValorChanged.InvokeAsync("Reconocimiento"));

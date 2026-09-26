@@ -24,21 +24,6 @@ namespace CaeManager.Architecture.Tests;
 /// </summary>
 public class PaginasInteractivasConLimiteDeErroresTests
 {
-    /// <summary>
-    /// TEMPORAL — se vacía en la PR siguiente de P1-E1b (Visitas, Documentos y Mi
-    /// trabajo). Es solo una lista blanca: no interviene en el control
-    /// positivo, que se mide sobre todas las páginas interactivas, exentas incluidas.
-    /// </summary>
-    private static readonly HashSet<string> ExentasTemporales = new(StringComparer.Ordinal)
-    {
-        "CaeManager.Web.Features.Visitas.Pages.Visitas",
-        "CaeManager.Web.Features.Documentos.Pages.Documentos",
-        "CaeManager.Web.Features.Documentos.Pages.ImportarDocumentos",
-        "CaeManager.Web.Features.Documentos.Pages.RevisionIa",
-        "CaeManager.Web.Features.Documentos.Pages.SubidaMasiva",
-        "CaeManager.Web.Features.Bandeja.Pages.MiTrabajo",
-    };
-
     private const string AperturaLimite = "<LimiteDeErrores Pagina=\"this\">";
     private const string LimiteVacio = "<LimiteDeErrores Pagina=\"this\" />";
     private const string CierreLimite = "</LimiteDeErrores>";
@@ -68,7 +53,6 @@ public class PaginasInteractivasConLimiteDeErroresTests
     public void Toda_pagina_InteractiveServer_hereda_de_PaginaInteractiva()
     {
         var infractoras = PaginasInteractivas()
-            .Where(p => !ExentasTemporales.Contains(p.FullName!))
             .Where(p => !typeof(PaginaInteractiva).IsAssignableFrom(p))
             .Select(p => p.FullName)
             .OrderBy(n => n, StringComparer.Ordinal)
@@ -83,7 +67,6 @@ public class PaginasInteractivasConLimiteDeErroresTests
     public void Toda_pagina_InteractiveServer_envuelve_todo_su_marcado_en_LimiteDeErrores_con_la_pagina()
     {
         var infractoras = PaginasInteractivas()
-            .Where(p => !ExentasTemporales.Contains(p.FullName!))
             .Where(p => !MarcadoEnvuelto(File.ReadAllText(RutaRazor(p))))
             .Select(p => p.FullName)
             .OrderBy(n => n, StringComparer.Ordinal)
@@ -93,21 +76,6 @@ public class PaginasInteractivasConLimiteDeErroresTests
             "todo el marcado de la página va dentro de <LimiteDeErrores Pagina=\"this\">…</LimiteDeErrores> (o, si " +
             "la página no pinta nada, <LimiteDeErrores Pagina=\"this\" />): es lo que muestra el aviso cuando la " +
             "página falla y lo que contiene los fallos al pintar (P1-E1b)");
-    }
-
-    [Fact]
-    public void Las_exentas_temporales_siguen_siendo_paginas_interactivas_sin_envoltorio()
-    {
-        var paginas = PaginasInteractivas().ToDictionary(p => p.FullName!, StringComparer.Ordinal);
-
-        foreach (var exenta in ExentasTemporales)
-        {
-            paginas.Should().ContainKey(exenta, "una exenta que ya no es página interactiva sobra en la lista");
-            var tipo = paginas[exenta];
-            var cubierta = typeof(PaginaInteractiva).IsAssignableFrom(tipo)
-                && MarcadoEnvuelto(File.ReadAllText(RutaRazor(tipo)));
-            cubierta.Should().BeFalse($"{exenta} ya lleva el envoltorio: sácala de ExentasTemporales");
-        }
     }
 
     [Theory]

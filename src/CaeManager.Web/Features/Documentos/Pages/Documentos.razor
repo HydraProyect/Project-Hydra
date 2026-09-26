@@ -1,5 +1,6 @@
 @page "/documentos"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Web.Features.Documentos.Recursos
 @using CaeManager.Application.Documentos.Commands.CrearDocumento
@@ -28,6 +29,7 @@
 @inject ContextWorkspaceService WorkspaceService
 @inject ILogger<Documentos> Logger
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Documentos — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -286,3 +288,4 @@
         <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
     </Pie>
 </Modal>
+</LimiteDeErrores>
