@@ -484,6 +484,9 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
 
         (await FijarPorDefectoAsync(httpContext, _gestor)).Should().BeNull();
         CookieEmitida(httpContext, CookieDeContextoTenant.NombreDefectoEvaluado).Should().Be(_gestor.ToString("N"));
+        httpContext.Response.Headers.SetCookie.Should().Contain(c =>
+            c!.StartsWith(CookieDeContextoTenant.NombreDefectoEvaluado + "=") && c.Contains("path=/;"),
+            "la marca vale para toda la aplicación, no solo para el directorio de la primera página");
         CookieEmitida(httpContext, ClienteActivoSeleccionado.NombreCookie).Should().BeNull();
 
         var siguiente = PeticionDePagina(_gestor, "/", "");

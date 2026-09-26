@@ -84,6 +84,9 @@ public static class CookieDeContextoTenant
     private static CookieOptions Opciones(HttpContext httpContext, TimeSpan? vigencia = null) => new()
     {
         HttpOnly = true,
+        // Toda la aplicación, explícito: las marcas se leen en cualquier página,
+        // no solo bajo el directorio de la primera que las emitió.
+        Path = "/",
         // Igual que la política por defecto de la cookie de Identity
         // (SameAsRequest): en local sobre HTTP la marca Secure haría
         // que el navegador descartara la cookie sin avisar. Detrás
