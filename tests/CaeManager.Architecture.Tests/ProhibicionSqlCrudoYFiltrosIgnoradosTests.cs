@@ -257,6 +257,18 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // DEFINER; ni nombres ni SQL del llamador). No existe equivalente EF.
         [("src/CaeManager.Infrastructure/Auditing/ParticionesEventosHostedService.cs", "await using var orden = new NpgsqlCommand(")] = 1,
 
+        // P1-M3: transición de __EFMigrationsHistory a la línea base
+        // compactada, con la conexión PROPIETARIA y solo desde el migrador.
+        // Cerrojo consultivo, LOCK TABLE, lectura del historial y DELETE e
+        // INSERT parametrizados sobre esa tabla, que no es de ningún Tenant ni
+        // está en el modelo EF.
+        [("src/CaeManager.Infrastructure/Persistence/Migraciones/TransicionLineaBaseCompactada.cs", "await using (var cerrojo = new NpgsqlCommand(")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Migraciones/TransicionLineaBaseCompactada.cs", "await using (var existe = new NpgsqlCommand(")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Migraciones/TransicionLineaBaseCompactada.cs", "await using (var bloqueo = new NpgsqlCommand(")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Migraciones/TransicionLineaBaseCompactada.cs", "await using (var lectura = new NpgsqlCommand(")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Migraciones/TransicionLineaBaseCompactada.cs", "await using (var borrado = new NpgsqlCommand(")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Migraciones/TransicionLineaBaseCompactada.cs", "await using (var alta = new NpgsqlCommand(")] = 1,
+
         // Retirada de tenant de demo (incidente de siembra parcial del
         // 2026-08-28): borra POR COMPLETO un tenant, así que tiene que
         // alcanzar también las filas ya soft-deleted de ese tenant — el

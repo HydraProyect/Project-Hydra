@@ -37,9 +37,9 @@ public class ContactoAgendaConfiguration : IEntityTypeConfiguration<ContactoAgen
         // HasPrincipalKey ni TenantId en la FK — ya no lo había contra
         // Cliente/Subcontrata tampoco, así que apuntan igual que antes, solo
         // que ahora a Empresa.Id (su PK, globalmente única). Cubierto por su
-        // propio test de integridad (RepointFksClienteTests para ClienteId,
-        // F3bSubcontrataRepunteoFksTests para SubcontrataId), no asume el
-        // patrón compuesto de las demás.
+        // propio test de integridad (EsquemaFinalTrasCompactacionTests, para
+        // ClienteId y SubcontrataId), no asume el patrón compuesto de las
+        // demás.
         builder.HasOne<Empresa>().WithMany().HasForeignKey(c => c.ClienteId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Empresa>().WithMany().HasForeignKey(c => c.EmpresaId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Empresa>().WithMany().HasForeignKey(c => c.SubcontrataId).OnDelete(DeleteBehavior.Restrict);

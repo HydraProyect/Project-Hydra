@@ -630,8 +630,12 @@ var app = builder.Build();
 // para quien solo quiera el esquema.
 if (args.Contains("--migrate-only"))
 {
-    using var scopeMigracion = app.Services.CreateScope();
-    await MigrarBaseDeDatosAsync(app.Configuration, scopeMigracion.ServiceProvider);
+    using (var scopeMigracion = app.Services.CreateScope())
+        await MigrarBaseDeDatosAsync(app.Configuration, scopeMigracion.ServiceProvider);
+
+    // Liberar el host vacía el logger de Serilog (y con él el lote hacia Seq)
+    // antes de salir: sin Kestrel, nada más lo hace (P1-M3).
+    await app.DisposeAsync();
     return;
 }
 
@@ -943,8 +947,13 @@ using (var scope = app.Services.CreateScope())
 }
 
 // --preparar-arranque termina aquí: esquema migrado y siembra hecha, sin Kestrel.
+// Liberar el host vacía el logger de Serilog (y su lote hacia Seq) antes de
+// salir, igual que en --migrate-only.
 if (prepararArranque)
+{
+    await app.DisposeAsync();
     return;
+}
 
 // Registrado antes del manejo de excepciones para envolverlo por completo:
 // una petición que termina en 500 vía UseExceptionHandler se sigue
@@ -1111,6 +1120,50 @@ static async Task MigrarBaseDeDatosAsync(IConfiguration configuration, IServiceP
         opcionesMigraciones,
         servicios.GetRequiredService<IDataProtectionProvider>(),
         new TenantActualAmbiental());
+
+    // P1-M3: una base con las 185 migraciones anteriores a la compactación pasa
+    // a la línea base solo reescribiendo su historial (el esquema ya es el
+    // mismo); una base nueva la aplica EF. Cualquier historial que no sea uno
+    // de esos dos (o el ya transicionado) aborta aquí sin tocar nada.
+    //
+    // El migrador (--migrate-only, --preparar-arranque) sale sin arrancar el
+    // host, así que nada inicializa ni vacía el hub de Sentry por su cuenta: se
+    // resuelve aquí (la resolución lo inicializa) y se vacía tras avisar, para
+    // que el aviso llegue antes de que el proceso termine.
+    var loggerMigraciones = servicios.GetRequiredService<ILoggerFactory>().CreateLogger("CaeManager.Migraciones");
+    var hubSentry = servicios.GetService<Sentry.IHub>();
+    var alerta = servicios.GetRequiredService<IAlertaOperativa>();
+    try
+    {
+        var transicion = await CaeManager.Infrastructure.Persistence.Migraciones.TransicionLineaBaseCompactada.AplicarAsync(
+            cadenaMigraciones!,
+            Microsoft.EntityFrameworkCore.Infrastructure.ProductInfo.GetVersion(),
+            CancellationToken.None);
+        if (transicion == CaeManager.Infrastructure.Persistence.Migraciones.ResultadoTransicionLineaBase.Aplicada)
+        {
+            var mensaje = CaeManager.Infrastructure.Persistence.Migraciones.TransicionLineaBaseCompactada.MensajeAplicada;
+            loggerMigraciones.LogWarning("{Mensaje}", mensaje);
+            alerta.Emitir(mensaje, NivelAlertaOperativa.Aviso);
+        }
+    }
+    catch (CaeManager.Infrastructure.Persistence.Migraciones.TransicionLineaBaseAbortadaException ex)
+    {
+        loggerMigraciones.LogCritical(ex, "{Mensaje}", ex.Message);
+        alerta.Emitir(ex.Message, NivelAlertaOperativa.Critica);
+
+        // El proceso termina con esta excepción sin pasar por la liberación del
+        // host: se vacía aquí el logger de Serilog (UseSerilog, sin
+        // preserveStaticLogger, también lo deja en Log.Logger) para que el aviso
+        // crítico no se quede en el lote hacia Seq (hallazgo de Codex).
+        await Serilog.Log.CloseAndFlushAsync();
+        throw;
+    }
+    finally
+    {
+        if (hubSentry is not null)
+            await hubSentry.FlushAsync(TimeSpan.FromSeconds(5));
+    }
+
     await dbContextMigraciones.Database.MigrateAsync();
 
     // P6: la clave del contexto RLS firmado la registra quien tiene la

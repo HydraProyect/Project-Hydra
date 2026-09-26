@@ -68,6 +68,12 @@ public class ConexionesFueraDelInterceptorTests
         // recuentos. No hay filas que aislar; corre en un servicio de fondo.
         "src/CaeManager.Infrastructure/Auditing/ParticionesEventosHostedService.cs",
 
+        // P1-M3: transición del historial de migraciones a la línea base
+        // compactada. La abre el migrador con la cadena propietaria, antes de
+        // MigrateAsync; solo lee y reescribe __EFMigrationsHistory, que no es
+        // de ningún Tenant, así que no hay filas que aislar.
+        "src/CaeManager.Infrastructure/Persistence/Migraciones/TransicionLineaBaseCompactada.cs",
+
         // Comprobación de arranque de que la identidad de conexión del tráfico
         // está sometida a RLS. No lee ninguna tabla de negocio: solo
         // current_user, sus atributos en pg_roles y si es propietaria de alguna

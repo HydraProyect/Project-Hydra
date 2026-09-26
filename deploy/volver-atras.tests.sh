@@ -49,6 +49,12 @@ case "$1 ${2:-}" in
   "ps -a") cat "$ESTADO/contenedores/"* 2>/dev/null; true ;;
   "exec "*)
     case "$*" in
+      "exec -i "*psql*)
+        # Restauración del historial previo (P1-M3): SQL por stdin; la base
+        # pasa a los ids de su INSERT, uno por línea.
+        [ "${RESTAURAR_FALLA:-0}" = 1 ] && exit 3
+        cat > "$ESTADO/sql_restaurar"
+        sed -nE "s/^    \('([^']*)', .*/\1/p" "$ESTADO/sql_restaurar" | paste -sd, - > "$ESTADO/base" ;;
       *psql*) [ "${PSQL_FALLA:-0}" = 1 ] && exit 2; tr ',' '\n' < "$ESTADO/base" ;;
       *curl*)
         n=$(( $(cat "$ESTADO/salud_llamadas" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$ESTADO/salud_llamadas"
@@ -299,6 +305,47 @@ escenario produccion "$B"; printf '' > "$ESTADO/base"; imagen "$A"
 volver -- produccion "$A"
 comprobar "historial de migraciones vacío: se detiene sin arrancar" "1 0" "$codigo $(llamadas_up)"
 
+# P1-M3: base en la línea base compactada, imagen anterior a la compactación.
+# La lista previa se toma del migrador (TransicionLineaBaseCompactada.cs), así
+# que este caso también comprueba que su huella es la que conoce el guion.
+LINEA_BASE=20260926160042_LineaBaseCompactada
+HISTORIA_PREVIA="$(sed -nE 's/^        "([0-9]{14}_[^"]+)",$/\1/p' "$AQUI/../src/CaeManager.Infrastructure/Persistence/Migraciones/TransicionLineaBaseCompactada.cs" | paste -sd, -)"
+comprobar "la lista previa del migrador tiene 185 ids" 185 "$(printf '%s' "$HISTORIA_PREVIA," | tr ',' '\n' | wc -l)"
+escenario produccion "$B"; imagen "$A" "$HISTORIA_PREVIA"; printf '%s' "$LINEA_BASE" > "$ESTADO/base"
+volver -- produccion "$A"
+comprobar "línea base compactada e imagen previa: completa" 0 "$codigo"
+comprobar "  y lo explica" si "$(contiene "anterior a la compactación (P1-M3)" "$salida")"
+comprobar "  devuelve a la base exactamente las 185 de la imagen" "$HISTORIA_PREVIA" "$(tr ',' '\n' < "$ESTADO/base" | LC_ALL=C sort | paste -sd, -)"
+comprobar "  con client_encoding UTF8" si "$(contiene "SET client_encoding = 'UTF8';" "$(cat "$ESTADO/sql_restaurar")")"
+comprobar "  con la ñ byte a byte" si "$(contiene "('20260810122003_Redise$(printf '\xc3\xb1')arSugerenciaGestionCorreoMultiItem'" "$(cat "$ESTADO/sql_restaurar")")"
+comprobar "  bajo el cerrojo del migrador y solo si sigue en la línea base" "si si" \
+  "$(contiene "pg_advisory_xact_lock(hashtextextended('transicion_linea_base_compactada', 0))" "$(cat "$ESTADO/sql_restaurar")") $(contiene "IS DISTINCT FROM ARRAY['$LINEA_BASE']" "$(cat "$ESTADO/sql_restaurar")")"
+comprobar "  y arranca la imagen una vez" 1 "$(llamadas_up)"
+
+escenario produccion "$B"; imagen "$A"; printf '%s' "$LINEA_BASE" > "$ESTADO/base"
+volver -- produccion "$A"
+comprobar "línea base con una imagen que no es la previa: se detiene sin restaurar" "1 0 no" \
+  "$codigo $(llamadas_up) $([ -f "$ESTADO/sql_restaurar" ] && echo si || echo no)"
+
+escenario produccion "$B"; imagen "$A" "${HISTORIA_PREVIA/20260731235023_LineaBase,/}"; printf '%s' "$LINEA_BASE" > "$ESTADO/base"
+volver -- produccion "$A"
+comprobar "imagen con 184 de las 185: se detiene sin restaurar" "1 0 no" \
+  "$codigo $(llamadas_up) $([ -f "$ESTADO/sql_restaurar" ] && echo si || echo no)"
+
+escenario produccion "$B"; imagen "$A" "$HISTORIA_PREVIA"; printf '%s' "$LINEA_BASE" > "$ESTADO/base"
+volver COMPOSE_FALLA=1 -- produccion "$A"
+comprobar "historial restaurado y relevo fallido: se detiene" 1 "$codigo"
+comprobar "  y avisa de que el historial ya tiene las 185" si "$(contiene "Aviso P1-M3: __EFMigrationsHistory ya tiene de nuevo las 185" "$salida")"
+
+escenario produccion "$B"; imagen "$A"
+volver COMPOSE_FALLA=1 -- produccion "$A"
+comprobar "relevo fallido sin restauración: sin aviso P1-M3" "no" "$(case "$salida" in *"Aviso P1-M3"*) echo si ;; *) echo no ;; esac)"
+
+escenario produccion "$B"; imagen "$A" "$HISTORIA_PREVIA"; printf '%s' "$LINEA_BASE" > "$ESTADO/base"
+volver RESTAURAR_FALLA=1 -- produccion "$A"
+comprobar "la restauración falla: se detiene sin arrancar" "1 0" "$codigo $(llamadas_up)"
+comprobar "  y lo dice" si "$(contiene "No se pudo restaurar el historial previo" "$salida")"
+
 escenario produccion "$B"
 volver -- produccion "$A"
 comprobar "imagen que no está en el VPS: se detiene sin reconstruir" "1 0" "$codigo $(llamadas_up)"
@@ -400,6 +447,8 @@ if [ -z "${VOLVER_ATRAS_GUION:-}" ]; then
   preparar_esquema() { preparar; printf '%s,20260301000000_Nueva' "$MIGS" > "$ESTADO/base"; }
   MUT_VARS=(X=1)
   mutar "no se mira si sobran migraciones" 's#if \[ -n "\$sobran" \]; then#if false; then#' preparar_esquema
+  preparar_linea_base_otra_imagen() { preparar; printf '%s' "$LINEA_BASE" > "$ESTADO/base"; }
+  mutar "se restaura sin mirar la huella de la imagen" 's#= "\$HUELLA_HISTORIA_PREVIA" \]; then#!= "x" ]; then#' preparar_linea_base_otra_imagen
 
   # Mutaciones de imagenes-retenidas.sh que devuelven el comportamiento previo
   # (seguir retirando sin historial legible o con el registro fallido): su

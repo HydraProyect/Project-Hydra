@@ -83,8 +83,7 @@ public class EnlacesADocumentosExistentesTests
         ["src/CaeManager.Infrastructure/AsistenteIa/AnthropicAsistenteIaService.cs|ROADMAP.md"] = (1, "texto del prompt del asistente: cambiarlo es cambio de comportamiento"),
         ["src/CaeManager.Infrastructure/Identity/IdentitySeeder.cs|DEPLOY.md"] = (1, "mensaje de excepción o de registro en producción"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/TipoDocumentoSeedData.cs|ROADMAP.md"] = (1, "literal sembrado en base de datos: cambiarlo exige migración"),
-        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260801120000_HabilitarRlsPostgres.cs|docs/MULTITENANCY.md"] = (1, "dentro del SQL de una migración aplicada"),
-        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260809152455_ModalidadPreventivaObligatoriaCae.cs|ROADMAP.md"] = (1, "literal sembrado en base de datos: cambiarlo exige migración"),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260926160042_LineaBaseCompactada.cs|ROADMAP.md"] = (1, "literal sembrado en base de datos (InsertData de la línea base compactada, P1-M3): cambiarlo exige migración"),
         ["src/CaeManager.Web/Api/V1/ApiKeySecuritySchemeTransformer.cs|docs/business/MATURITY_REVIEW.md"] = (1, "descripción publicada en OpenAPI: cambio de comportamiento"),
         ["src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor.cs|docs/ux-audit/05-trabajadores-vehiculos.md"] = (1, "diferida: fichero de la PR abierta #931 (P1-L1, 2026-09-26); reescribir al fusionarse"),
     };

@@ -173,7 +173,7 @@ public class MigracionesTests : IAsyncLifetime
         // usarla. No hay error ni aviso: por eso hace falta este test.
         // Ensamblado de PostgreSQL, no Infrastructure: cada motor tiene su
         // propio juego de migraciones (ver InfrastructureServiceCollectionExtensions).
-        var clasesMigracion = typeof(CaeManager.Migrations.PostgreSQL.Migrations.LineaBase).Assembly
+        var clasesMigracion = typeof(CaeManager.Migrations.PostgreSQL.Migrations.LineaBaseCompactada).Assembly
             .GetTypes()
             .Where(t => typeof(Migration).IsAssignableFrom(t) && t is { IsAbstract: false, IsGenericType: false })
             .Select(t => t.Name)
