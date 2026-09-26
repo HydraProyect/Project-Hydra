@@ -229,6 +229,11 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs", "await using (var comandoLock = new NpgsqlCommand(")] = 1,
         [("src/CaeManager.Infrastructure/Coordinacion/EleccionLiderPostgresService.cs", "await using var comandoUnlock = new NpgsqlCommand(")] = 1,
 
+        // P1-M2: llamada parametrizada a app_asegurar_particiones_eventos, la
+        // única función del particionado que runtime puede ejecutar (SECURITY
+        // DEFINER; ni nombres ni SQL del llamador). No existe equivalente EF.
+        [("src/CaeManager.Infrastructure/Auditing/ParticionesEventosHostedService.cs", "await using var orden = new NpgsqlCommand(")] = 1,
+
         // Retirada de tenant de demo (incidente de siembra parcial del
         // 2026-08-28): borra POR COMPLETO un tenant, así que tiene que
         // alcanzar también las filas ya soft-deleted de ese tenant — el

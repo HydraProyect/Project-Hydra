@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Coordinacion;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -41,6 +42,11 @@ public class ParticionesEventosHostedService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // P41c: lo que haga este servicio lo hace la plataforma. Hoy la función
+        // no genera auditoría, pero la declaración va en el punto de entrada
+        // para que ningún camino añadido después se quede fuera.
+        using var ambitoActor = AmbitoActorAuditoria.EstablecerSistema();
+
         using var temporizador = new PeriodicTimer(IntervaloSondeo);
 
         await EjecutarCicloAsync(stoppingToken);

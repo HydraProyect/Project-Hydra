@@ -316,8 +316,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Particiones mensuales futuras de la auditoría (P1-M2): siempre
         // registrado; sin él, los eventos acaban en la partición por defecto.
-        services.AddSingleton<ParticionesEventosHostedService>();
-        services.AddHostedService(sp => sp.GetRequiredService<ParticionesEventosHostedService>());
+        services.AddHostedService<ParticionesEventosHostedService>();
 
         // Segundo conector de mensajería: WhatsApp Cloud API (Meta). Mismo
         // patrón "inerte por defecto": sin AppSecret/VerifyToken no se
