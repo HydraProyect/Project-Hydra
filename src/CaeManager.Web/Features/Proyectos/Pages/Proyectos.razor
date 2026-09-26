@@ -361,7 +361,7 @@
     </aside>
 }
 
-<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
@@ -391,7 +391,7 @@
     </Pie>
 </Drawer>
 
-<Modal Visible="_mostrarCerrarConfirm" VisibleChanged="v => _mostrarCerrarConfirm = v" Titulo="@Textos["AccionCerrarProyecto"]" CerrarAlHacerClicFuera="!_guardando">
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarCerrarConfirm" VisibleChanged="v => _mostrarCerrarConfirm = v" Titulo="@Textos["AccionCerrarProyecto"]" CerrarAlHacerClicFuera="!_guardando">
     <ChildContent>
         <p>@Textos["ModalCerrarExplicacion"]</p>
         <CampoTexto Etiqueta="@Textos["EtiquetaFechaCierre"]" Type="date" Valor="@_fechaCierre" ValorChanged="v => _fechaCierre = v" />
@@ -422,6 +422,8 @@
     Mensaje="@Textos["ConfirmarEliminarMensaje", _nombreAEliminar]"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
 </LimiteDeErrores>
 
 @code {

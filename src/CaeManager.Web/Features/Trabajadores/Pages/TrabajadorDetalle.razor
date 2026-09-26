@@ -481,7 +481,7 @@
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
 
-<Modal Visible="_crearGestionVisible" VisibleChanged="v => _crearGestionVisible = v" Titulo="@Textos["ModalCrearGestionTitulo"]" CerrarAlHacerClicFuera="!_creandoGestion">
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_crearGestionVisible" VisibleChanged="v => _crearGestionVisible = v" Titulo="@Textos["ModalCrearGestionTitulo"]" CerrarAlHacerClicFuera="!_creandoGestion">
     <ChildContent>
         <p class="workspace-nota-contextual">@Textos["NotaCrearGestion"]</p>
         <CampoSelect Etiqueta="@Textos["EtiquetaTipoDocumento"]" Valor="@_tipoDocumentoParaGestion" ValorChanged="v => _tipoDocumentoParaGestion = v">
@@ -511,7 +511,7 @@
     EnProgreso="_asignacionABajar is { } enCurso && _dandoDeBajaAsignacion.Contains(enCurso)"
     OnConfirmar="ConfirmarBajaAsignacionAsync" />
 
-<Modal Visible="_reclamarFaltantesVisible" VisibleChanged="v => _reclamarFaltantesVisible = v"
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_reclamarFaltantesVisible" VisibleChanged="v => _reclamarFaltantesVisible = v"
        Titulo="@Textos["ModalReclamarTitulo"]" CerrarAlHacerClicFuera="!_reclamandoFaltantes">
     <ChildContent>
         <p class="workspace-nota-contextual">
@@ -536,4 +536,6 @@
         <Boton Cargando="_reclamandoFaltantes" Deshabilitado="_clientesSeleccionadosReclamar.Count == 0" OnClick="ConfirmarReclamarFaltantesAsync">@Textos["BotonReclamar"]</Boton>
     </Pie>
 </Modal>
+
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarModalesPendientes" />
 </LimiteDeErrores>

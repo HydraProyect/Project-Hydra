@@ -139,6 +139,8 @@ public class RetencionTests : BunitContext
 
         Services.AddScoped<IMediator>(_ => mediator);
         Services.AddScoped<ToastService>();
+        // Los textos del aviso de cambios sin guardar (TextosComunes) se leen de los .resx.
+        Services.AddLocalization();
         Services.AddSingleton<ILogger<RetencionPage>>(_logger);
         Services.AddSingleton<IOptions<RetencionDatosOptions>>(Options.Create(
             new RetencionDatosOptions { Activa = politicaActiva, AniosRetencionTrabajadores = aniosTrabajadores }));
@@ -480,5 +482,57 @@ public class RetencionTests : BunitContext
         cut.FindAll("[role=dialog]").Should().BeEmpty("ninguna de las dos abre una confirmacion");
         mediator.Enviados.OfType<EjecutarPurgaCommand>().Should().BeEmpty();
         mediator.Enviados.OfType<ProgramarPurgaCommand>().Should().BeEmpty();
+    }
+
+    // ---------------------------------------------------------------- P1-E2b: aviso de cambios sin guardar
+
+    private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
+
+    [Fact]
+    public async Task Aviso_autorizar_con_la_fecha_propuesta_no_pregunta_al_salir()
+    {
+        var (cut, _) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+        cut.Find("[role=dialog] input[type=date]").GetAttribute("value").Should().NotBeNullOrEmpty(
+            "el test necesita la fecha propuesta ya puesta");
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "la fecha propuesta no es un cambio de quien autoriza");
+    }
+
+    [Fact]
+    public async Task Aviso_autorizar_con_otra_fecha_pregunta_al_salir()
+    {
+        var (cut, _) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+
+        await cut.Find("[role=dialog] input[type=date]").InputAsync(new ChangeEventArgs { Value = "2031-05-20" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
+    [Fact]
+    public async Task Aviso_autorizar_con_otra_fecha_y_confirmar_deja_salir_sin_preguntar()
+    {
+        var (cut, mediator) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+        await cut.Find("[role=dialog] input[type=date]").InputAsync(new ChangeEventArgs { Value = "2031-05-20" });
+
+        await BotonDelDialogo(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+
+        mediator.Enviados.OfType<ProgramarPurgaCommand>().Should().ContainSingle("el caso solo vale si se autorizó");
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "lo elegido ya está guardado");
+    }
+
+    [Fact]
+    public async Task Aviso_descartar_con_motivo_escrito_pregunta_al_salir_y_sin_motivo_no()
+    {
+        var (cut, _) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
+        await BotonConTexto(cut, "Descartar").ClickAsync(new MouseEventArgs());
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "sin motivo escrito no hay nada que perder");
+
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("/"));
+        await cut.Find("[role=dialog] input").InputAsync(new ChangeEventArgs { Value = "Política interna de 10 años" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
     }
 }

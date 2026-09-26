@@ -580,7 +580,21 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         foreach (var cliente in clientes)
             _clientesSeleccionadosReclamar.Add(cliente.ClienteId);
         _reclamarFaltantesVisible = true;
+        // Todos los Clientes empresariales vienen marcados: no es un cambio de quien edita.
+        _instantaneaReclamar.Fijar(_clientesSeleccionadosReclamar);
     }
+
+    private readonly InstantaneaFormulario _instantaneaReclamar = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en la ficha: un tipo de documento
+    /// ya elegido en el modal de crear gestión, o las casillas del modal de reclamar
+    /// faltantes cambiadas respecto a cómo se abrió. Lo lee AvisoCambiosSinGuardar;
+    /// cerrados (también tras confirmar) nunca hay nada que perder.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        (_crearGestionVisible && !string.IsNullOrEmpty(_tipoDocumentoParaGestion))
+        || (_reclamarFaltantesVisible && _instantaneaReclamar.Difiere(_clientesSeleccionadosReclamar));
 
     private void AlternarClienteReclamar(Guid clienteId, bool marcado)
     {
