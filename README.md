@@ -15,8 +15,18 @@ dotnet run --project src/CaeManager.Web
 ## Tests
 
 ```bash
+docker compose up -d          # los tests de integración y E2E necesitan PostgreSQL
 dotnet test CaeManager.slnx
 ```
+
+## Documentación
+
+Este repositorio contiene solo lo necesario para compilar, probar y desplegar.
+La documentación (arquitectura, dominio, ADR, runbooks, auditorías y
+decisiones) vive en el repositorio privado `Project-Hydra-Negocio`, que no
+tiene remoto público. En el código se cita por su ruta dentro de ese
+repositorio, con el prefijo `Project-Hydra-Negocio/` (por ejemplo,
+`Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md`).
 
 ## Estado
 

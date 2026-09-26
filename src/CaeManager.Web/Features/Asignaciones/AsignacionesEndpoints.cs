@@ -9,7 +9,7 @@ using Microsoft.Extensions.Localization;
 namespace CaeManager.Web.Features.Asignaciones;
 
 /// <summary>
-/// Export plano de todas las asignaciones activas — Centro 360 (PLAN-EJECUCION-UX.md
+/// Export plano de todas las asignaciones activas — Centro 360 (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
 /// § 0.1) sustituye a /asignaciones por el acordeón de /centros, pero se
 /// conserva este dato en tabla para auditoría/"dónde está Juan hoy", que no
 /// siempre se responde mejor por-centro. Mismo patrón que ClientesEndpoints.cs.

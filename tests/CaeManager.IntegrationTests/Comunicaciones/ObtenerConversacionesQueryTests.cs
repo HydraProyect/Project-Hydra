@@ -11,7 +11,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Comunicaciones;
 
 /// <summary>
-/// H2 (docs/COMUNICACIONES.md § 9, "sin búsqueda de texto en conversaciones")
+/// H2 (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 9, "sin búsqueda de texto en conversaciones")
 /// y "riesgo de escalabilidad" (bandeja agrupada sin paginación visible) — la
 /// bandeja cargaba TODAS las conversaciones que cumplieran los filtros en
 /// cada visita, y la búsqueda solo comparaba el asunto.

@@ -4,7 +4,7 @@ namespace CaeManager.Domain.Comunicaciones;
 
 /// <summary>
 /// Nota interna del equipo en el Unified Timeline de una Conversacion
-/// (docs/COMUNICACIONES.md § 12.3, "notas internas"): hablar del caso dentro
+/// (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.3, "notas internas"): hablar del caso dentro
 /// del caso sin que el interlocutor externo lo vea. <b>Nunca se entrega fuera
 /// del Tenant propietario</b> — por eso es una entidad aparte y no un tercer
 /// valor de <see cref="DireccionMensaje"/>: todo lo que recorre

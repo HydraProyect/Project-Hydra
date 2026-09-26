@@ -23,7 +23,7 @@ namespace CaeManager.Infrastructure.Coordinacion;
 /// </list>
 ///
 /// Ver <see cref="EleccionLiderPostgresService"/> para la implementación
-/// (advisory lock de PostgreSQL) y P3-30 de docs/business/MATURITY_REVIEW.md.
+/// (advisory lock de PostgreSQL) y P3-30 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
 /// </summary>
 public interface IEleccionLiderService
 {

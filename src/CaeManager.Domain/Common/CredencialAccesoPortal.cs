@@ -2,7 +2,7 @@ namespace CaeManager.Domain.Common;
 
 /// <summary>
 /// Base compartida de las credenciales de acceso a una plataforma externa
-/// de gestión documental (P2 #27 de docs/business/MATURITY_REVIEW.md — 2 de
+/// de gestión documental (P2 #27 de Project-Hydra-Negocio/MATURITY_REVIEW.md — 2 de
 /// las 3 clases de credenciales que el informe señala como duplicadas:
 /// <c>CredencialAccesoEmpresa</c> y <c>CredencialAccesoSubcontrata</c> eran,
 /// letra por letra, la misma clase con solo el nombre del Id del padre

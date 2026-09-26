@@ -10,7 +10,7 @@ namespace CaeManager.Domain.Documentos;
 /// renovar, el orden natural es <see cref="FirmadoEnUtc"/>).
 ///
 /// El trazo en sí NO se persiste aquí como blob — vive solo dentro de los
-/// píxeles del PDF resultante (RGPD-TRATAMIENTO-DATOS.md § 5: un único
+/// píxeles del PDF resultante (Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md § 5: un único
 /// artefacto que purgar). Esta fila guarda únicamente metadatos + el hash
 /// SHA-256 del PDF ya firmado, como constancia de integridad propia (sin
 /// certificado — eso es la Fase B).

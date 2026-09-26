@@ -4,7 +4,7 @@ using Xunit;
 
 namespace CaeManager.Domain.Tests.Comunicaciones;
 
-/// <summary>Conversation Matching Engine (docs/COMUNICACIONES.md § 13.2) — mecánica de fusión al confirmar una vinculación.</summary>
+/// <summary>Conversation Matching Engine (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 13.2) — mecánica de fusión al confirmar una vinculación.</summary>
 public class AbsorberMensajesDeTests
 {
     [Fact]

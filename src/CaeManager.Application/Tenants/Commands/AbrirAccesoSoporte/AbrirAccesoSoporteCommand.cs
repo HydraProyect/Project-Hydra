@@ -114,7 +114,7 @@ public class AbrirAccesoSoporteCommandHandler(
             return Result.Fallo(Error.Crear("Soporte.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
 
         // 2FA obligatoria para abrir un acceso de soporte (P1-13 de
-        // docs/business/MATURITY_REVIEW.md): quien entra en datos de un
+        // Project-Hydra-Negocio/MATURITY_REVIEW.md): quien entra en datos de un
         // cliente ajeno con una cuenta comprometida por contraseña sola es
         // el escenario que este acceso existe precisamente para poder
         // rastrear y contener.

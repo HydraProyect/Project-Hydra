@@ -6,7 +6,7 @@ namespace CaeManager.Application.Dashboard;
 /// <c>[Inicio, Fin)</c>: el fin es exclusivo, que es lo que permite encadenar
 /// periodos consecutivos sin contar dos veces lo que cae justo en la frontera.
 ///
-/// Cierra el hueco que `ROADMAP.md` arrastraba desde la Fase 63 ("filtro por
+/// Cierra el hueco que `Project-Hydra-Negocio/tecnico/ROADMAP.md` arrastraba desde la Fase 63 ("filtro por
 /// periodo"): antes cada query calculaba "el mes actual" por su cuenta y no
 /// había forma de mirar otro rango.
 /// </summary>

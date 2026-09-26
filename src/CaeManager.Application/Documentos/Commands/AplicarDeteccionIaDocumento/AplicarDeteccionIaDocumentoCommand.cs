@@ -24,7 +24,7 @@ namespace CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento
 /// para el vencimiento: si el TipoDocumento calcula la vigencia
 /// automáticamente, se recalcula desde la fecha de emisión detectada (la
 /// fecha de vencimiento es siempre un cálculo, nunca un dato de entrada —
-/// ver DATABASE.md); solo si no aplica cálculo automático se usa la fecha de
+/// ver Project-Hydra-Negocio/tecnico/DATABASE.md); solo si no aplica cálculo automático se usa la fecha de
 /// vencimiento que detectó la IA.
 ///
 /// Si hay una AuditoriaExtraccionIa ligada al Documento sin decisión

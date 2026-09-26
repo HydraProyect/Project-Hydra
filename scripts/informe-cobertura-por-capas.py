@@ -2,7 +2,7 @@
 """Informe de cobertura por ensamblado y por zona de riesgo (REC-210).
 
 Lee los dos `Summary.xml` (reporttype `XmlSummary` de reportgenerator, uno por
-trinquete — nucleo y Web, ver DEC-cobertura-dos-trinquetes-2026-09-11.md) y
+trinquete — nucleo y Web, ver Project-Hydra-Negocio/tecnico/DEC-cobertura-dos-trinquetes-2026-09-11.md) y
 produce una tabla Markdown con:
 
   1. cobertura de linea por ensamblado (Domain, Application, Infrastructure,

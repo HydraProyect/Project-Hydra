@@ -73,7 +73,7 @@ public record ResultadoImportacionDto(
 }
 
 /// <summary>
-/// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis,
+/// Invariante «nada se descarta en silencio» (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis,
 /// ratificada por DCR-12 decisión B, propietario 2026-08-24): la importación
 /// admite éxito parcial con errores reportados, pero ninguna fila de un flujo
 /// soportado —Centros_Plataformas incluido— puede desaparecer sin quedar

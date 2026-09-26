@@ -326,7 +326,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         }
     }
 
-    /// <summary>"7/9" junto al nombre (PLAN-EJECUCION-UX.md § 0.5) — se deriva de los mismos <c>Documentos</c> ya cargados, sin consulta nueva.</summary>
+    /// <summary>"7/9" junto al nombre (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.5) — se deriva de los mismos <c>Documentos</c> ya cargados, sin consulta nueva.</summary>
     private static int DocumentosAlDia(TrabajadorAsignacionDocumentacionDto trabajador) =>
         trabajador.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente);
 

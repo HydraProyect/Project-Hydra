@@ -164,7 +164,7 @@ public partial class Bandeja : ComponentBase, IDisposable
     /// <summary>
     /// La URL es la fuente de verdad del filtro, no solo su semilla inicial
     /// — mismo patrón que el resto de listados (P1-18 de
-    /// docs/business/MATURITY_REVIEW.md).
+    /// Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     protected override void OnParametersSet()
     {
@@ -252,7 +252,7 @@ public partial class Bandeja : ComponentBase, IDisposable
     private static bool CoincideFiltro(ItemBandejaDto item, string tipoFiltro) =>
         !Enum.TryParse<TipoItemBandeja>(tipoFiltro, out var tipo) || item.Tipo == tipo;
 
-    /// <summary>H2 (docs/ux-audit/10-bandeja-alertas-calendario.md): "¿qué atiendo primero?" pide los números antes de filtrar, no después. Cuenta siempre sobre Items completo, nunca sobre ItemsFiltrados, para que el número de cada chip no cambie según cuál esté seleccionado.</summary>
+    /// <summary>H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/10-bandeja-alertas-calendario.md): "¿qué atiendo primero?" pide los números antes de filtrar, no después. Cuenta siempre sobre Items completo, nunca sobre ItemsFiltrados, para que el número de cada chip no cambie según cuál esté seleccionado.</summary>
     private int Contador(TipoItemBandeja tipo) => Items.Count(i => i.Tipo == tipo);
 
     private async Task ManejarAtajoAsync(string tecla)

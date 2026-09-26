@@ -32,7 +32,7 @@ public class ContactoAgendaConfiguration : IEntityTypeConfiguration<ContactoAgen
         // visible, no llevarse los contactos por delante en silencio.
         //
         // F3b — ClienteId/SubcontrataId repuntan contra Empresas.Id (ver
-        // f3b-decision-d2-transicion-acotada-2026-08-25.md §2): a diferencia
+        // Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md §2): a diferencia
         // de las otras constraints de este repunteo, aquí no hay
         // HasPrincipalKey ni TenantId en la FK — ya no lo había contra
         // Cliente/Subcontrata tampoco, así que apuntan igual que antes, solo

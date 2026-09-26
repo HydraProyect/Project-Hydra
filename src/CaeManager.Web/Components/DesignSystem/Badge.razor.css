@@ -36,9 +36,9 @@
 }
 
 /* *-700, no *-500: el semáforo de vigencia documental es el patrón visual
-   insignia del producto (DESIGN_SYSTEM.md) y *-500 sobre *-50 incumplía el
+   insignia del producto (Project-Hydra-Negocio/tecnico/docs/archive/design/DESIGN_SYSTEM.md) y *-500 sobre *-50 incumplía el
    "WCAG AA no negociable" (≈2,2:1 el verde, ≈1,9:1 el ámbar) — hallazgo P0-8
-   de docs/business/MATURITY_REVIEW.md. Los tokens *-700 ya se remapean por
+   de Project-Hydra-Negocio/MATURITY_REVIEW.md. Los tokens *-700 ya se remapean por
    tema (ver tokens.css), así que este cambio no necesita lógica aparte para
    modo oscuro. */
 .badge-exito {

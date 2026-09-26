@@ -6,7 +6,7 @@ namespace CaeManager.IntegrationTests.Comunicaciones;
 
 /// <summary>
 /// Contrato de <c>ISanitizadorHtmlService</c> frente al hallazgo N-1 de
-/// INFORME-AUDITORIA-2.md. Se prueba contra la implementación real, no contra
+/// Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md. Se prueba contra la implementación real, no contra
 /// un doble: lo que hay que garantizar es que el sanitizador configurado como
 /// lo está configurado corta estos vectores, no que alguien llame a un método.
 /// </summary>

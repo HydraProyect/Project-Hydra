@@ -2,7 +2,7 @@ namespace CaeManager.Application.Importacion;
 
 /// <summary>
 /// Resultado de analizar (sin escribir nada todavía) un Excel de origen
-/// (ver ROADMAP.md, Fase 5). Cada lista "a crear" ya está deduplicada
+/// (ver Project-Hydra-Negocio/tecnico/ROADMAP.md, Fase 5). Cada lista "a crear" ya está deduplicada
 /// contra el estado real de la base de datos y contra el propio archivo;
 /// <see cref="Omitidos"/> y <see cref="Advertencias"/> documentan
 /// exactamente qué se dejó fuera y por qué, para el reporte final — nunca
@@ -32,7 +32,7 @@ public record ItemImportacionDto(string Hoja, int Fila, string Descripcion, stri
 /// Una fila de Centros_Plataformas es a la vez un Cliente y un Centro con el
 /// mismo nombre (el Excel origen fusiona ambos conceptos en una sola
 /// columna de texto libre, sin separador fiable) — ver nota en
-/// ROADMAP.md sobre esta simplificación deliberada.
+/// Project-Hydra-Negocio/tecnico/ROADMAP.md sobre esta simplificación deliberada.
 /// </summary>
 public record ClienteCentroImportadoDto(
     string Nombre,

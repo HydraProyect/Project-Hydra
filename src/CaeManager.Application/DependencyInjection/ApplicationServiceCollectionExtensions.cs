@@ -153,7 +153,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IResolucionProveedorPlataformaCaeService, ResolucionProveedorPlataformaCaeService>();
 
         // Factory pura (Application) — cada IDocumentAIProvider real se
-        // registra en Infrastructure (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2).
+        // registra en Infrastructure (ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2).
         services.AddScoped<IDocumentAIProviderFactory, DocumentAIProviderFactory>();
         services.AddScoped<IDocumentAIRouterService, DocumentAIRouterService>();
         services.AddSingleton<ILocalizadorPaginasRelevantesService, LocalizadorPaginasRelevantesService>();

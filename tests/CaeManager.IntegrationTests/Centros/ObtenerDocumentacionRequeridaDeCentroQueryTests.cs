@@ -12,7 +12,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Centros;
 
 /// <summary>
-/// Prueba de sensibilidad de T2 (taxonomia-documental-cae-propuesta-2026-08-27.md
+/// Prueba de sensibilidad de T2 (Project-Hydra-Negocio/tecnico/taxonomia-documental-cae-propuesta-2026-08-27.md
 /// §2): sobre un Centro SIN fila explícita de TipoDocumentoCentro para estos
 /// tipos —el caso de todo el catálogo semilla real, ver DatosPruebaSeeder—
 /// "Aplica" lo decide en solitario TipoDocumento.CuentaParaCumplimiento

@@ -11,7 +11,7 @@ namespace CaeManager.Web.Services;
 
 /// <summary>
 /// Revalida el Delegated Workspace activo una vez por petición, fuera del
-/// camino caliente del filtro global (hallazgo N-6 de INFORME-AUDITORIA-2.md).
+/// camino caliente del filtro global (hallazgo N-6 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
 ///
 /// El token de selección se comprueba <b>al emitirse</b> y su lectura no hace
 /// I/O a propósito: <c>ITenantActual.TenantId</c> se evalúa dentro de

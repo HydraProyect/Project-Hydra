@@ -11,7 +11,7 @@ namespace CaeManager.Application.Asignaciones.Queries.ObtenerAsignaciones;
 /// <summary>
 /// <paramref name="Activa"/> es el filtro de estado de la pantalla: una
 /// Asignación no tiene columna de estado — "activa" es no tener
-/// <c>FechaBaja</c> (ver <c>DOMAIN.md</c>), así que el filtro se traduce a esa
+/// <c>FechaBaja</c> (ver <c>Project-Hydra-Negocio/tecnico/DOMAIN.md</c>), así que el filtro se traduce a esa
 /// condición en SQL en vez de inventar un enum en el dominio.
 /// </summary>
 public record ObtenerAsignacionesQuery(

@@ -36,7 +36,7 @@ public class EditarIncidenciaCommandHandler(
         if (ConcurrenciaOptimista.Verificar(incidencia, request.Version, "esta incidencia") is { } conflicto)
             return Result.Fallo(conflicto);
 
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         if (request.TrabajadorId is { } trabajadorId
             && !await trabajadoresContext.Trabajadores.AnyAsync(t => t.Id == trabajadorId, cancellationToken))
             return Result.Fallo(Error.Crear("Incidencia.TrabajadorNoEncontrado", "No encontramos este trabajador."));

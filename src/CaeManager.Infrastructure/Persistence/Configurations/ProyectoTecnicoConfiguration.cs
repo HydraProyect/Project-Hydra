@@ -25,7 +25,7 @@ public class ProyectoTecnicoConfiguration : IEntityTypeConfiguration<ProyectoTec
                .HasDatabaseName("IX_ProyectosTecnicos_TenantId_ProyectoId_TrabajadorId_Activo");
         builder.HasIndex(pt => pt.TrabajadorId);
 
-        // FKs reales — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // FKs reales — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         builder.HasOne<Proyecto>().WithMany()
             .HasForeignKey(pt => new { pt.TenantId, pt.ProyectoId })
             .HasPrincipalKey(p => new { p.TenantId, p.Id })

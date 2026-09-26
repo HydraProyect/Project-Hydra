@@ -38,7 +38,7 @@ public class Trabajador : EntidadBase
 
     /// <summary>
     /// Puesto u oficio de la persona (p. ej. "Soldador", "Administrativo") —
-    /// eje E3 de la capa sectorial (MATRIZ_SECTORIAL_PRL.md § 9.1). Bloquea
+    /// eje E3 de la capa sectorial (Project-Hydra-Negocio/MATRIZ_SECTORIAL_PRL.md § 9.1). Bloquea
     /// F-20/F-22/F-40, que lo referencian y hoy no pueden rellenarlo.
     /// </summary>
     public string? Puesto { get; private set; }
@@ -61,7 +61,7 @@ public class Trabajador : EntidadBase
     /// remitente de un WhatsApp entrante contra un Trabajador real —sin esto,
     /// <c>ParticipanteConversacion</c> no se puebla en WhatsApp y el criterio
     /// "Mismo Trabajador" del Conversation Matching Engine se queda en 0
-    /// (docs/COMUNICACIONES.md § 13.2).
+    /// (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 13.2).
     ///
     /// Dato personal a todos los efectos: se borra en <see cref="Anonimizar"/>
     /// igual que el email.
@@ -151,7 +151,7 @@ public class Trabajador : EntidadBase
 
     /// <summary>
     /// Rompe de forma irreversible el vínculo con la persona física
-    /// (RGPD-TRATAMIENTO-DATOS.md § 5: purgar es anonimizar, no borrar).
+    /// (Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md § 5: purgar es anonimizar, no borrar).
     ///
     /// La fila y sus relaciones se conservan —asignaciones, visitas,
     /// documentos— porque el histórico de coordinación de actividades sigue

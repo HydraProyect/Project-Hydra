@@ -61,7 +61,7 @@ liberar() {
   # queda protegida sin que este guion tenga que llevar la cuenta de cual es.
   #
   # No hay ninguna imagen vieja que el rollback necesite conservar: F3
-  # (tecnico/f3-analisis-pipeline-y-rollback-2026-08-25.md, repositorio de
+  # (Project-Hydra-Negocio/tecnico/f3-analisis-pipeline-y-rollback-2026-08-25.md, repositorio de
   # negocio) deja escrito que no existe rollback automatico de aplicacion —
   # "volver a una version anterior" es volver a desplegar un SHA anterior.
   # Desde el 2026-09-23 cada despliegue carga `caemanager:<sha>`, firmada en

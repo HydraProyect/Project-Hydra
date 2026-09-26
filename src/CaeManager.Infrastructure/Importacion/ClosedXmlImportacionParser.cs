@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Infrastructure.Importacion;
 
 /// <summary>
-/// Lee el archivo Excel de importación CAE multi-hoja (ver ROADMAP.md,
+/// Lee el archivo Excel de importación CAE multi-hoja (ver Project-Hydra-Negocio/tecnico/ROADMAP.md,
 /// Fase 5). El formato de origen es deliberadamente heterogéneo (columnas
 /// agrupadas por tipo de documento, texto libre fusionando Cliente+Centro,
 /// bloques de notas incrustados debajo de tablas) — este parser no intenta
@@ -24,7 +24,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// Nunca lanza una excepción por una fila individual mal formada — solo por
 /// un archivo que no tiene ninguna de las hojas esperadas.
 ///
-/// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis,
+/// Invariante «nada se descarta en silencio» (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis,
 /// ratificada por DCR-12 decisión B, propietario 2026-08-24): toda fila o
 /// celda con datos que este análisis decida no importar debe quedar en
 /// <see cref="PlanImportacionDto.Omitidos"/> con hoja, fila, descripción y

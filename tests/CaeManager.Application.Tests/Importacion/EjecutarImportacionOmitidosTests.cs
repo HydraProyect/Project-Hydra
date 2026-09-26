@@ -5,7 +5,7 @@ using Xunit;
 namespace CaeManager.Application.Tests.Importacion;
 
 /// <summary>
-/// Contrato «nada se descarta en silencio» (IMPORTACION.md § 3 bis, ratificado
+/// Contrato «nada se descarta en silencio» (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis, ratificado
 /// por DCR-12 decisión B, propietario 2026-08-24): ninguna fila de un flujo
 /// soportado puede desaparecer sin quedar registrada en <c>Omitidos</c> con
 /// hoja, descripción y motivo concreto.

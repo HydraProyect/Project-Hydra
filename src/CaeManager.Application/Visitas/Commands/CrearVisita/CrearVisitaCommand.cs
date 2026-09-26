@@ -57,7 +57,7 @@ public class CrearVisitaCommandHandler(
 {
     public async Task<Result<Guid>> Handle(CrearVisitaCommand request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         if (!await centrosContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
             return CentroNoEncontrado();
 
@@ -163,7 +163,7 @@ public class CrearVisitaCommandHandler(
                 logger.LogWarning(ex, "No se pudo generar el paquete documental automático para la visita {VisitaId}.", visita.Id);
             }
 
-            // Publicado DESPUÉS del commit (ARQUITECTURA-INTEGRACIONES.md
+            // Publicado DESPUÉS del commit (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md
             // § 6.5): un evento sobre una Visita que todavía no existe en la
             // base de datos rompería al suscriptor que escribe el timeline.
             try

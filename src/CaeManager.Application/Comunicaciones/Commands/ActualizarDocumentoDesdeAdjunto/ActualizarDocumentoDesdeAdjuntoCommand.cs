@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 namespace CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
 
 /// <summary>
-/// Flujo "Actualizar documentación desde conversación" (docs/COMUNICACIONES.md
+/// Flujo "Actualizar documentación desde conversación" (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
 /// § 12.7), paso 4 "Aplicar y registrar". No reimplementa la lógica de
 /// creación/renovación de Documento (verificación de Ámbito, cálculo de
 /// vencimiento, encolado de análisis IA) — delega en <see cref="CrearDocumentoCommand"/>/
@@ -141,7 +141,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         }
 
         // Publicado DESPUÉS del commit de Crear/RenovarDocumentoCommand
-        // (ARQUITECTURA-INTEGRACIONES.md § 6.5) — mejor esfuerzo, mismo
+        // (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.5) — mejor esfuerzo, mismo
         // criterio que VisitaCreadaEvent.
         try
         {

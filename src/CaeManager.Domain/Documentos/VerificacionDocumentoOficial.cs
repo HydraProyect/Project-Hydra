@@ -11,11 +11,11 @@ namespace CaeManager.Domain.Documentos;
 ///
 /// La decisión <see cref="DecisionValidacionOficial.AutoValidado"/> es la
 /// excepción aprobada a la invariante "el análisis nunca decide solo"
-/// (PLAN-FIRMA-DIGITAL-PDF.md § 6.1): solo para documentos con este nivel
+/// (Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md § 6.1): solo para documentos con este nivel
 /// de trazabilidad — firma válida de emisor confiable y datos cotejados.
 /// El nivel de confianza se persiste como dato consultable del documento a
 /// propósito: es el filtro natural de futuros conectores de integración
-/// ("subir solo lo FirmaValida o mejor", ARQUITECTURA-INTEGRACIONES.md).
+/// ("subir solo lo FirmaValida o mejor", Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md).
 /// </summary>
 public class VerificacionDocumentoOficial : EntidadConTenant
 {

@@ -76,7 +76,7 @@ on:
       # caso normal: Codex revisa después de abrir) no revalida el check.
 
 # Deliberadamente SIN `merge_group` ni `push`: la convención (§ 5 de
-# tecnico/CONVENCION-METADATOS-PR.md) nunca aplicó a esos dos eventos — en
+# Project-Hydra-Negocio/tecnico/CONVENCION-METADATOS-PR.md) nunca aplicó a esos dos eventos — en
 # `push` el commit ya está fusionado y no hay nada que exigir, y en
 # `merge_group` la referencia temporal no lleva una PR en el payload que
 # resolver. Este workflow no cambia ese alcance, solo el disparador de
@@ -101,7 +101,7 @@ permissions: {}
 jobs:
   gobernanza-pr:
     # Nombre sin cambios a propósito: nada en la protección de rama, la cola
-    # de fusión o CONVENCION-METADATOS-PR.md depende de él (medido:
+    # de fusión o Project-Hydra-Negocio/tecnico/CONVENCION-METADATOS-PR.md depende de él (medido:
     # `required_status_checks.contexts` de main y el ruleset de la cola no lo
     # nombran; no hay otro workflow ni automatismo que lo cite), pero
     # conservarlo evita que la pestaña de checks de las PR ya abiertas
@@ -169,17 +169,17 @@ jobs:
           LABELS_JSON=$(echo "$datos" | jq -c '[.labels[].name]')
 
           if [ -z "$MILESTONE" ]; then
-            echo "::error::Esta PR no tiene milestone. Convención: tecnico/CONVENCION-METADATOS-PR.md en el repositorio de negocio — toda PR entra en un milestone de 'Hydra — Roadmap'."
+            echo "::error::Esta PR no tiene milestone. Convención: Project-Hydra-Negocio/tecnico/CONVENCION-METADATOS-PR.md en el repositorio de negocio — toda PR entra en un milestone de 'Hydra — Roadmap'."
             fallos=1
           fi
 
           if ! echo "$LABELS_JSON" | jq -e 'any(startswith("Type: "))' >/dev/null; then
-            echo "::error::Esta PR no lleva ninguna etiqueta 'Type: *'. Convención: tecnico/CONVENCION-METADATOS-PR.md en el repositorio de negocio."
+            echo "::error::Esta PR no lleva ninguna etiqueta 'Type: *'. Convención: Project-Hydra-Negocio/tecnico/CONVENCION-METADATOS-PR.md en el repositorio de negocio."
             fallos=1
           fi
 
           if ! echo "$LABELS_JSON" | jq -e 'any(startswith("Priority: "))' >/dev/null; then
-            echo "::error::Esta PR no lleva ninguna etiqueta 'Priority: *'. Convención: tecnico/CONVENCION-METADATOS-PR.md en el repositorio de negocio."
+            echo "::error::Esta PR no lleva ninguna etiqueta 'Priority: *'. Convención: Project-Hydra-Negocio/tecnico/CONVENCION-METADATOS-PR.md en el repositorio de negocio."
             fallos=1
           fi
 
@@ -188,7 +188,7 @@ jobs:
           fi
           echo "OK — milestone: '$MILESTONE'; etiquetas Type:/Priority: presentes (leído por API, PR #${NUMERO})."
 
-      # Turno 2026-09-18 (T3), registro PROTOCOLO-TURNO-NOCTURNO.md § 8:
+      # Turno 2026-09-18 (T3), registro Project-Hydra-Negocio/tecnico/PROTOCOLO-TURNO-NOCTURNO.md § 8:
       #
       #   - #674 añadió el rol cae_app_aprovisionamiento a
       #     deploy/bootstrap/roles-de-cluster.sql sin que ningún adaptador de

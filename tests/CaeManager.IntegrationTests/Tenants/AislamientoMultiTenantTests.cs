@@ -15,7 +15,7 @@ namespace CaeManager.IntegrationTests.Tenants;
 /// independientes apuntando al mismo archivo SQLite, cada uno con su propio
 /// <see cref="TenantActualAmbiental"/> — exactamente el escenario real de
 /// dos tenants concurrentes sobre la misma instalación (ver
-/// docs/MULTITENANCY.md).
+/// Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md).
 /// </summary>
 public class AislamientoMultiTenantTests : IAsyncLifetime
 {
@@ -103,7 +103,7 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
         // una consulta normal — este test simula el caso residual que el
         // interceptor cubre como defensa en profundidad: una entidad cargada
         // saltándose el filtro (IgnoreQueryFilters justificado y revisado,
-        // ver docs/MULTITENANCY.md § 4.2) y modificada después.
+        // ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.2) y modificada después.
         await using var contextoB = CrearContexto(_tenantB);
         var clienteDeOtroTenant = await contextoB.Empresas
             .IgnoreQueryFilters()
@@ -129,7 +129,7 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
         }
 
         // Mismo CIF, tenant distinto — debe permitirse (caso de negocio real,
-        // ver docs/MULTITENANCY.md § 5).
+        // ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 5).
         await using (var contextoB = CrearContexto(_tenantB))
         {
             contextoB.Empresas.Add(Empresa.CrearComoCliente(

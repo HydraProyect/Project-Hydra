@@ -12,7 +12,7 @@ namespace CaeManager.Application.Centros.Commands.EstablecerDocumentacionRequeri
 
 /// <summary>
 /// Alta/edición de la posición explícita de un Centro sobre un TipoDocumento
-/// (PLAN-EJECUCION-UX.md § 0.4) — upsert sobre la fila única (TipoDocumentoId,
+/// (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4) — upsert sobre la fila única (TipoDocumentoId,
 /// CentroId) de <see cref="TipoDocumentoCentro"/>. Sin <c>Version</c>: la
 /// entidad no la tiene (EntidadConTenant, no EntidadBase — "sin ciclo de vida
 /// propio", mismo criterio que el resto de altas/bajas de esta tabla puente
@@ -50,7 +50,7 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
 {
     public async Task<Result> Handle(EstablecerDocumentacionRequeridaCentroCommand request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         if (!await centrosContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.CentroNoEncontrado", "No encontramos este centro."));
 

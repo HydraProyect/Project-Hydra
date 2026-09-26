@@ -4,7 +4,7 @@ namespace CaeManager.Domain.Configuracion;
 
 /// <summary>
 /// Combinación de filtros de una pantalla de listado, guardada con nombre
-/// por un usuario (P3-31, docs/business/MATURITY_REVIEW.md). Extiende
+/// por un usuario (P3-31, Project-Hydra-Negocio/MATURITY_REVIEW.md). Extiende
 /// <see cref="Entity"/>, no <see cref="EntidadConTenant"/> — mismo criterio
 /// que <see cref="PreferenciaDashboardUsuario"/>: es preferencia de un
 /// usuario, no un dato del tenant.

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 namespace CaeManager.Web.Features.Retencion.Pages;
 
 /// <summary>
-/// Revisión de las propuestas de purga (RGPD-TRATAMIENTO-DATOS.md § 5).
+/// Revisión de las propuestas de purga (Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md § 5).
 ///
 /// El orden de la pantalla refleja el procedimiento acordado con el
 /// propietario del producto: detectar → avisar a la organización → autorizar

@@ -8,7 +8,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Importacion;
 
 /// <summary>
-/// Invariante «nada se descarta en silencio» (IMPORTACION.md § 3 bis, DCR-12
+/// Invariante «nada se descarta en silencio» (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis, DCR-12
 /// B) sobre <see cref="ClosedXmlPlantillaClientesService.AnalizarAsync"/> —
 /// auditada por REC-129 junto con los otros dos analizadores de plantilla.
 /// Este servicio, a diferencia del analizador de referencia, no tiene

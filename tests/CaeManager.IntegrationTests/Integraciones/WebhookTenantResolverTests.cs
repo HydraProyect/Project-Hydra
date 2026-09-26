@@ -13,7 +13,7 @@ namespace CaeManager.IntegrationTests.Integraciones;
 /// <summary>
 /// P3-33: el endpoint de webhook de Microsoft 365 llega sin ninguna sesión —
 /// resuelve el tenant a partir del Id de <see cref="ConexionIntegracion"/> en
-/// la URL más el <c>clientState</c> (docs/MULTITENANCY.md § 8, tercer modo).
+/// la URL más el <c>clientState</c> (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8, tercer modo).
 /// <see cref="WebhookTenantResolver"/> usa <c>IgnoreQueryFilters()</c> — justo
 /// lo que hay que probar contra Postgres real: que resuelve el tenant
 /// correcto de una <see cref="SuscripcionWebhook"/> ajena al tenant que

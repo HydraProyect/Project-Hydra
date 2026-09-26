@@ -3,7 +3,7 @@ using CaeManager.Application.Common;
 namespace CaeManager.Application.Tests.Common;
 
 /// <summary>
-/// Fake en memoria — nunca llama a Sentry de verdad (ver CODING_STANDARDS.md).
+/// Fake en memoria — nunca llama a Sentry de verdad (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).
 /// Modela el aislamiento por ámbito con una pila, igual que
 /// <c>SentrySdk.PushScope</c>/<c>AddBreadcrumb</c> reales: una miga de pan
 /// dejada dentro de un <see cref="IniciarAmbitoDeCaptura"/> solo aparece

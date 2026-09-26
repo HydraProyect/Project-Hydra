@@ -11,13 +11,13 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Tenants;
 
 /// <summary>
-/// Etapa 4 de PLAN-MIGRACION-MULTITENANT.md: el almacenamiento de archivos
+/// Etapa 4 de Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md: el almacenamiento de archivos
 /// particionado por tenant es tan crítico para el aislamiento como el filtro
 /// de EF Core — un documento (PDF de un Trabajador, categoría de salud) no
 /// debe poder abrirse nunca desde otro tenant, aunque alguien adivine o
 /// reutilice el identificador.
 ///
-/// P1-12 de docs/business/MATURITY_REVIEW.md añade el cifrado en reposo: las
+/// P1-12 de Project-Hydra-Negocio/MATURITY_REVIEW.md añade el cifrado en reposo: las
 /// mismas garantías de aislamiento de arriba, más que el contenido en disco
 /// nunca sea el texto plano y que un archivo legado (guardado antes de este
 /// cambio) se siga sirviendo sin romper la descarga.

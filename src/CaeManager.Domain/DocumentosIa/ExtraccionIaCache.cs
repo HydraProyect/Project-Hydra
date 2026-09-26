@@ -3,7 +3,7 @@ using CaeManager.Domain.Common;
 namespace CaeManager.Domain.DocumentosIa;
 
 /// <summary>
-/// Cache documental (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 3): antes de
+/// Cache documental (ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 3): antes de
 /// llamar a ningún proveedor, el router comprueba si ya se procesó este mismo
 /// archivo <b>con el mismo propósito y con la misma versión del pipeline</b> —
 /// si es así, reutiliza el resultado en vez de volver a pagar la extracción.

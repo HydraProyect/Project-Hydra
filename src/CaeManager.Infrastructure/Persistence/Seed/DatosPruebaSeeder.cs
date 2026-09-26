@@ -420,7 +420,7 @@ public static class DatosPruebaSeeder
     ///
     /// Deliberadamente NO reconcilia todos los tenants de demo, solo el
     /// tenant #1 (<see cref="TenantSeedData.IdPorDefecto"/>): el diseño de
-    /// HO-035-02 (<c>tecnico/docs/POLITICA-TECNICA-IA.md</c> § 5, punto 4)
+    /// HO-035-02 (<c>Project-Hydra-Negocio/tecnico/docs/POLITICA-TECNICA-IA.md</c> § 5, punto 4)
     /// pide poder demostrar los dos estados en la misma demo — un tenant CON
     /// instrucción vigente y otro SIN ella — y el tenant #1 es el que usan
     /// los flujos E2E existentes que ya ejercitan IA de verdad
@@ -433,7 +433,7 @@ public static class DatosPruebaSeeder
     ///
     /// Idempotente: si el tenant #1 ya tiene una instrucción vigente, no
     /// hace nada. Las versiones son las filas Draft de HO-035-01
-    /// (<c>legal/LISTA_SUBENCARGADOS.md</c> § 3) — texto de demo, nunca una
+    /// (<c>Project-Hydra-Negocio/legal/LISTA_SUBENCARGADOS.md</c> § 3) — texto de demo, nunca una
     /// aceptación real: ver la prohibición de HO-035-02 § 9 de publicar
     /// nada legal en firme.
     /// </summary>
@@ -475,7 +475,7 @@ public static class DatosPruebaSeeder
     }
 
     /// <summary>
-    /// Versión Draft de <c>legal/DPA.md</c> a efectos de demo — HO-035-01
+    /// Versión Draft de <c>Project-Hydra-Negocio/legal/DPA.md</c> a efectos de demo — HO-035-01
     /// todavía no versiona ese documento formalmente (fuera de su alcance);
     /// esta cadena solo tiene que ser estable y no vacía, nunca se compara
     /// contra una versión "vigente" (ver diseño § 4.3 del documento
@@ -484,7 +484,7 @@ public static class DatosPruebaSeeder
     /// </summary>
     internal const string VersionDpaDemo = "Draft-2026-09-03";
 
-    /// <summary>Versión de <c>legal/LISTA_SUBENCARGADOS.md</c> § 3 tras las filas de IA que añadió HO-035-01.</summary>
+    /// <summary>Versión de <c>Project-Hydra-Negocio/legal/LISTA_SUBENCARGADOS.md</c> § 3 tras las filas de IA que añadió HO-035-01.</summary>
     internal const string VersionAnexoSubencargadosDemo = "Draft-2026-09-03";
 
     /// <summary>Clave de configuracion que decide si hay proveedor de IA real.</summary>

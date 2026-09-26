@@ -7,7 +7,7 @@ namespace CaeManager.Infrastructure.AsistenteIa;
 /// <summary>
 /// <see cref="IDocumentAIProvider"/> determinista, sin llamada de red — solo
 /// para la suite E2E (Horizonte 1.6, "ciclo documental entero" de
-/// MACRO_PLAN_2026-08-13.md § 1.6). Un test que sube un documento y espera
+/// Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md § 1.6). Un test que sube un documento y espera
 /// que <c>ProcesadorAnalisisDocumentoHostedService</c> lo procese no puede
 /// depender de un modelo real: no determinista, de pago y, sin credenciales
 /// en CI (las claves de Anthropic/Gemini/Mistral solo existen en el .env de

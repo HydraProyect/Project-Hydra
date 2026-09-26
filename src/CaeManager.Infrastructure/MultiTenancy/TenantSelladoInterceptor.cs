@@ -11,7 +11,7 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 
 /// <summary>
 /// Sella <c>TenantId</c> en toda entidad nueva desde <see cref="ITenantActual"/>
-/// (ver docs/MULTITENANCY.md § 4.3) y rechaza cualquier modificación o
+/// (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.3) y rechaza cualquier modificación o
 /// eliminación de una entidad que pertenezca a otro tenant — defensa en
 /// profundidad además del filtro global de lectura (ver
 /// <c>CaeManagerDbContext.OnModelCreating</c>), para el caso de una entidad
@@ -82,7 +82,7 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual, ICurrentUserSe
 
     /// <summary>
     /// La versión síncrona también sella (hallazgo N-15 de
-    /// INFORME-AUDITORIA-2.md). Hoy no hay ningún <c>SaveChanges()</c>
+    /// Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md). Hoy no hay ningún <c>SaveChanges()</c>
     /// síncrono en el código, así que sobrescribir solo la asíncrona era
     /// inocuo — pero el día que aparezca uno, saltarse el sellado no daría
     /// ningún error: guardaría la fila con <c>TenantId</c> vacío o permitiría

@@ -2,7 +2,7 @@ namespace CaeManager.Application.DocumentosIa.Common;
 
 /// <summary>
 /// Para documentos digitales grandes (pólizas de cientos de páginas, ver
-/// docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.3): en vez de mandar el texto
+/// Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.3): en vez de mandar el texto
 /// completo a IA, localiza qué páginas contienen información relevante
 /// (número de póliza, tomador, fechas, firma...) para mandar solo esas —
 /// reduce drásticamente el coste en tokens sin perder los datos que

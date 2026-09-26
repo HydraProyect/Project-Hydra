@@ -58,12 +58,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 table: "Empresas",
                 columns: new[] { "TenantId", "EsPropia" });
 
-            // Backfill (único trabajo de datos de F3a, f3-diseno-fisico-
-            // empresa-unificada-2026-08-25.md §4 pasos 3-4): copiar Clientes
+            // Backfill (único trabajo de datos de F3a,
+            // Project-Hydra-Negocio/tecnico/f3-diseno-fisico-empresa-unificada-2026-08-25.md
+            // §4 pasos 3-4): copiar Clientes
             // y Subcontratas -> Empresas, MISMO Id, EsPropia=false. Cliente/
             // Subcontrata SIGUEN siendo la fuente de verdad activa — ningún
-            // lector ni escritor se redirige en F3a (f3-comparativa-alcance-
-            // abcd-2026-08-25.md, camino D). Incluye EstaEliminado/
+            // lector ni escritor se redirige en F3a
+            // (Project-Hydra-Negocio/tecnico/f3-comparativa-alcance-abcd-2026-08-25.md,
+            // camino D). Incluye EstaEliminado/
             // EliminadoEnUtc/EliminadoPorUsuarioId: una fila soft-deleted en
             // origen debe llegar soft-deleted a la copia, o la comparación
             // de F3c encontraría una divergencia falsa.
@@ -106,7 +108,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         {
             // A propósito NO hay ningún DELETE aquí — mismo contrato de
             // rollback ya fijado para F3
-            // (f3-analisis-pipeline-y-rollback-2026-08-25.md, decisión D):
+            // (Project-Hydra-Negocio/tecnico/f3-analisis-pipeline-y-rollback-2026-08-25.md, decisión D):
             // Down() revierte esquema, nunca datos. Aunque en el momento
             // exacto de F3a ningún escritor está todavía redirigido (así
             // que un DELETE WHERE EsPropia=false sería técnicamente seguro

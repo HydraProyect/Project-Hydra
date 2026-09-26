@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa;
 
 /// <summary>
-/// % de cumplimiento agregado de una Empresa (Centro 360, PLAN-EJECUCION-UX.md
+/// % de cumplimiento agregado de una Empresa (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
 /// § 0.8) — suma <c>AlDia</c>/<c>Requeridos</c> de <see cref="ICalculoEstadoCentroService.CalcularCumplimientoAsync"/>
 /// sobre los Centros donde la Empresa tiene actividad real (mismo universo que
 /// <c>ObtenerCentrosConActividadDeEmpresaQuery</c>: Empresa → Trabajadores →

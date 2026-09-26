@@ -4,7 +4,7 @@ namespace CaeManager.Application.Common;
 /// Almacenamiento de archivos adjuntos (PDFs de Documento). La implementación
 /// real vive en Infrastructure — hoy sobre disco local, preparada para
 /// cambiar a almacenamiento en la nube sin tocar Application ni Presentation
-/// (ver ARCHITECTURE.md, "Archivos").
+/// (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Archivos").
 /// </summary>
 public interface IFileStorageService
 {
@@ -15,7 +15,7 @@ public interface IFileStorageService
 
     /// <summary>
     /// Borra el archivo de forma definitiva. Existe para la supresión por
-    /// retención (RGPD-TRATAMIENTO-DATOS.md § 5): el dato personal de un
+    /// retención (Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md § 5): el dato personal de un
     /// Documento está dentro del PDF, así que limpiar la fila sin borrar el
     /// fichero dejaría la supresión en apariencia.
     ///

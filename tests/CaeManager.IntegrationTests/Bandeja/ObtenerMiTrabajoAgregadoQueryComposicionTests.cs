@@ -32,7 +32,7 @@ namespace CaeManager.IntegrationTests.Bandeja;
 /// el fan-out real por <see cref="AmbitoTenantExplicito"/> sobre PostgreSQL
 /// (a) no cruza el filtro global de tenant entre Tenants de la cartera del
 /// Gestor CAE, y (b) tiene un coste medido, no asumido, con varios Tenants
-/// (contrato CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md, UNKNOWN del
+/// (contrato Project-Hydra-Negocio/tecnico/CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.md, UNKNOWN del
 /// checkpoint de este incremento).
 /// </summary>
 public class ObtenerMiTrabajoAgregadoQueryComposicionTests(ITestOutputHelper salida) : IAsyncLifetime

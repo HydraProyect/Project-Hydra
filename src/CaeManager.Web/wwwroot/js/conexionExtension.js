@@ -1,5 +1,5 @@
 // Puente de enlace automático con la extensión de navegador (DEC A',
-// 2026-09-10 — ver ARQUITECTURA-INTEGRACIONES.md § 14, repositorio de
+// 2026-09-10 — ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14, repositorio de
 // negocio). Envuelve `chrome.runtime.sendMessage(idExtension, ...)` — la API
 // que Chrome expone a esta página SOLO porque el origen está declarado en
 // `externally_connectable.matches` del manifiesto de la extensión (ver

@@ -6,7 +6,7 @@ namespace CaeManager.Domain.Centros;
 /// Ubicación física de un Cliente donde trabajan nuestros trabajadores.
 /// Normaliza el problema del Excel original, donde varios centros de un
 /// mismo cliente aparecían fusionados como texto libre en una sola fila
-/// (ver DATABASE.md).
+/// (ver Project-Hydra-Negocio/tecnico/DATABASE.md).
 /// </summary>
 public class Centro : EntidadBase
 {

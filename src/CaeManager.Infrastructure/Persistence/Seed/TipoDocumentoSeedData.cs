@@ -4,7 +4,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 
 /// <summary>
 /// Catálogo maestro real, tomado de la hoja "Parametros" del cuadro de
-/// control en Excel que este sistema reemplaza (ver DATABASE.md), más los
+/// control en Excel que este sistema reemplaza (ver Project-Hydra-Negocio/tecnico/DATABASE.md), más los
 /// documentos base de Empresa y de Vehículo indicados directamente por el
 /// usuario (2026-07). Los Id son fijos y deterministas para que las
 /// migraciones sean reproducibles.
@@ -27,7 +27,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// tipo de documento cubre la modalidad preventiva de la empresa, sea SPA,
 /// Propia o Mancomunada — no se modela como grupo de alternativas.
 ///
-/// <c>Nombre</c> tras T3 (2026-08-29, taxonomia-documental-cae-propuesta-2026-08-27.md
+/// <c>Nombre</c> tras T3 (2026-08-29, Project-Hydra-Negocio/tecnico/taxonomia-documental-cae-propuesta-2026-08-27.md
 /// §2bis, aprobada 2026-08-27 tarde): limpieza de los patrones A/B/C/D/E de
 /// nombres contaminados — estado, resultado, formato de evidencia, alias
 /// histórico y acrónimo dentro del nombre. Cada tipo tocado conserva el
@@ -133,12 +133,12 @@ public static class TipoDocumentoSeedData
 
         // --- Tramo 0.3 del MVP-1 de formatos (2026-08-14): altas de TipoDocumento
         // que faltaban para poder archivar seis de los formatos del censo de
-        // CATALOGO_FORMATOS_PRL.md. F-107 ("Comunicación de desplazamiento a la
+        // Project-Hydra-Negocio/CATALOGO_FORMATOS_PRL.md. F-107 ("Comunicación de desplazamiento a la
         // autoridad laboral") NO se da de alta aquí: ya existe como "Comunicación
         // de desplazamiento" (Id 40000011-...-000000000011, línea de arriba) —
         // verificado antes de añadir para no duplicar. Ninguno se marca
         // EsObligatorio=true por defecto pese a que F-93/F-95 no tienen umbral de
-        // plantilla legal (CATALOGO_FORMATOS_PRL.md § 5.5): activarlo por defecto
+        // plantilla legal (Project-Hydra-Negocio/CATALOGO_FORMATOS_PRL.md § 5.5): activarlo por defecto
         // cambiaría de golpe el estado de cumplimiento de todos los centros
         // existentes sin que el propietario lo haya confirmado — queda a criterio
         // de cada Administrador vía /tipos-documento.
@@ -151,7 +151,7 @@ public static class TipoDocumentoSeedData
 
         // --- Tramo 1.2 del MVP-1 de formatos (2026-08-14): al construir la
         // plantilla impresa de F-44/F-52/F-50/F-29, se detectó que tampoco
-        // tenían TipoDocumento (CATALOGO_FORMATOS_PRL.md § 9.2 clasifica solo
+        // tenían TipoDocumento (Project-Hydra-Negocio/CATALOGO_FORMATOS_PRL.md § 9.2 clasifica solo
         // F-53 como "tipo existente" para este tramo — F-44/F-52/F-50/F-29
         // habían quedado fuera de esa clasificación por error, verificado en
         // TipoDocumentoSeedData.cs antes de asumirlo). F-53 ("Declaración
@@ -236,7 +236,7 @@ public static class TipoDocumentoSeedData
 
     /// <summary>
     /// Copia editable del catálogo completo para un tenant nuevo
-    /// (docs/MULTITENANCY.md § 7) con los flags de IA aplicados — la usan
+    /// (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7) con los flags de IA aplicados — la usan
     /// DelegacionDemoSeeder y SegundoTenantSeeder para no repetir la
     /// construcción (y para que ningún aprovisionamiento vuelva a olvidarse
     /// de los flags, como pasó con los tenants de demo).
@@ -315,7 +315,7 @@ public static class TipoDocumentoSeedData
     /// Eje "Requerido" — ¿lo pedimos? Traducido MECÁNICAMENTE del booleano
     /// viejo como punto de partida (T1), con las excepciones de la tabla
     /// verificada de la taxonomía documental (T2,
-    /// taxonomia-documental-cae-propuesta-2026-08-27.md §2): dos tipos que
+    /// Project-Hydra-Negocio/tecnico/taxonomia-documental-cae-propuesta-2026-08-27.md §2): dos tipos que
     /// dependen del supuesto concreto pasan a Condicional, y dos que no son
     /// documentación CAE salen del baseline. El resto del catálogo no se
     /// toca — ni un tercero de estas cuatro filas cambia de naturaleza,
@@ -343,7 +343,7 @@ public static class TipoDocumentoSeedData
     /// DEC-34/36 (REC-132): clasificación canónica compartida por REC-036
     /// (purga de derivados de IA) y REC-099 (auditoría de acceso), revisable
     /// por el propietario (documento espejo:
-    /// <c>tecnico/docs/SENSIBILIDAD-DOCUMENTAL.md</c> en el repositorio de
+    /// <c>Project-Hydra-Negocio/tecnico/docs/SENSIBILIDAD-DOCUMENTAL.md</c> en el repositorio de
     /// negocio, estado <c>Draft</c>).
     ///
     /// <para>
@@ -551,8 +551,8 @@ public static class TipoDocumentoSeedData
             VerificacionIaActiva = false,
             PerfilDocumentoOficial = PerfilesOficiales.GetValueOrDefault(d.Id, PerfilDocumentoOficial.Ninguno),
             // El catálogo semilla pertenece al tenant #1 (ver Etapa 2 de
-            // PLAN-MIGRACION-MULTITENANT.md) — un tenant nuevo recibirá su
-            // propia copia editable al aprovisionarse (docs/MULTITENANCY.md § 7),
+            // Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md) — un tenant nuevo recibirá su
+            // propia copia editable al aprovisionarse (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7),
             // no una referencia a esta misma fila.
             TenantId = TenantSeedData.IdPorDefecto
         });

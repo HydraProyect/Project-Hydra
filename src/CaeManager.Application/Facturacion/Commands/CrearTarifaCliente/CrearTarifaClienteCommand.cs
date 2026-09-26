@@ -37,7 +37,7 @@ public class CrearTarifaClienteCommandHandler(
 {
     public async Task<Result<Guid>> Handle(CrearTarifaClienteCommand request, CancellationToken cancellationToken)
     {
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         // TarifaCliente.ClienteId ya apunta a Empresas (F3).
         if (!await empresasContext.Empresas.AnyAsync(e => e.Id == request.ClienteId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("TarifaCliente.ClienteNoEncontrado", "No encontramos este cliente."));

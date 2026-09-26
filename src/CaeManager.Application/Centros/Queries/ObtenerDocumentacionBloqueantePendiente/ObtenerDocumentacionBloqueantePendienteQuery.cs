@@ -13,7 +13,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueanteP
 /// <summary>
 /// Fase C (Bandeja del gestor): un Trabajador con Asignación activa a un
 /// Centro donde falta un Documento Vigente de un TipoDocumento marcado
-/// <c>TipoDocumentoCentro.BloqueaAcceso</c> (PLAN-EJECUCION-UX.md § 0.4) —
+/// <c>TipoDocumentoCentro.BloqueaAcceso</c> (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4) —
 /// sustituye a ObtenerRequisitosDocumentalesPendientesQuery/RequisitoDocumental
 /// (retirados): antes era un check manual a nivel de Centro
 /// (BloqueaAcceso+Cumplido sin trabajador asociado), ahora es automático y

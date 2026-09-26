@@ -3,7 +3,7 @@ namespace CaeManager.Domain.Documentos;
 /// <summary>
 /// Cuánto puede fiarse la plataforma (un Gestor CAE o una regla automática)
 /// de lo que dice un Documento, según su firma digital — niveles discretos
-/// con nombre, no un score inventado (PLAN-FIRMA-DIGITAL-PDF.md § 1). El
+/// con nombre, no un score inventado (Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md § 1). El
 /// orden importa: valores mayores = más confianza; la auto-validación de
 /// documentos oficiales exige como mínimo <see cref="FirmaValida"/> —
 /// revocación comprobada, no solo emisor confiable (revisado tras auditoría

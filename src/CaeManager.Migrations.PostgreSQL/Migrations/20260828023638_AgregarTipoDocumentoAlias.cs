@@ -43,7 +43,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 column: "TipoDocumentoId");
 
             // RLS en la misma migración que crea la tabla, desde el
-            // principio (ver RUNBOOK-RLS.md y la lección de
+            // principio (ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md y la lección de
             // HabilitarRlsEstadosAutomatizacion, que tuvo que corregirse a
             // posteriori).
             migrationBuilder.Sql(@"

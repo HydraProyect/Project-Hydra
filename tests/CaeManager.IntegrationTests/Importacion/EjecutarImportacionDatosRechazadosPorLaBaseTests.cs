@@ -87,7 +87,7 @@ public class EjecutarImportacionDatosRechazadosPorLaBaseTests : IAsyncLifetime
         resultado.Valor.TrabajadoresCreados.Should().Be(1,
             "la fila válida (Marta Ruiz) debe importarse aunque la otra fila del mismo archivo falle en la base");
         resultado.Valor.Omitidos.Should().Contain(o => o.Descripcion.Contains(DniDeLaFilaMala) && o.Motivo.Contains("100"),
-            "el motivo del descarte debe llegar al informe de omitidos — nada se descarta en silencio (IMPORTACION.md § 3 bis)");
+            "el motivo del descarte debe llegar al informe de omitidos — nada se descarta en silencio (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis)");
 
         await using var verificacion = CrearContexto();
         (await verificacion.Trabajadores.CountAsync(t => t.Dni == DniValido)).Should().Be(1,
@@ -132,7 +132,7 @@ public class EjecutarImportacionDatosRechazadosPorLaBaseTests : IAsyncLifetime
         resultado.Valor.TrabajadoresCreados.Should().Be(1,
             "la fila válida (Marta Ruiz) debe importarse aunque la otra fila del mismo archivo falle en la base");
         resultado.Valor.Omitidos.Should().Contain(o => o.Descripcion.Contains(DniDeLaFilaMala) && o.Motivo.Contains("200"),
-            "el motivo del descarte debe llegar al informe de omitidos — nada se descarta en silencio (IMPORTACION.md § 3 bis)");
+            "el motivo del descarte debe llegar al informe de omitidos — nada se descarta en silencio (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis)");
 
         await using var verificacion = CrearContexto();
         (await verificacion.Trabajadores.CountAsync(t => t.Dni == DniValido)).Should().Be(1,

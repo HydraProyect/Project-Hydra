@@ -51,7 +51,7 @@ public record KpisDashboardDto(
     bool SinDatos = false);
 
 /// <summary>
-/// Los seis KPI del Dashboard (ver DATABASE.md, hoja "Dashboard" del Excel
+/// Los seis KPI del Dashboard (ver Project-Hydra-Negocio/tecnico/DATABASE.md, hoja "Dashboard" del Excel
 /// original). El semáforo de cada documento se calcula en memoria con
 /// CalculadoraEstadoDocumento — la misma función que usan las tablas de
 /// Documentos — para que Dashboard y detalle nunca puedan mostrar

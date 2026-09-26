@@ -10,7 +10,7 @@ namespace CaeManager.Web.Services;
 /// explícitas de Horizonte 2.1 (Program.cs): aquellas acotan cuánta memoria
 /// se retiene por circuito desconectado/persistido; esto mide cuántos
 /// circuitos hay vivos ahora mismo, la señal que decide cuándo ese ajuste
-/// deja de bastar (ADR-008-capacidad-blazor-server.md § "Umbral concreto
+/// deja de bastar (Project-Hydra-Negocio/tecnico/ADR-008-capacidad-blazor-server.md § "Umbral concreto
 /// para la multi-réplica").
 ///
 /// Registrado como singleton en Program.cs, no scoped: no guarda estado por

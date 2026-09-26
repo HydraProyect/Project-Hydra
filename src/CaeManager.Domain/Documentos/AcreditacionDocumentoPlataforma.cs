@@ -4,16 +4,16 @@ namespace CaeManager.Domain.Documentos;
 
 /// <summary>
 /// Estado de un Documento frente a una plataforma destino concreta
-/// (docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b), bloque "Acreditación
+/// (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b), bloque "Acreditación
 /// por plataforma destino" — alcance MVP1, decisión ya cerrada con el
-/// propietario en docs/business/DECISION_LOG.md 2026-08-05). Motivación: un
+/// propietario en Project-Hydra-Negocio/DECISION_LOG.md 2026-08-05). Motivación: un
 /// mismo documento puede estar vigente en Hydra, aceptado en Dokify y
 /// pendiente en Nalanda — sin esta entidad, Hydra no puede ni preguntar qué
 /// falta en qué portal.
 ///
 /// Referencia el <see cref="Centros.CanalGestionDocumental"/> concreto (el
 /// acceso de un Centro a una plataforma), no directamente el catálogo
-/// <c>ProveedorPlataformaCae</c>: con N accesos por Centro (PLAN-EJECUCION-UX.md
+/// <c>ProveedorPlataformaCae</c>: con N accesos por Centro (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
 /// § 0.6), cada acceso es la unidad real de "dónde hay que subir esto".
 ///
 /// Ya no es una entidad sin consumidor: el drill-down por plataforma

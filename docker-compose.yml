@@ -1,10 +1,11 @@
 # Solo PostgreSQL — la app se ejecuta con `dotnet run`/el IDE, no en
 # contenedor, para no perder hot-reload ni depuración en el día a día. Ver
-# Dockerfile para la imagen de despliegue real (Railway).
+# Dockerfile para la imagen de despliegue real (VPS, deploy/local/).
 #
 # Misma versión que el job de CI (`.github/workflows/ci.yml`) — un test que
-# pasa en local debe pasar en CI y viceversa. Producción corre Postgres 18.4
-# (Railway); el desfase con CI/local ya está anotado en el Dockerfile.
+# pasa en local debe pasar en CI y viceversa. Producción corre Postgres 18
+# (deploy/local/docker-compose.produccion.yml): CI y local van una versión
+# mayor por detrás.
 services:
   postgres:
     image: postgres:17

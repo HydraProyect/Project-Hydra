@@ -10,7 +10,7 @@ namespace CaeManager.Application.Alertas;
 /// Un Trabajador con Asignación (real o hipotética) a un Centro que exige
 /// (ver <see cref="Documentos.ResolucionTipoDocumentoCentro"/>) un
 /// <c>TipoDocumento</c>, sin ningún <c>Documento</c> de ese tipo. Extraído de
-/// <c>ObtenerAlertasQuery</c> (P1-15 de docs/business/MATURITY_REVIEW.md)
+/// <c>ObtenerAlertasQuery</c> (P1-15 de Project-Hydra-Negocio/MATURITY_REVIEW.md)
 /// para que el mismo cálculo sirva tanto para "qué le falta a quien ya está
 /// asignado" (Alertas) como para "qué le faltaría a quien estoy a punto de
 /// asignar" (preflight de asignación en lote, Fase B) — misma regla de

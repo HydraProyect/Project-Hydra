@@ -3,7 +3,7 @@
 #
 # Único mecanismo de backup automático: el Storage Box no habla S3, así que
 # el backup corre como cron del host, no como servicio dentro de la app.
-# Mantiene la invariante de RUNBOOK-CLAVES.md — el volcado
+# Mantiene la invariante de Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES.md — el volcado
 # de la BD y dataprotection-keys/ van SIEMPRE en el mismo archivo de backup
 # (restaurar la BD con claves de otro momento deja las credenciales cifradas
 # de Empresa/Subcontrata irrecuperables) — y añade lo que el servicio antiguo
@@ -14,7 +14,7 @@
 # (`borg init --encryption=repokey-blake2 "$BORG_REPO"`) y los contenedores
 # caemanager-app / caemanager-db del compose levantados.
 #
-# Uso (cron diario recomendado, ver RUNBOOK-DESPLIEGUE-LOCAL.md § Backups):
+# Uso (cron diario recomendado, ver Project-Hydra-Negocio/tecnico/RUNBOOK-DESPLIEGUE-LOCAL.md § Backups):
 #   BORG_REPO='ssh://uXXXXXX@uXXXXXX.your-storagebox.de:23/./backups/caemanager' \
 #   BORG_PASSPHRASE='...' \
 #   BETTERSTACK_HEARTBEAT_URL='...' \
@@ -69,7 +69,7 @@ echo "==> 2/4 Copiando dataprotection-keys/ y documentos/ del volumen..."
 docker cp caemanager-app:/data/dataprotection-keys "$DIR_TRABAJO/dataprotection-keys"
 # Sin claves no hay backup válido.
 ls "$DIR_TRABAJO/dataprotection-keys"/*.xml >/dev/null 2>&1 \
-    || { echo "ERROR: dataprotection-keys/ no contiene ninguna clave XML — ver RUNBOOK-CLAVES.md"; exit 1; }
+    || { echo "ERROR: dataprotection-keys/ no contiene ninguna clave XML — ver Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES.md"; exit 1; }
 # documentos/ puede no existir aún (nadie subió un PDF todavía) — eso sí es válido.
 docker cp caemanager-app:/data/documentos "$DIR_TRABAJO/documentos" 2>/dev/null \
     || mkdir "$DIR_TRABAJO/documentos"
@@ -135,7 +135,7 @@ if [ "$ENV_FALTA" -eq 1 ]; then
 fi
 
 echo "BACKUP COMPLETADO: $ARCHIVO"
-echo "Ensayo de restauración periódico: scripts/ensayo-restauracion-borg.sh (anotar en ENSAYO-RESTAURACION.md, repositorio de negocio)."
+echo "Ensayo de restauración periódico: scripts/ensayo-restauracion-borg.sh (anotar en Project-Hydra-Negocio/tecnico/docs/ENSAYO-RESTAURACION.md, repositorio de negocio)."
 
 # Dead man's switch (Horizonte 2.4 del plan macro): un cron que deja de
 # ejecutarse (host caído, systemd-timer borrado sin querer, el propio script
@@ -143,7 +143,7 @@ echo "Ensayo de restauración periódico: scripts/ensayo-restauracion-borg.sh (a
 # definición, no hay proceso vivo que lo intente. La única forma de detectar
 # "el backup de hoy no corrió" es que algo EXTERNO note la AUSENCIA de una
 # señal, no que este script reporte un error. Better Stack (ya en uso para
-# el uptime check externo, ver RUNBOOK-HORIZONTE-0.md § 0.3) tiene monitores
+# el uptime check externo, ver Project-Hydra-Negocio/tecnico/RUNBOOK-HORIZONTE-0.md § 0.3) tiene monitores
 # de tipo heartbeat para exactamente esto: una URL secreta que espera un GET
 # dentro de una ventana (p. ej. 26 h para un cron diario, con margen); si no
 # llega a tiempo, Better Stack alerta igual que ante una caída real.

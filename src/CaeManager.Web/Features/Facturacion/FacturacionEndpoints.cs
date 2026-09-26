@@ -5,7 +5,7 @@ using MediatR;
 namespace CaeManager.Web.Features.Facturacion;
 
 /// <summary>
-/// Mismo patrón que ClientesEndpoints.cs (docs/ux-audit/11-reportes-facturacion.md H2)
+/// Mismo patrón que ClientesEndpoints.cs (Project-Hydra-Negocio/tecnico/docs/ux-audit/11-reportes-facturacion.md H2)
 /// — exporta el resumen exacto que la pestaña "Resumen mensual" ya calculó
 /// para el cliente/año/mes seleccionados, no "todo".
 /// </summary>

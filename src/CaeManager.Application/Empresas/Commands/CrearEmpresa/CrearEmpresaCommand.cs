@@ -30,7 +30,7 @@ public class CrearEmpresaCommandValidator : AbstractValidator<CrearEmpresaComman
             .MaximumLength(Empresa.LongitudMaximaRazonSocial)
             .WithMessage($"La razón social no puede superar {Empresa.LongitudMaximaRazonSocial} caracteres.");
 
-        // Obligatoria en el alta para MVP-1 (Escenario 2, tecnico/docs/MULTITENANCY.md
+        // Obligatoria en el alta para MVP-1 (Escenario 2, Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md
         // § 2 — el tenant ES la Empresa contratista): sin ella no se puede emitir un
         // F-22 válido, va en cabecera y en la cláusula RGPD. Un autónomo la cumple
         // con su DNI o su NIE — no se le exige un CIF que no tiene.
@@ -61,7 +61,7 @@ public class CrearEmpresaCommandHandler(
         if (!string.IsNullOrWhiteSpace(request.Cif) && await repositorio.ExisteConCifAsync(request.Cif, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.CifDuplicado", "Ya existe una empresa con este CIF."));
 
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         // EmpresaCliente.ClienteId ya apunta a Empresas (F3): el "cliente" que se
         // vincula aquí es un registro de Empresas, no de la tabla Clientes congelada.
         var clienteIds = request.ClienteIds.Distinct().ToList();

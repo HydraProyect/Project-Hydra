@@ -3,8 +3,8 @@ using CaeManager.Domain.Common;
 namespace CaeManager.Domain.Integraciones;
 
 /// <summary>
-/// Un buzón de Microsoft 365 conectado a Hydra (P3-33 de docs/business/MATURITY_REVIEW.md
-/// — primer conector real, ver ARQUITECTURA-INTEGRACIONES.md § 12). ClienteId
+/// Un buzón de Microsoft 365 conectado a Hydra (P3-33 de Project-Hydra-Negocio/MATURITY_REVIEW.md
+/// — primer conector real, ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 12). ClienteId
 /// null significa que el buzón pertenece al propio Tenant (caso Cliente
 /// Directo); poblado significa que es el buzón específico de un Cliente
 /// Delegante dentro de una Consultora — el correo que llegue por esta

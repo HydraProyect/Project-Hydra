@@ -4,7 +4,7 @@ using FluentAssertions;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// F3b (D2, <c>f3b-decision-d2-transicion-acotada-2026-08-25.md</c> §2):
+/// F3b (D2, <c>Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md</c> §2):
 /// desde la congelación de Cliente, <c>Clientes</c> pasa a ser legacy
 /// read-only — sigue existiendo y sigue siendo consultable (las seis
 /// consultas de categoría C, sin tocar hasta F4), pero ningún código vuelve

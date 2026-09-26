@@ -15,7 +15,7 @@ public class AlertasPorCorreoOptions
     public bool Activo { get; set; }
 
     /// <summary>
-    /// URL pública de la aplicación (ej. https://caemanager.up.railway.app),
+    /// URL pública de la aplicación (ej. https://app.talveg.es),
     /// para construir el enlace a /alertas dentro del correo. Sin
     /// configurar, el resumen se envía igual, solo que sin enlace clicable.
     /// </summary>

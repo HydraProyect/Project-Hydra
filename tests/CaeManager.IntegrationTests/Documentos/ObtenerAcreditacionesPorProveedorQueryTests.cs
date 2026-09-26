@@ -19,7 +19,7 @@ namespace CaeManager.IntegrationTests.Documentos;
 
 /// <summary>
 /// Incremento 2 del MVP1 de extensión de navegador (ver
-/// ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio):
+/// Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio):
 /// <see cref="ObtenerAcreditacionesPorProveedorQuery"/> no tenía ningún test
 /// antes de este incremento — se cubre aquí tanto su comportamiento ya
 /// existente (agrupación, alcance) como los dos campos nuevos que la

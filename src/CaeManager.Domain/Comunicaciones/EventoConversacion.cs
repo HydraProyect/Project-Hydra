@@ -4,7 +4,7 @@ namespace CaeManager.Domain.Comunicaciones;
 
 /// <summary>
 /// Entrada de "Sistema/Evento" en el Unified Timeline de una Conversacion
-/// (docs/COMUNICACIONES.md § 12.3) — un hecho ocurrido en otro módulo de
+/// (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.3) — un hecho ocurrido en otro módulo de
 /// operación (p. ej. "se creó la visita V-2026-0815") que se mezcla
 /// cronológicamente con los mensajes del hilo. No guarda un texto
 /// descriptivo denormalizado a propósito: <see cref="ReferenciaId"/> apunta

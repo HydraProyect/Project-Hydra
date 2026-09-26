@@ -47,8 +47,8 @@ name: Integraciones con clave de CI (IA y Stripe modo prueba)
 # sobre el .trx, no sobre el código de salida de `dotnet test`.
 #
 # NOMBRES DE SECRETO (secretos del environment `ci-integraciones`; los crea el
-# propietario — guía paso a paso en Project-Hydra-Negocio/tecnico/
-# ACCIONES-PROPIETARIO-SECRETOS-CI-2026-09-19.md):
+# propietario — guía paso a paso en
+# Project-Hydra-Negocio/tecnico/ACCIONES-PROPIETARIO-SECRETOS-CI-2026-09-19.md):
 #   CI_ANTHROPIC_API_KEY     — clave de la API de Anthropic EXCLUSIVA de CI,
 #                              distinta de la de producción (`Anthropic__ApiKey`,
 #                              environment `produccion`).

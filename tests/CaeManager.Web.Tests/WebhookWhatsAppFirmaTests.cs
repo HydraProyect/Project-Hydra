@@ -9,7 +9,7 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// Verificación de la firma X-Hub-Signature-256 del webhook de WhatsApp:
 /// HMAC-SHA256 del cuerpo crudo con el App Secret, en tiempo constante
-/// (docs/MULTITENANCY.md § 8 — el secreto se verifica antes que nada).
+/// (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8 — el secreto se verifica antes que nada).
 /// </summary>
 public class WebhookWhatsAppFirmaTests
 {

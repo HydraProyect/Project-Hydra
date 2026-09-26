@@ -74,7 +74,7 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
         builder.HasIndex(d => new { d.ProyectoId, d.TipoDocumentoId });
 
         // FKs reales del propietario polimórfico — ver P0-1 de
-        // docs/business/MATURITY_REVIEW.md. Documento tiene exactamente un
+        // Project-Hydra-Negocio/MATURITY_REVIEW.md. Documento tiene exactamente un
         // propietario informado de los cinco (ver Documento.DeTrabajador/
         // DeCliente/DeEmpresa/DeVehiculo/DeProyecto); con las otras cuatro
         // columnas en null, Postgres no comprueba esas FKs (MATCH SIMPLE) —

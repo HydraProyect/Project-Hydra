@@ -2,7 +2,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 
 /// <summary>
 /// Catálogo de proveedores de plataforma CAE — semilla verificada por el
-/// propietario (PLAN-EJECUCION-UX.md § Parte 2 (a), 2026-08-05). Los Id son
+/// propietario (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (a), 2026-08-05). Los Id son
 /// fijos y deterministas (mismo criterio que <see cref="TipoDocumentoSeedData"/>)
 /// para que la migración sea reproducible en cualquier entorno.
 ///

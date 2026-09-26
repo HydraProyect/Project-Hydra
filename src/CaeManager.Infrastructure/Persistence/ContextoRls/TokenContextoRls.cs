@@ -33,7 +33,7 @@ public static class OrigenContextoRls
 
 /// <summary>
 /// Formato y firma del token de contexto RLS (P6, diseño
-/// <c>tecnico/DISENO-CONTEXTO-RLS-FIRMADO-P6-2026-09-23.md</c> § 3):
+/// <c>Project-Hydra-Negocio/tecnico/DISENO-CONTEXTO-RLS-FIRMADO-P6-2026-09-23.md</c> § 3):
 /// <code>v1|clave|tenant|tenant_origen|usuario|origen|pid|caduca_epoch|nonce.hmac_hex</code>
 ///
 /// <para>

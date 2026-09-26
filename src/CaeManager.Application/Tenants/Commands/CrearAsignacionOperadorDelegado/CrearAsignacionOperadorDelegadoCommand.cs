@@ -95,7 +95,7 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
         if (!delegacion.Activa)
             return Result.Fallo<Guid>(Error.Crear("AsignacionOperadorDelegado.DelegacionInactiva", "Esta delegación está desactivada."));
 
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         // AsignacionOperadorDelegado.UsuarioId apunta a AspNetUsers, que
         // Application no puede referenciar directamente (ver IDirectorioUsuariosService).
         if (!await directorioUsuarios.EsVisibleEnTenantActualAsync(request.UsuarioId, cancellationToken))

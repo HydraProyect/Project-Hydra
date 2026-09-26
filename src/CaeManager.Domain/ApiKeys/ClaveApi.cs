@@ -4,7 +4,7 @@ namespace CaeManager.Domain.ApiKeys;
 
 /// <summary>
 /// Credencial de acceso a la API pública (P3-29,
-/// docs/business/MATURITY_REVIEW.md). Se hashea, no se cifra: a diferencia de
+/// Project-Hydra-Negocio/MATURITY_REVIEW.md). Se hashea, no se cifra: a diferencia de
 /// <c>CredencialAccesoEmpresa</c> (Data Protection, reversible porque hay que
 /// volver a mostrarla), la clave en texto plano solo existe en el momento de
 /// <see cref="Generar"/> — después solo hace falta compararla, nunca

@@ -250,7 +250,7 @@ public class DirectorioUsuariosTenant(
     /// <summary>
     /// Para revalidar en servidor un Id que llegó de un selector: que la UI
     /// solo ofrezca opciones válidas no impide escribir otro Guid a mano
-    /// (hallazgo N-10 de INFORME-AUDITORIA-2.md).
+    /// (hallazgo N-10 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
     /// </summary>
     public Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>

@@ -62,7 +62,7 @@ public class CrearTipoDocumentoCommandHandler(
         if (await repositorio.ExisteConNombreAsync(request.Nombre, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("TipoDocumento.NombreDuplicado", "Ya existe un tipo de documento con este nombre."));
 
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md
         // (hallazgo de la auditoría de PR #48: quedó fuera del barrido original
         // pese a que TipoDocumentoCentro ya recibió FK real en el mismo commit).
         if (request.AmbitoAplicacion == AmbitoAplicacion.Trabajador)

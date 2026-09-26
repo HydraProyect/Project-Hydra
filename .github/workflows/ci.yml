@@ -300,7 +300,7 @@ jobs:
         run: dotnet tool restore
 
       # -warnaserror: ningún warning nuevo pasa desapercibido — coherente con
-      # el nivel de rigor que ya pide CODING_STANDARDS.md, ahora ejecutable.
+      # el nivel de rigor que ya pide Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md, ahora ejecutable.
       - name: Compilar (warnings como errores)
         run: dotnet build CaeManager.slnx --no-restore -warnaserror
 
@@ -509,7 +509,7 @@ jobs:
 
       # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
       # en los tres proyectos de test) escribe un coverage.cobertura.xml por
-      # suite bajo ./coverage — P1-19 de docs/business/MATURITY_REVIEW.md:
+      # suite bajo ./coverage — P1-19 de Project-Hydra-Negocio/MATURITY_REVIEW.md:
       # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
       # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
       # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
@@ -597,7 +597,7 @@ jobs:
           cat coveragereport-web/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
       # Informe de cobertura por capas y por zona de riesgo (REC-210,
-      # tecnico/reconciliacion/REGISTRO-REC.md en el repositorio de negocio):
+      # Project-Hydra-Negocio/tecnico/reconciliacion/REGISTRO-REC.md en el repositorio de negocio):
       # el agregado de arriba (37,0 % -> hoy dos trinquetes) nunca dijo QUE
       # capas ni QUE riesgo hay detras del numero. Este paso lee los dos
       # Summary.xml de arriba y desglosa por ensamblado y por zona de riesgo
@@ -670,7 +670,7 @@ jobs:
       #
       # Caracterizacion pendiente (que capas y que riesgo hay detras del
       # 37.2%, y que objetivo fijar): REC-210, Negocio
-      # tecnico/reconciliacion/REGISTRO-REC.md. No convertir este REC en
+      # Project-Hydra-Negocio/tecnico/reconciliacion/REGISTRO-REC.md. No convertir este REC en
       # "subir a 90%" sin haberlo hecho primero.
       #
       # Vive dentro de "Build, format y tests" — ya es required status check
@@ -775,7 +775,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # Reconstruye exactamente la imagen que despliega Railway (mismo
+      # Reconstruye exactamente la imagen que se despliega en el VPS (mismo
       # Dockerfile, mismo -r linux-x64 --self-contained false de la Fase 22)
       # — así un SDK band distinto o un asset de framework faltante se
       # detecta aquí, no en producción como pasó esa vez.
@@ -792,7 +792,7 @@ jobs:
           load: true
           tags: caemanager:ci
 
-      # P2 #25 de docs/business/MATURITY_REVIEW.md: escaneo de la imagen de
+      # P2 #25 de Project-Hydra-Negocio/MATURITY_REVIEW.md: escaneo de la imagen de
       # despliegue en busca de vulnerabilidades conocidas (SO + paquetes del
       # framework de .NET). Bloqueante desde la auditoría de madurez
       # 2026-08-16: el primer triage real (los tres runs previos de este
@@ -895,7 +895,7 @@ jobs:
       # del propio csproj (ver CaeManager.E2ETests.csproj).
       # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
       # en los tres proyectos de test) escribe un coverage.cobertura.xml por
-      # suite bajo ./coverage — P1-19 de docs/business/MATURITY_REVIEW.md:
+      # suite bajo ./coverage — P1-19 de Project-Hydra-Negocio/MATURITY_REVIEW.md:
       # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
       # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
       # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
@@ -1000,7 +1000,7 @@ jobs:
     runs-on: ubuntu-latest
     # No bloqueante a propósito (P1-5 de la revisión de madurez): es la
     # primera cifra real de carga que existe en el repo (P1-19 de
-    # docs/business/MATURITY_REVIEW.md, antes no había ninguna) — sin un
+    # Project-Hydra-Negocio/MATURITY_REVIEW.md, antes no había ninguna) — sin un
     # historial de resultados todavía no hay umbral defendible que hacer
     # fallar el build, solo visibilidad. A diferencia del escaneo de Trivy
     # de "Build de la imagen de despliegue" (que solo afecta a su propio
@@ -1039,13 +1039,13 @@ jobs:
       - name: Instalar k6
         uses: grafana/setup-k6-action@db07bd9765aac508ef18982e52ab937fe633a065 # v1
 
-      # Arranca el mismo binario que despliega Railway, en segundo plano,
+      # Arranca el mismo binario que se despliega en el VPS, en segundo plano,
       # contra el Postgres del job — mismo patrón que WebAppFixture en los
       # tests E2E (ver esa clase), pero como proceso de shell porque este
       # job no es un proyecto de test .NET.
       # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
       # en los tres proyectos de test) escribe un coverage.cobertura.xml por
-      # suite bajo ./coverage — P1-19 de docs/business/MATURITY_REVIEW.md:
+      # suite bajo ./coverage — P1-19 de Project-Hydra-Negocio/MATURITY_REVIEW.md:
       # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
       # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
       # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
@@ -1085,7 +1085,7 @@ jobs:
 
       # scripts/carga-basica.js explica por qué k6 y no un paquete NuGet
       # (NBomber exige suscripción comercial para uso organizacional —
-      # mismo motivo por el que ARCHITECTURE.md ya había descartado
+      # mismo motivo por el que Project-Hydra-Negocio/tecnico/ARCHITECTURE.md ya había descartado
       # QuestPDF). Sin --scenario-thresholds: el resumen es la primera
       # cifra real, no hay una anterior con la que decidir un umbral.
       - name: Prueba de carga (k6)

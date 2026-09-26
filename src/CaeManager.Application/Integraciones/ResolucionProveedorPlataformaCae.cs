@@ -14,7 +14,7 @@ public record ProveedorPlataformaCaeCandidatoDto(Guid Id, string Nombre, bool Ac
 /// <summary>
 /// Resuelve a qué <c>ProveedorPlataformaCae</c> pertenece una URL de acceso
 /// (p. ej. la de un <c>CanalGestionDocumental</c>) — Parte 2 § (a),
-/// PLAN-EJECUCION-UX.md: "la resolución matchea por dominio y sufijo
+/// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md: "la resolución matchea por dominio y sufijo
 /// (subdominios incluidos); multi-match ⇒ elegir entre candidatos; sin match
 /// ⇒ selección manual / alta".
 /// </summary>

@@ -5,7 +5,7 @@ namespace CaeManager.Domain.Tenants;
 /// <summary>
 /// Delegación de acceso de una Consultora (Tenant sin datos operativos
 /// propios) sobre un Cliente Delegante (otro Tenant, dueño de sus datos) —
-/// ver ADR-004-delegacion-consultoras-cae.md § 5.3. Cada fila con
+/// ver Project-Hydra-Negocio/tecnico/ADR-004-delegacion-consultoras-cae.md § 5.3. Cada fila con
 /// <see cref="Activa"/> es, en el vocabulario de negocio, un
 /// <c>Delegated Workspace</c>.
 ///

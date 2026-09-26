@@ -10,15 +10,15 @@ namespace CaeManager.E2ETests;
 /// propietario del producto: un instrumento que permita distinguir un fallo
 /// preexistente de una regresión introducida por este incremento, no cubrir
 /// toda la funcionalidad de Subcontrata (ver
-/// f3b-subcontrata-inventario-fresco-2026-08-26.md §8).
+/// Project-Hydra-Negocio/tecnico/f3b-subcontrata-inventario-fresco-2026-08-26.md §8).
 ///
 /// <para>
 /// A diferencia de lo que se anticipaba en el diseño de este smoke (que
 /// asumía el mismo patrón "lista principal vacía" de Cliente), la propia
 /// construcción de este test destapó que <c>ObtenerSubcontratasQuery</c> Y
 /// <c>ObtenerSubcontratasParaSelectorQuery</c> tuvieron que adelantarse a
-/// leer Empresas — ver f3b-subcontrata-obtenersubcontratasquery-adelantada-
-/// 2026-08-26.md y f3b-subcontrata-selector-adelantado-2026-08-26.md. Por
+/// leer Empresas — ver Project-Hydra-Negocio/tecnico/f3b-subcontrata-obtenersubcontratasquery-adelantada-2026-08-26.md
+/// y Project-Hydra-Negocio/tecnico/f3b-subcontrata-selector-adelantado-2026-08-26.md. Por
 /// eso este test verifica que <c>/subcontratas</c> SÍ muestra la fila nueva
 /// (no que se quede vacía como <c>/clientes</c>) — es la superficie real
 /// tras esas dos correcciones, no la asumida al principio.

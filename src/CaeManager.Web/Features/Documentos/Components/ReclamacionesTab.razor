@@ -151,7 +151,7 @@ else
                         : $"Última reclamación: {FormatearHaceTiempo(lote.UltimaReclamacionFechaUtc.Value)}.")
                     @* Lleva a la bandeja filtrada por este cliente, no al hilo
                        concreto: el deep-link a una conversación no existe todavía
-                       (hueco declarado en 05_WORKSPACE_PATTERNS.md § 3.6) y no se
+                       (hueco declarado en Project-Hydra-Negocio/tecnico/05_WORKSPACE_PATTERNS.md § 3.6) y no se
                        finge aquí. Solo se ofrece si la última reclamación llegó a
                        tener conversación. *@
                     @if (lote.UltimaReclamacionConversacionId is not null)

@@ -3,7 +3,7 @@ namespace CaeManager.Application.Common;
 /// <summary>
 /// Deja rastro en la auditoría de cada lectura efectiva de un dato de credencial
 /// cifrado en reposo (usuario o contraseña de una plataforma externa):
-/// ARCHITECTURE.md § Datos sensibles y decisión del propietario del 2026-09-23
+/// Project-Hydra-Negocio/tecnico/ARCHITECTURE.md § Datos sensibles y decisión del propietario del 2026-09-23
 /// (P1, opción D) — «auditar cada lectura sin registrar secretos, separando
 /// Actor real, Usuario simulado, Tenant propietario y objeto leído».
 ///

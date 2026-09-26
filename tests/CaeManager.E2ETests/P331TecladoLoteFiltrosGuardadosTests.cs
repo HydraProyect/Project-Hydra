@@ -3,7 +3,7 @@ using Microsoft.Playwright;
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// Cubre P3-31 (Horizonte 1.5 de MACRO_PLAN_2026-08-13.md): atajos de
+/// Cubre P3-31 (Horizonte 1.5 de Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md): atajos de
 /// teclado j/k/x/Enter, selección/borrado en lote, y filtros guardados —
 /// las tres piezas ya implementadas en /clientes (ver Clientes.razor,
 /// AtajosListaTeclado.razor, BarraHerramientasLista.razor,

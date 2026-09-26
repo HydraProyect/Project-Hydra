@@ -4,15 +4,15 @@ namespace CaeManager.Infrastructure.Integraciones;
 
 /// <summary>
 /// App Registration de Entra ID para el conector de Microsoft 365 (P3-33 de
-/// docs/business/MATURITY_REVIEW.md — buzón de correo conectado por
-/// Cliente/Tenant, ver ARQUITECTURA-INTEGRACIONES.md § 12). A diferencia de
+/// Project-Hydra-Negocio/MATURITY_REVIEW.md — buzón de correo conectado por
+/// Cliente/Tenant, ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 12). A diferencia de
 /// <c>AzureAdOptions</c>/<c>GraphEmailOptions</c> (single-tenant, atados a
 /// la propia organización de Hydra), este App Registration debe ser
 /// **multi-tenant** ("cuentas de cualquier organización") porque cada buzón
 /// conectado pertenece al Entra ID de un cliente distinto — por eso el
 /// endpoint de autorización usa <c>common</c>, no un <c>TenantId</c> fijo.
 /// Permisos delegados necesarios: <c>Mail.Read</c>, <c>Mail.Send</c>,
-/// <c>offline_access</c> (para el refresh token) — ver DEPLOY.md.
+/// <c>offline_access</c> (para el refresh token) — ver Project-Hydra-Negocio/tecnico/DEPLOY.md.
 ///
 /// Apagado por defecto, mismo patrón que el resto de integraciones
 /// opcionales: sin credenciales, la pantalla de Conexiones sigue mostrando

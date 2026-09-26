@@ -8,7 +8,7 @@ namespace CaeManager.Application.Common;
 /// <c>ApplicationServiceCollectionExtensions</c>) — igual que
 /// <see cref="Observabilidad.ColaIaProfundidad"/>, la salud que describe es
 /// la del proceso entero, no la de un tenant: con un único VPS y una sola
-/// réplica (ver DEPLOY.md), separar por tenant multiplicaría los contadores
+/// réplica (ver Project-Hydra-Negocio/tecnico/DEPLOY.md), separar por tenant multiplicaría los contadores
 /// sin que la guardia de una persona vaya a mirar N ventanas en vez de una.
 ///
 /// Deliberadamente en proceso, no delegado a las Signals/Apps nativas de

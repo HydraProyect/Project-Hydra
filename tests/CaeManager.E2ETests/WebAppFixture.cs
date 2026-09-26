@@ -393,7 +393,7 @@ public class AppCollection : ICollectionFixture<WebAppFixture>;
 /// <summary>
 /// Arranca CaeManager.Web con un segundo tenant sembrado (ver
 /// SegundoTenantSeeder) para poder verificar el aislamiento multi-tenant
-/// con un navegador real (PLAN-MIGRACION-MULTITENANT.md § 6, Etapa 5). En
+/// con un navegador real (Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6, Etapa 5). En
 /// una colección propia — no "AppCollection" — para no forzar el sembrado
 /// del segundo tenant en el resto de la suite E2E.
 /// </summary>
@@ -410,7 +410,7 @@ public class AppCollectionMultiTenant : ICollectionFixture<WebAppFixtureConSegun
 /// Arranca CaeManager.Web con la política de retención activa
 /// (RetencionDatos:Activa, apagada por defecto en cualquier otro sitio —
 /// ver CLAUDE.md) para poder ejercitar /retencion de verdad con Playwright
-/// (P1-19 de docs/business/MATURITY_REVIEW.md). En su propia colección: el
+/// (P1-19 de Project-Hydra-Negocio/MATURITY_REVIEW.md). En su propia colección: el
 /// resto de la suite E2E no necesita ni debe activar retención.
 /// </summary>
 public sealed class WebAppFixtureConRetencionActiva : WebAppFixture

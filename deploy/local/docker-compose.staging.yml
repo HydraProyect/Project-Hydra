@@ -1,5 +1,5 @@
 # Stack de STAGING — segundo stack en la MISMA máquina que
-# docker-compose.produccion.yml (ver RUNBOOK-DESPLIEGUE-LOCAL.md en el
+# docker-compose.produccion.yml (ver Project-Hydra-Negocio/tecnico/RUNBOOK-DESPLIEGUE-LOCAL.md en el
 # repositorio local de negocio, tecnico/). Mismo Dockerfile, mismo servicio
 # postgres:18, misma estructura que producción — con las diferencias que
 # importan para convivir en la misma máquina sin pisarse con producción:

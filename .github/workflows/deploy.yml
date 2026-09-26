@@ -130,7 +130,7 @@ name: Desplegar
 # VPS_SSH_KEY (la clave única de antes, que sin argumentos en el comando forzado
 # admite los cuatro modos). Cada job imprime qué clave usó. La clave antigua y
 # ese modo de compatibilidad se retiran juntos, al final de
-# RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md (repositorio de negocio).
+# Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md (repositorio de negocio).
 #
 # Por eso el job `produccion` (el que lanza `produccion <SHA>`) declara
 # TAMBIÉN `environment: produccion` (decisión del propietario, 2026-09-19,
@@ -141,7 +141,7 @@ name: Desplegar
 # que decían DEC-39/40 (ver la sección siguiente): el despliegue ya no queda
 # fuera del environment. VPS_SSH_KEY y el modo de compatibilidad de
 # ci-deploy.sh se retiran cuando este cambio esté verificado en un despliegue
-# real (RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md, pasos 12 y 13).
+# real (Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md, pasos 12 y 13).
 #
 # --- La imagen se construye en el runner, no en el VPS (2026-09-23) ---------
 #
@@ -261,7 +261,7 @@ name: Desplegar
 # deja a los `produccion` de los runs posteriores en «pending» hasta que se
 # apruebe o rechace (un pending más nuevo cancela a otro pending más viejo,
 # nunca al que ocupa el grupo). Se mide con dos despliegues seguidos en cuanto
-# los secretos nuevos estén cargados (RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md,
+# los secretos nuevos estén cargados (Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES-SSH-D6-P32-2026-09.md,
 # paso 11): dejar la segunda aprobación del primero sin dar y observar si el
 # `produccion` del segundo arranca, queda en pending o se cancela.
 #

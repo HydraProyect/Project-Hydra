@@ -4,10 +4,10 @@ namespace CaeManager.Web.Features.Comunicaciones.Components;
 
 /// <summary>
 /// Un campo dentro del flujo de revisión de una sugerencia IA
-/// (RevisionSugerenciaModal.razor, docs/COMUNICACIONES.md § 12.6/§ 33). La UI
+/// (RevisionSugerenciaModal.razor, Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.6/§ 33). La UI
 /// nunca decide si un dato es confiable — <see cref="RequiereRevision"/> ya
 /// viene resuelto por quien construye el campo (AccionCenter.razor), a
-/// partir de la política de confianza de docs/COMUNICACIONES.md § 12.6 (alta
+/// partir de la política de confianza de Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.6 (alta
 /// ≥90, editable por debajo de ese corte).
 /// </summary>
 /// <param name="Etiqueta">Nombre del campo, p. ej. "Centro".</param>

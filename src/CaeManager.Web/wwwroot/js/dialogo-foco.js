@@ -2,7 +2,7 @@
 // Escape ya se maneja en C# (@onkeydown) — esto cubre lo que Blazor no puede
 // sin interop: recorrer el DOM para encontrar los elementos enfocables del
 // diálogo y devolver el foco a quien lo tenía al cerrarse (document.activeElement
-// no tiene equivalente en C#). Hallazgo P0-8 de docs/business/MATURITY_REVIEW.md:
+// no tiene equivalente en C#). Hallazgo P0-8 de Project-Hydra-Negocio/MATURITY_REVIEW.md:
 // sin esto, Tab se escapa del diálogo hacia la página de debajo y el foco se
 // pierde al cerrar.
 const SELECTOR_ENFOCABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';

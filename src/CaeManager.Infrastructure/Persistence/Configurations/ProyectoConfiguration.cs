@@ -18,14 +18,14 @@ public class ProyectoConfiguration : IEntityTypeConfiguration<Proyecto>
 
         // Nombre único por (tenant, cliente) — no se puede repetir aunque el
         // proyecto esté en otro centro del mismo cliente, ni tras cerrarse
-        // (solo se libera si se elimina, ver DATABASE.md/ROADMAP.md).
+        // (solo se libera si se elimina, ver Project-Hydra-Negocio/tecnico/ROADMAP.md).
         builder.HasIndex(p => new { p.TenantId, p.ClienteId, p.Nombre })
                .IsUnique()
                .HasFilter($"NOT \"{nameof(Proyecto.EstaEliminado)}\"");
 
         builder.HasIndex(p => p.CentroId);
 
-        // FKs reales — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // FKs reales — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         // F3b — ClienteId repunta contra Empresas (ver CentroConfiguration).
         builder.HasOne<Empresa>().WithMany()
             .HasForeignKey(p => new { p.TenantId, p.ClienteId })

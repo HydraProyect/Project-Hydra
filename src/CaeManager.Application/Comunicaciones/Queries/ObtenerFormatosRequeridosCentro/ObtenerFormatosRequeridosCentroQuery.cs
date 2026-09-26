@@ -16,7 +16,7 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequerido
 /// formatos automáticamente cuando sea un formulario de centro necesario"
 /// del pedido del usuario. Hydra no guarda plantillas de archivo en blanco
 /// por Centro (salvo el adjunto opcional de <c>TipoDocumentoCentro</c>, no
-/// enlazado aquí — ver DATABASE.md), así que "formato" aquí es este resumen
+/// enlazado aquí — ver Project-Hydra-Negocio/tecnico/DATABASE.md), así que "formato" aquí es este resumen
 /// generado, no un archivo preexistente. Null cuando el Centro no es visible
 /// para el usuario actual o no tiene ningún requisito configurado que
 /// compartir.

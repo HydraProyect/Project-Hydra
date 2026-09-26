@@ -15,7 +15,7 @@ namespace CaeManager.IntegrationTests.Integraciones;
 
 /// <summary>
 /// Verifica el catálogo <c>ProveedorPlataformaCae</c> (Parte 2 § (a),
-/// PLAN-EJECUCION-UX.md) contra una base de datos real, con la migración de
+/// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md) contra una base de datos real, con la migración de
 /// semilla aplicada — lo que <see cref="ResolucionProveedorPlataformaCaeServiceTests"/>
 /// (Application.Tests) no puede cubrir: que la semilla realmente llegó a la
 /// tabla sin colisión de Id (ver el bug real de <c>DerivarIdDominio</c>

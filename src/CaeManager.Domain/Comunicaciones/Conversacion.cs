@@ -4,8 +4,8 @@ namespace CaeManager.Domain.Comunicaciones;
 
 /// <summary>
 /// Agregado raíz de la bandeja compartida multicanal — correo y WhatsApp
-/// (ver ARQUITECTURA-INTEGRACIONES.md § 12; renombrado desde
-/// ConversacionCorreo en el paso 0 del rediseño, docs/COMUNICACIONES.md
+/// (ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 12; renombrado desde
+/// ConversacionCorreo en el paso 0 del rediseño, Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
 /// § 16.2). ClienteId null significa que el
 /// remitente todavía no se ha resuelto contra ningún Cliente — la
 /// conversación cae en la cola de triage hasta que alguien la asigna
@@ -125,7 +125,7 @@ public class Conversacion : EntidadBase
 
     /// <summary>
     /// <paramref name="canal"/> es explícito a propósito — cada mensaje conoce
-    /// su propio canal (paso 1 del rediseño, docs/COMUNICACIONES.md § 16.1),
+    /// su propio canal (paso 1 del rediseño, Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 16.1),
     /// aunque hoy todo llamador pase <see cref="Canal"/> de esta misma
     /// conversación (todavía no hay hilos mixtos). No se infiere de
     /// <see cref="Canal"/> para no ocultar la decisión el día que un mensaje
@@ -207,7 +207,7 @@ public class Conversacion : EntidadBase
     /// <summary>
     /// Fusiona los mensajes de <paramref name="origen"/> en este hilo —
     /// resultado de una vinculación confirmada por el gestor tras el
-    /// Conversation Matching Engine (docs/COMUNICACIONES.md § 13.2). Nunca
+    /// Conversation Matching Engine (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 13.2). Nunca
     /// automático: solo <c>VincularConversacionCommandHandler</c> la llama,
     /// después de que el gestor confirma la propuesta. Cada mensaje conserva
     /// su propio <see cref="Mensaje.Canal"/> — con esto nace un hilo mixto de

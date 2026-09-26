@@ -9,7 +9,7 @@ namespace CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
 /// <summary>
 /// Versión en lote de <see cref="DarDeBajaAsignacion.DarDeBajaAsignacionCommand"/>
 /// — la usa "Dar de baja seleccionados" en el acordeón de asignaciones de
-/// <c>/centros</c> (Centro 360, <c>PLAN-EJECUCION-UX.md</c> § 0.1). No es un
+/// <c>/centros</c> (Centro 360, <c>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md</c> § 0.1). No es un
 /// borrado (ver el comentario del Command singular): fija
 /// <c>FechaBaja</c>, conserva el historial. Por eso el DTO de resultado no
 /// reutiliza <c>ResultadoEliminacionLoteDto</c> — esa palabra es de

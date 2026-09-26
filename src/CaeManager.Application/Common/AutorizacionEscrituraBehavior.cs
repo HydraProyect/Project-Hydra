@@ -30,7 +30,7 @@ namespace CaeManager.Application.Common;
 /// no por el sufijo del nombre del tipo: con la convención de nombre, un typo
 /// al declarar la clase desactivaba la autorización en silencio y ni el
 /// compilador ni un test podían verlo. La convención de nombre sigue siendo
-/// obligatoria (CODING_STANDARDS.md), pero ahora la sostiene
+/// obligatoria (Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md), pero ahora la sostiene
 /// <c>ArquitecturaCommandsTests</c> — que exige nombre e interfaz en ambas
 /// direcciones — en vez de ser ella misma el mecanismo de seguridad.
 /// Se registra antes que ValidationBehavior: un Command bloqueado por rol
@@ -219,7 +219,7 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
 
     /// <summary>
     /// Los Command devuelven Result o Result&lt;T&gt; por convención (ver
-    /// CODING_STANDARDS.md) — se construye el fallo genéricamente por
+    /// Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md) — se construye el fallo genéricamente por
     /// reflexión para no acoplar este behavior a cada tipo de respuesta.
     /// </summary>
     private static TResponse CrearRespuestaFallo<T>(Error error)

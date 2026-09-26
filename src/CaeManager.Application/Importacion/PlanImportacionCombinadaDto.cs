@@ -2,7 +2,7 @@ namespace CaeManager.Application.Importacion;
 
 /// <summary>
 /// Resultado de analizar (sin escribir nada todavía) la plantilla combinada
-/// de Cliente + Empresas + Centros + Trabajadores (ver ROADMAP.md) — a
+/// de Cliente + Empresas + Centros + Trabajadores (ver Project-Hydra-Negocio/tecnico/ROADMAP.md) — a
 /// diferencia de IPlantillaClientesService (Fase 7), esta sí puede crear
 /// Clientes y Centros nuevos porque recoge CIF y Empresa, los datos que
 /// Fase 10 dejó sin cubrir en las plantillas simplificadas. Cada lista ya

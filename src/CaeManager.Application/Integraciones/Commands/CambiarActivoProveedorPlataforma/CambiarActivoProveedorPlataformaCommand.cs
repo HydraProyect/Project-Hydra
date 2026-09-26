@@ -7,7 +7,7 @@ using MediatR;
 namespace CaeManager.Application.Integraciones.Commands.CambiarActivoProveedorPlataforma;
 
 /// <summary>
-/// El *kill switch* remoto de MVP2 (ARQUITECTURA-INTEGRACIONES.md § 14.5 en el
+/// El *kill switch* remoto de MVP2 (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14.5 en el
 /// repositorio de negocio): la extensión de navegador lee
 /// <see cref="ProveedorPlataformaCae.Activo"/> de la misma respuesta que ya
 /// consulta para listar pendientes, y deja de ofrecer "Subir" para un

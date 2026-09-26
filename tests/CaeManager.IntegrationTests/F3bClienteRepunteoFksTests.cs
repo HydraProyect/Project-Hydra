@@ -14,8 +14,8 @@ namespace CaeManager.IntegrationTests;
 
 /// <summary>
 /// F3b-Cliente, mitad de repunteo de FKs
-/// (f3b-inventario-fks-dependientes-2026-08-25.md,
-/// f3b-decision-d2-transicion-acotada-2026-08-25.md §0-2).
+/// (Project-Hydra-Negocio/tecnico/f3b-inventario-fks-dependientes-2026-08-25.md,
+/// Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md §0-2).
 ///
 /// <para>
 /// Existe por un hallazgo real, no por precaución: redirigir los 9
@@ -89,7 +89,7 @@ public class F3bClienteRepunteoFksTests : IAsyncLifetime
         // Reproduce el hallazgo real: un Cliente creado DESPUÉS de que F3b
         // redirigiera los escritores solo existe en Empresas — nunca se
         // escribe en Clientes. Antes del repunteo, esto fallaba con 23503
-        // (ver f3b-inventario-fks-dependientes-2026-08-25.md).
+        // (ver Project-Hydra-Negocio/tecnico/f3b-inventario-fks-dependientes-2026-08-25.md).
         var tenantId = Guid.NewGuid();
         await AplicarMigracionF3aAsync(tenantId);
         await AplicarMigracionF3bAsync(tenantId);

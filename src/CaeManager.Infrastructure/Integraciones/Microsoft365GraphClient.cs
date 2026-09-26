@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace CaeManager.Infrastructure.Integraciones;
 
 /// <summary>
-/// Adaptador concreto de Microsoft 365 (ver ARQUITECTURA-INTEGRACIONES.md §
+/// Adaptador concreto de Microsoft 365 (ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md §
 /// 5/12) — flujo delegado (authorization code + offline_access), no
 /// client-credentials como <c>GraphEmailService</c>: aquí no hay "el propio
 /// buzón de Hydra", cada <c>ConexionIntegracion</c> es el buzón real de un
@@ -185,7 +185,7 @@ public class Microsoft365GraphClient(
     {
         // /reply preserva conversationId/threading automáticamente — nunca
         // reconstruir In-Reply-To/References a mano (ver
-        // ARQUITECTURA-INTEGRACIONES.md § 12.2). Los adjuntos van dentro de
+        // Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 12.2). Los adjuntos van dentro de
         // "message" — es la forma en que Graph permite adjuntar algo más al
         // responder, en vez de solo el comentario de texto.
         using var peticion = NuevaPeticionGraph(
@@ -225,7 +225,7 @@ public class Microsoft365GraphClient(
         // inquilino no la tiene habilitada, Graph la ignora en silencio y
         // devuelve el Id normal — se degrada al comportamiento anterior, no
         // falla. Pendiente de comprobar contra un buzón real (misma laguna que
-        // el resto de la integración, docs/COMUNICACIONES.md § 9).
+        // el resto de la integración, Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 9).
         peticionBorrador.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
 
         peticionBorrador.Content = JsonContent.Create(

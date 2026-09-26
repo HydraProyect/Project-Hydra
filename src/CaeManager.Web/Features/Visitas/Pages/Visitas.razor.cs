@@ -27,12 +27,12 @@ public partial class Visitas : ComponentBase
 {
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
-    // H2 (docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
+    // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
 
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
     // página no cambie, así que refrescar además la rejilla pedía lo mismo dos
     // veces (ver RecargarAsync).
@@ -85,7 +85,7 @@ public partial class Visitas : ComponentBase
     public string? SugerenciaVisitaIdInicial { get; set; }
 
     // Overrides opcionales del Action Center de Comunicaciones
-    // (docs/COMUNICACIONES.md § 12.6): cuando el gestor corrigió Centro o
+    // (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.6): cuando el gestor corrigió Centro o
     // fechas en la revisión previa a confirmar, viajan aquí y prevalecen
     // sobre lo que trae la propia SugerenciaVisitaCorreo almacenada — la
     // corrección "se manda junto con la confirmación", sin persistirse antes.
@@ -149,7 +149,7 @@ public partial class Visitas : ComponentBase
 
     /// <summary>
     /// Los checkboxes de fila solo se pintan con esto activo (Centro 360,
-    /// PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
+    /// Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9) — son ruido permanente para una acción
     /// ocasional. Apagarlo limpia la selección: dejar filas marcadas que ya
     /// no se ven dejaría la barra de acciones en lote apuntando a algo
     /// invisible.
@@ -196,7 +196,7 @@ public partial class Visitas : ComponentBase
     /// <summary>
     /// Se re-ejecuta en cada navegación dentro de la propia página, no solo
     /// en el primer render — la URL como fuente de verdad de los filtros
-    /// (P1-18 de docs/business/MATURITY_REVIEW.md).
+    /// (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     protected override void OnParametersSet()
     {

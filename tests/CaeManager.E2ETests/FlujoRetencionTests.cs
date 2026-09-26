@@ -3,7 +3,7 @@ using Microsoft.Playwright;
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// P1-19 de docs/business/MATURITY_REVIEW.md: retención de datos (Fase 60)
+/// P1-19 de Project-Hydra-Negocio/MATURITY_REVIEW.md: retención de datos (Fase 60)
 /// no tenía ningún E2E — solo CalculadoraRetencionDocumentoTests (Domain).
 /// Cubre el ciclo completo de /retencion descrito en CLAUDE.md: "detectar →
 /// avisar → autorizar con fecha → ejecutar", más la vía alternativa de

@@ -11,7 +11,7 @@ namespace CaeManager.Web.Api.Integraciones;
 /// de ASP.NET Core Identity — Graph no manda cookie ni ApiKey; la confianza
 /// se resuelve por el Id de <see cref="ConexionIntegracion"/> en la propia
 /// URL más el <c>clientState</c> que Graph devuelve sin cambios en cada
-/// notificación (docs/MULTITENANCY.md § 8, tercer modo de resolución de
+/// notificación (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8, tercer modo de resolución de
 /// tenant — ver <see cref="IWebhookTenantResolver"/>).
 ///
 /// GET atiende el handshake de validación que Graph hace una vez al crear
@@ -19,7 +19,7 @@ namespace CaeManager.Web.Api.Integraciones;
 /// <c>Microsoft365GraphClient.CrearSuscripcionAsync</c>). POST atiende las
 /// notificaciones reales — solo persiste <see cref="EventoWebhook"/> y
 /// responde, nunca llama a Graph de forma síncrona dentro del request
-/// entrante (ARQUITECTURA-INTEGRACIONES.md § 6.4) —
+/// entrante (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.4) —
 /// <c>IngestaWebhookHostedService</c> (Infrastructure) hace el trabajo real
 /// fuera de este ciclo de petición/respuesta.
 ///

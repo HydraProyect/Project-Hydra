@@ -94,7 +94,7 @@ var rutaLogsAbsoluta = Path.IsPathRooted(rutaLogs)
 // una variable de entorno en producción" que Sentry, KMS o Backups. Sin él,
 // los logs viven solo en el volumen del contenedor y desaparecen con él, que
 // es justo lo que hace indiagnosticable un incidente (P1-10 de
-// docs/business/MATURITY_REVIEW.md). Seq acepta tanto una instancia propia
+// Project-Hydra-Negocio/MATURITY_REVIEW.md). Seq acepta tanto una instancia propia
 // como Seq cloud; la ApiKey es opcional porque una instancia sin
 // autenticación no la pide.
 var urlSeq = builder.Configuration["Serilog:Seq:ServerUrl"];
@@ -128,7 +128,7 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
 // IStartupFilter y envuelve TODO el pipeline HTTP, incluido
 // app.UseExceptionHandler("/Error", ...) más abajo — captura la excepción
 // real para reportarla y la deja seguir su curso normal hacia la página de
-// error genérica ya existente (ver ARCHITECTURE.md, "Excepciones reservadas
+// error genérica ya existente (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Excepciones reservadas
 // para errores verdaderamente inesperados"). EXCEPCIÓN medida (2026-09-23,
 // ver RevalidacionClienteActivoMiddleware): una petición abortada por el
 // cliente (OperationCanceledException de contexto.RequestAborted) nunca llega
@@ -275,11 +275,11 @@ var authenticationBuilder = builder.Services
     });
 authenticationBuilder.AddIdentityCookies();
 
-// API pública (P3-29, docs/business/MATURITY_REVIEW.md) — todavía no
+// API pública (P3-29, Project-Hydra-Negocio/MATURITY_REVIEW.md) — todavía no
 // anunciada/publicada, pero completa: esquema propio para no heredar el
 // FallbackPolicy de cookie (ver policy "ApiPublica" más abajo). El tenant se
 // resuelve del claim que rellena el propio handler a partir de la clave, no
-// de un parámetro suelto — ver docs/MULTITENANCY.md § 8.
+// de un parámetro suelto — ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8.
 authenticationBuilder.AddScheme<ApiKeyAuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
     ApiKeyAuthenticationSchemeOptions.NombreEsquema, options => { });
 
@@ -352,7 +352,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddAuthorization(options =>
 {
     // Toda página/endpoint requiere sesión iniciada salvo que declare [AllowAnonymous]
-    // (como Login) — ver ARCHITECTURE.md, "Autenticación y autorización".
+    // (como Login) — ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Autenticación y autorización".
     options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();
@@ -421,7 +421,7 @@ builder.Services.AddRateLimiter(options =>
 // recibía un número.
 //
 // Ya no afecta solo a la API pública: desde el Incremento 2 del MVP1 de
-// extensión de navegador (ver ARQUITECTURA-INTEGRACIONES.md § 14 en el
+// extensión de navegador (ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en el
 // repositorio de negocio), `/extension/acreditaciones-pendientes` también
 // devuelve JSON, y esta vez sí lo consume JavaScript de verdad (el popup de
 // la extensión, en extension/popup.js) — la razón de fondo de arriba sigue
@@ -438,7 +438,7 @@ builder.Services.AddOpenApi("v1", options =>
 
 // Rate limiting por IP sobre los POST de autenticación en /cuenta/* (login
 // local, callback de Microsoft, verificación 2FA) — junto con el lockout de
-// Identity, cierra el hallazgo P0-2 de docs/business/MATURITY_REVIEW.md
+// Identity, cierra el hallazgo P0-2 de Project-Hydra-Negocio/MATURITY_REVIEW.md
 // (fuerza bruta sin fricción): el lockout protege cada cuenta concreta, este
 // límite frena el barrido de muchas cuentas distintas desde una misma IP.
 // Solo se limitan los POST — un GET a /cuenta/iniciar-sesion es simplemente
@@ -450,7 +450,7 @@ builder.Services.AddOpenApi("v1", options =>
 // la aplicación no se limita: es Blazor Server con sesión iniciada, el
 // tráfico útil viaja por el circuito SignalR, no por peticiones HTTP
 // repetidas. Limitador en memoria: suficiente mientras el techo sea 1
-// réplica (autodocumentado en ARCHITECTURE.md); con multi-réplica habría que
+// réplica (autodocumentado en Project-Hydra-Negocio/tecnico/ARCHITECTURE.md); con multi-réplica habría que
 // moverlo a un almacén compartido, igual que el resto de estado de proceso.
 // Techos configurables con los mismos valores de siempre por defecto: la
 // suite E2E hace logins reales en serie (cada login del Administrador son
@@ -510,7 +510,7 @@ builder.Services.AddRateLimiter(opciones =>
 // reales (login + interacción sostenida sobre /documentos) sin errores, con
 // ~1.8 MB de RAM marginal por circuito — la memoria no es el recurso que se
 // agota a esta escala, muy por debajo de los "10 usuarios concurrentes
-// iniciales, con crecimiento moderado" de ARCHITECTURE.md. El ajuste de abajo
+// iniciales, con crecimiento moderado" de Project-Hydra-Negocio/tecnico/ARCHITECTURE.md. El ajuste de abajo
 // no reacciona a un problema medido; es gestión preventiva de un presupuesto
 // de RAM ajustado:
 // PersistedCircuitInMemoryMaxRetained (novedad de .NET 10, estado persistido
@@ -525,7 +525,7 @@ builder.Services.AddRateLimiter(opciones =>
 //
 // Configurables (mismo patrón que RateLimiting:Cuenta:* más arriba) para
 // poder ajustarlos en producción sin recompilar si la telemetría real (una
-// vez haya observabilidad, ver RUNBOOK-HORIZONTE-0.md § 0.3) apunta a otro
+// vez haya observabilidad, ver Project-Hydra-Negocio/tecnico/RUNBOOK-HORIZONTE-0.md § 0.3) apunta a otro
 // número.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(opcionesCircuito =>
@@ -574,7 +574,7 @@ builder.Services.AddScoped<CircuitHandler>(sp => sp.GetRequiredService<CaeManage
 // de la conexión y la deja en el pool: ver la clase.
 builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.LiberacionDeAccesoADatosAlCerrarCircuito>();
 
-// Health check real (P0-5 de docs/business/MATURITY_REVIEW.md): /salud
+// Health check real (P0-5 de Project-Hydra-Negocio/MATURITY_REVIEW.md): /salud
 // respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
 // cualquier uptime check externo veía un servicio sano que no podía servir
 // ni el login. Ahora ejecuta un SELECT 1 contra la base de datos: 200
@@ -610,8 +610,8 @@ CaeManager.Application.Common.Marca.Configurar(builder.Configuration["Marca:Nomb
 
 var app = builder.Build();
 
-// Modo dedicado para un paso de "pre-deploy" (ver DEPLOY.md § 4 — P2 #22 de
-// docs/business/MATURITY_REVIEW.md, una de las tres cosas que desbloquean
+// Modo dedicado para un paso de "pre-deploy" (ver Project-Hydra-Negocio/tecnico/DEPLOY.md § 4 — P2 #22 de
+// Project-Hydra-Negocio/MATURITY_REVIEW.md, una de las tres cosas que desbloquean
 // multi-réplica): aplica las migraciones pendientes y termina, sin levantar
 // Kestrel ni sembrar datos. Así el esquema se cierra una única vez, antes de
 // que arranque ninguna réplica del proceso web — no N réplicas compitiendo
@@ -783,7 +783,7 @@ if (args.Contains(SiembraDemoDireccionAdministrativa.ArgumentoRetirar))
     return;
 }
 
-// Detrás de un proxy inverso (Caddy, ver deploy/local/Caddyfile y DEPLOY.md),
+// Detrás de un proxy inverso (Caddy, ver deploy/local/Caddyfile y Project-Hydra-Negocio/tecnico/DEPLOY.md),
 // Kestrel solo ve tráfico HTTP interno; sin esto,
 // UseHttpsRedirection/UseHsts no reconocen la petición original como HTTPS
 // y pueden entrar en bucle de redirección.
@@ -880,14 +880,14 @@ using (var scope = app.Services.CreateScope())
 
         // Sin sesión de usuario en el arranque no hay tenant que resolver por
         // claim — la siembra del Administrador inicial se ejecuta explícitamente
-        // como tenant #1 (ver AmbitoTenantExplicito, docs/MULTITENANCY.md § 8.4).
+        // como tenant #1 (ver AmbitoTenantExplicito, Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8.4).
         using (AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto))
         {
             await IdentitySeeder.SeedAsync(userManager, roleManager, userStore, logger, app.Configuration, app.Environment, dbContextBootstrap);
         }
 
         // Los datos de prueba de CAE ya no se siembran en el tenant #1: en el
-        // escenario de demo de ADR-004-delegacion-consultoras-cae.md, el tenant
+        // escenario de demo de Project-Hydra-Negocio/tecnico/ADR-004-delegacion-consultoras-cae.md, el tenant
         // #1 juega el papel de Consultora (sin datos operativos propios, § 5.1)
         // — DelegacionDemoSeeder los siembra en un tenant Cliente Delegante
         // nuevo y establece su propio AmbitoTenantExplicito internamente.
@@ -899,7 +899,7 @@ using (var scope = app.Services.CreateScope())
         await EscenariosDireccionDemoSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
 
         // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
-        // navegador real (ver PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
+        // navegador real (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
         // que SegundoTenant:Activo esté configurado explícitamente.
         await SegundoTenantSeeder.SeedAsync(dbContext, userManager, userStore, app.Configuration, app.Environment, logger);
 
@@ -1085,7 +1085,7 @@ app.Run();
 
 // Las migraciones (DDL: CreateTable, y desde HabilitarRlsPostgres además
 // ENABLE ROW LEVEL SECURITY / CREATE POLICY) exigen el rol propietario de
-// las tablas — el rol de runtime que RUNBOOK-RLS.md provisiona para
+// las tablas — el rol de runtime que Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md provisiona para
 // ConnectionStrings:CaeManagerDbRuntime no tiene privilegios de DDL a
 // propósito (es justo lo que hace que RLS lo restrinja de verdad). Por eso
 // las migraciones se aplican con una instancia propia apuntando siempre a

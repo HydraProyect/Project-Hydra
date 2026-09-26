@@ -1,4 +1,4 @@
-# P2 #25 de docs/business/MATURITY_REVIEW.md — dependencias desactualizadas
+# P2 #25 de Project-Hydra-Negocio/MATURITY_REVIEW.md — dependencias desactualizadas
 # (paquetes NuGet, la imagen base del Dockerfile, las Actions del propio CI)
 # hoy solo se detectan a mano. Cada ecosistema abre sus PRs por separado, sin
 # agruparlos: en un repo con -warnaserror y tests de integración reales, cada

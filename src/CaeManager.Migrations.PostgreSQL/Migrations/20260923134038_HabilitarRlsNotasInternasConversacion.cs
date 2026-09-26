@@ -7,7 +7,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <inheritdoc />
     /// <summary>
     /// Mismo criterio que HabilitarRlsEventosConversacion: el RLS se añade en
-    /// la misma tanda que crea la tabla — ver RUNBOOK-RLS.md. La nota interna
+    /// la misma tanda que crea la tabla — ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md. La nota interna
     /// es conversación del equipo del Tenant propietario; sin esta política,
     /// el filtro global de EF sería la única barrera entre tenants.
     /// </summary>

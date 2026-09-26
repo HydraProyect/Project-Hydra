@@ -89,7 +89,7 @@ public class EjecucionPurgaService(
     {
         // IgnoreQueryFilters() + Where(TenantId) explícito — ver el comentario
         // equivalente en DeteccionPurgaService (P0-1/P0-3 de
-        // docs/business/MATURITY_REVIEW.md): sin esto, un Documento
+        // Project-Hydra-Negocio/MATURITY_REVIEW.md): sin esto, un Documento
         // soft-deleted que SÍ hubiera entrado en la SolicitudPurga (porque la
         // detección ya lo ve, tras el fix de arriba) seguiría sin
         // anonimizarse aquí, dejando la purga incompleta a medio camino.

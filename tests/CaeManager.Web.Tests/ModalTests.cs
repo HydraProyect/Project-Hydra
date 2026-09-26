@@ -7,8 +7,8 @@ using Xunit;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Cubre el cierre con Escape (hallazgo P0-8 de docs/business/MATURITY_REVIEW.md
-/// — DESIGN_SYSTEM.md prometía "Escape para cerrar overlays" y Modal no lo
+/// Cubre el cierre con Escape (hallazgo P0-8 de Project-Hydra-Negocio/MATURITY_REVIEW.md
+/// — Project-Hydra-Negocio/tecnico/docs/archive/design/DESIGN_SYSTEM.md prometía "Escape para cerrar overlays" y Modal no lo
 /// implementaba). El focus trap en sí vive en dialogo-foco.js y no es
 /// testable aquí sin navegador real — ver el comentario de mejor esfuerzo en
 /// Modal.razor.ActivarTrampaFocoAsync.

@@ -4,7 +4,7 @@ using FluentAssertions;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// Horizonte 2.5 (MACRO_PLAN_2026-08-13.md § 2.5, regla 2): CLAUDE.md documenta
+/// Horizonte 2.5 (Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md § 2.5, regla 2): CLAUDE.md documenta
 /// hoy la regla "nada de <c>IgnoreQueryFilters()</c> ni SQL crudo fuera de los
 /// usos ya revisados" como convención — nada la hacía cumplir. Este test la
 /// convierte en gate.
@@ -343,7 +343,7 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         string.Join("\n", infractores).Should().BeEmpty(
             "un uso nuevo de IgnoreQueryFilters()/SQL crudo tiene que ser una decisión deliberada y revisada " +
             "(el filtro global de tenant/borrado lógico es la primera línea de defensa multi-tenant, ver " +
-            "docs/MULTITENANCY.md) — si el uso listado está justificado, añádelo (o sube el contador) en " +
+            "Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md) — si el uso listado está justificado, añádelo (o sube el contador) en " +
             "UsosPermitidos en este mismo commit explicando por qué");
     }
 

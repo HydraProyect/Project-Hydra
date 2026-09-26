@@ -37,7 +37,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 table: "HistorialImportaciones",
                 columns: new[] { "TenantId", "EjecutadaEnUtc" });
 
-            // RLS en la misma migración que crea la tabla (ver RUNBOOK-RLS.md) —
+            // RLS en la misma migración que crea la tabla (ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md) —
             // HabilitarRlsEstadosAutomatizacion tuvo que corregirse a posteriori
             // porque PoliticasRlsCubrenModeloTests lo detectó en rojo; esta vez
             // se incluye desde el principio.

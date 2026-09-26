@@ -465,7 +465,7 @@
     color: var(--color-primary-500);
 }
 
-/* --- Columna de contexto del cliente + Action Center (docs/COMUNICACIONES.md
+/* --- Columna de contexto del cliente + Action Center (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md
    § 12.5/12.6). El Action Center (AccionCenter.razor) vive primero en esta
    misma columna — es panel de decisiones, tiene prioridad sobre la ficha de
    solo lectura. La ficha de cliente sigue acotada a los datos reales de
@@ -624,7 +624,7 @@ a.bandeja-documento-citado-nombre:hover {
     color: var(--color-text-muted);
 }
 
-/* --- Adaptive Layout (docs/COMUNICACIONES.md § 11) — colapso progresivo por
+/* --- Adaptive Layout (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 11) — colapso progresivo por
    ancho; los Drawer deslizantes por breakpoint quedan pendientes (§ 14), esto
    es el escalón de apilado que ya cubría el layout anterior, con los cortes
    documentados en vez de uno solo. --- */

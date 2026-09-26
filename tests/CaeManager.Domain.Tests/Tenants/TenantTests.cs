@@ -89,7 +89,7 @@ public class TenantTests
     public void Un_tenant_nuevo_no_tiene_TenantId_propio()
     {
         // Tenant extiende Entity directamente, no EntidadConTenant — no debe
-        // exponer ningún TenantId (ver docs/MULTITENANCY.md § 4.1).
+        // exponer ningún TenantId (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.1).
         typeof(Tenant).Should().NotBeAssignableTo<CaeManager.Domain.Common.EntidadConTenant>();
     }
 

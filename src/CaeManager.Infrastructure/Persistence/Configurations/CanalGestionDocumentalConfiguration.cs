@@ -21,7 +21,7 @@ public class CanalGestionDocumentalConfiguration : IEntityTypeConfiguration<Cana
         // El cifrado de Usuario/Contrasena se configura en CaeManagerDbContext.OnModelCreating,
         // porque necesita el IDataProtector inyectado en el propio DbContext.
 
-        // N canales por Centro desde el Lote 0-E (PLAN-EJECUCION-UX.md § 0.6) —
+        // N canales por Centro desde el Lote 0-E (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.6) —
         // el índice único de (TenantId, CentroId) que imponía el 1:1 pasa a ser
         // un índice normal de búsqueda.
         builder.HasIndex(c => new { c.TenantId, c.CentroId });
@@ -37,7 +37,7 @@ public class CanalGestionDocumentalConfiguration : IEntityTypeConfiguration<Cana
             .IsUnique()
             .HasFilter("\"EsPrincipal\" AND NOT \"EstaEliminado\"");
 
-        // FK real — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // FK real — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         builder.HasOne<Centro>().WithMany()
             .HasForeignKey(canal => new { canal.TenantId, canal.CentroId })
             .HasPrincipalKey(centro => new { centro.TenantId, centro.Id })

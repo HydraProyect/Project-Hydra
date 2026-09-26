@@ -17,12 +17,12 @@ namespace CaeManager.Infrastructure.DocumentosIa;
 
 /// <summary>
 /// Consume la cola durable de <see cref="ITrabajoAnalisisDocumentoRepository"/>
-/// (P2 #22 de docs/business/MATURITY_REVIEW.md) y ejecuta los análisis fuera
+/// (P2 #22 de Project-Hydra-Negocio/MATURITY_REVIEW.md) y ejecuta los análisis fuera
 /// del circuito de Blazor, avisando al usuario por la campana
 /// (<see cref="NotificacionUsuario"/>) cuando terminan.
 ///
 /// Por sondeo, no por notificación push: no hay backplane entre réplicas
-/// (ver DEPLOY.md, "una sola réplica") así que un mecanismo de "avísame
+/// (ver Project-Hydra-Negocio/tecnico/DEPLOY.md, "una sola réplica") así que un mecanismo de "avísame
 /// cuando llegue trabajo" no tendría con quién comunicarse igual — el
 /// sondeo es la opción simple que además sobrevive sola a un reinicio del
 /// proceso, que es justo el problema que la cola en memoria anterior tenía.
@@ -32,7 +32,7 @@ namespace CaeManager.Infrastructure.DocumentosIa;
 /// servicio no lo necesita — <c>Tenants</c> es catálogo global (sin
 /// TenantId), así que listar los tenants activos no cruza nada, y cada
 /// trabajo pendiente se pide ya dentro del ámbito de un tenant concreto
-/// (<see cref="AmbitoTenantExplicito"/>, docs/MULTITENANCY.md § 8.4) — mismo
+/// (<see cref="AmbitoTenantExplicito"/>, Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8.4) — mismo
 /// patrón que <c>ObtenerKpisGlobalesQuery</c>.
 ///
 /// Desde Horizonte 2.4, cada sondeo también vigila si la cola está
@@ -135,7 +135,7 @@ public class ProcesadorAnalisisDocumentoHostedService(
         {
             try
             {
-                // Elección de líder entre réplicas (P3-30 de docs/business/MATURITY_REVIEW.md):
+                // Elección de líder entre réplicas (P3-30 de Project-Hydra-Negocio/MATURITY_REVIEW.md):
                 // solo la que gana el advisory lock sondea este tick; las
                 // demás lo saltan y lo vuelven a intentar en el siguiente. No
                 // es la única exclusión: ReclamarSiguientePendienteAsync

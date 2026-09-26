@@ -9,7 +9,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDe
 
 /// <summary>
 /// Alimenta la pestaña "Requisitos del Centro" del Context Workspace
-/// (PLAN-EJECUCION-UX.md § 0.4) — catálogo completo de TipoDocumento
+/// (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4) — catálogo completo de TipoDocumento
 /// (Trabajador + Empresa) del tenant, con la posición de ESTE Centro sobre
 /// cada uno: si aplica hoy (<see cref="ResolucionTipoDocumentoCentro"/>), si
 /// hay una fila explícita (y su Incluido/PeriodicidadEspecial/BloqueaAcceso/

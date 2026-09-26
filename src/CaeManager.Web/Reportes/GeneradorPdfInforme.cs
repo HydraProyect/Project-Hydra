@@ -9,7 +9,7 @@ namespace CaeManager.Web.Reportes;
 /// — generalizado para servir también "Asignaciones activas" sin duplicar
 /// el dibujado a mano con XGraphics). Mismo criterio que antes: el volumen
 /// esperado (decenas/cientos de filas) no justifica una librería de layout
-/// de tablas completa — ver ARCHITECTURE.md sobre por qué no se usa
+/// de tablas completa — ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md sobre por qué no se usa
 /// QuestPDF (licencia por ingresos de la empresa, no del software).
 /// </summary>
 public static class GeneradorPdfInforme

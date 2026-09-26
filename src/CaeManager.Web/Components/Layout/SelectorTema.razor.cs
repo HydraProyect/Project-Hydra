@@ -145,7 +145,7 @@ public partial class SelectorTema : ComponentBase, IAsyncDisposable
             // una NpgsqlException cruda de desincronización de protocolo,
             // no solo como ObjectDisposedException — este catch solo
             // cubría la primera hasta esta fecha, D-1a,
-            // PLAN-SESIONES-NOCTURNAS-2026-09-02.md). _usuario se queda en
+            // Project-Hydra-Negocio/tecnico/PLAN-SESIONES-NOCTURNAS-2026-09-02.md). _usuario se queda en
             // null, que ya es el valor que la línea de abajo trata como
             // "sin tema guardado" — no hay nadie al otro lado esperando el
             // resultado de todos modos, pero sí queda constancia de que

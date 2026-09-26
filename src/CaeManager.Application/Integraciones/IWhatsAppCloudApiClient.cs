@@ -46,7 +46,7 @@ public static class LimitesMediaWhatsApp
 /// Adaptador de WhatsApp Cloud API (Meta) — segundo proveedor real de
 /// mensajería, nombrado por el proveedor concreto por el mismo criterio
 /// documentado en <see cref="IMicrosoft365GraphClient"/>: el framework
-/// genérico IIntegrationProvider de ARQUITECTURA-INTEGRACIONES.md § 4-5 está
+/// genérico IIntegrationProvider de Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 4-5 está
 /// pensado para sincronización documental CAE, no para canales de chat —
 /// generalizar ahora sería cumplir la letra y violar el espíritu (YAGNI).
 ///

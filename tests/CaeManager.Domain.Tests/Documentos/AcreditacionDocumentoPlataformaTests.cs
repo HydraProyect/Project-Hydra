@@ -4,7 +4,7 @@ using Xunit;
 
 namespace CaeManager.Domain.Tests.Documentos;
 
-/// <summary>docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b) — bloque Acreditación por plataforma destino (MVP1).</summary>
+/// <summary>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b) — bloque Acreditación por plataforma destino (MVP1).</summary>
 public class AcreditacionDocumentoPlataformaTests
 {
     private static AcreditacionDocumentoPlataforma CrearAcreditacion() =>

@@ -15,8 +15,8 @@ public class VisitaConfiguration : IEntityTypeConfiguration<Visita>
         builder.Property(v => v.Notas).HasMaxLength(Visita.LongitudMaximaNotas);
 
         // Sin navigation property hacia Centro a propósito: cada agregado se
-        // consulta por su propio repositorio/query (ver ARCHITECTURE.md). La
-        // FK sí se declara — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // consulta por su propio repositorio/query (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md). La
+        // FK sí se declara — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         builder.HasIndex(v => v.CentroId);
         builder.HasIndex(v => v.FechaFin);
 

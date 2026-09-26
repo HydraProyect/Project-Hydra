@@ -19,7 +19,7 @@ namespace CaeManager.IntegrationTests;
 /// F4.2a: <c>ApplicationUser.ClienteId</c> pasa a representar un
 /// <c>Empresa.Id</c> (antes, un <c>Cliente.Id</c> legacy sin vía para
 /// vincular ningún cliente creado después de F3b — ver doc-comment de
-/// <c>ApplicationUser.ClienteId</c> y <c>f4-diseno-fisico-relacionempresarial-2026-08-26.md</c>).
+/// <c>ApplicationUser.ClienteId</c> y <c>Project-Hydra-Negocio/tecnico/f4-diseno-fisico-relacionempresarial-2026-08-26.md</c>).
 ///
 /// Estas pruebas demuestran el comportamiento real de punta a punta que
 /// ningún test cubría hasta ahora: un cliente creado HOY (después de F3b,

@@ -11,7 +11,7 @@ namespace CaeManager.Application.Calendario.Queries;
 
 /// <summary>
 /// Vencimientos de Documento dentro de un mes calendario, para la vista
-/// mensual de Calendario (ver ROADMAP.md, Fase 3). Mismo cálculo de estado
+/// mensual de Calendario (ver Project-Hydra-Negocio/tecnico/ROADMAP.md, Fase 3). Mismo cálculo de estado
 /// que Dashboard/Alertas — nunca puede haber dos semáforos distintos para
 /// el mismo documento. Solo cubre Documentos de Trabajador — los de
 /// Cliente/Empresa no aparecen en el calendario todavía (fuera de alcance).

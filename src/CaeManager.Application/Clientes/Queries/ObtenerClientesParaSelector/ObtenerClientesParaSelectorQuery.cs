@@ -19,7 +19,7 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 /// misma sesión que un Centro/Empresa que lo referencia (el asistente de
 /// alta guiada) necesita verlo de inmediato; la evidencia real de un E2E en
 /// rojo demostró que congelarlo también rompía ese flujo, no solo dejaba
-/// una lista vieja. Ver f3b-selectores-adelantados-2026-08-26.md.
+/// una lista vieja. Ver Project-Hydra-Negocio/tecnico/f3b-selectores-adelantados-2026-08-26.md.
 /// </summary>
 public record ObtenerClientesParaSelectorQuery : IRequest<IReadOnlyList<ClienteSelectorDto>>;
 

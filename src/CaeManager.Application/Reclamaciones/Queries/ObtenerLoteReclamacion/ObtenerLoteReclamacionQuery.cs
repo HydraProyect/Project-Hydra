@@ -24,7 +24,7 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 /// (ObtenerLoteReclamacionEmpresaQuery), porque su titular es el propietario
 /// del documento y no hay Asignación ni Centro que recorrer; los de Cliente,
 /// Vehículo y Proyecto siguen sin camino de reclamación. Un mismo Trabajador con Asignaciones activas en Centros de
-/// varios Clientes (relación Empresa-Cliente N:N, ver DOMAIN.md) puede
+/// varios Clientes (relación Empresa-Cliente N:N, ver Project-Hydra-Negocio/tecnico/DOMAIN.md) puede
 /// aparecer reclamado desde más de un Cliente — es el comportamiento
 /// correcto: cada titular necesita saberlo para su propio Centro.
 ///

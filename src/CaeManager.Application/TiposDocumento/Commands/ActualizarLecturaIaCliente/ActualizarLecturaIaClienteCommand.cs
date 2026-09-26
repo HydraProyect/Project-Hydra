@@ -26,7 +26,7 @@ public class ActualizarLecturaIaClienteCommandHandler(
         else if (!await empresasContext.Empresas.AnyAsync(c => c.Id == request.ClienteId, cancellationToken))
         {
             // Con acceso total (Administrador) el chequeo de arriba no corre —
-            // verificación de Ids ajenos, ver P0-1 de docs/business/MATURITY_REVIEW.md.
+            // verificación de Ids ajenos, ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
             return Result.Fallo(Error.Crear("LecturaIa.ClienteNoEncontrado", "No encontramos este cliente."));
         }
 

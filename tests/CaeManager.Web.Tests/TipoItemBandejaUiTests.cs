@@ -148,7 +148,7 @@ public class TipoItemBandejaUiTests
     }
 
     /// <summary>
-    /// P9 (2026-09-18, CAPA-USUARIO-AVANZADO-TALVEG.md § 6.1 quinquies):
+    /// P9 (2026-09-18, Project-Hydra-Negocio/tecnico/CAPA-USUARIO-AVANZADO-TALVEG.md § 6.1 quinquies):
     /// «solo la vigencia es copiable», con excepción acotada de Detección/
     /// Revisión IA. Medido contra ObtenerBandejaGestorQueryHandler qué
     /// representa Fecha en cada tipo (ver el comentario largo de

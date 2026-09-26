@@ -4,7 +4,7 @@ namespace CaeManager.Application.Common;
 
 /// <summary>
 /// Política de retención de datos personales, configurable fuera del código
-/// (RGPD-TRATAMIENTO-DATOS.md § 5).
+/// (Project-Hydra-Negocio/tecnico/RGPD-TRATAMIENTO-DATOS.md § 5).
 ///
 /// Está en configuración y no fijada en el código a propósito: los plazos son
 /// una decisión legal, sujeta a revisión por un asesor y a cambios

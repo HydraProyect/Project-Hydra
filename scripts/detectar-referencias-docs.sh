@@ -7,8 +7,8 @@
 # Es el filtro barato ANTES de la pasada semántica de un agente — encuentra
 # el caso mecánico ("esta doc nombra un archivo que ya no existe") con grep,
 # gratis. No encuentra el caso semántico ("esta doc dice que corre en
-# Railway pero el código y DEPLOY.md ya dicen Hetzner") — eso lo hace la
-# lectura del agente, ver tecnico/RUNBOOK-VIGILANCIA-DERIVA-DOCUMENTAL.md en
+# Railway pero el código y Project-Hydra-Negocio/tecnico/DEPLOY.md ya dicen Hetzner") — eso lo hace la
+# lectura del agente, ver Project-Hydra-Negocio/tecnico/RUNBOOK-VIGILANCIA-DERIVA-DOCUMENTAL.md en
 # el repo de negocio (Project-Hydra-Negocio), que también trae la lista
 # curada de qué docs pasar aquí y por qué esas y no "todas".
 #
@@ -25,7 +25,7 @@
 # herramienta, contra el repo de negocio en local):
 #   ./scripts/detectar-referencias-docs.sh \
 #     ../Project-Hydra-Negocio/tecnico/DESIGN_DECISION_LOG.md
-#   -> señaló `scripts/validar-gobernanza-docs.py` y `docs/README.md` como no
+#   -> señaló `scripts/validar-gobernanza-docs.py` y `Project-Hydra-Negocio/tecnico/docs/README.md` como no
 #      encontrados en este repo — confirmado a mano: ese script y esa ruta no
 #      existen en Project-Hydra (grep -r del repo entero, cero resultados).
 #      La afirmación de DDL-055 sobre un gate de CI de "frontera de autoridad
@@ -129,6 +129,6 @@ done
 echo
 echo "Total de referencias sin resolver: ${ENCONTRADOS_SIN_RESOLVER}"
 echo "Siguiente paso: pasar esta lista a un agente con el prompt de"
-echo "tecnico/RUNBOOK-VIGILANCIA-DERIVA-DOCUMENTAL.md (repo de negocio) para"
+echo "Project-Hydra-Negocio/tecnico/RUNBOOK-VIGILANCIA-DERIVA-DOCUMENTAL.md (repo de negocio) para"
 echo "triarla (drift real vs. falso positivo) y, si procede, abrir el issue"
 echo "con evidencia — el script no abre nada por sí solo."

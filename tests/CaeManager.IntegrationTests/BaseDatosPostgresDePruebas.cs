@@ -14,7 +14,7 @@ namespace CaeManager.IntegrationTests;
 /// del <c>ClearAllPools</c> que exigía SQLite.
 ///
 /// Por defecto apunta al servidor local (sin Docker en la máquina de
-/// desarrollo, ver ROADMAP.md § migración a PostgreSQL); en CI se apunta al
+/// desarrollo, ver Project-Hydra-Negocio/tecnico/ROADMAP.md § migración a PostgreSQL); en CI se apunta al
 /// servicio de postgres del workflow con la variable
 /// <c>CAEMANAGER_TESTS_PG</c> (cadena sin <c>Database=</c>, que se añade
 /// aquí).

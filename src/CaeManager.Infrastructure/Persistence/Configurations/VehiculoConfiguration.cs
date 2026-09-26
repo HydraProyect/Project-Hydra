@@ -20,7 +20,7 @@ public class VehiculoConfiguration : IEntityTypeConfiguration<Vehiculo>
         builder.HasIndex(v => v.EmpresaId);
         builder.HasIndex(v => v.SubcontrataId);
 
-        // FKs reales — ver P0-1 de docs/business/MATURITY_REVIEW.md. Mismo
+        // FKs reales — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md. Mismo
         // criterio Empresa-XOR-Subcontrata que Trabajador. F3b-Subcontrata —
         // SubcontrataId repunta contra Empresas también (dos HasOne<Empresa>
         // distintos por columna, mismo patrón ya usado en

@@ -4,7 +4,7 @@ namespace CaeManager.Domain.Common;
 
 /// <summary>
 /// Value object de una dirección de correo (P2 #27 de
-/// docs/business/MATURITY_REVIEW.md). A diferencia de <see cref="Dni"/>/
+/// Project-Hydra-Negocio/MATURITY_REVIEW.md). A diferencia de <see cref="Dni"/>/
 /// <see cref="Cif"/>, no sustituye ninguna validación de formato que ya
 /// existiera: hoy <c>Trabajador.Email</c>/<c>ParticipanteConversacion.Email</c>/
 /// <c>Mensaje.Remitente</c> solo comprueban que no esté vacío,

@@ -77,7 +77,7 @@ public class CrearDelegacionTenantCommandHandler(
                 "DelegacionTenant.NoAutorizado",
                 "Solo un administrador del Cliente Delegante puede autorizar el acceso a sus datos."));
 
-        // Verificación de Ids ajenos — ver P0-1 de docs/business/MATURITY_REVIEW.md.
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         // Tenant es catálogo global (Entity, no EntidadConTenant): la consulta
         // no lleva filtro de tenant a propósito, un Id de Tenant es válido
         // cross-tenant por diseño (ADR-004).

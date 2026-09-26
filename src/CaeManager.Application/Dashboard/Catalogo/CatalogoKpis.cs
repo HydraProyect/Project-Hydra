@@ -130,7 +130,7 @@ public static class CatalogoKpis
 
     /// <summary>
     /// Paridad con el Dashboard actual — lo que ve quien no ha personalizado nada.
-    /// Incluye EmpresasConMasRiesgo y AutomaticoVsManual (docs/blueprints/OPERATIONAL-HOME.md
+    /// Incluye EmpresasConMasRiesgo y AutomaticoVsManual (Project-Hydra-Negocio/tecnico/docs/blueprints/OPERATIONAL-HOME.md
     /// § 7): en el Dashboard actual eran fijos, no elegibles, para quien tuviera el rol — y todo
     /// el que llega a Dashboard Ejecutivo ya cumple ese rol, así que el valor por defecto los
     /// mantiene visibles sin que el usuario tenga que ir a buscarlos al panel de Personalizar.

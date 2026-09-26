@@ -11,7 +11,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// ese hallazgo, el RLS se añade en la misma tanda de trabajo que crea
     /// la tabla en vez de esperar a otra ronda de auditoría. El filtro
     /// global de EF ya la protegía; esto es solo la segunda línea (RLS
-    /// sobre <c>cae_app_runtime</c>, ver RUNBOOK-RLS.md), inofensiva hoy
+    /// sobre <c>cae_app_runtime</c>, ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md), inofensiva hoy
     /// porque ese rol restringido no está activado en ningún entorno.
     /// </summary>
     public partial class HabilitarRlsAdjuntosMensajeCorreo : Migration

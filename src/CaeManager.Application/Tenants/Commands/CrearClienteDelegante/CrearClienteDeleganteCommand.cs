@@ -14,7 +14,7 @@ namespace CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
 /// <summary>
 /// Alta de un Cliente Delegante nuevo con su Delegated Workspace ya
 /// operativo — cierra ADR-004 § 12.2 con la decisión mínima que el propio
-/// hallazgo P0-7 de docs/business/MATURITY_REVIEW.md dejaba abierta como
+/// hallazgo P0-7 de Project-Hydra-Negocio/MATURITY_REVIEW.md dejaba abierta como
 /// aceptable: "solo Administrador de plataforma en v1". Sin este Command no
 /// había ningún camino de producto para aprovisionar el segmento consultora
 /// — <c>CrearDelegacionTenantCommand</c>/<c>CrearAsignacionOperadorDelegadoCommand</c>
@@ -36,7 +36,7 @@ namespace CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
 /// es una conveniencia de demo, no necesariamente lo que un Cliente
 /// Delegante real necesita — la pantalla /tipos-documento ya permite darlos
 /// de alta uno a uno tras crear el tenant, sin forzar una copia completa que
-/// nadie pidió (YAGNI, ver PROJECT.md).
+/// nadie pidió (YAGNI, ver Project-Hydra-Negocio/tecnico/PROJECT.md).
 /// </summary>
 public record CrearClienteDeleganteCommand(string NombreTenantCliente) : ICommand<Guid>;
 
@@ -117,7 +117,7 @@ public class CrearClienteDeleganteCommandHandler(
         // Ámbito explícito: la fila de ParametroSistema del tenant nuevo debe
         // sellarse contra SU PROPIO Id, no contra el tenant de origen de
         // quien ejecuta este Command — mismo mecanismo que
-        // DelegacionDemoSeeder.AprovisionarTenantClienteAsync (docs/MULTITENANCY.md § 8.4).
+        // DelegacionDemoSeeder.AprovisionarTenantClienteAsync (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8.4).
         // Todo tenant necesita esta fila: ObtenerKpisDashboardQuery la lee
         // con SingleAsync() y falla si no existe.
         using (AmbitoTenantExplicito.Establecer(tenantCliente.Id))

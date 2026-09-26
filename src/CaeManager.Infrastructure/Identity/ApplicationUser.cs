@@ -36,7 +36,7 @@ public class ApplicationUser : IdentityUser<Guid>
     /// ahora (F4.2a cambió la semántica, no la columna); un rename físico se
     /// evalúa aparte si hace falta. Antes de F4.2a
     /// apuntaba a la tabla legacy <c>Clientes</c> — ya retirada de este
-    /// flujo, ver f4-diseno-fisico-relacionempresarial-2026-08-26.md. Un
+    /// flujo, ver Project-Hydra-Negocio/tecnico/f4-diseno-fisico-relacionempresarial-2026-08-26.md. Un
     /// usuario Cliente sin ClienteId no ve ningún dato (alcance vacío, no
     /// alcance total) — nunca se interpreta null aquí como "sin
     /// restricción", a diferencia del resto de roles.
@@ -65,11 +65,11 @@ public class ApplicationUser : IdentityUser<Guid>
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
 
     /// <summary>
-    /// Tenant al que pertenece este usuario (ver docs/MULTITENANCY.md § 8,
+    /// Tenant al que pertenece este usuario (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8,
     /// Tenant Resolution Strategy — se estampa como claim de sesión al
     /// autenticar, ver TenantClaimsPrincipalFactory). Todo usuario nuevo
     /// debe crearse con un TenantId explícito (Etapa 3 de
-    /// PLAN-MIGRACION-MULTITENANT.md — cierre). Sin filtro global aplicado
+    /// Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md — cierre). Sin filtro global aplicado
     /// a esta tabla (a diferencia del resto del dominio): el login necesita
     /// poder resolver el usuario, y por tanto su tenant, antes de conocerlo.
     /// <c>NormalizedUserName</c>/<c>NormalizedEmail</c> se mantienen únicos
@@ -80,7 +80,7 @@ public class ApplicationUser : IdentityUser<Guid>
 
     /// <summary>
     /// Última interacción autenticada con la plataforma, en cualquier
-    /// pantalla — no solo el Home (docs/blueprints/OPERATIONAL-HOME.md § 6,
+    /// pantalla — no solo el Home (Project-Hydra-Negocio/tecnico/docs/blueprints/OPERATIONAL-HOME.md § 6,
     /// DDL-068). La escribe <c>ActividadUsuarioService</c> desde MainLayout
     /// en cada navegación, con un throttle de un minuto para no escribir en
     /// cada clic. Alimenta el resumen de ausencia: null significa "nunca

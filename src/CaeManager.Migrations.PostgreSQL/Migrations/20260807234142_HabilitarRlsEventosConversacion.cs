@@ -8,7 +8,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <summary>
     /// Mismo criterio que HabilitarRlsSugerenciasVisitaCorreo (P1-3): el RLS
     /// se añade en la misma tanda que crea la tabla, no en otra ronda de
-    /// auditoría — ver RUNBOOK-RLS.md.
+    /// auditoría — ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md.
     /// </summary>
     public partial class HabilitarRlsEventosConversacion : Migration
     {

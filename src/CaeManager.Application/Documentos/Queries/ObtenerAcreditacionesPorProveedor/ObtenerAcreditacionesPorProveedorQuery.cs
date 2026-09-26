@@ -23,7 +23,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// de "dónde hay que subir esto" es el CanalGestionDocumental).
 ///
 /// Segundo consumidor (Incremento 2 del MVP1 de extensión de navegador, ver
-/// ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio):
+/// Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio):
 /// <c>AcreditacionesPendientesEndpoints</c> expone esta misma query sin
 /// duplicar su alcance por cartera ni su agrupación por proveedor — solo
 /// necesitó dos campos más en <see cref="AcreditacionDrillDownDto"/> que la
@@ -205,7 +205,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             : "—";
 
         // Solo un Documento de Trabajador tiene NIF/NIE que emparejar — el de
-        // Empresa no lo necesita (ARQUITECTURA-INTEGRACIONES.md § 14.5 del
+        // Empresa no lo necesita (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14.5 del
         // repositorio de negocio: la extensión empareja por NIF, nunca por
         // nombre, para no subir el documento de un trabajador a la ficha de
         // otro).

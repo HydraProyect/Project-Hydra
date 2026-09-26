@@ -13,7 +13,7 @@ namespace CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 /// da de alta el producto cartesiano de Trabajadores × Centros (N
 /// trabajadores a 1 centro, 1 trabajador a N centros, o ambos a la vez). Es
 /// exactamente la forma del Excel original (matriz Trabajador × Centro,
-/// ver <c>DATABASE.md</c>), y el vehículo tanto del Drawer de alta múltiple
+/// ver <c>Project-Hydra-Negocio/tecnico/DATABASE.md</c>), y el vehículo tanto del Drawer de alta múltiple
 /// como de la vista matriz de <c>/asignaciones</c> — la matriz llama a este
 /// Command una vez por columna (un Centro, los Trabajadores recién marcados
 /// en esa columna), que sigue siendo un producto cartesiano válido.

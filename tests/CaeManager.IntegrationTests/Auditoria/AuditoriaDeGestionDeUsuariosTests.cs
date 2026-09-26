@@ -13,7 +13,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Auditoria;
 
 /// <summary>
-/// Cierra el hallazgo de CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12: la gestión
+/// Cierra el hallazgo de Project-Hydra-Negocio/tecnico/CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12: la gestión
 /// de usuarios (<c>Usuarios.razor.cs</c>, <c>Roles.razor.cs</c>) escribe con
 /// <c>UserManager</c> directo desde Web, sin pasar por MediatR, y hasta ahora
 /// <see cref="AuditoriaInterceptor"/> solo cubría el namespace

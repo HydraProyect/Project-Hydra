@@ -4,7 +4,7 @@ using Microsoft.Playwright;
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// Horizonte 2.6 de MACRO_PLAN_2026-08-13.md ("Deep-links y rutas de detalle") y
+/// Horizonte 2.6 de Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md ("Deep-links y rutas de detalle") y
 /// § 7 punto 3 ("Deep-links + «copiar enlace» en cada entidad"): rutas reales
 /// para Trabajador, Centro, Documento y Conversación que reconstruyen el
 /// panel/drawer de detalle a partir SOLO de la URL, en una carga en frío — sin
@@ -195,7 +195,7 @@ public class DeepLinksTests(WebAppFixture fixture)
         // depende de las pestañas y controles que haya cargado la entidad),
         // y Tab debe volver al primero.
         // Escape libera la trampa y devuelve el foco al disparador original
-        // que sigue visible en la lista (04_UX_PATTERNS.md § 11).
+        // que sigue visible en la lista (Project-Hydra-Negocio/tecnico/04_UX_PATTERNS.md § 11).
         var copiarEnlace = panel.Locator(".workspace-copiar-enlace");
         await Expect(copiarEnlace).ToBeFocusedAsync();
         await page.Keyboard.PressAsync("Shift+Tab");

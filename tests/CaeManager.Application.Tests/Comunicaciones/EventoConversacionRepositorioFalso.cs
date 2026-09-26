@@ -2,7 +2,7 @@ using CaeManager.Domain.Comunicaciones;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
 
-/// <summary>Fake en memoria — mismo criterio que ConversacionRepositorioFalso (ver CODING_STANDARDS.md).</summary>
+/// <summary>Fake en memoria — mismo criterio que ConversacionRepositorioFalso (ver Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md).</summary>
 public class EventoConversacionRepositorioFalso : IEventoConversacionRepository
 {
     public List<EventoConversacion> Eventos { get; } = [];

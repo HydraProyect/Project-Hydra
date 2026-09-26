@@ -11,7 +11,7 @@ namespace CaeManager.IntegrationTests.DocumentosIa;
 
 /// <summary>
 /// La cola durable que sustituye a la cola en memoria sobre
-/// <c>Channel&lt;T&gt;</c> (P2 #22 de docs/business/MATURITY_REVIEW.md) —
+/// <c>Channel&lt;T&gt;</c> (P2 #22 de Project-Hydra-Negocio/MATURITY_REVIEW.md) —
 /// contra PostgreSQL real, porque lo que importa comprobar es justo lo que
 /// una cola en memoria no podía dar: que el trabajo sigue ahí después de
 /// cerrar y volver a abrir el contexto (equivalente a un reinicio del

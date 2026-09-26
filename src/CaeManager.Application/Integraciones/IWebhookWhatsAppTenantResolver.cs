@@ -3,7 +3,7 @@ namespace CaeManager.Application.Integraciones;
 public record VerificacionWebhookWhatsAppDto(bool Verificado, Guid? TenantId, Guid? ConexionIntegracionId);
 
 /// <summary>
-/// Resolución de tenant para el webhook de WhatsApp (docs/MULTITENANCY.md
+/// Resolución de tenant para el webhook de WhatsApp (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md
 /// § 8, tercer modo). A diferencia de Microsoft 365 (una URL por conexión),
 /// Meta configura UNA sola URL de callback por app: la línea receptora se
 /// identifica por el <c>phone_number_id</c> del payload — y solo DESPUÉS de

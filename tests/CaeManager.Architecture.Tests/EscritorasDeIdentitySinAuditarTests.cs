@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Identity;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// Cierra el hallazgo de CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12 por el lado
+/// Cierra el hallazgo de Project-Hydra-Negocio/tecnico/CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12 por el lado
 /// del <c>ChangeTracker</c>: <c>AuditoriaInterceptor</c> audita
 /// <c>ApplicationUser</c> (alta, edición, baja, activación),
 /// <c>IdentityUserRole&lt;Guid&gt;</c> (conceder/revocar un rol — el caso más

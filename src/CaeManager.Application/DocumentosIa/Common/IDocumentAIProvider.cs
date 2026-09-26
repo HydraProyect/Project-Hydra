@@ -5,10 +5,10 @@ namespace CaeManager.Application.DocumentosIa.Common;
 
 /// <summary>
 /// Un proveedor de IA documental (Anthropic hoy para pruebas puntuales;
-/// Gemini/Mistral OCR después, ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1)
+/// Gemini/Mistral OCR después, ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1)
 /// — el resto del sistema conoce esta interfaz y las <see cref="Capacidades"/>
 /// declaradas, nunca el proveedor concreto. Mismo patrón que
-/// <c>IIntegrationProvider</c> (ARQUITECTURA-INTEGRACIONES.md § 4).
+/// <c>IIntegrationProvider</c> (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 4).
 /// </summary>
 public interface IDocumentAIProvider
 {
@@ -61,7 +61,7 @@ public interface IDocumentAIProvider
 /// <summary>
 /// <paramref name="CosteEstimado"/> (en USD, null si el proveedor no lo
 /// calcula) es solo un dato de auditoría — nunca un criterio de enrutado
-/// (ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2). Cada proveedor lo
+/// (ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2). Cada proveedor lo
 /// calcula con su propia unidad de precio.
 ///
 /// <paramref name="ModeloExacto"/> y <paramref name="RequestId"/> vienen de
@@ -78,7 +78,7 @@ public record ExtraccionEstructuradaDto(
 /// <summary>
 /// Resultado del paso de OCR/lectura nativa de <see cref="IDocumentAIProvider.ExtraerTextoAsync"/>:
 /// el texto plano extraído y el coste estimado del paso (null si el proveedor
-/// no lo calcula). Coste solo para auditoría — ver docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2.
+/// no lo calcula). Coste solo para auditoría — ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.2.
 /// <see cref="ModeloExacto"/> y <see cref="RequestId"/>: mismo criterio que en
 /// <see cref="ExtraccionEstructuradaDto"/> — de la respuesta, nunca de la
 /// configuración solicitada.

@@ -11,7 +11,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerVehiculosConActividadDeC
 /// <summary>
 /// Respalda la pestaña "Vehículos" del Context Workspace de Centro.
 /// Vehiculo no tiene relación directa con Centro ni con Trabajador en el
-/// modelo (decisión ya tomada en Fase 29 de ROADMAP.md al no conectar
+/// modelo (decisión ya tomada en Fase 29 de Project-Hydra-Negocio/tecnico/ROADMAP.md al no conectar
 /// Vehiculo con Visita, por el mismo motivo: no se sabe de antemano qué
 /// vehículo concreto usa cada trabajador). Se muestra como información
 /// contextual: los vehículos de las Empresas/Subcontratas que tienen al

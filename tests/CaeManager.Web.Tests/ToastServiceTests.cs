@@ -4,8 +4,8 @@ using FluentAssertions;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// "Nunca apilar más de 3 visibles simultáneamente" (UX_PATTERNS.md,
-/// "Toasts", P2 #28 de docs/business/MATURITY_REVIEW.md). Servicio de C#
+/// "Nunca apilar más de 3 visibles simultáneamente" (Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md,
+/// "Toasts", P2 #28 de Project-Hydra-Negocio/MATURITY_REVIEW.md). Servicio de C#
 /// puro, sin Blazor de por medio — no hace falta bUnit.
 /// </summary>
 public class ToastServiceTests

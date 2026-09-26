@@ -14,7 +14,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// Sembrado opcional de un segundo tenant — exclusivamente para poder
 /// verificar en desarrollo/E2E que el aislamiento multi-tenant funciona de
 /// extremo a extremo con un navegador real, no solo en tests de integración
-/// (ver PLAN-MIGRACION-MULTITENANT.md § 6, Etapa 5). Apagado por defecto,
+/// (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6, Etapa 5). Apagado por defecto,
 /// mismo principio "inerte por defecto" que <see cref="DatosPruebaSeeder"/>
 /// — nunca se ejecuta salvo que <c>SegundoTenant:Activo</c> sea true.
 /// </summary>
@@ -96,7 +96,7 @@ public static class SegundoTenantSeeder
         // Este usuario pertenece al segundo tenant — el ámbito explícito
         // asegura que tanto las entidades de dominio que este alta pueda
         // escribir como el propio ApplicationUser (AuditoriaInterceptor
-        // también lo audita desde CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12)
+        // también lo audita desde Project-Hydra-Negocio/tecnico/CIERRE-TURNO-NOCTURNO-2026-09-18.md § 12)
         // queden selladas al tenant correcto.
         using (AmbitoTenantExplicito.Establecer(tenantId))
         {

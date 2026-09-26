@@ -4,7 +4,7 @@ namespace CaeManager.E2ETests;
 
 /// <summary>
 /// Cubre la bandeja priorizada del gestor (/bandeja, "Mi trabajo" en el
-/// menú — Horizonte 1.6 de MACRO_PLAN_2026-08-13.md, "bandeja priorizada
+/// menú — Horizonte 1.6 de Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md, "bandeja priorizada
 /// de la mañana") — sin ningún E2E hasta ahora. Reutiliza el mismo patrón
 /// de creación de Cliente→Empresa→Trabajador→Documento de
 /// FlujoCriticoTests para producir un ítem real de tipo "Urgente"

@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Components;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// CODING_STANDARDS.md § "Checklist de seguridad para módulos nuevos", ítem
+/// Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md § "Checklist de seguridad para módulos nuevos", ítem
 /// "Autorización a nivel de página": un escaneo de texto (2026-08-15) encontró
 /// 21 de 52 páginas de CaeManager.Web sin <c>@attribute [Authorize</c> como
 /// substring literal, confiando en apariencia solo en el FallbackPolicy
@@ -61,7 +61,7 @@ public class AutorizacionDePaginasTests
             "toda @page debe declarar @attribute [Authorize] (con o sin Roles=, según a quién esté enlazada desde " +
             "NavMenu.razor) o, si es deliberadamente pública, @attribute [AllowAnonymous] — sin esto, la página " +
             "queda accesible solo por escribir la URL con el único filtro del FallbackPolicy global (autenticación, " +
-            "no rol), el mismo patrón del hallazgo de Comunicaciones (Fase 60, CODING_STANDARDS.md)");
+            "no rol), el mismo patrón del hallazgo de Comunicaciones (Fase 60, Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md)");
     }
 
     /// <summary>

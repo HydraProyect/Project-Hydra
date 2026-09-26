@@ -13,7 +13,7 @@ public record ToastMensaje(Guid Id, string Mensaje, TonoToast Tono, string? Text
 /// <summary>
 /// Servicio scoped (una instancia por circuito de Blazor Server). Los toasts
 /// se autodescartan a los 5s salvo los de error, que exigen descarte manual
-/// (ver UX_PATTERNS.md, "Toasts"). Un toast con acción ("Deshacer", Fase D)
+/// (ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, "Toasts"). Un toast con acción ("Deshacer", Fase D)
 /// vive 8s en vez de 5 — el usuario necesita un instante extra para leer el
 /// mensaje y decidir si actuar, no solo para leerlo y descartarlo.
 /// </summary>
@@ -26,8 +26,8 @@ public class ToastService
     public static readonly TimeSpan DuracionAutoDescarteConAccion = TimeSpan.FromSeconds(8);
 
     /// <summary>
-    /// "Nunca apilar más de 3 visibles simultáneamente" (UX_PATTERNS.md,
-    /// "Toasts", P2 #28 de docs/business/MATURITY_REVIEW.md — la regla ya
+    /// "Nunca apilar más de 3 visibles simultáneamente" (Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md,
+    /// "Toasts", P2 #28 de Project-Hydra-Negocio/MATURITY_REVIEW.md — la regla ya
     /// estaba escrita, esto es lo que la hace cierta).
     /// </summary>
     public const int MaximoVisibles = 3;
@@ -41,7 +41,7 @@ public class ToastService
     public void Mostrar(string mensaje, TonoToast tono = TonoToast.Info, string? textoAccion = null, Func<Task>? onAccion = null)
     {
         // El más antiguo cede el sitio, incluido uno de error: la regla de
-        // UX_PATTERNS.md no hace excepción por tono, y un error silenciado
+        // Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md no hace excepción por tono, y un error silenciado
         // por descarte automático (no ocurre aquí) sería peor que uno
         // desplazado por una acción del propio usuario.
         while (_mensajes.Count >= MaximoVisibles)

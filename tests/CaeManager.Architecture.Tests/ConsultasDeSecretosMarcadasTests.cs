@@ -220,7 +220,7 @@ public class ConsultasDeSecretosMarcadasTests
             .ToList();
 
         string.Join(Environment.NewLine, sinRegistro).Should().BeEmpty(
-            "ARCHITECTURE.md § Datos sensibles: la lectura de una credencial queda registrada en auditoria " +
+            "Project-Hydra-Negocio/tecnico/ARCHITECTURE.md § Datos sensibles: la lectura de una credencial queda registrada en auditoria " +
             "como acceso a dato sensible; un handler sin IRegistroAccesoDatoSensibleService la entrega sin rastro");
     }
 

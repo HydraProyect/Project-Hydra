@@ -78,7 +78,7 @@ BEGIN
         -- Nace NOLOGIN a propósito: un rol recién creado no tiene contraseña,
         -- así que LOGIN no le serviría para conectar y solo anunciaría una
         -- capacidad que no tiene. Habilitarlo es cosa del despliegue, que es
-        -- quien posee el secreto (ver RUNBOOK-RLS.md).
+        -- quien posee el secreto (ver Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md).
         CREATE ROLE cae_app_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
     END IF;
 END $$;
@@ -87,7 +87,7 @@ END $$;
 --
 -- Esta línea llegó a decir NOLOGIN, y era un defecto real con consecuencia
 -- operativa: producción llevaba desde el 2026-08-14 con
--- `ALTER ROLE cae_app_runtime LOGIN PASSWORD '…'` (RUNBOOK-RLS.md), que es
+-- `ALTER ROLE cae_app_runtime LOGIN PASSWORD '…'` (Project-Hydra-Negocio/tecnico/RUNBOOK-RLS.md), que es
 -- justamente lo que hace que RLS restrinja de verdad allí. Este guion se
 -- escribió ocho días después codificando el estado ANTERIOR a esa activación,
 -- así que ejecutarlo contra producción habría retirado el LOGIN y dejado a la

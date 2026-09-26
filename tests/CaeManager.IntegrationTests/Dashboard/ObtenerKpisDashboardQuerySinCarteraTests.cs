@@ -16,7 +16,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Dashboard;
 
 /// <summary>
-/// Sesión 01 H1 / ROADMAP-UX.md Horizonte 1 nº 1: un operador con rol
+/// Sesión 01 H1 / Project-Hydra-Negocio/tecnico/docs/ux-audit/ROADMAP-UX.md Horizonte 1 nº 1: un operador con rol
 /// restringido y cartera vacía (<see cref="IAlcanceDatosService"/> devuelve
 /// lista de Clientes vacía, nunca null) debe recibir <c>SinCarteraAsignada</c>
 /// en vez de un SLA 100% verde sobre cero documentos.

@@ -6,7 +6,7 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// El saneado de ReturnUrl es la defensa contra el open redirect post-login
-/// (MATURITY_REVIEW.md § 5) — estos casos cubren las formas que un navegador
+/// (Project-Hydra-Negocio/MATURITY_REVIEW.md § 5) — estos casos cubren las formas que un navegador
 /// interpreta como salto a otro dominio aunque "parezcan" rutas.
 /// </summary>
 public class RedireccionLocalTests

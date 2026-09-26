@@ -8,7 +8,7 @@ namespace CaeManager.Domain.Cumplimiento;
 /// ni el Tenant beneficiario: coinciden a menudo, no siempre), una
 /// instrucción documentada que cubre el tratamiento de datos personales
 /// mediante IA (DEC-33, REC-035, acta
-/// <c>decisiones/DEC-33-36-lote-D-2026-09-02.md</c> del repositorio de
+/// <c>Project-Hydra-Negocio/tecnico/reconciliacion/decisiones/DEC-33-36-lote-D-2026-09-02.md</c> del repositorio de
 /// negocio).
 ///
 /// <b>Por qué es por tenant y la política técnica no.</b> DEC-33 separa dos
@@ -17,7 +17,7 @@ namespace CaeManager.Domain.Cumplimiento;
 /// el entrenamiento</b> son configuración técnica común de plataforma —
 /// TALVEG elige el proveedor con sus propias credenciales, sin BYOK, y es
 /// idéntica para todo tenant (documentada en
-/// <c>tecnico/docs/POLITICA-TECNICA-IA.md</c> del repositorio de negocio, no
+/// <c>Project-Hydra-Negocio/tecnico/docs/POLITICA-TECNICA-IA.md</c> del repositorio de negocio, no
 /// en código). Lo que varía por tenant no es la técnica: es que TALVEG, como
 /// encargado del tratamiento, solo puede procesar datos personales de un
 /// tenant conforme a instrucciones documentadas de SU responsable — y esa
@@ -39,7 +39,7 @@ namespace CaeManager.Domain.Cumplimiento;
 /// ningún otro tenant, ni un rol restringido, pueda leerlo o escribirlo.
 ///
 /// <b>Se registra desde la plataforma, no la autogestiona el tenant</b> (§
-/// 4.5 de <c>POLITICA-TECNICA-IA.md</c>, mismo criterio de alcance que
+/// 4.5 de <c>Project-Hydra-Negocio/tecnico/docs/POLITICA-TECNICA-IA.md</c>, mismo criterio de alcance que
 /// <c>RegistrarSuscripcionTenantCommand</c>/<c>GenerarClaveApiCommand</c>):
 /// el comando administrativo escribe esta fila sobre el Tenant propietario
 /// elegido usando <c>AmbitoTenantExplicito.Establecer</c>, no la sesión
@@ -57,11 +57,11 @@ public class InstruccionTratamientoIaTenantPropietario : EntidadConTenant
     public const int LongitudMaximaVersion = 20;
     public const int LongitudMaximaMotivoRevocacion = 500;
 
-    /// <summary>Versión de <c>legal/DPA.md</c> aceptada — análogo a <see cref="VersionTerminos.Actual"/>.</summary>
+    /// <summary>Versión de <c>Project-Hydra-Negocio/legal/DPA.md</c> aceptada — análogo a <see cref="VersionTerminos.Actual"/>.</summary>
     public string VersionDpaAceptada { get; private set; } = string.Empty;
 
     /// <summary>
-    /// Versión de la tabla de <c>legal/LISTA_SUBENCARGADOS.md</c> § 3
+    /// Versión de la tabla de <c>Project-Hydra-Negocio/legal/LISTA_SUBENCARGADOS.md</c> § 3
     /// aceptada — incluye, desde HO-035-01, las filas Draft de los tres
     /// proveedores de IA.
     /// </summary>

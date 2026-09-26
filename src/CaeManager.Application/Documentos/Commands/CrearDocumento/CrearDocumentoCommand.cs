@@ -91,7 +91,7 @@ public class CrearDocumentoCommandHandler(
                 "Documento.AmbitoIncorrecto",
                 $"\"{tipoDocumento.Nombre}\" es un tipo de documento de {DescribirAmbito(tipoDocumento.AmbitoAplicacion)}, no de {DescribirAmbito(ambitoSolicitado)}."));
 
-        // Verificación del propietario (P0-1 de docs/business/MATURITY_REVIEW.md):
+        // Verificación del propietario (P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md):
         // sin esto, un Id de otro tenant se persistía sin error, sellado con
         // el tenant actual — hallazgo explícito del comité sobre este mismo
         // handler. El filtro global de EF ya deja "no encontrado" un Id ajeno.
@@ -196,7 +196,7 @@ public class CrearDocumentoCommandHandler(
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Después del commit: este documento puede ser el último que le faltaba al
-        // expediente de una visita pendiente (ARQUITECTURA-INTEGRACIONES.md § 6.5).
+        // expediente de una visita pendiente (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.5).
         await publisher.Publish(new DocumentacionCambiadaEvent(documento.Id), cancellationToken);
 
         return Result.Exito(documento.Id);

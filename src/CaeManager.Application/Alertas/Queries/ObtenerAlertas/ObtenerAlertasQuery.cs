@@ -15,7 +15,7 @@ namespace CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 /// <summary>
 /// Se calcula en vivo sobre Documentos en cada petición, en vez de leer de
 /// una tabla propia sincronizada por un job en segundo plano — una vista
-/// calculada nunca puede desincronizarse del estado real (ver ROADMAP.md).
+/// calculada nunca puede desincronizarse del estado real (ver Project-Hydra-Negocio/tecnico/ROADMAP.md).
 /// El agregado de dominio y la tabla Alertas que existieron para esto se
 /// retiraron (REC-069/DEC-23): nadie los producía ni los consumía, y la
 /// notificación real ya va por <c>NotificacionUsuario</c> y correo. <c>EnvioAlertasVencimientoHostedService</c>
@@ -25,7 +25,7 @@ namespace CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 /// (ver Documento.Ambito) no generan alerta todavía; ampliar esta vista queda
 /// fuera de alcance por ahora.
 ///
-/// P1-15 de docs/business/MATURITY_REVIEW.md añade el segundo bloque:
+/// P1-15 de Project-Hydra-Negocio/MATURITY_REVIEW.md añade el segundo bloque:
 /// "documento faltante" — un Trabajador con Asignación activa a un Centro
 /// que exige (vía TipoDocumentoCentro, o globalmente si un TipoDocumento no
 /// tiene ninguna fila ahí — ver ese comentario) un TipoDocumento marcado

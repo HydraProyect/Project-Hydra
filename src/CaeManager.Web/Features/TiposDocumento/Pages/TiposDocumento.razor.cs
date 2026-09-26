@@ -200,7 +200,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         StateHasChanged();
     }
 
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _tamanoPagina = tamano;

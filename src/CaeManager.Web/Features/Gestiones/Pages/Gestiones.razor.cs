@@ -14,12 +14,12 @@ public partial class Gestiones : ComponentBase
 {
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
-    // H2 (docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
+    // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
 
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     // Una sola petición, por el mismo motivo que RecargarAsync.
     private Task CambiarTamanoPaginaAsync(int tamano)
     {

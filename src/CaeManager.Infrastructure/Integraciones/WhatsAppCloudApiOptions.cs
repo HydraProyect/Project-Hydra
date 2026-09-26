@@ -4,7 +4,7 @@ namespace CaeManager.Infrastructure.Integraciones;
 
 /// <summary>
 /// Credenciales de la app de Meta para WhatsApp Cloud API — globales de
-/// plataforma (docs/MULTITENANCY.md § 7: la configuración de la app es
+/// plataforma (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7: la configuración de la app es
 /// global; la credencial POR LÍNEA es <c>LineaWhatsApp.TokenAcceso</c>,
 /// cifrada en BD por tenant). AppSecret firma cada POST del webhook
 /// (X-Hub-Signature-256, HMAC-SHA256 del cuerpo crudo); VerifyToken es el

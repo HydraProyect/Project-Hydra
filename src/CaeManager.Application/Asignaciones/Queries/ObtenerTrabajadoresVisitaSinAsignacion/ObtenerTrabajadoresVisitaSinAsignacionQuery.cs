@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion;
 
 /// <summary>
-/// "Asignación rápida desde visita" (PLAN-EJECUCION-UX.md § 0.3): trabajadores
+/// "Asignación rápida desde visita" (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.3): trabajadores
 /// que la próxima visita del centro indica que asistirán (<c>VisitaTrabajador</c>,
 /// ya vinculados a un <c>Trabajador</c> real) pero sin Asignación activa en
 /// ese Centro todavía — el aviso que dispara la acción "Asignar" desde el

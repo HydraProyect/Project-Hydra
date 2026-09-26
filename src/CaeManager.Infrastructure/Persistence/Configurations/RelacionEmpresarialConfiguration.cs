@@ -26,7 +26,7 @@ public class RelacionEmpresarialConfiguration : IEntityTypeConfiguration<Relacio
         builder.Property(r => r.CreadoEnUtc).IsRequired();
 
         // Prerequisito de la FK compuesta de EnmarcadaEnId — mismo patrón que
-        // Empresas (P0-1 de docs/business/MATURITY_REVIEW.md).
+        // Empresas (P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
         builder.HasIndex(r => new { r.TenantId, r.Id }).IsUnique();
 
         builder.HasIndex(r => new { r.TenantId, r.ClienteId }).IncludeProperties(r => r.ProveedoraId);

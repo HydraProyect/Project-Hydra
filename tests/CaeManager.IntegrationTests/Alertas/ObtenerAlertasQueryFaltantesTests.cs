@@ -17,7 +17,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Alertas;
 
 /// <summary>
-/// P1-15 de docs/business/MATURITY_REVIEW.md: un Trabajador con Asignación
+/// P1-15 de Project-Hydra-Negocio/MATURITY_REVIEW.md: un Trabajador con Asignación
 /// activa a un Centro que exige un TipoDocumento obligatorio, sin ningún
 /// Documento de ese tipo, no aparecía en ningún sitio — ni "Vencido" (no hay
 /// fila que evaluar) ni "SinCaducidad" (ese estado es para Documentos existentes

@@ -1,7 +1,7 @@
 namespace CaeManager.Domain.Documentos;
 
 /// <summary>
-/// Causa tipificada de un rechazo en plataforma (docs/ux-audit/PLAN-EJECUCION-UX.md
+/// Causa tipificada de un rechazo en plataforma (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
 /// § Parte 2 (b)) — obligatoria junto al motivo literal de la plataforma
 /// siempre que <see cref="AcreditacionDocumentoPlataforma.Estado"/> pasa a
 /// <see cref="EstadoAcreditacion.Rechazada"/>. Alimenta la futura query de

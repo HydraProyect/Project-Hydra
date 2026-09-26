@@ -24,7 +24,7 @@ public partial class Centros : ComponentBase
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
 
-    // QuickGrid no soporta filas expandibles (Centro 360, PLAN-EJECUCION-UX.md
+    // QuickGrid no soporta filas expandibles (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     // § 0.1): cada Centro es una tarjeta con SeccionColapsable anidada, así
     // que la paginación se gestiona a mano en vez de con QuickGrid+Paginator
     // — la Query sigue paginando en servidor, solo cambia el control visual
@@ -127,7 +127,7 @@ public partial class Centros : ComponentBase
 
     /// <summary>
     /// Drill-down desde el desplegable de Centros con actividad de una
-    /// Empresa (Centro 360, PLAN-EJECUCION-UX.md § 0.11) — filtro exacto por
+    /// Empresa (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.11) — filtro exacto por
     /// Id, no reutiliza <c>q</c> (texto libre) porque un nombre parecido
     /// entre Centros distintos haría el prefiltro ambiguo.
     /// </summary>
@@ -166,7 +166,7 @@ public partial class Centros : ComponentBase
     /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
     /// compartir la URL, volver atrás) — no solo en el primer render — para
     /// que el filtro de la URL sea la fuente de verdad, no solo su semilla
-    /// inicial (P1-18 de docs/business/MATURITY_REVIEW.md). El primer paso
+    /// inicial (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md). El primer paso
     /// (justo después de OnInitializedAsync) siempre coincide con lo que ya
     /// se cargó ahí, así que esto no duplica la primera consulta.
     /// </summary>
@@ -271,7 +271,7 @@ public partial class Centros : ComponentBase
         return CargarAsync();
     }
 
-    // H5 (docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
+    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _tamanoPagina = tamano;
@@ -481,8 +481,8 @@ public partial class Centros : ComponentBase
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
 
     /// <summary>
-    /// Validación inline al salir del campo (UX_PATTERNS.md, P1-18 de
-    /// docs/business/MATURITY_REVIEW.md) — hasta ahora el error de "nombre
+    /// Validación inline al salir del campo (Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, P1-18 de
+    /// Project-Hydra-Negocio/MATURITY_REVIEW.md) — hasta ahora el error de "nombre
     /// obligatorio" solo aparecía tras el viaje de ida y vuelta al servidor
     /// en Guardar. Valida solo <see cref="CrearCentroCommand.Nombre"/> con
     /// el mismo validador que ya corre al guardar — el resto del formulario
@@ -506,7 +506,7 @@ public partial class Centros : ComponentBase
         _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
 
     /// <summary>
-    /// Apagar el modo limpia la selección (PLAN-EJECUCION-UX.md § 0.9):
+    /// Apagar el modo limpia la selección (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9):
     /// dejar filas marcadas que ya no se ven dejaría la barra de acciones en
     /// lote apuntando a algo invisible.
     /// </summary>

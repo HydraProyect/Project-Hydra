@@ -7,7 +7,7 @@ using MediatR;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// Horizonte 2.5 (MACRO_PLAN_2026-08-13.md § 2.5, regla 1): el código está
+/// Horizonte 2.5 (Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md § 2.5, regla 1): el código está
 /// organizado por feature bajo <c>src/CaeManager.Application/&lt;Feature&gt;/</c>,
 /// cada una dueña en principio de sus propias interfaces de persistencia
 /// (<c>I*QueryContext</c> del lado de lectura en Application, <c>I*Repository</c>
@@ -197,8 +197,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.ObtenerSubcontrataPorIdQueryHandler", "IEmpresasQueryContext"),
         // F3b-Subcontrata (revisión adversaria, 2026-08-26): adelantadas por
         // evidencia real, no por reclasificación — ver
-        // f3b-subcontrata-obtenersubcontratasquery-adelantada-2026-08-26.md
-        // y f3b-subcontrata-selector-adelantado-2026-08-26.md.
+        // Project-Hydra-Negocio/tecnico/f3b-subcontrata-obtenersubcontratasquery-adelantada-2026-08-26.md
+        // y Project-Hydra-Negocio/tecnico/f3b-subcontrata-selector-adelantado-2026-08-26.md.
         ("Subcontratas.ObtenerSubcontratasQueryHandler", "IEmpresasQueryContext"),
         ("Subcontratas.ObtenerSubcontratasParaSelectorQueryHandler", "IEmpresasQueryContext"),
         // Comercial (Horizonte 1.7, "Billing mínimo viable") opera
@@ -321,7 +321,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.EliminarDocumentosCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionAceptadaCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionRechazadaCommandHandler", "IProyectosQueryContext"),
-        // MVP2 § 14.5 (kill switch remoto, ver ARQUITECTURA-INTEGRACIONES.md en
+        // MVP2 § 14.5 (kill switch remoto, ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md en
         // el repositorio de negocio): ExigirProveedorActivo necesita resolver
         // el proveedor del canal de la acreditación (ICentrosQueryContext) y
         // comprobar su Activo (IProveedoresPlataformaCaeQueryContext), solo
@@ -680,7 +680,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // en rojo: el asistente de alta guiada crea un Cliente y lo vincula
         // en la misma sesión vía este selector; congelado, el selector nunca
         // lo encontraba). Las otras 5 consultas de D2 §3 siguen intactas —
-        // ver f3b-selectores-adelantados-2026-08-26.md.
+        // ver Project-Hydra-Negocio/tecnico/f3b-selectores-adelantados-2026-08-26.md.
         ("Clientes.ObtenerClientesParaSelectorQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ObtenerClientePorIdQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ObtenerResumenClienteQueryHandler", "IEmpresasQueryContext"),

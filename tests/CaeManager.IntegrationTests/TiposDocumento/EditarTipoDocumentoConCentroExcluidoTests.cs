@@ -24,7 +24,7 @@ namespace CaeManager.IntegrationTests.TiposDocumento;
 /// capturar (500), y la pantalla no lo sabía ni lo avisaba.
 ///
 /// <para>
-/// Contrato fijado tras revisar quién crea las exclusiones (tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
+/// Contrato fijado tras revisar quién crea las exclusiones (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
 /// § 0.4): <c>TipoDocumentoCentro.Incluido</c> es UNA fila explícita por par, con "la fila
 /// explícita manda" sobre el valor general — no dos flujos que compiten por filas separadas.
 /// Marcar aquí un Centro ya excluido es una acción tan explícita como la exclusión original:

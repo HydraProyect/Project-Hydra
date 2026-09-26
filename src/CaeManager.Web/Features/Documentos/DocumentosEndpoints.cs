@@ -13,7 +13,7 @@ namespace CaeManager.Web.Features.Documentos;
 /// <summary>
 /// Sirve el PDF adjunto de un Documento vía un endpoint autenticado — nunca
 /// como archivo estático público, precisamente porque IFileStorageService
-/// guarda fuera de wwwroot (ver ARCHITECTURE.md, "Archivos").
+/// guarda fuera de wwwroot (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Archivos").
 /// </summary>
 public static class DocumentosEndpoints
 {

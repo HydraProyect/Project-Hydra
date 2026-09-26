@@ -12,7 +12,7 @@ namespace CaeManager.Application.VigilanciaNormativa.Commands.MarcarAvisoRevisio
 /// de Plataforma TALVEG — <c>PuedeGlobalmenteAsync</c>, el mismo predicado que
 /// <c>EsAdministradorPlataformaQuery</c> — porque revisar es decidir si una
 /// publicación del BOE afecta al catálogo de formatos
-/// (CATALOGO_FORMATOS_PRL.md), que mantiene TALVEG, no un tenant. Un tenant
+/// (Project-Hydra-Negocio/CATALOGO_FORMATOS_PRL.md), que mantiene TALVEG, no un tenant. Un tenant
 /// beneficiario lee el aviso (DEC-8) pero no puede resolverlo: la
 /// distinción de audiencia vive aquí, no en la lectura.
 /// </summary>
