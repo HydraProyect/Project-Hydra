@@ -230,20 +230,22 @@ public class CurrentUserService(
         if (await ObtenerTenantOrigenIdAsync() is not { } tenantOrigenId) return null;
 
         var operaciones = serviceProvider.GetRequiredService<IOperacionesQueryContext>();
-        var candidatas = TenantsBeneficiariosAutorizados
-            .CarterasPorOperacion(operaciones, usuarioId, tenantOrigenId, DateTime.UtcNow)
-            .Where(v => v.Operacion.PropietarioTenantId == tenantId
-                        && v.Cartera.Rol != null && RolesDelegables.Contains(v.Cartera.Rol));
+        var ahora = DateTime.UtcNow;
 
-        candidatas = asignacionOperacionId is { } operacionId
-            ? candidatas.Where(v => v.Operacion.Id == operacionId)
-            : candidatas.Where(v => v.Operacion.Id == candidatas
-                .OrderByDescending(o => o.Operacion.VigenciaDesde)
-                .ThenBy(o => o.Operacion.Id)
-                .Select(o => o.Operacion.Id)
-                .First());
+        // Sin operación en el token (fan-out), la misma que embebería el POST.
+        // Dos consultas a propósito: componer la elección dentro de la misma
+        // expresión que se filtra creaba una expresión autorreferente que
+        // desbordaba la pila del funcletizador de EF.
+        var operacionId = asignacionOperacionId
+            ?? await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
+                operaciones, usuarioId, tenantOrigenId, tenantId, ahora, CancellationToken.None);
+        if (operacionId is null) return null;
 
-        return await candidatas
+        return await TenantsBeneficiariosAutorizados
+            .CarterasPorOperacion(operaciones, usuarioId, tenantOrigenId, ahora)
+            .Where(v => v.Operacion.Id == operacionId.Value
+                        && v.Operacion.PropietarioTenantId == tenantId
+                        && v.Cartera.Rol != null && RolesDelegables.Contains(v.Cartera.Rol))
             .OrderBy(v => v.Cartera.AmbitoRelacionClienteId == null ? 0 : 1)
             .ThenBy(v => v.Cartera.Id)
             .Select(v => v.Cartera.Rol)
