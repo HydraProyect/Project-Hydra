@@ -267,6 +267,14 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // lock de elección de líder se perdía a mitad de un lote.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/TrabajoAnalisisDocumentoRepository.cs", ".FromSqlInterpolated($\"\"\"")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/Repositories/EventoWebhookRepository.cs", ".FromSqlInterpolated($\"\"\"")] = 1,
+
+        // Una verificación IA que llega tarde no pisa una decisión manual:
+        // la comprobación y la escritura van en una transacción que bloquea
+        // con FOR UPDATE la fila del Documento y las de sus revisiones, y EF
+        // no expresa FOR UPDATE. Repite a mano el Tenant propietario y el
+        // soft delete del filtro global; valores parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/TransaccionDocumentoBloqueado.cs", "var versiones = await dbContext.Database.SqlQuery<Guid>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/TransaccionDocumentoBloqueado.cs", "await dbContext.Database.SqlQuery<int>($\"\"\"")] = 1,
     };
 
     /// <summary>
