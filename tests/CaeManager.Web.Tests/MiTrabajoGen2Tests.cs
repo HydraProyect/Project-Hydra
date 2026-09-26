@@ -483,6 +483,8 @@ public class MiTrabajoGen2Tests : BunitContext
         fila.QuerySelector(".mi-trabajo-cartera-total")!.TextContent.Trim().Should().Be("—");
         cut.Find(".mi-trabajo-cartera-incompleta").TextContent.Should()
             .Contain("Cartera incompleta").And.Contain("1 empresa no ha respondido");
+        cut.Find(".mi-trabajo-cartera-avatar-todo").ParentElement!.QuerySelector(".mi-trabajo-cartera-sub")!.TextContent.Trim()
+            .Should().Be("1 empresa consultada", "la que falló no se consultó (revisión Codex)");
         cut.Markup.Should().NotContain("No pudimos consultar tu cartera");
     }
 

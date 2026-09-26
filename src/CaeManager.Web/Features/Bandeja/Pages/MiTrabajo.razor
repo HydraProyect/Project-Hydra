@@ -88,7 +88,7 @@
                     <span class="mi-trabajo-cartera-avatar mi-trabajo-cartera-avatar-todo" aria-hidden="true">∑</span>
                     <span class="mi-trabajo-cartera-texto">
                         <span class="mi-trabajo-cartera-nombre">@Textos["TodaMiCartera"]</span>
-                        <span class="mi-trabajo-cartera-sub">@EmpresasConsultadas(_vista.Cartera.Count)</span>
+                        <span class="mi-trabajo-cartera-sub">@EmpresasConsultadas(_vista.Cartera.Count - _vista.NoConsultados)</span>
                     </span>
                     <span class="mi-trabajo-cartera-total">@_vista.TotalCartera</span>
                 </button>
