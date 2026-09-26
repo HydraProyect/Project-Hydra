@@ -256,6 +256,13 @@ public class ParticionadoAuditoriaBajoRuntimeTests
         await using var mantenimiento = new NpgsqlConnection(arnes.CadenaPropietario);
         await mantenimiento.OpenAsync();
 
+        // Todos los meses anteriores ya existen: el de la escritura concurrente
+        // tiene que ser el PRIMERO que la función crea. Si no, la función espera
+        // al crear un mes anterior, la escritura confirma mientras tanto y el
+        // DELETE posterior ya la ve: la carrera no se abre y el test pasaría sin
+        // el LOCK (medido por mutación).
+        await AsegurarAsync(mantenimiento, 7);
+
         var fecha = DateTime.UtcNow.AddMonths(8);
         var previa = Guid.NewGuid();
         var concurrente = Guid.NewGuid();
