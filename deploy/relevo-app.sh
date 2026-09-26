@@ -312,7 +312,12 @@ desplegar() {
     if [ -n "$activa_" ] && sana "$activa_" && [[ $'\n'"$previas"$'\n' == *$'\n'"$cont_nueva"$'\n'* ]]; then
         escribir_ranuras "$entorno" "$activa_" \
             $(printf '%s\n' "$previas" | grep -vx -- "$cont_nueva" | awk 'NR == 1')
-        recargar_caddy "$entorno" || echo "::warning::no se pudo recargar Caddy al sacar $cont_nueva, que se va a recrear; la cookie vieja reintentará en la activa."
+        # Con el aprobado, no con el del checkout: esta recarga solo cambia
+        # las ranuras. Si aplicara aquí el Caddyfile nuevo y luego fallara el
+        # up, Caddy quedaría con un Caddyfile que el aprobado no refleja
+        # (revisión de Codex, pasada 3). El nuevo entra solo en la
+        # conmutación, que sí restaura si algo falla.
+        recargar_caddy || echo "::warning::no se pudo recargar Caddy al sacar $cont_nueva, que se va a recrear; la cookie vieja reintentará en la activa."
     fi
 
     cd "$RAIZ_DESPLIEGUE/deploy/local"

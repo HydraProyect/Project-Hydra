@@ -321,6 +321,14 @@ relevo RECARGA_FALLA=1 -- desplegar produccion "$B"
 comprobar "si Caddy rechaza la conmutación, la saliente anterior sigue en marcha y el fichero vuelve a estar como antes" \
   "1 true to caemanager-app-azul:8080 caemanager-app:8080" "$codigo $(en_marcha caemanager-app) $(ranuras produccion)"
 
+limpio; contenedor caemanager-app-verde "$B"; contenedor caemanager-app-azul "$A"
+fichero produccion "to caemanager-app-verde:8080 caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+printf '# MARCA_APROBADO\n' > "$DIR_RANURAS/Caddyfile.aprobado"
+relevo COMPOSE_FALLA=1 -- desplegar produccion "$C"
+comprobar "sacar la ranura libre antes del up recarga el APROBADO; si el up falla, el aprobado no cambia" \
+  "1 FUENTE MARCA_APROBADO 0 1" \
+  "$codigo $(grep '^FUENTE' "$LOG" | sort -u | tr '\n' ' ' | sed 's/ $//') $(grep -c 'MARCA_CHECKOUT' "$DIR_RANURAS/Caddyfile.aprobado") $(grep -c 'MARCA_APROBADO' "$DIR_RANURAS/Caddyfile.aprobado")"
+
 echo "fallos que antes acababan en éxito (errexit no actúa a la izquierda de || y &&)"
 limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
 relevo SYSTEMD_FALLA=1 -- desplegar produccion "$B"
