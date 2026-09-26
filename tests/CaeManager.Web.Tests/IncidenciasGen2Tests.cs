@@ -569,4 +569,66 @@ public class IncidenciasGen2Tests : BunitContext
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
             "el total no se mueve: la única consulta que cabe contar es la del tamaño nuevo");
     }
+
+    // --- P1-E2b: aviso de cambios sin guardar -------------------------------------------------
+
+    private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
+
+    private async Task<(IRenderedComponent<Incidencias> Cut, MediadorControlado Mediador)> AbrirEdicionDeAlfaAsync()
+    {
+        var mediador = new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa")] };
+        mediador.Detalles[IdAlfa] = Detalle(IdAlfa, "Centro Alfa", VersionAlfa, "Caída en la nave");
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Alfa"));
+        await cut.FindAll(".menu-acciones-disparador")[0].ClickAsync(new());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new());
+        cut.Find(".drawer-panel textarea").TextContent.Should().Be("Caída en la nave",
+            "el test necesita la edición abierta con los datos cargados");
+        return (cut, mediador);
+    }
+
+    [Fact]
+    public async Task Aviso_la_edicion_recien_cargada_no_pregunta_al_salir()
+    {
+        var (cut, _) = await AbrirEdicionDeAlfaAsync();
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "los datos cargados de la incidencia no son un cambio");
+    }
+
+    [Fact]
+    public async Task Aviso_la_edicion_con_la_descripcion_cambiada_pregunta_al_salir()
+    {
+        var (cut, _) = await AbrirEdicionDeAlfaAsync();
+
+        await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Caída en la nave 2" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
+    [Fact]
+    public async Task Aviso_guardar_la_edicion_deja_salir_sin_preguntar()
+    {
+        var (cut, mediador) = await AbrirEdicionDeAlfaAsync();
+        await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Caída en la nave 2" });
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new());
+
+        mediador.Peticiones.OfType<EditarIncidenciaCommand>().Should().ContainSingle("el caso solo vale si se guardó");
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "lo escrito ya está guardado");
+    }
+
+    [Fact]
+    public async Task Aviso_el_alta_con_la_fecha_de_hoy_puesta_no_pregunta_y_con_descripcion_si()
+    {
+        var cut = Renderizar(new MediadorControlado());
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nueva incidencia").ClickAsync(new());
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+
+        await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Andamio sin barandilla" });
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+
+        await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "" });
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "vaciar la descripción deja el alta como se abrió, con la fecha de hoy");
+    }
 }

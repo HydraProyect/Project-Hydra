@@ -1126,4 +1126,131 @@ public class TrabajadoresListaGen2Tests : BunitContext
             "el caso solo vale si el superviviente iba en el lote");
         workspace.EstaAbierto.Should().BeTrue("Bea no cayó: su ficha no está muerta");
     }
+
+    // --- P1-E2b: aviso de cambios sin guardar -------------------------------------------------
+
+    /// <summary>Destino de salida distinto de la propia página: /trabajadores es el origen.</summary>
+    private const string DestinoFueraDeTrabajadores = "/empresas";
+
+    private async Task SalirYComprobarQuePreguntaAsync(IRenderedComponent<Trabajadores> cut)
+    {
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var origen = navegacion.Uri;
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo(DestinoFueraDeTrabajadores));
+
+        navegacion.Uri.Should().Be(origen, "con el formulario a medias la navegación se detiene");
+        cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Salir y descartar");
+    }
+
+    private async Task SalirYComprobarQueNoPreguntaAsync(IRenderedComponent<Trabajadores> cut, string porque)
+    {
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo(DestinoFueraDeTrabajadores));
+
+        navegacion.Uri.Should().EndWith(DestinoFueraDeTrabajadores, porque);
+        cut.FindAll(".modal-pie button").Should().NotContain(b => b.TextContent.Trim() == "Salir y descartar");
+    }
+
+    private static async Task AbrirAltaAsync(IRenderedComponent<Trabajadores> cut)
+    {
+        await cut.Find("header.cabecera-pagina .acciones-cabecera").QuerySelectorAll("button")
+            .Single(b => b.TextContent.Trim() == "+ Nuevo trabajador").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+    }
+
+    private static Task EscribirDocumentoAsync(IRenderedComponent<Trabajadores> cut, string documento) =>
+        cut.FindComponents<CampoTexto>()
+            .Single(c => c.Instance.Etiqueta == "Documento de identidad (DNI, NIE, TIE o pasaporte)")
+            .Find("input").InputAsync(new ChangeEventArgs { Value = documento });
+
+    [Fact]
+    public async Task Aviso_salir_con_el_alta_de_trabajador_a_medias_pregunta()
+    {
+        var cut = Renderizar(new MediatorFalso());
+        await AbrirAltaAsync(cut);
+
+        await EscribirDocumentoAsync(cut, "12345678Z");
+
+        await SalirYComprobarQuePreguntaAsync(cut);
+    }
+
+    [Fact]
+    public async Task Aviso_el_alta_sin_tocar_con_la_Empresa_del_filtro_preseleccionada_no_pregunta()
+    {
+        var cut = Renderizar(new MediatorFalso());
+        await SelectDeLaBarra(cut, "Empresa").ChangeAsync(new ChangeEventArgs { Value = EmpresaEbro.ToString() });
+        await AbrirAltaAsync(cut);
+        cut.Find(".drawer-panel select").GetAttribute("value").Should().Be(EmpresaEbro.ToString(),
+            "el test necesita que la Empresa llegue preseleccionada desde el filtro");
+
+        await SalirYComprobarQueNoPreguntaAsync(cut, "lo que la pantalla preselecciona no es un cambio de quien edita");
+    }
+
+    [Fact]
+    public async Task Aviso_el_nombre_que_trae_la_URL_no_es_un_cambio()
+    {
+        var cut = Renderizar(new MediatorFalso(), "trabajadores?accion=crear&nombre=Javier");
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+        cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Javier",
+            "el test necesita que el nombre llegue precargado por la URL");
+
+        await SalirYComprobarQueNoPreguntaAsync(cut, "lo que trae la URL no es un cambio de quien edita");
+    }
+
+    [Fact]
+    public async Task Aviso_guardar_el_alta_deja_salir_sin_preguntar()
+    {
+        var mediador = new MediatorFalso();
+        var cut = Renderizar(mediador);
+        await AbrirAltaAsync(cut);
+        await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = EmpresaEbro.ToString() });
+        await EscribirDocumentoAsync(cut, "12345678Z");
+
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<CrearTrabajadorCommand>().Should().ContainSingle("el caso solo vale si el alta se guardó");
+        await SalirYComprobarQueNoPreguntaAsync(cut, "lo escrito ya está guardado");
+    }
+
+    [Fact]
+    public async Task Aviso_asignar_a_centro_con_la_fecha_de_hoy_puesta_no_pregunta_y_al_cambiarla_si()
+    {
+        var bea = Trabajador("Bea", "Alonso");
+        var cut = Renderizar(new MediatorFalso { Almacen = { bea } });
+        await AbrirAsignarACentro(cut, bea);
+        var fecha = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de alta");
+        fecha.Instance.Valor.Should().NotBeNullOrEmpty("el test necesita la fecha de alta de hoy ya puesta");
+
+        await fecha.Find("input").InputAsync(new ChangeEventArgs { Value = "2020-01-01" });
+
+        await SalirYComprobarQuePreguntaAsync(cut);
+    }
+
+    [Fact]
+    public async Task Aviso_asignar_a_centro_recien_abierto_no_pregunta()
+    {
+        var bea = Trabajador("Bea", "Alonso");
+        var cut = Renderizar(new MediatorFalso { Almacen = { bea } });
+        await AbrirAsignarACentro(cut, bea);
+        cut.FindAll("[role=dialog]").Should().NotBeEmpty("el test necesita el diálogo abierto");
+
+        await SalirYComprobarQueNoPreguntaAsync(cut, "la fecha de alta de hoy viene puesta: no es un cambio");
+    }
+
+    [Fact]
+    public async Task Aviso_guardar_filtro_con_nombre_escrito_pregunta_y_cancelado_no()
+    {
+        var cut = Renderizar(new MediatorFalso());
+        await BotonDeLaBarra(cut, "Guardar filtro").ClickAsync(new MouseEventArgs());
+        await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre" && c.Instance.Placeholder != null)
+            .Find("input").InputAsync(new ChangeEventArgs { Value = "Mis urgentes" });
+
+        await SalirYComprobarQuePreguntaAsync(cut);
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        await SalirYComprobarQueNoPreguntaAsync(cut, "cancelar descarta el nombre a propósito");
+    }
 }

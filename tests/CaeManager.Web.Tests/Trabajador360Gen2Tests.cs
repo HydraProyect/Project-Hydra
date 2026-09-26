@@ -979,4 +979,82 @@ public class Trabajador360Gen2Tests : BunitContext
         mediador.Enviadas.OfType<DarDeBajaAsignacionesCommand>().Should().ContainSingle(
             "la guarda de reentrada impide que el segundo evento mande otra baja");
     }
+
+    // --- P1-E2b: aviso de cambios sin guardar -------------------------------------------------
+
+    private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
+
+    [Fact]
+    public async Task Aviso_crear_gestion_con_un_tipo_elegido_pregunta_al_salir()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        var tipo = Guid.NewGuid();
+        mediador.Tipos.Add(Tipo(tipo, "Formación PRL — 20 h", RequisitoDocumental.Si));
+        var cut = Renderizar(id);
+        await AbrirModalCrearGestionAsync(cut);
+
+        await cut.Find(".modal-contenido select").ChangeAsync(new ChangeEventArgs { Value = tipo.ToString() });
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
+    [Fact]
+    public async Task Aviso_crear_gestion_recien_abierta_no_pregunta_al_salir()
+    {
+        var id = Guid.NewGuid();
+        ConTrabajador(id);
+        var cut = Renderizar(id);
+        await AbrirModalCrearGestionAsync(cut);
+        cut.FindAll(".modal-contenido").Should().ContainSingle("el test necesita la modal abierta");
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "sin tipo elegido no hay nada que perder");
+    }
+
+    private MediatorFalso ConDosClientesEmpresarialesQueReclamar(Guid id)
+    {
+        var mediador = ConTrabajador(id);
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Vencido, Documento("Formación PRL — 20 h", EstadoDocumento.Vencido)),
+            Centro("Nave Berriz", "Talleres Berriz Coop.", EstadoDocumento.Vencido, Documento("Reconocimiento médico", EstadoDocumento.Vencido)),
+        ];
+        return mediador;
+    }
+
+    private static async Task AbrirModalReclamarAsync(IRenderedComponent<TrabajadorDetalle> cut)
+    {
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
+            .ClickAsync(new MouseEventArgs());
+        cut.FindAll(".reclamacion-destinatarios input[type=checkbox]").Should().HaveCount(2,
+            "el test necesita la modal con dos Clientes empresariales");
+    }
+
+    [Fact]
+    public async Task Aviso_reclamar_con_todos_los_Clientes_empresariales_marcados_de_partida_no_pregunta()
+    {
+        var id = Guid.NewGuid();
+        ConDosClientesEmpresarialesQueReclamar(id);
+        var cut = Renderizar(id);
+        await AbrirModalReclamarAsync(cut);
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "las casillas marcadas de partida no son un cambio");
+    }
+
+    [Fact]
+    public async Task Aviso_reclamar_con_una_casilla_desmarcada_pregunta_y_volver_a_marcarla_no()
+    {
+        var id = Guid.NewGuid();
+        ConDosClientesEmpresarialesQueReclamar(id);
+        var cut = Renderizar(id);
+        await AbrirModalReclamarAsync(cut);
+
+        await cut.FindAll(".reclamacion-destinatarios input[type=checkbox]")[0].ChangeAsync(new ChangeEventArgs { Value = false });
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+
+        await cut.FindAll(".reclamacion-destinatarios input[type=checkbox]")[0].ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "volver a marcarla deja la modal como se abrió");
+    }
 }

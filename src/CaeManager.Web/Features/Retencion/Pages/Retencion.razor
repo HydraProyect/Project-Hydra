@@ -177,7 +177,7 @@
     }
 </div>
 
-<Modal Visible="_aProgramar is not null" VisibleChanged="v => { if (!v) _aProgramar = null; }"
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_aProgramar is not null" VisibleChanged="v => { if (!v) _aProgramar = null; }"
        Titulo="Autorizar la destrucción" CerrarAlHacerClicFuera="!_procesando">
     <ChildContent>
         @if (_aProgramar is not null)
@@ -205,7 +205,7 @@
     </Pie>
 </Modal>
 
-<Modal Visible="_aCancelar is not null" VisibleChanged="v => { if (!v) _aCancelar = null; }"
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_aCancelar is not null" VisibleChanged="v => { if (!v) _aCancelar = null; }"
        Titulo="Descartar la propuesta" CerrarAlHacerClicFuera="!_procesando">
     <ChildContent>
         <p class="aviso-purga">La propuesta se archiva y esos datos se conservan. Puede volver a proponerse en un barrido posterior.</p>
@@ -231,4 +231,6 @@
                      TextoBotonConfirmar="Destruir definitivamente"
                      EnProgreso="_procesando"
                      OnConfirmar="EjecutarAsync" />
+
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
 </LimiteDeErrores>

@@ -346,6 +346,7 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
         _mensajeErrorFormulario = null;
         _guardando = false;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
     }
 
     private async Task AbrirEditarAsync(Guid id)
@@ -377,6 +378,27 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
         _mensajeErrorFormulario = null;
         _guardando = false;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
+    }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de alta y
+    /// edición de Incidencia comparado con cómo se abrió (la fecha de hoy del alta o los
+    /// datos cargados de la edición no son cambios). Lo lee AvisoCambiosSinGuardar;
+    /// cerrado (también tras guardar) nunca hay nada que perder.
+    /// </summary>
+    private bool HayCambiosSinGuardar => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+
+    private object?[] ValoresFormulario() => [_centroId, _trabajadorId, _tipo, _gravedad, _fechaOcurrencia, _descripcion];
+
+    private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
+
+    private void CerrarFormularioDescartando()
+    {
+        _drawerVisible = false;
+        _generacionFormulario++;
     }
 
     private Task CerrarDrawerAsync(bool visible)
