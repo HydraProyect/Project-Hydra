@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
@@ -36,14 +37,25 @@ namespace CaeManager.IntegrationTests.Integraciones;
 /// </summary>
 public class CorregirBackfillReclamacionBuzonIntegracionBajoRlsTests : IAsyncLifetime
 {
-    private const string MigracionAntesDeLaCorreccion = "RetirarDniDeRecientesDeTrabajador";
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
+    /// <summary>
+    /// Se aplica todo el esquema salvo la propia corrección. El punto de parada
+    /// se calcula (la migración inmediatamente anterior) en vez de fijarse por
+    /// nombre: el modelo runtime que siembra las entidades exige las columnas
+    /// de cualquier migración posterior a ese punto, y un nombre fijo dio
+    /// <c>42703</c> en CI en cuanto main añadió una columna a <c>Tenants</c>.
+    /// </summary>
     public async Task InitializeAsync()
     {
         await using var contexto = CrearContexto(Guid.NewGuid());
+        var migraciones = contexto.Database.GetMigrations().ToList();
+        var indiceCorreccion = migraciones.FindIndex(
+            m => m.EndsWith("_" + nameof(CorregirBackfillReclamacionBuzonIntegracionBajoRls), StringComparison.Ordinal));
+        indiceCorreccion.Should().BePositive("la corrección tiene que estar en el ensamblado de migraciones");
+
         var migrador = contexto.GetInfrastructure().GetRequiredService<IMigrator>();
-        await migrador.MigrateAsync(MigracionAntesDeLaCorreccion);
+        await migrador.MigrateAsync(migraciones[indiceCorreccion - 1]);
     }
 
     public async Task DisposeAsync() => await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
@@ -159,6 +171,94 @@ public class CorregirBackfillReclamacionBuzonIntegracionBajoRlsTests : IAsyncLif
         reclamaciones.Single().TenantPropietarioId.Should().Be(
             tenantAntiguo,
             "el desempate por fecha debe seguir siendo global entre Tenants, no depender del orden de recorrido del bucle");
+    }
+
+    /// <summary>
+    /// Producción: el backfill original ya corrió con un rol sujeto a RLS. Aquí
+    /// se ejecuta su propio SQL (leído de la migración, no copiado) con el rol
+    /// runtime para fijar la premisa de la corrección —cero filas— y se
+    /// comprueba que la corrección, aplicada encima, sí reclama los buzones.
+    /// </summary>
+    [Fact]
+    public async Task Donde_el_backfill_original_corrio_bajo_rls_no_inserto_nada_y_la_correccion_si_reclama()
+    {
+        var (conexionAId, conexionBId) = await SembrarDosTenantsConConexionAsync();
+        await LimpiarReclamacionesAsync();
+
+        await EjecutarSqlAsync(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion), SqlBackfillOriginal());
+        (await LeerReclamacionesAsync()).Should().BeEmpty(
+            "bajo RLS y sin app.tenant_id el SELECT del backfill original no ve ninguna conexión");
+
+        await EjecutarCorreccionComoRuntimeAsync();
+
+        (await LeerReclamacionesAsync()).Select(r => r.ConexionIntegracionId)
+            .Should().BeEquivalentTo([conexionAId, conexionBId]);
+    }
+
+    /// <summary>
+    /// Donde el backfill original sí insertó (rol que ignora RLS, como el
+    /// superusuario de desarrollo), la corrección no duplica ni altera nada,
+    /// ni la primera vez ni en un reintento.
+    /// </summary>
+    [Fact]
+    public async Task La_correccion_es_idempotente_donde_el_backfill_original_ya_inserto()
+    {
+        await SembrarDosTenantsConConexionAsync();
+        await LimpiarReclamacionesAsync();
+
+        await EjecutarSqlAsync(_cadenaConexion, SqlBackfillOriginal());
+        var antes = await LeerReclamacionesAsync();
+        antes.Should().HaveCount(2, "el superusuario ignora RLS y el backfill original sí inserta");
+
+        await EjecutarCorreccionComoRuntimeAsync();
+        await EjecutarCorreccionComoRuntimeAsync();
+
+        (await LeerReclamacionesAsync()).Should().BeEquivalentTo(antes);
+    }
+
+    private static string SqlBackfillOriginal() =>
+        new BackfillReclamacionBuzonIntegracionDesdeConexionesExistentes()
+            .UpOperations.OfType<SqlOperation>().Single().Sql;
+
+    private async Task<(Guid ConexionA, Guid ConexionB)> SembrarDosTenantsConConexionAsync()
+    {
+        var tenants = new List<Guid>();
+        foreach (var nombre in new[] { "Tenant A de prueba", "Tenant B de prueba" })
+        {
+            await using var contexto = CrearContexto(Guid.NewGuid());
+            var tenant = new Tenant(nombre);
+            contexto.Tenants.Add(tenant);
+            await contexto.SaveChangesAsync();
+            tenants.Add(tenant.Id);
+        }
+
+        var conexiones = new List<Guid>();
+        foreach (var (tenantId, buzon) in new[] { (tenants[0], "cae@arcosspa.example"), (tenants[1], "otro@refrielectric.example") })
+        {
+            await using var contexto = CrearContexto(tenantId);
+            var conexion = new ConexionIntegracion(buzon, "Buzón preexistente");
+            contexto.ConexionesIntegracion.Add(conexion);
+            await contexto.SaveChangesAsync();
+            conexiones.Add(conexion.Id);
+        }
+
+        return (conexiones[0], conexiones[1]);
+    }
+
+    private async Task<List<(Guid Id, string BuzonEmail, Guid TenantPropietarioId, Guid ConexionIntegracionId)>> LeerReclamacionesAsync()
+    {
+        await using var verificacion = CrearContexto(Guid.NewGuid());
+        return (await verificacion.ReclamacionesBuzonIntegracion.AsNoTracking().ToListAsync())
+            .Select(r => (r.Id, r.BuzonEmail, r.TenantPropietarioId, r.ConexionIntegracionId))
+            .ToList();
+    }
+
+    private static async Task EjecutarSqlAsync(string cadena, string sql)
+    {
+        await using var conexion = new NpgsqlConnection(cadena);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand(sql, conexion);
+        await comando.ExecuteNonQueryAsync();
     }
 
     private async Task LimpiarReclamacionesAsync()
