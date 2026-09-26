@@ -210,6 +210,12 @@
   <data name="ErrorAcceso" xml:space="preserve">
     <value>No hem pogut carregar l'accés.</value>
   </data>
+  <data name="AccesoRequiereDosFactores" xml:space="preserve">
+    <value>Activa l’autenticació en dos passos per veure l’accés.</value>
+  </data>
+  <data name="ActivarDosFactores" xml:space="preserve">
+    <value>Activar ara</value>
+  </data>
   <data name="BadgeCredencialesTerceros" xml:space="preserve">
     <value>Credencials de tercers</value>
   </data>

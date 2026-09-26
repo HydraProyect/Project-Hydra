@@ -15,6 +15,10 @@
   <data name="DosFactoresObligatorioPorRol" xml:space="preserve">
     <value>Tu rol de Administrador exige la autenticación en dos pasos. Actívala para continuar: hasta entonces no podrás acceder al resto de {0}.</value>
   </data>
+  <data name="DosFactoresObligatorioParaCredenciales" xml:space="preserve">
+    <value>Para consultar o copiar credenciales de acceso a plataformas CAE necesitas la autenticación en dos pasos. Actívala y vuelve a la ficha.</value>
+    <comment>P1-I1: se muestra cuando se llega con ?motivo=credenciales, desde una pantalla que pidió datos de credencial sin 2FA.</comment>
+  </data>
   <data name="CodigosPasoTresTitulo" xml:space="preserve">
     <value>3. Guarda tus códigos de recuperación</value>
   </data>

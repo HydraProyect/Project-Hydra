@@ -271,9 +271,17 @@ public class CurrentUserService(
         var usuarioId = await ObtenerUsuarioActualIdAsync();
         if (usuarioId is null) return false;
 
+        // Consulta sin rastreo y no FindByIdAsync: en un circuito, FindByIdAsync
+        // devuelve la cuenta ya rastreada sin refrescarla, y un 2FA restablecido
+        // desde otro ámbito (RestablecerSegundoFactorCommand) seguiría leyéndose
+        // como activo — y abriendo credenciales (P1-I1) — hasta cerrar el
+        // circuito. Mismo defecto que SegundoFactorDeCuentasIdentity.CargarEnFrescoAsync.
         var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var usuario = await userManager.FindByIdAsync(usuarioId.Value.ToString());
-        return usuario is not null && await userManager.GetTwoFactorEnabledAsync(usuario);
+        var id = usuarioId.Value;
+        return await userManager.Users.AsNoTracking()
+            .Where(u => u.Id == id)
+            .Select(u => u.TwoFactorEnabled)
+            .FirstOrDefaultAsync();
     }
 
     // Dentro de un circuito de Blazor, AuthenticationStateProvider ya trae el

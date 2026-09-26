@@ -21,10 +21,12 @@
 @using FluentValidation
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using MediatR
+@using CaeManager.Web.Services
 @implements IDisposable
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
+@inject NavigationManager NavigationManager
 
 @if (_cargando)
 {
@@ -414,6 +416,14 @@ else
             _editandoInformacion = true;
         }
         catch (OperationCanceledException) when (cancelacion.IsCancellationRequested) { }
+        // P1-I1: la edición carga el usuario de la credencial, y sin 2FA no se
+        // entrega. No se abre con los campos vacíos: guardarla así podría pisar
+        // la credencial que el usuario no pudo ver.
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (generacion == _generacion)
+                NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+        }
         catch (Exception)
         {
             if (generacion == _generacion)
@@ -554,7 +564,17 @@ else
 
         var cancelacion = _cancelacion;
         var generacion = _generacion;
-        var credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaQuery(_detalle.Id), cancelacion);
+        CredencialAccesoEmpresaDto? credencial;
+        try
+        {
+            credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaQuery(_detalle.Id), cancelacion);
+        }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (generacion == _generacion)
+                NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+            return null;
+        }
         if (generacion != _generacion) return null;
         if (string.IsNullOrEmpty(credencial?.Contrasena))
         {

@@ -119,6 +119,24 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
                 "{Request} cancelado tras {DuracionMs} ms", nombre, cronometro.ElapsedMilliseconds);
             throw;
         }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            // Denegación esperada (P1-I1), no un error del sistema: se trata
+            // como un Result fallido —aviso con código, fallo en la ventana de
+            // alertas igual que cualquier otra denegación— y sin la traza
+            // completa, que llenaría Sentry cada vez que alguien sin 2FA pulsa
+            // «Copiar contraseña».
+            cronometro.Stop();
+            const string codigo = "Credenciales.SegundoFactorRequerido";
+            actividad?.SetTag("DuracionMs", cronometro.ElapsedMilliseconds);
+            actividad?.SetTag("CodigoError", codigo);
+            actividad?.SetStatus(ActivityStatusCode.Error, codigo);
+            _logger.LogWarning(
+                "{Request} falló con {CodigoError} en {DuracionMs} ms",
+                nombre, codigo, cronometro.ElapsedMilliseconds);
+            _ventanaSalud.RegistrarDesenlace(fallo: true, lento: cronometro.ElapsedMilliseconds >= UmbralLentitudMs);
+            throw;
+        }
         catch (Exception ex)
         {
             cronometro.Stop();

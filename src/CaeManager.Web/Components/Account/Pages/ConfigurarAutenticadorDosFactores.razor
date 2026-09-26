@@ -9,6 +9,7 @@
 @using CaeManager.Infrastructure.Identity
 @using CaeManager.Web.Components.Account
 @using CaeManager.Web.Components.Account.Recursos
+@using CaeManager.Web.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
@@ -102,6 +103,10 @@
         {
             <p class="dos-factores-obligatorio" role="status">@Textos["DosFactoresObligatorioPorRol", Marca.Nombre]</p>
         }
+        else if (Motivo == SegundoFactorParaCredenciales.Motivo)
+        {
+            <p class="dos-factores-obligatorio" role="status">@Textos["DosFactoresObligatorioParaCredenciales"]</p>
+        }
 
         <div class="dos-factores-alta">
             <aside class="tarjeta-2fa tarjeta-qr" aria-label="Código QR de configuración">
@@ -165,6 +170,12 @@
     // regla y mismo rol ALMACENADO que TenantClaimsPrincipalFactory y
     // MainLayout (Administrador sin 2FA); solo decide un texto, no autoriza.
     private bool _dosFactoresObligatorio;
+
+    // P1-I1: la pantalla que pidió datos de credencial sin 2FA llega con
+    // ?motivo=credenciales (SegundoFactorParaCredenciales). Igual que el aviso
+    // de arriba, solo decide un texto: quien deniega es AutorizacionSecretosDeTenantBehavior.
+    [SupplyParameterFromQuery(Name = "motivo")]
+    private string? Motivo { get; set; }
 
     // Dentro de @code no hay interpolacion de Razor: el literal "@Marca.Nombre" llegaba tal cual
     // a la URI del TOTP. Y Marca.Nombre se fija desde la configuracion al arrancar, asi que se

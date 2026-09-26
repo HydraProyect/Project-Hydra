@@ -8,6 +8,7 @@
 @attribute [Authorize]
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Services
 @using CaeManager.Web.Features.Centros.Components
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Empresas.Components
@@ -181,6 +182,13 @@
                     else if (_errorAcceso)
                     {
                         <p class="texto-vacio-seccion">@Textos["ErrorAcceso"]</p>
+                    }
+                    else if (_accesoRequiereDosFactores)
+                    {
+                        <p class="texto-vacio-seccion acceso-requiere-2fa">
+                            @Textos["AccesoRequiereDosFactores"]
+                            <a href="@SegundoFactorParaCredenciales.RutaConfigurar" data-enhance-nav="false">@Textos["ActivarDosFactores"]</a>
+                        </p>
                     }
                     else if (_credencial is null)
                     {

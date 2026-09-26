@@ -151,6 +151,93 @@ public class AutorizacionSecretosDeTenantBehaviorTests
         resultado.Should().Be(Secreto);
     }
 
+    // P1-I1: el rol que lee secretos los lee solo con el 2FA activo. La
+    // denegación lanza, para que la pantalla pueda llevar a configurarlo, y el
+    // handler no llega a ejecutarse (ni descifra ni deja rastro de lectura).
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    public async Task Un_rol_con_escritura_sin_2FA_no_obtiene_los_secretos_del_tenant(string rol)
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeCredencialQuery, CredencialDto?>(
+            SinSesion, UsuarioSinDobleFactor(rol));
+
+        var handlerFueLlamado = false;
+        var accion = () => behavior.Handle(new ConsultaDeCredencialQuery(), _ =>
+        {
+            handlerFueLlamado = true;
+            return Task.FromResult<CredencialDto?>(Secreto);
+        }, CancellationToken.None);
+
+        await accion.Should().ThrowAsync<SegundoFactorRequeridoParaCredencialesException>();
+        handlerFueLlamado.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("GestorCae")]
+    public async Task Un_rol_con_escritura_sin_2FA_tampoco_obtiene_los_datos_de_una_credencial(string rol)
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeDatosDeCredencialQuery, CredencialDto?>(
+            SinSesion, UsuarioSinDobleFactor(rol));
+
+        var handlerFueLlamado = false;
+        var accion = () => behavior.Handle(new ConsultaDeDatosDeCredencialQuery(), _ =>
+        {
+            handlerFueLlamado = true;
+            return Task.FromResult<CredencialDto?>(Secreto);
+        }, CancellationToken.None);
+
+        await accion.Should().ThrowAsync<SegundoFactorRequeridoParaCredencialesException>();
+        handlerFueLlamado.Should().BeFalse();
+    }
+
+    // Un rol que no lee secretos recibe el null de siempre, tenga o no 2FA:
+    // invitarle a activarlo le prometería un acceso que su rol no le da.
+    [Theory]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
+    [InlineData(null)]
+    public async Task Un_rol_sin_escritura_y_sin_2FA_recibe_null_no_la_invitacion_a_activarlo(string? rol)
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeCredencialQuery, CredencialDto?>(
+            SinSesion, UsuarioSinDobleFactor(rol));
+
+        var resultado = await behavior.Handle(
+            new ConsultaDeCredencialQuery(), _ => Task.FromResult<CredencialDto?>(Secreto), CancellationToken.None);
+
+        resultado.Should().BeNull();
+    }
+
+    // En una Sesión Privilegiada nada cambia: denegado con null, antes de mirar el 2FA.
+    [Theory]
+    [InlineData(CapacidadPrivilegio.SoporteLectura)]
+    [InlineData(CapacidadPrivilegio.BreakGlass)]
+    public async Task En_sesion_privilegiada_sin_2FA_sigue_siendo_null(CapacidadPrivilegio capacidad)
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaDeCredencialQuery, CredencialDto?>(
+            SesionCon(capacidad), UsuarioSinDobleFactor("Administrador"));
+
+        var resultado = await behavior.Handle(
+            new ConsultaDeCredencialQuery(), _ => Task.FromResult<CredencialDto?>(Secreto), CancellationToken.None);
+
+        resultado.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Una_consulta_sin_marcar_no_exige_2FA()
+    {
+        var behavior = new AutorizacionSecretosDeTenantBehavior<ConsultaNormalQuery, string?>(
+            SinSesion, UsuarioSinDobleFactor("GestorCae"));
+
+        var resultado = await behavior.Handle(
+            new ConsultaNormalQuery(), _ => Task.FromResult<string?>("dato normal"), CancellationToken.None);
+
+        resultado.Should().Be("dato normal");
+    }
+
     [Fact]
     public async Task Una_consulta_sin_marcar_no_se_toca_para_un_rol_de_solo_lectura()
     {
@@ -222,15 +309,17 @@ public class AutorizacionSecretosDeTenantBehaviorTests
 
     private static readonly ISesionPrivilegiadaActual SinSesion = new SesionPrivilegiadaActualFalsa(null);
 
-    private static ICurrentUserService UsuarioConRol(string? rol) => new CurrentUserServiceFalso(rol);
+    private static ICurrentUserService UsuarioConRol(string? rol) => new CurrentUserServiceFalso(rol, dobleFactorActivo: true);
 
-    private sealed class CurrentUserServiceFalso(string? rol) : ICurrentUserService
+    private static ICurrentUserService UsuarioSinDobleFactor(string? rol) => new CurrentUserServiceFalso(rol, dobleFactorActivo: false);
+
+    private sealed class CurrentUserServiceFalso(string? rol, bool dobleFactorActivo) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult(rol);
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
-        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(dobleFactorActivo);
     }
 
     private sealed class SesionPrivilegiadaActualFalsa(SesionPrivilegiadaActiva? sesion) : ISesionPrivilegiadaActual

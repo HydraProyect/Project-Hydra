@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena;
@@ -8,6 +9,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 
@@ -96,6 +98,10 @@ public partial class EmpresaDetalle : ComponentBase, IDisposable
     private CredencialAccesoEmpresaSinContrasenaDto? _credencial;
     private bool _cargandoAcceso = true;
     private bool _errorAcceso;
+    // P1-I1: el rol lee credenciales, pero la cuenta no tiene 2FA (ver
+    // SegundoFactorRequeridoParaCredencialesException). Se avisa en la tarjeta en
+    // vez de redirigir: abrir la ficha no es pedir la credencial.
+    private bool _accesoRequiereDosFactores;
 
     private string _pestana = PestanaTrabajadores;
     private FiltroTrabajadores _filtro = FiltroTrabajadores.Todos;
@@ -515,12 +521,21 @@ public partial class EmpresaDetalle : ComponentBase, IDisposable
         var empresaId = EmpresaId;
         _cargandoAcceso = true;
         _errorAcceso = false;
+        _accesoRequiereDosFactores = false;
 
         try
         {
             var credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaSinContrasenaQuery(empresaId), _cancelacion);
             if (carga != _cargaAcceso) return;
             _credencial = credencial;
+        }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (carga == _cargaAcceso)
+            {
+                _credencial = null;
+                _accesoRequiereDosFactores = true;
+            }
         }
         catch (Exception)
         {
@@ -547,7 +562,17 @@ public partial class EmpresaDetalle : ComponentBase, IDisposable
     private async Task<string?> CopiarContrasenaAsync()
     {
         var empresaId = EmpresaId;
-        var credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaQuery(empresaId), _cancelacion);
+        CredencialAccesoEmpresaDto? credencial;
+        try
+        {
+            credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaQuery(empresaId), _cancelacion);
+        }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (empresaId == EmpresaId)
+                NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+            return null;
+        }
         if (empresaId != EmpresaId) return null;
 
         if (string.IsNullOrEmpty(credencial?.Contrasena))
