@@ -99,6 +99,22 @@ public class ToastService
         Mostrar(error.Mensaje, TonoToast.Error);
     }
 
+    /// <summary>
+    /// Como <see cref="MostrarError(Error)"/>, cuando el aviso tiene que decir además de
+    /// qué era la acción (p. ej. el formulario ya se cerró y el fallo llega a otra
+    /// pantalla): pinta «{contexto}: {mensaje}» con el <see cref="Error.Mensaje"/>
+    /// literal —tampoco aquí se generalizan los de autorización ni los de Sesión
+    /// Privilegiada—, y el <paramref name="complemento"/>, si lo hay, detrás. Un contexto
+    /// vacío (un nombre que no llegó) no rompe el aviso: se pinta solo el mensaje.
+    /// </summary>
+    public void MostrarError(string? contexto, Error error, string? complemento = null)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+
+        var mensaje = string.IsNullOrWhiteSpace(contexto) ? error.Mensaje : $"{contexto}: {error.Mensaje}";
+        Mostrar(string.IsNullOrWhiteSpace(complemento) ? mensaje : $"{mensaje} {complemento}", TonoToast.Error);
+    }
+
     public void Descartar(Guid id)
     {
         if (_mensajes.RemoveAll(m => m.Id == id) > 0)
