@@ -140,6 +140,52 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         await DisposeComponentsAsync();
     }
 
+    /// <summary>
+    /// FS-14 (auditoría UX de flujos sin salida, 2026-09-24): el lote vive solo en la
+    /// memoria del circuito y salir lo perdía sin aviso. Con archivos sin confirmar,
+    /// salir por la aplicación se detiene y pregunta; «Seguir con el lote» conserva la
+    /// página y el lote, y «Salir y descartar» repite la navegación.
+    /// </summary>
+    [Fact]
+    public async Task Salir_con_archivos_sin_confirmar_pregunta_y_deja_seguir_con_el_lote()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        await ProcesarAsync(cut, "propuesta.pdf");
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var origen = navegacion.Uri;
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos"));
+
+        navegacion.Uri.Should().Be(origen, "con un archivo sin confirmar la navegación se detiene");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("¿Salir sin terminar el lote?").And.Contain("1 archivo(s)");
+
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Seguir con el lote").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        navegacion.Uri.Should().Be(origen);
+        cut.Find(".item-subida-masiva").TextContent.Should().Contain("Pendiente de confirmar", "el lote sigue donde estaba");
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos"));
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Salir y descartar").ClickAsync(new MouseEventArgs());
+
+        navegacion.Uri.Should().EndWith("/documentos", "confirmar la salida repite la navegación sin volver a preguntar");
+        await DisposeComponentsAsync();
+    }
+
+    [Fact]
+    public async Task Sin_archivos_pendientes_salir_no_pregunta()
+    {
+        var cut = Render<SubidaMasiva>();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/documentos"));
+
+        navegacion.Uri.Should().EndWith("/documentos");
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        await DisposeComponentsAsync();
+    }
+
     [Fact]
     public async Task Tras_confirmar_existe_el_Documento_con_las_fechas_leidas_del_archivo()
     {

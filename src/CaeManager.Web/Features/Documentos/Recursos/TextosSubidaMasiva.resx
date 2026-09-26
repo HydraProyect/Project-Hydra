@@ -18,4 +18,16 @@
   <data name="ArchivoSuperaLimite" xml:space="preserve">
     <value>«{0}» supera el límite de {1} MB por archivo y no se ha subido.</value>
   </data>
+  <data name="SalirTitulo" xml:space="preserve">
+    <value>¿Salir sin terminar el lote?</value>
+  </data>
+  <data name="SalirMensaje" xml:space="preserve">
+    <value>{0} archivo(s) siguen sin confirmar o leyéndose. Nada se ha guardado todavía: si sales, se pierden y tendrás que volver a subirlos.</value>
+  </data>
+  <data name="SalirSeguir" xml:space="preserve">
+    <value>Seguir con el lote</value>
+  </data>
+  <data name="SalirDescartar" xml:space="preserve">
+    <value>Salir y descartar</value>
+  </data>
 </root>
