@@ -36,12 +36,17 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     /// </summary>
     private static readonly string[] FormulariosProtegidos =
     [
+        "src/CaeManager.Web/Components/DesignSystem/RedactarMensajeDrawer.razor",
         "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
+        "src/CaeManager.Web/Features/Bandeja/Components/DrawerReclamacionLote.razor",
         "src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor",
         "src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor",
         "src/CaeManager.Web/Features/Centros/Components/DrawerAsignacionMasiva.razor",
         "src/CaeManager.Web/Features/Centros/Pages/Centros.razor",
         "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Buzon.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor",
         "src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor",
         "src/CaeManager.Web/Features/Documentos/Components/FirmaEnCampoTab.razor",
         "src/CaeManager.Web/Features/Documentos/Components/PlantillasTab.razor",
@@ -66,13 +71,18 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     /// </summary>
     private static readonly string[] ContenedoresQuePreguntanAlCerrar =
     [
+        "src/CaeManager.Web/Components/DesignSystem/RedactarMensajeDrawer.razor",
         "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
+        "src/CaeManager.Web/Features/Bandeja/Components/DrawerReclamacionLote.razor",
         "src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor",
         "src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor",
         "src/CaeManager.Web/Features/Centros/Components/DrawerAsignacionMasiva.razor",
         "src/CaeManager.Web/Features/Centros/Pages/Centros.razor",
         "src/CaeManager.Web/Features/Clientes/Components/FormularioRapidoCliente.razor",
         "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Buzon.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor",
         "src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor",
         "src/CaeManager.Web/Features/Documentos/Components/PlantillasTab.razor",
         "src/CaeManager.Web/Features/Documentos/Components/PlataformaTab.razor",

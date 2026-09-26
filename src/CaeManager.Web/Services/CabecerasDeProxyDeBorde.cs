@@ -61,7 +61,8 @@ namespace CaeManager.Web.Services;
 ///
 /// <para>
 /// <b>Hueco conocido.</b> La aplicación de staging comparte la red
-/// <c>caemanager-edge</c> y puede alcanzar <c>caemanager-app:8080</c>
+/// <c>caemanager-edge</c> y puede alcanzar <c>caemanager-app-azul:8080</c> o
+/// <c>caemanager-app-verde:8080</c> (las dos ranuras de producción, P1-F2)
 /// directamente, saltándose Caddy: desde ahí sí se puede imponer cualquier
 /// <c>X-Forwarded-For</c>. El alcance de ese hueco es el limitador de tasa del
 /// login (la única cosa del sistema que lee la IP del cliente — no hay ninguna

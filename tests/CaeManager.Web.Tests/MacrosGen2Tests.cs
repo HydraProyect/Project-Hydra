@@ -458,4 +458,64 @@ public class MacrosGen2Tests : BunitContext
             .Which.Should().Be(new EliminarMacroCommand(borrada.Id, UsuarioActual));
         TitulosFilas(cut).Should().Equal(["Acuse de recibo"]);
     }
+
+    // ---------------------------------------------------------------- cambios sin guardar (P1-E2b)
+
+    [Fact]
+    public async Task Salir_con_la_macro_a_medias_pregunta()
+    {
+        Services.AddLocalization();
+        var (cut, _) = Renderizar(new Escenario());
+        await AbrirNuevaMacro(cut);
+        await RellenarFormulario(cut, "Acuse de recibo", "Recibido, lo revisamos.");
+
+        await cut.SalirYComprobarQuePreguntaAsync(Services.GetRequiredService<NavigationManager>());
+    }
+
+    [Fact]
+    public async Task El_cliente_que_preselecciona_el_filtro_no_es_un_cambio()
+    {
+        Services.AddLocalization();
+        var (cut, _) = Renderizar(new Escenario());
+        await ElegirCliente(cut, ClienteA.Id);
+        await AbrirNuevaMacro(cut);
+        cut.Find(".drawer-cuerpo select").GetAttribute("value").Should().Be(ClienteA.Id.ToString(),
+            "el test necesita que la macro nueva nazca con el Cliente empresarial del filtro");
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Services.GetRequiredService<NavigationManager>(),
+            "abrir la macro nueva sin escribir nada no deja nada que perder");
+    }
+
+    [Fact]
+    public async Task Editar_sin_tocar_nada_no_pregunta_y_tocar_el_contenido_si()
+    {
+        Services.AddLocalization();
+        var escenario = new Escenario();
+        escenario.Macros.Add(Macro("Acuse de recibo"));
+        var (cut, _) = Renderizar(escenario);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await EditarFila(cut, "Acuse de recibo");
+
+        cut.FindAll(".drawer-panel button.drawer-cerrar").Single().Click();
+        cut.FindAll(".drawer-panel").Should().BeEmpty("sin cambios, la X cierra sin preguntar");
+
+        await EditarFila(cut, "Acuse de recibo");
+        await cut.Find(".drawer-cuerpo textarea").InputAsync(new ChangeEventArgs { Value = "Otro contenido" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+    }
+
+    [Fact]
+    public async Task Guardar_la_macro_y_salir_no_pregunta()
+    {
+        Services.AddLocalization();
+        var (cut, _) = Renderizar(new Escenario());
+        await AbrirNuevaMacro(cut);
+        await RellenarFormulario(cut, "Acuse de recibo", "Recibido, lo revisamos.");
+        await Guardar(cut);
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Services.GetRequiredService<NavigationManager>(),
+            "lo escrito ya está guardado");
+    }
 }
