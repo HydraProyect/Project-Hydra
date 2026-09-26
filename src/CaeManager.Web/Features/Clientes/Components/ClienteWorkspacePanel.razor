@@ -703,7 +703,7 @@ else
                 if (generacion == _generacion)
                     _mensajeErrorIdentidad = resultado.Error.Mensaje;
                 else
-                    ToastService.Mostrar($"No pudimos actualizar a {detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
+                    ToastService.MostrarError($"No pudimos actualizar a {detalle.RazonSocial}", resultado.Error);
                 return;
             }
 
@@ -768,7 +768,7 @@ else
                 if (generacion == _generacion)
                     _mensajeErrorNota = resultado.Error.Mensaje;
                 else
-                    ToastService.Mostrar($"No pudimos guardar la nota de {detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
+                    ToastService.MostrarError($"No pudimos guardar la nota de {detalle.RazonSocial}", resultado.Error);
                 return;
             }
 

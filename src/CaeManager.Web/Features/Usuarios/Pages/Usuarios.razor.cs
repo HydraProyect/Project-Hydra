@@ -1052,9 +1052,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(
-                    $"No pudimos enviar el correo: {resultado.Error.Mensaje} El enlace queda abajo para entregarlo tú mismo.",
-                    TonoToast.Error);
+                ToastService.MostrarError(
+                    TextosUsuarios["ReenvioCorreoFallido"], resultado.Error, TextosUsuarios["ReenvioCorreoFallidoEnlaceAbajo"]);
                 _reenvioFallido = true;
             }
             else

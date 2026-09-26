@@ -104,4 +104,47 @@ public class ToastServiceTests
         toast.Mensaje.Should().Be(mensaje);
         toast.Tono.Should().Be(TonoToast.Error, "un error no se autodescarta: el usuario tiene que verlo");
     }
+    /// <summary>
+    /// P1-E2b: el aviso que nombra de qué era la acción («{contexto}: {mensaje}») usa el
+    /// mismo canal y tampoco generaliza el texto de autorización ni el de Sesión Privilegiada.
+    /// </summary>
+    [Theory]
+    [InlineData("Autorizacion.SoloLectura", "Tu rol no permite crear, editar ni eliminar datos — solo consultarlos.")]
+    [InlineData("Autorizacion.SesionPrivilegiadaSoloLectura", "Un acceso de soporte de plataforma es de solo lectura: no puede crear, editar ni eliminar datos.")]
+    [InlineData("Empresa.CifDuplicado", "Ya existe una empresa con ese CIF.")]
+    public void MostrarError_con_contexto_pinta_contexto_y_mensaje_literal(string codigo, string mensaje)
+    {
+        var servicio = new ToastService();
+
+        servicio.MostrarError("Construcciones Norte", CaeManager.Domain.Common.Error.Crear(codigo, mensaje));
+
+        var toast = servicio.Mensajes.Should().ContainSingle().Subject;
+        toast.Mensaje.Should().Be($"Construcciones Norte: {mensaje}");
+        toast.Tono.Should().Be(TonoToast.Error);
+    }
+
+    [Fact]
+    public void MostrarError_con_contexto_pone_el_complemento_detras()
+    {
+        var servicio = new ToastService();
+
+        servicio.MostrarError("No pudimos enviar el correo", CaeManager.Domain.Common.Error.Crear("Correo.Fallo", "El servidor no respondió."),
+            "El enlace queda abajo para entregarlo tú mismo.");
+
+        servicio.Mensajes.Single().Mensaje.Should().Be(
+            "No pudimos enviar el correo: El servidor no respondió. El enlace queda abajo para entregarlo tú mismo.");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void MostrarError_con_contexto_vacio_pinta_solo_el_mensaje(string? contexto)
+    {
+        var servicio = new ToastService();
+
+        servicio.MostrarError(contexto, CaeManager.Domain.Common.Error.Crear("X.Y", "No se pudo."));
+
+        servicio.Mensajes.Single().Mensaje.Should().Be("No se pudo.", "un nombre que no llegó no deja un «: » colgando");
+    }
 }

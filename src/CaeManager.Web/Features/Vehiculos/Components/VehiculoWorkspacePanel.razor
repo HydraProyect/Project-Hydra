@@ -213,7 +213,7 @@ else
                 if (generacion == _generacion)
                     _mensajeErrorInformacion = resultado.Error.Mensaje;
                 else
-                    ToastService.Mostrar($"{detalle.Nombre}: {resultado.Error.Mensaje}", TonoToast.Error);
+                    ToastService.MostrarError(detalle.Nombre, resultado.Error);
                 return;
             }
 

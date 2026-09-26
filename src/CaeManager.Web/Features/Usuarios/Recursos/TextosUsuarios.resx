@@ -63,4 +63,10 @@
   <data name="DesactivarErrorInesperado" xml:space="preserve">
     <value>Un Cliente empresarial no pudo pasarse por un error inesperado.</value>
   </data>
+  <data name="ReenvioCorreoFallido" xml:space="preserve">
+    <value>No pudimos enviar el correo</value>
+  </data>
+  <data name="ReenvioCorreoFallidoEnlaceAbajo" xml:space="preserve">
+    <value>El enlace queda abajo para entregarlo tú mismo.</value>
+  </data>
 </root>
