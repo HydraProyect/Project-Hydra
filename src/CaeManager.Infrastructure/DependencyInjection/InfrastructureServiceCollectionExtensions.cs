@@ -549,6 +549,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<DirectorioUsuariosTenant>();
         services.AddScoped<IDirectorioUsuariosService>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Usuarios.ISegundoFactorDeCuentas, SegundoFactorDeCuentasIdentity>();
+        // P1-I2: las escrituras de cuentas de Identity pasan por Commands de
+        // Application; este es su único camino hasta UserManager fuera del login.
+        services.AddScoped<CaeManager.Application.Usuarios.IGestionCuentasUsuario, GestionCuentasUsuarioIdentity>();
         // Autoridad para vincular tenants: Administrador DEL CLIENTE DELEGANTE
         // (ADR-004 § 12.2). No consulta EsPlataforma a propósito — Hydra nunca
         // inicia una delegación (§ 11.1).

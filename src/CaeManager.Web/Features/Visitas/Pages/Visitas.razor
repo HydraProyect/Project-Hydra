@@ -3,8 +3,9 @@
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Visitas.Commands.CrearVisita
 @using CaeManager.Application.Visitas.Commands.EditarVisita
-@using CaeManager.Application.Visitas.Commands.EliminarVisita
-@using CaeManager.Application.Visitas.Commands.EliminarVisitas
+@using CaeManager.Application.Visitas.Commands.CancelarVisita
+@using CaeManager.Application.Visitas.Commands.CancelarVisitas
+@using CaeManager.Application.Visitas.Commands.ReactivarVisita
 @using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente
 @using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita
 @using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId
@@ -141,7 +142,12 @@
                     <Badge Tono="TonoOrigen(context.Origen)">@TextoOrigen(context.Origen)</Badge>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaDocumentacion"]" Align="Align.Center">
-                    @if (!context.CentroRequiereGestionCae)
+                    @if (context.EstaCancelada)
+                    {
+                        @* FS-11: una Visita cancelada no tiene documentación que gestionar; el motivo va en el title. *@
+                        <span title="@context.MotivoCancelacion"><Badge Tono="TonoBadge.Neutro">@Textos["BadgeCancelada"]</Badge></span>
+                    }
+                    else if (!context.CentroRequiereGestionCae)
                     {
                         @* P1-X2: ni «Completa» (verde falso) ni «Por gestionar» (pendiente que no existe). *@
                         <Badge Tono="TonoBadge.Neutro">@Textos["BadgeSinGestionCae"]</Badge>
@@ -163,7 +169,7 @@
                         <Authorized>
                             <input type="checkbox" role="switch" class="visitas-interruptor" checked="@context.NotificadoCliente"
                                    aria-label="@Textos["AriaNotificadaTitular", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
-                                   disabled="@_marcandoNotificado.Contains(context.Id)"
+                                   disabled="@(context.EstaCancelada || _marcandoNotificado.Contains(context.Id))"
                                    @onchange="e => AlternarNotificadoAsync(context.Id, e.Value is bool marcado && marcado)" />
                         </Authorized>
                         <NotAuthorized>
@@ -178,12 +184,23 @@
                         <ItemMenuAccion OnClick="() => AbrirDetalleAsync(context.Id)">
                             @Textos["AccionVer"]
                         </ItemMenuAccion>
-                        <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
-                            @Textos["AccionEditar"]
-                        </ItemMenuAccion></SoloConEscritura>
-                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.CentroNombre)">
-                            @Textos["AccionEliminar"]
-                        </ItemMenuAccion></SoloConEscritura>
+                        @if (context.EstaCancelada)
+                        {
+                            @* FS-11: reactivar se ofrece a los mismos roles que cancelar; la autorización
+                               real, con el alcance de cartera, está en AutorizacionCancelacionVisita. *@
+                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirReactivar(context.Id, context.CentroNombre)">
+                                @Textos["AccionReactivar"]
+                            </ItemMenuAccion></SoloConEscritura>
+                        }
+                        else
+                        {
+                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
+                                @Textos["AccionEditar"]
+                            </ItemMenuAccion></SoloConEscritura>
+                            <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirCancelar(context.Id, context.CentroNombre)">
+                                @Textos["AccionCancelar"]
+                            </ItemMenuAccion></SoloConEscritura>
+                        }
                     </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
@@ -364,7 +381,12 @@
                 </div>
             }
 
-            @if (!_detalle.CentroRequiereGestionCae)
+            @if (_detalle.EstaCancelada)
+            {
+                @* FS-11: una Visita cancelada no pide acceso, ni se avisa, ni se comprueba su documentación. *@
+                <p class="texto-vacio-seccion">@Textos["DetalleCanceladaSinAcciones"]</p>
+            }
+            else if (!_detalle.CentroRequiereGestionCae)
             {
                 @*
                     P1-X2: el Centro no requiere gestión CAE, así que no hay
@@ -518,7 +540,18 @@
         }
     </ChildContent>
     <Pie>
-        @if (_detalle is not null && !_cargandoDetalle)
+        @if (_detalle is { EstaCancelada: true } && !_cargandoDetalle)
+        {
+            @* FS-11: una Visita cancelada no se edita ni se marca; se reactiva (solo quien puede). *@
+            <span class="visitas-cancelada-aviso" role="status">
+                @(string.IsNullOrWhiteSpace(_detalle.MotivoCancelacion) ? Textos["DetalleCancelada"].Value : Textos["DetalleCanceladaMotivo", _detalle.MotivoCancelacion].Value)
+            </span>
+            <SoloConEscritura>
+                <Boton OnClick="() => AbrirReactivar(_detalle.Id, _detalle.CentroNombre)">@Textos["AccionReactivar"]</Boton>
+            </SoloConEscritura>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _detalleVisible = false">@Textos["BotonCerrar"]</Boton>
+        }
+        else if (_detalle is not null && !_cargandoDetalle)
         {
             @* Solo cambia la marca: MarcarNotificadoClienteCommand no envía
                ningún aviso, así que el texto no puede prometer uno. *@
@@ -546,25 +579,46 @@
 <VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
 
 <DialogoConfirmacion
-    Visible="_confirmarEliminarVisible"
-    VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@Textos["ConfirmarEliminarTitulo", _centroAEliminar]"
-    Mensaje="@Textos["ConfirmarEliminarMensaje"]"
-    EnProgreso="_eliminando"
-    OnConfirmar="ConfirmarEliminarAsync" />
+    Visible="_confirmarCancelarVisible"
+    VisibleChanged="v => _confirmarCancelarVisible = v"
+    Titulo="@Textos["ConfirmarCancelarTitulo", _centroACancelar]"
+    Mensaje="@Textos["ConfirmarCancelarMensaje"]"
+    TextoBotonConfirmar="@Textos["AccionCancelar"]"
+    TextoBotonDescartar="@Textos["BotonVolver"]"
+    EnProgreso="_cancelando"
+    OnConfirmar="ConfirmarCancelarAsync">
+    <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v" Filas="2" />
+</DialogoConfirmacion>
 
-@* La única acción del lote es eliminar (ICommand que AutorizacionEscrituraBehavior deniega a
+<DialogoConfirmacion
+    Visible="_confirmarReactivarVisible"
+    VisibleChanged="v => _confirmarReactivarVisible = v"
+    Titulo="@Textos["ConfirmarReactivarTitulo", _centroAReactivar]"
+    Mensaje="@Textos["ConfirmarReactivarMensaje"]"
+    TextoBotonConfirmar="@Textos["AccionReactivar"]"
+    TextoBotonDescartar="@Textos["BotonVolver"]"
+    VarianteConfirmar="VarianteBoton.Primario"
+    EnProgreso="_reactivando"
+    OnConfirmar="ConfirmarReactivarAsync">
+    <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoReactivacion" ValorChanged="v => _motivoReactivacion = v" Filas="2" />
+</DialogoConfirmacion>
+
+@* La única acción del lote es cancelar (ICommand que AutorizacionEscrituraBehavior deniega a
    Consulta): la barra no se le ofrece. La palanca de selección múltiple sigue visible porque
    vive en BarraHerramientasLista, compartida y con contenido de lectura, y seleccionar no escribe. *@
 <SoloConEscritura>
-    <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+    <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_cancelandoLote" TextoAccion="@Textos["BotonCancelarSeleccionadas"]" TextoLimpiar="@Textos["BotonQuitarSeleccion"]"
+                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="AbrirCancelarLote" />
 </SoloConEscritura>
 
 <DialogoConfirmacion
-    Visible="_confirmarEliminarLoteVisible"
-    VisibleChanged="v => _confirmarEliminarLoteVisible = v"
-    Titulo="@Textos["ConfirmarEliminarLoteTitulo", _seleccionados.Count]"
-    Mensaje="@Textos["ConfirmarEliminarLoteMensaje"]"
-    EnProgreso="_eliminandoLote"
-    OnConfirmar="ConfirmarEliminarLoteAsync" />
+    Visible="_confirmarCancelarLoteVisible"
+    VisibleChanged="v => _confirmarCancelarLoteVisible = v"
+    Titulo="@Textos["ConfirmarCancelarLoteTitulo", _seleccionados.Count]"
+    Mensaje="@Textos["ConfirmarCancelarLoteMensaje"]"
+    TextoBotonConfirmar="@Textos["BotonCancelarSeleccionadas"]"
+    TextoBotonDescartar="@Textos["BotonVolver"]"
+    EnProgreso="_cancelandoLote"
+    OnConfirmar="ConfirmarCancelarLoteAsync">
+    <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v" Filas="2" />
+</DialogoConfirmacion>

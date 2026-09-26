@@ -1,0 +1,75 @@
+@inherits ErrorBoundaryBase
+@using CaeManager.Application.Common
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@inject ILogger<LimiteDeErrores> Logger
+@inject IAlertaOperativa AlertaOperativa
+@inject IStringLocalizer<TextosComunes> Comunes
+@inject NavigationManager Navigation
+
+@*
+    Límite de errores de una región de contenido (P1-E1): el tercero de los tres canales
+    de error de la interfaz, el único para lo que NADIE esperaba. Los otros dos, para
+    errores esperados, están descritos en ToastService.
+
+    Qué hace: una excepción no controlada al pintar la región, en el ciclo de vida o en un
+    manejador de evento de un componente HIJO se queda aquí — se registra en el log y en
+    Sentry y la región se sustituye por un aviso recuperable con "Reintentar". El resto
+    de la pantalla (barra lateral, cabecera, otras regiones) sigue viva y el circuito no
+    se cae.
+
+    Qué NO puede hacer, y conviene saberlo antes de colocarlo: un ErrorBoundary solo
+    atrapa lo que ocurre en componentes que estén POR DEBAJO de él en el mismo árbol de
+    renderizado. Una página con su propio @rendermode InteractiveServer es la raíz de su
+    circuito — el límite de MainLayout, que se pinta en estático, no está por encima de
+    ella en ese árbol. Por eso el de MainLayout cubre el renderizado estático (y el
+    prerenderizado), y las regiones interactivas llevan el suyo propio (ContextWorkspace).
+
+    El aviso nunca enseña el mensaje de la excepción ni su tipo: puede llevar datos del
+    Tenant propietario o detalles internos. Esos van al log y a Sentry, no a la pantalla.
+*@
+
+@if (CurrentException is null)
+{
+    @ChildContent
+}
+else
+{
+    <div class="limite-errores" role="alert" data-limite-errores>
+        <EstadoVacio NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)"
+                     Titulo="@Comunes["LimiteErroresTitulo"]"
+                     Descripcion="@Comunes["LimiteErroresDescripcion"]">
+            <Accion>
+                @if (RendererInfo.IsInteractive)
+                {
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="Recover">@Comunes["Reintentar"]</Boton>
+                }
+                else
+                {
+                    @* Pintado en estático (el límite de MainLayout, o un prerenderizado) no hay
+                       circuito que reciba un @onclick: el reintento es volver a pedir la página
+                       entera. Enlace y no OnClickScript, porque la CSP (script-src 'self', ver
+                       CabecerasSeguridadExtensions) bloquea los manejadores inline. *@
+                    <Boton Variante="VarianteBoton.Secundario" Href="@Navigation.Uri" data-enhance-nav="false">@Comunes["Reintentar"]</Boton>
+                }
+            </Accion>
+        </EstadoVacio>
+    </div>
+}
+
+@code {
+    protected override Task OnErrorAsync(Exception exception)
+    {
+        // El tipo y la pila van al log y a Sentry, que es donde se diagnostican; la
+        // plantilla no interpola el mensaje de la excepción para no copiarlo a un
+        // campo estructurado más.
+        Logger.LogError(exception, "Excepción no controlada contenida por un límite de errores de la interfaz.");
+
+        // Serilog sustituye a los proveedores de ILogger (UseSerilog, Program.cs), así
+        // que el LogError de arriba no llega al proveedor de Sentry: la captura es
+        // explícita, por la única vía de alerta operativa que ya existe.
+        AlertaOperativa.CapturarExcepcion(exception);
+        return Task.CompletedTask;
+    }
+}

@@ -42,7 +42,10 @@ public record DetalleVisitaDto(
     TramoAntelacion? Tramo,
     AtribucionUrgencia Atribucion,
     bool CentroRequiereGestionCae = true,
-    bool CentroGestionadoPorCorreo = false);
+    bool CentroGestionadoPorCorreo = false,
+    // FS-11: la ficha de una Visita cancelada ofrece reactivarla, no editarla.
+    bool EstaCancelada = false,
+    string? MotivoCancelacion = null);
 
 public class ObtenerDetalleVisitaQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
@@ -78,7 +81,9 @@ public class ObtenerDetalleVisitaQueryHandler(
                 v.AntelacionNominalHoras,
                 v.AntelacionEfectivaHoras,
                 v.Tramo,
-                v.Atribucion
+                v.Atribucion,
+                v.EstaCancelada,
+                v.MotivoCancelacion
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -108,6 +113,8 @@ public class ObtenerDetalleVisitaQueryHandler(
             visita.HoraEstimadaAcceso, visita.FechaHoraSolicitudUtc, visita.FechaHoraExpedienteCompletoUtc,
             visita.AntelacionNominalHoras, visita.AntelacionEfectivaHoras, visita.Tramo, visita.Atribucion,
             requiereGestionCae,
-            gestionadoPorCorreo);
+            gestionadoPorCorreo,
+            visita.EstaCancelada,
+            visita.MotivoCancelacion);
     }
 }

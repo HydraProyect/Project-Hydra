@@ -3,7 +3,8 @@ namespace CaeManager.Application.Common;
 /// <summary>
 /// La lanza <see cref="AutorizacionSecretosDeTenantBehavior{TRequest,TResponse}"/>
 /// cuando un usuario cuyo rol sí lee datos de credencial del Tenant propietario
-/// pide uno sin tener la autenticación en dos pasos activa (P1-I1).
+/// pide uno sin tener la autenticación en dos pasos activa (P1-I1), o cuando
+/// envía un Command que los escribe (<see cref="IEscrituraDeDatosDeCredencial"/>, P1-I2).
 ///
 /// <para>
 /// Es la única denegación de ese behavior que no se disfraza de "no hay
@@ -17,4 +18,4 @@ namespace CaeManager.Application.Common;
 /// </para>
 /// </summary>
 public sealed class SegundoFactorRequeridoParaCredencialesException()
-    : Exception("Leer datos de credencial del Tenant propietario exige tener activa la autenticación en dos pasos.");
+    : Exception("Leer o escribir datos de credencial del Tenant propietario exige tener activa la autenticación en dos pasos.");

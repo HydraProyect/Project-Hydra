@@ -300,7 +300,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             var resultado = await Mediator.Send(new CrearAsignacionCommand(trabajador.TrabajadorId, centroId, hoy));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -625,7 +625,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

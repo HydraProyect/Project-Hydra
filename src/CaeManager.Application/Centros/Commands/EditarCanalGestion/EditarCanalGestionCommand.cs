@@ -34,7 +34,12 @@ public record EditarCanalGestionCommand(
     bool CambiarCredenciales = false,
     string? Usuario = null,
     string? Contrasena = null,
-    Guid Version = default) : ICommand;
+    Guid Version = default) : ICommand, IEscrituraDeDatosDeCredencial
+{
+    // Sin CambiarCredenciales el handler no toca usuario ni contraseña; con él,
+    // también borrarlas (los dos campos vacíos) es escribir la credencial.
+    bool IEscrituraDeDatosDeCredencial.EscribeDatosDeCredencial => CambiarCredenciales;
+}
 
 public class EditarCanalGestionCommandValidator : AbstractValidator<EditarCanalGestionCommand>
 {

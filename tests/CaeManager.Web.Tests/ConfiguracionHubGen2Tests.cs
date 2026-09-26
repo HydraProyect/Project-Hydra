@@ -119,18 +119,24 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- arnés
 
-    private MediadorDelHub Registrar(bool esAdministradorPlataforma = false)
+    private MediadorDelHub Registrar(bool esAdministradorPlataforma = false, bool conPermisoAccesosSensibles = false)
     {
         var mediador = new MediadorDelHub { EsAdministradorPlataforma = esAdministradorPlataforma };
+        var autorizacion = AddAuthorization();
+        autorizacion.SetAuthorized("administrador@tenant.test");
+        autorizacion.SetRoles(CaeManager.Infrastructure.Identity.Roles.Administrador);
+        if (conPermisoAccesosSensibles)
+            autorizacion.SetPolicies(CaeManager.Infrastructure.Identity.Policies.ConsultarAccesoDocumentosSensibles);
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddSingleton<ILogger<SeleccionarClienteLecturaIa>>(_ => NullLogger<SeleccionarClienteLecturaIa>.Instance);
         return mediador;
     }
 
-    private IRenderedComponent<Configuracion> RenderizarHub(string? entrada, bool esAdministradorPlataforma = false)
+    private IRenderedComponent<Configuracion> RenderizarHub(
+        string? entrada, bool esAdministradorPlataforma = false, bool conPermisoAccesosSensibles = false)
     {
-        Registrar(esAdministradorPlataforma);
+        Registrar(esAdministradorPlataforma, conPermisoAccesosSensibles);
         return Render<Configuracion>(p => p.Add(x => x.EntradaRuta, entrada));
     }
 
@@ -337,6 +343,37 @@ public class ConfiguracionHubGen2Tests : BunitContext
                 a.QuerySelector(".descripcion-entrada-subnav")!.TextContent.Trim(),
                 a.GetAttribute("href")!))
             .ToList();
+    }
+
+    /// <summary>
+    /// FS-26: el registro de accesos a documentos sensibles solo se abría tecleando la
+    /// URL. Aparece en Auditoría para quien tiene el permiso granular, con la misma
+    /// política que la pantalla; sin él, ni la entrada ni el parámetro entry llevan a ella.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void La_entrada_de_accesos_a_documentos_sensibles_solo_existe_con_el_permiso(bool conPermiso)
+    {
+        var cut = RenderizarHub("plataforma", conPermisoAccesosSensibles: conPermiso);
+
+        var titulo = Navegacion(cut).QuerySelectorAll("[id]").Single(e => e.TextContent.Trim() == "Auditoría");
+        var rutas = Navegacion(cut).QuerySelector($"ul[aria-labelledby='{titulo.Id}']")!.QuerySelectorAll("li > a")
+            .Select(a => a.GetAttribute("href")).ToList();
+
+        rutas.Should().Contain("/configuracion/auditoria", "control positivo: el grupo se pintó");
+        rutas.Contains("/configuracion/accesos-sensibles").Should().Be(conPermiso);
+        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(conPermiso ? 15 : 14);
+    }
+
+    [Fact]
+    public void Sin_el_permiso_el_parametro_entry_no_abre_los_accesos_a_documentos_sensibles()
+    {
+        var cut = RenderizarHub("accesos-sensibles", conPermisoAccesosSensibles: false);
+
+        Contenido(cut).TextContent.Should().NotContain("Accesos a documentos sensibles");
+        Navegacion(cut).QuerySelector("[aria-current='page']")!.GetAttribute("href").Should().Be("/configuracion/params",
+            "una entrada que no existe para quien mira cae en Parámetros, como cualquier desconocida");
     }
 
     [Fact]

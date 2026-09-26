@@ -100,7 +100,7 @@ public class Subcontrata360Gen2Tests : BunitContext
             Tokens.Add((request, cancellationToken));
             if (Retener?.Invoke(request) is { } retenida)
                 await retenida;
-            if (SinDobleFactor && request is ObtenerCredencialAccesoSubcontrataQuery)
+            if (SinDobleFactor && request is ObtenerCredencialAccesoSubcontrataQuery or GuardarCredencialAccesoSubcontrataCommand)
                 throw new SegundoFactorRequeridoParaCredencialesException();
             return (TResponse)Responder(request)!;
         }
@@ -397,7 +397,8 @@ public class Subcontrata360Gen2Tests : BunitContext
 
         mediador.Enviadas.OfType<ObtenerCredencialAccesoSubcontrataQuery>().Should().HaveCount(2,
             "revelar y copiar vuelven a pedir la credencial en vez de usar la cargada");
-        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/cuenta/configurar-2fa?motivo=credenciales");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/cuenta/configurar-2fa?motivo=credenciales&returnUrl=%2F",
+            "vuelve a la ruta en la que estaba el panel (en bUnit, la raíz)");
         cut.Markup.Should().NotContain("Lauburu.2026").And.NotContain("lauburu.prl",
             "sin 2FA la credencial cargada se suelta del circuito");
         modulo.Invocations.Should().BeEmpty("sin 2FA no hay nada que copiar");
@@ -1075,6 +1076,33 @@ public class Subcontrata360Gen2Tests : BunitContext
         var comando = escena.Mediador.Enviadas.OfType<GuardarCredencialAccesoSubcontrataCommand>().Should().ContainSingle().Subject;
         comando.Contrasena.Should().BeNullOrEmpty(
             "sin tocar el campo, el comando no manda nada — GuardarCredencialAccesoSubcontrataCommandHandler conserva la almacenada (DEC-62)");
+    }
+
+    /// <summary>
+    /// P1-I2 (hueco de #900): escribir la credencial exige el mismo 2FA que
+    /// leerla. Con la edición abierta y el 2FA restablecido después, guardar se
+    /// deniega en Application; la pantalla no anuncia el guardado y lleva a
+    /// activar el 2FA con la vuelta a la ficha.
+    /// </summary>
+    [Fact]
+    public async Task Sin_2FA_guardar_las_credenciales_no_se_da_por_hecho_y_lleva_a_activarlo_volviendo_a_la_ficha()
+    {
+        const string ficha = "/subcontratas?ficha=lauburu&pestana=informacion";
+        var escena = PrepararEdicion(new MediatorFalso());
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo(ficha);
+        var cut = await AbrirEdicionAsync(escena);
+        await Control(cut, "Usuario").InputAsync(new ChangeEventArgs { Value = "lauburu.admin" });
+        escena.Mediador.SinDobleFactor = true;
+
+        await Boton(cut, "Guardar credenciales").ClickAsync(new MouseEventArgs());
+
+        escena.Mediador.Enviadas.OfType<GuardarCredencialAccesoSubcontrataCommand>().Should().ContainSingle(
+            "barrera: el comando se envió y fue la denegación la que respondió");
+        navegacion.Uri.Should().Be(navegacion.BaseUri.TrimEnd('/')
+            + "/cuenta/configurar-2fa?motivo=credenciales&returnUrl=" + Uri.EscapeDataString(ficha));
+        Toasts.Should().NotContain(m => m.Tono == TonoToast.Exito);
+        cut.FindAll(".alerta-formulario[role=alert]").Should().BeEmpty("no es un fallo genérico de guardado");
     }
 
     [Fact]

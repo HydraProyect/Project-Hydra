@@ -56,11 +56,14 @@ public class ObtenerPaqueteDocumentalVisitaQueryHandler(
             from v in visitasContext.Visitas
             join centro in centrosContext.Centros on v.CentroId equals centro.Id
             where v.Id == request.VisitaId
-            select new { CentroId = centro.Id, centro.GestionCae })
+            select new { CentroId = centro.Id, centro.GestionCae, v.EstaCancelada })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (visita is null || !await alcanceDatos.CentroParaGestionVisibleAsync(visita.CentroId, cancellationToken))
             return Result.Fallo<PaqueteDocumentalDescargaDto>(ObtenerSolicitudAccesoCorreoQueryHandler.NoEncontrada);
+
+        if (visita.EstaCancelada)
+            return Result.Fallo<PaqueteDocumentalDescargaDto>(ObtenerSolicitudAccesoCorreoQueryHandler.VisitaCancelada);
 
         if (visita.GestionCae == ModalidadGestionCae.SinGestionCae)
             return Result.Fallo<PaqueteDocumentalDescargaDto>(ObtenerSolicitudAccesoCorreoQueryHandler.CentroSinGestionCae);

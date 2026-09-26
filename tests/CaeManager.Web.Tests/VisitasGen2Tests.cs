@@ -5,7 +5,8 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
-using CaeManager.Application.Visitas.Commands.EliminarVisita;
+using CaeManager.Application.Visitas.Commands.CancelarVisita;
+using CaeManager.Application.Visitas.Commands.ReactivarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
@@ -86,7 +87,8 @@ public class VisitasGen2Tests : BunitContext
             v.Id, v.CentroNombre, v.ClienteRazonSocial, v.EmpresaId, v.EmpresaRazonSocial, v.FechaInicio, v.FechaFin,
             Notas: null, v.NotificadoCliente, Trabajadores: [], HoraEstimadaAcceso: null, FechaHoraSolicitudUtc: null,
             FechaHoraExpedienteCompletoUtc: null, AntelacionNominalHoras: 36m, AntelacionEfectivaHoras: 11m, tramo,
-            AtribucionUrgencia.SinUrgencia, CentroRequiereGestionCae: v.CentroRequiereGestionCae);
+            AtribucionUrgencia.SinUrgencia, CentroRequiereGestionCae: v.CentroRequiereGestionCae,
+            EstaCancelada: v.EstaCancelada, MotivoCancelacion: v.MotivoCancelacion);
 
         public HashSet<Guid> VisitasPorCorreo { get; } = [];
 
@@ -105,7 +107,7 @@ public class VisitasGen2Tests : BunitContext
         private List<VisitaListaDto> Aplicar(ObtenerVisitasQuery consulta) => Visitas
             .Where(v => consulta.NotificadoCliente is null || v.NotificadoCliente == consulta.NotificadoCliente)
             .Where(v => !consulta.SoloUrgentes || v.NivelUrgencia != NivelUrgenciaVisita.Normal)
-            .Where(v => !consulta.SoloActivas || v.FechaFin >= Hoy)
+            .Where(v => !consulta.SoloActivas || (v.FechaFin >= Hoy && !v.EstaCancelada))
             .Where(v => string.IsNullOrWhiteSpace(consulta.Busqueda)
                 || $"{v.CentroNombre} {v.ClienteRazonSocial} {v.EmpresaRazonSocial}".Contains(consulta.Busqueda, StringComparison.OrdinalIgnoreCase))
             .ToList();
@@ -169,10 +171,21 @@ public class VisitasGen2Tests : BunitContext
                     Visitas[indice] = Visitas[indice] with { NotificadoCliente = marcar.Notificado };
                     return Respuesta<TResponse>(Result.Exito());
 
-                case EliminarVisitaCommand eliminar:
-                    Comandos.Add(eliminar);
-                    Visitas.RemoveAll(v => v.Id == eliminar.Id);
-                    return Respuesta<TResponse>(Result.Exito());
+                case CancelarVisitaCommand cancelar:
+                    {
+                        Comandos.Add(cancelar);
+                        var i = Visitas.FindIndex(v => v.Id == cancelar.Id);
+                        Visitas[i] = Visitas[i] with { EstaCancelada = true, MotivoCancelacion = cancelar.Motivo };
+                        return Respuesta<TResponse>(Result.Exito());
+                    }
+
+                case ReactivarVisitaCommand reactivar:
+                    {
+                        Comandos.Add(reactivar);
+                        var i = Visitas.FindIndex(v => v.Id == reactivar.Id);
+                        Visitas[i] = Visitas[i] with { EstaCancelada = false, MotivoCancelacion = null };
+                        return Respuesta<TResponse>(Result.Exito());
+                    }
 
                 case ObtenerCentrosParaSelectorQuery:
                     return Respuesta<TResponse>(Array.Empty<CentroSelectorDto>());
@@ -613,9 +626,9 @@ public class VisitasGen2Tests : BunitContext
     [Theory]
     [InlineData(Roles.GestorCae, true)]
     [InlineData(Roles.Consulta, false)]
-    public async Task Eliminar_seleccionados_solo_se_ofrece_a_los_roles_con_escritura(string rol, bool seOfrece)
+    public async Task Cancelar_seleccionadas_solo_se_ofrece_a_los_roles_con_escritura(string rol, bool seOfrece)
     {
-        // EliminarVisitasCommand es ICommand: a Consulta no se le ofrece la barra del
+        // CancelarVisitasCommand es ICommand: a Consulta no se le ofrece la barra del
         // lote. El caso con escritura es el control de que la selección llegó a hacerse.
         this.ConRolDeEscritura(rol);
         var mediator = new MediatorVisitas();
@@ -626,12 +639,16 @@ public class VisitasGen2Tests : BunitContext
         await Fila(cut, "Centro Norte").QuerySelector("input[type=checkbox]:not(.visitas-interruptor)")!
             .ChangeAsync(new ChangeEventArgs { Value = true });
 
-        cut.FindAll(".barra-acciones-lote button").Any(b => b.TextContent.Trim() == "Eliminar seleccionados")
+        cut.FindAll(".barra-acciones-lote button").Any(b => b.TextContent.Trim() == "Cancelar seleccionadas")
             .Should().Be(seOfrece);
     }
 
+    /// <summary>
+    /// FS-11: cancelar pide confirmación con motivo opcional, deja la Visita fuera de la
+    /// lista activa y el aviso ofrece «Deshacer», que la reactiva.
+    /// </summary>
     [Fact]
-    public async Task Eliminar_pide_confirmacion_y_solo_al_confirmar_borra_esa_visita()
+    public async Task Cancelar_pide_confirmacion_con_motivo_y_el_aviso_la_deshace()
     {
         var norte = Visita("Centro Norte");
         var zaragoza = Visita("Planta Zaragoza");
@@ -639,16 +656,99 @@ public class VisitasGen2Tests : BunitContext
         mediator.Visitas.AddRange([norte, zaragoza]);
         var cut = Renderizar(mediator);
 
-        await ItemDeMenu(cut, "Planta Zaragoza", "Eliminar").ClickAsync(new MouseEventArgs());
+        await ItemDeMenu(cut, "Planta Zaragoza", "Cancelar visita").ClickAsync(new MouseEventArgs());
 
-        cut.Markup.Should().Contain("¿Eliminar la visita a Planta Zaragoza?");
-        mediator.Comandos.Should().BeEmpty("abrir el diálogo no borra nada");
+        cut.Markup.Should().Contain("¿Cancelar la visita a Planta Zaragoza?");
+        cut.Markup.Should().Contain("se conserva en el historial");
+        mediator.Comandos.Should().BeEmpty("abrir el diálogo no cancela nada");
 
-        await cut.FindAll(".modal-pie button").First(b => b.TextContent.Contains("Eliminar")).ClickAsync(new MouseEventArgs());
+        await cut.Find("[role=dialog] textarea").InputAsync(new ChangeEventArgs { Value = "Obra aplazada" });
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar visita").ClickAsync(new MouseEventArgs());
 
-        mediator.Comandos.Should().ContainSingle().Which.Should().Be(new EliminarVisitaCommand(zaragoza.Id));
+        mediator.Comandos.Should().ContainSingle().Which.Should().Be(new CancelarVisitaCommand(zaragoza.Id, "Obra aplazada"));
         cut.WaitForAssertion(() => cut.FindAll("tbody tr").Should().NotContain(tr => tr.TextContent.Contains("Planta Zaragoza")));
         cut.FindAll("tbody tr").Should().Contain(tr => tr.TextContent.Contains("Centro Norte"));
+
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        mediator.Comandos.OfType<ReactivarVisitaCommand>().Should().ContainSingle().Which.Id.Should().Be(zaragoza.Id);
+        cut.WaitForAssertion(() => cut.FindAll("tbody tr").Should().Contain(tr => tr.TextContent.Contains("Planta Zaragoza")));
+    }
+
+    /// <summary>
+    /// FS-11: en el historial una Visita cancelada se marca como tal y ofrece
+    /// «Reactivar», no «Editar» ni «Cancelar visita», a los mismos roles que pueden
+    /// cancelar (los de escritura); a Consulta, no.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.CoordinadorCae, true)]
+    [InlineData(Roles.DireccionCae, true)]
+    [InlineData(Roles.Administrador, true)]
+    [InlineData(Roles.Consulta, false)]
+    public async Task Una_visita_cancelada_se_marca_y_ofrece_reactivar_solo_a_quien_puede(string rol, bool seOfrece)
+    {
+        this.ConRolDeEscritura(rol);
+        var cancelada = Visita("Planta Zaragoza") with { EstaCancelada = true, MotivoCancelacion = "Obra aplazada" };
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(cancelada);
+        var cut = Renderizar(mediator);
+        await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
+            .ChangeAsync(new ChangeEventArgs { Value = false });
+
+        var fila = Fila(cut, "Planta Zaragoza");
+        fila.TextContent.Should().Contain("Cancelada");
+        fila.QuerySelector("[title='Obra aplazada']").Should().NotBeNull("el motivo acompaña a la marca");
+        fila.QuerySelector(".menu-acciones-disparador")!.Click();
+        var acciones = Fila(cut, "Planta Zaragoza").QuerySelectorAll(".menu-acciones-item").Select(e => e.TextContent.Trim()).ToList();
+        acciones.Should().Contain("Ver", "control positivo: el menú se abrió");
+        acciones.Should().NotContain(["Editar", "Cancelar visita"]);
+        acciones.Contains("Reactivar").Should().Be(seOfrece);
+    }
+
+    /// <summary>
+    /// FS-11: la ficha de una Visita cancelada no carga ni ofrece acciones
+    /// operativas (solicitud de acceso, paquete, comprobación previa): solo reactivar.
+    /// </summary>
+    [Fact]
+    public async Task La_ficha_de_una_visita_cancelada_no_ofrece_acciones_operativas()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var cancelada = Visita("Planta Zaragoza") with { EstaCancelada = true, MotivoCancelacion = "Obra aplazada" };
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(cancelada);
+        mediator.VisitasPorCorreo.Add(cancelada.Id);
+        var cut = Renderizar(mediator);
+        await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
+            .ChangeAsync(new ChangeEventArgs { Value = false });
+
+        Interruptor(cut, "Planta Zaragoza").HasAttribute("disabled").Should().BeTrue("una cancelada no se marca como notificada");
+        await ItemDeMenu(cut, "Planta Zaragoza", "Ver").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Visita cancelada. Motivo: Obra aplazada"));
+        cut.Markup.Should().Contain("Reactívala para retomarla");
+        cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should().Equal(["Reactivar", "Cerrar"]);
+        mediator.ConsultasSolicitud.Should().Be(0, "no se compone la solicitud de acceso de una visita cancelada");
+    }
+
+    [Fact]
+    public async Task Reactivar_pide_confirmacion_con_motivo_opcional_y_manda_el_comando()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var cancelada = Visita("Planta Zaragoza") with { EstaCancelada = true };
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(cancelada);
+        var cut = Renderizar(mediator);
+        await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
+            .ChangeAsync(new ChangeEventArgs { Value = false });
+
+        await ItemDeMenu(cut, "Planta Zaragoza", "Reactivar").ClickAsync(new MouseEventArgs());
+        cut.Markup.Should().Contain("¿Reactivar la visita a Planta Zaragoza?");
+        await cut.Find("[role=dialog] textarea").InputAsync(new ChangeEventArgs { Value = "Se retoma" });
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Reactivar").ClickAsync(new MouseEventArgs());
+
+        mediator.Comandos.Should().ContainSingle().Which.Should().Be(new ReactivarVisitaCommand(cancelada.Id, "Se retoma"));
     }
 
     /// <summary>

@@ -471,6 +471,38 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
             "misma respuesta por el retorno temprano, cuando ningún centro pedido tiene asignaciones");
     }
 
+    /// <summary>
+    /// P1-D3: el índice (TrabajadorId, TipoDocumentoId) de Documentos no es
+    /// único y la subida manual, la subida masiva con IA y la generación por
+    /// plantilla insertan sin mirar si ya hay otro del mismo tipo — la
+    /// renovación típica deja el vencido y añade el nuevo. Antes, el
+    /// <c>ToDictionary</c> por par lanzaba ArgumentException y tumbaba el
+    /// cumplimiento del Centro entero. Ahora manda el mismo documento que
+    /// elige el paquete de acreditación (<c>PreferenciaDocumentoPorTipo</c>):
+    /// el no vencido antes que el vencido.
+    /// </summary>
+    [Fact]
+    public async Task Con_el_vencido_y_su_renovacion_del_mismo_tipo_cuenta_al_dia_por_el_vigente()
+    {
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoObligatorioId, hoy.AddYears(-1), VigenciaDocumento.VenceEl(hoy.AddDays(-10))));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoObligatorioId, hoy.AddDays(-5), VigenciaDocumento.VenceEl(hoy.AddYears(1))));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var servicio = new CalculoEstadoCentroService(lectura, lectura, lectura, lectura, lectura, lectura);
+
+        var cumplimiento = await servicio.CalcularCumplimientoAsync([_centroId], CancellationToken.None);
+
+        cumplimiento[_centroId].Requeridos.Should().Be(1, "dos copias del mismo tipo siguen siendo un único requisito del Trabajador");
+        cumplimiento[_centroId].AlDia.Should().Be(1, "manda la renovación vigente, no la copia vencida");
+    }
+
     /// <summary>Acreditación del documento vigente del Trabajador contra un canal de plataforma del Centro indicado.</summary>
     private async Task SembrarAcreditacionEnAsync(
         Guid centroId, Guid trabajadorId, Action<AcreditacionDocumentoPlataforma> configurar, Guid? tipoDocumentoId = null)

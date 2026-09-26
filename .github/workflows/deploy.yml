@@ -470,11 +470,17 @@ jobs:
 
       - name: Construir la imagen
         # La etiqueta OCI de revisión la comprueba cargar_imagen_verificada
-        # en el VPS tras el `docker load`.
+        # en el VPS tras el `docker load`. Las dos es.talveg.* son de P1-F1:
+        # `despliegue` saca la imagen de la poda de liberar-disco.sh (la
+        # retiene imagenes-retenidas.sh) y `migraciones-ef` es el inventario
+        # que volver-atras.sh compara con __EFMigrationsHistory.
         run: |
           set -euo pipefail
+          MIGRACIONES_EF="$(bash deploy/listar-migraciones-ef.sh .)"
           docker build \
             --label "org.opencontainers.image.revision=$SHA_DESPLEGADO" \
+            --label "es.talveg.despliegue=caemanager" \
+            --label "es.talveg.migraciones-ef=$MIGRACIONES_EF" \
             -t "caemanager:$SHA_DESPLEGADO" .
 
       - name: Exportar la imagen y escribir el manifiesto

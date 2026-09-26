@@ -640,7 +640,9 @@ public class Empresa360PaginaTests : BunitContext
 
         var acceso = cut.WaitForElement(".acceso-requiere-2fa");
         acceso.TextContent.Should().Contain("Activa la autenticación en dos pasos para ver el acceso.");
-        acceso.QuerySelector("a")!.GetAttribute("href").Should().Be("/cuenta/configurar-2fa?motivo=credenciales");
+        acceso.QuerySelector("a")!.GetAttribute("href").Should().Be(
+            "/cuenta/configurar-2fa?motivo=credenciales&returnUrl=" + Uri.EscapeDataString(new Uri(Navegacion.Uri).PathAndQuery),
+            "el enlace lleva la vuelta a esta misma ficha (P1-I2)");
         cut.Markup.Should().NotContain("usuario.ibertec").And.NotContain("Sin credenciales que puedas consultar");
         cut.FindAll(".boton-copiar").Select(b => b.TextContent.Trim())
             .Should().NotContain(["Copiar usuario", "Copiar contraseña"]);

@@ -45,4 +45,10 @@
     <value>Consultar {0} de un vistazo</value>
     <comment>{0}: nombre de la entidad (Centro, Empresa, Cliente…) que abre el panel 360.</comment>
   </data>
+  <data name="LimiteErroresTitulo" xml:space="preserve">
+    <value>Algo ha fallado; vuelve a intentarlo</value>
+  </data>
+  <data name="LimiteErroresDescripcion" xml:space="preserve">
+    <value>Esta parte de la pantalla no ha podido cargarse. El resto sigue funcionando.</value>
+  </data>
 </root>

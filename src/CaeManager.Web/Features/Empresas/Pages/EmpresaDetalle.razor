@@ -187,7 +187,7 @@
                     {
                         <p class="texto-vacio-seccion acceso-requiere-2fa">
                             @Textos["AccesoRequiereDosFactores"]
-                            <a href="@SegundoFactorParaCredenciales.RutaConfigurar" data-enhance-nav="false">@Textos["ActivarDosFactores"]</a>
+                            <a href="@SegundoFactorParaCredenciales.RutaConfigurarVolviendoA(SegundoFactorParaCredenciales.RutaActual(NavigationManager))" data-enhance-nav="false">@Textos["ActivarDosFactores"]</a>
                         </p>
                     }
                     else if (_credencial is null)

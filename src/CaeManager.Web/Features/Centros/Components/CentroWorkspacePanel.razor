@@ -32,6 +32,7 @@
 @using CaeManager.Web.Features.Centros.Recursos
 @using Microsoft.Extensions.Localization
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Services
 @using CaeManager.Domain.Common
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Documentos
@@ -47,6 +48,7 @@
 @inject ILogger<CentroWorkspacePanel> Logger
 @inject ICurrentUserService CurrentUserService
 @inject IResolucionProveedorPlataformaCaeService ResolucionProveedor
+@inject NavigationManager NavigationManager
 
 @if (_cargando)
 {
@@ -1110,7 +1112,7 @@ else
         var resultado = await Mediator.Send(new EliminarDocumentacionRequeridaCentroCommand(EntidadId, item.TipoDocumentoId));
         if (resultado.EsFallido)
         {
-            ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            ToastService.MostrarError(resultado.Error);
             return;
         }
 
@@ -1367,6 +1369,11 @@ else
             _mensajeErrorCanal = ex.Errors.FirstOrDefault()?.ErrorMessage
                 ?? "No pudimos guardar el acceso. Revisa los datos introducidos.";
         }
+        // P1-I2: guardar un usuario o una contraseña del acceso exige 2FA activo.
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+        }
         catch (Exception)
         {
             _mensajeErrorCanal = "No pudimos guardar el acceso. Intenta nuevamente en unos segundos.";
@@ -1393,7 +1400,7 @@ else
             var resultado = await Mediator.Send(new EstablecerGestionCaeCentroCommand(_detalle.Id, nueva, _detalle.Version));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1421,7 +1428,7 @@ else
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1453,7 +1460,7 @@ else
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

@@ -12,6 +12,7 @@ using CaeManager.Web.Features.Documentos.Recursos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 
@@ -91,6 +92,7 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
     [Inject] private ICurrentUserService CurrentUserService { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosSubidaMasiva> Textos { get; set; } = default!;
+    [Inject] private NavigationManager Navegacion { get; set; } = default!;
 
     private enum EstadoItem { Procesando, PendienteConfirmar, Creado, Descartado, Error }
 
@@ -171,6 +173,16 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
     private int TotalRecibidos => _totalRecibidos;
     private int ArchivosEnCurso => _items.Count(i => i.Estado == EstadoItem.Procesando);
     private bool HayArchivosEnCurso => ArchivosEnCurso > 0;
+
+    /// <summary>
+    /// FS-14: lo que se perdería al salir. En curso (leyéndose), sin confirmar
+    /// (propuesta de la IA a la vista) o confirmándose en este momento: nada de
+    /// eso existe todavía fuera de la memoria del circuito.
+    /// </summary>
+    private int ArchivosSinGuardar => _items.Count(i =>
+        i.Estado is EstadoItem.Procesando or EstadoItem.PendienteConfirmar || i.Confirmando);
+
+    private bool HayTrabajoSinGuardar => ArchivosSinGuardar > 0;
     private int ArchivosLeidos => TotalRecibidos - ArchivosEnCurso;
     private int PorcentajeProgreso => TotalRecibidos == 0 ? 0 : ArchivosLeidos * 100 / TotalRecibidos;
     private IReadOnlyList<ItemLote> ItemsFiltrados => _items.Where(item => _filtro switch
@@ -706,6 +718,45 @@ public partial class SubidaMasiva : ComponentBase, IDisposable
         item.Estado = EstadoItem.Error;
         item.MensajeError = mensaje;
         _totalErrores++;
+    }
+
+    // --- FS-14: salir con el lote a medias ---
+
+    private bool _confirmarSalidaVisible;
+    private string? _destinoPendiente;
+    private bool _salidaConfirmada;
+
+    /// <summary>
+    /// Navegación dentro de la aplicación (miga, «Revisión IA →», menú lateral):
+    /// con trabajo sin guardar se detiene y se pregunta. Si quien mira confirma, se
+    /// repite la navegación ya sin preguntar; si no, sigue con el lote donde estaba.
+    /// </summary>
+    private Task AntesDeSalirAsync(LocationChangingContext contexto)
+    {
+        if (_salidaConfirmada || !HayTrabajoSinGuardar)
+            return Task.CompletedTask;
+
+        contexto.PreventNavigation();
+        _destinoPendiente = contexto.TargetLocation;
+        _confirmarSalidaVisible = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void SeguirConElLote()
+    {
+        _confirmarSalidaVisible = false;
+        _destinoPendiente = null;
+    }
+
+    private void SalirDescartandoElLote()
+    {
+        _confirmarSalidaVisible = false;
+        if (_destinoPendiente is not { } destino)
+            return;
+
+        _salidaConfirmada = true;
+        Navegacion.NavigateTo(destino);
     }
 
     public void Dispose()

@@ -2,13 +2,14 @@
 # contenedor, para no perder hot-reload ni depuración en el día a día. Ver
 # Dockerfile para la imagen de despliegue real (VPS, deploy/local/).
 #
-# Misma versión que el job de CI (`.github/workflows/ci.yml`) — un test que
-# pasa en local debe pasar en CI y viceversa. Producción corre Postgres 18
-# (deploy/local/docker-compose.produccion.yml): CI y local van una versión
-# mayor por detrás.
+# Misma etiqueta y digest que producción (servicio db de
+# deploy/local/docker-compose.produccion.yml) y que los servicios de
+# `.github/workflows/ci.yml` (P1-C1): un test que pasa en local debe pasar en
+# CI, y los dos deben describir el motor de producción. Lo vigila
+# MismaVersionDePostgresTests (Architecture).
 services:
   postgres:
-    image: postgres:17
+    image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -16,7 +17,11 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - caemanager-postgres-data:/var/lib/postgresql/data
+      # Desde la imagen oficial de postgres:18 el volumen va en el directorio
+      # PADRE (docker-library/postgres#1259), igual que en producción. Volumen
+      # con nombre nuevo: el de la 17 no es legible por la 18 sin pg_upgrade,
+      # y los datos de desarrollo son desechables.
+      - caemanager-postgres18-data:/var/lib/postgresql
       # Bootstrap de roles de clúster. La especificación normativa está en ese
       # fichero y aquí solo se monta: initdb.d lo ejecuta al INICIALIZAR el
       # directorio de datos.
@@ -38,4 +43,4 @@ services:
       retries: 10
 
 volumes:
-  caemanager-postgres-data:
+  caemanager-postgres18-data:

@@ -68,7 +68,12 @@ jobs:
     # máquinas distintas, así que no comparten clúster y no pueden pisarse.
     services:
       postgres:
-        image: postgres:17
+        # Misma etiqueta y digest que el servicio db de
+        # deploy/local/docker-compose.produccion.yml (P1-C1): un test que pasa
+        # aquí debe describir el motor que corre en producción. Lo vigila
+        # MismaVersionDePostgresTests (Architecture) en los tres servicios de
+        # este fichero y en el resto de sitios del repositorio.
+        image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -862,7 +867,7 @@ jobs:
     # servicio que usa el job build-and-test.
     services:
       postgres:
-        image: postgres:17
+        image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -1012,7 +1017,7 @@ jobs:
     continue-on-error: true
     services:
       postgres:
-        image: postgres:17
+        image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -1263,6 +1268,13 @@ jobs:
 
       - name: deploy/vigilar-host.tests.sh
         run: bash deploy/vigilar-host.tests.sh
+
+      # P1-F1: vuelta atrás a una imagen caemanager:<sha> retenida, sin
+      # reconstruir ni deshacer esquema, con docker falso. Incluye su prueba de
+      # sensibilidad (mutaciones sobre /salud, la imagen en marcha y el
+      # esquema) y lee las migraciones reales del repositorio.
+      - name: deploy/volver-atras.tests.sh
+        run: bash deploy/volver-atras.tests.sh
 
       - name: deploy/ci-deploy-secretos.tests.sh
         run: bash deploy/ci-deploy-secretos.tests.sh

@@ -434,7 +434,7 @@ public partial class Macros : CaeManager.Web.Components.PaginaIntegrableConfigur
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
             }
             else
             {

@@ -38,7 +38,9 @@
 # Entorno (opcional):
 #   ENSAYO_IMAGEN_APP      imagen de la app; si falta, se construye del Dockerfile
 #                          de este árbol.
-#   ENSAYO_IMAGEN_PG       imagen de PostgreSQL (por defecto postgres:18).
+#   ENSAYO_IMAGEN_PG       imagen de PostgreSQL (por defecto, la misma etiqueta y
+#                          digest que deploy/local/docker-compose.produccion.yml;
+#                          lo vigila MismaVersionDePostgresTests).
 #   ENSAYO_CUENTA / ENSAYO_CLAVE   (opcionales) cuenta SIN 2FA para el login. Sin
 #                          ellas el guion prepara una credencial de ensayo EN LA
 #                          COPIA desechable (ver preparar_cuenta). Nunca van en el
@@ -89,7 +91,7 @@ if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qxE 'caemanager-(app|d
     fi
 fi
 
-IMAGEN_PG="${ENSAYO_IMAGEN_PG:-postgres:18}"
+IMAGEN_PG="${ENSAYO_IMAGEN_PG:-postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280}"
 RPO_MAX_HORAS="${RPO_MAX_HORAS:-24}"
 RTO_MAX_HORAS="${RTO_MAX_HORAS:-4}"
 

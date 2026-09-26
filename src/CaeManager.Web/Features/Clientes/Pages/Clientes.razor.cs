@@ -643,7 +643,7 @@ public partial class Clientes : ComponentBase
                 var nuevoEjecutivoId = Guid.TryParse(_ejecutivoUsuarioId, out var idGestor) ? idGestor : (Guid?)null;
                 var resultadoReasignar = await Mediator.Send(new ReasignarEjecutivoClienteCommand(_editandoId.Value, nuevoEjecutivoId));
                 if (resultadoReasignar.EsFallido)
-                    ToastService.Mostrar(resultadoReasignar.Error.Mensaje, TonoToast.Error);
+                    ToastService.MostrarError(resultadoReasignar.Error);
             }
 
             ToastService.Mostrar(
@@ -721,7 +721,7 @@ public partial class Clientes : ComponentBase
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
             }
             else
             {
@@ -1028,7 +1028,7 @@ public partial class Clientes : ComponentBase
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 
@@ -1061,7 +1061,7 @@ public partial class Clientes : ComponentBase
             var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(filtro.Id));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

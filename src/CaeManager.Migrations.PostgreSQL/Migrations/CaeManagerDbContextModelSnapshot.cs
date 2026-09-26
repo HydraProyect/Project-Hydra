@@ -7219,6 +7219,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Atribucion")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("CanceladaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("CentroId")
                         .HasColumnType("uuid");
 
@@ -7233,6 +7236,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<Guid?>("EliminadoPorUsuarioId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaCancelada")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
@@ -7252,6 +7258,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<TimeOnly?>("HoraEstimadaAcceso")
                         .HasColumnType("time without time zone");
 
+                    b.Property<string>("MotivoCancelacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("MotivoReactivacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<string>("Notas")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
@@ -7261,6 +7275,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<int>("Origen")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ReactivadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
@@ -7284,7 +7301,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "FechaFin")
                         .HasDatabaseName("IX_Visitas_ExpedientePendiente")
-                        .HasFilter("\"FechaHoraSolicitudUtc\" IS NOT NULL AND \"FechaHoraExpedienteCompletoUtc\" IS NULL AND NOT \"EstaEliminado\"");
+                        .HasFilter("\"FechaHoraSolicitudUtc\" IS NOT NULL AND \"FechaHoraExpedienteCompletoUtc\" IS NULL AND NOT \"EstaEliminado\" AND NOT \"EstaCancelada\"");
 
                     b.HasIndex("TenantId", "Id")
                         .IsUnique();
