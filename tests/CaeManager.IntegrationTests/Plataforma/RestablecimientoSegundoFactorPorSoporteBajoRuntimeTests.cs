@@ -362,6 +362,115 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
         (await LeerAuditoriaDeSesionAsync(sesion)).Should().BeEmpty();
     }
 
+    // ── Alta concurrente de otro Administrador (ADR-011 § 8.7.3) ─────────────
+    //
+    // El FOR UPDATE de la función solo bloquea la fila de la cuenta que restablece;
+    // el alta de OTRO Administrador no la toca. Sin el cerrojo por Tenant, una
+    // transacción de alta sin confirmar es invisible para la función, que
+    // restablece, y al confirmar quedan dos Administradores activos. El alta se
+    // hace como propietario porque lo que se prueba es el trigger, que dispara
+    // con cualquier rol.
+
+    [Fact]
+    public async Task Una_asignacion_concurrente_del_rol_Administrador_hace_esperar_al_restablecimiento()
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+        await using var alta = await AltaSinConfirmarAsync(
+            @"INSERT INTO ""AspNetUserRoles"" (""UserId"", ""RoleId"") VALUES (@u, @r);", _gestorDeA);
+
+        var restablecer = Task.Run(() => RestablecerComoSoporteAsync(_tenantA, sesion, _administradorDeA));
+        await EsperarBloqueadoPorElCerrojoAsync(restablecer);
+        await alta.ConfirmarAsync();
+
+        (await restablecer.WaitAsync(TimeSpan.FromSeconds(30))).Should().Be("hay_otro_administrador",
+            "tras esperar al alta, la función ve al segundo Administrador ya confirmado");
+        await CuentaIntactaAsync(_administradorDeA);
+    }
+
+    [Fact]
+    public async Task Una_reactivacion_concurrente_de_otro_Administrador_hace_esperar_al_restablecimiento()
+    {
+        Guid desactivado;
+        await using (var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion))
+        {
+            desactivado = SembrarCuenta(contexto, "admin-a-baja", _tenantA, _rolAdministrador, desactivada: true);
+            await contexto.SaveChangesAsync();
+        }
+        var sesion = await AbrirSesionConCapacidadAsync();
+        await using var alta = await AltaSinConfirmarAsync(
+            @"UPDATE ""AspNetUsers"" SET ""LockoutEnd"" = NULL WHERE ""Id"" = @u;", desactivado);
+
+        var restablecer = Task.Run(() => RestablecerComoSoporteAsync(_tenantA, sesion, _administradorDeA));
+        await EsperarBloqueadoPorElCerrojoAsync(restablecer);
+        await alta.ConfirmarAsync();
+
+        (await restablecer.WaitAsync(TimeSpan.FromSeconds(30))).Should().Be("hay_otro_administrador");
+        await CuentaIntactaAsync(_administradorDeA);
+    }
+
+    /// <summary>
+    /// Orden de cerrojos (revisión Codex): el trigger corre con la fila de la cuenta
+    /// ya bloqueada y después pide el cerrojo del Tenant, así que la función tiene que
+    /// pedirlos en el mismo orden. Se fuerza el cruce: un alta retiene el cerrojo, el
+    /// restablecimiento espera, y mientras tanto se actualiza la <c>LockoutEnd</c> de la
+    /// propia cuenta objetivo (sigue activa). Con el orden inverso, al soltarse el alta
+    /// las dos transacciones se esperan mutuamente y Postgres aborta una con 40P01.
+    /// </summary>
+    [Fact]
+    public async Task Tocar_la_propia_cuenta_mientras_se_restablece_espera_sin_interbloqueo()
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+        await using var alta = await AltaSinConfirmarAsync(
+            @"INSERT INTO ""AspNetUserRoles"" (""UserId"", ""RoleId"") VALUES (@u, @r);", _gestorDeA);
+
+        var restablecer = Task.Run(() => RestablecerComoSoporteAsync(_tenantA, sesion, _administradorDeA));
+        await EsperarBloqueadoPorElCerrojoAsync(restablecer);
+
+        var tocarCuenta = Task.Run(async () =>
+        {
+            await using var conexion = new NpgsqlConnection(_cadenaConexion);
+            await conexion.OpenAsync();
+            await using var comando = conexion.CreateCommand();
+            comando.CommandText =
+                @"UPDATE ""AspNetUsers"" SET ""LockoutEnd"" = '2000-01-01T00:00:00Z' WHERE ""Id"" = @u;";
+            comando.Parameters.AddWithValue("u", _administradorDeA);
+            return await comando.ExecuteNonQueryAsync();
+        });
+        await EsperarEsperasDeCerrojoAsync(2, restablecer, tocarCuenta);
+        await alta.ConfirmarAsync();
+
+        (await restablecer.WaitAsync(TimeSpan.FromSeconds(30))).Should().Be("hay_otro_administrador");
+        (await tocarCuenta.WaitAsync(TimeSpan.FromSeconds(30))).Should().Be(1);
+    }
+
+    /// <summary>
+    /// Control de que el cerrojo es estrecho y de que los dos tests de arriba miden la
+    /// espera y no otra cosa: un rol que no es Administrador, o un Administrador de otro
+    /// Tenant, no hace esperar. La función restablece con el alta aún sin confirmar.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Un_alta_que_no_es_de_Administrador_de_ese_Tenant_no_hace_esperar(bool enOtroTenant)
+    {
+        Guid cuenta;
+        Guid rol;
+        await using (var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion))
+        {
+            cuenta = SembrarCuenta(contexto, "sin-rol", enOtroTenant ? _tenantB : _tenantA, rol: null);
+            await contexto.SaveChangesAsync();
+            rol = enOtroTenant
+                ? _rolAdministrador
+                : (await contexto.Roles.SingleAsync(r => r.Name == Roles.Consulta)).Id;
+        }
+        var sesion = await AbrirSesionConCapacidadAsync();
+        await using var alta = await AltaSinConfirmarAsync(
+            @"INSERT INTO ""AspNetUserRoles"" (""UserId"", ""RoleId"") VALUES (@u, @r);", cuenta, rol);
+
+        (await RestablecerComoSoporteAsync(_tenantA, sesion, _administradorDeA).WaitAsync(TimeSpan.FromSeconds(30)))
+            .Should().Be("restablecido");
+    }
+
     // ── Quién puede ejecutarla ───────────────────────────────────────────────
 
     [Fact]
@@ -556,6 +665,93 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
         comando.CommandText = sql;
         comando.Parameters.AddWithValue("u", parametro);
         (await comando.ExecuteNonQueryAsync()).Should().BeGreaterThan(0, "la preparación tiene que tocar alguna fila");
+    }
+
+    /// <summary>
+    /// Ejecuta el alta como propietario dentro de una transacción que queda abierta
+    /// hasta <see cref="AltaSinConfirmar.ConfirmarAsync"/>; al desecharla sin confirmar,
+    /// se deshace.
+    /// </summary>
+    private async Task<AltaSinConfirmar> AltaSinConfirmarAsync(string sql, Guid usuario, Guid? rol = null)
+    {
+        var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        var transaccion = await conexion.BeginTransactionAsync();
+        await using var comando = new NpgsqlCommand(sql, conexion, transaccion);
+        comando.Parameters.AddWithValue("u", usuario);
+        if (sql.Contains("@r")) comando.Parameters.AddWithValue("r", rol ?? _rolAdministrador);
+        (await comando.ExecuteNonQueryAsync()).Should().Be(1, "la preparación tiene que tocar una fila");
+        return new AltaSinConfirmar(conexion, transaccion);
+    }
+
+    private sealed class AltaSinConfirmar(NpgsqlConnection conexion, NpgsqlTransaction transaccion) : IAsyncDisposable
+    {
+        public Task ConfirmarAsync() => transaccion.CommitAsync();
+
+        public async ValueTask DisposeAsync()
+        {
+            await transaccion.DisposeAsync();
+            await conexion.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Espera a observar en <c>pg_locks</c> una petición de cerrojo consultivo no
+    /// concedida en esta base (única por clase de test). Si el restablecimiento termina
+    /// antes, no esperó: el fallo lleva lo que devolvió.
+    /// </summary>
+    private async Task EsperarBloqueadoPorElCerrojoAsync(Task<string> restablecer)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = @"
+SELECT COUNT(*) FROM pg_locks
+WHERE locktype = 'advisory' AND NOT granted
+  AND database = (SELECT oid FROM pg_database WHERE datname = current_database());";
+
+        var limite = DateTime.UtcNow.AddSeconds(30);
+        while (DateTime.UtcNow < limite)
+        {
+            if (restablecer.IsCompleted)
+                throw new Xunit.Sdk.XunitException(
+                    $"El restablecimiento no esperó al alta sin confirmar: devolvió «{await restablecer}».");
+            if ((long)(await comando.ExecuteScalarAsync())! > 0)
+                return;
+            await Task.Delay(50);
+        }
+
+        throw new Xunit.Sdk.XunitException("En 30 s no se observó al restablecimiento esperando el cerrojo.");
+    }
+
+    /// <summary>
+    /// Espera a ver <paramref name="esperadas"/> conexiones de esta base esperando un
+    /// cerrojo pesado (consultivo, de tupla o de transacción). Si alguna de las tareas
+    /// termina antes, no esperó, y el fallo lo dice.
+    /// </summary>
+    private async Task EsperarEsperasDeCerrojoAsync(int esperadas, params Task[] tareas)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = @"
+SELECT COUNT(*) FROM pg_stat_activity
+WHERE datname = current_database() AND wait_event_type = 'Lock';";
+
+        var limite = DateTime.UtcNow.AddSeconds(30);
+        while (DateTime.UtcNow < limite)
+        {
+            if (tareas.FirstOrDefault(t => t.IsCompleted) is { } terminada)
+            {
+                await terminada;
+                throw new Xunit.Sdk.XunitException("Una de las transacciones terminó sin esperar al alta sin confirmar.");
+            }
+            if ((long)(await comando.ExecuteScalarAsync())! >= esperadas)
+                return;
+            await Task.Delay(50);
+        }
+
+        throw new Xunit.Sdk.XunitException($"En 30 s no se observaron {esperadas} esperas de cerrojo.");
     }
 
     private sealed record FilaAuditoria(

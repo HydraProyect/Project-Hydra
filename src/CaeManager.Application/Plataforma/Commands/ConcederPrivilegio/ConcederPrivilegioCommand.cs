@@ -156,11 +156,15 @@ public class ConcederPrivilegioCommandHandler(
                 "ConcesionPrivilegio.TenantPropio",
                 "No se conceden privilegios sobre el propio tenant de plataforma."));
 
-        // El restablecimiento de 2FA solo lo ejerce un Actor de Plataforma TALVEG:
-        // el beneficiario tiene que ser una cuenta del Tenant de origen de quien
-        // concede. Bajo la RLS de cuentas, una de otro Tenant ni se ve (null).
-        // La función de base lo vuelve a exigir al ejercerla.
-        if (request.Capacidad == CapacidadPrivilegio.RestablecimientoSegundoFactor)
+        // Toda capacidad que abre una Sesión Privilegiada solo la ejerce un Actor
+        // de Plataforma TALVEG: el beneficiario tiene que ser una cuenta del
+        // Tenant de origen de quien concede. Bajo la RLS de cuentas, una de otro
+        // Tenant ni se ve (null). Se ata a CapacidadesQuePuedenAbrirSesion y no a
+        // una capacidad concreta para que una capacidad concedible nueva que
+        // abra sesión herede el control sin que nadie tenga que acordarse; hoy
+        // cubre Aprovisionamiento y RestablecimientoSegundoFactor. Para el
+        // restablecimiento, la función de base lo vuelve a exigir al ejercerla.
+        if (CapacidadesQuePuedenAbrirSesion.Admite(request.Capacidad))
         {
             var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
             var tenantBeneficiarioId = await directorioUsuarios.ObtenerTenantDeUsuarioAsync(
@@ -168,7 +172,7 @@ public class ConcederPrivilegioCommandHandler(
             if (tenantOrigenId is null || tenantBeneficiarioId != tenantOrigenId)
                 return Result.Fallo<Guid>(Error.Crear(
                     "ConcesionPrivilegio.BeneficiarioNoEsDePlataforma",
-                    "El restablecimiento de la verificación en dos pasos solo se concede a personas de Soporte TALVEG."));
+                    "Esta capacidad solo se concede a personas de Soporte TALVEG."));
         }
 
         var ahora = DateTime.UtcNow;

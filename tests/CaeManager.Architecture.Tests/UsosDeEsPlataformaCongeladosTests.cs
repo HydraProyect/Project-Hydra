@@ -213,6 +213,12 @@ public class UsosDeEsPlataformaCongeladosTests
     /// SECURITY DEFINER exige que la cuenta que ejerce la sesión sea de un tenant de
     /// plataforma. Solo restringe —niega a quien no lo es—; nunca concede. De 33/55 a
     /// <b>34 ficheros, 57 apariciones</b>.
+    /// Actualizado 2026-09-26 (ADR-011 § 8.7.3: serialización del Administrador único).
+    /// Nuevo fichero, <c>20260926032940_SerializarAdministradorUnicoEnRestablecimiento.cs</c>
+    /// (+1 fichero, +4 apariciones, <see cref="CategoriaUso.MigracionManual"/>): redefine la
+    /// misma función con <c>CREATE OR REPLACE</c> en Up y la restaura en Down, así que el
+    /// comentario y el predicado de arriba aparecen dos veces. Sigue solo restringiendo.
+    /// De 34/57 a <b>35 ficheros, 61 apariciones</b>.
     /// </para>
     ///
     /// <para>
@@ -421,6 +427,10 @@ public class UsosDeEsPlataformaCongeladosTests
             new(2, CategoriaUso.MigracionManual,
                 "ADR-011 § 8.7.3: :111 comentario, :115 la función de restablecimiento de 2FA niega la sesión si " +
                 "la cuenta que la ejerce no es de un tenant de plataforma; solo restringe, no concede"),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260926032940_SerializarAdministradorUnicoEnRestablecimiento.cs"] =
+            new(4, CategoriaUso.MigracionManual,
+                "ADR-011 § 8.7.3: redefine la función de 20260925203337 con el cerrojo del Administrador único; " +
+                ":143/:147 en Up y :289/:293 en Down son el mismo comentario y predicado, que solo restringen"),
     };
 
     // ══════════════════════════════════════════════════════════════════════════════
