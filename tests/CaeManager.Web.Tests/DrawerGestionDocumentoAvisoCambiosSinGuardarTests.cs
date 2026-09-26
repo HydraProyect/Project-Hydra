@@ -8,10 +8,12 @@ using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using PdfSharp.Pdf;
 
 namespace CaeManager.Web.Tests;
 
@@ -55,8 +57,11 @@ public class DrawerGestionDocumentoAvisoCambiosSinGuardarTests : BunitContext
     {
         public List<string> Borrados { get; } = [];
 
+        /// <summary>El almacenamiento no responde hasta que el test lo suelta: así se puede cerrar el formulario a mitad de la subida.</summary>
+        public TaskCompletionSource<string> GuardadoPendiente { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException("Este test no sube nada.");
+            GuardadoPendiente.Task;
 
         public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("Este test no abre nada.");
@@ -183,5 +188,73 @@ public class DrawerGestionDocumentoAvisoCambiosSinGuardarTests : BunitContext
 
         navegacion.Uri.Should().EndWith("/trabajadores", "lo preseleccionado por la pantalla que abre no es un cambio de quien mira");
         cut.FindAll(".modal-contenido").Should().BeEmpty();
+    }
+
+    private static byte[] CrearPdf()
+    {
+        using var documento = new PdfDocument();
+        documento.AddPage();
+        using var salida = new MemoryStream();
+        documento.Save(salida);
+        return salida.ToArray();
+    }
+
+    /// <summary>
+    /// Revisión Codex (ronda 2): mientras el archivo se lee, convierte y almacena,
+    /// _archivoUrl aún no ha cambiado; la subida en curso cuenta por sí misma como cambio.
+    /// Y si se confirma la salida en ese momento, el archivo que el almacén devuelva después
+    /// ya no lo va a adoptar nadie: se borra en cuanto llega.
+    /// </summary>
+    [Fact]
+    public async Task Salir_durante_una_subida_pregunta_y_el_archivo_que_llega_tarde_se_borra()
+    {
+        var cut = Renderizar();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearAsync());
+        var entrada = cut.FindComponent<InputFile>();
+        // UploadFiles espera a que termine el manejador, y el manejador espera al almacén que
+        // este test retiene: se lanza aparte para poder actuar a mitad de la subida.
+        var subida = Task.Run(() => entrada.UploadFiles(InputFileContent.CreateFromBinary(CrearPdf(), "prl.pdf", contentType: "application/pdf")));
+        cut.WaitForAssertion(() => cut.FindComponent<ZonaSoltarArchivo>().Instance.Cargando.Should().BeTrue("la subida tiene que estar en curso para que esto mida algo"));
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/trabajadores"));
+
+        cut.FindAll(".modal-contenido").Should().ContainSingle("con una subida en curso salir se detiene y pregunta");
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Salir y descartar").ClickAsync(new MouseEventArgs());
+        navegacion.Uri.Should().EndWith("/trabajadores");
+
+        _almacen.GuardadoPendiente.SetResult("blob-tardio");
+        await subida.WaitAsync(TimeSpan.FromSeconds(10));
+
+        cut.WaitForAssertion(() => _almacen.Borrados.Should().Equal(["blob-tardio"],
+            "el formulario ya se cerró: nadie va a adoptar el archivo que el almacén devolvió después"));
+    }
+
+    /// <summary>
+    /// Revisión Codex (ronda 2): el aviso se pinta después de los demás diálogos del drawer.
+    /// Con el mismo z-index, el último del DOM queda encima; si el aviso fuera antes, la
+    /// pregunta quedaría detrás del diálogo de vigencia anterior y la salida se bloquearía
+    /// sin ofrecer sus botones.
+    /// </summary>
+    [Fact]
+    public async Task El_aviso_queda_encima_de_otro_dialogo_abierto()
+    {
+        var cut = Renderizar();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearAsync());
+        await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Pendiente de sello" });
+        await cut.InvokeAsync(() =>
+        {
+            var dialogo = typeof(DrawerGestionDocumento).GetField("_confirmarVigenciaAnteriorVisible", BindingFlags.Instance | BindingFlags.NonPublic);
+            dialogo.Should().NotBeNull("el test necesita abrir el diálogo de vigencia anterior");
+            dialogo!.SetValue(cut.Instance, true);
+        });
+        cut.Render();
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/trabajadores"));
+
+        var dialogos = cut.FindAll(".modal-contenido");
+        dialogos.Should().HaveCount(2, "el diálogo de vigencia y el aviso de salida conviven");
+        dialogos.Last().TextContent.Should().Contain("¿Salir sin guardar?", "el aviso tiene que ser el último del DOM para quedar encima");
     }
 }

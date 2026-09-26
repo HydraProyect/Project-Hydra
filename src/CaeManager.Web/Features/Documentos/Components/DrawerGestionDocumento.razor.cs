@@ -277,10 +277,13 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// P1-E2: único punto de verdad de «hay cambios» en este drawer. Lo lee
     /// AvisoCambiosSinGuardar para detener la salida de la página que lo aloja; con el
     /// drawer cerrado (también tras guardar) nunca hay nada que perder. Subir un archivo
-    /// cambia _archivoUrl, así que también cuenta.
+    /// cambia _archivoUrl, así que también cuenta; y mientras la subida está en curso
+    /// (lectura, conversión, almacenamiento) _archivoUrl aún no ha cambiado, así que la
+    /// subida en curso cuenta por sí misma.
     /// </summary>
     private bool HayCambiosSinGuardar =>
-        _drawerVisible && _instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir;
+        _drawerVisible
+        && (_subiendoArchivo || (_instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir));
 
     private string InstantaneaFormulario() => string.Join('\u001f',
         _ambitoAplicacion, _trabajadorId, _clienteId, _empresaId, _vehiculoId, _proyectoId,
@@ -431,6 +434,14 @@ public partial class DrawerGestionDocumento : ComponentBase
             using var flujoPdf = new MemoryStream(pdfUnificado);
             _archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
             _archivoUrlSubidoSinAdoptar = _archivoUrl;
+
+            // El formulario se cerró mientras se subía (la X, o salir confirmando el aviso de
+            // cambios sin guardar): nadie va a adoptar este archivo.
+            if (!_drawerVisible)
+            {
+                await DescartarArchivoSinAdoptarAsync();
+                return;
+            }
 
             if (_editandoId is null && _ambitoAplicacion == nameof(AmbitoAplicacion.Trabajador))
                 await DetectarCamposAsync(pdfUnificado);

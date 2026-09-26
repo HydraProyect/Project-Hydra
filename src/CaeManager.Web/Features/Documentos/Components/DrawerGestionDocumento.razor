@@ -31,11 +31,6 @@
 @inject IConversorWordPdfService ConversorWordPdf
 @inject ILogger<DrawerGestionDocumento> Logger
 
-@* Salir de la página que aloja el drawer con el formulario a medias pregunta antes; si
-   se confirma, el drawer se cierra como con la X (y el archivo ya subido que nadie adoptó
-   se borra), porque una navegación que no desmonta la página lo dejaría abierto. *@
-<AvisoCambiosSinGuardar HayCambios="HayCambiosSinGuardar" AlDescartar="() => CerrarDrawerAsync(false)" />
-
 <Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo documento" : "Renovar documento")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
@@ -232,3 +227,10 @@
     Mensaje="@($"Detectamos que este archivo es un \"{_tipoSospechosoDetectadoNombre}\", pero estás subiéndolo como \"{_tipoSospechosoSeleccionadoNombre}\". ¿Seguro que quieres continuar?")"
     TextoBotonConfirmar="Sí, continuar"
     OnConfirmar="() => _confirmarTipoSospechosoVisible = false" />
+
+@* Salir de la página que aloja el drawer con el formulario a medias pregunta antes; si
+   se confirma, el drawer se cierra como con la X (y el archivo ya subido que nadie adoptó
+   se borra), porque una navegación que no desmonta la página lo dejaría abierto.
+   Va al final del marcado: con el mismo z-index que los demás diálogos, el último
+   del DOM queda encima y la pregunta nunca se esconde detrás de otro. *@
+<AvisoCambiosSinGuardar HayCambios="HayCambiosSinGuardar" AlDescartar="() => CerrarDrawerAsync(false)" />
