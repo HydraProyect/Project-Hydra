@@ -197,6 +197,7 @@ public class DocumentosGen2Tests : BunitContext
         mediador ??= new MediadorControlado();
 
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService>(_ => new UsuarioActualFalso(rol));

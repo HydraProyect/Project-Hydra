@@ -130,6 +130,7 @@ public class SoloLecturaEnLaInterfazTests : BunitContext
 
     private void RegistrarComun(string rol)
     {
+        Services.AddLocalization();
         Services.AddScoped<AuthenticationStateProvider>(_ => new Autenticacion(rol));
         Services.AddAuthorizationCore();
         Services.AddScoped<IAuthorizationService, AutorizacionPorRoles>();

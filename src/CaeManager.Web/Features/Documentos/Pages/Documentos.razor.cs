@@ -23,8 +23,10 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Documentos;
 using CaeManager.Web.Features.Documentos.Components;
+using CaeManager.Web.Features.Documentos.Recursos;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Localization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.QuickGrid;
 using Microsoft.Extensions.Logging;
@@ -87,6 +89,7 @@ public partial class Documentos : ComponentBase, IDisposable
     [SupplyParameterFromQuery] public string? Ambito { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosDocumentos> Textos { get; set; } = default!;
 
     /// <summary>Comando del palette "Crear documento" (P3-31): /documentos?accion=crear abre el Drawer directamente.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
@@ -786,7 +789,7 @@ public partial class Documentos : ComponentBase, IDisposable
                         ? $"No se eliminó ningún documento de los {pedidos.Count} seleccionados.{DetalleDeErrores(dto.Errores)}"
                         : $"{dto.Eliminados} de {pedidos.Count} eliminado(s); el resto sigue en la lista.{DetalleDeErrores(dto.Errores)}",
                 completo ? TonoToast.Exito : dto.Eliminados == 0 ? TonoToast.Error : TonoToast.Advertencia,
-                eliminados.Count > 0 ? "Deshacer" : null,
+                eliminados.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
                 eliminados.Count > 0 ? () => DeshacerEliminarLoteAsync(eliminados) : null);
 
             // Se retiran solo las fichas de los que cayeron (IdsEliminados); un
@@ -836,8 +839,8 @@ public partial class Documentos : ComponentBase, IDisposable
 
             ToastService.Mostrar(
                 r.Errores.Count == 0
-                    ? $"{r.Restaurados} documento(s) restaurado(s)."
-                    : $"{r.Restaurados} documento(s) restaurado(s); {r.Errores.Count} no se pudieron restaurar: {string.Join(" ", r.Errores)}",
+                    ? Textos["ToastLoteRestaurados", r.Restaurados].Value
+                    : Textos["ToastLoteRestauradosConErrores", r.Restaurados, r.Errores.Count, string.Join(" ", r.Errores)].Value,
                 r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
             if (r.Restaurados > 0)
