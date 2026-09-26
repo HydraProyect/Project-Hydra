@@ -1,5 +1,5 @@
 using CaeManager.Application.Common;
-using CaeManager.Infrastructure.Coordinacion;
+using CaeManager.Infrastructure.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,7 +9,7 @@ namespace CaeManager.Infrastructure.Auditing;
 
 /// <summary>
 /// Mantiene creadas las particiones mensuales futuras de los registros de
-/// auditoría (P1-M2): una vez al día, con elección de líder, llama a
+/// auditoría (P1-M2): una vez al día llama a
 /// <c>app_asegurar_particiones_eventos</c>, la única función del particionado
 /// que <c>cae_app_runtime</c> puede ejecutar. La función es SECURITY DEFINER,
 /// no recibe nombres ni SQL y recorre una lista fija de tablas; runtime sigue
@@ -24,6 +24,17 @@ namespace CaeManager.Infrastructure.Auditing;
 /// </para>
 ///
 /// <para>
+/// <b>Con la identidad del tráfico y sin elección de líder.</b> La conexión es la
+/// de <see cref="InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico"/>,
+/// la misma que el DbContext inyectado: en staging y producción el contenedor
+/// <c>app</c> recibe <c>CaeManagerDb</c> vacía (P0-2) y solo tiene
+/// <c>CaeManagerDbRuntime</c> (hallazgo de Codex). No usa
+/// <c>IEleccionLiderService</c>, que lee <c>CaeManagerDb</c>: la función ya se
+/// serializa con <c>pg_advisory_xact_lock</c> y es idempotente, así que varias
+/// réplicas a la vez solo repiten una comprobación barata.
+/// </para>
+///
+/// <para>
 /// Sin ámbito de Tenant: la función no lee ni escribe datos de ningún Tenant
 /// salvo para mover a su mes las filas de la partición por defecto, y eso lo
 /// hace como propietario, dentro de la propia función.
@@ -31,7 +42,7 @@ namespace CaeManager.Infrastructure.Auditing;
 /// </summary>
 public class ParticionesEventosHostedService(
     IConfiguration configuration,
-    IEleccionLiderService eleccionLider,
+    IHostEnvironment entorno,
     ILogger<ParticionesEventosHostedService> logger)
     : BackgroundService
 {
@@ -59,7 +70,7 @@ public class ParticionesEventosHostedService(
     {
         try
         {
-            await eleccionLider.IntentarEjecutarComoLiderAsync("particiones-eventos", AsegurarComoLiderAsync, stoppingToken);
+            _ = await AsegurarAsync(stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -72,8 +83,7 @@ public class ParticionesEventosHostedService(
 
     public async Task<ResultadoParticiones> AsegurarAsync(CancellationToken cancellationToken)
     {
-        var cadenaConexion = configuration.GetConnectionString("CaeManagerDb")
-            ?? throw new InvalidOperationException("Falta el connection string CaeManagerDb.");
+        var cadenaConexion = InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico(configuration, entorno);
 
         await using var conexion = new NpgsqlConnection(cadenaConexion);
         await conexion.OpenAsync(cancellationToken);
@@ -96,9 +106,6 @@ public class ParticionesEventosHostedService(
 
         return resultado;
     }
-
-    private async Task AsegurarComoLiderAsync(CancellationToken cancellationToken) =>
-        _ = await AsegurarAsync(cancellationToken);
 
     public sealed record ResultadoParticiones(int ParticionesCreadas, long EventosEnDefecto);
 }

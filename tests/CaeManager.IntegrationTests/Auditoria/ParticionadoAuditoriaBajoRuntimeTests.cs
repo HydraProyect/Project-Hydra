@@ -1,7 +1,10 @@
+using CaeManager.Infrastructure.Auditing;
 using CaeManager.IntegrationTests.Arranque;
 using CaeManager.Migrations.PostgreSQL;
 using FluentAssertions;
 using FluentAssertions.Execution;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
 
@@ -206,6 +209,37 @@ public class ParticionadoAuditoriaBajoRuntimeTests
         (await EscalarAsync<string>(propietario,
             $"SELECT tableoid::regclass::text FROM \"RegistrosAuditoria\" WHERE \"Id\" = '{id}';"))
             .Should().Be($"\"RegistrosAuditoria_p{fecha:yyyyMM}\"", "el evento no se pierde: cambia de partición");
+    }
+
+    /// <summary>
+    /// El servicio diario, con la configuración que reciben staging y producción:
+    /// <c>CaeManagerDb</c> vacía (P0-2: el contenedor <c>app</c> ya no tiene la
+    /// credencial del propietario) y solo <c>CaeManagerDbRuntime</c>. Tiene que
+    /// crear las particiones como <c>cae_app_runtime</c>, no fallar por una cadena
+    /// vacía (hallazgo de Codex).
+    /// </summary>
+    [Fact]
+    public async Task El_servicio_diario_funciona_con_la_configuracion_de_despliegue_solo_con_runtime()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var configuracion = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:CaeManagerDb"] = "",
+                ["ConnectionStrings:CaeManagerDbRuntime"] = BaseDatosPostgresDePruebas.CadenaComoRuntime(arnes.CadenaPropietario),
+            })
+            .Build();
+        var servicio = new ParticionesEventosHostedService(
+            configuracion, new EntornoDePrueba("Production"), NullLogger<ParticionesEventosHostedService>.Instance);
+
+        var resultado = await servicio.AsegurarAsync(CancellationToken.None);
+
+        resultado.EventosEnDefecto.Should().Be(0);
+        await using var propietario = new NpgsqlConnection(arnes.CadenaPropietario);
+        await propietario.OpenAsync();
+        (await ParticionesAsync(propietario, "RegistrosAuditoria"))
+            .Should().Contain($"RegistrosAuditoria_p{DateTime.UtcNow.AddMonths(ParticionesEventosHostedService.MesesPorDelante):yyyyMM}",
+                "la llamada como runtime deja creado el último mes del margen");
     }
 
     /// <summary>
