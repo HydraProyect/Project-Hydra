@@ -432,7 +432,8 @@ public class Centro360Gen2Tests : BunitContext
         await cut.FindAll(".boton-copiar").Single(b => b.TextContent.Trim() == boton).ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<ObtenerCredencialCanalGestionQuery>().Should().ContainSingle();
-        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/cuenta/configurar-2fa?motivo=credenciales");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/cuenta/configurar-2fa?motivo=credenciales&returnUrl=%2F",
+            "vuelve a la ruta en la que estaba la ficha (en bUnit, la raíz)");
         modulo.Invocations.Should().BeEmpty("sin 2FA no hay nada que copiar");
     }
 

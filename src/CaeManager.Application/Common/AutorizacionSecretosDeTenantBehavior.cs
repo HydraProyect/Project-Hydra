@@ -60,6 +60,14 @@ namespace CaeManager.Application.Common;
 /// de una credencial, sin contraseña) siguen las tres reglas: la de roles, la del
 /// 2FA y la de la sesión privilegiada (ver el porqué en esa interfaz).
 /// </para>
+///
+/// <para>
+/// Los Commands marcados con <see cref="IEscrituraDeDatosDeCredencial"/> (crear,
+/// editar o borrar el usuario o la contraseña de una credencial) exigen el mismo
+/// 2FA (P1-I2, hueco declarado en #900). Solo esa regla: el rol y la Sesión
+/// Privilegiada de un Command ya los decidió
+/// <see cref="AutorizacionEscrituraBehavior{TRequest,TResponse}"/>, que corre antes.
+/// </para>
 /// </summary>
 public class AutorizacionSecretosDeTenantBehavior<TRequest, TResponse>(
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
@@ -73,6 +81,16 @@ public class AutorizacionSecretosDeTenantBehavior<TRequest, TResponse>(
     public async Task<TResponse> Handle(
         TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
+        // Escribir datos de credencial exige lo mismo que leerlos. Rol y Sesión
+        // Privilegiada ya los decidió AutorizacionEscrituraBehavior, que va antes.
+        if (request is IEscrituraDeDatosDeCredencial { EscribeDatosDeCredencial: true })
+        {
+            if (!await currentUserService.TieneDobleFactorActivoAsync())
+                throw new SegundoFactorRequeridoParaCredencialesException();
+
+            return await next(cancellationToken);
+        }
+
         if (request is not IConsultaDeSecretosDeTenant and not IConsultaDeDatosDeCredencial)
             return await next(cancellationToken);
 

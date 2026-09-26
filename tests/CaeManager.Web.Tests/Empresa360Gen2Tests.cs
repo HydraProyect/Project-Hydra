@@ -1,6 +1,8 @@
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
+using CaeManager.Application.Common;
+using CaeManager.Application.Empresas.Commands.BorrarCredencialAccesoEmpresaContrasena;
 using CaeManager.Application.Empresas.Commands.EditarEmpresa;
 using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
@@ -11,6 +13,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Empresas.Components;
+using CaeManager.Web.Services;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -39,12 +42,21 @@ public class Empresa360Gen2Tests : BunitContext
         public Func<object, Exception?>? Fallar { get; set; }
         public List<object> Enviadas { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
+        public CredencialAccesoEmpresaSinContrasenaDto? CredencialGuardada { get; set; }
+
+        /// <summary>
+        /// Como AutorizacionSecretosDeTenantBehavior con un rol con escritura y sin
+        /// 2FA: deniega leer (P1-I1) y escribir (P1-I2) datos de credencial.
+        /// </summary>
+        public bool SinDobleFactor { get; set; }
 
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request); Tokens.Add(cancellationToken);
             if (Retener?.Invoke(request) is { } espera) await espera;
             if (Fallar?.Invoke(request) is { } error) throw error;
+            if (SinDobleFactor && request is IConsultaDeDatosDeCredencial or IEscrituraDeDatosDeCredencial { EscribeDatosDeCredencial: true })
+                throw new SegundoFactorRequeridoParaCredencialesException();
             // El switch tiene ramas de tipos distintos, asi que se unifica en
             // object? y se convierte una sola vez: sin esto, CS0029 por rama.
             object? valor = request switch
@@ -53,9 +65,10 @@ public class Empresa360Gen2Tests : BunitContext
                 ObtenerCumplimientoEmpresaQuery q => Cumplimientos.GetValueOrDefault(q.EmpresaId),
                 ObtenerClientesDeEmpresaQuery q => Clientes.GetValueOrDefault(q.EmpresaId) ?? [],
                 ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)[],
-                ObtenerCredencialAccesoEmpresaSinContrasenaQuery => null,
+                ObtenerCredencialAccesoEmpresaSinContrasenaQuery => CredencialGuardada,
                 EditarEmpresaCommand => Edicion,
                 GuardarCredencialAccesoEmpresaCommand => Credenciales,
+                BorrarCredencialAccesoEmpresaContrasenaCommand => Result.Exito(),
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
             return (T)valor!;
@@ -217,6 +230,96 @@ public class Empresa360Gen2Tests : BunitContext
         await guardar; Toasts.Should().NotContain(x => x.Tono == TonoToast.Exito, "un Result fallido no es un guardado");
         if (!cambiarAB) { cut.FindAll(".alerta-formulario[role=alert]").Select(x => x.TextContent.Trim()).Should().Equal([motivo]); Toasts.Should().BeEmpty("el formulario de A ya identifica la ficha"); }
         else { cut.Find(".titulo-empresa-360").TextContent.Trim().Should().Be(bNombre); cut.FindAll(".alerta-formulario[role=alert]").Should().BeEmpty(); Toasts.Should().ContainSingle(x => x.Tono == TonoToast.Error && x.Mensaje.Contains(aNombre) && x.Mensaje.Contains(motivo)); }
+    }
+
+    // ------------------------------------------------ 2FA en la edición (P1-I1, P1-I2)
+
+    private const string FichaEmpresa = "/empresas/7b1e?pestana=informacion";
+
+    private static string RutaDeActivacion =>
+        "/cuenta/configurar-2fa?motivo=credenciales&returnUrl=" + Uri.EscapeDataString(FichaEmpresa);
+
+    private (Guid Id, MediadorFalso Mediador, NavigationManager Navegacion) FichaConCredencial()
+    {
+        var id = Guid.NewGuid();
+        var m = Registrar(new MediadorFalso { CredencialGuardada = new("app.dokify.net", null, "ebro.prl", null) });
+        m.Detalles[id] = Detalle(id, "Montajes Ebro S.L."); m.Cumplimientos[id] = 80;
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo(FichaEmpresa);
+        return (id, m, navegacion);
+    }
+
+    /// <summary>
+    /// Sin 2FA la precarga del usuario de la credencial se deniega: el formulario
+    /// no se abre vacío (guardarlo pisaría lo que no se pudo ver) y la pantalla
+    /// lleva a activar el 2FA con la vuelta a esta misma ficha.
+    /// </summary>
+    [Fact]
+    public async Task Sin_2FA_abrir_la_edicion_lleva_a_activarlo_y_a_volver_a_la_ficha()
+    {
+        var (id, m, navegacion) = FichaConCredencial();
+        m.SinDobleFactor = true;
+        var cut = Renderizar(id);
+
+        await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+
+        m.Enviadas.OfType<ObtenerCredencialAccesoEmpresaSinContrasenaQuery>().Should().ContainSingle();
+        navegacion.Uri.Should().Be(navegacion.BaseUri.TrimEnd('/') + RutaDeActivacion);
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Guardar credenciales",
+            "el formulario no se abre con los campos vacíos");
+    }
+
+    /// <summary>
+    /// P1-I2: el 2FA se restablece con la edición ya abierta. Guardar se deniega
+    /// en Application; la pantalla no anuncia un guardado que no hubo y lleva a
+    /// activarlo, con la vuelta a la ficha.
+    /// </summary>
+    [Fact]
+    public async Task Sin_2FA_guardar_las_credenciales_no_se_da_por_hecho_y_lleva_a_activarlo()
+    {
+        var (id, m, navegacion) = FichaConCredencial();
+        var cut = Renderizar(id);
+        await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+        await Control(cut, "Usuario").InputAsync(new ChangeEventArgs { Value = "ebro.admin" });
+        m.SinDobleFactor = true;
+
+        await Boton(cut, "Guardar credenciales").ClickAsync(new MouseEventArgs());
+
+        m.Enviadas.OfType<GuardarCredencialAccesoEmpresaCommand>().Should().ContainSingle()
+            .Which.Usuario.Should().Be("ebro.admin", "barrera: el comando se envió y fue la denegación la que respondió");
+        navegacion.Uri.Should().Be(navegacion.BaseUri.TrimEnd('/') + RutaDeActivacion);
+        Toasts.Should().NotContain(t => t.Tono == TonoToast.Exito);
+        cut.FindAll(".alerta-formulario[role=alert]").Should().BeEmpty("no es un fallo genérico de guardado");
+    }
+
+    [Fact]
+    public async Task Sin_2FA_borrar_la_contrasena_no_se_da_por_hecho_y_lleva_a_activarlo()
+    {
+        var (id, m, navegacion) = FichaConCredencial();
+        var cut = Renderizar(id);
+        await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+        await Boton(cut, "Borrar contraseña").ClickAsync(new MouseEventArgs());
+        m.SinDobleFactor = true;
+
+        await Boton(cut, "Eliminar").ClickAsync(new MouseEventArgs());
+
+        m.Enviadas.OfType<BorrarCredencialAccesoEmpresaContrasenaCommand>().Should().ContainSingle();
+        navegacion.Uri.Should().Be(navegacion.BaseUri.TrimEnd('/') + RutaDeActivacion);
+        Toasts.Should().NotContain(t => t.Tono == TonoToast.Exito);
+    }
+
+    [Fact]
+    public async Task Con_2FA_guardar_las_credenciales_no_sale_de_la_ficha()
+    {
+        var (id, m, navegacion) = FichaConCredencial();
+        var cut = Renderizar(id);
+        await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+
+        await Boton(cut, "Guardar credenciales").ClickAsync(new MouseEventArgs());
+
+        m.Enviadas.OfType<GuardarCredencialAccesoEmpresaCommand>().Should().ContainSingle();
+        navegacion.Uri.Should().Be(navegacion.BaseUri.TrimEnd('/') + FichaEmpresa, "control positivo de los dos de arriba");
+        Toasts.Should().Contain(t => t.Tono == TonoToast.Exito);
     }
 
     [Fact]
