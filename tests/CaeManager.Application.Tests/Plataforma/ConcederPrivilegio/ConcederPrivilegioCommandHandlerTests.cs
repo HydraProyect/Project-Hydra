@@ -70,30 +70,51 @@ public class ConcederPrivilegioCommandHandlerTests
             directorio, unitOfWork);
     }
 
-    [Fact]
-    public async Task Rechaza_RestablecimientoSegundoFactor_a_una_cuenta_de_otro_Tenant()
+    /// <summary>
+    /// Toda capacidad que abre una Sesión Privilegiada exige que el beneficiario
+    /// sea un Actor de Plataforma TALVEG (cuenta del Tenant de origen de quien
+    /// concede). Aprovisionamiento no lo exigía antes: se podía conceder a una
+    /// cuenta de un Tenant cliente, que después abriría una Sesión Privilegiada.
+    /// </summary>
+    [Theory]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento)]
+    [InlineData(CapacidadPrivilegio.RestablecimientoSegundoFactor)]
+    public async Task Rechaza_una_capacidad_que_abre_sesion_a_una_cuenta_de_otro_Tenant(CapacidadPrivilegio capacidad)
     {
         var handler = Handler(out var writer, out var unitOfWork,
             tenantPorCuenta: new Dictionary<Guid, Guid> { [Beneficiario] = TenantObjetivo });
 
-        var resultado = await handler.Handle(
-            Comando(capacidad: CapacidadPrivilegio.RestablecimientoSegundoFactor), CancellationToken.None);
+        var resultado = await handler.Handle(Comando(capacidad: capacidad), CancellationToken.None);
 
         resultado.Error!.Codigo.Should().Be("ConcesionPrivilegio.BeneficiarioNoEsDePlataforma");
         writer.ConcesionAnadida.Should().BeNull();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
 
-    [Fact]
-    public async Task Rechaza_RestablecimientoSegundoFactor_a_una_cuenta_que_no_se_ve()
+    [Theory]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento)]
+    [InlineData(CapacidadPrivilegio.RestablecimientoSegundoFactor)]
+    public async Task Rechaza_una_capacidad_que_abre_sesion_a_una_cuenta_que_no_se_ve(CapacidadPrivilegio capacidad)
     {
-        var handler = Handler(out var writer, out _, tenantPorCuenta: new Dictionary<Guid, Guid>());
+        var handler = Handler(out var writer, out var unitOfWork, tenantPorCuenta: new Dictionary<Guid, Guid>());
 
-        var resultado = await handler.Handle(
-            Comando(capacidad: CapacidadPrivilegio.RestablecimientoSegundoFactor), CancellationToken.None);
+        var resultado = await handler.Handle(Comando(capacidad: capacidad), CancellationToken.None);
 
         resultado.Error!.Codigo.Should().Be("ConcesionPrivilegio.BeneficiarioNoEsDePlataforma");
         writer.ConcesionAnadida.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Ata la lista de concedibles a la de apertura: si mañana entra una
+    /// capacidad concedible que NO abre sesión, el control de beneficiario deja
+    /// de cubrirla y este test obliga a decidir a propósito si lo necesita.
+    /// </summary>
+    [Fact]
+    public void Toda_capacidad_concedible_abre_sesion_y_por_tanto_pasa_por_el_control_de_beneficiario()
+    {
+        ConcederPrivilegioCommand.CapacidadesConcedibles
+            .Should().OnlyContain(c => CapacidadesQuePuedenAbrirSesion.Admite(c));
     }
 
     [Fact]
