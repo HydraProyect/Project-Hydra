@@ -261,7 +261,7 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
             var resultado = await Mediator.Send(new AsignarRolACuentaCommand(pendiente.Id, rol));
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
 
                 // Un rol que no existe o una cuenta que no es de aquí dejan la
                 // lista desfasada respecto de lo que se pulsó: se recarga.

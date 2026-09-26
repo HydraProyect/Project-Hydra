@@ -1041,7 +1041,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             var activacion = await Mediator.Send(new GenerarActivacionUsuarioCommand(usuarioLista.Id), token);
             if (activacion.EsFallido)
             {
-                ToastService.Mostrar(activacion.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(activacion.Error);
                 if (activacion.Error.Codigo == GenerarActivacionUsuarioCommandHandler.YaActivada.Codigo)
                     await CargarAsync();
                 return;
@@ -1125,20 +1125,20 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             {
                 // Solo alcanzable si la persona activó su cuenta entre la carga de
                 // la lista y este clic: el servidor no confía en lo que la UI mostró.
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 _usuarioAEliminar = null;
                 await CargarAsync();
             }
             else if (resultado.Error.Codigo == EliminarUsuarioPendienteCommandHandler.CarteraVigente.Codigo)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 _usuarioAEliminar = null;
             }
             else
             {
                 // Incluye el fallo de Identity al borrar, con su motivo: la cuenta
                 // sigue ahí y quien administra lo necesita para reintentar.
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
             }
         }
         catch (OperationCanceledException)
@@ -1213,7 +1213,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
 
                 // Una cuenta que ya no existe pide recargar; la fila de otra
                 // organización es legítima y no hay nada que recargar.
@@ -1451,7 +1451,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             var resultado = await Mediator.Send(new RestablecerSegundoFactorCommand(usuarioLista.Id), _ciclo.Token);
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                ToastService.MostrarError(resultado.Error);
                 return;
             }
 

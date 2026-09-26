@@ -25,8 +25,8 @@ namespace CaeManager.Architecture.Tests;
 public class PaginasInteractivasConLimiteDeErroresTests
 {
     /// <summary>
-    /// TEMPORAL — se vacía en las dos PRs siguientes de P1-E1b (Visitas, Documentos y Mi
-    /// trabajo; Usuarios y Roles). Es solo una lista blanca: no interviene en el control
+    /// TEMPORAL — se vacía en la PR siguiente de P1-E1b (Visitas, Documentos y Mi
+    /// trabajo). Es solo una lista blanca: no interviene en el control
     /// positivo, que se mide sobre todas las páginas interactivas, exentas incluidas.
     /// </summary>
     private static readonly HashSet<string> ExentasTemporales = new(StringComparer.Ordinal)
@@ -37,8 +37,6 @@ public class PaginasInteractivasConLimiteDeErroresTests
         "CaeManager.Web.Features.Documentos.Pages.RevisionIa",
         "CaeManager.Web.Features.Documentos.Pages.SubidaMasiva",
         "CaeManager.Web.Features.Bandeja.Pages.MiTrabajo",
-        "CaeManager.Web.Features.Usuarios.Pages.Usuarios",
-        "CaeManager.Web.Features.GestionRoles.Pages.Roles",
     };
 
     private const string AperturaLimite = "<LimiteDeErrores Pagina=\"this\">";
