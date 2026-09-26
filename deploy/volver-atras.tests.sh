@@ -155,11 +155,14 @@ done
 # Retención: 7 despliegues de staging (S1..S7), 3 de producción (P1..P3, P1=S2),
 # una imagen que solo usa un contenedor parado (U) y una etiqueta que no es SHA.
 sha() { printf '%040d' "$1"; }
-escenario produccion "$(sha 23)"
-for i in 1 2 3 4 5 6 7; do historial staging "$(sha "1$i")"; imagen "$(sha "1$i")"; done
-historial produccion "$(sha 12)" "$(sha 22)" "$(sha 23)"; imagen "$(sha 22)"; imagen "$(sha 23)"
-imagen "$(sha 99)"; echo "caemanager:$(sha 99)" > "$ESTADO/contenedores/parado"
-imagen "$(sha 88)"; imagen sin-etiqueta
+escenario_retencion() {
+  escenario produccion "$(sha 23)"
+  for i in 1 2 3 4 5 6 7; do historial staging "$(sha "1$i")"; imagen "$(sha "1$i")"; done
+  historial produccion "$(sha 12)" "$(sha 22)" "$(sha 23)"; imagen "$(sha 22)"; imagen "$(sha 23)"
+  imagen "$(sha 99)"; echo "caemanager:$(sha 99)" > "$ESTADO/contenedores/parado"
+  imagen "$(sha 88)"; imagen sin-etiqueta
+}
+escenario_retencion
 IMAGENES_RETENIDAS=5 bash "$RETENIDAS" retener > /dev/null
 comprobar "retener quita solo lo que excede N por entorno" \
   "$(printf '%s\n' "$(sha 11)" "$(sha 88)" | sort | paste -sd' ')" \
@@ -172,6 +175,7 @@ comprobar "retener poda las colgantes de despliegue (sin -a)" 1 \
 escenario produccion "$(sha 23)"
 mkdir -p "$DIR_HISTORIAL_DESPLIEGUES"
 awk 'BEGIN { for (i = 1; i <= 20000; i++) printf "2026-09-26T00:00:00Z %040d\n", 100000 + i }' > "$DIR_HISTORIAL_DESPLIEGUES/produccion"
+historial staging "$(printf '%040d' 120000)"
 imagen "$(printf '%040d' 100001)"; imagen "$(printf '%040d' 120000)"
 IMAGENES_RETENIDAS=5 bash "$RETENIDAS" retener > /dev/null 2>&1
 comprobar "historial de 20000 entradas: retener termina con 0" 0 "$?"
@@ -179,6 +183,59 @@ comprobar "  y retira la antigua conservando la última" "$(printf '%040d' 12000
 : > "$DOCKER_LOG"
 IMAGENES_RETENIDAS=1 bash "$RETENIDAS" retener > /dev/null 2>&1; comprobar "con N inválido retener falla" 1 "$?"
 comprobar "con N inválido no retira nada" 0 "$(grep -c '^image rm' "$DOCKER_LOG")"
+
+# Falla cerrado (hallazgo de Codex posterior a #922): sin historial legible, o
+# si el registro del despliegue en curso no llegó a él, la lista de retenidas
+# se reducía a las que usa un contenedor y se borraban las demás, también las
+# que guarda volver-atras.sh. Ahora no se retira ninguna :<sha>, se avisa, se
+# sale con 0 (el despliegue no falla) y la poda de colgantes sí se hace.
+# retener_sin_retirar CASO [ARGS...] -> sobre el escenario ya perturbado.
+retener_sin_retirar() {
+  local caso=$1; shift
+  local antes err c
+  antes="$(ls "$ESTADO/imagenes" | sort | paste -sd' ')"
+  : > "$DOCKER_LOG"
+  err="$(IMAGENES_RETENIDAS=5 bash "$RETENIDAS" retener "$@" 2>&1 > /dev/null)"; c=$?
+  comprobar "$caso: retener sale con 0" 0 "$c"
+  comprobar "$caso: no retira ninguna imagen" 0 "$(grep -c '^image rm' "$DOCKER_LOG")"
+  comprobar "$caso: las retenidas siguen cargadas" "$antes" "$(ls "$ESTADO/imagenes" | sort | paste -sd' ')"
+  comprobar "$caso: lo avisa" si "$(contiene '::warning::retención de imágenes omitida' "$err")"
+  comprobar "$caso: poda igualmente las colgantes (sin -a)" 1 \
+    "$(grep -cx 'image prune -f --filter label=es.talveg.despliegue IMAGEN_TAG=' "$DOCKER_LOG")"
+}
+escenario_retencion; rm "$DIR_HISTORIAL_DESPLIEGUES/produccion"
+retener_sin_retirar "sin historial de producción"
+escenario_retencion; rm -rf "$DIR_HISTORIAL_DESPLIEGUES"
+retener_sin_retirar "sin directorio de historial"
+escenario_retencion; rm "$DIR_HISTORIAL_DESPLIEGUES/staging"; mkdir "$DIR_HISTORIAL_DESPLIEGUES/staging"
+retener_sin_retirar "historial de staging que no es un fichero"
+escenario_retencion; printf 'basura\n2026-09-26T00:00:00Z latest\n' > "$DIR_HISTORIAL_DESPLIEGUES/produccion"
+retener_sin_retirar "historial de producción sin entradas válidas"
+# Solo donde chmod de verdad quita la lectura: root lee igual y Git Bash en
+# Windows ignora el modo; ahí lo cubre el caso del directorio de arriba.
+escenario_retencion; chmod 000 "$DIR_HISTORIAL_DESPLIEGUES/produccion"
+if [ ! -r "$DIR_HISTORIAL_DESPLIEGUES/produccion" ]; then
+  retener_sin_retirar "historial de producción sin permiso de lectura"
+else
+  echo "  --   historial sin permiso de lectura: omitido (chmod 000 no quita la lectura aquí)"
+fi
+chmod 644 "$DIR_HISTORIAL_DESPLIEGUES/produccion"
+# Registro fallido: el despliegue de $(sha 24) no llegó al historial, cuya
+# última entrada sigue siendo $(sha 23).
+escenario_retencion
+retener_sin_retirar "registro del despliegue en curso fallido" produccion "$(sha 24)"
+# Registro fallido de verdad: `registrar` no puede escribir y `retener` con el
+# mismo SHA no retira nada.
+escenario_retencion; rm "$DIR_HISTORIAL_DESPLIEGUES/produccion"; mkdir "$DIR_HISTORIAL_DESPLIEGUES/produccion"
+bash "$RETENIDAS" registrar produccion "$(sha 24)" > /dev/null 2>&1
+comprobar "registrar falla si no puede escribir el historial" 1 "$?"
+retener_sin_retirar "tras un registrar fallido" produccion "$(sha 24)"
+# Control positivo: con el SHA en curso como última entrada, sí retira.
+escenario_retencion; : > "$DOCKER_LOG"
+IMAGENES_RETENIDAS=5 bash "$RETENIDAS" retener produccion "$(sha 23)" > /dev/null 2>&1
+comprobar "con el registro en su sitio, retener <entorno> <sha> sí retira el exceso" 2 "$(grep -c '^image rm' "$DOCKER_LOG")"
+IMAGENES_RETENIDAS=5 bash "$RETENIDAS" retener produccion latest > /dev/null 2>&1
+comprobar "retener rechaza lo que no es un SHA" 1 "$?"
 
 echo "volver-atras.sh"
 escenario produccion "$B"; historial produccion "$A" "$B"; imagen "$A"; imagen "$B"
@@ -280,7 +337,7 @@ FUENTE="$AQUI/ci-deploy.sh"
 linea() { grep -n -x -- "$1" "$FUENTE" | head -1 | cut -d: -f1 || true; }
 L_UP="$(linea '    if ! docker compose "\${args\[@\]}" up -d --wait --wait-timeout 180 --no-build; then')"
 L_REG="$(linea '    bash /opt/talveg/deploy/imagenes-retenidas.sh registrar "\$ENTORNO" "\$SHA" < /dev/null \\')"
-L_RET="$(linea '    bash /opt/talveg/deploy/imagenes-retenidas.sh retener < /dev/null \\')"
+L_RET="$(linea '    bash /opt/talveg/deploy/imagenes-retenidas.sh retener "\$ENTORNO" "\$SHA" < /dev/null \\')"
 comprobar "ci-deploy registra y retiene tras un up sano, en ese orden" si \
   "$([ -n "$L_UP" ] && [ -n "$L_REG" ] && [ -n "$L_RET" ] && [ "$L_UP" -lt "$L_REG" ] && [ "$L_REG" -lt "$L_RET" ] && echo si || echo "no ($L_UP/$L_REG/$L_RET)")"
 L_RET_PREVIA="$(linea 'bash /opt/talveg/deploy/imagenes-retenidas.sh retener < /dev/null \\' )"
@@ -288,7 +345,7 @@ L_LIBERAR="$(linea 'bash /opt/talveg/deploy/liberar-disco.sh < /dev/null')"
 comprobar "ci-deploy retiene también antes de liberar disco y recibir la imagen" si \
   "$([ -n "$L_RET_PREVIA" ] && [ -n "$L_LIBERAR" ] && [ "$L_RET_PREVIA" -lt "$L_LIBERAR" ] && echo si || echo "no ($L_RET_PREVIA/$L_LIBERAR)")"
 comprobar "ci-deploy llama a retener dos veces (antes y tras un up sano)" 2 \
-  "$(grep -cx '    bash /opt/talveg/deploy/imagenes-retenidas.sh retener < /dev/null \\\|bash /opt/talveg/deploy/imagenes-retenidas.sh retener < /dev/null \\' "$FUENTE")"
+  "$(grep -c 'bash /opt/talveg/deploy/imagenes-retenidas.sh retener' "$FUENTE")"
 WF="$AQUI/../.github/workflows/deploy.yml"
 comprobar "deploy.yml etiqueta la imagen para la retención" 1 "$(grep -c -- '--label "es.talveg.despliegue=caemanager"' "$WF")"
 comprobar "deploy.yml graba el inventario de migraciones" 1 "$(grep -c -- '--label "es.talveg.migraciones-ef=\$MIGRACIONES_EF"' "$WF")"
@@ -320,6 +377,31 @@ if [ -z "${VOLVER_ATRAS_GUION:-}" ]; then
   preparar_esquema() { preparar; printf '%s,20260301000000_Nueva' "$MIGS" > "$ESTADO/base"; }
   MUT_VARS=(X=1)
   mutar "no se mira si sobran migraciones" 's#if \[ -n "\$sobran" \]; then#if false; then#' preparar_esquema
+
+  # Mutaciones de imagenes-retenidas.sh que devuelven el comportamiento previo
+  # (seguir retirando sin historial legible o con el registro fallido): su
+  # caso tiene que pasar a retirar imágenes.
+  mutar_retenidas() { # NOMBRE SED ESCENARIO ARGS...
+    local nombre=$1 expr=$2 prep=$3; shift 3
+    local dir="$TMP/mutante-retenidas"; rm -rf "$dir"; mkdir -p "$dir"
+    sed "$expr" "$RETENIDAS" > "$dir/imagenes-retenidas.sh"
+    if cmp -s "$RETENIDAS" "$dir/imagenes-retenidas.sh"; then
+      comprobar "mutación '$nombre' cambia el guion" si no; return
+    fi
+    "$prep"; : > "$DOCKER_LOG"
+    IMAGENES_RETENIDAS=5 bash "$dir/imagenes-retenidas.sh" retener "$@" > /dev/null 2>&1
+    comprobar "mutación '$nombre' la caza su caso (retira imágenes)" si \
+      "$([ "$(grep -c '^image rm' "$DOCKER_LOG")" -gt 0 ] && echo si || echo no)"
+  }
+  sin_historial_produccion() { escenario_retencion; rm "$DIR_HISTORIAL_DESPLIEGUES/produccion"; }
+  historial_ilegible() { escenario_retencion; rm "$DIR_HISTORIAL_DESPLIEGUES/staging"; mkdir "$DIR_HISTORIAL_DESPLIEGUES/staging"; }
+  # Vuelta al comportamiento de #922: el motivo nunca corta y un historial que
+  # no se puede leer cuenta como vacío.
+  M_PREVIO='s#^        \[ -z "\$motivo" \] || break$#        motivo=""#; s#^    \[ -f "\$fichero" \] && \[ -r "\$fichero" \] || return 1$#    [ -r "$fichero" ] || return 0#'
+  mutar_retenidas "sin historial se sigue retirando" "$M_PREVIO" sin_historial_produccion
+  mutar_retenidas "historial ilegible se sigue retirando" "$M_PREVIO" historial_ilegible
+  mutar_retenidas "no se comprueba el registro en curso" \
+    's#^    if \[ -z "\$motivo" \] && \[ -n "\$entorno_actual" \] \\$#    if false \\#' escenario_retencion produccion "$(sha 24)"
 fi
 
 if [ "$fallos" -gt 0 ]; then
