@@ -212,6 +212,17 @@ caddyfile_aprobado() { echo "$DIR_RANURAS/Caddyfile.aprobado"; }
 recargar_caddy() {
     local entorno_checkout="${1:-}" fuente aprobado tmp=""
     aprobado="$(caddyfile_aprobado)"
+    # Sin aprobado y sin entorno (recarga que solo cambia ranuras: la previa
+    # al up, el fin de un drenaje, `recargar`): se recarga con el Caddyfile
+    # con el que corre Caddy, su /etc/caddy/Caddyfile montado (un bind de
+    # fichero suelto conserva el inodo con el que arrancó). Así no entra el
+    # checkout ni se crea el aprobado antes de un up que puede fallar
+    # (revisión de Codex, pasada 4). El arranque del aprobado queda para la
+    # conmutación.
+    if [ -z "$entorno_checkout" ] && [ ! -f "$aprobado" ]; then
+        docker exec "$CONTENEDOR_CADDY" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+        return
+    fi
     if [ "$entorno_checkout" = produccion ] || [ ! -f "$aprobado" ]; then
         fuente="$RAIZ_DESPLIEGUE/deploy/local/Caddyfile"
         [ -f "$aprobado" ] || echo "::warning::no hay Caddyfile aprobado: se usa el del checkout y queda como aprobado (arranque de P1-F2)." >&2
@@ -309,13 +320,7 @@ desplegar() {
     # cerrojo, que tiene este despliegue, y si su contenedor se recrea, lo
     # detecta por el Id y termina.
     previas="$(ranuras_en_fichero "$entorno" | grep -vx -- "${activa_:-<ninguna>}" || true)"
-    # Sin aprobado no se recarga aquí: esa recarga haría el arranque del
-    # aprobado desde el checkout ANTES de saber si el up va bien (revisión de
-    # Codex, pasada 4). La ranura libre se recrea igual; mientras, la cookie
-    # vieja reintenta en la activa, y el arranque del aprobado queda para la
-    # conmutación, tras un up sano.
-    if [ -n "$activa_" ] && sana "$activa_" && [ -f "$(caddyfile_aprobado)" ] \
-            && [[ $'\n'"$previas"$'\n' == *$'\n'"$cont_nueva"$'\n'* ]]; then
+    if [ -n "$activa_" ] && sana "$activa_" && [[ $'\n'"$previas"$'\n' == *$'\n'"$cont_nueva"$'\n'* ]]; then
         escribir_ranuras "$entorno" "$activa_" \
             $(printf '%s\n' "$previas" | grep -vx -- "$cont_nueva" | awk 'NR == 1')
         # Con el aprobado, no con el del checkout: esta recarga solo cambia

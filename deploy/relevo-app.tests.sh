@@ -58,7 +58,11 @@ case "$1" in
     case "$*" in
       "printenv"*) echo "valor-de-$2" ;;
       "caddy reload"*)
-        marca="$(grep -o 'MARCA_[A-Z]*' | head -1)"; echo "FUENTE ${marca:-?}" >> "$LOG"
+        case "$*" in
+          *"/dev/stdin"*) marca="$(grep -o 'MARCA_[A-Z]*' | head -1)" ;;
+          *) marca="CONTENEDOR" ;;   # recarga con el Caddyfile montado en el propio Caddy
+        esac
+        echo "FUENTE ${marca:-?}" >> "$LOG"
         [ "${RECARGA_FALLA:-0}" = 1 ] && exit 1
         { printf 'RECARGA produccion=['; grep -h '^to ' "$DIR_RANURAS/produccion.caddy" 2>/dev/null | tr -d '\n'
           printf '] staging=['; grep -h '^to ' "$DIR_RANURAS/staging.caddy" 2>/dev/null | tr -d '\n'; echo ']'; } >> "$LOG" ;;
@@ -332,8 +336,9 @@ comprobar "sacar la ranura libre antes del up recarga el APROBADO; si el up fall
 limpio; contenedor caemanager-app-verde "$B"; contenedor caemanager-app-azul "$A"
 fichero produccion "to caemanager-app-verde:8080 caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
 relevo COMPOSE_FALLA=1 -- desplegar produccion "$C"
-comprobar "sin aprobado, no hay recarga previa al up: si el up falla, ni Caddy ni el aprobado cambian" "1 0 no" \
-  "$codigo $(grep -c '^FUENTE' "$LOG") $([ -f "$DIR_RANURAS/Caddyfile.aprobado" ] && echo si || echo no)"
+comprobar "sin aprobado, la recarga previa al up usa el Caddyfile con el que corre Caddy y no crea aprobado" \
+  "1 FUENTE CONTENEDOR no to caemanager-app-verde:8080" \
+  "$codigo $(grep '^FUENTE' "$LOG" | sort -u | tr '\n' ' ' | sed 's/ $//') $([ -f "$DIR_RANURAS/Caddyfile.aprobado" ] && echo si || echo no) $(ranuras produccion)"
 
 echo "fallos que antes acababan en éxito (errexit no actúa a la izquierda de || y &&)"
 limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
