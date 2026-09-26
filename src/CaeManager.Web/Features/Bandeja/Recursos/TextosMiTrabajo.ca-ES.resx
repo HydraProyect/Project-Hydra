@@ -201,6 +201,27 @@
   <data name="SinTrabajoPendiente" xml:space="preserve">
     <value>Sense feina pendent</value>
   </data>
+  <data name="NoConsultado" xml:space="preserve">
+    <value>No s'ha pogut consultar</value>
+  </data>
+  <data name="NoConsultadoEmpresa" xml:space="preserve">
+    <value>No s'ha pogut consultar {0}</value>
+  </data>
+  <data name="NoConsultadoEmpresaDetalle" xml:space="preserve">
+    <value>La seva feina pendent no apareix aquí. Torna a consultar; si torna a fallar, avisa el Suport TALVEG.</value>
+  </data>
+  <data name="CarteraIncompletaTitulo" xml:space="preserve">
+    <value>Cartera incompleta</value>
+  </data>
+  <data name="CarteraIncompletaUna" xml:space="preserve">
+    <value>1 empresa no ha respost. Els totals n'exclouen la feina pendent.</value>
+  </data>
+  <data name="CarteraIncompletaVarias" xml:space="preserve">
+    <value>{0} empreses no han respost. Els totals n'exclouen la feina pendent.</value>
+  </data>
+  <data name="AlDiaLoConsultado" xml:space="preserve">
+    <value>El que s'ha consultat està al dia</value>
+  </data>
   <data name="SinBloqueos" xml:space="preserve">
     <value>Sense bloquejos</value>
   </data>

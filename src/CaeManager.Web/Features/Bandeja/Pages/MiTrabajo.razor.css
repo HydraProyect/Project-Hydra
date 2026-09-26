@@ -99,6 +99,44 @@
     color: var(--color-text-muted);
 }
 
+/* FS-07: Empresa cuya consulta falló (mockup: sub y cuenta en ámbar). */
+.mi-trabajo-cartera-fila-no-consultada .mi-trabajo-cartera-sub,
+.mi-trabajo-cartera-fila-no-consultada .mi-trabajo-cartera-total {
+    color: var(--color-warning-700);
+    font-weight: 600;
+}
+
+.mi-trabajo-cartera-incompleta {
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-left: 3px solid var(--color-warning-500);
+    background: var(--color-warning-50);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.mi-trabajo-cartera-incompleta-titulo {
+    font: var(--font-caption);
+    font-weight: 600;
+    color: var(--color-warning-700);
+}
+
+.mi-trabajo-cartera-incompleta-detalle {
+    margin-top: var(--space-1);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo-cartera-incompleta-accion {
+    margin-top: var(--space-2);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: var(--font-caption);
+    font-weight: 600;
+    color: var(--color-primary-600);
+    cursor: pointer;
+}
+
 .mi-trabajo-cartera-fila {
     display: flex;
     align-items: center;

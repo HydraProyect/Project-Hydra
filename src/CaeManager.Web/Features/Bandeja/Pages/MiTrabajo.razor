@@ -18,11 +18,14 @@
    la solicitud al Coordinador CAE (contrato § 13), y solo aparece si el usuario
    es Gestor CAE y su Operador CAE opera alguna Empresa que aún no tiene.
 
+   Una Empresa cuya consulta falla no tumba la cartera (FS-07): su fila dice
+   «No se pudo consultar», el aviso «Cartera incompleta» ofrece reintentar y
+   ningún estado vacío la da por «al día».
+
    Sin construir, porque no hay capacidad detrás: los chips
    DEMO (andamiaje de la vista previa), la selección múltiple («x»,
-   «Gestionar selección»), «Aplazar», el historial del flujo en el detalle y el
-   aviso «Cartera incompleta» (hoy un Tenant que falla hace fallar la consulta
-   entera). Rótulos de pantalla del contrato § 14: el Tenant propietario se
+   «Gestionar selección»), «Aplazar» y el historial del flujo en el detalle.
+   Rótulos de pantalla del contrato § 14: el Tenant propietario se
    rotula «Empresa» y el Cliente empresarial «Cliente»; nunca «tenant». *@
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
@@ -85,21 +88,29 @@
                     <span class="mi-trabajo-cartera-avatar mi-trabajo-cartera-avatar-todo" aria-hidden="true">∑</span>
                     <span class="mi-trabajo-cartera-texto">
                         <span class="mi-trabajo-cartera-nombre">@Textos["TodaMiCartera"]</span>
-                        <span class="mi-trabajo-cartera-sub">@EmpresasConsultadas(_vista.Cartera.Count)</span>
+                        <span class="mi-trabajo-cartera-sub">@EmpresasConsultadas(_vista.Cartera.Count - _vista.NoConsultados)</span>
                     </span>
                     <span class="mi-trabajo-cartera-total">@_vista.TotalCartera</span>
                 </button>
                 @foreach (var tenant in _vista.Cartera)
                 {
-                    <button type="button" class="@ClaseFilaCartera(tenant.TenantId)" aria-pressed="@(_tenantFiltro == tenant.TenantId ? "true" : "false")"
+                    <button type="button" class="@(ClaseFilaCartera(tenant.TenantId) + (tenant.NoConsultado ? " mi-trabajo-cartera-fila-no-consultada" : ""))" aria-pressed="@(_tenantFiltro == tenant.TenantId ? "true" : "false")"
                             @onclick="() => CambiarTenant(_tenantFiltro == tenant.TenantId ? null : tenant.TenantId)">
                         <span class="mi-trabajo-cartera-avatar" aria-hidden="true">@Iniciales(tenant.Nombre)</span>
                         <span class="mi-trabajo-cartera-texto">
                             <span class="mi-trabajo-cartera-nombre">@tenant.Nombre</span>
                             <span class="mi-trabajo-cartera-sub">@SubtituloCartera(tenant)</span>
                         </span>
-                        <span class="mi-trabajo-cartera-total">@tenant.Total</span>
+                        <span class="mi-trabajo-cartera-total">@(tenant.NoConsultado ? "—" : tenant.Total.ToString())</span>
                     </button>
+                }
+                @if (_vista.NoConsultados > 0)
+                {
+                    <div class="mi-trabajo-cartera-incompleta" role="status">
+                        <div class="mi-trabajo-cartera-incompleta-titulo">@Textos["CarteraIncompletaTitulo"]</div>
+                        <div class="mi-trabajo-cartera-incompleta-detalle">@CarteraIncompleta</div>
+                        <button type="button" class="mi-trabajo-cartera-incompleta-accion" @onclick="CargarAsync">@Textos["ReintentarConsulta"]</button>
+                    </div>
                 }
             </aside>
 
@@ -130,7 +141,20 @@
                     </div>
                 </div>
 
-                @if (Grupos.Count == 0 && AlDia && _vista.SinAlcance(Filtro))
+                @if (Grupos.Count == 0 && TenantFiltrado is { NoConsultado: true } caido)
+                {
+                    @* FS-07: su cola llega vacía porque no se pudo consultar, no porque
+                       esté al día. *@
+                    <EstadoVacio NombreIcono="advertencia" AcentoIcono="var(--color-warning-700)" FondoIcono="var(--color-warning-50)"
+                                 Titulo="@Textos["NoConsultadoEmpresa", caido.Nombre]"
+                                 Descripcion="@Textos["NoConsultadoEmpresaDetalle"]">
+                        <Accion>
+                            <Boton OnClick="CargarAsync">@Textos["ReintentarConsulta"]</Boton>
+                            <Boton Variante="VarianteBoton.Secundario" OnClick="() => CambiarTenant(null)">@Textos["VerTodaMiCartera"]</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (Grupos.Count == 0 && AlDia && _vista.SinAlcance(Filtro))
                 {
                     @* P2.3: sin alcance no hay nada que vigilar, y «al día» afirmaría un
                        cumplimiento que nadie ha mirado. La Asignación de Cartera la da
@@ -149,6 +173,17 @@
                             {
                                 <Boton Variante="VarianteBoton.Secundario" OnClick="() => CambiarTenant(null)">@Textos["VerTodaMiCartera"]</Boton>
                             }
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else if (Grupos.Count == 0 && AlDia && TenantFiltrado is null && _vista.NoConsultados > 0)
+                {
+                    @* FS-07: «Cartera al día» afirmaría el estado de una Empresa que no
+                       se pudo consultar. *@
+                    <EstadoVacio NombreIcono="advertencia" AcentoIcono="var(--color-warning-700)" FondoIcono="var(--color-warning-50)"
+                                 Titulo="@Textos["AlDiaLoConsultado"]" Descripcion="@CarteraIncompleta">
+                        <Accion>
+                            <Boton OnClick="CargarAsync">@Textos["ReintentarConsulta"]</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
