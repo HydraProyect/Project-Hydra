@@ -186,8 +186,14 @@ public class CrearDocumentoCommandHandler(
             if (necesitaDeteccion)
                 colaAnalisis.Agregar(new TrabajoAnalisisDocumento(documento.Id, usuarioId, TipoAnalisisDocumento.DeteccionTrabajadores));
 
+            // La versión se fija aquí, con el Documento aún sin guardar: en un
+            // alta, ConcurrenciaOptimistaInterceptor no renueva Version (solo
+            // en Modified), así que es la misma que quedará en la fila. Es la
+            // referencia con la que VerificacionIaDocumentoService descarta
+            // el resultado si el Documento cambió antes de poder escribirlo.
             if (necesitaVerificacion)
-                colaAnalisis.Agregar(new TrabajoAnalisisDocumento(documento.Id, usuarioId, TipoAnalisisDocumento.VerificacionIa));
+                colaAnalisis.Agregar(new TrabajoAnalisisDocumento(
+                    documento.Id, usuarioId, TipoAnalisisDocumento.VerificacionIa, documento.Version));
 
             if (necesitaValidacionOficial)
                 colaAnalisis.Agregar(new TrabajoAnalisisDocumento(documento.Id, usuarioId, TipoAnalisisDocumento.VerificacionFirmaDigital));

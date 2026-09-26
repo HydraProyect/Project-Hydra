@@ -627,6 +627,7 @@ public static class InfrastructureServiceCollectionExtensions
         // repositorio: el hosted service abre su propio scope de DI por
         // tenant/ciclo de sondeo, igual que ya hacía con la cola en memoria.
         services.AddScoped<ITrabajoAnalisisDocumentoRepository, TrabajoAnalisisDocumentoRepository>();
+        services.AddScoped<CaeManager.Application.Documentos.Verificacion.ITransaccionDocumentoBloqueado, TransaccionDocumentoBloqueado>();
         services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
         // Fase F: aviso por hora (solo campana, sin correo en v1) de

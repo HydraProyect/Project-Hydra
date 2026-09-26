@@ -42,15 +42,33 @@ public class TrabajoAnalisisDocumento : EntidadConTenant
     /// </summary>
     public DateTime? SiguienteIntentoEnUtc { get; private set; }
 
+    public const int LongitudMaximaMotivoDescarte = 500;
+
+    /// <summary>
+    /// <c>Documento.Version</c> en el momento de encolar: identifica la
+    /// versión del Documento para la que se pidió el análisis. Si al escribir
+    /// el resultado la versión ya es otra (renovación, corrección, archivo
+    /// nuevo, anonimización...), el análisis se descarta en vez de aplicarse
+    /// sobre un Documento que ya no es el que se analizó. Nula en los trabajos
+    /// encolados antes de existir esta columna y en los tipos de análisis que
+    /// no la usan: entonces solo se comprueba la decisión manual posterior.
+    /// </summary>
+    public Guid? VersionDocumentoEncolada { get; private set; }
+
+    /// <summary>Por qué se descartó — solo tiene valor en <see cref="EstadoTrabajoAnalisisDocumento.Descartado"/>.</summary>
+    public string? MotivoDescarte { get; private set; }
+
     private TrabajoAnalisisDocumento()
     {
     }
 
-    public TrabajoAnalisisDocumento(Guid documentoId, Guid? usuarioSolicitanteId, TipoAnalisisDocumento tipo)
+    public TrabajoAnalisisDocumento(
+        Guid documentoId, Guid? usuarioSolicitanteId, TipoAnalisisDocumento tipo, Guid? versionDocumentoEncolada = null)
     {
         DocumentoId = documentoId;
         UsuarioSolicitanteId = usuarioSolicitanteId;
         Tipo = tipo;
+        VersionDocumentoEncolada = versionDocumentoEncolada;
     }
 
     public void MarcarEnProceso()
@@ -84,6 +102,27 @@ public class TrabajoAnalisisDocumento : EntidadConTenant
     {
         Estado = EstadoTrabajoAnalisisDocumento.Completado;
         CompletadoEnUtc = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Una decisión manual siempre prevalece sobre un análisis que llega
+    /// tarde (p. ej. tras días con los servicios de fondo parados): si entre
+    /// el encolado y la escritura alguien decidió el Documento a mano, o el
+    /// Documento cambió, el análisis termina sin escribir nada sobre él. Queda
+    /// como estado propio, y no como <see cref="EstadoTrabajoAnalisisDocumento.Completado"/>,
+    /// para que ni el aviso de "ya está revisado" ni la métrica de documentos
+    /// procesados cuenten algo que no se aplicó; el cambio de estado lo
+    /// registra la auditoría general como cualquier otra modificación.
+    /// </summary>
+    public void MarcarDescartado(string motivo)
+    {
+        if (string.IsNullOrWhiteSpace(motivo))
+            throw new ArgumentException("Un descarte debe explicar su motivo.", nameof(motivo));
+
+        Estado = EstadoTrabajoAnalisisDocumento.Descartado;
+        CompletadoEnUtc = DateTime.UtcNow;
+        SiguienteIntentoEnUtc = null;
+        MotivoDescarte = motivo.Length > LongitudMaximaMotivoDescarte ? motivo[..LongitudMaximaMotivoDescarte] : motivo;
     }
 
     /// <summary>

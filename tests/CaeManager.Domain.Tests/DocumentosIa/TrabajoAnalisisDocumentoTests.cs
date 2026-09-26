@@ -44,6 +44,39 @@ public class TrabajoAnalisisDocumentoTests
     }
 
     [Fact]
+    public void MarcarDescartado_pasa_a_Descartado_con_su_motivo_sin_gastar_un_intento()
+    {
+        var trabajo = CrearTrabajo();
+        trabajo.MarcarEnProceso();
+
+        trabajo.MarcarDescartado("Un usuario decidió el Documento a mano.");
+
+        trabajo.Estado.Should().Be(EstadoTrabajoAnalisisDocumento.Descartado);
+        trabajo.MotivoDescarte.Should().Be("Un usuario decidió el Documento a mano.");
+        trabajo.CompletadoEnUtc.Should().NotBeNull();
+        trabajo.Intentos.Should().Be(0, "un descarte no es un fallo");
+    }
+
+    [Fact]
+    public void MarcarDescartado_exige_motivo()
+    {
+        var trabajo = CrearTrabajo();
+
+        var descartar = () => trabajo.MarcarDescartado(" ");
+
+        descartar.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Guarda_la_version_del_Documento_con_la_que_se_encolo()
+    {
+        var version = Guid.NewGuid();
+
+        new TrabajoAnalisisDocumento(Guid.NewGuid(), null, TipoAnalisisDocumento.VerificacionIa, version)
+            .VersionDocumentoEncolada.Should().Be(version);
+    }
+
+    [Fact]
     public void Un_fallo_por_debajo_del_maximo_de_intentos_vuelve_a_Pendiente_para_reintentar()
     {
         var trabajo = CrearTrabajo();
