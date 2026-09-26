@@ -167,85 +167,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
         services.AddTransient<IClaimsTransformation, RestriccionLoginLocalClaimsTransformation>();
 
-        // Sin persistir las claves, cada reinicio del proceso genera unas nuevas
-        // y todo lo cifrado con las anteriores (credenciales de Empresa/Centro,
-        // Fase 0/20) deja de poder descifrarse — silenciosamente, hasta que
-        // alguien intenta abrir una credencial guardada. Ruta configurable para
-        // apuntar a un volumen persistente en despliegues en contenedor (ver
-        // Project-Hydra-Negocio/tecnico/DEPLOY.md); en desarrollo local, relativa al content root como el
-        // resto de rutas de almacenamiento de la app.
-        var rutaClavesDataProtection = configuration["DataProtection:RutaClaves"] ?? "App_Data/dataprotection-keys";
-        var rutaClavesAbsoluta = Path.IsPathRooted(rutaClavesDataProtection)
-            ? rutaClavesDataProtection
-            : Path.Combine(entorno.ContentRootPath, rutaClavesDataProtection);
-
-        var constructorDataProtection = services.AddDataProtection()
-            .SetApplicationName("CaeManager")
-            .PersistKeysToFileSystem(new DirectoryInfo(rutaClavesAbsoluta));
-
-        // Cifrado en reposo de esas claves con AWS KMS. Ver
-        // DataProtectionKmsOptions: sin esto, las claves viajan en claro en el
-        // mismo backup que la base de datos que protegen.
-        var opcionesKms = new DataProtectionKmsOptions();
-        configuration.GetSection(DataProtectionKmsOptions.SeccionConfiguracion).Bind(opcionesKms);
-        services.Configure<DataProtectionKmsOptions>(
-            configuration.GetSection(DataProtectionKmsOptions.SeccionConfiguracion));
-
-        services.AvisarSiConfiguracionAMedias(DataProtectionKmsOptions.SeccionConfiguracion, opcionesKms,
-            "El cifrado de las claves de Data Protection con KMS NO se ha registrado: las claves se guardan SIN CIFRAR.");
-
-        if (opcionesKms.EstaConfigurado)
-        {
-            services.AddSingleton<IAmazonKeyManagementService>(_ => new AmazonKeyManagementServiceClient(
-                opcionesKms.AccessKeyId, opcionesKms.SecretAccessKey, RegionEndpoint.GetBySystemName(opcionesKms.Region)));
-
-            constructorDataProtection.Services.Configure<KeyManagementOptions>(opciones =>
-                opciones.XmlEncryptor = new KmsXmlEncryptor(
-                    new AmazonKeyManagementServiceClient(
-                        opcionesKms.AccessKeyId, opcionesKms.SecretAccessKey, RegionEndpoint.GetBySystemName(opcionesKms.Region)),
-                    opcionesKms.KeyId!));
-
-            // Deja dicho en el arranque si el cifrado está realmente operativo:
-            // una credencial mal copiada no se notaría hasta la siguiente
-            // rotación de clave o al abrir una credencial guardada.
-            services.AddHostedService<VerificacionKmsHostedService>();
-        }
-        else
-        {
-            // Ruidoso a propósito: un despliegue que cree estar cifrando y no
-            // lo esté es peor que uno que sepa que no lo está. Se registra al
-            // construir el contenedor, así que sale en el arranque.
-            Console.WriteLine(
-                "[AVISO] DataProtection:Kms no está configurado — las claves de Data Protection se guardan SIN CIFRAR. " +
-                "El backup (scripts/backup-borg.sh) las incluye junto a la base de datos que protegen, así que viajan en claro también ahí (ver RUNBOOK-CLAVES.md).");
-        }
-
-        // Llavero compartido entre réplicas (P3-30 de Project-Hydra-Negocio/MATURITY_REVIEW.md):
-        // reemplaza el XmlRepository de disco local configurado arriba por uno
-        // en S3 — mismo patrón que el XmlEncryptor de KMS, la última
-        // Configure<KeyManagementOptions> que se registra es la que gana.
-        // Apagado por defecto: sin AWS provisionado, sigue en disco local
-        // (correcto para una sola réplica, ver PersistKeysToFileSystem arriba).
-        var opcionesDataProtectionS3 = new DataProtectionS3Options();
-        configuration.GetSection(DataProtectionS3Options.SeccionConfiguracion).Bind(opcionesDataProtectionS3);
-        services.Configure<DataProtectionS3Options>(
-            configuration.GetSection(DataProtectionS3Options.SeccionConfiguracion));
-
-        services.AvisarSiConfiguracionAMedias(DataProtectionS3Options.SeccionConfiguracion, opcionesDataProtectionS3,
-            "El llavero de Data Protection NO se ha movido a S3 y sigue en el disco local de cada réplica: con más de una réplica, " +
-            "una cookie o una credencial cifrada por una no la puede descifrar otra.");
-
-        if (opcionesDataProtectionS3.EstaConfigurado)
-        {
-            constructorDataProtection.Services.Configure<KeyManagementOptions>(opciones =>
-                opciones.XmlRepository = new S3XmlRepository(
-                    new AmazonS3Client(
-                        opcionesDataProtectionS3.AccessKeyId, opcionesDataProtectionS3.SecretAccessKey,
-                        RegionEndpoint.GetBySystemName(opcionesDataProtectionS3.Region)),
-                    opcionesDataProtectionS3));
-
-            services.AddHostedService<VerificacionDataProtectionS3HostedService>();
-        }
+        // Llavero de Data Protection: ruta, cifrado en reposo (certificado o KMS)
+        // y llavero compartido en S3. Ver RegistroDataProtection.
+        services.AgregarDataProtectionDeCaeManager(configuration, entorno);
 
         // Backplane de SignalR (P3-30 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
         // AddSignalR() aquí y AddInteractiveServerComponents() en Program.cs
