@@ -7,6 +7,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Repositories;
 using CaeManager.IntegrationTests.Arranque;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -182,21 +183,33 @@ public class VerificacionIaTardiaBajoRuntimeTests
     private static async Task<Task> EmpezarDecisionManualSinConfirmarAsync(
         ArnesDeArranqueRuntime arnes, Guid revisionId, TimeSpan retardo)
     {
-        var scope = arnes.Servicios.CreateAsyncScope();
-        var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-        var transaccion = await contexto.Database.BeginTransactionAsync();
-        var revision = await contexto.RevisionesIaDocumento.SingleAsync(r => r.Id == revisionId);
-        revision.Resolver();
-        contexto.AprobacionesDocumento.Add(AprobacionDocumento.CrearManual(revision.DocumentoId, revision.ConfianzaGeneral, Guid.NewGuid()));
-        await contexto.SaveChangesAsync();
+        var escrita = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        return Task.Run(async () =>
+        // Dentro de la estrategia de ejecución, como exige
+        // NpgsqlRetryingExecutionStrategy para una transacción explícita.
+        var decision = Task.Run(async () =>
         {
-            await Task.Delay(retardo);
-            await transaccion.CommitAsync();
-            await transaccion.DisposeAsync();
-            await scope.DisposeAsync();
+            await using var scope = arnes.Servicios.CreateAsyncScope();
+            var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            await contexto.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+            {
+                await using var transaccion = await contexto.Database.BeginTransactionAsync();
+                var revision = await contexto.RevisionesIaDocumento.SingleAsync(r => r.Id == revisionId);
+                revision.Resolver();
+                contexto.AprobacionesDocumento.Add(
+                    AprobacionDocumento.CrearManual(revision.DocumentoId, revision.ConfianzaGeneral, Guid.NewGuid()));
+                await contexto.SaveChangesAsync();
+
+                escrita.TrySetResult();
+                await Task.Delay(retardo);
+                await transaccion.CommitAsync();
+            });
         });
+
+        // Si la decisión falla antes de escribir, que el test lo diga en vez de colgarse.
+        await Task.WhenAny(escrita.Task, decision);
+        if (decision.IsFaulted) await decision;
+        return decision;
     }
 
     private Task<ArnesDeArranqueRuntime> CrearArnesAsync() =>
@@ -240,8 +253,14 @@ public class VerificacionIaTardiaBajoRuntimeTests
         (await contexto.Database.SqlQueryRaw<string>("SELECT current_user::text AS \"Value\"").SingleAsync())
             .Should().Be("cae_app_runtime");
 
-        var servicio = ActivatorUtilities.CreateInstance<VerificacionIaDocumentoService>(
-            scope.ServiceProvider, new AlmacenamientoFalso(), extraccion, new InstruccionSiempreHabilitada());
+        // Explícito y no por el contenedor: el arnés no registra los
+        // QueryContext de Application. Todo sale del mismo DbContext de
+        // runtime, como en producción.
+        var servicio = new VerificacionIaDocumentoService(
+            contexto, contexto, new AlmacenamientoFalso(), extraccion,
+            new RevisionIaDocumentoRepository(contexto), new AprobacionDocumentoRepository(contexto),
+            new AuditoriaExtraccionIaRepository(contexto), new InstruccionSiempreHabilitada(), _tenant,
+            new TransaccionDocumentoBloqueado(contexto, _tenant), contexto);
         return await servicio.ProcesarDocumentoAsync(encargo);
     }
 
