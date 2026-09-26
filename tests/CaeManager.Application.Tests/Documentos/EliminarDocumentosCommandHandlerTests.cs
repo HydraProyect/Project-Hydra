@@ -47,6 +47,9 @@ public class EliminarDocumentosCommandHandlerTests
         resultado.Valor.Eliminados.Should().Be(1);
         resultado.Valor.Errores.Should().ContainSingle();
         existente.EstaEliminado.Should().BeTrue();
+        // FS-09: el lote devuelve los ids que sí eliminó, para que el aviso ofrezca
+        // «Deshacer» solo sobre ellos; el id inexistente no se ofrece.
+        resultado.Valor.IdsEliminados.Should().Equal([existente.Id]);
     }
 
     [Fact]

@@ -33,6 +33,7 @@ public class EliminarDocumentosCommandHandler(
 
         var eliminados = 0;
         var errores = new List<string>();
+        var idsEliminados = new List<Guid>();
 
         foreach (var id in request.Ids)
         {
@@ -45,10 +46,11 @@ public class EliminarDocumentosCommandHandler(
 
             documento.MarcarComoEliminado(usuarioId.Value);
             eliminados++;
+            idsEliminados.Add(documento.Id);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result.Exito(new ResultadoEliminacionLoteDto(eliminados, errores));
+        return Result.Exito(new ResultadoEliminacionLoteDto(eliminados, errores, idsEliminados));
     }
 }

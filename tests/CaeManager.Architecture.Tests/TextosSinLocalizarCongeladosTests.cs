@@ -85,7 +85,7 @@ public class TextosSinLocalizarCongeladosTests
         // esta entrada se retira.
         ["DashboardEjecutivo"] = 1,
         ["Delegaciones"] = 97,
-        ["Documentos"] = 459,
+        ["Documentos"] = 458, // 459 → 458 el 2026-09-26: borrado en lote de Documentos.razor a TextosDocumentos.resx (FS-09).
         ["Empresas"] = 202,
         ["Extension"] = 29,
         ["Facturacion"] = 96,
