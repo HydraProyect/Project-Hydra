@@ -422,7 +422,7 @@ else
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
             if (generacion == _generacion)
-                NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
         }
         catch (Exception)
         {
@@ -537,6 +537,12 @@ else
             _hayCredencialGuardada = true;
             _credencialContrasena = string.Empty;
         }
+        // P1-I2: escribir la credencial exige el mismo 2FA que leerla.
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (generacion == _generacion)
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+        }
         catch (Exception)
         {
             if (generacion == _generacion)
@@ -572,7 +578,7 @@ else
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
             if (generacion == _generacion)
-                NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
             return null;
         }
         if (generacion != _generacion) return null;
@@ -609,6 +615,11 @@ else
             if (generacion != _generacion) return;
             _credencialContrasena = string.Empty;
             _confirmarBorrarContrasenaVisible = false;
+        }
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (generacion == _generacion)
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
         }
         catch (Exception)
         {

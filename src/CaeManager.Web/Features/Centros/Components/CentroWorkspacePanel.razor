@@ -32,6 +32,7 @@
 @using CaeManager.Web.Features.Centros.Recursos
 @using Microsoft.Extensions.Localization
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Services
 @using CaeManager.Domain.Common
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Documentos
@@ -47,6 +48,7 @@
 @inject ILogger<CentroWorkspacePanel> Logger
 @inject ICurrentUserService CurrentUserService
 @inject IResolucionProveedorPlataformaCaeService ResolucionProveedor
+@inject NavigationManager NavigationManager
 
 @if (_cargando)
 {
@@ -1366,6 +1368,11 @@ else
         {
             _mensajeErrorCanal = ex.Errors.FirstOrDefault()?.ErrorMessage
                 ?? "No pudimos guardar el acceso. Revisa los datos introducidos.";
+        }
+        // P1-I2: guardar un usuario o una contraseña del acceso exige 2FA activo.
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
         }
         catch (Exception)
         {

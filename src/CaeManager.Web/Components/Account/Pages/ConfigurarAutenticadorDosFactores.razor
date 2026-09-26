@@ -68,7 +68,7 @@
             @* Carga completa, no navegación mejorada: el menú y los gates de rol
                dependen de una claims transformation que solo se recalcula en una
                petición nueva (mismo motivo que el forceLoad de VerificarAsync). *@
-            <a class="boton-primario boton-continuar" href="/" data-enhance-nav="false">@Textos["CodigosContinuar"]</a>
+            <a class="boton-primario boton-continuar" href="@RutaDeVuelta" data-enhance-nav="false">@Textos["CodigosContinuar"]</a>
         </section>
     }
     else if (_dosFactoresActivo)
@@ -76,6 +76,10 @@
         <div class="tarjeta-2fa tarjeta-2fa-activa">
             <p class="texto-2fa-exito"><Icono Nombre="exito-circulo" Tamano="TamanoIcono.Pequeno" /> <span>La autenticación en dos pasos ya está activada en tu cuenta.</span></p>
             <p class="texto-2fa-secundario">Tu aplicación autenticadora te pedirá un código cuando sea necesario.</p>
+            @if (HayVueltaAFicha)
+            {
+                <a class="boton-primario boton-continuar" href="@RutaDeVuelta" data-enhance-nav="false">@Textos["VolverALaFicha"]</a>
+            }
         </div>
 
         <section class="tarjeta-2fa tarjeta-2fa-activa tarjeta-regenerar" aria-labelledby="codigos-restantes-titulo">
@@ -176,6 +180,16 @@
     // de arriba, solo decide un texto: quien deniega es AutorizacionSecretosDeTenantBehavior.
     [SupplyParameterFromQuery(Name = "motivo")]
     private string? Motivo { get; set; }
+
+    // P1-I2 (hueco de #900): la ficha que mandó aquí pasa su propia ruta para
+    // volver a ella al terminar. Solo una ruta local (EsRutaLocal): cualquier
+    // otra se ignora y la salida es el inicio, nunca una redirección abierta.
+    [SupplyParameterFromQuery(Name = SegundoFactorParaCredenciales.ParametroVuelta)]
+    private string? ReturnUrl { get; set; }
+
+    private bool HayVueltaAFicha => SegundoFactorParaCredenciales.EsRutaLocal(ReturnUrl);
+
+    private string RutaDeVuelta => HayVueltaAFicha ? ReturnUrl! : "/";
 
     // Dentro de @code no hay interpolacion de Razor: el literal "@Marca.Nombre" llegaba tal cual
     // a la URI del TOTP. Y Marca.Nombre se fija desde la configuracion al arrancar, asi que se
@@ -322,7 +336,7 @@
         {
             LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
                 .LogWarning("2FA activado sin códigos de recuperación: {UsuarioId} ({Codigo})", _usuario.Id, codigos.Error.Codigo);
-            NavigationManager.NavigateTo("/", forceLoad: true);
+            NavigationManager.NavigateTo(RutaDeVuelta, forceLoad: true);
             return;
         }
 

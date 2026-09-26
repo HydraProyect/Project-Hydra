@@ -1018,7 +1018,7 @@ else
             {
                 // Sin 2FA la credencial ya cargada tampoco se queda en el circuito.
                 OcultarCredencial();
-                NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
             }
             return false;
         }
@@ -1106,7 +1106,7 @@ else
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
             if (generacion == _generacion)
-                NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
         }
         catch (Exception)
         {
@@ -1146,7 +1146,7 @@ else
             // StateHasChanged este panel no se repinta sin la credencial.
             OcultarCredencial();
             StateHasChanged();
-            NavigationManager.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurar, forceLoad: true);
+            SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
             return null;
         }
         if (generacion != _generacion) return null;
@@ -1475,6 +1475,12 @@ else
             ToastService.Mostrar(Textos["ToastCredencialesGuardadas"], TonoToast.Exito);
             // La tarjeta de lectura tenía la versión anterior: se suelta.
             OcultarCredencial();
+        }
+        // P1-I2: escribir la credencial exige el mismo 2FA que leerla.
+        catch (SegundoFactorRequeridoParaCredencialesException)
+        {
+            if (generacion == _generacion)
+                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
         }
         catch (Exception)
         {
