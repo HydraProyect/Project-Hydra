@@ -243,10 +243,10 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
-      # Durante el arranque se comprueba cada 5 s en vez de cada 30: el relevo
-      # espera a que la ranura nueva esté healthy antes de conmutar Caddy, y
-      # con 30 s ese primer «healthy» llegaba como pronto a los 30 s.
-      start_interval: 5s
+      # Sin `start_interval` (acortaría la espera del relevo a healthy, que con
+      # interval 30s llega como pronto a los 30 s) a propósito: exige Docker
+      # Engine >= 25 y la versión del VPS no está medida; con uno anterior el
+      # `up` fallaría. La espera no corta a nadie: la ranura anterior sirve.
 
   app-verde:
     extends:

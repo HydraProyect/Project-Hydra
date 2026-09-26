@@ -22,8 +22,8 @@
 #   relevo-app.sh desplegar <staging|produccion> <sha>
 #       Con la imagen caemanager:<sha> ya cargada y el cerrojo de despliegue
 #       YA TOMADO por quien llama (ci-deploy.sh, volver-atras.sh):
-#         1. Si la ranura libre aún drena del despliegue anterior, la saca de
-#            Caddy (sus circuitos ya llevaban el drenaje de aquel despliegue).
+#         1. Saca de Caddy y para las salientes de un relevo anterior que sigan
+#            en el fichero (la libre si aún drenaba, o una cuyo drenaje murió).
 #         2. `docker compose up -d --wait --no-build` de los servicios sin
 #            perfil (db, migrador, seq y, en producción, caddy) y de la ranura
 #            libre, con IMAGEN_TAG=<sha>. El migrador corre aquí, con la
@@ -193,7 +193,7 @@ volcar_ranura_fallida() {
 }
 
 desplegar() {
-    local entorno="$1" sha="$2" activa_="" nueva cont_nueva id_activa servicios
+    local entorno="$1" sha="$2" activa_="" nueva cont_nueva id_activa servicios previas previa
     local -a args
     args=(-f "docker-compose.$entorno.yml")
     [ "$entorno" = staging ] && args+=(--env-file .env.staging)
@@ -213,14 +213,26 @@ desplegar() {
     asegurar_ficheros_ranuras
     asegurar_montaje_caddy
 
-    # La ranura libre puede seguir drenando del despliegue anterior: se para su
-    # drenaje y se la saca de Caddy antes de recrearla.
+    # Salientes de un relevo anterior que siguen en el fichero: la ranura libre
+    # si aún drenaba, o cualquiera cuyo drenaje ya no corre (p. ej. tras
+    # reiniciar el VPS: Docker la levanta y nadie la retira). Se sacan de Caddy
+    # y se paran ahora; la libre la recrea el `up`. Sin una activa sana no se
+    # toca ninguna: pueden ser lo único que sirve.
     detener_drenaje_previo "$entorno"
-    if [[ $'\n'"$(ranuras_en_fichero "$entorno")"$'\n' == *$'\n'"$cont_nueva"$'\n'* ]]; then
-        if [ -n "$activa_" ]; then
-            escribir_ranuras "$entorno" "$activa_"
-        fi
-        recargar_caddy || echo "::warning::no se pudo recargar Caddy al retirar $cont_nueva, que aún drenaba; se recrea igual."
+    previas="$(ranuras_en_fichero "$entorno" | sed 1d)"
+    if [ -n "$previas" ] && [ -n "$activa_" ]; then
+        escribir_ranuras "$entorno" "$activa_"
+        recargar_caddy || echo "::warning::no se pudo recargar Caddy al retirar las salientes anteriores; la cookie vieja reintentará en la activa."
+        for previa in $previas; do
+            [ "$previa" = "$activa_" ] && continue
+            [ "$previa" = "$cont_nueva" ] && continue
+            echo "Saliente anterior sin drenaje en marcha: se retira $previa."
+            docker stop -t 30 "$previa" > /dev/null 2>&1 || true
+            case "$previa" in
+                *-azul|*-verde) ;;
+                *) docker rm "$previa" > /dev/null 2>&1 || true ;;
+            esac
+        done
     fi
 
     cd "$RAIZ_DESPLIEGUE/deploy/local"

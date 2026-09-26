@@ -160,9 +160,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
-      # Ver el mismo ajuste en docker-compose.produccion.yml: el relevo espera
-      # a healthy antes de conmutar Caddy.
-      start_interval: 5s
 
   app-verde:
     extends:
