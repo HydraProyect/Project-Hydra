@@ -33,7 +33,13 @@ public record CrearCanalGestionCommand(
     string? Contrasena,
     string? EmailsDestinatarios,
     string? NombreContacto,
-    string? Notas) : ICommand<Guid>;
+    string? Notas) : ICommand<Guid>, IEscrituraDeDatosDeCredencial
+{
+    // Un canal sin usuario ni contraseña (un buzón de correo, una plataforma
+    // cuyo acceso se apunta después) no escribe nada que proteger.
+    bool IEscrituraDeDatosDeCredencial.EscribeDatosDeCredencial =>
+        !string.IsNullOrEmpty(Usuario) || !string.IsNullOrEmpty(Contrasena);
+}
 
 public class CrearCanalGestionCommandValidator : AbstractValidator<CrearCanalGestionCommand>
 {

@@ -21,7 +21,7 @@ namespace CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpres
 /// simplemente significa que no se ha puesto contraseña.
 /// </summary>
 public record GuardarCredencialAccesoEmpresaCommand(
-    Guid EmpresaId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas = null) : ICommand;
+    Guid EmpresaId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas = null) : ICommand, IEscrituraDeDatosDeCredencial;
 
 public class GuardarCredencialAccesoEmpresaCommandValidator : AbstractValidator<GuardarCredencialAccesoEmpresaCommand>
 {

@@ -20,7 +20,7 @@ namespace CaeManager.Application.Subcontratas.Commands.GuardarCredencialAccesoSu
 /// no se ha puesto contraseña.
 /// </summary>
 public record GuardarCredencialAccesoSubcontrataCommand(
-    Guid SubcontrataId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas = null) : ICommand;
+    Guid SubcontrataId, string? UrlAcceso, string? CampoEmpresa, string? Usuario, string? Contrasena, string? Notas = null) : ICommand, IEscrituraDeDatosDeCredencial;
 
 public class GuardarCredencialAccesoSubcontrataCommandValidator : AbstractValidator<GuardarCredencialAccesoSubcontrataCommand>
 {
