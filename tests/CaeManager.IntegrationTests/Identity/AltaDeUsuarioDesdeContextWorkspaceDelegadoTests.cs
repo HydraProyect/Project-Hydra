@@ -1,7 +1,9 @@
 using System.Reflection;
 using System.Security.Claims;
 using CaeManager.Application.Common;
-using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
+using CaeManager.Application.Tenants;
+using CaeManager.Application.Usuarios;
+using CaeManager.Application.Usuarios.Commands.CrearUsuario;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
@@ -31,6 +33,17 @@ namespace CaeManager.IntegrationTests.Identity;
 /// quien da el alta. Decisión del propietario (2026-09-23): Administrador y
 /// Dirección CAE solo se conceden cuando los dos coinciden
 /// (<c>RolesReservadosAlTenantDeOrigen</c>, en Application).
+///
+/// <para>
+/// Desde P1-I2 el alta es <c>CrearUsuarioCommand</c>, y su handler exige además
+/// el rol efectivo que ya exigía <c>[Authorize]</c> de la página: Administrador o
+/// Dirección CAE. En un Workspace operativo derivado ese rol sale de la cartera
+/// del Operador CAE externo, que solo da roles de Operación; una fila heredada
+/// con Administrador no cuenta (<c>CurrentUserService.RolesDelegables</c>). Así
+/// que desde el Context Workspace delegado no se da de alta ninguna cuenta, ni
+/// con rol reservado ni sin él: administrar las cuentas del Tenant propietario
+/// es Propiedad, y la Operación no la concede.
+/// </para>
 ///
 /// <para>
 /// Escenario: una persona del Operador CAE externo (ArcosSPA) opera el Context
@@ -77,6 +90,9 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
 
         servicios.AddDbContext<CaeManagerDbContext>(opciones => opciones
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL")));
+
+        servicios.AddScoped<ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        servicios.AddScoped<DirectorioUsuariosTenant>();
 
         servicios.AddIdentityCore<ApplicationUser>()
             .AddRoles<IdentityRole<Guid>>()
@@ -127,15 +143,17 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
     [Theory]
     [InlineData("Administrador")]
     [InlineData("DireccionCae")]
-    public async Task Alta_de_rol_reservado_desde_Context_Workspace_delegado_se_rechaza_y_no_escribe_la_cuenta(string rol)
+    [InlineData("GestorCae")]
+    public async Task Alta_desde_Context_Workspace_delegado_se_rechaza_y_no_escribe_la_cuenta(string rol)
     {
         var email = $"infiltrado.{rol.ToLowerInvariant()}@arcosspa.test";
 
         var (nuevo, mensaje) = await DarDeAltaAsync(email, rol, contextWorkspaceSeleccionado: _tenantPropietario);
 
         nuevo.Should().BeNull(
-            "Application rechaza Administrador y Dirección CAE cuando el Context Workspace no es el Tenant de origen del actor");
-        mensaje.Should().Contain("solo se asignan desde tu propia organización");
+            "el rol efectivo del Operador CAE externo en el Tenant propietario es de Operación, y administrar sus " +
+            "cuentas es Propiedad");
+        mensaje.Should().Be(AutoridadSobreCuentas.SinAutoridad.Mensaje);
 
         // Y la autoridad de Propiedad del Tenant propietario no se ha ganado por ninguna vía.
         using var ambito = _servicios.CreateScope();
@@ -162,19 +180,6 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
             "un Administrador del Operador CAE externo no es Administrador del Tenant propietario");
     }
 
-    [Fact]
-    public async Task Control_positivo_un_rol_de_Operacion_se_sigue_dando_de_alta_desde_el_Context_Workspace_delegado()
-    {
-        // La regla es estrecha: solo Administrador y Dirección CAE. Sin este
-        // control, un alta rota por cualquier otro motivo daría verde arriba.
-        var (nuevo, mensaje) = await DarDeAltaAsync(
-            "gestora@arcosspa.test", Roles.GestorCae, contextWorkspaceSeleccionado: _tenantPropietario);
-
-        mensaje.Should().BeNull();
-        nuevo.Should().NotBeNull();
-        nuevo!.TenantId.Should().Be(_tenantPropietario);
-    }
-
     private async Task<(ApplicationUser? Nuevo, string? MensajeError)> DarDeAltaAsync(
         string email, string rol, Guid? contextWorkspaceSeleccionado)
     {
@@ -198,12 +203,20 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         serviciosMediator.AddSingleton<IClienteActivoSeleccionado>(seleccion);
         serviciosMediator.AddSingleton<ITenantActual>(tenantActualReal);
         serviciosMediator.AddSingleton<ICurrentUserService, CurrentUserService>();
-        serviciosMediator.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<VerificarRolAsignableQuery>());
+        // CurrentUserService resuelve el rol efectivo del Context Workspace delegado
+        // contra la base: la misma que la del alta.
+        serviciosMediator.AddSingleton(sp.GetRequiredService<ITenantsQueryContext>());
+        serviciosMediator.AddSingleton(sp.GetRequiredService<UserManager<ApplicationUser>>());
+        serviciosMediator.AddSingleton<IGestionCuentasUsuario>(new GestionCuentasUsuarioIdentity(
+            sp.GetRequiredService<UserManager<ApplicationUser>>(),
+            sp.GetRequiredService<PuertaAccesoDatos>(),
+            sp.GetRequiredService<DirectorioUsuariosTenant>(),
+            sp.GetRequiredService<CaeManagerDbContext>()));
+        serviciosMediator.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<CrearUsuarioCommand>());
         await using var proveedorMediator = serviciosMediator.BuildServiceProvider();
 
         var pagina = new PaginaUsuarios();
         EscribirPropiedad(pagina, "Mediator", proveedorMediator.GetRequiredService<IMediator>());
-        EscribirPropiedad(pagina, "UserManager", sp.GetRequiredService<UserManager<ApplicationUser>>());
         EscribirPropiedad(pagina, "PuertaAccesoDatos", sp.GetRequiredService<PuertaAccesoDatos>());
         EscribirPropiedad(pagina, "TenantActual", tenantActualReal);
         EscribirPropiedad(pagina, "AuthenticationStateProvider", autenticacion);

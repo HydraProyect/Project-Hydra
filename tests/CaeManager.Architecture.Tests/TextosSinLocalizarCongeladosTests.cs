@@ -89,7 +89,7 @@ public class TextosSinLocalizarCongeladosTests
         ["Empresas"] = 202,
         ["Extension"] = 29,
         ["Facturacion"] = 96,
-        ["GestionRoles"] = 52,
+        ["GestionRoles"] = 50,
         // 166 → 15 el 2026-09-23 al migrar la Feature a TextosImportacion.resx. 15 → 18 el 2026-09-25 al
         // enseñar las columnas de la plantilla de Documentos. Ninguno de los 18 es interfaz pendiente:
         // - 12 son CONTRATO del archivo, no interfaz: rótulos de columna que escribe GenerarPlantilla
@@ -136,7 +136,7 @@ public class TextosSinLocalizarCongeladosTests
         // «0 ? Textos["BotonAsignarIgualmente"]» en Trabajadores.razor), cuyo
         // «>» de comparación toma por texto lo que sigue. No se reformatea para esquivar la heurística.
         ["Trabajadores"] = 13,
-        ["Usuarios"] = 157,
+        ["Usuarios"] = 147,
         // 112 → 10 el 2026-09-23: Visitas.razor(.cs) migrados a TextosVisitas.resx. Los 10
         // que quedan son las etiquetas estáticas de NivelUrgenciaVisitaUi y AntelacionVisitaUi,
         // que también pintan Dashboard (Inicio) y DashboardEjecutivo: migrarlas cambia la firma
