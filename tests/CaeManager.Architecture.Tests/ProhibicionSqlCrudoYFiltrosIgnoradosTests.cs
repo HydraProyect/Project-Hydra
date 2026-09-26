@@ -39,9 +39,22 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
     /// una lista de infractores preexistentes. Es SQL crudo igual que
     /// <c>FromSqlRaw</c> —rodea a EF y a su filtro global— y su ausencia del
     /// patrón era un hueco: una consulta escrita así no la veía nadie.
+    ///
+    /// <para>
+    /// 2026-09-26: el patrón solo reconocía las formas síncronas
+    /// <c>ExecuteSqlRaw(</c>/<c>ExecuteSqlInterpolated(</c>, así que
+    /// <c>ExecuteSqlRawAsync(</c>, <c>ExecuteSqlInterpolatedAsync(</c>, las API
+    /// de EF Core 7+ <c>FromSql(</c>, <c>ExecuteSql(</c> y
+    /// <c>ExecuteSqlAsync(</c>, y <c>SqlQueryRaw&lt;</c> pasaban sin que el
+    /// trinquete las viera. Medido al ampliarlo: de 41 a 42 líneas observadas;
+    /// la nueva es el <c>SqlQueryRaw&lt;Guid&gt;</c> de
+    /// <c>RelacionEmpresarialRepository</c>, que llevaba en el repositorio sin
+    /// pasar por la lista. El control positivo está en
+    /// <see cref="El_patron_reconoce_cada_variante_de_sql_crudo"/>.
+    /// </para>
     /// </summary>
     private static readonly Regex PatronSospechoso = new(
-        @"\.IgnoreQueryFilters\(|\bFromSqlRaw\(|\bFromSqlInterpolated\(|\bExecuteSqlRaw\(|\bExecuteSqlInterpolated\(|\.SqlQuery<|\bnew\s+NpgsqlCommand\(|\bnew\s+SqlCommand\(|\.CreateCommand\(",
+        @"\.IgnoreQueryFilters\(|\bFromSql(Raw|Interpolated)?\(|\bExecuteSql(Raw|Interpolated)?(Async)?\(|\.SqlQuery(Raw)?<|\bnew\s+NpgsqlCommand\(|\bnew\s+SqlCommand\(|\.CreateCommand\(",
         RegexOptions.Compiled);
 
     // Congelado desde el escaneo real a 2026-08-14 (Horizonte 2.5). Cada
@@ -134,6 +147,16 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Los dos Guid van parametrizados por EF.
         [("src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs",
             ".SqlQuery<string>(")] = 1,
+
+        // Detección de ciclos en la cadena de Relaciones Empresariales (auditoría
+        // Módulo 5): un único WITH RECURSIVE en vez de una consulta por nivel.
+        // Rodea el filtro global de EF, pero la tabla tiene FORCE ROW LEVEL
+        // SECURITY (migración AgregarRelacionEmpresarial), así que la política
+        // sigue acotando al Tenant propietario; los dos valores van como
+        // parámetros posicionales {0}/{1}, no concatenados. Congelado al
+        // ampliar el patrón a SqlQueryRaw< (2026-09-26), no es un uso nuevo.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/RelacionEmpresarialRepository.cs",
+            "var cadena = await dbContext.Database.SqlQueryRaw<Guid>(")] = 1,
 
         // Comprobación de arranque de la identidad de conexión del tráfico. No
         // consulta ninguna tabla de negocio —solo current_user, pg_roles y
@@ -391,6 +414,33 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
             "si una línea congelada ya no se observa, el escaneo dejó de mirar donde cree que mira —o el uso " +
             "se retiró sin actualizar la lista—; en ambos casos el ratchet principal estaría dando verde sobre " +
             "un conjunto más pequeño del que cree");
+    }
+
+    /// <summary>
+    /// Control positivo del patrón, separado a propósito de la lista blanca:
+    /// si una de estas formas deja de reconocerse, el trinquete principal
+    /// daría verde sobre SQL crudo nuevo escrito con ella, y la guarda de
+    /// igualdad no lo notaría mientras ninguna línea congelada use esa forma.
+    /// </summary>
+    [Theory]
+    [InlineData("""await db.Database.ExecuteSqlRaw("DELETE FROM x");""")]
+    [InlineData("""await db.Database.ExecuteSqlRawAsync("DELETE FROM x", ct);""")]
+    [InlineData("""db.Database.ExecuteSqlInterpolated($"DELETE FROM x WHERE id = {id}");""")]
+    [InlineData("""await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM x WHERE id = {id}", ct);""")]
+    [InlineData("""db.Database.ExecuteSql($"DELETE FROM x WHERE id = {id}");""")]
+    [InlineData("""await db.Database.ExecuteSqlAsync($"DELETE FROM x WHERE id = {id}", ct);""")]
+    [InlineData("""db.Empresas.FromSql($"SELECT * FROM x WHERE id = {id}")""")]
+    [InlineData("""db.Empresas.FromSqlRaw("SELECT * FROM x")""")]
+    [InlineData("""db.Empresas.FromSqlInterpolated($"SELECT * FROM x WHERE id = {id}")""")]
+    [InlineData("""db.Database.SqlQuery<Guid>($"SELECT id FROM x")""")]
+    [InlineData("""db.Database.SqlQueryRaw<Guid>("SELECT id FROM x")""")]
+    [InlineData("""db.Empresas.IgnoreQueryFilters()""")]
+    [InlineData("""using var cmd = conexion.CreateCommand();""")]
+    [InlineData("""using var cmd = new NpgsqlCommand(sql, conexion);""")]
+    public void El_patron_reconoce_cada_variante_de_sql_crudo(string linea)
+    {
+        PatronSospechoso.IsMatch(linea).Should().BeTrue(
+            "cada forma de SQL crudo de EF Core y ADO.NET tiene que pasar por la lista blanca");
     }
 
     private static string RaizDelRepositorio()
