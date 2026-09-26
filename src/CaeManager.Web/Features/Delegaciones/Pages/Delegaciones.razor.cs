@@ -125,7 +125,16 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     /// <summary>Nombre canónico para la guarda de reentrada del alta — evita repetir el campo legacy en cada punto de lectura.</summary>
     private bool CreacionEnCurso => _creandoDelegacion;
 
-    private void OcultarFormularioNueva() => _mostrarNuevaDelegacion = false;
+    /// <summary>
+    /// Cerrar la nueva delegación (cancelar, crearla o descartarla al salir) vacía el nombre:
+    /// reabrirla sin tocarlo no es un cambio, y así el nombre escrito basta para saber si hay
+    /// algo que perder (P1-E2b).
+    /// </summary>
+    private void OcultarFormularioNueva()
+    {
+        _mostrarNuevaDelegacion = false;
+        _nombreClienteNuevo = string.Empty;
+    }
     private string TextoEstadoAcceso(EstadoAccesoSoporteTalveg estado) => estado switch
     {
         EstadoAccesoSoporteTalveg.Abierto => TextosAccesos["EstadoAbierto"],
@@ -275,6 +284,8 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             _operadorCandidato = candidato;
             _operadorSeleccionado = true;
             _busquedaOperador = candidato.Nombre;
+            // El Operador CAE que trae el enlace no es un cambio de quien autoriza.
+            FijarInstantaneaOperador();
         }
 
         StateHasChanged();
@@ -290,6 +301,40 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         _busquedaSinResultado = false;
         _errorAutorizarOperador = null;
         _versionBusquedaOperador++;
+        FijarInstantaneaOperador();
+    }
+
+    private readonly InstantaneaFormulario _instantaneaSoporte = new();
+    private readonly InstantaneaFormulario _instantaneaOperador = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en la página, para sus tres modales:
+    /// el acceso de Soporte TALVEG (motivo, horas y permisos) y la autorización de un
+    /// Operador CAE externo (búsqueda y selección), cada uno comparado con cómo se abrió,
+    /// o un nombre ya escrito en la nueva delegación. Lo leen AvisoCambiosSinGuardar y los
+    /// Modal; cerrados (también tras guardar) nunca hay nada que perder. Solo el aviso: no
+    /// toca la apertura del acceso ni su autorización.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        (_delegacionSoporteAAbrir is not null && _instantaneaSoporte.Difiere(ValoresSoporte()))
+        || !string.IsNullOrWhiteSpace(_nombreClienteNuevo)
+        || (_mostrarAutorizarOperador && _instantaneaOperador.Difiere(ValoresOperador()));
+
+    private object?[] ValoresSoporte() => [_motivoSoporte, _horasSoporte, _rolSoporte];
+
+    private object?[] ValoresOperador() => [_busquedaOperador, _operadorSeleccionado];
+
+    private void FijarInstantaneaOperador() => _instantaneaOperador.Fijar(ValoresOperador());
+
+    private void CerrarFormulariosDescartando()
+    {
+        _delegacionSoporteAAbrir = null;
+        OcultarFormularioNueva();
+        _mostrarAutorizarOperador = false;
+        _versionBusquedaOperador++;
+        // Si la salida descartada vuelve a esta misma página con ?autorizar=, esa
+        // sugerencia tiene que volver a atenderse.
+        _sugerenciaVista = null;
     }
 
     private void CerrarAutorizarOperador(bool visible)
@@ -610,6 +655,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         _horasSoporte = "4";
         _rolSoporte = RolesSoporte.SoloLectura;
         _errorSoporte = null;
+        _instantaneaSoporte.Fijar(ValoresSoporte());
     }
     private async Task AbrirAccesoSoporteAsync()
     {

@@ -4,6 +4,7 @@ using System.Security.Claims;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Domain.Documentos;
@@ -15,6 +16,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -63,6 +65,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
                     Documentos, Documentos.Count, q.Pagina, q.TamanoPagina),
                 ObtenerAlcanceCeroQuery => (object)AlcanceCero,
                 ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
+                GuardarFiltroCommand => Result.Exito(Guid.NewGuid()),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
         }
@@ -342,5 +345,71 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         cut.Markup.Should().Contain("Aún no hay documentos");
         cut.Markup.Should().Contain("+ Nuevo documento");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
+    }
+
+    private async Task<(IRenderedComponent<PaginaDocumentos> Cut, NavigationManager Navegacion)> AbrirGuardarFiltroAsync()
+    {
+        var cut = Renderizar();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        await cut.InvokeAsync(() => navegacion.NavigateTo("documentos?accion=guardar-filtro"));
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Etiqueta == "Nombre"));
+        return (cut, navegacion);
+    }
+
+    private static Task EscribirNombreDelFiltroAsync(IRenderedComponent<PaginaDocumentos> cut, string nombre) =>
+        cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Nombre").Find("input")
+            .InputAsync(new ChangeEventArgs { Value = nombre });
+
+    /// <summary>P1-E2b: el modal «Guardar filtro» con un nombre ya escrito pregunta antes de salir.</summary>
+    [Fact]
+    public async Task Salir_con_el_nombre_del_filtro_escrito_pregunta()
+    {
+        var (cut, navegacion) = await AbrirGuardarFiltroAsync();
+
+        await EscribirNombreDelFiltroAsync(cut, "Vencidos de trabajadores");
+
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+    }
+
+    /// <summary>P1-E2b: cancelar el modal descarta el nombre; reabrirlo sin tocarlo y salir no pregunta.</summary>
+    [Fact]
+    public async Task Cancelar_el_filtro_y_reabrirlo_sin_tocar_nada_no_pregunta()
+    {
+        var (cut, navegacion) = await AbrirGuardarFiltroAsync();
+        await EscribirNombreDelFiltroAsync(cut, "Vencidos de trabajadores");
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar filtro").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Etiqueta == "Nombre"));
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "reabrir el modal sin escribir no deja nada que perder");
+    }
+
+    /// <summary>P1-E2b: guardado el filtro, salir no pregunta.</summary>
+    [Fact]
+    public async Task Guardado_el_filtro_salir_no_pregunta()
+    {
+        var (cut, navegacion) = await AbrirGuardarFiltroAsync();
+        await EscribirNombreDelFiltroAsync(cut, "Vencidos de trabajadores");
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Etiqueta == "Nombre"));
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "el filtro ya está guardado");
+    }
+
+    /// <summary>
+    /// P1-E2b: el aviso del filtro vive fuera de <c>Pestanas</c>. Registrado en su ámbito, un
+    /// nombre a medio escribir haría preguntar al cambiar de pestaña en vez de al salir.
+    /// </summary>
+    [Fact]
+    public async Task El_aviso_del_filtro_no_se_registra_en_el_ambito_de_las_pestanas()
+    {
+        var (cut, _) = await AbrirGuardarFiltroAsync();
+        await EscribirNombreDelFiltroAsync(cut, "Vencidos de trabajadores");
+
+        var avisosConCambios = cut.FindComponents<AvisoCambiosSinGuardar>().Where(a => a.Instance.HayCambios()).ToList();
+        avisosConCambios.Should().ContainSingle("control positivo: el nombre escrito lo ve un aviso")
+            .Which.Instance.Ambito.Should().BeNull("el nombre del filtro es de la página, no de una pestaña");
     }
 }
