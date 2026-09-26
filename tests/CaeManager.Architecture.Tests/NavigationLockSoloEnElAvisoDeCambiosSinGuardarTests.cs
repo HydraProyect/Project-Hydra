@@ -37,6 +37,10 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     private static readonly string[] FormulariosProtegidos =
     [
         "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
+        "src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor",
+        "src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor",
+        "src/CaeManager.Web/Features/Centros/Components/DrawerAsignacionMasiva.razor",
+        "src/CaeManager.Web/Features/Centros/Pages/Centros.razor",
         "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
         "src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor",
         "src/CaeManager.Web/Features/Documentos/Components/FirmaEnCampoTab.razor",
@@ -63,11 +67,17 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     private static readonly string[] ContenedoresQuePreguntanAlCerrar =
     [
         "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
+        "src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor",
+        "src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor",
+        "src/CaeManager.Web/Features/Centros/Components/DrawerAsignacionMasiva.razor",
+        "src/CaeManager.Web/Features/Centros/Pages/Centros.razor",
+        "src/CaeManager.Web/Features/Clientes/Components/FormularioRapidoCliente.razor",
         "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
         "src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor",
         "src/CaeManager.Web/Features/Documentos/Components/PlantillasTab.razor",
         "src/CaeManager.Web/Features/Documentos/Components/PlataformaTab.razor",
         "src/CaeManager.Web/Features/Documentos/Components/RevisionIaTab.razor",
+        "src/CaeManager.Web/Features/Empresas/Components/FormularioRapidoEmpresa.razor",
         "src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor",
         "src/CaeManager.Web/Features/Incidencias/Pages/Incidencias.razor",
         "src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor",

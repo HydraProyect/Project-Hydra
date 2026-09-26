@@ -458,7 +458,7 @@ else
     }
 }
 
-<Modal Visible="_confirmarBajaLoteVisible" VisibleChanged="v => _confirmarBajaLoteVisible = v" Titulo="@($"Dar de baja a {_seleccionados.Count} trabajador(es)")">
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_confirmarBajaLoteVisible" VisibleChanged="v => _confirmarBajaLoteVisible = v" Titulo="@($"Dar de baja a {_seleccionados.Count} trabajador(es)")">
     <ChildContent>
         <p>Dejarán de estar activos en @CentroNombre a partir de la fecha indicada. El historial de la asignación se conserva.</p>
         <CampoTexto Etiqueta="Fecha de baja" Type="date" Valor="@_fechaBajaLote" ValorChanged="v => _fechaBajaLote = v" />
@@ -472,6 +472,8 @@ else
         </Boton>
     </Pie>
 </Modal>
+
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => _confirmarBajaLoteVisible = false" />
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
 <DrawerAsignacionMasiva @ref="_drawerAsignacion" OnGuardado="ManejarAsignacionGuardadaAsync" />

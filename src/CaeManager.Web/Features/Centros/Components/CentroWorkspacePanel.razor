@@ -81,7 +81,7 @@ else
         </Boton>
         @if (_loteReclamacionCentro is { Documentos.Count: > 0 } lote)
         {
-            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerReclamacionCentroVisible = true">
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirReclamacionCentro">
                 Reclamar documentación (@lote.Documentos.Count)
             </Boton>
         }
@@ -419,7 +419,7 @@ else
         }
     </Pestanas>
 
-    <Drawer Visible="_drawerDocVisible" VisibleChanged="v => _drawerDocVisible = v"
+    <Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerDocVisible" VisibleChanged="v => _drawerDocVisible = v"
             Titulo="@($"Configurar «{_nombreTipoDocumentoEditando}» en este centro")"
             CerrarAlHacerClicFuera="@(_mensajeErrorDocumentacion is null && !_guardandoDocumentacion)">
         <ChildContent>
@@ -485,7 +485,7 @@ else
         EnProgreso="_eliminandoCanal"
         OnConfirmar="ConfirmarEliminarCanalAsync" />
 
-    <Drawer Visible="_drawerCanalVisible" VisibleChanged="v => _drawerCanalVisible = v"
+    <Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerCanalVisible" VisibleChanged="v => _drawerCanalVisible = v"
             Titulo="@(_canalIdEditando is null ? "Añadir acceso de gestión documental" : "Editar acceso de gestión documental")"
             CerrarAlHacerClicFuera="@(_mensajeErrorCanal is null && !_guardandoCanal)">
         <ChildContent>
@@ -560,7 +560,7 @@ else
         </Pie>
     </Drawer>
 
-    <Drawer Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
+    <Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
             Titulo="Pedir prioridad de validación"
             CerrarAlHacerClicFuera="@(_mensajeErrorPrioridad is null && !_enviandoPrioridad)">
         <ChildContent>
@@ -605,7 +605,7 @@ else
        manda nada solo. El cuerpo del correo lo compone el propio Command
        (ConstruirCuerpoHtml), por eso aquí solo se revisa la lista, no se edita
        texto libre (a diferencia de "Pedir prioridad", que sí es texto libre). *@
-    <Drawer Visible="_drawerReclamacionCentroVisible" VisibleChanged="v => _drawerReclamacionCentroVisible = v"
+    <Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerReclamacionCentroVisible" VisibleChanged="v => _drawerReclamacionCentroVisible = v"
             Titulo="Reclamar documentación del centro"
             CerrarAlHacerClicFuera="!_enviandoReclamacionCentro">
         <ChildContent>
@@ -675,6 +675,12 @@ else
         </Pie>
     </Drawer>
 }
+
+@* P1-E2b: fuera de <Pestanas>, igual que los drawers, que también sobreviven al cambio de
+   pestaña: si se registrara en su ámbito, cambiar de pestaña con un drawer a medias
+   preguntaría por algo que no se pierde. Fuera del if/else, para que recargar la cabecera
+   (tras enviar una reclamación) no lo desmonte. *@
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarDrawersDescartando" />
 
 @code {
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
@@ -792,6 +798,79 @@ else
     private string _destinatarioPrioridad = string.Empty;
     private string _asuntoPrioridad = string.Empty;
     private string _cuerpoPrioridad = string.Empty;
+
+    private readonly InstantaneaFormulario _instantaneaDoc = new();
+    private readonly InstantaneaFormulario _instantaneaCanal = new();
+    private readonly InstantaneaFormulario _instantaneaPrioridad = new();
+    private readonly InstantaneaFormulario _instantaneaReclamacion = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en el panel: cualquiera de sus cuatro
+    /// drawers (configurar un requisito, acceso de gestión documental, pedir prioridad,
+    /// reclamar documentación) comparado con cómo se abrió. Lo leen el aviso de salida y
+    /// la X, Escape o el fondo de cada drawer; cerrados, nunca hay nada que perder.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        !_saliendoAConfigurarSegundoFactor
+        && HayCambiosEnLosDrawers;
+
+    private bool HayCambiosEnLosDrawers =>
+        (_drawerDocVisible && _instantaneaDoc.Difiere(ValoresDocumentacion()))
+        || (_drawerCanalVisible && _instantaneaCanal.Difiere(ValoresCanal()))
+        || (_drawerPrioridadVisible && _instantaneaPrioridad.Difiere(ValoresPrioridad()))
+        || (_drawerReclamacionCentroVisible && _instantaneaReclamacion.Difiere(ValoresReclamacion()));
+
+    private object?[] ValoresDocumentacion() =>
+        [_incluidoEdicion, _periodicidadSeleccionEdicion, _periodicidadPersonalizadaEdicion, _bloqueaAccesoEdicion, _archivoUrlEdicion];
+
+    private const int IndiceProveedorEnValoresCanal = 3;
+
+    private object?[] ValoresCanal() =>
+        [_etiquetaPropositoEdicion, _tipoCanalEdicion, _urlAccesoEdicion, _proveedorPlataformaCaeIdEdicion, _cambiarCredencialesEdicion,
+         _usuarioEdicion, _contrasenaEdicion, _emailsDestinatariosEdicion, _nombreContactoEdicion, _notasCanalEdicion];
+
+    private object?[] ValoresPrioridad() => [_destinatarioPrioridad, _asuntoPrioridad, _cuerpoPrioridad];
+
+    private object?[] ValoresReclamacion() => [_contactosReclamacionCentro];
+
+    /// <summary>Solo mientras se sale a activar el 2FA tras un guardado que lo exigió.</summary>
+    private bool _saliendoAConfigurarSegundoFactor;
+
+    /// <summary>
+    /// La salida a activar el 2FA la decide el propio guardado: no es un abandono, y ni el
+    /// aviso de la aplicación ni el del navegador deben detenerla. El del navegador
+    /// (ConfirmExternalNavigation) se decide en el render, así que primero se pinta ya
+    /// desactivado y solo después se redirige (forceLoad). Lo escrito no se da por guardado:
+    /// el guardado falló, y si la redirección no llega a ocurrir vuelve a contar como cambio.
+    /// </summary>
+    private async Task IrAConfigurarSegundoFactorSinAvisoAsync()
+    {
+        _saliendoAConfigurarSegundoFactor = true;
+        StateHasChanged();
+        await Task.Yield();
+        try
+        {
+            SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+        }
+        finally
+        {
+            _saliendoAConfigurarSegundoFactor = false;
+        }
+    }
+
+    private void CerrarDrawersDescartando()
+    {
+        _drawerDocVisible = false;
+        _drawerCanalVisible = false;
+        _drawerPrioridadVisible = false;
+        _drawerReclamacionCentroVisible = false;
+    }
+
+    private void AbrirReclamacionCentro()
+    {
+        _drawerReclamacionCentroVisible = true;
+        _instantaneaReclamacion.Fijar(ValoresReclamacion());
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -989,6 +1068,7 @@ else
         _nombreArchivoEdicion = item.NombreArchivoOriginal;
         _mensajeErrorDocumentacion = null;
         _drawerDocVisible = true;
+        _instantaneaDoc.Fijar(ValoresDocumentacion());
         return Task.CompletedTask;
     }
 
@@ -1270,6 +1350,7 @@ else
         _notasCanalEdicion = string.Empty;
         _mensajeErrorCanal = null;
         _drawerCanalVisible = true;
+        _instantaneaCanal.Fijar(ValoresCanal());
     }
 
     private async Task AbrirEditarCanal(CanalGestionResumenDto canal)
@@ -1306,9 +1387,18 @@ else
         }
 
         _drawerCanalVisible = true;
+        var alAbrir = ValoresCanal();
+        _instantaneaCanal.Fijar(alAbrir);
 
+        // La plataforma que se resuelve sola a partir de la URL ya guardada tampoco es un
+        // cambio de quien edita. Solo cambia ese valor de partida: el drawer sigue editable
+        // durante la espera, y lo que se teclee mientras tanto sí es un cambio.
         if (canal.Tipo == TipoCanalGestion.Plataforma && canal.ProveedorPlataformaCaeId is null)
+        {
             await ResolverProveedorPorUrlAsync();
+            alAbrir[IndiceProveedorEnValoresCanal] = _proveedorPlataformaCaeIdEdicion;
+            _instantaneaCanal.Fijar(alAbrir);
+        }
     }
 
     private async Task GuardarCanalAsync()
@@ -1372,7 +1462,7 @@ else
         // P1-I2: guardar un usuario o una contraseña del acceso exige 2FA activo.
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
-            SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+            await IrAConfigurarSegundoFactorSinAvisoAsync();
         }
         catch (Exception)
         {
@@ -1491,6 +1581,8 @@ else
         _cargandoBorradorPrioridad = true;
         _mensajeErrorPrioridad = null;
         _borradorPrioridad = null;
+        // Mientras llega el borrador los campos siguen con lo de la vez anterior: no son un cambio.
+        _instantaneaPrioridad.Fijar(ValoresPrioridad());
 
         try
         {
@@ -1513,6 +1605,7 @@ else
         finally
         {
             _cargandoBorradorPrioridad = false;
+            _instantaneaPrioridad.Fijar(ValoresPrioridad());
         }
     }
 
