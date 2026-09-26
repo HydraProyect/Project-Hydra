@@ -188,7 +188,7 @@ public class MigracionParticionarAuditoriaPorMesTests : IAsyncLifetime
                 $"unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE']) privilegio " +
                 $"WHERE has_table_privilege(rol, '{relacion}', privilegio) ORDER BY 1;"),
             await ListaAsync(conexion,
-                $"SELECT polname || '|' || polcmd || '|' || polpermissive || '|' || coalesce(pg_get_expr(polqual, polrelid), '') " +
+                $"SELECT polname || '|' || polcmd::text || '|' || polpermissive::text || '|' || coalesce(pg_get_expr(polqual, polrelid), '') " +
                 $"|| '|' || coalesce(pg_get_expr(polwithcheck, polrelid), '') FROM pg_policy WHERE polrelid = '{relacion}'::regclass ORDER BY 1;"),
             await EscalarAsync<bool>(conexion,
                 $"SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid = '{relacion}'::regclass;"));

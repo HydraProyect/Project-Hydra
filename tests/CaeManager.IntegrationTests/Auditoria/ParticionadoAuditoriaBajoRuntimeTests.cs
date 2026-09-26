@@ -349,7 +349,7 @@ public class ParticionadoAuditoriaBajoRuntimeTests
     private static async Task<List<string>> PoliticasAsync(NpgsqlConnection conexion, string relacion)
     {
         await using var orden = new NpgsqlCommand(
-            "SELECT polname || '|' || polcmd || '|' || polpermissive || '|' || polroles::text || '|' " +
+            "SELECT polname || '|' || polcmd::text || '|' || polpermissive::text || '|' || polroles::text || '|' " +
             "|| coalesce(pg_get_expr(polqual, polrelid), '') || '|' || coalesce(pg_get_expr(polwithcheck, polrelid), '') " +
             "FROM pg_policy WHERE polrelid = @relacion::regclass ORDER BY polname;", conexion);
         orden.Parameters.AddWithValue("relacion", relacion);
