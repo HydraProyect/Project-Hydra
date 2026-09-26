@@ -43,7 +43,9 @@ public class GestionCuentasUsuarioIdentity(
                 roles.ToList(),
                 pendiente,
                 !usuario.EstaDesactivada(DateTimeOffset.UtcNow),
-                usuario.PermisoConsultarAccesoDocumentosSensibles);
+                usuario.PermisoConsultarAccesoDocumentosSensibles,
+                usuario.CoordinadorUsuarioId,
+                usuario.ClienteId);
         }, cancellationToken);
 
     public virtual Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>

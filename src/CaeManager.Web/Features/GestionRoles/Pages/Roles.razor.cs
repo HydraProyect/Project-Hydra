@@ -1,12 +1,12 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
-using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
+using CaeManager.Application.Usuarios;
+using CaeManager.Application.Usuarios.Commands.AsignarRolACuenta;
 using CaeManager.Infrastructure.Identity;
 using MediatR;
 using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Features.GestionRoles.Pages;
@@ -37,8 +37,6 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
             "Solo lectura de su propia información: sus Trabajadores, Empresas, Centros y Subcontratas asociadas. Sin ningún tipo de edición."
     };
 
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
-    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private CaeManager.Infrastructure.Autorizacion.DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private IEmailService EmailService { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
@@ -85,13 +83,6 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
         (await DirectorioUsuarios.ObtenerCuentasPropiasSinRolAsync())
             .Select(u => new UsuarioPendienteDto(u.Id, u.Email ?? string.Empty, u.NombreCompleto, u.FechaCreacion))
             .ToList();
-
-    /// <summary>
-    /// Si la cuenta pertenece al tenant activo — propiedad, no visibilidad:
-    /// ver <c>DirectorioUsuariosTenant.EsCuentaPropiaDelTenantActualAsync</c>.
-    /// </summary>
-    protected virtual Task<bool> EsCuentaPropiaAsync(Guid usuarioId) =>
-        DirectorioUsuarios.EsCuentaPropiaDelTenantActualAsync(usuarioId);
 
     // ── Pestañas ─────────────────────────────────────────────────────────
 
@@ -177,8 +168,8 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
             var pendientes = await ObtenerPendientesAsync();
             if (version != _versionCarga) return;
 
-            // Comodidad, no autoridad (la autoridad es VerificarRolAsignableQuery
-            // en AsignarRolAsync): en el Context Workspace de otro Tenant no se
+            // Comodidad, no autoridad (la autoridad es AsignarRolACuentaCommand):
+            // en el Context Workspace de otro Tenant no se
             // ofrecen Administrador ni Dirección CAE.
             var noAsignables = await Mediator.Send(new ObtenerRolesNoAsignablesQuery()) ?? [];
             if (version != _versionCarga) return;
@@ -262,65 +253,30 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
 
         try
         {
-            // El rol llega de un <select> de la propia página, pero que la
-            // interfaz solo ofrezca opciones válidas no impide enviar otra
-            // cosa: sin esta comprobación, AddToRoleAsync aceptaría cualquier
-            // nombre que exista en AspNetRoles.
-            if (!CaeManager.Infrastructure.Identity.Roles.Todos.Contains(rol, StringComparer.Ordinal))
+            // Rol existente, rol asignable desde este Context Workspace y
+            // propiedad de la cuenta (antes que su búsqueda) los decide
+            // Application (P1-I2): el Id de un usuario de otro Tenant, que la
+            // lista de pendientes llegaba a mostrar, bastaba antes para
+            // cambiarle el rol.
+            var resultado = await Mediator.Send(new AsignarRolACuentaCommand(pendiente.Id, rol));
+            if (resultado.EsFallido)
             {
-                ToastService.Mostrar("Ese rol no existe.", TonoToast.Error);
-                await CargarAsync();
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+
+                // Un rol que no existe o una cuenta que no es de aquí dejan la
+                // lista desfasada respecto de lo que se pulsó: se recarga.
+                if (resultado.Error.Codigo == AutoridadSobreCuentas.RolDesconocido.Codigo
+                    || resultado.Error.Codigo == AutoridadSobreCuentas.NoEncontrado.Codigo)
+                    await CargarAsync();
                 return;
             }
 
-            // Misma autoridad que el alta de /usuarios (decisión del
-            // propietario, 2026-09-23): la cuenta pendiente es del Context
-            // Workspace activo, así que Administrador o Dirección CAE solo se
-            // conceden si ese Context Workspace es el Tenant de origen de
-            // quien asigna. Ver RolesReservadosAlTenantDeOrigen.
-            var rolAsignable = await Mediator.Send(new VerificarRolAsignableQuery(rol));
-            if (rolAsignable.EsFallido)
-            {
-                ToastService.Mostrar(rolAsignable.Error.Mensaje, TonoToast.Error);
-                return;
-            }
-
-            // La autoridad se comprueba sobre la PROPIEDAD de la cuenta, no
-            // sobre su visibilidad: un Operador Delegado se ve desde este
-            // tenant, pero su cuenta pertenece a otra organización y su rol se
-            // gobierna allí (ver DirectorioUsuariosTenant). Antes se recuperaba
-            // por Guid con FindByIdAsync sin mirar el TenantId, así que el Id
-            // de un usuario de otro tenant —que la propia lista de pendientes
-            // llegaba a mostrar— bastaba para cambiarle el rol.
-            if (!await EsCuentaPropiaAsync(pendiente.Id))
-            {
-                ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
-                await CargarAsync();
-                return;
-            }
-
-            var usuario = await PuertaAccesoDatos.EjecutarAsync(
-                () => UserManager.FindByIdAsync(pendiente.Id.ToString()));
-            if (usuario is null)
-            {
-                ToastService.Mostrar("No encontramos este usuario.", TonoToast.Error);
-                await CargarAsync();
-                return;
-            }
-
-            var resultado = await PuertaAccesoDatos.EjecutarAsync(
-                () => UserManager.AddToRoleAsync(usuario, rol));
-            if (!resultado.Succeeded)
-            {
-                ToastService.Mostrar(string.Join(" ", resultado.Errors.Select(e => e.Description)), TonoToast.Error);
-                return;
-            }
-
+            var usuario = resultado.Valor;
             ToastService.Mostrar(
                 $"Rol \"{CaeManager.Infrastructure.Identity.Roles.NombreVisible(rol)}\" asignado a {usuario.NombreCompleto}.", TonoToast.Exito);
 
             if (!string.IsNullOrWhiteSpace(usuario.Email))
-                await NotificarUsuarioRolAsignadoAsync(usuario.Id, usuario.Email, usuario.NombreCompleto, rol);
+                await NotificarUsuarioRolAsignadoAsync(usuario.UsuarioId, usuario.Email, usuario.NombreCompleto, rol);
 
             _rolElegidoPorUsuario.Remove(pendiente.Id);
             await CargarAsync();

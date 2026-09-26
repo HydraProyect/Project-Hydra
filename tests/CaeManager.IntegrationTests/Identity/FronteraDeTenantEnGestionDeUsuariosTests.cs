@@ -2,7 +2,12 @@ using System.Reflection;
 using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
-using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
+using CaeManager.Application.Usuarios;
+using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
+using CaeManager.Application.Usuarios.Commands.EditarUsuario;
+using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
+using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
+using CaeManager.Application.Usuarios.Queries.ObtenerCuentaUsuario;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
@@ -51,14 +56,15 @@ namespace CaeManager.IntegrationTests.Identity;
 /// </para>
 ///
 /// <para>
-/// Por qué no bUnit: <c>UsuariosGen2Tests</c> sustituye las cuatro lecturas
-/// del directorio por dobles y la escritura por un <c>UserManagerFalso</c> sin
+/// Por qué no bUnit: <c>UsuariosGen2Tests</c> sustituye las lecturas del
+/// directorio por dobles y la escritura por un <c>UserManagerFalso</c> sin
 /// concepto de tenant — no podría distinguir una cuenta propia de una ajena
 /// aunque el guardián faltara. Aquí se instancia la página real (sin bUnit,
-/// sin renderer: los tres métodos bajo prueba no llaman a
-/// <c>StateHasChanged</c>) contra <c>UserManager</c>, <c>PuertaAccesoDatos</c>
-/// y <c>DirectorioUsuariosTenant</c> reales sobre PostgreSQL — la única
-/// combinación que puede fallar por la razón real.
+/// sin renderer) y sus Commands de <c>Usuarios/Commands</c> corren con sus
+/// handlers reales (P1-I2: el guardián vive ahí desde entonces) sobre
+/// <c>GestionCuentasUsuarioIdentity</c>, <c>UserManager</c>,
+/// <c>PuertaAccesoDatos</c> y <c>DirectorioUsuariosTenant</c> reales en
+/// PostgreSQL — la única combinación que puede fallar por la razón real.
 /// </para>
 /// </summary>
 public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
@@ -246,7 +252,6 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
     {
         var pagina = new PaginaUsuarios();
 
-        EscribirPropiedadInyectada(pagina, "UserManager", servicios.GetRequiredService<UserManager<ApplicationUser>>());
         EscribirPropiedadInyectada(pagina, "PuertaAccesoDatos", servicios.GetRequiredService<PuertaAccesoDatos>());
         EscribirPropiedadInyectada(pagina, "DirectorioUsuarios", servicios.GetRequiredService<DirectorioUsuariosTenant>());
         EscribirPropiedadInyectada(pagina, "ToastService", new ToastService());
@@ -254,11 +259,16 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         EscribirPropiedadInyectada(pagina, "AuthenticationStateProvider", new AutenticacionFalsa(actorId, esAdministrador));
         EscribirPropiedadInyectada(pagina, "EmailService", emailService ?? new EmailServiceEspia());
         EscribirPropiedadInyectada(pagina, "NavigationManager", new NavigationManagerFalsa());
-        // La regla de roles reservados al Tenant de origen tiene sus propias
-        // pruebas (AltaDeUsuarioDesdeContextWorkspaceDelegadoTests). Aquí se
-        // concede siempre, para que la frontera de tenant sea la única barrera
-        // que estos tests observan.
-        EscribirPropiedadInyectada(pagina, "Mediator", new MediatorQueConcedeRoles());
+        // Los Commands de cuentas con sus handlers reales. El actor opera en su
+        // Tenant de origen, así que la regla de roles reservados no interviene y
+        // la frontera de tenant es la única barrera que estos tests observan.
+        var cuentas = new GestionCuentasUsuarioIdentity(
+            servicios.GetRequiredService<UserManager<ApplicationUser>>(),
+            servicios.GetRequiredService<PuertaAccesoDatos>(),
+            servicios.GetRequiredService<DirectorioUsuariosTenant>());
+        var tenantActual = servicios.GetRequiredService<ITenantActual>();
+        EscribirPropiedadInyectada(pagina, "Mediator",
+            new MediatorDeCuentas(cuentas, new AdministradorEnSuTenant(actorId, tenantActual), tenantActual));
 
         return pagina;
     }
@@ -354,12 +364,37 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         }
     }
 
-    private sealed class MediatorQueConcedeRoles : IMediator
+    /// <summary>Un Administrador que opera en su Tenant de origen.</summary>
+    private sealed class AdministradorEnSuTenant(Guid actorId, ITenantActual tenantActual) : ICurrentUserService
     {
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            request is VerificarRolAsignableQuery
-                ? Task.FromResult((TResponse)(object)Result.Exito())
-                : throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(actorId);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(Roles.Administrador);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(tenantActual.TenantId);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    /// <summary>
+    /// Las peticiones de cuentas que la página envía, a sus handlers reales. Sin
+    /// pipeline de MediatR: lo que se prueba es la regla de propiedad del handler
+    /// sobre la base real, no los behaviors.
+    /// </summary>
+    private sealed class MediatorDeCuentas(
+        IGestionCuentasUsuario cuentas, ICurrentUserService actor, ITenantActual tenantActual) : IMediator
+    {
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            object respuesta = request switch
+            {
+                ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, actor).Handle(q, cancellationToken),
+                EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
+                CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(cuentas, actor).Handle(c, cancellationToken),
+                EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, actor).Handle(c, cancellationToken),
+                GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, actor).Handle(c, cancellationToken),
+                _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
+            };
+            return (TResponse)respuesta;
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             throw new NotSupportedException();

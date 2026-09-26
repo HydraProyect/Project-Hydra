@@ -82,7 +82,9 @@ public record CuentaUsuario(
     IReadOnlyList<string> Roles,
     bool PendienteActivacion,
     bool Activa,
-    bool PermisoConsultarAccesoDocumentosSensibles);
+    bool PermisoConsultarAccesoDocumentosSensibles,
+    Guid? CoordinadorUsuarioId = null,
+    Guid? ClienteId = null);
 
 public record NuevaCuentaUsuario(
     string Email,

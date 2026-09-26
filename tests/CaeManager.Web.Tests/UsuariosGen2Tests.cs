@@ -5,13 +5,20 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Usuarios;
+using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
+using CaeManager.Application.Usuarios.Commands.CrearUsuario;
+using CaeManager.Application.Usuarios.Commands.EditarUsuario;
+using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
+using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
 using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
+using CaeManager.Application.Usuarios.Queries.ObtenerCuentaUsuario;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
-using CaeManager.Application.Usuarios.Queries.VerificarRolAsignable;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
@@ -95,13 +102,16 @@ public class UsuariosGen2Tests : BunitContext
 
         public Func<string, IReadOnlyList<ApplicationUser>> EnRol { get; set; } = _ => [];
 
+        /// <summary>El rol de cada cuenta: por defecto, el que tenga en el <see cref="UserManagerFalso"/> del arnés.</summary>
+        public Func<IReadOnlyDictionary<Guid, string>> RolesDeCuentas { get; set; } = () => new Dictionary<Guid, string>();
+
         /// <summary>Por defecto, ninguna cuenta del arnés inicia sesión por SSO — ver <see cref="UsuariosControlados.ObtenerIdsConLoginExternoAsync"/>.</summary>
         public Func<IReadOnlySet<Guid>> IdsConLoginExterno { get; set; } = () => new HashSet<Guid>();
 
-        /// <summary>Por defecto, ninguna cuenta del arnés tiene vínculo operativo — ver <see cref="UsuariosControlados.TieneVinculoOperativoAsync"/>.</summary>
+        /// <summary>Por defecto, ninguna cuenta del arnés tiene vínculo operativo — ver <see cref="GestionCuentasControlada"/>.</summary>
         public Func<Guid, bool> TieneVinculoOperativo { get; set; } = _ => false;
 
-        /// <summary>Por defecto, toda cuenta es propia del tenant activo — ver <see cref="UsuariosControlados.EsCuentaPropiaAsync"/>.</summary>
+        /// <summary>Por defecto, toda cuenta es propia del tenant activo — ver <see cref="GestionCuentasControlada"/>.</summary>
         public Func<Guid, bool> EsPropia { get; set; } = _ => true;
 
         public int LlamadasVisibles { get; set; }
@@ -140,26 +150,53 @@ public class UsuariosGen2Tests : BunitContext
             IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken) =>
             Task.FromResult(Fuente.IdsConLoginExterno());
 
-        protected override Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken) =>
-            Task.FromResult(Fuente.TieneVinculoOperativo(usuarioId));
-
-        /// <summary>
-        /// Por defecto todas las cuentas son propias: los tests de esta clase
-        /// editan y desactivan cuentas del propio tenant, no Operadores
-        /// Delegados (eso lo cubre <c>FronteraDeTenantEnGestionDeUsuariosTests</c>
-        /// contra PostgreSQL real, que es la capa que de verdad garantiza esta
-        /// propiedad). Igual que las otras tres lecturas, sin sustituirla el
-        /// guardián caería en el <see cref="DirectorioUsuariosTenant"/> real
-        /// —construido sin proveedor de base de datos a propósito— y lanzaría.
-        /// </summary>
-        protected override Task<bool> EsCuentaPropiaAsync(Guid usuarioId, CancellationToken cancellationToken) =>
-            Task.FromResult(Fuente.EsPropia(usuarioId));
+        protected override Task<IReadOnlyDictionary<Guid, string>> ObtenerRolesDeCuentasAsync(
+            IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken) =>
+            Task.FromResult(Fuente.RolesDeCuentas());
 
         /// <summary>
         /// Una segunda carga mientras la primera sigue retenida. Desde la
         /// interfaz no se llega: durante una carga solo hay esqueleto.
         /// </summary>
         public Task RecargarAsync() => CargarAsync();
+    }
+
+    /// <summary>
+    /// El adaptador de Identity real (<see cref="GestionCuentasUsuarioIdentity"/>)
+    /// sobre el <see cref="UserManagerFalso"/> del arnés, con sus dos lecturas de
+    /// directorio sustituidas por la fuente del test. Los Commands de
+    /// <c>Usuarios/Commands</c> corren de verdad (ver <see cref="MediatorFalso.Despachar"/>):
+    /// lo que se observa en <c>_identidad</c> es el efecto de la página, su
+    /// Command y el adaptador juntos. Por defecto toda cuenta es propia: los
+    /// Operadores Delegados los cubre <c>FronteraDeTenantEnGestionDeUsuariosTests</c>
+    /// contra PostgreSQL real, que es la capa que garantiza esa propiedad.
+    /// </summary>
+    private sealed class GestionCuentasControlada(
+        UserManager<ApplicationUser> userManager, DirectorioUsuariosTenant directorio, FuenteUsuariosFalsa fuente)
+        : GestionCuentasUsuarioIdentity(userManager, new PuertaAccesoDatos(), directorio)
+    {
+        public override Task<bool> EsPropiaDelTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(fuente.EsPropia(usuarioId));
+
+        public override Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(fuente.TieneVinculoOperativo(usuarioId));
+    }
+
+    /// <summary>
+    /// Quién envía los Commands: el mismo actor y rol que <see cref="AutenticacionFalsa"/>.
+    /// El Tenant de origen es el del arnés salvo que el test declare roles no
+    /// asignables (<see cref="MediatorFalso.RolesNoAsignables"/>): entonces el
+    /// actor opera en un Context Workspace ajeno, que es lo que hace a esos roles
+    /// no asignables en <c>RolesReservadosAlTenantDeOrigen</c>.
+    /// </summary>
+    private sealed class UsuarioActualFalso(Guid usuarioId, string rol, Func<bool> enWorkspaceAjeno) : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() =>
+            Task.FromResult<Guid?>(enWorkspaceAjeno() ? Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb") : TenantDelArnes);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
     /// <summary>
@@ -283,9 +320,20 @@ public class UsuariosGen2Tests : BunitContext
         /// <summary>Si devuelve una tarea para la petición, esa es la respuesta: permite retenerla y resolverla fuera de orden.</summary>
         public Func<object, Task<object?>?>? Retener { get; set; }
 
+        /// <summary>
+        /// Los Commands y la Query de cuentas de <c>Usuarios</c> no se simulan: se
+        /// pasan a su handler real (lo monta <see cref="Renderizar"/>).
+        /// </summary>
+        public Func<object, CancellationToken, Task<object?>>? Despachar { get; set; }
+
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+
+            if (Despachar is not null && request is CrearUsuarioCommand or EditarUsuarioCommand
+                    or CambiarActivacionUsuarioCommand or EliminarUsuarioPendienteCommand
+                    or GenerarActivacionUsuarioCommand or ObtenerCuentaUsuarioQuery)
+                return (TResponse)(await Despachar(request, cancellationToken))!;
 
             // TResponse es anulable en las dos consultas de esta pantalla
             // (EmpresaPorCifDto?, ClienteDetalleDto?): "no encontrado" es una
@@ -303,9 +351,6 @@ public class UsuariosGen2Tests : BunitContext
             ObtenerClientePorIdQuery => null,
             ObtenerRolesNoAsignablesQuery => RolesNoAsignables,
             RestablecerSegundoFactorCommand => Result.Exito(),
-            VerificarRolAsignableQuery q => RolesNoAsignables.Contains(q.Rol)
-                ? Result.Fallo(Error.Crear("Usuarios.RolReservadoAlTenantDeOrigen", "Rol reservado al Tenant de origen."))
-                : Result.Exito(),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -438,6 +483,23 @@ public class UsuariosGen2Tests : BunitContext
             _ => new AutenticacionFalsa(actorId ?? MartaId, rolActor));
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped(_ => CrearDirectorio());
+
+        var tenantActual = new TenantActualFalso();
+        var usuarioActual = new UsuarioActualFalso(actorId ?? MartaId, rolActor, () => _mediador.RolesNoAsignables.Count > 0);
+        var cuentas = new GestionCuentasControlada(_identidad, CrearDirectorio(), _fuente);
+        _fuente.RolesDeCuentas = () => _identidad.RolesPorCuenta
+            .Where(r => r.Value.Count > 0)
+            .ToDictionary(r => r.Key, r => r.Value[0]);
+        _mediador.Despachar = async (peticion, ct) => peticion switch
+        {
+            CrearUsuarioCommand c => await new CrearUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
+            EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
+            CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(cuentas, usuarioActual).Handle(c, ct),
+            EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, usuarioActual).Handle(c, ct),
+            GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, usuarioActual).Handle(c, ct),
+            ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, usuarioActual).Handle(q, ct),
+            _ => throw new NotSupportedException(peticion.GetType().Name),
+        };
 
         return Render<UsuariosControlados>(p => p.Add(c => c.IntegradaEnConfiguracion, integrada));
     }
@@ -744,7 +806,7 @@ public class UsuariosGen2Tests : BunitContext
     /// <summary>
     /// Decisión del propietario, 2026-09-23. En el Context Workspace de otro
     /// Tenant el selector no ofrece Administrador ni Dirección CAE. Es
-    /// comodidad: la autoridad es <c>VerificarRolAsignableQuery</c> en
+    /// comodidad: la autoridad son los Commands de <c>Usuarios/Commands</c> en
     /// Application, probada en Application.Tests y contra PostgreSQL.
     /// </summary>
     [Fact]
@@ -810,7 +872,7 @@ public class UsuariosGen2Tests : BunitContext
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Administrador });
         await GuardarAsync(cut);
 
-        cut.Find(".alerta-formulario").TextContent.Should().Contain("Rol reservado");
+        cut.Find(".alerta-formulario").TextContent.Should().Contain("solo se asignan desde tu propia organización");
         _identidad.RolesPorCuenta[AnderId].Should().Equal(RolesIdentidad.Consulta);
     }
 

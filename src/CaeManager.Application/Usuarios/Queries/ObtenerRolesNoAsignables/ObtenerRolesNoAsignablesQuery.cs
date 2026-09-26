@@ -10,7 +10,8 @@ namespace CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
 ///
 /// <para>
 /// Es UX, no enforcement — mismo criterio que <c>EsTenantOrigenPlataformaQuery</c>:
-/// la autoridad es <c>VerificarRolAsignableQuery</c>, que se consulta al guardar.
+/// la autoridad son los Commands que conceden el rol (<c>CrearUsuarioCommand</c>,
+/// <c>EditarUsuarioCommand</c>, <c>AsignarRolACuentaCommand</c>).
 /// </para>
 /// </summary>
 public record ObtenerRolesNoAsignablesQuery : IRequest<IReadOnlyList<string>>;
