@@ -252,6 +252,16 @@ services:
     extends:
       service: app-azul
     container_name: caemanager-app-verde
+    # Repetidos a propósito: que `extends` herede `profiles` y `depends_on`
+    # depende de la versión de Compose (las antiguas no heredaban depends_on),
+    # y sin ellos la verde arrancaría con un `up` a secas o sin esperar al
+    # migrador. La del VPS no está medida.
+    profiles: ["ranura"]
+    depends_on:
+      db:
+        condition: service_healthy
+      migrador:
+        condition: service_completed_successfully
 
   db:
     # SIN mem_limit — hueco declarado, no resuelto aquí (REC-199, § 5 punto

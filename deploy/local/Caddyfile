@@ -28,8 +28,13 @@
 #   cookie o con la de un upstream que ya no está va a `first`, la activa.
 # - stream_close_delay: sin ella, una recarga cierra al instante (código 1001)
 #   todos los WebSocket abiertos, también los de los circuitos de la
-#   saliente. Mayor que el drenaje máximo de relevo-app.sh (30 min), para que
-#   el que corta sea el fin del drenaje y no la recarga.
+#   saliente. Con ella, los de la configuración anterior se cierran cuando
+#   vence el plazo, también los de la ranura ACTIVA. Por eso es de un día y no
+#   de poco más que el drenaje máximo (30 min): con 35 min, cada recarga
+#   (despliegue de staging o de producción, fin de un drenaje) habría forzado
+#   una reconexión de todos los circuitos abiertos 35 min después. Blazor
+#   recupera su circuito, que sigue vivo, pero con el aviso de reconexión. A la
+#   saliente la corta el fin del drenaje al pararla, no este plazo.
 # - lb_try_duration / fail_duration / max_fails: si la saliente cae antes de
 #   tiempo, la petición se reintenta y cae en la activa en vez de dar 502.
 #   max_fails 3 y fail_duration 2s para que un corte breve de la ÚNICA ranura
@@ -58,7 +63,7 @@
 	lb_try_duration 5s
 	fail_duration 2s
 	max_fails 3
-	stream_close_delay 35m
+	stream_close_delay 24h
 }
 
 {$DOMINIO} {

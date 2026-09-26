@@ -54,7 +54,7 @@ echo "=== Caso 2: la llamada vive DESPUÉS del exit 1 del bloque de 'up' no sano
 # del fichero.
 FICHERO_FUENTE="$DIR_GUION/ci-deploy.sh"
 LINEA_UP="$(grep -n 'if ! bash /opt/talveg/deploy/relevo-app.sh desplegar' "$FICHERO_FUENTE" | head -1 | cut -d: -f1)"
-[ -n "$LINEA_UP" ] || { echo "FALLO: no se encontró la línea de 'docker compose ... up -d --wait' — el fichero cambió de forma inesperada" >&2; exit 1; }
+[ -n "$LINEA_UP" ] || { echo "FALLO: no se encontró la línea del relevo (relevo-app.sh desplegar) — el fichero cambió de forma inesperada" >&2; exit 1; }
 LINEA_EXIT="$(tail -n "+$LINEA_UP" "$FICHERO_FUENTE" | grep -n '^        exit 1$' | head -1 | cut -d: -f1)"
 [ -n "$LINEA_EXIT" ] || { echo "FALLO: no se encontró un 'exit 1' después de la línea de 'up -d --wait' (línea $LINEA_UP)" >&2; exit 1; }
 LINEA_EXIT=$((LINEA_UP + LINEA_EXIT - 1))

@@ -80,6 +80,14 @@ max_drenaje() { [ "$1" = staging ] && echo "$DRENAJE_MAX_STAGING" || echo "$DREN
 unidad_drenaje() { echo "talveg-drenaje-$1"; }
 
 en_marcha() { [ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || true)" = "true" ]; }
+# En marcha y, si tiene healthcheck, healthy. Es lo que se exige a la ranura
+# que se queda sirviendo antes de retirar otra.
+sana() {
+    local salud
+    en_marcha "$1" || return 1
+    salud="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$1" 2>/dev/null || true)"
+    [ -z "$salud" ] || [ "$salud" = healthy ]
+}
 id_de() { docker inspect -f '{{.Id}}' "$1" 2>/dev/null || true; }
 
 # Direcciones del fichero de ranuras, sin el puerto, una por línea (la activa
@@ -93,7 +101,7 @@ ranuras_en_fichero() {
 
 activa() {
     local primera
-    primera="$(ranuras_en_fichero "$1" | head -1)"
+    primera="$(ranuras_en_fichero "$1" | awk 'NR == 1')"
     if [ -n "$primera" ]; then
         echo "$primera"
         return 0
@@ -151,12 +159,33 @@ asegurar_montaje_caddy() {
     ( cd "$RAIZ_DESPLIEGUE/deploy/local" && docker compose -f docker-compose.produccion.yml up -d --no-deps --no-build caddy )
 }
 
-# Recarga con el Caddyfile del checkout por stdin: el montado es un bind de
-# fichero suelto y tras un `git checkout` el contenedor sigue viendo el inodo
-# viejo. `docker exec` hereda el entorno del contenedor (DOMINIO, ACME_EMAIL).
+# Recarga por stdin: el Caddyfile montado es un bind de fichero suelto, y tras
+# un `git checkout` el contenedor sigue viendo el inodo viejo. `docker exec`
+# hereda el entorno del contenedor (DOMINIO, ACME_EMAIL).
+#
+# QUÉ Caddyfile: Caddy es uno solo para los dos entornos, y cualquier recarga
+# aplica el fichero entero, bloque de producción incluido. Solo `desplegar
+# produccion` —el único paso que ha pasado la aprobación de producción— usa el
+# del checkout, y si Caddy lo acepta lo guarda como aprobado. Todo lo demás
+# (desplegar staging, cualquier drenaje) recarga con el aprobado: si no, un
+# despliegue de staging, o el checkout que dejó staging, metería en
+# producción un Caddyfile que producción no ha aprobado. Antes del primer
+# relevo de producción no hay aprobado y se usa el del checkout.
+caddyfile_aprobado() { echo "$DIR_RANURAS/Caddyfile.aprobado"; }
 recargar_caddy() {
-    docker exec -i "$CONTENEDOR_CADDY" caddy reload --config /dev/stdin --adapter caddyfile \
-        < "$RAIZ_DESPLIEGUE/deploy/local/Caddyfile"
+    local entorno_checkout="${1:-}" fuente aprobado tmp
+    aprobado="$(caddyfile_aprobado)"
+    if [ "$entorno_checkout" = produccion ] || [ ! -f "$aprobado" ]; then
+        fuente="$RAIZ_DESPLIEGUE/deploy/local/Caddyfile"
+    else
+        fuente="$aprobado"
+    fi
+    docker exec -i "$CONTENEDOR_CADDY" caddy reload --config /dev/stdin --adapter caddyfile < "$fuente" || return 1
+    if [ "$entorno_checkout" = produccion ]; then
+        tmp="$(mktemp "$DIR_RANURAS/.Caddyfile.XXXXXX")"
+        cp "$fuente" "$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$aprobado" \
+            || echo "::warning::no se pudo guardar el Caddyfile aprobado; las recargas de staging usarán el anterior." >&2
+    fi
 }
 
 detener_drenaje_previo() {
@@ -198,10 +227,16 @@ desplegar() {
     args=(-f "docker-compose.$entorno.yml")
     [ "$entorno" = staging ] && args+=(--env-file .env.staging)
 
-    if activa_="$(activa "$entorno")" && en_marcha "$activa_"; then
-        :
-    else
-        activa_=""
+    # La que sirve de verdad: la primera del fichero que esté en marcha. Si la
+    # activa murió y queda una saliente viva (Caddy ya la usa por el
+    # reintento), esa es la que hay que conservar, y la nueva va en la ranura
+    # de la muerta, no en la de la viva.
+    local candidata
+    for candidata in $(ranuras_en_fichero "$entorno"); do
+        if en_marcha "$candidata"; then activa_="$candidata"; break; fi
+    done
+    if [ -z "$activa_" ] && [ ! -f "$(fichero_ranuras "$entorno")" ] && en_marcha "$(prefijo "$entorno")"; then
+        activa_="$(prefijo "$entorno")"   # sin fichero: el contenedor único anterior a P1-F2
     fi
     case "$activa_" in
         *-azul) nueva=verde ;;
@@ -219,10 +254,10 @@ desplegar() {
     # y se paran ahora; la libre la recrea el `up`. Sin una activa sana no se
     # toca ninguna: pueden ser lo único que sirve.
     detener_drenaje_previo "$entorno"
-    previas="$(ranuras_en_fichero "$entorno" | sed 1d)"
+    previas="$(ranuras_en_fichero "$entorno" | grep -vx -- "${activa_:-<ninguna>}" || true)"
     if [ -n "$previas" ] && [ -n "$activa_" ]; then
         escribir_ranuras "$entorno" "$activa_"
-        recargar_caddy || echo "::warning::no se pudo recargar Caddy al retirar las salientes anteriores; la cookie vieja reintentará en la activa."
+        recargar_caddy "$entorno" || echo "::warning::no se pudo recargar Caddy al retirar las salientes anteriores; la cookie vieja reintentará en la activa."
         for previa in $previas; do
             [ "$previa" = "$activa_" ] && continue
             [ "$previa" = "$cont_nueva" ] && continue
@@ -252,7 +287,7 @@ desplegar() {
     fi
 
     escribir_ranuras "$entorno" "$cont_nueva" "$activa_"
-    if ! recargar_caddy; then
+    if ! recargar_caddy "$entorno"; then
         echo "Caddy no aceptó la conmutación a $cont_nueva: se restaura ${activa_:-<ninguna>}." >&2
         if [ -n "$activa_" ]; then
             escribir_ranuras "$entorno" "$activa_"
@@ -297,10 +332,18 @@ retirar_saliente() {
         echo "$contenedor es la ranura activa de $entorno: no se retira." >&2
         return 0
     fi
-    if [ -n "$a" ]; then
-        escribir_ranuras "$entorno" "$a"
-        recargar_caddy || echo "::warning::no se pudo recargar Caddy al retirar $contenedor; la cookie vieja reintentará en la activa." >&2
+    # Nunca se retira la saliente si la que se queda no está sana: si la nueva
+    # murió tras pasar /salud, Caddy sirve por la saliente (reintento) y
+    # pararla dejaría el entorno sin servir. Se aplaza y se reintenta en la
+    # siguiente vuelta; si la activa no se recupera, lo resuelve el siguiente
+    # despliegue (que conserva la viva).
+    if [ -z "$a" ] || ! sana "$a"; then
+        echo "::warning::la ranura activa de $entorno (${a:-<ninguna>}) no está sana: $contenedor no se retira todavía." >&2
+        exec 9>&-
+        return 1
     fi
+    escribir_ranuras "$entorno" "$a"
+    recargar_caddy || echo "::warning::no se pudo recargar Caddy al retirar $contenedor; la cookie vieja reintentará en la activa." >&2
     docker stop -t 30 "$contenedor" > /dev/null
     case "$contenedor" in
         *-azul|*-verde) ;;

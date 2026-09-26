@@ -372,7 +372,7 @@ echo "=== Caso 16: la llamada está cableada DESPUÉS del despliegue sano y no p
 # lectura del fuente, anclando al `exit 1` del `up -d --wait` no sano.
 FUENTE_CI_DEPLOY="$DIR_GUION/ci-deploy.sh"
 LINEA_UP16="$(grep -n 'if ! bash /opt/talveg/deploy/relevo-app.sh desplegar' "$FUENTE_CI_DEPLOY" | head -1 | cut -d: -f1)"
-[ -n "$LINEA_UP16" ] || { echo "FALLO: no se encontró la línea de 'up -d --wait'" >&2; exit 1; }
+[ -n "$LINEA_UP16" ] || { echo "FALLO: no se encontró la línea del relevo (relevo-app.sh desplegar)" >&2; exit 1; }
 LINEA_EXIT16="$(tail -n "+$LINEA_UP16" "$FUENTE_CI_DEPLOY" | grep -n '^        exit 1$' | head -1 | cut -d: -f1)"
 LINEA_EXIT16=$((LINEA_UP16 + LINEA_EXIT16 - 1))
 mapfile -t LLAMADAS16 < <(grep -n '^        \*staging\*) verificar_secretos_de_stripe\|^        \*) verificar_secretos_de_stripe' "$FUENTE_CI_DEPLOY" | cut -d: -f1)
