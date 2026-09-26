@@ -1,6 +1,9 @@
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
+using CaeManager.Infrastructure.Identity;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace CaeManager.Web.Features.Configuracion.Pages;
 
@@ -16,6 +19,10 @@ public partial class Configuracion : ComponentBase
 
     [Inject] private IMediator Mediator { get; set; } = default!;
 
+    [Inject] private AuthenticationStateProvider EstadoAutenticacion { get; set; } = default!;
+
+    [Inject] private IAuthorizationService Autorizacion { get; set; } = default!;
+
     /// <summary>
     /// Si quien mira es Actor de Plataforma TALVEG con concesión global: decide si existen las
     /// entradas <see cref="EntradaConfiguracion.SoloActorPlataforma"/>. Es interfaz, no barrera
@@ -23,8 +30,23 @@ public partial class Configuracion : ComponentBase
     /// </summary>
     private bool _esAdministradorPlataforma;
 
-    protected override async Task OnInitializedAsync() =>
+    /// <summary>
+    /// Políticas que quien mira cumple, para las entradas con
+    /// <see cref="EntradaConfiguracion.Politica"/>. Es interfaz, no barrera: la
+    /// barrera es el <c>[Authorize(Policy = …)]</c> de la propia pantalla, con la
+    /// misma política.
+    /// </summary>
+    private readonly HashSet<string> _politicasConcedidas = [];
+
+    protected override async Task OnInitializedAsync()
+    {
         _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
+
+        var usuario = (await EstadoAutenticacion.GetAuthenticationStateAsync()).User;
+        foreach (var politica in ConstruirGrupos().SelectMany(g => g.Entradas).Select(e => e.Politica).OfType<string>().Distinct())
+            if ((await Autorizacion.AuthorizeAsync(usuario, politica)).Succeeded)
+                _politicasConcedidas.Add(politica);
+    }
 
     private string EntradaEfectiva
     {
@@ -72,7 +94,8 @@ public partial class Configuracion : ComponentBase
         Type? TipoPanel,
         bool EsPaginaIntegrable = true,
         string? Entradilla = null,
-        bool SoloActorPlataforma = false);
+        bool SoloActorPlataforma = false,
+        string? Politica = null);
 
     private sealed record GrupoConfiguracion(string Titulo, IReadOnlyList<EntradaConfiguracion> Entradas);
 
@@ -97,7 +120,13 @@ public partial class Configuracion : ComponentBase
     // El catálogo completo se cachea; el filtro por Actor de Plataforma se aplica al leer, porque
     // con OnInitializedAsync pendiente Blazor ya renderiza una vez sin conocerlo.
     private IReadOnlyList<GrupoConfiguracion> Grupos => (_grupos ??= ConstruirGrupos())
-        .Select(g => g with { Entradas = g.Entradas.Where(e => !e.SoloActorPlataforma || _esAdministradorPlataforma).ToList() })
+        .Select(g => g with
+        {
+            Entradas = g.Entradas
+                .Where(e => !e.SoloActorPlataforma || _esAdministradorPlataforma)
+                .Where(e => e.Politica is null || _politicasConcedidas.Contains(e.Politica))
+                .ToList()
+        })
         .ToList();
 
     private IReadOnlyList<GrupoConfiguracion>? _grupos;
@@ -178,6 +207,11 @@ public partial class Configuracion : ComponentBase
         [
             new("auditoria", "AU", Textos["EntradaAuditoriaNombre"], Textos["EntradaAuditoriaResumen"], typeof(Features.Auditoria.Pages.Auditoria)),
             new("auditoria-ia", "AI", Textos["EntradaAuditoriaIaNombre"], Textos["EntradaAuditoriaIaResumen"], typeof(Features.AuditoriaIa.Pages.AuditoriaIa)),
+            // FS-26: el registro de accesos a documentos sensibles solo se llegaba a abrir
+            // tecleando la URL. Aparece para quien tiene el permiso granular que concede
+            // Usuarios, con la misma política que la pantalla.
+            new("accesos-sensibles", "DS", Textos["EntradaAccesosSensiblesNombre"], Textos["EntradaAccesosSensiblesResumen"],
+                typeof(Features.Auditoria.Pages.AccesosDocumentosSensibles), Politica: Policies.ConsultarAccesoDocumentosSensibles),
             new("automatizaciones", "AT", Textos["EntradaAutomatizacionesNombre"], Textos["EntradaAutomatizacionesResumen"], typeof(Components.AutomatizacionesPanel), false)
         ])
     ];

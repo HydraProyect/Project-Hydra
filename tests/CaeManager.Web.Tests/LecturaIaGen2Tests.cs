@@ -323,6 +323,8 @@ public class LecturaIaGen2Tests : BunitContext
     public void El_hub_monta_esta_pantalla_en_su_entrada_y_la_describe_sin_umbral()
     {
         Registrar(new Escenario());
+        // El hub comprueba las políticas de las entradas que las piden (FS-26).
+        AddAuthorization().SetAuthorized("administrador@tenant.test");
 
         var hub = Render<Configuracion>(p => p.Add(x => x.EntradaRuta, "ia"));
 
