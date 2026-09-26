@@ -67,11 +67,11 @@
             @if (_ambito == AmbitoAplicacion.Trabajador)
             {
                 <CampoBuscarSelect Etiqueta="Trabajador" Marcador="Escribe un nombre o alias para buscar…"
-                                   Valor="@_entidadId" ValorChanged="v => _entidadId = v" Opciones="@OpcionesTrabajadores" />
+                                   Valor="@_entidadId" ValorChanged="CambiarEntidadAsync" Opciones="@OpcionesTrabajadores" />
             }
             else if (_ambito == AmbitoAplicacion.Empresa)
             {
-                <CampoSelect Etiqueta="Empresa" Valor="@_entidadId" ValorChanged="v => _entidadId = v">
+                <CampoSelect Etiqueta="Empresa" Valor="@_entidadId" ValorChanged="CambiarEntidadAsync">
                     <option value="">Selecciona una empresa…</option>
                     @foreach (var empresa in _empresasDisponibles)
                     {
@@ -115,6 +115,12 @@
     [Parameter, EditorRequired] public EventCallback<FiltroLoteDocumental> OnConfirmar { get; set; }
     [Parameter] public EventCallback OnCancelar { get; set; }
 
+    /// <summary>
+    /// P1-E2b: cada cambio del filtro. Invocarlo re-renderiza a quien monta el selector, que
+    /// así recalcula su aviso de cambios sin guardar (también el del navegador al recargar).
+    /// </summary>
+    [Parameter] public EventCallback OnFiltroCambiado { get; set; }
+
     private IReadOnlyList<ElementoSeleccionable> _opcionesTipo =>
         _tiposDelAmbito.Select(t => new ElementoSeleccionable(t.Id, t.Nombre)).ToList();
 
@@ -131,8 +137,36 @@
             _entidadId = entidadId.ToString();
         }
 
-        await CambiarAmbitoAsync(ambitoInicial.ToString());
+        // La parte síncrona de CambiarAmbitoAsync deja puesto el filtro de partida; la
+        // instantánea se toma ahí y no tras la carga, que dejaría tomar como de partida lo
+        // que se elija mientras carga.
+        var carga = CargarAmbitoAsync(ambitoInicial.ToString());
+        _instantanea.Fijar(ValoresFiltro());
+        await carga;
     }
+
+    private async Task CambiarAmbitoAsync(string valor)
+    {
+        await CargarAmbitoAsync(valor);
+        await OnFiltroCambiado.InvokeAsync();
+    }
+
+    private Task CambiarEntidadAsync(string valor)
+    {
+        _entidadId = valor;
+        return OnFiltroCambiado.InvokeAsync();
+    }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    private object?[] ValoresFiltro() => [_ambito, _todosLosTipos, _tiposSeleccionados, _alcanceTodas, _entidadId];
+
+    /// <summary>
+    /// P1-E2b: si el filtro elegido difiere del de partida (ámbito y entidad preseleccionados
+    /// por el llamador incluidos, que no son un cambio). Lo consulta quien monta el selector
+    /// dentro de un formulario con aviso de cambios sin guardar (DrawerReclamacionLote).
+    /// </summary>
+    public bool DifiereDeLoInicial() => _instantanea.Difiere(ValoresFiltro());
 
     private string EtiquetaAmbito(AmbitoAplicacion ambito) => ambito switch
     {
@@ -164,7 +198,7 @@
         _ => "entidades"
     };
 
-    private async Task CambiarAmbitoAsync(string valor)
+    private async Task CargarAmbitoAsync(string valor)
     {
         if (!Enum.TryParse<AmbitoAplicacion>(valor, out var ambito)) return;
 
@@ -194,20 +228,21 @@
     {
         _todosLosTipos = marcado;
         if (marcado) _tiposSeleccionados = [];
-        return Task.CompletedTask;
+        return OnFiltroCambiado.InvokeAsync();
     }
 
-    private void AlternarTipo((Guid Id, bool Marcado) cambio)
+    private Task AlternarTipo((Guid Id, bool Marcado) cambio)
     {
         if (cambio.Marcado) _tiposSeleccionados.Add(cambio.Id);
         else _tiposSeleccionados.Remove(cambio.Id);
+        return OnFiltroCambiado.InvokeAsync();
     }
 
     private Task CambiarAlcanceAsync(bool todas)
     {
         _alcanceTodas = todas;
         if (todas) _entidadId = string.Empty;
-        return Task.CompletedTask;
+        return OnFiltroCambiado.InvokeAsync();
     }
 
     private Task ConfirmarAsync()

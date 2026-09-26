@@ -190,6 +190,7 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
         _redactarCuerpo = string.Empty;
         _redactarAdjuntos.Clear();
         _redactarError = null;
+        _instantanea.Fijar(ValoresFormulario());
         _redactarVisible = true;
     }
 
@@ -311,4 +312,16 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
         CancelarCargaCarpetas();
         CancelarCargaMensajes();
     }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en la página: el mensaje que se está
+    /// redactando (adjuntos incluidos) comparado con cómo se abrió. Lo leen el Drawer (X,
+    /// Escape, fondo) y AvisoCambiosSinGuardar (salir de la página).
+    /// </summary>
+    private bool HayCambiosSinGuardar => _redactarVisible && _instantanea.Difiere(ValoresFormulario());
+
+    private object?[] ValoresFormulario() =>
+        [_redactarDestinatarios, _redactarAsunto, _redactarCuerpo, _redactarAdjuntos.Select(a => a.NombreArchivo).ToList(), _redactarAdjuntos.Count];
 }

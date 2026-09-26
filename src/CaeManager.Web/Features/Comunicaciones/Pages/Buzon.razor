@@ -162,7 +162,7 @@
     }
 </div>
 
-<Drawer Visible="_redactarVisible" VisibleChanged="v => _redactarVisible = v" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviandoRedaccion">
+<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_redactarVisible" VisibleChanged="v => _redactarVisible = v" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviandoRedaccion">
     <ChildContent>
         @if (_redactarError is not null)
         {
@@ -197,4 +197,6 @@
         <Boton Cargando="_enviandoRedaccion" OnClick="EnviarMensajeNuevoAsync">Enviar</Boton>
     </Pie>
 </Drawer>
+
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => _redactarVisible = false" />
 </LimiteDeErrores>
