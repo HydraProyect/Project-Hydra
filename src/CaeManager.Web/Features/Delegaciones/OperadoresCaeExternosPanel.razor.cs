@@ -84,6 +84,19 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
         _errorFormulario = null;
     }
 
+    /// <summary>
+    /// P1-E2b: el modal abre siempre con el nombre vacío, así que hay algo que perder en
+    /// cuanto se ha escrito un nombre de Operador CAE externo o de Tenant propietario. Lo
+    /// leen AvisoCambiosSinGuardar y el Modal; cerrado (también tras crear) nunca.
+    /// </summary>
+    private bool HayCambiosSinGuardar => _modal is not ModalActivo.Ninguno && !string.IsNullOrWhiteSpace(_nombre);
+
+    private void CerrarModalDescartando()
+    {
+        _modal = ModalActivo.Ninguno;
+        _nombre = string.Empty;
+    }
+
     private void CerrarModal(bool visible)
     {
         if (!visible && !_enCurso) _modal = ModalActivo.Ninguno;

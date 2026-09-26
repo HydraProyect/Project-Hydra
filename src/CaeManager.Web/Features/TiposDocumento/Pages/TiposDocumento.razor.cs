@@ -683,6 +683,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
     }
 
     private async Task AbrirEditarAsync(Guid id)
@@ -742,6 +743,7 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
     }
 
     private void AlternarCentro(Guid centroId, bool seleccionado)
@@ -772,6 +774,31 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
             AgregarAlias();
 
         return Task.CompletedTask;
+    }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: hay algo que perder si el drawer de alta o edición de Tipo de documento
+    /// difiere de cómo se abrió (con el orden propuesto o la ficha ya cargada). Lo leen
+    /// AvisoCambiosSinGuardar y el Drawer; cerrado (también tras guardar) nunca.
+    /// </summary>
+    private bool HayCambiosSinGuardar => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+
+    private object?[] ValoresFormulario() =>
+    [
+        _nombre, _aliasNuevo, _aliasesSeleccionados, _ambito, _aplicaVencimientoAutomatico, _vigenciaMeses,
+        _requerido, _naturaleza, _orden, _notas, _descripcion, _criteriosValidacion, _seSolicitaA,
+        _observaciones, _centroIdsSeleccionados,
+    ];
+
+    private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
+
+    private void CerrarFormularioDescartando()
+    {
+        _versionDrawer++;
+        _drawerVisible = false;
+        _confirmacionVisible = false;
     }
 
     private Task CerrarDrawerAsync(bool visible)
