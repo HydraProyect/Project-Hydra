@@ -1633,13 +1633,38 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         {
             if (Guid.TryParse(_gestorDestinoCartera, out var destino) && _clientesADesactivar.Count > 0)
             {
+                // El destino se eligió al abrir el diálogo: se vuelve a comprobar ahora
+                // que sigue siendo un Gestor CAE visible y activo, por si entretanto se
+                // desactivó. ReasignarEjecutivoClienteCommand no lo comprueba (hueco
+                // preexistente, registrado aparte).
+                var ahora = DateTimeOffset.UtcNow;
+                var vigente = (await ObtenerVisiblesEnRolAsync(Roles.GestorCae, _ciclo.Token))
+                    .Any(g => g.Id == destino && g.Id != usuario.Id && !g.EstaDesactivada(ahora));
+                if (!vigente)
+                {
+                    ToastService.Mostrar(TextosUsuarios["DesactivarDestinoNoVigente"], TonoToast.Error);
+                    _usuarioADesactivar = null;
+                    await CargarAsync();
+                    return;
+                }
+
                 var pasados = 0;
                 var errores = new List<string>();
                 foreach (var clienteId in _clientesADesactivar)
                 {
-                    var resultado = await Mediator.Send(new ReasignarEjecutivoClienteCommand(clienteId, destino), _ciclo.Token);
-                    if (resultado.EsExitoso) pasados++;
-                    else errores.Add(resultado.Error.Mensaje);
+                    // Un fallo inesperado a mitad del lote no puede dejar la cartera a
+                    // medias sin decirlo: cuenta como un cliente que no pasó.
+                    try
+                    {
+                        var resultado = await Mediator.Send(new ReasignarEjecutivoClienteCommand(clienteId, destino), _ciclo.Token);
+                        if (resultado.EsExitoso) pasados++;
+                        else errores.Add(resultado.Error.Mensaje);
+                    }
+                    catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+                    {
+                        Logger.LogError(excepcion, "Fallo al pasar el Cliente empresarial {ClienteId} al Gestor CAE {Destino}.", clienteId, destino);
+                        errores.Add(TextosUsuarios["DesactivarErrorInesperado"]);
+                    }
                 }
 
                 if (errores.Count > 0)

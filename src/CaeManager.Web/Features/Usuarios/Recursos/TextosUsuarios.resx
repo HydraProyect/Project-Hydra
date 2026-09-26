@@ -57,4 +57,10 @@
   <data name="DesactivarCarteraParcial" xml:space="preserve">
     <value>Solo {0} de {1} Clientes empresariales pasaron al nuevo Gestor CAE, así que la cuenta sigue activa. {2}</value>
   </data>
+  <data name="DesactivarDestinoNoVigente" xml:space="preserve">
+    <value>El Gestor CAE elegido ya no está activo. No se ha pasado ninguna cartera ni se ha desactivado la cuenta; vuelve a intentarlo.</value>
+  </data>
+  <data name="DesactivarErrorInesperado" xml:space="preserve">
+    <value>Un Cliente empresarial no pudo pasarse por un error inesperado.</value>
+  </data>
 </root>
