@@ -59,10 +59,11 @@ public class ReasignarEjecutivoClienteCommandHandler(
             return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
 
         var ejecutivoAnteriorId = empresa.EjecutivoUsuarioId;
-        if (ejecutivoAnteriorId == request.NuevoEjecutivoUsuarioId)
+        var nuevoGestorId = request.NuevoEjecutivoUsuarioId;
+        if (ejecutivoAnteriorId == nuevoGestorId)
             return Result.Exito();
 
-        if (request.NuevoEjecutivoUsuarioId is { } destinoId)
+        if (nuevoGestorId is { } destinoId)
         {
             var destinoValido = await ReglaDestinoCarteraCliente.ValidarAsync(
                 destinoId, directorioDestinos, currentUserService, cancellationToken);
@@ -70,7 +71,7 @@ public class ReasignarEjecutivoClienteCommandHandler(
                 return destinoValido;
         }
 
-        empresa.AsignarEjecutivo(request.NuevoEjecutivoUsuarioId);
+        empresa.AsignarEjecutivo(nuevoGestorId);
 
         if (ejecutivoAnteriorId is not null)
             notificacionRepositorio.Agregar(new NotificacionUsuario(
@@ -78,17 +79,17 @@ public class ReasignarEjecutivoClienteCommandHandler(
                 "Cambio en tu cartera de clientes",
                 $"Se te ha quitado el cliente \"{empresa.RazonSocial}\" de tu cartera."));
 
-        if (request.NuevoEjecutivoUsuarioId is not null)
+        if (nuevoGestorId is not null)
         {
             notificacionRepositorio.Agregar(new NotificacionUsuario(
-                request.NuevoEjecutivoUsuarioId.Value,
+                nuevoGestorId.Value,
                 "Cambio en tu cartera de clientes",
                 $"Se te ha asignado el cliente \"{empresa.RazonSocial}\" en tu cartera."));
 
             var tiposSinLecturaIa = await configuracionIaRepositorio.ObtenerNombresTiposDocumentoSinLecturaIaAsync(empresa.Id, cancellationToken);
             if (tiposSinLecturaIa.Count > 0)
                 notificacionRepositorio.Agregar(new NotificacionUsuario(
-                    request.NuevoEjecutivoUsuarioId.Value,
+                    nuevoGestorId.Value,
                     "Lectura automática por IA desactivada",
                     $"El cliente \"{empresa.RazonSocial}\" tiene la lectura automática por IA desactivada para: {string.Join(", ", tiposSinLecturaIa)}.",
                     urlAccion: $"/clientes/{empresa.Id}/lectura-ia",
@@ -99,7 +100,7 @@ public class ReasignarEjecutivoClienteCommandHandler(
         // la proyección Empresa.EjecutivoUsuarioId, así que o se guardan las
         // dos o ninguna. La proyección sigue siendo la autoritativa durante F1.
         await asignacionesWriter.ReasignarCarteraClienteAsync(
-            empresa.Id, request.NuevoEjecutivoUsuarioId, cancellationToken);
+            empresa.Id, nuevoGestorId, cancellationToken);
 
         try
         {
