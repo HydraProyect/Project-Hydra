@@ -29,7 +29,8 @@ namespace CaeManager.Infrastructure.Auditing;
 /// la misma que el DbContext inyectado: en staging y producción el contenedor
 /// <c>app</c> recibe <c>CaeManagerDb</c> vacía (P0-2) y solo tiene
 /// <c>CaeManagerDbRuntime</c> (hallazgo de Codex). No usa
-/// <c>IEleccionLiderService</c>, que lee <c>CaeManagerDb</c>: la función ya se
+/// <c>IEleccionLiderService</c> (que entonces leía <c>CaeManagerDb</c> y hoy
+/// también usa la identidad del tráfico) porque no le hace falta: la función ya se
 /// serializa con <c>pg_advisory_xact_lock</c> y es idempotente, así que varias
 /// réplicas a la vez solo repiten una comprobación barata.
 /// </para>
