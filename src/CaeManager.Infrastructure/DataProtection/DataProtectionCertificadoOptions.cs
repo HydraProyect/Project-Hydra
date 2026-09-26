@@ -38,12 +38,17 @@ public class DataProtectionCertificadoOptions : IOpcionesConGate
     /// Certificados retirados que todavía hacen falta para DESCIFRAR claves del
     /// llavero escritas con ellos. Rotar es: el nuevo pasa a
     /// <see cref="CertificadoRuta"/>/<see cref="ClavePrivadaRuta"/> y el anterior
-    /// entra aquí. Solo se puede quitar de esta lista cuando ninguna clave del
-    /// llavero que siga haciendo falta esté cifrada con él.
+    /// entra aquí. Mientras quede en el llavero alguna clave cifrada con él, el
+    /// arranque se niega si falta (ver
+    /// <see cref="RegistroDataProtection.ComprobarClavesCifradasConCertificadoLegibles"/>).
     /// </summary>
     public List<CertificadoAnteriorDataProtection> Anteriores { get; set; } = [];
 
     public bool EstaConfigurado => Evaluar().Completo;
+
+    /// <summary>Alguien ha empezado a configurar la sección (para negarse a arrancar si está a medias).</summary>
+    public bool AlgoInformado =>
+        !string.IsNullOrWhiteSpace(CertificadoRuta) || !string.IsNullOrWhiteSpace(ClavePrivadaRuta) || Anteriores.Count > 0;
 
     public IReadOnlyList<string> ProblemasDeConfiguracion() => Evaluar().Problemas;
 

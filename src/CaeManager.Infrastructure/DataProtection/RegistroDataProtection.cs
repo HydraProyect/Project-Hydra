@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Xml;
+using System.Xml.Linq;
 using Amazon;
 using Amazon.KeyManagementService;
 using Amazon.S3;
@@ -72,6 +74,17 @@ public static class RegistroDataProtection
                 "están configurados a la vez. Solo puede haber un cifrador del llavero de Data Protection: el último " +
                 "registrado ganaría en silencio. Deja uno de los dos.");
 
+        // Un certificado a medias (una ruta sin la otra, o solo Anteriores) no
+        // puede caer en la rama «sin cifrar»: con la bandera de transición
+        // puesta, una errata en el .env escribiría claves en claro creyendo que
+        // las cifra. Se niega haya bandera o no.
+        if (opcionesCertificado.AlgoInformado && !opcionesCertificado.EstaConfigurado)
+            throw new InvalidOperationException(
+                $"{DataProtectionCertificadoOptions.SeccionConfiguracion} está a medias: hacen falta CertificadoRuta y " +
+                "ClavePrivadaRuta del certificado vigente (Anteriores solo descifra y no sustituye al vigente).");
+
+        X509Certificate2[] certificadosConfigurados = [];
+
         if (opcionesKms.EstaConfigurado)
         {
             services.AddSingleton<IAmazonKeyManagementService>(_ => new AmazonKeyManagementServiceClient(
@@ -90,7 +103,7 @@ public static class RegistroDataProtection
         }
         else if (opcionesCertificado.EstaConfigurado)
         {
-            ProtegerConCertificado(constructorDataProtection, opcionesCertificado);
+            certificadosConfigurados = ProtegerConCertificado(constructorDataProtection, opcionesCertificado);
         }
         else
         {
@@ -99,13 +112,20 @@ public static class RegistroDataProtection
             // Mismo criterio que ResolverCadenaDeTrafico con la identidad de RLS:
             // un arranque que falla se arregla en minutos; una protección apagada
             // en silencio no se ve hasta que hace daño.
-            if (entorno.IsProduction() && !configuration.GetValue(ClavePermitirClavesSinCifrar, defaultValue: false))
-                throw new InvalidOperationException(
-                    "Las claves de Data Protection se guardarían SIN CIFRAR en Production: no hay " +
-                    $"{DataProtectionCertificadoOptions.SeccionConfiguracion} (CertificadoRuta y ClavePrivadaRuta) " +
-                    $"ni {DataProtectionKmsOptions.SeccionConfiguracion} configurados. Monta el certificado PEM en " +
-                    "/run/secretos e informa sus rutas, o —solo durante la transición— declara " +
-                    $"{ClavePermitirClavesSinCifrar}=true.");
+            if (entorno.IsProduction())
+            {
+                if (!configuration.GetValue(ClavePermitirClavesSinCifrar, defaultValue: false))
+                    throw new InvalidOperationException(
+                        "Las claves de Data Protection se guardarían SIN CIFRAR en Production: no hay " +
+                        $"{DataProtectionCertificadoOptions.SeccionConfiguracion} (CertificadoRuta y ClavePrivadaRuta) " +
+                        $"ni {DataProtectionKmsOptions.SeccionConfiguracion} configurados. Monta el certificado PEM en " +
+                        "/run/secretos e informa sus rutas, o —solo durante la transición— declara " +
+                        $"{ClavePermitirClavesSinCifrar}=true.");
+
+                // Con la bandera, cada arranque lo avisa por log y por alerta
+                // operativa: la transición no puede quedarse en silencio.
+                services.AddHostedService<AvisoLlaveroSinCifrarHostedService>();
+            }
 
             // Ruidoso a propósito: un despliegue que cree estar cifrando y no
             // lo esté es peor que uno que sepa que no lo está. Se registra al
@@ -141,6 +161,10 @@ public static class RegistroDataProtection
 
             services.AddHostedService<VerificacionDataProtectionS3HostedService>();
         }
+        else
+        {
+            ComprobarClavesCifradasConCertificadoLegibles(rutaClavesAbsoluta, certificadosConfigurados);
+        }
 
         return services;
     }
@@ -154,7 +178,7 @@ public static class RegistroDataProtection
     /// sesiones ni secretos existentes. Tampoco los cifra: siguen en claro en
     /// el disco hasta que se retiren (ver el runbook de Data Protection).
     /// </summary>
-    private static void ProtegerConCertificado(
+    private static X509Certificate2[] ProtegerConCertificado(
         IDataProtectionBuilder constructor, DataProtectionCertificadoOptions opciones)
     {
         var vigente = CargarCertificado(
@@ -175,6 +199,85 @@ public static class RegistroDataProtection
         Console.WriteLine(
             $"[INFO] Claves de Data Protection cifradas en reposo con el certificado {vigente.Thumbprint} " +
             $"(caduca {vigente.NotAfter:yyyy-MM-dd}; {anteriores.Length} anterior(es) solo para descifrar).");
+
+        return [vigente, .. anteriores];
+    }
+
+    /// <summary>
+    /// Si el llavero ya tiene claves cifradas con certificado, alguno de los
+    /// configurados tiene que ser el suyo. Sin esto, arrancar con otro
+    /// certificado (el de staging en una restauración de producción) o sin
+    /// ninguno (rutas borradas del .env con la bandera de transición puesta)
+    /// sale verde: Data Protection da esa clave por inutilizable, genera otra en
+    /// silencio y todo lo protegido con la anterior —cookies, antiforgery,
+    /// credenciales de portal— deja de leerse. Se niega aunque haya bandera.
+    ///
+    /// Solo mira el llavero en disco: con el llavero en S3 no hay ficheros que
+    /// leer aquí. Las claves cifradas con KMS no se miran (las verifica
+    /// <see cref="VerificacionKmsHostedService"/>). El certificado de cada clave
+    /// sale del propio XML: EncryptedXml escribe el certificado público
+    /// (KeyInfo/X509Data/X509Certificate) junto al texto cifrado.
+    /// </summary>
+    internal static void ComprobarClavesCifradasConCertificadoLegibles(
+        string rutaLlavero, IReadOnlyCollection<X509Certificate2> certificados)
+    {
+        if (!Directory.Exists(rutaLlavero))
+            return;
+
+        var huellasDisponibles = certificados
+            .Select(c => c.Thumbprint)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var ilegibles = new List<string>();
+
+        foreach (var fichero in Directory.EnumerateFiles(rutaLlavero, "*.xml"))
+        {
+            XDocument documento;
+            try
+            {
+                documento = XDocument.Load(fichero);
+            }
+            catch (XmlException)
+            {
+                continue; // Data Protection tampoco la leería; no es asunto de esta comprobación.
+            }
+
+            // Data Protection escribe el elemento en su propio espacio de nombres XML.
+            foreach (var secreto in documento.Descendants().Where(e => e.Name.LocalName == "encryptedSecret"))
+            {
+                var tipo = (string?)secreto.Attribute("decryptorType") ?? "";
+                if (!tipo.Contains("EncryptedXmlDecryptor", StringComparison.Ordinal))
+                    continue;
+
+                var huellas = secreto.Descendants()
+                    .Where(e => e.Name.LocalName == "X509Certificate")
+                    .Select(e => HuellaDe(e.Value))
+                    .ToList();
+
+                if (!huellas.Any(h => h is not null && huellasDisponibles.Contains(h)))
+                    ilegibles.Add($"{Path.GetFileName(fichero)} (certificado {string.Join("/", huellas.Select(h => h ?? "ilegible"))})");
+            }
+        }
+
+        if (ilegibles.Count > 0)
+            throw new InvalidOperationException(
+                "El llavero de Data Protection tiene claves cifradas con un certificado que no está configurado: " +
+                $"{string.Join(", ", ilegibles)}. Sin él no se descifran las cookies ni los secretos protegidos con " +
+                $"esas claves. Configura ese certificado en {DataProtectionCertificadoOptions.SeccionConfiguracion} " +
+                "(como vigente o en Anteriores); la bandera de transición no lo sustituye.");
+    }
+
+    private static string? HuellaDe(string certificadoBase64)
+    {
+        try
+        {
+            using var certificado = X509CertificateLoader.LoadCertificate(Convert.FromBase64String(certificadoBase64.Trim()));
+            return certificado.Thumbprint;
+        }
+        catch (Exception ex) when (ex is FormatException or CryptographicException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

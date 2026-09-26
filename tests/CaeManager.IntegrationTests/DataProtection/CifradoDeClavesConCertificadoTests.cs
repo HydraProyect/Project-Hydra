@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.DataProtection;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
@@ -74,6 +75,27 @@ public sealed class CifradoDeClavesConCertificadoTests : IDisposable
     }
 
     [Fact]
+    public void Activar_el_certificado_no_crea_una_clave_nueva_mientras_la_vigente_no_este_por_caducar()
+    {
+        // Sostiene la convivencia del relevo azul/verde (P1-F2): mientras la
+        // ranura antigua, sin certificado, siga viva, la nueva no debe escribir
+        // ninguna clave cifrada que la antigua no pueda leer. Data Protection
+        // solo crea clave si el llavero está vacío o la vigente caduca dentro
+        // de su ventana de propagación (2 días): activar el cifrado por sí solo
+        // no la crea. El runbook exige comprobar esa fecha antes de activarlo.
+        var protegidoAntes = Proteger(Configuracion(), "Development");
+        var clavesAntes = Directory.GetFiles(RutaLlavero, "key-*.xml");
+
+        var configuracion = Configuracion(GenerarCertificadoPem("vigente"));
+        Desproteger(configuracion, "Production", protegidoAntes).Should().Be(Secreto);
+        Proteger(configuracion, "Production");
+
+        Directory.GetFiles(RutaLlavero, "key-*.xml").Should().BeEquivalentTo(clavesAntes,
+            "con la clave vigente lejos de caducar, la ranura nueva sigue usando la clave en claro que la antigua también lee");
+        LeerLlavero().Should().NotContain("<encryptedSecret");
+    }
+
+    [Fact]
     public void Tras_rotar_las_claves_cifradas_con_el_certificado_anterior_se_leen_si_sigue_en_Anteriores()
     {
         var antiguo = GenerarCertificadoPem("antiguo");
@@ -94,8 +116,51 @@ public sealed class CifradoDeClavesConCertificadoTests : IDisposable
 
         var nuevo = GenerarCertificadoPem("nuevo");
 
-        var desproteger = () => Desproteger(Configuracion(nuevo), "Production", protegido);
-        desproteger.Should().Throw<CryptographicException>();
+        // Se niega ya en el arranque, no al primer Unprotect: Data Protection
+        // daría la clave por inutilizable y generaría otra en silencio.
+        var arrancar = () => Construir(Configuracion(nuevo), "Production");
+        arrancar.Should().Throw<InvalidOperationException>().WithMessage("*certificado que no está configurado*");
+    }
+
+    [Fact]
+    public void Con_claves_ya_cifradas_quitar_el_certificado_no_arranca_aunque_este_la_bandera()
+    {
+        Proteger(Configuracion(GenerarCertificadoPem("vigente")), "Production");
+
+        var sinCertificado = Configuracion();
+        sinCertificado[RegistroDataProtection.ClavePermitirClavesSinCifrar] = "true";
+
+        var arrancar = () => Construir(sinCertificado, "Production");
+        arrancar.Should().Throw<InvalidOperationException>().WithMessage("*certificado que no está configurado*");
+    }
+
+    [Theory]
+    [InlineData("CertificadoRuta")]
+    [InlineData("ClavePrivadaRuta")]
+    [InlineData("Anteriores:0:CertificadoRuta")]
+    public void Un_certificado_a_medias_no_degrada_a_sin_cifrar_aunque_este_la_bandera(string unicaClaveInformada)
+    {
+        var configuracion = Configuracion();
+        configuracion[$"DataProtection:Certificado:{unicaClaveInformada}"] = Path.Combine(_raiz.FullName, "algo.pem");
+        configuracion[RegistroDataProtection.ClavePermitirClavesSinCifrar] = "true";
+
+        var arrancar = () => Construir(configuracion, "Production");
+        arrancar.Should().Throw<InvalidOperationException>().WithMessage("*DataProtection:Certificado está a medias*");
+    }
+
+    [Fact]
+    public void Un_certificado_que_no_es_RSA_no_arranca()
+    {
+        using var ec = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var certificado = new CertificateRequest("CN=talveg-dataprotection-ec", ec, HashAlgorithmName.SHA256)
+            .CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1));
+        var rutaCertificado = Path.Combine(_raiz.FullName, "ec.crt");
+        var rutaClave = Path.Combine(_raiz.FullName, "ec.key");
+        File.WriteAllText(rutaCertificado, certificado.ExportCertificatePem());
+        File.WriteAllText(rutaClave, ec.ExportPkcs8PrivateKeyPem());
+
+        var arrancar = () => Construir(Configuracion((rutaCertificado, rutaClave)), "Production");
+        arrancar.Should().Throw<InvalidOperationException>().WithMessage("*tiene que ser RSA*");
     }
 
     [Fact]
@@ -114,6 +179,36 @@ public sealed class CifradoDeClavesConCertificadoTests : IDisposable
         configuracion[RegistroDataProtection.ClavePermitirClavesSinCifrar] = "true";
 
         Desproteger(configuracion, "Production", Proteger(configuracion, "Production")).Should().Be(Secreto);
+    }
+
+    [Fact]
+    public async Task En_Production_con_la_bandera_cada_arranque_emite_una_alerta_operativa_que_la_nombra()
+    {
+        var configuracion = Configuracion();
+        configuracion[RegistroDataProtection.ClavePermitirClavesSinCifrar] = "true";
+        var alerta = new AlertaOperativaCapturada();
+
+        using var proveedor = Construir(configuracion, "Production", alerta);
+        foreach (var servicio in proveedor.GetServices<IHostedService>())
+            await servicio.StartAsync(CancellationToken.None);
+
+        alerta.Emitidas.Should().ContainSingle()
+            .Which.Should().Match<(string Mensaje, NivelAlertaOperativa Nivel)>(a =>
+                a.Mensaje.Contains(RegistroDataProtection.ClavePermitirClavesSinCifrar) && a.Nivel == NivelAlertaOperativa.Aviso);
+    }
+
+    [Theory]
+    [InlineData("Development", false)]
+    [InlineData("Production", true)]
+    public void La_bandera_no_alerta_fuera_de_Production_ni_con_certificado(string entorno, bool conCertificado)
+    {
+        var configuracion = conCertificado ? Configuracion(GenerarCertificadoPem("vigente")) : Configuracion();
+        configuracion[RegistroDataProtection.ClavePermitirClavesSinCifrar] = "true";
+
+        using var proveedor = Construir(configuracion, entorno, new AlertaOperativaCapturada());
+
+        proveedor.GetServices<IHostedService>().OfType<AvisoLlaveroSinCifrarHostedService>().Should().BeEmpty(
+            "la bandera solo tiene efecto en Production y sin cifrador; en otro caso no hay nada que avisar");
     }
 
     [Fact]
@@ -191,10 +286,13 @@ public sealed class CifradoDeClavesConCertificadoTests : IDisposable
         return configuracion;
     }
 
-    private ServiceProvider Construir(Dictionary<string, string?> configuracion, string entorno)
+    private ServiceProvider Construir(
+        Dictionary<string, string?> configuracion, string entorno, IAlertaOperativa? alerta = null)
     {
         var servicios = new ServiceCollection();
         servicios.AddLogging();
+        if (alerta is not null)
+            servicios.AddSingleton(alerta);
         servicios.AgregarDataProtectionDeCaeManager(
             new ConfigurationBuilder().AddInMemoryCollection(configuracion).Build(),
             new EntornoDePrueba(entorno, _raiz.FullName));
@@ -220,6 +318,19 @@ public sealed class CifradoDeClavesConCertificadoTests : IDisposable
         var ficheros = Directory.GetFiles(RutaLlavero, "key-*.xml");
         ficheros.Should().NotBeEmpty("el registro tiene que persistir el llavero en DataProtection:RutaClaves");
         return string.Join("\n", ficheros.Select(File.ReadAllText));
+    }
+
+    private sealed class AlertaOperativaCapturada : IAlertaOperativa
+    {
+        public List<(string Mensaje, NivelAlertaOperativa Nivel)> Emitidas { get; } = [];
+
+        public void Emitir(string mensaje, NivelAlertaOperativa nivel) => Emitidas.Add((mensaje, nivel));
+
+        public void CapturarExcepcion(Exception excepcion) { }
+
+        public void DejarMigaDePan(string mensaje) { }
+
+        public IDisposable IniciarAmbitoDeCaptura() => new MemoryStream();
     }
 
     private sealed class EntornoDePrueba(string nombre, string raiz) : IHostEnvironment
