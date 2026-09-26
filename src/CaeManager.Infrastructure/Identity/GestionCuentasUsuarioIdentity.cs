@@ -46,8 +46,7 @@ public class GestionCuentasUsuarioIdentity(
             if (usuario is null) return null;
 
             var roles = await userManager.GetRolesAsync(usuario);
-            var pendiente = string.IsNullOrEmpty(usuario.PasswordHash)
-                            && (await userManager.GetLoginsAsync(usuario)).Count == 0;
+            var pendiente = await EsPendienteAsync(usuario);
 
             return new CuentaUsuario(
                 usuario.Id,
@@ -172,6 +171,12 @@ public class GestionCuentasUsuarioIdentity(
             var usuario = await CargarEnFrescoAsync(usuarioId);
             if (usuario is null) return Result.Fallo(ErrorCuentaNoEncontrada);
 
+            // Sobre la MISMA instancia que se borra (revisión Codex de P1-I2): si la
+            // persona se activó después de que el Command lo comprobara, esta lectura
+            // ya lo ve; y si se activa después de esta, el ConcurrencyStamp de esta
+            // instancia hace fallar el DeleteAsync.
+            if (!await EsPendienteAsync(usuario)) return Result.Fallo(AutoridadSobreCuentas.YaNoPendiente);
+
             var resultado = await userManager.DeleteAsync(usuario);
             return resultado.Succeeded ? Result.Exito() : Result.Fallo(ErrorDeIdentity("Usuarios.FalloAlEliminar", resultado));
         }, cancellationToken);
@@ -182,9 +187,18 @@ public class GestionCuentasUsuarioIdentity(
             var usuario = await CargarEnFrescoAsync(usuarioId);
             if (usuario is null) return Result.Fallo<string>(ErrorCuentaNoEncontrada);
 
+            // Mismo motivo que en EliminarAsync: el token lleva el SecurityStamp de
+            // esta instancia, así que la comprobación va sobre ella. Si la persona
+            // establece su contraseña después, el sello cambia y el token no vale.
+            if (!await EsPendienteAsync(usuario)) return Result.Fallo<string>(AutoridadSobreCuentas.YaNoPendiente);
+
             var token = await userManager.GeneratePasswordResetTokenAsync(usuario);
             return Result.Exito(WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token)));
         }, cancellationToken);
+
+    /// <summary>Sin contraseña y sin login externo: la persona nunca entró.</summary>
+    private async Task<bool> EsPendienteAsync(ApplicationUser usuario) =>
+        string.IsNullOrEmpty(usuario.PasswordHash) && (await userManager.GetLoginsAsync(usuario)).Count == 0;
 
     private async Task<ApplicationUser?> CargarEnFrescoAsync(Guid usuarioId)
     {

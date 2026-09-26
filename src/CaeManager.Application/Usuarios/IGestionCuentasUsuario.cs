@@ -63,12 +63,18 @@ public interface IGestionCuentasUsuario
     /// </summary>
     Task<Result> CambiarActivacionAsync(Guid usuarioId, bool activar, CancellationToken cancellationToken = default);
 
-    /// <summary>Borra la cuenta de Identity.</summary>
+    /// <summary>
+    /// Borra la cuenta de Identity <b>solo si sigue pendiente de activación</b>,
+    /// comprobado sobre la misma lectura que se borra; si no, falla con
+    /// <see cref="AutoridadSobreCuentas.YaNoPendiente"/>.
+    /// </summary>
     Task<Result> EliminarAsync(Guid usuarioId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Token de un solo uso para establecer la contraseña (el mismo proveedor que
-    /// «olvidé mi contraseña»), ya codificado para ir en una URL.
+    /// «olvidé mi contraseña»), ya codificado para ir en una URL, <b>solo si la cuenta
+    /// sigue pendiente de activación</b>, comprobado sobre la misma lectura cuyo sello
+    /// lleva el token; si no, falla con <see cref="AutoridadSobreCuentas.YaNoPendiente"/>.
     /// </summary>
     Task<Result<string>> GenerarTokenActivacionAsync(Guid usuarioId, CancellationToken cancellationToken = default);
 }

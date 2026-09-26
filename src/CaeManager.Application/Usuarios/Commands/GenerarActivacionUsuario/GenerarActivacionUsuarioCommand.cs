@@ -41,6 +41,11 @@ public class GenerarActivacionUsuarioCommandHandler(
         if (!cuenta.PendienteActivacion)
             return Result.Fallo<string>(YaActivada);
 
-        return await cuentas.GenerarTokenActivacionAsync(request.UsuarioId, cancellationToken);
+        var token = await cuentas.GenerarTokenActivacionAsync(request.UsuarioId, cancellationToken);
+
+        // Se activó entre la comprobación de arriba y la emisión: mismo desenlace.
+        return token.EsFallido && token.Error.Codigo == AutoridadSobreCuentas.YaNoPendiente.Codigo
+            ? Result.Fallo<string>(YaActivada)
+            : token;
     }
 }

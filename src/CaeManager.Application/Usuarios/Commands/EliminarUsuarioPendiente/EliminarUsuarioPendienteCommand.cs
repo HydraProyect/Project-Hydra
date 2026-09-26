@@ -55,6 +55,10 @@ public class EliminarUsuarioPendienteCommandHandler(
         if (resultado.EsExitoso || resultado.Error.Codigo == AutoridadSobreCuentas.NoEncontrado.Codigo)
             return resultado;
 
+        // Se activó entre la comprobación de arriba y la escritura: mismo desenlace.
+        if (resultado.Error.Codigo == AutoridadSobreCuentas.YaNoPendiente.Codigo)
+            return Result.Fallo(NoPendiente);
+
         return Result.Fallo(Error.Crear(resultado.Error.Codigo, $"No pudimos eliminar esta cuenta. {resultado.Error.Mensaje}"));
     }
 }

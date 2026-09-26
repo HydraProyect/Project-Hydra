@@ -49,6 +49,13 @@ public static class AutoridadSobreCuentas
         "Usuarios.ClienteRequerido",
         "Busca y confirma la identificación fiscal de la empresa a vincular antes de guardar.");
 
+    /// <summary>
+    /// Lo devuelve el puerto cuando la cuenta dejó de estar pendiente entre la
+    /// comprobación del Command y la escritura.
+    /// </summary>
+    public static readonly Error YaNoPendiente = Error.Crear(
+        "Usuarios.NoPendiente", "Esta cuenta ya no está pendiente de activación.");
+
     public static readonly Error CuentaInexistente = Error.Crear(
         "Usuarios.CuentaInexistente", "Esta cuenta ya no existe. Recargamos la lista.");
 

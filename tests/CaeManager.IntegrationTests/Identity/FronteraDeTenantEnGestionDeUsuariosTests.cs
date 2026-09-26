@@ -293,6 +293,42 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         tras!.LockoutEnd.Should().NotBeNull("la cuenta en uso queda desactivada");
     }
 
+    /// <summary>
+    /// Revisión Codex de P1-I2: el Command comprueba «pendiente» en una lectura y el
+    /// adaptador escribe en otra. Si la persona se activa entre las dos, el borrado o
+    /// el token irían contra una cuenta que ya tiene contraseña. El adaptador vuelve a
+    /// comprobarlo sobre la instancia que usa, cuyo sello ata la escritura.
+    /// </summary>
+    [Fact]
+    public async Task El_adaptador_no_borra_ni_emite_token_para_una_cuenta_que_ya_se_activo()
+    {
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        Guid activada;
+        using (var alta = _servicios.CreateScope())
+        {
+            var usuarios = alta.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            activada = await CrearAsync(usuarios, "ya-activada@x.test", _tenantPropio, Roles.Consulta);
+            var cuenta = await usuarios.FindByIdAsync(activada.ToString());
+            (await usuarios.AddPasswordAsync(cuenta!, "Contrasena-De-Prueba-1")).Succeeded.Should().BeTrue(
+                "premisa: la cuenta deja de estar pendiente");
+        }
+
+        using var ambito = _servicios.CreateScope();
+        var sp = ambito.ServiceProvider;
+        var cuentas = new GestionCuentasUsuarioIdentity(
+            sp.GetRequiredService<UserManager<ApplicationUser>>(),
+            sp.GetRequiredService<PuertaAccesoDatos>(),
+            sp.GetRequiredService<DirectorioUsuariosTenant>(),
+            sp.GetRequiredService<CaeManagerDbContext>());
+
+        (await cuentas.EliminarAsync(activada)).Error.Should().Be(AutoridadSobreCuentas.YaNoPendiente);
+        (await cuentas.GenerarTokenActivacionAsync(activada)).Error.Should().Be(AutoridadSobreCuentas.YaNoPendiente);
+
+        using var comprobacion = _servicios.CreateScope();
+        (await comprobacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()
+            .FindByIdAsync(activada.ToString())).Should().NotBeNull("la cuenta activada no se borra");
+    }
+
     private static PaginaUsuarios CrearPagina(
         IServiceProvider servicios, Guid actorId, bool esAdministrador, EmailServiceEspia? emailService = null)
     {
