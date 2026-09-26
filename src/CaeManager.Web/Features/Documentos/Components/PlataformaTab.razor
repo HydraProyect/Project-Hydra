@@ -177,7 +177,7 @@ else
     </div>
 }
 
-<Modal Visible="_vigenciaVisible" VisibleChanged="v => _vigenciaVisible = v" Titulo="@(_soloVigencia ? "Anotar vigencia" : "Marcar como aceptado")" CerrarAlHacerClicFuera="!_confirmandoVigencia">
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_vigenciaVisible" VisibleChanged="v => _vigenciaVisible = v" Titulo="@(_soloVigencia ? "Anotar vigencia" : "Marcar como aceptado")" CerrarAlHacerClicFuera="!_confirmandoVigencia">
     <ChildContent>
         @* Se pregunta aquí, y no en una pantalla aparte, porque este es el
            momento en que el Gestor CAE lo sabe: acaba de mirar la plataforma.
@@ -203,7 +203,7 @@ else
     </Pie>
 </Modal>
 
-<Modal Visible="_rechazoVisible" VisibleChanged="v => _rechazoVisible = v" Titulo="Marcar como rechazado" CerrarAlHacerClicFuera="!_rechazando">
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_rechazoVisible" VisibleChanged="v => _rechazoVisible = v" Titulo="Marcar como rechazado" CerrarAlHacerClicFuera="!_rechazando">
     <ChildContent>
         <CampoSelect Etiqueta="Causa del rechazo" Valor="@_causaRechazo" ValorChanged="v => _causaRechazo = v">
             @foreach (var causa in Enum.GetValues<CausaRechazoAcreditacion>())

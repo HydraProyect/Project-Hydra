@@ -256,7 +256,7 @@
     }
 </div>
 
-<Drawer Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? Textos["DrawerTituloNueva"].Value : Textos["DrawerTituloEditar"].Value)" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
+<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? Textos["DrawerTituloNueva"].Value : Textos["DrawerTituloEditar"].Value)" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
