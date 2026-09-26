@@ -37,6 +37,10 @@
 #   relevo-app.sh activa <staging|produccion>
 #       Imprime el container_name de la ranura activa (o del contenedor
 #       anterior a P1-F2, si aún no ha habido relevo). Sale con 1 si no hay.
+#   relevo-app.sh recargar <staging|produccion>
+#       Recarga Caddy con los ficheros de ranuras tal como están y el
+#       Caddyfile aprobado (volver-atras.sh, antes de dar por buena una ranura
+#       que ya figura como activa).
 #   relevo-app.sh drenar <staging|produccion> <contenedor> <id> <max_s>
 #       Lo lanza `desplegar`; no se llama a mano. Cada $DRENAJE_INTERVALO s
 #       cuenta las conexiones TCP establecidas al 8080 del contenedor (las de
@@ -152,10 +156,31 @@ caddy_tiene_montaje() {
 # Transición: el Caddy anterior a P1-F2 no monta $DIR_RANURAS. Recrearlo corta
 # un instante los WebSocket (1001); los circuitos siguen vivos en su contenedor
 # y la reconexión de Blazor los recupera.
+#
+# Antes de recrearlo se valida el Caddyfile del checkout con un Caddy
+# desechable (misma imagen, mismos ficheros de ranuras, mismo DOMINIO): si no
+# valida, no se recrea, porque un Caddy que no arranca deja sin proxy a los dos
+# entornos. El Caddy nuevo arranca con --resume (compose): retoma la última
+# configuración cargada, la del Caddy anterior, y la de P1-F2 entra con la
+# recarga del relevo, que Caddy valida antes de aplicar.
+validar_caddyfile() {
+    local imagen dominio acme
+    imagen="$(docker inspect -f '{{.Config.Image}}' "$CONTENEDOR_CADDY" 2>/dev/null)" || return 1
+    dominio="$(docker exec "$CONTENEDOR_CADDY" printenv DOMINIO 2>/dev/null || true)"
+    acme="$(docker exec "$CONTENEDOR_CADDY" printenv ACME_EMAIL 2>/dev/null || true)"
+    docker run --rm -i --network none -e DOMINIO="$dominio" -e ACME_EMAIL="$acme" \
+        -v "$DIR_RANURAS:/etc/caddy/ranuras:ro" --entrypoint caddy "$imagen" \
+        validate --config /dev/stdin --adapter caddyfile < "$1"
+}
+
 asegurar_montaje_caddy() {
     docker inspect "$CONTENEDOR_CADDY" > /dev/null 2>&1 || return 0
     caddy_tiene_montaje && return 0
-    echo "Caddy sin el montaje de ranuras (anterior a P1-F2): se recrea desde docker-compose.produccion.yml."
+    echo "Caddy sin el montaje de ranuras (anterior a P1-F2): se valida el Caddyfile y se recrea desde docker-compose.produccion.yml."
+    if ! validar_caddyfile "$RAIZ_DESPLIEGUE/deploy/local/Caddyfile"; then
+        echo "El Caddyfile del checkout no valida: no se recrea Caddy (sigue el anterior)." >&2
+        return 1
+    fi
     ( cd "$RAIZ_DESPLIEGUE/deploy/local" && docker compose -f docker-compose.produccion.yml up -d --no-deps --no-build caddy )
 }
 
@@ -169,23 +194,37 @@ asegurar_montaje_caddy() {
 # del checkout, y si Caddy lo acepta lo guarda como aprobado. Todo lo demás
 # (desplegar staging, cualquier drenaje) recarga con el aprobado: si no, un
 # despliegue de staging, o el checkout que dejó staging, metería en
-# producción un Caddyfile que producción no ha aprobado. Antes del primer
-# relevo de producción no hay aprobado y se usa el del checkout.
+# producción un Caddyfile que producción no ha aprobado.
+#
+# ARRANQUE: la primera vez no hay aprobado. Se usa el del checkout y se guarda
+# como aprobado, con aviso. Eso pasa una sola vez, en el primer relevo tras
+# P1-F2 —el de staging, que el procedimiento de transición hace ir primero y
+# que la coordinación revisa antes de aprobar producción— y su checkout es el
+# Caddyfile de P1-F2. Si alguien borra el aprobado, vuelve a pasar: por eso el
+# aviso.
+#
+# La copia que se va a guardar se prepara ANTES de recargar: si no se puede
+# preparar, no se recarga; y si se recarga, guardarla es un `mv` en el mismo
+# directorio. Así nunca queda aplicada una configuración que el aprobado no
+# refleje y que una recarga posterior de staging desharía.
 caddyfile_aprobado() { echo "$DIR_RANURAS/Caddyfile.aprobado"; }
 recargar_caddy() {
-    local entorno_checkout="${1:-}" fuente aprobado tmp
+    local entorno_checkout="${1:-}" fuente aprobado tmp=""
     aprobado="$(caddyfile_aprobado)"
     if [ "$entorno_checkout" = produccion ] || [ ! -f "$aprobado" ]; then
         fuente="$RAIZ_DESPLIEGUE/deploy/local/Caddyfile"
+        [ -f "$aprobado" ] || echo "::warning::no hay Caddyfile aprobado: se usa el del checkout y queda como aprobado (arranque de P1-F2)." >&2
+        tmp="$(mktemp "$DIR_RANURAS/.Caddyfile.XXXXXX")" && cp "$fuente" "$tmp" && chmod 644 "$tmp" \
+            || { rm -f "$tmp"; echo "No se pudo preparar la copia del Caddyfile aprobado: no se recarga." >&2; return 1; }
     else
         fuente="$aprobado"
     fi
-    docker exec -i "$CONTENEDOR_CADDY" caddy reload --config /dev/stdin --adapter caddyfile < "$fuente" || return 1
-    if [ "$entorno_checkout" = produccion ]; then
-        tmp="$(mktemp "$DIR_RANURAS/.Caddyfile.XXXXXX")"
-        cp "$fuente" "$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$aprobado" \
-            || echo "::warning::no se pudo guardar el Caddyfile aprobado; las recargas de staging usarán el anterior." >&2
+    if ! docker exec -i "$CONTENEDOR_CADDY" caddy reload --config /dev/stdin --adapter caddyfile < "$fuente"; then
+        [ -n "$tmp" ] && rm -f "$tmp"
+        return 1
     fi
+    [ -n "$tmp" ] && mv -f "$tmp" "$aprobado"
+    return 0
 }
 
 detener_drenaje_previo() {
@@ -200,10 +239,12 @@ lanzar_drenaje() {
         # Unidad transitoria: sobrevive al fin de la sesión SSH del despliegue,
         # deja su salida en journald y su nombre fijo impide dos drenajes del
         # mismo entorno a la vez.
+        # `|| return 1` explícito: se llama a la izquierda de `||`, donde
+        # errexit no actúa, y sin él un fallo acababa en «lanzado».
         systemd-run --unit "$(unidad_drenaje "$entorno")" --collect --quiet \
             --setenv=RAIZ_DESPLIEGUE="$RAIZ_DESPLIEGUE" --setenv=DIR_RANURAS="$DIR_RANURAS" \
             --setenv=CONTENEDOR_CADDY="$CONTENEDOR_CADDY" --setenv=DRENAJE_INTERVALO="$DRENAJE_INTERVALO" \
-            bash "$GUION_RELEVO" drenar "$entorno" "$contenedor" "$id" "$max"
+            bash "$GUION_RELEVO" drenar "$entorno" "$contenedor" "$id" "$max" || return 1
         echo "Drenaje de $contenedor lanzado (máx. ${max} s): journalctl -u $(unidad_drenaje "$entorno")"
     else
         # 9>&-: el hijo no debe heredar el cerrojo de despliegue que tiene quien
@@ -227,14 +268,17 @@ desplegar() {
     args=(-f "docker-compose.$entorno.yml")
     [ "$entorno" = staging ] && args+=(--env-file .env.staging)
 
-    # La que sirve de verdad: la primera del fichero que esté en marcha. Si la
-    # activa murió y queda una saliente viva (Caddy ya la usa por el
+    # La que sirve de verdad: la primera del fichero que esté SANA (en marcha
+    # y healthy); si ninguna lo está, la primera en marcha. Si la activa murió
+    # o no responde y queda una saliente sana (Caddy ya la usa por el
     # reintento), esa es la que hay que conservar, y la nueva va en la ranura
-    # de la muerta, no en la de la viva.
-    local candidata
+    # de la otra, no en la de la sana.
+    local candidata primera_en_marcha=""
     for candidata in $(ranuras_en_fichero "$entorno"); do
-        if en_marcha "$candidata"; then activa_="$candidata"; break; fi
+        if sana "$candidata"; then activa_="$candidata"; break; fi
+        [ -z "$primera_en_marcha" ] && en_marcha "$candidata" && primera_en_marcha="$candidata"
     done
+    [ -n "$activa_" ] || activa_="$primera_en_marcha"
     if [ -z "$activa_" ] && [ ! -f "$(fichero_ranuras "$entorno")" ] && en_marcha "$(prefijo "$entorno")"; then
         activa_="$(prefijo "$entorno")"   # sin fichero: el contenedor único anterior a P1-F2
     fi
@@ -248,26 +292,19 @@ desplegar() {
     asegurar_ficheros_ranuras
     asegurar_montaje_caddy
 
-    # Salientes de un relevo anterior que siguen en el fichero: la ranura libre
-    # si aún drenaba, o cualquiera cuyo drenaje ya no corre (p. ej. tras
-    # reiniciar el VPS: Docker la levanta y nadie la retira). Se sacan de Caddy
-    # y se paran ahora; la libre la recrea el `up`. Sin una activa sana no se
-    # toca ninguna: pueden ser lo único que sirve.
-    detener_drenaje_previo "$entorno"
+    # Salientes de un relevo anterior que siguen en el fichero (la ranura libre
+    # si aún drenaba, o una cuyo drenaje murió, p. ej. tras reiniciar el VPS).
+    # ANTES del up solo se saca de Caddy la ranura libre, porque el up la
+    # recrea, y solo con una activa sana. Las demás se paran DESPUÉS de
+    # conmutar: si la nueva no llega a sana, siguen ahí (pueden ser lo único
+    # que sirve). El drenaje anterior no se para aquí: solo actúa bajo el
+    # cerrojo, que tiene este despliegue, y si su contenedor se recrea, lo
+    # detecta por el Id y termina.
     previas="$(ranuras_en_fichero "$entorno" | grep -vx -- "${activa_:-<ninguna>}" || true)"
-    if [ -n "$previas" ] && [ -n "$activa_" ]; then
-        escribir_ranuras "$entorno" "$activa_"
-        recargar_caddy "$entorno" || echo "::warning::no se pudo recargar Caddy al retirar las salientes anteriores; la cookie vieja reintentará en la activa."
-        for previa in $previas; do
-            [ "$previa" = "$activa_" ] && continue
-            [ "$previa" = "$cont_nueva" ] && continue
-            echo "Saliente anterior sin drenaje en marcha: se retira $previa."
-            docker stop -t 30 "$previa" > /dev/null 2>&1 || true
-            case "$previa" in
-                *-azul|*-verde) ;;
-                *) docker rm "$previa" > /dev/null 2>&1 || true ;;
-            esac
-        done
+    if [ -n "$activa_" ] && sana "$activa_" && [[ $'\n'"$previas"$'\n' == *$'\n'"$cont_nueva"$'\n'* ]]; then
+        escribir_ranuras "$entorno" "$activa_" \
+            $(printf '%s\n' "$previas" | grep -vx -- "$cont_nueva" | awk 'NR == 1')
+        recargar_caddy "$entorno" || echo "::warning::no se pudo recargar Caddy al sacar $cont_nueva, que se va a recrear; la cookie vieja reintentará en la activa."
     fi
 
     cd "$RAIZ_DESPLIEGUE/deploy/local"
@@ -286,23 +323,47 @@ desplegar() {
         return 1
     fi
 
+    local -a antes
+    mapfile -t antes < <(ranuras_en_fichero "$entorno")
     escribir_ranuras "$entorno" "$cont_nueva" "$activa_"
     if ! recargar_caddy "$entorno"; then
-        echo "Caddy no aceptó la conmutación a $cont_nueva: se restaura ${activa_:-<ninguna>}." >&2
-        if [ -n "$activa_" ]; then
-            escribir_ranuras "$entorno" "$activa_"
-            recargar_caddy || echo "::warning::tampoco se pudo recargar Caddy con la ranura anterior: revisa 'docker logs $CONTENEDOR_CADDY'." >&2
+        echo "Caddy no aceptó la conmutación a $cont_nueva: se restaura el fichero de ranuras anterior." >&2
+        if [ "${#antes[@]}" -gt 0 ]; then
+            escribir_ranuras "$entorno" "${antes[0]}" "${antes[1]:-}"
+            recargar_caddy || echo "::warning::tampoco se pudo recargar Caddy con las ranuras anteriores: revisa 'docker logs $CONTENEDOR_CADDY'." >&2
         fi
         docker stop "$cont_nueva" > /dev/null 2>&1 || true
         return 1
     fi
     echo "Caddy conmutado: $entorno sirve $cont_nueva (caemanager:$sha)."
 
+    # Salientes de relevos anteriores que no son la activa ni la nueva: ya
+    # fuera de Caddy, se paran ahora que la nueva sirve.
+    for previa in $previas; do
+        [ "$previa" = "$cont_nueva" ] && continue
+        echo "Saliente de un relevo anterior: se retira $previa."
+        docker stop -t 30 "$previa" > /dev/null 2>&1 \
+            || echo "::warning::no se pudo parar $previa: sigue en marcha fuera de Caddy; párala a mano."
+        case "$previa" in
+            *-azul|*-verde) ;;
+            *) docker rm "$previa" > /dev/null 2>&1 || true ;;
+        esac
+    done
+
     if [ -n "$activa_" ]; then
+        detener_drenaje_previo "$entorno"
         id_activa="$(id_de "$activa_")"
         lanzar_drenaje "$entorno" "$activa_" "$id_activa" \
             || echo "::warning::no se pudo lanzar el drenaje de $activa_: sigue en marcha y con sus circuitos; páralo a mano cuando se vacíe (runbook)."
     fi
+}
+
+# Recarga Caddy con el fichero de ranuras tal como está y el Caddyfile
+# aprobado. Para cuando el fichero y la configuración cargada pueden no
+# coincidir (un relevo interrumpido entre escribir y recargar): la usa
+# volver-atras.sh antes de dar por buena una ranura que ya figura como activa.
+recargar() {
+    recargar_caddy
 }
 
 # Conexiones TCP establecidas al 8080 del contenedor, sin las de loopback
@@ -344,7 +405,13 @@ retirar_saliente() {
     fi
     escribir_ranuras "$entorno" "$a"
     recargar_caddy || echo "::warning::no se pudo recargar Caddy al retirar $contenedor; la cookie vieja reintentará en la activa." >&2
-    docker stop -t 30 "$contenedor" > /dev/null
+    # `if !` explícito: esta función se llama a la izquierda de `&&`, donde
+    # errexit no actúa, y un stop fallido acababa en «retirado».
+    if ! docker stop -t 30 "$contenedor" > /dev/null; then
+        echo "::warning::no se pudo parar $contenedor: se reintenta en la próxima vuelta." >&2
+        exec 9>&-
+        return 1
+    fi
     case "$contenedor" in
         *-azul|*-verde) ;;
         *) docker rm "$contenedor" > /dev/null ;;   # anterior a P1-F2: sin servicio en el compose
@@ -380,12 +447,15 @@ main_relevo() {
         activa)
             es_entorno "${2:-}" && [ $# -eq 2 ] || { echo "uso: relevo-app.sh activa <staging|produccion>" >&2; exit 2; }
             activa "$2" ;;
+        recargar)
+            es_entorno "${2:-}" && [ $# -eq 2 ] || { echo "uso: relevo-app.sh recargar <staging|produccion>" >&2; exit 2; }
+            recargar ;;
         drenar)
             es_entorno "${2:-}" && [ -n "${3:-}" ] && [ -n "${4:-}" ] && [[ "${5:-}" =~ ^[0-9]+$ ]] && [ $# -eq 5 ] \
                 || { echo "uso: relevo-app.sh drenar <entorno> <contenedor> <id> <max_s>" >&2; exit 2; }
             drenar "$2" "$3" "$4" "$5" ;;
         *)
-            echo "uso: relevo-app.sh <desplegar|activa|drenar> ..." >&2; exit 2 ;;
+            echo "uso: relevo-app.sh <desplegar|activa|recargar|drenar> ..." >&2; exit 2 ;;
     esac
 }
 

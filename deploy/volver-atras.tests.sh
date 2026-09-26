@@ -76,6 +76,7 @@ cat > "$TMP/bin/relevo-app.sh" <<'EOF'
 #!/bin/bash
 case "$1" in
   activa) [ -f "$ESTADO/contenedores/$APP" ] || exit 1; echo "$APP" ;;
+  recargar) echo "relevo recargar $2" >> "$DOCKER_LOG"; [ "${RECARGA_FALLA:-0}" = 1 ] && exit 1; exit 0 ;;
   desplegar)
     echo "relevo desplegar $2 $3" >> "$DOCKER_LOG"
     [ "${COMPOSE_FALLA:-0}" = 1 ] && exit 1
@@ -328,6 +329,11 @@ comprobar "up que no llega a sano: se detiene" 1 "$codigo"
 escenario produccion "$A"; imagen "$A"
 volver -- produccion "$A"
 comprobar "destino igual al actual y sano: nada que hacer" "0 0" "$codigo $(llamadas_up)"
+comprobar "  pero antes recarga Caddy con las ranuras (un relevo interrumpido pudo dejarlo en otra)" si \
+  "$(contiene "relevo recargar produccion" "$(cat "$DOCKER_LOG")")"
+escenario produccion "$A"; imagen "$A"
+volver RECARGA_FALLA=1 -- produccion "$A"
+comprobar "  y si la recarga falla, no da por buena la vuelta atrás" 1 "$codigo"
 comprobar "  tras comprobar /salud" 1 "$(cat "$ESTADO/salud_llamadas")"
 
 escenario produccion "$A"; imagen "$A"

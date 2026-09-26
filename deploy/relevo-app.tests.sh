@@ -48,10 +48,15 @@ case "$1" in
       *Mounts*) cat "$(c "$nombre")/montajes" 2>/dev/null; echo ;;
       "") echo "{}" ;;
     esac ;;
+  run)   # Caddy desechable que valida el Caddyfile antes de recrear el de verdad
+    cat > /dev/null
+    [ "${VALIDA_FALLA:-0}" = 1 ] && exit 1
+    exit 0 ;;
   exec)
     shift; [ "$1" = "-i" ] && shift
     nombre=$1; shift
     case "$*" in
+      "printenv"*) echo "valor-de-$2" ;;
       "caddy reload"*)
         marca="$(grep -o 'MARCA_[A-Z]*' | head -1)"; echo "FUENTE ${marca:-?}" >> "$LOG"
         [ "${RECARGA_FALLA:-0}" = 1 ] && exit 1
@@ -80,7 +85,7 @@ case "$1" in
         d="$(c "$pref-$ranura")"; mkdir -p "$d"; echo true > "$d/en_marcha"; nuevo_id > "$d/id"
         if [ "${COMPOSE_NO_CAMBIA:-0}" = 1 ]; then echo "caemanager:otra" > "$d/imagen"; else echo "caemanager:$IMAGEN_TAG" > "$d/imagen"; fi ;;
     esac ;;
-  stop) nombre="${*: -1}"; [ -d "$(c "$nombre")" ] && echo false > "$(c "$nombre")/en_marcha" ;;
+  stop) nombre="${*: -1}"; [ "${STOP_FALLA:-}" = "$nombre" ] && exit 1; [ -d "$(c "$nombre")" ] && echo false > "$(c "$nombre")/en_marcha" ;;
   rm) rm -rf "$(c "$2")" ;;
   logs) ;;
 esac
@@ -89,6 +94,8 @@ EOF
 cat > "$TMP/bin/systemd-run" <<'EOF'
 #!/bin/bash
 echo "systemd-run $*" >> "$LOG"
+[ "${SYSTEMD_FALLA:-0}" = 1 ] && exit 1
+exit 0
 EOF
 cat > "$TMP/bin/systemctl" <<'EOF'
 #!/bin/bash
@@ -159,6 +166,7 @@ comprobar "el valor por defecto de DIR_RANURAS es ese directorio" 1 \
 cierre="$(sed -n 's/^\tstream_close_delay \([0-9]*\)m$/\1/p; s/^\tstream_close_delay \([0-9]*\)h$/\1*60/p' "$CADDYFILE")"; cierre="$(( ${cierre:-0} ))"
 max_prod="$(sed -n 's/^DRENAJE_MAX_PRODUCCION="${DRENAJE_MAX_PRODUCCION:-\([0-9]*\)}"$/\1/p' "$GUION")"
 max_stg="$(sed -n 's/^DRENAJE_MAX_STAGING="${DRENAJE_MAX_STAGING:-\([0-9]*\)}"$/\1/p' "$GUION")"
+comprobar "stream_close_delay es de al menos 12 h (cada recarga fuerza una reconexión al vencer): ${cierre:-?} min" si "$([ "$cierre" -ge 720 ] && echo si || echo no)"
 comprobar "stream_close_delay (${cierre:-?} min) supera los drenajes máximos (${max_prod:-?} s, ${max_stg:-?} s)" si \
   "$([ -n "$cierre" ] && [ -n "$max_prod" ] && [ -n "$max_stg" ] && [ $(( cierre * 60 )) -gt "$max_prod" ] && [ $(( cierre * 60 )) -gt "$max_stg" ] && echo si || echo no)"
 comprobar "el Caddyfile fija la afinidad por cookie con respaldo a la primera" 1 "$(grep -cx '	lb_policy cookie talveg_ranura {' "$CADDYFILE")"
@@ -178,7 +186,7 @@ done
 comprobar "caddy ya no depende de la app" 0 "$(grep -A2 -x '    depends_on:' "$AQUI/local/docker-compose.produccion.yml" | grep -cx '      - app')"
 
 echo "argumentos"
-for args in "" "desplegar" "desplegar produccion" "desplegar pre $A" "desplegar produccion corto" "activa" "activa x" "drenar produccion c i" "drenar produccion c i x" "otra"; do
+for args in "" "desplegar" "desplegar produccion" "desplegar pre $A" "desplegar produccion corto" "activa" "activa x" "recargar" "recargar x" "drenar produccion c i" "drenar produccion c i x" "otra"; do
   limpio; relevo -- $args
   comprobar "'$args' rechazado sin tocar nada" "2 0" "$codigo $(grep -c '^docker compose' "$LOG")"
 done
@@ -223,7 +231,9 @@ relevo -- desplegar produccion "$B"
 comprobar "azul activa: la nueva es verde" "0 to caemanager-app-verde:8080 caemanager-app-azul:8080" "$codigo $(ranuras produccion)"
 comprobar "no recrea Caddy si ya tiene el montaje" 0 "$(grep -c 'no-deps --no-build caddy' "$LOG")"
 comprobar "no toca el fichero del otro entorno" "to caemanager-staging-app-azul:8080" "$(ranuras staging)"
-comprobar "para el drenaje anterior del entorno antes de empezar" si "$(contiene "systemctl stop talveg-drenaje-produccion" "$(log)")"
+l_stop_unidad="$(grep -n 'systemctl stop talveg-drenaje-produccion' "$LOG" | tail -1 | cut -d: -f1)"; l_run="$(grep -n '^systemd-run' "$LOG" | tail -1 | cut -d: -f1)"
+comprobar "para el drenaje anterior justo antes de lanzar el nuevo (no al empezar)" si \
+  "$([ -n "$l_stop_unidad" ] && [ -n "$l_run" ] && [ "$l_stop_unidad" -lt "$l_run" ] && [ "$(grep -n ' up -d --wait' "$LOG" | head -1 | cut -d: -f1)" -lt "$l_stop_unidad" ] && echo si || echo no)"
 contenedor caemanager-app-verde "$B"   # la siguiente: verde activa, azul aún drenando
 relevo -- desplegar produccion "$C"
 comprobar "la ranura que drenaba se saca de Caddy antes de recrearla" si \
@@ -281,6 +291,57 @@ fichero produccion "to caemanager-app-verde:8080 caemanager-app-azul:8080"; fich
 printf '# MARCA_APROBADO\n' > "$DIR_RANURAS/Caddyfile.aprobado"
 relevo -- drenar produccion caemanager-app-azul id-caemanager-app-azul 1800
 comprobar "el fin de un drenaje recarga el aprobado (el checkout puede ser de staging)" "FUENTE MARCA_APROBADO" "$(grep '^FUENTE' "$LOG" | tail -1)"
+
+echo "desplegar: la activa corre pero NO está sana y la saliente sí (revisión de Codex)"
+limpio; contenedor caemanager-app-azul "$A"; echo unhealthy > "$ESTADO/c/caemanager-app-azul/salud"; contenedor caemanager-app "$C"
+fichero produccion "to caemanager-app-azul:8080 caemanager-app:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo COMPOSE_FALLA=1 -- desplegar produccion "$B"
+comprobar "la sana se conserva como activa y, si la nueva falla, sigue sirviendo" "1 true to caemanager-app:8080" \
+  "$codigo $(en_marcha caemanager-app) $(ranuras produccion)"
+limpio; contenedor caemanager-app-azul "$A"; echo unhealthy > "$ESTADO/c/caemanager-app-azul/salud"; contenedor caemanager-app "$C"
+fichero produccion "to caemanager-app-azul:8080 caemanager-app:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo -- desplegar produccion "$B"
+comprobar "  y si la nueva llega a sana, la nueva va en la ranura de la no sana y la sana drena" \
+  "0 to caemanager-app-azul:8080 caemanager-app:8080 caemanager:$B" "$codigo $(ranuras produccion) $(cat "$ESTADO/c/caemanager-app-azul/imagen")"
+
+echo "salientes anteriores: se paran DESPUÉS de conmutar, nunca antes"
+limpio; contenedor caemanager-app-azul "$A"; contenedor caemanager-app "$C"
+fichero produccion "to caemanager-app-azul:8080 caemanager-app:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo COMPOSE_FALLA=1 -- desplegar produccion "$B"
+comprobar "si la nueva no llega a sana, la saliente anterior sigue en marcha y en Caddy" "1 true to caemanager-app-azul:8080 caemanager-app:8080" \
+  "$codigo $(en_marcha caemanager-app) $(ranuras produccion)"
+
+echo "fallos que antes acababan en éxito (errexit no actúa a la izquierda de || y &&)"
+limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo SYSTEMD_FALLA=1 -- desplegar produccion "$B"
+comprobar "systemd-run falla: se avisa de que no hay drenaje" si "$(contiene "no se pudo lanzar el drenaje de caemanager-app-azul" "$salida")"
+comprobar "  y no dice «lanzado»" 0 "$(printf '%s\n' "$salida" | grep -c 'Drenaje de caemanager-app-azul lanzado')"
+limpio; contenedor caemanager-app-verde "$B"; contenedor caemanager-app-azul "$A" true 0 0
+fichero produccion "to caemanager-app-verde:8080 caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+salida=$(STOP_FALLA=caemanager-app-azul timeout 3 bash "$GUION" drenar produccion caemanager-app-azul id-caemanager-app-azul 0 2>&1); codigo=$?
+comprobar "docker stop falla al retirar: no dice «retirado» y sigue reintentando (timeout)" "124 0 true" \
+  "$codigo $(printf '%s\n' "$salida" | grep -c 'retirado de produccion') $(en_marcha caemanager-app-azul)"
+
+echo "Caddyfile aprobado: arranque, fallo de recarga y recargar"
+limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+relevo -- desplegar staging "$B"
+comprobar "sin aprobado (arranque): usa el del checkout, lo guarda como aprobado y avisa" "FUENTE MARCA_CHECKOUT 1 si" \
+  "$(grep '^FUENTE' "$LOG" | tail -1) $(grep -c 'MARCA_CHECKOUT' "$DIR_RANURAS/Caddyfile.aprobado" 2>/dev/null || echo 0) $(contiene "no hay Caddyfile aprobado" "$salida")"
+limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo RECARGA_FALLA=1 -- desplegar produccion "$B"
+comprobar "si Caddy rechaza la recarga, el Caddyfile no queda como aprobado" "1 no" \
+  "$codigo $([ -f "$DIR_RANURAS/Caddyfile.aprobado" ] && echo si || echo no)"
+limpio; fichero produccion "to caemanager-app-verde:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+printf '# MARCA_APROBADO\n' > "$DIR_RANURAS/Caddyfile.aprobado"
+relevo -- recargar produccion
+comprobar "recargar: recarga con el aprobado" "0 FUENTE MARCA_APROBADO" "$codigo $(grep '^FUENTE' "$LOG" | tail -1)"
+
+echo "transición: el Caddyfile se valida antes de recrear Caddy"
+limpio; contenedor caemanager-app "$C"; echo "/etc/caddy/Caddyfile /data" > "$ESTADO/c/caemanager-caddy/montajes"
+relevo VALIDA_FALLA=1 -- desplegar produccion "$A"
+comprobar "no valida: no se recrea Caddy, no se arranca ranura y sigue el contenedor único" "0 0 true" \
+  "$(grep -c 'no-deps --no-build caddy' "$LOG") $(grep -c ' app-azul IMAGEN_TAG' "$LOG") $(en_marcha caemanager-app)"
+comprobar "  y el despliegue falla" si "$([ "$codigo" -ne 0 ] && echo si || echo no)"
 
 echo "desplegar: staging"
 limpio; contenedor caemanager-staging-app-verde "$A"; fichero staging "to caemanager-staging-app-verde:8080"; fichero produccion "to caemanager-app-azul:8080"
@@ -354,9 +415,9 @@ comprobar "si ya está parada, termina sin más" "0 0" "$codigo $(grep -c '^dock
 
 limpio; contenedor caemanager-app-verde "$B"; echo unhealthy > "$ESTADO/c/caemanager-app-verde/salud"; contenedor caemanager-app-azul "$A" true 0 0
 fichero produccion "to caemanager-app-verde:8080 caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
-salida=$(timeout 5 bash "$GUION" drenar produccion caemanager-app-azul id-caemanager-app-azul 0 2>&1)
-comprobar "con la activa no sana, la saliente no se retira (puede ser lo único que sirve)" "true to caemanager-app-verde:8080 caemanager-app-azul:8080" \
-  "$(en_marcha caemanager-app-azul) $(ranuras produccion)"
+salida=$(timeout 5 bash "$GUION" drenar produccion caemanager-app-azul id-caemanager-app-azul 0 2>&1); codigo=$?
+comprobar "con la activa no sana, la saliente no se retira y el drenaje sigue reintentando" "124 true to caemanager-app-verde:8080 caemanager-app-azul:8080" \
+  "$codigo $(en_marcha caemanager-app-azul) $(ranuras produccion)"
 
 echo "ci-deploy.sh y volver-atras.sh lo usan"
 comprobar "ci-deploy.sh hace el relevo en vez de un up de todo el stack" "1 0" \
@@ -379,7 +440,7 @@ if [ -z "${RELEVO_GUION:-}" ]; then
                   salida=$(RECARGA_FALLA=1 bash "$1" desplegar produccion "$B" 2>&1); codigo=$?; }
   comp_recarga() { [ "$(ranuras produccion)" != "to caemanager-app-azul:8080" ] && echo si || echo no; }
   mutar "no restaura el fichero si Caddy rechaza la conmutación" \
-    's#^            escribir_ranuras "\$entorno" "\$activa_"$#            :#' esc_recarga comp_recarga
+    's#^            escribir_ranuras "\$entorno" "\${antes\[0\]}" "\${antes\[1\]:-}"$#            :#' esc_recarga comp_recarga
 
   esc_activa() { limpio; contenedor caemanager-app-azul "$A" true 0 0; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
                  timeout 20 bash "$1" drenar produccion caemanager-app-azul id-caemanager-app-azul 1800 > /dev/null 2>&1; }

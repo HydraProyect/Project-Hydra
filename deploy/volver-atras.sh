@@ -158,6 +158,12 @@ main_volver_atras() {
         # destino no basta, tiene que responder /salud (hallazgo de Codex).
         comprobar_salud "$entorno" "$sha" \
             || detener "$entorno está configurado con ${sha} pero no está sano: no hay imagen distinta a la que volver con esta orden. Revisa los logs y decide a mano."
+        # El fichero de ranuras dice que ${sha} es la activa, pero un relevo
+        # interrumpido entre escribirlo y recargar Caddy dejaría a Caddy
+        # sirviendo otra (hallazgo de Codex): se recarga antes de decir «nada
+        # que hacer».
+        bash "$RELEVO_APP" recargar "$entorno" < /dev/null \
+            || detener "no se pudo recargar Caddy con las ranuras de $entorno: revisa 'docker logs caemanager-caddy'."
         echo "$entorno ya corre ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${sha} y /salud responde: nada que hacer."
         exit 0
     fi
