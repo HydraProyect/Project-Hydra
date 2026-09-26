@@ -148,7 +148,8 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
         if (centroIds.Count == 0) return 0;
 
         var visitaIds = await visitasContext.Visitas
-            .Where(v => centroIds.Contains(v.CentroId) && v.FechaInicio >= inicio && v.FechaInicio <= fin)
+            // FS-11: una Visita cancelada no se factura, igual que cuando cancelar era borrarla.
+            .Where(v => centroIds.Contains(v.CentroId) && !v.EstaCancelada && v.FechaInicio >= inicio && v.FechaInicio <= fin)
             .Select(v => v.Id)
             .ToListAsync(ct);
 

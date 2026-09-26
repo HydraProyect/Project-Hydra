@@ -3,8 +3,9 @@ using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciaVisitaCorre
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
-using CaeManager.Application.Visitas.Commands.EliminarVisita;
-using CaeManager.Application.Visitas.Commands.EliminarVisitas;
+using CaeManager.Application.Visitas.Commands.CancelarVisita;
+using CaeManager.Application.Visitas.Commands.CancelarVisitas;
+using CaeManager.Application.Visitas.Commands.ReactivarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
@@ -98,10 +99,19 @@ public partial class Visitas : ComponentBase
     [SupplyParameterFromQuery(Name = "fechaFin")]
     public string? FechaFinOverride { get; set; }
 
-    private bool _confirmarEliminarVisible;
-    private Guid _idAEliminar;
-    private string _centroAEliminar = string.Empty;
-    private bool _eliminando;
+    private bool _confirmarCancelarVisible;
+    private Guid _idACancelar;
+    private string _centroACancelar = string.Empty;
+    private bool _cancelando;
+
+    // FS-11: el motivo es opcional y lo comparten la cancelación individual y la del lote.
+    private string _motivoCancelacion = string.Empty;
+
+    private bool _confirmarReactivarVisible;
+    private Guid _idAReactivar;
+    private string _centroAReactivar = string.Empty;
+    private bool _reactivando;
+    private string _motivoReactivacion = string.Empty;
 
     private bool _detalleVisible;
     private bool _cargandoDetalle;
@@ -164,8 +174,8 @@ public partial class Visitas : ComponentBase
     }
     private List<VisitaListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
-    private bool _eliminandoLote;
-    private bool _confirmarEliminarLoteVisible;
+    private bool _cancelandoLote;
+    private bool _confirmarCancelarLoteVisible;
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
@@ -492,7 +502,11 @@ public partial class Visitas : ComponentBase
                 return;
             }
 
-            if (detalle.CentroRequiereGestionCae)
+            if (detalle.EstaCancelada)
+            {
+                // FS-11: sin acciones operativas que cargar para una cancelada.
+            }
+            else if (detalle.CentroRequiereGestionCae)
             {
                 if (detalle.CentroGestionadoPorCorreo)
                     await CargarSolicitudCorreoAsync(id, carga);
@@ -865,20 +879,22 @@ public partial class Visitas : ComponentBase
         }
     }
 
-    private void AbrirEliminar(Guid id, string centroNombre)
+    private void AbrirCancelar(Guid id, string centroNombre)
     {
-        _idAEliminar = id;
-        _centroAEliminar = centroNombre;
-        _confirmarEliminarVisible = true;
+        _idACancelar = id;
+        _centroACancelar = centroNombre;
+        _motivoCancelacion = string.Empty;
+        _confirmarCancelarVisible = true;
     }
 
-    private async Task ConfirmarEliminarAsync()
+    private async Task ConfirmarCancelarAsync()
     {
-        _eliminando = true;
+        _cancelando = true;
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarVisitaCommand(_idAEliminar));
+            var id = _idACancelar;
+            var resultado = await Mediator.Send(new CancelarVisitaCommand(id, _motivoCancelacion));
 
             if (resultado.EsFallido)
             {
@@ -886,18 +902,89 @@ public partial class Visitas : ComponentBase
             }
             else
             {
-                ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito);
-                _confirmarEliminarVisible = false;
+                // FS-11: el aviso ofrece deshacer, que es reactivarla sin motivo.
+                ToastService.Mostrar(Textos["ToastCancelada"], TonoToast.Exito,
+                    Textos["ToastAccionDeshacer"].Value, () => DeshacerCancelarAsync([id]));
+                _confirmarCancelarVisible = false;
                 await RecargarAsync();
             }
         }
         catch (Exception)
         {
-            ToastService.Mostrar(Textos["ToastErrorEliminar"], TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorCancelar"], TonoToast.Error);
         }
         finally
         {
-            _eliminando = false;
+            _cancelando = false;
+        }
+    }
+
+    private void AbrirReactivar(Guid id, string centroNombre)
+    {
+        _idAReactivar = id;
+        _centroAReactivar = centroNombre;
+        _motivoReactivacion = string.Empty;
+        _confirmarReactivarVisible = true;
+    }
+
+    private async Task ConfirmarReactivarAsync()
+    {
+        _reactivando = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ReactivarVisitaCommand(_idAReactivar, _motivoReactivacion));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+            }
+            else
+            {
+                ToastService.Mostrar(Textos["ToastReactivada"], TonoToast.Exito);
+                _confirmarReactivarVisible = false;
+                _detalleVisible = false;
+                await RecargarAsync();
+            }
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ToastErrorReactivar"], TonoToast.Error);
+        }
+        finally
+        {
+            _reactivando = false;
+        }
+    }
+
+    /// <summary>
+    /// «Deshacer» del aviso de cancelar (FS-11): reactiva, una a una y sin
+    /// motivo, las Visitas que se acaban de cancelar. Cada reactivación pasa por
+    /// ReactivarVisitaCommand, con la misma autorización y alcance que cancelar.
+    /// </summary>
+    private bool _deshaciendoCancelacion;
+
+    private async Task DeshacerCancelarAsync(IReadOnlyList<Guid> ids)
+    {
+        if (_deshaciendoCancelacion) return;
+        _deshaciendoCancelacion = true;
+
+        try
+        {
+            var r = await RestauracionEnLote.RestaurarAsync(ids, id => Mediator.Send(new ReactivarVisitaCommand(id)));
+
+            ToastService.Mostrar(
+                r.Errores.Count == 0
+                    ? (ids.Count == 1 ? Textos["ToastReactivada"].Value : Textos["ToastLoteReactivadas", r.Restaurados].Value)
+                    : Textos["ToastLoteReactivadasConErrores", r.Restaurados, r.Errores.Count, string.Join(" ", r.Errores)].Value,
+                r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (r.Restaurados > 0)
+                await RecargarAsync();
+        }
+        finally
+        {
+            _deshaciendoCancelacion = false;
         }
     }
 
@@ -918,32 +1005,48 @@ public partial class Visitas : ComponentBase
         else _seleccionados.Remove(id);
     }
 
-    private async Task ConfirmarEliminarLoteAsync()
+    private void AbrirCancelarLote()
     {
-        _eliminandoLote = true;
+        _motivoCancelacion = string.Empty;
+        _confirmarCancelarLoteVisible = true;
+    }
+
+    private async Task ConfirmarCancelarLoteAsync()
+    {
+        _cancelandoLote = true;
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarVisitasCommand(_seleccionados.ToList()));
-            var dto = resultado.Valor;
+            var resultado = await Mediator.Send(new CancelarVisitasCommand(_seleccionados.ToList(), _motivoCancelacion));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                return;
+            }
 
+            var dto = resultado.Valor;
+            var canceladas = dto.IdsCanceladas;
+
+            // FS-11: el aviso ofrece «Deshacer» sobre las que sí se cancelaron.
             ToastService.Mostrar(
                 dto.Errores.Count == 0
-                    ? Textos["ToastLoteEliminadas", dto.Eliminados].Value
-                    : Textos["ToastLoteParcial", dto.Eliminados, dto.Errores.Count, string.Join(" ", dto.Errores)].Value,
-                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+                    ? Textos["ToastLoteCanceladas", dto.Canceladas].Value
+                    : Textos["ToastLoteParcial", dto.Canceladas, dto.Errores.Count, string.Join(" ", dto.Errores)].Value,
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia,
+                canceladas.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
+                canceladas.Count > 0 ? () => DeshacerCancelarAsync(canceladas) : null);
 
             _seleccionados.Clear();
-            _confirmarEliminarLoteVisible = false;
+            _confirmarCancelarLoteVisible = false;
             await RecargarAsync();
         }
         catch (Exception)
         {
-            ToastService.Mostrar(Textos["ToastErrorEliminarLote"], TonoToast.Error);
+            ToastService.Mostrar(Textos["ToastErrorCancelarLote"], TonoToast.Error);
         }
         finally
         {
-            _eliminandoLote = false;
+            _cancelandoLote = false;
         }
     }
 

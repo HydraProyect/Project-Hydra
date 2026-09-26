@@ -7,7 +7,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 /// <summary>
 /// Alimenta el badge "Visita dd/mm–dd/mm" del acordeón de Centro 360
 /// (PLAN-EJECUCION-UX.md § 0.3) — proyección de Visitas, sin modelo nuevo.
-/// Por cada Centro de la lista, la visita activa (<c>FechaFin >= hoy</c>,
+/// Por cada Centro de la lista, la visita activa (no cancelada y <c>FechaFin >= hoy</c>,
 /// cubre "en curso" y "próxima") con el <c>FechaInicio</c> más cercano; si
 /// hay varias en curso a la vez para el mismo centro, se prioriza la que
 /// antes termina (la ventana de riesgo más apremiante).
@@ -30,7 +30,7 @@ public class ObtenerProximaVisitaPorCentroQueryHandler(IVisitasQueryContext visi
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
         var visitasActivas = await visitasContext.Visitas
-            .Where(v => request.CentroIds.Contains(v.CentroId) && v.FechaFin >= hoy)
+            .Where(v => request.CentroIds.Contains(v.CentroId) && !v.EstaCancelada && v.FechaFin >= hoy)
             .Select(v => new { v.Id, v.CentroId, v.FechaInicio, v.FechaFin })
             .ToListAsync(cancellationToken);
 

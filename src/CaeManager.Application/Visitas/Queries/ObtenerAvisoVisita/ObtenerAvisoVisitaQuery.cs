@@ -74,12 +74,16 @@ public class ObtenerAvisoVisitaQueryHandler(
                 EmpresaRazonSocial = empresa.RazonSocial,
                 v.FechaInicio,
                 v.FechaFin,
-                v.HoraEstimadaAcceso
+                v.HoraEstimadaAcceso,
+                v.EstaCancelada
             })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (visita is null || !await alcanceDatos.CentroParaGestionVisibleAsync(visita.CentroId, cancellationToken))
             return Result.Fallo<AvisoVisitaDto>(NoEncontrada);
+
+        if (visita.EstaCancelada)
+            return Result.Fallo<AvisoVisitaDto>(ObtenerSolicitudAccesoCorreo.ObtenerSolicitudAccesoCorreoQueryHandler.VisitaCancelada);
 
         if (visita.GestionCae != ModalidadGestionCae.SinGestionCae)
             return Result.Fallo<AvisoVisitaDto>(CentroConGestionCae);

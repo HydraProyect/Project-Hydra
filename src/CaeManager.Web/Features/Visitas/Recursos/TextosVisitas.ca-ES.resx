@@ -96,8 +96,8 @@
   <data name="AccionEditar" xml:space="preserve">
     <value>Editar</value>
   </data>
-  <data name="AccionEliminar" xml:space="preserve">
-    <value>Eliminar</value>
+  <data name="AccionCancelar" xml:space="preserve">
+    <value>Cancelar visita</value>
   </data>
   <data name="EtiquetaPaginador" xml:space="preserve">
     <value>visita(s)</value>
@@ -225,17 +225,17 @@
   <data name="BotonCerrar" xml:space="preserve">
     <value>Cerrar</value>
   </data>
-  <data name="ConfirmarEliminarTitulo" xml:space="preserve">
-    <value>¿Eliminar la visita a {0}?</value>
+  <data name="ConfirmarCancelarTitulo" xml:space="preserve">
+    <value>¿Cancelar la visita a {0}?</value>
   </data>
-  <data name="ConfirmarEliminarMensaje" xml:space="preserve">
-    <value>Se ocultará de las listas activas junto con su historia. No se puede recuperar desde la aplicación: si solo han cambiado las fechas o quién entra, edítala en lugar de eliminarla.</value>
+  <data name="ConfirmarCancelarMensaje" xml:space="preserve">
+    <value>Saldrá de Mi trabajo, del Calendario y de los contadores, pero se conserva en el historial con sus fechas, trabajadores y notas. Podrás reactivarla después.</value>
   </data>
-  <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
-    <value>¿Eliminar {0} visita(s)?</value>
+  <data name="ConfirmarCancelarLoteTitulo" xml:space="preserve">
+    <value>¿Cancelar {0} visita(s)?</value>
   </data>
-  <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas junto con su historia. No se pueden recuperar desde la aplicación.</value>
+  <data name="ConfirmarCancelarLoteMensaje" xml:space="preserve">
+    <value>Saldrán de Mi trabajo, del Calendario y de los contadores, pero se conservan en el historial. Podrás deshacerlo desde el aviso que aparecerá o reactivarlas después, una a una.</value>
   </data>
   <data name="ToastSugerenciaNoEncontrada" xml:space="preserve">
     <value>No encontramos esta sugerencia. Puede que ya se haya resuelto.</value>
@@ -291,20 +291,20 @@
   <data name="ErrorGuardar" xml:space="preserve">
     <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
   </data>
-  <data name="ToastEliminada" xml:space="preserve">
-    <value>Visita eliminada correctamente.</value>
+  <data name="ToastCancelada" xml:space="preserve">
+    <value>Visita cancelada.</value>
   </data>
-  <data name="ToastErrorEliminar" xml:space="preserve">
-    <value>No pudimos eliminar la visita. Intenta nuevamente en unos segundos.</value>
+  <data name="ToastErrorCancelar" xml:space="preserve">
+    <value>No pudimos cancelar la visita. Intenta nuevamente en unos segundos.</value>
   </data>
-  <data name="ToastLoteEliminadas" xml:space="preserve">
-    <value>{0} visita(s) eliminada(s).</value>
+  <data name="ToastLoteCanceladas" xml:space="preserve">
+    <value>{0} visita(s) cancelada(s).</value>
   </data>
   <data name="ToastLoteParcial" xml:space="preserve">
-    <value>{0} eliminada(s). {1} no se pudieron borrar: {2}</value>
+    <value>{0} cancelada(s). {1} no se pudieron cancelar: {2}</value>
   </data>
-  <data name="ToastErrorEliminarLote" xml:space="preserve">
-    <value>No pudimos eliminar las visitas seleccionadas. Intenta nuevamente.</value>
+  <data name="ToastErrorCancelarLote" xml:space="preserve">
+    <value>No pudimos cancelar las visitas seleccionadas. Intenta nuevamente.</value>
   </data>
   <data name="BadgeSinGestionCae" xml:space="preserve">
     <value>No requiere gestión CAE</value>
@@ -344,5 +344,53 @@
   </data>
   <data name="ErrorSolicitudAccesoCorreo" xml:space="preserve">
     <value>No hem pogut preparar la sol·licitud d'accés.</value>
+  </data>
+  <data name="AccionReactivar" xml:space="preserve">
+    <value>Reactivar</value>
+  </data>
+  <data name="BadgeCancelada" xml:space="preserve">
+    <value>Cancelada</value>
+  </data>
+  <data name="EtiquetaMotivoOpcional" xml:space="preserve">
+    <value>Motivo (opcional)</value>
+  </data>
+  <data name="BotonVolver" xml:space="preserve">
+    <value>Volver</value>
+  </data>
+  <data name="BotonCancelarSeleccionadas" xml:space="preserve">
+    <value>Cancelar seleccionadas</value>
+  </data>
+  <data name="ConfirmarReactivarTitulo" xml:space="preserve">
+    <value>¿Reactivar la visita a {0}?</value>
+  </data>
+  <data name="ConfirmarReactivarMensaje" xml:space="preserve">
+    <value>Vuelve a su estado anterior: activa o finalizada según sus fechas. Quedará registrado en Auditoría quién la reactivó, cuándo y por qué.</value>
+  </data>
+  <data name="ToastReactivada" xml:space="preserve">
+    <value>Visita reactivada.</value>
+  </data>
+  <data name="ToastErrorReactivar" xml:space="preserve">
+    <value>No pudimos reactivar la visita. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastLoteReactivadas" xml:space="preserve">
+    <value>{0} visita(s) reactivada(s).</value>
+  </data>
+  <data name="ToastLoteReactivadasConErrores" xml:space="preserve">
+    <value>{0} visita(s) reactivada(s); {1} no se pudieron reactivar: {2}</value>
+  </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="DetalleCancelada" xml:space="preserve">
+    <value>Visita cancelada</value>
+  </data>
+  <data name="DetalleCanceladaMotivo" xml:space="preserve">
+    <value>Visita cancelada. Motivo: {0}</value>
+  </data>
+  <data name="DetalleCanceladaSinAcciones" xml:space="preserve">
+    <value>Una visita cancelada no pide acceso ni se comprueba su documentación. Reactívala para retomarla.</value>
+  </data>
+  <data name="BotonQuitarSeleccion" xml:space="preserve">
+    <value>Quitar selección</value>
   </data>
 </root>

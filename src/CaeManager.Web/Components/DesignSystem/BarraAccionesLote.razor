@@ -11,10 +11,10 @@
             @AccionesExtra
         }
         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="Eliminando" OnClick="OnLimpiar">
-            Cancelar
+            @TextoLimpiar
         </Boton>
         <Boton Variante="VarianteBoton.Destructivo" Tamano="TamanoBoton.Pequeno" Cargando="Eliminando" OnClick="OnEliminar">
-            Eliminar seleccionados
+            @TextoAccion
         </Boton>
     </div>
 }
@@ -30,4 +30,17 @@
     /// consumidores existentes que no lo usan no cambian de comportamiento.
     /// </summary>
     [Parameter] public RenderFragment? AccionesExtra { get; set; }
+
+    /// <summary>
+    /// Rótulo de la acción del lote. «Eliminar seleccionados» por defecto; en
+    /// /visitas la acción es cancelar (FS-11), que no elimina.
+    /// </summary>
+    [Parameter] public string TextoAccion { get; set; } = "Eliminar seleccionados";
+
+    /// <summary>
+    /// Rótulo del botón que suelta la selección. «Cancelar» por defecto; se cambia
+    /// cuando la acción del lote también es «cancelar» (FS-11, /visitas), para que
+    /// los dos botones no digan lo mismo.
+    /// </summary>
+    [Parameter] public string TextoLimpiar { get; set; } = "Cancelar";
 }

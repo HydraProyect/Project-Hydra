@@ -12,7 +12,7 @@ namespace CaeManager.Application.Tests.Visitas;
 /// los Trabajadores: por eso el repositorio de la unión, el contexto de Trabajadores y el
 /// evaluador van a null — si el handler pasara la barrera, el test reventaría en vez de dar un
 /// falso verde. El camino feliz, con Trabajadores reales, se prueba en Integration
-/// (<c>EditarEliminarVisitaAlcanceCarteraBajoRlsTests</c>).
+/// (<c>EditarCancelarVisitaAlcanceCarteraBajoRlsTests</c>).
 /// </summary>
 public class EditarVisitaCommandHandlerTests
 {

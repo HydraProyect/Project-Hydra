@@ -64,6 +64,11 @@ public class ObtenerSolicitudAccesoCorreoQueryHandler(
         "SolicitudAcceso.CentroNoGestionadoPorCorreo",
         "Este centro no se gestiona por correo: el acceso se acredita en su plataforma.");
 
+    /// <summary>FS-11: una Visita cancelada no pide acceso ni sirve su paquete documental; primero se reactiva.</summary>
+    public static readonly Error VisitaCancelada = Error.Crear(
+        "Visita.Cancelada",
+        "Esta visita está cancelada. Reactívala antes de pedir acceso o de enviar su documentación.");
+
     public async Task<Result<SolicitudAccesoCorreoDto>> Handle(ObtenerSolicitudAccesoCorreoQuery request, CancellationToken cancellationToken)
     {
         var visita = await (
@@ -79,12 +84,16 @@ public class ObtenerSolicitudAccesoCorreoQueryHandler(
                 EmpresaRazonSocial = empresa.RazonSocial,
                 v.FechaInicio,
                 v.FechaFin,
-                v.HoraEstimadaAcceso
+                v.HoraEstimadaAcceso,
+                v.EstaCancelada
             })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (visita is null || !await alcanceDatos.CentroParaGestionVisibleAsync(visita.CentroId, cancellationToken))
             return Result.Fallo<SolicitudAccesoCorreoDto>(NoEncontrada);
+
+        if (visita.EstaCancelada)
+            return Result.Fallo<SolicitudAccesoCorreoDto>(VisitaCancelada);
 
         if (visita.GestionCae == ModalidadGestionCae.SinGestionCae)
             return Result.Fallo<SolicitudAccesoCorreoDto>(CentroSinGestionCae);

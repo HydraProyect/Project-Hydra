@@ -12,10 +12,19 @@ namespace CaeManager.Domain.Visitas;
 /// regla antes de que la visita ocurra. Al pasar FechaFin, la visita deja de
 /// aparecer en las vistas activas pero no se borra — igual que Asignacion
 /// con FechaBaja, el historial se conserva siempre.
+/// <para>
+/// FS-11 (auditoría UX de flujos sin salida, 2026-09-24): cancelar una Visita
+/// ya no es un borrado lógico. <see cref="Cancelar"/> la deja en estado
+/// Cancelada con un motivo opcional —fuera de Mi trabajo, del Calendario y de
+/// los contadores, pero en el historial— y <see cref="Reactivar"/> la devuelve
+/// al estado previo. Quién cancela o reactiva no se guarda aquí: lo registra la
+/// auditoría, que separa el Actor real del Usuario simulado.
+/// </para>
 /// </summary>
 public class Visita : EntidadBase
 {
     public const int LongitudMaximaNotas = 1000;
+    public const int LongitudMaximaMotivo = 500;
 
     public Guid CentroId { get; private set; }
     public DateOnly FechaInicio { get; private set; }
@@ -49,7 +58,26 @@ public class Visita : EntidadBase
     public TramoAntelacion? Tramo { get; private set; }
     public AtribucionUrgencia Atribucion { get; private set; } = AtribucionUrgencia.SinUrgencia;
 
-    public bool EstaActiva(DateOnly hoy) => FechaFin >= hoy;
+    /// <summary>FS-11: cancelada de forma reversible. Una Visita cancelada no está activa aunque su FechaFin no haya pasado.</summary>
+    public bool EstaCancelada { get; private set; }
+
+    /// <summary>Instante de la última cancelación. Null si no está cancelada.</summary>
+    public DateTime? CanceladaEnUtc { get; private set; }
+
+    /// <summary>Motivo opcional de la última cancelación. Null si no está cancelada o no se dio.</summary>
+    public string? MotivoCancelacion { get; private set; }
+
+    /// <summary>
+    /// Instante de la última reactivación. Null si no se ha reactivado desde la
+    /// última cancelación. Existe para que el registro de auditoría de la
+    /// reactivación lleve fecha y motivo propios, no solo la cancelación que deshace.
+    /// </summary>
+    public DateTime? ReactivadaEnUtc { get; private set; }
+
+    /// <summary>Motivo opcional de la última reactivación.</summary>
+    public string? MotivoReactivacion { get; private set; }
+
+    public bool EstaActiva(DateOnly hoy) => !EstaCancelada && FechaFin >= hoy;
 
     /// <summary>
     /// Momento de entrada normalizado a <see cref="DateTime"/> para poder restarlo de los
@@ -112,6 +140,52 @@ public class Visita : EntidadBase
         Tramo = antelacion.Tramo;
         Atribucion = antelacion.Atribucion;
         return true;
+    }
+
+    /// <summary>
+    /// Cancela la Visita. Se conserva con sus fechas, trabajadores y notas; solo
+    /// deja de estar activa. Lanza si ya estaba cancelada: cancelar dos veces
+    /// pisaría la fecha y el motivo de la primera.
+    /// </summary>
+    public void Cancelar(DateTime ahoraUtc, string? motivo)
+    {
+        if (EstaCancelada)
+            throw new InvalidOperationException("La visita ya está cancelada.");
+
+        // El motivo se valida antes de tocar el estado: un motivo inválido no
+        // puede dejar la Visita a medio cancelar.
+        var motivoNormalizado = NormalizarMotivo(motivo, nameof(motivo));
+        EstaCancelada = true;
+        CanceladaEnUtc = ahoraUtc;
+        MotivoCancelacion = motivoNormalizado;
+        ReactivadaEnUtc = null;
+        MotivoReactivacion = null;
+    }
+
+    /// <summary>
+    /// Deshace la cancelación y devuelve la Visita al estado previo: activa o
+    /// finalizada según sus fechas, que cancelar no tocó. Lanza si no estaba cancelada.
+    /// </summary>
+    public void Reactivar(DateTime ahoraUtc, string? motivo)
+    {
+        if (!EstaCancelada)
+            throw new InvalidOperationException("La visita no está cancelada.");
+
+        var motivoNormalizado = NormalizarMotivo(motivo, nameof(motivo));
+        EstaCancelada = false;
+        CanceladaEnUtc = null;
+        MotivoCancelacion = null;
+        ReactivadaEnUtc = ahoraUtc;
+        MotivoReactivacion = motivoNormalizado;
+    }
+
+    private static string? NormalizarMotivo(string? motivo, string parametro)
+    {
+        var limpio = string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim();
+        if (limpio is not null && limpio.Length > LongitudMaximaMotivo)
+            throw new ArgumentException($"El motivo no puede superar {LongitudMaximaMotivo} caracteres.", parametro);
+
+        return limpio;
     }
 
     private void EstablecerFechas(DateOnly fechaInicio, DateOnly fechaFin)
