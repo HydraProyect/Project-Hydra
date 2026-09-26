@@ -152,8 +152,10 @@ public class RolesGen2Tests : BunitContext
     /// </summary>
     private sealed class GestionCuentasControlada(
         UserManager<ApplicationUser> userManager, DirectorioUsuariosTenant directorio, FuenteRolesFalsa fuente)
-        : GestionCuentasUsuarioIdentity(userManager, new PuertaAccesoDatos(), directorio)
+        : GestionCuentasUsuarioIdentity(userManager, new PuertaAccesoDatos(), directorio, ContextoSinProveedor())
     {
+        // El contexto del arnés no tiene proveedor: no hay nada rastreado que soltar.
+        protected override void DesengancharCuenta(Guid usuarioId) { }
         public override Task<bool> EsPropiaDelTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default)
         {
             fuente.ConsultasDePropiedad.Add(usuarioId);
@@ -268,6 +270,11 @@ public class RolesGen2Tests : BunitContext
     /// pasan por <see cref="FuenteRolesFalsa"/>). Se construye de verdad, sin
     /// proveedor de base de datos: si alguien lo consultara, lanzaría.
     /// </summary>
+    private static CaeManagerDbContext ContextoSinProveedor() => new(
+        new DbContextOptionsBuilder<CaeManagerDbContext>().Options,
+        DataProtectionProvider.Create(nameof(RolesGen2Tests)),
+        new TenantActualFalso());
+
     private static DirectorioUsuariosTenant CrearDirectorio()
     {
         var tenantActual = new TenantActualFalso();

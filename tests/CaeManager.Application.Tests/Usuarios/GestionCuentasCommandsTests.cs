@@ -193,6 +193,19 @@ public class GestionCuentasCommandsTests
         puerto.Escrituras.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task No_se_asigna_un_segundo_rol_a_una_cuenta_que_ya_tiene_uno()
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") };
+
+        var resultado = await new AsignarRolACuentaCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
+            .Handle(new AsignarRolACuentaCommand(Cuenta, "Consulta"), default);
+
+        resultado.Error.Should().Be(AsignarRolACuentaCommandHandler.CuentaConRol,
+            "AddToRoleAsync añade sin quitar: la invariante es un rol por cuenta");
+        puerto.Escrituras.Should().BeEmpty();
+    }
+
     // ---------- Edición ----------
 
     [Fact]

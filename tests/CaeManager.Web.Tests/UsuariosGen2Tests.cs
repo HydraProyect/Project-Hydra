@@ -173,8 +173,10 @@ public class UsuariosGen2Tests : BunitContext
     /// </summary>
     private sealed class GestionCuentasControlada(
         UserManager<ApplicationUser> userManager, DirectorioUsuariosTenant directorio, FuenteUsuariosFalsa fuente)
-        : GestionCuentasUsuarioIdentity(userManager, new PuertaAccesoDatos(), directorio)
+        : GestionCuentasUsuarioIdentity(userManager, new PuertaAccesoDatos(), directorio, ContextoSinProveedor())
     {
+        // El contexto del arnés no tiene proveedor: no hay nada rastreado que soltar.
+        protected override void DesengancharCuenta(Guid usuarioId) { }
         public override Task<bool> EsPropiaDelTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult(fuente.EsPropia(usuarioId));
 
@@ -424,6 +426,11 @@ public class UsuariosGen2Tests : BunitContext
     /// métodos virtuales. Se construye de verdad, sin proveedor de base de
     /// datos: si alguien lo consultara, lanzaría en vez de pasar en silencio.
     /// </summary>
+    private static CaeManagerDbContext ContextoSinProveedor() => new(
+        new DbContextOptionsBuilder<CaeManagerDbContext>().Options,
+        DataProtectionProvider.Create(nameof(UsuariosGen2Tests)),
+        new TenantActualFalso());
+
     private static DirectorioUsuariosTenant CrearDirectorio()
     {
         var tenantActual = new TenantActualFalso();

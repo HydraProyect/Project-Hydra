@@ -210,7 +210,8 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         serviciosMediator.AddSingleton<IGestionCuentasUsuario>(new GestionCuentasUsuarioIdentity(
             sp.GetRequiredService<UserManager<ApplicationUser>>(),
             sp.GetRequiredService<PuertaAccesoDatos>(),
-            sp.GetRequiredService<DirectorioUsuariosTenant>()));
+            sp.GetRequiredService<DirectorioUsuariosTenant>(),
+            sp.GetRequiredService<CaeManagerDbContext>()));
         serviciosMediator.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<CrearUsuarioCommand>());
         await using var proveedorMediator = serviciosMediator.BuildServiceProvider();
 

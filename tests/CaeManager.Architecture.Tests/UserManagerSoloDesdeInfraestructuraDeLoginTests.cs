@@ -88,6 +88,15 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
         "src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor.cs",
     ];
 
+    /// <summary>
+    /// El puerto no autoriza nada (lo dice su propio contrato): inyectarlo desde Web
+    /// sería el mismo atajo que <c>UserManager</c> con otro nombre, saltándose los
+    /// handlers que deciden (revisión puente de P1-I2). Web llega a él solo por
+    /// <c>IMediator</c>.
+    /// </summary>
+    private static readonly Regex NombraElPuertoDeCuentas = new(
+        @"\b(?:IGestionCuentasUsuario|GestionCuentasUsuarioIdentity)\b", RegexOptions.Compiled);
+
     private static readonly Regex NombraUnGestorDeIdentity = new(
         @"\b(?:UserManager|SignInManager|RoleManager)\s*<", RegexOptions.Compiled);
 
@@ -121,7 +130,20 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
             "crear, editar, activar, eliminar y dar rol a una cuenta van por los Commands de Usuarios/Commands (P1-I2)");
     }
 
-    private static List<string> FicherosDeWebQueNombranUnGestor()
+    [Fact]
+    public void Web_no_nombra_el_puerto_de_cuentas_que_no_autoriza()
+    {
+        var conPuerto = FicherosDeWeb().Where(r => NombraElPuertoDeCuentas.IsMatch(SinComentarios(r))).ToList();
+
+        conPuerto.Should().BeEmpty(
+            "IGestionCuentasUsuario ejecuta sobre la cuenta que le digan: fuera de los handlers de " +
+            "Usuarios/Commands es UserManager con otro nombre");
+    }
+
+    private static List<string> FicherosDeWebQueNombranUnGestor() =>
+        FicherosDeWeb().Where(r => NombraUnGestorDeIdentity.IsMatch(SinComentarios(r))).ToList();
+
+    private static List<string> FicherosDeWeb()
     {
         var raiz = RaizDelRepositorio();
         var web = Path.Combine(raiz, "src", "CaeManager.Web");
@@ -131,7 +153,6 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
             .Where(a => a.EndsWith(".cs", StringComparison.Ordinal) || a.EndsWith(".razor", StringComparison.Ordinal))
             .Where(a => !a.Contains($"{separador}obj{separador}") && !a.Contains($"{separador}bin{separador}"))
             .Select(a => Path.GetRelativePath(raiz, a).Replace(separador, '/'))
-            .Where(r => NombraUnGestorDeIdentity.IsMatch(SinComentarios(r)))
             .OrderBy(r => r, StringComparer.Ordinal)
             .ToList();
     }

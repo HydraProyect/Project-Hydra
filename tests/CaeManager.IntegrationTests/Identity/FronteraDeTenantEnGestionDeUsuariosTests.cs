@@ -247,6 +247,52 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             "eliminar la cuenta de un Operador Delegado desde el tenant que opera borraría un usuario real de otra organización");
     }
 
+    /// <summary>
+    /// Revisión puente de P1-I2: el <c>DbContext</c> del circuito ya tiene rastreada
+    /// la cuenta desde que la lista se pintó. Si entretanto su sello de concurrencia
+    /// cambia —la persona abre la aplicación y <c>ActividadUsuarioService</c> la
+    /// actualiza—, desactivarla con la instancia rastreada fallaría por concurrencia:
+    /// justo la cuenta en uso, que es el caso de seguridad. El adaptador la lee en
+    /// fresco antes de escribir.
+    /// </summary>
+    [Fact]
+    public async Task Desactivar_una_cuenta_cuyo_sello_cambio_tras_pintar_la_lista_se_escribe()
+    {
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        Guid cuentaEnUso;
+        using (var alta = _servicios.CreateScope())
+            cuentaEnUso = await CrearAsync(
+                alta.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(), "en-uso@x.test", _tenantPropio, Roles.GestorCae);
+
+        using var circuito = _servicios.CreateScope();
+        var sp = circuito.ServiceProvider;
+        (await sp.GetRequiredService<DirectorioUsuariosTenant>().ObtenerVisiblesAsync())
+            .Select(u => u.Id).Should().Contain(cuentaEnUso, "premisa: la lista deja la cuenta rastreada en el contexto del circuito");
+
+        using (var otroCircuito = _servicios.CreateScope())
+        {
+            var usuarios = otroCircuito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var cuenta = await usuarios.FindByIdAsync(cuentaEnUso.ToString());
+            cuenta!.UltimaActividadUtc = DateTime.UtcNow;
+            (await usuarios.UpdateAsync(cuenta)).Succeeded.Should().BeTrue("premisa: el sello de concurrencia cambia en la base");
+        }
+
+        var cuentas = new GestionCuentasUsuarioIdentity(
+            sp.GetRequiredService<UserManager<ApplicationUser>>(),
+            sp.GetRequiredService<PuertaAccesoDatos>(),
+            sp.GetRequiredService<DirectorioUsuariosTenant>(),
+            sp.GetRequiredService<CaeManagerDbContext>());
+        var resultado = await new CambiarActivacionUsuarioCommandHandler(
+                cuentas, new AdministradorEnSuTenant(_actorAdministrador, sp.GetRequiredService<ITenantActual>()))
+            .Handle(new CambiarActivacionUsuarioCommand(cuentaEnUso, Activar: false), default);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+        using var comprobacion = _servicios.CreateScope();
+        var tras = await comprobacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()
+            .FindByIdAsync(cuentaEnUso.ToString());
+        tras!.LockoutEnd.Should().NotBeNull("la cuenta en uso queda desactivada");
+    }
+
     private static PaginaUsuarios CrearPagina(
         IServiceProvider servicios, Guid actorId, bool esAdministrador, EmailServiceEspia? emailService = null)
     {
@@ -265,7 +311,8 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         var cuentas = new GestionCuentasUsuarioIdentity(
             servicios.GetRequiredService<UserManager<ApplicationUser>>(),
             servicios.GetRequiredService<PuertaAccesoDatos>(),
-            servicios.GetRequiredService<DirectorioUsuariosTenant>());
+            servicios.GetRequiredService<DirectorioUsuariosTenant>(),
+            servicios.GetRequiredService<CaeManagerDbContext>());
         var tenantActual = servicios.GetRequiredService<ITenantActual>();
         EscribirPropiedadInyectada(pagina, "Mediator",
             new MediatorDeCuentas(cuentas, new AdministradorEnSuTenant(actorId, tenantActual), tenantActual));

@@ -3,8 +3,10 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Usuarios;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Infrastructure.Identity;
 
@@ -15,11 +17,23 @@ namespace CaeManager.Infrastructure.Identity;
 /// componentes del layout sobre el mismo <c>CaeManagerDbContext</c> del circuito.
 /// Las dos lecturas de directorio son virtuales para que los tests de página las
 /// sustituyan sin base de datos.
+///
+/// <para>
+/// <b>Cada operación lee la cuenta en fresco</b> (<see cref="CargarEnFrescoAsync"/>),
+/// igual que <see cref="SegundoFactorDeCuentasIdentity"/>. El <c>DbContext</c> del
+/// circuito ya tiene rastreada la cuenta desde que <c>/usuarios</c> pintó la lista, y
+/// <c>FindByIdAsync</c> devolvería esa instancia: con el <c>ConcurrencyStamp</c> de
+/// entonces, desactivar una cuenta en uso —cuyo sello cambia cada vez que abre un
+/// circuito— fallaría por concurrencia y dejaría la entidad modificada en el
+/// contexto; y «pendiente de activación» se decidiría con un <c>PasswordHash</c>
+/// caducado (revisión puente de P1-I2).
+/// </para>
 /// </remarks>
 public class GestionCuentasUsuarioIdentity(
     UserManager<ApplicationUser> userManager,
     PuertaAccesoDatos puertaAccesoDatos,
-    DirectorioUsuariosTenant directorio)
+    DirectorioUsuariosTenant directorio,
+    CaeManagerDbContext contexto)
     : IGestionCuentasUsuario
 {
     private static readonly Error ErrorCuentaNoEncontrada =
@@ -28,7 +42,7 @@ public class GestionCuentasUsuarioIdentity(
     public Task<CuentaUsuario?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {
-            var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+            var usuario = await CargarEnFrescoAsync(usuarioId);
             if (usuario is null) return null;
 
             var roles = await userManager.GetRolesAsync(usuario);
@@ -88,7 +102,7 @@ public class GestionCuentasUsuarioIdentity(
     public Task<Result> AsignarRolAsync(Guid usuarioId, string rol, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {
-            var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+            var usuario = await CargarEnFrescoAsync(usuarioId);
             if (usuario is null) return Result.Fallo(ErrorCuentaNoEncontrada);
 
             var resultado = await userManager.AddToRoleAsync(usuario, rol);
@@ -98,7 +112,7 @@ public class GestionCuentasUsuarioIdentity(
     public Task<Result> ActualizarDatosAsync(Guid usuarioId, DatosCuentaUsuario datos, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {
-            var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+            var usuario = await CargarEnFrescoAsync(usuarioId);
             if (usuario is null) return Result.Fallo(ErrorCuentaNoEncontrada);
 
             usuario.NombreCompleto = datos.NombreCompleto;
@@ -113,7 +127,7 @@ public class GestionCuentasUsuarioIdentity(
     public Task<ResultadoCambioRol> CambiarRolAsync(Guid usuarioId, string rolNuevo, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {
-            var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+            var usuario = await CargarEnFrescoAsync(usuarioId);
             if (usuario is null) return new ResultadoCambioRol(DesenlaceCambioRol.NoEncontrada);
 
             var rolesActuales = await userManager.GetRolesAsync(usuario);
@@ -137,7 +151,7 @@ public class GestionCuentasUsuarioIdentity(
     public Task<Result> CambiarActivacionAsync(Guid usuarioId, bool activar, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {
-            var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+            var usuario = await CargarEnFrescoAsync(usuarioId);
             if (usuario is null) return Result.Fallo(ErrorCuentaNoEncontrada);
 
             // Desactivar rota además el security stamp, en la misma escritura (ver
@@ -155,7 +169,7 @@ public class GestionCuentasUsuarioIdentity(
     public Task<Result> EliminarAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {
-            var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+            var usuario = await CargarEnFrescoAsync(usuarioId);
             if (usuario is null) return Result.Fallo(ErrorCuentaNoEncontrada);
 
             var resultado = await userManager.DeleteAsync(usuario);
@@ -165,12 +179,30 @@ public class GestionCuentasUsuarioIdentity(
     public Task<Result<string>> GenerarTokenActivacionAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {
-            var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+            var usuario = await CargarEnFrescoAsync(usuarioId);
             if (usuario is null) return Result.Fallo<string>(ErrorCuentaNoEncontrada);
 
             var token = await userManager.GeneratePasswordResetTokenAsync(usuario);
             return Result.Exito(WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token)));
         }, cancellationToken);
+
+    private async Task<ApplicationUser?> CargarEnFrescoAsync(Guid usuarioId)
+    {
+        DesengancharCuenta(usuarioId);
+        return await userManager.FindByIdAsync(usuarioId.ToString());
+    }
+
+    /// <summary>
+    /// Suelta del contexto la instancia rastreada de la cuenta, si la hay, para que
+    /// la siguiente lectura venga de la base. Virtual para los tests de página, cuyo
+    /// contexto se construye sin proveedor a propósito.
+    /// </summary>
+    protected virtual void DesengancharCuenta(Guid usuarioId)
+    {
+        foreach (var entrada in contexto.ChangeTracker.Entries<ApplicationUser>()
+                     .Where(e => e.Entity.Id == usuarioId).ToList())
+            entrada.State = EntityState.Detached;
+    }
 
     /// <summary>El motivo que da Identity, en una sola línea legible.</summary>
     private static string DescribirErrores(IdentityResult resultado) =>

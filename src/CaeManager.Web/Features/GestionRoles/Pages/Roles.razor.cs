@@ -266,7 +266,8 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
                 // Un rol que no existe o una cuenta que no es de aquí dejan la
                 // lista desfasada respecto de lo que se pulsó: se recarga.
                 if (resultado.Error.Codigo == AutoridadSobreCuentas.RolDesconocido.Codigo
-                    || resultado.Error.Codigo == AutoridadSobreCuentas.NoEncontrado.Codigo)
+                    || resultado.Error.Codigo == AutoridadSobreCuentas.NoEncontrado.Codigo
+                    || resultado.Error.Codigo == AsignarRolACuentaCommandHandler.CuentaConRol.Codigo)
                     await CargarAsync();
                 return;
             }

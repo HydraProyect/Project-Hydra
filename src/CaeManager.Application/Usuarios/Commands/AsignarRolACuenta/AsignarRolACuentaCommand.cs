@@ -22,6 +22,14 @@ namespace CaeManager.Application.Usuarios.Commands.AsignarRolACuenta;
 /// un usuario de otro Tenant bastaba para cambiarle el rol; por eso la propiedad
 /// se comprueba antes de leer la cuenta.
 /// </para>
+///
+/// <para>
+/// <b>Solo a una cuenta sin rol</b>: <c>AddToRoleAsync</c> añade sin quitar, y la
+/// invariante es exactamente un rol por cuenta. Con dos pestañas de /roles abiertas,
+/// la segunda asignación sobre una lista desfasada dejaba dos roles, que
+/// <c>[Authorize(Roles = …)]</c> suma. Cambiar el rol de una cuenta que ya lo tiene
+/// es <c>EditarUsuarioCommand</c> (revisión puente de P1-I2).
+/// </para>
 /// </summary>
 public record AsignarRolACuentaCommand(Guid UsuarioId, string Rol) : ICommand<CuentaConRolAsignado>;
 
@@ -34,6 +42,9 @@ public class AsignarRolACuentaCommandHandler(
     ITenantActual tenantActual)
     : IRequestHandler<AsignarRolACuentaCommand, Result<CuentaConRolAsignado>>
 {
+    public static readonly Error CuentaConRol = Error.Crear(
+        "Usuarios.CuentaConRol", "Esta cuenta ya tiene un rol asignado; recargamos la lista.");
+
     public async Task<Result<CuentaConRolAsignado>> Handle(AsignarRolACuentaCommand request, CancellationToken cancellationToken)
     {
         if (await currentUserService.ObtenerRolEfectivoAsync() != AutoridadSobreCuentas.Administrador)
@@ -55,6 +66,9 @@ public class AsignarRolACuentaCommandHandler(
         var cuenta = await cuentas.ObtenerAsync(request.UsuarioId, cancellationToken);
         if (cuenta is null)
             return Result.Fallo<CuentaConRolAsignado>(AutoridadSobreCuentas.NoEncontrado);
+
+        if (cuenta.Roles.Count > 0)
+            return Result.Fallo<CuentaConRolAsignado>(CuentaConRol);
 
         var resultado = await cuentas.AsignarRolAsync(request.UsuarioId, request.Rol, cancellationToken);
         return resultado.EsFallido
