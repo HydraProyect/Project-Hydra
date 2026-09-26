@@ -159,7 +159,9 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
 
         _operacionA = (await OperacionConCartera(_a, _origen, _gestor, ayer, null, ayer, null)).Operacion.Id;
         await OperacionConCartera(_operacionCaducada, _origen, _gestor, ahora.AddDays(-10), ayer, ahora.AddDays(-10), null);
-        var futura = await OperacionConCartera(_operacionFutura, _origen, _gestor, ahora.AddDays(1), null, ahora.AddDays(1), null);
+        // Cartera ya vigente bajo una operación que aún no ha empezado: solo la
+        // condición de inicio de la operación la excluye.
+        var futura = await OperacionConCartera(_operacionFutura, _origen, _gestor, ahora.AddDays(1), null, ayer, null);
         var suspendida = await OperacionConCartera(_operacionSuspendida, _origen, _gestor, ayer, null, ayer, null);
         await OperacionConCartera(_carteraCaducada, _origen, _gestor, ahora.AddDays(-10), null, ahora.AddDays(-10), ayer);
         var carteraFutura = await OperacionConCartera(_carteraFutura, _origen, _gestor, ayer, null, ahora.AddDays(1), null);
@@ -177,7 +179,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         await _propietario.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE \"AsignacionesOperacion\" SET \"Estado\" = 'Vigente' WHERE \"Id\" = {futura.Operacion.Id}");
         await _propietario.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE \"AsignacionesCartera\" SET \"Estado\" = 'Vigente' WHERE \"Id\" IN ({futura.Cartera.Id}, {carteraFutura.Cartera.Id})");
+            $"UPDATE \"AsignacionesCartera\" SET \"Estado\" = 'Vigente' WHERE \"Id\" = {carteraFutura.Cartera.Id}");
         await _propietario.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE \"AsignacionesOperacion\" SET \"EsRaiz\" = TRUE WHERE \"Id\" = {_operacionRaizMalFormada}");
 
@@ -191,12 +193,24 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
                 _gestorUnico, Roles.GestorCae, AmbitoAsignacion.Universal, ayer, null, ahora));
             await _propietario.SaveChangesAsync();
         }
+        // Además, una operación INTERNA no raíz (propietario = operador = origen)
+        // con cartera: solo «propietario distinto del origen» la deja fuera de la
+        // vía de Operación.
         using (AmbitoTenantExplicito.Establecer(_origen))
         {
             var raiz = AsignacionOperacion.Raiz(_origen, ServicioCae.Outbound, ayer, ahora);
             _propietario.AsignacionesOperacion.Add(raiz);
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Interna(
                 raiz, _gestorConOrigen, AmbitoAsignacion.Universal, ayer, null, ahora, rol: Roles.GestorCae));
+            var clienteDelOrigen = Empresa.CrearComoCliente("Cliente empresarial del origen", "B10380194", false, null, null);
+            _propietario.Empresas.Add(clienteDelOrigen);
+            await _propietario.SaveChangesAsync();
+
+            var interna = AsignacionOperacion.Interna(
+                _origen, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDelOrigen.Id), ayer, null, ahora);
+            _propietario.AsignacionesOperacion.Add(interna);
+            _propietario.AsignacionesCartera.Add(AsignacionCartera.Interna(
+                interna, _gestorConOrigen, AmbitoAsignacion.DeRelacionCliente(clienteDelOrigen.Id), ayer, null, ahora));
             await _propietario.SaveChangesAsync();
         }
         using (AmbitoTenantExplicito.Establecer(_a))
@@ -254,7 +268,8 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             .ToListAsync();
 
         alcanzados.Should().BeEquivalentTo([_a],
-            "la cartera sobre la raíz del propio origen lo gestiona, pero el origen no se alcanza «por Operación»");
+            "las carteras sobre la raíz y sobre una operación interna del origen lo gestionan, pero el origen no se " +
+            "alcanza «por Operación»");
         (await TenantsBeneficiariosAutorizados.OrigenGestionadoAsync(_propietario, _gestorConOrigen, _origen, DateTime.UtcNow, default))
             .Should().BeTrue();
         (await TenantsBeneficiariosAutorizados.OrigenGestionadoAsync(_propietario, _gestor, _origen, DateTime.UtcNow, default))
