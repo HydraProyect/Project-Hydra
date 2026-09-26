@@ -6,6 +6,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
 using CaeManager.Application.Proyectos.Commands.CerrarProyecto;
 using CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
+using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
@@ -156,6 +157,7 @@ public class ProyectosGen2Tests : BunitContext
                 ObtenerTecnicosProyectoQuery q => TecnicosPorProyecto.GetValueOrDefault(q.ProyectoId) ?? TecnicosPorDefecto(),
                 DesasignarTecnicoProyectoCommand => Result.Exito(),
                 CerrarProyectoCommand => Result.Exito(),
+                ReabrirProyectoCommand => Result.Exito(),
                 ActualizarProyectoCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             };
@@ -227,6 +229,82 @@ public class ProyectosGen2Tests : BunitContext
         await fila.QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
         await BotonConTexto(cut, "[role=menuitem]", "Cerrar proyecto").ClickAsync(new MouseEventArgs());
     }
+
+    // ------------------------------------------------------------------ reabrir (FS-12)
+
+    /// <summary>
+    /// FS-12 (auditoría de flujos sin salida, 2026-09-24): tras «Cerrar proyecto» no
+    /// quedaba ninguna acción, y un cierre con fecha equivocada afecta a la
+    /// facturación por días. El proyecto cerrado ofrece «Reabrir proyecto» en el pie
+    /// del panel, y reabre justo el que muestra el panel. Reabrir borra la fecha de
+    /// cierre, así que antes se confirma nombrándola y sin confirmar no se envía nada.
+    /// </summary>
+    [Fact]
+    public async Task Un_proyecto_cerrado_se_reabre_desde_el_pie_del_panel_tras_confirmar_la_fecha_que_se_pierde()
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
+        var cut = await RenderizarConClienteAsync();
+        await AbrirDetalle(cut, ProyectoCerrado);
+
+        await BotonConTexto(cut, ".pie-panel-proyecto button", "Reabrir proyecto").ClickAsync(new MouseEventArgs());
+
+        _mediator.Enviados.OfType<ReabrirProyectoCommand>().Should().BeEmpty("el primer clic solo pide confirmación");
+        cut.Find("[role=dialog]").TextContent.Should()
+            .Contain(ProyectoCerrado.Nombre)
+            .And.Contain(ProyectoCerrado.FechaCierreReal!.Value.ToString(), "la confirmación nombra la fecha de cierre que se pierde");
+
+        await ConfirmarReapertura(cut);
+
+        _mediator.Enviados.OfType<ReabrirProyectoCommand>().Should().ContainSingle()
+            .Which.Id.Should().Be(ProyectoCerrado.Id, "se reabre el proyecto que muestra el panel");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Exito)
+            .Which.Mensaje.Should().StartWith("Proyecto reabierto");
+    }
+
+    [Fact]
+    public async Task Un_proyecto_cerrado_se_reabre_desde_el_menu_de_su_fila_y_uno_abierto_no_lo_ofrece()
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
+        var cut = await RenderizarConClienteAsync();
+
+        async Task<List<string>> OpcionesDeLaFila(ProyectoListaDto proyecto)
+        {
+            var fila = cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim() == proyecto.Nombre);
+            await fila.QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
+            // Releer la fila tras el clic: el menú se pinta dentro de ella.
+            fila = cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim() == proyecto.Nombre);
+            return fila.QuerySelectorAll("[role=menuitem]").Select(m => m.TextContent.Trim()).ToList();
+        }
+
+        (await OpcionesDeLaFila(ProyectoAbierto)).Should().Contain("Cerrar proyecto").And.NotContain("Reabrir proyecto");
+        (await OpcionesDeLaFila(ProyectoCerrado)).Should().Contain("Reabrir proyecto").And.NotContain("Cerrar proyecto");
+
+        await cut.FindAll("[role=menuitem]").Single(m => m.TextContent.Trim() == "Reabrir proyecto").ClickAsync(new MouseEventArgs());
+        await ConfirmarReapertura(cut);
+
+        _mediator.Enviados.OfType<ReabrirProyectoCommand>().Should().ContainSingle()
+            .Which.Id.Should().Be(ProyectoCerrado.Id);
+    }
+
+    [Fact]
+    public async Task Consulta_no_ve_reabrir_en_un_proyecto_cerrado()
+    {
+        this.ConRolDeEscritura(Roles.Consulta);
+        _mediator.Proyectos = [ProyectoCerrado];
+        var cut = await RenderizarConClienteAsync();
+        await AbrirDetalle(cut, ProyectoCerrado);
+
+        cut.FindAll("aside.panel-proyecto button").Select(b => b.TextContent.Trim()).Should().NotContain("Reabrir proyecto");
+
+        var fila = cut.Find("tbody tr");
+        await fila.QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
+        var opciones = cut.Find("tbody tr").QuerySelectorAll("[role=menuitem]").Select(m => m.TextContent.Trim()).ToList();
+        opciones.Should().NotBeEmpty("el menú de la fila tiene que haberse abierto para que su ausencia signifique algo");
+        opciones.Should().NotContain("Reabrir proyecto");
+    }
+
+    private static Task ConfirmarReapertura(IRenderedComponent<Proyectos> cut) =>
+        BotonConTexto(cut, "[role=dialog] .modal-pie button", "Reabrir proyecto").ClickAsync(new MouseEventArgs());
 
     /// <summary>El botón que confirma, dentro del modal: el pie del panel lleva otro con el mismo texto.</summary>
     private static Task ConfirmarCierre(IRenderedComponent<Proyectos> cut) =>
@@ -387,7 +465,7 @@ public class ProyectosGen2Tests : BunitContext
         var cut = await RenderizarConClienteAsync();
 
         await AbrirDetalle(cut, ProyectoCerrado);
-        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Editar");
+        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Editar", "Reabrir proyecto");
 
         await AbrirDetalle(cut, ProyectoAbierto);
         cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Editar", "Cerrar proyecto");

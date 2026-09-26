@@ -4,6 +4,7 @@ using CaeManager.Application.Proyectos.Commands.AsignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.CerrarProyecto;
 using CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.EliminarProyecto;
+using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Domain.Proyectos;
@@ -220,5 +221,83 @@ public class ProyectoAutorizacionEscrituraTests
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(ConcurrenciaOptimista.CodigoConflicto);
         proyectoTecnico.EstaActivo.Should().BeTrue("la baja con versión obsoleta no debe aplicarse");
+    }
+
+    // ---------- Reabrir (FS-12: el cierre tiene salida) ----------
+
+    private static Proyecto CrearProyectoCerrado(Guid clienteId)
+    {
+        var proyecto = CrearProyecto(clienteId);
+        proyecto.Cerrar(new DateOnly(2026, 6, 1));
+        return proyecto;
+    }
+
+    [Fact]
+    public async Task Reabrir_un_proyecto_cerrado_de_la_cartera_lo_deja_abierto()
+    {
+        var clienteId = Guid.NewGuid();
+        var proyecto = CrearProyectoCerrado(clienteId);
+        var repositorio = new ProyectoRepositorioFalso();
+        repositorio.Agregar(proyecto);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new ReabrirProyectoCommandHandler(repositorio, AlcanceSinAcceso(clienteId), unitOfWork);
+
+        var resultado = await handler.Handle(new ReabrirProyectoCommand(proyecto.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        proyecto.EstaAbierto.Should().BeTrue();
+        proyecto.FechaCierreReal.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Reabrir_un_proyecto_fuera_de_cartera_falla_sin_tocarlo()
+    {
+        var proyecto = CrearProyectoCerrado(Guid.NewGuid());
+        var repositorio = new ProyectoRepositorioFalso();
+        repositorio.Agregar(proyecto);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new ReabrirProyectoCommandHandler(repositorio, AlcanceSinAcceso(), unitOfWork);
+
+        var resultado = await handler.Handle(new ReabrirProyectoCommand(proyecto.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Proyecto.NoEncontrado");
+        proyecto.EstaAbierto.Should().BeFalse();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Reabrir_un_proyecto_con_una_version_obsoleta_falla()
+    {
+        var clienteId = Guid.NewGuid();
+        var proyecto = CrearProyectoCerrado(clienteId);
+        var repositorio = new ProyectoRepositorioFalso();
+        repositorio.Agregar(proyecto);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new ReabrirProyectoCommandHandler(repositorio, AlcanceSinAcceso(clienteId), unitOfWork);
+
+        var resultado = await handler.Handle(new ReabrirProyectoCommand(proyecto.Id, Guid.NewGuid()), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ConcurrenciaOptimista.CodigoConflicto);
+        proyecto.EstaAbierto.Should().BeFalse("la reapertura con versión obsoleta no debe aplicarse");
+    }
+
+    [Fact]
+    public async Task Reabrir_un_proyecto_ya_abierto_falla_sin_guardar()
+    {
+        var clienteId = Guid.NewGuid();
+        var proyecto = CrearProyecto(clienteId);
+        var repositorio = new ProyectoRepositorioFalso();
+        repositorio.Agregar(proyecto);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new ReabrirProyectoCommandHandler(repositorio, AlcanceSinAcceso(clienteId), unitOfWork);
+
+        var resultado = await handler.Handle(new ReabrirProyectoCommand(proyecto.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Proyecto.YaAbierto");
+        unitOfWork.VecesGuardado.Should().Be(0);
     }
 }
