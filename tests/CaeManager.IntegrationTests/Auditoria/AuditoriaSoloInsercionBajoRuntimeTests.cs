@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Soporte;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using CaeManager.IntegrationTests.Arranque;
@@ -11,10 +12,11 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Auditoria;
 
 /// <summary>
-/// <b>Los dos registros de auditoría son de solo inserción para
-/// <c>cae_app_runtime</c></b> (migraciones
-/// <c>AuditoriaSoloInsercionParaRuntime</c> y
-/// <c>HabilitarRlsRegistrosAccesoDocumentoSensible</c>).
+/// <b>Los registros de auditoría y la traza de Soporte TALVEG son de solo
+/// inserción para <c>cae_app_runtime</c></b> (migraciones
+/// <c>AuditoriaSoloInsercionParaRuntime</c>,
+/// <c>HabilitarRlsRegistrosAccesoDocumentoSensible</c> y
+/// <c>ActividadSoporteSoloInsercionParaRuntime</c>).
 ///
 /// <para>
 /// Conecta como <c>cae_app_runtime</c> real (login, no <c>SET ROLE</c> desde el
@@ -67,6 +69,56 @@ public class AuditoriaSoloInsercionBajoRuntimeTests
     }
 
     /// <summary>
+    /// La traza de Soporte TALVEG (vía heredada y Sesiones Privilegiadas): el
+    /// runtime la escribe por el camino real —EF con los interceptores de
+    /// producción, como <c>AbrirAccesoSoporteCommand</c>— y no puede reescribirla
+    /// ni borrarla.
+    /// </summary>
+    [Fact]
+    public async Task Runtime_inserta_actividad_de_soporte_pero_no_puede_actualizarla_ni_borrarla()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+
+        using (var ambito = arnes.Servicios.CreateScope())
+        {
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            using var ambitoTenant = AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto);
+            contexto.RegistrosActividadSoporte.Add(RegistroActividadSoporte.PorViaHeredada(
+                Guid.NewGuid(), Guid.NewGuid(), TipoActividadSoporte.AccesoConcedido, "Motivo de la apertura"));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var conexionRuntime = new NpgsqlConnection(
+            BaseDatosPostgresDePruebas.CadenaComoRuntime(arnes.CadenaPropietario));
+        await conexionRuntime.OpenAsync();
+        await using (var comandoSetTenant = conexionRuntime.CreateCommand())
+        {
+            comandoSetTenant.CommandText = "SELECT set_config('app.tenant_id', $1, false);";
+            comandoSetTenant.Parameters.AddWithValue(TenantSeedData.IdPorDefecto.ToString());
+            await comandoSetTenant.ExecuteNonQueryAsync();
+        }
+
+        // Control positivo: la fila existe y el runtime la ve; sin esto, un 42501
+        // abajo podría ser una conexión sin SELECT, no el REVOKE.
+        await using (var comandoSelect = conexionRuntime.CreateCommand())
+        {
+            comandoSelect.CommandText = """SELECT COUNT(*) FROM "RegistrosActividadSoporte";""";
+            ((long)(await comandoSelect.ExecuteScalarAsync())!).Should().Be(1,
+                "el INSERT de la traza de soporte como runtime tiene que seguir funcionando");
+        }
+
+        await using var comandoUpdate = conexionRuntime.CreateCommand();
+        comandoUpdate.CommandText = """UPDATE "RegistrosActividadSoporte" SET "Detalle" = 'Reescrito';""";
+        var intentoUpdate = () => comandoUpdate.ExecuteNonQueryAsync();
+        (await intentoUpdate.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
+
+        await using var comandoDelete = conexionRuntime.CreateCommand();
+        comandoDelete.CommandText = """DELETE FROM "RegistrosActividadSoporte";""";
+        var intentoDelete = () => comandoDelete.ExecuteNonQueryAsync();
+        (await intentoDelete.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
+    }
+
+    /// <summary>
     /// El contrato de privilegios, leído del catálogo para las dos tablas de
     /// auditoría: INSERT y SELECT sí, UPDATE y DELETE no. Trinquete frente a un
     /// GRANT posterior sobre todas las tablas que devolviera los dos verbos sin
@@ -75,6 +127,7 @@ public class AuditoriaSoloInsercionBajoRuntimeTests
     [Theory]
     [InlineData("RegistrosAuditoria")]
     [InlineData("RegistrosAccesoDocumentoSensible")]
+    [InlineData("RegistrosActividadSoporte")]
     public async Task Runtime_solo_tiene_insert_y_select_sobre_la_auditoria(string tabla)
     {
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
