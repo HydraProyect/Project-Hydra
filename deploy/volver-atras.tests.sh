@@ -165,6 +165,15 @@ comprobar "retener quita solo lo que excede N por entorno" \
   "$(printf '%s\n' "$(sha 11)" "$(sha 88)" | sort | paste -sd' ')" \
   "$(sed -n 's/^image rm caemanager:\([^ ]*\) .*/\1/p' "$DOCKER_LOG" | sort | paste -sd' ')"
 comprobar "quedan 5 de staging, producción, la usada y la no-SHA" 10 "$(ls "$ESTADO/imagenes" | wc -l)"
+# Historial largo (hallazgo de Codex): 20000 SHAs distintos superan el búfer de
+# la tubería; con `| head -n N` el SIGPIPE abortaba retener sin borrar nada.
+escenario produccion "$(sha 23)"
+mkdir -p "$DIR_HISTORIAL_DESPLIEGUES"
+awk 'BEGIN { for (i = 1; i <= 20000; i++) printf "2026-09-26T00:00:00Z %040d\n", 100000 + i }' > "$DIR_HISTORIAL_DESPLIEGUES/produccion"
+imagen "$(printf '%040d' 100001)"; imagen "$(printf '%040d' 120000)"
+IMAGENES_RETENIDAS=5 bash "$RETENIDAS" retener > /dev/null 2>&1
+comprobar "historial de 20000 entradas: retener termina con 0" 0 "$?"
+comprobar "  y retira la antigua conservando la última" "$(printf '%040d' 120000)" "$(ls "$ESTADO/imagenes" | paste -sd' ')"
 : > "$DOCKER_LOG"
 IMAGENES_RETENIDAS=1 bash "$RETENIDAS" retener > /dev/null 2>&1; comprobar "con N inválido retener falla" 1 "$?"
 comprobar "con N inválido no retira nada" 0 "$(grep -c '^image rm' "$DOCKER_LOG")"
@@ -267,6 +276,12 @@ L_REG="$(linea '    bash /opt/talveg/deploy/imagenes-retenidas.sh registrar "\$E
 L_RET="$(linea '    bash /opt/talveg/deploy/imagenes-retenidas.sh retener < /dev/null \\')"
 comprobar "ci-deploy registra y retiene tras un up sano, en ese orden" si \
   "$([ -n "$L_UP" ] && [ -n "$L_REG" ] && [ -n "$L_RET" ] && [ "$L_UP" -lt "$L_REG" ] && [ "$L_REG" -lt "$L_RET" ] && echo si || echo "no ($L_UP/$L_REG/$L_RET)")"
+L_RET_PREVIA="$(linea 'bash /opt/talveg/deploy/imagenes-retenidas.sh retener < /dev/null \\' )"
+L_LIBERAR="$(linea 'bash /opt/talveg/deploy/liberar-disco.sh < /dev/null')"
+comprobar "ci-deploy retiene también antes de liberar disco y recibir la imagen" si \
+  "$([ -n "$L_RET_PREVIA" ] && [ -n "$L_LIBERAR" ] && [ "$L_RET_PREVIA" -lt "$L_LIBERAR" ] && echo si || echo "no ($L_RET_PREVIA/$L_LIBERAR)")"
+comprobar "ci-deploy llama a retener dos veces (antes y tras un up sano)" 2 \
+  "$(grep -cx '    bash /opt/talveg/deploy/imagenes-retenidas.sh retener < /dev/null \\\|bash /opt/talveg/deploy/imagenes-retenidas.sh retener < /dev/null \\' "$FUENTE")"
 WF="$AQUI/../.github/workflows/deploy.yml"
 comprobar "deploy.yml etiqueta la imagen para la retención" 1 "$(grep -c -- '--label "es.talveg.despliegue=caemanager"' "$WF")"
 comprobar "deploy.yml graba el inventario de migraciones" 1 "$(grep -c -- '--label "es.talveg.migraciones-ef=\$MIGRACIONES_EF"' "$WF")"

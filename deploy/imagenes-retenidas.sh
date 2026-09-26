@@ -8,7 +8,10 @@
 #   imagenes-retenidas.sh anterior <staging|produccion> <sha actual>
 #
 # `registrar` y `retener` los llama ci-deploy.sh tras un despliegue que llegó a
-# sano; `anterior` lo usa deploy/volver-atras.sh (que además hace `source` de
+# sano, y `retener` también ANTES de liberar-disco.sh y de recibir la imagen
+# nueva: si no, las imágenes de despliegues que fallan tras cargarse (que nunca
+# llegan al `retener` final) se acumularían hasta que el disco crítico
+# impidiera desplegar (hallazgo de Codex). `anterior` lo usa deploy/volver-atras.sh (que además hace `source` de
 # este fichero). Staging y producción comparten el daemon Docker del VPS, así
 # que la retención trabaja sobre los dos historiales a la vez: se conservan
 # las N últimas imágenes DISTINTAS de cada entorno (la unión de ambas) y
@@ -64,13 +67,17 @@ registrar_despliegue() {
     echo "Historial de $entorno: registrado $sha."
 }
 
-# SHAs del historial de un entorno, del más reciente al más antiguo, sin
-# repetir (cuenta la aparición más reciente de cada uno).
+# Los <límite> SHAs más recientes del historial de un entorno (todos si no se
+# da), del más reciente al más antiguo, sin repetir (cuenta la aparición más
+# reciente de cada uno). El límite lo aplica awk leyendo la entrada ENTERA: con
+# `| head -n N` detrás, un historial largo cerraba la tubería antes de tiempo y
+# SIGPIPE + pipefail abortaban `retener` para siempre (hallazgo de Codex).
 shas_recientes() {
-    local fichero
+    local fichero limite="${2:-0}"
     fichero="$(fichero_historial "$1")"
     [ -r "$fichero" ] || return 0
-    awk '$2 ~ /^[0-9a-f]{40}$/ { print $2 }' "$fichero" | tac | awk '!visto[$0]++'
+    awk '$2 ~ /^[0-9a-f]{40}$/ { print $2 }' "$fichero" | tac \
+        | awk -v limite="$limite" '!visto[$0]++ && (limite == 0 || n < limite) { print; n++ }'
 }
 
 # La imagen desplegada justo antes de la ÚLTIMA aparición de <sha actual> en
@@ -105,7 +112,7 @@ retener_imagenes() {
 
     local conservar=""
     for entorno in staging produccion; do
-        conservar+="$(shas_recientes "$entorno" | head -n "$n")"$'\n'
+        conservar+="$(shas_recientes "$entorno" "$n")"$'\n'
     done
     # Las que usa cualquier contenedor, aunque esté parado.
     conservar+="$(docker ps -a --format '{{.Image}}' | sed -n "s/^${REPOSITORIO_IMAGEN_DESPLIEGUE}://p")"$'\n'
