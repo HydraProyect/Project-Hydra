@@ -7,6 +7,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosImportacion> Textos
 
+<LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>@TituloPagina — @Marca.Nombre</PageTitle>
@@ -614,3 +615,4 @@
                          Titulo="@Textos["DialogoTitulo"]" Mensaje="@MensajeDialogoImportar"
                          TextoBotonConfirmar="@Textos["DialogoBotonConfirmar"]" EnProgreso="_importando" OnConfirmar="ConfirmarImportacionAsync" />
 </div>
+</LimiteDeErrores>

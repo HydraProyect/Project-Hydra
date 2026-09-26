@@ -6,6 +6,7 @@
 *@
 @page "/clientes/{ClienteId:guid}"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Centros.Queries.ObtenerCentros
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
@@ -17,6 +18,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosClientes> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.RazonSocial ?? Textos["Kicker"]) — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -285,3 +287,4 @@
         </CuerpoConLateral>
     }
 </div>
+</LimiteDeErrores>

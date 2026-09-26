@@ -1,11 +1,13 @@
 @page "/comunicaciones/buzon"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = RolesComunicaciones.Gestion)]
 @using CaeManager.Application.Integraciones
 @using Microsoft.AspNetCore.Components.Forms
 @using MediatR
 @inject IMediator Mediator
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Buzón — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina buzon-contenedor">
@@ -195,3 +197,4 @@
         <Boton Cargando="_enviandoRedaccion" OnClick="EnviarMensajeNuevoAsync">Enviar</Boton>
     </Pie>
 </Drawer>
+</LimiteDeErrores>

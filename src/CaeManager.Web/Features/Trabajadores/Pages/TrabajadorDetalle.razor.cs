@@ -45,7 +45,7 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 /// confirme, y nunca se inventa un criterio automático (próxima visita,
 /// "el más urgente"...) que el usuario no pidió.
 /// </summary>
-public partial class TrabajadorDetalle : ComponentBase, IDisposable
+public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     private static readonly IReadOnlyDictionary<EstadoDocumento, int> OrdenSeveridad = new Dictionary<EstadoDocumento, int>
     {

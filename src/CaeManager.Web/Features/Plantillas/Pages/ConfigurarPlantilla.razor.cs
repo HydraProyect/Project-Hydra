@@ -25,7 +25,7 @@ using PdfSharp.Pdf.IO;
 
 namespace CaeManager.Web.Features.Plantillas.Pages;
 
-public partial class ConfigurarPlantilla : ComponentBase, IAsyncDisposable
+public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInteractiva, IAsyncDisposable
 {
     private const double AnchoPorDefectoCampo = 150;
     private const double AltoPorDefectoCampo = 22;

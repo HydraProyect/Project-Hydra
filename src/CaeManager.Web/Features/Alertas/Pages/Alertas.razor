@@ -1,5 +1,6 @@
 @page "/alertas"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Alertas.Queries.ObtenerAlertas
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
@@ -19,6 +20,7 @@
 @inject IStringLocalizer<TextosComunes> Comunes
 @inject ToastService ToastService
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -364,3 +366,4 @@
                           TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
     }
 </div>
+</LimiteDeErrores>

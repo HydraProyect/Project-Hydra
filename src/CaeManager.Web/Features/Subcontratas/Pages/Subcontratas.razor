@@ -1,5 +1,6 @@
 @page "/subcontratas"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata
@@ -19,6 +20,7 @@
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -339,3 +341,4 @@
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
 <SubcontrataPreviewDrawer Fila="FilaEnVistaPrevia" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" OnOperar="AbrirDesdePreviewAsync" />
+</LimiteDeErrores>

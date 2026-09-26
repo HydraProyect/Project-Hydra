@@ -31,7 +31,9 @@ public record ToastMensaje(Guid Id, string Mensaje, TonoToast Tono, string? Text
 /// se registra en el log y se avisa con un texto genérico de la acción ("No pudimos
 /// eliminar la empresa…"), nunca con <c>ex.Message</c>.</item>
 /// <item><b><see cref="LimiteDeErrores"/></b>: lo que nadie esperaba — una excepción
-/// no capturada. No se llama: se coloca alrededor de una región de contenido.</item>
+/// no capturada. No se llama: se coloca alrededor de una región de contenido, y
+/// alrededor de todo el marcado de cada página InteractiveServer, que además hereda de
+/// <see cref="CaeManager.Web.Components.PaginaInteractiva"/> (P1-E1b).</item>
 /// </list>
 ///
 /// <para>Los errores de autorización (<c>Autorizacion.*</c>, incluidos los de una

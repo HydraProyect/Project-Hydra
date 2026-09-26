@@ -4,6 +4,7 @@
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Domain.Retencion
 
+<LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Retención de datos — @Marca.Nombre</PageTitle>
@@ -230,3 +231,4 @@
                      TextoBotonConfirmar="Destruir definitivamente"
                      EnProgreso="_procesando"
                      OnConfirmar="EjecutarAsync" />
+</LimiteDeErrores>

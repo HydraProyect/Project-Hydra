@@ -58,7 +58,7 @@ public record EjecutivoSelectorDto(Guid Id, string NombreCompleto);
 /// (§ 10.2) es que el gestor nunca elige "voy a Correo" o "voy a WhatsApp":
 /// entra a Comunicaciones y ve conversaciones.
 /// </summary>
-public partial class Bandeja : ComponentBase, IAsyncDisposable
+public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsyncDisposable
 {
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ILogger<Bandeja> Logger { get; set; } = default!;

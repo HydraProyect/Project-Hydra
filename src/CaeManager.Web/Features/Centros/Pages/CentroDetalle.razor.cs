@@ -29,7 +29,7 @@ namespace CaeManager.Web.Features.Centros.Pages;
 /// de cumplimiento, próxima visita y la lista de trabajadores COMPLETA (a
 /// diferencia de la vista previa) — y remite al panel para operar.
 /// </summary>
-public partial class CentroDetalle : ComponentBase, IDisposable
+public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     [Parameter] public Guid CentroId { get; set; }
 

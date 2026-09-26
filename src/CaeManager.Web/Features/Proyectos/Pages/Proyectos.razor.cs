@@ -19,7 +19,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Proyectos.Pages;
 
-public partial class Proyectos : ComponentBase
+public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;

@@ -14,6 +14,7 @@
 @inject IStringLocalizer<TextosTiposDocumento> Textos
 @inject IStringLocalizer<TextosComunes> Comunes
 
+<LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>@Textos["TituloPestana"] — @Marca.Nombre</PageTitle>
@@ -384,6 +385,7 @@
                      TextoBotonConfirmar="@Textos["ConfirmacionBoton"]"
                      EnProgreso="_guardando"
                      OnConfirmar="ConfirmarGuardadoAsync" />
+</LimiteDeErrores>
 
 @code {
     /// <summary>

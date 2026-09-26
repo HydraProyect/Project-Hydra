@@ -4,6 +4,7 @@
 *@
 @page "/trabajadores/{TrabajadorId:guid}"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
@@ -14,6 +15,7 @@
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Documentos.Components
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@(NombreCompleto ?? Textos["TituloDetalleSinNombre"].Value) — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -534,3 +536,4 @@
         <Boton Cargando="_reclamandoFaltantes" Deshabilitado="_clientesSeleccionadosReclamar.Count == 0" OnClick="ConfirmarReclamarFaltantesAsync">@Textos["BotonReclamar"]</Boton>
     </Pie>
 </Modal>
+</LimiteDeErrores>

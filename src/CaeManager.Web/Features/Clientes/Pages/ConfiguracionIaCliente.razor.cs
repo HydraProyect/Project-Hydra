@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Clientes.Pages;
 
-public partial class ConfiguracionIaCliente : ComponentBase, IDisposable
+public partial class ConfiguracionIaCliente : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     [Parameter] public Guid ClienteId { get; set; }
     private CancellationTokenSource? _cicloCarga;

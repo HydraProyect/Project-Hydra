@@ -56,7 +56,8 @@
             @* P1-E1: un fallo de la página se queda dentro de <main>; barra lateral y
                cabecera siguen vivas. Cubre el renderizado estático y el prerenderizado;
                una página InteractiveServer es raíz de su propio circuito y este límite no
-               está por encima de ella ahí (ver el comentario de LimiteDeErrores). *@
+               está por encima de ella ahí: lleva su propio envoltorio (PaginaInteractiva +
+               <LimiteDeErrores Pagina="this">, ver el comentario de LimiteDeErrores). *@
             <LimiteDeErrores>
                 @Body
             </LimiteDeErrores>

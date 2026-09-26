@@ -27,7 +27,7 @@ namespace CaeManager.Web.Features.Dashboard.Pages;
 /// por plataforma" (<see cref="ObtenerPendientePorPlataformaQuery"/>,
 /// hallazgo P-04).
 /// </summary>
-public partial class Inicio : ComponentBase, IDisposable
+public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     private const int MaximoGruposAtencion = 5;
     private const int MaximoVisitasProximas = 3;

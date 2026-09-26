@@ -1,5 +1,6 @@
 @page "/centros"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Centros.Commands.CrearCentro
 @using CaeManager.Application.Centros.Commands.EditarCentro
@@ -25,6 +26,7 @@
 @inject ICurrentUserService CurrentUserService
 @inject ContextWorkspaceService WorkspaceService
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Centros — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -407,3 +409,4 @@
     Mensaje="Se ocultarán de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador del Tenant puede recuperarlos desde Auditoría."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
+</LimiteDeErrores>

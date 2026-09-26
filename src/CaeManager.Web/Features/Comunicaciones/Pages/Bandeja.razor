@@ -1,5 +1,6 @@
 @page "/comunicaciones"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @* Mismos roles que el menú completo de CatalogoMenuLateral: la bandeja es una pantalla de
    gestión CAE y el rol Cliente no entra. Que el menú le oculte el enlace no
    basta — decide qué pestañas existen, no qué puede pedirse por URL
@@ -20,6 +21,7 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Comunicaciones — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina bandeja-contenedor">
@@ -592,3 +594,4 @@
         </Pie>
     </Drawer>
 </div>
+</LimiteDeErrores>

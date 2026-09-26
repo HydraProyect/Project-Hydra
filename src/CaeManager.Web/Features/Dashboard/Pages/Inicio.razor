@@ -1,5 +1,6 @@
 @page "/"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Web.Features.Bandeja
 @using CaeManager.Web.Features.Bandeja.Components
@@ -10,6 +11,7 @@
 @using CaeManager.Web.Features.IncorporacionCartera.Components
 @inject IStringLocalizer<TextosInicio> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Dashboard — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -309,3 +311,4 @@
         }
     }
 </div>
+</LimiteDeErrores>

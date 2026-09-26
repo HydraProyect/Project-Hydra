@@ -26,7 +26,7 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 
 public record GestorCaeSelectorDto(Guid Id, string NombreCompleto, string Email);
 
-public partial class Clientes : ComponentBase
+public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
 {
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>

@@ -31,7 +31,7 @@ namespace CaeManager.Web.Features.Empresas.Pages;
 /// </list>
 /// </para>
 /// </summary>
-public partial class DeteccionTrabajadores : ComponentBase, IDisposable
+public partial class DeteccionTrabajadores : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     [Parameter] public Guid EmpresaId { get; set; }
 

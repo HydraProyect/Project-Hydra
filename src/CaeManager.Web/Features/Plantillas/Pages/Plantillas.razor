@@ -1,9 +1,11 @@
 @page "/plantillas"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Web.Features.Documentos.Components
 @inject NavigationManager Navigation
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Plantillas — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -23,3 +25,4 @@
 
     <PlantillasTab CabeceraEnLaPagina="true" PestanaInicial="@PestanaInicial" PestanaActivaChanged="CambiarPestana" />
 </div>
+</LimiteDeErrores>

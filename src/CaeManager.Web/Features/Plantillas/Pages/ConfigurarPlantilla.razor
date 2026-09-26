@@ -1,6 +1,7 @@
 @page "/plantillas/nueva"
 @page "/plantillas/{PlantillaDocumentoVersionId:guid}/editar"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using System.Globalization
 @using CaeManager.Domain.Documentos
@@ -14,6 +15,7 @@
 @inject CaeManager.Application.DocumentosIa.Common.IRasterizadorPaginasPdfService Rasterizador
 @inject NavigationManager Navigation
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@TituloPagina — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -469,6 +471,7 @@
         <Boton Cargando="_confirmando" OnClick="ConfirmarAsync">Sí, confirmar</Boton>
     </Pie>
 </Modal>
+</LimiteDeErrores>
 
 @code {
     private async Task CambiarAmbitoAsync(string valor)

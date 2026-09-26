@@ -20,7 +20,7 @@ using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Incidencias.Pages;
 
-public partial class Incidencias : ComponentBase
+public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
 {
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 

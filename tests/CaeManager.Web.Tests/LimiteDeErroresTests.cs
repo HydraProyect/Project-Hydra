@@ -31,7 +31,8 @@ namespace CaeManager.Web.Tests;
 /// por el límite de MainLayout. bUnit monta layout y página en un solo renderizador;
 /// en producción una página con su propio @rendermode es raíz de su circuito y el
 /// layout se pinta en estático, así que ese límite solo la cubre en el
-/// prerenderizado. Ver el comentario de <see cref="LimiteDeErrores"/>.
+/// prerenderizado. Esas páginas llevan su propio envoltorio, probado en
+/// <see cref="PaginaInteractivaTests"/> (P1-E1b).
 /// </para>
 /// </summary>
 public class LimiteDeErroresTests : BunitContext

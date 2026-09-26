@@ -1,5 +1,6 @@
 @page "/vehiculos"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Vehiculos.Commands.CrearVehiculo
 @using CaeManager.Application.Vehiculos.Commands.EditarVehiculo
@@ -23,6 +24,7 @@
 @inject ContextWorkspaceService WorkspaceService
 @inject IStringLocalizer<TextosVehiculos> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -236,3 +238,4 @@
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
 <VehiculoPreviewDrawer VehiculoId="_previewVehiculoId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" OnOperar="AbrirDesdePreviewAsync" />
+</LimiteDeErrores>

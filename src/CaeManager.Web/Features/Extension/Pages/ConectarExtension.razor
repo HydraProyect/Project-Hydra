@@ -1,7 +1,9 @@
 @page "/cuenta/extension"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>Conectar extensión — @Marca.Nombre</PageTitle>
 
 <div class="pagina-conectar-extension">
@@ -97,3 +99,4 @@
         <p class="aviso-error">@_error</p>
     }
 </div>
+</LimiteDeErrores>

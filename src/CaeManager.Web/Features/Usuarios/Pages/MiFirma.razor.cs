@@ -8,7 +8,7 @@ using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.Usuarios.Pages;
 
-public partial class MiFirma : ComponentBase, IAsyncDisposable
+public partial class MiFirma : CaeManager.Web.Components.PaginaInteractiva, IAsyncDisposable
 {
     private const long TamanoMaximoArchivoBytes = 5 * 1024 * 1024;
 

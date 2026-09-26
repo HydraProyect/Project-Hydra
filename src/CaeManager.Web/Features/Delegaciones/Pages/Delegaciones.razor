@@ -3,6 +3,7 @@
 @attribute [Authorize]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 
+<LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
     <PageTitle>Delegaciones — @Marca.Nombre</PageTitle>
@@ -419,3 +420,4 @@
         <Boton Cargando="_autorizandoOperador" OnClick="AutorizarOperadorAsync">@TextosAutorizar["Autorizar"]</Boton>
     </Pie>
 </Modal>
+</LimiteDeErrores>

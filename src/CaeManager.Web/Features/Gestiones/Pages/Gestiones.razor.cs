@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Gestiones.Pages;
 
-public partial class Gestiones : ComponentBase
+public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva
 {
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 

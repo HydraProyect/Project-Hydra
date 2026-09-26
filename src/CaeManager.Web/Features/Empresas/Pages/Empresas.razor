@@ -1,5 +1,6 @@
 @page "/empresas"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Empresas.Commands.CrearEmpresa
 @using CaeManager.Application.Empresas.Commands.EditarEmpresa
@@ -27,6 +28,7 @@
 @inject ICurrentUserService CurrentUserService
 @inject IStringLocalizer<TextosEmpresas> Textos
 
+<LimiteDeErrores Pagina="this">
 <PageTitle>@_tituloPagina — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
@@ -377,4 +379,5 @@
     Mensaje="Se ocultarán de las listas activas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador del Tenant puede recuperarlas desde Auditoría."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
+</LimiteDeErrores>
 

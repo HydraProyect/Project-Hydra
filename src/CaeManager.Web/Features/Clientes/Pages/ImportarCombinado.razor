@@ -1,7 +1,10 @@
 @page "/clientes/importar-combinado"
 @rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @inject NavigationManager Navigation
+
+<LimiteDeErrores Pagina="this" />
 
 @code {
     // La plantilla Combinada es hoy el paso 1 del asistente unificado
