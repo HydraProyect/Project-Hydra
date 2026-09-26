@@ -136,7 +136,7 @@
     }
 </Pestanas>
 
-<Modal Titulo="@($"Subir nueva versión — {_plantillaParaNuevaVersionNombre}")" Visible="ModalNuevaVersionVisible" VisibleChanged="CerrarModalNuevaVersion">
+<Modal HayCambios="() => HayCambiosSinGuardar" Titulo="@($"Subir nueva versión — {_plantillaParaNuevaVersionNombre}")" Visible="ModalNuevaVersionVisible" VisibleChanged="CerrarModalNuevaVersion">
     <ChildContent>
         <p class="texto-vacio-seccion">
             El PDF nuevo sustituye al actual. Los campos ya configurados se copian como punto de partida — revísalos y ajústalos antes de confirmar.
@@ -156,3 +156,5 @@
         </Boton>
     </Pie>
 </Modal>
+
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => CerrarModalNuevaVersion(false)" />

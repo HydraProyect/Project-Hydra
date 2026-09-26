@@ -36,8 +36,11 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     /// </summary>
     private static readonly string[] FormulariosProtegidos =
     [
+        "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
         "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
         "src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor",
+        "src/CaeManager.Web/Features/Documentos/Components/FirmaEnCampoTab.razor",
+        "src/CaeManager.Web/Features/Documentos/Components/PlantillasTab.razor",
         "src/CaeManager.Web/Features/Documentos/Components/PlataformaTab.razor",
         "src/CaeManager.Web/Features/Documentos/Components/RevisionIaTab.razor",
         "src/CaeManager.Web/Features/Documentos/Pages/SubidaMasiva.razor",
@@ -54,9 +57,15 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     /// </summary>
     private static readonly string[] ContenedoresQuePreguntanAlCerrar =
     [
+        "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
+        "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
         "src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor",
+        "src/CaeManager.Web/Features/Documentos/Components/PlantillasTab.razor",
         "src/CaeManager.Web/Features/Documentos/Components/PlataformaTab.razor",
         "src/CaeManager.Web/Features/Documentos/Components/RevisionIaTab.razor",
+        "src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor",
+        "src/CaeManager.Web/Features/Subcontratas/Pages/Subcontratas.razor",
+        "src/CaeManager.Web/Features/Vehiculos/Pages/Vehiculos.razor",
         "src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor",
     ];
 

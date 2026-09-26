@@ -135,6 +135,9 @@ public partial class PlantillasTab : ComponentBase, IDisposable
 
     private bool ModalNuevaVersionVisible => _plantillaParaNuevaVersionId is not null;
 
+    /// <summary>P1-E2b: un PDF de nueva versión ya elegido y sin subir se pierde al cerrar, salir o cambiar de pestaña.</summary>
+    private bool HayCambiosSinGuardar => ModalNuevaVersionVisible && _archivoNuevaVersion is { Length: > 0 };
+
     protected override Task OnInitializedAsync() => CargarAsync();
 
     private async Task CargarAsync()
@@ -263,6 +266,9 @@ public partial class PlantillasTab : ComponentBase, IDisposable
             if (resultado.Valor.ArchivoIdenticoAVersionAnterior)
                 Toasts.Mostrar("Este archivo es idéntico a la versión actual — probablemente no hacía falta subir nada nuevo.", TonoToast.Advertencia);
 
+            // Subida: ya no hay nada pendiente, y la navegación al editor no pregunta (Codex, P1-E2b).
+            _plantillaParaNuevaVersionId = null;
+            _archivoNuevaVersion = null;
             Navigation.NavigateTo($"/plantillas/{resultado.Valor.PlantillaDocumentoVersionId}/editar");
         }
         finally
