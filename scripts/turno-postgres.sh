@@ -42,7 +42,10 @@
 #     latido lleva más de CADUCIDAD sin refrescarse (confirmado en dos sondeos
 #     seguidos, para no retirar el de un dueño vivo tras una suspensión). Solo
 #     retira el primero de la cola, por rename atómico. Un ticket cuyo proceso
-#     murió, o cuyo latido caducó, se descarta.
+#     murió, o cuyo latido caducó, se descarta. El latido del ticket es el
+#     sondeo (se refresca en cada vuelta de la espera), así que CADUCIDAD debe
+#     ser >= 3 x SONDEO además de >= 3 x LATIDO; si no, la cola descartaría a un
+#     waiter vivo entre dos sondeos y el siguiente le adelantaría.
 #
 # Límites conocidos:
 #   · Solo excluye a quien también pase por aquí: una `dotnet test` lanzada a mano
@@ -126,6 +129,13 @@ CADUCIDAD_S=$(( 10#$CADUCIDAD_S )); AVISO_S=$(( 10#$AVISO_S )); espera_max_s=$((
 # cerrojo y dos suites correrían a la vez.
 if ! awk -v c="$CADUCIDAD_S" -v l="$LATIDO_S" -v s="$SONDEO_S" 'BEGIN { exit !(c > 0 && l > 0 && s > 0 && c >= 3 * l) }'; then
   config_invalida "HYDRA_TURNO_CADUCIDAD_S ($CADUCIDAD_S) debe ser >= 3 x HYDRA_TURNO_LATIDO_S ($LATIDO_S), y latido, sondeo y caducidad deben ser positivos."
+fi
+# Lo mismo vale para el ticket de quien espera, pero su latido es el SONDEO: solo
+# se refresca una vez por vuelta del bucle de espera. Con CADUCIDAD < 3 x SONDEO,
+# otro waiter borra el ticket de B (vivo) mientras B duerme entre sondeos, y el
+# siguiente en llegar le adelanta: la cola pierde a B.
+if ! awk -v c="$CADUCIDAD_S" -v s="$SONDEO_S" 'BEGIN { exit !(c >= 3 * s) }'; then
+  config_invalida "HYDRA_TURNO_CADUCIDAD_S ($CADUCIDAD_S) debe ser >= 3 x HYDRA_TURNO_SONDEO_S ($SONDEO_S): el ticket de quien espera solo se refresca en cada sondeo."
 fi
 [ $# -ge 1 ] || { uso; exit $EX_USO; }
 
