@@ -227,6 +227,9 @@ comprobar "turno más largo que la caducidad: no se retira mientras hay latido" 
 # (y a sus hijos) más tiempo que la caducidad, y despertando primero a C, el
 # último en llegar. Sin arreglo, C descarta el ticket de B y retira el cerrojo del
 # dueño vivo A: ejecuta con A a medias (solape) y adelanta a B.
+# Límite deliberado: si C sigue despierto más de CADUCIDAD con los otros aún
+# parados, eso ya no es una suspensión del equipo sino procesos colgados, y se
+# retiran como en el caso 7.
 pares_pid_ppid() {  # «pid ppid» de todos los procesos, en UNA lectura (rápida y casi atómica)
   if ps -e -o pid=,ppid= >/dev/null 2>&1; then ps -e -o pid=,ppid=
   else awk 'FNR == 1 { n = split(FILENAME, a, "/"); print a[n - 1], $1 }' /proc/[0-9]*/ppid 2>/dev/null; fi
@@ -241,7 +244,7 @@ arbol() {  # pids de los procesos dados y de todos sus descendientes
 # Dos pasadas: la segunda alcanza a los hijos que se crearon mientras se paraba a los padres.
 senal_arbol() { local s=$1; shift; kill "-$s" $(arbol "$@") 2>/dev/null; kill "-$s" $(arbol "$@") 2>/dev/null; }
 nuevo_caso suspension-del-equipo
-export HYDRA_TURNO_CADUCIDAD_S=3
+export HYDRA_TURNO_CADUCIDAD_S=6
 bash "$GUION" -- bash -c "$(tarea A 2)" > "$CASO/oA" 2>&1 & pa=$!
 esperar_a "A_ini" "$REGISTRO" || true
 bash "$GUION" -- bash -c "$(tarea B 0.2)" > "$CASO/oB" 2>&1 & pb=$!
@@ -249,9 +252,10 @@ for i in $(seq 1 100); do [ "$(n_tickets)" -ge 1 ] && break; sleep 0.1; done
 bash "$GUION" -- bash -c "$(tarea C 0.2)" > "$CASO/oC" 2>&1 & pc=$!
 for i in $(seq 1 100); do [ "$(n_tickets)" -ge 2 ] && break; sleep 0.1; done
 senal_arbol STOP "$pa" "$pb" "$pc"
-sleep 5                                    # > CADUCIDAD: al despertar todo parece caducado
+sleep 8                                    # > CADUCIDAD: al despertar todo parece caducado
 senal_arbol CONT "$pc"
-sleep 4                                    # C da varias vueltas solo, con el mundo aún dormido
+sleep 3                                    # C solo, con el mundo aún dormido: sin arreglo le basta
+                                           # (todo lleva 8 s caducado); con arreglo, 3 s < CADUCIDAD.
 senal_arbol CONT "$pa" "$pb"
 wait "$pa" "$pb" "$pc"
 comprobar "tras una suspensión: sin solape y en orden de llegada A, B, C" "A_ini A_fin B_ini B_fin C_ini C_fin" "$(tr '\n' ' ' < "$REGISTRO" | sed 's/ $//')"
