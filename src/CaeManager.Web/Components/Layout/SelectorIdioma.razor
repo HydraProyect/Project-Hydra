@@ -3,8 +3,10 @@
 @using CaeManager.Web.Recursos
 @using CaeManager.Web.Services
 @using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Options
 @inject NavigationManager NavigationManager
 @inject IStringLocalizer<TextosComunes> Textos
+@inject IOptions<OpcionesLocalizacion> Localizacion
 
 @*
     Idioma de la interfaz de la cuenta (ApplicationUser.Idioma). Un <form>
@@ -18,7 +20,14 @@
     Los nombres de idioma van cada uno en su propio idioma (endónimos), no en
     recursos: quien no entiende la interfaz actual tiene que poder reconocer
     el suyo.
+
+    Con el catalán apagado (Localizacion:CatalanHabilitado, ver
+    OpcionesLocalizacion) no se pinta nada: un selector con un único idioma,
+    o con uno a medio traducir, se ve peor que no tenerlo. El interruptor vive
+    aquí y no en quien lo monta, para que ningún layout pueda olvidarlo.
 *@
+@if (Localizacion.Value.CatalanHabilitado)
+{
 <form method="post" action="@IdiomaEndpoints.Ruta" class="selector-idioma-formulario">
     <AntiforgeryToken />
     <input type="hidden" name="returnUrl" value="@_returnUrl" />
@@ -33,6 +42,7 @@
     </span>
     <noscript><button type="submit">@Textos["IdiomaCambiar"]</button></noscript>
 </form>
+}
 
 @code {
     private string _returnUrl = "/";

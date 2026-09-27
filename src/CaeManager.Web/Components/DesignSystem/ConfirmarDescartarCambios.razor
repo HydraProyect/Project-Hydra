@@ -1,0 +1,30 @@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+@*
+    P1-E2b (decisión del propietario, 2026-09-26): cerrar un Drawer o un Modal con la X,
+    Escape o un clic en el fondo mientras su formulario tiene cambios sin guardar pregunta
+    «¿Descartar cambios?». Lo montan Drawer y Modal solo mientras preguntan, así que sus
+    textos no exigen localización a quien renderiza un Drawer o un Modal sin cambios.
+    Es el hermano de AvisoCambiosSinGuardar para el cierre, que no es navegar.
+*@
+
+<Modal Visible="true" VisibleChanged="v => { if (!v) return AlSeguir.InvokeAsync(); return Task.CompletedTask; }"
+       Titulo="@Comunes["DescartarCambiosTitulo"]" Ancho="AnchoModal.Pequeno">
+    <ChildContent>
+        <p>@Comunes["DescartarCambiosMensaje"]</p>
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="() => AlSeguir.InvokeAsync()">@Comunes["CambiosSinGuardarSeguir"]</Boton>
+        <Boton Variante="VarianteBoton.Destructivo" OnClick="() => AlDescartar.InvokeAsync()">@Comunes["DescartarCambiosConfirmar"]</Boton>
+    </Pie>
+</Modal>
+
+@code {
+    /// <summary>«Seguir editando», la X de esta pregunta, Escape o el clic en su fondo: el formulario sigue abierto.</summary>
+    [Parameter, EditorRequired] public EventCallback AlSeguir { get; set; }
+
+    /// <summary>«Descartar cambios»: el Drawer o Modal que pregunta se cierra.</summary>
+    [Parameter, EditorRequired] public EventCallback AlDescartar { get; set; }
+}

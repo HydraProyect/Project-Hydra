@@ -21,7 +21,7 @@
         <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["EtiquetaNotaInterna"]</Badge>
         <span class="composer-nota-interna-aviso">@Textos["AvisoSoloEquipo"]</span>
     </div>
-    <CampoTextarea Etiqueta="@Textos["EtiquetaCampoNota"]" Valor="@_texto" ValorChanged="v => _texto = v" Filas="2"
+    <CampoTextarea Etiqueta="@Textos["EtiquetaCampoNota"]" Valor="@_texto" ValorChanged="CambiarTextoAsync" Filas="2"
                    Placeholder="@Textos["PlaceholderNota"]" />
     <div class="composer-acciones">
         <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando"
@@ -38,8 +38,30 @@
     /// <summary>La página recarga las notas del timeline al recibirlo.</summary>
     [Parameter] public EventCallback OnNotaCreada { get; set; }
 
+    /// <summary>
+    /// P1-E2b: cada cambio del texto. Invocarlo re-renderiza a quien monta el composer, que
+    /// así recalcula su aviso de cambios sin guardar (también el del navegador al recargar).
+    /// </summary>
+    [Parameter] public EventCallback OnTextoCambiado { get; set; }
+
     private string _texto = string.Empty;
     private bool _guardando;
+
+    /// <summary>
+    /// P1-E2b: si hay una nota escrita y sin guardar. No lleva aviso propio: lo consulta la
+    /// página que monta el composer y lo combina en su único AvisoCambiosSinGuardar (dos
+    /// avisos en la misma página preguntarían dos veces).
+    /// </summary>
+    public bool TieneTextoSinGuardar => !string.IsNullOrWhiteSpace(_texto);
+
+    /// <summary>Lo llama esa página al confirmar la salida descartando.</summary>
+    public void Descartar() => _texto = string.Empty;
+
+    private Task CambiarTextoAsync(string texto)
+    {
+        _texto = texto;
+        return OnTextoCambiado.InvokeAsync();
+    }
 
     private async Task GuardarAsync()
     {

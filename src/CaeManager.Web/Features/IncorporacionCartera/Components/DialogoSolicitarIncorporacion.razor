@@ -2,7 +2,7 @@
 @using CaeManager.Web.Features.IncorporacionCartera.Recursos
 @using Microsoft.Extensions.Localization
 
-<Modal Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@Textos["DialogoTitulo"]">
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@Textos["DialogoTitulo"]">
     <ChildContent>
         @if (_cargando)
         {
@@ -47,3 +47,5 @@
         }
     </Pie>
 </Modal>
+
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarAsync" />

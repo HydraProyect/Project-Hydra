@@ -172,8 +172,10 @@ public class LocalizacionRecursosYRegistroTests
 
         program.Should().Contain("builder.Services.AddLocalization();",
             "sin AddLocalization no hay IStringLocalizerFactory aunque las culturas estén configuradas");
-        program.Should().Contain("Configure<RequestLocalizationOptions>(CulturaUsuarioCookie.ConfigurarLocalizacion)",
+        program.Should().Contain("CulturaUsuarioCookie.ConfigurarLocalizacion(opciones, localizacion.Value)",
             "las opciones que prueba LocalizacionInfraestructuraTests son las únicas de la aplicación");
+        program.Should().Contain("builder.Configuration.GetSection(OpcionesLocalizacion.SeccionConfiguracion)",
+            "el interruptor del catalán se lee de configuración (Localizacion:CatalanHabilitado)");
         program.Should().Contain("app.MapIdiomaEndpoints();");
 
         var usoLocalizacion = program.IndexOf("app.UseRequestLocalization(", StringComparison.Ordinal);

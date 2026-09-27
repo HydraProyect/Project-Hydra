@@ -69,4 +69,13 @@
   <data name="CambiosSinGuardarDescartar" xml:space="preserve">
     <value>Salir y descartar</value>
   </data>
+  <data name="DescartarCambiosTitulo" xml:space="preserve">
+    <value>¿Descartar cambios?</value>
+  </data>
+  <data name="DescartarCambiosMensaje" xml:space="preserve">
+    <value>Hay cambios que todavía no se han guardado. Si cierras, se pierden.</value>
+  </data>
+  <data name="DescartarCambiosConfirmar" xml:space="preserve">
+    <value>Descartar cambios</value>
+  </data>
 </root>

@@ -9,7 +9,7 @@
                 <h2 id="@_tituloId">@Titulo</h2>
                 @if (!Bloqueante)
                 {
-                    <button type="button" class="modal-cerrar" aria-label="Cerrar" @onclick="CerrarAsync"><Icono Nombre="cerrar" /></button>
+                    <button type="button" class="modal-cerrar" aria-label="Cerrar" @onclick="SolicitarCierreAsync"><Icono Nombre="cerrar" /></button>
                 }
             </div>
             <div class="modal-cuerpo">
@@ -21,6 +21,11 @@
             }
         </div>
     </div>
+
+    @if (_confirmandoDescarte)
+    {
+        <ConfirmarDescartarCambios AlSeguir="SeguirEditando" AlDescartar="DescartarYCerrarAsync" />
+    }
 }
 
 @code {
@@ -95,8 +100,46 @@
 
     private async Task CerrarAsync() => await VisibleChanged.InvokeAsync(false);
 
+    /// <summary>
+    /// P1-E2b: si el formulario de dentro tiene algo que se perdería al cerrar. Se consulta
+    /// al pedir el cierre con la X, Escape o un clic en el fondo; con <c>true</c>, antes de
+    /// cerrar se pregunta «¿Descartar cambios?» (ConfirmarDescartarCambios). Los botones del
+    /// propio formulario («Cancelar», «Guardar») no pasan por aquí: son decisión explícita.
+    /// Es la misma función que el formulario pasa a AvisoCambiosSinGuardar.
+    /// </summary>
+    [Parameter] public Func<bool>? HayCambios { get; set; }
+
+    private bool _confirmandoDescarte;
+
+    private Task SolicitarCierreAsync()
+    {
+        if (HayCambios?.Invoke() == true)
+        {
+            _confirmandoDescarte = true;
+            return Task.CompletedTask;
+        }
+
+        return CerrarAsync();
+    }
+
+    private void SeguirEditando() => _confirmandoDescarte = false;
+
+    protected override void OnParametersSet()
+    {
+        // Cerrado desde fuera mientras preguntaba (p. ej. terminó un guardado): la
+        // pregunta no puede reaparecer sola al volver a abrirlo.
+        if (!Visible)
+            _confirmandoDescarte = false;
+    }
+
+    private Task DescartarYCerrarAsync()
+    {
+        _confirmandoDescarte = false;
+        return CerrarAsync();
+    }
+
     private Task ManejarClicSuperposicionAsync() =>
-        !Bloqueante && CerrarAlHacerClicFuera ? CerrarAsync() : Task.CompletedTask;
+        !Bloqueante && CerrarAlHacerClicFuera ? SolicitarCierreAsync() : Task.CompletedTask;
 
     /// <summary>
     /// Misma condición que cerrar al clicar fuera: si hay trabajo sin
@@ -105,7 +148,7 @@
     /// que no tiene botón Cerrar.
     /// </summary>
     private Task ManejarTeclaAsync(KeyboardEventArgs e) =>
-        e.Key == "Escape" && !Bloqueante && CerrarAlHacerClicFuera ? CerrarAsync() : Task.CompletedTask;
+        e.Key == "Escape" && !Bloqueante && CerrarAlHacerClicFuera ? SolicitarCierreAsync() : Task.CompletedTask;
 
     private async Task LiberarTrampaFocoAsync()
     {

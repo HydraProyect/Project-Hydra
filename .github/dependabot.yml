@@ -5,12 +5,31 @@
 # actualización merece pasar su propio CI antes de fiarse de ella, no
 # mezclarse con otras diez en un solo PR difícil de diagnosticar si algo
 # rompe.
+#
+# Metadatos de PR: el check "Gobernanza — metadatos de PR"
+# (.github/workflows/gobernanza-pr.yml) exige a TODA PR, dependabot[bot]
+# incluido, un milestone y una etiqueta "Type: *" y otra "Priority: *",
+# leídos por API al evaluar. dependabot[bot] solo está exento de la sección
+# "## Revisión Codex" (scripts/verificar-gobernanza-pr.sh), no de esto. Sin
+# `labels`/`milestone` aquí, cada PR de Dependabot nacía en rojo y había que
+# etiquetarla a mano. Declarar `labels` SUSTITUYE las etiquetas por defecto
+# de Dependabot, por eso se repiten "dependencies" y la del ecosistema
+# (".NET", "docker", "github_actions"), que son las que ya llevaban. El
+# milestone se da por número (12 = "Mantenimiento de dependencias
+# (Dependabot)"), que es lo que admite Dependabot; si se cierra o se
+# renumera, las PR vuelven a nacer sin milestone.
 version: 2
 updates:
   - package-ecosystem: "nuget"
     directory: "/"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - ".NET"
+      - "Type: Enhancement"
+      - "Priority: Low"
+    milestone: 12 # "Mantenimiento de dependencias (Dependabot)"
     ignore:
       # FluentAssertions 8.x exige licencia comercial de pago (Xceed) desde
       # 2026-01; nos quedamos fijados en la rama 7.x (Apache 2.0, bugfixes
@@ -38,8 +57,20 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "Type: Enhancement"
+      - "Priority: Low"
+    milestone: 12 # "Mantenimiento de dependencias (Dependabot)"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    labels:
+      - "dependencies"
+      - "github_actions"
+      - "Type: Enhancement"
+      - "Priority: Low"
+    milestone: 12 # "Mantenimiento de dependencias (Dependabot)"

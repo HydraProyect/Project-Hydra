@@ -60,4 +60,10 @@
   <data name="DesactivarErrorInesperado" xml:space="preserve">
     <value>No pudimos pasar la cartera por un error inesperado. No se ha pasado ningún Cliente empresarial ni se ha desactivado la cuenta; vuelve a intentarlo.</value>
   </data>
+  <data name="ReenvioCorreoFallido" xml:space="preserve">
+    <value>No hem pogut enviar el correu</value>
+  </data>
+  <data name="ReenvioCorreoFallidoEnlaceAbajo" xml:space="preserve">
+    <value>L'enllaç queda a sota perquè el lliuris tu mateix.</value>
+  </data>
 </root>

@@ -14,6 +14,7 @@ public class TrabajoAnalisisDocumentoConfiguration : IEntityTypeConfiguration<Tr
         builder.Property(t => t.Tipo).IsRequired().HasConversion<string>();
         builder.Property(t => t.Estado).IsRequired().HasConversion<string>();
         builder.Property(t => t.UltimoError).HasMaxLength(TrabajoAnalisisDocumento.LongitudMaximaError);
+        builder.Property(t => t.MotivoDescarte).HasMaxLength(TrabajoAnalisisDocumento.LongitudMaximaMotivoDescarte);
 
         // El procesador pide "el pendiente más antiguo de este tenant" en
         // cada ciclo de sondeo — sin este índice sería un scan completo de la

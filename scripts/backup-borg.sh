@@ -12,7 +12,8 @@
 #
 # Requisitos: borg en el host, el repo Borg ya inicializado
 # (`borg init --encryption=repokey-blake2 "$BORG_REPO"`) y los contenedores
-# caemanager-app / caemanager-db del compose levantados.
+# caemanager-db del compose levantado y al menos una ranura de la app
+# (caemanager-app-azul / -verde) creada.
 #
 # Uso (cron diario recomendado, ver Project-Hydra-Negocio/tecnico/RUNBOOK-DESPLIEGUE-LOCAL.md § Backups):
 #   BORG_REPO='ssh://uXXXXXX@uXXXXXX.your-storagebox.de:23/./backups/caemanager' \
@@ -66,12 +67,22 @@ docker exec caemanager-db pg_dump -U postgres --format=custom caemanager \
 [ -s "$DIR_TRABAJO/CaeManager.dump" ] || { echo "ERROR: el dump salió vacío"; exit 1; }
 
 echo "==> 2/4 Copiando dataprotection-keys/ y documentos/ del volumen..."
-docker cp caemanager-app:/data/dataprotection-keys "$DIR_TRABAJO/dataprotection-keys"
+# P1-F2: la app de producción corre en dos ranuras (caemanager-app-azul y
+# -verde, deploy/relevo-app.sh) y no hay un nombre fijo. Todas montan el mismo
+# volumen caemanager-data —también el contenedor único anterior a P1-F2—, y
+# `docker cp` lee también de un contenedor parado: vale cualquiera que exista.
+CONTENEDOR_DATOS=""
+for candidato in caemanager-app-azul caemanager-app-verde caemanager-app; do
+    if docker inspect "$candidato" > /dev/null 2>&1; then CONTENEDOR_DATOS="$candidato"; break; fi
+done
+[ -n "$CONTENEDOR_DATOS" ] \
+    || { echo "ERROR: no existe ningún contenedor de la app de producción (caemanager-app-azul/-verde) del que copiar /data"; exit 1; }
+docker cp "$CONTENEDOR_DATOS":/data/dataprotection-keys "$DIR_TRABAJO/dataprotection-keys"
 # Sin claves no hay backup válido.
 ls "$DIR_TRABAJO/dataprotection-keys"/*.xml >/dev/null 2>&1 \
     || { echo "ERROR: dataprotection-keys/ no contiene ninguna clave XML — ver Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES.md"; exit 1; }
 # documentos/ puede no existir aún (nadie subió un PDF todavía) — eso sí es válido.
-docker cp caemanager-app:/data/documentos "$DIR_TRABAJO/documentos" 2>/dev/null \
+docker cp "$CONTENEDOR_DATOS":/data/documentos "$DIR_TRABAJO/documentos" 2>/dev/null \
     || mkdir "$DIR_TRABAJO/documentos"
 
 # El .env de producción (contraseña de PostgreSQL, la del rol cae_app_runtime,

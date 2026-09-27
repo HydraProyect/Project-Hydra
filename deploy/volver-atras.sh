@@ -24,18 +24,20 @@
 #      base no tiene, arrancarla aplicaría esquema nuevo: eso es un despliegue,
 #      no una vuelta atrás, y también se detiene. Una imagen sin la etiqueta
 #      (construida antes de P1-F1) no se puede comprobar: se detiene.
-#   4. `docker compose up -d --wait --no-build` con IMAGEN_TAG=<sha>, igual que
-#      ci-deploy.sh.
-#   5. SALUD: el contenedor app corre caemanager:<sha> y su /salud responde. Solo
-#      entonces se da por buena. Si no, sale con 1 y lo dice: el entorno queda en
-#      la imagen de destino sin sanar, y hay que decidir a mano.
+#   4. Relevo sin corte (deploy/relevo-app.sh desplegar, P1-F2), igual que
+#      ci-deploy.sh: <sha> arranca en la ranura libre, Caddy conmuta cuando está
+#      sana y la ranura que servía drena. Si no llega a sana, sigue sirviendo la
+#      de antes.
+#   5. SALUD: la ranura activa corre caemanager:<sha> y su /salud responde. Solo
+#      entonces se da por buena. Si no, sale con 1 y lo dice.
 #
 # La vuelta atrás usa los docker-compose.*.yml del checkout ACTUAL (el de la
 # versión de la que se vuelve), no los del commit de destino.
 #
 # Variables para los tests (deploy/volver-atras.tests.sh), con sus valores
 # reales por defecto: RAIZ_DESPLIEGUE, VOLVER_ATRAS_INTENTOS_SALUD,
-# VOLVER_ATRAS_ESPERA_SALUD, y las de imagenes-retenidas.sh.
+# VOLVER_ATRAS_ESPERA_SALUD, RELEVO_APP (el guion del relevo), y las de
+# imagenes-retenidas.sh.
 
 set -euo pipefail
 
@@ -46,12 +48,15 @@ source "$DIR_VOLVER_ATRAS/imagenes-retenidas.sh"
 RAIZ_DESPLIEGUE="${RAIZ_DESPLIEGUE:-/opt/talveg}"
 VOLVER_ATRAS_INTENTOS_SALUD="${VOLVER_ATRAS_INTENTOS_SALUD:-12}"
 VOLVER_ATRAS_ESPERA_SALUD="${VOLVER_ATRAS_ESPERA_SALUD:-5}"
+RELEVO_APP="${RELEVO_APP:-$DIR_VOLVER_ATRAS/relevo-app.sh}"
 ETIQUETA_MIGRACIONES="es.talveg.migraciones-ef"
 ETIQUETA_REVISION="org.opencontainers.image.revision"
 
 detener() { echo "VUELTA ATRÁS DETENIDA: $*" >&2; exit 1; }
 
-contenedor_app() { [ "$1" = "staging" ] && echo caemanager-staging-app || echo caemanager-app; }
+# Ranura activa del entorno (P1-F2): la que Caddy tiene primera en su fichero
+# de ranuras. Vacío si no hay ninguna.
+contenedor_app() { bash "$RELEVO_APP" activa "$1" 2>/dev/null || true; }
 contenedor_db() { [ "$1" = "staging" ] && echo caemanager-staging-db || echo caemanager-db; }
 
 # SHA de la imagen que corre ahora el contenedor app del entorno (vacío si no
@@ -153,6 +158,12 @@ main_volver_atras() {
         # destino no basta, tiene que responder /salud (hallazgo de Codex).
         comprobar_salud "$entorno" "$sha" \
             || detener "$entorno está configurado con ${sha} pero no está sano: no hay imagen distinta a la que volver con esta orden. Revisa los logs y decide a mano."
+        # El fichero de ranuras dice que ${sha} es la activa, pero un relevo
+        # interrumpido entre escribirlo y recargar Caddy dejaría a Caddy
+        # sirviendo otra (hallazgo de Codex): se recarga antes de decir «nada
+        # que hacer».
+        bash "$RELEVO_APP" recargar "$entorno" < /dev/null \
+            || detener "no se pudo recargar Caddy con las ranuras de $entorno: revisa 'docker logs caemanager-caddy'."
         echo "$entorno ya corre ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${sha} y /salud responde: nada que hacer."
         exit 0
     fi
@@ -165,13 +176,8 @@ main_volver_atras() {
 
     comprobar_esquema "$entorno" "$sha" || detener "el esquema no admite volver a ${sha}."
 
-    cd "$RAIZ_DESPLIEGUE/deploy/local"
-    local args=(-f "docker-compose.$entorno.yml")
-    [ "$entorno" = "staging" ] && args+=(--env-file .env.staging)
-    export IMAGEN_TAG="$sha"
-    if ! docker compose "${args[@]}" up -d --wait --wait-timeout 180 --no-build; then
-        docker compose "${args[@]}" ps >&2 || true
-        detener "$entorno no llegó a sano con ${sha}: queda en esa imagen sin sanar. Revisa los logs y decide a mano."
+    if ! bash "$RELEVO_APP" desplegar "$entorno" "$sha" < /dev/null; then
+        detener "$entorno no llegó a sano con ${sha}: sigue sirviendo la ranura de antes. Revisa los logs y decide a mano."
     fi
 
     comprobar_salud "$entorno" "$sha" || detener "$entorno arrancó ${sha} pero no está sano: no se da por buena."

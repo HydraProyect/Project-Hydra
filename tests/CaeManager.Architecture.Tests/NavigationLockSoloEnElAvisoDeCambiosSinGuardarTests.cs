@@ -27,18 +27,107 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
 
     private static readonly Regex PatronUsoDelAviso = new(@"<AvisoCambiosSinGuardar\b", RegexOptions.Compiled);
 
+    /// <summary>Un Drawer o un Modal que recibe HayCambios: cerrarlo con la X, Escape o el fondo pregunta.</summary>
+    private static readonly Regex PatronContenedorQuePregunta = new(@"<(Drawer|Modal)\b[^>]*\bHayCambios=", RegexOptions.Compiled);
+
     /// <summary>
     /// Formularios con el aviso puesto. Solo crece: un formulario nuevo con estado que se
     /// pueda perder se añade aquí al protegerlo.
     /// </summary>
     private static readonly string[] FormulariosProtegidos =
     [
+        "src/CaeManager.Web/Components/DesignSystem/RedactarMensajeDrawer.razor",
+        "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
+        "src/CaeManager.Web/Features/Bandeja/Components/DrawerReclamacionLote.razor",
+        "src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor",
+        "src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor",
+        "src/CaeManager.Web/Features/Centros/Components/DrawerAsignacionMasiva.razor",
+        "src/CaeManager.Web/Features/Centros/Pages/Centros.razor",
+        "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
+        "src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Buzon.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor",
+        "src/CaeManager.Web/Features/Delegaciones/OperadoresCaeExternosPanel.razor",
+        "src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor",
         "src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor",
+        "src/CaeManager.Web/Features/Documentos/Components/FirmaEnCampoTab.razor",
+        "src/CaeManager.Web/Features/Documentos/Components/PlantillasTab.razor",
         "src/CaeManager.Web/Features/Documentos/Components/PlataformaTab.razor",
         "src/CaeManager.Web/Features/Documentos/Components/RevisionIaTab.razor",
+        "src/CaeManager.Web/Features/Documentos/Pages/Documentos.razor",
         "src/CaeManager.Web/Features/Documentos/Pages/SubidaMasiva.razor",
+        "src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor",
+        "src/CaeManager.Web/Features/Incidencias/Pages/Incidencias.razor",
+        "src/CaeManager.Web/Features/IncorporacionCartera/Components/DialogoSolicitarIncorporacion.razor",
+        "src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor",
+        "src/CaeManager.Web/Features/Retencion/Pages/Retencion.razor",
+        "src/CaeManager.Web/Features/Subcontratas/Pages/Subcontratas.razor",
+        "src/CaeManager.Web/Features/TiposDocumento/Pages/TiposDocumento.razor",
+        "src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor",
+        "src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor",
+        "src/CaeManager.Web/Features/Usuarios/Pages/MiFirma.razor",
+        "src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor",
+        "src/CaeManager.Web/Features/Vehiculos/Pages/Vehiculos.razor",
         "src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor",
     ];
+
+    /// <summary>
+    /// P1-E2b (decisión del propietario, 2026-09-26): en estos ficheros el Drawer o Modal del
+    /// formulario recibe su HayCambios, así que cerrarlo con la X, Escape o un clic en el
+    /// fondo con cambios pregunta «¿Descartar cambios?». Solo crece.
+    /// </summary>
+    private static readonly string[] ContenedoresQuePreguntanAlCerrar =
+    [
+        "src/CaeManager.Web/Components/DesignSystem/RedactarMensajeDrawer.razor",
+        "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
+        "src/CaeManager.Web/Features/Bandeja/Components/DrawerReclamacionLote.razor",
+        "src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor",
+        "src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor",
+        "src/CaeManager.Web/Features/Centros/Components/DrawerAsignacionMasiva.razor",
+        "src/CaeManager.Web/Features/Centros/Pages/Centros.razor",
+        "src/CaeManager.Web/Features/Clientes/Components/FormularioRapidoCliente.razor",
+        "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
+        "src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Buzon.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor",
+        "src/CaeManager.Web/Features/Delegaciones/OperadoresCaeExternosPanel.razor",
+        "src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor",
+        "src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor",
+        "src/CaeManager.Web/Features/Documentos/Components/PlantillasTab.razor",
+        "src/CaeManager.Web/Features/Documentos/Components/PlataformaTab.razor",
+        "src/CaeManager.Web/Features/Documentos/Components/RevisionIaTab.razor",
+        "src/CaeManager.Web/Features/Documentos/Pages/Documentos.razor",
+        "src/CaeManager.Web/Features/Empresas/Components/FormularioRapidoEmpresa.razor",
+        "src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor",
+        "src/CaeManager.Web/Features/Incidencias/Pages/Incidencias.razor",
+        "src/CaeManager.Web/Features/IncorporacionCartera/Components/DialogoSolicitarIncorporacion.razor",
+        "src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor",
+        "src/CaeManager.Web/Features/Retencion/Pages/Retencion.razor",
+        "src/CaeManager.Web/Features/Subcontratas/Pages/Subcontratas.razor",
+        "src/CaeManager.Web/Features/TiposDocumento/Pages/TiposDocumento.razor",
+        "src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor",
+        "src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor",
+        "src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor",
+        "src/CaeManager.Web/Features/Vehiculos/Pages/Vehiculos.razor",
+        "src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor",
+    ];
+
+    [Fact]
+    public void Los_drawers_y_modales_protegidos_preguntan_al_cerrar()
+    {
+        var raiz = RaizDelRepositorio();
+
+        var sinPregunta = ContenedoresQuePreguntanAlCerrar
+            .Where(ruta => !File.Exists(Path.Combine(raiz, ruta))
+                || !PatronContenedorQuePregunta.IsMatch(File.ReadAllText(Path.Combine(raiz, ruta))))
+            .ToList();
+
+        sinPregunta.Should().BeEmpty(
+            "el Drawer o Modal de estos formularios recibía HayCambios; sin él, la X, Escape o el clic en el fondo " +
+            "vuelven a tirar lo escrito sin preguntar (o el fichero se movió sin actualizar la lista)");
+    }
 
     [Fact]
     public void Solo_el_aviso_comun_monta_un_NavigationLock()
@@ -82,8 +171,14 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
         PatronBloqueoPropio.IsMatch("// el único sitio que monta un NavigationLock").Should().BeFalse(
             "mencionarlo en un comentario no es montarlo");
 
-        PatronUsoDelAviso.IsMatch("<AvisoCambiosSinGuardar HayCambios=\"HayCambiosSinGuardar\" />").Should().BeTrue();
+        PatronUsoDelAviso.IsMatch("<AvisoCambiosSinGuardar HayCambios=\"() => HayCambiosSinGuardar\" />").Should().BeTrue();
         PatronUsoDelAviso.IsMatch("<AvisoCambiosSinGuardarOtro />").Should().BeFalse();
+
+        PatronContenedorQuePregunta.IsMatch("<Drawer HayCambios=\"() => HayCambiosSinGuardar\" Visible=\"_drawerVisible\">").Should().BeTrue();
+        PatronContenedorQuePregunta.IsMatch("<Modal Visible=\"_v\" HayCambios=\"() => X\">").Should().BeTrue();
+        PatronContenedorQuePregunta.IsMatch("<Drawer Visible=\"_drawerVisible\">").Should().BeFalse();
+        PatronContenedorQuePregunta.IsMatch("<AvisoCambiosSinGuardar HayCambios=\"X\" />").Should().BeFalse(
+            "el aviso de navegación no es el Drawer ni el Modal");
     }
 
     /// <summary>Guarda: el componente existe y el recorrido ve el árbol real; si no, las reglas de arriba pasarían en vacío.</summary>

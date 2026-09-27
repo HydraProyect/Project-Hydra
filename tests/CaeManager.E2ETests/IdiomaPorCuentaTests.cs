@@ -3,6 +3,21 @@ using Microsoft.Playwright;
 namespace CaeManager.E2ETests;
 
 /// <summary>
+/// Instancia propia con <c>Localizacion:CatalanHabilitado</c> encendido: el
+/// catalán está apagado por defecto (decisión de producto del 2026-09-26) y la
+/// infraestructura ca-ES se sigue probando con él encendido. Colección propia
+/// porque estos tests cambian el idioma de cuentas de prueba compartidas.
+/// </summary>
+public sealed class WebAppFixtureConCatalan : WebAppFixture
+{
+    protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
+        new Dictionary<string, string> { ["Localizacion__CatalanHabilitado"] = "true" };
+}
+
+[CollectionDefinition("AppCollectionConCatalan")]
+public class AppCollectionConCatalan : ICollectionFixture<WebAppFixtureConCatalan>;
+
+/// <summary>
 /// Idioma por cuenta (<c>ApplicationUser.Idioma</c>, es-ES por defecto, ca-ES
 /// soportado) sobre el transporte real: los inicios de sesión emiten el
 /// <c>Set-Cookie</c> de <c>.AspNetCore.Culture</c> desde la cuenta, el selector
@@ -17,9 +32,16 @@ namespace CaeManager.E2ETests;
 /// de Playwright conserva también las cookies de sesión—, así que la
 /// persistencia se comprueba por la caducidad de la cookie.
 /// </para>
+///
+/// <para>
+/// Corre en su propia instancia con el catalán encendido
+/// (<c>Localizacion:CatalanHabilitado</c>, apagado por defecto): lo que pasa
+/// con él apagado lo prueba <c>IdiomaConCatalanApagadoTests</c> sobre la
+/// instancia por defecto.
+/// </para>
 /// </summary>
-[Collection("AppCollection")]
-public class IdiomaPorCuentaTests(WebAppFixture fixture)
+[Collection("AppCollectionConCatalan")]
+public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
 {
     private const string NombreCookie = ".AspNetCore.Culture";
     private const string ValorEspanol = "c%3Des-ES%7Cuic%3Des-ES";
@@ -70,8 +92,8 @@ public class IdiomaPorCuentaTests(WebAppFixture fixture)
         }
         finally
         {
-            // La fixture es compartida por toda "AppCollection": la cuenta
-            // vuelve a es-ES.
+            // La fixture es compartida por toda "AppCollectionConCatalan": la
+            // cuenta vuelve a es-ES.
             await RestaurarEspanolAsync(page, Ayudas.EmailGestorRefrielectric);
         }
     }

@@ -94,7 +94,7 @@
    perdía sin aviso. Mientras quedan archivos en curso o sin confirmar, salir por la
    aplicación pide confirmación y ofrece seguir con el lote; recargar o cerrar la
    pestaña dispara el aviso del propio navegador. *@
-<AvisoCambiosSinGuardar HayCambios="HayTrabajoSinGuardar"
+<AvisoCambiosSinGuardar HayCambios="() => HayTrabajoSinGuardar"
                         Titulo="@Textos["SalirTitulo"]"
                         Mensaje="@Textos["SalirMensaje", ArchivosSinGuardar]"
                         TextoSeguir="@Textos["SalirSeguir"]"

@@ -346,6 +346,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     {
         if (_vista == vista) return;
 
+        // Cambiar de vista desmonta el composer sin salir de la página: se pregunta
+        // antes de tocar nada (P1-E2b).
+        if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
+
         _vista = vista;
         _conversacionSeleccionadaId = null;
         _detalle = null;
@@ -492,13 +496,23 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // Los cuatro a la vez en una sola navegación — llamar a
         // ActualizarFiltroEnUrl varias veces seguidas arriesgaría que cada
         // NavigateTo lea la URL todavía sin el cambio del anterior.
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        // Filtrar no sale de la página ni borra la respuesta a medias: esa
+        // navegación no pregunta (ver HayCambiosSinGuardar).
+        _navegandoDentroDeLaPagina = true;
+        try
         {
-            ["estado"] = _estadoFiltro,
-            ["mes"] = _mesFiltro,
-            ["cliente"] = _clienteIdFiltro,
-            ["q"] = _busqueda
-        });
+            NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+            {
+                ["estado"] = _estadoFiltro,
+                ["mes"] = _mesFiltro,
+                ["cliente"] = _clienteIdFiltro,
+                ["q"] = _busqueda
+            });
+        }
+        finally
+        {
+            _navegandoDentroDeLaPagina = false;
+        }
 
         // Cambiar cualquier filtro vuelve a la página 1 — quedarse en la 3 de
         // un filtro que ahora tiene una sola página dejaría la lista en blanco.
@@ -584,6 +598,16 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private async Task SeleccionarConversacionAsync(Guid id)
     {
+        // Otra conversación desmonta el composer (y su nota, por su @key) sin salir de la
+        // página: con una respuesta o nota a medias se pregunta ANTES de cambiar la
+        // selección, la URL o el detalle; «Seguir editando» deja todo como estaba (P1-E2b).
+        // Pulsar la conversación que ya está abierta no cambia nada: ni pregunta ni recarga
+        // (confirmar un «descarte» sin navegación después dejaría pasar sin preguntar la
+        // siguiente salida; revisión Codex del lote C).
+        if (id == _conversacionSeleccionadaId) return;
+
+        if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
+
         _conversacionSeleccionadaId = id;
         _textoRespuesta = string.Empty;
         _macroSeleccionadaId = string.Empty;
@@ -1177,6 +1201,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _noCaducaDocumentoFormulario = false;
         _comentariosDocumentoFormulario = string.Empty;
         _confianzaDeteccionDocumento = 0;
+        FijarInstantaneaActualizarDocumento();
 
         _detectandoDocumento = true;
         StateHasChanged();
@@ -1211,6 +1236,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         finally
         {
             _detectandoDocumento = false;
+            // Lo que rellenó la detección no es un cambio de quien revisa.
+            FijarInstantaneaActualizarDocumento();
             StateHasChanged();
         }
     }
@@ -1332,6 +1359,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             .Where(c => c.Estado == EstadoConexionIntegracion.Habilitada && c.GestorPropietarioId == null)
             .ToList();
         _conexionRedactarId = _conexionesRedactar.Count == 1 ? _conexionesRedactar[0].Id : null;
+        _instantaneaRedactar.Fijar(ValoresRedactar());
 
         if (_conexionesRedactar.Count == 0)
         {
@@ -1361,6 +1389,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _cargandoBorradorPrioridad = true;
         _mensajeErrorPrioridad = null;
         _borradorPrioridad = null;
+        _instantaneaPrioridad.Fijar(ValoresPrioridad());
 
         try
         {
@@ -1375,6 +1404,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             _destinatarioPrioridad = resultado.Valor.DestinatarioSugerido ?? string.Empty;
             _asuntoPrioridad = resultado.Valor.Asunto;
             _cuerpoPrioridad = resultado.Valor.CuerpoHtml;
+            // El borrador propuesto no es un cambio de quien lo revisa.
+            _instantaneaPrioridad.Fijar(ValoresPrioridad());
         }
         catch (Exception ex)
         {
@@ -1494,5 +1525,80 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         {
             _enviandoRedaccion = false;
         }
+    }
+
+    // --- Aviso de cambios sin guardar (P1-E2b) ---
+
+    private readonly InstantaneaFormulario _instantaneaActualizarDocumento = new();
+    private readonly InstantaneaFormulario _instantaneaRedactar = new();
+    private readonly InstantaneaFormulario _instantaneaPrioridad = new();
+    private ComposerNotaInterna? _composerNota;
+    private bool _navegandoDentroDeLaPagina;
+
+    /// <summary>
+    /// La conversación abierta como zona que se desmonta sin navegar: elegir otra o cambiar a
+    /// «Mi buzón personal» pregunta con el mismo aviso antes de hacerlo (ConfirmarAbandonoAsync).
+    /// </summary>
+    private readonly AmbitoCambiosSinGuardar _ambitoConversacion = new();
+
+    /// <summary>
+    /// Escribir la nota solo re-renderiza el composer: este manejador vacío hace que la página
+    /// se re-renderice también, para que el aviso del navegador al recargar o cerrar la pestaña
+    /// (ConfirmExternalNavigation, que se calcula en el render de la página) vea la nota.
+    /// </summary>
+    private static void AlCambiarNotaInterna()
+    {
+    }
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en la página, para
+    /// AvisoCambiosSinGuardar: el modal de actualizar documentación, el drawer de redactar
+    /// o el de pedir prioridad comparados con cómo se abrieron, o una respuesta o nota
+    /// interna a medias en la conversación abierta. La respuesta a medias no cuenta en la
+    /// navegación de los filtros de esta misma página, que no la borra.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        HayCambiosActualizarDocumento || HayCambiosRedactar || HayCambiosPrioridad
+        || (!_navegandoDentroDeLaPagina && HayRespuestaONotaAMedias);
+
+    // Cada Drawer/Modal lee solo el suyo: cerrarlo no descarta la respuesta a medias.
+    private bool HayCambiosActualizarDocumento =>
+        _modalActualizarDocumentoVisible && _instantaneaActualizarDocumento.Difiere(ValoresActualizarDocumento());
+
+    private bool HayCambiosRedactar => _redactarVisible && _instantaneaRedactar.Difiere(ValoresRedactar());
+
+    private bool HayCambiosPrioridad =>
+        _drawerPrioridadVisible && _borradorPrioridad is not null && _instantaneaPrioridad.Difiere(ValoresPrioridad());
+
+    // El composer solo se pinta con una conversación abierta en la vista «Clientes».
+    private bool HayRespuestaONotaAMedias =>
+        _detalle is not null && _vista == "clientes"
+        && (!string.IsNullOrWhiteSpace(_textoRespuesta) || _adjuntosPendientes.Count > 0
+            || !string.IsNullOrWhiteSpace(_emailFallback) || _composerNota?.TieneTextoSinGuardar == true);
+
+    private object?[] ValoresActualizarDocumento() =>
+    [
+        _tipoDocumentoIdFormulario, _propietarioDocumentoFormulario, _trabajadorDocumentoIdFormulario,
+        _empresaDocumentoIdFormulario, _fechaEmisionDocumentoFormulario, _fechaVencimientoDocumentoFormulario,
+        _noCaducaDocumentoFormulario, _comentariosDocumentoFormulario,
+    ];
+
+    private object?[] ValoresRedactar() => [_conexionRedactarId, _redactarDestinatarios, _redactarAsunto, _redactarCuerpo];
+
+    private object?[] ValoresPrioridad() => [_destinatarioPrioridad, _asuntoPrioridad, _cuerpoPrioridad];
+
+    private void FijarInstantaneaActualizarDocumento() => _instantaneaActualizarDocumento.Fijar(ValoresActualizarDocumento());
+
+    private void CerrarFormulariosDescartando()
+    {
+        _modalActualizarDocumentoVisible = false;
+        _redactarVisible = false;
+        _drawerPrioridadVisible = false;
+        _textoRespuesta = string.Empty;
+        _macroSeleccionadaId = string.Empty;
+        _adjuntosPendientes.Clear();
+        _errorAdjuntos = null;
+        _emailFallback = string.Empty;
+        _composerNota?.Descartar();
     }
 }

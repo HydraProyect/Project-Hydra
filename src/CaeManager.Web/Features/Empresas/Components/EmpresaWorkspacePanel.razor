@@ -467,7 +467,7 @@ else
                 if (generacion == _generacion)
                     _mensajeErrorInformacion = resultado.Error.Mensaje;
                 else
-                    ToastService.Mostrar($"{detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
+                    ToastService.MostrarError(detalle.RazonSocial, resultado.Error);
                 return;
             }
 
@@ -527,7 +527,7 @@ else
                 if (generacion == _generacion)
                     _mensajeErrorCredenciales = resultado.Error.Mensaje;
                 else
-                    ToastService.Mostrar($"{detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
+                    ToastService.MostrarError(detalle.RazonSocial, resultado.Error);
                 return;
             }
 
@@ -607,7 +607,7 @@ else
 
             if (resultado.EsFallido)
             {
-                ToastService.Mostrar($"{detalle.RazonSocial}: {resultado.Error.Mensaje}", TonoToast.Error);
+                ToastService.MostrarError(detalle.RazonSocial, resultado.Error);
                 return;
             }
 

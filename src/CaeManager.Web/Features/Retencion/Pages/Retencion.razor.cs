@@ -177,6 +177,26 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
         // reaccione, sin que la propuesta se quede olvidada indefinidamente.
         _fechaEjecucion = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-dd");
         _errorFormulario = null;
+        // La fecha propuesta viene puesta: no es un cambio de quien autoriza.
+        _instantaneaProgramar.Fijar(_fechaEjecucion);
+    }
+
+    private readonly InstantaneaFormulario _instantaneaProgramar = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en la página: la fecha de ejecución
+    /// cambiada respecto a la propuesta en el modal de autorizar, o un motivo ya escrito en
+    /// el de descartar. Lo lee AvisoCambiosSinGuardar; cerrados (también tras confirmar)
+    /// nunca hay nada que perder.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        (_aProgramar is not null && _instantaneaProgramar.Difiere(_fechaEjecucion))
+        || (_aCancelar is not null && !string.IsNullOrWhiteSpace(_motivoCancelacion));
+
+    private void CerrarFormulariosDescartando()
+    {
+        _aProgramar = null;
+        _aCancelar = null;
     }
 
     private void AbrirCancelar(SolicitudPurgaDto solicitud)

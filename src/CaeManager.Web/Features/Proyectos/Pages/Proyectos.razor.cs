@@ -291,6 +291,28 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
         _mensajeErrorFormulario = null;
         _erroresCampo = new Dictionary<string, string>();
         _drawerVisible = true;
+        _instantanea.Fijar(ValoresFormulario());
+    }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+    private readonly InstantaneaFormulario _instantaneaCierre = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de nuevo
+    /// proyecto o el modal de cerrar proyecto comparados con cómo se abrieron (la fecha de
+    /// hoy que traen puesta no es un cambio). Lo lee AvisoCambiosSinGuardar; cerrados
+    /// (también tras guardar) nunca hay nada que perder.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        (_drawerVisible && _instantanea.Difiere(ValoresFormulario()))
+        || (_mostrarCerrarConfirm && _instantaneaCierre.Difiere(_fechaCierre));
+
+    private object?[] ValoresFormulario() => [_nuevoCentroId, _nuevoNombre, _nuevaFechaInicio, _nuevaFechaFinPrevista, _nuevasNotas];
+
+    private void CerrarFormulariosDescartando()
+    {
+        _drawerVisible = false;
+        _mostrarCerrarConfirm = false;
     }
 
     private Task CerrarDrawerAsync(bool visible)
@@ -624,6 +646,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
         _fechaCierre = Hoy.ToString("yyyy-MM-dd");
         _errorCierre = null;
         _mostrarCerrarConfirm = true;
+        _instantaneaCierre.Fijar(_fechaCierre);
     }
 
     private async Task ConfirmarCerrarAsync()

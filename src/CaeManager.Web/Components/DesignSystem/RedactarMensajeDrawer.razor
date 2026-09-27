@@ -16,7 +16,7 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 
-<Drawer Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviando">
+<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviando">
     <ChildContent>
         @if (_error is not null)
         {
@@ -48,6 +48,8 @@
         <Boton Cargando="_enviando" OnClick="EnviarAsync">Enviar</Boton>
     </Pie>
 </Drawer>
+
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => VisibleChanged.InvokeAsync(false)" />
 
 @code {
     [Parameter] public bool Visible { get; set; }
@@ -85,10 +87,16 @@
         _asunto = AsuntoInicial ?? string.Empty;
         _cuerpo = CuerpoInicial ?? string.Empty;
         _error = null;
+        _conexionId = null;
+        FijarInstantaneaFormulario();
 
         var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(SoloPropiasYGenerales: true));
         _conexiones = conexiones.Where(c => c.Estado == EstadoConexionIntegracion.Habilitada).ToList();
         _conexionId = _conexiones.Count == 1 ? _conexiones[0].Id : null;
+        // El buzón preseleccionado (el único que hay) no es un cambio de quien redacta. Solo
+        // cambia ese valor de partida: lo que se haya tecleado mientras cargaban los buzones
+        // sí es un cambio, así que los demás siguen siendo los de la apertura.
+        _instantanea.Fijar(_conexionId, string.Empty, AsuntoInicial ?? string.Empty, CuerpoInicial ?? string.Empty);
 
         if (_conexiones.Count == 0)
         {
@@ -96,6 +104,19 @@
             await CerrarAsync(false);
         }
     }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en el mensaje que se está redactando,
+    /// comparado con cómo se abrió (asunto y cuerpo iniciales del llamador incluidos). Lo
+    /// leen el Drawer (X, Escape, fondo) y AvisoCambiosSinGuardar (salir de la página).
+    /// </summary>
+    private bool HayCambiosSinGuardar => Visible && _instantanea.Difiere(ValoresFormulario());
+
+    private object?[] ValoresFormulario() => [_conexionId, _destinatarios, _asunto, _cuerpo];
+
+    private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
 
     private Task CerrarAsync(bool visible)
     {
@@ -138,6 +159,8 @@
             }
 
             ToastService.Mostrar("Mensaje enviado.", TonoToast.Exito);
+            // Enviado: lo escrito ya no se pierde, aunque el llamador navegue en OnEnviado.
+            FijarInstantaneaFormulario();
             await OnEnviado.InvokeAsync();
             await CerrarAsync(false);
         }

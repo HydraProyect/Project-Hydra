@@ -13,7 +13,7 @@
         <div class="drawer-panel" @onmousedown="() => _mouseDownEnSuperposicion = false" @onmousedown:stopPropagation="true" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="@_tituloId" tabindex="-1" @ref="_referenciaContenedor" @onkeydown="ManejarTeclaAsync">
             <div class="drawer-header">
                 <h2 id="@_tituloId">@Titulo</h2>
-                <button type="button" class="drawer-cerrar" aria-label="Cerrar" @onclick="CerrarAsync"><Icono Nombre="cerrar" /></button>
+                <button type="button" class="drawer-cerrar" aria-label="Cerrar" @onclick="SolicitarCierreAsync"><Icono Nombre="cerrar" /></button>
             </div>
             <div class="drawer-cuerpo">
                 @ChildContent
@@ -24,6 +24,11 @@
             }
         </div>
     </div>
+
+    @if (_confirmandoDescarte)
+    {
+        <ConfirmarDescartarCambios AlSeguir="SeguirEditando" AlDescartar="DescartarYCerrarAsync" />
+    }
 }
 
 @code {
@@ -95,12 +100,50 @@
 
     private async Task CerrarAsync() => await VisibleChanged.InvokeAsync(false);
 
+    /// <summary>
+    /// P1-E2b: si el formulario de dentro tiene algo que se perdería al cerrar. Se consulta
+    /// al pedir el cierre con la X, Escape o un clic en el fondo; con <c>true</c>, antes de
+    /// cerrar se pregunta «¿Descartar cambios?» (ConfirmarDescartarCambios). Los botones del
+    /// propio formulario («Cancelar», «Guardar») no pasan por aquí: son decisión explícita.
+    /// Es la misma función que el formulario pasa a AvisoCambiosSinGuardar.
+    /// </summary>
+    [Parameter] public Func<bool>? HayCambios { get; set; }
+
+    private bool _confirmandoDescarte;
+
+    private Task SolicitarCierreAsync()
+    {
+        if (HayCambios?.Invoke() == true)
+        {
+            _confirmandoDescarte = true;
+            return Task.CompletedTask;
+        }
+
+        return CerrarAsync();
+    }
+
+    private void SeguirEditando() => _confirmandoDescarte = false;
+
+    protected override void OnParametersSet()
+    {
+        // Cerrado desde fuera mientras preguntaba (p. ej. terminó un guardado): la
+        // pregunta no puede reaparecer sola al volver a abrirlo.
+        if (!Visible)
+            _confirmandoDescarte = false;
+    }
+
+    private Task DescartarYCerrarAsync()
+    {
+        _confirmandoDescarte = false;
+        return CerrarAsync();
+    }
+
     private Task ManejarClicSuperposicionAsync() =>
-        CerrarAlHacerClicFuera && _mouseDownEnSuperposicion ? CerrarAsync() : Task.CompletedTask;
+        CerrarAlHacerClicFuera && _mouseDownEnSuperposicion ? SolicitarCierreAsync() : Task.CompletedTask;
 
     /// <summary>Mismo guard de trabajo sin guardar que el clic fuera — ver CerrarAlHacerClicFuera.</summary>
     private Task ManejarTeclaAsync(KeyboardEventArgs e) =>
-        e.Key == "Escape" && CerrarAlHacerClicFuera ? CerrarAsync() : Task.CompletedTask;
+        e.Key == "Escape" && CerrarAlHacerClicFuera ? SolicitarCierreAsync() : Task.CompletedTask;
 
     private async Task LiberarTrampaFocoAsync()
     {

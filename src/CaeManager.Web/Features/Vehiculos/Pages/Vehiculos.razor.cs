@@ -365,7 +365,21 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
     }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en el drawer de alta de Vehículo. Lo lee
+    /// AvisoCambiosSinGuardar para detener la salida de la página; cerrado (también tras
+    /// guardar) nunca hay nada que perder.
+    /// </summary>
+    private bool HayCambiosSinGuardar => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+
+    private object?[] ValoresFormulario() => [_tipoEmpleador, _empresaId, _subcontrataId, _nombre, _modelo, _numeroPlaca];
+
+    private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
 
     private void SeleccionarTipoEmpresa() => CambiarTipoEmpleador("empresa");
 

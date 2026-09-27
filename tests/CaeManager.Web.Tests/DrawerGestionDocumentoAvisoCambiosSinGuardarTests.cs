@@ -190,6 +190,22 @@ public class DrawerGestionDocumentoAvisoCambiosSinGuardarTests : BunitContext
         cut.FindAll(".modal-contenido").Should().BeEmpty();
     }
 
+    /// <summary>P1-E2b: cerrar el drawer con la X con comentarios escritos pregunta «¿Descartar cambios?».</summary>
+    [Fact]
+    public async Task Cerrar_con_la_X_con_comentarios_escritos_pregunta()
+    {
+        var cut = Renderizar();
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearAsync());
+        await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Firmado por el jefe de obra" });
+
+        await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".drawer-panel").Should().NotBeEmpty("con comentarios escritos la X pregunta antes de cerrar");
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+    }
+
     private static byte[] CrearPdf()
     {
         using var documento = new PdfDocument();

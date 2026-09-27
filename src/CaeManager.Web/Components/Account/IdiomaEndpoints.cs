@@ -8,6 +8,7 @@ using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Components.Account;
 
@@ -25,6 +26,12 @@ namespace CaeManager.Web.Components.Account;
 /// se escribe tras un <c>UpdateAsync</c> correcto; si la cuenta no llega a
 /// guardarse, la respuesta no aparenta éxito y la cookie no cambia.
 /// </para>
+///
+/// <para>
+/// Con el catalán apagado (<see cref="OpcionesLocalizacion"/>), <c>ca-ES</c>
+/// se rechaza igual que una cultura desconocida: sin tocar la cuenta ni la
+/// cookie.
+/// </para>
 /// </summary>
 public static class IdiomaEndpoints
 {
@@ -39,8 +46,9 @@ public static class IdiomaEndpoints
             UserManager<ApplicationUser> userManager,
             IDesenganchadorDeEntidadesRastreadas desenganchador,
             IStringLocalizer<TextosComunes> textos,
+            IOptions<OpcionesLocalizacion> localizacion,
             ILoggerFactory loggerFactory) =>
-            CambiarAsync(idioma, returnUrl, httpContext, userManager, desenganchador, textos,
+            CambiarAsync(idioma, returnUrl, httpContext, userManager, desenganchador, textos, localizacion.Value,
                 loggerFactory.CreateLogger(typeof(IdiomaEndpoints).FullName!)))
             .RequireAuthorization();
 
@@ -51,14 +59,16 @@ public static class IdiomaEndpoints
     public static async Task<IResult> CambiarAsync(
         string? idioma, string? returnUrl, HttpContext httpContext,
         UserManager<ApplicationUser> userManager, IDesenganchadorDeEntidadesRastreadas desenganchador,
-        IStringLocalizer<TextosComunes> textos, ILogger logger)
+        IStringLocalizer<TextosComunes> textos, OpcionesLocalizacion localizacion, ILogger logger)
     {
         if (!Guid.TryParse(httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier), out var usuarioId))
             return Results.Unauthorized();
 
         // Lista blanca: un valor fuera de las culturas soportadas no se
-        // traduce a español en silencio, se rechaza.
-        if (!CulturaUsuarioCookie.IntentarDesdeCultura(idioma, out var idiomaElegido))
+        // traduce a español en silencio, se rechaza; tampoco uno soportado
+        // pero apagado por configuración (el catalán, hoy).
+        if (!CulturaUsuarioCookie.IntentarDesdeCultura(idioma, out var idiomaElegido)
+            || !CulturaUsuarioCookie.EstaActivo(idiomaElegido, localizacion))
             return Results.BadRequest();
 
         var destino = RedireccionLocal.Sanear(returnUrl);

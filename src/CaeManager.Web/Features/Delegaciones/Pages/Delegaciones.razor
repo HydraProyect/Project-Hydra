@@ -297,7 +297,7 @@
     }
 </Drawer>
 
-<Modal Visible="_delegacionSoporteAAbrir is not null"
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_delegacionSoporteAAbrir is not null"
        VisibleChanged="v => CerrarFormularioSoporte(v)"
        Titulo="Abrir acceso de soporte"
        CerrarAlHacerClicFuera="!EstaProcesando(_delegacionSoporteAAbrir?.Id)">
@@ -347,7 +347,7 @@
                      EnProgreso="@EstaProcesando(_delegacionARevocar?.Id)"
                      OnConfirmar="RevocarAsync" />
 
-<Modal Visible="_mostrarNuevaDelegacion"
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarNuevaDelegacion"
        VisibleChanged="v => CerrarFormularioNueva(v)"
        Titulo="Nueva delegación"
        CerrarAlHacerClicFuera="!_creandoDelegacion">
@@ -372,7 +372,7 @@
     </Pie>
 </Modal>
 
-<Modal Visible="_mostrarAutorizarOperador"
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarAutorizarOperador"
        VisibleChanged="v => CerrarAutorizarOperador(v)"
        Titulo="@TextosAutorizar["AccionAutorizar"]"
        CerrarAlHacerClicFuera="!_autorizandoOperador">
@@ -420,4 +420,6 @@
         <Boton Cargando="_autorizandoOperador" OnClick="AutorizarOperadorAsync">@TextosAutorizar["Autorizar"]</Boton>
     </Pie>
 </Modal>
+
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
 </LimiteDeErrores>

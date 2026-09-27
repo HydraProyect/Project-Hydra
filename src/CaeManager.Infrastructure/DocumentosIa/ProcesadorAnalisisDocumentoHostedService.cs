@@ -345,12 +345,27 @@ public class ProcesadorAnalisisDocumentoHostedService(
 
             try
             {
-                await EjecutarAnalisisAsync(ambito.ServiceProvider, trabajo, stoppingToken);
-                trabajo.MarcarCompletado();
-                // "Documentos procesados/hora" del plan (Horizonte 2.3): un
-                // documento cuenta aquí, no al subirlo — es el momento en que
-                // el análisis IA terminó de verdad, con éxito.
-                Observabilidad.DocumentosProcesados.Add(1, new KeyValuePair<string, object?>("Tipo", trabajo.Tipo.ToString()));
+                var motivoDescarte = await EjecutarAnalisisAsync(ambito.ServiceProvider, trabajo, stoppingToken);
+                if (motivoDescarte is not null)
+                {
+                    // Llegó tarde: alguien decidió el Documento a mano, o el
+                    // Documento cambió, entre el encolado y la escritura. No
+                    // escribió nada, no es un fallo y no se reintenta; ni la
+                    // campana de "ya está revisado" ni la métrica de abajo
+                    // cuentan un análisis que no se aplicó.
+                    logger.LogWarning(
+                        "Análisis {Tipo} del trabajo {TrabajoId} (documento {DocumentoId}, tenant {TenantId}) descartado: {Motivo}",
+                        trabajo.Tipo, trabajo.Id, trabajo.DocumentoId, tenantId, motivoDescarte);
+                    trabajo.MarcarDescartado(motivoDescarte);
+                }
+                else
+                {
+                    trabajo.MarcarCompletado();
+                    // "Documentos procesados/hora" del plan (Horizonte 2.3): un
+                    // documento cuenta aquí, no al subirlo — es el momento en que
+                    // el análisis IA terminó de verdad, con éxito.
+                    Observabilidad.DocumentosProcesados.Add(1, new KeyValuePair<string, object?>("Tipo", trabajo.Tipo.ToString()));
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -405,25 +420,28 @@ public class ProcesadorAnalisisDocumentoHostedService(
         await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
     }
 
-    private static async Task EjecutarAnalisisAsync(
+    /// <summary>
+    /// Devuelve el motivo de descarte cuando el análisis llegó tarde y no
+    /// escribió nada (hoy solo la verificación IA lo comprueba), o <c>null</c>.
+    /// </summary>
+    private static async Task<string?> EjecutarAnalisisAsync(
         IServiceProvider servicios, TrabajoAnalisisDocumento trabajo, CancellationToken cancellationToken)
     {
         switch (trabajo.Tipo)
         {
             case TipoAnalisisDocumento.VerificacionIa:
-                await servicios.GetRequiredService<IVerificacionIaDocumentoService>()
-                    .ProcesarDocumentoAsync(trabajo.DocumentoId, cancellationToken);
-                break;
+                return await servicios.GetRequiredService<IVerificacionIaDocumentoService>()
+                    .ProcesarDocumentoAsync(EncargoVerificacionIa.De(trabajo), cancellationToken);
 
             case TipoAnalisisDocumento.DeteccionTrabajadores:
                 await servicios.GetRequiredService<IDeteccionTrabajadoresService>()
                     .ProcesarDocumentoAsync(trabajo.DocumentoId, cancellationToken);
-                break;
+                return null;
 
             case TipoAnalisisDocumento.VerificacionFirmaDigital:
                 await servicios.GetRequiredService<IValidacionDocumentoOficialService>()
                     .ProcesarDocumentoAsync(trabajo.DocumentoId, cancellationToken);
-                break;
+                return null;
 
             // Sin esta rama, un valor de Tipo que no case con ninguno de los
             // anteriores —un enum nuevo cuyo case se olvidó al añadirlo, o un

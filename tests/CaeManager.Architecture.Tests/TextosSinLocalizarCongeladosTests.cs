@@ -136,7 +136,8 @@ public class TextosSinLocalizarCongeladosTests
         // «0 ? Textos["BotonAsignarIgualmente"]» en Trabajadores.razor), cuyo
         // «>» de comparación toma por texto lo que sigue. No se reformatea para esquivar la heurística.
         ["Trabajadores"] = 13,
-        ["Usuarios"] = 147,
+        // 147 → 146 el 2026-09-26 (P1-E2b): el toast de reenvío de activación fallido va a TextosUsuarios.resx.
+        ["Usuarios"] = 146,
         // 112 → 10 el 2026-09-23: Visitas.razor(.cs) migrados a TextosVisitas.resx. Los 10
         // que quedan son las etiquetas estáticas de NivelUrgenciaVisitaUi y AntelacionVisitaUi,
         // que también pintan Dashboard (Inicio) y DashboardEjecutivo: migrarlas cambia la firma

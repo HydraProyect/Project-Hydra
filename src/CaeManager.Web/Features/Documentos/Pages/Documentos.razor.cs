@@ -929,6 +929,23 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// P1-E2b: el modal «Guardar filtro» abre siempre con el nombre vacío, así que hay algo
+    /// que perder en cuanto se ha escrito uno. Lo leen AvisoCambiosSinGuardar y el Modal;
+    /// cerrado (también tras guardar) nunca.
+    /// </summary>
+    private bool HayCambiosSinGuardar => _mostrarGuardarFiltro && !string.IsNullOrWhiteSpace(_nombreFiltroNuevo);
+
+    private void CerrarModalGuardarFiltro(bool visible)
+    {
+        _mostrarGuardarFiltro = visible;
+        if (!visible)
+        {
+            // Cancelar descarta el nombre: reabrir el modal sin tocarlo no es un cambio.
+            _nombreFiltroNuevo = string.Empty;
+        }
+    }
+
     private async Task GuardarFiltroActualAsync()
     {
         // Sin guarda, dos clics —o un clic mientras el botón todavía se estaba

@@ -233,6 +233,8 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             _razonSocial = Nombre;
         if (ClienteId is not null && _clientesDisponibles.Any(c => c.Id == ClienteId))
             _clienteIdsSeleccionados = [ClienteId.Value];
+        // Lo que trae la URL lo puso la pantalla que abre, no quien edita.
+        FijarInstantaneaFormulario();
     }
 
     /// <summary>
@@ -441,6 +443,29 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
+    }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en el drawer de alta de Empresa. Lo
+    /// lee AvisoCambiosSinGuardar para detener la salida de la página; con el drawer
+    /// cerrado (también tras guardar) nunca hay nada que perder.
+    /// </summary>
+    private bool HayCambiosSinGuardar => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+
+    private object?[] ValoresFormulario() =>
+        [_razonSocial, _cif, _cnae, _convenioAplicable, _esActividadAnexoI, _clienteIdsSeleccionados];
+
+    private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
+
+    private void CerrarDrawerDescartando()
+    {
+        _drawerVisible = false;
+        // Si la salida descartada vuelve a esta misma página con ?accion=crear (el
+        // atajo «n»), esa acción tiene que volver a atenderse.
+        _accionAtendida = null;
     }
 
     private void AlternarCliente(Guid clienteId, bool seleccionado)
@@ -507,6 +532,8 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
                 var destino = clienteParaCentro is null
                     ? $"/centros?accion=crear&empresaId={empresaCreadaId}"
                     : $"/centros?accion=crear&clienteId={clienteParaCentro}&empresaId={empresaCreadaId}";
+                // Guardado: la navegación que sigue es la del propio formulario y no pregunta.
+                _drawerVisible = false;
                 NavigationManager.NavigateTo(destino);
                 return;
             }

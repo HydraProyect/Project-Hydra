@@ -4067,6 +4067,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Intentos")
                         .HasColumnType("integer");
 
+                    b.Property<string>("MotivoDescarte")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<DateTime?>("SiguienteIntentoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -4082,6 +4086,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("character varying(2000)");
 
                     b.Property<Guid?>("UsuarioSolicitanteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("VersionDocumentoEncolada")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");

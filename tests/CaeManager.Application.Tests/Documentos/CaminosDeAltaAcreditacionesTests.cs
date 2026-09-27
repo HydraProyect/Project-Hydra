@@ -322,6 +322,54 @@ public class CaminosDeAltaAcreditacionesTests
         public void Agregar(CanalGestionDocumental canal) => canales.Add(canal);
     }
 
+    [Fact]
+    public async Task Crear_documento_con_verificacion_IA_encola_con_la_version_del_Documento()
+    {
+        // La versión encolada es la referencia con la que una verificación
+        // que llega tarde sabe si el Documento cambió entretanto; sin ella,
+        // la verificación de un archivo viejo podría aprobar uno renovado.
+        var mundo = new MundoAcreditaciones();
+        var trabajador = mundo.Trabajador();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si);
+        tipo.EstablecerVerificacionIaActiva(true);
+        var documentos = new DocumentoRepositorioFalso();
+        var cola = new ColaAnalisisEnMemoria();
+        var handler = new CrearDocumentoCommandHandler(
+            documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
+            new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
+            cola, new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
+            new AlcanceDatosServiceFalso());
+
+        var resultado = await handler.Handle(
+            new CrearDocumentoCommand(trabajador.Id, null, null, null, null, tipo.Id, Hoy, null, "apto.pdf", null),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var documento = documentos.Documentos.Should().ContainSingle().Subject;
+        var trabajo = cola.Trabajos.Should().ContainSingle(t => t.Tipo == TipoAnalisisDocumento.VerificacionIa).Subject;
+        trabajo.DocumentoId.Should().Be(documento.Id);
+        trabajo.VersionDocumentoEncolada.Should().Be(documento.Version);
+    }
+
+    private sealed class ColaAnalisisEnMemoria : ITrabajoAnalisisDocumentoRepository
+    {
+        public List<TrabajoAnalisisDocumento> Trabajos { get; } = [];
+
+        public void Agregar(TrabajoAnalisisDocumento trabajo) => Trabajos.Add(trabajo);
+
+        public Task<TrabajoAnalisisDocumento?> ObtenerSiguientePendienteAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TrabajoAnalisisDocumento?> ReclamarSiguientePendienteAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<TrabajoAnalisisDocumento>> ObtenerEstancadosAsync(TimeSpan umbral, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<int> ContarActivosAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
     private sealed class VehiculosVacios : IVehiculosQueryContext
     {
         public IQueryable<Vehiculo> Vehiculos => new Integraciones.TestAsyncQueryable<Vehiculo>(Array.Empty<Vehiculo>().AsQueryable());

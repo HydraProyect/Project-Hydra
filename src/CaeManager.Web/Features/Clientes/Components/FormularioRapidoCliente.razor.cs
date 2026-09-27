@@ -22,15 +22,56 @@ public partial class FormularioRapidoCliente : ComponentBase
 
     [Parameter] public EventCallback<ClienteCreadoDto> OnCreado { get; set; }
 
+    private readonly InstantaneaFormulario _instantanea = new();
+    private bool _visibleAnterior;
+
+    /// <summary>
+    /// P1-E2b: si hay algo escrito que se perdería al cerrar este modal. Lo recibe su
+    /// Modal (la X, Escape o el fondo preguntan «¿Descartar cambios?») y lo lee la pantalla
+    /// que lo monta para sumarlo a su único AvisoCambiosSinGuardar: el modal no monta un
+    /// aviso propio, que con cambios también debajo haría dos preguntas seguidas al salir.
+    /// El nombre traído del selector que disparó la creación no es un cambio.
+    /// </summary>
+    public bool HayCambiosSinGuardar => Visible && _instantanea.Difiere(ValoresFormulario());
+
     protected override void OnParametersSet()
     {
-        if (!Visible) return;
+        // Solo al abrir (no en cada render mientras está visible): si el usuario
+        // borra el campo tras abrir el modal, no queremos que vuelva a rellenarse
+        // solo. Al abrir se parte de cero aunque quien lo monta lo cerrara sin pasar
+        // por CerrarAsync (salir descartando desde el aviso de la pantalla).
+        if (Visible && !_visibleAnterior)
+        {
+            _razonSocial = string.IsNullOrWhiteSpace(NombreInicial) ? string.Empty : NombreInicial;
+            _cif = string.Empty;
+            _mensajeError = null;
+            _erroresCampo = new Dictionary<string, string>();
+            _instantanea.Fijar(ValoresFormulario());
+        }
 
-        // Solo al abrir (no en cada render mientras está visible): si el
-        // usuario borra el campo tras abrir el modal, no queremos que vuelva
-        // a rellenarse solo.
-        if (_razonSocial == string.Empty && !string.IsNullOrWhiteSpace(NombreInicial))
-            _razonSocial = NombreInicial;
+        _visibleAnterior = Visible;
+    }
+
+    private object?[] ValoresFormulario() => [_razonSocial, _cif];
+
+    /// <summary>
+    /// P1-E2b: se invoca con cada tecla. Teclear aquí solo repinta este modal, y la pantalla
+    /// que suma <see cref="HayCambiosSinGuardar"/> a su aviso necesita repintarse también:
+    /// el aviso del navegador al recargar o cerrar la pestaña (ConfirmExternalNavigation)
+    /// se decide en el render, no al navegar.
+    /// </summary>
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private Task CambiarRazonSocialAsync(string valor)
+    {
+        _razonSocial = valor;
+        return OnCambio.InvokeAsync();
+    }
+
+    private Task CambiarCifAsync(string valor)
+    {
+        _cif = valor;
+        return OnCambio.InvokeAsync();
     }
 
     private Task CerrarAsync(bool visible)

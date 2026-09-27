@@ -57,10 +57,13 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         await _dbContext.DisposeAsync();
     }
 
-    private VerificacionIaDocumentoService CrearServicio(IExtraccionMetadatosDocumentoIaService extraccion, IFileStorageService? almacenamiento = null) =>
+    private VerificacionIaDocumentoService CrearServicio(IExtraccionMetadatosDocumentoIaService extraccion, IFileStorageService? almacenamiento = null, ITransaccionDocumentoBloqueado? transaccion = null) =>
         new(_dbContext, _dbContext, almacenamiento ?? new AlmacenamientoFalso(), extraccion,
             new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext),
-            new AuditoriaExtraccionIaRepository(_dbContext), new InstruccionTratamientoIaSiempreHabilitada(), _tenantActual, _dbContext);
+            new AuditoriaExtraccionIaRepository(_dbContext), new InstruccionTratamientoIaSiempreHabilitada(), _tenantActual,
+            transaccion ?? new TransaccionDocumentoBloqueado(_dbContext, _tenantActual), _dbContext);
+
+    private static EncargoVerificacionIa Encargo(Documento documento) => new(documento.Id, DateTime.UtcNow, documento.Version);
 
     private Trabajador CrearTrabajador() => Trabajador.DeEmpresa(_empresa.Id, "Alvaro", "Sanchez Martin", "77189989B");
 
@@ -77,7 +80,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, 62, "Escaneado con baja resolución");
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
-        await servicio.ProcesarDocumentoAsync(documento.Id);
+        await servicio.ProcesarDocumentoAsync(Encargo(documento));
 
         var revisiones = await _dbContext.RevisionesIaDocumento.Where(r => r.DocumentoId == documento.Id).ToListAsync();
         revisiones.Should().ContainSingle();
@@ -99,11 +102,35 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision.AddDays(-30), null, true, 99, null);
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
-        await servicio.ProcesarDocumentoAsync(documento.Id);
+        await servicio.ProcesarDocumentoAsync(Encargo(documento));
 
         var revisiones = await _dbContext.RevisionesIaDocumento.Where(r => r.DocumentoId == documento.Id).ToListAsync();
         revisiones.Should().ContainSingle();
         revisiones[0].Motivo.Should().Contain("no coincide");
+    }
+
+    [Theory]
+    [InlineData(99)]
+    [InlineData(62)]
+    public async Task Repetir_la_operacion_tras_un_commit_ambiguo_no_duplica_lo_escrito(int confianza)
+    {
+        var trabajador = CrearTrabajador();
+        _dbContext.Trabajadores.Add(trabajador);
+        var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, confianza, null);
+        var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)),
+            transaccion: new TransaccionQueRepiteTrasConfirmar(documento.Version));
+
+        var descarte = await servicio.ProcesarDocumentoAsync(Encargo(documento));
+
+        descarte.Should().BeNull("la repetición ve que lo suyo ya está escrito, no lo confunde con una decisión ajena");
+        var escritos = await _dbContext.AprobacionesDocumento.CountAsync(a => a.DocumentoId == documento.Id)
+            + await _dbContext.RevisionesIaDocumento.CountAsync(r => r.DocumentoId == documento.Id);
+        escritos.Should().Be(1);
     }
 
     [Fact]
@@ -119,7 +146,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, 99, null);
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
-        await servicio.ProcesarDocumentoAsync(documento.Id);
+        await servicio.ProcesarDocumentoAsync(Encargo(documento));
 
         var revisiones = await _dbContext.RevisionesIaDocumento.Where(r => r.DocumentoId == documento.Id).ToListAsync();
         revisiones.Should().BeEmpty();
@@ -148,7 +175,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, 99, null);
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
-        await servicio.ProcesarDocumentoAsync(documento.Id);
+        await servicio.ProcesarDocumentoAsync(Encargo(documento));
 
         var auditoriaActualizada = await _dbContext.AuditoriasExtraccionIa.SingleAsync(a => a.Id == auditoria.Id);
         auditoriaActualizada.DecisionHumana.Should().Be(DecisionHumanaIa.AutomaticaSinRevision);
@@ -186,7 +213,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
             null);
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
-        await servicio.ProcesarDocumentoAsync(documento.Id);
+        await servicio.ProcesarDocumentoAsync(Encargo(documento));
 
         var revisiones = await _dbContext.RevisionesIaDocumento.Where(r => r.DocumentoId == documento.Id).ToListAsync();
         revisiones.Should().ContainSingle("la ausencia de evidencia no puede cerrar un documento sin que lo mire nadie");
@@ -214,7 +241,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var extraido = new MetadatosDocumentoExtraidosDto(_tipoApto.Nombre, fechaEmision, null, null, 99, null);
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
-        await servicio.ProcesarDocumentoAsync(documento.Id);
+        await servicio.ProcesarDocumentoAsync(Encargo(documento));
 
         var revisiones = await _dbContext.RevisionesIaDocumento.Where(r => r.DocumentoId == documento.Id).ToListAsync();
         revisiones.Should().ContainSingle();
@@ -239,7 +266,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var extraido = new MetadatosDocumentoExtraidosDto(null, fechaEmision, null, true, 99, null);
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
-        await servicio.ProcesarDocumentoAsync(documento.Id);
+        await servicio.ProcesarDocumentoAsync(Encargo(documento));
 
         var revisiones = await _dbContext.RevisionesIaDocumento.Where(r => r.DocumentoId == documento.Id).ToListAsync();
         revisiones.Should().ContainSingle();
@@ -261,7 +288,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var servicioLlamado = false;
         var servicio = CrearServicio(new ExtraccionIaFalsaConSenal(() => servicioLlamado = true));
 
-        await servicio.ProcesarDocumentoAsync(documento.Id);
+        await servicio.ProcesarDocumentoAsync(Encargo(documento));
 
         servicioLlamado.Should().BeFalse();
         (await _dbContext.RevisionesIaDocumento.AnyAsync(r => r.DocumentoId == documento.Id)).Should().BeFalse();
@@ -281,7 +308,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var servicioLlamado = false;
         var servicio = CrearServicio(new ExtraccionIaFalsaConSenal(() => servicioLlamado = true));
 
-        await servicio.ProcesarDocumentoAsync(documento.Id);
+        await servicio.ProcesarDocumentoAsync(Encargo(documento));
 
         servicioLlamado.Should().BeFalse();
         (await _dbContext.RevisionesIaDocumento.CountAsync(r => r.DocumentoId == documento.Id)).Should().Be(1);
@@ -306,7 +333,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
 
         var servicio = CrearServicio(new ExtraccionIaFalsaConSenal(() => { }), new AlmacenamientoQueFalla());
 
-        await Assert.ThrowsAsync<FileNotFoundException>(() => servicio.ProcesarDocumentoAsync(documento.Id));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => servicio.ProcesarDocumentoAsync(Encargo(documento)));
 
         (await _dbContext.RevisionesIaDocumento.AnyAsync(r => r.DocumentoId == documento.Id)).Should().BeFalse();
         (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
@@ -328,7 +355,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
 
         var servicio = CrearServicio(new ExtraccionIaFalsaConSenal(() => { }), new AlmacenamientoConFalloTransitorio());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.ProcesarDocumentoAsync(documento.Id));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.ProcesarDocumentoAsync(Encargo(documento)));
 
         (await _dbContext.RevisionesIaDocumento.AnyAsync(r => r.DocumentoId == documento.Id)).Should().BeFalse();
         (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
@@ -347,7 +374,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         var servicio = CrearServicio(new ExtraccionIaFalsa(
             Result.Fallo<MetadatosDocumentoExtraidosDto>(Error.Crear("DocumentAIRouter.SinProveedor", "No hay ningún proveedor de IA disponible."))));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.ProcesarDocumentoAsync(documento.Id));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => servicio.ProcesarDocumentoAsync(Encargo(documento)));
 
         (await _dbContext.RevisionesIaDocumento.AnyAsync(r => r.DocumentoId == documento.Id)).Should().BeFalse();
         (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
@@ -358,6 +385,20 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
     /// es la lógica de verificación de Niveles 1-2, no el gate — que tiene
     /// su propia suite (ver InstruccionTratamientoIaGateTests).
     /// </summary>
+    /// <summary>
+    /// Lo que hace la estrategia de reintentos ante un commit ambiguo: la
+    /// operación ya confirmó, pero se ejecuta otra vez entera.
+    /// </summary>
+    private sealed class TransaccionQueRepiteTrasConfirmar(Guid versionDocumento) : ITransaccionDocumentoBloqueado
+    {
+        public async Task<T> EjecutarAsync<T>(
+            Guid documentoId, Func<Guid?, CancellationToken, Task<T>> operacion, CancellationToken cancellationToken = default)
+        {
+            await operacion(versionDocumento, cancellationToken);
+            return await operacion(versionDocumento, cancellationToken);
+        }
+    }
+
     private sealed class InstruccionTratamientoIaSiempreHabilitada : IInstruccionTratamientoIaService
     {
         public Task<bool> EstaHabilitadaAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.FromResult(true);

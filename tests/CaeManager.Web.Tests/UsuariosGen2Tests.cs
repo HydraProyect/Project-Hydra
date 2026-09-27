@@ -59,7 +59,7 @@ namespace CaeManager.Web.Tests;
 /// real del correo de activación.
 /// </para>
 /// </summary>
-public class UsuariosGen2Tests : BunitContext
+public partial class UsuariosGen2Tests : BunitContext
 {
     /// <summary><see cref="Modal"/> y <see cref="MenuAcciones"/> mueven el foco por JS al abrirse.</summary>
     public UsuariosGen2Tests()

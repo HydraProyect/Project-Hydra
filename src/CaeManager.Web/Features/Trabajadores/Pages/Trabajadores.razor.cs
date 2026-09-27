@@ -193,6 +193,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
             await AbrirCrearAsync();
             if (!string.IsNullOrWhiteSpace(Nombre))
                 _nombre = Nombre;
+            // Lo que trae la URL no es un cambio de quien edita.
+            FijarInstantaneaFormulario();
         }
 
         _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Trabajadores));
@@ -460,6 +462,42 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;
         _drawerVisible = true;
+        FijarInstantaneaFormulario();
+    }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+    private readonly InstantaneaFormulario _instantaneaAsignarCentro = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de alta de
+    /// Trabajador o el modal de asignar a centro comparados con cómo se abrieron, o un
+    /// nombre ya escrito en el modal de guardar filtro. Lo lee AvisoCambiosSinGuardar;
+    /// cerrados (también tras guardar) nunca hay nada que perder.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        (_drawerVisible && _instantanea.Difiere(ValoresFormulario()))
+        || (_asignarCentroVisible && _instantaneaAsignarCentro.Difiere(ValoresAsignarCentro()))
+        || (_mostrarGuardarFiltro && !string.IsNullOrWhiteSpace(_nombreFiltroNuevo));
+
+    private object?[] ValoresFormulario() =>
+        [_tipoEmpleador, _empresaId, _subcontrataId, _dni, _nombre, _apellidos, _alias, _puesto, _fechaNacimiento, _email, _telefono, _observaciones];
+
+    private object?[] ValoresAsignarCentro() => [_centroIdParaAsignar, _fechaAltaParaAsignar];
+
+    private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
+
+    private void CerrarFormulariosDescartando()
+    {
+        _drawerVisible = false;
+        CerrarAsignarCentro();
+        CerrarModalGuardarFiltro();
+    }
+
+    /// <summary>Cancelar descarta el nombre: reabrir el modal sin tocarlo no es un cambio.</summary>
+    private void CerrarModalGuardarFiltro()
+    {
+        _mostrarGuardarFiltro = false;
+        _nombreFiltroNuevo = string.Empty;
     }
 
     private void SeleccionarTipoEmpresa() => CambiarTipoEmpleador("empresa");
@@ -792,6 +830,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
         _fechaAltaParaAsignar = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
         _documentosFaltantesParaAsignar = [];
         _asignarCentroVisible = true;
+        // La fecha de alta de hoy viene puesta: no es un cambio de quien edita.
+        _instantaneaAsignarCentro.Fijar(ValoresAsignarCentro());
     }
 
     /// <summary>

@@ -81,7 +81,6 @@ public class EnlacesADocumentosExistentesTests
         ["scripts/verificar-licencias-nuget.sh|LICENSE.md"] = (1, "nombre de fichero de licencia dentro de un .nuspec, no es un enlace"),
         ["scripts/verificar-licencias-nuget.tests.sh|LICENSE.md"] = (1, "nombre de fichero de licencia dentro de un .nuspec, no es un enlace"),
         ["src/CaeManager.Infrastructure/AsistenteIa/AnthropicAsistenteIaService.cs|ROADMAP.md"] = (1, "texto del prompt del asistente: cambiarlo es cambio de comportamiento"),
-        ["src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs|RUNBOOK-CLAVES.md"] = (1, "mensaje de excepción o de registro en producción"),
         ["src/CaeManager.Infrastructure/Identity/IdentitySeeder.cs|DEPLOY.md"] = (1, "mensaje de excepción o de registro en producción"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/TipoDocumentoSeedData.cs|ROADMAP.md"] = (1, "literal sembrado en base de datos: cambiarlo exige migración"),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260801120000_HabilitarRlsPostgres.cs|docs/MULTITENANCY.md"] = (1, "dentro del SQL de una migración aplicada"),
