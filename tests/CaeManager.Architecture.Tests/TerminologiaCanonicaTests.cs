@@ -357,7 +357,7 @@ public class TerminologiaCanonicaTests
     /// </para>
     ///
     /// <para>
-    /// <b><c>Delegacion</c> 335 → 342 (siembra E2E del Gestor CAE con Asignación de Cartera en
+    /// <b><c>Delegacion</c> 330 → 337 (siembra E2E del Gestor CAE con Asignación de Cartera en
     /// dos Tenants beneficiarios, PR #966, 2026-09-27): +7, todo superficie existente, ningún
     /// identificador nuevo.</b> <c>GestorCaeCarteraMultiTenantSeeder</c> reutiliza los
     /// ayudantes de <c>DelegacionDemoSeeder</c> para aprovisionar Tenants y cuentas (3) y abre la
@@ -378,8 +378,8 @@ public class TerminologiaCanonicaTests
     {
         ["Hydra"] = 48,
         ["EjecutivoUsuarioId"] = 43,
-        ["Delegacion"] = 342,
-        ["ClienteActivo"] = 72,
+        ["Delegacion"] = 337,
+        ["ClienteActivo"] = 71,
     };
 
     [Theory]

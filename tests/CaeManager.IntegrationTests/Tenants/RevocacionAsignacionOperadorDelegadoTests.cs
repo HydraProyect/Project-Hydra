@@ -90,10 +90,10 @@ public class RevocacionAsignacionOperadorDelegadoTests : IAsyncLifetime
         await using var contexto = CrearContexto(_operadorCae);
 
         var revocada = await new ObtenerClientesAutorizadosQueryHandler(
-                contexto, new CurrentUserServiceFalso(_gestoraRevocada, tenantOrigenId: _operadorCae))
+                contexto, contexto, new CurrentUserServiceFalso(_gestoraRevocada, tenantOrigenId: _operadorCae))
             .Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None);
         var valida = await new ObtenerClientesAutorizadosQueryHandler(
-                contexto, new CurrentUserServiceFalso(_gestorValido, tenantOrigenId: _operadorCae))
+                contexto, contexto, new CurrentUserServiceFalso(_gestorValido, tenantOrigenId: _operadorCae))
             .Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None);
 
         revocada.Should().NotContain(c => c.TenantId == _propietario);

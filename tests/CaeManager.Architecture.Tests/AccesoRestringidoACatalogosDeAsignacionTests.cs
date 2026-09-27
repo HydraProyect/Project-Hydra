@@ -144,18 +144,16 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         "src/CaeManager.Infrastructure/Persistence/Configurations/SesionPrivilegiadaConfiguration.cs",
         "src/CaeManager.Infrastructure/Persistence/Configurations/TenantAlcanzadoPorConcesionConfiguration.cs",
 
-        // Selección de workspace: filtra por PropietarioTenantId = el tenant
-        // que se quiere abrir Y por OperadorTenantId = tenant de origen del
-        // usuario, exige cartera vigente y excluye la raíz.
-        "src/CaeManager.Web/Features/Tenants/ClienteActivoEndpoints.cs",
-
-        // Rol efectivo dentro del workspace: acotado a la operación que el
-        // token identifica y al propietario que ese mismo token declara.
-        "src/CaeManager.Web/Services/CurrentUserService.cs",
-
-        // Revalidación por petición: comprueba la coherencia token↔operación y
-        // exige cartera vigente del usuario.
-        "src/CaeManager.Web/Services/RevalidacionClienteActivoMiddleware.cs",
+        // Predicado ÚNICO de los Tenants beneficiarios que un usuario puede
+        // activar (lote 0 del selector de Tenant beneficiario, invariante I2):
+        // filtra por OperadorTenantId = Tenant de origen del usuario y por su
+        // propia cartera vigente, excluye la raíz y el propio origen. Lo usan la
+        // lista del selector, /cuenta/cliente-activo, la revalidación del
+        // middleware y del circuito, el rol efectivo (CurrentUserService) y el
+        // Tenant por defecto; ninguno de ellos toca ya los catálogos por su
+        // cuenta, y la ausencia de sus antiguas entradas aquí es lo que impide
+        // que una copia vuelva a aparecer en Web.
+        "src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs",
 
         // Contrato de lectura del plano 3. "No existe ni debe existir un
         // listar sesiones" habla de un catálogo navegable —una pantalla que

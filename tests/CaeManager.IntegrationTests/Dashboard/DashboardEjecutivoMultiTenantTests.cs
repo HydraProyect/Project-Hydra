@@ -92,6 +92,8 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
         servicios.AddSingleton<CaeManager.Application.Configuracion.IConfiguracionQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Auditoria.IAuditoriaQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Tenants.ITenantsQueryContext>(_dbContext);
+        // ObtenerClientesAutorizadosQuery lee también la vía de Operación.
+        servicios.AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Facturacion.IFacturacionQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Proyectos.IProyectosQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Retencion.IRetencionQueryContext>(_dbContext);

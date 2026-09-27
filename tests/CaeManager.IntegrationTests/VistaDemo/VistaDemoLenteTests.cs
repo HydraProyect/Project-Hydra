@@ -410,7 +410,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
         await using var contexto = CrearContexto(_operador);
         var usuario = Administrador();
         var vista = CrearVista(contexto, _operador, usuario, solicitud, Activo(true), null);
-        return await new ObtenerClientesAutorizadosQueryHandler(contexto, usuario, vista)
+        return await new ObtenerClientesAutorizadosQueryHandler(contexto, contexto, usuario, vista)
             .Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None);
     }
 

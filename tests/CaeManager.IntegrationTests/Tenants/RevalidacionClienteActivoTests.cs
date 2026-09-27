@@ -325,7 +325,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         var (_, seleccion) = PrepararPeticionConTokenValido(asignacionOperacionId);
 
         var traza = new TrazaSoporteService(
-            seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario), contexto,
+            seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario, _consultora), contexto,
             repositorio: null!, unitOfWork: null!, new PuertaAccesoDatos());
 
         return await traza.ObtenerExpiracionAsync();
@@ -364,7 +364,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
 
             var middlewareElse = new RevalidacionClienteActivoMiddleware(_ => Task.CompletedTask);
             await middlewareElse.InvokeAsync(
-                httpContextElse, seleccionElse, new CurrentUserServiceParaMiddlewareFalso(_usuario),
+                httpContextElse, seleccionElse, new CurrentUserServiceParaMiddlewareFalso(_usuario, _consultora),
                 contextoElse, (IOperacionesQueryContext)contextoElse, SinSesionPrivilegiada, loggerElse);
 
             seleccionElse.TenantIdSeleccionado.Should().BeNull();
@@ -380,7 +380,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
             var (httpContextRevalidacion, seleccionRevalidacion) = PrepararPeticionConTokenValido();
             var middlewareRevalidacion = new RevalidacionClienteActivoMiddleware(_ => Task.CompletedTask);
             await middlewareRevalidacion.InvokeAsync(
-                httpContextRevalidacion, seleccionRevalidacion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
+                httpContextRevalidacion, seleccionRevalidacion, new CurrentUserServiceParaMiddlewareFalso(_usuario, _consultora),
                 contextoRevalidacion, (IOperacionesQueryContext)contextoRevalidacion, SinSesionPrivilegiada,
                 loggerRevalidacion);
 
@@ -415,7 +415,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         });
 
         await middleware.InvokeAsync(
-            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
+            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario, _consultora),
             dbContext: null!, operacionesContext: null!, SinSesionPrivilegiada,
             NullLogger<RevalidacionClienteActivoMiddleware>.Instance);
 
@@ -467,7 +467,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         });
 
         await middleware.InvokeAsync(
-            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
+            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario, _consultora),
             contexto, (IOperacionesQueryContext)contexto, SinSesionPrivilegiada, logger);
 
         // No es un fallo de autorización: el token seguía siendo válido, solo que el
@@ -508,7 +508,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         var middleware = new RevalidacionClienteActivoMiddleware(_ => Task.CompletedTask);
 
         var accion = () => middleware.InvokeAsync(
-            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
+            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario, _consultora),
             contexto, (IOperacionesQueryContext)contexto, new SesionPrivilegiadaActualQueLanzaCancelacionAjena(),
             NullLogger<RevalidacionClienteActivoMiddleware>.Instance);
 
@@ -540,7 +540,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         // responder que la delegación ya no autoriza.
         using var abortoDelCliente = new CancellationTokenSource();
         httpContext.RequestAborted = abortoDelCliente.Token;
-        var currentUserService = new CurrentUserServiceQueCancelaEnLaLectura(_usuario, abortoDelCliente, lecturaQueCancela: 2);
+        var currentUserService = new CurrentUserServiceQueCancelaEnLaLectura(_usuario, abortoDelCliente, lecturaQueCancela: 2, _consultora);
 
         var logger = new LoggerCapturador<RevalidacionClienteActivoMiddleware>();
         var siguienteFueLlamado = false;
@@ -570,7 +570,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     /// para simular un cliente que se va en un punto concreto del middleware.
     /// </summary>
     private sealed class CurrentUserServiceQueCancelaEnLaLectura(
-        Guid usuarioId, CancellationTokenSource abortoDelCliente, int lecturaQueCancela) : ICurrentUserService
+        Guid usuarioId, CancellationTokenSource abortoDelCliente, int lecturaQueCancela, Guid? tenantOrigenId = null) : ICurrentUserService
     {
         public int Lecturas { get; private set; }
 
@@ -586,7 +586,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
 
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
 
-        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(tenantOrigenId);
 
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
@@ -673,7 +673,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         // así que el contexto de operaciones no llega a consultarse. Se pasa el
         // mismo DbContext, que implementa las dos interfaces.
         await middleware.InvokeAsync(
-            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario),
+            httpContext, seleccion, new CurrentUserServiceParaMiddlewareFalso(_usuario, _consultora),
             contexto, (IOperacionesQueryContext)contexto, SinSesionPrivilegiada,
             NullLogger<RevalidacionClienteActivoMiddleware>.Instance);
     }
@@ -725,14 +725,14 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
         }
     }
 
-    private sealed class CurrentUserServiceParaMiddlewareFalso(Guid usuarioId) : ICurrentUserService
+    private sealed class CurrentUserServiceParaMiddlewareFalso(Guid usuarioId, Guid? tenantOrigenId = null) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
 
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
         public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("GestorCae");
 
-        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(tenantOrigenId);
 
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
