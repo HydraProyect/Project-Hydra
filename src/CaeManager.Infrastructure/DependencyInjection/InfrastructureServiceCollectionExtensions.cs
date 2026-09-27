@@ -493,9 +493,13 @@ public static class InfrastructureServiceCollectionExtensions
         // Único backend de almacenamiento de Documentos: disco local.
         //
         // El backend de S3 se retiró (auditoría del Módulo 2). Existía para
-        // desbloquear multi-réplica, y eso no está en juego: producción corre un
-        // solo contenedor caemanager-app sin réplicas, y la durabilidad ya la
-        // cubre el respaldo Borg de /data/documentos contra el Storage Box.
+        // desbloquear multi-réplica, y eso no está en juego: producción no tiene
+        // réplicas, y la durabilidad ya la cubre el respaldo Borg de
+        // /data/documentos contra el Storage Box. Desde P1-F2 hay, eso sí, dos
+        // ranuras (caemanager-app-azul/-verde) sobre el MISMO volumen: durante
+        // el drenaje de un relevo la versión anterior sigue sirviendo sus
+        // circuitos junto a la nueva, así que un cambio del formato en disco
+        // tiene que poder leerlo y escribirlo también la versión anterior.
         //
         // A cambio traía riesgo real: no cifraba el contenido —quedó fuera del
         // cifrado en reposo y del formato versionado por tenant que sí tiene el

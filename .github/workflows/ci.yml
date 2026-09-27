@@ -1276,6 +1276,12 @@ jobs:
       - name: deploy/volver-atras.tests.sh
         run: bash deploy/volver-atras.tests.sh
 
+      # P1-F2: relevo sin corte de la app (ranuras azul/verde, conmutación de
+      # Caddy y drenaje), con docker falso. Incluye el contrato con el Caddyfile
+      # y los compose y sus propias mutaciones.
+      - name: deploy/relevo-app.tests.sh
+        run: bash deploy/relevo-app.tests.sh
+
       - name: deploy/ci-deploy-secretos.tests.sh
         run: bash deploy/ci-deploy-secretos.tests.sh
 

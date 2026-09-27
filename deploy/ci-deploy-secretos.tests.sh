@@ -371,8 +371,8 @@ echo "=== Caso 16: la llamada está cableada DESPUÉS del despliegue sano y no p
 # `source` (ver ci-deploy-diagnostico-memoria.tests.sh, caso 2): se comprueba por
 # lectura del fuente, anclando al `exit 1` del `up -d --wait` no sano.
 FUENTE_CI_DEPLOY="$DIR_GUION/ci-deploy.sh"
-LINEA_UP16="$(grep -n 'docker compose "\${args\[@\]}" up -d --wait' "$FUENTE_CI_DEPLOY" | head -1 | cut -d: -f1)"
-[ -n "$LINEA_UP16" ] || { echo "FALLO: no se encontró la línea de 'up -d --wait'" >&2; exit 1; }
+LINEA_UP16="$(grep -n 'if ! bash /opt/talveg/deploy/relevo-app.sh desplegar' "$FUENTE_CI_DEPLOY" | head -1 | cut -d: -f1)"
+[ -n "$LINEA_UP16" ] || { echo "FALLO: no se encontró la línea del relevo (relevo-app.sh desplegar)" >&2; exit 1; }
 LINEA_EXIT16="$(tail -n "+$LINEA_UP16" "$FUENTE_CI_DEPLOY" | grep -n '^        exit 1$' | head -1 | cut -d: -f1)"
 LINEA_EXIT16=$((LINEA_UP16 + LINEA_EXIT16 - 1))
 mapfile -t LLAMADAS16 < <(grep -n '^        \*staging\*) verificar_secretos_de_stripe\|^        \*) verificar_secretos_de_stripe' "$FUENTE_CI_DEPLOY" | cut -d: -f1)
@@ -398,7 +398,7 @@ bloque_de_servicio() {  # <servicio>: imprime el bloque `  servicio:` hasta el s
 # «Caddy no lo tiene» de abajo no significaría nada).
 # Se captura ANTES del grep: `awk | grep -q` bajo `pipefail` falla con SIGPIPE (141) en cuanto el
 # bloque supera un búfer de 4 KB, porque `grep -q` sale al primer acierto y `awk` aún escribe.
-BLOQUE_APP="$(bloque_de_servicio app)"
+BLOQUE_APP="$(bloque_de_servicio app-azul)"
 printf '%s\n' "$BLOQUE_APP" | grep -q '^    env_file: \.env' || { echo "FALLO: el extractor no ve el env_file de 'app' — el caso no observa lo que dice observar" >&2; exit 1; }
 BLOQUE_CADDY="$(bloque_de_servicio caddy)"
 [ -n "$BLOQUE_CADDY" ] || { echo "FALLO: no se encontró el bloque del servicio caddy" >&2; exit 1; }
@@ -441,7 +441,9 @@ bloque_de_servicio_en() {  # <fichero> <servicio>
 for compose19 in docker-compose.produccion.yml docker-compose.staging.yml; do
   fichero19="$DIR_GUION/local/$compose19"
   MIGRADOR19="$(bloque_de_servicio_en "$fichero19" migrador)"
-  APP19="$(bloque_de_servicio_en "$fichero19" app)"
+  # app-azul lleva la definición; app-verde la hereda con `extends` (P1-F2), y
+  # la efectiva de abajo comprueba las dos ranuras ya resueltas.
+  APP19="$(bloque_de_servicio_en "$fichero19" app-azul)"
   # Control positivo: el extractor ve la credencial donde SÍ debe estar.
   printf '%s\n' "$MIGRADOR19" | grep -q 'Username=postgres;Password=\${POSTGRES_PASSWORD}' \
     || { echo "FALLO: $compose19: el extractor no ve la credencial del migrador — el caso no observa lo que dice observar" >&2; exit 1; }
@@ -473,17 +475,20 @@ if docker compose version >/dev/null 2>&1; then
   for par19 in "docker-compose.produccion.yml .env" "docker-compose.staging.yml .env.staging"; do
     set -- $par19
     EFECTIVA19="$DIR19/efectiva-$1"
-    ( cd "$DIR19" && docker compose -f "$1" --env-file "$2" config ) > "$EFECTIVA19" \
+    # --profile ranura: sin él, `config` omite las dos ranuras de la app.
+    ( cd "$DIR19" && docker compose -f "$1" --env-file "$2" --profile ranura config ) > "$EFECTIVA19" \
       || { echo "FALLO: docker compose config no resolvió $1" >&2; exit 1; }
     MIGRADOR19="$(bloque_de_servicio_en "$EFECTIVA19" migrador)"
-    APP19="$(bloque_de_servicio_en "$EFECTIVA19" app)"
     printf '%s\n' "$MIGRADOR19" | grep -q 'SINTETICA_SUPERUSUARIO_19' \
       || { echo "FALLO: $1 (efectiva): el migrador no recibe la credencial sintética — el caso no observa lo que dice observar" >&2; exit 1; }
-    [ -n "$APP19" ] || { echo "FALLO: $1 (efectiva): no se encontró el bloque del servicio app" >&2; exit 1; }
-    if printf '%s\n' "$APP19" | grep -q 'SINTETICA_SUPERUSUARIO_19'; then
-      echo "FALLO: $1 (efectiva): el contenedor app recibe la credencial del superusuario (por environment o por env_file)" >&2
-      exit 1
-    fi
+    for ranura19 in app-azul app-verde; do
+      APP19="$(bloque_de_servicio_en "$EFECTIVA19" "$ranura19")"
+      [ -n "$APP19" ] || { echo "FALLO: $1 (efectiva): no se encontró el bloque del servicio $ranura19" >&2; exit 1; }
+      if printf '%s\n' "$APP19" | grep -q 'SINTETICA_SUPERUSUARIO_19'; then
+        echo "FALLO: $1 (efectiva): $ranura19 recibe la credencial del superusuario (por environment o por env_file)" >&2
+        exit 1
+      fi
+    done
   done
   echo "OK (efectiva): docker compose config no da la credencial a app, y sí al migrador"
 elif [ "${CI:-}" = "true" ]; then

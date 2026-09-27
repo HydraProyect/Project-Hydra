@@ -36,8 +36,24 @@ public static class CulturaUsuarioCookie
     public const string CulturaEspanol = "es-ES";
     public const string CulturaCatalan = "ca-ES";
 
-    /// <summary>Culturas admitidas, con la predeterminada primero (la usan RequestLocalizationOptions y el selector).</summary>
+    /// <summary>
+    /// Culturas para las que existe infraestructura (recursos .resx y
+    /// correspondencia con <see cref="IdiomaPreferido"/>), con la
+    /// predeterminada primero. Que una se sirva o no lo decide
+    /// <see cref="CulturasActivas"/>.
+    /// </summary>
     public static readonly IReadOnlyList<string> CulturasSoportadas = [CulturaEspanol, CulturaCatalan];
+
+    /// <summary>
+    /// Culturas que la aplicación sirve hoy: el catalán solo con
+    /// <see cref="OpcionesLocalizacion.CatalanHabilitado"/>.
+    /// </summary>
+    public static IReadOnlyList<string> CulturasActivas(OpcionesLocalizacion localizacion) =>
+        localizacion.CatalanHabilitado ? CulturasSoportadas : [CulturaEspanol];
+
+    /// <summary>Si el idioma puede elegirse y servirse con esta configuración.</summary>
+    public static bool EstaActivo(IdiomaPreferido idioma, OpcionesLocalizacion localizacion) =>
+        CulturasActivas(localizacion).Contains(ACultura(idioma));
 
     public static string NombreCookie => CookieRequestCultureProvider.DefaultCookieName;
 
@@ -83,10 +99,17 @@ public static class CulturaUsuarioCookie
     /// fuera a propósito; sin cookie, es-ES. El proveedor no puede leer
     /// <c>HttpContext.User</c> —RequestLocalization corre antes de
     /// UseAuthentication— ni debe consultar Identity en cada petición.
+    ///
+    /// <para>
+    /// Con el catalán apagado (<see cref="OpcionesLocalizacion"/>) la única
+    /// cultura admitida es es-ES: una cookie <c>ca-ES</c> no es soportada y
+    /// cae a la predeterminada, sin que nadie la borre. Es lo que hace que la
+    /// preferencia guardada vuelva sola al encender el catalán.
+    /// </para>
     /// </summary>
-    public static void ConfigurarLocalizacion(RequestLocalizationOptions opciones)
+    public static void ConfigurarLocalizacion(RequestLocalizationOptions opciones, OpcionesLocalizacion localizacion)
     {
-        var culturas = CulturasSoportadas.ToArray();
+        var culturas = CulturasActivas(localizacion).ToArray();
         opciones.SetDefaultCulture(CulturaEspanol)
             .AddSupportedCultures(culturas)
             .AddSupportedUICultures(culturas);

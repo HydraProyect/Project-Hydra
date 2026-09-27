@@ -22,8 +22,12 @@ mkdir -p "$MOCK_BIN"
 
 cat > "$MOCK_BIN/docker" <<'EOF'
 #!/bin/bash
-# docker exec caemanager-db pg_dump ...  /  docker cp caemanager-app:RUTA DEST
+# docker exec caemanager-db pg_dump ...  /  docker cp <ranura de la app>:RUTA DEST
+# ESC_CONTENEDORES_APP: qué contenedores de la app existen (por defecto, las dos ranuras).
 echo "docker $*" >> "${LOG_DOCKER:-/dev/null}"
+if [ "$1" = "inspect" ]; then
+  case " ${ESC_CONTENEDORES_APP-caemanager-app-azul caemanager-app-verde} " in *" $2 "*) exit 0 ;; *) exit 1 ;; esac
+fi
 if [ "$1" = "exec" ]; then
   [ "${ESC_DUMP_VACIO:-0}" = "1" ] || echo "contenido-del-dump"
   exit 0
@@ -113,6 +117,18 @@ ejecutar dumpvacio BETTERSTACK_HEARTBEAT_URL="$URL" ESC_DUMP_VACIO=1
 comprobar "termina distinto de 0" '[ "$CODIGO" -ne 0 ]'
 comprobar "un único curl, el de /fail" '[ "$(llamadas_curl)" -eq 1 ] && grep -q "$URL/fail" "$LOG_CURL"'
 comprobar "no llegó a borg create" '! grep -q "^borg create" "$LOG_BORG"'
+
+echo "== ranuras de la app (P1-F2): copia de la que exista, aunque sea solo verde o la anterior"
+ejecutar soloverde ESC_CONTENEDORES_APP="caemanager-app-verde"
+comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
+comprobar "copia claves y documentos de caemanager-app-verde" \
+  '[ "$(grep -c "^docker cp caemanager-app-verde:/data/" "$LOG_DOCKER")" -eq 2 ]'
+ejecutar anterior ESC_CONTENEDORES_APP="caemanager-app"
+comprobar "con el contenedor único anterior a P1-F2 también" \
+  '[ "$CODIGO" -eq 0 ] && [ "$(grep -c "^docker cp caemanager-app:/data/" "$LOG_DOCKER")" -eq 2 ]'
+ejecutar sinapp BETTERSTACK_HEARTBEAT_URL="$URL" ESC_CONTENEDORES_APP=""
+comprobar "sin ningún contenedor de la app: falla y avisa /fail" \
+  '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^borg create" "$LOG_BORG"'
 
 echo "== sin claves de Data Protection: falla y avisa /fail"
 ejecutar sinclaves BETTERSTACK_HEARTBEAT_URL="$URL" ESC_SIN_CLAVES=1

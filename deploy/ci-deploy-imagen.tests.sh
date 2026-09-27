@@ -195,7 +195,7 @@ L_ESPACIO_CARGA="$(linea 'exigir_espacio_para_cargar "\$DIR_IMAGEN" || exit 1')"
 L_RESOLVER="$(linea 'bash /opt/talveg/deploy/resolve-deploy-sha.sh /opt/talveg "\$SHA" < /dev/null')"
 L_CARGAR="$(linea '    if ! cargar_imagen_verificada "\$DIR_IMAGEN" "\$SHA"; then')"
 L_EXPORT="$(linea '    export IMAGEN_TAG="\$SHA"')"
-L_UP="$(linea '    if ! docker compose "\${args\[@\]}" up -d --wait --wait-timeout 180 --no-build; then')"
+L_UP="$(linea '    if ! bash /opt/talveg/deploy/relevo-app.sh desplegar "\$ENTORNO" "\$SHA" < /dev/null; then')"
 for v in L_SHA L_LIBERAR L_ESPACIO L_MKTEMP L_TRAP L_RECIBIR L_VERIFICAR L_ESPACIO_CARGA L_RESOLVER L_CARGAR L_EXPORT L_UP; do
     [ -n "${!v}" ] || fallo "no se localizó $v (línea exacta) en ci-deploy.sh"
 done
