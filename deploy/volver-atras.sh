@@ -23,7 +23,9 @@
 #      NUNCA hace un downgrade: se detiene. Si la imagen trae migraciones que la
 #      base no tiene, arrancarla aplicaría esquema nuevo: eso es un despliegue,
 #      no una vuelta atrás, y también se detiene. Una imagen sin la etiqueta
-#      (construida antes de P1-F1) no se puede comprobar: se detiene.
+#      (construida antes de P1-F1) no se puede comprobar: se detiene. Única
+#      excepción: base en la línea base compactada e imagen anterior a la
+#      compactación (P1-M3), mismo esquema; se le devuelve su historial y sigue.
 #   4. Relevo sin corte (deploy/relevo-app.sh desplegar, P1-F2), igual que
 #      ci-deploy.sh: <sha> arranca en la ranura libre, Caddy conmuta cuando está
 #      sana y la ranura que servía drena. Si no llega a sana, sigue sirviendo la
@@ -69,6 +71,52 @@ sha_en_marcha() {
     esac
 }
 
+# P1-M3: la compactación de migraciones sustituye en __EFMigrationsHistory las
+# 185 migraciones previas por la fila de la línea base (lo hace el migrador,
+# TransicionLineaBaseCompactada). El esquema es idéntico, así que volver a una
+# imagen anterior a la compactación solo exige devolverle su historial: sin
+# esto, la comparación de abajo se detendría por «migraciones que la imagen no
+# conoce». Se reconoce la imagen por la huella de su inventario (sha256 de los
+# 185 ids ordenados por bytes y unidos con \n, en UTF-8), la misma que fija
+# TransicionLineaBaseCompactadaTests; cualquier otro inventario sigue el camino
+# normal. Si la vuelta atrás no llega a sano, el siguiente despliegue hacia
+# delante vuelve a transicionar el historial él solo.
+ID_LINEA_BASE_COMPACTADA="20260926160042_LineaBaseCompactada"
+HUELLA_HISTORIA_PREVIA="d2383fbbee1cd2d634a893be56cf7027ddcfb1c1391675758a784937213164c8"
+
+# Reescribe __EFMigrationsHistory de la línea base a los ids de la imagen, en una
+# transacción, con el mismo cerrojo consultivo que el migrador y solo si la
+# base sigue exactamente en la línea base. client_encoding UTF8 explícito: un
+# id lleva «ñ» y tiene que llegar byte a byte.
+restaurar_historia_previa() {
+    local entorno="$1" ids="$2" id valores=""
+    while IFS= read -r id; do
+        [ -n "$valores" ] && valores+=$',\n'
+        valores+="    ('${id//\'/\'\'}', 'restaurada-volver-atras')"
+    done <<< "$ids"
+    if ! docker exec -i "$(contenedor_db "$entorno")" psql -U postgres -d caemanager -v ON_ERROR_STOP=1 -q <<SQL
+SET client_encoding = 'UTF8';
+BEGIN;
+SELECT pg_advisory_xact_lock(hashtextextended('transicion_linea_base_compactada', 0));
+LOCK TABLE "__EFMigrationsHistory" IN ACCESS EXCLUSIVE MODE;
+DO \$\$
+BEGIN
+    IF (SELECT array_agg("MigrationId") FROM "__EFMigrationsHistory") IS DISTINCT FROM ARRAY['$ID_LINEA_BASE_COMPACTADA']::varchar[] THEN
+        RAISE EXCEPTION 'P1-M3: __EFMigrationsHistory ya no es solo la línea base compactada; no se toca.';
+    END IF;
+END
+\$\$;
+DELETE FROM "__EFMigrationsHistory";
+INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion") VALUES
+$valores;
+COMMIT;
+SQL
+    then
+        echo "No se pudo restaurar el historial previo en $(contenedor_db "$entorno"); la transacción no dejó nada a medias." >&2
+        return 1
+    fi
+}
+
 # Compara el inventario de migraciones de la imagen con la base. Devuelve 0
 # solo si coinciden exactamente; si no, explica la diferencia y devuelve 1.
 comprobar_esquema() {
@@ -88,6 +136,18 @@ comprobar_esquema() {
         return 1
     fi
     en_base="$(printf '%s\n' "$en_base" | tr -d '\r' | sed '/^$/d' | LC_ALL=C sort -u)"
+    if [ "$en_base" = "$ID_LINEA_BASE_COMPACTADA" ] \
+        && [ "$(printf '%s' "$en_imagen" | sha256sum | cut -d' ' -f1)" = "$HUELLA_HISTORIA_PREVIA" ]; then
+        echo "La base de $entorno está en la línea base compactada y ${sha} es anterior a la compactación (P1-M3): el esquema es el mismo; se le devuelve su historial de $(printf '%s\n' "$en_imagen" | wc -l) migraciones."
+        restaurar_historia_previa "$entorno" "$en_imagen" || return 1
+        HISTORIA_RESTAURADA=1
+        if ! en_base="$(docker exec "$(contenedor_db "$entorno")" psql -U postgres -d caemanager -v ON_ERROR_STOP=1 -tAc \
+                'SELECT "MigrationId" FROM "__EFMigrationsHistory"')"; then
+            echo "No se pudo releer __EFMigrationsHistory de $(contenedor_db "$entorno") tras restaurarlo." >&2
+            return 1
+        fi
+        en_base="$(printf '%s\n' "$en_base" | tr -d '\r' | sed '/^$/d' | LC_ALL=C sort -u)"
+    fi
     if [ -z "$en_base" ]; then
         echo "__EFMigrationsHistory de $(contenedor_db "$entorno") está vacía: no hay esquema con que comparar." >&2
         return 1
@@ -177,6 +237,7 @@ main_volver_atras() {
     comprobar_esquema "$entorno" "$sha" || detener "el esquema no admite volver a ${sha}."
 
     if ! bash "$RELEVO_APP" desplegar "$entorno" "$sha" < /dev/null; then
+        [ -z "${HISTORIA_RESTAURADA:-}" ] || echo "Aviso P1-M3: __EFMigrationsHistory ya tiene de nuevo las 185 migraciones previas a la compactación; la ranura que sigue sirviendo no las lee, y el siguiente despliegue hacia delante vuelve a transicionarlo solo." >&2
         detener "$entorno no llegó a sano con ${sha}: sigue sirviendo la ranura de antes. Revisa los logs y decide a mano."
     fi
 

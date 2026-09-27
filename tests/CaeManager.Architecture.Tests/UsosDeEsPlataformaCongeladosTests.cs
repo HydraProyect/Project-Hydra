@@ -417,20 +417,19 @@ public class UsosDeEsPlataformaCongeladosTests
         // Las migraciones se excluyen por SUFIJO de nombre generado, no por carpeta. Es
         // deliberado: excluir la carpeta entera —lo cómodo— dejaría un agujero por el que
         // se puede conceder autoridad en SQL crudo sin que nada lo vea.
-        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260731235023_LineaBase.cs"] =
-            new(2, CategoriaUso.MigracionManual, ":722 DDL de la columna, :1026 fila sembrada"),
-        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260923134849_AgregarCapacidadOperadorCaeExternoATenant.cs"] =
-            new(2, CategoriaUso.MigracionManual,
-                "P11: :11 comentario documentando el criterio interino sustituido, :41 el backfill consulta " +
-                "EsPlataforma en el WHERE del UPDATE para no conceder la capacidad nueva al tenant de plataforma"),
-        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260925203337_RestablecimientoSegundoFactorPorSoporte.cs"] =
-            new(2, CategoriaUso.MigracionManual,
-                "ADR-011 § 8.7.3: :111 comentario, :115 la función de restablecimiento de 2FA niega la sesión si " +
-                "la cuenta que la ejerce no es de un tenant de plataforma; solo restringe, no concede"),
-        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260926032940_SerializarAdministradorUnicoEnRestablecimiento.cs"] =
-            new(4, CategoriaUso.MigracionManual,
-                "ADR-011 § 8.7.3: redefine la función de 20260925203337 con el cerrojo del Administrador único; " +
-                ":143/:147 en Up y :289/:293 en Down son el mismo comentario y predicado, que solo restringen"),
+        // P1-M3: la línea base compactada sustituye a las cuatro migraciones que estaban
+        // aquí (LineaBase, AgregarCapacidadOperadorCaeExternoATenant,
+        // RestablecimientoSegundoFactorPorSoporte y SerializarAdministradorUnicoEnRestablecimiento).
+        // Su esquema es el volcado del que dejaban: la columna, y la función de
+        // restablecimiento de 2FA en su versión final (comentario y predicado, que solo
+        // restringen). El backfill de AgregarCapacidadOperadorCaeExternoATenant no corre
+        // sobre una base nueva y desaparece con la compactación.
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260926160042_LineaBaseCompactada.Esquema.cs"] =
+            new(3, CategoriaUso.MigracionManual,
+                ":217 comentario y :221 predicado de app_restablecer_segundo_factor_por_soporte (ADR-011 § 8.7.3, " +
+                "solo restringe), :1886 DDL de la columna"),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260926160042_LineaBaseCompactada.cs"] =
+            new(1, CategoriaUso.MigracionManual, ":160 columnas de la fila sembrada del Tenant por defecto"),
     };
 
     // ══════════════════════════════════════════════════════════════════════════════
@@ -506,9 +505,10 @@ public class UsosDeEsPlataformaCongeladosTests
             .Where(NoEstaEnBinNiObj)
             .Count(EsGenerado);
 
-        generados.Should().BeGreaterThan(50,
-            "había 113 snapshots EF el 2026-08-29; si esto baja a cero, el filtro por sufijo dejó de casar y " +
-            "los ~220 falsos positivos de los snapshots entrarían en el conteo");
+        generados.Should().BeGreaterThanOrEqualTo(2,
+            "había 113 snapshots EF el 2026-08-29 y, tras la compactación de migraciones (P1-M3), quedan el " +
+            ".Designer.cs de la línea base y el ModelSnapshot, que nombran EsPlataforma; si esto baja a cero, el " +
+            "filtro por sufijo dejó de casar y sus falsos positivos entrarían en el conteo");
     }
 
     // ══════════════════════════════════════════════════════════════════════════════

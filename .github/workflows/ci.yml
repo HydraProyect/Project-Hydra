@@ -122,6 +122,36 @@ jobs:
       # este paso es su adaptador de CI; el guion trae dentro su propia
       # verificación post-bootstrap.
       #
+      # P1-M3: la línea base compactada crea el esquema entero en UNA
+      # transacción (unas 120 tablas, 280 índices y 450 ALTER TABLE, más sus
+      # TOAST), así que cada migración de una base nueva retiene cientos de
+      # cerrojos hasta el COMMIT. Con las 185 migraciones previas cada una los
+      # soltaba al terminar. MigracionesConcurrentesTrasBootstrapTests lanza
+      # seis a la vez sobre seis bases nuevas, y con el valor por defecto
+      # (max_locks_per_transaction=64 × max_connections=100 = 6400 huecos en la
+      # tabla de cerrojos compartida) el bloque que le toca caía con
+      # 53200 «out of shared memory», arrastrando a las clases que corrían en
+      # paralelo (medido en #962, bloque 2, HEAD bcd77750). No afecta al
+      # despliegue: allí un solo migrador toca una base existente y solo
+      # reescribe el historial. Es capacidad del clúster de pruebas, no un
+      # cambio de lo que se prueba. Los contenedores de servicio no admiten
+      # argumentos de arranque, así que se fija con ALTER SYSTEM y se
+      # reinicia; el SHOW final falla el paso si no quedó aplicado.
+      - name: Ampliar la tabla de cerrojos del clúster de pruebas
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET max_locks_per_transaction = 256"
+          docker restart ${{ job.services.postgres.id }}
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -U postgres && break
+            sleep 2
+          done
+          valor=$(psql -h localhost -U postgres -d postgres -At -c "SHOW max_locks_per_transaction")
+          echo "max_locks_per_transaction=$valor"
+          [ "$valor" = "256" ] || { echo "::error::max_locks_per_transaction no quedó en 256 (vale '$valor')"; exit 1; }
+
       # ON_ERROR_STOP=1: sin esto psql seguiría adelante tras un error y el
       # bloque arrancaría contra un clúster fuera de contrato.
       - name: Bootstrap de roles de clúster
