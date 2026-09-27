@@ -209,8 +209,8 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
         (await ContarRaicesAsync(conexion)).Should().Be(0, "set_config local muere con la transacción");
     }
 
-    [Fact]
-    public async Task Una_conexion_devuelta_al_pool_no_conserva_el_contexto()
+    /// <summary>Cuerpo de <see cref="ContextoRlsFirmadoPoolTests"/>, que lo ejecuta aislado.</summary>
+    internal async Task UnaConexionDevueltaAlPoolNoConservaElContextoAsync()
     {
         // Pool propio (Application Name distinto = cadena distinta = pool
         // distinto) con un solo hueco: la segunda apertura tiene que ser el
@@ -770,4 +770,46 @@ SELECT cl.relname, pol.polname,
         public void Adelantar(TimeSpan cuanto) => _ahora += cuanto;
         public override DateTimeOffset GetUtcNow() => _ahora;
     }
+}
+
+/// <summary>
+/// Solo este test necesita que el pool le devuelva el mismo backend físico, y
+/// por eso corre aislado de los vaciados de pool de otras clases (ver
+/// <see cref="ColeccionPoolNpgsqlSinVaciadosConcurrentes"/>) sin arrastrar al
+/// resto de <see cref="ContextoRlsFirmadoTests"/>: reutiliza su base y sus
+/// ayudantes por composición. Es una clase de primer nivel y no anidada porque
+/// <c>scripts/repartir-clases-de-test.sh</c> no reconoce el <c>+</c> del nombre
+/// de una clase anidada y la confundía con su espacio de nombres entero.
+/// </summary>
+[Collection(ColeccionPoolNpgsqlSinVaciadosConcurrentes.Nombre)]
+public sealed class ContextoRlsFirmadoPoolTests : IAsyncLifetime
+{
+    private readonly ContextoRlsFirmadoTests _clase = new();
+
+    public Task InitializeAsync() => _clase.InitializeAsync();
+
+    public Task DisposeAsync() => _clase.DisposeAsync();
+
+    [Fact]
+    public Task Una_conexion_devuelta_al_pool_no_conserva_el_contexto() =>
+        _clase.UnaConexionDevueltaAlPoolNoConservaElContextoAsync();
+}
+
+/// <summary>
+/// Colección que xUnit ejecuta sola, después de las paralelas.
+/// <see cref="ContextoRlsFirmadoPoolTests.Una_conexion_devuelta_al_pool_no_conserva_el_contexto"/>
+/// necesita que el pool le devuelva el mismo backend físico, y un pool propio
+/// no basta: <c>NpgsqlConnection.ClearAllPools()</c> vacía todos los pools del
+/// proceso, y lo llama <c>EnsureDeletedAsync</c> de EF (<c>NpgsqlDatabaseCreator</c>)
+/// en el teardown de otras clases. En paralelo con ellas el hueco salía con otro
+/// backend y la guarda del test fallaba (run 36253365056: 1314 → 1317), sin que
+/// la aserción de contexto llegara a evaluarse. Un conector en uso durante el
+/// vaciado también se cierra al devolverlo, así que la ventana es todo el test y
+/// reintentar solo bajaría la probabilidad; aislarlo la quita. Solo lleva ese
+/// test: la clase entera ocupa minutos de reloj en CI y aislarla los sumaría.
+/// </summary>
+[CollectionDefinition(Nombre, DisableParallelization = true)]
+public sealed class ColeccionPoolNpgsqlSinVaciadosConcurrentes
+{
+    public const string Nombre = "Pool de Npgsql sin vaciados concurrentes";
 }
