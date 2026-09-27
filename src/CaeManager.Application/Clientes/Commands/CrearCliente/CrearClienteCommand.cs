@@ -81,12 +81,12 @@ public class CrearClienteCommandHandler(
             repositorio.Agregar(empresa);
             empresaId = empresa.Id;
 
-        // Doble escritura también aquí, y no solo al reasignar: sin esto, el
-        // Gestor CAE que crea un cliente se quedaría con la proyección puesta
-        // pero sin cartera, y al conmutar la autorización perdería de vista el
-        // cliente que acaba de crear. La Empresa todavía no tiene TenantId
-        // (lo sella el interceptor al guardar), así que el propietario se
-        // resuelve del contexto, no de la entidad.
+            // Doble escritura también aquí, y no solo al reasignar: sin esto, el
+            // Gestor CAE que crea un cliente se quedaría con la proyección puesta
+            // pero sin cartera, y al conmutar la autorización perdería de vista el
+            // cliente que acaba de crear. La Empresa todavía no tiene TenantId
+            // (lo sella el interceptor al guardar), así que el propietario se
+            // resuelve del contexto, no de la entidad.
             if (ejecutivoUsuarioId is not null)
                 await asignacionesWriter.ReasignarCarteraClienteAsync(empresa.Id, ejecutivoUsuarioId, ct);
 
