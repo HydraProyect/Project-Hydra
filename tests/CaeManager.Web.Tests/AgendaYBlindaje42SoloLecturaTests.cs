@@ -25,6 +25,7 @@ public class AgendaYBlindaje42SoloLecturaTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddScoped<ToastService>();
+        Services.AddSingleton(TimeProvider.System);
     }
 
     private sealed class MediatorFalso : IMediator
