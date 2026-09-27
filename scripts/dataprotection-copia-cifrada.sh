@@ -28,11 +28,13 @@
 #       ./scripts/dataprotection-copia-cifrada.sh verificar FICHERO.age IDENTIDAD
 #       Descifra, comprueba que hay al menos una clave y muestra las ids.
 #
-# Variables: CONTENEDOR_APP (por defecto caemanager-app).
+# Variables: CONTENEDOR_APP (por defecto, la primera ranura de la app de
+# producción que exista: caemanager-app-azul, -verde, o el contenedor único
+# anterior a P1-F2).
 set -euo pipefail
 umask 077
 
-CONTENEDOR_APP="${CONTENEDOR_APP:-caemanager-app}"
+CONTENEDOR_APP="${CONTENEDOR_APP:-}"
 
 resumen_claves() {   # resumen_claves DIR_CON_XML
     local f n=0 id caduca
@@ -75,6 +77,14 @@ case "$comando" in
         exigir_destinatario
         trabajo="$(mktemp -d)"
         trap 'rm -rf "$trabajo"' EXIT
+        if [ -z "$CONTENEDOR_APP" ]; then
+            # P1-F2: la app corre en ranuras (azul/verde) que montan el mismo
+            # volumen; vale cualquiera que exista, aunque esté parada.
+            for candidato in caemanager-app-azul caemanager-app-verde caemanager-app; do
+                if docker inspect "$candidato" > /dev/null 2>&1; then CONTENEDOR_APP="$candidato"; break; fi
+            done
+            [ -n "$CONTENEDOR_APP" ] || { echo "ERROR: no existe ningún contenedor de la app (caemanager-app-azul/-verde); indícalo con CONTENEDOR_APP." >&2; exit 1; }
+        fi
         docker cp "$CONTENEDOR_APP":/data/dataprotection-keys "$trabajo/dataprotection-keys"
         cifrar_directorio "$trabajo" "${2:-.}" || exit 1
         ;;

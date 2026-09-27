@@ -1,0 +1,29 @@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+@*
+    La pregunta de AvisoCambiosSinGuardar («¿Salir sin guardar?»). Vive aparte y el aviso
+    solo la monta mientras pregunta: así sus textos no exigen localización a cada pantalla
+    (y a cada arnés de bUnit) que lleve un formulario protegido sin cambios.
+*@
+
+<Modal Visible="true" VisibleChanged="v => { if (!v) return AlSeguir.InvokeAsync(); return Task.CompletedTask; }"
+       Titulo="@(Titulo ?? Comunes["CambiosSinGuardarTitulo"])">
+    <ChildContent>
+        <p>@(Mensaje ?? Comunes["CambiosSinGuardarMensaje"])</p>
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="() => AlSeguir.InvokeAsync()">@(TextoSeguir ?? Comunes["CambiosSinGuardarSeguir"])</Boton>
+        <Boton Variante="VarianteBoton.Destructivo" OnClick="() => AlDescartar.InvokeAsync()">@(TextoDescartar ?? Comunes["CambiosSinGuardarDescartar"])</Boton>
+    </Pie>
+</Modal>
+
+@code {
+    [Parameter, EditorRequired] public EventCallback AlSeguir { get; set; }
+    [Parameter, EditorRequired] public EventCallback AlDescartar { get; set; }
+    [Parameter] public string? Titulo { get; set; }
+    [Parameter] public string? Mensaje { get; set; }
+    [Parameter] public string? TextoSeguir { get; set; }
+    [Parameter] public string? TextoDescartar { get; set; }
+}

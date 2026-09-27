@@ -15,7 +15,7 @@
 @inject IMediator Mediator
 @inject ToastService Toasts
 
-<Modal Visible="Visible" VisibleChanged="CerrarAsync"
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync"
        Titulo="@(Contacto is null ? "Nuevo contacto" : "Editar contacto")"
        Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="false">
     <ChildContent>
@@ -71,6 +71,8 @@
     </Pie>
 </Modal>
 
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => VisibleChanged.InvokeAsync(false)" />
+
 @code {
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
@@ -110,11 +112,27 @@
         if (Visible && !_visibleAnterior)
         {
             RellenarDesdeContacto();
+            _instantanea.Fijar(ValoresFormulario());
             await CargarTiposDocumentoAsync();
         }
 
         _visibleAnterior = Visible;
     }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en el contacto que se está dando de
+    /// alta o editando. Lo leen el Modal (X, Escape) y AvisoCambiosSinGuardar (salir de la
+    /// página o cambiar de pestaña: la agenda y la reclamación viven dentro de pestañas).
+    /// </summary>
+    private bool HayCambiosSinGuardar => Visible && _instantanea.Difiere(ValoresFormulario());
+
+    private object?[] ValoresFormulario() =>
+    [
+        _nombre, _email, _telefono, _cargo, _notas, _esPredeterminado,
+        _recibeProgramacionVisitas, _recibeFacturacion, _tiposSeleccionados, _roles,
+    ];
 
     private void RellenarDesdeContacto()
     {

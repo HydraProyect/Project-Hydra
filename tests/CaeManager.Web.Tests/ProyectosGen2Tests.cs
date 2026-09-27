@@ -5,6 +5,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
 using CaeManager.Application.Proyectos.Commands.CerrarProyecto;
+using CaeManager.Application.Proyectos.Commands.CrearProyecto;
 using CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
@@ -157,6 +158,7 @@ public class ProyectosGen2Tests : BunitContext
                 ObtenerTecnicosProyectoQuery q => TecnicosPorProyecto.GetValueOrDefault(q.ProyectoId) ?? TecnicosPorDefecto(),
                 DesasignarTecnicoProyectoCommand => Result.Exito(),
                 CerrarProyectoCommand => Result.Exito(),
+                CrearProyectoCommand => Result.Exito(Guid.NewGuid()),
                 ReabrirProyectoCommand => Result.Exito(),
                 ActualizarProyectoCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
@@ -975,4 +977,89 @@ public class ProyectosGen2Tests : BunitContext
 
     private static IElement SelectorDeEstado(IRenderedComponent<Proyectos> cut) =>
         cut.FindAll("select").Single(s => s.TextContent.Contains("Abiertos"));
+
+    // ------------------------------------------------------------------ P1-E2b: aviso de cambios sin guardar
+
+    private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
+
+    private async Task<IRenderedComponent<Proyectos>> AbrirNuevoProyectoAsync()
+    {
+        _mediator.CentrosClienteA = [CentroDeA];
+        var cut = await RenderizarConClienteAsync();
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nuevo proyecto").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-panel").Should().NotBeEmpty("el test necesita el drawer abierto");
+        return cut;
+    }
+
+    private static Task EscribirNombreDelProyectoAsync(IRenderedComponent<Proyectos> cut, string nombre) =>
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre del proyecto")
+            .Find("input").InputAsync(new ChangeEventArgs { Value = nombre });
+
+    [Fact]
+    public async Task Aviso_nuevo_proyecto_con_la_fecha_de_hoy_puesta_no_pregunta()
+    {
+        var cut = await AbrirNuevoProyectoAsync();
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "la fecha de inicio de hoy viene puesta: no es un cambio");
+    }
+
+    [Fact]
+    public async Task Aviso_nuevo_proyecto_con_nombre_escrito_pregunta_al_salir()
+    {
+        var cut = await AbrirNuevoProyectoAsync();
+
+        await EscribirNombreDelProyectoAsync(cut, "Montaje cámaras 2026");
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
+    [Fact]
+    public async Task Aviso_crear_el_proyecto_deja_salir_sin_preguntar()
+    {
+        var cut = await AbrirNuevoProyectoAsync();
+        await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = CentroDeA.Id.ToString() });
+        await EscribirNombreDelProyectoAsync(cut, "Montaje cámaras 2026");
+
+        await BotonConTexto(cut, ".drawer-panel button", "Crear proyecto").ClickAsync(new MouseEventArgs());
+
+        _mediator.Enviados.OfType<CrearProyectoCommand>().Should().ContainSingle("el caso solo vale si se creó");
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "lo escrito ya está guardado");
+    }
+
+    [Fact]
+    public async Task Aviso_cerrar_proyecto_con_la_fecha_de_hoy_puesta_no_pregunta()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+        await CerrarDesdeLaFilaAsync(cut, ProyectoAbierto);
+        cut.FindAll("[role=dialog]").Should().NotBeEmpty("el test necesita el modal abierto");
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "la fecha de cierre de hoy viene puesta: no es un cambio");
+    }
+
+    [Fact]
+    public async Task Aviso_cerrar_proyecto_con_otra_fecha_pregunta_al_salir()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+        await CerrarDesdeLaFilaAsync(cut, ProyectoAbierto);
+        await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de cierre")
+            .Find("input").InputAsync(new ChangeEventArgs { Value = "2020-01-01" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
+    [Fact]
+    public async Task Aviso_confirmar_el_cierre_con_otra_fecha_deja_salir_sin_preguntar()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+        await CerrarDesdeLaFilaAsync(cut, ProyectoAbierto);
+        await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de cierre")
+            .Find("input").InputAsync(new ChangeEventArgs { Value = "2020-01-01" });
+
+        await ConfirmarCierre(cut);
+
+        _mediator.Enviados.OfType<CerrarProyectoCommand>().Should().ContainSingle("el caso solo vale si se cerró");
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "el cierre ya está guardado");
+    }
 }

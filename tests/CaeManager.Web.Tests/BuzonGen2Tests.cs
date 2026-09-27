@@ -291,4 +291,59 @@ public class BuzonGen2Tests : BunitContext
         cut.Find(".buzon-pagina-actual").TextContent.Trim().Should().Be("Página 2");
         cut.FindAll(".buzon-paginador button").Single(b => b.TextContent.Trim() == "Siguiente").HasAttribute("disabled").Should().BeTrue();
     }
+
+    // ---------------------------------------------------------------- cambios sin guardar (P1-E2b)
+
+    private async Task<(IRenderedComponent<Buzon> Cut, NavigationManager Navegacion)> RenderizarConRedactarAbiertoAsync(Escenario escenario)
+    {
+        Services.AddLocalization();
+        escenario.Conexiones.Add(Conexion(ConexionAId, "CAE Norte"));
+        var (cut, _) = Renderizar(escenario);
+        await ElegirConexion(cut, ConexionAId);
+        await cut.FindAll(".acciones-cabecera button").Single(b => b.TextContent.Trim() == "Redactar").ClickAsync(new MouseEventArgs());
+        return (cut, Services.GetRequiredService<NavigationManager>());
+    }
+
+    private static async Task EscribirDestinatarioAsync(IRenderedComponent<Buzon> cut)
+    {
+        var destinatario = cut.FindAll(".drawer-panel input.campo-input")[0];
+        await destinatario.InputAsync("destinatario@example.invalid");
+        await destinatario.BlurAsync();
+    }
+
+    [Fact]
+    public async Task Salir_con_el_mensaje_a_medias_pregunta()
+    {
+        var (cut, navegacion) = await RenderizarConRedactarAbiertoAsync(new Escenario());
+        await EscribirDestinatarioAsync(cut);
+
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+    }
+
+    [Fact]
+    public async Task Abrir_Redactar_sin_escribir_nada_y_salir_no_pregunta()
+    {
+        var (cut, navegacion) = await RenderizarConRedactarAbiertoAsync(new Escenario());
+        cut.FindAll(".drawer-panel").Should().NotBeEmpty();
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "abrir el drawer vacío no deja nada que perder");
+    }
+
+    [Fact]
+    public async Task Enviar_el_mensaje_y_salir_no_pregunta()
+    {
+        var escenario = new Escenario
+        {
+            Interceptar = (peticion, _) => peticion is EnviarMensajeNuevoCommand
+                ? Task.FromResult<object?>(Result.Exito(Guid.NewGuid()))
+                : null,
+        };
+        var (cut, navegacion) = await RenderizarConRedactarAbiertoAsync(escenario);
+        await EscribirDestinatarioAsync(cut);
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "lo escrito ya se envió");
+    }
 }

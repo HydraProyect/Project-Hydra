@@ -6,6 +6,7 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Usuarios.Pages;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
@@ -87,6 +88,8 @@ public class MiFirmaTests : BunitContext
         _mediator = new MediatorFirma { Consultas = new Queue<Func<FirmaGuardadaUsuarioDto?>>(consultas) };
         Services.AddScoped<IMediator>(_ => _mediator);
         Services.AddScoped<ToastService>();
+        // AvisoCambiosSinGuardar (P1-E2b) pinta sus textos con IStringLocalizer<TextosComunes>.
+        Services.AddLocalization();
         return Render<MiFirma>();
     }
 
@@ -356,5 +359,51 @@ public class MiFirmaTests : BunitContext
 
         cut.WaitForAssertion(() => Toasts.Should().ContainSingle(t => t.Tono == TonoToast.Error && t.Mensaje.StartsWith(MensajeFalloLectura)));
         _mediator.GuardadosRecibidos.Should().Be(0);
+    }
+
+    private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
+
+    /// <summary>P1-E2b: con el lienzo vacío no hay nada que perder al salir.</summary>
+    [Fact]
+    public async Task Aviso_salir_con_el_lienzo_vacio_no_pregunta()
+    {
+        var cut = Renderizar(() => Firma(new DateTime(2026, 9, 1, 8, 0, 0, DateTimeKind.Utc)));
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "la firma guardada no se carga en el lienzo: no es un cambio");
+    }
+
+    /// <summary>P1-E2b: un trazo a mano sin guardar detiene la salida y pregunta.</summary>
+    [Fact]
+    public async Task Aviso_salir_con_un_trazo_sin_guardar_pregunta()
+    {
+        var cut = Renderizar(() => null);
+        await cut.InvokeAsync(() => cut.Instance.MarcarTrazoIniciadoAsync());
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
+    /// <summary>P1-E2b: el nombre escrito también es una firma a medias.</summary>
+    [Fact]
+    public async Task Aviso_salir_con_el_nombre_escrito_sin_guardar_pregunta()
+    {
+        var cut = Renderizar(() => null);
+        await PestanaEscribir(cut).ClickAsync(new());
+        await cut.Find(".mi-firma-nombre input").InputAsync(new ChangeEventArgs { Value = "Marta Rodríguez" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
+    /// <summary>P1-E2b: guardada la firma, el lienzo vuelve a estar vacío y salir no pregunta.</summary>
+    [Fact]
+    public async Task Aviso_tras_guardar_la_firma_salir_no_pregunta()
+    {
+        _modulo.Setup<string?>("exportarPng", _ => true).SetResult(Convert.ToBase64String([1, 2, 3]));
+        var cut = Renderizar(() => null);
+        await cut.InvokeAsync(() => cut.Instance.MarcarTrazoIniciadoAsync());
+
+        await BotonGuardar(cut).ClickAsync(new());
+        _mediator.GuardadosRecibidos.Should().Be(1, "si no se guardó, el test no mide nada");
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "la firma ya está guardada");
     }
 }

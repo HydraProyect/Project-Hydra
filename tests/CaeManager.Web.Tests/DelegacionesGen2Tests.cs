@@ -34,7 +34,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
-public class DelegacionesGen2Tests : BunitContext
+public partial class DelegacionesGen2Tests : BunitContext
 {
     private sealed class Mediador : IMediator
     {

@@ -9,7 +9,7 @@
 # blog) — Dependabot (ver .github/dependabot.yml, ecosistema "docker") sigue
 # proponiendo el salto cuando salga una versión nueva, con su propio PR,
 # CI y escaneo Trivy antes de fusionar.
-FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:2fa828c68761b1b8c23d7662dc134421b9d3b59fe1425fdbc80804e390cdb24d AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:35d40304542c8689331f8cab17c65926cdf48fe711e289321d71924b230a7d29 AS build
 WORKDIR /src
 
 # Copiar solo los .csproj primero para que `dotnet restore` se cachee entre
@@ -57,7 +57,7 @@ COPY src/ src/
 # donde deciden algo, en el `dotnet build -warnaserror` de CI.
 RUN dotnet publish src/CaeManager.Web/CaeManager.Web.csproj -c Release -o /app/publish -r linux-x64 --self-contained false -p:UseSharedCompilation=false -p:RunAnalyzers=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.12@sha256:6a94333d37514e385650a3c81a55e5350b67253dbe136e9cf17e499c35606a8c AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.12@sha256:2d584d8147faddb0d678c5748d47953e5b8e18621ed4fb7049a91381d9d7746f AS final
 WORKDIR /app
 ENV ASPNETCORE_ENVIRONMENT=Production
 
