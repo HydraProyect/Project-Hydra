@@ -208,6 +208,26 @@ kill -TERM "$pw" 2>/dev/null
 wait "$pw" 2>/dev/null
 comprobar "SIGTERM ignorado por el descendiente: muere igualmente antes de liberar" "muerto sin-cerrojo" "$(kill -0 "$nieto" 2>/dev/null && echo vivo || echo muerto) $([ -d "$HYDRA_TURNO_DIR/cerrojo" ] && echo con-cerrojo || echo sin-cerrojo)"
 
+# 10d -----------------------------------------------------------------------
+# Un descendiente PARADO (SIGSTOP) tampoco puede sobrevivir al guion. En MSYS/Git
+# Bash, `ps` antepone una columna de estado («S») a los procesos parados y
+# descoloca el PPID: sin arreglo, el guion no lo veía como descendiente, no lo
+# mataba y seguía vivo contra el clúster tras liberar el cerrojo.
+nuevo_caso interrupcion-descendiente-parado
+# `taskkill /T` (solo Windows) alcanza a este nieto por el árbol de Windows y
+# taparía el defecto; se sustituye por uno que no hace nada para observar solo el
+# recorrido MSYS de descendientes, que es el que usa matar_arbol cuando taskkill
+# no llega (o no existe).
+mkdir -p "$CASO/sin-taskkill"; printf '#!/bin/sh\nexit 0\n' > "$CASO/sin-taskkill/taskkill"; chmod +x "$CASO/sin-taskkill/taskkill"
+PATH="$CASO/sin-taskkill:$PATH" bash "$GUION" -- bash -c "sleep 300 & echo \$! > '$CASO/pidnieto'; kill -STOP \$!; echo P_ini >> '$REGISTRO'; wait" > "$CASO/o" 2>&1 & pw=$!
+esperar_a "P_ini" "$REGISTRO" || true
+nieto=$(cat "$CASO/pidnieto" 2>/dev/null)
+PIDS_AJENOS+=("$nieto")
+kill -TERM "$pw" 2>/dev/null
+wait "$pw" 2>/dev/null
+comprobar "SIGTERM con un descendiente parado: muere antes de liberar" "muerto sin-cerrojo" "$(kill -0 "$nieto" 2>/dev/null && echo vivo || echo muerto) $([ -d "$HYDRA_TURNO_DIR/cerrojo" ] && echo con-cerrojo || echo sin-cerrojo)"
+[ -n "$nieto" ] && { kill -CONT "$nieto"; kill -9 "$nieto"; } 2>/dev/null
+
 # 11 ------------------------------------------------------------------------
 # Un turno LARGO no caduca mientras el dueño siga latiendo: sin latido, la
 # caducidad retiraría un cerrojo legítimo y dos suites correrían a la vez.
@@ -232,7 +252,7 @@ comprobar "turno más largo que la caducidad: no se retira mientras hay latido" 
 # retiran como en el caso 7.
 pares_pid_ppid() {  # «pid ppid» de todos los procesos, en UNA lectura (rápida y casi atómica)
   if ps -e -o pid=,ppid= >/dev/null 2>&1; then ps -e -o pid=,ppid=
-  else awk 'FNR == 1 { n = split(FILENAME, a, "/"); print a[n - 1], $1 }' /proc/[0-9]*/ppid 2>/dev/null; fi
+  else grep -H . /proc/[0-9]*/ppid 2>/dev/null | awk -F: '{ n = split($1, a, "/"); print a[n - 1], $2 }'; fi   # grep, no awk: awk aborta si un proceso muere a mitad
   # En MSYS/Git Bash `ps` no admite -o y antepone una columna de estado a los
   # procesos parados, lo que descoloca el PPID justo en este caso: /proc/*/ppid.
 }

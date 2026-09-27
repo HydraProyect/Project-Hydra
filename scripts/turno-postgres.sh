@@ -332,9 +332,14 @@ liberar() {
   TENGO_CERROJO=0
 }
 
-hijos_directos() {  # pgrep en Linux; `ps` de MSYS/Git Bash (columnas PID PPID ...) donde no hay pgrep
+hijos_directos() {  # pgrep en Linux; /proc/*/ppid en MSYS/Git Bash, donde no hay pgrep
+  # No se usa el `ps` de MSYS: a los procesos parados les antepone una columna de
+  # estado («S») que descoloca el PPID, y un descendiente parado se quedaba sin matar.
+  # `grep -H` y no `awk` sobre los ficheros: un proceso que termina entre el glob y
+  # la lectura hace abortar a awk entero («fatal: cannot open file») y se perdían
+  # al azar los descendientes que venían detrás; grep sigue con el siguiente.
   if command -v pgrep >/dev/null 2>&1; then pgrep -P "$1" 2>/dev/null
-  else ps 2>/dev/null | awk -v p="$1" '$2 == p { print $1 }'; fi
+  else grep -H . /proc/[0-9]*/ppid 2>/dev/null | awk -F: -v p="$1" '$2 == p { n = split($1, a, "/"); print a[n - 1] }'; fi
 }
 
 descendientes() {  # pids descendientes de $1, los más profundos primero
