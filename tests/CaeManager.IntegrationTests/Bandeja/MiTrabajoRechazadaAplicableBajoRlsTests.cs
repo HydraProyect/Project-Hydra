@@ -107,6 +107,7 @@ public class MiTrabajoRechazadaAplicableBajoRlsTests : IAsyncLifetime
         servicios.AddSingleton<ITenantActual>(tenantDeLaPeticion);
         servicios.AddSingleton<IUnitOfWork>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Tenants.ITenantsQueryContext>(_runtime);
+        servicios.AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Empresas.IEmpresasQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Centros.ICentrosQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Trabajadores.ITrabajadoresQueryContext>(_runtime);

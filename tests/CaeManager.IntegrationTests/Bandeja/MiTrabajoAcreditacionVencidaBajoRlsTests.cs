@@ -110,6 +110,8 @@ public class MiTrabajoAcreditacionVencidaBajoRlsTests : IAsyncLifetime
         servicios.AddSingleton<ITenantActual>(tenantDeLaPeticion);
         servicios.AddSingleton<IUnitOfWork>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Tenants.ITenantsQueryContext>(_runtime);
+        // ObtenerClientesAutorizadosQuery lee también la vía de Operación.
+        servicios.AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Empresas.IEmpresasQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Centros.ICentrosQueryContext>(_runtime);
         servicios.AddSingleton<CaeManager.Application.Trabajadores.ITrabajadoresQueryContext>(_runtime);

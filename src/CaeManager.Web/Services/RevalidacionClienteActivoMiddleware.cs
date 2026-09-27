@@ -2,7 +2,6 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
-using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
@@ -86,7 +85,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 // Sentry) no podían distinguir un cliente que se fue de un fallo real
                 // del servidor (medido en el E2E local, log de WebAppFixture,
                 // 2026-09-22: dos líneas así, ambas con esta excepción lanzada desde
-                // SigueAutorizadoAsync/SigueAutorizadoPorAsignacionAsync).
+                // SigueAutorizadoAsync, vía de Operación).
                 //
                 // El "when" exige que sea *este* RequestAborted el que se disparó, no
                 // cualquier OperationCanceledException — un timeout de comando u otra
@@ -285,28 +284,20 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
     /// piden.
     /// </para>
     /// </summary>
-    public static bool PuedePintarElAviso(HttpRequest peticion)
-    {
-        if (peticion.Path.StartsWithSegments("/_blazor", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        var aceptados = peticion.Headers.Accept;
-        if (aceptados.Any(valor => valor?.Contains("blazor-enhanced-nav", StringComparison.OrdinalIgnoreCase) == true))
-            return true;
-
-        var destino = peticion.Headers["Sec-Fetch-Dest"];
-        if (destino.Count > 0)
-            return string.Equals(destino.ToString(), "document", StringComparison.OrdinalIgnoreCase);
-
-        return aceptados.Any(valor => valor?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true);
-    }
+    public static bool PuedePintarElAviso(HttpRequest peticion) => NavegacionDePagina.Es(peticion);
 
     /// <summary>
     /// La comprobación completa, factorizada para que
     /// <see cref="RevalidacionCircuitoActivoHandler"/> pueda repetirla desde
     /// dentro del circuito sin duplicar la lógica de autorización — dos
     /// sitios que decidieran esto por separado son dos sitios que pueden
-    /// dejar de coincidir.
+    /// dejar de coincidir. Las vías de Operación y heredada son las de
+    /// <see cref="TenantsBeneficiariosAutorizados"/>, el mismo predicado que
+    /// concedió la selección en <c>/cuenta/cliente-activo</c> y que lista el
+    /// selector (invariante I2): la operación del token tiene que seguir siendo
+    /// vigente, no raíz, del Operador CAE de origen del usuario, del Tenant que
+    /// el token declara, y con la cartera del usuario vigente bajo ella. Antes
+    /// la revalidación no volvía a exigir las dos primeras (Codex C5).
     /// </summary>
     internal static async Task<bool> SigueAutorizadoAsync(
         IClienteActivoSeleccionado clienteActivoSeleccionado,
@@ -318,6 +309,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         CancellationToken cancellationToken)
     {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        var ahora = DateTime.UtcNow;
 
         // Tres caminos, uno por vía de acceso, y excluyentes entre sí
         // (ADR-011 § 4bis.5 — las capacidades no se acumulan entre planos):
@@ -338,27 +330,14 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 // que el token declara.
                 ? await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null
                 : clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is { } asignacionOperacionId
-                    ? await SigueAutorizadoPorAsignacionAsync(
-                        operacionesContext, usuarioId.Value, tenantSeleccionado, asignacionOperacionId, cancellationToken)
-                    : await SigueAutorizadoPorDelegacionAsync(
-                        dbContext, usuarioId.Value, tenantSeleccionado, cancellationToken));
+                    ? await currentUserService.ObtenerTenantOrigenIdAsync() is { } tenantOrigenId
+                      && await TenantsBeneficiariosAutorizados.SigueAutorizadoPorOperacionAsync(
+                          operacionesContext, usuarioId.Value, tenantOrigenId, tenantSeleccionado,
+                          asignacionOperacionId, ahora, cancellationToken)
+                    : await TenantsBeneficiariosAutorizados.AutorizadoPorViaHeredadaAsync(
+                        dbContext, usuarioId.Value, tenantSeleccionado, ahora, cancellationToken));
     }
 
-    /// <summary>
-    /// Vía nueva. Comprueba tres cosas, y las tres hacen falta:
-    /// <list type="number">
-    /// <item>la <b>coherencia</b> entre los dos campos del token — la operación
-    /// referenciada tiene que pertenecer al tenant que el token dice, o un
-    /// token con un tenant de aquí y una operación de allá abriría un contexto
-    /// que nadie autorizó;</item>
-    /// <item>que la <b>operación</b> siga vigente;</item>
-    /// <item>que el <b>usuario</b> tenga cartera vigente bajo ella. Sin esto,
-    /// retirar a un usuario de la cartera no le cortaría el acceso hasta que
-    /// caducara su token — hasta 8 horas después. Es exactamente el agujero que
-    /// esta revalidación cerró en su día, y comprobar solo la operación lo
-    /// habría reabierto.</item>
-    /// </list>
-    /// </summary>
     /// <summary>
     /// Si la selección que se retira era una ventana de soporte: una sesión
     /// privilegiada, o —en la vía heredada— delegaciones del usuario hacia ese
@@ -395,49 +374,6 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         // Distinct: «exactamente un propósito y es Soporte».
         return propositos is [PropositoDelegacion.Soporte];
     }
-
-    private static async Task<bool> SigueAutorizadoPorAsignacionAsync(
-        IOperacionesQueryContext operacionesContext,
-        Guid usuarioId, Guid tenantSeleccionado, Guid asignacionOperacionId, CancellationToken cancellationToken)
-    {
-        var ahora = DateTime.UtcNow;
-
-        return await (
-            from cartera in operacionesContext.AsignacionesCartera
-            join operacion in operacionesContext.AsignacionesOperacion
-                on cartera.AsignacionOperacionId equals operacion.Id
-            where cartera.AsignacionOperacionId == asignacionOperacionId
-                  && cartera.UsuarioId == usuarioId
-                  && cartera.Estado == EstadoAsignacion.Vigente
-                  && cartera.VigenciaDesde <= ahora
-                  && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
-                  && operacion.PropietarioTenantId == tenantSeleccionado
-                  && operacion.Estado == EstadoAsignacion.Vigente
-                  && operacion.VigenciaDesde <= ahora
-                  && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
-            select cartera.Id)
-            .AnyAsync(cancellationToken);
-    }
-
-    /// <summary>
-    /// Vía heredada, la del acceso de soporte. Se conserva intacta: su
-    /// reclasificación al plano de privilegio de plataforma es una fase
-    /// posterior, y tocarla aquí habría mezclado dos migraciones.
-    /// </summary>
-    private static Task<bool> SigueAutorizadoPorDelegacionAsync(
-        ITenantsQueryContext dbContext, Guid usuarioId, Guid tenantSeleccionado, CancellationToken cancellationToken) =>
-        (from asignacion in dbContext.AsignacionesOperadorDelegado
-         join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
-         where asignacion.UsuarioId == usuarioId
-               // Activa y no caducada: es lo que hace que una ventana
-               // de soporte vencida corte el acceso en la siguiente
-               // petición, sin que nadie tenga que revocarla a mano
-               // (ver DelegacionTenant.EstaVigente).
-               && delegacion.Activa
-               && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
-               && delegacion.TenantClienteId == tenantSeleccionado
-         select delegacion.Id)
-        .AnyAsync(cancellationToken);
 }
 
 public static class RevalidacionClienteActivoMiddlewareExtensions
@@ -461,14 +397,13 @@ public static class RevalidacionClienteActivoMiddlewareExtensions
     /// independientemente de si este middleware llega a correr (ver
     /// <c>CurrentUserService.ObtenerRolEfectivoAsync</c>, que resuelve por las
     /// mismas tres vías que <see cref="RevalidacionClienteActivoMiddleware.SigueAutorizadoAsync"/>
-    /// contra la misma base viva, no contra el token). Las dos consultas NO
-    /// son idénticas condición por condición —la vía de asignación de
-    /// operación en <c>ObtenerRolEfectivoAsync</c> no comprueba
-    /// <c>operacion.VigenciaDesde</c>, y esta sí (REC-189, hallazgo
-    /// secundario sin corregir aquí: está en <c>CurrentUserService</c>, fuera
-    /// del alcance de este cambio)—, pero ninguna discrepancia entre las dos
-    /// hace que <b>saltarse este middleware conceda algo que
-    /// <c>RolEfectivoDelWorkspaceMiddleware</c> ya no hubiera concedido antes</b>,
+    /// contra la misma base viva, no contra el token). Desde el lote 0 del
+    /// selector de Tenant beneficiario las dos parten del mismo predicado
+    /// (<see cref="TenantsBeneficiariosAutorizados"/>; antes la vía de operación
+    /// de <c>ObtenerRolEfectivoAsync</c> no comprobaba
+    /// <c>operacion.VigenciaDesde</c>, REC-189), así que <b>saltarse este
+    /// middleware no concede nada que
+    /// <c>RolEfectivoDelWorkspaceMiddleware</c> no hubiera concedido ya</b>,
     /// que es lo único que importa para que las cuatro capas intermedias no
     /// sean un agujero de autorización. Lo que se pierde en el hueco es
     /// diagnóstico y limpieza de cookie, no la comprobación que decide el

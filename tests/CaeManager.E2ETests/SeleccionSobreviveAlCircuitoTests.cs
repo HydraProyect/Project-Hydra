@@ -53,6 +53,13 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // tiene datos operativos propios (ADR-004 § 5.1). Comprobarlo aquí es lo
         // que da valor a la aserción final: sin esta línea base, "hay empresas" al
         // final podría significar simplemente que el origen también las tenía.
+        //
+        // Su cartera tiene un único Tenant beneficiario externo y su origen no está
+        // gestionado, así que al entrar ese Tenant es el activo por defecto
+        // (decisión 5 del selector de Tenant beneficiario). La línea base exige
+        // volver a propósito al Tenant de origen, que además deja la preferencia
+        // para que el defecto no se reactive en la navegación siguiente.
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreTenantConsultora);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await Assertions.Expect(page.GetByText("Aún no hay empresas"))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });

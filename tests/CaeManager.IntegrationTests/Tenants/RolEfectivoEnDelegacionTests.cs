@@ -158,13 +158,18 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
         }
 
         await using var contexto = CrearContexto(propietario);
-        var servicio = CrearServicio(contexto, tenantSeleccionado: propietario, usuarioId: usuario, asignacionOperacionId: operacionId);
+        // El usuario es del Operador CAE: la vía de Operación exige que la
+        // operación sea de SU Tenant de origen (predicado único, C5).
+        var servicio = CrearServicio(
+            contexto, tenantSeleccionado: propietario, usuarioId: usuario, asignacionOperacionId: operacionId,
+            tenantOrigenId: tenantOperador.Id);
 
         (await servicio.ObtenerRolEfectivoAsync()).Should().Be(esperado);
     }
 
     private CurrentUserService CrearServicio(
-        CaeManagerDbContext contexto, Guid? tenantSeleccionado, Guid? usuarioId = null, Guid? asignacionOperacionId = null)
+        CaeManagerDbContext contexto, Guid? tenantSeleccionado, Guid? usuarioId = null, Guid? asignacionOperacionId = null,
+        Guid? tenantOrigenId = null)
     {
         var identidad = new ClaimsIdentity(
             [
@@ -172,6 +177,9 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
                 new Claim(ClaimTypes.Role, "Administrador")
             ],
             "prueba");
+        if (tenantOrigenId is not null)
+            identidad.AddClaim(new Claim(
+                CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimTenantId, tenantOrigenId.Value.ToString()));
 
         // El contexto se resuelve del contenedor, no por constructor — ver
         // CurrentUserService: por constructor cerraría un ciclo de DI con
