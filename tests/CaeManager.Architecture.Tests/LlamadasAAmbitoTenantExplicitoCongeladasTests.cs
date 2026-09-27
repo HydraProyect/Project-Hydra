@@ -291,6 +291,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.BootstrapOSiembra, "2 llamadas — marcador de datos de demo sobre el Tenant que la propia siembra acaba de crear, localizado por nombre, y el Tenant propietario de cada rama al sembrar su historial de Comunicaciones y su ciclo documental (su Id lo devuelve la propia siembra); solo se alcanza desde el modo de CLI (ver SiembraDemoDireccionSoloDesdeElModoCliTests)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "3 llamadas — tenantId del segundo tenant que el propio seeder crea"),
+        ["src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs"] =
+            new(Categoria.BootstrapOSiembra, "2 llamadas — el Tenant del Operador CAE externo y cada Tenant beneficiario, que la propia siembra aprovisiona o localiza por nombre (DelegacionDemoSeeder.AprovisionarTenantAsync); inerte salvo DatosPrueba:GestorCaeCarteraMultiTenant y rechazada en Producción"),
         ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] =
             new(Categoria.IdentificacionDeCuentaSinSesion, "2 llamadas — el Tenant de la cuenta que se busca o se escribe, resuelto por app_tenant_de_cuenta / app_cuenta_por_nombre_normalizado / app_cuentas_por_email_normalizado, solo sin Tenant en el contexto y dentro de AmbitoIdentificacionSinTenant"),
         ["src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs"] =
@@ -422,6 +424,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 12,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 4,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 3,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = 4,
             ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 2,

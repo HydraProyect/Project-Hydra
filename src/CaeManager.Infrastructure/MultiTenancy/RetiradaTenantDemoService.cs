@@ -110,6 +110,8 @@ public static class RetiradaTenantDemoService
         // El lote de la siembra administrativa de la demo a dirección (nombres limpios,
         // Operador CAE incluido). Ver ExigenMarcador.
         ..SiembraDemoDireccionAdministrativa.NombresTenantsDelLote,
+        // La colección E2E del Gestor CAE con cartera en dos Tenants beneficiarios.
+        ..GestorCaeCarteraMultiTenantSeeder.NombresTenants,
     ];
 
     /// <summary>
