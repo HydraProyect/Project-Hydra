@@ -13,6 +13,11 @@ namespace CaeManager.Application.Common;
 /// cubierta sin volver a acordarse. Guardar el original sin tocar es
 /// deliberado — el saneado es una decisión de presentación y sus reglas
 /// cambian con el tiempo; destruir el correo recibido no se puede deshacer.
+///
+/// Segundo consumidor: la respuesta del asistente de IA
+/// (<c>AsistenteIa.RenderizarMarkdown</c>) pasa por aquí después de Markdig,
+/// que no filtra esquemas de enlace. Endurecer o relajar la lista blanca
+/// cambia también lo que el asistente puede pintar.
 /// </summary>
 public interface ISanitizadorHtmlService
 {
