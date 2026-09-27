@@ -1006,6 +1006,13 @@ app.UseSesionPrivilegiadaSinRolDeNegocio();
 // workspace delegado (plano 2) el claim de rol es el del tenant de ORIGEN, y
 // las puertas [Authorize(Roles = …)] lo creerían. Aquí se sustituye por el rol
 // efectivo de la cartera de ese workspace (ver RolEfectivoDelWorkspaceMiddleware).
+// Inmediatamente ANTES de UseRolEfectivoDelWorkspace: sin selección, si la
+// cartera del Gestor CAE tiene un único Tenant beneficiario externo y su Tenant
+// de origen no está gestionado, emite la cookie de ese Tenant y redirige a la
+// misma página, que ya llega con la selección y pasa por la sustitución de rol
+// y la revalidación como cualquier otra (ver TenantBeneficiarioPorDefectoMiddleware).
+app.UseTenantBeneficiarioPorDefecto();
+
 app.UseRolEfectivoDelWorkspace();
 
 // Una cuenta a medio activar (contraseña temporal sin cambiar, o Administrador

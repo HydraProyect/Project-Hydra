@@ -1,4 +1,6 @@
 using Bunit;
+using CaeManager.Application.Common;
+using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Web.Features.AsistenteIa;
 using FluentAssertions;
 using MediatR;
@@ -43,6 +45,7 @@ public class AsistenteIaTextosTests : BunitContext
         Services.AddLocalization();
         Services.AddScoped<AsistenteIaService>();
         Services.AddScoped<IMediator, MediatorQueNoResponde>();
+        Services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 

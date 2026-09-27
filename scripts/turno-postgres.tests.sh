@@ -239,6 +239,24 @@ for malo in abc 120junk 1e2 -5; do
 done
 HYDRA_TURNO_LATIDO_S=1e-1 bash "$GUION" -- bash -c "touch '$CASO/marca'" > "$CASO/o" 2>&1; rc=$?
 comprobar "HYDRA_TURNO_LATIDO_S='1e-1': se rechaza con 64" "64" "$rc"
+
+# 13b -----------------------------------------------------------------------
+# La cola pierde a B. El ticket de quien espera solo se refresca una vez por
+# sondeo, y cualquier otro waiter lo borra en cuanto lleva más de CADUCIDAD sin
+# refrescarse. Con SONDEO >= CADUCIDAD, B (vivo, primero tras el dueño) pierde su
+# ticket mientras duerme entre sondeos, y C, llegado después, toma el turno antes
+# que B. Medido antes del arreglo con A 4 s, B SONDEO=3, C SONDEO=0.2, CADUCIDAD=1:
+# orden A C B en 2 de 3 vueltas. Esa configuración se aceptaba; ahora se rechaza.
+rm -f "$CASO/marca"
+HYDRA_TURNO_CADUCIDAD_S=1 HYDRA_TURNO_SONDEO_S=3 bash "$GUION" -- bash -c "touch '$CASO/marca'" > "$CASO/o" 2>&1; rc=$?
+comprobar "sondeo > caducidad (la cola perdería a B): se rechaza con 64 y NO ejecuta" "64 no" "$rc $([ -e "$CASO/marca" ] && echo si || echo no)"
+comprobar "lo dice: HYDRA_TURNO_SONDEO_S en el motivo" "1" "$(grep -c 'configuración inválida:.*HYDRA_TURNO_SONDEO_S' "$CASO/o")"
+rm -f "$CASO/marca"
+HYDRA_TURNO_CADUCIDAD_S=2 HYDRA_TURNO_SONDEO_S=1 HYDRA_TURNO_LATIDO_S=0.3 bash "$GUION" -- bash -c "touch '$CASO/marca'" > "$CASO/o" 2>&1; rc=$?
+comprobar "sondeo por debajo de la caducidad pero sin margen de 3x: se rechaza con 64" "64 no" "$rc $([ -e "$CASO/marca" ] && echo si || echo no)"
+rm -f "$CASO/marca"
+HYDRA_TURNO_CADUCIDAD_S=3 HYDRA_TURNO_SONDEO_S=1 HYDRA_TURNO_LATIDO_S=1 bash "$GUION" -- bash -c "touch '$CASO/marca'" > "$CASO/o" 2>&1; rc=$?
+comprobar "contrapeso: caducidad = 3 x sondeo = 3 x latido se acepta y ejecuta" "0 si" "$rc $([ -e "$CASO/marca" ] && echo si || echo no)"
 for malo in abc 5s 1.5 -1; do
   rm -f "$CASO/marca"
   bash "$GUION" --espera-max-s "$malo" -- bash -c "touch '$CASO/marca'" > "$CASO/o" 2>&1; rc=$?

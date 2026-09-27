@@ -63,7 +63,7 @@ public class ObtenerClientesAutorizadosQueryTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto(_consultora);
         var handler = new ObtenerClientesAutorizadosQueryHandler(
-            contexto, new CurrentUserServiceFalso(_usuario, _consultora));
+            contexto, contexto, new CurrentUserServiceFalso(_usuario, _consultora));
 
         var resultado = await handler.Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None);
 

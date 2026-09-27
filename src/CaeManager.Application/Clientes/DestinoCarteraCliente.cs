@@ -19,6 +19,22 @@ public interface IDirectorioDestinosCartera
     /// hay Tenant resuelto (fallo cerrado).
     /// </summary>
     Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Las Asignaciones de Cartera vigentes de la cuenta en el Tenant activo, leídas en el
+    /// momento: si alguna es universal y qué Clientes empresariales concretos cubren. Una
+    /// cartera universal no se reparte cliente a cliente.
+    /// </summary>
+    Task<CarteraVigente> ObtenerCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken = default);
+}
+
+/// <param name="EsUniversal">Alguna Asignación de Cartera vigente cubre toda la operación del Tenant activo.</param>
+/// <param name="ClienteIds">Los Clientes empresariales concretos.</param>
+public record CarteraVigente(bool EsUniversal, IReadOnlyList<Guid> ClienteIds)
+{
+    public static readonly CarteraVigente Vacia = new(false, []);
+
+    public bool EstaVacia => !EsUniversal && ClienteIds.Count == 0;
 }
 
 /// <param name="Activa">La cuenta no está desactivada.</param>

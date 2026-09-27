@@ -124,6 +124,7 @@ public class InstruccionIaCarteraBajoRlsTests : IAsyncLifetime
         servicios.AddSingleton<ITenantActual>(tenantDeLaPeticion);
         servicios.AddSingleton<IUnitOfWork>(_runtime);
         servicios.AddSingleton<ITenantsQueryContext>(_runtime);
+        servicios.AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(_runtime);
         servicios.AddSingleton<IInstruccionTratamientoIaTenantPropietarioRepository>(
             new InstruccionTratamientoIaTenantPropietarioRepository(_runtime));
         servicios.AddSingleton<ICurrentUserService>(usuarioReal);
@@ -180,6 +181,9 @@ public class InstruccionIaCarteraBajoRlsTests : IAsyncLifetime
 
         var servicios = new ServiceCollection();
         servicios.AddSingleton(contexto);
+        // La vía de Operación del rol efectivo (TenantsBeneficiariosAutorizados)
+        // lee los catálogos de asignación por la misma conexión.
+        servicios.AddSingleton((CaeManager.Application.Operaciones.IOperacionesQueryContext)contexto);
 
         return new CurrentUserService(
             new AuthenticationStateProviderFalso(new ClaimsPrincipal(identidad)),

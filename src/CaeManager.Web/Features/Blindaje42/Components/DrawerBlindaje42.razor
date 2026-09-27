@@ -14,6 +14,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @inject IMediator Mediator
 @inject ToastService Toasts
+@inject TimeProvider Reloj
 
 <Drawer Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@($"Blindaje 42.1 · {EmpresaRazonSocial}")"
         CerrarAlHacerClicFuera="@(!_guardandoSolicitud && !_guardandoRespuesta)">
@@ -151,14 +152,14 @@
     private bool _visibleAnterior;
     private Guid _empresaCargada;
 
-    private string _fechaSolicitud = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+    private string _fechaSolicitud = string.Empty;
     private string _observacionesNueva = string.Empty;
     private bool _guardandoSolicitud;
     private string? _errorSolicitud;
 
     private Guid? _respondiendoSolicitudId;
     private string _resultadoRespuesta = string.Empty;
-    private string _fechaRespuesta = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+    private string _fechaRespuesta = string.Empty;
     private byte[]? _evidenciaContenido;
     private string? _evidenciaNombreArchivo;
     private bool _subiendoEvidencia;
@@ -179,12 +180,12 @@
 
     private void ReiniciarFormularios()
     {
-        _fechaSolicitud = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+        _fechaSolicitud = FechaDeHoy.ParaCampoFecha(Reloj);
         _observacionesNueva = string.Empty;
         _errorSolicitud = null;
         _respondiendoSolicitudId = null;
         _resultadoRespuesta = string.Empty;
-        _fechaRespuesta = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+        _fechaRespuesta = FechaDeHoy.ParaCampoFecha(Reloj);
         _evidenciaContenido = null;
         _evidenciaNombreArchivo = null;
         _errorRespuesta = null;
@@ -246,7 +247,7 @@
     {
         _respondiendoSolicitudId = solicitudId;
         _resultadoRespuesta = string.Empty;
-        _fechaRespuesta = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+        _fechaRespuesta = FechaDeHoy.ParaCampoFecha(Reloj);
         _evidenciaContenido = null;
         _evidenciaNombreArchivo = null;
         _errorRespuesta = null;

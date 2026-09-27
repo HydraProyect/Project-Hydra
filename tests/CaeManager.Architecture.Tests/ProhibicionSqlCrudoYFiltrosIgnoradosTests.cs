@@ -310,6 +310,15 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // soft delete del filtro global; valores parametrizados por EF.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/TransaccionDocumentoBloqueado.cs", "var versiones = await dbContext.Database.SqlQuery<Guid>($\"\"\"")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/Repositories/TransaccionDocumentoBloqueado.cs", "await dbContext.Database.SqlQuery<int>($\"\"\"")] = 1,
+
+        // FS-25: candado de cartera por cuenta (pg_advisory_xact_lock y su
+        // variante compartida) entre la desactivación con traspaso y cualquier
+        // reasignación. No lee ni escribe filas, así que no salta ni el filtro
+        // global ni la RLS; EF Core no tiene equivalente. ExecuteSqlAsync con
+        // cadena interpolada va parametrizado, y el propio candado exige una
+        // transacción abierta.
+        [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
     };
 
     /// <summary>

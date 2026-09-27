@@ -144,6 +144,8 @@ public class CandidatosAsistenteMultiTenantTests : IAsyncLifetime
         servicios.AddSingleton(tenantActual);
         servicios.AddSingleton<IUnitOfWork>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Tenants.ITenantsQueryContext>(_dbContext);
+        // ObtenerClientesAutorizadosQuery lee también la vía de Operación.
+        servicios.AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Empresas.IEmpresasQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Centros.ICentrosQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Trabajadores.ITrabajadoresQueryContext>(_dbContext);

@@ -1,3 +1,4 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
 using CaeManager.Application.Tests.Operaciones;
 using CaeManager.Domain.Empresas;
@@ -16,7 +17,8 @@ public class CrearClienteCommandHandlerTests
     {
         var repositorio = new EmpresaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso());
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso(), new TransaccionDeComandoFalsa(), new BloqueoCarteraUsuarioFalso(),
+            new DirectorioDestinosCarteraFalso(new DestinoCartera(true, "GestorCae", null, false)));
 
         var resultado = await handler.Handle(
             new CrearClienteCommand("Cadena Industrial Iberia S.A.", CifValido, true, "Notas"), CancellationToken.None);
@@ -32,7 +34,8 @@ public class CrearClienteCommandHandlerTests
         var repositorio = new EmpresaRepositorioFalso();
         repositorio.Agregar(Empresa.CrearComoCliente("RENDELSUR", CifValido, false, null, null));
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso());
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso(), new TransaccionDeComandoFalsa(), new BloqueoCarteraUsuarioFalso(),
+            new DirectorioDestinosCarteraFalso(new DestinoCartera(true, "GestorCae", null, false)));
 
         var resultado = await handler.Handle(new CrearClienteCommand("RENDELSUR", OtroCifValido, false, null), CancellationToken.None);
 
@@ -47,7 +50,8 @@ public class CrearClienteCommandHandlerTests
         var repositorio = new EmpresaRepositorioFalso();
         repositorio.Agregar(Empresa.CrearComoCliente("RENDELSUR", CifValido, false, null, null));
         var unitOfWork = new UnitOfWorkFalso();
-        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso());
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso(), new TransaccionDeComandoFalsa(), new BloqueoCarteraUsuarioFalso(),
+            new DirectorioDestinosCarteraFalso(new DestinoCartera(true, "GestorCae", null, false)));
 
         var resultado = await handler.Handle(new CrearClienteCommand("Otra razón social", CifValido, false, null), CancellationToken.None);
 
@@ -62,7 +66,8 @@ public class CrearClienteCommandHandlerTests
         var repositorio = new EmpresaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
         var gestorId = Guid.NewGuid();
-        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(gestorId, "GestorCae"), new AsignacionesOperativasWriterFalso());
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(gestorId, "GestorCae"), new AsignacionesOperativasWriterFalso(), new TransaccionDeComandoFalsa(), new BloqueoCarteraUsuarioFalso(),
+            new DirectorioDestinosCarteraFalso(new DestinoCartera(true, "GestorCae", null, false)));
 
         var resultado = await handler.Handle(new CrearClienteCommand("RENDELSUR", CifValido, false, null), CancellationToken.None);
 
@@ -76,11 +81,38 @@ public class CrearClienteCommandHandlerTests
         var repositorio = new EmpresaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
         var administradorId = Guid.NewGuid();
-        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(administradorId, "Administrador"), new AsignacionesOperativasWriterFalso());
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(administradorId, "Administrador"), new AsignacionesOperativasWriterFalso(), new TransaccionDeComandoFalsa(), new BloqueoCarteraUsuarioFalso(),
+            new DirectorioDestinosCarteraFalso(new DestinoCartera(true, "GestorCae", null, false)));
 
         var resultado = await handler.Handle(new CrearClienteCommand("RENDELSUR", CifValido, false, null), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         repositorio.Empresas.Single().EjecutivoUsuarioId.Should().BeNull();
     }
+
+    /// <summary>
+    /// Revisión Codex de FS-25 (ronda 2): el alta toma el candado compartido de cartera del
+    /// Gestor CAE que la crea y, si su cuenta quedó desactivada mientras esperaba, no se crea
+    /// el Cliente empresarial en su cartera.
+    /// </summary>
+    [Fact]
+    public async Task Un_Gestor_CAE_desactivado_mientras_esperaba_el_candado_no_se_queda_el_cliente()
+    {
+        var repositorio = new EmpresaRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var gestorId = Guid.NewGuid();
+        var bloqueo = new BloqueoCarteraUsuarioFalso();
+        var writer = new AsignacionesOperativasWriterFalso();
+        var handler = new CrearClienteCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(gestorId, "GestorCae"),
+            writer, new TransaccionDeComandoFalsa(), bloqueo,
+            new DirectorioDestinosCarteraFalso(new DestinoCartera(false, "GestorCae", null, false)));
+
+        var resultado = await handler.Handle(new CrearClienteCommand("RENDELSUR", CifValido, false, null), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Cliente.DestinoInactivo");
+        bloqueo.Compartidos.Should().Equal(gestorId);
+        writer.CarterasReasignadas.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
 }
+
