@@ -150,7 +150,7 @@ public static class GestorCaeCarteraMultiTenantSeeder
                 dbContext, rama.NombreTenant, PerfilVocabularioTenant.ClienteDirecto, logger, cancellationToken,
                 esOperadorCaeExterno: false);
 
-            await AbrirDelegacionAsync(dbContext, tenantOperadorId, tenantBeneficiarioId, rama.EnCartera ? gestor : null, cancellationToken);
+            await AbrirOperacionHeredadaAsync(dbContext, tenantOperadorId, tenantBeneficiarioId, rama.EnCartera ? gestor : null, cancellationToken);
 
             using (AmbitoTenantExplicito.Establecer(tenantBeneficiarioId))
             {
@@ -187,7 +187,7 @@ public static class GestorCaeCarteraMultiTenantSeeder
     /// delegado; sin él (Tenant fuera de cartera), la delegación queda sin nadie del
     /// Operador que la opere como Gestor CAE.
     /// </summary>
-    private static async Task AbrirDelegacionAsync(
+    private static async Task AbrirOperacionHeredadaAsync(
         CaeManagerDbContext dbContext, Guid tenantOperadorId, Guid tenantBeneficiarioId, ApplicationUser? gestor,
         CancellationToken cancellationToken)
     {

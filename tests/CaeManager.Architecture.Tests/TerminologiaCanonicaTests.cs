@@ -355,6 +355,18 @@ public class TerminologiaCanonicaTests
     /// <c>Features.Delegaciones.Recursos</c> (1), como <c>TextosAutorizarOperadorCaeExterno</c>.
     /// Baja con el renombrado de esa interfaz y de la carpeta.
     /// </para>
+    ///
+    /// <para>
+    /// <b><c>Delegacion</c> 335 → 342 (siembra E2E del Gestor CAE con Asignación de Cartera en
+    /// dos Tenants beneficiarios, PR #966, 2026-09-27): +7, todo superficie existente, ningún
+    /// identificador nuevo.</b> <c>GestorCaeCarteraMultiTenantSeeder</c> reutiliza los
+    /// ayudantes de <c>DelegacionDemoSeeder</c> para aprovisionar Tenants y cuentas (3) y abre la
+    /// operación por la vía heredada, que es la que hoy autoriza <c>/cuenta/cliente-activo</c>:
+    /// <c>DelegacionesTenant</c> (2), <c>DelegacionTenant</c> (1) y
+    /// <c>AsignacionOperadorDelegado.DelegacionTenantId</c> (1). Su método privado se llama
+    /// <c>AbrirOperacionHeredadaAsync</c> para no sumar un identificador propio. Baja con la
+    /// migración de <c>DelegacionTenant</c>.
+    /// </para>
     /// <para>
     /// <b>EjecutivoUsuarioId 48 → 43 (destino de la cartera, revisión Codex de la PR #931,
     /// 2026-09-26): −5.</b> <c>ReasignarEjecutivoClienteCommandHandler</c> lee
@@ -366,7 +378,7 @@ public class TerminologiaCanonicaTests
     {
         ["Hydra"] = 48,
         ["EjecutivoUsuarioId"] = 43,
-        ["Delegacion"] = 335,
+        ["Delegacion"] = 342,
         ["ClienteActivo"] = 72,
     };
 
