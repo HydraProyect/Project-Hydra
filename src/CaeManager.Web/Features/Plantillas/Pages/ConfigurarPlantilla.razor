@@ -462,6 +462,8 @@
                      TextoBotonConfirmar="Sí, eliminar"
                      OnConfirmar="ConfirmarEliminarElemento" />
 
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" />
+
 <Modal Visible="_dialogoConfirmarVisible" VisibleChanged="CerrarDialogoConfirmar" Titulo="Confirmar la plantilla" CerrarAlHacerClicFuera="!_confirmando">
     <ChildContent>
         <p>Una versión confirmada es inmutable: a partir de aquí no se editan sus campos. Para cambiar algo habrá que crear una versión nueva.</p>

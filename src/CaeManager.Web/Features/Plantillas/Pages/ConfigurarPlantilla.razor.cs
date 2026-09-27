@@ -230,6 +230,11 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         _centrosDisponibles = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
         _clientesDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
         await CargarTiposDocumentoAsync();
+
+        // El alta arranca aquí (OnParametersSetAsync no carga nada sin versión):
+        // lo que la pantalla deja puesto de partida no es un cambio de quien edita.
+        if (EsAlta)
+            FijarInstantaneaFormulario();
     }
 
     private async Task CargarTiposDocumentoAsync()
@@ -252,6 +257,7 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             _cargaVigente++;
             _cargandoEditor = false;
             _errorCarga = false;
+            FijarInstantaneaFormulario();
             return;
         }
 
@@ -421,6 +427,12 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
 
         if (estadoConfiguracion == EstadoConfiguracionPlantilla.Confirmada && EsVigente(carga))
             await CargarOpcionesGeneracionAsync(carga);
+
+        // Con la versión ya montada (y la detección inicial, que se persiste al
+        // momento, ya aplicada): lo que el servidor tiene es el punto de partida.
+        // En el alta esto ocurre antes del NavigateTo a /editar, que así no pregunta.
+        if (EsVigente(carga))
+            FijarInstantaneaFormulario();
     }
 
     /// <summary>
@@ -478,6 +490,9 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
 
         try
         {
+            // Lo que se envía, tomado antes del await: lo que se cambie mientras se genera no ha
+            // llegado al servidor y tiene que seguir contando como cambio.
+            var enviado = ValoresFormulario();
             var valoresManuales = _valoresManualesPorIdReal
                 .Where(par => !string.IsNullOrWhiteSpace(par.Value))
                 .ToDictionary(par => par.Key, par => par.Value);
@@ -492,6 +507,7 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             }
 
             _documentoGeneradoId = resultado.Valor.DocumentoId;
+            _instantanea.Fijar(enviado);
             _camposObligatoriosVacios = resultado.Valor.CamposObligatoriosVacios;
             _valoresNoReconocidos = resultado.Valor.ValoresNoReconocidos;
 
@@ -545,6 +561,7 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
 
         try
         {
+            var enviado = ValoresFormulario();
             var valoresManuales = _valoresManualesPorIdReal
                 .Where(par => !string.IsNullOrWhiteSpace(par.Value))
                 .ToDictionary(par => par.Key, par => par.Value);
@@ -565,6 +582,8 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
                 TrabajadorId = trabajadorIds[indice],
                 TrabajadorNombre = _trabajadoresDisponibles.FirstOrDefault(t => t.Id == trabajadorIds[indice])?.NombreCompleto ?? "—",
             }).ToList();
+            // El lote ya está creado con los valores enviados: lo que falta es solo procesarlo.
+            _instantanea.Fijar(enviado);
             StateHasChanged();
 
             foreach (var item in _itemsLote)
@@ -809,6 +828,10 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
 
         try
         {
+            // La instantánea de lo que se envía se compone antes del await: los controles
+            // siguen editables mientras se guarda, y lo que cambie entonces no llega al
+            // servidor, así que tras el éxito tiene que seguir contando como cambio.
+            var enviado = ValoresFormulario();
             var dtos = _elementos.Select(e => new ElementoPlantillaEntradaDto(
                 e.Tipo, e.Pagina, e.X, e.Y, e.Ancho, e.Alto, e.EtiquetaVisible, e.FuenteDato,
                 e.ValorConstante, e.Formato, e.Obligatorio, e.RolFirmante, e.NombreCampoAcroForm)).ToList();
@@ -823,6 +846,7 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             }
 
             _estadoConfiguracion = EstadoConfiguracionPlantilla.PendienteRevision;
+            _instantanea.Fijar(enviado);
             if (avisarExito) Toasts.Mostrar("Cambios guardados.", TonoToast.Exito);
             return true;
         }
@@ -906,6 +930,34 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             _dialogoConfirmarVisible = false;
         }
     }
+
+    private readonly InstantaneaFormulario _instantanea = new();
+
+    /// <summary>
+    /// P1-E2b: si hay algo escrito en la página que se perdería al salir: los datos del
+    /// alta, la configuración de los campos (incluidas las cajas movidas sobre el PDF)
+    /// o, en una versión confirmada, lo preparado para generar. Lo lee
+    /// AvisoCambiosSinGuardar al navegar. Guardar, confirmar y generar refijan la
+    /// instantánea antes de su propia navegación.
+    /// </summary>
+    private bool HayCambiosSinGuardar => !_cargandoEditor && !_errorCarga && _instantanea.Difiere(ValoresFormulario());
+
+    private object?[] ValoresFormulario() =>
+    [
+        _nombre, _descripcion, _ambitoAplicacion, _tipoDocumentoId, _formatoOrigenSeleccionado, _centroId, _clienteId,
+        _nombreArchivoSeleccionado,
+        _elementos.Select(DescribirElemento).ToList(),
+        _modoLote, _ownerIdGeneracion, _centroIdGeneracion, _trabajadoresSeleccionadosLote.ToList(),
+        _valoresManualesPorIdReal.Where(par => !string.IsNullOrEmpty(par.Value)).Select(par => $"{par.Key}={par.Value}").ToList(),
+    ];
+
+    private static string DescribirElemento(ElementoEditor e) => string.Join('|',
+        e.IdLocal, e.Tipo, e.Pagina,
+        e.X.ToString(System.Globalization.CultureInfo.InvariantCulture), e.Y.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        e.Ancho.ToString(System.Globalization.CultureInfo.InvariantCulture), e.Alto.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        e.EtiquetaVisible, e.FuenteDato, e.ValorConstante, e.Formato, e.Obligatorio, e.RolFirmante, e.NombreCampoAcroForm);
+
+    private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
 
     public async ValueTask DisposeAsync()
     {

@@ -298,6 +298,38 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
         _editMoneda = tarifa.MonedaIso;
         _editError = null;
         _editErrores = new();
+        _instantaneaEdicion.Fijar(ValoresEdicion());
+    }
+
+    private void AbrirFormularioNueva()
+    {
+        _mostrarFormularioNueva = true;
+        // Con el primer concepto libre ya preseleccionado (RecalcularConceptosDisponibles):
+        // eso no es un cambio de quien edita.
+        _instantaneaNueva.Fijar(ValoresNueva());
+    }
+
+    private readonly InstantaneaFormulario _instantaneaNueva = new();
+    private readonly InstantaneaFormulario _instantaneaEdicion = new();
+
+    /// <summary>
+    /// P1-E2b: si el alta o la edición de tarifa abiertas tienen algo escrito que se
+    /// perdería al salir o al cambiar de pestaña (CambiarPestana cierra las dos). Lo lee
+    /// AvisoCambiosSinGuardar; guardar cierra el formulario, así que ya no pregunta.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        (_mostrarFormularioNueva && _instantaneaNueva.Difiere(ValoresNueva()))
+        || (_tarifaEditandoId != Guid.Empty && _instantaneaEdicion.Difiere(ValoresEdicion()));
+
+    private object?[] ValoresNueva() => [_clienteSeleccionadoId, _nuevaConcepto, _nuevaPrecio, _nuevaMoneda];
+
+    private object?[] ValoresEdicion() => [_clienteSeleccionadoId, _tarifaEditandoId, _editPrecio, _editMoneda];
+
+    /// <summary>«Salir y descartar»: cierra los formularios sin navegar (la navegación la repite el aviso).</summary>
+    private void CerrarFormulariosDescartando()
+    {
+        _mostrarFormularioNueva = false;
+        CancelarEdicion();
     }
 
     private void CancelarEdicion()
