@@ -339,7 +339,9 @@ hijos_directos() {  # pgrep en Linux; /proc/*/ppid en MSYS/Git Bash, donde no ha
   # la lectura hace abortar a awk entero («fatal: cannot open file») y se perdían
   # al azar los descendientes que venían detrás; grep sigue con el siguiente.
   if command -v pgrep >/dev/null 2>&1; then pgrep -P "$1" 2>/dev/null
-  else grep -H . /proc/[0-9]*/ppid 2>/dev/null | awk -F: -v p="$1" '$2 == p { n = split($1, a, "/"); print a[n - 1] }'; fi
+  elif [ -r "/proc/$$/ppid" ]; then grep -H . /proc/[0-9]*/ppid 2>/dev/null | awk -F: -v p="$1" '$2 == p { n = split($1, a, "/"); print a[n - 1] }'
+  else ps -e -o pid=,ppid= 2>/dev/null | awk -v p="$1" '$2 == p { print $1 }'   # POSIX, sin pgrep ni /proc/*/ppid
+  fi
 }
 
 descendientes() {  # pids descendientes de $1, los más profundos primero
