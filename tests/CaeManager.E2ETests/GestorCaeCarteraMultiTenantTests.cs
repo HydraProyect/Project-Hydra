@@ -12,7 +12,11 @@ namespace CaeManager.E2ETests;
 /// acreditación Rechazada, crear y cancelar una Visita, anotar a mano la vigencia en
 /// plataforma y comprobar al volver que esas filas ya no están. Y los negativos: el
 /// Tenant beneficiario que el mismo Operador CAE externo opera pero que queda fuera de
-/// la cartera no aparece en ningún sitio ni se abre por enlace directo.
+/// la cartera no aparece en ningún sitio ni se abre por enlace directo. Ese Tenant no
+/// lleva tampoco AsignacionOperadorDelegado del Gestor CAE: con ella, la vía heredada de
+/// /cuenta/cliente-activo lo autorizaría sin cartera (alcance cero), y esa regla la fija
+/// el selector de Tenant, no este recorrido. La frontera de cartera dentro de un Tenant
+/// operado la cubre el Cliente empresarial sin cartera del primer Tenant beneficiario.
 ///
 /// <para>
 /// Los nombres de abajo duplican los de la siembra a propósito: este proyecto no

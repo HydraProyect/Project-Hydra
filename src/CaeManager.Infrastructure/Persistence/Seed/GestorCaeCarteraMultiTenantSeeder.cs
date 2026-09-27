@@ -93,6 +93,14 @@ public static class GestorCaeCarteraMultiTenantSeeder
             "Áridos Moncayo S.A.", "Minería Cierzo S.L.", "Mina Cierzo Teruel", "GCM-C1", "Samuel", "Oria Benet", 2),
     ];
 
+    /// <summary>
+    /// Los cuatro Tenants que aprovisiona esta siembra (el del Operador CAE externo y los tres
+    /// beneficiarios), para la allowlist de <see cref="RetiradaTenantDemoService.NombresTenantsDeDemo"/>:
+    /// si la clave se activa sobre una base que no es efímera, la retirada de demo los puede borrar.
+    /// </summary>
+    public static readonly IReadOnlyList<string> NombresTenants =
+        [NombreTenantOperador, .. Ramas.Select(r => r.NombreTenant)];
+
     /// <summary>Cliente empresarial del primer Tenant beneficiario sin Asignación de Cartera de nadie.</summary>
     private static readonly RamaE2E FueraDeCarteraEnTenantA = new(
         Ramas[0].NombreTenant, EnCartera: false,
