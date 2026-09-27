@@ -167,7 +167,7 @@ INICIO=$SECONDS
 # Con CADUCIDAD >= 3 x SONDEO y >= 3 x LATIDO, un hueco <= CADUCIDAD/2 no puede
 # hacer caducar un latido vivo, así que basta con detectar los mayores.
 PRESENCIA_DESDE=$(date +%s)
-HUECO_S=$(( CADUCIDAD_S / 2 )); [ "$HUECO_S" -ge 1 ] || HUECO_S=1
+HUECO_S=$(( CADUCIDAD_S / 2 )); [ "$HUECO_S" -ge 2 ] || HUECO_S=2   # >= 2: `date +%s` redondea a segundos
 SUSPENDIDO_S=0
 ULTIMA_VISTA=$PRESENCIA_DESDE
 INICIO_EP=$PRESENCIA_DESDE
