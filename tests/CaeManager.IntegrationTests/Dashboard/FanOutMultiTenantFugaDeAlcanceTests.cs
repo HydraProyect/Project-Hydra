@@ -206,6 +206,9 @@ public class FanOutMultiTenantFugaDeAlcanceTests : IAsyncLifetime
 
         var servicios = new ServiceCollection();
         servicios.AddSingleton(contexto);
+        // La vía de Operación del rol efectivo (TenantsBeneficiariosAutorizados)
+        // lee los catálogos de asignación por la misma conexión.
+        servicios.AddSingleton((CaeManager.Application.Operaciones.IOperacionesQueryContext)contexto);
 
         return new CurrentUserService(
             new AuthenticationStateProviderFalso(new ClaimsPrincipal(identidad)),

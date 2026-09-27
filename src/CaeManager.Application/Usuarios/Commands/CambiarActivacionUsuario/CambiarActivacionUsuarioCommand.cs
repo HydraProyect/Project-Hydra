@@ -1,3 +1,4 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -16,12 +17,22 @@ namespace CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
 /// delegado) dan errores distintos: la primera pide recargar la lista; la
 /// segunda es una fila legítima que no se puede tocar desde aquí.
 /// </para>
+///
+/// <para>
+/// Desactivar toma el candado exclusivo de cartera de la cuenta dentro de una transacción
+/// (<see cref="IBloqueoCarteraUsuario"/>, revisión Codex de FS-25): una reasignación o el
+/// alta de un Cliente empresarial en curso para esa cuenta termina antes, y los que lleguen
+/// durante esperan y ven la cuenta ya desactivada. Sin esto, la cuenta podía quedar
+/// desactivada con un Cliente empresarial recién puesto en su cartera.
+/// </para>
 /// </summary>
 public record CambiarActivacionUsuarioCommand(Guid UsuarioId, bool Activar) : ICommand;
 
 public class CambiarActivacionUsuarioCommandHandler(
     IGestionCuentasUsuario cuentas,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService,
+    ITransaccionDeComando transaccion,
+    IBloqueoCarteraUsuario bloqueoCartera)
     : IRequestHandler<CambiarActivacionUsuarioCommand, Result>
 {
     public async Task<Result> Handle(CambiarActivacionUsuarioCommand request, CancellationToken cancellationToken)
@@ -38,7 +49,12 @@ public class CambiarActivacionUsuarioCommandHandler(
         if (!cuenta.EsPropiaDelTenantActual)
             return Result.Fallo(AutoridadSobreCuentas.NoEncontrado);
 
-        var resultado = await cuentas.CambiarActivacionAsync(request.UsuarioId, request.Activar, cancellationToken);
+        var resultado = await transaccion.EjecutarAsync(async ct =>
+        {
+            if (!request.Activar)
+                await bloqueoCartera.BloquearExclusivoAsync(request.UsuarioId, ct);
+            return await cuentas.CambiarActivacionAsync(request.UsuarioId, request.Activar, ct);
+        }, cancellationToken);
         if (resultado.EsExitoso) return resultado;
 
         return resultado.Error.Codigo == AutoridadSobreCuentas.NoEncontrado.Codigo

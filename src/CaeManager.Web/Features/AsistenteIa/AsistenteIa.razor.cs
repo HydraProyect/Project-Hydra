@@ -15,12 +15,19 @@ public partial class AsistenteIa : IDisposable
     // todas formas apareciera HTML crudo en una respuesta (p. ej. por un
     // intento de inyección de instrucciones en la pregunta del usuario), se
     // trata como texto literal en vez de pasar sin escapar al navegador.
+    //
+    // DisableHtml() no basta: Markdig no filtra esquemas, y un enlace o una
+    // imagen en sintaxis Markdown ([x](javascript:…), ![x](data:…), la
+    // autoliga <vbscript:…>, las entidades que decodifica el propio parser)
+    // sale tal cual en el href/src. Por eso el HTML resultante pasa además
+    // por el sanitizador de lista blanca del producto (RenderizarMarkdown).
     private static readonly MarkdownPipeline PipelineMarkdown =
         new MarkdownPipelineBuilder().DisableHtml().Build();
 
     [Inject] private AsistenteIaService AsistenteIaService { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosAsistenteIa> Textos { get; set; } = default!;
+    [Inject] private ISanitizadorHtmlService Sanitizador { get; set; } = default!;
 
     private bool _visible;
     private string _pregunta = string.Empty;
@@ -98,8 +105,15 @@ public partial class AsistenteIa : IDisposable
             await EnviarAsync();
     }
 
-    private static MarkupString RenderizarMarkdown(string texto) =>
-        new(Markdown.ToHtml(texto, PipelineMarkdown));
+    /// <summary>
+    /// Markdown → HTML → sanitizador (esquemas http, https y mailto; sin
+    /// img, script ni manejadores on*; enlaces con target=_blank y
+    /// rel=noopener). Sin img a propósito: una imagen que el modelo pinte a
+    /// instancias de una inyección de instrucciones es un canal de
+    /// exfiltración (la URL de la imagen lleva lo que el atacante quiera).
+    /// </summary>
+    private MarkupString RenderizarMarkdown(string texto) =>
+        new(Sanitizador.Sanear(Markdown.ToHtml(texto, PipelineMarkdown)));
 
     public void Dispose() => AsistenteIaService.SolicitudAbrir -= Abrir;
 }

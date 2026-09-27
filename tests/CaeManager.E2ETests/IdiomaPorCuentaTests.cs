@@ -258,6 +258,14 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
 
     private static async Task<IResponse> CambiarIdiomaAsync(IPage page, string cultura)
     {
+        // El envío al cambiar lo dispara el listener delegado de
+        // microinteracciones.js, un <script> al final del <body>: el <select>
+        // ya está en el DOM (y .nav-principal visible) antes de que ese
+        // script se ejecute. Un cambio en esa ventana no envía nada y el POST
+        // no llega nunca — medido en CI (run 36275744744: el script se pidió
+        // 286 ms después del HTML y el servidor no vio ningún POST en 30 s).
+        // DOMContentLoaded no se dispara hasta ejecutar los scripts síncronos.
+        await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
         var respuesta = await page.RunAndWaitForResponseAsync(
             () => page.SelectOptionAsync("select.selector-idioma", cultura),
             EsPostA("/cuenta/idioma"));

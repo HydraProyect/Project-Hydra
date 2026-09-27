@@ -67,6 +67,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     [Inject] private INotificadorMensajesTiempoReal Notificador { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
+    [Inject] private TimeProvider Reloj { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "estado")] public string? EstadoInicial { get; set; }
     [SupplyParameterFromQuery(Name = "mes")] public string? MesInicial { get; set; }
@@ -1196,7 +1197,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _propietarioDocumentoFormulario = nameof(AmbitoAplicacion.Trabajador);
         _trabajadorDocumentoIdFormulario = string.Empty;
         _empresaDocumentoIdFormulario = string.Empty;
-        _fechaEmisionDocumentoFormulario = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd");
+        _fechaEmisionDocumentoFormulario = FechaDeHoy.ParaCampoFecha(Reloj);
         _fechaVencimientoDocumentoFormulario = string.Empty;
         _noCaducaDocumentoFormulario = false;
         _comentariosDocumentoFormulario = string.Empty;

@@ -43,6 +43,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -273,6 +274,8 @@ public class ComunicacionesGen2Tests : BunitContext
         Services.AddScoped<ITenantActual, TenantActualFalso>();
         Services.AddScoped<INotificadorMensajesTiempoReal, NotificadorQueNadieDebeTocar>();
         Services.AddScoped(_ => CrearDirectorio());
+        // Un caso que fija el reloj lo registra antes de renderizar; el resto usa el del sistema.
+        Services.TryAddSingleton(TimeProvider.System);
 
         // El módulo está congelado por defecto: sin esto la página navega a
         // /not-found y el test observaría una pantalla que no es.
@@ -682,7 +685,8 @@ public class ComunicacionesGen2Tests : BunitContext
     /// Una conversación de Refrielectric con un adjunto, un Centro para «Pedir prioridad» y un
     /// buzón para «Redactar»: lo mínimo para abrir los cinco formularios de la página.
     /// </summary>
-    private async Task<(IRenderedComponent<Bandeja> Cut, NavigationManager Navegacion)> RenderizarConversacionAbiertaAsync()
+    private async Task<(IRenderedComponent<Bandeja> Cut, NavigationManager Navegacion)> RenderizarConversacionAbiertaAsync(
+        bool laDeteccionLeeLaFechaDeEmision = true)
     {
         var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
         var detalle = DetalleDe(conversacion);
@@ -705,7 +709,8 @@ public class ComunicacionesGen2Tests : BunitContext
                 EnviarMensajeNuevoCommand => Task.FromResult<object?>(Result.Exito(Guid.NewGuid())),
                 ObtenerEmpresasParaSelectorQuery => Task.FromResult<object?>(new List<EmpresaSelectorDto>()),
                 DetectarActualizacionDocumentoDesdeAdjuntoQuery => Task.FromResult<object?>(Result.Exito(new DeteccionActualizacionDocumentoDto(
-                    AdjuntoId, null, null, null, null, null, null, null, new DateOnly(2026, 9, 1), null, 80))),
+                    AdjuntoId, null, null, null, null, null, null, null,
+                    laDeteccionLeeLaFechaDeEmision ? new DateOnly(2026, 9, 1) : null, null, 80))),
                 _ => null,
             },
         };
@@ -797,6 +802,31 @@ public class ComunicacionesGen2Tests : BunitContext
             "el test necesita que la detección haya rellenado la fecha de emisión");
 
         await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "lo que rellenó la detección no es un cambio de quien revisa");
+    }
+
+    /// <summary>
+    /// Sin fecha detectada, el formulario propone «hoy». Pasada la medianoche de Madrid
+    /// (2026-09-27 22:30 UTC = 28 de septiembre, 00:30 en Madrid) tiene que proponer el
+    /// día UTC: Crear/RenovarDocumentoCommand juzgan con él que la fecha «no puede ser
+    /// futura», y con el día local el guardado fallaba sin que nadie tocara la fecha.
+    /// </summary>
+    [Fact]
+    public async Task Sin_fecha_detectada_pasada_la_medianoche_de_Madrid_propone_el_dia_UTC_que_la_regla_admite()
+    {
+        Services.AddSingleton<TimeProvider>(new RelojEnMadrid(new DateTime(2026, 9, 27, 22, 30, 0, DateTimeKind.Utc)));
+        var (cut, _) = await RenderizarConversacionAbiertaAsync(laDeteccionLeeLaFechaDeEmision: false);
+        await cut.Find(".timeline-adjunto-actualizar-documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle());
+
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de emisión").Instance.Valor
+            .Should().Be("2026-09-27", "el 28 todavía es futuro para la regla, que compara con el día UTC");
+    }
+
+    private sealed class RelojEnMadrid(DateTime ahoraUtc) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(ahoraUtc, TimeSpan.Zero);
+
+        public override TimeZoneInfo LocalTimeZone { get; } = TimeZoneInfo.FindSystemTimeZoneById("Europe/Madrid");
     }
 
     [Fact]
