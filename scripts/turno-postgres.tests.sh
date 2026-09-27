@@ -145,7 +145,10 @@ dormilon
 mkdir -p "$HYDRA_TURNO_DIR/cerrojo"
 printf 'pid=%s\ninicio=%s\nworktree=/otro\ncomando=cosa\n' "$DORMILON" "$(( $(date +%s) - 1000 ))" > "$HYDRA_TURNO_DIR/cerrojo/dueno"
 echo $(( $(date +%s) - 1000 )) > "$HYDRA_TURNO_DIR/cerrojo/latido"   # pid VIVO, latido caducado
-bash "$GUION" --espera-max-s 15 -- bash -c "$(tarea L 0.1)" > "$CASO/o" 2>&1; rc=$?
+# Quien llega solo cuenta el tiempo que ha presenciado: aunque el latido tenga
+# 1000 s, no lo da por caducado hasta llevar CADUCIDAD observándolo (ver 11b).
+# Por eso aquí una caducidad corta, para que quepa en la espera.
+HYDRA_TURNO_CADUCIDAD_S=6 bash "$GUION" --espera-max-s 15 -- bash -c "$(tarea L 0.1)" > "$CASO/o" 2>&1; rc=$?
 comprobar "retira el cerrojo de un dueño vivo pero sin latido y ejecuta" "0 L_ini L_fin" "$rc $(tr '\n' ' ' < "$REGISTRO" | sed 's/ $//')"
 comprobar "lo dice: latido" "1" "$(grep -c 'sin refrescarse' "$CASO/o")"
 
@@ -216,6 +219,58 @@ wait "$pa"; rca=$?
 wait "$pb"; rcb=$?
 comprobar "turno más largo que la caducidad: no se retira mientras hay latido" "0 0 A_ini A_fin B_ini B_fin" "$rca $rcb $(tr '
 ' ' ' < "$REGISTRO" | sed 's/ $//')"
+
+# 11b -----------------------------------------------------------------------
+# Suspensión del equipo. Mientras el equipo duerme nadie refresca nada, y al
+# despertar todos los latidos parecen caducados por reloj de pared aunque todos
+# los procesos sigan vivos. Se simula congelando con SIGSTOP a los tres procesos
+# (y a sus hijos) más tiempo que la caducidad, y despertando primero a C, el
+# último en llegar. Sin arreglo, C descarta el ticket de B y retira el cerrojo del
+# dueño vivo A: ejecuta con A a medias (solape) y adelanta a B.
+pares_pid_ppid() {  # «pid ppid» de todos los procesos, en UNA lectura (rápida y casi atómica)
+  if ps -e -o pid=,ppid= >/dev/null 2>&1; then ps -e -o pid=,ppid=
+  else awk 'FNR == 1 { n = split(FILENAME, a, "/"); print a[n - 1], $1 }' /proc/[0-9]*/ppid 2>/dev/null; fi
+  # En MSYS/Git Bash `ps` no admite -o y antepone una columna de estado a los
+  # procesos parados, lo que descoloca el PPID justo en este caso: /proc/*/ppid.
+}
+arbol() {  # pids de los procesos dados y de todos sus descendientes
+  pares_pid_ppid | awk -v raices="$*" '
+    { hijo[$2] = hijo[$2] " " $1 }
+    END { n = split(raices, cola, " "); for (i = 1; i <= n; i++) { print cola[i]; m = split(hijo[cola[i]], h, " "); for (j = 1; j <= m; j++) cola[++n] = h[j] } }'
+}
+# Dos pasadas: la segunda alcanza a los hijos que se crearon mientras se paraba a los padres.
+senal_arbol() { local s=$1; shift; kill "-$s" $(arbol "$@") 2>/dev/null; kill "-$s" $(arbol "$@") 2>/dev/null; }
+nuevo_caso suspension-del-equipo
+export HYDRA_TURNO_CADUCIDAD_S=3
+bash "$GUION" -- bash -c "$(tarea A 2)" > "$CASO/oA" 2>&1 & pa=$!
+esperar_a "A_ini" "$REGISTRO" || true
+bash "$GUION" -- bash -c "$(tarea B 0.2)" > "$CASO/oB" 2>&1 & pb=$!
+for i in $(seq 1 100); do [ "$(n_tickets)" -ge 1 ] && break; sleep 0.1; done
+bash "$GUION" -- bash -c "$(tarea C 0.2)" > "$CASO/oC" 2>&1 & pc=$!
+for i in $(seq 1 100); do [ "$(n_tickets)" -ge 2 ] && break; sleep 0.1; done
+senal_arbol STOP "$pa" "$pb" "$pc"
+sleep 5                                    # > CADUCIDAD: al despertar todo parece caducado
+senal_arbol CONT "$pc"
+sleep 4                                    # C da varias vueltas solo, con el mundo aún dormido
+senal_arbol CONT "$pa" "$pb"
+wait "$pa" "$pb" "$pc"
+comprobar "tras una suspensión: sin solape y en orden de llegada A, B, C" "A_ini A_fin B_ini B_fin C_ini C_fin" "$(tr '\n' ' ' < "$REGISTRO" | sed 's/ $//')"
+comprobar "tras una suspensión: no retira el cerrojo de un dueño vivo" "0" "$(cat "$CASO"/o? | grep -c 'cerrojo huérfano retirado')"
+
+# 11c -----------------------------------------------------------------------
+# La espera máxima mide cola, no sueño: sin arreglo, B se rinde con 75 al
+# despertar porque el tiempo suspendido ha agotado su presupuesto, y pierde el turno.
+nuevo_caso suspension-no-gasta-la-espera
+bash "$GUION" -- bash -c "$(tarea A 2)" > "$CASO/oA" 2>&1 & pa=$!
+esperar_a "A_ini" "$REGISTRO" || true
+bash "$GUION" --espera-max-s 4 -- bash -c "$(tarea B 0.2)" > "$CASO/oB" 2>&1 & pb=$!
+for i in $(seq 1 100); do [ "$(n_tickets)" -ge 1 ] && break; sleep 0.1; done
+senal_arbol STOP "$pa" "$pb"
+sleep 5
+senal_arbol CONT "$pa" "$pb"
+wait "$pa"; wait "$pb"; rcb=$?
+comprobar "tras una suspensión más larga que la espera máxima: B no se rinde y ejecuta" "0 A_ini A_fin B_ini B_fin" "$rcb $(tr '\n' ' ' < "$REGISTRO" | sed 's/ $//')"
+export HYDRA_TURNO_CADUCIDAD_S=20
 
 # 12 ------------------------------------------------------------------------
 nuevo_caso uso

@@ -46,10 +46,20 @@
 #     sondeo (se refresca en cada vuelta de la espera), así que CADUCIDAD debe
 #     ser >= 3 x SONDEO además de >= 3 x LATIDO; si no, la cola descartaría a un
 #     waiter vivo entre dos sondeos y el siguiente le adelantaría.
+#   · Suspensión: la edad de un latido ajeno solo cuenta el tiempo que quien lo
+#     juzga ha presenciado despierto (desde su arranque o su último despertar).
+#     Una vuelta de la espera más larga que CADUCIDAD/2 se toma por suspensión:
+#     no gasta la espera máxima y reinicia lo presenciado (un sondeo normal no
+#     llega a tanto: CADUCIDAD >= 3 x SONDEO). Así, al despertar el
+#     equipo, nadie descarta el ticket de un waiter vivo ni retira el cerrojo de
+#     un dueño vivo antes de que hayan tenido ocasión de latir.
 #
 # Límites conocidos:
 #   · Solo excluye a quien también pase por aquí: una `dotnet test` lanzada a mano
 #     contra el clúster no ve este cerrojo.
+#   · La protección frente a la suspensión solo vale para quien ejecute esta
+#     versión: una copia anterior del guion (otra rama) sigue juzgando los
+#     latidos por reloj de pared al despertar.
 #   · Si el guion muere a la fuerza (sin ejecutar traps) el COMANDO hijo puede
 #     seguir vivo un rato tras liberarse el cerrojo.
 #
@@ -147,12 +157,44 @@ HIJO=""
 LATIDO_PID=""
 TENGO_CERROJO=0
 INICIO=$SECONDS
+# Lo que ESTE proceso ha presenciado despierto. Una suspensión del equipo congela a
+# todos a la vez y, al despertar, todos los latidos parecen caducados por reloj de
+# pared aunque sus dueños sigan vivos: el primero en despertar descartaba el ticket
+# de B y retiraba el cerrojo de un dueño vivo. Por eso la edad de un latido ajeno
+# se cuenta como mucho desde PRESENCIA_DESDE (el arranque de este proceso o su
+# último despertar), nunca desde un tiempo que no ha visto pasar. HUECO_S: una vuelta
+# de la espera que tarda más que esto es una suspensión o una parada, no un sondeo.
+# Con CADUCIDAD >= 3 x SONDEO y >= 3 x LATIDO, un hueco <= CADUCIDAD/2 no puede
+# hacer caducar un latido vivo, así que basta con detectar los mayores.
+PRESENCIA_DESDE=$(date +%s)
+HUECO_S=$(( CADUCIDAD_S / 2 )); [ "$HUECO_S" -ge 1 ] || HUECO_S=1
+SUSPENDIDO_S=0
+ULTIMA_VISTA=$PRESENCIA_DESDE
+INICIO_EP=$PRESENCIA_DESDE
+sospecha=""
 
 epoca() { date +%s; }
 vivo()  { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
 # leer FICHERO CLAVE -> valor de la primera línea «CLAVE=valor»
 leer()  { sed -n "s/^$2=//p" "$1" 2>/dev/null | head -n 1; }
-esperado_s() { echo $(( SECONDS - INICIO )); }
+esperado_s() { echo $(( SECONDS - INICIO )); }   # reloj de pared; la espera máxima descuenta SUSPENDIDO_S
+# edad_de AHORA T -> EDAD: segundos desde T, contados como mucho desde PRESENCIA_DESDE.
+# Un T no numérico cuenta como PRESENCIA_DESDE (el `[` falla sin abortar el guion).
+edad_de() { local t=$2; [ "$t" -gt "$PRESENCIA_DESDE" ] 2>/dev/null || t=$PRESENCIA_DESDE; EDAD=$(( $1 - t )); }
+# presenciar -> AHORA_P. Se llama justo antes de cada juicio de edad y del control de
+# la espera máxima: si desde la llamada anterior ha pasado más de HUECO_S, este
+# proceso estuvo parado (suspensión del equipo o proceso congelado). Ese tiempo no
+# se ha presenciado, no gasta la espera máxima y ningún latido ajeno se da por
+# caducado hasta volver a observarlo. Un parón entre esta llamada y el juicio que
+# la sigue no engaña: el juicio usa AHORA_P, anterior al parón.
+presenciar() {
+  AHORA_P=$(epoca)
+  if [ $(( AHORA_P - ULTIMA_VISTA )) -gt "$HUECO_S" ]; then
+    SUSPENDIDO_S=$(( SUSPENDIDO_S + AHORA_P - ULTIMA_VISTA )); PRESENCIA_DESDE=$AHORA_P; sospecha=""
+    echo "TURNO-POSTGRES: la espera estuvo parada $(( AHORA_P - ULTIMA_VISTA ))s (¿suspensión del equipo?): no cuenta para la espera máxima y no se da por caducado ningún latido ajeno hasta volver a observarlo." >&2
+  fi
+  ULTIMA_VISTA=$AHORA_P
+}
 
 mkdir -p "$COLA" 2>/dev/null
 if [ ! -d "$COLA" ]; then
@@ -174,13 +216,15 @@ refrescar_ticket() {
 
 # Descarta tickets de procesos muertos o sin latido reciente.
 limpiar_cola() {
-  local t pid lat ahora; ahora=$(epoca)
+  local t pid lat ahora; presenciar; ahora=$AHORA_P
   for t in "$COLA"/*; do
     [ -f "$t" ] || continue
     case "$t" in *.tmp) continue ;; esac
     pid=$(leer "$t" pid); lat=$(leer "$t" latido)
     if [ -z "$pid" ] || [ -z "$lat" ]; then continue; fi   # a medio escribir: no decidir
-    if ! vivo "$pid" || [ $(( ahora - lat )) -gt "$CADUCIDAD_S" ]; then rm -f "$t"; fi
+    if ! vivo "$pid"; then rm -f "$t"; continue; fi
+    edad_de "$ahora" "$lat"
+    if [ "$EDAD" -gt "$CADUCIDAD_S" ]; then rm -f "$t"; fi
   done
 }
 
@@ -208,11 +252,12 @@ posicion_en_cola() {
 # CERTEZA=1: no hace falta confirmar (el pid ya no existe).
 cerrojo_huerfano() {
   MOTIVO=""; HUELLA=""; CERTEZA=0
-  local d="$CERROJO/dueno" pid lat ini ahora; ahora=$(epoca)
+  local d="$CERROJO/dueno" pid lat ini ahora; presenciar; ahora=$AHORA_P
   if [ ! -f "$d" ]; then
     local mt; mt=$(stat -c %Y "$CERROJO" 2>/dev/null || echo "$ahora")
-    if [ $(( ahora - mt )) -gt "$CADUCIDAD_S" ]; then
-      MOTIVO="cerrojo sin registro de dueño desde hace $(( ahora - mt ))s"; HUELLA="sin-dueno"; return 0
+    edad_de "$ahora" "$mt"
+    if [ "$EDAD" -gt "$CADUCIDAD_S" ]; then
+      MOTIVO="cerrojo sin registro de dueño desde hace ${EDAD}s observados"; HUELLA="sin-dueno"; return 0
     fi
     return 1
   fi
@@ -223,8 +268,9 @@ cerrojo_huerfano() {
   fi
   lat=$(cat "$CERROJO/latido" 2>/dev/null)
   [ -n "$lat" ] || return 1
-  if [ $(( ahora - lat )) -gt "$CADUCIDAD_S" ]; then
-    MOTIVO="el pid dueño $pid vive pero su latido lleva $(( ahora - lat ))s sin refrescarse"; HUELLA="$pid:$ini"; return 0
+  edad_de "$ahora" "$lat"
+  if [ "$EDAD" -gt "$CADUCIDAD_S" ]; then
+    MOTIVO="el pid dueño $pid vive pero su latido lleva ${EDAD}s observados sin refrescarse"; HUELLA="$pid:$ini"; return 0
   fi
   return 1
 }
@@ -373,7 +419,8 @@ while true; do
     fi
   fi
 
-  if [ "$(esperado_s)" -ge "$espera_max_s" ]; then
+  presenciar
+  if [ $(( AHORA_P - INICIO_EP - SUSPENDIDO_S )) -ge "$espera_max_s" ]; then
     liberar
     echo "" >&2
     echo "TURNO-POSTGRES: ABORTADO — NO SE EJECUTÓ EL COMANDO. No hay resultado de test: ni verde ni rojo." >&2
@@ -384,7 +431,7 @@ while true; do
   fi
 
   if [ "$(esperado_s)" -ge "$proximo_aviso" ]; then
-    echo "TURNO-POSTGRES: esperando turno (posición $(posicion_en_cola) en la cola, $(esperado_s)s de $espera_max_s s); dueño: $(descripcion_dueno)." >&2
+    echo "TURNO-POSTGRES: esperando turno (posición $(posicion_en_cola) en la cola, $(( AHORA_P - INICIO_EP - SUSPENDIDO_S ))s de $espera_max_s s); dueño: $(descripcion_dueno)." >&2
     proximo_aviso=$(( $(esperado_s) + AVISO_S ))
   fi
   sleep "$SONDEO_S"
