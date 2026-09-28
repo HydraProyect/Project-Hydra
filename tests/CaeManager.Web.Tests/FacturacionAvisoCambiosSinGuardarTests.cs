@@ -25,16 +25,22 @@ namespace CaeManager.Web.Tests;
 public class FacturacionAvisoCambiosSinGuardarTests : BunitContext
 {
     private static readonly Guid ClienteId = Guid.NewGuid();
+    private static readonly Guid ClienteBId = Guid.NewGuid();
+
+    private readonly MediatorFalso _mediator = new();
 
     public FacturacionAvisoCambiosSinGuardarTests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
     private sealed class MediatorFalso : IMediator
     {
+        public List<object> Enviados { get; } = [];
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            Enviados.Add(request);
             object? respuesta = request switch
             {
-                ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)[new ClienteSelectorDto(ClienteId, "Refrielectric S.L.")],
+                ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)[new ClienteSelectorDto(ClienteId, "Refrielectric S.L."), new ClienteSelectorDto(ClienteBId, "Frigoríficos Arcos S.A.")],
                 ObtenerTarifasClienteQuery => new List<TarifaClienteDto>
                 {
                     new(Guid.NewGuid(), ClienteId, ConceptoFacturable.TrabajadorActivo, "Trabajador activo", 3.50m, "EUR", Guid.NewGuid()),
@@ -68,7 +74,7 @@ public class FacturacionAvisoCambiosSinGuardarTests : BunitContext
     {
         CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("es-ES");
         CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("es-ES");
-        Services.AddScoped<IMediator>(_ => new MediatorFalso());
+        Services.AddScoped<IMediator>(_ => _mediator);
         Services.AddScoped<ToastService>();
         Services.AddLocalization();
 
@@ -137,5 +143,81 @@ public class FacturacionAvisoCambiosSinGuardarTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll("input[aria-label='Precio unitario']").Should().BeEmpty());
 
         await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "lo escrito ya está guardado");
+    }
+
+    // ------------------------------------------------------------------ P1-E2b lote 2: cambiar de Cliente empresarial
+
+    private static bool PreguntaAbierta(IRenderedComponent<FacturacionPagina> cut) =>
+        cut.FindAll(".modal-pie button").Any(b => b.TextContent.Trim() == "Salir y descartar");
+
+    private static Task ElegirCliente(IRenderedComponent<FacturacionPagina> cut, Guid clienteId) =>
+        cut.Find("#sel-cliente").ChangeAsync(new ChangeEventArgs { Value = clienteId.ToString() });
+
+    private int ConsultasDeTarifasDe(Guid clienteId) =>
+        _mediator.Enviados.OfType<ObtenerTarifasClienteQuery>().Count(q => q.ClienteId == clienteId);
+
+    [Fact]
+    public async Task Cambiar_de_cliente_con_la_edicion_de_tarifa_a_medias_pregunta_seguir_conserva_y_descartar_cambia()
+    {
+        var (cut, _) = await RenderizarConClienteAsync();
+        await PulsarAsync(cut, "Editar");
+        await EditarPrecioAsync(cut, "4.25");
+
+        // Sin await: el cambio queda pendiente de la respuesta del aviso; se afirma antes de esperarla.
+        var cambio = ElegirCliente(cut, ClienteBId);
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("cambiar de Cliente empresarial tira la edición"));
+        ConsultasDeTarifasDe(ClienteBId).Should().Be(0, "no se cambia de Cliente empresarial mientras pregunta");
+
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+        await cambio.WaitAsync(TimeSpan.FromSeconds(10));
+
+        cut.Find("input[aria-label='Precio unitario']").GetAttribute("value").Should().Be("4.25", "«Seguir editando» conserva lo escrito");
+        ConsultasDeTarifasDe(ClienteBId).Should().Be(0, "y no carga las tarifas del otro Cliente empresarial");
+
+        var segundo = ElegirCliente(cut, ClienteBId);
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await segundo.WaitAsync(TimeSpan.FromSeconds(10));
+
+        ConsultasDeTarifasDe(ClienteBId).Should().Be(1, "descartar cambia de Cliente empresarial");
+        cut.FindAll("input[aria-label='Precio unitario']").Should().BeEmpty("la edición se descartó");
+    }
+
+    [Fact]
+    public async Task Cambiar_de_cliente_con_la_tarifa_nueva_a_medias_pregunta_seguir_conserva_y_descartar_cambia()
+    {
+        var (cut, _) = await RenderizarConClienteAsync();
+        await PulsarAsync(cut, "+ Añadir tarifa");
+        await cut.Find("#nueva-precio").ChangeAsync(new ChangeEventArgs { Value = "12.5" });
+
+        var cambio = ElegirCliente(cut, ClienteBId);
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("cambiar de Cliente empresarial tira el alta"));
+        ConsultasDeTarifasDe(ClienteBId).Should().Be(0, "no se cambia de Cliente empresarial mientras pregunta");
+
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+        await cambio.WaitAsync(TimeSpan.FromSeconds(10));
+
+        cut.Find("#nueva-precio").GetAttribute("value").Should().Be("12.5", "«Seguir editando» conserva lo escrito");
+        ConsultasDeTarifasDe(ClienteBId).Should().Be(0);
+
+        var segundo = ElegirCliente(cut, ClienteBId);
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await segundo.WaitAsync(TimeSpan.FromSeconds(10));
+
+        ConsultasDeTarifasDe(ClienteBId).Should().Be(1, "descartar cambia de Cliente empresarial");
+        cut.FindAll("#nueva-precio").Should().BeEmpty("el alta se descartó");
+    }
+
+    [Fact]
+    public async Task Cambiar_de_cliente_sin_nada_escrito_no_pregunta()
+    {
+        var (cut, _) = await RenderizarConClienteAsync();
+        await PulsarAsync(cut, "+ Añadir tarifa");
+
+        await ElegirCliente(cut, ClienteBId).WaitAsync(TimeSpan.FromSeconds(10));
+
+        PreguntaAbierta(cut).Should().BeFalse("el alta está como se abrió");
+        ConsultasDeTarifasDe(ClienteBId).Should().Be(1, "el cambio se hace directamente");
     }
 }
