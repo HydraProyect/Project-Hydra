@@ -164,7 +164,9 @@ else
 
 @if (TitularReclamable is { } titular)
 {
-    <DrawerReclamacionLote Visible="_reclamacionVisible" VisibleChanged="v => _reclamacionVisible = v"
+    @* @key por titular: el selector del cajón se inicializa una sola vez, así que otro
+       titular es otra instancia, nunca la anterior con su filtro. *@
+    <DrawerReclamacionLote @key="titular" Visible="_reclamacionVisible" VisibleChanged="v => _reclamacionVisible = v"
                            AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
                            AmbitoInicial="titular.Ambito" EntidadIdInicial="titular.EntidadId" />
 }
@@ -212,6 +214,9 @@ else
         _generacion++; _cargaCabecera++; _cargaValidacion++;
         _detalle = null; _validacion = null; _error = false; _cargando = true; _cargandoValidacion = true;
         _editandoInformacion = false; _guardandoInformacion = false; _mensajeErrorInformacion = null;
+        // El panel se reutiliza al cambiar de documento: una reclamación abierta era la
+        // del documento anterior y no puede quedarse abierta contra otro titular.
+        _reclamacionVisible = false;
     }
 
     private Task ReintentarAsync() => _cargando ? Task.CompletedTask : CargarTodoAsync();

@@ -150,6 +150,33 @@ public class Documento360Gen2Tests : BunitContext
             "abrir la reclamación no envía nada");
     }
 
+    /// <summary>
+    /// El Context Workspace reutiliza el panel al pasar a otro documento: una
+    /// reclamación abierta para el anterior se cierra y la nueva lleva su titular
+    /// (hallazgo de Codex en la revisión de esta PR).
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_documento_cierra_la_reclamacion_abierta_del_anterior()
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        var empresaB = Guid.NewGuid();
+        var mediador = Registrar(new MediadorFalso());
+        mediador.Detalles[a] = Detalle(a);
+        mediador.Detalles[b] = Detalle(b) with { EmpresaId = empresaB };
+        var cut = Renderizar(a);
+        await Boton(cut, "Reclamar").ClickAsync(new MouseEventArgs());
+        cut.FindComponent<CaeManager.Web.Features.Bandeja.Components.DrawerReclamacionLote>().Instance.Visible
+            .Should().BeTrue("control del instrumento: la reclamación del primero estaba abierta");
+
+        cut.Render(p => p.Add(x => x.EntidadId, b).Add(x => x.PestanaActiva, "informacion"));
+
+        cut.WaitForAssertion(() => cut.Find(".titulo-documento-360"));
+        var drawer = cut.FindComponent<CaeManager.Web.Features.Bandeja.Components.DrawerReclamacionLote>().Instance;
+        drawer.Visible.Should().BeFalse();
+        drawer.EntidadIdInicial.Should().Be(empresaB);
+    }
+
     [Fact]
     public void Sin_camino_de_reclamacion_para_el_ambito_no_se_ofrece_Reclamar()
     {
