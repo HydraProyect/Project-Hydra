@@ -24,6 +24,18 @@
   <data name="ErrorCargaDetalle" xml:space="preserve">
     <value>Intenta nuevamente en unos segundos.</value>
   </data>
+  <data name="CarteraIncompleta" xml:space="preserve">
+    <value>Cartera incompleta: no pudimos consultar {0}. Lo que ves es el resto de tu cartera.</value>
+  </data>
+  <data name="AlDiaIncompleta" xml:space="preserve">
+    <value>Lo consultado está al día</value>
+  </data>
+  <data name="AlDiaIncompletaDetalle" xml:space="preserve">
+    <value>Las empresas de tu cartera que pudimos consultar no tienen bloqueos, documentación pendiente ni vencimientos próximos. Las que no, en el aviso de arriba.</value>
+  </data>
+  <data name="TitularSinBloqueosIncompleta" xml:space="preserve">
+    <value>Ningún bloqueo en lo consultado</value>
+  </data>
   <data name="ReintentarConsulta" xml:space="preserve">
     <value>Reintentar consulta</value>
   </data>

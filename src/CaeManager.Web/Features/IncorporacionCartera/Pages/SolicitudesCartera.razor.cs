@@ -31,12 +31,17 @@ public partial class SolicitudesCartera : CaeManager.Web.Components.PaginaIntera
     private bool _dialogoVisible;
     private Guid? _enCurso;
     private SolicitudIncorporacionCarteraDto? _aRevocar;
+    private SolicitudIncorporacionCarteraDto? _aRechazar;
 
     private string MensajeConfirmarRevocar => _aRevocar is null
         ? string.Empty
         : _bandeja is { EsCoordinadorCae: true }
             ? Textos["ConfirmarRevocarMensaje", _aRevocar.NombreSolicitante, _aRevocar.NombreEmpresa]
             : Textos["ConfirmarRevocarPropiaMensaje", _aRevocar.NombreEmpresa];
+
+    private string MensajeConfirmarRechazar => _aRechazar is null
+        ? string.Empty
+        : Textos["ConfirmarRechazarMensaje", _aRechazar.NombreSolicitante, _aRechazar.NombreEmpresa];
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
@@ -62,8 +67,24 @@ public partial class SolicitudesCartera : CaeManager.Web.Components.PaginaIntera
         EjecutarAsync(solicitud.Id, new AceptarSolicitudIncorporacionCarteraCommand(solicitud.Id),
             Textos["ToastAceptada", solicitud.NombreSolicitante, solicitud.NombreEmpresa]);
 
-    private Task RechazarAsync(SolicitudIncorporacionCarteraDto solicitud) =>
-        EjecutarAsync(solicitud.Id, new RechazarSolicitudIncorporacionCarteraCommand(solicitud.Id), Textos["ToastRechazada"]);
+    // Rechazar deja la solicitud cerrada para siempre: pasa por confirmación
+    // igual que revocar, en vez de salir con un solo clic.
+    private void PedirRechazar(SolicitudIncorporacionCarteraDto solicitud) => _aRechazar = solicitud;
+
+    private void CerrarConfirmacionRechazo(bool visible)
+    {
+        if (!visible && _enCurso is null)
+            _aRechazar = null;
+    }
+
+    private async Task RechazarAsync()
+    {
+        if (_aRechazar is not { } solicitud)
+            return;
+
+        await EjecutarAsync(solicitud.Id, new RechazarSolicitudIncorporacionCarteraCommand(solicitud.Id), Textos["ToastRechazada"]);
+        _aRechazar = null;
+    }
 
     private void PedirRevocar(SolicitudIncorporacionCarteraDto solicitud) => _aRevocar = solicitud;
 

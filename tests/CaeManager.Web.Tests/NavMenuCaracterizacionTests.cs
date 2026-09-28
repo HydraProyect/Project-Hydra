@@ -116,14 +116,14 @@ public class NavMenuCaracterizacionTests
 
         var administrador = Describir(
             new Combinacion(Roles.Administrador, null, true, true, PerfilVocabularioTenant.Consultora, 1), iconos);
-        administrador.Should().Contain("dashboards(open)<nav-grupo-detalle|Dashboards>[\"\"@dashboard/icono icono-medio'Dashboard'<nav-item>")
+        administrador.Should().Contain("dashboards(open)<nav-grupo-detalle|Dashboards>[\"\"@dashboard/icono icono-medio'Inicio'<nav-item>")
             .And.Contain("plataforma(open)<nav-grupo-detalle|Plataforma>[")
             .And.Contain("\"configuracion\"@configuracion/icono icono-medio'Configuración'")
             .And.NotContain("@?");
 
         var cliente = Describir(
             new Combinacion(Roles.Cliente, null, true, false, PerfilVocabularioTenant.Consultora, 1), iconos);
-        cliente.Should().StartWith("suelto[\"\"@dashboard/icono icono-medio'Dashboard'<nav-item>");
+        cliente.Should().StartWith("suelto[\"\"@dashboard/icono icono-medio'Inicio'<nav-item>");
     }
 
     /// <summary>

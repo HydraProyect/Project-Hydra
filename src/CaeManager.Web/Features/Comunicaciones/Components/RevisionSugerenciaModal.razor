@@ -16,6 +16,9 @@
     de más mientras solo hay dos consumidores reales (YAGNI, Project-Hydra-Negocio/tecnico/PROJECT.md).
 *@
 @using System.Text.Json
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosSugerenciasIa> TextosSugerencias
 
 <Modal Visible="Visible" VisibleChanged="ManejarCierreAsync" Titulo="Revisar recomendación de IA"
        Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="false">
@@ -66,7 +69,7 @@
                     <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
                     <span>
                         Hay @porRevisar.Count @(porRevisar.Count == 1 ? "dato que necesita" : "datos que necesitan") tu atención.
-                        Hydra no pudo confirmarlos con suficiente confianza — revisa únicamente estos antes de continuar.
+                        @TextosSugerencias["NoPudoConfirmarlos", Marca.Nombre]
                     </span>
                 </div>
 
@@ -91,7 +94,7 @@
 
                 <button type="button" class="revision-confirmados-toggle" @onclick="() => _confirmadosExpandido = !_confirmadosExpandido">
                     <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />
-                    @confirmados.Count @(confirmados.Count == 1 ? "dato confirmado" : "datos confirmados") por Hydra
+                    @TextosSugerencias[confirmados.Count == 1 ? "DatoConfirmadoPor" : "DatosConfirmadosPor", confirmados.Count, Marca.Nombre]
                     <span class="revision-confirmados-toggle-flecha">@(_confirmadosExpandido ? "▲" : "▼")</span>
                 </button>
                 @if (_confirmadosExpandido)
@@ -224,7 +227,7 @@
 
     private string SubtituloPaso => _paso switch
     {
-        1 => "Revisa y corrige únicamente los datos que Hydra no pudo confirmar.",
+        1 => TextosSugerencias["SubtituloPasoRevisar", Marca.Nombre],
         2 => "Así se usarán estos datos si confirmas.",
         _ => "Confirma que los datos son correctos antes de ejecutar la acción."
     };

@@ -308,7 +308,7 @@ public class InicioGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediadorDeInicio());
 
-        cut.Find(".cabecera-pagina-kicker").TextContent.Trim().Should().Be("Dashboard");
+        cut.Find(".cabecera-pagina-kicker").TextContent.Trim().Should().Be("Inicio");
         cut.Find("h1.titulo-pagina").TextContent.Trim().Should().StartWith("Buen");
         cut.Find(".inicio-fecha").TextContent.Trim().Should().Be(
             FechaEsperada(),
@@ -438,6 +438,24 @@ public class InicioGen2Tests : BunitContext
 
         cut.FindAll("a").Should().ContainSingle(a =>
             a.GetAttribute("href") == "/bandeja" && a.TextContent.Contains("Ver todo en Mi trabajo"));
+    }
+
+    /// <summary>
+    /// Mismo destino que «Mi trabajo» en el menú lateral (CatalogoMenuLateral,
+    /// RutaPorContexto): con más de un Tenant autorizado es la cola agregada de toda
+    /// la cartera, no la del Context Workspace activo.
+    /// </summary>
+    [Fact]
+    public void Con_varios_Tenants_autorizados_la_salida_lleva_a_la_cola_agregada_como_el_menu()
+    {
+        var cut = Renderizar(new MediadorDeInicio(
+            Item("v1", TipoItemBandeja.Vencido, Refrielectric, "Refrielectric S.A."))
+        {
+            Autorizados = OrigenYDosPropietarios(),
+        });
+
+        cut.FindAll("a").Should().ContainSingle(a =>
+            a.GetAttribute("href") == Inicio.RutaMiTrabajo && a.TextContent.Contains("Ver todo en Mi trabajo"));
     }
 
     /// <summary>

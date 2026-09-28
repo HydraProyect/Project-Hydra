@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
+using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -18,6 +20,14 @@ namespace CaeManager.Application.Auditoria.Queries;
 public record ObtenerAccesosDocumentosSensiblesQuery(
     int Pagina = 1, int TamanoPagina = 30) : IRequest<ResultadoPaginado<AccesoDocumentoSensibleDto>>;
 
+/// <param name="DocumentoTitulo">
+/// Nombre del Tipo de documento («Reconocimiento médico de aptitud»), para no
+/// enseñar el GUID en crudo (revisión UX pre-piloto 2026-09-28, D.1). Se resuelve
+/// con los filtros normales de Documentos —Tenant activo y sin dar de baja—, sin
+/// <c>IgnoreQueryFilters()</c>: null cuando el documento ya no se puede leer (dado
+/// de baja), y la pantalla cae entonces al identificador. No amplía lo que ve quien
+/// consulta: el nombre del tipo de un documento del mismo Tenant propietario.
+/// </param>
 public record AccesoDocumentoSensibleDto(
     Guid Id,
     Guid DocumentoId,
@@ -26,9 +36,13 @@ public record AccesoDocumentoSensibleDto(
     Guid? UsuarioId,
     DateTime OcurridoEnUtc,
     TipoViaAccesoAuditoria ViaAcceso,
-    bool EsPrivilegiado);
+    bool EsPrivilegiado,
+    string? DocumentoTitulo = null);
 
-public class ObtenerAccesosDocumentosSensiblesQueryHandler(IAuditoriaQueryContext dbContext)
+public class ObtenerAccesosDocumentosSensiblesQueryHandler(
+    IAuditoriaQueryContext dbContext,
+    IDocumentosQueryContext documentosContext,
+    ITiposDocumentoQueryContext tiposDocumentoContext)
     : IRequestHandler<ObtenerAccesosDocumentosSensiblesQuery, ResultadoPaginado<AccesoDocumentoSensibleDto>>
 {
     public async Task<ResultadoPaginado<AccesoDocumentoSensibleDto>> Handle(
@@ -46,6 +60,22 @@ public class ObtenerAccesosDocumentosSensiblesQueryHandler(IAuditoriaQueryContex
                 r.Id, r.DocumentoId, r.Sensibilidad, r.TipoAcceso, r.UsuarioId, r.OcurridoEnUtc,
                 r.ViaAcceso, r.ViaAcceso == TipoViaAccesoAuditoria.SesionPrivilegiada))
             .ToListAsync(cancellationToken);
+
+        // Un lote por página, nunca una consulta por fila.
+        var idsDocumento = elementos.Select(e => e.DocumentoId).Distinct().ToArray();
+        if (idsDocumento.Length > 0)
+        {
+            var titulos = await (
+                    from documento in documentosContext.Documentos
+                    join tipo in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipo.Id
+                    where idsDocumento.Contains(documento.Id)
+                    select new { documento.Id, tipo.Nombre })
+                .ToDictionaryAsync(d => d.Id, d => d.Nombre, cancellationToken);
+
+            elementos = elementos
+                .Select(e => e with { DocumentoTitulo = titulos.GetValueOrDefault(e.DocumentoId) })
+                .ToList();
+        }
 
         return new ResultadoPaginado<AccesoDocumentoSensibleDto>(elementos, total, request.Pagina, request.TamanoPagina);
     }

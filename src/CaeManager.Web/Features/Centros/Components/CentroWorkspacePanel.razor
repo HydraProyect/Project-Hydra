@@ -226,7 +226,7 @@ else
                                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirConfigurarAsync(item)">Configurar</Boton>
                                     @if (item.Incluido is not null)
                                     {
-                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => QuitarAjusteAsync(item)">Quitar ajuste</Boton>
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => PedirQuitarAjuste(item)">Quitar ajuste</Boton>
                                     }
                                 </div>
                             </li>
@@ -484,6 +484,15 @@ else
         Mensaje="Dejará de aparecer en este centro, junto con sus credenciales guardadas."
         EnProgreso="_eliminandoCanal"
         OnConfirmar="ConfirmarEliminarCanalAsync" />
+
+    <DialogoConfirmacion
+        Visible="_ajusteAQuitar is not null"
+        VisibleChanged="CerrarConfirmacionQuitarAjuste"
+        Titulo="@Textos["QuitarAjusteTitulo", _ajusteAQuitar?.Nombre ?? string.Empty]"
+        Mensaje="@MensajeQuitarAjuste"
+        TextoBotonConfirmar="@Textos["QuitarAjusteConfirmar"]"
+        EnProgreso="_quitandoAjuste"
+        OnConfirmar="ConfirmarQuitarAjusteAsync" />
 
     <Drawer HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerCanalVisible" VisibleChanged="v => _drawerCanalVisible = v"
             Titulo="@(_canalIdEditando is null ? "Añadir acceso de gestión documental" : "Editar acceso de gestión documental")"
@@ -1197,6 +1206,40 @@ else
         finally
         {
             _guardandoDocumentacion = false;
+        }
+    }
+
+    // Quitar el ajuste borra la fila propia del centro (baja física): se
+    // confirma antes, como eliminar un acceso a plataforma.
+    private DocumentacionRequeridaCentroDto? _ajusteAQuitar;
+    private bool _quitandoAjuste;
+
+    private string MensajeQuitarAjuste => _ajusteAQuitar is null
+        ? string.Empty
+        : Textos[_ajusteAQuitar.ArchivoUrl is not null ? "QuitarAjusteMensajeConFormulario" : "QuitarAjusteMensaje"];
+
+    private void PedirQuitarAjuste(DocumentacionRequeridaCentroDto item) => _ajusteAQuitar = item;
+
+    private void CerrarConfirmacionQuitarAjuste(bool visible)
+    {
+        if (!visible && !_quitandoAjuste)
+            _ajusteAQuitar = null;
+    }
+
+    private async Task ConfirmarQuitarAjusteAsync()
+    {
+        if (_ajusteAQuitar is not { } item)
+            return;
+
+        _quitandoAjuste = true;
+        try
+        {
+            await QuitarAjusteAsync(item);
+        }
+        finally
+        {
+            _quitandoAjuste = false;
+            _ajusteAQuitar = null;
         }
     }
 

@@ -101,4 +101,22 @@
     <value>Volver a la ficha</value>
     <comment>P1-I2: salida de la página de 2FA cuando se llegó con un returnUrl local desde una ficha.</comment>
   </data>
+  <data name="SalidaVolver" xml:space="preserve">
+    <value>Volver</value>
+    <comment>Revisión UX pre-piloto (2026-09-28): salida de la página de 2FA, que usa AuthLayout y no tiene menú. Solo cuando la 2FA no es obligatoria.</comment>
+  </data>
+  <data name="SalidaCerrarSesion" xml:space="preserve">
+    <value>Cerrar sesión</value>
+  </data>
+  <data name="PendienteRolHasEntradoComo" xml:space="preserve">
+    <value>Has entrado como</value>
+    <comment>Seguido del correo de la cuenta: resuelve el caso de haber entrado con la cuenta equivocada.</comment>
+  </data>
+  <data name="PendienteRolQuienAsigna" xml:space="preserve">
+    <value>¿Quién me asigna el rol?</value>
+  </data>
+  <data name="PendienteRolQuienAsignaRespuesta" xml:space="preserve">
+    <value>Un usuario con rol Administrador de tu organización, desde Configuración → Roles → «Pendientes de asignar». Si no sabes quién es, pregunta a la persona que te dio de alta.</value>
+    <comment>Quien asigna es un Administrador del Tenant propietario de la cuenta, nunca Soporte TALVEG ni el Operador CAE externo. Sin promesa de aviso por correo: solo sale en el primer acceso con Microsoft y es best-effort.</comment>
+  </data>
 </root>

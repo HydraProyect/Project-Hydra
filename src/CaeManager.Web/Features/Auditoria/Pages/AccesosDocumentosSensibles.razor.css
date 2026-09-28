@@ -87,3 +87,8 @@
 .accesos-sensibles-tipo {
     color: var(--color-text-muted);
 }
+
+.accesos-sensibles-documento-titulo {
+    font-weight: 600;
+    color: var(--color-text);
+}

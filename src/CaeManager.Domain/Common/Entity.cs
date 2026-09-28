@@ -2,7 +2,7 @@ namespace CaeManager.Domain.Common;
 
 public abstract class Entity
 {
-    public Guid Id { get; protected set; } = Guid.NewGuid();
+    public Guid Id { get; protected set; } = IdentificadorEntidad.Nuevo();
 
     public override bool Equals(object? obj) =>
         obj is Entity other && other.GetType() == GetType() && other.Id == Id;

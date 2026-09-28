@@ -8,6 +8,8 @@ using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Localization;
+using CaeManager.Web.Features.GestionRoles.Recursos;
 
 namespace CaeManager.Web.Features.GestionRoles.Pages;
 
@@ -41,6 +43,7 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
     [Inject] private IEmailService EmailService { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosRoles> Textos { get; set; } = default!;
     [Inject] private ILogger<Roles> Logger { get; set; } = default!;
 
     private string _pestanaActiva = "roles";
@@ -304,6 +307,9 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
         // envío no debe deshacer la asignación de rol, que ya se guardó — ni
         // tampoco hacerla pasar por fallida, que es lo que ocurría si el
         // servicio de correo lanzaba en vez de devolver un resultado fallido.
+        // Pero tampoco se calla: quien asigna el rol recibe una advertencia
+        // para avisar por otro medio, porque la persona no sabrá que ya tiene
+        // acceso.
         var cuerpo = $"""
             <p>Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)},</p>
             <p>Tu acceso a {Marca.Nombre} ya está activo, con el rol <strong>{System.Net.WebUtility.HtmlEncode(CaeManager.Infrastructure.Identity.Roles.NombreVisible(rol))}</strong>.</p>
@@ -314,13 +320,22 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
         {
             var resultado = await EmailService.EnviarAsync(email, $"Tu acceso a {Marca.Nombre} ya está activo", cuerpo, TipoAvisoCorreo.Seguridad);
             if (resultado.EsFallido)
+            {
                 Logger.LogWarning("No se pudo enviar el correo de confirmación de rol a {UsuarioId}.", usuarioId);
+                AvisarCorreoNoEnviado(nombreCompleto, email);
+            }
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "No se pudo enviar el correo de confirmación de rol a {UsuarioId}.", usuarioId);
+            AvisarCorreoNoEnviado(nombreCompleto, email);
         }
     }
+
+    private void AvisarCorreoNoEnviado(string nombreCompleto, string email) =>
+        ToastService.Mostrar(
+            Textos["AvisoCorreoRolNoEnviado", nombreCompleto, email],
+            TonoToast.Advertencia);
 
     // ---- Atajos de lista j/k (I-13 de AUDITORIA-USUARIO-AVANZADO-POST-GEN2) ----
 

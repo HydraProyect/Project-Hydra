@@ -57,21 +57,28 @@ public static class ConectarMicrosoft365Endpoints
             ISolicitudConexionMicrosoft365Repository solicitudRepositorio, IUnitOfWork unitOfWork,
             ICurrentUserService currentUser, IMediator mediator, ILogger<Program> logger, CancellationToken cancellationToken) =>
         {
+            // Solo «access_denied» es la persona cancelando en la pantalla de Microsoft
+            // (RFC 6749 § 4.1.2.1): Conexiones lo enseña en tono informativo. Cualquier
+            // otro error de OAuth, un callback sin code/state o la URL pública sin
+            // configurar son fallos de verdad y no se disfrazan de cancelación.
+            if (string.Equals(error, "access_denied", StringComparison.Ordinal))
+                return Results.LocalRedirect("/integraciones?error=cancelado");
+
             if (!string.IsNullOrWhiteSpace(error) || string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state) ||
                 string.IsNullOrWhiteSpace(opciones.Value.UrlPublicaBase))
             {
-                return Results.LocalRedirect("/integraciones?error=cancelado");
+                return Results.LocalRedirect("/integraciones?error=autenticacion");
             }
 
             var usuarioId = await currentUser.ObtenerUsuarioActualIdAsync();
             if (usuarioId is null || !Guid.TryParse(state, out var solicitudId))
-                return Results.LocalRedirect("/integraciones?error=cancelado");
+                return Results.LocalRedirect("/integraciones?error=solicitud");
 
             var solicitud = await solicitudRepositorio.ObtenerPorIdAsync(solicitudId, cancellationToken);
             if (solicitud is null || !solicitud.EsValidaPara(usuarioId.Value, DateTime.UtcNow))
             {
                 logger.LogWarning("Callback de Microsoft 365 con \"state\" inválido, expirado o de otro usuario — descartado.");
-                return Results.LocalRedirect("/integraciones?error=cancelado");
+                return Results.LocalRedirect("/integraciones?error=solicitud");
             }
 
             var clienteId = solicitud.ClienteId;

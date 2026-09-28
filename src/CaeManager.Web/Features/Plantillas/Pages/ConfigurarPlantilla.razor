@@ -181,7 +181,7 @@
                                                 <CampoSelect Etiqueta="Quién firma" Valor="@(sel.RolFirmante?.ToString() ?? "")" ValorChanged="v => sel.RolFirmante = string.IsNullOrEmpty(v) ? null : Enum.Parse<RolFirmantePlantilla>(v)">
                                                     <option value="">— Selecciona —</option>
                                                     <option value="@RolFirmantePlantilla.Trabajador">Trabajador</option>
-                                                    <option value="@RolFirmantePlantilla.Gestor">Gestor</option>
+                                                    <option value="@RolFirmantePlantilla.Gestor">Gestor CAE</option>
                                                     <option value="@RolFirmantePlantilla.ResponsableEmpresa">Responsable de empresa</option>
                                                     <option value="@RolFirmantePlantilla.RepresentanteLegal">Representante legal</option>
                                                     <option value="@RolFirmantePlantilla.Otro">Otro</option>
@@ -211,7 +211,7 @@
                                                 <option value="@FuenteDatoPlantilla.EmpresaResponsablePrl">Empresa — responsable PRL</option>
                                                 <option value="@FuenteDatoPlantilla.EmpresaRepresentanteLegal">Empresa — representante legal</option>
                                                 <option value="@FuenteDatoPlantilla.EmpresaContactoCae">Empresa — contacto CAE</option>
-                                                <option value="@FuenteDatoPlantilla.Manual">Manual (lo rellena el gestor)</option>
+                                                <option value="@FuenteDatoPlantilla.Manual">Manual (lo rellena el Gestor CAE)</option>
                                                 <option value="@FuenteDatoPlantilla.Constante">Texto fijo</option>
                                             </CampoSelect>
 

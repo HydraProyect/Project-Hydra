@@ -57,6 +57,13 @@ public class RegistroEnvioReclamacionService(
     ILogger<RegistroEnvioReclamacionService> logger,
     IUnitOfWork unitOfWork) : IRegistroEnvioReclamacionService
 {
+    /// <summary>
+    /// Fallo con efecto: la reclamación llegó a una parte de los
+    /// destinatarios y esa parte SÍ quedó registrada. Público para que la UI
+    /// sepa que, aun siendo un fallo, el historial cambió y hay que recargarlo.
+    /// </summary>
+    public const string CodigoEnvioParcial = "Reclamacion.EnvioParcial";
+
     public async Task<Result> EnviarYRegistrarAsync(
         TitularReclamacion titular,
         IReadOnlyList<Guid> documentoIds,
@@ -66,6 +73,7 @@ public class RegistroEnvioReclamacionService(
         CancellationToken cancellationToken)
     {
         var destinatarioUnico = string.Join("; ", destinatarios);
+        IReadOnlyList<string> destinatariosFallidos = [];
 
         // GestorPropietarioId != null excluido a propósito: un buzón personal
         // de un gestor (ConexionIntegracion.GestorPropietarioId) también tiene
@@ -135,9 +143,46 @@ public class RegistroEnvioReclamacionService(
                     "La respuesta del destinatario no llegará a nadie.");
             }
 
+            // Aquí el correo NO es un aviso "best effort" (ver IEmailService):
+            // es la acción de negocio misma. Un fallo de SMTP no puede acabar
+            // registrado ni anunciado como reclamación enviada — mismo
+            // contrato que la rama de buzón conectado, que devuelve el fallo
+            // de EnviarMensajeNuevoCommand sin registrar nada.
+            //
+            // Con varios destinatarios, un correo ya entregado no se puede
+            // deshacer: el historial registra solo a quienes sí lo recibieron
+            // (es append-only y cuenta lo que pasó), y el resultado sigue
+            // siendo un fallo que nombra a quienes no, para que la UI nunca
+            // lo pinte como enviado del todo.
+            var enviados = new List<string>();
+            var fallidos = new List<string>();
             foreach (var destinatario in destinatarios)
-                await emailService.EnviarAsync(
+            {
+                var resultadoCorreo = await emailService.EnviarAsync(
                     destinatario, asunto, cuerpoHtml, TipoAvisoCorreo.Requerimiento, responderA, cancellationToken);
+
+                if (resultadoCorreo.EsExitoso)
+                {
+                    enviados.Add(destinatario);
+                }
+                else
+                {
+                    fallidos.Add(destinatario);
+                    logger.LogWarning(
+                        "Reclamación por SMTP: el envío a un destinatario falló ({Codigo}: {Mensaje}).",
+                        resultadoCorreo.Error.Codigo, resultadoCorreo.Error.Mensaje);
+                }
+            }
+
+            if (enviados.Count == 0)
+            {
+                return Result.Fallo(Error.Crear(
+                    "Reclamacion.EnvioFallido",
+                    "No pudimos enviar el correo de la reclamación, así que no queda registrada. Inténtalo de nuevo en unos minutos."));
+            }
+
+            destinatarioUnico = string.Join("; ", enviados);
+            destinatariosFallidos = fallidos;
         }
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
@@ -157,6 +202,15 @@ public class RegistroEnvioReclamacionService(
         // al que avisar.
         if (conversacionId is not null)
             await mediator.Publish(new ReclamacionEnviadaEvent(conversacionId.Value, reclamacion.Id), cancellationToken);
+
+        if (destinatariosFallidos.Count > 0)
+        {
+            return Result.Fallo(Error.Crear(
+                CodigoEnvioParcial,
+                $"La reclamación solo llegó a {destinatarioUnico}, y así queda registrada. " +
+                $"No pudimos enviarla a {string.Join(", ", destinatariosFallidos)}: " +
+                "revisa esas direcciones y vuelve a reclamar solo a esos contactos."));
+        }
 
         return Result.Exito();
     }

@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
@@ -7,6 +8,7 @@ using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Web.Features.Comunicaciones.Components;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
@@ -26,6 +28,9 @@ public class AccionCenterTests : BunitContext
         CaeManager.Domain.Documentos.RequisitoDocumental.Si,
         CaeManager.Domain.Documentos.NaturalezaJuridica.RequisitoCliente,
         null, null, null, null, false, false, false, CaeManager.Domain.Documentos.PerfilDocumentoOficial.Ninguno, []);
+
+    /// <summary>RevisionSugerenciaModal pinta sus textos desde TextosSugerenciasIa.</summary>
+    public AccionCenterTests() => Services.AddLocalization();
 
     [Fact]
     public void Sin_ninguna_sugerencia_pendiente_no_renderiza_nada()
@@ -120,6 +125,13 @@ public class AccionCenterTests : BunitContext
         cut.FindAll(".accion-card-botones button")[1].Click();
 
         cut.Find(".revision-stepper-actual b").TextContent.Should().Be("Revisar datos");
+        // Los textos que atribuyen la lectura al producto llevan su nombre (Marca.Nombre), no una marca escrita a mano.
+        cut.Find(".revision-sugerencia-subtitulo").TextContent.Should().Be(
+            $"Revisa y corrige únicamente los datos que {Marca.Nombre} no pudo confirmar.");
+        cut.Find(".revision-banner").TextContent.Should().Contain(
+            $"{Marca.Nombre} no pudo confirmarlos con suficiente confianza");
+        cut.Find(".revision-confirmados-toggle").TextContent.Should().Contain($"por {Marca.Nombre}");
+        cut.Markup.Should().NotContain("Hydra");
         cut.Find("select").Change(CentroA.Id.ToString());
 
         // Centro no es obligatorio para Visita (se puede resolver luego en /visitas) — Continuar nunca se bloquea.

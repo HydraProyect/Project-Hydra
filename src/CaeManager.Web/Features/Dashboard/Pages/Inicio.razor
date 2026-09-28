@@ -12,7 +12,7 @@
 @inject IStringLocalizer<TextosInicio> Textos
 
 <LimiteDeErrores Pagina="this">
-<PageTitle>Dashboard — @Marca.Nombre</PageTitle>
+<PageTitle>Inicio — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
     @* La cabecera del mockup lleva a la derecha la fecha de hoy y un indicador
@@ -20,7 +20,7 @@
        aquí dice la hora de la lectura, que es lo único cierto: esta pantalla no
        refresca sola. Solo aparece cuando ya hay algo cargado — durante el
        esqueleto no hay ninguna hora que afirmar. *@
-    <CabeceraPagina Titulo="@Saludo" Kicker="Dashboard">
+    <CabeceraPagina Titulo="@Saludo" Kicker="Inicio">
         <Acciones>
             <span class="inicio-cabecera-meta">
                 <span class="inicio-fecha">@FechaDeHoy</span>
@@ -134,7 +134,7 @@
                    cuando el resumen se queda corto: aquí se ven como mucho
                    MaximoGruposAtencion grupos, y quien quiere operar de verdad va a
                    Mi trabajo tanto si son tres como si son treinta. *@
-                <a class="enlace-ver-todas" href="/bandeja">Ver todo en Mi trabajo →</a>
+                <a class="enlace-ver-todas" href="@_rutaVerTodoMiTrabajo">Ver todo en Mi trabajo →</a>
             }
 
             @if (_pendientePorPlataforma.Count > 0)

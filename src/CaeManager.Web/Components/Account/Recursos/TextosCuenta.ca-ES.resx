@@ -99,4 +99,19 @@
   <data name="VolverALaFicha" xml:space="preserve">
     <value>Tornar a la fitxa</value>
   </data>
+  <data name="SalidaVolver" xml:space="preserve">
+    <value>Tornar</value>
+  </data>
+  <data name="SalidaCerrarSesion" xml:space="preserve">
+    <value>Tanca la sessió</value>
+  </data>
+  <data name="PendienteRolHasEntradoComo" xml:space="preserve">
+    <value>Has entrat com a</value>
+  </data>
+  <data name="PendienteRolQuienAsigna" xml:space="preserve">
+    <value>Qui m'assigna el rol?</value>
+  </data>
+  <data name="PendienteRolQuienAsignaRespuesta" xml:space="preserve">
+    <value>Un usuari amb rol Administrador de la teva organització, des de Configuració → Roles → «Pendientes de asignar». Si no saps qui és, pregunta-ho a la persona que et va donar d'alta.</value>
+  </data>
 </root>

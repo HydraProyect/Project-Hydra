@@ -158,6 +158,35 @@ public class ReclamacionesTabTests : BunitContext
         return cut;
     }
 
+    // ------------------------------------------------- fallo de entrega del correo
+
+    /// <summary>
+    /// Un fallo de entrega por SMTP llega como <c>Result</c> fallido: el Gestor
+    /// CAE lo ve en un aviso de error y nunca como «Reclamación reenviada».
+    /// Si la entrega fue parcial, la parte entregada ya está en el historial
+    /// —<c>RegistroEnvioReclamacionService.CodigoEnvioParcial</c>—, así que el
+    /// historial se recarga aunque el resultado sea un fallo.
+    /// </summary>
+    [Theory]
+    [InlineData("Reclamacion.EnvioFallido", 1)]
+    [InlineData(RegistroEnvioReclamacionService.CodigoEnvioParcial, 2)]
+    public async Task Un_fallo_de_entrega_del_correo_se_muestra_como_error_y_el_envio_parcial_recarga_el_historial(
+        string codigo, int cargasDeHistorialEsperadas)
+    {
+        var reclamacion = ReclamacionEnviada("Refrielectric SL");
+        var mediador = ConHistorial(reclamacion);
+        mediador.AlEnviar = _ => Result.Fallo<EnvioReclamacionResultado>(
+            Error.Crear(codigo, "No pudimos enviarla a prl@refrielectric.example."));
+
+        var (cut, _) = Renderizar(mediador);
+        await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+
+        var toasts = Services.GetRequiredService<ToastService>().Mensajes;
+        toasts.Should().ContainSingle().Which.Should().Match<ToastMensaje>(
+            t => t.Tono == TonoToast.Error && t.Mensaje.Contains("prl@refrielectric.example"));
+        mediador.Enviadas.OfType<ObtenerReclamacionesEnviadasQuery>().Should().HaveCount(cargasDeHistorialEsperadas);
+    }
+
     // ------------------------------------------------- contrato 1: concurrencia (historial)
 
     /// <summary>

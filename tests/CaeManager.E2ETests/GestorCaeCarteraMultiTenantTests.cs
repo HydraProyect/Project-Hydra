@@ -248,6 +248,38 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Expect(page.Locator(".selector-cliente-activo")).ToHaveValueAsync(tenantA);
     }
 
+    /// <summary>
+    /// Hallazgo del recorrido en staging del 2026-09-24: al cargar <c>/centros</c> por
+    /// URL, el contexto volvía al Tenant de origen y el cambio de Tenant no sobrevivía a
+    /// una recarga. La selección vive en una cookie que el POST emite y que
+    /// <c>RevalidacionClienteActivoMiddleware</c> revalida en cada petición completa;
+    /// cuando los dos usaban predicados distintos para la vía de Operación, la primera
+    /// carga completa la revocaba (#961 los unificó). Aquí: B, que no es el Tenant por
+    /// defecto (hay dos en cartera), sigue activo tras abrir <c>/centros</c> por URL y
+    /// tras recargarla, y la lista enseña su Centro, no el de A.
+    /// </summary>
+    [Fact]
+    public async Task El_Tenant_beneficiario_elegido_sobrevive_a_abrir_centros_por_URL_y_a_recargar()
+    {
+        var tenantB = await IdTenantAsync(TenantBeneficiarioB);
+
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestorCae, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioB);
+
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
+        await Expect(page.Locator(".selector-cliente-activo")).ToHaveValueAsync(tenantB);
+        await Expect(page.GetByText(CentroB, new() { Exact = true })).ToBeVisibleAsync(EsperaEnFrio);
+        await Expect(page.GetByText(CentroA, new() { Exact = true })).ToHaveCountAsync(0);
+
+        await page.ReloadAsync();
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Expect(page.Locator(".selector-cliente-activo")).ToHaveValueAsync(tenantB);
+        await Expect(page.GetByText(CentroB, new() { Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByText(CentroA, new() { Exact = true })).ToHaveCountAsync(0);
+    }
+
     /// <summary>Fila de Mi trabajo de un Tenant beneficiario con ese badge (aria-label = «{Título} · {Tenant}»).</summary>
     private static ILocator FilaMiTrabajo(IPage page, string tenant, string badge) =>
         page.Locator($"div[role=button][aria-label$='· {tenant}']").Filter(new() { HasText = badge });

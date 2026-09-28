@@ -146,7 +146,7 @@
                                                 <td>
                                                     <Boton Tamano="TamanoBoton.Pequeno"
                                                            Variante="VarianteBoton.Fantasma"
-                                                           OnClick="() => RetirarOperadorAsync(delegacion.Id, operador)"
+                                                           OnClick="() => PedirRetirarOperador(delegacion.Id, operador)"
                                                            Cargando="@EstaProcesando(operador.AsignacionId)">
                                                         Retirar
                                                     </Boton>
@@ -346,6 +346,14 @@
                      TextoBotonConfirmar="Revocar acceso"
                      EnProgreso="@EstaProcesando(_delegacionARevocar?.Id)"
                      OnConfirmar="RevocarAsync" />
+
+<DialogoConfirmacion Visible="@(_operadorARetirar is not null)"
+                     VisibleChanged="CerrarRetirada"
+                     Titulo="@TextosAutorizar["RetirarTitulo"]"
+                     Mensaje="@MensajeRetirada"
+                     TextoBotonConfirmar="@TextosAutorizar["RetirarConfirmar"]"
+                     EnProgreso="@EstaProcesando(_operadorARetirar?.Operador.AsignacionId)"
+                     OnConfirmar="RetirarOperadorAsync" />
 
 <Modal HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarNuevaDelegacion"
        VisibleChanged="v => CerrarFormularioNueva(v)"

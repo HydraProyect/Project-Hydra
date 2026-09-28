@@ -7,7 +7,7 @@
     <div class="asistente-superposicion" @onmousedown="() => _mouseDownEnSuperposicion = true" @onclick="ManejarClicSuperposicion">
         <div class="asistente-panel" @onmousedown="() => _mouseDownEnSuperposicion = false" @onmousedown:stopPropagation="true" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="asistente-titulo">
             <div class="asistente-cabecera">
-                <h2 id="asistente-titulo">@Textos["Titulo"]</h2>
+                <h2 id="asistente-titulo">@Textos["Titulo", Marca.Nombre]</h2>
                 <button type="button" class="asistente-cerrar" @onclick="Cerrar" aria-label="@Textos["CerrarEtiqueta"]"><Icono Nombre="cerrar" /></button>
             </div>
 
@@ -44,6 +44,7 @@
 
             <div class="asistente-entrada">
                 <textarea class="asistente-textarea"
+                          aria-label="@Textos["EtiquetaPregunta"]"
                           placeholder="@Textos["PlaceholderPregunta"]"
                           value="@_valorMostrado"
                           disabled="@_enviando"

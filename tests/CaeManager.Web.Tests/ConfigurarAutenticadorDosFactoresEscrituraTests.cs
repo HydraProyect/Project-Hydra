@@ -61,7 +61,8 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         cut.Find("[role=alert]").TextContent.Should().Contain("El almacén no está disponible.");
         cut.FindAll("img.qr-2fa").Should().BeEmpty("la clave nunca quedó guardada: no hay QR que enseñar");
         cut.FindAll(".clave-manual").Should().BeEmpty("tampoco una clave manual que registrar a mano, por la misma razón");
-        cut.FindAll("form").Should().BeEmpty("sin clave guardada no hay nada todavía que activar");
+        cut.FindAll("form").Where(f => f.GetAttribute("action") != "/cuenta/cerrar-sesion")
+            .Should().BeEmpty("sin clave guardada no hay nada todavía que activar; solo queda la salida");
     }
 
     /// <summary>Control: sin fallo, la pantalla de siempre.</summary>

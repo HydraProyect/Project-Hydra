@@ -389,7 +389,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
     private Task QuitarFiltroEstadoDocumentalAsync() => CambiarEstadoDocumentalFiltroAsync(string.Empty);
 
     private string EtiquetaFiltroEjecutivo =>
-        "Ejecutivo: " + (_ejecutivosParaFiltro.FirstOrDefault(g => g.Id.ToString() == _ejecutivoFiltro)?.NombreCompleto ?? "—");
+        "Gestor CAE: " + (_ejecutivosParaFiltro.FirstOrDefault(g => g.Id.ToString() == _ejecutivoFiltro)?.NombreCompleto ?? "—");
 
     /// <summary>Nombre a mostrar en la columna "Ejecutivo" de cada fila — mismo directorio que ya resuelve el filtro, sin consulta nueva por fila.</summary>
     private string ObtenerNombreEjecutivo(Guid? ejecutivoUsuarioId) =>
@@ -754,7 +754,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
             }
             else
             {
-                ToastService.Mostrar("Cliente eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idAEliminar));
+                ToastService.Mostrar("Cliente dado de baja.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idAEliminar));
                 WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, [idAEliminar]);
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
@@ -762,7 +762,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar el cliente. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar("No pudimos dar de baja el cliente. Intenta nuevamente en unos segundos.", TonoToast.Error);
         }
         finally
         {
@@ -827,8 +827,8 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
 
             ToastService.Mostrar(
                 dto.Errores.Count == 0
-                    ? $"{dto.Eliminados} cliente(s) eliminado(s)."
-                    : $"{dto.Eliminados} eliminado(s). {dto.Errores.Count} no se pudieron borrar: {string.Join(" ", dto.Errores)}",
+                    ? $"{dto.Eliminados} cliente(s) dado(s) de baja."
+                    : $"{dto.Eliminados} dado(s) de baja. {dto.Errores.Count} no se pudieron dar de baja: {string.Join(" ", dto.Errores)}",
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
             // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
@@ -843,7 +843,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos eliminar los clientes seleccionados. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar("No pudimos dar de baja los clientes seleccionados. Intenta nuevamente.", TonoToast.Error);
         }
         finally
         {

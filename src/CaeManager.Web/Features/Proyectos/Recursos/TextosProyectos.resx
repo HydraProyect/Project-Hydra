@@ -264,6 +264,12 @@
   <data name="EtiquetaFechaCierre" xml:space="preserve">
     <value>Fecha de cierre</value>
   </data>
+  <data name="ConfirmarBajaTecnicoTitulo" xml:space="preserve">
+    <value>¿Dar de baja a este técnico?</value>
+  </data>
+  <data name="ConfirmarBajaTecnicoMensaje" xml:space="preserve">
+    <value>{0} dejará de contar en este proyecto desde hoy para la facturación por días. La baja no se puede deshacer desde la aplicación: si vuelve a la obra, asígnalo de nuevo como técnico.</value>
+  </data>
   <data name="ConfirmarEliminarTitulo" xml:space="preserve">
     <value>¿Eliminar este proyecto?</value>
   </data>

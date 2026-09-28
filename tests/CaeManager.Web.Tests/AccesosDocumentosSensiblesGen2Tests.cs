@@ -196,6 +196,27 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         autorizacion.Roles.Should().BeNull("la política ya exige el rol Administrador y además el permiso");
     }
 
+    /// <summary>
+    /// «Documento» enseña el nombre del Tipo de documento que resuelve la consulta,
+    /// no el GUID; cuando el documento ya no se puede leer (dado de baja), cae al
+    /// identificador.
+    /// </summary>
+    [Fact]
+    public void La_columna_Documento_muestra_el_titulo_y_cae_al_identificador_sin_el()
+    {
+        var conTitulo = Guid.NewGuid();
+        var sinTitulo = Guid.NewGuid();
+        _mediador.Almacen.Add(Acceso(documentoId: conTitulo) with { DocumentoTitulo = "Reconocimiento médico de aptitud" });
+        _mediador.Almacen.Add(Acceso(ocurrido: Base.AddMinutes(-1), documentoId: sinTitulo));
+
+        var filas = Filas(Renderizar());
+
+        filas.Should().HaveCount(2, "control del instrumento: se han pintado las dos filas");
+        Celda(filas[0], 2).Should().Be("Reconocimiento médico de aptitud");
+        filas[0].QuerySelectorAll("td")[2].TextContent.Should().NotContain(conTitulo.ToString());
+        Celda(filas[1], 2).Should().Be(sinTitulo.ToString());
+    }
+
     // --------------------------------------------------------- Cabecera y avisos
 
     [Fact]

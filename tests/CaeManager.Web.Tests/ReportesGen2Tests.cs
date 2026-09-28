@@ -515,7 +515,16 @@ public class ReportesGen2Tests : BunitContext
         cut.FindAll(".boton-exportar-informe[aria-disabled=true]").Should().HaveCount(2);
         EnviarPorComunicaciones(cut).HasAttribute("disabled").Should().BeTrue();
 
+        // Los botones atenuados dicen por qué: una pista visible, enlazada con aria-describedby.
+        cut.Find("#pista-descarga-informe").TextContent.Trim().Should().Be("Genera la vista previa para descargar el informe o enviarlo.");
+        cut.FindAll(".boton-exportar-informe[aria-disabled=true]")
+            .Should().OnlyContain(b => b.GetAttribute("aria-describedby") == "pista-descarga-informe");
+        EnviarPorComunicaciones(cut).GetAttribute("aria-describedby").Should().Be("pista-descarga-informe");
+
         await Generar(cut);
+
+        cut.FindAll("#pista-descarga-informe").Should().BeEmpty("con vista previa ya se puede descargar");
+        EnviarPorComunicaciones(cut).HasAttribute("aria-describedby").Should().BeFalse();
 
         Descargas(cut).Should().Equal(
             $"/reportes/vigencia.pdf?clienteId={ClienteA}&incluirVigentes=true",

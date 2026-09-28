@@ -91,7 +91,9 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         if (Conectado == true)
             ToastService.Mostrar("Buzón conectado correctamente.", TonoToast.Exito);
         else if (!string.IsNullOrWhiteSpace(Error))
-            ToastService.Mostrar(MensajeError(Error), TonoToast.Error);
+            // Cancelar en Microsoft es una decisión de la persona, no un fallo: tono
+            // informativo. El callback solo usa «cancelado» para access_denied.
+            ToastService.Mostrar(MensajeError(Error), Error == CodigoCancelado ? TonoToast.Info : TonoToast.Error);
 
         var generacion = Interlocked.Increment(ref _generacionInicializacion);
         var token = _cancelacionCarga.Token;
@@ -160,7 +162,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     {
         ModoAsignacionLinea.GestorFijo =>
             $"Gestor CAE fijo: {_gestores.FirstOrDefault(g => g.Id == linea.ComercialAsignadoId)?.NombreCompleto ?? "—"}",
-        _ => $"Pool inbound ({linea.MiembrosPool.Count} gestores CAE)",
+        _ => $"Reparto equitativo ({linea.MiembrosPool.Count} Gestores CAE)",
     };
 
     private void AbrirAltaLinea()
@@ -344,9 +346,12 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         _ => "Deshabilitada"
     };
 
+    private const string CodigoCancelado = "cancelado";
+
+    // «solicitud» (state caducado o de otra cuenta) cae en el mensaje genérico.
     private static string MensajeError(string codigo) => codigo switch
     {
-        "cancelado" => "Conexión cancelada.",
+        CodigoCancelado => "Conexión cancelada. No se ha conectado ningún buzón.",
         "autenticacion" => "No pudimos autenticar con Microsoft — revisa Integraciones:Microsoft365 en la configuración.",
         "suscripcion" => "El buzón se autenticó pero no pudimos activar las notificaciones. Inténtalo de nuevo.",
         _ => "No pudimos completar la conexión."

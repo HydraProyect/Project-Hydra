@@ -11,6 +11,9 @@
 @using CaeManager.Application.Integraciones
 @using CaeManager.Domain.Comunicaciones
 @using Microsoft.AspNetCore.Components.Forms
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComposer> TextosAccesibles
 
 <div class="composer">
     @if (Canal == CanalConversacion.WhatsApp && !VentanaAbierta)
@@ -41,10 +44,11 @@
 
         <div class="composer-whatsapp">
             <textarea class="composer-whatsapp-input" rows="2" placeholder="Escribe un mensaje…"
+                      aria-label="@TextosAccesibles["EtiquetaMensajeWhatsApp"]"
                       disabled="@Enviando" value="@Texto"
                       @oninput="e => TextoChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"
                       @onkeydown="ManejarTeclaAsync"></textarea>
-            <Boton Cargando="Enviando" Deshabilitado="@string.IsNullOrWhiteSpace(Texto)" OnClick="() => OnEnviar.InvokeAsync()" class="composer-boton-enviar-circular">
+            <Boton Cargando="Enviando" Deshabilitado="@string.IsNullOrWhiteSpace(Texto)" OnClick="() => OnEnviar.InvokeAsync()" class="composer-boton-enviar-circular" aria-label="@TextosAccesibles["BotonEnviarMensaje"]">
                 <Icono Nombre="enviar" Tamano="TamanoIcono.Pequeno" />
             </Boton>
         </div>

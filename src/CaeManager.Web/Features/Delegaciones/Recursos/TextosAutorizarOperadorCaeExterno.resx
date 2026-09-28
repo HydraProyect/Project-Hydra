@@ -63,4 +63,13 @@
   <data name="EtiquetaEnlace" xml:space="preserve">
     <value>el enlace de autorización</value>
   </data>
+  <data name="RetirarTitulo" xml:space="preserve">
+    <value>Retirar a la persona</value>
+  </data>
+  <data name="RetirarMensaje" xml:space="preserve">
+    <value>{0} dejará de acceder a «{1}» por esta vía. El resto del equipo conserva su acceso y los datos no se borran, pero no se puede deshacer: para devolverle el acceso habrá que asignarle de nuevo.</value>
+  </data>
+  <data name="RetirarConfirmar" xml:space="preserve">
+    <value>Retirar</value>
+  </data>
 </root>

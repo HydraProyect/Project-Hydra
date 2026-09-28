@@ -13,6 +13,15 @@ namespace CaeManager.Application.Reclamaciones;
 /// en vez de que la UI dé por hecho que "éxito" significa "se envió
 /// exactamente lo que anuncié", y para que una futura relajación de la regla
 /// "todo o nada" tenga ya el sitio donde declarar la diferencia.
+///
+/// <para>
+/// El fallo de entrega por SMTP no relaja esa regla: si el correo no llega
+/// a alguno de los destinatarios, el comando devuelve un fallo
+/// (<c>Reclamacion.EnvioFallido</c> si no llegó a nadie y no se registró
+/// nada; <c>Reclamacion.EnvioParcial</c> si llegó a una parte, que es la
+/// única que queda registrada en el historial) — ver
+/// <c>RegistroEnvioReclamacionService</c>.
+/// </para>
 /// </summary>
 public sealed record EnvioReclamacionResultado(
     IReadOnlyList<Guid> DocumentoIdsEnviados,
