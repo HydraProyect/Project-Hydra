@@ -61,6 +61,38 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
     private Documento CrearDocumentoDeEmpresa(Guid tipoDocumentoId) =>
         Documento.DeEmpresa(_empresa.Id, tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
 
+    /// <summary>
+    /// La pantalla de auditoría enseña el nombre del Tipo de documento en vez del
+    /// GUID (revisión UX pre-piloto, D.1): la consulta lo resuelve en lote contra
+    /// Documentos y TiposDocumento, con sus filtros normales. Un documento dado de
+    /// baja deja de leerse y su fila se queda sin título, sin
+    /// IgnoreQueryFilters() que amplíe lo que ve quien consulta.
+    /// </summary>
+    [Fact]
+    public async Task La_consulta_de_accesos_trae_el_titulo_del_documento_y_ninguno_si_esta_dado_de_baja()
+    {
+        var tipo = await TipoConSensibilidadAsync(SensibilidadDocumental.CategoriaEspecialSalud);
+        var vigente = CrearDocumentoDeEmpresa(tipo.Id);
+        var dadoDeBaja = CrearDocumentoDeEmpresa(tipo.Id);
+        _dbContext.Documentos.AddRange(vigente, dadoDeBaja);
+        await _dbContext.SaveChangesAsync();
+
+        var servicio = CrearServicio(ActorAuditoria.Normal(Guid.NewGuid()));
+        await servicio.RegistrarSiSensibleAsync(vigente.Id, TipoAccesoDocumentoSensible.Apertura);
+        await servicio.RegistrarSiSensibleAsync(dadoDeBaja.Id, TipoAccesoDocumentoSensible.Apertura);
+
+        dadoDeBaja.MarcarComoEliminado(Guid.NewGuid());
+        await _dbContext.SaveChangesAsync();
+
+        var resultado = await new CaeManager.Application.Auditoria.Queries.ObtenerAccesosDocumentosSensiblesQueryHandler(
+                _dbContext, _dbContext, _dbContext)
+            .Handle(new CaeManager.Application.Auditoria.Queries.ObtenerAccesosDocumentosSensiblesQuery(), CancellationToken.None);
+
+        resultado.Elementos.Should().HaveCount(2, "control del instrumento: los dos accesos quedaron registrados");
+        resultado.Elementos.Single(e => e.DocumentoId == vigente.Id).DocumentoTitulo.Should().Be(tipo.Nombre);
+        resultado.Elementos.Single(e => e.DocumentoId == dadoDeBaja.Id).DocumentoTitulo.Should().BeNull();
+    }
+
     [Fact]
     public async Task Registra_el_acceso_cuando_el_tipo_revela_salud()
     {

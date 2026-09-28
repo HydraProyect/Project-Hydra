@@ -101,6 +101,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Auditoria.ObtenerAuditoriaQueryHandler", "IDocumentosQueryContext"),
         ("Auditoria.ObtenerAuditoriaQueryHandler", "IEmpresasQueryContext"),
         ("Auditoria.ObtenerAuditoriaQueryHandler", "ITrabajadoresQueryContext"),
+        // La pantalla de accesos a documentos sensibles enseña el nombre del Tipo
+        // de documento en vez del GUID (revisión UX pre-piloto 2026-09-28, D.1):
+        // una lectura en lote por página, con los filtros normales de Documentos
+        // (Tenant activo, sin dar de baja) y sin IgnoreQueryFilters().
+        ("Auditoria.ObtenerAccesosDocumentosSensiblesQueryHandler", "IDocumentosQueryContext"),
+        ("Auditoria.ObtenerAccesosDocumentosSensiblesQueryHandler", "ITiposDocumentoQueryContext"),
         ("Bandeja.ObtenerBandejaGestorQueryHandler", "IConfiguracionQueryContext"),
         // Mismo ParametroSistema (horas de aviso de Visita) que la Bandeja de
         // arriba, leído una vez por Tenant dentro del fan-out de Mi trabajo Gen2.
