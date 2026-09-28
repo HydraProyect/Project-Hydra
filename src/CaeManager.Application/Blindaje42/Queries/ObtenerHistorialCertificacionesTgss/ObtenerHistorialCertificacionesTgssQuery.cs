@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Blindaje42;
 using MediatR;
@@ -39,7 +40,7 @@ public class ObtenerHistorialCertificacionesTgssQueryHandler(
             !await alcanceDatos.EmpresaVisibleAsync(request.EmpresaId, cancellationToken))
             return [];
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         var solicitudes = await blindajeContext.SolicitudesCertificacionTgss
             .Where(s => s.EmpresaId == request.EmpresaId && s.ClienteId == request.ClienteId)

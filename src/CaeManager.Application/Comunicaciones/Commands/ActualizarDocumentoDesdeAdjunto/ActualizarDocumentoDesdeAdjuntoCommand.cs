@@ -61,7 +61,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandValidator : AbstractValidator
 
     private static bool NoSerDeUnMesFuturo(DateOnly fecha)
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         return fecha.Year < hoy.Year || (fecha.Year == hoy.Year && fecha.Month <= hoy.Month);
     }
 }

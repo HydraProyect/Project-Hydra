@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Facturacion.Commands.ActualizarTarifaCliente;
 using CaeManager.Application.Facturacion.Commands.CrearTarifaCliente;
@@ -59,8 +60,8 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
     // tienen ahora los filtros: cambiar el mes sin pulsar «Calcular» dejaba el
     // título y el enlace de exportación hablando de un mes cuyos datos no
     // estaban en pantalla.
-    private int _anyoResumen = DateTime.Today.Year;
-    private int _mesResumen = DateTime.Today.Month;
+    private int _anyoResumen = DiaDeNegocio.Hoy().Year;
+    private int _mesResumen = DiaDeNegocio.Hoy().Month;
     private bool _cargandoResumen;
     private bool _errorResumen;
     private bool _resumenConsultado;
@@ -193,7 +194,7 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
     {
         var solicitud = ++_solicitudEstimado;
         var clienteId = _clienteSeleccionadoId;
-        var hoy = DateTime.Today;
+        var hoy = DiaDeNegocio.Hoy();
         _cargandoEstimado = true;
         _errorEstimado = false;
         StateHasChanged();
@@ -453,7 +454,7 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
     private string TextoConceptosTarificados =>
         _cargandoTarifas || _errorTarifas ? "—" : $"{_tarifas.Count} de {TotalConceptos}";
 
-    private static string EtiquetaEstimado => $"Estimado de {NombreMes(DateTime.Today.Month).ToLowerInvariant()}";
+    private static string EtiquetaEstimado => $"Estimado de {NombreMes(DiaDeNegocio.Hoy().Month).ToLowerInvariant()}";
 
     /// <summary>
     /// El total del mes en curso, sin inventar nada: sin tarifas no hay importe

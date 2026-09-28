@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.TiposDocumento;
@@ -86,7 +87,7 @@ public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documen
             return new PlanImportacionDto(Guid.NewGuid(), [], [], [], [], [], [], omitidos);
         }
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var clavesVistas = new HashSet<(string Dni, string Tipo)>(DocumentoExistenteComparer.Instancia);
 
         for (var fila = PrimeraFilaDatos; ; fila++)

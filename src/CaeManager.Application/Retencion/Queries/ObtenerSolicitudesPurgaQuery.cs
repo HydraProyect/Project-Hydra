@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Retencion;
 using CaeManager.Domain.Retencion;
@@ -34,7 +35,7 @@ public record SolicitudPurgaDto(
     public bool PuedeEjecutarseHoy =>
         Estado == EstadoSolicitudPurga.Programada &&
         FechaEjecucionProgramada is { } fecha &&
-        DateOnly.FromDateTime(DateTime.UtcNow) >= fecha;
+        DiaDeNegocio.Hoy() >= fecha;
 }
 
 public class ObtenerSolicitudesPurgaQueryHandler(IRetencionQueryContext dbContext)

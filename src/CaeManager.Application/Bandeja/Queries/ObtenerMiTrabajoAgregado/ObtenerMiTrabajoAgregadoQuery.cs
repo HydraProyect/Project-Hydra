@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
@@ -154,7 +155,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
     public async Task<MiTrabajoAgregadoDto> Handle(ObtenerMiTrabajoAgregadoQuery request, CancellationToken cancellationToken)
     {
         var tenants = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         var resultado = new List<MiTrabajoTenantDto>();
         var noConsultados = new List<TenantNoConsultadoDto>();

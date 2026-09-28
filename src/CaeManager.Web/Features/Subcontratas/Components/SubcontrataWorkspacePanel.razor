@@ -1297,7 +1297,7 @@ else
                 : string.Empty;
             _verificacionTipoId = string.Empty;
             _verificacionResultado = nameof(ResultadoVerificacionExterna.Valido);
-            _verificacionFecha = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+            _verificacionFecha = CaeManager.Domain.Common.DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
             _verificacionValidoHasta = string.Empty;
             _verificacionObservaciones = string.Empty;
             _evidenciaContenido = null;

@@ -96,7 +96,7 @@ public class SolicitudCertificacionTgss : EntidadBase
             throw new ArgumentException("La solicitud debe registrarse a nombre de un cliente.", nameof(clienteId));
         if (solicitadaPorUsuarioId == Guid.Empty)
             throw new ArgumentException("La solicitud debe registrar quién la hizo.", nameof(solicitadaPorUsuarioId));
-        if (fechaSolicitud > DateOnly.FromDateTime(DateTime.UtcNow))
+        if (fechaSolicitud > DiaDeNegocio.Hoy())
             throw new ArgumentException("La fecha de solicitud no puede ser futura.", nameof(fechaSolicitud));
 
         EmpresaId = empresaId;
@@ -120,7 +120,7 @@ public class SolicitudCertificacionTgss : EntidadBase
             throw new ArgumentException("El registro de la respuesta debe atribuirse a un usuario.", nameof(usuarioId));
         if (fechaRespuesta < FechaSolicitud)
             throw new ArgumentException("La respuesta no puede ser anterior a la solicitud.", nameof(fechaRespuesta));
-        if (fechaRespuesta > DateOnly.FromDateTime(DateTime.UtcNow))
+        if (fechaRespuesta > DiaDeNegocio.Hoy())
             throw new ArgumentException("La fecha de respuesta no puede ser futura.", nameof(fechaRespuesta));
 
         Resultado = resultado;

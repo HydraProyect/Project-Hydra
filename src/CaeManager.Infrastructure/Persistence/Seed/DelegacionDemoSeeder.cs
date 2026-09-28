@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Configuracion;
@@ -686,7 +687,7 @@ public static class DelegacionDemoSeeder
         if (await dbContext.SolicitudesPurga.AnyAsync(cancellationToken))
             return;
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var fechaCorte = hoy.AddYears(-5);
 
         dbContext.SolicitudesPurga.Add(new SolicitudPurga(TipoDatoPurgable.Documentos, 18, fechaCorte));

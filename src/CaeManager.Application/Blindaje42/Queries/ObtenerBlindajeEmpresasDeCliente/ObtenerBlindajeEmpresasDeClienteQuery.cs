@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Domain.Blindaje42;
@@ -97,7 +98,7 @@ public class ObtenerBlindajeEmpresasDeClienteQueryHandler(
             .Select(e => new { e.Id, e.RazonSocial, e.Cif })
             .ToListAsync(cancellationToken);
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var solicitudesPorEmpresa = solicitudes.GroupBy(s => s.EmpresaId).ToDictionary(g => g.Key, g => g.ToList());
 
         return empresas.Select(empresa =>

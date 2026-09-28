@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using System.Security.Cryptography;
 using System.Text;
@@ -356,7 +357,7 @@ public static partial class SiembraDemoDireccionAdministrativa
             dbContext, userManager, CredencialDe, emails, logger, tenantOperadorId, cancellationToken);
 
         var tenants = new List<(string Nombre, Guid Id)> { (NombreTenantOperador, tenantOperadorId) };
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         for (var indice = 0; indice < Ramas.Count; indice++)
         {

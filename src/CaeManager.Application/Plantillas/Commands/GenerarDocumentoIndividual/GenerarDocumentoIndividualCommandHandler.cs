@@ -171,7 +171,7 @@ public class GenerarDocumentoIndividualCommandHandler(
         using var flujoRelleno = new MemoryStream(contenidoRelleno);
         var archivoUrl = await almacenamientoArchivos.GuardarAsync(flujoRelleno, "documento-generado.pdf", cancellationToken);
 
-        var fechaEmision = DateOnly.FromDateTime(ahoraUtc);
+        var fechaEmision = DiaDeNegocio.De(ahoraUtc);
         // Un documento generado desde plantilla no trae vigencia anotada: si
         // el tipo no vence automáticamente, nace sin vigencia confirmada.
         var vigencia = CalculadoraEstadoDocumento.ResolverVigencia(
@@ -278,7 +278,7 @@ public class GenerarDocumentoIndividualCommandHandler(
             FuenteDatoPlantilla.CentroDireccion => centro?.Direccion,
             FuenteDatoPlantilla.ClienteRazonSocial => cliente?.RazonSocial,
             FuenteDatoPlantilla.ClienteCif => cliente?.Cif,
-            FuenteDatoPlantilla.DocumentoFechaGeneracion => DateOnly.FromDateTime(ahoraUtc).ToString(elemento.Formato ?? "dd/MM/yyyy"),
+            FuenteDatoPlantilla.DocumentoFechaGeneracion => DiaDeNegocio.De(ahoraUtc).ToString(elemento.Formato ?? "dd/MM/yyyy"),
             FuenteDatoPlantilla.EmpresaResponsablePrl => contactosPorRol.GetValueOrDefault(RolContacto.ResponsablePrl),
             FuenteDatoPlantilla.EmpresaRepresentanteLegal => contactosPorRol.GetValueOrDefault(RolContacto.RepresentanteLegal),
             FuenteDatoPlantilla.EmpresaContactoCae => contactosPorRol.GetValueOrDefault(RolContacto.ContactoCae),

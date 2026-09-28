@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using System.Security.Cryptography;
 using System.Text;
@@ -649,7 +650,7 @@ public static class DatosPruebaSeeder
         CaeManagerDbContext dbContext, Random aleatorio, int numeroClientes, int numeroEmpresas,
         int numeroSubcontratas, CancellationToken cancellationToken)
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var contadorDni = 10_000_000 + aleatorio.Next(1_000_000);
         var contadorCif = 1_000_000 + aleatorio.Next(1_000_000);
         var indiceNombre = 0;
@@ -1660,7 +1661,7 @@ public static class DatosPruebaSeeder
     internal static async Task SembrarReclamacionesAsync(
         CaeManagerDbContext dbContext, List<Empresa> clientes, Guid? ejecutivoPrincipalId, CancellationToken cancellationToken)
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var limiteVentana = hoy.AddDays(90);
         var enviadas = 0;
 

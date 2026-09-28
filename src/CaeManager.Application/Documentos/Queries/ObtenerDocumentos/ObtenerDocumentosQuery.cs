@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
@@ -187,7 +188,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         }
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         // Equivalencias con CalculadoraEstadoDocumento, que compara "días
         // restantes" contra los umbrales: días <= umbral es lo mismo que

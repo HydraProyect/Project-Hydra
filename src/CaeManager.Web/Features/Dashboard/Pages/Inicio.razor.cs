@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using System.Globalization;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
@@ -219,7 +220,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         ? $"{SaludoBase}, {_nombrePila}"
         : SaludoBase;
 
-    private static string SaludoBase => DateTime.Now.Hour switch
+    private static string SaludoBase => DiaDeNegocio.AhoraEnHoraPeninsular().Hour switch
     {
         < 12 => "Buenos días",
         < 20 => "Buenas tardes",
@@ -330,7 +331,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             _proximoVencimiento = proximoVencimiento;
             _pulso = pulso;
             _sinRespuesta = sinRespuesta;
-            _actualizadoA = DateTime.Now;
+            _actualizadoA = DiaDeNegocio.AhoraEnHoraPeninsular();
         }
         catch (Exception) when (!EsVigente(carga))
         {
@@ -468,7 +469,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     {
         get
         {
-            var texto = DateTime.Now.ToString("dddd, d 'de' MMMM", CultureInfo.CurrentCulture);
+            var texto = DiaDeNegocio.Hoy().ToString("dddd, d 'de' MMMM", CultureInfo.CurrentCulture);
             return texto.Length == 0 ? texto : char.ToUpper(texto[0], CultureInfo.CurrentCulture) + texto[1..];
         }
     }
@@ -498,7 +499,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             var cuantos = _queLlegoSinVer.Count;
             var cabeza = cuantos == 1 ? "1 nuevo" : $"{cuantos} nuevos";
             return _sinVerDesdeUtc is { } desde
-                ? $"{cabeza} desde el {desde.ToLocalTime():dd/MM} a las {desde.ToLocalTime():HH:mm}"
+                ? $"{cabeza} desde el {DiaDeNegocio.EnHoraPeninsular(desde):dd/MM} a las {DiaDeNegocio.EnHoraPeninsular(desde):HH:mm}"
                 : cabeza;
         }
     }

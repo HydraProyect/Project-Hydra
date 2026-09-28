@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
@@ -45,7 +46,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
 
     private string _pestanaDetalle = "informacion";
 
-    private static DateOnly Hoy => DateOnly.FromDateTime(DateTime.UtcNow);
+    private static DateOnly Hoy => DiaDeNegocio.Hoy();
 
     protected override Task OnInitializedAsync() => CargarAsync();
 

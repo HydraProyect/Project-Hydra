@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
@@ -101,7 +102,7 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         var estadosCentro = await calculoEstadoCentro.CalcularAsync(centroIds, cancellationToken);
         var centrosBloqueados = estadosCentro.Values.Count(r => r.Estado == EstadoCentro.Bloqueado);
 
-        var hoyParaVisitas = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoyParaVisitas = DiaDeNegocio.Hoy();
         var visitasQuery = visitasContext.Visitas.Where(v => !v.EstaCancelada && v.FechaFin >= hoyParaVisitas); // FS-11: una cancelada no se cuenta
         if (centroIdsVisibles is not null) visitasQuery = visitasQuery.Where(v => centroIdsVisibles.Contains(v.CentroId));
         var visitasProgramadas = await visitasQuery.CountAsync(cancellationToken);
@@ -126,7 +127,7 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             .Select(g => new { g.Key.EstadoVigencia, g.Key.FechaVencimiento, Cantidad = g.Count() })
             .ToListAsync(cancellationToken);
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         var documentosPorEstado = vigencias
             .GroupBy(v => CalculadoraEstadoDocumento.Calcular(

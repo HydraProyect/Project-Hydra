@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Centros;
@@ -101,7 +102,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
             .ToListAsync(cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         // Puede haber varios del mismo tipo (el vencido y su renovación): el
         // índice (TrabajadorId, TipoDocumentoId) no es único.

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using System.Globalization;
 using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Catalogo;
@@ -97,7 +98,7 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
 
     protected override Task OnInitializedAsync()
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         _desdePersonalizado = new DateOnly(hoy.Year, hoy.Month, 1).ToString("yyyy-MM-dd");
         _hastaPersonalizado = hoy.ToString("yyyy-MM-dd");
         return CargarAsync();
