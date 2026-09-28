@@ -56,6 +56,14 @@
 
             <button type="submit" class="acceso-entrar">Cambiar contraseña</button>
         </EditForm>
+
+        @* La única salida posible: con DebeCambiarContrasena el guard de MainLayout
+           devuelve aquí cualquier navegación, así que «Volver» no llevaría a ningún
+           sitio. Cerrar sesión es el mismo POST que la cabecera y Pendiente de Rol. *@
+        <form class="acceso-alterno" method="post" action="/cuenta/cerrar-sesion">
+            <AntiforgeryToken />
+            <button type="submit" class="acceso-enlace-boton">Cerrar sesión</button>
+        </form>
     }
 </div>
 
@@ -74,6 +82,20 @@
         if (Entrada.ContrasenaNueva != Entrada.ConfirmarContrasenaNueva)
         {
             mensajeError = "La confirmación no coincide con la contraseña nueva.";
+            return;
+        }
+
+        // La política sale de IdentityOptions, la misma que aplica ChangePasswordAsync
+        // al guardar (antes el modelo pedía MinLength(8) y la política exige 10): así el
+        // formulario no acepta lo que Identity va a rechazar, y el motivo sale en
+        // castellano en vez de con la descripción en inglés de IdentityResult.
+        var incumplidos = ReglasContrasena.Evaluar(OpcionesIdentity.Value.Password, Entrada.ContrasenaNueva)
+            .Where(r => !r.Cumplido)
+            .Select(r => r.Etiqueta.ToLowerInvariant())
+            .ToList();
+        if (incumplidos.Count > 0)
+        {
+            mensajeError = $"La contraseña nueva no cumple los requisitos: {string.Join(", ", incumplidos)}.";
             return;
         }
 
@@ -156,7 +178,6 @@
         public string ContrasenaActual { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Introduce la contraseña nueva.")]
-        [MinLength(8, ErrorMessage = "La contraseña nueva debe tener al menos 8 caracteres.")]
         public string ContrasenaNueva { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Confirma la contraseña nueva.")]

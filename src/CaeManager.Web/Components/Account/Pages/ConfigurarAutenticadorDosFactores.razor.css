@@ -325,3 +325,20 @@
     .lista-codigos { grid-template-columns: 1fr; }
     .boton-continuar { align-self: stretch; }
 }
+
+/* Salida de la página: con AuthLayout no hay menú ni barra superior. */
+.salida-2fa {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+
+.salida-2fa form {
+    margin: 0;
+}
+
+.salida-2fa button.boton-secundario {
+    cursor: pointer;
+}

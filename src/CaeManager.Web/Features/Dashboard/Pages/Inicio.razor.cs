@@ -64,6 +64,16 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     /// </summary>
     private bool _carteraEnOtroTenant;
     private BandejaAgrupadaDto? _bandejaAgrupada;
+
+    /// <summary>
+    /// Destino de «Ver todo en Mi trabajo»: el mismo que el enlace «Mi trabajo» del
+    /// menú lateral (<c>CatalogoMenuLateral</c>, <c>RutaPorContexto</c>) — la cola
+    /// agregada de toda la cartera con más de un Tenant autorizado, <c>/bandeja</c>
+    /// con uno solo. Antes apuntaba fijo a <c>/bandeja</c> y el Gestor CAE
+    /// multi-Tenant salía de Inicio a una cola distinta de la del menú.
+    /// </summary>
+    private string _rutaVerTodoMiTrabajo = RutaBandeja;
+    private const string RutaBandeja = "/bandeja";
     private IReadOnlyList<PendientePorPlataformaDto> _pendientePorPlataforma = [];
     private IReadOnlyList<ItemBandejaDto> _queLlegoSinVer = [];
     private IReadOnlyList<VisitaListaDto> _proximamente = [];
@@ -243,6 +253,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         var carteraEnOtroTenant = false;
         var activoEsOrigen = false;
         var irAMiTrabajo = false;
+        var rutaVerTodoMiTrabajo = RutaBandeja;
 
         try
         {
@@ -289,6 +300,15 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
                     if (todosLosItems.Count == 0)
                         proximoVencimiento = (await Mediator.Send(new ObtenerDesgloseDashboardQuery(), token)).ProximoVencimiento;
 
+                    // Solo si el enlace se va a pintar (hay cola) y la cuenta puede abrir
+                    // Mi trabajo: un rol sin acceso a /mi-trabajo acabaría en «acceso denegado».
+                    if (todosLosItems.Count > 0 && RolesMiTrabajo.Any(estadoAutenticacion.User.IsInRole))
+                    {
+                        var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery(), token);
+                        if (autorizados.Count > 1)
+                            rutaVerTodoMiTrabajo = RutaMiTrabajo;
+                    }
+
                     pulso = await Mediator.Send(new ObtenerPulsoEquipoQuery(), token);
                     sinRespuesta = await Mediator.Send(new ObtenerReclamacionesSinRespuestaQuery(), token);
                 }
@@ -302,6 +322,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             _kpis = kpis;
             _carteraEnOtroTenant = carteraEnOtroTenant;
             _bandejaAgrupada = bandeja;
+            _rutaVerTodoMiTrabajo = rutaVerTodoMiTrabajo;
             _pendientePorPlataforma = plataformas;
             _queLlegoSinVer = sinVer;
             _sinVerDesdeUtc = sinVerDesde;

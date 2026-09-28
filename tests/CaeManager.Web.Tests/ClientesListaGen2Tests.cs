@@ -612,7 +612,7 @@ public class ClientesListaGen2Tests : BunitContext
         var mediador = new MediatorFalso { Almacen = { deLaGestora, Cliente("Montajes Ebro S.L.") } };
         var cut = Renderizar(mediador);
 
-        await SelectConOpcion(cut, "Ejecutivo: todos").ChangeAsync(new ChangeEventArgs { Value = gestora.ToString() });
+        await SelectConOpcion(cut, "Gestor CAE: todos").ChangeAsync(new ChangeEventArgs { Value = gestora.ToString() });
 
         UltimaConsulta(mediador).EjecutivoUsuarioId.Should().Be(gestora);
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A."]));
@@ -1099,12 +1099,12 @@ public class ClientesListaGen2Tests : BunitContext
         await cut.FindAll(".barra-herramientas-lista button").Single(x => x.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
         await cut.FindAll("tbody input[type=checkbox]")[0].ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll("tbody input[type=checkbox]")[2].ChangeAsync(new ChangeEventArgs { Value = true });
-        await cut.FindAll(".barra-acciones-lote button").Single(x => x.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".barra-acciones-lote button").Single(x => x.TextContent.Trim() == "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EliminarClientesCommand>().Should().BeEmpty("abrir el diálogo no borra nada");
-        cut.Find("[role=dialog] h2").TextContent.Should().Be("¿Eliminar 2 cliente(s)?");
+        cut.Find("[role=dialog] h2").TextContent.Should().Be("¿Dar de baja 2 cliente(s)?");
 
-        await BotonDelDialogo(cut, "Eliminar").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EliminarClientesCommand>().Single().Ids.Should().BeEquivalentTo([a.Id, c.Id]);
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Montajes Ebro S.L."]));
@@ -1127,7 +1127,7 @@ public class ClientesListaGen2Tests : BunitContext
             Almacen = { Cliente("Refrielectric S.A.", critico: true, peor: EstadoDocumento.Vencido, cantidad: 2) with { EjecutivoUsuarioId = marta.Id } }
         };
         var cut = Renderizar(mediador, "clientes?q=Refri&critico=true", gestores: [marta]);
-        await SelectConOpcion(cut, "Ejecutivo: todos").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
+        await SelectConOpcion(cut, "Gestor CAE: todos").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
         await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
 
         // Punto de partida: los cuatro ejes están puestos en la consulta vigente.
@@ -1188,9 +1188,9 @@ public class ClientesListaGen2Tests : BunitContext
         var uri = Services.GetRequiredService<NavigationManager>().Uri;
         uri.Should().Contain("q=Refri").And.Contain("critico=true");
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A."]));
-        SelectConOpcion(cut, "Ejecutivo: todos").GetAttribute("value").Should().Be(marta.Id.ToString(),
+        SelectConOpcion(cut, "Gestor CAE: todos").GetAttribute("value").Should().Be(marta.Id.ToString(),
             "el desplegable enseña elegido al Gestor CAE del filtro");
-        TextosDeLosChips(cut).Should().Contain(t => t.StartsWith("Ejecutivo: Marta Ibarra"));
+        TextosDeLosChips(cut).Should().Contain(t => t.StartsWith("Gestor CAE: Marta Ibarra"));
     }
 
     /// <summary>
@@ -1215,7 +1215,7 @@ public class ClientesListaGen2Tests : BunitContext
             FiltrosGuardados = { antiguo }
         };
         var cut = Renderizar(mediador, "clientes?critico=true", gestores: [marta]);
-        await SelectConOpcion(cut, "Ejecutivo: todos").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
+        await SelectConOpcion(cut, "Gestor CAE: todos").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
         await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
 
         await SelectConOpcion(cut, "Filtros guardados…").ChangeAsync(new ChangeEventArgs { Value = antiguo.Id.ToString() });
@@ -1227,8 +1227,8 @@ public class ClientesListaGen2Tests : BunitContext
         consulta.EstadoDocumental.Should().Be(EstadoDocumento.Vencido, "el filtro antiguo no declara estado: se queda el que había");
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Refri").And.NotContain("critico");
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A."]));
-        SelectConOpcion(cut, "Ejecutivo: todos").GetAttribute("value").Should().Be(marta.Id.ToString());
-        TextosDeLosChips(cut).Should().Contain(t => t.StartsWith("Ejecutivo: Marta Ibarra")).And.Contain(t => t.StartsWith("Estado: Vencido"));
+        SelectConOpcion(cut, "Gestor CAE: todos").GetAttribute("value").Should().Be(marta.Id.ToString());
+        TextosDeLosChips(cut).Should().Contain(t => t.StartsWith("Gestor CAE: Marta Ibarra")).And.Contain(t => t.StartsWith("Estado: Vencido"));
     }
 
     /// <summary>
@@ -1251,7 +1251,7 @@ public class ClientesListaGen2Tests : BunitContext
             FiltrosGuardados = { nuevo }
         };
         var cut = Renderizar(mediador, gestores: [marta]);
-        await SelectConOpcion(cut, "Ejecutivo: todos").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
+        await SelectConOpcion(cut, "Gestor CAE: todos").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
         await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
         UltimaConsulta(mediador).EjecutivoUsuarioId.Should().Be(marta.Id, "punto de partida: hay Gestor CAE elegido");
 
@@ -1260,7 +1260,7 @@ public class ClientesListaGen2Tests : BunitContext
         var consulta = UltimaConsulta(mediador);
         consulta.EjecutivoUsuarioId.Should().BeNull("el filtro declara GestorCaeId: null");
         consulta.EstadoDocumental.Should().BeNull("el filtro declara EstadoDocumental: null");
-        SelectConOpcion(cut, "Ejecutivo: todos").GetAttribute("value").Should().BeNullOrEmpty();
+        SelectConOpcion(cut, "Gestor CAE: todos").GetAttribute("value").Should().BeNullOrEmpty();
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Montajes Ebro S.L.", "Refrielectric S.A."]));
         TextosDeLosChips(cut).Should().BeEmpty();
     }
@@ -1394,8 +1394,8 @@ public class ClientesListaGen2Tests : BunitContext
         workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
 
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
-        await BotonDelDialogo(cut, "Eliminar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EliminarClienteCommand>().Should().ContainSingle("la baja se ejecutó");
         workspace.EstaAbierto.Should().BeFalse("una ficha abierta de un cliente ya dado de baja no puede seguir editable");
@@ -1425,8 +1425,8 @@ public class ClientesListaGen2Tests : BunitContext
 
         await cut.FindAll(".barra-herramientas-lista button").Single(x => x.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
         await cut.FindAll("tbody input[type=checkbox]")[0].ChangeAsync(new ChangeEventArgs { Value = true });
-        await cut.FindAll(".barra-acciones-lote button").Single(x => x.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
-        await BotonDelDialogo(cut, "Eliminar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".barra-acciones-lote button").Single(x => x.TextContent.Trim() == "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EliminarClientesCommand>().Single().Ids.Should().Equal([pedido.Id],
             "el caso solo vale si el lote pidió a ese cliente y a nadie más");
@@ -1446,8 +1446,8 @@ public class ClientesListaGen2Tests : BunitContext
 
         await cut.FindAll(".barra-herramientas-lista button").Single(x => x.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
         await cut.FindAll("tbody input[type=checkbox]")[0].ChangeAsync(new ChangeEventArgs { Value = true });
-        await cut.FindAll(".barra-acciones-lote button").Single(x => x.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
-        await BotonDelDialogo(cut, "Eliminar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".barra-acciones-lote button").Single(x => x.TextContent.Trim() == "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EliminarClientesCommand>().Single().Ids.Should().Equal([pedido.Id], "el caso solo vale si el lote pidió a ese cliente");
         workspace.EstaAbierto.Should().BeTrue("no cayó nada: no hay nada muerto que retirar");
