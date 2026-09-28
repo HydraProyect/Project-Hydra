@@ -33,10 +33,10 @@ public partial class DelegacionesGen2Tests
 
         await BotonConTexto(cut, "Retirar").ClickAsync(new MouseEventArgs());
 
+        mediador.Enviadas.Select(e => e.Peticion).OfType<RevocarAsignacionOperadorDelegadoCommand>()
+            .Should().BeEmpty("la retirada se confirma antes de enviarse");
         cut.Find(".modal-pie").Should().NotBeNull("control positivo: el diálogo se abrió");
         cut.Markup.Should().Contain("no se puede deshacer");
-        mediador.Enviadas.Select(e => e.Peticion).OfType<RevocarAsignacionOperadorDelegadoCommand>()
-            .Should().BeEmpty("abrir el diálogo no retira a nadie");
 
         await BotonDelDialogo(cut, "Cancelar").ClickAsync(new MouseEventArgs());
 

@@ -181,9 +181,9 @@ public class IncorporacionCarteraComponentesTests : BunitContext
 
         await BotonDeFila(aviso, solicitud, Textos["Rechazar"]).ClickAsync(new());
 
+        _mediator.Comandos.Should().BeEmpty("el rechazo se confirma antes de enviarse");
         aviso.Find(".modal-pie").TextContent.Should().Contain(Textos["Rechazar"], "control positivo: el diálogo se abrió");
         aviso.Markup.Should().Contain(Textos["ConfirmarRechazarMensaje", "Marta", "Empresa Norte"]);
-        _mediator.Comandos.Should().BeEmpty("abrir el diálogo no rechaza nada");
 
         await BotonDelDialogo(aviso, "Cancelar").ClickAsync(new());
 
@@ -220,9 +220,9 @@ public class IncorporacionCarteraComponentesTests : BunitContext
 
         await BotonDeFila(pagina, solicitud, Textos["Rechazar"]).ClickAsync(new());
 
+        _mediator.Comandos.Should().BeEmpty("el rechazo se confirma antes de enviarse");
         pagina.Find(".modal-pie").TextContent.Should().Contain(Textos["Rechazar"], "control positivo: el diálogo se abrió");
         pagina.Markup.Should().Contain(Textos["ConfirmarRechazarMensaje", "Marta", "Empresa Norte"]);
-        _mediator.Comandos.Should().BeEmpty("abrir el diálogo no rechaza nada");
 
         await BotonDelDialogo(pagina, "Cancelar").ClickAsync(new());
 

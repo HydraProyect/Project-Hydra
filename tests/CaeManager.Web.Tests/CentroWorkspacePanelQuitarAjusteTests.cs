@@ -159,9 +159,9 @@ public class CentroWorkspacePanelQuitarAjusteTests : BunitContext
 
         await BotonDeLaTarjeta(cut).ClickAsync(new MouseEventArgs());
 
+        Eliminaciones.Should().BeEmpty("quitar el ajuste se confirma antes de enviarse");
         cut.Find(".modal-pie").Should().NotBeNull("control positivo: el diálogo se abrió");
         cut.Markup.Should().Contain("¿Quitar el ajuste de «Reconocimiento médico»?").And.Contain("No se puede deshacer");
-        Eliminaciones.Should().BeEmpty("abrir el diálogo no borra el ajuste");
 
         await BotonDelDialogo(cut, "Cancelar").ClickAsync(new MouseEventArgs());
 
