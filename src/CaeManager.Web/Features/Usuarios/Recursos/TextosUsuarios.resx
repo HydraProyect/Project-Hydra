@@ -72,6 +72,36 @@
   <data name="CarteraAltaAyuda" xml:space="preserve">
     <value>Gestionará entera cada empresa que marques. Puedes dejarlo sin ninguna y asignárselas después.</value>
   </data>
+  <data name="AsignarEmpresasAccion" xml:space="preserve">
+    <value>Asignar empresas</value>
+  </data>
+  <data name="AsignarEmpresasTitulo" xml:space="preserve">
+    <value>Empresas de {0}</value>
+  </data>
+  <data name="AsignarEmpresasAyuda" xml:space="preserve">
+    <value>Gestionará entera cada empresa que marques. Al desmarcar una, deja de tener acceso a ella.</value>
+  </data>
+  <data name="AsignarEmpresasCargando" xml:space="preserve">
+    <value>Cargando empresas…</value>
+  </data>
+  <data name="AsignarEmpresasVacio" xml:space="preserve">
+    <value>Tu organización no gestiona ninguna empresa que se pueda asignar.</value>
+  </data>
+  <data name="AsignarEmpresasSoloRetirar" xml:space="preserve">
+    <value>ya no se puede asignar; solo retirar</value>
+  </data>
+  <data name="AsignarEmpresasGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="AsignarEmpresasVolver" xml:space="preserve">
+    <value>Volver</value>
+  </data>
+  <data name="AsignarEmpresasGuardadas" xml:space="preserve">
+    <value>Cartera de {0} actualizada.</value>
+  </data>
+  <data name="AsignarEmpresasErrorCarga" xml:space="preserve">
+    <value>No pudimos cargar las empresas de su cartera. Cierra y vuelve a abrir.</value>
+  </data>
   <data name="CarteraAltaErrorCarga" xml:space="preserve">
     <value>No pudimos cargar las empresas para su cartera. Puedes guardar sin ninguna y asignárselas después.</value>
   </data>

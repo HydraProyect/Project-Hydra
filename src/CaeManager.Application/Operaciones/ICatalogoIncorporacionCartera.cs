@@ -9,6 +9,9 @@ namespace CaeManager.Application.Operaciones;
 /// </summary>
 public record TenantCandidatoIncorporacion(Guid PropietarioTenantId, string Nombre, Guid AsignacionOperacionId);
 
+/// <summary>Un Tenant propietario que un Gestor CAE tiene entero en su cartera. Solo el nombre.</summary>
+public record TenantEnCarteraDeGestor(Guid PropietarioTenantId, string Nombre);
+
 /// <summary>
 /// Lo que hizo <see cref="ICatalogoIncorporacionCartera.IncorporarAsync"/>: o
 /// la cartera creada (y la fila heredada que la acompaña), o por qué la
@@ -86,6 +89,32 @@ public interface ICatalogoIncorporacionCartera
     /// </summary>
     Task<ResultadoIncorporacionCartera> IncorporarAsync(
         Guid propietarioTenantId, Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Los Tenants propietarios que <paramref name="usuarioId"/> tiene <b>enteros</b> en su
+    /// cartera por una Asignación de Operación no raíz de <paramref name="operadorTenantId"/>:
+    /// Asignación de Cartera universal, vigente y con rol Gestor CAE. No exige que la
+    /// operación siga vigente: una cartera cuya operación caducó se puede retirar aunque ya
+    /// no se pueda asignar. Ordenados por nombre.
+    /// </summary>
+    Task<IReadOnlyList<TenantEnCarteraDeGestor>> ObtenerCarteraUniversalAsync(
+        Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retira el Tenant entero de la cartera de <paramref name="usuarioId"/> sin pasar por una
+    /// solicitud: cierra sus Asignaciones de Cartera universales vigentes sobre ese Tenant
+    /// (las del Operador CAE indicado, con rol Gestor CAE), marca como revocadas —por
+    /// <paramref name="actorUsuarioId"/>— las solicitudes de incorporación aceptadas que las
+    /// crearon y borra la fila heredada de Operador Delegado <b>solo si no le queda otra
+    /// cartera vigente</b> sobre el mismo Tenant (un reparto por Cliente empresarial
+    /// conservaría su visibilidad). Sin guardar. Devuelve <c>false</c> sin tocar nada si no
+    /// tenía ese Tenant entero en su cartera. Como
+    /// <see cref="IncorporarAsync(Guid, Guid, Guid, Guid, CancellationToken)"/>, exige el
+    /// Tenant propietario como Tenant activo (<c>AmbitoTenantExplicito</c>).
+    /// </summary>
+    Task<bool> RetirarCarteraUniversalAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, Guid usuarioId, Guid actorUsuarioId,
         CancellationToken cancellationToken = default);
 
     /// <summary>

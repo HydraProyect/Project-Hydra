@@ -4,6 +4,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Common;
 using CaeManager.Application.Usuarios;
+using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
 using CaeManager.Application.Usuarios.Commands.CrearUsuario;
 using CaeManager.Application.Usuarios.Commands.DesactivarGestorCaeConCartera;
@@ -11,6 +12,7 @@ using CaeManager.Application.Usuarios.Commands.EditarUsuario;
 using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
 using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
 using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
+using CaeManager.Application.Usuarios.Queries.ObtenerCarteraDeGestorCae;
 using CaeManager.Application.Usuarios.Queries.ObtenerCuentaUsuario;
 using CaeManager.Application.Usuarios.Queries.ObtenerEmpresasAsignablesEnAlta;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
@@ -1326,6 +1328,109 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         finally
         {
             _cambiandoActivacionDe.Remove(usuarioLista.Id);
+        }
+    }
+
+    // --- Asignar empresas a un Gestor CAE que ya existe (2026-09-28) ---
+
+    private UsuarioListaDto? _usuarioAAsignarEmpresas;
+    private IReadOnlyList<EmpresaDeCarteraDeGestor> _empresasDelGestor = [];
+    private readonly HashSet<Guid> _empresasMarcadasDelGestor = [];
+    private bool _cargandoEmpresasDelGestor;
+    private bool _guardandoEmpresasDelGestor;
+    private string? _errorEmpresasDelGestor;
+
+    /// <summary>
+    /// Solo presentación: un Gestor CAE propio y activo. Quién puede asignar y qué Tenants
+    /// son asignables lo decide <see cref="AsignarCarteraGestorCaeCommand"/>.
+    /// </summary>
+    private static bool PuedeAsignarEmpresas(UsuarioListaDto usuario) =>
+        usuario.Rol == Roles.GestorCae && !usuario.EsOperadorDelegado && usuario.Activo && !usuario.PendienteActivacion;
+
+    private async Task AbrirAsignarEmpresasAsync(UsuarioListaDto usuario)
+    {
+        _usuarioAAsignarEmpresas = usuario;
+        _empresasDelGestor = [];
+        _empresasMarcadasDelGestor.Clear();
+        _errorEmpresasDelGestor = null;
+        _cargandoEmpresasDelGestor = true;
+
+        try
+        {
+            var empresas = await Mediator.Send(new ObtenerCarteraDeGestorCaeQuery(usuario.Id), _ciclo.Token);
+            if (_usuarioAAsignarEmpresas?.Id != usuario.Id) return;
+            _empresasDelGestor = empresas;
+            foreach (var e in empresas.Where(e => e.EnCartera))
+                _empresasMarcadasDelGestor.Add(e.TenantId);
+        }
+        catch (OperationCanceledException)
+        {
+            // La pantalla ya no está.
+        }
+        catch (Exception)
+        {
+            _errorEmpresasDelGestor = TextosUsuarios["AsignarEmpresasErrorCarga"];
+        }
+        finally
+        {
+            _cargandoEmpresasDelGestor = false;
+        }
+    }
+
+    private void AlternarEmpresaDelGestor(Guid tenantId, bool marcada)
+    {
+        if (marcada)
+            _empresasMarcadasDelGestor.Add(tenantId);
+        else
+            _empresasMarcadasDelGestor.Remove(tenantId);
+    }
+
+    private bool HayCambiosEnEmpresasDelGestor =>
+        _empresasDelGestor.Any(e => e.EnCartera != _empresasMarcadasDelGestor.Contains(e.TenantId));
+
+    private void CerrarAsignarEmpresas()
+    {
+        if (!_guardandoEmpresasDelGestor)
+            _usuarioAAsignarEmpresas = null;
+    }
+
+    private async Task GuardarEmpresasDelGestorAsync()
+    {
+        if (_usuarioAAsignarEmpresas is not { } usuario || _guardandoEmpresasDelGestor)
+            return;
+
+        var aAsignar = _empresasDelGestor
+            .Where(e => !e.EnCartera && _empresasMarcadasDelGestor.Contains(e.TenantId)).Select(e => e.TenantId).ToList();
+        var aRetirar = _empresasDelGestor
+            .Where(e => e.EnCartera && !_empresasMarcadasDelGestor.Contains(e.TenantId)).Select(e => e.TenantId).ToList();
+        if (aAsignar.Count == 0 && aRetirar.Count == 0)
+        {
+            _usuarioAAsignarEmpresas = null;
+            return;
+        }
+
+        _guardandoEmpresasDelGestor = true;
+        _errorEmpresasDelGestor = null;
+        try
+        {
+            var resultado = await Mediator.Send(new AsignarCarteraGestorCaeCommand(usuario.Id, aAsignar, aRetirar), _ciclo.Token);
+            if (resultado.EsFallido)
+            {
+                _errorEmpresasDelGestor = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar(TextosUsuarios["AsignarEmpresasGuardadas", usuario.NombreCompleto], TonoToast.Exito);
+            _usuarioAAsignarEmpresas = null;
+            await CargarAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // La pantalla ya no está.
+        }
+        finally
+        {
+            _guardandoEmpresasDelGestor = false;
         }
     }
 
