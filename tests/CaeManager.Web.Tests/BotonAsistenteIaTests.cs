@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.AsistenteIa;
 using CaeManager.Web.Features.AsistenteIa;
 using FluentAssertions;
@@ -8,7 +9,7 @@ using Microsoft.Extensions.Options;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// El botón del chat "Pregúntale a Hydra" no debe mostrarse en absoluto sin
+/// El botón del chat "Pregúntale a {Marca.Nombre}" no debe mostrarse en absoluto sin
 /// Anthropic:ApiKey configurada — mismo principio que Sentry/Backups
 /// (funciona sin configurar quedando inerte, en vez de mostrar algo roto).
 /// </summary>
@@ -38,7 +39,7 @@ public class BotonAsistenteIaTests : BunitContext
 
         var cut = Render<BotonAsistenteIa>();
 
-        cut.Find("button.boton-asistente-ia").GetAttribute("title").Should().Be("Pregúntale a Hydra",
+        cut.Find("button.boton-asistente-ia").GetAttribute("title").Should().Be($"Pregúntale a {Marca.Nombre}",
             "el título sale de TextosAsistenteIa (clave «Titulo»)");
     }
 }

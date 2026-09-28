@@ -60,7 +60,7 @@ public class TextosSinLocalizarCongeladosTests
         ["Clientes"] = 256,
         ["Comercial"] = 61,
         ["Components/Account"] = 95,
-        ["Components/DesignSystem"] = 52,
+        ["Components/DesignSystem"] = 51,
         // 92 → 77 el 2026-09-23 SIN migrar nada: los rótulos del menú lateral pasaron del marcado
         // de NavMenu.razor a literales de CatalogoMenuLateral.cs, y la heurística no ve un literal
         // de una sola palabra («Dashboard», «Empresas»…). Siguen sin localizar; su migración a
@@ -69,7 +69,7 @@ public class TextosSinLocalizarCongeladosTests
         ["Components/Legal"] = 163,
         ["Components/Pages"] = 18,
         ["Components/Workspace"] = 58,
-        ["Comunicaciones"] = 316,
+        ["Comunicaciones"] = 310,
         // Migrada a TextosConfiguracion: el 1 restante es un falso positivo del
         // detector, la cabecera «@for (var indice = 0; indice < Grupos.Count; …)»
         // de Configuracion.razor, que el '<' de la comparación hace pasar por texto.

@@ -61,7 +61,7 @@ public class AsistenteIaTextosTests : BunitContext
     {
         var panel = RenderAbierto();
 
-        panel.Find("#asistente-titulo").TextContent.Should().Be("Pregúntale a Hydra");
+        panel.Find("#asistente-titulo").TextContent.Should().Be($"Pregúntale a {Marca.Nombre}");
         panel.Find("button.asistente-cerrar").GetAttribute("aria-label").Should().Be("Cerrar");
         panel.Find(".asistente-descripcion").TextContent.Should().Be(
             "Especialista en legislación de Prevención de Riesgos Laborales (España/UE). No tiene acceso a tus Clientes, Trabajadores ni Documentos — solo responde dudas normativas generales.");

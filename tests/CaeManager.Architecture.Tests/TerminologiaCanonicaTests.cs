@@ -373,10 +373,23 @@ public class TerminologiaCanonicaTests
     /// <c>request.NuevoEjecutivoUsuarioId</c> una sola vez en una variable local
     /// (<c>nuevoGestorId</c>) en vez de seis.
     /// </para>
+    /// <para>
+    /// <b><c>Hydra</c> 48 → 39 (marca visible en la interfaz, revisión de UX previa al piloto
+    /// Outbound, 2026-09-28): −9, todo texto que el usuario veía.</b> El título del asistente
+    /// («Pregúntale a Hydra», neutral de <c>TextosAsistenteIa.resx</c>: 1), la marca de
+    /// procedencia del Unified Timeline («Detectado por Hydra», título y nombre accesible de
+    /// dos sugerencias: 4), la revisión previa de una acción sugerida
+    /// (<c>RevisionSugerenciaModal</c>: 3) y el título por defecto de
+    /// <c>MarcaProcedencia</c> («Leído por Hydra»: 1) pasan a recursos con el nombre del
+    /// producto como argumento (<c>Marca.Nombre</c>), nunca escrito en el recurso. Lo que
+    /// queda en esos dos componentes son comentarios <c>@* ... *@</c>; los textos legales
+    /// (<c>TerminosCondiciones</c>, <c>PoliticaPrivacidad</c>) no se tocan: requieren revisión
+    /// legal.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
-        ["Hydra"] = 48,
+        ["Hydra"] = 39,
         ["EjecutivoUsuarioId"] = 43,
         ["Delegacion"] = 337,
         ["ClienteActivo"] = 71,

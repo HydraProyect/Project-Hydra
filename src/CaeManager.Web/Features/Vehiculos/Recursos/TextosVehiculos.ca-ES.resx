@@ -190,6 +190,6 @@
     <value>Operar →</value>
   </data>
   <data name="NotaPieOperar" xml:space="preserve">
-    <value>Abre el workspace del vehículo</value>
+    <value>Abre la ficha 360 del vehículo</value>
   </data>
 </root>

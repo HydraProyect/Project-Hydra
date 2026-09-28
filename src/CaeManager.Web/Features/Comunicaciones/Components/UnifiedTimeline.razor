@@ -12,6 +12,7 @@
 @using CaeManager.Web.Features.Comunicaciones.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosNotasInternas> TextosNotas
+@inject IStringLocalizer<TextosSugerenciasIa> TextosSugerencias
 
 <div class="timeline-mensajes">
     @{ DateTime? fechaSeparadorAnterior = null; }
@@ -136,8 +137,8 @@
                     @if (mensaje.SugerenciaVisita is { } sugerencia)
                     {
                         <div class="timeline-marca-ia"><span class="timeline-marca-ia-linea"></span>
-                            <MarcaProcedencia Titulo="Detectado por Hydra"
-                                               Etiqueta="@($"Detectado por Hydra — posible solicitud de visita, confianza {sugerencia.Confianza}%. {sugerencia.Resumen}")">
+                            <MarcaProcedencia Titulo="@TextosSugerencias["DetectadoPor", Marca.Nombre]"
+                                               Etiqueta="@TextosSugerencias["EtiquetaSugerenciaVisita", Marca.Nombre, sugerencia.Confianza, sugerencia.Resumen]">
                                 <Detalle>Confianza @sugerencia.Confianza% — @sugerencia.Resumen</Detalle>
                             </MarcaProcedencia>
                             <span>Posible solicitud de visita — revisar en Acciones sugeridas</span>
@@ -148,8 +149,8 @@
                     @foreach (var sugerenciaGestion in mensaje.SugerenciasGestion)
                     {
                         <div class="timeline-marca-ia"><span class="timeline-marca-ia-linea"></span>
-                            <MarcaProcedencia Titulo="Detectado por Hydra"
-                                               Etiqueta="@($"Detectado por Hydra — posible actualización documental, confianza {sugerenciaGestion.Confianza}%. {sugerenciaGestion.Resumen}")">
+                            <MarcaProcedencia Titulo="@TextosSugerencias["DetectadoPor", Marca.Nombre]"
+                                               Etiqueta="@TextosSugerencias["EtiquetaSugerenciaGestion", Marca.Nombre, sugerenciaGestion.Confianza, sugerenciaGestion.Resumen]">
                                 <Detalle>Confianza @sugerenciaGestion.Confianza% — @sugerenciaGestion.Resumen</Detalle>
                             </MarcaProcedencia>
                             <span>Posible actualización de documentación — revisar en Acciones sugeridas</span>

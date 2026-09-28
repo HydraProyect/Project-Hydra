@@ -113,7 +113,7 @@
 
     <p class="texto-descriptivo">
         Líneas oficiales de WhatsApp Cloud API (Meta). Cada línea enruta sus conversaciones nuevas a su Gestor CAE
-        dueño (modo Gestor CAE fijo) o las reparte equitativamente entre un grupo (modo pool inbound).
+        dueño (modo Gestor CAE fijo) o las reparte equitativamente entre un grupo de Gestores CAE (modo reparto equitativo).
     </p>
 
     <div class="acciones-lineas-whatsapp">
@@ -215,7 +215,7 @@
         <CampoSelect Etiqueta="Modo de asignación" Valor="@_lineaModo.ToString()"
                      ValorChanged="v => _lineaModo = Enum.Parse<ModoAsignacionLinea>(v)">
             <option value="@ModoAsignacionLinea.GestorFijo">Gestor CAE fijo (línea de una persona)</option>
-            <option value="@ModoAsignacionLinea.PoolInbound">Pool inbound (reparto equitativo)</option>
+            <option value="@ModoAsignacionLinea.PoolInbound">Reparto equitativo entre Gestores CAE</option>
         </CampoSelect>
 
         @if (_lineaModo == ModoAsignacionLinea.GestorFijo)
@@ -232,7 +232,7 @@
         else
         {
             <div class="campo">
-                <label>Gestores CAE del pool</label>
+                <label>Gestores CAE del reparto</label>
                 @foreach (var gestor in _gestores)
                 {
                     <label class="opcion-pool-linea">

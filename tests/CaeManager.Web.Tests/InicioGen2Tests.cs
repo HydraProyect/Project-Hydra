@@ -308,7 +308,7 @@ public class InicioGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediadorDeInicio());
 
-        cut.Find(".cabecera-pagina-kicker").TextContent.Trim().Should().Be("Dashboard");
+        cut.Find(".cabecera-pagina-kicker").TextContent.Trim().Should().Be("Inicio");
         cut.Find("h1.titulo-pagina").TextContent.Trim().Should().StartWith("Buen");
         cut.Find(".inicio-fecha").TextContent.Trim().Should().Be(
             FechaEsperada(),
