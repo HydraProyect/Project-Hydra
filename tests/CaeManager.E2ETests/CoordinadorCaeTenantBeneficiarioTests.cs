@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
 
@@ -25,23 +26,55 @@ public class CoordinadorCaeTenantBeneficiarioTests(WebAppFixtureEscenariosDirecc
 
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
+
+        // Diagnóstico: toda respuesta que toque la cookie de selección, con su hora, para saber quién la retira.
+        var setCookies = new ConcurrentQueue<string>();
+        page.Response += async (_, r) =>
+        {
+            try
+            {
+                var h = await r.AllHeadersAsync();
+                if (h.TryGetValue("set-cookie", out var v) && v.Contains("cae_cliente_activo"))
+                    setCookies.Enqueue(
+                        $"{DateTime.UtcNow:HH:mm:ss.fff} {r.Request.Method} {r.Url} {r.Status} :: {v[..Math.Min(v.Length, 100)].Replace('\n', ' ')}");
+            }
+            catch (PlaywrightException)
+            {
+            }
+        };
+
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, email, Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
-        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, PizzaPlanet);
-        await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, "tras elegir Pizza Planet");
-
-        foreach (var destino in new[] { "trabajadores", "centros", "empresas", "trabajadores", "centros", "empresas" })
+        var donde = "inicio";
+        try
         {
-            await page.Locator($"nav a.nav-item[href='{destino}']").First.ClickAsync();
-            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-            await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, $"menú lateral → {destino}");
-            await page.WaitForTimeoutAsync(5_000);
-            await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, $"{destino} tras revalidar el circuito");
-        }
+            await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, PizzaPlanet);
+            donde = "tras elegir Pizza Planet";
+            await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, donde);
 
-        await page.ReloadAsync();
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, "recarga final");
+            foreach (var destino in new[] { "trabajadores", "centros", "empresas", "trabajadores", "centros", "empresas" })
+            {
+                await page.Locator($"nav a.nav-item[href='{destino}']").First.ClickAsync();
+                await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+                donde = $"menú lateral → {destino}";
+                await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, donde);
+                await page.WaitForTimeoutAsync(5_000);
+                donde = $"{destino} tras revalidar el circuito";
+                await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, donde);
+            }
+
+            await page.ReloadAsync();
+            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            donde = "recarga final";
+            await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, donde);
+        }
+        catch (PlaywrightException ex)
+        {
+            var cookies = string.Join(", ", (await contexto.CookiesAsync()).Select(c => c.Name));
+            throw new Xunit.Sdk.XunitException(
+                $"Fallo en «{donde}» ({page.Url}). Cookies del navegador: [{cookies}]. Set-Cookie de cae_cliente_activo vistos:\n"
+                + string.Join("\n", setCookies) + "\n" + ex.Message[..Math.Min(ex.Message.Length, 300)]);
+        }
     }
 }
