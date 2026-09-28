@@ -557,6 +557,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
         _proyectoSeleccionadoId = null;
         _detalle = null;
         _editandoInfo = false;
+        _mostrarFormularioTecnico = false;
         _mostrarCerrarConfirm = false;
     }
 
