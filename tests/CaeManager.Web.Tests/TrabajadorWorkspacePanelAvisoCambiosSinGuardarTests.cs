@@ -100,9 +100,11 @@ public class TrabajadorWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
         var cut = await EditarInformacionAsync();
         await Control(cut, "Apellidos").InputAsync(new ChangeEventArgs { Value = "Vila Soto" });
 
-        await cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim() == "Historial").ClickAsync(new MouseEventArgs());
+        // Se comprueba antes de esperar el clic: si preguntara, el clic esperaría la respuesta.
+        var clic = cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim() == "Historial").ClickAsync(new MouseEventArgs());
 
-        _pestanasPedidas.Should().Equal(["historial"], "la edición vive en el panel y sobrevive al cambio de pestaña");
-        cut.FindAll(".modal-contenido").Should().BeEmpty();
+        cut.FindAll(".modal-contenido").Should().BeEmpty("la edición vive en el panel y sobrevive al cambio de pestaña");
+        _pestanasPedidas.Should().Equal(["historial"]);
+        await clic;
     }
 }
