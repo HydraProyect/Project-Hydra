@@ -280,6 +280,23 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Expect(page.GetByText(CentroA, new() { Exact = true })).ToHaveCountAsync(0);
     }
 
+    /// <summary>
+    /// P0 del piloto Outbound (2026-09-28): con B activo, abrir Trabajador 360 desde la
+    /// lista devolvía el contexto al Tenant de origen con el aviso de acceso no vigente.
+    /// </summary>
+    [Fact]
+    public async Task El_Tenant_beneficiario_elegido_sobrevive_a_abrir_las_fichas_360_desde_sus_listas()
+    {
+        var tenantB = await IdTenantAsync(TenantBeneficiarioB);
+
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestorCae, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioB);
+
+        await RecorridoFichas360.RecorrerTodasAsync(page, fixture.BaseUrl, tenantB);
+    }
+
     /// <summary>Fila de Mi trabajo de un Tenant beneficiario con ese badge (aria-label = «{Título} · {Tenant}»).</summary>
     private static ILocator FilaMiTrabajo(IPage page, string tenant, string badge) =>
         page.Locator($"div[role=button][aria-label$='· {tenant}']").Filter(new() { HasText = badge });

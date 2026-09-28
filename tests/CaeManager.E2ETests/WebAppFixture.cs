@@ -489,5 +489,9 @@ public class AppCollectionGestorCaeCarteraMultiTenant : ICollectionFixture<WebAp
 public sealed class WebAppFixtureGestorCaeCarteraMultiTenant : WebAppFixture
 {
     protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
-        new Dictionary<string, string> { ["DatosPrueba__GestorCaeCarteraMultiTenant"] = "true" };
+        new Dictionary<string, string>
+        {
+            ["DatosPrueba__GestorCaeCarteraMultiTenant"] = "true",
+            ["Circuit__RevalidacionIntervaloSegundos"] = "2",
+        };
 }
