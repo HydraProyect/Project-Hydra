@@ -30,4 +30,27 @@ public class RedireccionLocalTests
     [InlineData("documentos")]
     public void Todo_lo_que_no_sea_ruta_local_cae_a_la_raiz(string? entrada)
         => RedireccionLocal.Sanear(entrada).Should().Be("/");
+
+    /// <summary>
+    /// Los navegadores descartan tabulador, CR y LF al interpretar una URL, así que
+    /// "/" + tabulador + "/atacante.com" llega como "//atacante.com" aunque la segunda
+    /// posición no sea una barra. Cualquier carácter de control, en cualquier posición,
+    /// se rechaza.
+    /// </summary>
+    [Theory]
+    [InlineData("/\t/atacante.com")]
+    [InlineData("/\n/atacante.com")]
+    [InlineData("/\r/atacante.com")]
+    [InlineData("/\t\\atacante.com")]
+    [InlineData("/\0/atacante.com")]
+    [InlineData("/documentos\t")]
+    [InlineData("/doc\numents")]
+    public void Los_caracteres_de_control_caen_a_la_raiz_aunque_el_resto_parezca_local(string entrada)
+        => RedireccionLocal.Sanear(entrada).Should().Be("/");
+
+    [Theory]
+    [InlineData("/documentos#seccion")]
+    [InlineData("/clientes?q=Refri&critico=true")]
+    public void Un_fragmento_o_una_consulta_normales_siguen_pasando(string entrada)
+        => RedireccionLocal.Sanear(entrada).Should().Be(entrada);
 }
