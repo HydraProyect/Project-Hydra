@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Configuracion;
@@ -57,7 +58,7 @@ public class ObtenerVisitasQueryUrgenciaTests : IAsyncLifetime
     [Fact]
     public async Task Una_visita_que_empieza_manana_se_marca_como_critica()
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         await using (var contexto = CrearContexto())
         {
@@ -78,7 +79,7 @@ public class ObtenerVisitasQueryUrgenciaTests : IAsyncLifetime
     [Fact]
     public async Task SoloUrgentes_excluye_una_visita_lejana_en_el_tiempo()
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         await using (var contexto = CrearContexto())
         {
@@ -101,7 +102,7 @@ public class ObtenerVisitasQueryUrgenciaTests : IAsyncLifetime
     [Fact]
     public async Task SoloUrgentes_incluye_una_visita_ya_en_curso()
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         await using (var contexto = CrearContexto())
         {

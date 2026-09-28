@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +28,7 @@ public class ObtenerProximaVisitaPorCentroQueryHandler(IVisitasQueryContext visi
         if (request.CentroIds.Count == 0)
             return new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>();
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         var visitasActivas = await visitasContext.Visitas
             .Where(v => request.CentroIds.Contains(v.CentroId) && !v.EstaCancelada && v.FechaFin >= hoy)

@@ -264,6 +264,9 @@ builder.Services.AddScoped<ITenantActual, CaeManager.Web.Services.TenantActual>(
 builder.Services.AddScoped<CaeManager.Web.Services.TrazaSoporteService>();
 builder.Services.AddScoped<CaeManager.Web.Services.IVentanaDeSoporteActual>(
     sp => sp.GetRequiredService<CaeManager.Web.Services.TrazaSoporteService>());
+// El día de negocio es el de Europe/Madrid (DiaDeNegocio): si la imagen no trae
+// tzdata, que el arranque falle aquí y no en la primera fecha que se juzgue.
+_ = CaeManager.Domain.Common.DiaDeNegocio.Zona;
 // Reloj de AvisoVentanaSoporte; inyectable para poder fijar la hora en los tests.
 Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(builder.Services, TimeProvider.System);
 builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();

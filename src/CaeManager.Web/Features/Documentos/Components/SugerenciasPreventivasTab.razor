@@ -192,7 +192,7 @@ else
 
         try
         {
-            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var hoy = CaeManager.Domain.Common.DiaDeNegocio.Hoy();
             var resultado = await Mediator.Send(new ObtenerDocumentosQuery(
                 TrabajadorId: null, Ambito: null, Busqueda: null, Estado: null,
                 Pagina: 1, TamanoPagina: 500, FechaVencimientoHasta: hoy.AddDays(90),

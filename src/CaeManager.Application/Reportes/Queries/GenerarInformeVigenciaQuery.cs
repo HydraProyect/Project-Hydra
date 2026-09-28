@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -61,7 +62,7 @@ public class GenerarInformeVigenciaQueryHandler(
             return null;
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         // El alcance por cliente/centro se resuelve por asignación activa —
         // un Trabajador puede tener Documentos aunque hoy no esté asignado a

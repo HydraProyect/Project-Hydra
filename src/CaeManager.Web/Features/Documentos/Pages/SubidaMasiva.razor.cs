@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.ConfirmarDocumentoPropuestoPorIa;
 using CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
@@ -495,7 +496,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
             return;
         }
 
-        if (fechaEmision > DateOnly.FromDateTime(DateTime.UtcNow))
+        if (fechaEmision > DiaDeNegocio.Hoy())
         {
             ToastService.Mostrar("La fecha de emisión no puede ser futura.", TonoToast.Error);
             return;

@@ -413,7 +413,7 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
                 .Select(a => a.Estado).ToListAsync();
 
             var parametros = await contexto.ParametrosSistema.SingleAsync();
-            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var hoy = DiaDeNegocio.Hoy();
             var tipos = await contexto.TiposDocumento.ToDictionaryAsync(t => t.Id, t => t.Nombre);
 
             var trabajadores = await contexto.Trabajadores.Where(t => trabajadorIds.Contains(t.Id)).ToListAsync();

@@ -12,6 +12,7 @@ using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
 using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
 using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
 using CaeManager.Application.Usuarios.Queries.ObtenerCuentaUsuario;
+using CaeManager.Application.Usuarios.Queries.ObtenerEmpresasAsignablesEnAlta;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
@@ -383,6 +384,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private IReadOnlyList<CoordinadorDto> _coordinadoresDisponibles = [];
     private string _coordinadorUsuarioId = string.Empty;
 
+    /// <summary>
+    /// Tenants beneficiarios que el alta de un Gestor CAE puede poner en su cartera
+    /// (<see cref="ObtenerEmpresasAsignablesEnAltaQuery"/>) y los marcados. Comodidad:
+    /// <see cref="CrearUsuarioCommand"/> vuelve a decidir cuáles son asignables.
+    /// </summary>
+    private IReadOnlyList<EmpresaAsignableEnAlta> _empresasAsignables = [];
+    private readonly HashSet<Guid> _empresasCartera = [];
+
     private string _clienteCif = string.Empty;
     private EmpresaPorCifDto? _clienteEncontrado;
     private bool _buscandoCliente;
@@ -639,8 +648,50 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _rol = valor;
 
         if (_rol == Roles.GestorCae)
+        {
             await CargarCoordinadoresAsync();
+            if (_editandoId is null)
+                await CargarEmpresasAsignablesAsync();
+        }
     }
+
+    private async Task CargarEmpresasAsignablesAsync()
+    {
+        var version = _versionApertura;
+        var token = _ciclo.Token;
+
+        try
+        {
+            var asignables = await Mediator.Send(new ObtenerEmpresasAsignablesEnAltaQuery(), token);
+            if (version != _versionApertura) return;
+            _empresasAsignables = asignables;
+        }
+        catch (OperationCanceledException)
+        {
+            // La pantalla ya no está; no hay lista que rellenar.
+        }
+        catch (Exception)
+        {
+            // Sin la lista el alta sigue siendo válida sin cartera, que se puede
+            // asignar después: no se bloquea el formulario entero por esto.
+            _empresasAsignables = [];
+            ToastService.Mostrar(TextosUsuarios["CarteraAltaErrorCarga"], TonoToast.Error);
+        }
+    }
+
+    private void AlternarEmpresaCartera(Guid tenantId, bool marcada)
+    {
+        if (marcada)
+            _empresasCartera.Add(tenantId);
+        else
+            _empresasCartera.Remove(tenantId);
+    }
+
+    private static string Iniciales(string nombre) => string.Concat(nombre
+        .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+        .Where(p => char.IsLetter(p[0]))
+        .Take(2)
+        .Select(p => char.ToUpperInvariant(p[0])));
 
     private async Task CargarCoordinadoresAsync()
     {
@@ -753,6 +804,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _errorBusquedaCif = false;
         _buscandoCliente = false;
         _permisoConsultarAccesoDocumentosSensibles = false;
+        _empresasAsignables = [];
+        _empresasCartera.Clear();
         _mensajeErrorFormulario = null;
         _guardando = false;
         _drawerVisible = true;
@@ -869,7 +922,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         || (_usuarioADesactivar is not null && !string.IsNullOrEmpty(_gestorDestinoCartera));
 
     private object?[] ValoresFormulario() =>
-        [_email, _nombreCompleto, _rol, _permisoConsultarAccesoDocumentosSensibles, _coordinadorUsuarioId, _clienteCif];
+        [_email, _nombreCompleto, _rol, _permisoConsultarAccesoDocumentosSensibles, _coordinadorUsuarioId, _clienteCif,
+         string.Join(",", _empresasCartera.Order())];
 
     private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
 
@@ -969,7 +1023,9 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             _rol,
             Guid.TryParse(_coordinadorUsuarioId, out var coordId) ? coordId : null,
             _clienteEncontrado?.Id,
-            _permisoConsultarAccesoDocumentosSensibles));
+            _permisoConsultarAccesoDocumentosSensibles,
+            // Marcadas y luego cambiado el rol: no se envían, la cartera es solo de Gestor CAE.
+            _rol == Roles.GestorCae ? _empresasCartera.ToList() : null));
         if (resultado.EsFallido)
         {
             _mensajeErrorFormulario = resultado.Error.Mensaje;

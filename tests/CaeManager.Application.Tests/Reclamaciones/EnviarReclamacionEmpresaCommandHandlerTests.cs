@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
 using CaeManager.Application.Tests.Clientes;
@@ -30,7 +31,7 @@ public class EnviarReclamacionEmpresaCommandHandlerTests
             Empresas, Documentos, TiposDocumento, alcanceDatos ?? new AlcanceDatosServiceFalso(), Agenda, RegistroEnvio);
     }
 
-    private static readonly DateOnly Hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Hoy = DiaDeNegocio.Hoy();
 
     private sealed record Escenario(Entorno Entorno, Empresa Contraparte, TipoDocumento TipoDocumento);
 

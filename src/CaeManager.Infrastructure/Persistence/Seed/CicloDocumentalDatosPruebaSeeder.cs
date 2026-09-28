@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
@@ -148,7 +149,7 @@ public static class CicloDocumentalDatosPruebaSeeder
             return;
 
         var ahoraUtc = DateTime.UtcNow;
-        var hoy = DateOnly.FromDateTime(ahoraUtc);
+        var hoy = DiaDeNegocio.De(ahoraUtc);
 
         // Segunda plantilla, deliberadamente SIN confirmar: si solo hubiera
         // una y estuviera confirmada, el catálogo de /plantillas no
@@ -225,7 +226,7 @@ public static class CicloDocumentalDatosPruebaSeeder
 
     private static void SembrarRevisionesIa(CaeManagerDbContext dbContext, List<Documento> documentos)
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         // Tres pendientes con motivos distintos y dos ya resueltas.
         dbContext.RevisionesIaDocumento.Add(RevisionIaDocumento.Crear(
@@ -329,7 +330,7 @@ public static class CicloDocumentalDatosPruebaSeeder
         if (documentosOficiales.Count < 3)
             return;
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var ahoraUtc = DateTime.UtcNow;
 
         // 1. Auto-validado: firma válida de sello de órgano con LTV y cotejo coincidente.
@@ -452,7 +453,7 @@ public static class CicloDocumentalDatosPruebaSeeder
         aceptada.MarcarSubida();
         // Aceptada y con vigencia confirmada: es el caso completo, el único
         // desde el que se puede afirmar que el Trabajador entra.
-        aceptada.MarcarAceptada(VigenciaEnPlataforma.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(6)));
+        aceptada.MarcarAceptada(VigenciaEnPlataforma.VenceEl(DiaDeNegocio.Hoy().AddMonths(6)));
         dbContext.AcreditacionesDocumentoPlataforma.Add(aceptada);
 
         var noRequerida = new AcreditacionDocumentoPlataforma(documentosEmpresa[3].Id, canal.Id);

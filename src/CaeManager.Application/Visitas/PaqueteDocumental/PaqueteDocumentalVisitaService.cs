@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using System.IO.Compression;
 using CaeManager.Application.Centros;
@@ -106,7 +107,7 @@ public class PaqueteDocumentalVisitaService(
             return null;
         }
 
-        var seleccion = SeleccionarDocumentos(candidatos, DateOnly.FromDateTime(DateTime.UtcNow));
+        var seleccion = SeleccionarDocumentos(candidatos, DiaDeNegocio.Hoy());
         var gruposAEnviar = seleccion.Enviar;
 
         if (seleccion.SoloVencidos.Count > 0)

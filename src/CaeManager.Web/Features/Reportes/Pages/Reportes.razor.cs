@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
@@ -390,7 +391,7 @@ public partial class Reportes : CaeManager.Web.Components.PaginaInteractiva
                 return;
             }
 
-            _generado = new InformeGenerado(tipo, clienteId, centroId, incluirVigentes, DateTime.Now);
+            _generado = new InformeGenerado(tipo, clienteId, centroId, incluirVigentes, DiaDeNegocio.AhoraEnHoraPeninsular());
         }
         catch (Exception)
         {

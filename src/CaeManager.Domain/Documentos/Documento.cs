@@ -210,7 +210,7 @@ public class Documento : EntidadBase
     /// </summary>
     public void Renovar(DateOnly fechaEmision, VigenciaDocumento vigencia)
     {
-        if (fechaEmision > DateOnly.FromDateTime(DateTime.UtcNow))
+        if (fechaEmision > DiaDeNegocio.Hoy())
             throw new ArgumentException("La fecha de emisión no puede ser futura.", nameof(fechaEmision));
         if (vigencia.FechaVencimiento is { } fecha && fecha < fechaEmision)
             throw new ArgumentException("La fecha de vencimiento no puede ser anterior a la de emisión.", nameof(vigencia));

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Configuracion;
@@ -57,7 +58,7 @@ public class ObtenerDocumentacionVisitaQueryTests : IAsyncLifetime
         contexto.TiposDocumento.AddRange(tipoEmpresa, tipoTrabajador);
         await contexto.SaveChangesAsync();
 
-        var visita = new Visita(centro.Id, DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow).AddDays(5), null);
+        var visita = new Visita(centro.Id, DiaDeNegocio.Hoy(), DiaDeNegocio.Hoy().AddDays(5), null);
         contexto.Visitas.Add(visita);
         await contexto.SaveChangesAsync();
 
@@ -107,7 +108,7 @@ public class ObtenerDocumentacionVisitaQueryTests : IAsyncLifetime
             contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipoObligatorioTrabajadorId, _centroId, incluido: false));
 
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, _tipoObligatorioTrabajadorId, DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1))));
+                _trabajadorId, _tipoObligatorioTrabajadorId, DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddDays(-1))));
             await contexto.SaveChangesAsync();
         }
 
@@ -128,7 +129,7 @@ public class ObtenerDocumentacionVisitaQueryTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, tipoVigente.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
+                _trabajadorId, tipoVigente.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
             await contexto.SaveChangesAsync();
         }
 

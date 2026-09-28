@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignacion;
@@ -67,7 +68,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
 
         // Una asignación ya existente en el centro ajeno: es la que los tests
         // de baja intentarán cerrar sin tener autoridad sobre ella.
-        var asignacionAjena = new Asignacion(trabajador.Id, centroAjeno.Id, DateOnly.FromDateTime(DateTime.UtcNow));
+        var asignacionAjena = new Asignacion(trabajador.Id, centroAjeno.Id, DiaDeNegocio.Hoy());
         contexto.Asignaciones.Add(asignacionAjena);
         await contexto.SaveChangesAsync();
 
@@ -88,7 +89,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
             new AsignacionRepository(contexto), AutoridadSoloSobre(contexto, _centroEnAmbitoId), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
-            new CrearAsignacionCommand(_trabajadorId, _centroAjenoId, DateOnly.FromDateTime(DateTime.UtcNow)),
+            new CrearAsignacionCommand(_trabajadorId, _centroAjenoId, DiaDeNegocio.Hoy()),
             CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue("el centro no está en el árbol de autoridad de quien asigna");
@@ -111,7 +112,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
             new AsignacionRepository(contexto), AutoridadSoloSobre(contexto, _centroEnAmbitoId), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
-            new CrearAsignacionCommand(_trabajadorId, _centroEnAmbitoId, DateOnly.FromDateTime(DateTime.UtcNow)),
+            new CrearAsignacionCommand(_trabajadorId, _centroEnAmbitoId, DiaDeNegocio.Hoy()),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -126,7 +127,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
             AutoridadSoloSobre(contexto, _centroEnAmbitoId), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
-            new CrearAsignacionesCommand([_trabajadorId], [_centroEnAmbitoId, _centroAjenoId], DateOnly.FromDateTime(DateTime.UtcNow)),
+            new CrearAsignacionesCommand([_trabajadorId], [_centroEnAmbitoId, _centroAjenoId], DiaDeNegocio.Hoy()),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -150,7 +151,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
             AutoridadSoloSobre(contexto, [_centroEnAmbitoId], [_trabajadorId]), AltaAcreditacionesDePrueba.Con(contexto), contexto);
 
         var resultado = await handler.Handle(
-            new CrearAsignacionCommand(_trabajadorAjenoId, _centroEnAmbitoId, DateOnly.FromDateTime(DateTime.UtcNow)),
+            new CrearAsignacionCommand(_trabajadorAjenoId, _centroEnAmbitoId, DiaDeNegocio.Hoy()),
             CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue("el trabajador no está en la cartera de quien asigna");
@@ -171,7 +172,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand(
-                [_trabajadorId, _trabajadorAjenoId], [_centroEnAmbitoId], DateOnly.FromDateTime(DateTime.UtcNow)),
+                [_trabajadorId, _trabajadorAjenoId], [_centroEnAmbitoId], DiaDeNegocio.Hoy()),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -190,7 +191,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
             new AsignacionRepository(contexto), AutoridadSoloSobre(contexto, _centroEnAmbitoId), contexto);
 
         var resultado = await handler.Handle(
-            new DarDeBajaAsignacionCommand(_asignacionAjenaId, DateOnly.FromDateTime(DateTime.UtcNow)),
+            new DarDeBajaAsignacionCommand(_asignacionAjenaId, DiaDeNegocio.Hoy()),
             CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue("la baja exige la misma autoridad que el alta: no es una excepción por ser reversible");
@@ -209,7 +210,7 @@ public class AutoridadSobreAsignacionesTests : IAsyncLifetime
             new AsignacionRepository(contexto), AutoridadSoloSobre(contexto, _centroEnAmbitoId), contexto);
 
         var resultado = await handler.Handle(
-            new DarDeBajaAsignacionesCommand([_asignacionAjenaId], DateOnly.FromDateTime(DateTime.UtcNow)),
+            new DarDeBajaAsignacionesCommand([_asignacionAjenaId], DiaDeNegocio.Hoy()),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();

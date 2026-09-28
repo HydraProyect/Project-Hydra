@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Tenants;
@@ -118,7 +119,7 @@ public class VigilanciaNormativaBoeHostedService(
         var repositorio = ambito.ServiceProvider.GetRequiredService<IAvisoRevisionNormativaRepository>();
         var unitOfWork = ambito.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var publicaciones = await cliente.ObtenerSumarioAsync(hoy, stoppingToken);
         if (publicaciones.Count == 0) return 0;
 

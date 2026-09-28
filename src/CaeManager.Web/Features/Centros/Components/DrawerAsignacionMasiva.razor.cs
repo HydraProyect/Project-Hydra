@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
@@ -82,7 +83,7 @@ public partial class DrawerAsignacionMasiva : ComponentBase
         }
         _celdasExcluidas.Clear();
         _documentosFaltantes = [];
-        _fechaAlta = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        _fechaAlta = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
         _mensajeError = null;
         _visible = true;
         _instantanea.Fijar(ValoresFormulario());

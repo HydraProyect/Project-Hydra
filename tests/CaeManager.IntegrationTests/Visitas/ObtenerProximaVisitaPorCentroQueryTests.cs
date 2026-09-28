@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
@@ -48,7 +49,7 @@ public class ObtenerProximaVisitaPorCentroQueryTests : IAsyncLifetime
         contexto.Trabajadores.AddRange(trabajador1, trabajador2);
         await contexto.SaveChangesAsync();
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var visita = new Visita(centro.Id, hoy.AddDays(1), hoy.AddDays(2), notas: null);
         contexto.Visitas.Add(visita);
         await contexto.SaveChangesAsync();
@@ -85,7 +86,7 @@ public class ObtenerProximaVisitaPorCentroQueryTests : IAsyncLifetime
         contexto.Trabajadores.AddRange(trabajador1, trabajador2, trabajador3);
         await contexto.SaveChangesAsync();
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var visitaCorta = new Visita(centro.Id, hoy.AddDays(1), hoy.AddDays(2), notas: null);
         var visitaLarga = new Visita(centro.Id, hoy.AddDays(10), hoy.AddDays(12), notas: null);
         contexto.Visitas.AddRange(visitaCorta, visitaLarga);
@@ -121,7 +122,7 @@ public class ObtenerProximaVisitaPorCentroQueryTests : IAsyncLifetime
         contexto.Centros.Add(centro);
         await contexto.SaveChangesAsync();
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var visita = new Visita(centro.Id, hoy.AddDays(1), hoy.AddDays(2), notas: null);
         contexto.Visitas.Add(visita);
         await contexto.SaveChangesAsync();

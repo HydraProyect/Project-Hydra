@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
 using CaeManager.Application.Documentos.Commands.CorregirRevisionIaDocumento;
 using CaeManager.Domain.Documentos;
@@ -74,12 +75,12 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Renueva_el_documento_con_la_fecha_detectada_y_recalcula_el_vencimiento_automatico()
     {
-        var fechaOriginal = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1);
+        var fechaOriginal = DiaDeNegocio.Hoy().AddYears(-1);
         var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
-        var fechaDetectada = DateOnly.FromDateTime(DateTime.UtcNow);
+        var fechaDetectada = DiaDeNegocio.Hoy();
         var revision = RevisionIaDocumento.Crear(
             documento.Id, 92, "Apto médico", fechaDetectada, fechaDetectada.AddMonths(6), true, "Confianza baja");
         _dbContext.RevisionesIaDocumento.Add(revision);
@@ -102,11 +103,11 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Marca_como_confirmada_manual_la_auditoria_de_ia_ligada_al_documento()
     {
-        var fechaOriginal = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1);
+        var fechaOriginal = DiaDeNegocio.Hoy().AddYears(-1);
         var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
 
-        var fechaDetectada = DateOnly.FromDateTime(DateTime.UtcNow);
+        var fechaDetectada = DiaDeNegocio.Hoy();
         var auditoria = AuditoriaExtraccionIa.Crear(
             new string('a', AuditoriaExtraccionIa.LongitudHash), "Apto médico", "anthropic", 900,
             null, 0.01m, 1, 92, null, documento.Id);
@@ -129,11 +130,11 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Usa_la_fecha_de_vencimiento_detectada_cuando_el_tipo_no_calcula_vigencia_automatica()
     {
-        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoManual.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoManual.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
-        var fechaDetectada = DateOnly.FromDateTime(DateTime.UtcNow);
+        var fechaDetectada = DiaDeNegocio.Hoy();
         var vencimientoDetectado = fechaDetectada.AddYears(3);
         var revision = RevisionIaDocumento.Crear(
             documento.Id, 90, "Formación PRL", fechaDetectada, vencimientoDetectado, true, "Confianza baja");
@@ -149,7 +150,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Falla_si_la_ia_no_detecto_fecha_de_emision()
     {
-        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
@@ -166,12 +167,12 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Falla_si_la_revision_ya_estaba_resuelta()
     {
-        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
         var revision = RevisionIaDocumento.Crear(
-            documento.Id, 92, "Apto médico", DateOnly.FromDateTime(DateTime.UtcNow), null, true, "Confianza baja");
+            documento.Id, 92, "Apto médico", DiaDeNegocio.Hoy(), null, true, "Confianza baja");
         revision.Resolver();
         _dbContext.RevisionesIaDocumento.Add(revision);
         await _dbContext.SaveChangesAsync();
@@ -185,12 +186,12 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Falla_como_no_encontrada_cuando_el_trabajador_no_es_visible()
     {
-        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
         var revision = RevisionIaDocumento.Crear(
-            documento.Id, 92, "Apto médico", DateOnly.FromDateTime(DateTime.UtcNow), null, true, "Confianza baja");
+            documento.Id, 92, "Apto médico", DiaDeNegocio.Hoy(), null, true, "Confianza baja");
         _dbContext.RevisionesIaDocumento.Add(revision);
         await _dbContext.SaveChangesAsync();
 
@@ -204,7 +205,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Corregir_a_mano_falla_como_no_encontrada_fuera_del_alcance_y_no_persiste_mutaciones()
     {
-        var fechaOriginal = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1);
+        var fechaOriginal = DiaDeNegocio.Hoy().AddYears(-1);
         var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         var revision = RevisionIaDocumento.Crear(documento.Id, 92, "Apto médico", fechaOriginal, null, true, "Confianza baja");
@@ -212,7 +213,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
         await _dbContext.SaveChangesAsync();
 
         var resultado = await CrearHandlerCorreccion(trabajadorIds: [Guid.NewGuid()])
-            .Handle(new CorregirRevisionIaDocumentoCommand(revision.Id, DateOnly.FromDateTime(DateTime.UtcNow)), CancellationToken.None);
+            .Handle(new CorregirRevisionIaDocumentoCommand(revision.Id, DiaDeNegocio.Hoy()), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("RevisionIa.NoEncontrada");
         (await _dbContext.RevisionesIaDocumento.SingleAsync(r => r.Id == revision.Id)).Resuelta.Should().BeFalse();

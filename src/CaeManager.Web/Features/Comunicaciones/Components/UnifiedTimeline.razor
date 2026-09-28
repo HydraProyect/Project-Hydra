@@ -15,11 +15,11 @@
 @inject IStringLocalizer<TextosSugerenciasIa> TextosSugerencias
 
 <div class="timeline-mensajes">
-    @{ DateTime? fechaSeparadorAnterior = null; }
+    @{ DateOnly? fechaSeparadorAnterior = null; }
     @foreach (var item in ItemsOrdenados())
     {
         var fechaUtcItem = FechaDe(item) ?? DateTime.UtcNow;
-        var fechaLocal = fechaUtcItem.ToLocalTime().Date;
+        var fechaLocal = CaeManager.Domain.Common.DiaDeNegocio.De(fechaUtcItem);
         if (fechaSeparadorAnterior != fechaLocal)
         {
             fechaSeparadorAnterior = fechaLocal;
@@ -217,9 +217,9 @@
     };
 
     /// <summary>Separador de día del timeline (mockup 03.1: "Hoy, 7 de agosto de 2026") — agrupa visualmente sin tocar el orden cronológico ya devuelto por ObtenerConversacionPorIdQueryHandler.</summary>
-    private static string FormatearSeparadorFecha(DateTime fechaLocal)
+    private static string FormatearSeparadorFecha(DateOnly fechaLocal)
     {
-        var hoy = DateTime.Now.Date;
+        var hoy = CaeManager.Domain.Common.DiaDeNegocio.Hoy();
         if (fechaLocal == hoy) return $"Hoy, {fechaLocal:d 'de' MMMM 'de' yyyy}";
         if (fechaLocal == hoy.AddDays(-1)) return $"Ayer, {fechaLocal:d 'de' MMMM 'de' yyyy}";
         return fechaLocal.ToString("d 'de' MMMM 'de' yyyy");

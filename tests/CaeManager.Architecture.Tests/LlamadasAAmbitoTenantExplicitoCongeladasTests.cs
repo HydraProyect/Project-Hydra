@@ -143,6 +143,14 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// </para>
     ///
     /// <para>
+    /// Actualizado 2026-09-28 (cartera en el alta de un Gestor CAE):
+    /// <c>CrearUsuarioCommand.cs</c> entra con 1 llamada, sobre cada Tenant
+    /// beneficiario que el catálogo de incorporación a cartera da por asignable
+    /// al Operador CAE de origen — el mismo Guid y la misma escritura que
+    /// Aceptar, sin la solicitud delante.
+    /// </para>
+    ///
+    /// <para>
     /// Actualizado 2026-09-23 (P11, marcador de elegibilidad de Operador CAE
     /// externo): <c>DelegacionDemoSeeder.cs</c> pasa de 9 a 10 llamadas — el
     /// reaprovisionamiento de un tenant existente que aún no tenía la
@@ -243,6 +251,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.DelegacionOClienteYaValidado, "solicitud.PropietarioTenantId, tras cargar la solicitud filtrada por el Operador CAE de origen y autorizar al Coordinador CAE por su rol en ese origen"),
         ["src/CaeManager.Application/Operaciones/IncorporacionCartera/Commands/RevocarIncorporacionCarteraCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "solicitud.PropietarioTenantId, tras cargar la solicitud filtrada por el Operador CAE de origen y autorizar al Coordinador CAE o al propio Gestor CAE solicitante"),
+        ["src/CaeManager.Application/Usuarios/Commands/CrearUsuario/CrearUsuarioCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado, "operacion.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerAsignablesAsync del Operador CAE de origen de quien da el alta, tras autorizarlo por AutoridadSobreCuentas; nunca el Guid que envía la página"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActividadSoporteQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, en OR con la vía del cliente visitado (ver UsosDeEsPlataformaCongeladosTests)"),
 

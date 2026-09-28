@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Asignaciones;
 
 namespace CaeManager.Application.Asignaciones;
@@ -53,7 +54,7 @@ public static class CierreDeAsignaciones
     /// </remarks>
     private static async Task<int> CerrarAsync(Task<IReadOnlyList<Asignacion>> consulta)
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var activas = await consulta;
 
         foreach (var asignacion in activas)

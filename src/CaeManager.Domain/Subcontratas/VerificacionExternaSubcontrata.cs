@@ -56,7 +56,7 @@ public class VerificacionExternaSubcontrata : EntidadBase
             throw new ArgumentException("La verificación debe referirse a un tipo de documento.", nameof(tipoDocumentoId));
         if (usuarioVerificadorId == Guid.Empty)
             throw new ArgumentException("La verificación debe registrar quién verificó.", nameof(usuarioVerificadorId));
-        if (fechaVerificacion > DateOnly.FromDateTime(DateTime.UtcNow))
+        if (fechaVerificacion > DiaDeNegocio.Hoy())
             throw new ArgumentException("La fecha de verificación no puede ser futura.", nameof(fechaVerificacion));
 
         SubcontrataId = subcontrataId;

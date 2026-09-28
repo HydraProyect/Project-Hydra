@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Web.Features.Trabajadores.Recursos;
 using CaeManager.Web.Recursos;
@@ -515,7 +516,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
         try
         {
-            var resultado = await Mediator.Send(new DarDeBajaAsignacionesCommand([asignacionId], DateOnly.FromDateTime(DateTime.UtcNow)));
+            var resultado = await Mediator.Send(new DarDeBajaAsignacionesCommand([asignacionId], DiaDeNegocio.Hoy()));
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);

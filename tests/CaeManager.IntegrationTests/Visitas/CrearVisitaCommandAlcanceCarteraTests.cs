@@ -206,7 +206,7 @@ public class CrearVisitaCommandAlcanceCarteraTests : IAsyncLifetime
             NullLogger<CrearVisitaCommandHandler>.Instance,
             new AlcanceDatosService(contexto, usuario, tenantActual, new SesionPrivilegiadaAusente()));
 
-        var dia = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
+        var dia = DiaDeNegocio.Hoy().AddDays(1);
         return await handler.Handle(new CrearVisitaCommand(centroId, dia, dia, [trabajadorId], Notas: null), CancellationToken.None);
     }
 

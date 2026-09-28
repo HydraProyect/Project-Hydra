@@ -384,6 +384,25 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual, ICurrentUserSe
 
         var tenantId = tenantActual.TenantId;
 
+        // Conexión retenida por una transacción explícita que cambió de ámbito
+        // (AmbitoTenantExplicito) después de abrirse: TenantRlsConnectionInterceptor
+        // fijó app.tenant_id al abrirla, con el Tenant de entonces, y fuera de una
+        // transacción cada SaveChanges abriría una conexión nueva con el de ahora.
+        // Se alinea la conexión con ITenantActual —lo mismo que tendría una recién
+        // abierta, nada que el ámbito no conceda ya— y se restaura al terminar el
+        // lote, por el mismo camino que el sellado de Identity de abajo. Sin esto,
+        // escribir en dos Tenants dentro de una misma transacción (el alta de un
+        // Gestor CAE con su cartera, CrearUsuarioCommand) fallaba cerrado con 42501.
+        // Solo con transacción abierta: sin ella la conexión se abre y se cierra
+        // por operación, y una retenida a mano sin transacción queda como estaba.
+        if (context.Database.CurrentTransaction is not null
+            && FirmanteContextoRls.TryObtenerTenantVigente(context.Database.GetDbConnection(), out var tenantDeLaConexion)
+            && tenantDeLaConexion != tenantId)
+        {
+            await FijarTenantEnSesionRlsAsync(context, tenantId?.ToString() ?? string.Empty, cancellationToken);
+            _tenantDeSesionARestaurar ??= tenantDeLaConexion?.ToString() ?? string.Empty;
+        }
+
         // Solo se propaga una vez por SaveChanges, y solo cuando hace falta:
         // un roundtrip extra a Postgres por cada fila auditada de Identity
         // sería desperdiciado si dos filas del mismo lote resuelven el mismo
