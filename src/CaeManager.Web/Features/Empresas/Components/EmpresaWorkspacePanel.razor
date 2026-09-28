@@ -217,6 +217,12 @@ else
         OnConfirmar="ConfirmarBorrarContrasenaAsync" />
 }
 
+@* P1-E2b: la edición en línea de Información y credenciales vive en el panel, no en la pestaña: cambiar de pestaña no la pierde
+   y no pregunta, por eso el aviso va fuera de <Pestanas>. Abrir otra ficha, volver, el
+   breadcrumb o cerrar el panel sí la pierden: el Context Workspace pregunta a este aviso
+   antes. Fuera del if/else, para que recargar la cabecera tras guardar no lo desmonte. *@
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CancelarEdicionInformacion" />
+
 @code {
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
     [
@@ -287,6 +293,49 @@ else
     private string? _mensajeErrorCredenciales;
     private bool _confirmarBorrarContrasenaVisible;
     private bool _borrandoContrasena;
+
+    private readonly InstantaneaFormulario _instantaneaInformacion = new();
+    private readonly InstantaneaFormulario _instantaneaCredenciales = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en el panel: la edición en línea de
+    /// Información y la de credenciales (que se guarda aparte), comparadas con cómo se abrieron.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        !_saliendoAConfigurarSegundoFactor
+        && _editandoInformacion
+        && (_instantaneaInformacion.Difiere(ValoresInformacion()) || _instantaneaCredenciales.Difiere(ValoresCredenciales()));
+
+    private object?[] ValoresInformacion() =>
+        [_razonSocialInfo, _cifInfo, _cnaeInfo, _convenioAplicableInfo, _esActividadAnexoIInfo, _clienteIdsInfo];
+
+    private object?[] ValoresCredenciales() =>
+        [_credencialUrl, _credencialCampoEmpresa, _credencialUsuario, _credencialContrasena, _credencialNotas];
+
+    /// <summary>Solo mientras se sale a activar el 2FA que exige la credencial.</summary>
+    private bool _saliendoAConfigurarSegundoFactor;
+
+    /// <summary>
+    /// La salida a activar el 2FA la decide la propia credencial: no es un abandono, y ni el
+    /// aviso de la aplicación ni el del navegador deben detenerla (mismo patrón que
+    /// <c>CentroWorkspacePanel</c>). El del navegador se decide en el render, así que primero
+    /// se pinta ya desactivado y solo después se redirige; si la redirección no llega a
+    /// ocurrir, lo no guardado vuelve a contar como cambio.
+    /// </summary>
+    private async Task IrAConfigurarSegundoFactorSinAvisoAsync()
+    {
+        _saliendoAConfigurarSegundoFactor = true;
+        StateHasChanged();
+        await Task.Yield();
+        try
+        {
+            SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+        }
+        finally
+        {
+            _saliendoAConfigurarSegundoFactor = false;
+        }
+    }
 
     // El recuento se limita a la pestaña que representa; la cabecera solo lo muestra allí.
     // Una lista vacía no lleva recuento: puede ser falta de alcance de gestión, no cartera vacía.
@@ -414,6 +463,8 @@ else
             _mensajeErrorCredenciales = null;
 
             _editandoInformacion = true;
+            _instantaneaInformacion.Fijar(ValoresInformacion());
+            _instantaneaCredenciales.Fijar(ValoresCredenciales());
         }
         catch (OperationCanceledException) when (cancelacion.IsCancellationRequested) { }
         // P1-I1: la edición carga el usuario de la credencial, y sin 2FA no se
@@ -422,7 +473,7 @@ else
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
             if (generacion == _generacion)
-                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+                await IrAConfigurarSegundoFactorSinAvisoAsync();
         }
         catch (Exception)
         {
@@ -536,12 +587,13 @@ else
             ToastService.Mostrar($"Credenciales de {detalle.RazonSocial} guardadas correctamente.", TonoToast.Exito);
             _hayCredencialGuardada = true;
             _credencialContrasena = string.Empty;
+            _instantaneaCredenciales.Fijar(ValoresCredenciales());
         }
         // P1-I2: escribir la credencial exige el mismo 2FA que leerla.
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
             if (generacion == _generacion)
-                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+                await IrAConfigurarSegundoFactorSinAvisoAsync();
         }
         catch (Exception)
         {
@@ -578,7 +630,7 @@ else
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
             if (generacion == _generacion)
-                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+                await IrAConfigurarSegundoFactorSinAvisoAsync();
             return null;
         }
         if (generacion != _generacion) return null;
@@ -619,7 +671,7 @@ else
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
             if (generacion == _generacion)
-                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+                await IrAConfigurarSegundoFactorSinAvisoAsync();
         }
         catch (Exception)
         {

@@ -48,7 +48,7 @@ namespace CaeManager.Web.Tests;
 /// antes que la respuesta.
 /// </para>
 /// </summary>
-public class Subcontrata360Gen2Tests : BunitContext
+public partial class Subcontrata360Gen2Tests : BunitContext
 {
     /// <summary>BotonCopiar importa ./js/clipboard.js.</summary>
     public Subcontrata360Gen2Tests()

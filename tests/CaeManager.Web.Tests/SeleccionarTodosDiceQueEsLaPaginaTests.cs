@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -43,6 +44,7 @@ public class SeleccionarTodosDiceQueEsLaPaginaTests : BunitContext
             Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerPerfilVocabularioActualQuery => PerfilVocabularioTenant.Consultora,
+                UsaRotulosPrimeraPersonaQuery => false,
                 ObtenerEmpresasQuery q => (object)new ResultadoPaginado<EmpresaListaDto>(
                     Pagina, TotalFiltrado, q.Pagina, q.TamanoPagina),
                 _ => throw new NotSupportedException($"Consulta no prevista: {request.GetType().Name}.")

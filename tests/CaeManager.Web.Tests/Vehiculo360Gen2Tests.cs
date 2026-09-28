@@ -20,7 +20,7 @@ namespace CaeManager.Web.Tests;
 /// <c>Empresa360Gen2Tests</c>. Las esperas retenidas se liberan desde
 /// InvokeAsync para observar su continuación.
 /// </summary>
-public class Vehiculo360Gen2Tests : BunitContext
+public partial class Vehiculo360Gen2Tests : BunitContext
 {
     public Vehiculo360Gen2Tests()
     {

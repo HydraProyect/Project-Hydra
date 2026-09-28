@@ -422,4 +422,47 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
             "los drawers del panel sobreviven al cambio de pestaña: su aviso no se registra en el ámbito de las pestañas"));
         cut.FindAll(".modal-pie button").Should().NotContain(b => b.TextContent.Trim() == "Salir y descartar");
     }
+
+    // ------------------------------------------------ lote 1: edición en línea de Información
+
+    private async Task<IRenderedComponent<CentroWorkspacePanel>> EditarInformacionAsync()
+    {
+        var cut = Renderizar("informacion");
+        await cut.FindAll("button").Single(b => b.GetAttribute("aria-label") == "Editar información del centro")
+            .ClickAsync(new MouseEventArgs());
+        return cut;
+    }
+
+    [Fact]
+    public async Task La_informacion_editada_en_linea_pregunta_al_salir()
+    {
+        var cut = await EditarInformacionAsync();
+        await Control(cut, "Dirección").InputAsync(new ChangeEventArgs { Value = "Polígono Norte, nave 4" });
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
+
+    [Fact]
+    public async Task Abrir_la_informacion_sin_tocar_nada_no_pregunta()
+    {
+        var cut = await EditarInformacionAsync();
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "los valores de partida no son un cambio de quien edita");
+    }
+
+    [Fact]
+    public async Task Cerrar_un_drawer_sin_cambios_no_pregunta_por_la_informacion_a_medias()
+    {
+        var cut = await EditarInformacionAsync();
+        await Control(cut, "Dirección").InputAsync(new ChangeEventArgs { Value = "Polígono Norte, nave 4" });
+        await PulsarAsync(cut, "Pedir prioridad");
+        cut.WaitForAssertion(() => Control(cut, "Asunto"));
+
+        await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Descartar cambios",
+            "el drawer no tiene cambios; la edición en línea sigue en el panel");
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
 }
+

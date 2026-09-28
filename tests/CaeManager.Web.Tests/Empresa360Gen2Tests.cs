@@ -23,7 +23,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>Las esperas retenidas se liberan desde InvokeAsync para observar su continuación.</summary>
-public class Empresa360Gen2Tests : BunitContext
+public partial class Empresa360Gen2Tests : BunitContext
 {
     public Empresa360Gen2Tests()
     {

@@ -14,6 +14,7 @@ using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
@@ -65,9 +66,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
     private IReadOnlyList<SubcontrataSelectorDto> _subcontratasDisponibles = [];
 
-    // DDL-072 (misma tabla de vocabulario que el enlace «empresas» de CatalogoMenuLateral
-    // y _tituloPagina de Empresas.razor.cs): "Mis trabajadores" en perfil
-    // Cliente Directo, "Trabajadores" en perfil Consultora.
+    // DDL-072 (misma fuente que el enlace «trabajadores» de CatalogoMenuLateral y _tituloPagina de
+    // Empresas.razor.cs: UsaRotulosPrimeraPersonaQuery): "Mis trabajadores" solo si perfil Cliente
+    // Directo y el usuario es del Tenant propietario; "Trabajadores" en cualquier otro caso.
     private string? _tituloPagina;
 
     private string TituloPagina => _tituloPagina ?? Textos["TituloPagina"];
@@ -183,8 +184,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
         _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
         _subcontratasDisponibles = await Mediator.Send(new ObtenerSubcontratasParaSelectorQuery());
 
-        var perfilPagina = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
-        _tituloPagina = perfilPagina == PerfilVocabularioTenant.ClienteDirecto
+        var primeraPersona = await Mediator.Send(new UsaRotulosPrimeraPersonaQuery());
+        _tituloPagina = primeraPersona
             ? Textos["TituloPaginaClienteDirecto"].Value
             : Textos["TituloPagina"].Value;
 

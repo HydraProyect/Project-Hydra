@@ -41,7 +41,7 @@ namespace CaeManager.Web.Tests;
 /// inventado— sí se comprueba desde la tira de pestañas.
 /// </para>
 /// </summary>
-public class Cliente360Gen2Tests : BunitContext
+public partial class Cliente360Gen2Tests : BunitContext
 {
     /// <summary>BotonCopiar importa ./js/clipboard.js.</summary>
     public Cliente360Gen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
