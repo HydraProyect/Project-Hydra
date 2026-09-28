@@ -69,6 +69,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     private readonly Guid _gestor = Guid.NewGuid();
     private readonly Guid _gestorUnico = Guid.NewGuid();
     private readonly Guid _gestorConOrigen = Guid.NewGuid();
+    private readonly Guid _administradorSinCartera = Guid.NewGuid();
     private CaeManagerDbContext _propietario = null!;
     private readonly List<IAsyncDisposable> _desechables = [];
 
@@ -232,7 +233,10 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         _propietario.AsignacionesOperadorDelegadoConRevocadas.AddRange(
             new AsignacionOperadorDelegado(delegacion.Id, _gestor, Roles.GestorCae),
             new AsignacionOperadorDelegado(caducada.Id, _gestor, Roles.GestorCae),
-            new AsignacionOperadorDelegado(desactivada.Id, _gestor, Roles.GestorCae));
+            new AsignacionOperadorDelegado(desactivada.Id, _gestor, Roles.GestorCae),
+            // Decisión 7 bis: un Administrador del Operador CAE externo SIN Asignación
+            // de Cartera y con un único Tenant externo (por la vía heredada).
+            new AsignacionOperadorDelegado(delegacion.Id, _administradorSinCartera, Roles.Administrador));
         await _propietario.SaveChangesAsync();
     }
 
@@ -461,6 +465,25 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             .Should().BeNull("su Tenant de origen está gestionado");
         ClientesAutorizados.TenantPorDefecto(await ListaAsync(_gestor))
             .Should().BeNull("alcanza además un Tenant por la vía heredada");
+    }
+
+    [Fact]
+    public async Task Sin_Asignacion_de_Cartera_un_unico_Tenant_externo_no_es_el_activo_por_defecto_decision_7_bis()
+    {
+        var lista = await ListaAsync(_administradorSinCartera);
+        lista.Should().BeEquivalentTo(
+        [
+            new ClienteAutorizadoDto(_origen, "Operador CAE externo de prueba", EsOrigen: true, EsGestionadoPorOperacion: false),
+            new ClienteAutorizadoDto(_heredado, "Tenant por vía heredada", EsOrigen: false, EsGestionadoPorOperacion: false),
+        ], "alcanza un único Tenant externo, pero no por Asignación de Cartera");
+
+        ClientesAutorizados.TenantPorDefecto(lista).Should().BeNull(
+            "el defecto de la decisión 5 aplica solo a quien alcanza el Tenant por cartera vigente");
+
+        var httpContext = PeticionDePagina(_administradorSinCartera, "/trabajadores", "");
+        (await FijarPorDefectoAsync(httpContext, _administradorSinCartera)).Should().BeNull(
+            "el Administrador sin cartera sigue entrando en su Tenant de origen");
+        CookieEmitida(httpContext, ClienteActivoSeleccionado.NombreCookie).Should().BeNull();
     }
 
     [Fact]
