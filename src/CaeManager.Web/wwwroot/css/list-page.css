@@ -48,6 +48,76 @@
 }
 
 /*
+  Barra de filtros del patrón único de pantalla de lista (componente
+  BarraFiltros; contrato Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md
+  § 3, pieza 2): tarjeta con buscador y selects (etiqueta visible encima) y,
+  debajo, los chips de filtros activos. Global y no aislado a propósito: una
+  regla aislada gana a la global y reabriría la copia por pantalla.
+*/
+.barra-filtros-lista {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.barra-filtros-lista-fila {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+}
+
+.barra-filtros-lista-fila > .campo {
+    flex: 1 1 180px;
+    min-width: 160px;
+}
+
+.barra-filtros-lista-fila > .barra-filtros-lista-buscador {
+    flex: 2 1 260px;
+    min-width: 200px;
+}
+
+.barra-filtros-lista-activos {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.barra-filtros-lista-chips {
+    align-items: center;
+    margin-bottom: 0;
+}
+
+.limpiar-filtros-barra,
+.guardar-filtro-barra {
+    border: 0;
+    background: none;
+    padding: 0;
+    font: var(--font-caption);
+    color: var(--color-primary-500);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.limpiar-filtros-barra:hover,
+.guardar-filtro-barra:hover {
+    color: var(--color-primary-600);
+    text-decoration: underline;
+}
+
+.limpiar-filtros-barra:focus-visible,
+.guardar-filtro-barra:focus-visible {
+    outline: var(--border-focus);
+}
+
+/*
   Toolbar de Centros (lámina L3 ".toolbar", contrato de fidelidad
   2026-08-09 § 1.4): una sola fila con buscar/estado/orden/selección
   múltiple/expandir todos/exportar/nuevo centro, en vez de las 3 regiones
@@ -937,6 +1007,18 @@
 }
 
 .enlace-nombre-fila:hover {
+    text-decoration: underline;
+}
+
+/* Pieza 5 del patrón de lista: el nombre de la entidad va en negrita, sin
+   subrayado en reposo, y abre la vista previa lateral. */
+.enlace-nombre-fila.nombre-fila-entidad {
+    font-weight: 600;
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.enlace-nombre-fila.nombre-fila-entidad:hover {
     text-decoration: underline;
 }
 

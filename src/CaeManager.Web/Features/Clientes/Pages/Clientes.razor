@@ -28,115 +28,102 @@
 <PageTitle>Clientes — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    @* Cabecera Gen 2 (Lista Clientes TALVEG.dc.html): el kicker es el grupo
-       del menú y el alta vive junto a Exportar. Las filas de esta pantalla son
-       Clientes empresariales del Tenant (Empresas que reciben el servicio en
-       una Relación Empresarial), no Clientes comerciales TALVEG.
+    @* Patrón único de pantalla de lista (Project-Hydra-Negocio/tecnico/
+       CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3), piloto en Clientes.
+       Las filas de esta pantalla son Clientes empresariales del Tenant
+       (Empresas que reciben el servicio en una Relación Empresarial), no
+       Clientes comerciales TALVEG.
 
-       El mockup solo dibuja «Exportar» y «+ Nuevo cliente»; las
-       importaciones (solo Administrador) y «Alta guiada» ya estaban aquí y se
-       conservan: el mockup no las retira, simplemente no las pinta. *@
+       Pieza 1, cabecera: «Exportar» como enlace secundario, un menú «Más» con
+       las importaciones (solo Administrador) y «Alta guiada», y UNA sola
+       acción primaria «+ Nuevo cliente». Antes eran cinco acciones sueltas.
+       Frente al mockup antiguo «Lista Clientes TALVEG.dc.html» (que solo
+       dibuja Exportar y Nuevo), manda el contrato: lo que el mockup no pinta
+       y la pantalla ya tenía se conserva, pero dentro de «Más». *@
     <CabeceraPagina Titulo="Clientes" Kicker="Negocio">
         <Acciones>
             <a class="enlace-exportar" href="/clientes/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
-                <a class="enlace-exportar" href="/importacion?plantilla=clientes">Importar clientes</a>
-                <a class="enlace-exportar" href="/importacion?plantilla=combinada">Importación combinada</a>
-            </AuthorizeView>
+            @* «Más» solo existe si el rol puede escribir: todo lo que contiene
+               (importar, alta guiada) es escritura. El Administrador está en
+               ConEscritura, así que un menú visible nunca queda vacío salvo
+               con alcance cero y sin ser Administrador; ahí no se ofrece. *@
+            <SoloConEscritura>
+                <MenuAcciones Etiqueta="Más">
+                    <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
+                        <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/importacion?plantilla=clientes")'>Importar clientes</ItemMenuAccion>
+                        <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/importacion?plantilla=combinada")'>Importación combinada</ItemMenuAccion>
+                    </AuthorizeView>
+                    @if (!_alcanceCero)
+                    {
+                        <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/clientes/alta-guiada")'>Alta guiada</ItemMenuAccion>
+                    }
+                </MenuAcciones>
+            </SoloConEscritura>
             @if (!_alcanceCero)
             {
-                <SoloConEscritura><a class="enlace-exportar" href="/clientes/alta-guiada">Alta guiada</a></SoloConEscritura>
                 <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo cliente</Boton></SoloConEscritura>
             }
         </Acciones>
     </CabeceraPagina>
 
-    @* Tarjeta de filtros del mockup: buscador, Ejecutivo, Estado documental y
-       Filtros guardados, con los filtros activos dentro de la misma tarjeta.
+    @* Pieza 2, barra de filtros (BarraFiltros): buscador y selects con su
+       etiqueta visible encima, «Filtros guardados» al final, y debajo los
+       chips activos con «Limpiar todo» y «Guardar filtro».
 
-       Frente al mockup:
+       Frente al mockup antiguo:
        - El buscador dice «Buscar por nombre…», no «Razón social, alias o
          CIF»: ObtenerClientesQuery solo busca en la razón social, y el DTO
          no tiene alias. Prometer CIF sería un buscador que no encuentra lo
          que dice.
-       - «Solo críticos» y «Guardar filtro» no salen en el mockup y se
-         conservan: son filtros y acciones que la pantalla ya tenía.
+       - «Solo críticos» era una casilla suelta: ahora es el select
+         «Criticidad» (Todos / Solo críticos), coherente con el patrón. Sigue
+         viajando en la URL como <c>critico</c>.
        - «Ejecutivo» era deuda terminológica que el propio mockup anota:
          nombra al Gestor CAE (la persona) con Asignación de Cartera sobre
-         este Cliente empresarial. Columna, filtro y chip dicen «Gestor CAE»,
-         como el formulario («Gestor CAE asignado»); el campo del modelo
-         sigue siendo deuda terminológica en código. *@
-    <div class="barra-filtros">
-        <CampoTexto Placeholder="Buscar por nombre…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <CampoSelect Etiqueta="" Valor="@_ejecutivoFiltro" ValorChanged="CambiarEjecutivoFiltroAsync">
-            <option value="">Gestor CAE: todos</option>
-            @foreach (var gestor in _ejecutivosParaFiltro)
-            {
-                <option value="@gestor.Id">@gestor.NombreCompleto</option>
-            }
-        </CampoSelect>
-        <CampoSelect Etiqueta="" Valor="@_estadoDocumentalFiltro" ValorChanged="CambiarEstadoDocumentalFiltroAsync">
-            <option value="">Estado: todos</option>
-            <option value="@nameof(EstadoDocumento.Vencido)">Con vencidos</option>
-            <option value="@nameof(EstadoDocumento.Urgente)">Con urgentes</option>
-            <option value="@EstadoDocumentalFiltro.AlCorriente">Al corriente</option>
-        </CampoSelect>
-        @if (_filtrosGuardados.Count > 0)
-        {
-            <CampoSelect Etiqueta="" Valor="" ValorChanged="AplicarFiltroGuardadoAsync">
-                <option value="">Filtros guardados…</option>
-                @foreach (var filtro in _filtrosGuardados)
+         este Cliente empresarial. Etiqueta, columna y chip dicen «Gestor CAE»;
+         el campo del modelo sigue siendo deuda terminológica en código. *@
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="Buscar por nombre…"
+                  HayFiltrosActivos="HayFiltrosActivos"
+                  OnLimpiarTodo="LimpiarFiltrosAsync" OnGuardarFiltro="AbrirGuardarFiltro"
+                  FiltrosGuardados="OpcionesFiltrosGuardados" OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync">
+        <Filtros>
+            <CampoSelect Etiqueta="Gestor CAE" Valor="@_ejecutivoFiltro" ValorChanged="CambiarEjecutivoFiltroAsync">
+                <option value="">Todos</option>
+                @foreach (var gestor in _ejecutivosParaFiltro)
                 {
-                    <option value="@filtro.Id">@filtro.Nombre</option>
+                    <option value="@gestor.Id">@gestor.NombreCompleto</option>
                 }
             </CampoSelect>
-        }
-        <label class="filtro-critico">
-            <input type="checkbox" checked="@_soloCriticos" @onchange="e => CambiarSoloCriticosAsync((bool)e.Value!)" /> Solo críticos
-        </label>
-        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
-            Guardar filtro
-        </Boton>
-
-        @if (HayFiltrosActivos)
-        {
-            <div class="chips-filtros chips-filtros-barra">
-                <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
-                @if (!string.IsNullOrWhiteSpace(_busqueda))
-                {
-                    <span class="chip-filtro">
-                        Búsqueda: "@_busqueda"
-                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroBusquedaAsync" aria-label="Quitar filtro de búsqueda"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                    </span>
-                }
-                @if (_soloCriticos)
-                {
-                    <span class="chip-filtro">
-                        Solo críticos
-                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroCriticosAsync" aria-label="Quitar filtro de críticos"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                    </span>
-                }
-                @if (!string.IsNullOrWhiteSpace(_ejecutivoFiltro))
-                {
-                    <span class="chip-filtro">
-                        @EtiquetaFiltroEjecutivo
-                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEjecutivoAsync" aria-label="Quitar filtro de Gestor CAE"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                    </span>
-                }
-                @if (!string.IsNullOrWhiteSpace(_estadoDocumentalFiltro))
-                {
-                    <span class="chip-filtro">
-                        @EtiquetaFiltroEstadoDocumental
-                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoDocumentalAsync" aria-label="Quitar filtro de estado documental"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                    </span>
-                }
-                @* «Limpiar todo» del mockup: el mismo LimpiarFiltrosAsync que
-                   «Quitar los filtros» del estado vacío, que limpia también los
-                   filtros que viajan en la URL. *@
-                <button type="button" class="limpiar-filtros-barra" @onclick="LimpiarFiltrosAsync">Limpiar todo</button>
-            </div>
-        }
-    </div>
+            <CampoSelect Etiqueta="Estado" Valor="@_estadoDocumentalFiltro" ValorChanged="CambiarEstadoDocumentalFiltroAsync">
+                <option value="">Todos</option>
+                <option value="@nameof(EstadoDocumento.Vencido)">Con vencidos</option>
+                <option value="@nameof(EstadoDocumento.Urgente)">Con urgentes</option>
+                <option value="@EstadoDocumentalFiltro.AlCorriente">Al corriente</option>
+            </CampoSelect>
+            <CampoSelect Etiqueta="Criticidad" Valor="@(_soloCriticos ? ValorSoloCriticos : string.Empty)" ValorChanged="v => CambiarSoloCriticosAsync(v == ValorSoloCriticos)">
+                <option value="">Todos</option>
+                <option value="@ValorSoloCriticos">Solo críticos</option>
+            </CampoSelect>
+        </Filtros>
+        <Chips>
+            @if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                <ChipFiltro Etiqueta="@($"Búsqueda: \"{_busqueda}\"")" EtiquetaAccesible="Quitar filtro de búsqueda" OnQuitar="QuitarFiltroBusquedaAsync" />
+            }
+            @if (_soloCriticos)
+            {
+                <ChipFiltro Etiqueta="Solo críticos" EtiquetaAccesible="Quitar filtro de críticos" OnQuitar="QuitarFiltroCriticosAsync" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_ejecutivoFiltro))
+            {
+                <ChipFiltro Etiqueta="@EtiquetaFiltroEjecutivo" EtiquetaAccesible="Quitar filtro de Gestor CAE" OnQuitar="QuitarFiltroEjecutivoAsync" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_estadoDocumentalFiltro))
+            {
+                <ChipFiltro Etiqueta="@EtiquetaFiltroEstadoDocumental" EtiquetaAccesible="Quitar filtro de estado documental" OnQuitar="QuitarFiltroEstadoDocumentalAsync" />
+            }
+        </Chips>
+    </BarraFiltros>
 
     @if (_filtrosGuardados.Count > 0)
     {
@@ -204,10 +191,13 @@
                     </TemplateColumn>
                 }
                 <TemplateColumn Title="Razón social" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.RazonSocial))">
-                    @* El nombre es un enlace real a la página Cliente 360
-                       (decisión 2026-09-22): ctrl+clic abre otra pestaña. La
-                       consulta de un vistazo es «Vista rápida» del menú. *@
-                    <a class="enlace-nombre-fila" href="@($"/clientes/{context.Id}")">@context.RazonSocial</a>
+                    @* Pieza 5 del patrón: el nombre, en negrita y sin
+                       subrayado, abre la vista previa lateral (pieza 6). La
+                       ficha 360 (/clientes/{id}) se abre desde el «⋯» y desde
+                       el pie de la vista previa. Esto revierte la decisión
+                       2026-09-22 (nombre = enlace a la ficha); el contrato
+                       del 2026-09-28 manda. *@
+                    <button type="button" class="enlace-nombre-fila nombre-fila-entidad" @onclick="() => AbrirVistaPrevia(context.Id)">@context.RazonSocial</button>
                     @* Perfil incompleto: sin agenda no hay a quién reclamarle.
                        Lleva directo a la pestaña que lo resuelve. No sale en el
                        mockup y se conserva. *@
@@ -246,11 +236,11 @@
                 <TemplateColumn Title="Estado documental">
                     @if (context.EstadoDocumentalPeor is { } peor)
                     {
-                        <Badge Tono="EstadoDocumentoUi.Tono(peor)" title="@TituloEstadoDocumental(peor)">@TextoEstadoDocumental(peor, context.EstadoDocumentalCantidad)</Badge>
+                        <Badge Tono="EstadoDocumentoUi.Tono(peor)" ConIcono="true" title="@TituloEstadoDocumental(peor)">@TextoEstadoDocumental(peor, context.EstadoDocumentalCantidad)</Badge>
                     }
                     else
                     {
-                        <Badge Tono="TonoBadge.Exito" title="Sin alertas de vigencia abiertas entre sus trabajadores">Al corriente</Badge>
+                        <Badge Tono="TonoBadge.Exito" ConIcono="true" title="Sin alertas de vigencia abiertas entre sus trabajadores">Al corriente</Badge>
                     }
                 </TemplateColumn>
                 <TemplateColumn Title="Crítico" Align="Align.Center" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EsCritico))">
@@ -265,20 +255,16 @@
                           title="@(context.EsCritico ? "Crítico: bloquea acceso a un centro" : "Sin situación crítica")"></span>
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
-                    @* Menú del mockup: vista rápida, Cliente 360 y editar.
-                       «Vista rápida» abre el panel de 520 px (el mismo que el
-                       botón 360 de las páginas) y «Abrir Cliente 360» la
-                       página /clientes/{id}. La baja es lógica
+                    @* Orden del contrato: «Ver ficha 360 · Editar · … ·
+                       Eliminar». La vista rápida ya no es un ítem: la abre el
+                       nombre de la fila. La baja es lógica
                        (EliminarClienteCommand → MarcarComoEliminado, con
-                       «Deshacer»), así que se rotula «Dar de baja» como en el
-                       mockup, y con el mismo verbo en la barra de lote, en los
-                       diálogos y en los avisos. *@
+                       «Deshacer»), así que se rotula «Dar de baja» y con el
+                       mismo verbo en la barra de lote, en los diálogos y en
+                       los avisos; es el «Eliminar» del contrato. *@
                     <MenuAcciones>
-                        <ItemMenuAccion OnClick='() => AbrirPreviewAsync(context.Id)'>
-                            Vista rápida
-                        </ItemMenuAccion>
                         <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo($"/clientes/{context.Id}")'>
-                            Abrir Cliente 360
+                            Ver ficha 360
                         </ItemMenuAccion>
                         <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
                             Editar
@@ -380,6 +366,11 @@
     TextoBotonConfirmar="@Textos["DarDeBaja"]"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+
+@* Pieza 6: vista previa lateral. El pie ofrece «Abrir ficha 360». «Ver toda su
+   documentación» sigue abriendo el panel de 520 px (Context Workspace). *@
+<ClientePreviewDrawer ClienteId="_previewClienteId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v"
+                      OnOperar="AbrirDesdeVistaPreviaAsync" OnAbrirFicha="AbrirFichaDesdeVistaPrevia" />
 
 <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
                     OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true"
