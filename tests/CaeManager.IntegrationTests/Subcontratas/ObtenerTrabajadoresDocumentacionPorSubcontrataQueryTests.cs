@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Subcontratas.Queries.ObtenerTrabajadoresDocumentacionPorSubcontrata;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -100,7 +101,7 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryTests : IAsyncLi
             await contexto.SaveChangesAsync();
             trabajadorId = trabajador.Id;
 
-            contexto.Asignaciones.Add(new Asignacion(trabajadorId, _centroAId, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Asignaciones.Add(new Asignacion(trabajadorId, _centroAId, DiaDeNegocio.Hoy()));
             await contexto.SaveChangesAsync();
         }
 
@@ -123,8 +124,8 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryTests : IAsyncLi
             await contexto.SaveChangesAsync();
             trabajadorId = trabajador.Id;
 
-            contexto.Asignaciones.Add(new Asignacion(trabajadorId, _centroAId, DateOnly.FromDateTime(DateTime.UtcNow)));
-            contexto.Asignaciones.Add(new Asignacion(trabajadorId, _centroBId, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Asignaciones.Add(new Asignacion(trabajadorId, _centroAId, DiaDeNegocio.Hoy()));
+            contexto.Asignaciones.Add(new Asignacion(trabajadorId, _centroBId, DiaDeNegocio.Hoy()));
             await contexto.SaveChangesAsync();
         }
 
@@ -147,9 +148,9 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryTests : IAsyncLi
             await contexto.SaveChangesAsync();
             trabajadorId = trabajador.Id;
 
-            contexto.Asignaciones.Add(new Asignacion(trabajadorId, _centroAId, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Asignaciones.Add(new Asignacion(trabajadorId, _centroAId, DiaDeNegocio.Hoy()));
             contexto.Documentos.Add(Documento.DeTrabajador(
-                trabajadorId, _tipoAId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
+                trabajadorId, _tipoAId, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
             await contexto.SaveChangesAsync();
         }
 

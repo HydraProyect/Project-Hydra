@@ -306,7 +306,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
     [Fact]
     public async Task Una_fecha_de_emision_futura_no_llega_a_crear_ni_a_guardar_nada()
     {
-        var manana = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+        var manana = DiaDeNegocio.Hoy().AddDays(1);
         PrepararPropuesta(confianza: 100, emision: manana);
         var cut = Render<SubidaMasiva>();
         await ProcesarAsync(cut, "futura.pdf");

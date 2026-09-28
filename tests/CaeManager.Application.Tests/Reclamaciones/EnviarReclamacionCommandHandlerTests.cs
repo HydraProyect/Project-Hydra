@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Tests.Clientes;
@@ -45,7 +46,7 @@ public class EnviarReclamacionCommandHandlerTests
     }
 
     private const string Dni = "77189989B";
-    private static readonly DateOnly Hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Hoy = DiaDeNegocio.Hoy();
 
     /// <summary>Un Cliente con un Centro y un Trabajador asignado, listos para colgar Documentos.</summary>
     private sealed record Escenario(Entorno Entorno, Empresa Cliente, Centro Centro, Trabajador Trabajador, TipoDocumento TipoDocumento);

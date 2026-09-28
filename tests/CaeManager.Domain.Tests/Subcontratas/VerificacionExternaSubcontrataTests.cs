@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Subcontratas;
 using FluentAssertions;
 using Xunit;
@@ -6,7 +7,7 @@ namespace CaeManager.Domain.Tests.Subcontratas;
 
 public class VerificacionExternaSubcontrataTests
 {
-    private static readonly DateOnly Hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Hoy = DiaDeNegocio.Hoy();
 
     private static VerificacionExternaSubcontrata Crear(
         DateOnly? fecha = null, ResultadoVerificacionExterna resultado = ResultadoVerificacionExterna.Valido,

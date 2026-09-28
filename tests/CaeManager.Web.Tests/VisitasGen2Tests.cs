@@ -50,7 +50,7 @@ public class VisitasGen2Tests : BunitContext
         this.ConRolDeEscritura();
     }
 
-    private static readonly DateOnly Hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Hoy = DiaDeNegocio.Hoy();
 
     private sealed class MediatorVisitas : IMediator
     {

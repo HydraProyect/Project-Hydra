@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
@@ -54,7 +55,7 @@ public class ObtenerSugerenciasVisitaCorreoPendientesQueryTests : IAsyncLifetime
         var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, canal, "cliente@ejemplo.com", "Necesitamos entrar mañana");
         await contexto.SaveChangesAsync();
 
-        var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, centroId, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)), null, "Pide entrar mañana", 90, 90, 90);
+        var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, centroId, DiaDeNegocio.Hoy().AddDays(1), null, "Pide entrar mañana", 90, 90, 90);
         if (resuelta) sugerencia.Resolver(ResolucionSugerencia.Descartada);
         contexto.SugerenciasVisitaCorreo.Add(sugerencia);
         await contexto.SaveChangesAsync();

@@ -220,7 +220,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
     public async Task Una_fecha_de_emision_de_un_mes_futuro_falla_la_validacion()
     {
         var validador = new ActualizarDocumentoDesdeAdjuntoCommandValidator();
-        var mesQueViene = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(1));
+        var mesQueViene = DiaDeNegocio.Hoy().AddMonths(1);
         var comando = new ActualizarDocumentoDesdeAdjuntoCommand(
             Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, new DateOnly(mesQueViene.Year, mesQueViene.Month, 1), null, null);
 
@@ -234,7 +234,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
     {
         var validador = new ActualizarDocumentoDesdeAdjuntoCommandValidator();
         var comando = new ActualizarDocumentoDesdeAdjuntoCommand(
-            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, DateOnly.FromDateTime(DateTime.UtcNow), null, null);
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, DiaDeNegocio.Hoy(), null, null);
 
         var resultado = await validador.ValidateAsync(comando);
 

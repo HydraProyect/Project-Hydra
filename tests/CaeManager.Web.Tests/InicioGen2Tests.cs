@@ -762,7 +762,7 @@ public class InicioGen2Tests : BunitContext
 
     private static string FechaEsperada()
     {
-        var texto = DateTime.Now.ToString("dddd, d 'de' MMMM", CultureInfo.GetCultureInfo("es-ES"));
+        var texto = DiaDeNegocio.Hoy().ToString("dddd, d 'de' MMMM", CultureInfo.GetCultureInfo("es-ES"));
         return char.ToUpper(texto[0], CultureInfo.GetCultureInfo("es-ES")) + texto[1..];
     }
 

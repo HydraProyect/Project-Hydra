@@ -807,26 +807,27 @@ public class ComunicacionesGen2Tests : BunitContext
     /// <summary>
     /// Sin fecha detectada, el formulario propone «hoy». Pasada la medianoche de Madrid
     /// (2026-09-27 22:30 UTC = 28 de septiembre, 00:30 en Madrid) tiene que proponer el
-    /// día UTC: Crear/RenovarDocumentoCommand juzgan con él que la fecha «no puede ser
-    /// futura», y con el día local el guardado fallaba sin que nadie tocara la fecha.
+    /// día de negocio de Madrid, el mismo con el que Crear/RenovarDocumentoCommand
+    /// juzgan que la fecha «no puede ser futura»; el día UTC sería todavía ayer. La zona
+    /// local del reloj es UTC, como la de los contenedores.
     /// </summary>
     [Fact]
-    public async Task Sin_fecha_detectada_pasada_la_medianoche_de_Madrid_propone_el_dia_UTC_que_la_regla_admite()
+    public async Task Sin_fecha_detectada_pasada_la_medianoche_de_Madrid_propone_el_dia_de_Madrid()
     {
-        Services.AddSingleton<TimeProvider>(new RelojEnMadrid(new DateTime(2026, 9, 27, 22, 30, 0, DateTimeKind.Utc)));
+        Services.AddSingleton<TimeProvider>(new RelojEnUtc(new DateTime(2026, 9, 27, 22, 30, 0, DateTimeKind.Utc)));
         var (cut, _) = await RenderizarConversacionAbiertaAsync(laDeteccionLeeLaFechaDeEmision: false);
         await cut.Find(".timeline-adjunto-actualizar-documento").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle());
 
         cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de emisión").Instance.Valor
-            .Should().Be("2026-09-27", "el 28 todavía es futuro para la regla, que compara con el día UTC");
+            .Should().Be("2026-09-28", "en Madrid ya es 28; el 27 del día UTC sería ayer");
     }
 
-    private sealed class RelojEnMadrid(DateTime ahoraUtc) : TimeProvider
+    private sealed class RelojEnUtc(DateTime ahoraUtc) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(ahoraUtc, TimeSpan.Zero);
 
-        public override TimeZoneInfo LocalTimeZone { get; } = TimeZoneInfo.FindSystemTimeZoneById("Europe/Madrid");
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
     }
 
     [Fact]

@@ -47,7 +47,7 @@ public class FacturacionGen2Tests : BunitContext
 
     private static readonly Guid ClienteA = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
     private static readonly Guid ClienteB = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002");
-    private static readonly DateTime Hoy = DateTime.Today;
+    private static readonly DateTime Hoy = DiaDeNegocio.Hoy().ToDateTime(TimeOnly.MinValue);
 
     /// <summary>Un mes que nunca es el actual, para distinguir el resumen pedido del estimado automático.</summary>
     private static readonly int MesCalculado = Hoy.Month == 3 ? 4 : 3;

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using System.IO.Compression;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Comunicaciones;
@@ -33,7 +34,7 @@ namespace CaeManager.Application.Tests.Visitas;
 /// </summary>
 public class PaqueteDocumentalVisitaServiceTests
 {
-    private static readonly DateOnly Hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Hoy = DiaDeNegocio.Hoy();
 
     private readonly VisitasQueryContextFalso _visitas = new();
     private readonly CentrosQueryContextFalso _centros = new();

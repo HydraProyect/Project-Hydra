@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Dashboard.Queries;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
@@ -44,7 +45,7 @@ public class EstadisticasAprobacionDocumentoTests : IAsyncLifetime
         _dbContext.Trabajadores.AddRange(_trabajadorVisible, _trabajadorAjeno);
 
         var tipoApto = await _dbContext.TiposDocumento.FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador);
-        var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
+        var fechaEmision = DiaDeNegocio.Hoy();
 
         var documentoVisibleAutomatico = Documento.DeTrabajador(_trabajadorVisible.Id, tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "a.pdf");
         var documentoVisibleManual = Documento.DeTrabajador(_trabajadorVisible.Id, tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "b.pdf");
