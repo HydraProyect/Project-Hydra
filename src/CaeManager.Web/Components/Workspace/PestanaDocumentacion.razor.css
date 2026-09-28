@@ -1,0 +1,5 @@
+.workspace-acciones-documentacion {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: var(--space-3);
+}

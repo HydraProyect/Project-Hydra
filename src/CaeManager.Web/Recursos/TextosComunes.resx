@@ -81,4 +81,7 @@
   <data name="LeidoPor" xml:space="preserve">
     <value>Leído por {0}</value>
   </data>
+  <data name="SubirDocumento" xml:space="preserve">
+    <value>+ Subir documento</value>
+  </data>
 </root>

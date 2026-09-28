@@ -79,4 +79,7 @@
   <data name="LeidoPor" xml:space="preserve">
     <value>Llegit per {0}</value>
   </data>
+  <data name="SubirDocumento" xml:space="preserve">
+    <value>+ Puja un document</value>
+  </data>
 </root>

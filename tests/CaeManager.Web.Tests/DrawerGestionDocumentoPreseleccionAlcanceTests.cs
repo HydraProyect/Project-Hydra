@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
@@ -36,6 +37,7 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
     {
         public required IReadOnlyList<TrabajadorSelectorDto> Trabajadores { get; init; }
         public required IReadOnlyList<EmpresaSelectorDto> Empresas { get; init; }
+        public IReadOnlyList<VehiculoSelectorDto> Vehiculos { get; init; } = [];
         public List<AlcanceSelectorTrabajadores> AlcancesPedidos { get; } = [];
 
         private IReadOnlyList<TrabajadorSelectorDto> Registrar(ObtenerTrabajadoresParaSelectorQuery consulta)
@@ -49,6 +51,7 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
             {
                 ObtenerTrabajadoresParaSelectorQuery consulta => Registrar(consulta),
                 ObtenerEmpresasParaSelectorQuery => Empresas,
+                ObtenerVehiculosParaSelectorQuery => Vehiculos,
                 ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)[],
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
@@ -113,6 +116,30 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
         var campo = typeof(DrawerGestionDocumento).GetField(nombreCampo, BindingFlags.Instance | BindingFlags.NonPublic);
         campo.Should().NotBeNull($"el test necesita leer {nombreCampo} directamente");
         return (string?)campo!.GetValue(instancia);
+    }
+
+    /// <summary>
+    /// «+ Subir documento» de Vehículo 360 abre el alta con el ámbito Vehículo y el
+    /// vehículo preseleccionado, con el mismo criterio de catálogo que Trabajador y
+    /// Empresa: un Id que no está en el selector con alcance no se preselecciona.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Abrir_para_un_vehiculo_preselecciona_solo_si_esta_en_el_catalogo(bool enCatalogo)
+    {
+        var vehiculoId = Guid.NewGuid();
+        var cut = Renderizar(new MediatorFalso
+        {
+            Trabajadores = [],
+            Empresas = [],
+            Vehiculos = enCatalogo ? [new VehiculoSelectorDto(vehiculoId, "Furgoneta", "1234ABC")] : [],
+        });
+
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearParaVehiculoAsync(vehiculoId));
+
+        LeerCampoPrivado(cut.Instance, "_ambitoAplicacion").Should().Be("Vehiculo");
+        LeerCampoPrivado(cut.Instance, "_vehiculoId").Should().Be(enCatalogo ? vehiculoId.ToString() : string.Empty);
     }
 
     [Fact]

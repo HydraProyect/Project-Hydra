@@ -15,6 +15,20 @@
 @using MediatR
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
+
+@* «+ Subir documento» (mockup Vehículo 360): abre el mismo DrawerGestionDocumento que
+   usan Documentos, Trabajador 360 y Centro 360, con el vehículo preseleccionado.
+   Crear es un ICommand que AutorizacionEscrituraBehavior deniega a Consulta. *@
+@if (PermiteSubir && Ambito == AmbitoAplicacion.Vehiculo)
+{
+    <SoloConEscritura>
+        <div class="workspace-acciones-documentacion">
+            <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerGestion!.AbrirCrearParaVehiculoAsync(PropietarioId)">@Comunes["SubirDocumento"]</Boton>
+        </div>
+    </SoloConEscritura>
+    <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="CargarAsync" />
+}
 
 @if (_cargando)
 {
@@ -52,6 +66,11 @@ else
 @code {
     [Parameter, EditorRequired] public AmbitoAplicacion Ambito { get; set; }
     [Parameter, EditorRequired] public Guid PropietarioId { get; set; }
+
+    /// <summary>Ofrece «+ Subir documento». Hoy solo Vehículo 360 lo pide (y solo Vehículo lo admite).</summary>
+    [Parameter] public bool PermiteSubir { get; set; }
+
+    private DrawerGestionDocumento? _drawerGestion;
 
     private IReadOnlyList<DocumentoListaDto> _documentos = [];
     private bool _cargando = true;
