@@ -87,7 +87,7 @@
         @* El detalle solo existe con una tarea abierta: sin ella no reserva
            columna y la cola gana ese ancho. La pista de teclado ya está en la
            barra de la cola («j k mover · ↵ abrir»). *@
-        @{ var filaAbierta = FilaAbierta; }
+        var filaAbierta = FilaAbierta;
         <div class="@("mi-trabajo-paneles" + (filaAbierta is null ? " mi-trabajo-paneles-sin-detalle" : ""))">
             <aside class="mi-trabajo-cartera" aria-label="@Textos["MiCartera"]">
                 <div class="mi-trabajo-cartera-cabecera">
