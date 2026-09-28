@@ -12,6 +12,7 @@ using CaeManager.Application.Tenants.Commands.CrearOperadorCaeExterno;
 using CaeManager.Application.Tenants.Commands.CrearTenantPropietarioDeOperadorCaeExterno;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
+using CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDelegado;
 using CaeManager.Application.Tenants.Queries.AutorizarOperadorCaeExterno;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Application.Tenants.Queries.EsTenantOrigenPlataforma;
@@ -85,6 +86,7 @@ public partial class DelegacionesGen2Tests : BunitContext
                 ObtenerDelegacionesQuery => Delegaciones,
                 ObtenerActividadSoporteQuery => Array.Empty<ActividadSoporteDto>(),
                 DesactivarDelegacionTenantCommand => Result.Exito(),
+                RevocarAsignacionOperadorDelegadoCommand => Result.Exito(),
                 CrearClienteDeleganteCommand => Result.Exito(Guid.NewGuid()),
                 ObtenerOperadoresCaeExternosQuery => Operadores,
                 CrearOperadorCaeExternoCommand => Result.Exito(Guid.NewGuid()),

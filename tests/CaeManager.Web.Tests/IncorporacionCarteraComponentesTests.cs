@@ -162,6 +162,7 @@ public class IncorporacionCarteraComponentesTests : BunitContext
         var rechazar = aviso.FindAll($"[data-solicitud='{solicitud.Id}'] button")
             .Single(b => b.TextContent.Trim() == Textos["Rechazar"]);
         await rechazar.ClickAsync(new());
+        await BotonDelDialogo(aviso, Textos["Rechazar"]).ClickAsync(new());
 
         _mediator.Comandos.Should().ContainSingle()
             .Which.Should().Be(new RechazarSolicitudIncorporacionCarteraCommand(solicitud.Id));
@@ -171,7 +172,86 @@ public class IncorporacionCarteraComponentesTests : BunitContext
             .Should().Equal(otra.Id.ToString());
     }
 
+    [Fact]
+    public async Task Rechazar_en_el_aviso_pide_confirmacion_y_cancelar_no_envia_el_Command()
+    {
+        var solicitud = Solicitud("Empresa Norte", "Marta");
+        _mediator.Bandeja = BandejaCoordinador(solicitud);
+        var aviso = Render<AvisoSolicitudesCartera>();
+
+        await BotonDeFila(aviso, solicitud, Textos["Rechazar"]).ClickAsync(new());
+
+        aviso.Find(".modal-pie").TextContent.Should().Contain(Textos["Rechazar"], "control positivo: el diálogo se abrió");
+        aviso.Markup.Should().Contain(Textos["ConfirmarRechazarMensaje", "Marta", "Empresa Norte"]);
+        _mediator.Comandos.Should().BeEmpty("abrir el diálogo no rechaza nada");
+
+        await BotonDelDialogo(aviso, "Cancelar").ClickAsync(new());
+
+        _mediator.Comandos.Should().BeEmpty();
+        aviso.FindAll(".modal-pie").Should().BeEmpty("cancelar cierra el diálogo");
+        aviso.FindAll("[data-solicitud]").Should().ContainSingle("la solicitud sigue pendiente");
+    }
+
+    [Fact]
+    public async Task Rechazar_en_el_aviso_y_confirmar_envia_el_Command_de_esa_solicitud()
+    {
+        var solicitud = Solicitud("Empresa Norte", "Marta");
+        _mediator.Bandeja = BandejaCoordinador(solicitud);
+        var aviso = Render<AvisoSolicitudesCartera>();
+        _mediator.Bandeja = BandejaCoordinador();
+
+        await BotonDeFila(aviso, solicitud, Textos["Rechazar"]).ClickAsync(new());
+        await BotonDelDialogo(aviso, Textos["Rechazar"]).ClickAsync(new());
+
+        _mediator.Comandos.Should().ContainSingle()
+            .Which.Should().Be(new RechazarSolicitudIncorporacionCarteraCommand(solicitud.Id));
+        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Exito && t.Mensaje == Textos["ToastRechazada"].Value);
+        aviso.FindAll(".modal-pie").Should().BeEmpty();
+    }
+
     // -------------------------------------------------------------- Bandeja
+
+    [Fact]
+    public async Task Rechazar_en_la_bandeja_pide_confirmacion_y_cancelar_no_envia_el_Command()
+    {
+        var solicitud = Solicitud("Empresa Norte", "Marta");
+        _mediator.Bandeja = BandejaCoordinador(solicitud);
+        var pagina = Render<SolicitudesCartera>();
+
+        await BotonDeFila(pagina, solicitud, Textos["Rechazar"]).ClickAsync(new());
+
+        pagina.Find(".modal-pie").TextContent.Should().Contain(Textos["Rechazar"], "control positivo: el diálogo se abrió");
+        pagina.Markup.Should().Contain(Textos["ConfirmarRechazarMensaje", "Marta", "Empresa Norte"]);
+        _mediator.Comandos.Should().BeEmpty("abrir el diálogo no rechaza nada");
+
+        await BotonDelDialogo(pagina, "Cancelar").ClickAsync(new());
+
+        _mediator.Comandos.Should().BeEmpty();
+        pagina.FindAll(".modal-pie").Should().BeEmpty("cancelar cierra el diálogo");
+    }
+
+    [Fact]
+    public async Task Rechazar_en_la_bandeja_y_confirmar_envia_el_Command_de_esa_solicitud()
+    {
+        var solicitud = Solicitud("Empresa Norte", "Marta");
+        _mediator.Bandeja = BandejaCoordinador(solicitud);
+        var pagina = Render<SolicitudesCartera>();
+
+        await BotonDeFila(pagina, solicitud, Textos["Rechazar"]).ClickAsync(new());
+        await BotonDelDialogo(pagina, Textos["Rechazar"]).ClickAsync(new());
+
+        _mediator.Comandos.Should().ContainSingle()
+            .Which.Should().Be(new RechazarSolicitudIncorporacionCarteraCommand(solicitud.Id));
+        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Exito && t.Mensaje == Textos["ToastRechazada"].Value);
+        pagina.FindAll(".modal-pie").Should().BeEmpty();
+    }
+
+    private static AngleSharp.Dom.IElement BotonDeFila<T>(IRenderedComponent<T> cut, SolicitudIncorporacionCarteraDto solicitud, string texto)
+        where T : IComponent =>
+        cut.FindAll($"[data-solicitud='{solicitud.Id}'] button").Single(b => b.TextContent.Trim() == texto);
+
+    private static AngleSharp.Dom.IElement BotonDelDialogo<T>(IRenderedComponent<T> cut, string texto) where T : IComponent =>
+        cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == texto);
 
     [Fact]
     public void La_bandeja_del_Coordinador_CAE_no_ofrece_resolver_su_propia_solicitud()

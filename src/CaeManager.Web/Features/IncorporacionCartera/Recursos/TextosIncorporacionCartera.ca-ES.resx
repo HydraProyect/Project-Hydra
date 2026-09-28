@@ -138,6 +138,12 @@
   <data name="ConfirmarRevocarTitulo" xml:space="preserve">
     <value>Revocar incorporació</value>
   </data>
+  <data name="ConfirmarRechazarTitulo" xml:space="preserve">
+    <value>Rebutjar sol·licitud</value>
+  </data>
+  <data name="ConfirmarRechazarMensaje" xml:space="preserve">
+    <value>{1} no entrarà a la cartera de {0}. El rebuig no es pot desfer; si més endavant la necessita, {0} haurà d'enviar una sol·licitud nova.</value>
+  </data>
   <data name="ConfirmarRevocarMensaje" xml:space="preserve">
     <value>{0} deixarà de tenir {1} a la seva cartera.</value>
   </data>

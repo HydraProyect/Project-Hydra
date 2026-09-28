@@ -66,6 +66,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private readonly HashSet<Guid> _operacionesEnCurso = [];
 
     private DelegacionDto? _delegacionARevocar;
+    private (Guid EntidadId, OperadorDelegadoDto Operador)? _operadorARetirar;
     private DelegacionDto? _verActividadDe;
     private IReadOnlyList<ActividadSoporteDto> _actividad = [];
     private bool _cargandoActividad;
@@ -170,6 +171,21 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         ? string.Empty
         : $"Se retirará el acceso de «{TituloDe(aRevocar.SomosLaConsultora, aRevocar.ClienteNombre, aRevocar.ConsultoraNombre)}». " +
           "Los datos no se borran y la delegación se puede reactivar.";
+
+    private string MensajeRetirada
+    {
+        get
+        {
+            if (_operadorARetirar is not { } aRetirar)
+            {
+                return string.Empty;
+            }
+
+            var vinculo = _delegaciones.FirstOrDefault(d => d.Id == aRetirar.EntidadId);
+            var titulo = vinculo is null ? string.Empty : TituloDe(vinculo.SomosLaConsultora, vinculo.ClienteNombre, vinculo.ConsultoraNombre);
+            return TextosAutorizar["RetirarMensaje", NombreDeUsuario(aRetirar.Operador.UsuarioId), titulo];
+        }
+    }
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
@@ -514,6 +530,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             _generacionEntidad++;
             _cargandoActividad = false;
             _delegacionARevocar = null;
+            _operadorARetirar = null;
             _delegacionSoporteAAbrir = null;
             _verActividadDe = null;
             _actividad = [];
@@ -532,6 +549,14 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         if (!visible && !EstaProcesando(_delegacionARevocar?.Id))
         {
             _delegacionARevocar = null;
+        }
+    }
+
+    private void CerrarRetirada(bool visible)
+    {
+        if (!visible && !EstaProcesando(_operadorARetirar?.Operador.AsignacionId))
+        {
+            _operadorARetirar = null;
         }
     }
 
@@ -721,12 +746,33 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             () => Mediator.Send(new ReactivarDelegacionTenantCommand(delegacion.Id)),
             "Delegación reactivada.");
 
-    private async Task RetirarOperadorAsync(Guid delegacionId, OperadorDelegadoDto operador) =>
+    // Retirar a una persona le quita el acceso sin vuelta atrás: se confirma
+    // antes, como revocar la delegación entera.
+    private void PedirRetirarOperador(Guid entidadId, OperadorDelegadoDto operador)
+    {
+        if (EstaProcesando(operador.AsignacionId))
+        {
+            return;
+        }
+
+        PrepararEntidad(entidadId);
+        _operadorARetirar = (entidadId, operador);
+    }
+
+    private async Task RetirarOperadorAsync()
+    {
+        if (_operadorARetirar is not { } aRetirar)
+        {
+            return;
+        }
+
         await EjecutarParaEntidadAsync(
-            delegacionId,
-            operador.AsignacionId,
-            () => Mediator.Send(new RevocarAsignacionOperadorDelegadoCommand(operador.AsignacionId)),
+            aRetirar.EntidadId,
+            aRetirar.Operador.AsignacionId,
+            () => Mediator.Send(new RevocarAsignacionOperadorDelegadoCommand(aRetirar.Operador.AsignacionId)),
             "Persona retirada de la delegación.");
+        _operadorARetirar = null;
+    }
 
     private async Task EjecutarParaEntidadAsync(Guid delegacionId, Guid operacionId, Func<Task<CaeManager.Domain.Common.Result>> enviar, string exito)
     {

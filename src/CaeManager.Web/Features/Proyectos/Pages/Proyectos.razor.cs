@@ -864,6 +864,40 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
+    // Dar de baja a un técnico lo saca de la facturación por días del proyecto
+    // y la aplicación no lo deshace: se confirma antes, como eliminar un proyecto.
+    private TecnicoProyectoDto? _tecnicoADarDeBaja;
+    private bool _dandoDeBajaTecnico;
+
+    private string MensajeConfirmarBajaTecnico => _tecnicoADarDeBaja is null
+        ? string.Empty
+        : Textos["ConfirmarBajaTecnicoMensaje", _tecnicoADarDeBaja.TrabajadorNombreCompleto];
+
+    private void PedirDarDeBajaTecnico(TecnicoProyectoDto tecnico) => _tecnicoADarDeBaja = tecnico;
+
+    private void CerrarConfirmacionBajaTecnico(bool visible)
+    {
+        if (!visible && !_dandoDeBajaTecnico)
+            _tecnicoADarDeBaja = null;
+    }
+
+    private async Task ConfirmarBajaTecnicoAsync()
+    {
+        if (_tecnicoADarDeBaja is not { } tecnico)
+            return;
+
+        _dandoDeBajaTecnico = true;
+        try
+        {
+            await DesasignarTecnicoAsync(tecnico.Id);
+        }
+        finally
+        {
+            _dandoDeBajaTecnico = false;
+            _tecnicoADarDeBaja = null;
+        }
+    }
+
     private async Task DesasignarTecnicoAsync(Guid id)
     {
         try

@@ -138,6 +138,12 @@
   <data name="ConfirmarRevocarTitulo" xml:space="preserve">
     <value>Revocar incorporación</value>
   </data>
+  <data name="ConfirmarRechazarTitulo" xml:space="preserve">
+    <value>Rechazar solicitud</value>
+  </data>
+  <data name="ConfirmarRechazarMensaje" xml:space="preserve">
+    <value>{1} no entrará en la cartera de {0}. El rechazo no se puede deshacer; si más adelante la necesita, {0} tendrá que enviar una solicitud nueva.</value>
+  </data>
   <data name="ConfirmarRevocarMensaje" xml:space="preserve">
     <value>{0} dejará de tener {1} en su cartera.</value>
   </data>

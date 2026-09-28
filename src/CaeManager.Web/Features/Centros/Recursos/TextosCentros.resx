@@ -69,4 +69,16 @@
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>
+  <data name="QuitarAjusteTitulo" xml:space="preserve">
+    <value>¿Quitar el ajuste de «{0}»?</value>
+  </data>
+  <data name="QuitarAjusteMensaje" xml:space="preserve">
+    <value>Este centro perderá su configuración propia para este documento (si aplica, la periodicidad especial y el bloqueo de acceso) y volverá a seguir el criterio global del tenant. No se puede deshacer: para recuperarla habrá que configurarla de nuevo.</value>
+  </data>
+  <data name="QuitarAjusteMensajeConFormulario" xml:space="preserve">
+    <value>Este centro perderá su configuración propia para este documento (si aplica, la periodicidad especial, el bloqueo de acceso y el formulario adjunto) y volverá a seguir el criterio global del tenant. No se puede deshacer: para recuperarla habrá que configurarla de nuevo.</value>
+  </data>
+  <data name="QuitarAjusteConfirmar" xml:space="preserve">
+    <value>Quitar ajuste</value>
+  </data>
 </root>
