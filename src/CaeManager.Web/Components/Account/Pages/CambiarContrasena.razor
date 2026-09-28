@@ -169,7 +169,9 @@
         // datos en cada navegación, no de un claim cacheado.
         await SignInManager.RefreshSignInAsync(usuario);
 
-        Navigation.NavigateTo("/", forceLoad: true);
+        // El cambio obligatorio es el último paso del inicio de sesión: aterriza con
+        // la marca de un solo uso (D-2), igual que Login y LoginCon2fa.
+        Navigation.NavigateTo(RedireccionLocal.DestinoTrasLogin(null), forceLoad: true);
     }
 
     private sealed class DatosEntrada
