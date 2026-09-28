@@ -277,8 +277,14 @@ senal_arbol CONT "$pc"
 sleep 3                                    # C solo, con el mundo aún dormido: sin arreglo le basta
                                            # (todo lleva 8 s caducado); con arreglo, 3 s < CADUCIDAD.
 senal_arbol CONT "$pa" "$pb"
-wait "$pa" "$pb" "$pc"
+wait "$pa"; rca=$?; wait "$pb"; rcb=$?; wait "$pc"; rcc=$?
 comprobar "tras una suspensión: sin solape y en orden de llegada A, B, C" "A_ini A_fin B_ini B_fin C_ini C_fin" "$(tr '\n' ' ' < "$REGISTRO" | sed 's/ $//')"
+if [ "$(tr '\n' ' ' < "$REGISTRO" | sed 's/ $//')" != "A_ini A_fin B_ini B_fin C_ini C_fin" ]; then
+  # Un fallo intermitente sin su salida obliga a inferir la causa (el de CI de #982 solo
+  # enseñó el registro): se vuelcan los códigos de salida y el final de cada salida.
+  echo "        salidas: A=$rca B=$rcb C=$rcc"
+  for f in oA oB oC; do echo "        --- $f"; tail -n 6 "$CASO/$f" | sed 's/^/        /'; done
+fi
 comprobar "tras una suspensión: no retira el cerrojo de un dueño vivo" "0" "$(cat "$CASO"/o? | grep -c 'cerrojo huérfano retirado')"
 
 # 11c -----------------------------------------------------------------------
