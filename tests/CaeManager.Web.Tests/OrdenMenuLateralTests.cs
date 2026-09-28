@@ -3,6 +3,8 @@ using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma.OrdenMenu;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
+using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Comunicaciones;
@@ -55,6 +57,8 @@ public class OrdenMenuLateralTests : BunitContext
     private sealed class MediadorOrden : IMediator
     {
         public bool EsAdministradorPlataforma { get; set; } = true;
+        public PerfilVocabularioTenant Perfil { get; set; } = PerfilVocabularioTenant.Consultora;
+        public bool RotulosPrimeraPersona { get; set; }
         public OrdenMenuLateralDto? Orden { get; set; }
         public Func<GuardarOrdenMenuLateralCommand, Result>? AlGuardar { get; set; }
         public List<GuardarOrdenMenuLateralCommand> Guardados { get; } = [];
@@ -65,6 +69,8 @@ public class OrdenMenuLateralTests : BunitContext
             object respuesta = request switch
             {
                 EsAdministradorPlataformaQuery => EsAdministradorPlataforma,
+                ObtenerPerfilVocabularioActualQuery => Perfil,
+                UsaRotulosPrimeraPersonaQuery => RotulosPrimeraPersona,
                 ObtenerOrdenMenuLateralQuery => LeerOrden()!,
                 GuardarOrdenMenuLateralCommand comando => Guardar(comando),
                 _ => throw new NotSupportedException(request.GetType().Name)
@@ -442,5 +448,21 @@ public class OrdenMenuLateralTests : BunitContext
         enlacesVistos.Should().Be(esperados, "la vista previa es CatalogoMenuLateral.Visibles, el mismo del menú real");
         cut.Find("[data-previa-texto]").TextContent.Should()
             .Be($"Ve {esperados} de {CatalogoMenuLateral.Enlaces.Count} enlaces; los demás no los ve por su rol, no por el orden.");
+    }
+
+    [Theory]
+    [InlineData(PerfilVocabularioTenant.ClienteDirecto, true, "Mi empresa", "Mis trabajadores")]
+    [InlineData(PerfilVocabularioTenant.ClienteDirecto, false, "Empresas", "Trabajadores")]
+    [InlineData(PerfilVocabularioTenant.Consultora, false, "Empresas", "Trabajadores")]
+    public void La_vista_previa_rotula_como_el_menu_real_segun_perfil_y_tenant_de_origen(
+        PerfilVocabularioTenant perfil, bool primeraPersona, string empresas, string trabajadores)
+    {
+        _mediador.Perfil = perfil;
+        _mediador.RotulosPrimeraPersona = primeraPersona;
+
+        var cut = Renderizar();
+
+        cut.Find("[data-enlace-previa='empresas']").TextContent.Should().Be(empresas);
+        cut.Find("[data-enlace-previa='trabajadores']").TextContent.Should().Be(trabajadores);
     }
 }
