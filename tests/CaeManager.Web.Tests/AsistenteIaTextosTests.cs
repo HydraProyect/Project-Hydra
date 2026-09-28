@@ -44,6 +44,11 @@ public class AsistenteIaTextosTests : BunitContext
     {
         Services.AddLocalization();
         Services.AddScoped<AsistenteIaService>();
+        Services.AddSingleton<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.AsistenteIa.AnthropicOptions>>(
+            Microsoft.Extensions.Options.Options.Create(new CaeManager.Infrastructure.AsistenteIa.AnthropicOptions { ApiKey = "sk-ant-de-prueba" }));
+        Services.AddSingleton<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.AsistenteIa.TypeSafeOptions>>(
+            Microsoft.Extensions.Options.Options.Create(new CaeManager.Infrastructure.AsistenteIa.TypeSafeOptions()));
+        Services.AddScoped<DisponibilidadAsistente>();
         Services.AddScoped<IMediator, MediatorQueNoResponde>();
         Services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         JSInterop.Mode = JSRuntimeMode.Loose;

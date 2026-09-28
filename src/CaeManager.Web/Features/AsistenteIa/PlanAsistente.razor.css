@@ -1,0 +1,263 @@
+/*
+  Plan del agente («Asistente TALVEG.dc.html»). Menos cajas: fondo suave y una
+  línea de acento a la izquierda que dice el estado (azul listo, ámbar borrador,
+  rojo bloqueado). Solo tokens del sistema de diseño.
+*/
+.plan {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface-hover);
+    color: var(--color-text);
+    font: var(--font-body-md);
+    box-shadow: inset 3px 0 0 var(--color-primary-500);
+}
+
+.plan-borrador {
+    box-shadow: inset 3px 0 0 var(--color-warning-500);
+}
+
+.plan-bloqueado {
+    box-shadow: inset 3px 0 0 var(--color-danger-500);
+}
+
+.plan-cerrado {
+    box-shadow: none;
+    gap: var(--space-1);
+}
+
+.plan:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.plan-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.plan-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    padding: 0 var(--space-3) 0 var(--space-1);
+    min-height: 28px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+    font: var(--font-label);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.plan-chip-bloqueado {
+    background-color: var(--color-danger-50);
+    color: var(--color-danger-700);
+}
+
+.plan-chip-ini {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-surface);
+    flex: none;
+}
+
+.plan-pastilla {
+    flex: none;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-full);
+    font: var(--font-caption);
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+}
+
+.plan-pastilla-borrador {
+    background-color: var(--color-warning-50);
+    color: var(--color-warning-700);
+}
+
+.plan-pastilla-bloqueado {
+    background-color: var(--color-danger-50);
+    color: var(--color-danger-700);
+}
+
+.plan-titulo-bloque {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.plan-titulo {
+    font: var(--font-label);
+}
+
+.plan-subtitulo,
+.plan-nota {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.plan-ok {
+    color: var(--color-success-700);
+    font-weight: 700;
+}
+
+.plan-aviso {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+}
+
+.plan-aviso-peligro {
+    background-color: var(--color-danger-50);
+    color: var(--color-danger-700);
+    box-shadow: inset 3px 0 0 var(--color-danger-500);
+}
+
+.plan-tenants {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.plan-opcion {
+    border: var(--border-control);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    border-radius: var(--radius-full);
+    padding: var(--space-1) var(--space-3);
+    font: var(--font-body-sm);
+    cursor: pointer;
+}
+
+.plan-opcion[aria-pressed="true"] {
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+    border-color: var(--color-primary-500);
+}
+
+.plan-opcion:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.plan-opcion:focus-visible,
+.plan-confirmar:focus-visible,
+.plan-descartar:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.plan-seccion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.plan-seccion-titulo {
+    font: var(--font-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+}
+
+.plan-dato {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    gap: var(--space-2);
+    padding: 2px var(--space-2);
+    margin: 0 calc(var(--space-2) * -1);
+    border-radius: var(--radius-sm);
+}
+
+.plan-dato-falta {
+    background-color: var(--color-warning-50);
+}
+
+.plan-dato-campo {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    padding-top: 2px;
+}
+
+.plan-pasos {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.plan-pasos li {
+    display: grid;
+    grid-template-columns: 20px 1fr;
+    gap: var(--space-2);
+}
+
+.plan-paso-marca {
+    color: var(--color-text-muted);
+}
+
+.plan-acciones {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.plan-confirmar {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 36px;
+    padding: 0 var(--space-4);
+    border: none;
+    border-radius: var(--radius-md);
+    background-color: var(--color-primary-500);
+    color: var(--color-neutral-0);
+    font: var(--font-body-md);
+    cursor: pointer;
+}
+
+.plan-confirmar[aria-disabled="true"] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.plan-kbd {
+    font: var(--font-caption);
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-sm);
+    border: 1px solid currentColor;
+}
+
+.plan-descartar {
+    margin-left: auto;
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+    cursor: pointer;
+}
+
+.plan-descartar:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

@@ -36,4 +36,253 @@
   <data name="BotonEnviar" xml:space="preserve">
     <value>Enviar</value>
   </data>
+  <data name="TituloAgente" xml:space="preserve">
+    <value>Assistent {0}</value>
+  </data>
+  <data name="BorradoresEtiqueta" xml:space="preserve">
+    <value>Esborranys i converses anteriors</value>
+  </data>
+  <data name="BorradoresAyuda" xml:space="preserve">
+    <value>Un esborrany és un pla sense confirmar. Reprendre'l encara no està disponible: per ara pots veure'ls i descartar-los.</value>
+  </data>
+  <data name="BorradoresVacio" xml:space="preserve">
+    <value>No tens cap esborrany obert.</value>
+  </data>
+  <data name="ModoEtiqueta" xml:space="preserve">
+    <value>Què vols fer</value>
+  </data>
+  <data name="ModoGestion" xml:space="preserve">
+    <value>Demanar una gestió</value>
+  </data>
+  <data name="ModoPreguntar" xml:space="preserve">
+    <value>Consultar la normativa</value>
+  </data>
+  <data name="DescripcionGestion" xml:space="preserve">
+    <value>Escriu una gestió i et proposo un pla. No s'executa res sense la teva confirmació, i sempre dins del que la teva Assignació de Cartera et permet. Per al que nomenis, només consulto les dades de la teva cartera.</value>
+  </data>
+  <data name="AgenteNoDisponible" xml:space="preserve">
+    <value>Demanar gestions a l'assistent no està disponible en aquest entorn.</value>
+  </data>
+  <data name="MensajeVacioGestion" xml:space="preserve">
+    <value>Escriu què vols fer, per exemple: «reclama la documentació pendent d'un Centre».</value>
+  </data>
+  <data name="EtiquetaOrden" xml:space="preserve">
+    <value>Gestió que vols demanar a l'assistent</value>
+  </data>
+  <data name="PlaceholderOrden" xml:space="preserve">
+    <value>Escriu la gestió…</value>
+  </data>
+  <data name="OrdenNoEntendida" xml:space="preserve">
+    <value>No he reconegut cap gestió en el que has escrit, així que no he preparat cap pla. Si era un dubte normatiu, canvia a «Consultar la normativa».</value>
+  </data>
+  <data name="TareaEstado_Conversando" xml:space="preserve">
+    <value>Sense pla</value>
+  </data>
+  <data name="TareaEstado_PlanEnBorrador" xml:space="preserve">
+    <value>Esborrany: falta alguna cosa</value>
+  </data>
+  <data name="TareaEstado_PlanListo" xml:space="preserve">
+    <value>Pla llest, sense confirmar</value>
+  </data>
+  <data name="TareaEstado_Confirmada" xml:space="preserve">
+    <value>Confirmat</value>
+  </data>
+  <data name="TareaEstado_Terminada" xml:space="preserve">
+    <value>Acabat</value>
+  </data>
+  <data name="TareaEstado_Descartada" xml:space="preserve">
+    <value>Descartat</value>
+  </data>
+  <data name="Plan_Estado_listo" xml:space="preserve">
+    <value>Llest per confirmar</value>
+  </data>
+  <data name="Plan_Estado_borrador" xml:space="preserve">
+    <value>Esborrany</value>
+  </data>
+  <data name="Plan_Estado_bloqueado" xml:space="preserve">
+    <value>Bloquejat</value>
+  </data>
+  <data name="Plan_Subtitulo" xml:space="preserve">
+    <value>Ordre reconeguda amb una confiança del {0} %</value>
+  </data>
+  <data name="Plan_SeEjecutaraEn" xml:space="preserve">
+    <value>S'executarà al Tenant beneficiari {0}</value>
+  </data>
+  <data name="Plan_SinTenant" xml:space="preserve">
+    <value>Sense Tenant destí</value>
+  </data>
+  <data name="Plan_SinTenantAria" xml:space="preserve">
+    <value>Encara no hi ha cap Tenant beneficiari on s'executi el pla</value>
+  </data>
+  <data name="Plan_ElegirTenantEtiqueta" xml:space="preserve">
+    <value>Tenant beneficiari on s'executa el pla</value>
+  </data>
+  <data name="Plan_Destino_Elegir" xml:space="preserve">
+    <value>Tria en quin Tenant beneficiari s'executa</value>
+  </data>
+  <data name="Plan_Destino_Mezcla" xml:space="preserve">
+    <value>Aquest pla barreja dades de dos Tenants: no es pot confirmar</value>
+  </data>
+  <data name="Plan_Destino_Discrepancia" xml:space="preserve">
+    <value>El Tenant triat no és el de les dades: no es pot confirmar</value>
+  </data>
+  <data name="Plan_Destino_SinCartera" xml:space="preserve">
+    <value>No hi ha cap Tenant a la teva Assignació de Cartera</value>
+  </data>
+  <data name="Plan_TextoNombraOtroTenant" xml:space="preserve">
+    <value>El teu text nomena el Tenant {0}. El pla continua al triat.</value>
+  </data>
+  <data name="Plan_CambiarA" xml:space="preserve">
+    <value>Canviar a {0}</value>
+  </data>
+  <data name="Plan_LoQueEntendi" xml:space="preserve">
+    <value>El que he entès</value>
+  </data>
+  <data name="Plan_QueHare" xml:space="preserve">
+    <value>El que faria</value>
+  </data>
+  <data name="Plan_UnoDeEstos" xml:space="preserve">
+    <value>Es faria només un d'aquests passos, segons el cas:</value>
+  </data>
+  <data name="Plan_PasoPendiente" xml:space="preserve">
+    <value>Pendent</value>
+  </data>
+  <data name="Plan_Limitacion" xml:space="preserve">
+    <value>Compte:</value>
+  </data>
+  <data name="Plan_Pie" xml:space="preserve">
+    <value>No s'ha executat res. Et proposo el pla i tu decideixes: només es confirma amb el teu Enter.</value>
+  </data>
+  <data name="Plan_Confirmar" xml:space="preserve">
+    <value>Confirmar pla</value>
+  </data>
+  <data name="Plan_NoConfirmar_listo" xml:space="preserve">
+    <value>No es pot confirmar: el pla no s'ha desat</value>
+  </data>
+  <data name="Plan_NoConfirmar_borrador" xml:space="preserve">
+    <value>No es pot confirmar: falten dades</value>
+  </data>
+  <data name="Plan_NoConfirmar_bloqueado" xml:space="preserve">
+    <value>No es pot confirmar</value>
+  </data>
+  <data name="Plan_Descartar" xml:space="preserve">
+    <value>Descartar</value>
+  </data>
+  <data name="Plan_Descartado" xml:space="preserve">
+    <value>Pla descartat: {0}. No s'ha fet res.</value>
+  </data>
+  <data name="Plan_Cerrado" xml:space="preserve">
+    <value>Pla · {0}</value>
+  </data>
+  <data name="Plan_ConfirmadoSinEjecucion" xml:space="preserve">
+    <value>Pla confirmat i desat a la teva tasca de l'assistent. Encara no s'executen els passos des d'aquí: no s'ha creat ni enviat res.</value>
+  </data>
+  <data name="Plan_DatoFalta" xml:space="preserve">
+    <value>Falta: no he pogut determinar-ho amb el que has escrit</value>
+  </data>
+  <data name="Plan_DatoNoResuelve" xml:space="preserve">
+    <value>Aquesta dada encara no la resol l'assistent</value>
+  </data>
+  <data name="Plan_DatoSinIndicar" xml:space="preserve">
+    <value>Sense indicar</value>
+  </data>
+  <data name="Orden_alta_trabajador_y_asignacion_a_centro" xml:space="preserve">
+    <value>Alta de Treballador i Assignació a un Centre</value>
+  </data>
+  <data name="Orden_visita_puntual_a_centro" xml:space="preserve">
+    <value>Visita puntual a un Centre</value>
+  </data>
+  <data name="Orden_reclamar_documentacion" xml:space="preserve">
+    <value>Reclamar documentació</value>
+  </data>
+  <data name="Orden_alta_centro" xml:space="preserve">
+    <value>Alta de Centre</value>
+  </data>
+  <data name="Orden_alta_cliente_empresarial" xml:space="preserve">
+    <value>Alta de Client empresarial</value>
+  </data>
+  <data name="Orden_consulta_de_estado" xml:space="preserve">
+    <value>Consulta d'estat</value>
+  </data>
+  <data name="Campo_tenant" xml:space="preserve">
+    <value>Tenant</value>
+  </data>
+  <data name="Campo_trabajador" xml:space="preserve">
+    <value>Treballador</value>
+  </data>
+  <data name="Campo_trabajadores" xml:space="preserve">
+    <value>Treballadors</value>
+  </data>
+  <data name="Campo_empleador" xml:space="preserve">
+    <value>Ocupador</value>
+  </data>
+  <data name="Campo_empresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="Campo_cliente_empresarial" xml:space="preserve">
+    <value>Client empresarial</value>
+  </data>
+  <data name="Campo_centro" xml:space="preserve">
+    <value>Centre</value>
+  </data>
+  <data name="Campo_fecha_inicio" xml:space="preserve">
+    <value>Inici</value>
+  </data>
+  <data name="Campo_fecha_fin" xml:space="preserve">
+    <value>Fi</value>
+  </data>
+  <data name="Campo_motivo" xml:space="preserve">
+    <value>Motiu</value>
+  </data>
+  <data name="Campo_cif" xml:space="preserve">
+    <value>CIF</value>
+  </data>
+  <data name="Campo_direccion" xml:space="preserve">
+    <value>Adreça</value>
+  </data>
+  <data name="Campo_es_critico" xml:space="preserve">
+    <value>Crític</value>
+  </data>
+  <data name="Campo_nombre" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="Campo_razon_social" xml:space="preserve">
+    <value>Raó social</value>
+  </data>
+  <data name="Campo_destinatario" xml:space="preserve">
+    <value>Destinatari</value>
+  </data>
+  <data name="Campo_documentos" xml:space="preserve">
+    <value>Documents</value>
+  </data>
+  <data name="Campo_sujeto" xml:space="preserve">
+    <value>Subjecte</value>
+  </data>
+  <data name="Paso_CrearTrabajadorCommand" xml:space="preserve">
+    <value>Donar d'alta el Treballador</value>
+  </data>
+  <data name="Paso_CrearAsignacionCommand" xml:space="preserve">
+    <value>Crear l'Assignació al Centre</value>
+  </data>
+  <data name="Paso_CrearVisitaCommand" xml:space="preserve">
+    <value>Registrar la Visita</value>
+  </data>
+  <data name="Paso_EnviarReclamacionCommand" xml:space="preserve">
+    <value>Enviar la reclamació al Client empresarial</value>
+  </data>
+  <data name="Paso_EnviarReclamacionEmpresaCommand" xml:space="preserve">
+    <value>Enviar la reclamació a l'Empresa</value>
+  </data>
+  <data name="Paso_CrearCentroCommand" xml:space="preserve">
+    <value>Crear el Centre</value>
+  </data>
+  <data name="Paso_CrearClienteCommand" xml:space="preserve">
+    <value>Crear el Client empresarial</value>
+  </data>
+  <data name="Paso_ObtenerDocumentacionPorCentroDeTrabajadorQuery" xml:space="preserve">
+    <value>Consultar la documentació que exigeix el Centre</value>
+  </data>
+  <data name="Paso_ObtenerEstadoCentroQuery" xml:space="preserve">
+    <value>Consultar l'estat del Centre</value>
+  </data>
 </root>

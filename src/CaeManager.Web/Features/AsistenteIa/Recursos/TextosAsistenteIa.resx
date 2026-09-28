@@ -36,4 +36,253 @@
   <data name="BotonEnviar" xml:space="preserve">
     <value>Enviar</value>
   </data>
+  <data name="TituloAgente" xml:space="preserve">
+    <value>Asistente {0}</value>
+  </data>
+  <data name="BorradoresEtiqueta" xml:space="preserve">
+    <value>Borradores y conversaciones anteriores</value>
+  </data>
+  <data name="BorradoresAyuda" xml:space="preserve">
+    <value>Un borrador es un plan sin confirmar. Retomarlo todavía no está disponible: por ahora puedes verlos y descartarlos.</value>
+  </data>
+  <data name="BorradoresVacio" xml:space="preserve">
+    <value>No tienes borradores abiertos.</value>
+  </data>
+  <data name="ModoEtiqueta" xml:space="preserve">
+    <value>Qué quieres hacer</value>
+  </data>
+  <data name="ModoGestion" xml:space="preserve">
+    <value>Pedir una gestión</value>
+  </data>
+  <data name="ModoPreguntar" xml:space="preserve">
+    <value>Consultar la normativa</value>
+  </data>
+  <data name="DescripcionGestion" xml:space="preserve">
+    <value>Escribe una gestión y te propongo un plan. No se ejecuta nada sin tu confirmación, y siempre dentro de lo que tu Asignación de Cartera te permite. Para lo que nombres, solo consulto los datos de tu cartera.</value>
+  </data>
+  <data name="AgenteNoDisponible" xml:space="preserve">
+    <value>Pedir gestiones al asistente no está disponible en este entorno.</value>
+  </data>
+  <data name="MensajeVacioGestion" xml:space="preserve">
+    <value>Escribe qué quieres hacer, por ejemplo: «reclama la documentación pendiente de un Centro».</value>
+  </data>
+  <data name="EtiquetaOrden" xml:space="preserve">
+    <value>Gestión que quieres pedir al asistente</value>
+  </data>
+  <data name="PlaceholderOrden" xml:space="preserve">
+    <value>Escribe la gestión…</value>
+  </data>
+  <data name="OrdenNoEntendida" xml:space="preserve">
+    <value>No he reconocido una gestión en lo que has escrito, así que no he preparado ningún plan. Si era una duda normativa, cambia a «Consultar la normativa».</value>
+  </data>
+  <data name="TareaEstado_Conversando" xml:space="preserve">
+    <value>Sin plan</value>
+  </data>
+  <data name="TareaEstado_PlanEnBorrador" xml:space="preserve">
+    <value>Borrador: falta algo</value>
+  </data>
+  <data name="TareaEstado_PlanListo" xml:space="preserve">
+    <value>Plan listo, sin confirmar</value>
+  </data>
+  <data name="TareaEstado_Confirmada" xml:space="preserve">
+    <value>Confirmado</value>
+  </data>
+  <data name="TareaEstado_Terminada" xml:space="preserve">
+    <value>Terminado</value>
+  </data>
+  <data name="TareaEstado_Descartada" xml:space="preserve">
+    <value>Descartado</value>
+  </data>
+  <data name="Plan_Estado_listo" xml:space="preserve">
+    <value>Listo para confirmar</value>
+  </data>
+  <data name="Plan_Estado_borrador" xml:space="preserve">
+    <value>Borrador</value>
+  </data>
+  <data name="Plan_Estado_bloqueado" xml:space="preserve">
+    <value>Bloqueado</value>
+  </data>
+  <data name="Plan_Subtitulo" xml:space="preserve">
+    <value>Orden reconocida con una confianza del {0} %</value>
+  </data>
+  <data name="Plan_SeEjecutaraEn" xml:space="preserve">
+    <value>Se ejecutará en el Tenant beneficiario {0}</value>
+  </data>
+  <data name="Plan_SinTenant" xml:space="preserve">
+    <value>Sin Tenant destino</value>
+  </data>
+  <data name="Plan_SinTenantAria" xml:space="preserve">
+    <value>Todavía no hay un Tenant beneficiario en el que se ejecute el plan</value>
+  </data>
+  <data name="Plan_ElegirTenantEtiqueta" xml:space="preserve">
+    <value>Tenant beneficiario en el que se ejecuta el plan</value>
+  </data>
+  <data name="Plan_Destino_Elegir" xml:space="preserve">
+    <value>Elige en qué Tenant beneficiario se ejecuta</value>
+  </data>
+  <data name="Plan_Destino_Mezcla" xml:space="preserve">
+    <value>Este plan mezcla datos de dos Tenants: no se puede confirmar</value>
+  </data>
+  <data name="Plan_Destino_Discrepancia" xml:space="preserve">
+    <value>El Tenant elegido no es el de los datos: no se puede confirmar</value>
+  </data>
+  <data name="Plan_Destino_SinCartera" xml:space="preserve">
+    <value>No hay ningún Tenant en tu Asignación de Cartera</value>
+  </data>
+  <data name="Plan_TextoNombraOtroTenant" xml:space="preserve">
+    <value>Tu texto nombra el Tenant {0}. El plan sigue en el elegido.</value>
+  </data>
+  <data name="Plan_CambiarA" xml:space="preserve">
+    <value>Cambiar a {0}</value>
+  </data>
+  <data name="Plan_LoQueEntendi" xml:space="preserve">
+    <value>Lo que entendí</value>
+  </data>
+  <data name="Plan_QueHare" xml:space="preserve">
+    <value>Lo que haría</value>
+  </data>
+  <data name="Plan_UnoDeEstos" xml:space="preserve">
+    <value>Se haría solo uno de estos pasos, según el caso:</value>
+  </data>
+  <data name="Plan_PasoPendiente" xml:space="preserve">
+    <value>Pendiente</value>
+  </data>
+  <data name="Plan_Limitacion" xml:space="preserve">
+    <value>Ojo:</value>
+  </data>
+  <data name="Plan_Pie" xml:space="preserve">
+    <value>No se ha ejecutado nada. Te propongo el plan y tú decides: solo se confirma con tu Enter.</value>
+  </data>
+  <data name="Plan_Confirmar" xml:space="preserve">
+    <value>Confirmar plan</value>
+  </data>
+  <data name="Plan_NoConfirmar_listo" xml:space="preserve">
+    <value>No se puede confirmar: el plan no se ha guardado</value>
+  </data>
+  <data name="Plan_NoConfirmar_borrador" xml:space="preserve">
+    <value>No se puede confirmar: faltan datos</value>
+  </data>
+  <data name="Plan_NoConfirmar_bloqueado" xml:space="preserve">
+    <value>No se puede confirmar</value>
+  </data>
+  <data name="Plan_Descartar" xml:space="preserve">
+    <value>Descartar</value>
+  </data>
+  <data name="Plan_Descartado" xml:space="preserve">
+    <value>Plan descartado: {0}. No se ha hecho nada.</value>
+  </data>
+  <data name="Plan_Cerrado" xml:space="preserve">
+    <value>Plan · {0}</value>
+  </data>
+  <data name="Plan_ConfirmadoSinEjecucion" xml:space="preserve">
+    <value>Plan confirmado y guardado en tu tarea del asistente. Todavía no se ejecutan los pasos desde aquí: no se ha creado ni enviado nada.</value>
+  </data>
+  <data name="Plan_DatoFalta" xml:space="preserve">
+    <value>Falta: no he podido determinarlo con lo que escribiste</value>
+  </data>
+  <data name="Plan_DatoNoResuelve" xml:space="preserve">
+    <value>Este dato todavía no lo resuelve el asistente</value>
+  </data>
+  <data name="Plan_DatoSinIndicar" xml:space="preserve">
+    <value>Sin indicar</value>
+  </data>
+  <data name="Orden_alta_trabajador_y_asignacion_a_centro" xml:space="preserve">
+    <value>Alta de Trabajador y Asignación a un Centro</value>
+  </data>
+  <data name="Orden_visita_puntual_a_centro" xml:space="preserve">
+    <value>Visita puntual a un Centro</value>
+  </data>
+  <data name="Orden_reclamar_documentacion" xml:space="preserve">
+    <value>Reclamar documentación</value>
+  </data>
+  <data name="Orden_alta_centro" xml:space="preserve">
+    <value>Alta de Centro</value>
+  </data>
+  <data name="Orden_alta_cliente_empresarial" xml:space="preserve">
+    <value>Alta de Cliente empresarial</value>
+  </data>
+  <data name="Orden_consulta_de_estado" xml:space="preserve">
+    <value>Consulta de estado</value>
+  </data>
+  <data name="Campo_tenant" xml:space="preserve">
+    <value>Tenant</value>
+  </data>
+  <data name="Campo_trabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="Campo_trabajadores" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="Campo_empleador" xml:space="preserve">
+    <value>Empleador</value>
+  </data>
+  <data name="Campo_empresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="Campo_cliente_empresarial" xml:space="preserve">
+    <value>Cliente empresarial</value>
+  </data>
+  <data name="Campo_centro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="Campo_fecha_inicio" xml:space="preserve">
+    <value>Inicio</value>
+  </data>
+  <data name="Campo_fecha_fin" xml:space="preserve">
+    <value>Fin</value>
+  </data>
+  <data name="Campo_motivo" xml:space="preserve">
+    <value>Motivo</value>
+  </data>
+  <data name="Campo_cif" xml:space="preserve">
+    <value>CIF</value>
+  </data>
+  <data name="Campo_direccion" xml:space="preserve">
+    <value>Dirección</value>
+  </data>
+  <data name="Campo_es_critico" xml:space="preserve">
+    <value>Crítico</value>
+  </data>
+  <data name="Campo_nombre" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="Campo_razon_social" xml:space="preserve">
+    <value>Razón social</value>
+  </data>
+  <data name="Campo_destinatario" xml:space="preserve">
+    <value>Destinatario</value>
+  </data>
+  <data name="Campo_documentos" xml:space="preserve">
+    <value>Documentos</value>
+  </data>
+  <data name="Campo_sujeto" xml:space="preserve">
+    <value>Sujeto</value>
+  </data>
+  <data name="Paso_CrearTrabajadorCommand" xml:space="preserve">
+    <value>Dar de alta al Trabajador</value>
+  </data>
+  <data name="Paso_CrearAsignacionCommand" xml:space="preserve">
+    <value>Crear la Asignación al Centro</value>
+  </data>
+  <data name="Paso_CrearVisitaCommand" xml:space="preserve">
+    <value>Registrar la Visita</value>
+  </data>
+  <data name="Paso_EnviarReclamacionCommand" xml:space="preserve">
+    <value>Enviar la reclamación al Cliente empresarial</value>
+  </data>
+  <data name="Paso_EnviarReclamacionEmpresaCommand" xml:space="preserve">
+    <value>Enviar la reclamación a la Empresa</value>
+  </data>
+  <data name="Paso_CrearCentroCommand" xml:space="preserve">
+    <value>Crear el Centro</value>
+  </data>
+  <data name="Paso_CrearClienteCommand" xml:space="preserve">
+    <value>Crear el Cliente empresarial</value>
+  </data>
+  <data name="Paso_ObtenerDocumentacionPorCentroDeTrabajadorQuery" xml:space="preserve">
+    <value>Consultar la documentación que exige el Centro</value>
+  </data>
+  <data name="Paso_ObtenerEstadoCentroQuery" xml:space="preserve">
+    <value>Consultar el estado del Centro</value>
+  </data>
 </root>
