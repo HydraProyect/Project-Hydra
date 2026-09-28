@@ -11,6 +11,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajadores;
@@ -85,6 +86,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
         public List<object> Enviadas { get; } = [];
 
         public PerfilVocabularioTenant Perfil { get; set; } = PerfilVocabularioTenant.Consultora;
+        /// <summary>false = Operador CAE externo trabajando en un Tenant beneficiario ajeno.</summary>
+        public bool EsDelPropioTenant { get; set; } = true;
         public List<EmpresaSelectorDto> Empresas { get; } =
             [new(EmpresaEbro, "Montajes Ebro S.L."), new(EmpresaDexter, "Dexter Industrial S.A.")];
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
@@ -114,6 +117,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
         {
             switch (request)
             {
+                case UsaRotulosPrimeraPersonaQuery:
+                    return Perfil == PerfilVocabularioTenant.ClienteDirecto && EsDelPropioTenant;
                 case ObtenerPerfilVocabularioActualQuery:
                     return Perfil;
                 case ObtenerEmpresasParaSelectorQuery:
@@ -322,12 +327,19 @@ public class TrabajadoresListaGen2Tests : BunitContext
     // --- Cabecera y barra de trabajo -----------------------------------------------------------
 
     [Theory]
-    [InlineData(PerfilVocabularioTenant.Consultora, "Trabajadores")]
-    [InlineData(PerfilVocabularioTenant.ClienteDirecto, "Mis trabajadores")]
+    [InlineData(PerfilVocabularioTenant.Consultora, true, "Trabajadores")]
+    [InlineData(PerfilVocabularioTenant.ClienteDirecto, true, "Mis trabajadores")]
+    // Decisión del propietario 2026-09-28: usuario de otro Tenant en un Tenant Cliente Directo.
+    [InlineData(PerfilVocabularioTenant.ClienteDirecto, false, "Trabajadores")]
     public void La_cabecera_es_la_Gen_2_con_el_titulo_del_perfil_y_las_acciones_de_la_pagina(
-        PerfilVocabularioTenant perfil, string titulo)
+        PerfilVocabularioTenant perfil, bool esDelPropioTenant, string titulo)
     {
-        var mediador = new MediatorFalso { Perfil = perfil, Almacen = { Trabajador("Javier", "Salas Moreno") } };
+        var mediador = new MediatorFalso
+        {
+            Perfil = perfil,
+            EsDelPropioTenant = esDelPropioTenant,
+            Almacen = { Trabajador("Javier", "Salas Moreno") }
+        };
         var cut = Renderizar(mediador);
 
         var cabecera = cut.Find("header.cabecera-pagina");

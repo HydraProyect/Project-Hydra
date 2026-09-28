@@ -31,6 +31,7 @@
 @using CaeManager.Application.VistaDemo
 @using CaeManager.Application.Operaciones.IncorporacionCartera.Queries
 @using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual
+@using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona
 @using CaeManager.Application.Plataforma.OrdenMenu
 @using CaeManager.Infrastructure.Comunicaciones
 @using MediatR
@@ -91,6 +92,7 @@
     protected override async Task OnInitializedAsync()
     {
         var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
+        var rotulosPrimeraPersona = await Mediator.Send(new UsaRotulosPrimeraPersonaQuery());
         // Lente de demo (ver MenuPorVista): solo puede ocultar entradas, nunca mostrar una que la
         // autorización real de la cuenta no mostraría. Opcional a propósito: sin la lente
         // registrada (otro host, tests) el menú es el real.
@@ -113,7 +115,8 @@
         _contexto = new ContextoMenuLateral(
             new ClaimsPrincipal(new ClaimsIdentity()), vista, OpcionesComunicaciones.Value.Activo,
             esAdministradorPlataforma, perfil, VariosTenants: organizaciones.Count > 1,
-            ParticipaEnIncorporacionCartera: participaEnIncorporacionCartera);
+            ParticipaEnIncorporacionCartera: participaEnIncorporacionCartera,
+            RotulosPrimeraPersona: rotulosPrimeraPersona);
     }
 
     // El usuario se relee en cada estado de autenticación en cascada, no solo al inicializar: en el
