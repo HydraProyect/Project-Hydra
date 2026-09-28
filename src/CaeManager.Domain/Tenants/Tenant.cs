@@ -234,6 +234,18 @@ public class Tenant : Entity
         LogoActualizadoEnUtc = ahoraUtc;
     }
 
+    /// <summary>
+    /// Devuelve los tres campos del logo a un estado anterior leído de este mismo Tenant, para que un
+    /// guardado fallido no deje pendiente en el contexto rastreado una referencia a un blob que ya se
+    /// borró. No valida: restaura valores que ya eran válidos.
+    /// </summary>
+    public void RestaurarLogo(string? archivoClave, string? version, DateTime? actualizadoEnUtc)
+    {
+        LogoArchivoClave = archivoClave;
+        LogoVersion = version;
+        LogoActualizadoEnUtc = actualizadoEnUtc;
+    }
+
     public void RetirarLogo(DateTime ahoraUtc)
     {
         LogoArchivoClave = null;

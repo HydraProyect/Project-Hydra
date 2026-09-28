@@ -59,7 +59,9 @@ public class SkiaConversorLogoTenantService : IConversorLogoTenantService
         var infoDecodificada = new SKImageInfo(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
         using var original = new SKBitmap(infoDecodificada);
         var resultado = codec.GetPixels(infoDecodificada, original.GetPixels());
-        if (resultado is not (SKCodecResult.Success or SKCodecResult.IncompleteInput))
+        // Solo Success: un PNG/JPEG truncado con cabecera válida no puede sustituir el logo por una
+        // imagen a medio decodificar (IncompleteInput).
+        if (resultado != SKCodecResult.Success)
             throw new LogoTenantNoAdmitidoException(
                 MotivoLogoNoAdmitido.NoDecodificable, "No se pudo leer la imagen.");
 

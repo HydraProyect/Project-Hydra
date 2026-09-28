@@ -79,6 +79,15 @@ public class SkiaConversorLogoTenantServiceTests
     }
 
     [Fact]
+    public void Rechaza_un_PNG_truncado_con_cabecera_valida()
+    {
+        var completo = Imagen(200, 200, SKEncodedImageFormat.Png);
+        var truncado = completo[..(completo.Length / 2)];
+
+        Rechazo(truncado).Should().Be(MotivoLogoNoAdmitido.NoDecodificable);
+    }
+
+    [Fact]
     public void Rechaza_una_bomba_de_descompresion_por_la_cabecera()
     {
         // PNG de pocos bytes que declara 20000 × 20000 (1,6 GB en RGBA): la cabecera basta para

@@ -62,7 +62,6 @@ public class GuardarLogoTenantCommandHandler(
         if (tenant is null)
             return Result.Fallo(ErroresLogoTenant.NoAutorizado);
 
-        var version = VersionDe(png);
         var claveAnterior = tenant.LogoArchivoClave;
 
         // Orden normativo (revisión Codex C9): blob nuevo → SaveChanges con LogoVersion como token de
@@ -73,6 +72,13 @@ public class GuardarLogoTenantCommandHandler(
         using (var flujo = new MemoryStream(png))
             claveNueva = await almacenamiento.GuardarAsync(flujo, "logo.png", cancellationToken);
 
+        // La versión incluye la clave del blob nuevo (única por subida): así cambia en CADA sustitución
+        // aunque el contenido sea idéntico y el token de concurrencia detecta a la subida perdedora
+        // (revisión Codex ronda 1).
+        var version = VersionDe(png, claveNueva);
+        var versionAnterior = tenant.LogoVersion;
+        var actualizadoAnterior = tenant.LogoActualizadoEnUtc;
+
         try
         {
             tenant.EstablecerLogo(claveNueva, version, DateTime.UtcNow);
@@ -82,6 +88,9 @@ public class GuardarLogoTenantCommandHandler(
         {
             // Conflicto de concurrencia (otra subida ganó) o cualquier otro fallo: el blob recién
             // escrito no lo referencia nadie. ConcurrenciaBehavior traduce el conflicto a resultado.
+            // La entidad sigue rastreada: sin restaurar, otro guardado del mismo contexto persistiría una
+            // referencia al blob que se acaba de borrar (revisión Codex ronda 1).
+            tenant.RestaurarLogo(claveAnterior, versionAnterior, actualizadoAnterior);
             await BorrarEnMejorEsfuerzoAsync(claveNueva, tenantId);
             throw;
         }
@@ -93,11 +102,12 @@ public class GuardarLogoTenantCommandHandler(
     }
 
     /// <summary>
-    /// Hash corto del PNG servido: rompe la caché de la URL y es el token de concurrencia. No es
-    /// autoridad de nada (C10), así que 64 bits de SHA-256 bastan.
+    /// Hash corto del PNG servido y de la clave de su blob: rompe la caché de la URL y es el token de
+    /// concurrencia. Cambia en cada sustitución. No es autoridad de nada (C10), así que 64 bits de
+    /// SHA-256 bastan.
     /// </summary>
-    internal static string VersionDe(byte[] png) =>
-        Convert.ToHexStringLower(SHA256.HashData(png))[..Tenant.LongitudLogoVersion];
+    internal static string VersionDe(byte[] png, string claveBlob) =>
+        Convert.ToHexStringLower(SHA256.HashData([.. png, .. System.Text.Encoding.UTF8.GetBytes(claveBlob)]))[..Tenant.LongitudLogoVersion];
 
     private async Task BorrarEnMejorEsfuerzoAsync(string clave, Guid tenantId)
     {

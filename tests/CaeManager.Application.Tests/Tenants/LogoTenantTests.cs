@@ -162,11 +162,23 @@ public class LogoTenantTests
 
         resultado.EsExitoso.Should().BeTrue();
         _propietario.LogoArchivoClave.Should().NotBe(primera);
-        _propietario.LogoVersion.Should().Be(GuardarLogoTenantCommandHandler.VersionDe([9, 9, 9]));
+        _propietario.LogoVersion.Should().Be(GuardarLogoTenantCommandHandler.VersionDe([9, 9, 9], _propietario.LogoArchivoClave!));
         escenario.Almacenamiento.Contiene(_propietario.LogoArchivoClave!).Should().BeTrue();
         escenario.Almacenamiento.Contenido(_propietario.LogoArchivoClave!).Should().Equal(9, 9, 9);
         escenario.Almacenamiento.Contiene(primera).Should().BeFalse("el blob anterior se borra tras guardar");
         escenario.UnidadDeTrabajo.VecesGuardado.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Volver_a_subir_el_mismo_contenido_cambia_la_version_porque_es_el_token_de_concurrencia()
+    {
+        var escenario = new Escenario(_propietario, autoriza: true);
+        await escenario.GuardarAsync();
+        var primera = _propietario.LogoVersion;
+
+        await escenario.GuardarAsync();
+
+        _propietario.LogoVersion.Should().NotBe(primera);
     }
 
     [Fact]
@@ -189,11 +201,16 @@ public class LogoTenantTests
         var escenario = new Escenario(_propietario, autoriza: true);
         await escenario.GuardarAsync();
         var vigente = _propietario.LogoArchivoClave!;
+        var versionVigente = _propietario.LogoVersion;
+        var actualizadoVigente = _propietario.LogoActualizadoEnUtc;
         escenario.UnidadDeTrabajo.ExcepcionAlGuardar = new DbUpdateConcurrencyException("otra subida ganó");
 
         var accion = () => escenario.GuardarAsync();
 
         await accion.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        _propietario.LogoArchivoClave.Should().Be(vigente, "la entidad rastreada no puede conservar la referencia al blob borrado");
+        _propietario.LogoVersion.Should().Be(versionVigente);
+        _propietario.LogoActualizadoEnUtc.Should().Be(actualizadoVigente);
         escenario.Almacenamiento.ArchivosGuardados.Should().Be(1, "solo queda el blob que la base sigue referenciando");
         escenario.Almacenamiento.Contiene(vigente).Should().BeTrue();
     }

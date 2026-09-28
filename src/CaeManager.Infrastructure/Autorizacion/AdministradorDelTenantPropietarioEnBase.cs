@@ -1,6 +1,7 @@
 using CaeManager.Application.Tenants;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Infrastructure.Autorizacion;
 
@@ -18,7 +19,12 @@ public class AdministradorDelTenantPropietarioEnBase(UserManager<ApplicationUser
     {
         if (tenantId == Guid.Empty) return false;
 
-        var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+        // Lectura sin seguimiento: FindByIdAsync devuelve la instancia rastreada por el contexto si ya
+        // estaba cargada, y IsInRoleAsync busca la afiliación con Find, que también usa el
+        // seguimiento. Con un circuito de Blazor de larga vida eso autoriza con un rol ya revocado o
+        // con una cuenta ya desactivada (C6/I7: el rol efectivo se lee de BD en cada decisión).
+        var usuario = await userManager.Users.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == usuarioId, cancellationToken);
         if (usuario is null) return false;
 
         // El tenant primero: es la mitad que distingue a quien concede de quien
@@ -32,6 +38,8 @@ public class AdministradorDelTenantPropietarioEnBase(UserManager<ApplicationUser
         // de la revisión puente del incremento 1b.
         if (usuario.EstaDesactivada(DateTimeOffset.UtcNow)) return false;
 
-        return await userManager.IsInRoleAsync(usuario, Roles.Administrador);
+        // GetRolesAsync consulta la BD (join de afiliaciones y roles) sin pasar por el seguimiento.
+        var roles = await userManager.GetRolesAsync(usuario);
+        return roles.Contains(Roles.Administrador, StringComparer.OrdinalIgnoreCase);
     }
 }
