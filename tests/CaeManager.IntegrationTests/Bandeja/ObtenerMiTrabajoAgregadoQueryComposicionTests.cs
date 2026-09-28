@@ -221,6 +221,8 @@ public class ObtenerMiTrabajoAgregadoQueryComposicionTests(ITestOutputHelper sal
         var servicios = new ServiceCollection();
         servicios.AddApplication();
         servicios.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        // ILogger<T>: el handler de Mi trabajo registra el Tenant que no pudo consultar (FS-07).
+        servicios.AddLogging();
         servicios.AddSingleton(tenantActual);
         servicios.AddSingleton<IUnitOfWork>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Tenants.ITenantsQueryContext>(_dbContext);

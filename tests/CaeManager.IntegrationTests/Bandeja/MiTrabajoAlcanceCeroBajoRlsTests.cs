@@ -138,6 +138,8 @@ public class MiTrabajoAlcanceCeroBajoRlsTests : IAsyncLifetime
         var servicios = new ServiceCollection();
         servicios.AddApplication();
         servicios.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        // ILogger<T>: el handler de Mi trabajo registra el Tenant que no pudo consultar (FS-07).
+        servicios.AddLogging();
         servicios.AddSingleton<ITenantActual>(tenantDeLaPeticion);
         servicios.AddSingleton<IUnitOfWork>(_runtime);
         servicios.AddSingleton<ITenantsQueryContext>(_runtime);
