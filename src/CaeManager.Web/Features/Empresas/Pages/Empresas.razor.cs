@@ -5,9 +5,8 @@ using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
-using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Domain.Documentos;
-using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -182,8 +181,10 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _estadoFiltro = EstadoDesdeUrl();
 
-        var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
-        _tituloPagina = perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mi empresa" : "Empresas";
+        // Misma fuente que el enlace del menú lateral (DDL-072, decisión 2026-09-28): primera persona
+        // solo para quien es del Tenant propietario en perfil Cliente Directo.
+        var primeraPersona = await Mediator.Send(new UsaRotulosPrimeraPersonaQuery());
+        _tituloPagina = primeraPersona ? "Mi empresa" : "Empresas";
 
         await CargarAsync();
     }

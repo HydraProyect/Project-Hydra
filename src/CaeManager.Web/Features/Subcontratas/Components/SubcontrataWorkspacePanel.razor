@@ -467,7 +467,7 @@ else
         EnProgreso="_eliminandoVerificacion"
         OnConfirmar="ConfirmarEliminarVerificacionAsync" />
 
-    <Drawer Visible="_drawerVerificacionVisible" VisibleChanged="CerrarDrawerVerificacion" Titulo="@Textos["TituloDrawerVerificacion"]"
+    <Drawer HayCambios="() => HayCambiosEnElDrawer" Visible="_drawerVerificacionVisible" VisibleChanged="CerrarDrawerVerificacion" Titulo="@Textos["TituloDrawerVerificacion"]"
             CerrarAlHacerClicFuera="@(_mensajeErrorVerificacion is null && !_guardandoVerificacion)">
         <ChildContent>
             @if (_mensajeErrorVerificacion is not null)
@@ -525,6 +525,14 @@ else
         </Pie>
     </Drawer>
 }
+
+@* P1-E2b: un aviso para la edición en línea (Información y credenciales) y el drawer de
+   verificación externa. La edición vive en el panel, no en la pestaña, y el drawer sobrevive
+   al cambio de pestaña: cambiar de pestaña no pierde nada y no pregunta, por eso va fuera de
+   <Pestanas>. Abrir otra ficha, volver, el breadcrumb o cerrar el panel sí lo pierden: el
+   Context Workspace pregunta a este aviso antes. Fuera del if/else, para que recargar la
+   cabecera tras guardar no lo desmonte. *@
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="DescartarCambios" />
 
 @code {
     private IReadOnlyList<PestanaDefinicion> PestanasBase =>
@@ -670,6 +678,70 @@ else
     private string _credencialNotas = string.Empty;
     private bool _guardandoCredenciales;
     private string? _mensajeErrorCredenciales;
+
+    private readonly InstantaneaFormulario _instantaneaInformacion = new();
+    private readonly InstantaneaFormulario _instantaneaCredenciales = new();
+    private readonly InstantaneaFormulario _instantaneaVerificacion = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en el panel: la edición en línea de
+    /// Información, la de credenciales (que se guarda aparte) y el drawer de verificación
+    /// externa, comparados con cómo se abrieron. Lo lee el aviso de salida.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        !_saliendoAConfigurarSegundoFactor
+        && ((_editandoInformacion
+                && (_instantaneaInformacion.Difiere(ValoresInformacion()) || _instantaneaCredenciales.Difiere(ValoresCredenciales())))
+            || HayCambiosEnElDrawer);
+
+    /// <summary>
+    /// Lo que lee la X, Escape o el fondo del drawer: solo el drawer. La edición en línea no
+    /// se pierde al cerrarlo y no debe hacerle preguntar.
+    /// </summary>
+    private bool HayCambiosEnElDrawer =>
+        _drawerVerificacionVisible && _instantaneaVerificacion.Difiere(ValoresVerificacion());
+
+    private object?[] ValoresInformacion() => [_razonSocialInfo, _cifInfo, _clienteIdsInfo, _empresaIdsInfo];
+
+    private object?[] ValoresCredenciales() =>
+        [_credencialUrl, _credencialCampoEmpresa, _credencialUsuario, _credencialContrasena, _credencialNotas];
+
+    // La evidencia cuenta por su nombre: se lee a memoria y solo se sube al registrar, así que
+    // descartar no deja ningún archivo en el almacenamiento.
+    private object?[] ValoresVerificacion() =>
+        [_verificacionCentroId, _verificacionTipoId, _verificacionResultado, _verificacionFecha, _verificacionValidoHasta,
+         _verificacionObservaciones, _evidenciaNombre];
+
+    private void DescartarCambios()
+    {
+        _editandoInformacion = false;
+        _drawerVerificacionVisible = false;
+    }
+
+    /// <summary>Solo mientras se sale a activar el 2FA que exige la credencial.</summary>
+    private bool _saliendoAConfigurarSegundoFactor;
+
+    /// <summary>
+    /// La salida a activar el 2FA la decide la propia credencial: no es un abandono, y ni el
+    /// aviso de la aplicación ni el del navegador deben detenerla (mismo patrón que
+    /// <c>CentroWorkspacePanel</c>). El del navegador se decide en el render, así que primero
+    /// se pinta ya desactivado y solo después se redirige; si la redirección no llega a
+    /// ocurrir, lo no guardado vuelve a contar como cambio.
+    /// </summary>
+    private async Task IrAConfigurarSegundoFactorSinAvisoAsync()
+    {
+        _saliendoAConfigurarSegundoFactor = true;
+        StateHasChanged();
+        await Task.Yield();
+        try
+        {
+            SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+        }
+        finally
+        {
+            _saliendoAConfigurarSegundoFactor = false;
+        }
+    }
 
     /// <summary>Las pestañas con lista llevan su recuento en cuanto se conoce (mismo patrón que PlantillasTab).</summary>
     private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
@@ -1018,7 +1090,7 @@ else
             {
                 // Sin 2FA la credencial ya cargada tampoco se queda en el circuito.
                 OcultarCredencial();
-                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+                await IrAConfigurarSegundoFactorSinAvisoAsync();
             }
             return false;
         }
@@ -1099,6 +1171,8 @@ else
             _mensajeErrorCredenciales = null;
 
             _editandoInformacion = true;
+            _instantaneaInformacion.Fijar(ValoresInformacion());
+            _instantaneaCredenciales.Fijar(ValoresCredenciales());
         }
         // P1-I1: la edición carga el usuario de la credencial, y sin 2FA no se
         // entrega. No se abre con los campos vacíos: guardarla así podría pisar
@@ -1106,7 +1180,7 @@ else
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
             if (generacion == _generacion)
-                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+                await IrAConfigurarSegundoFactorSinAvisoAsync();
         }
         catch (Exception)
         {
@@ -1146,7 +1220,7 @@ else
             // StateHasChanged este panel no se repinta sin la credencial.
             OcultarCredencial();
             StateHasChanged();
-            SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+            await IrAConfigurarSegundoFactorSinAvisoAsync();
             return null;
         }
         if (generacion != _generacion) return null;
@@ -1304,6 +1378,7 @@ else
             _evidenciaNombre = null;
             _mensajeErrorVerificacion = null;
             _drawerVerificacionVisible = true;
+            _instantaneaVerificacion.Fijar(ValoresVerificacion());
         }
         catch (Exception)
         {
@@ -1473,6 +1548,8 @@ else
             }
 
             ToastService.Mostrar(Textos["ToastCredencialesGuardadas"], TonoToast.Exito);
+            if (generacion == _generacion)
+                _instantaneaCredenciales.Fijar(ValoresCredenciales());
             // La tarjeta de lectura tenía la versión anterior: se suelta.
             OcultarCredencial();
         }
@@ -1480,7 +1557,7 @@ else
         catch (SegundoFactorRequeridoParaCredencialesException)
         {
             if (generacion == _generacion)
-                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
+                await IrAConfigurarSegundoFactorSinAvisoAsync();
         }
         catch (Exception)
         {
