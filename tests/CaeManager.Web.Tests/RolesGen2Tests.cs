@@ -222,10 +222,12 @@ public class RolesGen2Tests : BunitContext
     {
         public List<string> Destinatarios { get; } = [];
         public Exception? Lanza { get; set; }
+        public bool Falla { get; set; }
 
         public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, string? responderA = null, CancellationToken cancellationToken = default)
         {
             if (Lanza is not null) throw Lanza;
+            if (Falla) return Task.FromResult(Result.Fallo(Error.Crear("Correo.EnvioFallido", "SMTP no disponible.")));
             Destinatarios.Add(destinatarioEmail);
             return Task.FromResult(Result.Exito());
         }
@@ -762,7 +764,26 @@ public class RolesGen2Tests : BunitContext
         _toasts.Mensajes.Should().NotContain(m => m.Tono == TonoToast.Error,
             "el rol ya se guardó: un correo que no sale no convierte la asignación en fallida");
         _toasts.Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Exito);
+        _toasts.Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Advertencia && m.Mensaje.Contains("aitor.zabala@talveg.es"),
+            "quien asigna tiene que saber que la persona no recibió el aviso");
         cut.Markup.Should().Contain("No hay nadie pendiente");
+    }
+
+    [Fact]
+    public async Task Si_el_correo_de_bienvenida_devuelve_fallo_quien_asigna_recibe_una_advertencia()
+    {
+        SembrarCuenta(Aitor);
+        _fuente.Pendientes = llamada => llamada == 1 ? [Aitor] : [];
+        _correo.Falla = true;
+        var cut = await AbrirPendientesAsync();
+
+        await BotonAsignar(cut, "Aitor Zabala").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Asignar rol").ClickAsync(new MouseEventArgs());
+
+        _usuarios.Asignaciones.Should().Equal([(AitorId, RolesIdentidad.Consulta)]);
+        _toasts.Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Exito);
+        _toasts.Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Advertencia && m.Mensaje.Contains("aitor.zabala@talveg.es"));
+        _toasts.Mensajes.Should().NotContain(m => m.Tono == TonoToast.Error);
     }
 
     // ---------------------------------------------------------------- atajos de lista (I-13)
