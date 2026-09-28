@@ -265,7 +265,7 @@
     <value>Fin de jornada</value>
   </data>
   <data name="HorasMesEtiqueta" xml:space="preserve">
-    <value>Horas de jornada al mes por gestor</value>
+    <value>Horas de jornada al mes por Gestor CAE</value>
   </data>
   <data name="MedicionDescripcion" xml:space="preserve">
     <value>La medición de tiempo registra cuánto tiempo permanece abierta y con el foco puesto cada gestión. No se recogen pulsaciones de teclado, movimientos de ratón ni actividad fuera de esta aplicación. Antes de activarla hay que informar a la plantilla y a su representación legal (art. 87 LOPDGDD y art. 20.3 del Estatuto de los Trabajadores).</value>

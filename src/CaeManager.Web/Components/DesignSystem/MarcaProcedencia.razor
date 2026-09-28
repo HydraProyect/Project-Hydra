@@ -11,8 +11,12 @@
     No se usa para decorar una fila que "parece" automática: si no puedes
     declarar de dónde salió el dato en Detalle, no pongas la marca.
 *@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
 <VentanaContexto Etiqueta="@Etiqueta"
-                 Titulo="@Titulo"
+                 Titulo="@(Titulo ?? Comunes["LeidoPor", Marca.Nombre])"
                  TituloDeSistema="true"
                  class="marca-procedencia">
     <Disparador>
@@ -35,5 +39,6 @@
     /// <summary>Detalle visible: origen, confianza, fecha de lectura.</summary>
     [Parameter, EditorRequired] public RenderFragment? Detalle { get; set; }
 
-    [Parameter] public string Titulo { get; set; } = "Leído por Hydra";
+    /// <summary>Título de la ventana. Sin él, «Leído por» y el nombre del producto (<c>Marca.Nombre</c>).</summary>
+    [Parameter] public string? Titulo { get; set; }
 }

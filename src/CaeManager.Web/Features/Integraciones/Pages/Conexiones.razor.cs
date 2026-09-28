@@ -160,7 +160,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     {
         ModoAsignacionLinea.GestorFijo =>
             $"Gestor CAE fijo: {_gestores.FirstOrDefault(g => g.Id == linea.ComercialAsignadoId)?.NombreCompleto ?? "—"}",
-        _ => $"Pool inbound ({linea.MiembrosPool.Count} gestores CAE)",
+        _ => $"Reparto equitativo ({linea.MiembrosPool.Count} Gestores CAE)",
     };
 
     private void AbrirAltaLinea()

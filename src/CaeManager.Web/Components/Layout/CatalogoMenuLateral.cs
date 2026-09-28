@@ -138,7 +138,7 @@ public static class CatalogoMenuLateral
 
     public static IReadOnlyList<EnlaceMenuLateral> Enlaces { get; } =
     [
-        new("dashboard", "dashboards", "", "dashboard", "Dashboard", CoincidenciaExacta: true),
+        new("dashboard", "dashboards", "", "dashboard", "Inicio", CoincidenciaExacta: true),
         new("vision-cartera", "dashboards", "vision-cartera", "cartera", "Visión de cartera",
             Condicion: c => c.TieneAlgunRol(RolesDeCartera)),
         // Rótulo localizado (TextosIncorporacionCartera), a diferencia de sus vecinos todavía literales:

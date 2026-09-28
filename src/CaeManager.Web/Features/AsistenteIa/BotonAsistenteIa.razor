@@ -14,7 +14,7 @@
 <LimiteDeErrores Islote="this">
 @if (!string.IsNullOrWhiteSpace(Opciones.Value.ApiKey))
 {
-    <button type="button" class="boton-asistente-ia" @onclick="() => AsistenteIaService.Abrir()" title="@Textos["Titulo"]">
+    <button type="button" class="boton-asistente-ia" @onclick="() => AsistenteIaService.Abrir()" title="@Textos["Titulo", Marca.Nombre]">
         <Icono Nombre="chat" Tamano="TamanoIcono.Medio" />
     </button>
 }

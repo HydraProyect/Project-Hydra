@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="DetectadoPor" xml:space="preserve">
+    <value>Detectado por {0}</value>
+  </data>
+  <data name="EtiquetaSugerenciaVisita" xml:space="preserve">
+    <value>Detectado por {0} — posible solicitud de visita, confianza {1}%. {2}</value>
+  </data>
+  <data name="EtiquetaSugerenciaGestion" xml:space="preserve">
+    <value>Detectado por {0} — posible actualización documental, confianza {1}%. {2}</value>
+  </data>
+  <data name="NoPudoConfirmarlos" xml:space="preserve">
+    <value>{0} no pudo confirmarlos con suficiente confianza — revisa únicamente estos antes de continuar.</value>
+  </data>
+  <data name="DatoConfirmadoPor" xml:space="preserve">
+    <value>{0} dato confirmado por {1}</value>
+  </data>
+  <data name="DatosConfirmadosPor" xml:space="preserve">
+    <value>{0} datos confirmados por {1}</value>
+  </data>
+  <data name="SubtituloPasoRevisar" xml:space="preserve">
+    <value>Revisa y corrige únicamente los datos que {0} no pudo confirmar.</value>
+  </data>
+</root>

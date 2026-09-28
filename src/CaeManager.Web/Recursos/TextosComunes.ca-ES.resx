@@ -76,4 +76,7 @@
   <data name="DescartarCambiosConfirmar" xml:space="preserve">
     <value>Descartar els canvis</value>
   </data>
+  <data name="LeidoPor" xml:space="preserve">
+    <value>Llegit per {0}</value>
+  </data>
 </root>
