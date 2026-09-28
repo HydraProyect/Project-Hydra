@@ -8,6 +8,8 @@ using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Localization;
+using CaeManager.Web.Features.GestionRoles.Recursos;
 
 namespace CaeManager.Web.Features.GestionRoles.Pages;
 
@@ -41,6 +43,7 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
     [Inject] private IEmailService EmailService { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosRoles> Textos { get; set; } = default!;
     [Inject] private ILogger<Roles> Logger { get; set; } = default!;
 
     private string _pestanaActiva = "roles";
@@ -331,7 +334,7 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
 
     private void AvisarCorreoNoEnviado(string nombreCompleto, string email) =>
         ToastService.Mostrar(
-            $"El rol está asignado, pero no pudimos enviar a {nombreCompleto} ({email}) el correo que le avisa. Díselo por otro medio.",
+            Textos["AvisoCorreoRolNoEnviado", nombreCompleto, email],
             TonoToast.Advertencia);
 
     // ---- Atajos de lista j/k (I-13 de AUDITORIA-USUARIO-AVANZADO-POST-GEN2) ----

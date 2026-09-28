@@ -297,6 +297,7 @@ public class RolesGen2Tests : BunitContext
         Services.AddSingleton(_fuente);
         Services.AddSingleton(_toasts);
         Services.AddSingleton<IEmailService>(_correo);
+        Services.AddLocalization();
         Services.AddSingleton<IMediator>(_mediador);
         Services.AddSingleton<UserManager<ApplicationUser>>(_usuarios);
         Services.AddScoped<PuertaAccesoDatos>();
