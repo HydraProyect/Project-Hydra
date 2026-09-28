@@ -6,6 +6,7 @@ using CaeManager.Application.AsistenteIa.Tareas;
 using CaeManager.Application.AsistenteIa.Tareas.Commands;
 using CaeManager.Application.AsistenteIa.Tareas.Queries;
 using CaeManager.Application.Common;
+using CaeManager.Domain.Common;
 using CaeManager.Web.Features.AsistenteIa.Recursos;
 using FluentValidation;
 using Markdig;
@@ -119,6 +120,18 @@ public partial class AsistenteIa : IDisposable
     private string TituloPanel => Disponibilidad.AgenteDisponible
         ? Textos["TituloAgente", Marca.Nombre]
         : Textos["Titulo", Marca.Nombre];
+
+    private string TextoDescripcion => EnModoGestion ? Textos["DescripcionGestion"] : Textos["Descripcion"];
+
+    private string TextoMensajeVacio => EnModoGestion ? Textos["MensajeVacioGestion"] : Textos["MensajeVacio"];
+
+    private string EtiquetaEntrada => EnModoGestion ? Textos["EtiquetaOrden"] : Textos["EtiquetaPregunta"];
+
+    private string PlaceholderEntrada => EnModoGestion ? Textos["PlaceholderOrden"] : Textos["PlaceholderPregunta"];
+
+    /// <summary>Día de negocio (Europe/Madrid) de la última actualización, con el formato de la cultura de la persona.</summary>
+    private static string FechaDeBorrador(DateTime instanteUtc) =>
+        DiaDeNegocio.De(instanteUtc).ToString(System.Globalization.CultureInfo.CurrentCulture);
 
     private bool ModoPermitido(ModoAsistente modo) => modo == ModoAsistente.Gestion
         ? Disponibilidad.AgenteDisponible

@@ -109,7 +109,7 @@
 
         <div class="plan-acciones">
             <button type="button" class="plan-confirmar" aria-disabled="@(Vista.PuedeConfirmar && !Ocupado ? "false" : "true")" @onclick="ConfirmarAsync" @onkeydown:stopPropagation="true">
-                @TextoBotonConfirmar<span class="plan-kbd" aria-hidden="true">&#8629; Enter</span>
+                @TextoBotonConfirmar<span class="plan-kbd" aria-hidden="true">@Textos["Plan_TeclaEnter"]</span>
             </button>
             <button type="button" class="plan-descartar" disabled="@(Ocupado || Vista.TareaId is null)" @onclick="DescartarAsync" @onkeydown:stopPropagation="true">
                 @Textos["Plan_Descartar"]

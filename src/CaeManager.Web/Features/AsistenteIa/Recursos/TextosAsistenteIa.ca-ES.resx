@@ -165,6 +165,9 @@
   <data name="Plan_NoConfirmar_bloqueado" xml:space="preserve">
     <value>No es pot confirmar</value>
   </data>
+  <data name="Plan_TeclaEnter" xml:space="preserve">
+    <value>↵ Enter</value>
+  </data>
   <data name="Plan_Descartar" xml:space="preserve">
     <value>Descartar</value>
   </data>

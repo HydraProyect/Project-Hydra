@@ -27,7 +27,7 @@
                 </div>
             }
 
-            <p class="asistente-descripcion">@Textos[EnModoGestion ? "DescripcionGestion" : "Descripcion"]</p>
+            <p class="asistente-descripcion">@TextoDescripcion</p>
 
             @if (!Disponibilidad.AgenteDisponible)
             {
@@ -54,7 +54,7 @@
                                 <li class="asistente-borrador">
                                     <span class="asistente-borrador-estado">@Textos[$"TareaEstado_{borrador.Estado}"]</span>
                                     <span class="asistente-borrador-texto">@borrador.PrimerTextoOriginal</span>
-                                    <span class="asistente-borrador-fecha">@borrador.ActualizadaEnUtc.ToLocalTime().ToString("g")</span>
+                                    <span class="asistente-borrador-fecha">@FechaDeBorrador(borrador.ActualizadaEnUtc)</span>
                                     <button type="button" class="asistente-borrador-descartar" @onclick="() => DescartarBorradorAsync(borrador.Id)">@Textos["Plan_Descartar"]</button>
                                 </li>
                             }
@@ -71,7 +71,7 @@
                 <div class="asistente-mensajes" aria-live="polite">
                     @if (_hilo.Count == 0)
                     {
-                        <p class="asistente-mensaje-vacio">@Textos[EnModoGestion ? "MensajeVacioGestion" : "MensajeVacio"]</p>
+                        <p class="asistente-mensaje-vacio">@TextoMensajeVacio</p>
                     }
 
                     @foreach (var entrada in _hilo)
@@ -109,8 +109,8 @@
 
                 <div class="asistente-entrada">
                     <textarea class="asistente-textarea"
-                              aria-label="@Textos[EnModoGestion ? "EtiquetaOrden" : "EtiquetaPregunta"]"
-                              placeholder="@Textos[EnModoGestion ? "PlaceholderOrden" : "PlaceholderPregunta"]"
+                              aria-label="@EtiquetaEntrada"
+                              placeholder="@PlaceholderEntrada"
                               value="@_valorMostrado"
                               disabled="@_enviando"
                               maxlength="@(EnModoGestion ? CaeManager.Domain.AsistenteIa.TurnoTareaAsistente.LongitudMaximaTexto : (int?)null)"
