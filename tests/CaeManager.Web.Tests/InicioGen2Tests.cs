@@ -206,6 +206,55 @@ public class InicioGen2Tests : BunitContext
         cut.WaitForAssertion(() => UrlActual.Should().NotContain("desde="));
     }
 
+    /// <summary>
+    /// La marca solo autoriza el salto en el Tenant de origen: en un Context
+    /// Workspace elegido con el selector no se redirige aunque la marca esté, y la
+    /// marca se consume igual (un solo uso).
+    /// </summary>
+    [Fact]
+    public void Con_la_marca_en_un_Tenant_propietario_elegido_no_redirige_y_quita_la_marca()
+    {
+        var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true), tenantActivo: PropietarioSinCartera,
+            ruta: "/?desde=login");
+
+        cut.Find(".estado-vacio a[href='/mi-trabajo']").TextContent.Should().Contain("Mi trabajo");
+        cut.WaitForAssertion(() => UrlActual.Should().NotContain("desde="));
+        UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
+    }
+
+    [Fact]
+    public void Con_la_marca_un_rol_que_no_puede_abrir_Mi_trabajo_se_queda_en_Inicio_y_quita_la_marca()
+    {
+        var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true), rol: Roles.Consulta, ruta: "/?desde=login");
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin cartera asignada");
+        cut.WaitForAssertion(() => UrlActual.Should().NotContain("desde="));
+        UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
+    }
+
+    [Fact]
+    public void Con_la_marca_y_sin_cartera_en_ningun_Tenant_muestra_el_vacio_sin_redirigir_y_quita_la_marca()
+    {
+        var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: false), ruta: "/?desde=login");
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin cartera asignada");
+        cut.WaitForAssertion(() => UrlActual.Should().NotContain("desde="));
+        UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
+    }
+
+    /// <summary>Solo el valor exacto <c>login</c> es la marca: cualquier otro no aterriza.</summary>
+    [Theory]
+    [InlineData("/?desde=otro")]
+    [InlineData("/?desde=LOGIN")]
+    [InlineData("/?desde=")]
+    public void Un_valor_de_desde_que_no_es_login_no_redirige(string ruta)
+    {
+        var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true), ruta: ruta);
+
+        cut.Find(".estado-vacio a[href='/mi-trabajo']").TextContent.Should().Contain("Mi trabajo");
+        UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
+    }
+
     [Fact]
     public void Sin_cartera_en_ningun_Tenant_se_queda_en_el_estado_vacio_y_sin_la_palabra_cliente()
     {
