@@ -14,6 +14,9 @@ namespace CaeManager.E2ETests;
 /// tests solo añadiría fragilidad de orden de ejecución sin ganar
 /// aislamiento real.
 ///
+/// La reclamación, sin SMTP ni buzón conectado en este proceso, termina en el
+/// fallo visible que recibe el Gestor CAE y no se registra (ver el paso 6).
+///
 /// El paso de IA usa <c>ProveedorFalsoDocumentAI</c> (ver
 /// WebAppFixture.cs, variable "DocumentosIa__ProveedorFalsoActivo"), no un
 /// proveedor real: Anthropic/Gemini/Mistral son "inertes" sin ApiKey en
@@ -301,10 +304,19 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
             "El botón \"Enviar reclamación\" está deshabilitado — seleccionados o ContactosMarcados vacío en ReclamacionesTab (ver DrawerGestionDocumento/ModalContactoAgenda).");
         await botonEnviarReclamacion.ClickAsync();
 
-        // "Nunca reclamado." pasa a "Última reclamación: hoy." solo si
-        // EnviarReclamacionCommand terminó con éxito y persistió la
-        // ReclamacionDocumental — confirmación funcional, no un toast.
-        await tarjetaCliente.GetByText("Última reclamación: hoy.").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        // El entorno E2E no tiene SMTP configurado ni buzón Microsoft 365
+        // conectado, así que el correo de la reclamación no puede salir. Desde
+        // la corrección del «error tragado» de RegistroEnvioReclamacionService,
+        // eso es un fallo visible para el Gestor CAE y no se registra nada: antes
+        // este paso esperaba «Última reclamación: hoy.» y solo pasaba porque el
+        // fallo de SMTP se ignoraba. El camino con entrega real lo prueban
+        // FalloSmtpDeLaReclamacionTests (Application) y ReclamacionesTabTests
+        // (bUnit); un E2E con entrega real necesitaría un SMTP de pruebas.
+        await Assertions.Expect(page.Locator(".toast.toast-error")
+                .Filter(new LocatorFilterOptions { HasText = "No pudimos enviar el correo de la reclamación" }))
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await Assertions.Expect(tarjetaCliente.GetByText("Nunca reclamado.")).ToBeVisibleAsync();
+        await Assertions.Expect(tarjetaCliente.GetByText("Última reclamación: hoy.")).ToHaveCountAsync(0);
 
         // --- Paso 7 (Renovación): nueva fecha de vencimiento, el semáforo pasa a "Vigente" ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");

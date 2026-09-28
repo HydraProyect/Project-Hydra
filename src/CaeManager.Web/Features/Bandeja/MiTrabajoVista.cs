@@ -64,21 +64,39 @@ public sealed class MiTrabajoVista
             .Select(t => new FilaCarteraMiTrabajo(t.TenantId, t.TenantNombre, t.Resumen.TotalAcciones, t.Resumen.Bloqueos, t.AlcanceCero))
             .ToList();
         _cartera = gestionados.SelectMany((t, orden) => Aplanar(t, orden)).ToList();
+        // Mismo criterio § 10: si el que falló es el Tenant de origen, a la
+        // cartera no le falta nada.
+        NoConsultados = datos.NoConsultados.Where(t => !t.EsOrigen).Select(t => t.TenantNombre).ToList();
     }
 
     public IReadOnlyList<FilaCarteraMiTrabajo> Cartera { get; }
+
+    /// <summary>
+    /// Empresas de la cartera cuya cola no se pudo consultar (FS-07). No están
+    /// en <see cref="Cartera"/>: no se sabe si tienen trabajo pendiente, y
+    /// pintarlas a cero las daría por al día.
+    /// </summary>
+    public IReadOnlyList<string> NoConsultados { get; }
+
+    /// <summary>
+    /// El ámbito elegido incluye alguna Empresa que no se pudo consultar: sin
+    /// filtro de Empresa, «al día» o «ningún bloqueo» afirmarían algo sobre una
+    /// cola que nadie ha visto. Con una Empresa filtrada, esa sí se consultó.
+    /// </summary>
+    public bool Incompleta(FiltroMiTrabajo filtro) => filtro.TenantId is null && NoConsultados.Count > 0;
 
     /// <summary>
     /// Nada que vigilar en el ámbito elegido (P2.3 de la demo a Dirección): la
     /// Empresa filtrada tiene alcance cero o, sin filtro, ninguna Empresa de la
     /// cartera tiene alcance —incluido no tener ninguna—. Es lo que separa una
     /// cola vacía «sin Asignación de Cartera» de una cartera al día, que exige
-    /// al menos una Empresa con alcance y ningún pendiente. Solo lee lo que la
+    /// al menos una Empresa con alcance y ningún pendiente. Una Empresa que no
+    /// se pudo consultar tampoco es «nada que vigilar». Solo lee lo que la
     /// Query ya resolvió; no filtra nada.
     /// </summary>
     public bool SinAlcance(FiltroMiTrabajo filtro) => filtro.TenantId is { } id
         ? Cartera.FirstOrDefault(t => t.TenantId == id)?.AlcanceCero ?? true
-        : Cartera.All(t => t.AlcanceCero);
+        : NoConsultados.Count == 0 && Cartera.All(t => t.AlcanceCero);
 
     public int TotalCartera => _cartera.Count;
 
@@ -197,7 +215,7 @@ public sealed class MiTrabajoVista
         if (bloqueos == 0 && SinAlcance(filtro) && Ambito(filtro with { Busqueda = string.Empty }).Count == 0)
             return TextosMiTrabajo.Texto("TitularSinCartera");
         return bloqueos == 0
-            ? TextosMiTrabajo.Texto("TitularSinBloqueos")
+            ? TextosMiTrabajo.Texto(Incompleta(filtro) ? "TitularSinBloqueosIncompleta" : "TitularSinBloqueos")
             : Plural(bloqueos, "TitularBloqueosUno", "TitularBloqueosVarios");
     }
 

@@ -9,7 +9,11 @@ namespace CaeManager.Application.Common;
 /// llama: un fallo de envío
 /// nunca debe impedir la acción de negocio que lo dispara (crear un usuario
 /// pendiente, asignarle un rol) — de ahí que devuelva Result en vez de
-/// lanzar, para que el llamador decida solo si lo registra o lo ignora.
+/// lanzar, para que el llamador decida si lo registra, lo ignora o lo
+/// muestra. La excepción es el llamador cuyo correo ES la acción de negocio:
+/// la reclamación de documentación (<c>RegistroEnvioReclamacionService</c>)
+/// no puede registrarse como enviada si el correo falló, y consulta el
+/// resultado de cada envío.
 ///
 /// <para>
 /// Sistema de correo TALVEG: <c>cuerpoHtml</c> sigue siendo solo el contenido

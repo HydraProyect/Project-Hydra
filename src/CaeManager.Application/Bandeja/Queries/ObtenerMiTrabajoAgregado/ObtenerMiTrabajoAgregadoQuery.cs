@@ -15,6 +15,7 @@ using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 
@@ -128,11 +129,26 @@ public record MiTrabajoTenantDto(
 /// § 10, "Mi organización" vs "Mi cartera Outbound") — esta Query no filtra
 /// ni reordena esa distinción, solo la transporta en <c>EsOrigen</c>.
 /// </param>
-public record MiTrabajoAgregadoDto(IReadOnlyList<MiTrabajoTenantDto> Tenants);
+/// <param name="TenantsNoConsultados">
+/// Tenants propietarios cuya cola no se pudo construir (FS-07): la consulta de
+/// uno falló y los demás se devuelven igual, en vez de dejar sin cola a toda
+/// la cartera. Nunca se mezclan con <paramref name="Tenants"/>: un Tenant no
+/// consultado no es un Tenant al día. <c>null</c> equivale a vacío.
+/// </param>
+public record MiTrabajoAgregadoDto(
+    IReadOnlyList<MiTrabajoTenantDto> Tenants,
+    IReadOnlyList<TenantNoConsultadoDto>? TenantsNoConsultados = null)
+{
+    public IReadOnlyList<TenantNoConsultadoDto> NoConsultados => TenantsNoConsultados ?? [];
+}
+
+/// <summary>Un Tenant propietario de la cartera cuya cola no se pudo consultar. Solo lo nombra: no trae ningún dato suyo.</summary>
+public record TenantNoConsultadoDto(Guid TenantId, string TenantNombre, bool EsOrigen);
 
 public class ObtenerMiTrabajoAgregadoQueryHandler(
     IMediator mediator, IConfiguracionQueryContext configuracionContext, IEmpresasQueryContext empresasContext,
-    ICalculoEstadoCentroService calculoEstadoCentro, IAlcanceDatosService alcanceDatos)
+    ICalculoEstadoCentroService calculoEstadoCentro, IAlcanceDatosService alcanceDatos,
+    ILogger<ObtenerMiTrabajoAgregadoQueryHandler> logger)
     : IRequestHandler<ObtenerMiTrabajoAgregadoQuery, MiTrabajoAgregadoDto>
 {
     public async Task<MiTrabajoAgregadoDto> Handle(ObtenerMiTrabajoAgregadoQuery request, CancellationToken cancellationToken)
@@ -141,8 +157,15 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
 
         var resultado = new List<MiTrabajoTenantDto>();
+        var noConsultados = new List<TenantNoConsultadoDto>();
         foreach (var tenant in tenants)
         {
+            // FS-07: el fallo de un Tenant no se lleva por delante la cola de
+            // los demás. Se degrada por Tenant —su cola no aparece y la
+            // pantalla lo nombra— en vez de abortar la consulta entera, que
+            // dejaba al Gestor CAE sin nada y con un «Reintentar» inútil si el
+            // fallo era determinista. Cancelar sí aborta: no es un fallo del
+            // Tenant, es que ya nadie espera la respuesta.
             // Sellado por Tenant, un Tenant cada vez — nunca una query con el
             // filtro global quitado (contrato § 9). El resultado de cada
             // vuelta ya está autorizado antes de pasar a la siguiente.
@@ -152,13 +175,21 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
             // que el propio SingleAsync tiene que caer DENTRO del ámbito, o
             // ve cero filas — RLS no deja pasar la fila de ningún Tenant sin
             // AmbitoTenantExplicito activo).
-            using (AmbitoTenantExplicito.Establecer(tenant.TenantId))
+            try
             {
-                resultado.Add(await ConstruirTenantAsync(tenant, hoy, cancellationToken));
+                using (AmbitoTenantExplicito.Establecer(tenant.TenantId))
+                {
+                    resultado.Add(await ConstruirTenantAsync(tenant, hoy, cancellationToken));
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "Mi trabajo: no se pudo construir la cola del Tenant {TenantId}; se devuelve el resto de la cartera.", tenant.TenantId);
+                noConsultados.Add(new TenantNoConsultadoDto(tenant.TenantId, tenant.Nombre, tenant.EsOrigen));
             }
         }
 
-        return new MiTrabajoAgregadoDto(resultado);
+        return new MiTrabajoAgregadoDto(resultado, noConsultados);
     }
 
     private async Task<MiTrabajoTenantDto> ConstruirTenantAsync(
