@@ -212,6 +212,33 @@ public class AltaDeGestorCaeConCarteraTests : IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// El catálogo no se fía del Id de operación que recibe: tiene que ser la externa de este
+    /// Operador CAE sobre este Tenant propietario. Ni la de otro Tenant beneficiario del mismo
+    /// Operador CAE, ni la raíz, aunque las dos estén vigentes.
+    /// </summary>
+    [Theory]
+    [InlineData("de otro Tenant")]
+    [InlineData("raiz")]
+    public async Task El_catalogo_no_incorpora_con_una_operacion_que_no_es_la_de_ese_Tenant(string caso)
+    {
+        Guid operacionId;
+        await using (var propietario = ContextoPropietario())
+        {
+            operacionId = caso == "raiz"
+                ? await propietario.AsignacionesOperacion.Where(o => o.EsRaiz && o.PropietarioTenantId == _operador.Id).Select(o => o.Id).SingleAsync()
+                : await propietario.AsignacionesOperacion.Where(o => !o.EsRaiz && o.PropietarioTenantId == _beneficiarioB.Id).Select(o => o.Id).SingleAsync();
+        }
+
+        await using var arnes = Arnes(_administrador, _operador.Id);
+        using (AmbitoTenantExplicito.Establecer(_beneficiarioA.Id))
+        {
+            var resultado = await arnes.Catalogo.IncorporarAsync(_beneficiarioA.Id, _operador.Id, operacionId, Guid.NewGuid());
+            resultado.MotivoAnulacion.Should().Be(MotivoAnulacionSolicitudCartera.OperacionNoVigente);
+            resultado.Cartera.Should().BeNull();
+        }
+    }
+
     // ── Arnés ─────────────────────────────────────────────────────────────
 
     private static CrearUsuarioCommand Alta(string email, params Guid[] tenants) =>
