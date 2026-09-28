@@ -30,4 +30,24 @@ public class RedireccionLocalTests
     [InlineData("documentos")]
     public void Todo_lo_que_no_sea_ruta_local_cae_a_la_raiz(string? entrada)
         => RedireccionLocal.Sanear(entrada).Should().Be("/");
+
+    /// <summary>
+    /// Aterrizaje D-2 tras iniciar sesión: sin returnUrl a otra ruta (o con uno
+    /// saneado a la raíz), el destino es Inicio con la marca de un solo uso.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("/")]
+    [InlineData("//atacante.com")]
+    [InlineData("https://atacante.com")]
+    public void El_destino_tras_login_sin_returnUrl_propio_es_Inicio_con_la_marca(string? entrada)
+        => RedireccionLocal.DestinoTrasLogin(entrada).Should().Be("/?desde=login");
+
+    [Theory]
+    [InlineData("/documentos")]
+    [InlineData("/mi-trabajo")]
+    [InlineData("/documentos?filtro=urgente")]
+    public void El_destino_tras_login_respeta_un_returnUrl_explicito_a_otra_ruta(string entrada)
+        => RedireccionLocal.DestinoTrasLogin(entrada).Should().Be(entrada);
 }

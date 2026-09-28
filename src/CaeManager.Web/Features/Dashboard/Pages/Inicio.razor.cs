@@ -146,7 +146,23 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     // los roles salvo Cliente.
     private bool _mostrarRequiereAtencion;
 
-    protected override Task OnInitializedAsync() => CargarAsync();
+    /// <summary>
+    /// Marca de un solo uso que añade el inicio de sesión
+    /// (<c>RedireccionLocal.DestinoTrasLogin</c>): solo con ella Inicio es el
+    /// aterrizaje tras autenticar y puede llevar a Mi trabajo (D-2). Una visita
+    /// por el menú (<c>/</c> sin marca) muestra siempre el dashboard.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = CaeManager.Web.Components.Account.RedireccionLocal.ParametroAterrizaje)]
+    private string? Desde { get; set; }
+
+    private bool _aterrizaTrasLogin;
+
+    protected override Task OnInitializedAsync()
+    {
+        _aterrizaTrasLogin = string.Equals(Desde,
+            CaeManager.Web.Components.Account.RedireccionLocal.ValorAterrizajeLogin, StringComparison.Ordinal);
+        return CargarAsync();
+    }
 
     /// <summary>
     /// El nombre de pila se resuelve aparte, tras el primer render, y NO
@@ -267,10 +283,12 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             if (kpis.SinCarteraAsignada && RolesMiTrabajo.Any(estadoAutenticacion.User.IsInRole))
                 (carteraEnOtroTenant, activoEsOrigen) = await ResolverCarteraEnOtroTenantAsync(token);
 
-            if (carteraEnOtroTenant && activoEsOrigen)
+            if (carteraEnOtroTenant && activoEsOrigen && _aterrizaTrasLogin)
             {
                 // D-2: el Gestor CAE (o Coordinador CAE) de un Operador CAE externo
-                // aterriza en Mi trabajo. Nada se publica: la pantalla se va.
+                // aterriza en Mi trabajo TRAS INICIAR SESIÓN (marca ?desde=login).
+                // Pulsar «Inicio» en el menú no lleva la marca: enseña el estado
+                // vacío con el enlace a Mi trabajo. Nada se publica: la pantalla se va.
                 irAMiTrabajo = true;
                 return;
             }
@@ -351,9 +369,23 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             if (EsVigente(carga))
             {
                 if (irAMiTrabajo)
+                {
                     NavigationManager.NavigateTo(RutaMiTrabajo, replace: true);
+                }
                 else
+                {
                     StateHasChanged();
+
+                    // La marca es de un solo uso: ya decidido que no se va a Mi
+                    // trabajo, se quita de la URL para que recargar no repita el
+                    // aterrizaje. Solo en interactivo: durante el prerenderizado
+                    // NavigateTo sería una redirección de servidor.
+                    if (_aterrizaTrasLogin && RendererInfo.IsInteractive)
+                    {
+                        _aterrizaTrasLogin = false;
+                        NavigationManager.NavigateTo("/", replace: true);
+                    }
+                }
             }
         }
     }

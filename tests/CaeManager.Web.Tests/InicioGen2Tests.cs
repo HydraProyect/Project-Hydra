@@ -171,14 +171,39 @@ public class InicioGen2Tests : BunitContext
     /// Tenants propietarios que opera—, y decirle «Sin cartera asignada» era falso.
     /// </summary>
     [Fact]
-    public void En_el_Tenant_de_origen_sin_cartera_y_con_cartera_en_otro_Tenant_lleva_a_Mi_trabajo()
+    public void Tras_iniciar_sesion_en_el_Tenant_de_origen_sin_cartera_y_con_cartera_en_otro_Tenant_lleva_a_Mi_trabajo()
     {
         var mediador = SinCarteraAqui(carteraEnOtroTenant: true);
-        var cut = Renderizar(mediador);
+        var cut = Renderizar(mediador, ruta: "/?desde=login");
 
         cut.WaitForAssertion(() => UrlActual.Should().EndWith(Inicio.RutaMiTrabajo));
         cut.Markup.Should().NotContain("Sin cartera asignada",
             "no se afirma que no tiene cartera a quien la tiene en otro Tenant propietario");
+    }
+
+    /// <summary>
+    /// Bug 2026-09-28: pulsar «Inicio» en el menú (sin la marca del inicio de
+    /// sesión) redirigía siempre a Mi trabajo y el dashboard de Inicio quedaba
+    /// inaccesible para este perfil. D-2 fija el aterrizaje tras iniciar sesión,
+    /// no el destino de cada clic en Inicio.
+    /// </summary>
+    [Fact]
+    public void Pulsar_Inicio_en_el_Tenant_de_origen_sin_cartera_no_redirige_y_ofrece_ir_a_Mi_trabajo()
+    {
+        var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true), ruta: "/");
+
+        cut.Find(".estado-vacio a[href='/mi-trabajo']").TextContent.Should().Contain("Mi trabajo");
+        UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
+    }
+
+    [Fact]
+    public void Con_la_marca_de_login_y_datos_en_el_contexto_muestra_el_dashboard_y_quita_la_marca()
+    {
+        var cut = Renderizar(new MediadorDeInicio(), ruta: "/?desde=login");
+
+        cut.FindAll(".dashboard-resumen").Should().NotBeEmpty();
+        // La marca es de un solo uso: recargar no repite el aterrizaje.
+        cut.WaitForAssertion(() => UrlActual.Should().NotContain("desde="));
     }
 
     [Fact]
@@ -671,7 +696,8 @@ public class InicioGen2Tests : BunitContext
     // ---------------------------------------------------------------- ayudas
 
     private IRenderedComponent<Inicio> Renderizar(MediadorDeInicio mediador, ActividadUsuarioService? actividad = null,
-        AuthenticationStateProvider? autenticacion = null, Guid? tenantActivo = null, string rol = Roles.GestorCae)
+        AuthenticationStateProvider? autenticacion = null, Guid? tenantActivo = null, string rol = Roles.GestorCae,
+        string? ruta = null)
     {
         // La aplicación fija es-ES en Program.cs; aquí se fija en el flujo del
         // propio test, que es donde renderiza bUnit.
@@ -710,6 +736,9 @@ public class InicioGen2Tests : BunitContext
         // cae en el estado de error — un fallo del arnés que se leería como un
         // fallo del producto.
         SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+
+        if (ruta is not null)
+            Services.GetRequiredService<NavigationManager>().NavigateTo(ruta);
 
         return Render<Inicio>();
     }
