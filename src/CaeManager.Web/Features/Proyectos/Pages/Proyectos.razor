@@ -289,7 +289,7 @@
                                         @if (tecnico.EstaActivo)
                                         {
                                             <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">@Textos["BadgeActivo"]</Badge>
-                                            <SoloConEscritura><button type="button" class="baja-tecnico-proyecto" @onclick="() => DesasignarTecnicoAsync(tecnico.Id)">@Textos["BotonDarDeBaja"]</button></SoloConEscritura>
+                                            <SoloConEscritura><button type="button" class="baja-tecnico-proyecto" @onclick="() => PedirDarDeBajaTecnico(tecnico)">@Textos["BotonDarDeBaja"]</button></SoloConEscritura>
                                         }
                                         else
                                         {
@@ -422,6 +422,15 @@
     Mensaje="@Textos["ConfirmarEliminarMensaje", _nombreAEliminar]"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+
+<DialogoConfirmacion
+    Visible="_tecnicoADarDeBaja is not null"
+    VisibleChanged="CerrarConfirmacionBajaTecnico"
+    Titulo="@Textos["ConfirmarBajaTecnicoTitulo"]"
+    Mensaje="@MensajeConfirmarBajaTecnico"
+    TextoBotonConfirmar="@Textos["BotonDarDeBaja"]"
+    EnProgreso="_dandoDeBajaTecnico"
+    OnConfirmar="ConfirmarBajaTecnicoAsync" />
 
 <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
 </LimiteDeErrores>

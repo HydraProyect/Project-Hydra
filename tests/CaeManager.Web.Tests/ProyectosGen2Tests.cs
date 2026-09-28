@@ -525,6 +525,29 @@ public class ProyectosGen2Tests : BunitContext
     /// ya permitía darlos de baja. Transcribir el mockup al pie de la letra
     /// habría borrado esa acción.
     /// </summary>
+    /// <summary>
+    /// Dar de baja a un técnico no se deshace desde la aplicación: cancelar el
+    /// diálogo no envía <see cref="DesasignarTecnicoProyectoCommand"/> y el
+    /// técnico sigue activo.
+    /// </summary>
+    [Fact]
+    public async Task Cancelar_la_baja_de_un_tecnico_no_envia_el_Command()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+        await BotonConTexto(cut, "tbody .nombre-proyecto", ProyectoAbierto.Nombre).ClickAsync(new MouseEventArgs());
+        await BotonConTexto(cut, "[role=tab]", "Técnicos").ClickAsync(new MouseEventArgs());
+
+        await cut.Find(".baja-tecnico-proyecto").ClickAsync(new MouseEventArgs());
+        cut.FindAll("[role=dialog]").Should().ContainSingle("control positivo: el diálogo se abrió");
+
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Cancelar").ClickAsync(new MouseEventArgs());
+
+        _mediator.Enviados.OfType<DesasignarTecnicoProyectoCommand>().Should().BeEmpty();
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        cut.FindAll(".baja-tecnico-proyecto").Should().ContainSingle("el técnico sigue activo");
+    }
+
     [Fact]
     public async Task Dar_de_baja_a_un_tecnico_activo_se_conserva_en_el_panel()
     {
@@ -541,8 +564,14 @@ public class ProyectosGen2Tests : BunitContext
 
         await cut.Find(".baja-tecnico-proyecto").ClickAsync(new MouseEventArgs());
 
+        _mediator.Enviados.OfType<DesasignarTecnicoProyectoCommand>().Should().BeEmpty("la baja se confirma antes de enviarse");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Salas Moreno, Javier").And.Contain("no se puede deshacer");
+
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Dar de baja").ClickAsync(new MouseEventArgs());
+
         _mediator.Enviados.OfType<DesasignarTecnicoProyectoCommand>().Should().ContainSingle()
             .Which.Id.Should().Be(TecnicoActivoId);
+        cut.FindAll("[role=dialog]").Should().BeEmpty("confirmar cierra el diálogo");
 
         // El doble devuelve la lista con la baja aplicada: la pantalla tiene que recargarla.
         cut.FindAll(".baja-tecnico-proyecto").Should().BeEmpty("tras la baja se recargan los técnicos y ya no queda ninguno activo");

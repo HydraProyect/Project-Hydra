@@ -21,7 +21,7 @@
                     <p class="aviso-solicitudes-mensaje">@solicitud.Mensaje</p>
                     <div class="aviso-solicitudes-acciones">
                         <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AceptarAsync(solicitud)" Deshabilitado="_enCurso is not null" Cargando="_enCurso == solicitud.Id">@Textos["Aceptar"]</Boton>
-                        <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => RechazarAsync(solicitud)" Deshabilitado="_enCurso is not null">@Textos["Rechazar"]</Boton>
+                        <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => PedirRechazar(solicitud)" Deshabilitado="_enCurso is not null">@Textos["Rechazar"]</Boton>
                     </div>
                 </li>
             }
@@ -33,4 +33,12 @@
         </footer>
     </section>
 }
+
+<DialogoConfirmacion Visible="_aRechazar is not null"
+                     VisibleChanged="CerrarConfirmacionRechazo"
+                     Titulo="@Textos["ConfirmarRechazarTitulo"]"
+                     Mensaje="@MensajeConfirmarRechazar"
+                     TextoBotonConfirmar="@Textos["Rechazar"]"
+                     EnProgreso="_enCurso is not null"
+                     OnConfirmar="RechazarAsync" />
 </LimiteDeErrores>

@@ -39,6 +39,11 @@ public partial class AvisoSolicitudesCartera : IDisposable
     private IReadOnlyList<SolicitudIncorporacionCarteraDto> _pendientes = [];
     private readonly HashSet<Guid> _pospuestas = [];
     private Guid? _enCurso;
+    private SolicitudIncorporacionCarteraDto? _aRechazar;
+
+    private string MensajeConfirmarRechazar => _aRechazar is null
+        ? string.Empty
+        : Textos["ConfirmarRechazarMensaje", _aRechazar.NombreSolicitante, _aRechazar.NombreEmpresa];
     private CancellationTokenSource? _cancelacion;
 
     private IReadOnlyList<SolicitudIncorporacionCarteraDto> Visibles =>
@@ -124,8 +129,23 @@ public partial class AvisoSolicitudesCartera : IDisposable
         EjecutarAsync(solicitud.Id, new AceptarSolicitudIncorporacionCarteraCommand(solicitud.Id),
             Textos["ToastAceptada", solicitud.NombreSolicitante, solicitud.NombreEmpresa]);
 
-    private Task RechazarAsync(SolicitudIncorporacionCarteraDto solicitud) =>
-        EjecutarAsync(solicitud.Id, new RechazarSolicitudIncorporacionCarteraCommand(solicitud.Id), Textos["ToastRechazada"]);
+    // Rechazar cierra la solicitud sin vuelta atrás: se confirma, como en la bandeja.
+    private void PedirRechazar(SolicitudIncorporacionCarteraDto solicitud) => _aRechazar = solicitud;
+
+    private void CerrarConfirmacionRechazo(bool visible)
+    {
+        if (!visible && _enCurso is null)
+            _aRechazar = null;
+    }
+
+    private async Task RechazarAsync()
+    {
+        if (_aRechazar is not { } solicitud)
+            return;
+
+        await EjecutarAsync(solicitud.Id, new RechazarSolicitudIncorporacionCarteraCommand(solicitud.Id), Textos["ToastRechazada"]);
+        _aRechazar = null;
+    }
 
     private async Task EjecutarAsync(Guid solicitudId, IRequest<Result> command, string textoExito)
     {

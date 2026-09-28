@@ -108,18 +108,24 @@
                             @* Sin vista previa vigente no hay qué descargar: sin href, no
                                un enlace atenuado solo por CSS que siguiera funcionando
                                con el teclado. *@
-                            <span class="boton-exportar-informe boton-exportar-informe-deshabilitado" aria-disabled="true"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["BotonDescargarPdf"]</span>
-                            <span class="boton-exportar-informe boton-exportar-informe-deshabilitado" aria-disabled="true"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["BotonDescargarExcel"]</span>
+                            <span class="boton-exportar-informe boton-exportar-informe-deshabilitado" aria-disabled="true" aria-describedby="pista-descarga-informe"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["BotonDescargarPdf"]</span>
+                            <span class="boton-exportar-informe boton-exportar-informe-deshabilitado" aria-disabled="true" aria-describedby="pista-descarga-informe"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["BotonDescargarExcel"]</span>
                         }
                     </div>
 
                     @* Abre el redactor, que envía con EnviarMensajeNuevoCommand (ICommand denegado a
                        Consulta). Las descargas de arriba sí son lectura. *@
                     <SoloConEscritura>
-                        <button type="button" class="enlace-secundario-informe" disabled="@(!TienePlan)" @onclick="AbrirEnviarPorComunicaciones">
+                        <button type="button" class="enlace-secundario-informe" disabled="@(!TienePlan)" aria-describedby="@(TienePlan ? null : "pista-descarga-informe")" @onclick="AbrirEnviarPorComunicaciones">
                             @Textos["BotonEnviarPorComunicaciones"]
                         </button>
                     </SoloConEscritura>
+
+                    @* Sin esta pista los botones atenuados no dicen por qué no responden. *@
+                    @if (!TienePlan)
+                    {
+                        <p id="pista-descarga-informe" class="pista-descarga-informe">@Textos["PistaGenerarVistaPrevia"]</p>
+                    }
                 </div>
             </div>
 

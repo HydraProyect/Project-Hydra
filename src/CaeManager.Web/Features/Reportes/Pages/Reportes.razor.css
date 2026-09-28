@@ -194,6 +194,13 @@ a.boton-exportar-informe:hover {
     cursor: not-allowed;
 }
 
+.pista-descarga-informe {
+    margin: 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-wrap: pretty;
+}
+
 .enlace-secundario-informe {
     border: 0;
     background: none;

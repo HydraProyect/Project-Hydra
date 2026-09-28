@@ -67,6 +67,8 @@ public class AsistenteIaTextosTests : BunitContext
             "Especialista en legislación de Prevención de Riesgos Laborales (España/UE). No tiene acceso a tus Clientes, Trabajadores ni Documentos — solo responde dudas normativas generales.");
         panel.Find(".asistente-mensaje-vacio").TextContent.Should().Be("Escribe tu pregunta sobre PRL para empezar.");
         panel.Find("textarea.asistente-textarea").GetAttribute("placeholder").Should().Be("Escribe tu pregunta…");
+        // El placeholder no es un nombre accesible: desaparece al escribir y no todos los lectores lo anuncian.
+        panel.Find("textarea.asistente-textarea").GetAttribute("aria-label").Should().Be("Pregunta al asistente");
         panel.Find("button.asistente-boton-enviar").TextContent.Trim().Should().Be("Enviar");
     }
 

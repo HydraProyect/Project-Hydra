@@ -27,6 +27,9 @@
   <data name="IndicadorPensando" xml:space="preserve">
     <value>Pensando…</value>
   </data>
+  <data name="EtiquetaPregunta" xml:space="preserve">
+    <value>Pregunta al asistente</value>
+  </data>
   <data name="PlaceholderPregunta" xml:space="preserve">
     <value>Escribe tu pregunta…</value>
   </data>
