@@ -194,8 +194,9 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
         solicitud.RevocadaPorUsuarioId.Should().Be(_administrador);
 
         (await RolesDeAsync(propietario, _gestor)).Should().BeEquivalentTo(new[] { Roles.GestorCae }, "retirar una cartera no toca la cuenta");
+        var carteraRetiradaId = carteras.Single(c => c.PropietarioTenantId == _beneficiarioA.Id).Id;
         var cierre = await propietario.RegistrosAuditoria.IgnoreQueryFilters().AsNoTracking()
-            .Where(r => r.EntidadTipo == nameof(AsignacionCartera) && r.EntidadId == carteras.Single(c => c.PropietarioTenantId == _beneficiarioA.Id).Id)
+            .Where(r => r.EntidadTipo == nameof(AsignacionCartera) && r.EntidadId == carteraRetiradaId)
             .OrderByDescending(r => r.Id).FirstAsync();
         cierre.UsuarioId.Should().Be(_administrador);
         cierre.ActorRealUsuarioId.Should().Be(soporte);
