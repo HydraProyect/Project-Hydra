@@ -462,7 +462,8 @@ public class OrdenMenuLateralTests : BunitContext
 
         var cut = Renderizar();
 
-        cut.Find("[data-enlace-previa='empresas']").TextContent.Should().Be(empresas);
-        cut.Find("[data-enlace-previa='trabajadores']").TextContent.Should().Be(trabajadores);
+        // El <svg> del Icono arrastra espacios en blanco al TextContent del contenedor: se lee solo el <span> del rótulo.
+        cut.Find("[data-enlace-previa='empresas'] > span").TextContent.Should().Be(empresas);
+        cut.Find("[data-enlace-previa='trabajadores'] > span").TextContent.Should().Be(trabajadores);
     }
 }
