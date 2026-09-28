@@ -70,8 +70,13 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # volumen si hace falta, y baje de privilegios a $APP_UID sin perder el
 # manejo de señales (reemplaza el proceso, a diferencia de `su`) — ver
 # docker-entrypoint.sh.
+#
+# tzdata: el día de negocio es el de Europe/Madrid (DiaDeNegocio) y el
+# contenedor corre en UTC; .NET resuelve la zona IANA desde /usr/share/zoneinfo.
+# Se declara aunque la imagen base lo traiga, para no depender de ello: sin
+# tzdata la app no arranca (Program.cs resuelve la zona al inicio).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libreoffice-writer curl ca-certificates gosu \
+    && apt-get install -y --no-install-recommends libreoffice-writer curl ca-certificates gosu tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build --chown=$APP_UID:$APP_UID /app/publish .

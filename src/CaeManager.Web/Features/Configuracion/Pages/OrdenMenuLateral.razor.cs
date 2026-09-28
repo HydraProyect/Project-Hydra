@@ -44,9 +44,6 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
 
     private const string CodigoSinPermiso = "OrdenMenu.SinPermiso";
 
-    private static readonly TimeZoneInfo? ZonaMadrid =
-        TimeZoneInfo.TryFindSystemTimeZoneById("Europe/Madrid", out var zona) ? zona : null;
-
     private enum TipoFila { Grupo, Enlace }
 
     private enum Aviso { Ninguno, Guardado, Error, Conflicto }
@@ -493,9 +490,7 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
 
     private static string Fecha(DateTime utc)
     {
-        var enUtc = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
-        var local = ZonaMadrid is null ? enUtc.ToLocalTime() : TimeZoneInfo.ConvertTimeFromUtc(enUtc, ZonaMadrid);
-        return local.ToString("dd/MM/yyyy HH:mm");
+        return DiaDeNegocio.EnHoraPeninsular(utc).ToString("dd/MM/yyyy HH:mm");
     }
 
     private string TextoConflicto => _ordenConflicto is null

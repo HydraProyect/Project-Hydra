@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
@@ -30,7 +31,7 @@ public class ObtenerEmpresasPaginacionEnSqlTests : IAsyncLifetime
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
-    private readonly DateOnly _hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private readonly DateOnly _hoy = DiaDeNegocio.Hoy();
 
     public async Task InitializeAsync()
     {

@@ -239,7 +239,7 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
             .Select(p => new { p.FechaInicio, p.FechaCierreReal })
             .ToListAsync(ct);
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var dias = 0;
 
         foreach (var proyecto in proyectos)

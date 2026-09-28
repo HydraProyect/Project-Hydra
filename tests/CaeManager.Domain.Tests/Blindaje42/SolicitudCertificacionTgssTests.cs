@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Blindaje42;
 using FluentAssertions;
 using Xunit;
@@ -6,7 +7,7 @@ namespace CaeManager.Domain.Tests.Blindaje42;
 
 public class SolicitudCertificacionTgssTests
 {
-    private static readonly DateOnly Hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Hoy = DiaDeNegocio.Hoy();
 
     private static SolicitudCertificacionTgss Crear(
         DateOnly? fechaSolicitud = null, string? observaciones = null) =>

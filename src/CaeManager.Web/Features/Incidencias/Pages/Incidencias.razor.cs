@@ -340,7 +340,7 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
         _trabajadorId = string.Empty;
         _tipo = nameof(TipoIncidencia.Accidente);
         _gravedad = nameof(GravedadIncidencia.Leve);
-        _fechaOcurrencia = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        _fechaOcurrencia = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
         _descripcion = string.Empty;
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = null;

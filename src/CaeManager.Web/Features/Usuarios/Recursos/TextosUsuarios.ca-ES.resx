@@ -66,4 +66,13 @@
   <data name="ReenvioCorreoFallidoEnlaceAbajo" xml:space="preserve">
     <value>L'enllaç queda a sota perquè el lliuris tu mateix.</value>
   </data>
+  <data name="CarteraAltaEtiqueta" xml:space="preserve">
+    <value>Empreses de la seva cartera (opcional)</value>
+  </data>
+  <data name="CarteraAltaAyuda" xml:space="preserve">
+    <value>Gestionarà sencera cada empresa que marquis. Pots deixar-ho sense cap i assignar-les-hi després.</value>
+  </data>
+  <data name="CarteraAltaErrorCarga" xml:space="preserve">
+    <value>No hem pogut carregar les empreses per a la seva cartera. Pots desar sense cap i assignar-les-hi després.</value>
+  </data>
 </root>

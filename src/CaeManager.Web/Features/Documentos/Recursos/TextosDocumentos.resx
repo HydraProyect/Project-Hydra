@@ -24,4 +24,10 @@
   <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
     <value>{0} documento(s) restaurado(s); {1} no se pudieron restaurar: {2}</value>
   </data>
+  <data name="Documento360DescargarPdf" xml:space="preserve">
+    <value>Descargar PDF</value>
+  </data>
+  <data name="Documento360Reclamar" xml:space="preserve">
+    <value>Reclamar</value>
+  </data>
 </root>

@@ -224,7 +224,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
             return;
         }
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var huboAlMenosUnTrabajador = false;
 
         for (var fila = 4; ; fila++)

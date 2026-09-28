@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
@@ -664,7 +665,7 @@ public static class ComunicacionesDatosPruebaSeeder
             mensajesConCliente[3].Mensaje.ConversacionId, ahora.AddHours(-20)));
 
         // Sugerencias de visita: con centro resuelto, sin centro, y resuelta.
-        var hoy = DateOnly.FromDateTime(ahora);
+        var hoy = DiaDeNegocio.De(ahora);
         var centroDelCliente = await dbContext.Centros
             .Where(c => c.ClienteId == mensajesConCliente[2].ClienteId)
             .OrderBy(c => c.CreadoEnUtc).ThenBy(c => c.Id)

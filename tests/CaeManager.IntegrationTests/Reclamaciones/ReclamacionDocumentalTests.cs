@@ -76,7 +76,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
 
-        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DiaDeNegocio.Hoy()));
         await contexto.SaveChangesAsync();
 
         _clienteId = cliente.Id;
@@ -93,7 +93,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(2))));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(2))));
             await contexto.SaveChangesAsync();
         }
 
@@ -125,7 +125,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
             centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
             var documento = Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(2)));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(2)));
             contexto.Documentos.Add(documento);
             await contexto.SaveChangesAsync();
             documentoId = documento.Id;
@@ -176,16 +176,16 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
             contexto.Trabajadores.Add(otroTrabajador);
             await contexto.SaveChangesAsync();
 
-            contexto.Asignaciones.Add(new Asignacion(_trabajadorId, centroId, DateOnly.FromDateTime(DateTime.UtcNow)));
-            contexto.Asignaciones.Add(new Asignacion(otroTrabajador.Id, otroCentroId, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Asignaciones.Add(new Asignacion(_trabajadorId, centroId, DiaDeNegocio.Hoy()));
+            contexto.Asignaciones.Add(new Asignacion(otroTrabajador.Id, otroCentroId, DiaDeNegocio.Hoy()));
             await contexto.SaveChangesAsync();
 
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1))));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1))));
             contexto.Documentos.Add(Documento.DeTrabajador(
                 otroTrabajador.Id, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1))));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1))));
             await contexto.SaveChangesAsync();
         }
 
@@ -218,13 +218,13 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
             otroTrabajadorId = otroTrabajador.Id;
 
-            contexto.Asignaciones.Add(new Asignacion(otroTrabajadorId, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Asignaciones.Add(new Asignacion(otroTrabajadorId, centro.Id, DiaDeNegocio.Hoy()));
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1))));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1))));
             contexto.Documentos.Add(Documento.DeTrabajador(
                 otroTrabajadorId, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1))));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1))));
             await contexto.SaveChangesAsync();
         }
 
@@ -251,10 +251,10 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
 
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1))));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1))));
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, otroTipoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1))));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1))));
             await contexto.SaveChangesAsync();
         }
 
@@ -297,13 +297,13 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
             trabajadorFueraDeCarteraId = trabajadorFuera.Id;
 
-            contexto.Asignaciones.Add(new Asignacion(trabajadorFuera.Id, centroFuera.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Asignaciones.Add(new Asignacion(trabajadorFuera.Id, centroFuera.Id, DiaDeNegocio.Hoy()));
             contexto.Documentos.Add(Documento.DeTrabajador(
                 trabajadorFuera.Id, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1))));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1))));
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1))));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1))));
             contexto.ContactosAgenda.Add(ContactoAgenda.DeCliente(
                 clienteFuera.Id, "Agenda fuera", "fuera@cliente.test", esPredeterminado: true));
             await contexto.SaveChangesAsync();
@@ -342,7 +342,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(6))));
+                DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(6))));
             await contexto.SaveChangesAsync();
         }
 
@@ -362,7 +362,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         {
             var documento = Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1)));
             contexto.Documentos.Add(documento);
             await contexto.SaveChangesAsync();
             documentoId = documento.Id;
@@ -406,7 +406,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         {
             var documento = Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1)));
             contexto.Documentos.Add(documento);
             // Único buzón habilitado: personal de un gestor. Nunca debe elegirse.
             contexto.ConexionesIntegracion.Add(new ConexionIntegracion(
@@ -447,7 +447,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         {
             var documento = Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1)));
             contexto.Documentos.Add(documento);
             contexto.ConexionesIntegracion.Add(new ConexionIntegracion("cae@consultora.com", "Buzón CAE"));
 
@@ -503,7 +503,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         {
             var documento = Documento.DeTrabajador(
                 _trabajadorId, _tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1)));
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1)));
             contexto.Documentos.Add(documento);
             await contexto.SaveChangesAsync();
             documentoId = documento.Id;
@@ -579,10 +579,10 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
                     setup.TiposDocumento.Add(tipo);
                     await setup.SaveChangesAsync();
 
-                    setup.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+                    setup.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DiaDeNegocio.Hoy()));
                     setup.Documentos.Add(Documento.DeTrabajador(
                         trabajador.Id, tipo.Id,
-                        DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(1))));
+                        DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1))));
                     setup.ContactosAgenda.Add(ContactoAgenda.DeCliente(
                         cliente.Id, $"Agenda Bulk {i}", $"agenda-bulk-{i}@cliente.test", esPredeterminado: true));
                     await setup.SaveChangesAsync();

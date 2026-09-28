@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using System.Globalization;
 using CaeManager.Application.Calendario.Queries;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitasParaCalendario;
@@ -32,18 +33,15 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Fecha que la pantalla toma por «hoy»: el mes con el que arranca, al que
-    /// vuelve «Hoy» y el día que resalta. Sin informar es
-    /// <see cref="DateTime.Today"/>; el router nunca la rellena (la ruta no
-    /// tiene segmentos ni lleva <c>[SupplyParameterFromQuery]</c>). Existe para
-    /// que los tests fijen el reloj y no dependan del día en que se ejecutan (un
-    /// test que cruza medianoche a fin de mes cambiaría de mes a mitad). Es un
-    /// parámetro y no un <see cref="TimeProvider"/> inyectado porque la Web no
-    /// registra ninguno en DI, ni tiene <c>InternalsVisibleTo</c> para una
-    /// propiedad interna.
+    /// vuelve «Hoy» y el día que resalta. Sin informar es el día de negocio,
+    /// <see cref="DiaDeNegocio.Hoy()"/> (Europe/Madrid); el router nunca la
+    /// rellena (la ruta no tiene segmentos ni lleva <c>[SupplyParameterFromQuery]</c>).
+    /// Existe para que los tests fijen el día y no dependan del día en que se
+    /// ejecutan (un test que cruza medianoche a fin de mes cambiaría de mes a mitad).
     /// </summary>
     [Parameter] public DateOnly? Hoy { get; set; }
 
-    private DateOnly HoyEfectivo => Hoy ?? DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly HoyEfectivo => Hoy ?? DiaDeNegocio.Hoy();
 
     private DateOnly _mesActual;
     private IReadOnlyList<VencimientoCalendarioDto> _vencimientos = [];

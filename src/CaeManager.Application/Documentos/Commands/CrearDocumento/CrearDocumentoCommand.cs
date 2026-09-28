@@ -48,7 +48,7 @@ public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCo
 
         RuleFor(c => c.TipoDocumentoId).NotEmpty().WithMessage("Selecciona un tipo de documento.");
         RuleFor(c => c.FechaEmision)
-            .LessThanOrEqualTo(DateOnly.FromDateTime(DateTime.UtcNow))
+            .LessThanOrEqualTo(_ => DiaDeNegocio.Hoy())
             .WithMessage("La fecha de emisión no puede ser futura.");
         RuleFor(c => c.Comentarios).MaximumLength(Documento.LongitudMaximaComentarios);
         RuleFor(c => c)

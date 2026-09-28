@@ -40,7 +40,7 @@ public class RegistrarVerificacionExternaSubcontrataCommandValidator
         RuleFor(c => c.Resultado).IsInEnum();
 
         RuleFor(c => c.FechaVerificacion)
-            .Must(f => f <= DateOnly.FromDateTime(DateTime.UtcNow))
+            .Must(f => f <= DiaDeNegocio.Hoy())
             .WithMessage("La fecha de verificación no puede ser futura.");
 
         RuleFor(c => c.Observaciones)

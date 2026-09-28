@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -101,7 +102,7 @@ public class ObtenerAlertasQueryHandler(
         IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
     {
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         // Un documento con vencimiento más allá del umbral ámbar es SIEMPRE
         // Vigente (ver CalculadoraEstadoDocumento) y el filtro de más abajo lo

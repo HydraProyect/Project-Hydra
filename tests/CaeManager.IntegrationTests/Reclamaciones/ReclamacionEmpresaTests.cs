@@ -384,8 +384,8 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var documento = Documento.DeEmpresa(
             empresaId, tipoDocumentoId,
-            DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10),
-            VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(mesesHastaVencer)));
+            DiaDeNegocio.Hoy().AddMonths(-10),
+            VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(mesesHastaVencer)));
         contexto.Documentos.Add(documento);
         await contexto.SaveChangesAsync();
         return documento.Id;
@@ -396,8 +396,8 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var documento = Documento.DeCliente(
             clienteId, tipoDocumentoId,
-            DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-10),
-            VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(mesesHastaVencer)));
+            DiaDeNegocio.Hoy().AddMonths(-10),
+            VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(mesesHastaVencer)));
         contexto.Documentos.Add(documento);
         await contexto.SaveChangesAsync();
         return documento.Id;

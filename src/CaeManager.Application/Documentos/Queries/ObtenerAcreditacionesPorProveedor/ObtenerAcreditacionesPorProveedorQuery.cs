@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
@@ -125,7 +126,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
         var incluirAceptadas = request.IncluirAceptadas;
         var incluirSubidas = request.IncluirSubidas;
         var incluirVencidas = request.IncluirVencidasEnPlataforma;
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         var canalesQuery = centrosContext.CanalesGestionDocumental
             .Where(c => c.Tipo == TipoCanalGestion.Plataforma);

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
@@ -140,7 +141,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _vehiculoId = string.Empty;
         _proyectoId = string.Empty;
         _tipoDocumentoId = string.Empty;
-        _fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        _fechaEmision = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = null;
         _fechaVencimientoManual = string.Empty;
         _noCaduca = false;
@@ -192,6 +193,22 @@ public partial class DrawerGestionDocumento : ComponentBase
         if (_empresasDisponibles.Any(e => e.Id == empresaId))
             _empresaId = empresaId.ToString();
         CambiarTipoDocumento(tipoDocumentoId.ToString());
+        // La preselección la hace la pantalla que abre, no quien mira: no cuenta como cambio.
+        FijarInstantaneaFormulario();
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// «+ Subir documento» de la pestaña Documentación de Vehículo 360: alta con el
+    /// ámbito y el vehículo ya elegidos. Fuera del catálogo del selector no se
+    /// preselecciona, igual que <see cref="AbrirCrearParaFaltanteEmpresaAsync"/>.
+    /// </summary>
+    public async Task AbrirCrearParaVehiculoAsync(Guid vehiculoId)
+    {
+        await AbrirCrearAsync();
+        await CambiarAmbitoAsync(nameof(AmbitoAplicacion.Vehiculo));
+        if (_vehiculosDisponibles.Any(v => v.Id == vehiculoId))
+            _vehiculoId = vehiculoId.ToString();
         // La preselección la hace la pantalla que abre, no quien mira: no cuenta como cambio.
         FijarInstantaneaFormulario();
         StateHasChanged();

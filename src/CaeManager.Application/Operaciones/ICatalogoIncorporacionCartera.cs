@@ -54,6 +54,16 @@ public interface ICatalogoIncorporacionCartera
     Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerCandidatosAsync(
         Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Los mismos Tenants propietarios que <see cref="ObtenerCandidatosAsync"/>
+    /// sin descontar los que alguien ya tenga en su cartera: todos los que el
+    /// Operador CAE puede poner en una cartera. Es el predicado del que sale la
+    /// lista de candidatos, no una segunda regla: lo usa el alta de un Gestor
+    /// CAE, cuya cuenta todavía no tiene cartera que descontar.
+    /// </summary>
+    Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerAsignablesAsync(
+        Guid operadorTenantId, CancellationToken cancellationToken = default);
+
     /// <summary>La operación, si sigue vigente hoy; <c>null</c> si no existe, se cerró o caducó.</summary>
     Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
         Guid asignacionOperacionId, CancellationToken cancellationToken = default);
@@ -66,6 +76,17 @@ public interface ICatalogoIncorporacionCartera
     /// </summary>
     Task<ResultadoIncorporacionCartera> IncorporarAsync(
         SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// La misma incorporación sin solicitud detrás: la usa el alta de un Gestor
+    /// CAE con su cartera ya elegida (<c>CrearUsuarioCommand</c>). Mismas
+    /// comprobaciones y misma escritura que la de una solicitud aceptada; además
+    /// anula si la operación no es la externa de <paramref name="operadorTenantId"/>
+    /// sobre <paramref name="propietarioTenantId"/>.
+    /// </summary>
+    Task<ResultadoIncorporacionCartera> IncorporarAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioId,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Cierra la cartera que creó la solicitud, si sigue vigente, y borra la

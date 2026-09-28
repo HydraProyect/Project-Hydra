@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
@@ -67,7 +68,7 @@ public class PlantillasDatosPruebaSeederTests
             await contexto.SaveChangesAsync();
 
             var tipoEpi = await contexto.TiposDocumento.SingleAsync(t => t.Nombre == "Entrega de EPI");
-            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var hoy = DiaDeNegocio.Hoy();
             var documentosTrabajador = trabajadores
                 .Select(t => Documento.DeTrabajador(t.Id, tipoEpi.Id, hoy.AddMonths(-1), VigenciaDocumento.VenceEl(hoy.AddMonths(11))))
                 .ToList();

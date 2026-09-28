@@ -39,7 +39,7 @@ public class RenovarDocumentoCommandValidator : AbstractValidator<RenovarDocumen
     {
         RuleFor(c => c.Id).NotEmpty();
         RuleFor(c => c.FechaEmision)
-            .LessThanOrEqualTo(DateOnly.FromDateTime(DateTime.UtcNow))
+            .LessThanOrEqualTo(_ => DiaDeNegocio.Hoy())
             .WithMessage("La fecha de emisión no puede ser futura.");
         RuleFor(c => c.Comentarios).MaximumLength(Documento.LongitudMaximaComentarios);
         RuleFor(c => c)

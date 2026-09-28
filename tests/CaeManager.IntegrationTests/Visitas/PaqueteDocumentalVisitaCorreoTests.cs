@@ -186,7 +186,7 @@ public class PaqueteDocumentalVisitaCorreoTests
             sensibilidad: SensibilidadDocumental.SinDatosPersonales);
         contexto.TiposDocumento.AddRange(reconocimiento, polizaTipo);
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var vigente = Documento.DeTrabajador(ana.Id, reconocimiento.Id, hoy.AddDays(-30),
             VigenciaDocumento.VenceEl(hoy.AddDays(300)), await GuardarAsync("reconocimiento-vigente"));
         var vencido = Documento.DeTrabajador(ana.Id, reconocimiento.Id, hoy.AddDays(-500),

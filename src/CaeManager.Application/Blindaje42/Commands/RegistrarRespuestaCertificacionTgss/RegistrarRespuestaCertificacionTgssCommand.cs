@@ -23,7 +23,7 @@ public class RegistrarRespuestaCertificacionTgssCommandValidator
         RuleFor(c => c.Resultado).IsInEnum();
 
         RuleFor(c => c.FechaRespuesta)
-            .Must(f => f <= DateOnly.FromDateTime(DateTime.UtcNow))
+            .Must(f => f <= DiaDeNegocio.Hoy())
             .WithMessage("La fecha de respuesta no puede ser futura.");
 
         RuleFor(c => c.EvidenciaContenido)

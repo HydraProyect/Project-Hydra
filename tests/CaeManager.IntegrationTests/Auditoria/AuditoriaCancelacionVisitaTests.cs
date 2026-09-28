@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
 using CaeManager.Application.Visitas.Commands.ReactivarVisita;
@@ -94,7 +95,7 @@ public class AuditoriaCancelacionVisitaTests : IAsyncLifetime
         var titular = Empresa.CrearComoCliente("Titular auditado", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
         var proveedora = new Empresa("Contratista auditada", "B10380202");
         var centro = new Centro(titular.Id, proveedora.Id, "Almacén Sur");
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var visita = new Visita(centro.Id, hoy.AddDays(2), hoy.AddDays(3), null);
         contexto.Empresas.AddRange(titular, proveedora);
         contexto.Centros.Add(centro);

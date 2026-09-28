@@ -36,6 +36,13 @@ public partial class Documento360Gen2Tests : BunitContext
                 ObtenerDocumentoPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
                 ObtenerValidacionOficialDocumentoQuery => null,
                 RenovarDocumentoCommand => ResultadoRenovar,
+                // Al abrir «Reclamar», el selector de la reclamación carga sus catálogos.
+                CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento.ObtenerTiposDocumentoQuery
+                    => (IReadOnlyList<CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento.TipoDocumentoListaDto>)[],
+                CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.ObtenerTrabajadoresParaSelectorQuery
+                    => (IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.TrabajadorSelectorDto>)[],
+                CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector.ObtenerEmpresasParaSelectorQuery
+                    => (IReadOnlyList<CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector.EmpresaSelectorDto>)[],
                 _ => throw new NotSupportedException($"Petición no prevista: {request.GetType().Name}.")
             };
             return (T)respuesta!;
@@ -54,6 +61,7 @@ public partial class Documento360Gen2Tests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
+        Services.AddLocalization();
         // «Renovar» va dentro de SoloConEscritura: sin rol, AuthorizeView no tendría con qué decidir.
         this.ConRolDeEscritura();
         return mediador;
@@ -84,7 +92,7 @@ public partial class Documento360Gen2Tests : BunitContext
         cut.Find(".titulo-documento-360").TextContent.Should().Be("Certificado TGSS");
         var celdas = cut.FindAll(".celda-info-documento-360").ToList();
         celdas.Should().HaveCount(6, "el instrumento observa que la isla no está vacía");
-        celdas.Select(c => c.TextContent.Trim()).Should().Contain("PropietarioMontajes Ebro S.L.").And.Contain("ArchivoVer PDF");
+        celdas.Select(c => c.TextContent.Trim()).Should().Contain("PropietarioMontajes Ebro S.L.").And.Contain("ArchivoDescargar PDF");
         cut.FindAll("[role=tab]").Should().HaveCount(4);
         cut.FindAll(".pestanas-contador").Should().BeEmpty("ninguna lista la carga este panel");
         // Sin FechaEmision: fuera de Detección/Revisión IA solo la vigencia es
@@ -93,6 +101,94 @@ public partial class Documento360Gen2Tests : BunitContext
         var fecha = cut.FindComponent<TextoFechaCopiable>().Instance;
         fecha.Fecha.Should().Be(mediador.Detalles[id].FechaVencimiento);
         fecha.FechaEmision.Should().BeNull();
+    }
+
+    [Fact]
+    public void El_archivo_se_ofrece_como_descarga_como_en_el_mockup()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediadorFalso());
+        mediador.Detalles[id] = Detalle(id);
+
+        var enlace = Renderizar(id).FindAll("a").Where(a => a.TextContent.Trim() == "Descargar PDF")
+            .Should().ContainSingle().Subject;
+
+        enlace.GetAttribute("href").Should().Be($"/documentos/{id}/archivo");
+        enlace.HasAttribute("download").Should().BeTrue();
+    }
+
+    /// <summary>
+    /// «Reclamar» abre la reclamación existente (DrawerReclamacionLote de la Bandeja)
+    /// con el titular del documento preseleccionado: la Empresa en un documento de
+    /// Empresa, el Trabajador en uno de Trabajador. Nada se envía sin la revisión.
+    /// </summary>
+    [Theory]
+    [InlineData(AmbitoAplicacion.Empresa)]
+    [InlineData(AmbitoAplicacion.Trabajador)]
+    public async Task Reclamar_abre_la_reclamacion_con_el_titular_del_documento(AmbitoAplicacion ambito)
+    {
+        var id = Guid.NewGuid();
+        var titular = Guid.NewGuid();
+        var mediador = Registrar(new MediadorFalso());
+        mediador.Detalles[id] = Detalle(id) with
+        {
+            Ambito = ambito,
+            EmpresaId = ambito == AmbitoAplicacion.Empresa ? titular : null,
+            TrabajadorId = ambito == AmbitoAplicacion.Trabajador ? titular : null,
+        };
+        var cut = Renderizar(id);
+        var drawer = cut.FindComponent<CaeManager.Web.Features.Bandeja.Components.DrawerReclamacionLote>().Instance;
+        drawer.Visible.Should().BeFalse("control del instrumento: cerrado hasta pulsar");
+
+        await Boton(cut, "Reclamar").ClickAsync(new MouseEventArgs());
+
+        drawer = cut.FindComponent<CaeManager.Web.Features.Bandeja.Components.DrawerReclamacionLote>().Instance;
+        drawer.Visible.Should().BeTrue();
+        drawer.AmbitoInicial.Should().Be(ambito);
+        drawer.EntidadIdInicial.Should().Be(titular);
+        mediador.Enviadas.Should().NotContain(p => p.GetType().Name.StartsWith("EnviarReclamacion"),
+            "abrir la reclamación no envía nada");
+    }
+
+    /// <summary>
+    /// El Context Workspace reutiliza el panel al pasar a otro documento: una
+    /// reclamación abierta para el anterior se cierra y la nueva lleva su titular
+    /// (hallazgo de Codex en la revisión de esta PR).
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_documento_cierra_la_reclamacion_abierta_del_anterior()
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        var empresaB = Guid.NewGuid();
+        var mediador = Registrar(new MediadorFalso());
+        mediador.Detalles[a] = Detalle(a);
+        mediador.Detalles[b] = Detalle(b) with { EmpresaId = empresaB };
+        var cut = Renderizar(a);
+        await Boton(cut, "Reclamar").ClickAsync(new MouseEventArgs());
+        cut.FindComponent<CaeManager.Web.Features.Bandeja.Components.DrawerReclamacionLote>().Instance.Visible
+            .Should().BeTrue("control del instrumento: la reclamación del primero estaba abierta");
+
+        cut.Render(p => p.Add(x => x.EntidadId, b).Add(x => x.PestanaActiva, "informacion"));
+
+        cut.WaitForAssertion(() => cut.Find(".titulo-documento-360"));
+        var drawer = cut.FindComponent<CaeManager.Web.Features.Bandeja.Components.DrawerReclamacionLote>().Instance;
+        drawer.Visible.Should().BeFalse();
+        drawer.EntidadIdInicial.Should().Be(empresaB);
+    }
+
+    [Fact]
+    public void Sin_camino_de_reclamacion_para_el_ambito_no_se_ofrece_Reclamar()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediadorFalso());
+        mediador.Detalles[id] = Detalle(id) with { Ambito = AmbitoAplicacion.Vehiculo, EmpresaId = null };
+
+        var cut = Renderizar(id);
+
+        Boton(cut, "Renovar");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reclamar");
+        cut.FindComponents<CaeManager.Web.Features.Bandeja.Components.DrawerReclamacionLote>().Should().BeEmpty();
     }
 
     [Fact]

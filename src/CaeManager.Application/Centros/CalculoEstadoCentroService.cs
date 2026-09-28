@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Asignaciones;
@@ -110,7 +111,7 @@ public class CalculoEstadoCentroService(
             return new Dictionary<Guid, ResultadoEstadoCentro>();
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         // P1-X2: un Centro sin gestión CAE no exige documentación, así que no
         // se buscan causas en él (ni de Empresa, ni de Trabajador, ni de las
@@ -535,7 +536,7 @@ public class CalculoEstadoCentroService(
 
         var trabajadorIds = asignacionesActivas.Select(a => a.TrabajadorId).Distinct().ToList();
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         var documentosExistentes = await documentosContext.Documentos
             .Where(d => d.TrabajadorId != null

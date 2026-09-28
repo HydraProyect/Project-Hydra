@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -171,7 +172,7 @@ public class CalculoEstadoSubcontrataService(
             .ToListAsync(cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         // Puede haber varios por par (el vencido y su renovación): el índice
         // (TrabajadorId, TipoDocumentoId) no es único.

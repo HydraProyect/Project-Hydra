@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Alertas.Queries.ObtenerSugerenciasPreventivas;
 using CaeManager.Domain.Asignaciones;
@@ -55,8 +56,8 @@ public class ObtenerSugerenciasPreventivasQueryTests : IAsyncLifetime
         contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
 
-        contexto.Asignaciones.Add(new Asignacion(trabajador1.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
-        contexto.Asignaciones.Add(new Asignacion(trabajador2.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        contexto.Asignaciones.Add(new Asignacion(trabajador1.Id, centro.Id, DiaDeNegocio.Hoy()));
+        contexto.Asignaciones.Add(new Asignacion(trabajador2.Id, centro.Id, DiaDeNegocio.Hoy()));
         await contexto.SaveChangesAsync();
 
         _centroId = centro.Id;
@@ -88,7 +89,7 @@ public class ObtenerSugerenciasPreventivasQueryTests : IAsyncLifetime
         {
             // El segundo técnico ya tiene el documento — solo queda 1 afectado.
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajador2Id, _tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca));
+                _trabajador2Id, _tipoDocumentoId, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca));
             await contexto.SaveChangesAsync();
         }
 
@@ -105,8 +106,8 @@ public class ObtenerSugerenciasPreventivasQueryTests : IAsyncLifetime
     {
         await using (var contexto = CrearContexto())
         {
-            contexto.Documentos.Add(Documento.DeTrabajador(_trabajador1Id, _tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca));
-            contexto.Documentos.Add(Documento.DeTrabajador(_trabajador2Id, _tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca));
+            contexto.Documentos.Add(Documento.DeTrabajador(_trabajador1Id, _tipoDocumentoId, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca));
+            contexto.Documentos.Add(Documento.DeTrabajador(_trabajador2Id, _tipoDocumentoId, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca));
             await contexto.SaveChangesAsync();
         }
 

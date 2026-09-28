@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros.Commands.EstablecerGestionCaeCentro;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Asignaciones;
@@ -93,7 +94,7 @@ public class AuditoriaModalidadGestionCaeTests : IAsyncLifetime
             var acceso = CanalGestionDocumental.DePlataforma(centro.Id, "Portal", proveedor.Id, null, null, null);
             var tipo = new TipoDocumento("Formación PRL", 12, aplicaVencimientoAutomatico: true, orden: 1, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si);
             var trabajador = Trabajador.DeEmpresa(proveedora.Id, "Ana", "Pérez", "12345678Z");
-            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var hoy = DiaDeNegocio.Hoy();
             var documento = Documento.DeTrabajador(trabajador.Id, tipo.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(5)));
             contexto.Empresas.AddRange(titular, proveedora);
             contexto.Centros.Add(centro);

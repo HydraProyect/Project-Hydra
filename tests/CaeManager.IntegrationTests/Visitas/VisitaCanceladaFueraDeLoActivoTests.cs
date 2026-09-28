@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
@@ -27,7 +28,7 @@ public class VisitaCanceladaFueraDeLoActivoTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
-    private readonly DateOnly _hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private readonly DateOnly _hoy = DiaDeNegocio.Hoy();
     private Guid _centroId;
     private Guid _activa;
     private Guid _cancelada;

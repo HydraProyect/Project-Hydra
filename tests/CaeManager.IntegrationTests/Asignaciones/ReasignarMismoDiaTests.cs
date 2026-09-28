@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
+using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignacion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -58,7 +59,7 @@ public class ReasignarMismoDiaTests : IAsyncLifetime
     [Fact]
     public async Task Dar_de_baja_y_reasignar_el_mismo_dia_no_colisiona_con_el_indice_unico()
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         Guid asignacionOriginalId;
         await using (var contexto = CrearContexto())

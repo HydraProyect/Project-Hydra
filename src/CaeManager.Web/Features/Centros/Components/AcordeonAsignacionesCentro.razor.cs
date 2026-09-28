@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
@@ -292,7 +293,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
         try
         {
-            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var hoy = DiaDeNegocio.Hoy();
             var centroId = CentroId;
             var centroNombre = CentroNombre;
             var faltantes = await Mediator.Send(
@@ -567,7 +568,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private void AbrirConfirmarBajaLoteAsync()
     {
-        _fechaBajaLote = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        _fechaBajaLote = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
         _confirmarBajaLoteVisible = true;
         _instantaneaBajaLote.Fijar(_fechaBajaLote);
     }

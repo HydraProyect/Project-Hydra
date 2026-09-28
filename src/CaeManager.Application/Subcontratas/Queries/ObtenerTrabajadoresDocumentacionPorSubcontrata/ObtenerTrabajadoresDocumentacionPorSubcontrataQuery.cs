@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
@@ -148,7 +149,7 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
                 .ToDictionary(g => g.Key, g => g.Select(d => (d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento)).ToList());
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         var resultado = new List<TrabajadorDocumentacionSubcontrataDto>();
 

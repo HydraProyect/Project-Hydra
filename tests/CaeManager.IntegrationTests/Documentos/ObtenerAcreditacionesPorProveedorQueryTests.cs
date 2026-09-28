@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor;
@@ -192,15 +193,16 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
     [Fact]
     public async Task Las_vencidas_en_plataforma_solo_salen_cuando_se_piden_y_llevan_el_indicador()
     {
-        // La frontera es «hoy» UTC, que la consulta lee por su cuenta: si la
-        // prueba cruzase medianoche entre la siembra y la consulta, «vence hoy»
-        // pasaría a vencida y el resultado dependería de la hora. Cerca de la
-        // medianoche se espera a que cambie el día (a lo sumo dos minutos).
-        var ahora = DateTime.UtcNow;
-        if (ahora.TimeOfDay > new TimeSpan(23, 58, 0))
-            await Task.Delay(ahora.Date.AddDays(1).AddSeconds(1) - ahora);
+        // La frontera es el día de negocio (Europe/Madrid), que la consulta lee
+        // por su cuenta. El reloj se fija a las 22:30 UTC de un día de verano:
+        // en Madrid ya es el día siguiente, así que «vencida» (ayer en Madrid)
+        // es todavía hoy en UTC — con el día UTC saldría como «vence hoy» y no
+        // como vencida. Fijarlo también evita que la prueba cruce medianoche.
+        using var _ = DiaDeNegocio.FijarRelojEnEsteFlujo(
+            new RelojFijo(new DateTimeOffset(2026, 7, 15, 22, 30, 0, TimeSpan.Zero)));
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
+        hoy.Should().Be(new DateOnly(2026, 7, 16), "el reloj fijado cae en la franja donde Madrid ya es mañana");
         var ids = new Dictionary<string, Guid>();
 
         await using (var contexto = CrearContexto())
@@ -445,5 +447,10 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), _tenantActual);
+    }
+
+    private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => ahora;
     }
 }

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using System.Diagnostics;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
@@ -143,7 +144,7 @@ public class ObtenerMiTrabajoAgregadoQueryComposicionTests(ITestOutputHelper sal
             _dbContext.TiposDocumento.Add(tipo);
             await _dbContext.SaveChangesAsync();
 
-            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var hoy = DiaDeNegocio.Hoy();
             var documentoPropia = Documento.DeEmpresa(propia.Id, tipo.Id, hoy.AddMonths(-1), VigenciaDocumento.VenceEl(hoy.AddYears(1)));
             var documentoSubcontrata = Documento.DeEmpresa(subcontrata.Id, tipo.Id, hoy.AddMonths(-1), VigenciaDocumento.VenceEl(hoy.AddYears(1)));
             _dbContext.Documentos.AddRange(documentoPropia, documentoSubcontrata);
@@ -265,7 +266,7 @@ public class ObtenerMiTrabajoAgregadoQueryComposicionTests(ITestOutputHelper sal
         _dbContext.TiposDocumento.Add(tipoObligatorio);
         await _dbContext.SaveChangesAsync();
 
-        _dbContext.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        _dbContext.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DiaDeNegocio.Hoy()));
         await _dbContext.SaveChangesAsync();
 
         // Vence en 20 días: por debajo del umbral ámbar (30) y por encima del
@@ -274,8 +275,8 @@ public class ObtenerMiTrabajoAgregadoQueryComposicionTests(ITestOutputHelper sal
         // bucket nuevo que Nivel 0 excluye y Mi trabajo Gen2 necesita.
         var documento = Documento.DeTrabajador(
             trabajador.Id, tipoObligatorio.Id,
-            fechaEmision: DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1),
-            vigencia: VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(20)));
+            fechaEmision: DiaDeNegocio.Hoy().AddYears(-1),
+            vigencia: VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddDays(20)));
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
     }

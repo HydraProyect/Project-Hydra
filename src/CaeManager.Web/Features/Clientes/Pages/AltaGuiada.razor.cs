@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
@@ -631,7 +632,7 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
         try
         {
             var resultadoAsignacion = await Mediator.Send(
-                new CrearAsignacionCommand(trabajadorId, centroId, DateOnly.FromDateTime(DateTime.Today)));
+                new CrearAsignacionCommand(trabajadorId, centroId, DiaDeNegocio.Hoy()));
 
             if (resultadoAsignacion.EsFallido)
             {

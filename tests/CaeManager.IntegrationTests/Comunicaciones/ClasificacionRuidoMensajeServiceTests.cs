@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Reclamaciones;
@@ -49,7 +50,7 @@ public class ClasificacionRuidoMensajeServiceTests : IAsyncLifetime
         contexto.TiposDocumento.Add(tipoDocumento);
         await contexto.SaveChangesAsync();
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var documentoReclamado = Documento.DeTrabajador(trabajadorReclamado.Id, tipoDocumento.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddMonths(6)));
         contexto.Documentos.Add(documentoReclamado);
         await contexto.SaveChangesAsync();

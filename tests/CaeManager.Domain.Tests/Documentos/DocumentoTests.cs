@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using System.Reflection;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
@@ -7,7 +8,7 @@ namespace CaeManager.Domain.Tests.Documentos;
 
 public class DocumentoTests
 {
-    private static readonly DateOnly Hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Hoy = DiaDeNegocio.Hoy();
 
     [Fact]
     public void DeTrabajador_asigna_solo_TrabajadorId()

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
@@ -60,7 +61,7 @@ public class SugerenciaVisitaCorreoService(
             return;
 
         var resultado = await deteccion.DetectarAsync(
-            mensaje.CuerpoHtml, centros, DateOnly.FromDateTime(mensaje.FechaUtc), cancellationToken);
+            mensaje.CuerpoHtml, centros, DiaDeNegocio.De(mensaje.FechaUtc), cancellationToken);
 
         if (resultado.EsFallido)
         {

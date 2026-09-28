@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Blindaje42.Commands.SolicitarCertificacionTgss;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
@@ -10,7 +11,7 @@ namespace CaeManager.Application.Tests.Blindaje42;
 
 public class SolicitarCertificacionTgssCommandHandlerTests
 {
-    private static readonly DateOnly Hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Hoy = DiaDeNegocio.Hoy();
     private static readonly Guid UsuarioId = Guid.NewGuid();
 
     private sealed class Contexto
