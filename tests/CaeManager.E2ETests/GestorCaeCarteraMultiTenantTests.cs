@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using Microsoft.Playwright;
 using static Microsoft.Playwright.Assertions;
 
@@ -57,9 +58,10 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
     [Fact]
     public async Task El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola()
     {
-        // En UTC, como la siembra: con la hora local, pasada la medianoche española
-        // «mañana» (la Visita sembrada) y «hoy» ya no son los mismos días en los dos lados.
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        // Día de negocio (Madrid), como la siembra (GestorCaeCarteraMultiTenantSeeder usa
+        // DiaDeNegocio.Hoy()): con el día UTC, entre las 22:00 y las 24:00 UTC «mañana»
+        // (la Visita sembrada) y «hoy» no serían los mismos días en los dos lados.
+        var hoy = DiaDeNegocio.Hoy();
         var tenantB = await IdTenantAsync(TenantBeneficiarioB);
         var rechazadaB = await IdAcreditacionAsync(TrabajadorB, estado: 3);
         var vencidaEnPlataformaB = await IdAcreditacionAsync(TrabajadorB, estado: 2);
