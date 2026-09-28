@@ -419,7 +419,7 @@ else
         }
     </Pestanas>
 
-    <Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerDocVisible" VisibleChanged="v => _drawerDocVisible = v"
+    <Drawer HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerDocVisible" VisibleChanged="v => _drawerDocVisible = v"
             Titulo="@($"Configurar «{_nombreTipoDocumentoEditando}» en este centro")"
             CerrarAlHacerClicFuera="@(_mensajeErrorDocumentacion is null && !_guardandoDocumentacion)">
         <ChildContent>
@@ -485,7 +485,7 @@ else
         EnProgreso="_eliminandoCanal"
         OnConfirmar="ConfirmarEliminarCanalAsync" />
 
-    <Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerCanalVisible" VisibleChanged="v => _drawerCanalVisible = v"
+    <Drawer HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerCanalVisible" VisibleChanged="v => _drawerCanalVisible = v"
             Titulo="@(_canalIdEditando is null ? "Añadir acceso de gestión documental" : "Editar acceso de gestión documental")"
             CerrarAlHacerClicFuera="@(_mensajeErrorCanal is null && !_guardandoCanal)">
         <ChildContent>
@@ -560,7 +560,7 @@ else
         </Pie>
     </Drawer>
 
-    <Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
+    <Drawer HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
             Titulo="Pedir prioridad de validación"
             CerrarAlHacerClicFuera="@(_mensajeErrorPrioridad is null && !_enviandoPrioridad)">
         <ChildContent>
@@ -605,7 +605,7 @@ else
        manda nada solo. El cuerpo del correo lo compone el propio Command
        (ConstruirCuerpoHtml), por eso aquí solo se revisa la lista, no se edita
        texto libre (a diferencia de "Pedir prioridad", que sí es texto libre). *@
-    <Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerReclamacionCentroVisible" VisibleChanged="v => _drawerReclamacionCentroVisible = v"
+    <Drawer HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerReclamacionCentroVisible" VisibleChanged="v => _drawerReclamacionCentroVisible = v"
             Titulo="Reclamar documentación del centro"
             CerrarAlHacerClicFuera="!_enviandoReclamacionCentro">
         <ChildContent>
@@ -676,7 +676,8 @@ else
     </Drawer>
 }
 
-@* P1-E2b: fuera de <Pestanas>, igual que los drawers, que también sobreviven al cambio de
+@* P1-E2b: la edición en línea de Información (estado del panel) y los drawers. Fuera de
+   <Pestanas>, igual que los drawers, que también sobreviven al cambio de
    pestaña: si se registrara en su ámbito, cambiar de pestaña con un drawer a medias
    preguntaría por algo que no se pierde. Fuera del if/else, para que recargar la cabecera
    (tras enviar una reclamación) no lo desmonte. *@
@@ -804,15 +805,25 @@ else
     private readonly InstantaneaFormulario _instantaneaPrioridad = new();
     private readonly InstantaneaFormulario _instantaneaReclamacion = new();
 
+    private readonly InstantaneaFormulario _instantaneaInformacion = new();
+
     /// <summary>
-    /// P1-E2b: único punto de verdad de «hay cambios» en el panel: cualquiera de sus cuatro
-    /// drawers (configurar un requisito, acceso de gestión documental, pedir prioridad,
-    /// reclamar documentación) comparado con cómo se abrió. Lo leen el aviso de salida y
-    /// la X, Escape o el fondo de cada drawer; cerrados, nunca hay nada que perder.
+    /// P1-E2b: único punto de verdad de «hay cambios» en el panel para el aviso de salida:
+    /// la edición en línea de Información y cualquiera de sus cuatro drawers (configurar un
+    /// requisito, acceso de gestión documental, pedir prioridad, reclamar documentación),
+    /// comparados con cómo se abrieron.
     /// </summary>
     private bool HayCambiosSinGuardar =>
         !_saliendoAConfigurarSegundoFactor
-        && HayCambiosEnLosDrawers;
+        && (HayCambiosEnLosDrawers || (_editandoInformacion && _instantaneaInformacion.Difiere(ValoresInformacion())));
+
+    private object?[] ValoresInformacion() =>
+        [_nombreInfo, _codigoCentroInfo, _direccionInfo, _contactoInfo, _contratoVigenteHastaInfo];
+
+    /// <summary>
+    /// Lo que lee la X, Escape o el fondo de cada drawer: solo los drawers. La edición en
+    /// línea no se pierde al cerrar uno y no debe hacerle preguntar.
+    /// </summary>
 
     private bool HayCambiosEnLosDrawers =>
         (_drawerDocVisible && _instantaneaDoc.Difiere(ValoresDocumentacion()))
@@ -860,6 +871,7 @@ else
 
     private void CerrarDrawersDescartando()
     {
+        _editandoInformacion = false;
         _drawerDocVisible = false;
         _drawerCanalVisible = false;
         _drawerPrioridadVisible = false;
@@ -954,6 +966,7 @@ else
         _mensajeErrorInformacion = null;
         _erroresInformacion = new Dictionary<string, string>();
         _editandoInformacion = true;
+        _instantaneaInformacion.Fijar(ValoresInformacion());
     }
 
     private void CancelarEdicionInformacion() => _editandoInformacion = false;
