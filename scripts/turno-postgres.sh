@@ -407,6 +407,14 @@ while true; do
   if [ "$(primero_de_la_cola)" = "$(basename "$TICKET")" ]; then
     if tomar_cerrojo "$@"; then break; fi
     if [ ! -d "$CERROJO" ]; then
+      # El `mkdir` falló porque lo tenía el dueño, y este pudo liberarlo ANTES de esta
+      # comprobación: «no hay directorio» no prueba que no se pueda crear. Tras una
+      # suspensión dueño y waiter despiertan a la vez y la ventana se abre (visto en CI:
+      # el waiter abortaba con 74 sin ejecutar y perdía el turno). Se reintenta una vez;
+      # un fallo real (permisos, directorio padre ausente) persiste y se aborta igual.
+      if tomar_cerrojo "$@"; then break; fi
+    fi
+    if [ ! -d "$CERROJO" ]; then
       echo "TURNO-POSTGRES: ABORTADO — NO SE EJECUTÓ EL COMANDO: no se pudo crear '$CERROJO'." >&2
       echo "TURNO-POSTGRES: ABORTADO_SIN_EJECUTAR motivo=sin_directorio_de_turno salida=$EX_INFRA" >&2
       rm -f "$TICKET" "$TICKET.tmp"
