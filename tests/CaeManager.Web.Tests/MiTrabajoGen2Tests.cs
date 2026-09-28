@@ -349,6 +349,30 @@ public class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
+    public void Sin_tarea_abierta_el_detalle_no_reserva_columna_y_con_tarea_abierta_si()
+    {
+        var cut = Renderizar();
+
+        // Sin tarea abierta: ni panel ni tarjeta «Ninguna tarea abierta»; la
+        // rejilla lleva el modificador de dos columnas y la cola gana el ancho.
+        cut.FindAll(".mi-trabajo-detalle").Should().BeEmpty("sin tarea abierta el detalle no se pinta");
+        cut.Markup.Should().NotContain("Ninguna tarea abierta");
+        cut.Find(".mi-trabajo-paneles").ClassList.Should().Contain("mi-trabajo-paneles-sin-detalle");
+
+        // Con tarea abierta: el panel existe, con nombre accesible, y la rejilla vuelve a tres columnas.
+        FilaDe(cut, "Rechazado por la plataforma").Click();
+
+        cut.Find(".mi-trabajo-detalle").GetAttribute("aria-label").Should().Be("Detalle de la tarea");
+        cut.Find(".mi-trabajo-paneles").ClassList.Should().NotContain("mi-trabajo-paneles-sin-detalle");
+
+        // Cerrarla lo contrae de nuevo.
+        cut.FindAll(".mi-trabajo-detalle button").Single(b => b.TextContent.Trim() == "Cerrar detalle").Click();
+
+        cut.FindAll(".mi-trabajo-detalle").Should().BeEmpty();
+        cut.Find(".mi-trabajo-paneles").ClassList.Should().Contain("mi-trabajo-paneles-sin-detalle");
+    }
+
+    [Fact]
     public void Agrupar_por_severidad_pone_el_Tenant_en_el_contexto_de_cada_fila()
     {
         var cut = Renderizar();
