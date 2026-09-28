@@ -62,8 +62,9 @@ public class RolDeOrigenFueraDeAutorizacionTests
     {
         ["src/CaeManager.Infrastructure/Autorizacion/VistaDemoActual.cs"] =
             "AlcanceDatosService interseca con la lente: una respuesta equivocada solo estrecha de más",
-        ["src/CaeManager.Infrastructure/Autorizacion/AutorizacionDelegacionPorAdministradorDelCliente.cs"] =
-            "pertenencia: solo el Administrador MIEMBRO del Tenant propietario (TenantId de la cuenta) delega su Tenant",
+        ["src/CaeManager.Infrastructure/Autorizacion/AdministradorDelTenantPropietarioEnBase.cs"] =
+            "pertenencia: solo el Administrador MIEMBRO del Tenant propietario (TenantId de la cuenta) delega su Tenant "
+            + "o cambia su logo; el predicado se extrajo de AutorizacionDelegacionPorAdministradorDelCliente, que lo usa",
         ["src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs"] =
             "directorio de cuentas del Tenant (GetUsersInRoleAsync): identidad de terceros para /usuarios y /roles, "
             + "no decide la autoridad del usuario actual; los Operadores delegados se muestran con su rol de cartera",
@@ -103,7 +104,7 @@ public class RolDeOrigenFueraDeAutorizacionTests
             .Where(f => { var c = Codigo(f); return UsaRolDeOrigen(c) || LeeRolDeIdentity.IsMatch(c); })
             .ToList();
 
-        enZona.Should().Contain("src/CaeManager.Infrastructure/Autorizacion/AutorizacionDelegacionPorAdministradorDelCliente.cs",
+        enZona.Should().Contain("src/CaeManager.Infrastructure/Autorizacion/AdministradorDelTenantPropietarioEnBase.cs",
             "control positivo: lee IsInRoleAsync dentro de Autorizacion; si no aparece, la zona o el detector están ciegos");
 
         enZona.Should().BeEquivalentTo(ExcepcionesEnZona.Keys,

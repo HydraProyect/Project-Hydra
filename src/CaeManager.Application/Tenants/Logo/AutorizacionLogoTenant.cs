@@ -11,7 +11,7 @@ namespace CaeManager.Application.Tenants.Logo;
 /// consultar la base (revisión Codex C6). Aquí solo pasan dos actores:
 /// <list type="bullet">
 /// <item>el Administrador del Tenant propietario, con Tenant y rol leídos de la base en el momento
-/// (mismo predicado que <see cref="IAutorizacionDelegacionTenant"/>): con otro Tenant seleccionado por
+/// (<see cref="IAdministradorDelTenantPropietario"/>): con otro Tenant seleccionado por
 /// la vía de Operación, su Tenant de origen no coincide con el objetivo y se deniega;</item>
 /// <item>Soporte TALVEG dentro de una Sesión Privilegiada sobre ESE Tenant, con la capacidad
 /// <see cref="CapacidadPrivilegio.Aprovisionamiento"/> y sin simulación (decisión 4). La concesión
@@ -27,7 +27,7 @@ public interface IAutorizacionLogoTenant
 public class AutorizacionLogoTenant(
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
     ICurrentUserService currentUserService,
-    IAutorizacionDelegacionTenant autorizacionAdministrador)
+    IAdministradorDelTenantPropietario administradorDelTenant)
     : IAutorizacionLogoTenant
 {
     public async Task<bool> PuedeEscribirAsync(Guid tenantObjetivoId, CancellationToken cancellationToken = default)
@@ -36,9 +36,9 @@ public class AutorizacionLogoTenant(
 
         // ObtenerAsync y no RevalidarAsync: el pipeline de un comando (AutorizacionEscrituraBehavior y
         // ElevacionEscrituraAprovisionamientoBehavior) acaba de revalidar la sesión contra la base en
-        // este mismo ámbito, y el resultado fresco queda como memo. Revalidar aquí consultaría
-        // SesionesPrivilegiadas con la conexión ya elevada a cae_app_aprovisionamiento, que no tiene
-        // permiso sobre esa tabla.
+        // este mismo ámbito, y el resultado fresco queda como memo. Revalidar aquí volvería a leer
+        // la tabla de sesiones con la conexión ya elevada a cae_app_aprovisionamiento, que no tiene
+        // permiso sobre ella.
         if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is { } sesion)
             return sesion.Capacidad == CapacidadPrivilegio.Aprovisionamiento
                    && sesion.TieneCaminoDeEscritura
@@ -48,7 +48,7 @@ public class AutorizacionLogoTenant(
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null) return false;
 
-        return await autorizacionAdministrador.PuedeGestionarDelegacionesAsync(
+        return await administradorDelTenant.EsAdministradorEnBaseAsync(
             usuarioId.Value, tenantObjetivoId, cancellationToken);
     }
 }

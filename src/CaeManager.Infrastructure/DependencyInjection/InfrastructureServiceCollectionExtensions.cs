@@ -490,8 +490,11 @@ public static class InfrastructureServiceCollectionExtensions
         // inicia una delegación (§ 11.1).
         services.AddScoped<CaeManager.Application.Tenants.IAutorizacionDelegacionTenant,
             AutorizacionDelegacionPorAdministradorDelCliente>();
-        // Logo del Tenant: Administrador del Tenant propietario (mismo predicado de arriba, leído en
-        // base) o Soporte TALVEG con Aprovisionamiento sobre ese Tenant (contrato del selector, I7).
+        // Administrador del Tenant propietario, leído en base: el predicado que usa la autorización
+        // de arriba. Logo del Tenant: ese Administrador o Soporte TALVEG con Aprovisionamiento sobre
+        // ese Tenant (contrato del selector de Tenant, I7).
+        services.AddScoped<CaeManager.Application.Tenants.IAdministradorDelTenantPropietario,
+            AdministradorDelTenantPropietarioEnBase>();
         services.AddScoped<CaeManager.Application.Tenants.Logo.IAutorizacionLogoTenant,
             CaeManager.Application.Tenants.Logo.AutorizacionLogoTenant>();
 

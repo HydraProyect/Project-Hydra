@@ -58,7 +58,7 @@ public class LogoTenantTests
     {
         var autorizacion = new AutorizacionLogoTenant(
             new SesionPrivilegiadaFalsa(null), new CurrentUserServiceFalso(UsuarioId, "GestorCae", _propietario.Id),
-            new AutorizacionDelegacionFalsa(autoriza: false));
+            new AdministradorFalso(null));
 
         (await autorizacion.PuedeEscribirAsync(_propietario.Id)).Should().BeFalse();
     }
@@ -68,7 +68,7 @@ public class LogoTenantTests
     {
         var autorizacion = new AutorizacionLogoTenant(
             new SesionPrivilegiadaFalsa(null), new CurrentUserServiceFalso(usuarioId: null),
-            new AutorizacionDelegacionFalsa(autoriza: true));
+            new AdministradorFalso(_propietario.Id));
 
         (await autorizacion.PuedeEscribirAsync(_propietario.Id)).Should().BeFalse();
     }
@@ -289,9 +289,7 @@ public class LogoTenantTests
 
     private static AutorizacionLogoTenant Autorizador(SesionPrivilegiadaActiva? sesion, Guid? administradorDe) =>
         new(new SesionPrivilegiadaFalsa(sesion), new CurrentUserServiceFalso(UsuarioId),
-            administradorDe is { } tenant
-                ? AutorizacionDelegacionFalsa.AdministradorDe(tenant)
-                : new AutorizacionDelegacionFalsa(autoriza: false));
+            new AdministradorFalso(administradorDe));
 
     private static SesionPrivilegiadaActiva Sesion(
         CapacidadPrivilegio capacidad, Guid tenantObjetivo, Guid? usuarioSimulado = null) =>
@@ -323,6 +321,13 @@ public class LogoTenantTests
                     new TenantActualFijo(_tenant.Id), Autorizacion, new TenantRepositoryFalso(_tenant),
                     Almacenamiento.Para(_tenant.Id), UnidadDeTrabajo, NullLogger<RetirarLogoTenantCommandHandler>.Instance)
                 .Handle(new RetirarLogoTenantCommand(), CancellationToken.None);
+    }
+
+    /// <summary>Administrador en base de un solo Tenant, o de ninguno.</summary>
+    private sealed class AdministradorFalso(Guid? tenantDelAdministrador) : IAdministradorDelTenantPropietario
+    {
+        public Task<bool> EsAdministradorEnBaseAsync(Guid usuarioId, Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(tenantDelAdministrador == tenantId);
     }
 
     private sealed class AutorizacionLogoFalsa : IAutorizacionLogoTenant

@@ -58,6 +58,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // catálogos de asignación a través del predicado único
         // TenantsBeneficiariosAutorizados, acotado al Tenant de origen.
         ("Tenants.ObtenerClientesAutorizadosQueryHandler", "IOperacionesQueryContext"),
+        // El endpoint del logo del Tenant (lote 1) autoriza con ese mismo predicado
+        // antes de leer la fila del Tenant pedido (invariante I2 e I11).
+        ("Tenants.ObtenerLogoTenantQueryHandler", "IOperacionesQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IAsignacionesQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "ICentrosQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IClientesQueryContext"),
