@@ -1104,6 +1104,18 @@ public class ProyectosGen2Tests : BunitContext
     private static Task PulsarEnLaPreguntaAsync(IRenderedComponent<Proyectos> cut, string texto) =>
         cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == texto).ClickAsync(new MouseEventArgs());
 
+    /// <summary>
+    /// Sin cambios el gesto termina solo y no pregunta. Se espera la tarea con un tope corto: si el aviso preguntara
+    /// (y nadie contestara), la tarea no termina nunca, y esperarla sin tope colgaría el test en vez de ponerlo en rojo.
+    /// </summary>
+    private static async Task ComprobarQueTerminaSinPreguntarAsync(IRenderedComponent<Proyectos> cut, Task gesto, string porque)
+    {
+        await Task.WhenAny(gesto, Task.Delay(TimeSpan.FromSeconds(2)));
+        PreguntaAbierta(cut).Should().BeFalse(porque);
+        gesto.IsCompleted.Should().BeTrue("sin cambios el gesto no se queda esperando la respuesta de una pregunta: " + porque);
+        await gesto;
+    }
+
     private static Task CerrarElPanelAsync(IRenderedComponent<Proyectos> cut) =>
         cut.Find(".cerrar-panel-proyecto").ClickAsync(new MouseEventArgs());
 
@@ -1149,9 +1161,8 @@ public class ProyectosGen2Tests : BunitContext
     {
         var cut = await AbrirLaEdicionDelDetalleAsync();
 
-        await CerrarElPanelAsync(cut);
+        await ComprobarQueTerminaSinPreguntarAsync(cut, CerrarElPanelAsync(cut), "no hay nada escrito");
 
-        PreguntaAbierta(cut).Should().BeFalse("no hay nada escrito");
         PanelDeDetalleAbierto(cut).Should().BeFalse("cerrar sin cambios cierra el panel");
     }
 
@@ -1255,9 +1266,8 @@ public class ProyectosGen2Tests : BunitContext
     {
         var cut = await AbrirLaEdicionDelDetalleAsync();
 
-        await ElegirCliente(cut, ClienteBId).WaitAsync(Paciencia);
+        await ComprobarQueTerminaSinPreguntarAsync(cut, ElegirCliente(cut, ClienteBId), "la edición está como se abrió");
 
-        PreguntaAbierta(cut).Should().BeFalse("la edición está como se abrió");
         _mediator.Enviados.OfType<ObtenerProyectosQuery>().Last().ClienteId.Should().Be(ClienteBId);
     }
 
@@ -1266,9 +1276,8 @@ public class ProyectosGen2Tests : BunitContext
     {
         var cut = await AbrirElAltaDeTecnicoAsync();
 
-        await CerrarElPanelAsync(cut);
+        await ComprobarQueTerminaSinPreguntarAsync(cut, CerrarElPanelAsync(cut), "la fecha de alta de hoy viene puesta: no es un cambio");
 
-        PreguntaAbierta(cut).Should().BeFalse("la fecha de alta de hoy viene puesta: no es un cambio");
         PanelDeDetalleAbierto(cut).Should().BeFalse();
     }
 

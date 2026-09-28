@@ -215,9 +215,13 @@ public class FacturacionAvisoCambiosSinGuardarTests : BunitContext
         var (cut, _) = await RenderizarConClienteAsync();
         await PulsarAsync(cut, "+ Añadir tarifa");
 
-        await ElegirCliente(cut, ClienteBId).WaitAsync(TimeSpan.FromSeconds(10));
+        // Con tope corto: si el aviso preguntara y nadie contestara, la tarea no termina y esperarla colgaría el test.
+        var cambio = ElegirCliente(cut, ClienteBId);
+        await Task.WhenAny(cambio, Task.Delay(TimeSpan.FromSeconds(2)));
 
         PreguntaAbierta(cut).Should().BeFalse("el alta está como se abrió");
+        cambio.IsCompleted.Should().BeTrue("sin cambios el cambio de Cliente empresarial no se queda esperando una respuesta");
+        await cambio;
         ConsultasDeTarifasDe(ClienteBId).Should().Be(1, "el cambio se hace directamente");
     }
 }
