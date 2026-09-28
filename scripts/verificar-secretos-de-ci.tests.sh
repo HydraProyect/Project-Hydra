@@ -342,12 +342,26 @@ esperar "workflows reales del repositorio" 0 "OK:" "$RAIZ/.github/workflows"
 # Control positivo del instrumento sobre el repositorio real: el workflow real
 # que usa los secretos DEBE estar en el radar del guion (si el guion no lo viera,
 # el verde de arriba no significaría nada).
+#
+# Sin tuberías hacia `grep -q`: con `set -o pipefail`, `grep -q` sale en la
+# primera coincidencia, el productor muere por SIGPIPE y la tubería entera da
+# fallo aunque sí hubiera coincidencia. Aquí eso ponía en rojo este control de
+# forma intermitente (run 36416395405) y, en la segunda comprobación —que va
+# negada—, podía dar un verde falso con jobs sin environment. Se captura primero
+# la salida completa y se compara después.
 PRUEBAS=$((PRUEBAS + 1))
-if [ -f "$RAIZ/.github/workflows/integraciones-con-clave.yml" ] \
-   && grep -v '^[[:space:]]*#' "$RAIZ/.github/workflows/integraciones-con-clave.yml" | grep -Eq 'CI_ANTHROPIC_API_KEY' \
-   && ! (source <(sed -n '/^jobs_con_secreto_sin_entorno()/,/^}/p' "$SCRIPT_DIR/verificar-secretos-de-ci.sh"); \
-         SECRETOS_RESTRINGIDOS='CI_ANTHROPIC_API_KEY|CI_STRIPE_TEST_API_KEY' ENTORNO_EXIGIDO='ci-integraciones' \
-         jobs_con_secreto_sin_entorno "$RAIZ/.github/workflows/integraciones-con-clave.yml" | grep -q .); then
+WORKFLOW_REAL="$RAIZ/.github/workflows/integraciones-con-clave.yml"
+WORKFLOW_REAL_SIN_COMENTARIOS=""
+JOBS_SIN_ENTORNO=""
+if [ -f "$WORKFLOW_REAL" ]; then
+  WORKFLOW_REAL_SIN_COMENTARIOS="$(grep -v '^[[:space:]]*#' "$WORKFLOW_REAL")"
+  JOBS_SIN_ENTORNO="$(source <(sed -n '/^jobs_con_secreto_sin_entorno()/,/^}/p' "$SCRIPT_DIR/verificar-secretos-de-ci.sh"); \
+    SECRETOS_RESTRINGIDOS='CI_ANTHROPIC_API_KEY|CI_STRIPE_TEST_API_KEY' ENTORNO_EXIGIDO='ci-integraciones' \
+    jobs_con_secreto_sin_entorno "$WORKFLOW_REAL")"
+fi
+if [ -f "$WORKFLOW_REAL" ] \
+   && [[ "$WORKFLOW_REAL_SIN_COMENTARIOS" =~ CI_ANTHROPIC_API_KEY ]] \
+   && [ -z "$JOBS_SIN_ENTORNO" ]; then
   echo "OK   [control positivo: el workflow real cita el secreto y todos sus jobs declaran el environment]"
 else
   echo "FALLO [control positivo]: el workflow real no cita el secreto o algún job carece de environment" >&2
