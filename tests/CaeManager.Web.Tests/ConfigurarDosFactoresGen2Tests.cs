@@ -88,6 +88,29 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Con AuthLayout no hay menú: la página ofrece su propia salida. «Volver» solo
+    /// a quien puede irse sin activar la 2FA (el guard devolvería aquí al
+    /// Administrador sin ella); «Cerrar sesión», siempre.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador, false, false)]
+    [InlineData(Roles.GestorCae, false, true)]
+    [InlineData(Roles.Administrador, true, true)]
+    public void Ofrece_salida_y_solo_vuelve_si_la_2fa_no_es_obligatoria(string rol, bool activa, bool conVolver)
+    {
+        var cut = Renderizar(activa: activa, rol: rol);
+
+        var salida = cut.Find(".salida-2fa");
+        salida.QuerySelector("form")!.GetAttribute("action").Should().Be("/cuenta/cerrar-sesion");
+        salida.QuerySelector("form button")!.TextContent.Trim().Should().Be("Cerrar sesión");
+        var volver = salida.QuerySelectorAll("a").Where(a => a.TextContent.Trim() == "Volver").ToList();
+        if (conVolver)
+            volver.Should().ContainSingle().Which.GetAttribute("href").Should().Be("/");
+        else
+            volver.Should().BeEmpty("el guard de MainLayout lo traería de vuelta aquí");
+    }
+
+    /// <summary>
     /// Solo refleja los atributos de la pagina. NO ejecuta el guard de 2FA obligatoria ni prueba que
     /// no haya bucle: eso vive en el middleware y en la ruta forzada, que este arnes no alcanza.
     /// </summary>

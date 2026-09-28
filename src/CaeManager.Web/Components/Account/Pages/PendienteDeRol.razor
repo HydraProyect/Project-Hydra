@@ -2,6 +2,10 @@
 @layout CaeManager.Web.Components.Layout.AuthLayout
 @attribute [Authorize]
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using CaeManager.Web.Components.Account.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosCuenta> Textos
 
 <PageTitle>Asignación de rol pendiente — @Marca.Nombre</PageTitle>
 
@@ -15,10 +19,27 @@
 
         <p class="pendiente-rol-mensaje">Has iniciado sesión correctamente, pero todavía no tienes un rol asignado. Hasta que se asigne, no hay ninguna pantalla disponible para tu cuenta.</p>
 
-        <section class="pendiente-rol-ayuda" aria-labelledby="pendiente-rol-ayuda-titulo">
-            <h2 id="pendiente-rol-ayuda-titulo">¿Qué puedes hacer?</h2>
-            <p>Contacta con la persona de tu organización que tenga capacidad para gestionar usuarios y roles.</p>
-        </section>
+        @* La cuenta con la que se ha entrado resuelve el caso real más frecuente:
+           haber entrado con la cuenta equivocada (mockup «Pendiente de Rol»). *@
+        @if (!string.IsNullOrWhiteSpace(_cuenta))
+        {
+            <div class="pendiente-rol-cuenta">
+                <span class="pendiente-rol-cuenta-etiqueta">@Textos["PendienteRolHasEntradoComo"]</span>
+                <span class="pendiente-rol-cuenta-valor">@_cuenta</span>
+            </div>
+        }
+
+        @* El mockup dice «desde Usuarios» y promete que se avisó por correo. El código
+           asigna el rol de una cuenta pendiente en Roles → «Pendientes de asignar», y el
+           aviso por correo solo sale en el primer acceso con Microsoft y es best-effort
+           (IdentityEndpointsExtensions.NotificarAdministradoresUsuarioPendienteAsync):
+           no se promete un aviso que puede no haber salido. Quien asigna es un usuario con
+           rol Administrador del Tenant propietario de la cuenta, nunca Soporte TALVEG ni
+           el Operador CAE externo. *@
+        <details class="pendiente-rol-ayuda">
+            <summary>@Textos["PendienteRolQuienAsigna"]</summary>
+            <p>@Textos["PendienteRolQuienAsignaRespuesta"]</p>
+        </details>
 
         <form method="post" action="/cuenta/cerrar-sesion">
             <AntiforgeryToken />
@@ -28,3 +49,18 @@
 
     <p class="pendiente-rol-pie">Esta es una cuenta autenticada sin acceso efectivo todavía.</p>
 </main>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    private string? _cuenta;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacion is null) return;
+        // UserName es el correo en todas las altas (GestionCuentasUsuarioIdentity,
+        // acceso con Microsoft, seeders), y es lo que Identity pone en Name.
+        _cuenta = (await EstadoAutenticacion).User.Identity?.Name;
+    }
+}

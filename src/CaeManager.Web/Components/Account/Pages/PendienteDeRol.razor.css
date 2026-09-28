@@ -70,10 +70,32 @@
     background-color: var(--color-info-50);
 }
 
-.pendiente-rol-ayuda h2 {
+.pendiente-rol-ayuda summary {
     font: var(--font-label);
     color: var(--color-text);
+    cursor: pointer;
+}
+
+.pendiente-rol-ayuda[open] summary {
     margin-bottom: var(--space-2);
+}
+
+.pendiente-rol-cuenta {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.pendiente-rol-cuenta-etiqueta {
+    font: var(--font-label);
+    color: var(--color-text-muted);
+}
+
+.pendiente-rol-cuenta-valor {
+    font: var(--font-body-md);
+    color: var(--color-text);
+    overflow-wrap: anywhere;
 }
 
 .pendiente-rol-ayuda p,

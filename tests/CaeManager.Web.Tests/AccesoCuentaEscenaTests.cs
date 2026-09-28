@@ -314,8 +314,8 @@ public class AccesoCuentaEscenaTests : BunitContext
 
         var cut = Render<CambiarContrasena>();
         await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = contrasenaActual });
-        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvuts2" });
-        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvuts2" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsr2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsr2" });
         await cut.Find("form").SubmitAsync();
 
         cut.Find(".acceso-alerta").TextContent.Should().Be("No se pudo guardar el usuario.");
@@ -402,6 +402,51 @@ public class AccesoCuentaEscenaTests : BunitContext
         ["PasswordRequiresNonAlphanumeric"] = "simbolo",
         ["PasswordRequiresUniqueChars"] = "distintos",
     };
+
+    /// <summary>
+    /// El formulario pedía MinLength(8) y la política de Identity exige 10: una
+    /// contraseña de 9 pasaba la validación del formulario y llegaba a Identity. Ahora
+    /// se comprueba con la misma política (IdentityOptions), antes de tocar Identity.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_contrasena_rechaza_antes_de_Identity_lo_que_la_politica_no_admite()
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta.ruiz@consultora.es", DebeCambiarContrasena = true };
+        var contrasenaActual = "Abcdefghi1";
+        _almacen.Usuario = usuario;
+        _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, contrasenaActual);
+
+        AddAuthorization().SetAuthorized("marta.ruiz@consultora.es")
+            .SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = contrasenaActual });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvuts2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvuts2" });
+        await cut.Find("form").SubmitAsync();
+
+        cut.Find(".acceso-alerta").TextContent.Should().Be("La contraseña nueva no cumple los requisitos: al menos 10 caracteres.");
+        usuario.DebeCambiarContrasena.Should().BeTrue("no se ha tocado la cuenta");
+    }
+
+    [Fact]
+    public void Cambiar_contrasena_ofrece_cerrar_sesion_como_salida()
+    {
+        Services.AddScoped<Microsoft.AspNetCore.Components.Forms.AntiforgeryStateProvider, AntiforgeryDePrueba>();
+        AddAuthorization().SetAuthorized("marta.ruiz@consultora.es");
+
+        var cut = Render<CambiarContrasena>();
+
+        var salida = cut.FindAll("form").Single(f => f.GetAttribute("action") == "/cuenta/cerrar-sesion");
+        salida.GetAttribute("method").Should().Be("post");
+        salida.QuerySelector("button")!.TextContent.Trim().Should().Be("Cerrar sesión");
+    }
+
+    private sealed class AntiforgeryDePrueba : Microsoft.AspNetCore.Components.Forms.AntiforgeryStateProvider
+    {
+        public override Microsoft.AspNetCore.Components.Forms.AntiforgeryRequestToken? GetAntiforgeryToken() =>
+            new("token-de-prueba", "__RequestVerificationToken");
+    }
 
     /// <summary>La de InfrastructureServiceCollectionExtensions: 10 caracteres, sin símbolo.</summary>
     private static IdentityOptions PoliticaDeLaApp()

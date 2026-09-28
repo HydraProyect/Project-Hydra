@@ -117,6 +117,31 @@ public class ConexionesGen2Tests : BunitContext
         return Render<Conexiones>();
     }
 
+    /// <summary>
+    /// Cancelar en la pantalla de Microsoft (access_denied → ?error=cancelado) es una
+    /// decisión de la persona: aviso informativo, no rojo. Un fallo real del callback
+    /// sigue saliendo como error.
+    /// </summary>
+    [Theory]
+    [InlineData("cancelado", TonoToast.Info, "Conexión cancelada.")]
+    [InlineData("autenticacion", TonoToast.Error, "No pudimos autenticar con Microsoft")]
+    [InlineData("solicitud", TonoToast.Error, "No pudimos completar la conexión.")]
+    public void El_resultado_del_callback_de_Microsoft_sale_con_su_tono(string codigo, TonoToast tono, string texto)
+    {
+        Services.AddScoped<IMediator>(_ => new MediadorFalso());
+        Services.AddScoped<ToastService>();
+        Services.AddScoped(_ => Directorio());
+        // [SupplyParameterFromQuery]: se llega navegando, igual que desde el callback.
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("integraciones?error=" + codigo);
+
+        Render<Conexiones>();
+
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Subject;
+        aviso.Tono.Should().Be(tono);
+        aviso.Mensaje.Should().StartWith(texto);
+    }
+
     private static Task InvocarAsync(Conexiones instancia, string nombre, params object?[] argumentos) =>
         (Task)instancia.GetType().GetMethod(nombre, BindingFlags.Instance | BindingFlags.NonPublic, null,
             argumentos.Select(a => a?.GetType() ?? typeof(object)).ToArray(), null)!

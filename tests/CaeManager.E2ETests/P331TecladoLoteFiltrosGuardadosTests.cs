@@ -147,8 +147,8 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await filaB.Locator("input[type=\"checkbox\"]").CheckAsync();
         await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("2 seleccionados en esta página");
 
-        await barraLote.GetByText("Eliminar seleccionados").ClickAsync();
-        await page.GetByRole(AriaRole.Dialog).GetByText("Eliminar", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
+        await barraLote.GetByText("Dar de baja seleccionados").ClickAsync();
+        await page.GetByRole(AriaRole.Dialog).GetByText("Dar de baja", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
 
         await filaA.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
         await filaB.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });

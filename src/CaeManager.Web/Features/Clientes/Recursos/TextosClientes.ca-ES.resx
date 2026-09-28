@@ -300,4 +300,10 @@
   <data name="AltaGuiadaToastCreado" xml:space="preserve">
     <value>Client creat correctament.</value>
   </data>
+  <data name="DarDeBaja" xml:space="preserve">
+    <value>Donar de baixa</value>
+  </data>
+  <data name="DarDeBajaSeleccionados" xml:space="preserve">
+    <value>Donar de baixa els seleccionats</value>
+  </data>
 </root>

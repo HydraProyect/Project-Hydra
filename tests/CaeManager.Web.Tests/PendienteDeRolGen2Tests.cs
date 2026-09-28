@@ -12,6 +12,8 @@ namespace CaeManager.Web.Tests;
 
 public class PendienteDeRolGen2Tests : BunitContext
 {
+    public PendienteDeRolGen2Tests() => Services.AddLocalization();
+
     private sealed class AntiforgeryFalso : AntiforgeryStateProvider
     {
         public override AntiforgeryRequestToken? GetAntiforgeryToken() => new("token-de-prueba", "__RequestVerificationToken");
@@ -28,9 +30,25 @@ public class PendienteDeRolGen2Tests : BunitContext
         cut.Find(".pendiente-rol-mensaje").TextContent.Should().Contain("Has iniciado sesión correctamente")
             .And.Contain("todavía no tienes un rol asignado")
             .And.Contain("no hay ninguna pantalla disponible");
-        cut.Find(".pendiente-rol-ayuda").TextContent.Should().Contain("capacidad para gestionar usuarios y roles");
+        var ayuda = cut.Find("details.pendiente-rol-ayuda");
+        ayuda.QuerySelector("summary")!.TextContent.Trim().Should().Be("¿Quién me asigna el rol?");
+        ayuda.TextContent.Should().Contain("usuario con rol Administrador de tu organización")
+            .And.Contain("Pendientes de asignar");
+        // Sin promesa de aviso ni de plazo, y sin «el administrador» a secas: el aviso por
+        // correo solo sale en el primer acceso con Microsoft y es best-effort.
         cut.Markup.Should().NotContain("correo").And.NotContain("avisaremos").And.NotContain("próximos momentos")
-            .And.NotContain("administrador");
+            .And.NotContain("el administrador");
+    }
+
+    [Fact]
+    public void Dice_con_que_cuenta_se_ha_entrado()
+    {
+        AddAuthorization().SetAuthorized("marta.reyes@consultoravega.es");
+
+        var cut = Render<PendienteDeRol>();
+
+        cut.Find(".pendiente-rol-cuenta-etiqueta").TextContent.Trim().Should().Be("Has entrado como");
+        cut.Find(".pendiente-rol-cuenta-valor").TextContent.Trim().Should().Be("marta.reyes@consultoravega.es");
     }
 
     [Fact]

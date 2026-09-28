@@ -16,7 +16,10 @@
 @using MediatR
 @using Microsoft.AspNetCore.Components.QuickGrid
 @using CaeManager.Web.Features.IncorporacionCartera.Components
+@using CaeManager.Web.Features.Clientes.Recursos
+@using Microsoft.Extensions.Localization
 @inject IMediator Mediator
+@inject IStringLocalizer<TextosClientes> Textos
 @inject ToastService ToastService
 @inject ICurrentUserService CurrentUserService
 @inject ContextWorkspaceService WorkspaceService
@@ -58,14 +61,15 @@
          que dice.
        - «Solo críticos» y «Guardar filtro» no salen en el mockup y se
          conservan: son filtros y acciones que la pantalla ya tenía.
-       - «Ejecutivo» es deuda terminológica que el propio mockup anota:
+       - «Ejecutivo» era deuda terminológica que el propio mockup anota:
          nombra al Gestor CAE (la persona) con Asignación de Cartera sobre
-         este Cliente empresarial. Se mantiene el rótulo; el renombrado es un
-         incremento propio. *@
+         este Cliente empresarial. Columna, filtro y chip dicen «Gestor CAE»,
+         como el formulario («Gestor CAE asignado»); el campo del modelo
+         sigue siendo deuda terminológica en código. *@
     <div class="barra-filtros">
         <CampoTexto Placeholder="Buscar por nombre…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
         <CampoSelect Etiqueta="" Valor="@_ejecutivoFiltro" ValorChanged="CambiarEjecutivoFiltroAsync">
-            <option value="">Ejecutivo: todos</option>
+            <option value="">Gestor CAE: todos</option>
             @foreach (var gestor in _ejecutivosParaFiltro)
             {
                 <option value="@gestor.Id">@gestor.NombreCompleto</option>
@@ -116,7 +120,7 @@
                 {
                     <span class="chip-filtro">
                         @EtiquetaFiltroEjecutivo
-                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEjecutivoAsync" aria-label="Quitar filtro de ejecutivo"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEjecutivoAsync" aria-label="Quitar filtro de Gestor CAE"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
                     </span>
                 }
                 @if (!string.IsNullOrWhiteSpace(_estadoDocumentalFiltro))
@@ -217,7 +221,7 @@
                     }
                 </TemplateColumn>
                 <PropertyColumn Property="@(c => c.Cif)" Title="CIF" Sortable="true" />
-                <TemplateColumn Title="Ejecutivo">
+                <TemplateColumn Title="Gestor CAE asignado">
                     @(ObtenerNombreEjecutivo(context.EjecutivoUsuarioId))
                 </TemplateColumn>
                 <TemplateColumn Title="Centros" Align="Align.Center">
@@ -264,11 +268,11 @@
                     @* Menú del mockup: vista rápida, Cliente 360 y editar.
                        «Vista rápida» abre el panel de 520 px (el mismo que el
                        botón 360 de las páginas) y «Abrir Cliente 360» la
-                       página /clientes/{id}. El
-                       mockup rotula la baja «Dar de baja»; aquí sigue siendo
-                       «Eliminar», el mismo verbo que la barra de lote y que su
-                       diálogo de confirmación, para no llamar de dos formas a
-                       la misma operación (EliminarClienteCommand). *@
+                       página /clientes/{id}. La baja es lógica
+                       (EliminarClienteCommand → MarcarComoEliminado, con
+                       «Deshacer»), así que se rotula «Dar de baja» como en el
+                       mockup, y con el mismo verbo en la barra de lote, en los
+                       diálogos y en los avisos. *@
                     <MenuAcciones>
                         <ItemMenuAccion OnClick='() => AbrirPreviewAsync(context.Id)'>
                             Vista rápida
@@ -280,7 +284,7 @@
                             Editar
                         </ItemMenuAccion></SoloConEscritura>
                         <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.RazonSocial)">
-                            Eliminar
+                            @Textos["DarDeBaja"]
                         </ItemMenuAccion></SoloConEscritura>
                     </MenuAcciones>
                 </TemplateColumn>
@@ -371,19 +375,22 @@
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
     VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@($"¿Eliminar a {_razonSocialAEliminar}?")"
+    Titulo="@($"¿Dar de baja a {_razonSocialAEliminar}?")"
     Mensaje="Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá."
+    TextoBotonConfirmar="@Textos["DarDeBaja"]"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
 <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />
+                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true"
+                    TextoAccion="@Textos["DarDeBajaSeleccionados"]" />
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"
     VisibleChanged="v => _confirmarEliminarLoteVisible = v"
-    Titulo="@($"¿Eliminar {_seleccionados.Count} cliente(s)?")"
-    Mensaje="Se ocultarán de las listas activas. Los que tengan centros activos no se podrán borrar."
+    Titulo="@($"¿Dar de baja {_seleccionados.Count} cliente(s)?")"
+    Mensaje="Se ocultarán de las listas activas. Los que tengan centros activos no se podrán dar de baja."
+    TextoBotonConfirmar="@Textos["DarDeBaja"]"
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 

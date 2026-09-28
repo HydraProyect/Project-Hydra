@@ -1,4 +1,12 @@
 @page "/cuenta/configurar-2fa"
+@* AuthLayout y no MainLayout, aunque el mockup la dibuja con el menú (revisión UX
+   pre-piloto 2026-09-28, D.1): el guard de MainLayout trae aquí con forceLoad a todo
+   Administrador sin 2FA, así que con MainLayout esta misma página volvería a pasar
+   por el guard y se recargaría sin fin; y en el primer acceso cada enlace del menú
+   devolvería aquí igualmente (MainLayout y CuentaAMedioActivarSinAccesoMiddleware).
+   Lo que el mockup señalaba —«se entra y no hay cómo volver»— se resuelve con la
+   salida del final de la página: «Volver» cuando la 2FA no es obligatoria y
+   «Cerrar sesión» siempre. *@
 @layout CaeManager.Web.Components.Layout.AuthLayout
 @attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
@@ -150,6 +158,23 @@
                     </EditForm>
                 </section>
             </div>
+        </div>
+    }
+
+    @if (!_cargando && _codigosRecuperacion is null)
+    {
+        <div class="salida-2fa">
+            @* «Volver» solo si la cuenta puede irse sin activar la 2FA: al Administrador
+               sin 2FA el guard lo traería de vuelta. Con la 2FA ya activa y una ficha de
+               origen, la tarjeta ya ofrece «Volver a la ficha». *@
+            @if (!_dosFactoresObligatorio && !(_dosFactoresActivo && HayVueltaAFicha))
+            {
+                <a class="boton-secundario" href="@RutaDeVuelta" data-enhance-nav="false">@Textos["SalidaVolver"]</a>
+            }
+            <form method="post" action="/cuenta/cerrar-sesion">
+                <AntiforgeryToken />
+                <button type="submit" class="boton-secundario">@Textos["SalidaCerrarSesion"]</button>
+            </form>
         </div>
     }
 </div>

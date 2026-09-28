@@ -59,7 +59,7 @@ public class TextosSinLocalizarCongeladosTests
         ["Centros"] = 313,
         ["Clientes"] = 256,
         ["Comercial"] = 61,
-        ["Components/Account"] = 95,
+        ["Components/Account"] = 93,
         ["Components/DesignSystem"] = 51,
         // 92 → 77 el 2026-09-23 SIN migrar nada: los rótulos del menú lateral pasaron del marcado
         // de NavMenu.razor a literales de CatalogoMenuLateral.cs, y la heurística no ve un literal
