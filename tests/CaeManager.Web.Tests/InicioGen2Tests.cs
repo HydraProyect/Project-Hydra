@@ -498,7 +498,7 @@ public class InicioGen2Tests : BunitContext
                 Item("v3", TipoItemBandeja.Vencido, MontajesEbro, "Montajes Ebro") with { CreadaEnUtc = desde.AddHours(-5) }),
             actividad: new ActividadConAusencia(desde));
 
-        var local = desde.ToLocalTime();
+        var local = DiaDeNegocio.EnHoraPeninsular(desde);
         MetaDeSeccion(cut, "Qué llegó sin ver").Should().Be(
             $"2 nuevos desde el {local:dd/MM} a las {local:HH:mm}",
             "el tercero es anterior al corte: llegó cuando el usuario todavía estaba mirando");

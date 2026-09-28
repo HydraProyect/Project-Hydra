@@ -453,8 +453,8 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
         var (cut, _) = Renderizar(escenario);
 
         cut.Find(".deteccion-pendientes").TextContent.Trim().Should().Be("3 (2 nuevos · 1 ausente)");
-        cut.Find(".deteccion-fecha-reciente").TextContent.Trim().Should().Be(reciente.ToLocalTime().ToString("dd/MM/yyyy HH:mm"));
-        cut.Find(".deteccion-fecha-antigua").TextContent.Trim().Should().Be(antigua.ToLocalTime().ToString("dd/MM/yyyy HH:mm"));
+        cut.Find(".deteccion-fecha-reciente").TextContent.Trim().Should().Be(DiaDeNegocio.EnHoraPeninsular(reciente).ToString("dd/MM/yyyy HH:mm"));
+        cut.Find(".deteccion-fecha-antigua").TextContent.Trim().Should().Be(DiaDeNegocio.EnHoraPeninsular(antigua).ToString("dd/MM/yyyy HH:mm"));
     }
 
     // ---------------------------------------------------------------- nuevos
