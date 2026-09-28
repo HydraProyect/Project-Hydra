@@ -116,6 +116,44 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
             .ToList());
     }
 
+    /// <summary>Asignables por Operador CAE, sin descontar carteras: los del alta de un Gestor CAE.</summary>
+    public List<(Guid OperadorTenantId, TenantCandidatoIncorporacion Asignable)> Asignables { get; } = [];
+
+    /// <summary>Cada incorporación sin solicitud, con el Tenant activo con que se pidió.</summary>
+    public List<(Guid PropietarioTenantId, Guid OperadorTenantId, Guid AsignacionOperacionId, Guid UsuarioId, Guid? TenantActivo)>
+        IncorporacionesDirectas { get; } = [];
+
+    public void RegistrarAsignable(Guid operadorTenantId, AsignacionOperacion operacion, string nombre)
+    {
+        Operaciones[operacion.Id] = operacion;
+        Asignables.Add((operadorTenantId,
+            new TenantCandidatoIncorporacion(operacion.PropietarioTenantId, nombre, operacion.Id)));
+    }
+
+    public Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerAsignablesAsync(
+        Guid operadorTenantId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<TenantCandidatoIncorporacion>>(Asignables
+            .Where(a => a.OperadorTenantId == operadorTenantId)
+            .Select(a => a.Asignable)
+            .ToList());
+
+    public Task<ResultadoIncorporacionCartera> IncorporarAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioId,
+        CancellationToken cancellationToken = default)
+    {
+        IncorporacionesDirectas.Add((propietarioTenantId, operadorTenantId, asignacionOperacionId, usuarioId,
+            AmbitoTenantExplicito.TenantIdActual));
+
+        if (AnularAlIncorporar is { } motivo)
+            return Task.FromResult(ResultadoIncorporacionCartera.Anulada(motivo));
+
+        var cartera = AsignacionCartera.Externa(
+            Operaciones[asignacionOperacionId], usuarioId, "GestorCae", AmbitoAsignacion.Universal,
+            DateTime.UtcNow, null, DateTime.UtcNow);
+        CarterasVigentes.Add(cartera.Id);
+        return Task.FromResult(new ResultadoIncorporacionCartera(cartera, Guid.NewGuid(), null));
+    }
+
     public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
         Guid asignacionOperacionId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Operaciones.GetValueOrDefault(asignacionOperacionId));

@@ -111,3 +111,21 @@
     color: var(--color-text-muted);
     font: var(--font-body-sm);
 }
+
+/* Iniciales de cada empresa en la cartera del alta: el mismo avatar de texto que
+   la cartera de Mi trabajo, provisional hasta que el lote 1 del logo del Tenant
+   traiga AvatarTenant. */
+.avatar-iniciales-empresa {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 24px;
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    font-weight: 700;
+}

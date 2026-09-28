@@ -212,6 +212,12 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
             sp.GetRequiredService<PuertaAccesoDatos>(),
             sp.GetRequiredService<DirectorioUsuariosTenant>(),
             sp.GetRequiredService<CaeManagerDbContext>()));
+        // Dependencias de la cartera en el alta: este alta no pide ninguna, pero el handler las recibe.
+        serviciosMediator.AddSingleton<CaeManager.Application.Operaciones.ICatalogoIncorporacionCartera>(sp2 =>
+            new CaeManager.Infrastructure.Operaciones.CatalogoIncorporacionCartera(
+                sp.GetRequiredService<CaeManagerDbContext>(), sp2.GetRequiredService<ICurrentUserService>()));
+        serviciosMediator.AddSingleton<ITransaccionDeComando>(
+            new TransaccionDeComando(sp.GetRequiredService<CaeManagerDbContext>()));
         serviciosMediator.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<CrearUsuarioCommand>());
         await using var proveedorMediator = serviciosMediator.BuildServiceProvider();
 

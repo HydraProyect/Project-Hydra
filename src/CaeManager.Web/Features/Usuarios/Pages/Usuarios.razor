@@ -290,6 +290,33 @@
                 }
             </CampoSelect>
             <p class="texto-ayuda-campo">Sin coordinador asignado, su cartera solo la ven los roles Administrador y Dirección CAE.</p>
+
+            @* Cartera en el alta (2026-09-28): los Tenants beneficiarios que opera
+               tu organización, enteros. Solo en el alta y solo si hay alguno que
+               ofrecer (ObtenerEmpresasAsignablesEnAltaQuery); CrearUsuarioCommand
+               vuelve a comprobarlo todo al guardar. En pantalla, «empresa», nunca
+               «tenant». Las iniciales son provisionales hasta que el lote 1 del
+               logo del Tenant traiga su AvatarTenant. El mockup de Usuarios aún no
+               recoge este bloque. *@
+            @if (_editandoId is null && _empresasAsignables.Count > 0)
+            {
+                <div class="campo" role="group" aria-labelledby="etiqueta-empresas-cartera">
+                    <label id="etiqueta-empresas-cartera">@TextosUsuarios["CarteraAltaEtiqueta"]</label>
+                    <div class="lista-seleccion-multiple">
+                        @foreach (var empresa in _empresasAsignables)
+                        {
+                            <label class="campo-checkbox">
+                                <input type="checkbox"
+                                       checked="@_empresasCartera.Contains(empresa.TenantId)"
+                                       @onchange="e => AlternarEmpresaCartera(empresa.TenantId, e.Value is bool marcada && marcada)" />
+                                <span class="avatar-iniciales-empresa" aria-hidden="true">@Iniciales(empresa.Nombre)</span>
+                                @empresa.Nombre
+                            </label>
+                        }
+                    </div>
+                    <p class="texto-ayuda-campo">@TextosUsuarios["CarteraAltaAyuda"]</p>
+                </div>
+            }
         }
 
         @if (_rol == Roles.Cliente)
