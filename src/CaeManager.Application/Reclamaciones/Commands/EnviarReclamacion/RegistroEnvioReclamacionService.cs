@@ -57,6 +57,13 @@ public class RegistroEnvioReclamacionService(
     ILogger<RegistroEnvioReclamacionService> logger,
     IUnitOfWork unitOfWork) : IRegistroEnvioReclamacionService
 {
+    /// <summary>
+    /// Fallo con efecto: la reclamación llegó a una parte de los
+    /// destinatarios y esa parte SÍ quedó registrada. Público para que la UI
+    /// sepa que, aun siendo un fallo, el historial cambió y hay que recargarlo.
+    /// </summary>
+    public const string CodigoEnvioParcial = "Reclamacion.EnvioParcial";
+
     public async Task<Result> EnviarYRegistrarAsync(
         TitularReclamacion titular,
         IReadOnlyList<Guid> documentoIds,
@@ -199,7 +206,7 @@ public class RegistroEnvioReclamacionService(
         if (destinatariosFallidos.Count > 0)
         {
             return Result.Fallo(Error.Crear(
-                "Reclamacion.EnvioParcial",
+                CodigoEnvioParcial,
                 $"La reclamación solo llegó a {destinatarioUnico}, y así queda registrada. " +
                 $"No pudimos enviarla a {string.Join(", ", destinatariosFallidos)}: " +
                 "revisa esas direcciones y vuelve a reclamar solo a esos contactos."));

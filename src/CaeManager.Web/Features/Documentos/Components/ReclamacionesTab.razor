@@ -401,6 +401,10 @@ else
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
+                // Envío parcial: el fallo nombra a quien no la recibió, pero la
+                // parte entregada ya está en el historial y tiene que verse.
+                if (resultado.Error.Codigo == RegistroEnvioReclamacionService.CodigoEnvioParcial)
+                    await CargarHistorialAsync();
                 return;
             }
 
@@ -511,6 +515,8 @@ else
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
+                if (resultado.Error.Codigo == RegistroEnvioReclamacionService.CodigoEnvioParcial)
+                    await CargarAsync();
                 return;
             }
 
