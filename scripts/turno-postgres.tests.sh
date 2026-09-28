@@ -296,6 +296,31 @@ wait "$pa"; wait "$pb"; rcb=$?
 comprobar "tras una suspensión más larga que la espera máxima: B no se rinde y ejecuta" "0 A_ini A_fin B_ini B_fin" "$rcb $(tr '\n' ' ' < "$REGISTRO" | sed 's/ $//')"
 export HYDRA_TURNO_CADUCIDAD_S=20
 
+# 11d -----------------------------------------------------------------------
+# El primero de la cola intenta `mkdir cerrojo`; si falla porque lo tiene el dueño y
+# este lo libera ANTES de la comprobación `[ ! -d cerrojo ]`, el waiter veía «no hay
+# directorio», aborta con 74 sin ejecutar y borra su propio ticket: pierde su turno y
+# el siguiente le adelanta (visto en CI, caso 11b: B ausente del registro y C tras A).
+# Es más probable justo tras una suspensión, cuando dueño y waiter despiertan a la vez.
+# Aquí no se depende del reloj: `mkdir` se sustituye por un envoltorio que falla UNA
+# vez sobre el cerrojo sin crearlo, que es el estado exacto que deja esa carrera, y
+# delega en el real después.
+nuevo_caso mkdir-del-cerrojo-falla-una-vez
+MKDIR_REAL=$(command -v mkdir)
+mkdir -p "$CASO/bin"
+cat > "$CASO/bin/mkdir" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+  case "\$a" in
+    */cerrojo) if [ ! -e "$CASO/ya-fallo" ]; then : > "$CASO/ya-fallo"; exit 1; fi ;;
+  esac
+done
+exec "$MKDIR_REAL" "\$@"
+EOF
+chmod +x "$CASO/bin/mkdir"
+PATH="$CASO/bin:$PATH" bash "$GUION" -- bash -c "$(tarea B 0.1)" > "$CASO/o" 2>&1; rc=$?
+comprobar "mkdir del cerrojo falla y el directorio ya no está: el waiter reintenta y ejecuta" "0 B_ini B_fin envoltorio-usado" "$rc $(tr '\n' ' ' < "$REGISTRO" | sed 's/ $//') $([ -e "$CASO/ya-fallo" ] && echo envoltorio-usado || echo envoltorio-NO-usado)"
+
 # 12 ------------------------------------------------------------------------
 nuevo_caso uso
 bash "$GUION" > "$CASO/o" 2>&1; rc=$?
