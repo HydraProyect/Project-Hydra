@@ -473,6 +473,46 @@ public class MiTrabajoGen2Tests : BunitContext
         cut.Markup.Should().Contain("Sin resultados para este filtro").And.NotContain("Cartera al día");
     }
 
+    /// <summary>
+    /// FS-07: una Empresa de la cartera cuya cola no se pudo consultar no
+    /// deja sin cola a las demás. Lo que sí cargó se pinta, y el aviso nombra
+    /// la que falló; nunca se la da por «sin Asignación de Cartera» ni al día.
+    /// </summary>
+    [Fact]
+    public void Si_una_Empresa_de_la_cartera_no_se_pudo_consultar_se_pinta_el_resto_y_se_nombra_la_que_fallo()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+            [Tenant(TenantRefri, "Refrielectric", false, [Item("r1", TipoItemBandeja.Vencido, "Reconocimiento médico", "Transportes Planet Express")])],
+            [new TenantNoConsultadoDto(Guid.NewGuid(), "Laboratorios Dexter", EsOrigen: false)]));
+
+        cut.Find(".mi-trabajo-cartera-incompleta").TextContent.Should().Contain("Laboratorios Dexter");
+        TitulosVisibles(cut).Should().Contain("Reconocimiento médico");
+        cut.Find(".mi-trabajo-cartera").TextContent.Should().NotContain("Laboratorios Dexter",
+            "sin su cola no se sabe qué tiene pendiente: pintarla a cero la daría por al día");
+    }
+
+    [Fact]
+    public void Si_no_se_pudo_consultar_ninguna_Empresa_de_la_cartera_no_se_dice_que_no_hay_nada_que_vigilar()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+            [], [new TenantNoConsultadoDto(Guid.NewGuid(), "Laboratorios Dexter", EsOrigen: false)]));
+
+        cut.Find(".mi-trabajo-cartera-incompleta").TextContent.Should().Contain("Laboratorios Dexter");
+        cut.Markup.Should().NotContain("sin Asignación de Cartera").And.NotContain("Cartera al día")
+            .And.NotContain("Ningún bloqueo hoy");
+        cut.Markup.Should().Contain("Lo consultado está al día");
+    }
+
+    [Fact]
+    public void Si_el_que_falla_es_el_Tenant_de_origen_la_cartera_no_esta_incompleta()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+            [Tenant(TenantRefri, "Refrielectric", false, [])],
+            [new TenantNoConsultadoDto(TenantOrigen, "ArcoSPA", EsOrigen: true)]));
+
+        cut.FindAll(".mi-trabajo-cartera-incompleta").Should().BeEmpty("el Tenant de origen no se gestiona desde Mi trabajo (§ 10)");
+    }
+
     [Fact]
     public void La_pantalla_nunca_dice_tenant_al_usuario()
     {

@@ -22,9 +22,9 @@
 
    Sin construir, porque no hay capacidad detrás: los chips
    DEMO (andamiaje de la vista previa), la selección múltiple («x»,
-   «Gestionar selección»), «Aplazar», el historial del flujo en el detalle y el
-   aviso «Cartera incompleta» (hoy un Tenant que falla hace fallar la consulta
-   entera). Rótulos de pantalla del contrato § 14: el Tenant propietario se
+   «Gestionar selección»), «Aplazar» y el historial del flujo en el detalle.
+   Un Tenant propietario cuya cola falla no hace fallar la consulta entera
+   (FS-07): el resto se pinta y el aviso «Cartera incompleta» lo nombra. Rótulos de pantalla del contrato § 14: el Tenant propietario se
    rotula «Empresa» y el Cliente empresarial «Cliente»; nunca «tenant». *@
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
@@ -63,6 +63,14 @@
     }
     else
     {
+        @if (_vista.NoConsultados.Count > 0)
+        {
+            <div class="alerta-formulario mi-trabajo-cartera-incompleta" role="alert">
+                <span>@Textos["CarteraIncompleta", string.Join(", ", _vista.NoConsultados)]</span>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["ReintentarConsulta"]</Boton>
+            </div>
+        }
+
         <div class="mi-trabajo-chips" role="group" aria-label="@Textos["FiltrarPorSeveridad"]" data-lista-con-filtros>
             @foreach (var chip in Chips)
             {
@@ -157,10 +165,10 @@
                 else if (Grupos.Count == 0 && AlDia)
                 {
                     <EstadoVacio NombreIcono="exito-circulo" AcentoIcono="var(--color-success-500)" FondoIcono="var(--color-success-50)"
-                                 Titulo="@(TenantFiltrado is { } t ? Textos["AlDiaEmpresa", t.Nombre] : Textos["AlDiaCartera"])"
+                                 Titulo="@(TenantFiltrado is { } t ? Textos["AlDiaEmpresa", t.Nombre] : _vista.Incompleta(Filtro) ? Textos["AlDiaIncompleta"] : Textos["AlDiaCartera"])"
                                  Descripcion="@(TenantFiltrado is { } t2
                                      ? Textos["AlDiaEmpresaDetalle", t2.Nombre]
-                                     : Textos["AlDiaCarteraDetalle"])">
+                                     : _vista.Incompleta(Filtro) ? Textos["AlDiaIncompletaDetalle"] : Textos["AlDiaCarteraDetalle"])">
                         <Accion>
                             @if (TenantFiltrado is not null)
                             {

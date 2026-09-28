@@ -5,6 +5,16 @@
     color: var(--color-text);
 }
 
+/* FS-07: una Empresa de la cartera no se pudo consultar; el resto sí se pinta. */
+.mi-trabajo-cartera-incompleta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
 .mi-trabajo-chips {
     display: flex;
     flex-wrap: wrap;
