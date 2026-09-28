@@ -143,6 +143,20 @@ public static class TenantsBeneficiariosAutorizados
             .AnyAsync(v => v.Concesion.TenantClienteId == tenantId, cancellationToken);
 
     /// <summary>
+    /// Las tres vías juntas —origen, Operación y heredada—, las mismas y en el mismo orden que
+    /// <c>ClienteActivoEndpoints.CambiarAsync</c>, para quien solo necesita el sí o el no (el
+    /// endpoint del logo del Tenant, invariante I2). No lee <c>Tenants</c>: se puede evaluar antes
+    /// de tocar la fila del Tenant pedido.
+    /// </summary>
+    public static async Task<bool> EstaAutorizadoAsync(
+        IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid usuarioId,
+        Guid tenantOrigenId, Guid tenantId, DateTime ahora, CancellationToken cancellationToken) =>
+        tenantId == tenantOrigenId
+        || await OperacionQueAutorizaAsync(
+            operaciones, usuarioId, tenantOrigenId, tenantId, ahora, cancellationToken) is not null
+        || await AutorizadoPorViaHeredadaAsync(tenants, usuarioId, tenantId, ahora, cancellationToken);
+
+    /// <summary>
     /// El Tenant de origen está gestionado por el usuario: tiene Asignación de
     /// Cartera vigente bajo una operación vigente del propio Tenant de origen
     /// sobre sí mismo (raíz o interna). Es lo que decide si el origen cuenta como

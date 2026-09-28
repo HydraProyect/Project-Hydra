@@ -95,6 +95,26 @@ public class Tenant : Entity
     /// </summary>
     public DateTime? DatosDemoCompletadosEnUtc { get; private set; }
 
+    public const int LongitudMaximaLogoArchivoClave = 200;
+    public const int LongitudLogoVersion = 16;
+
+    /// <summary>
+    /// Clave del blob del logo del Tenant (selector de Tenant beneficiario, lote 1): la que genera
+    /// <c>IFileStorageService.GuardarAsync</c> bajo este mismo Tenant, <c>{Id:N}/{guid}.png</c>. La
+    /// pertenencia la fija esta columna, no la ruta: ninguna otra entidad guarda esta clave, y un blob
+    /// que no esté aquí (huérfano de una subida interrumpida) nunca se sirve. Null = sin logo, se pintan
+    /// las iniciales.
+    /// </summary>
+    public string? LogoArchivoClave { get; private set; }
+
+    /// <summary>
+    /// Hash corto del PNG reencodado. Rompe la caché de la URL (<c>?v=</c>) y es el token de
+    /// concurrencia optimista del logo; <b>nunca</b> autoriza nada.
+    /// </summary>
+    public string? LogoVersion { get; private set; }
+
+    public DateTime? LogoActualizadoEnUtc { get; private set; }
+
     private Tenant()
     {
         // Requerido por EF Core.
@@ -185,6 +205,41 @@ public class Tenant : Entity
     /// una sola vez por tenant salvo que se retire y se resiembre desde cero.
     /// </summary>
     public void MarcarDatosDemoCompletados() => DatosDemoCompletadosEnUtc = DateTime.UtcNow;
+
+    /// <summary>
+    /// Fija o sustituye el logo. La clave tiene que estar en la carpeta de ESTE Tenant: un blob, un
+    /// propietario (invariante I12 del contrato del selector); una clave de otro Tenant se rechaza
+    /// aunque exista.
+    /// </summary>
+    public void EstablecerLogo(string archivoClave, string version, DateTime ahoraUtc)
+    {
+        if (string.IsNullOrWhiteSpace(archivoClave) || archivoClave.Length > LongitudMaximaLogoArchivoClave)
+            throw new ArgumentException("La clave del logo no es válida.", nameof(archivoClave));
+
+        var carpeta = $"{Id:N}/";
+        var nombre = archivoClave.StartsWith(carpeta, StringComparison.Ordinal)
+            ? archivoClave[carpeta.Length..]
+            : null;
+        if (nombre is null
+            || nombre.Contains('/') || nombre.Contains('\\')
+            || !nombre.EndsWith(".png", StringComparison.Ordinal)
+            || nombre.Length <= ".png".Length)
+            throw new ArgumentException("La clave del logo tiene que ser un PNG de la carpeta de este Tenant.", nameof(archivoClave));
+
+        if (string.IsNullOrWhiteSpace(version) || version.Length != LongitudLogoVersion)
+            throw new ArgumentException("La versión del logo no es válida.", nameof(version));
+
+        LogoArchivoClave = archivoClave;
+        LogoVersion = version;
+        LogoActualizadoEnUtc = ahoraUtc;
+    }
+
+    public void RetirarLogo(DateTime ahoraUtc)
+    {
+        LogoArchivoClave = null;
+        LogoVersion = null;
+        LogoActualizadoEnUtc = ahoraUtc;
+    }
 
     private void EstablecerNombre(string nombre)
     {
