@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
@@ -387,7 +388,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             var documento = Documento.DeTrabajador(
-                trabajador.Id, tipoDocumento.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+                trabajador.Id, tipoDocumento.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1)));
             contexto.Documentos.Add(documento);
             await contexto.SaveChangesAsync();
             documento.MarcarComoEliminado(Guid.NewGuid());
@@ -423,7 +424,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
 
             var documento = Documento.DeTrabajador(
-                trabajador.Id, tipoDocumento.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+                trabajador.Id, tipoDocumento.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1)));
             contexto.Documentos.Add(documento);
             await contexto.SaveChangesAsync();
             documento.MarcarComoEliminado(Guid.NewGuid());

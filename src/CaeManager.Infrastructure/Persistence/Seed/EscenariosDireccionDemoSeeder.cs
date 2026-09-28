@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -123,7 +124,7 @@ public static class EscenariosDireccionDemoSeeder
                 dbContext, tenantOperadorId, tenantPropietarioId, administrador, logger, rama.NombreTenant, cancellationToken);
 
             await SembrarRamaAsync(
-                dbContext, rama, tenantPropietarioId, tenantOperadorId, equipo, hoy: DateOnly.FromDateTime(DateTime.UtcNow),
+                dbContext, rama, tenantPropietarioId, tenantOperadorId, equipo, hoy: DiaDeNegocio.Hoy(),
                 indiceRama: CatalogoEscenariosDireccionDemo.Ramas.ToList().IndexOf(rama), logger, cancellationToken);
         }
     }
@@ -572,7 +573,7 @@ public static class EscenariosDireccionDemoSeeder
                         acreditacion.MarcarAceptada(
                             spec.Escenario == EscenarioClienteDemo.CasiCompleto
                                 ? VigenciaEnPlataforma.SinConfirmar
-                                : VigenciaEnPlataforma.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(6)));
+                                : VigenciaEnPlataforma.VenceEl(DiaDeNegocio.Hoy().AddMonths(6)));
                         break;
 
                     case EscenarioClienteDemo.AccesoPendienteDeConfirmacion:

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -122,7 +123,7 @@ public class CrearDocumentoCommandBloqueadoParaConsultaTests : IAsyncLifetime
 
     private CrearDocumentoCommand NuevoCommand() => new(
         TrabajadorId: _trabajadorId, ClienteId: null, EmpresaId: null, VehiculoId: null, ProyectoId: null,
-        TipoDocumentoId: _tipoDocumentoId, FechaEmision: DateOnly.FromDateTime(DateTime.UtcNow),
+        TipoDocumentoId: _tipoDocumentoId, FechaEmision: DiaDeNegocio.Hoy(),
         FechaVencimientoManual: null, ArchivoUrl: "documentos/prueba.pdf", Comentarios: "Test de composición.");
 
     private ServiceProvider ConstruirProveedor(string rol)

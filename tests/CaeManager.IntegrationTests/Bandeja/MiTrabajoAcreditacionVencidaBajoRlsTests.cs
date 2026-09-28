@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
@@ -76,7 +77,7 @@ public class MiTrabajoAcreditacionVencidaBajoRlsTests : IAsyncLifetime
         _propietario.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(delegacion.Id, _usuario, "GestorCae"));
         await _propietario.SaveChangesAsync();
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         // Delegante: una aceptada vencida en la plataforma, una aceptada aún
         // vigente allí y una rechazada, todas de documentos vigentes en TALVEG.
@@ -231,7 +232,7 @@ public class MiTrabajoAcreditacionVencidaBajoRlsTests : IAsyncLifetime
         _propietario.Trabajadores.Add(trabajador);
         await _propietario.SaveChangesAsync();
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         _propietario.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, hoy));
         var documentos = tipos.Select(t => Documento.DeTrabajador(trabajador.Id, t.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)))).ToList();
         _propietario.Documentos.AddRange(documentos);

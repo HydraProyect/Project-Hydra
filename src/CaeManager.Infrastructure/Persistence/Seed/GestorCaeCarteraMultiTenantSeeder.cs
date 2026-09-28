@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -142,7 +143,7 @@ public static class GestorCaeCarteraMultiTenantSeeder
                          "Olga Serrano (Gestora CAE, E2E)", Roles.GestorCae, cancellationToken)
                      ?? throw new InvalidOperationException($"No se pudo sembrar el Gestor CAE {EmailGestorCae}.");
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         foreach (var rama in Ramas)
         {

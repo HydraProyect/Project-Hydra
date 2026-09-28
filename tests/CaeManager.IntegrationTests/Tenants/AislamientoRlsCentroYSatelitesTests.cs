@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
@@ -80,7 +81,7 @@ public class AislamientoRlsCentroYSatelitesTests : IAsyncLifetime
         contexto.TiposDocumento.Add(tipoDocumento);
         await contexto.SaveChangesAsync();
 
-        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DiaDeNegocio.Hoy()));
         contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoDocumento.Id, centro.Id, incluido: true, bloqueaAcceso: false));
         await contexto.SaveChangesAsync();
 

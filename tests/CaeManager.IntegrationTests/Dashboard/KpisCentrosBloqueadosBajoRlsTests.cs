@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using System.Data.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.Queries;
@@ -255,7 +256,7 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
         _propietario.Trabajadores.Add(trabajador);
         await _propietario.SaveChangesAsync();
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         _propietario.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, hoy));
         var documento = Documento.DeTrabajador(trabajador.Id, tipo.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)));
         _propietario.Documentos.Add(documento);
@@ -280,7 +281,7 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
         var trabajadorId = await _propietario.Asignaciones.Where(a => a.CentroId == _centroA).Select(a => a.TrabajadorId).SingleAsync();
         var documentoId = await _propietario.Documentos.Where(d => d.TrabajadorId == trabajadorId).Select(d => d.Id).SingleAsync();
         var proveedorId = await _propietario.ProveedoresPlataformaCae.Select(p => p.Id).FirstAsync();
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         for (var i = 0; i < cuantos; i++)
         {

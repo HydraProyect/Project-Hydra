@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
@@ -101,7 +102,7 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         await _dbContext.SaveChangesAsync();
 
         // Faltante: asignación activa a un tipo obligatorio sin ningún Documento.
-        _dbContext.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        _dbContext.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DiaDeNegocio.Hoy()));
 
         // Requisito bloqueante sin cumplir — TipoDocumentoCentro.BloqueaAcceso=true
         // sin ningún Documento Vigente del trabajador (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.4).
@@ -110,7 +111,7 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         _dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoBloqueante.Id, centro.Id, incluido: true, bloqueaAcceso: true));
 
         // Fase F: Visita confirmada dentro de la ventana crítica (mañana).
-        var manana = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+        var manana = DiaDeNegocio.Hoy().AddDays(1);
         _dbContext.Visitas.Add(new Visita(centro.Id, manana, manana, notas: null));
 
         // Fase F: sugerencia de visita sorpresa sin resolver, mismo día.

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using Bunit;
 using CaeManager.Application.Alertas.Queries.ObtenerSugerenciasPreventivas;
 using CaeManager.Application.Common;
@@ -55,7 +56,7 @@ public class DocumentoWorkspacePanelTests : BunitContext
                 ObtenerSugerenciasPreventivasQuery => (IReadOnlyList<SugerenciaPreventivaDto>)[],
                 ObtenerDocumentosQuery consulta => new ResultadoPaginado<DocumentoListaDto>(
                     [new DocumentoListaDto(Detalle.Id, Detalle.Ambito, Detalle.PropietarioNombre, Detalle.TipoDocumentoNombre,
-                        Detalle.FechaEmision, DateOnly.FromDateTime(DateTime.UtcNow).AddDays(5), EstadoDocumento.Urgente, null, [])],
+                        Detalle.FechaEmision, DiaDeNegocio.Hoy().AddDays(5), EstadoDocumento.Urgente, null, [])],
                     1, consulta.Pagina, consulta.TamanoPagina),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             })!);

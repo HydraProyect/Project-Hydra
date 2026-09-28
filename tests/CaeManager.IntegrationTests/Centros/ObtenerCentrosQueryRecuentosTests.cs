@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Common;
@@ -83,7 +84,7 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
         contexto.TiposDocumento.Add(tipoObligatorio);
         await contexto.SaveChangesAsync();
 
-        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DiaDeNegocio.Hoy()));
         await contexto.SaveChangesAsync();
 
         _centroId = centro.Id;
@@ -142,7 +143,7 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
     {
         // Vence dentro de 10 días: por debajo del umbral rojo (15) pero no
         // vencido — EstadoDocumento.Urgente, no Vencido ni Proximo.
-        await SembrarDocumentoTrabajadorAsync(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(10));
+        await SembrarDocumentoTrabajadorAsync(DiaDeNegocio.Hoy().AddDays(10));
 
         var centro = await ObtenerCentroUnicoAsync();
 
@@ -174,7 +175,7 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         contexto.Documentos.Add(Documento.DeTrabajador(
             _trabajadorId, _tipoDocumentoObligatorioId,
-            DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
+            DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
         await contexto.SaveChangesAsync();
     }
 
@@ -183,7 +184,7 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         contexto.Documentos.Add(Documento.DeTrabajador(
             _trabajadorId, _tipoDocumentoObligatorioId,
-            DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), VigenciaDocumento.VenceEl(fechaVencimiento)));
+            DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.VenceEl(fechaVencimiento)));
         await contexto.SaveChangesAsync();
     }
 
@@ -203,7 +204,7 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var documento = Documento.DeEmpresa(
             _empresaId, tipoEmpresaId,
-            DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+            DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1)));
         contexto.Documentos.Add(documento);
         await contexto.SaveChangesAsync();
         return documento.Id;

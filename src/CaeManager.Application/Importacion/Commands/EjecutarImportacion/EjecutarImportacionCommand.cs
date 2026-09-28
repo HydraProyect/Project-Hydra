@@ -152,7 +152,7 @@ public class EjecutarImportacionCommandHandler(
     {
         operacionImportacionRepositorio.Agregar(OperacionImportacion.Registrar(plan.OperacionId));
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         // F3c (2026-08-28): leía la tabla legacy Clientes, congelada desde
         // F3b — un Cliente creado tras el freeze no se reconocía al importar y

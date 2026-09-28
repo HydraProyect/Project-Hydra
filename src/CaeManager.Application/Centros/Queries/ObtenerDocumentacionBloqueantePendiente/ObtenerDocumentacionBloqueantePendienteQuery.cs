@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
@@ -127,7 +128,7 @@ public class ObtenerDocumentacionBloqueantePendienteQueryHandler(
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIds.Contains(d.TipoDocumentoId)
-                && (d.FechaVencimiento == null || d.FechaVencimiento >= DateOnly.FromDateTime(DateTime.UtcNow)))
+                && (d.FechaVencimiento == null || d.FechaVencimiento >= DiaDeNegocio.Hoy()))
             .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId })
             .ToListAsync(cancellationToken))
             .Select(d => (d.TrabajadorId, d.TipoDocumentoId))

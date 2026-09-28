@@ -81,7 +81,7 @@
                 <div>
                     <dt>Detección más reciente</dt>
                     <dd class="deteccion-fecha-reciente">
-                        <TextoFechaCopiable Fecha="@DateOnly.FromDateTime(DeteccionMasReciente.ToLocalTime())">@FormatearFecha(DeteccionMasReciente)</TextoFechaCopiable>
+                        <TextoFechaCopiable Fecha="@CaeManager.Domain.Common.DiaDeNegocio.De(DeteccionMasReciente)">@FormatearFecha(DeteccionMasReciente)</TextoFechaCopiable>
                     </dd>
                 </div>
                 @if (DeteccionMasAntigua != DeteccionMasReciente)
@@ -89,7 +89,7 @@
                     <div>
                         <dt>Detección pendiente más antigua</dt>
                         <dd class="deteccion-fecha-antigua">
-                            <TextoFechaCopiable Fecha="@DateOnly.FromDateTime(DeteccionMasAntigua.ToLocalTime())">@FormatearFecha(DeteccionMasAntigua)</TextoFechaCopiable>
+                            <TextoFechaCopiable Fecha="@CaeManager.Domain.Common.DiaDeNegocio.De(DeteccionMasAntigua)">@FormatearFecha(DeteccionMasAntigua)</TextoFechaCopiable>
                         </dd>
                     </div>
                 }

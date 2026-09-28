@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Domain.Integraciones;
@@ -40,7 +41,7 @@ namespace CaeManager.Application.Tests.Centros;
 /// </summary>
 public class CentroSinGestionCaeTests
 {
-    private static readonly DateOnly Hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Hoy = DiaDeNegocio.Hoy();
 
     private readonly CentrosQueryContextFalso _centros = new();
     private readonly DocumentosQueryContextFalso _documentos = new();

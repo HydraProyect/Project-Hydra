@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
@@ -57,7 +58,7 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
 {
     public async Task<ResultadoPaginado<VisitaListaDto>> Handle(ObtenerVisitasQuery request, CancellationToken cancellationToken)
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
 
         // F3b — ClienteId ahora repunta contra Empresas (join independiente

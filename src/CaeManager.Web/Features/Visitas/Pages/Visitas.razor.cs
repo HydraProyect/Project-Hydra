@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciaVisitaCorreo;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -373,8 +374,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _editandoId = null;
         _centroId = string.Empty;
         _centroNombreEnEdicion = string.Empty;
-        _fechaInicio = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
-        _fechaFin = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        _fechaInicio = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
+        _fechaFin = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
         _horaEstimadaAcceso = string.Empty;
         _trabajadorIdsSeleccionados = [];
         _notificadoCliente = false;

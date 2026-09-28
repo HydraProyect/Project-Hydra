@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrioridad;
 using CaeManager.Application.Alertas;
 using CaeManager.Domain.Asignaciones;
@@ -56,7 +57,7 @@ public class ObtenerBorradorPedirPrioridadQueryTests : IAsyncLifetime
         contexto.TiposDocumento.Add(tipoObligatorio);
         await contexto.SaveChangesAsync();
 
-        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DiaDeNegocio.Hoy()));
         await contexto.SaveChangesAsync();
 
         _clienteId = cliente.Id;
@@ -90,7 +91,7 @@ public class ObtenerBorradorPedirPrioridadQueryTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, _tipoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
+                _trabajadorId, _tipoObligatorioId, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
             await contexto.SaveChangesAsync();
         }
 

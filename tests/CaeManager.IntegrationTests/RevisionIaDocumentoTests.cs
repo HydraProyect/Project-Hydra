@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Asignaciones;
+using CaeManager.Domain.Common;
 using CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Domain.Documentos;
@@ -51,7 +52,7 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
         _dbContext.Trabajadores.AddRange(_trabajadorVisible, _trabajadorAjeno);
 
         var tipoApto = await _dbContext.TiposDocumento.FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador);
-        var fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow);
+        var fechaEmision = DiaDeNegocio.Hoy();
 
         var documentoVisible = Documento.DeTrabajador(_trabajadorVisible.Id, tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
         var documentoAjeno = Documento.DeTrabajador(_trabajadorAjeno.Id, tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");

@@ -383,7 +383,7 @@ public partial class DeteccionTrabajadores : CaeManager.Web.Components.PaginaInt
     private static string NombreDe(DeteccionTrabajadorDto? deteccion) =>
         deteccion is null ? string.Empty : $"{deteccion.Nombre} {deteccion.Apellidos}".Trim();
 
-    private static string FormatearFecha(DateTime utc) => utc.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+    private static string FormatearFecha(DateTime utc) => DiaDeNegocio.EnHoraPeninsular(utc).ToString("dd/MM/yyyy HH:mm");
 
     /// <summary>Columna «Qué se pierde al dar de baja» de la tabla de ausentes.</summary>
     private static string TextoQueSePierde(int asignacionesActivas) => asignacionesActivas switch

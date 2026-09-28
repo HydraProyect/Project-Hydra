@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Tenants;
@@ -185,7 +186,7 @@ public class DatosPruebaSeederDeterminismoTests
                 .Select(v => new { v.FechaInicio, v.FechaFin })
                 .ToListAsync();
 
-            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var hoy = DiaDeNegocio.Hoy();
             var niveles = fechas
                 .Select(f => CalculadoraUrgenciaVisita.Calcular(
                     f.FechaInicio, f.FechaFin, hoy,

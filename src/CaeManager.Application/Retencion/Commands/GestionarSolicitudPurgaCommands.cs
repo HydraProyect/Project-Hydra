@@ -36,7 +36,7 @@ public class BuscarDatosPurgablesCommandHandler(
                 "Retencion.Desactivada",
                 "La política de retención está desactivada. Usa el diagnóstico para ver qué sería purgable, o actívala en la configuración para poder crear propuestas."));
 
-        var creadas = await deteccion.DetectarAsync(DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+        var creadas = await deteccion.DetectarAsync(DiaDeNegocio.Hoy(), cancellationToken);
 
         return Result.Exito(creadas);
     }
@@ -60,7 +60,7 @@ public class DiagnosticarDatosPurgablesCommandHandler(DeteccionPurgaService dete
     public async Task<Result<ResultadoDiagnosticoPurgaDto>> Handle(
         DiagnosticarDatosPurgablesCommand request, CancellationToken cancellationToken)
     {
-        var resultado = await deteccion.DiagnosticarAsync(DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+        var resultado = await deteccion.DiagnosticarAsync(DiaDeNegocio.Hoy(), cancellationToken);
 
         return Result.Exito(new ResultadoDiagnosticoPurgaDto(
             resultado.DocumentosPurgables, resultado.TrabajadoresPurgables, resultado.Total));
@@ -118,7 +118,7 @@ public class ProgramarPurgaCommandHandler(
         {
             // La atribución no es un adorno: destruir datos personales tiene
             // que quedar imputado a una persona concreta.
-            solicitud.Programar(request.FechaEjecucion, usuarioId.Value, DateOnly.FromDateTime(DateTime.UtcNow));
+            solicitud.Programar(request.FechaEjecucion, usuarioId.Value, DiaDeNegocio.Hoy());
         }
         catch (ArgumentException ex)
         {
@@ -186,7 +186,7 @@ public class EjecutarPurgaCommandHandler(EjecucionPurgaService ejecucion)
         try
         {
             var afectados = await ejecucion.EjecutarAsync(
-                request.SolicitudId, DateOnly.FromDateTime(DateTime.UtcNow), cancellationToken);
+                request.SolicitudId, DiaDeNegocio.Hoy(), cancellationToken);
 
             return Result.Exito(afectados);
         }

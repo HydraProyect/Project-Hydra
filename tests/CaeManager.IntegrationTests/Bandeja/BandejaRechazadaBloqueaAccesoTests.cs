@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Common;
@@ -92,7 +93,7 @@ public class BandejaRechazadaBloqueaAccesoTests : IAsyncLifetime
         _dbContext.Trabajadores.Add(trabajador);
         await _dbContext.SaveChangesAsync();
 
-        _dbContext.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        _dbContext.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DiaDeNegocio.Hoy()));
         await _dbContext.SaveChangesAsync();
 
         _clienteId = cliente.Id;
@@ -126,7 +127,7 @@ public class BandejaRechazadaBloqueaAccesoTests : IAsyncLifetime
     {
         await SembrarRechazadaAsync(RequisitoDocumental.Si);
         var asignacion = await _dbContext.Asignaciones.SingleAsync(a => a.TrabajadorId == _trabajadorId);
-        asignacion.DarDeBaja(DateOnly.FromDateTime(DateTime.UtcNow));
+        asignacion.DarDeBaja(DiaDeNegocio.Hoy());
         await _dbContext.SaveChangesAsync();
 
         var (grupo, rechazada) = await LeerGrupoDelClienteAsync();
@@ -173,7 +174,7 @@ public class BandejaRechazadaBloqueaAccesoTests : IAsyncLifetime
         _dbContext.ProveedoresPlataformaCae.Add(proveedor);
         await _dbContext.SaveChangesAsync();
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var documento = Documento.DeTrabajador(_trabajadorId, tipo.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)));
         _dbContext.Documentos.Add(documento);
         var canal = CanalGestionDocumental.DePlataforma(_centroId, "Acceso de prueba", proveedor.Id, null, null, null);

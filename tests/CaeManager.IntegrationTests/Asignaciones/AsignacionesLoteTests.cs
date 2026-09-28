@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Alertas;
+using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
@@ -59,7 +60,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
 
         // Trabajador1 ya está asignado al Centro1 — el lote debe omitir esta
         // combinación en silencio en vez de tratarla como error.
-        contexto.Asignaciones.Add(new Asignacion(trabajador1.Id, centro1.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        contexto.Asignaciones.Add(new Asignacion(trabajador1.Id, centro1.Id, DiaDeNegocio.Hoy()));
         await contexto.SaveChangesAsync();
 
         _trabajador1Id = trabajador1.Id;
@@ -79,7 +80,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand(
-                [_trabajador1Id, _trabajador2Id], [_centro1Id, _centro2Id], DateOnly.FromDateTime(DateTime.UtcNow)),
+                [_trabajador1Id, _trabajador2Id], [_centro1Id, _centro2Id], DiaDeNegocio.Hoy()),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -99,7 +100,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         // DEC-19 (REC-064): trabajador2 tuvo antes una asignación a centro2
         // que se cerró en el futuro respecto a "hoy" — el alta del lote (hoy)
         // cae dentro de ese rango todavía vigente en la fecha de cierre.
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         await using (var contextoPrevio = CrearContexto())
         {
             var previa = new Asignacion(_trabajador2Id, _centro2Id, hoy.AddDays(-30));
@@ -135,7 +136,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         // Regresión de una revisión adversarial (Codex, REC-064): una fila
         // vacía [hoy, hoy) no ocupó ningún día y no debe contar como
         // "solapada" — ver Asignacion.SeSolapaCon.
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         await using (var contextoPrevio = CrearContexto())
         {
             var vacia = new Asignacion(_trabajador2Id, _centro2Id, hoy);
@@ -164,7 +165,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand(
-                [_trabajador2Id, Guid.NewGuid()], [_centro2Id], DateOnly.FromDateTime(DateTime.UtcNow)),
+                [_trabajador2Id, Guid.NewGuid()], [_centro2Id], DiaDeNegocio.Hoy()),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -182,7 +183,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         {
             var creacion = new CrearAsignacionesCommandHandler(new AsignacionRepository(contexto), contexto, new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
             await creacion.Handle(
-                new CrearAsignacionesCommand([_trabajador2Id], [_centro1Id, _centro2Id], DateOnly.FromDateTime(DateTime.UtcNow)),
+                new CrearAsignacionesCommand([_trabajador2Id], [_centro1Id, _centro2Id], DiaDeNegocio.Hoy()),
                 CancellationToken.None);
 
             var activas = await contexto.Asignaciones
@@ -197,7 +198,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         var handlerBaja = new DarDeBajaAsignacionesCommandHandler(new AsignacionRepository(contextoBaja), new AutoridadAsignacionesServiceFalso(contextoBaja), contextoBaja);
 
         var resultado = await handlerBaja.Handle(
-            new DarDeBajaAsignacionesCommand([asignacion1Id, asignacion2Id, Guid.NewGuid()], DateOnly.FromDateTime(DateTime.UtcNow)),
+            new DarDeBajaAsignacionesCommand([asignacion1Id, asignacion2Id, Guid.NewGuid()], DiaDeNegocio.Hoy()),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -249,7 +250,7 @@ public class AsignacionesLoteTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajador1Id, _tipoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
+                _trabajador1Id, _tipoObligatorioId, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
             await contexto.SaveChangesAsync();
         }
 

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
@@ -126,7 +127,7 @@ public class ObtenerTrabajadoresQueryHandler(
             }
 
             var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var hoy = DiaDeNegocio.Hoy();
             // Equivalencia con CalculadoraEstadoDocumento: "días restantes <=
             // umbral" es "fecha <= hoy + umbral" (ver ObtenerDocumentosQuery).
             var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);

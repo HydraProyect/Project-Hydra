@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -26,7 +27,7 @@ namespace CaeManager.IntegrationTests.Documentos;
 /// </summary>
 public class CheckEstadoVigenciaCoherenteTests : IAsyncLifetime
 {
-    private static readonly DateOnly Hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private static readonly DateOnly Hoy = DiaDeNegocio.Hoy();
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private Guid _tenantA;

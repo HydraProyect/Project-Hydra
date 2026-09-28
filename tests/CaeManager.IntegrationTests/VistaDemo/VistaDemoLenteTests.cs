@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
@@ -466,7 +467,7 @@ public class VistaDemoLenteTests : IAsyncLifetime
             var trabajador = Trabajador.DeEmpresa(contratista.Id, "Ana", "Pérez", dniTrabajador);
             contexto.Trabajadores.Add(trabajador);
             await contexto.SaveChangesAsync();
-            contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DiaDeNegocio.Hoy()));
         }
 
         await contexto.SaveChangesAsync();

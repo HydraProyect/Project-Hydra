@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -55,7 +56,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryTests : IAsyncLifetim
         contexto.Trabajadores.Add(trabajador);
         await contexto.SaveChangesAsync();
 
-        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DiaDeNegocio.Hoy()));
         await contexto.SaveChangesAsync();
 
         _trabajadorId = trabajador.Id;
@@ -67,7 +68,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryTests : IAsyncLifetim
     [Fact]
     public async Task Con_el_vencido_y_su_renovacion_del_mismo_tipo_representa_al_tipo_el_vigente()
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         Guid renovacionId;
         await using (var contexto = CrearContexto())
         {
@@ -94,7 +95,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryTests : IAsyncLifetim
     [Fact]
     public async Task Con_dos_vencidos_del_mismo_tipo_representa_al_tipo_el_mas_reciente_y_se_ve_vencido()
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         Guid masRecienteId;
         await using (var contexto = CrearContexto())
         {

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Domain.Asignaciones;
@@ -81,7 +82,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
             contexto.Trabajadores.Add(trabajador);
             await contexto.SaveChangesAsync();
 
-            contexto.Asignaciones.Add(new Asignacion(trabajador.Id, _centroId, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Asignaciones.Add(new Asignacion(trabajador.Id, _centroId, DiaDeNegocio.Hoy()));
             await contexto.SaveChangesAsync();
         }
 
@@ -98,7 +99,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         // El índice (TrabajadorId, TipoDocumentoId) de Documento no es único: el
         // vencido sigue ahí cuando se sube la renovación. Se inserta primero la
         // renovación para que «el último leído» no acierte por casualidad.
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         await using (var contexto = CrearContexto())
         {
             var trabajador = Trabajador.DeSubcontrata(_subcontrataId, "Iris", "Renovada", "77189989B");
@@ -128,9 +129,9 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
             contexto.Trabajadores.Add(trabajador);
             await contexto.SaveChangesAsync();
 
-            contexto.Asignaciones.Add(new Asignacion(trabajador.Id, _centroId, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Asignaciones.Add(new Asignacion(trabajador.Id, _centroId, DiaDeNegocio.Hoy()));
             contexto.Documentos.Add(Documento.DeTrabajador(
-                trabajador.Id, _tipoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
+                trabajador.Id, _tipoObligatorioId, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
             await contexto.SaveChangesAsync();
         }
 
@@ -174,10 +175,10 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
             contexto.Trabajadores.Add(trabajador);
             await contexto.SaveChangesAsync();
 
-            contexto.Asignaciones.Add(new Asignacion(trabajador.Id, _centroId, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Asignaciones.Add(new Asignacion(trabajador.Id, _centroId, DiaDeNegocio.Hoy()));
             contexto.Documentos.Add(Documento.DeTrabajador(
                 trabajador.Id, _tipoObligatorioId,
-                DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(10))));
+                DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddDays(10))));
             await contexto.SaveChangesAsync();
         }
 
@@ -201,7 +202,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
             trabajadorFueraDeCarteraId = trabajador.Id;
 
-            contexto.Asignaciones.Add(new Asignacion(trabajadorFueraDeCarteraId, _centroId, DateOnly.FromDateTime(DateTime.UtcNow)));
+            contexto.Asignaciones.Add(new Asignacion(trabajadorFueraDeCarteraId, _centroId, DiaDeNegocio.Hoy()));
             await contexto.SaveChangesAsync();
         }
 

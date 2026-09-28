@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -56,7 +57,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         contexto.TiposDocumento.Add(tipoObligatorio);
         await contexto.SaveChangesAsync();
 
-        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DiaDeNegocio.Hoy()));
         await contexto.SaveChangesAsync();
 
         _centroId = centro.Id;
@@ -78,7 +79,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     public async Task Vencido_en_la_plataforma_bloquea_el_Centro_aunque_el_documento_siga_vigente_en_TALVEG()
     {
         await SembrarAcreditacionAsync(
-            VigenciaEnPlataforma.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1)));
+            VigenciaEnPlataforma.VenceEl(DiaDeNegocio.Hoy().AddDays(-1)));
 
         var resultado = await CalcularAsync();
 
@@ -108,7 +109,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         // Control positivo del sembrado: sin esto, las dos pruebas de arriba
         // pasarían igual si SembrarAcreditacionAsync no escribiera nada.
         await SembrarAcreditacionAsync(
-            VigenciaEnPlataforma.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(6)));
+            VigenciaEnPlataforma.VenceEl(DiaDeNegocio.Hoy().AddMonths(6)));
 
         var resultado = await CalcularAsync();
 
@@ -125,12 +126,12 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         // filtro por asignación activa un Trabajador que ya no pisa el Centro
         // lo bloquearía indefinidamente.
         await SembrarAcreditacionAsync(
-            VigenciaEnPlataforma.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1)));
+            VigenciaEnPlataforma.VenceEl(DiaDeNegocio.Hoy().AddDays(-1)));
 
         await using (var contexto = CrearContexto())
         {
             var asignacion = await contexto.Asignaciones.SingleAsync(a => a.TrabajadorId == _trabajadorId);
-            asignacion.DarDeBaja(DateOnly.FromDateTime(DateTime.UtcNow));
+            asignacion.DarDeBaja(DiaDeNegocio.Hoy());
             await contexto.SaveChangesAsync();
         }
 
@@ -223,7 +224,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             var asignacion = await contexto.Asignaciones.SingleAsync(a => a.TrabajadorId == _trabajadorId);
-            asignacion.DarDeBaja(DateOnly.FromDateTime(DateTime.UtcNow));
+            asignacion.DarDeBaja(DiaDeNegocio.Hoy());
             await contexto.SaveChangesAsync();
         }
 
@@ -308,7 +309,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
 
         var documento = Documento.DeTrabajador(
             _trabajadorId, _tipoDocumentoObligatorioId,
-            DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+            DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1)));
         contexto.Documentos.Add(documento);
 
         var proveedor = new ProveedorPlataformaCae("PLAT-PRUEBA", "Plataforma de prueba");
@@ -332,7 +333,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
+                _trabajadorId, _tipoDocumentoObligatorioId, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
             await contexto.SaveChangesAsync();
         }
 
@@ -356,7 +357,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     {
         Guid tipoEmpresaId;
         Guid documentoEmpresaId;
-        var fechaVencimiento = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+        var fechaVencimiento = DiaDeNegocio.Hoy().AddDays(-1);
 
         await using (var contexto = CrearContexto())
         {
@@ -366,10 +367,10 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
             tipoEmpresaId = tipoEmpresa.Id;
 
             var documentoEmpresa = Documento.DeEmpresa(
-                _empresaId, tipoEmpresa.Id, DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-1), VigenciaDocumento.VenceEl(fechaVencimiento));
+                _empresaId, tipoEmpresa.Id, DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.VenceEl(fechaVencimiento));
             contexto.Documentos.Add(documentoEmpresa);
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
+                _trabajadorId, _tipoDocumentoObligatorioId, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
             await contexto.SaveChangesAsync();
             documentoEmpresaId = documentoEmpresa.Id;
         }
@@ -392,7 +393,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
+                _trabajadorId, _tipoDocumentoObligatorioId, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
 
             var tipoBloqueante = new TipoDocumento("Formulario de acceso", null, false, 3, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.No);
             contexto.TiposDocumento.Add(tipoBloqueante);
@@ -415,7 +416,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, _tipoDocumentoObligatorioId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
+                _trabajadorId, _tipoDocumentoObligatorioId, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
 
             var tipoBloqueante = new TipoDocumento("Formulario de acceso", null, false, 3, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.No);
             contexto.TiposDocumento.Add(tipoBloqueante);
@@ -423,7 +424,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
 
             contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoBloqueante.Id, _centroId, incluido: true, bloqueaAcceso: true));
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, tipoBloqueante.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1))));
+                _trabajadorId, tipoBloqueante.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
             await contexto.SaveChangesAsync();
         }
 
@@ -484,7 +485,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Con_el_vencido_y_su_renovacion_del_mismo_tipo_cuenta_al_dia_por_el_vigente()
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
@@ -511,7 +512,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
 
         var documento = Documento.DeTrabajador(
             trabajadorId, tipoDocumentoId ?? _tipoDocumentoObligatorioId,
-            DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1)));
+            DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1)));
         contexto.Documentos.Add(documento);
 
         var proveedor = new ProveedorPlataformaCae($"PLAT-{Guid.NewGuid():N}"[..14], "Plataforma de prueba");
@@ -542,7 +543,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         contexto.Trabajadores.Add(trabajador);
         await contexto.SaveChangesAsync();
 
-        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DiaDeNegocio.Hoy()));
         await contexto.SaveChangesAsync();
         return (centro.Id, trabajador.Id);
     }

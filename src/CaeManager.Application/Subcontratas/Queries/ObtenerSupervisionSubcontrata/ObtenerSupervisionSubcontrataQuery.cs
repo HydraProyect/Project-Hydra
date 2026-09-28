@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
@@ -158,7 +159,7 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
             .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         var ultimaPorPar = verificaciones
             .GroupBy(v => (v.CentroId, v.TipoDocumentoId))

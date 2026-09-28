@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
@@ -207,7 +208,7 @@ public class MiTrabajoRechazadaAplicableBajoRlsTests : IAsyncLifetime
         _propietario.Trabajadores.Add(trabajador);
         await _propietario.SaveChangesAsync();
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         _propietario.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, hoy));
         var documentoAplicable = Documento.DeTrabajador(trabajador.Id, requerido.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)));
         var documentoNoAplicable = Documento.DeTrabajador(trabajador.Id, noRequerido.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)));

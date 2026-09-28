@@ -413,7 +413,7 @@ public class ObtenerCatalogoKpisQueryHandler(
             .Select(p => new { p.ClienteId, p.FechaInicio, p.FechaCierreReal })
             .ToListAsync(cancellationToken);
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var resultado = new Dictionary<Guid, int>();
 
         foreach (var proyecto in proyectos)

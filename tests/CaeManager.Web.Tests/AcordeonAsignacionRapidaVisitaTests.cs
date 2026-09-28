@@ -115,7 +115,7 @@ public class AcordeonAsignacionRapidaVisitaTests : BunitContext
             .Add(a => a.CentroId, CentroId)
             .Add(a => a.CentroNombre, "Planta Zaragoza")
             .Add(a => a.VisitaId, VisitaId)
-            .Add(a => a.VisitaFechaFin, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2))));
+            .Add(a => a.VisitaFechaFin, DiaDeNegocio.Hoy().AddDays(2)));
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Bea Alonso Ruiz"));
         return cut;
     }

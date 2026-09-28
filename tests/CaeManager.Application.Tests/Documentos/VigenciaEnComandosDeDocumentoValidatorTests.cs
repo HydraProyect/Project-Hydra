@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using FluentAssertions;
@@ -12,7 +13,7 @@ namespace CaeManager.Application.Tests.Documentos;
 /// </summary>
 public class VigenciaEnComandosDeDocumentoValidatorTests
 {
-    private static readonly DateOnly Emision = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-10);
+    private static readonly DateOnly Emision = DiaDeNegocio.Hoy().AddDays(-10);
     private static readonly DateOnly Vencimiento = Emision.AddYears(1);
 
     private static CrearDocumentoCommand Crear(DateOnly? vencimiento, bool noCaduca) =>

@@ -827,7 +827,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
         ++_faltantesVigente;
         _centrosDisponiblesParaAsignar = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
         _centroIdParaAsignar = string.Empty;
-        _fechaAltaParaAsignar = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        _fechaAltaParaAsignar = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
         _documentosFaltantesParaAsignar = [];
         _asignarCentroVisible = true;
         // La fecha de alta de hoy viene puesta: no es un cambio de quien edita.

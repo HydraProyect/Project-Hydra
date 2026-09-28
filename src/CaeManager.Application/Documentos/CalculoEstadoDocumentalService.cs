@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Domain.Documentos;
 using Microsoft.EntityFrameworkCore;
@@ -65,7 +66,7 @@ public class CalculoEstadoDocumentalService(
         };
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         // Agregado en SQL (MIN por propietario), no traer una fila por
         // Documento para agrupar en memoria (hallazgo crítico, auditoría

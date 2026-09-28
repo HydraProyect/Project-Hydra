@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using MediatR;
@@ -39,11 +40,11 @@ public class ObtenerPulsoEquipoQueryHandler(IDocumentosQueryContext dbContext, I
             select aprobacion.CreadaEnUtc)
             .ToListAsync(cancellationToken);
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var inicioSemanaActual = InicioSemana(hoy);
 
         var porSemana = fechas
-            .GroupBy(f => InicioSemana(DateOnly.FromDateTime(f)))
+            .GroupBy(f => InicioSemana(DiaDeNegocio.De(f)))
             .ToDictionary(g => g.Key, g => g.Count());
 
         var estaSemana = porSemana.GetValueOrDefault(inicioSemanaActual);
