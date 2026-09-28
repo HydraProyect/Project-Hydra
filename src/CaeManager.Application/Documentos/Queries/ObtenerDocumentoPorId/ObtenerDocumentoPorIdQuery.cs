@@ -36,7 +36,10 @@ public record DocumentoDetalleDto(
     string? TipoDocumentoObservaciones,
     Guid Version,
     PerfilDocumentoOficial TipoDocumentoPerfilDocumentoOficial,
-    Guid? EmpresaId);
+    Guid? EmpresaId,
+    // Titular de un documento de Trabajador: Documento 360 abre con él la reclamación
+    // existente (DrawerReclamacionLote). Opcional y al final: ningún productor cambia.
+    Guid? TrabajadorId = null);
 
 public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentoPorIdQuery, DocumentoDetalleDto?>
@@ -139,6 +142,6 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
             tipoDocumento.AplicaVencimientoAutomatico, documento.FechaEmision, documento.FechaVencimiento,
             documento.EstadoVigencia, documento.ArchivoUrl, documento.Comentarios,
             tipoDocumento.Descripcion, tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones,
-            documento.Version, tipoDocumento.PerfilDocumentoOficial, documento.EmpresaId);
+            documento.Version, tipoDocumento.PerfilDocumentoOficial, documento.EmpresaId, documento.TrabajadorId);
     }
 }

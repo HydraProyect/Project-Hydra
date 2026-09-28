@@ -1,4 +1,5 @@
 @using CaeManager.Web.Features.Documentos.Recursos
+@using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Application.Documentos.Commands.RenovarDocumento
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId
 @using CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocumento
@@ -9,6 +10,7 @@
 @using Microsoft.Extensions.DependencyInjection
 @implements IDisposable
 @inject IMediator Mediator
+@inject Microsoft.Extensions.Localization.IStringLocalizer<TextosDocumentos> TextosDocumento
 @inject IServiceProvider ServiceProvider
 
 @if (_cargando)
@@ -82,7 +84,7 @@ else
                             <span>Archivo</span>
                             @if (_detalle.ArchivoUrl is not null)
                             {
-                                <a href="/documentos/@EntidadId/archivo" target="_blank">Ver PDF</a>
+                                <a href="/documentos/@EntidadId/archivo" target="_blank" download>@TextosDocumento["Documento360DescargarPdf"]</a>
                             }
                             else
                             {
@@ -94,6 +96,14 @@ else
                     <SoloConEscritura>
                         <div class="acciones-documento-360">
                             <Boton Variante="VarianteBoton.Secundario" OnClick="IniciarEdicionInformacion">Renovar</Boton>
+                            @* «Reclamar» (mockup Documento 360) reutiliza la reclamación de la Bandeja,
+                               con el titular del documento preseleccionado: el gestor revisa qué se
+                               reclama y a quién antes de enviar. Solo Trabajador y Empresa tienen
+                               camino de reclamación (agenda + comando de envío). *@
+                            @if (TitularReclamable is not null)
+                            {
+                                <Boton Variante="VarianteBoton.Secundario" OnClick="() => _reclamacionVisible = true">@TextosDocumento["Documento360Reclamar"]</Boton>
+                            }
                         </div>
                     </SoloConEscritura>
                 }
@@ -152,6 +162,13 @@ else
     </Pestanas>
 }
 
+@if (TitularReclamable is { } titular)
+{
+    <DrawerReclamacionLote Visible="_reclamacionVisible" VisibleChanged="v => _reclamacionVisible = v"
+                           AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
+                           AmbitoInicial="titular.Ambito" EntidadIdInicial="titular.EntidadId" />
+}
+
 @code {
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanas = [new("informacion", "Información"), new("validacion", "Validación"), new("firma", "Firma"), new("historial", "Historial")];
     [Parameter, EditorRequired] public Guid EntidadId { get; set; }
@@ -161,6 +178,15 @@ else
     private readonly CancellationTokenSource _ciclo = new();
     private CancellationToken _cancelacion;
     private DocumentoDetalleDto? _detalle;
+    private bool _reclamacionVisible;
+
+    /// <summary>A quién se reclama este documento: su Trabajador o su Empresa titular; null en el resto de ámbitos.</summary>
+    private (AmbitoAplicacion Ambito, Guid EntidadId)? TitularReclamable => _detalle switch
+    {
+        { Ambito: AmbitoAplicacion.Trabajador, TrabajadorId: { } trabajadorId } => (AmbitoAplicacion.Trabajador, trabajadorId),
+        { Ambito: AmbitoAplicacion.Empresa, EmpresaId: { } empresaId } => (AmbitoAplicacion.Empresa, empresaId),
+        _ => null,
+    };
     private ValidacionOficialDocumentoDto? _validacion;
     private bool _cargando = true, _cargandoValidacion = true, _error, _editandoInformacion, _guardandoInformacion;
     private string _fechaEmisionEditada = string.Empty, _fechaVencimientoEditada = string.Empty, _comentariosEditados = string.Empty;

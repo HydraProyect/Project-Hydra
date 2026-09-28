@@ -197,6 +197,22 @@ public partial class DrawerGestionDocumento : ComponentBase
         StateHasChanged();
     }
 
+    /// <summary>
+    /// «+ Subir documento» de la pestaña Documentación de Vehículo 360: alta con el
+    /// ámbito y el vehículo ya elegidos. Fuera del catálogo del selector no se
+    /// preselecciona, igual que <see cref="AbrirCrearParaFaltanteEmpresaAsync"/>.
+    /// </summary>
+    public async Task AbrirCrearParaVehiculoAsync(Guid vehiculoId)
+    {
+        await AbrirCrearAsync();
+        await CambiarAmbitoAsync(nameof(AmbitoAplicacion.Vehiculo));
+        if (_vehiculosDisponibles.Any(v => v.Id == vehiculoId))
+            _vehiculoId = vehiculoId.ToString();
+        // La preselección la hace la pantalla que abre, no quien mira: no cuenta como cambio.
+        FijarInstantaneaFormulario();
+        StateHasChanged();
+    }
+
     public async Task AbrirEditarAsync(Guid id)
     {
         // Mismo motivo que en AbrirCrearAsync — y aquí importa más, porque a
