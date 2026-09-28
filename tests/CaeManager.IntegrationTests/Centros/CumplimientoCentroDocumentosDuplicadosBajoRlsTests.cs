@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Asignaciones;
@@ -54,7 +55,7 @@ public class CumplimientoCentroDocumentosDuplicadosBajoRlsTests : IAsyncLifetime
         _tenantSesion = tenantSesion.Id;
         _tenantAjeno = tenantAjeno.Id;
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         (_centroSesion, _) = await SembrarAsync(_tenantSesion, VigenciaDocumento.VenceEl(hoy.AddYears(1)));
         (_, _documentoAjeno) = await SembrarAsync(_tenantAjeno, VigenciaDocumento.VenceEl(hoy.AddDays(-3)));
 
@@ -104,7 +105,7 @@ public class CumplimientoCentroDocumentosDuplicadosBajoRlsTests : IAsyncLifetime
     private async Task<(Guid CentroId, Guid DocumentoId)> SembrarAsync(Guid tenantId, VigenciaDocumento vigenciaDeLaRenovacion)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         var cliente = Empresa.CrearComoCliente("Cervezas Duff Ibérica", "B12345674", false, null, null);
         var empresa = new Empresa("Montajes Springfield S.L.", "B87654323");

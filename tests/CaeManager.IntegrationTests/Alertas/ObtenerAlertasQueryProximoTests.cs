@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Asignaciones;
@@ -54,8 +55,8 @@ public class ObtenerAlertasQueryProximoTests : IAsyncLifetime
         // ObtenerBandejaGestorQuery excluye a propósito.
         contexto.Documentos.Add(Documento.DeTrabajador(
             trabajador.Id, tipo.Id,
-            fechaEmision: DateOnly.FromDateTime(DateTime.UtcNow),
-            vigencia: VigenciaDocumento.VenceEl(DateOnly.FromDateTime(DateTime.UtcNow).AddDays(20))));
+            fechaEmision: DiaDeNegocio.Hoy(),
+            vigencia: VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddDays(20))));
         await contexto.SaveChangesAsync();
 
         _trabajadorId = trabajador.Id;

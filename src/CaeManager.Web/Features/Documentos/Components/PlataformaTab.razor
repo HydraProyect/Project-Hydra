@@ -420,7 +420,7 @@ else
     {
         // El rótulo no puede decir "venció" sin mirar la fecha: ahora la lista
         // trae también las que siguen vigentes.
-        EstadoVigenciaEnPlataforma.VenceEnFecha when documento.FechaVencimientoEnPlataforma < DateOnly.FromDateTime(DateTime.UtcNow) =>
+        EstadoVigenciaEnPlataforma.VenceEnFecha when documento.FechaVencimientoEnPlataforma < CaeManager.Domain.Common.DiaDeNegocio.Hoy() =>
             $"Venció el {documento.FechaVencimientoEnPlataforma:dd/MM/yyyy} en esta plataforma",
         EstadoVigenciaEnPlataforma.VenceEnFecha =>
             $"Vale hasta el {documento.FechaVencimientoEnPlataforma:dd/MM/yyyy}",

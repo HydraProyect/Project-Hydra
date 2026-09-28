@@ -88,7 +88,7 @@ public class EnviarReclamacionCommandHandler(
         // inferior): un DocumentoId que la vista previa nunca habría ofrecido
         // no puede colarse aquí como "reclamable" solo porque llegó en la
         // petición.
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var limiteVentana = hoy.AddMonths(3);
 
         var filas = await (

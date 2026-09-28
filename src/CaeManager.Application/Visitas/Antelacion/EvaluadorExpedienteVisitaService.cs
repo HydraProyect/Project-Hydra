@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
@@ -61,7 +62,7 @@ public class EvaluadorExpedienteVisitaService(
             return false;
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         if (!await ExpedienteCompletoAsync(visita, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, cancellationToken))
             return false;
@@ -96,7 +97,7 @@ public class EvaluadorExpedienteVisitaService(
 
         if (propietario is null) return;
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         // Solo las que todavía tienen algo que sellar: con solicitud de origen, sin sello
         // previo y sin haber pasado ya. Una visita antigua no gana nada por reevaluarse.

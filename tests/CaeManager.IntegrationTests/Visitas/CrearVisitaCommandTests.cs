@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Application.Visitas.Eventos;
@@ -62,7 +63,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
         var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Necesitamos una visita mañana");
         await contexto.SaveChangesAsync();
 
-        var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)), null, "Pide visita mañana", 90, 90, 90);
+        var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, centro.Id, DiaDeNegocio.Hoy().AddDays(1), null, "Pide visita mañana", 90, 90, 90);
         contexto.SugerenciasVisitaCorreo.Add(sugerencia);
         await contexto.SaveChangesAsync();
 
@@ -75,7 +76,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
             NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());
 
         var comando = new CrearVisitaCommand(
-            centro.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            centro.Id, DiaDeNegocio.Hoy().AddDays(1), DiaDeNegocio.Hoy().AddDays(1),
             [trabajador.Id], Notas: null, SugerenciaVisitaCorreoId: sugerencia.Id);
 
         var resultado = await handler.Handle(comando, CancellationToken.None);
@@ -112,7 +113,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
             NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());
 
         var comando = new CrearVisitaCommand(
-            centro.Id, DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)),
+            centro.Id, DiaDeNegocio.Hoy().AddDays(1), DiaDeNegocio.Hoy().AddDays(1),
             [trabajador.Id], Notas: null);
 
         var resultado = await handler.Handle(comando, CancellationToken.None);

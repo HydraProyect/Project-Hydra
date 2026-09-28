@@ -26,6 +26,18 @@ public class CatalogoIncorporacionCartera(
     public async Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerCandidatosAsync(
         Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default)
     {
+        var asignables = await ObtenerAsignablesAsync(operadorTenantId, cancellationToken);
+        if (asignables.Count == 0) return [];
+
+        var propietarios = asignables.Select(o => o.PropietarioTenantId).ToList();
+        var yaEnCartera = await PropietariosEnCarteraAsync(propietarios, operadorTenantId, usuarioId, cancellationToken);
+
+        return asignables.Where(o => !yaEnCartera.Contains(o.PropietarioTenantId)).ToList();
+    }
+
+    public async Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerAsignablesAsync(
+        Guid operadorTenantId, CancellationToken cancellationToken = default)
+    {
         var ahora = DateTime.UtcNow;
 
         var operaciones = await (
@@ -51,16 +63,10 @@ public class CatalogoIncorporacionCartera(
             select new TenantCandidatoIncorporacion(operacion.PropietarioTenantId, tenant.Nombre, operacion.Id))
             .ToListAsync(cancellationToken);
 
-        if (operaciones.Count == 0) return [];
-
-        var propietarios = operaciones.Select(o => o.PropietarioTenantId).ToList();
-        var yaEnCartera = await PropietariosEnCarteraAsync(propietarios, operadorTenantId, usuarioId, cancellationToken);
-
         // Una sola entrada por Tenant propietario: si hubiera dos operaciones
         // universales vigentes (no debería, el índice de responsabilidad lo
         // impide), se pide sobre la más antigua de forma estable.
         return operaciones
-            .Where(o => !yaEnCartera.Contains(o.PropietarioTenantId))
             .GroupBy(o => o.PropietarioTenantId)
             .Select(g => g.OrderBy(o => o.AsignacionOperacionId).First())
             .OrderBy(o => o.Nombre)
@@ -79,19 +85,35 @@ public class CatalogoIncorporacionCartera(
                                       && (o.VigenciaHasta == null || ahora < o.VigenciaHasta), cancellationToken);
     }
 
-    public async Task<ResultadoIncorporacionCartera> IncorporarAsync(
+    public Task<ResultadoIncorporacionCartera> IncorporarAsync(
         SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(solicitud);
 
-        var operacion = await ObtenerOperacionVigenteAsync(solicitud.AsignacionOperacionId, cancellationToken);
-        if (operacion is null)
+        return IncorporarAsync(
+            solicitud.PropietarioTenantId, solicitud.OperadorTenantId, solicitud.AsignacionOperacionId,
+            solicitud.SolicitanteUsuarioId, cancellationToken);
+    }
+
+    public async Task<ResultadoIncorporacionCartera> IncorporarAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioId,
+        CancellationToken cancellationToken = default)
+    {
+        // La operación tiene que ser la externa de este Operador CAE sobre este
+        // Tenant propietario, no solo existir y estar vigente: el Id viene de
+        // quien llama, y colgar la cartera de otra operación daría el Tenant
+        // propietario por una Asignación de Operación que no lo cubre.
+        var operacion = await ObtenerOperacionVigenteAsync(asignacionOperacionId, cancellationToken);
+        if (operacion is null
+            || operacion.EsRaiz
+            || operacion.PropietarioTenantId != propietarioTenantId
+            || operacion.OperadorTenantId != operadorTenantId)
             return ResultadoIncorporacionCartera.Anulada(MotivoAnulacionSolicitudCartera.OperacionNoVigente);
 
         var ahora = DateTime.UtcNow;
         var vinculo = await dbContext.DelegacionesTenant
-            .Where(d => d.TenantClienteId == solicitud.PropietarioTenantId
-                        && d.TenantConsultoraId == solicitud.OperadorTenantId
+            .Where(d => d.TenantClienteId == propietarioTenantId
+                        && d.TenantConsultoraId == operadorTenantId
                         && d.Proposito == PropositoDelegacion.OperadorExterno
                         && d.Activa
                         && (d.ExpiraEnUtc == null || d.ExpiraEnUtc > ahora))
@@ -101,14 +123,14 @@ public class CatalogoIncorporacionCartera(
             return ResultadoIncorporacionCartera.Anulada(MotivoAnulacionSolicitudCartera.OperacionNoVigente);
 
         var yaEnCartera = await PropietariosEnCarteraAsync(
-            [solicitud.PropietarioTenantId], solicitud.OperadorTenantId, solicitud.SolicitanteUsuarioId, cancellationToken);
+            [propietarioTenantId], operadorTenantId, usuarioId, cancellationToken);
         if (yaEnCartera.Count > 0)
             return ResultadoIncorporacionCartera.Anulada(MotivoAnulacionSolicitudCartera.YaEnCartera);
 
         var actorId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
         var cartera = AsignacionCartera.Externa(
-            operacion, solicitud.SolicitanteUsuarioId, RolIncorporado, AmbitoAsignacion.Universal,
+            operacion, usuarioId, RolIncorporado, AmbitoAsignacion.Universal,
             ahora, vigenciaHasta: null, ahora, actorId);
         dbContext.AsignacionesCartera.Add(cartera);
 
@@ -116,7 +138,7 @@ public class CatalogoIncorporacionCartera(
         // trabajo y el rol dentro de un ámbito explícito enumeran todavía los
         // Tenants por la fila heredada, no por las carteras. Sin ella la
         // cartera existiría y el Gestor CAE no vería el Tenant en ningún sitio.
-        var filaHeredada = new AsignacionOperadorDelegado(vinculo.Id, solicitud.SolicitanteUsuarioId, RolIncorporado);
+        var filaHeredada = new AsignacionOperadorDelegado(vinculo.Id, usuarioId, RolIncorporado);
         dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(filaHeredada);
 
         return new ResultadoIncorporacionCartera(cartera, filaHeredada.Id, null);

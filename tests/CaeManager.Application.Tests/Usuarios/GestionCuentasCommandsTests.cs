@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.AsignarRolACuenta;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
@@ -7,7 +9,9 @@ using CaeManager.Application.Usuarios.Commands.EditarUsuario;
 using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
 using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
 using CaeManager.Application.Usuarios.Queries.ObtenerCuentaUsuario;
+using CaeManager.Application.Usuarios.Queries.ObtenerEmpresasAsignablesEnAlta;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Operaciones;
 using FluentAssertions;
 using Xunit;
 
@@ -44,7 +48,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa();
 
-        var resultado = await new CrearUsuarioCommandHandler(puerto, ActorCon(rol), EnSuTenant)
+        var resultado = await NuevoAlta(puerto, ActorCon(rol), EnSuTenant)
             .Handle(Alta("GestorCae"), default);
 
         resultado.Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
@@ -95,7 +99,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa();
 
-        var resultado = await new CrearUsuarioCommandHandler(puerto, ActorCon("DireccionCae"), EnSuTenant)
+        var resultado = await NuevoAlta(puerto, ActorCon("DireccionCae"), EnSuTenant)
             .Handle(Alta("Consulta"), default);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
@@ -112,7 +116,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa();
 
-        var resultado = await new CrearUsuarioCommandHandler(puerto, ActorCon("Administrador", OtroTenant), EnSuTenant)
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador", OtroTenant), EnSuTenant)
             .Handle(Alta(rol), default);
 
         resultado.Error.Codigo.Should().Be("Usuarios.RolReservadoAlTenantDeOrigen");
@@ -128,7 +132,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa();
 
-        await new CrearUsuarioCommandHandler(puerto, ActorCon(rolActor), EnSuTenant)
+        await NuevoAlta(puerto, ActorCon(rolActor), EnSuTenant)
             .Handle(Alta(rolNuevo, permiso: true), default);
 
         puerto.Creadas.Should().ContainSingle().Which.PermisoConsultarAccesoDocumentosSensibles.Should().Be(esperado);
@@ -139,7 +143,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa();
 
-        var resultado = await new CrearUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador"), EnSuTenant)
             .Handle(Alta("Cliente"), default);
 
         resultado.Error.Should().Be(AutoridadSobreCuentas.ClienteRequerido);
@@ -151,7 +155,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa();
 
-        var resultado = await new CrearUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador"), EnSuTenant)
             .Handle(Alta("SuperAdmin"), default);
 
         resultado.Error.Should().Be(AutoridadSobreCuentas.RolDesconocido);
@@ -350,10 +354,200 @@ public class GestionCuentasCommandsTests
         puerto.Escrituras.Should().BeEmpty();
     }
 
+    // ---------- Cartera en el alta (2026-09-28) ----------
+
+    private static readonly Guid Beneficiario1 = Guid.NewGuid();
+    private static readonly Guid Beneficiario2 = Guid.NewGuid();
+    private static readonly Guid BeneficiarioDeOtroOperador = Guid.NewGuid();
+
+    /// <summary>
+    /// Catálogo con los dos Tenants beneficiarios que opera el Operador CAE
+    /// (<see cref="Tenant"/>) y uno que opera otro Operador CAE.
+    /// </summary>
+    private static CatalogoIncorporacionCarteraFalso CatalogoConOperaciones()
+    {
+        var catalogo = new CatalogoIncorporacionCarteraFalso();
+        catalogo.RegistrarAsignable(Tenant, Operacion(Beneficiario1, Tenant), "Beneficiario Uno");
+        catalogo.RegistrarAsignable(Tenant, Operacion(Beneficiario2, Tenant), "Beneficiario Dos");
+        catalogo.RegistrarAsignable(OtroTenant, Operacion(BeneficiarioDeOtroOperador, OtroTenant), "Ajeno");
+        return catalogo;
+    }
+
+    private static AsignacionOperacion Operacion(Guid propietario, Guid operador) =>
+        AsignacionOperacion.Externa(
+            propietario, operador, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+            DateTime.UtcNow.AddDays(-30), null, DateTime.UtcNow);
+
+    [Fact]
+    public async Task El_alta_de_un_Gestor_CAE_crea_la_cuenta_y_una_cartera_por_Tenant_en_una_sola_transaccion()
+    {
+        var puerto = new GestionCuentasFalsa();
+        var catalogo = CatalogoConOperaciones();
+        var transaccion = new TransaccionDeComandoFalsa();
+
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador"), EnSuTenant, catalogo, transaccion)
+            .Handle(Alta("GestorCae", tenantsCartera: [Beneficiario1, Beneficiario2]), default);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+        var usuarioId = resultado.Valor.UsuarioId;
+        puerto.Escrituras.Should().Equal($"crear:{usuarioId}", $"rol:{usuarioId}:GestorCae");
+        transaccion.Ejecutadas.Should().Be(1);
+        transaccion.Confirmadas.Should().Be(1);
+
+        // Cada cartera, con su Tenant beneficiario como Tenant activo (RLS de las
+        // carteras) y sobre la operación que eligió el catálogo, no quien llama.
+        catalogo.IncorporacionesDirectas.Should().BeEquivalentTo(new[]
+        {
+            (Beneficiario1, Tenant, catalogo.Asignables[0].Asignable.AsignacionOperacionId, usuarioId, (Guid?)Beneficiario1),
+            (Beneficiario2, Tenant, catalogo.Asignables[1].Asignable.AsignacionOperacionId, usuarioId, (Guid?)Beneficiario2),
+        });
+        catalogo.TenantsAlGuardar.Should().Equal(Beneficiario1, Beneficiario2);
+    }
+
+    [Fact]
+    public async Task Un_Tenant_que_no_opera_el_Operador_CAE_no_entra_en_la_cartera_ni_deja_cuenta()
+    {
+        var puerto = new GestionCuentasFalsa();
+        var catalogo = CatalogoConOperaciones();
+        var transaccion = new TransaccionDeComandoFalsa();
+
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador"), EnSuTenant, catalogo, transaccion)
+            .Handle(Alta("GestorCae", tenantsCartera: [Beneficiario1, BeneficiarioDeOtroOperador]), default);
+
+        resultado.Error.Should().Be(CrearUsuarioCommandHandler.EmpresaNoAsignable);
+        puerto.Escrituras.Should().BeEmpty();
+        catalogo.IncorporacionesDirectas.Should().BeEmpty();
+        transaccion.Ejecutadas.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_la_operacion_deja_de_estar_vigente_a_mitad_del_alta_no_queda_ni_la_cuenta()
+    {
+        var puerto = new GestionCuentasFalsa();
+        var catalogo = CatalogoConOperaciones();
+        catalogo.AnularAlIncorporar = MotivoAnulacionSolicitudCartera.OperacionNoVigente;
+        var transaccion = new TransaccionDeComandoFalsa();
+
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador"), EnSuTenant, catalogo, transaccion)
+            .Handle(Alta("GestorCae", tenantsCartera: [Beneficiario1]), default);
+
+        resultado.Error.Should().Be(CrearUsuarioCommandHandler.EmpresaNoAsignable);
+        transaccion.Deshechas.Should().Be(1, "la cuenta ya creada se deshace con la transacción");
+        transaccion.Confirmadas.Should().Be(0);
+        catalogo.TenantsAlGuardar.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("CoordinadorCae")]
+    [InlineData("Consulta")]
+    public async Task Un_rol_que_no_lleva_cartera_no_se_da_de_alta_con_Tenants(string rol)
+    {
+        var puerto = new GestionCuentasFalsa();
+        var catalogo = CatalogoConOperaciones();
+
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador"), EnSuTenant, catalogo)
+            .Handle(Alta(rol, tenantsCartera: [Beneficiario1]), default);
+
+        resultado.Error.Should().Be(CrearUsuarioCommandHandler.CarteraSoloParaGestorCae);
+        puerto.Escrituras.Should().BeEmpty();
+        catalogo.IncorporacionesDirectas.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    public async Task Operacion_no_concede_roles_de_Propiedad_una_cuenta_de_Propiedad_no_recibe_cartera(string rol)
+    {
+        var puerto = new GestionCuentasFalsa();
+        var catalogo = CatalogoConOperaciones();
+
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador"), EnSuTenant, catalogo)
+            .Handle(Alta(rol, tenantsCartera: [Beneficiario1]), default);
+
+        resultado.Error.Should().Be(CrearUsuarioCommandHandler.CarteraSoloParaGestorCae);
+        puerto.Escrituras.Should().BeEmpty();
+        catalogo.IncorporacionesDirectas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Desde_el_Context_Workspace_de_otro_Tenant_el_alta_no_lleva_cartera()
+    {
+        var puerto = new GestionCuentasFalsa();
+        var catalogo = CatalogoConOperaciones();
+
+        // Su Tenant de origen (el Operador CAE) es OtroTenant, y la cuenta nacería en Tenant.
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador", OtroTenant), EnSuTenant, catalogo)
+            .Handle(Alta("GestorCae", tenantsCartera: [BeneficiarioDeOtroOperador]), default);
+
+        resultado.Error.Should().Be(CrearUsuarioCommandHandler.CarteraSoloDesdeTuOrganizacion);
+        puerto.Escrituras.Should().BeEmpty();
+        catalogo.IncorporacionesDirectas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_autoridad_sobre_cuentas_no_se_consulta_ni_se_asigna_cartera()
+    {
+        var puerto = new GestionCuentasFalsa();
+        var catalogo = CatalogoConOperaciones();
+
+        var resultado = await NuevoAlta(puerto, ActorCon("CoordinadorCae"), EnSuTenant, catalogo)
+            .Handle(Alta("GestorCae", tenantsCartera: [Beneficiario1]), default);
+
+        resultado.Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
+        puerto.Escrituras.Should().BeEmpty();
+        catalogo.IncorporacionesDirectas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_cartera_un_fallo_al_asignar_el_rol_deshace_el_alta_entera()
+    {
+        var puerto = new GestionCuentasFalsa { FallarAlAsignarRol = true };
+        var catalogo = CatalogoConOperaciones();
+        var transaccion = new TransaccionDeComandoFalsa();
+
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador"), EnSuTenant, catalogo, transaccion)
+            .Handle(Alta("GestorCae", tenantsCartera: [Beneficiario1]), default);
+
+        resultado.EsFallido.Should().BeTrue();
+        transaccion.Deshechas.Should().Be(1);
+        catalogo.IncorporacionesDirectas.Should().BeEmpty();
+
+        // Control: sin cartera, el fallo del rol no deshace el alta (contrato anterior).
+        var sinCartera = new TransaccionDeComandoFalsa();
+        var alta = await NuevoAlta(new GestionCuentasFalsa { FallarAlAsignarRol = true }, ActorCon("Administrador"), EnSuTenant, catalogo, sinCartera)
+            .Handle(Alta("GestorCae"), default);
+        alta.EsExitoso.Should().BeTrue();
+        alta.Valor.FalloAlAsignarRol.Should().NotBeNull();
+        sinCartera.Confirmadas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task La_lista_de_empresas_del_alta_solo_se_ofrece_a_quien_gestiona_cuentas_en_su_propio_Tenant()
+    {
+        var catalogo = CatalogoConOperaciones();
+
+        (await new ObtenerEmpresasAsignablesEnAltaQueryHandler(ActorCon("Administrador"), EnSuTenant, catalogo)
+                .Handle(new(), default))
+            .Select(e => e.TenantId).Should().Equal(Beneficiario1, Beneficiario2);
+
+        (await new ObtenerEmpresasAsignablesEnAltaQueryHandler(ActorCon("GestorCae"), EnSuTenant, catalogo)
+                .Handle(new(), default))
+            .Should().BeEmpty("sin autoridad sobre cuentas");
+
+        (await new ObtenerEmpresasAsignablesEnAltaQueryHandler(ActorCon("Administrador", OtroTenant), EnSuTenant, catalogo)
+                .Handle(new(), default))
+            .Should().BeEmpty("en el Context Workspace de otro Tenant");
+    }
+
     // ---------- Dobles ----------
 
-    private static CrearUsuarioCommand Alta(string rol, bool permiso = false) =>
-        new("nueva@x.test", "Nueva", rol, null, null, permiso);
+    private static CrearUsuarioCommandHandler NuevoAlta(
+        IGestionCuentasUsuario puerto, ICurrentUserService actor, ITenantActual tenant,
+        CatalogoIncorporacionCarteraFalso? catalogo = null, TransaccionDeComandoFalsa? transaccion = null) =>
+        new(puerto, actor, tenant, catalogo ?? new CatalogoIncorporacionCarteraFalso(), transaccion ?? new TransaccionDeComandoFalsa());
+
+    private static CrearUsuarioCommand Alta(string rol, bool permiso = false, IReadOnlyCollection<Guid>? tenantsCartera = null) =>
+        new("nueva@x.test", "Nueva", rol, null, null, permiso, tenantsCartera);
 
     private static EditarUsuarioCommand Edicion(string rol, bool permiso = false) =>
         new(Cuenta, "Nombre", rol, null, null, permiso);
@@ -399,10 +593,14 @@ public class GestionCuentasCommandsTests
             return Task.FromResult(Result.Exito(id));
         }
 
+        public bool FallarAlAsignarRol { get; init; }
+
         public Task<Result> AsignarRolAsync(Guid usuarioId, string rol, CancellationToken cancellationToken = default)
         {
             Escrituras.Add($"rol:{usuarioId}:{rol}");
-            return Task.FromResult(Result.Exito());
+            return Task.FromResult(FallarAlAsignarRol
+                ? Result.Fallo(Error.Crear("Usuarios.FalloAlAsignarRol", "rol"))
+                : Result.Exito());
         }
 
         public Task<Result> ActualizarDatosAsync(Guid usuarioId, DatosCuentaUsuario datos, CancellationToken cancellationToken = default)

@@ -316,7 +316,7 @@ public class GateNivel0EnDeteccionesDeIngestaTests
     {
         public IQueryable<Asignacion> Asignaciones =>
             new TestAsyncQueryable<Asignacion>(
-                new List<Asignacion> { new(Guid.NewGuid(), centroId, DateOnly.FromDateTime(DateTime.UtcNow)) }.AsQueryable());
+                new List<Asignacion> { new(Guid.NewGuid(), centroId, DiaDeNegocio.Hoy()) }.AsQueryable());
     }
 
     /// <summary>

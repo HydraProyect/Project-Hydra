@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using System.Data.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -146,7 +147,7 @@ public class ConsultasKpiAcotadasBajoRlsTests : IAsyncLifetime
     {
         await SembrarTrabajadoresConDocumentoVigenteAsync(cuantos: 4);
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         // Mismo Tenant que la petición: el ámbito solo sirve a la siembra y a esta referencia.
         using var ambito = AmbitoTenantExplicito.Establecer(_tenant);
         var esperadas = await (
@@ -231,7 +232,7 @@ public class ConsultasKpiAcotadasBajoRlsTests : IAsyncLifetime
         await _propietario.SaveChangesAsync();
         _centro = centro.Id;
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         _propietario.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, hoy));
         var vigencias = new[]
         {
@@ -251,7 +252,7 @@ public class ConsultasKpiAcotadasBajoRlsTests : IAsyncLifetime
     private async Task SembrarTrabajadoresConDocumentoVigenteAsync(int cuantos)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(_tenant);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         for (var i = 0; i < cuantos; i++)
         {
@@ -270,7 +271,7 @@ public class ConsultasKpiAcotadasBajoRlsTests : IAsyncLifetime
     /// <summary>Referencia independiente del handler: cada Documento de Trabajador del Tenant clasificado uno a uno.</summary>
     private async Task<Dictionary<EstadoDocumento, int>> ClasificarDocumentoADocumentoAsync()
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         using var ambito = AmbitoTenantExplicito.Establecer(_tenant);
         var documentos = await _propietario.Documentos
             .Where(d => d.TrabajadorId != null)

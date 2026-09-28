@@ -194,6 +194,24 @@ public sealed class FirmanteContextoRls
         public void Confirmar() => confirmar();
     }
 
+    /// <summary>
+    /// El Tenant activo con que está firmada ahora esta conexión, si la abrió
+    /// <c>TenantRlsConnectionInterceptor</c>. Para <c>TenantSelladoInterceptor</c>:
+    /// una conexión que una transacción explícita retiene abierta conserva el
+    /// Tenant de cuando se abrió, aunque el ámbito haya cambiado después.
+    /// </summary>
+    public static bool TryObtenerTenantVigente(DbConnection conexion, out Guid? tenantId)
+    {
+        if (EstadoPorConexion.TryGetValue(conexion, out var estado))
+        {
+            tenantId = estado.Vigente.TenantId;
+            return true;
+        }
+
+        tenantId = null;
+        return false;
+    }
+
     /// <summary>Olvida el contexto de la conexión (se llama al cerrarla).</summary>
     public static void Olvidar(DbConnection conexion) => EstadoPorConexion.Remove(conexion);
 

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -73,7 +74,7 @@ public class DatosPruebaSupervisionSeederTests : IAsyncLifetime
         verificaciones.Should().Contain(v => v.Resultado == ResultadoVerificacionExterna.NoEncontrado);
 
         // Con y sin caducidad declarada, incluida una ya vencida (rojo) y una vigente.
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         verificaciones.Should().Contain(v => v.ValidoHasta == null && v.Resultado == ResultadoVerificacionExterna.Valido);
         verificaciones.Should().Contain(v => v.ValidoHasta != null && v.ValidoHasta < hoy);
         verificaciones.Should().Contain(v => v.ValidoHasta != null && v.ValidoHasta > hoy);

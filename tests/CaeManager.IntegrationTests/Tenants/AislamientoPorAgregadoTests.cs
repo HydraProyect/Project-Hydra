@@ -315,7 +315,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
         return VerificarAislamientoAsync(
             () => new VerificacionExternaSubcontrata(
                 subcontrataId, centroId, tipoDocumentoId,
-                DateOnly.FromDateTime(DateTime.UtcNow), ResultadoVerificacionExterna.Valido, Guid.NewGuid()),
+                DiaDeNegocio.Hoy(), ResultadoVerificacionExterna.Valido, Guid.NewGuid()),
             async contexto =>
             {
                 subcontrataId = await SembrarSubcontrataAsync(contexto);

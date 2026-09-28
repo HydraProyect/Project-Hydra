@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -82,7 +83,7 @@ public class ObtenerEmpresasQueryHandler(
             }
 
             var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var hoy = DiaDeNegocio.Hoy();
             var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);
             var limiteAmbar = hoy.AddDays(parametros.UmbralAmbarDias);
 

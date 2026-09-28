@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Reportes.Queries;
 using CaeManager.Application.Reportes.Queries.ObtenerHistorialInformes;
 // AlcanceDatosServiceFalso y CurrentUserServiceFalso siguen viviendo en este
@@ -72,7 +73,7 @@ public class AlcanceDeCarteraEnReportesTests
         var trabajadorAjeno = Trabajador.DeEmpresa(empresa.Id, "Nuria", "Ajena Ruiz", "12345678Z");
         _trabajadores.ListaTrabajadores.AddRange([trabajadorEnCartera, trabajadorAjeno]);
 
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         _asignaciones.ListaAsignaciones.AddRange([
             new Asignacion(trabajadorEnCartera.Id, _centroEnCartera.Id, hoy),
             new Asignacion(trabajadorAjeno.Id, _centroAjeno.Id, hoy)

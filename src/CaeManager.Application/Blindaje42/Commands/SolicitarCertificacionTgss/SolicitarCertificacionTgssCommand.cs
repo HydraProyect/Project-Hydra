@@ -30,7 +30,7 @@ public class SolicitarCertificacionTgssCommandValidator : AbstractValidator<Soli
         RuleFor(c => c.ClienteId).NotEmpty();
 
         RuleFor(c => c.FechaSolicitud)
-            .Must(f => f <= DateOnly.FromDateTime(DateTime.UtcNow))
+            .Must(f => f <= DiaDeNegocio.Hoy())
             .WithMessage("La fecha de solicitud no puede ser futura.");
 
         RuleFor(c => c.Observaciones)
@@ -66,11 +66,13 @@ public class SolicitarCertificacionTgssCommandHandler(
         // RelacionEmpresarial ya cerrada sigue siendo legítima — basta con
         // que la relación existiera en la fecha de la solicitud, no que
         // siga abierta hoy.
-        var finDelDiaSolicitud = DateTime.SpecifyKind(request.FechaSolicitud.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Utc);
+        // «Existía en la fecha de la solicitud» = empezó antes de que acabara ese
+        // día de negocio en Madrid.
+        var inicioDelDiaSiguiente = DiaDeNegocio.InicioEnUtc(request.FechaSolicitud.AddDays(1));
 
         var sonEmpresaYClienteRelacionados = await empresasContext.RelacionesEmpresariales
             .AnyAsync(r => r.ProveedoraId == request.EmpresaId && r.ClienteId == request.ClienteId
-                && r.VigenciaDesde <= finDelDiaSolicitud, cancellationToken);
+                && r.VigenciaDesde < inicioDelDiaSiguiente, cancellationToken);
 
         if (!sonEmpresaYClienteRelacionados)
             return Result.Fallo<Guid>(Error.Crear(

@@ -14,6 +14,9 @@ using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
 using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
 using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
 using CaeManager.Application.Usuarios.Queries.ObtenerCuentaUsuario;
+using CaeManager.Application.Usuarios.Queries.ObtenerEmpresasAsignablesEnAlta;
+using CaeManager.Application.Operaciones;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Soporte;
@@ -78,6 +81,7 @@ public partial class UsuariosGen2Tests : BunitContext
     private readonly FuenteUsuariosFalsa _fuente = new();
     private readonly ToastService _toasts = new();
     private readonly MediatorFalso _mediador = new();
+    private readonly CatalogoCarteraFalso _catalogo = new();
     private readonly CorreoFalso _correo = new();
     private readonly UserManagerFalso _identidad = new();
 
@@ -355,7 +359,8 @@ public partial class UsuariosGen2Tests : BunitContext
 
             if (Despachar is not null && request is CrearUsuarioCommand or EditarUsuarioCommand
                     or CambiarActivacionUsuarioCommand or EliminarUsuarioPendienteCommand
-                    or GenerarActivacionUsuarioCommand or ObtenerCuentaUsuarioQuery)
+                    or GenerarActivacionUsuarioCommand or ObtenerCuentaUsuarioQuery
+                    or ObtenerEmpresasAsignablesEnAltaQuery)
                 return (TResponse)(await Despachar(request, cancellationToken))!;
 
             // TResponse es anulable en las dos consultas de esta pantalla
@@ -396,6 +401,47 @@ public partial class UsuariosGen2Tests : BunitContext
 
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
             where TNotification : INotification => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Cartera en el alta: los Tenants beneficiarios que opera el Operador CAE del arnés
+    /// y lo que se incorporó. La escritura real (RLS, transacción) se prueba contra
+    /// PostgreSQL en <c>AltaDeGestorCaeConCarteraTests</c>.
+    /// </summary>
+    private sealed class CatalogoCarteraFalso : ICatalogoIncorporacionCartera
+    {
+        public List<TenantCandidatoIncorporacion> Asignables { get; } = [];
+        public List<(Guid PropietarioTenantId, Guid UsuarioId)> Incorporadas { get; } = [];
+
+        public void Registrar(Guid propietarioTenantId, string nombre) =>
+            Asignables.Add(new TenantCandidatoIncorporacion(propietarioTenantId, nombre, Guid.NewGuid()));
+
+        public Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerAsignablesAsync(
+            Guid operadorTenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<TenantCandidatoIncorporacion>>(
+                operadorTenantId == TenantDelArnes ? Asignables.ToList() : []);
+
+        public Task<ResultadoIncorporacionCartera> IncorporarAsync(
+            Guid propietarioTenantId, Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioId,
+            CancellationToken cancellationToken = default)
+        {
+            Incorporadas.Add((propietarioTenantId, usuarioId));
+            return Task.FromResult(new ResultadoIncorporacionCartera(null, null, null));
+        }
+
+        public Task<bool> GuardarDetectandoCarreraAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+
+        public Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerCandidatosAsync(
+            Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
+            Guid asignacionOperacionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ResultadoIncorporacionCartera> IncorporarAsync(
+            SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task RetirarAsync(SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public void DescartarPendientes() => throw new NotSupportedException();
+        public Task<IReadOnlySet<Guid>> FiltrarCarterasVigentesAsync(
+            IReadOnlyCollection<Guid> asignacionCarteraIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class TenantActualFalso : ITenantActual
@@ -523,7 +569,10 @@ public partial class UsuariosGen2Tests : BunitContext
             .ToDictionary(r => r.Key, r => r.Value[0]);
         _mediador.Despachar = async (peticion, ct) => peticion switch
         {
-            CrearUsuarioCommand c => await new CrearUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
+            CrearUsuarioCommand c => await new CrearUsuarioCommandHandler(
+                cuentas, usuarioActual, tenantActual, _catalogo, new TransaccionDirecta()).Handle(c, ct),
+            ObtenerEmpresasAsignablesEnAltaQuery q => await new ObtenerEmpresasAsignablesEnAltaQueryHandler(
+                usuarioActual, tenantActual, _catalogo).Handle(q, ct),
             EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
             CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
                 cuentas, usuarioActual, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, ct),
@@ -1093,6 +1142,78 @@ public partial class UsuariosGen2Tests : BunitContext
         _correo.Enviados.Should().ContainSingle();
         cut.WaitForAssertion(() =>
             cut.Find(".enlace-activacion").TextContent.Should().Contain("/cuenta/restablecer-contrasena"));
+    }
+
+    // ---------- Cartera en el alta (2026-09-28) ----------
+
+    private static readonly Guid BeneficiarioNorte = Guid.Parse("b1b1b1b1-0000-0000-0000-000000000001");
+    private static readonly Guid BeneficiarioSur = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002");
+
+    private static IReadOnlyList<IElement> CasillasEmpresasCartera(IRenderedComponent<UsuariosControlados> cut) =>
+        cut.FindAll("[aria-labelledby=etiqueta-empresas-cartera] input[type=checkbox]");
+
+    [Fact]
+    public async Task El_alta_de_un_Gestor_CAE_ofrece_las_empresas_de_su_cartera_y_envia_las_marcadas()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+        _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte");
+        _catalogo.Registrar(BeneficiarioSur, "Montajes del Sur");
+
+        var cut = Renderizar();
+        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        CasillasEmpresasCartera(cut).Should().BeEmpty("la cartera solo se ofrece al elegir Gestor CAE");
+
+        await EscribirAsync(cut, "Correo", "gestora@talveg.es");
+        await EscribirAsync(cut, "Nombre completo", "Gestora Nueva");
+        await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.GestorCae });
+
+        cut.WaitForAssertion(() => CasillasEmpresasCartera(cut).Should().HaveCount(2));
+        var bloque = cut.Find("[aria-labelledby=etiqueta-empresas-cartera]");
+        bloque.TextContent.Should().Contain("Empresas de su cartera").And.Contain("Talleres Norte").And.Contain("TN");
+        bloque.TextContent.Should().NotContainEquivalentOf("tenant", "en pantalla se dice empresa");
+
+        await CasillasEmpresasCartera(cut)[0].ChangeAsync(new() { Value = true });
+        await GuardarAsync(cut);
+
+        var alta = _mediador.Enviadas.OfType<CrearUsuarioCommand>().Should().ContainSingle().Subject;
+        alta.TenantsCartera.Should().Equal(BeneficiarioNorte);
+        var creada = _identidad.Creadas.Should().ContainSingle().Subject;
+        _catalogo.Incorporadas.Should().Equal((BeneficiarioNorte, creada.Id));
+    }
+
+    [Fact]
+    public async Task Sin_empresas_asignables_el_alta_de_un_Gestor_CAE_no_muestra_el_bloque_de_cartera()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+
+        var cut = Renderizar();
+        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.GestorCae });
+
+        _mediador.Enviadas.OfType<ObtenerEmpresasAsignablesEnAltaQuery>().Should().ContainSingle();
+        cut.FindAll("[aria-labelledby=etiqueta-empresas-cartera]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Empresas_marcadas_y_despues_otro_rol_no_viajan_en_el_alta()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+        _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte");
+
+        var cut = Renderizar();
+        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await EscribirAsync(cut, "Correo", "consulta@talveg.es");
+        await EscribirAsync(cut, "Nombre completo", "Consulta Nueva");
+        await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.GestorCae });
+        cut.WaitForAssertion(() => CasillasEmpresasCartera(cut).Should().ContainSingle());
+        await CasillasEmpresasCartera(cut)[0].ChangeAsync(new() { Value = true });
+        await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Consulta });
+        await GuardarAsync(cut);
+
+        _mediador.Enviadas.OfType<CrearUsuarioCommand>().Should().ContainSingle()
+            .Which.TenantsCartera.Should().BeNull("la cartera es solo de Gestor CAE");
+        _catalogo.Incorporadas.Should().BeEmpty();
+        _identidad.Creadas.Should().ContainSingle();
     }
 
     // -------------------------------------- el permiso sobre lo sensible

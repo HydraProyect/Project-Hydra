@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
@@ -102,7 +103,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
             .ToListAsync(cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         var tipos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)

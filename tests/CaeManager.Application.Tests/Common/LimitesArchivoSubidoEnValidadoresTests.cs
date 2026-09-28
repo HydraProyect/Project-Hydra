@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Blindaje42.Commands.RegistrarRespuestaCertificacionTgss;
 using CaeManager.Application.Common;
 using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna;
@@ -58,7 +59,7 @@ public class LimitesArchivoSubidoEnValidadoresTests
 
     private static List<string> Validar(string validador, byte[] evidencia)
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var resultado = validador switch
         {
             "Tgss" => new RegistrarRespuestaCertificacionTgssCommandValidator().Validate(

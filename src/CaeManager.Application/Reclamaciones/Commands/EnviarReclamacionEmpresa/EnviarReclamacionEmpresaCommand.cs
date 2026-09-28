@@ -81,7 +81,7 @@ public class EnviarReclamacionEmpresaCommandHandler(
         // contra la base: que el documento siga siendo de ESTA Empresa y de
         // ámbito Empresa. Sin el filtro de ámbito, un Id de un documento de
         // Cliente de la misma Empresa contraparte entraría en el lote.
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var limiteVentana = hoy.AddMonths(3);
 
         var filas = await (

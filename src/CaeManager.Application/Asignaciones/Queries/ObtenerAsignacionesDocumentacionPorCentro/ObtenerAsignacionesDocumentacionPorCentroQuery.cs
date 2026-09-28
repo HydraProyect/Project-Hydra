@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
@@ -138,7 +139,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             .ToListAsync(cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
 
         var documentosPorTrabajador = documentosExistentes
             .GroupBy(d => d.TrabajadorId)

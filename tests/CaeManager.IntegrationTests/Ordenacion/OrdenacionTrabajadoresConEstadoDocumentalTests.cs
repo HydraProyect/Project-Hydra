@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
@@ -50,7 +51,7 @@ public class OrdenacionTrabajadoresConEstadoDocumentalTests : IAsyncLifetime
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
-    private readonly DateOnly _hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private readonly DateOnly _hoy = DiaDeNegocio.Hoy();
 
     public async Task InitializeAsync()
     {

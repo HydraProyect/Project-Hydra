@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Asignaciones;
@@ -56,7 +57,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
 
-        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, DiaDeNegocio.Hoy()));
         await contexto.SaveChangesAsync();
 
         _trabajadorId = trabajador.Id;
@@ -90,7 +91,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
-                _trabajadorId, _tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca));
+                _trabajadorId, _tipoDocumentoId, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca));
             await contexto.SaveChangesAsync();
         }
 
@@ -111,7 +112,7 @@ public class ObtenerAlertasQueryFaltantesTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             var asignacion = await contexto.Asignaciones.SingleAsync(a => a.TrabajadorId == _trabajadorId);
-            asignacion.DarDeBaja(DateOnly.FromDateTime(DateTime.UtcNow));
+            asignacion.DarDeBaja(DiaDeNegocio.Hoy());
             await contexto.SaveChangesAsync();
         }
 

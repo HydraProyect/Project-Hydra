@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
@@ -140,7 +141,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _vehiculoId = string.Empty;
         _proyectoId = string.Empty;
         _tipoDocumentoId = string.Empty;
-        _fechaEmision = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        _fechaEmision = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
         _fechaEmisionOriginal = null;
         _fechaVencimientoManual = string.Empty;
         _noCaduca = false;

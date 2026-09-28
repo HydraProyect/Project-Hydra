@@ -66,4 +66,13 @@
   <data name="ReenvioCorreoFallidoEnlaceAbajo" xml:space="preserve">
     <value>El enlace queda abajo para entregarlo tú mismo.</value>
   </data>
+  <data name="CarteraAltaEtiqueta" xml:space="preserve">
+    <value>Empresas de su cartera (opcional)</value>
+  </data>
+  <data name="CarteraAltaAyuda" xml:space="preserve">
+    <value>Gestionará entera cada empresa que marques. Puedes dejarlo sin ninguna y asignárselas después.</value>
+  </data>
+  <data name="CarteraAltaErrorCarga" xml:space="preserve">
+    <value>No pudimos cargar las empresas para su cartera. Puedes guardar sin ninguna y asignárselas después.</value>
+  </data>
 </root>

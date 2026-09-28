@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -31,7 +32,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
-    private readonly DateOnly _hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+    private readonly DateOnly _hoy = DiaDeNegocio.Hoy();
     private readonly Dictionary<Guid, VigenciaDocumento> _vigenciaPorDocumento = [];
 
     public async Task InitializeAsync()

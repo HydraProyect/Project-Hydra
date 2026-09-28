@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Importacion;
@@ -111,7 +112,7 @@ internal sealed class EscenarioImportacion
     /// </summary>
     public EscenarioImportacion ConAsignacionCerradaSolapadaExistente()
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var cerrada = new Domain.Asignaciones.Asignacion(TrabajadorExistente!.Id, CentroExistente!.Id, hoy.AddDays(-30));
         cerrada.DarDeBaja(hoy.AddDays(30));
         AsignacionesContexto.ListaAsignaciones.Add(cerrada);
@@ -126,7 +127,7 @@ internal sealed class EscenarioImportacion
     /// </summary>
     public EscenarioImportacion ConAsignacionVaciaExistente()
     {
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var hoy = DiaDeNegocio.Hoy();
         var vacia = new Domain.Asignaciones.Asignacion(TrabajadorExistente!.Id, CentroExistente!.Id, hoy);
         vacia.CerrarPorAmbitoEliminado(hoy);
         AsignacionesContexto.ListaAsignaciones.Add(vacia);

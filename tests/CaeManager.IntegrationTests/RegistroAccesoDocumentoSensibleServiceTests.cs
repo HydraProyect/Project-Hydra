@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Auditoria;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
@@ -59,7 +60,7 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         await _dbContext.TiposDocumento.FirstAsync(t => t.Sensibilidad == sensibilidad);
 
     private Documento CrearDocumentoDeEmpresa(Guid tipoDocumentoId) =>
-        Documento.DeEmpresa(_empresa.Id, tipoDocumentoId, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca, "archivo.pdf");
+        Documento.DeEmpresa(_empresa.Id, tipoDocumentoId, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "archivo.pdf");
 
     /// <summary>
     /// La pantalla de auditoría enseña el nombre del Tipo de documento en vez del

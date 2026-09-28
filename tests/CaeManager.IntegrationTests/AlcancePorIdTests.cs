@@ -1,4 +1,5 @@
 ﻿using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
+using CaeManager.Domain.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -63,8 +64,8 @@ public class AlcancePorIdTests : IAsyncLifetime
         _trabajadorVisibleId = trabajadorVisible.Id;
 
         _dbContext.Asignaciones.AddRange(
-            new Asignacion(trabajadorVisible.Id, centroVisible.Id, DateOnly.FromDateTime(DateTime.UtcNow)),
-            new Asignacion(trabajadorAjeno.Id, centroAjeno.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+            new Asignacion(trabajadorVisible.Id, centroVisible.Id, DiaDeNegocio.Hoy()),
+            new Asignacion(trabajadorAjeno.Id, centroAjeno.Id, DiaDeNegocio.Hoy()));
 
         await _dbContext.SaveChangesAsync();
 
@@ -74,9 +75,9 @@ public class AlcancePorIdTests : IAsyncLifetime
             .FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador);
 
         _documentoDeTrabajadorVisible = Documento.DeTrabajador(
-            trabajadorVisible.Id, tipoDocumentoTrabajador.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
+            trabajadorVisible.Id, tipoDocumentoTrabajador.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
         _documentoDeTrabajadorAjeno = Documento.DeTrabajador(
-            trabajadorAjeno.Id, tipoDocumentoTrabajador.Id, DateOnly.FromDateTime(DateTime.UtcNow), VigenciaDocumento.NoCaduca);
+            trabajadorAjeno.Id, tipoDocumentoTrabajador.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.AddRange(_documentoDeTrabajadorVisible, _documentoDeTrabajadorAjeno);
 
         await _dbContext.SaveChangesAsync();

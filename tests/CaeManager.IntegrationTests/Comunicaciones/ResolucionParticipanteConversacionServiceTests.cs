@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -45,7 +46,7 @@ public class ResolucionParticipanteConversacionServiceTests : IAsyncLifetime
         contexto.Trabajadores.AddRange(trabajadorActivo, trabajadorSinAsignacion);
         await contexto.SaveChangesAsync();
 
-        contexto.Asignaciones.Add(new Asignacion(trabajadorActivo.Id, centro.Id, DateOnly.FromDateTime(DateTime.UtcNow)));
+        contexto.Asignaciones.Add(new Asignacion(trabajadorActivo.Id, centro.Id, DiaDeNegocio.Hoy()));
         await contexto.SaveChangesAsync();
 
         _clienteId = cliente.Id;
