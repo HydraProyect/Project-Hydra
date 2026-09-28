@@ -321,6 +321,26 @@ chmod +x "$CASO/bin/mkdir"
 PATH="$CASO/bin:$PATH" bash "$GUION" -- bash -c "$(tarea B 0.1)" > "$CASO/o" 2>&1; rc=$?
 comprobar "mkdir del cerrojo falla y el directorio ya no está: el waiter reintenta y ejecuta" "0 B_ini B_fin envoltorio-usado" "$rc $(tr '\n' ' ' < "$REGISTRO" | sed 's/ $//') $([ -e "$CASO/ya-fallo" ] && echo envoltorio-usado || echo envoltorio-NO-usado)"
 
+# 11e -----------------------------------------------------------------------
+# Contrapeso de 11d: el reintento NO convierte en éxito un fallo real. Si `mkdir` del
+# cerrojo falla SIEMPRE y el directorio nunca existe (permisos, directorio padre
+# ausente), sigue abortando con 74, sin ejecutar y diciéndolo.
+nuevo_caso mkdir-del-cerrojo-falla-siempre
+mkdir -p "$CASO/bin"
+cat > "$CASO/bin/mkdir" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+  case "\$a" in
+    */cerrojo) : > "$CASO/intentado"; exit 1 ;;
+  esac
+done
+exec "$MKDIR_REAL" "\$@"
+EOF
+chmod +x "$CASO/bin/mkdir"
+PATH="$CASO/bin:$PATH" bash "$GUION" --espera-max-s 30 -- bash -c "$(tarea B 0.1)" > "$CASO/o" 2>&1; rc=$?
+comprobar "mkdir del cerrojo falla siempre: aborta con 74 y no ejecuta" "74 sin-registro intentado" "$rc $([ -s "$REGISTRO" ] && echo con-registro || echo sin-registro) $([ -e "$CASO/intentado" ] && echo intentado || echo NO-intentado)"
+comprobar "lo dice: ABORTADO_SIN_EJECUTAR motivo=sin_directorio_de_turno" "1" "$(grep -c 'ABORTADO_SIN_EJECUTAR motivo=sin_directorio_de_turno' "$CASO/o")"
+
 # 12 ------------------------------------------------------------------------
 nuevo_caso uso
 bash "$GUION" > "$CASO/o" 2>&1; rc=$?
