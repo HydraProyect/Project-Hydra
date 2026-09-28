@@ -61,7 +61,7 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
         // aporta nada.
         //
         // Deliberadamente SIN TenantId de prefijo, y no por descuido: el
-        // propietario (Guid aleatorio, ya casi único por sí solo) no gana
+        // propietario (un Guid, único por sí solo) no gana
         // selectividad real al anteponerle el tenant, y el EXPLAIN con y sin
         // TenantId da el mismo plan y coste — anteponerlo aquí solo aumentaría
         // el tamaño del índice sin beneficio medido. La recomendación genérica
