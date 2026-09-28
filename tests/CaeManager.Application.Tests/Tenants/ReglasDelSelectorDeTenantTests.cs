@@ -82,6 +82,23 @@ public class ReglasDelSelectorDeTenantTests
     }
 
     [Fact]
+    public void El_Tenant_por_defecto_es_el_unico_externo_alcanzado_por_cartera_con_el_origen_sin_gestionar()
+    {
+        ClientesAutorizados.TenantPorDefecto([Propio(), PorCartera(A, "A")])!.TenantId.Should().Be(A);
+        ClientesAutorizados.TenantPorDefecto([Propio(gestionado: true), PorCartera(A, "A")]).Should().BeNull("su origen está en su cartera");
+        ClientesAutorizados.TenantPorDefecto([Propio(), PorCartera(A, "A"), PorCartera(B, "B")]).Should().BeNull("con dos, elegir uno sería decidir por el usuario");
+        ClientesAutorizados.TenantPorDefecto([Propio(), PorCartera(A, "A"), PorDelegacion()]).Should().BeNull("alcanza además otro Tenant por la vía heredada");
+    }
+
+    [Fact]
+    public void Decision_7_bis_sin_Asignacion_de_Cartera_un_unico_Tenant_externo_no_es_el_por_defecto()
+    {
+        // Administrador del Operador CAE externo: sin cartera alcanza a lo sumo un Tenant por la
+        // vía heredada (soporte / Operador Delegado). Sigue entrando en su Tenant de origen.
+        ClientesAutorizados.TenantPorDefecto([Propio(), PorDelegacion()]).Should().BeNull();
+    }
+
+    [Fact]
     public void Se_pide_elegir_empresa_solo_a_quien_gestiona_por_Operacion_y_tiene_activo_un_origen_sin_gestionar()
     {
         var conCartera = new[] { Propio(), PorCartera(A, "A"), PorCartera(B, "B") };

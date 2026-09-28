@@ -108,7 +108,7 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // servidor); esta aserción queda como comprobación adicional, sobre el DOM ya
         // asentado tras esa redirección, de que el <select> también quedó consistente
         // con lo que el servidor aplicó.
-        await Assertions.Expect(page.Locator(".selector-cliente-activo option:checked"))
+        await Assertions.Expect(Ayudas.DisparadorSelectorTenant(page).Locator(".selector-tenant-nombre"))
             .ToHaveTextAsync(Ayudas.NombreClienteDelegadoDemo,
                 new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
 

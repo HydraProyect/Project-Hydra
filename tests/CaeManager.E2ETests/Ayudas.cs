@@ -132,11 +132,11 @@ public static class Ayudas
     /// </summary>
     public static async Task CambiarClienteActivoAsync(IPage page, string baseUrl, string nombreCliente)
     {
-        var opcion = page.Locator(".selector-cliente-activo option", new PageLocatorOptions { HasText = nombreCliente });
-        var tenantId = await opcion.GetAttributeAsync("value");
+        await AbrirSelectorTenantAsync(page);
+        var opcion = page.Locator(".selector-tenant-panel [role=option]", new PageLocatorOptions { HasText = nombreCliente }).First;
 
         var respuestaCambio = await page.RunAndWaitForResponseAsync(
-            () => page.SelectOptionAsync(".selector-cliente-activo", new SelectOptionValue { Value = tenantId }),
+            () => opcion.ClickAsync(),
             respuesta => respuesta.Url.Contains("/cuenta/cliente-activo"));
 
         Assert.True(
@@ -156,6 +156,67 @@ public static class Ayudas
 
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
     }
+
+    /// <summary>
+    /// Disparador del selector de empresa gestionada de la barra lateral
+    /// (SelectorClienteActivo.razor). El Id del Tenant activo viaja en
+    /// <c>data-tenant-id</c> y su nombre está en <c>.selector-tenant-nombre</c>.
+    /// </summary>
+    public static ILocator DisparadorSelectorTenant(IPage page) => page.Locator(".selector-tenant-disparador");
+
+    public static async Task<string> TenantActivoIdAsync(IPage page) =>
+        await DisparadorSelectorTenant(page).GetAttributeAsync("data-tenant-id") ?? string.Empty;
+
+    /// <summary>Opciones de la lista desplegada (cartera y «Tu organización»).</summary>
+    public static ILocator OpcionesSelectorTenant(IPage page) => page.Locator(".selector-tenant-panel [role=option]");
+
+    /// <summary>
+    /// Despliega la lista. El disparador es un botón de un islote interactivo: un clic antes de que
+    /// el circuito conecte no hace nada, así que se repite hasta que el panel aparece. Deja la lista
+    /// abierta: su velo tapa el resto de la página, hay que cerrarla con
+    /// <see cref="CerrarSelectorTenantAsync"/> antes de seguir con otra cosa.
+    /// </summary>
+    public static async Task AbrirSelectorTenantAsync(IPage page)
+    {
+        var panel = page.Locator(".selector-tenant-panel");
+        for (var intento = 0; intento < 20 && !await panel.IsVisibleAsync(); intento++)
+        {
+            await DisparadorSelectorTenant(page).ClickAsync();
+            try
+            {
+                await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 1_500 });
+            }
+            catch (PlaywrightException)
+            {
+                // El circuito aún no había conectado: se vuelve a pulsar.
+            }
+        }
+
+        await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5_000 });
+    }
+
+    public static async Task CerrarSelectorTenantAsync(IPage page)
+    {
+        var panel = page.Locator(".selector-tenant-panel");
+        if (!await panel.IsVisibleAsync()) return;
+
+        await page.Keyboard.PressAsync("Escape");
+        await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 5_000 });
+    }
+
+    /// <summary>Id del Tenant de la opción cuyo texto contiene <paramref name="nombre"/> (abre y cierra la lista).</summary>
+    public static async Task<string?> IdDeOpcionSelectorTenantAsync(IPage page, string nombre)
+    {
+        await AbrirSelectorTenantAsync(page);
+        var id = await OpcionesSelectorTenant(page).Filter(new LocatorFilterOptions { HasText = nombre }).First
+            .GetAttributeAsync("value");
+        await CerrarSelectorTenantAsync(page);
+        return id;
+    }
+
+    /// <summary>Token antiforgery de la página, leído del formulario de cerrar sesión (siempre presente al autenticarse).</summary>
+    public static Task<string?> TokenAntiforgeryAsync(IPage page) =>
+        page.Locator("form[action='/cuenta/cerrar-sesion'] input[name=__RequestVerificationToken]").GetAttributeAsync("value");
 
     /// <summary>
     /// Descarta el modal de notificaciones pendientes (ver
