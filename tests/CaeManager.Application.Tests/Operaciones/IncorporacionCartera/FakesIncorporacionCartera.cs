@@ -120,8 +120,7 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
     public List<(Guid OperadorTenantId, TenantCandidatoIncorporacion Asignable)> Asignables { get; } = [];
 
     /// <summary>Cada incorporación sin solicitud, con el Tenant activo con que se pidió.</summary>
-    public List<(Guid PropietarioTenantId, Guid OperadorTenantId, Guid AsignacionOperacionId, Guid UsuarioId, Guid? TenantActivo)>
-        IncorporacionesDirectas { get; } = [];
+    public List<(Guid PropietarioTenantId, Guid OperadorTenantId, Guid AsignacionOperacionId, Guid UsuarioId, Guid? TenantActivo)> IncorporacionesDirectas { get; } = [];
 
     public void RegistrarAsignable(Guid operadorTenantId, AsignacionOperacion operacion, string nombre)
     {
