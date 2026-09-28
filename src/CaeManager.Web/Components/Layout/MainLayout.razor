@@ -15,6 +15,14 @@
             <img src="img/marca/talveg-lockup-oscuro.svg" alt="TALVEG" class="marca-wordmark marca-wordmark-oscuro" width="106" height="22" />
             <span class="marca-etiqueta">CAE</span>
         </div>
+        @* Selector de Tenant beneficiario (mockup «Selector Empresa Gestionada», decisión 7 ter):
+           bajo la marca y encima del menú, solo para quien alcanza varias empresas gestionadas.
+           Es el antiguo selector de la barra superior, evolucionado; en móvil vive en el cajón. *@
+        <AuthorizeView>
+            <Authorized>
+                <SelectorClienteActivo @rendermode="InteractiveServer" />
+            </Authorized>
+        </AuthorizeView>
         <NavMenu />
     </aside>
 
@@ -25,7 +33,6 @@
             <AuthorizeView>
                 <Authorized>
                     <div class="menu-usuario">
-                        <SelectorClienteActivo @rendermode="InteractiveServer" />
                         <SelectorVistaVocabulario @rendermode="InteractiveServer" />
                         <SelectorVistaDemo @rendermode="InteractiveServer" />
                         <SelectorTema @rendermode="InteractiveServer" />

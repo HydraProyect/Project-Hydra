@@ -84,4 +84,31 @@
   <data name="SubirDocumento" xml:space="preserve">
     <value>+ Subir documento</value>
   </data>
+  <data name="SelectorTenantEtiqueta" xml:space="preserve">
+    <value>Contexto operativo actual</value>
+  </data>
+  <data name="SelectorTenantRotulo" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="SelectorTenantCartera" xml:space="preserve">
+    <value>Mi cartera · {0}</value>
+  </data>
+  <data name="SelectorTenantEmpresasUna" xml:space="preserve">
+    <value>1 empresa</value>
+  </data>
+  <data name="SelectorTenantEmpresasVarias" xml:space="preserve">
+    <value>{0} empresas</value>
+  </data>
+  <data name="SelectorTenantBuscar" xml:space="preserve">
+    <value>Buscar empresa</value>
+  </data>
+  <data name="SelectorTenantLista" xml:space="preserve">
+    <value>Cambiar de empresa gestionada</value>
+  </data>
+  <data name="SelectorTenantOrigen" xml:space="preserve">
+    <value>Tu organización</value>
+  </data>
+  <data name="SelectorTenantSinResultados" xml:space="preserve">
+    <value>Ninguna empresa coincide con la búsqueda.</value>
+  </data>
 </root>

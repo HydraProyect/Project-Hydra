@@ -41,6 +41,52 @@ public record ClienteAutorizadoDto(Guid TenantId, string Nombre, bool EsOrigen, 
 public static class ClientesAutorizados
 {
     /// <summary>
+    /// Visibilidad del selector de Tenant beneficiario (decisión 1, evaluada por
+    /// condición y no por rol): el usuario alcanza dos o más Tenants beneficiarios
+    /// por la vía de Operación (el Tenant de origen cuenta solo si tiene cartera
+    /// sobre él). Con un único Tenant —incluido el que decide la decisión 5 por
+    /// defecto— el selector se oculta.
+    ///
+    /// <para>
+    /// Un Tenant alcanzado solo por la vía heredada de delegación (soporte,
+    /// Operador Delegado) también muestra el selector: es su único control para
+    /// pasar de su Tenant de origen a ese Tenant y volver, y hasta ahora lo veía.
+    /// No lo concede: la lista ya es el conjunto autorizado.
+    /// </para>
+    /// </summary>
+    public static bool SelectorVisible(IReadOnlyList<ClienteAutorizadoDto> autorizados) =>
+        autorizados.Count(c => c.EsGestionadoPorOperacion) >= 2
+        || autorizados.Any(c => !c.EsOrigen && !c.EsGestionadoPorOperacion);
+
+    /// <summary>
+    /// Tenants externos que el usuario puede abrir: las filas de «Mi cartera» del
+    /// selector. El Tenant de origen no cuenta aquí: va aparte, fijo bajo la lista,
+    /// como «Tu organización». Es el «N» de «Mi cartera · N empresas».
+    /// </summary>
+    public static int TotalCartera(IReadOnlyList<ClienteAutorizadoDto> autorizados) =>
+        autorizados.Count(c => !c.EsOrigen);
+
+    /// <summary>
+    /// Estado 4a del mockup del selector: el usuario gestiona Tenants externos por
+    /// Operación, su Tenant de origen no está en su cartera y el activo es ese
+    /// origen (nunca eligió uno, o volvió a él). Las pantallas de un Tenant a la
+    /// vez piden entonces elegir uno en vez de presentar los datos del origen como
+    /// si fueran de la cartera. No aplica al Administrador del Operador CAE sin
+    /// cartera (su origen es su sitio) ni a quien solo tiene la vía heredada.
+    /// </summary>
+    public static bool SinEmpresaSeleccionada(IReadOnlyList<ClienteAutorizadoDto> autorizados, ClienteAutorizadoDto? activo) =>
+        activo is { EsOrigen: true, EsGestionadoPorOperacion: false }
+        && autorizados.Any(c => !c.EsOrigen && c.EsGestionadoPorOperacion);
+
+    /// <summary>
+    /// El Tenant activo dentro de la lista: el seleccionado si sigue autorizado
+    /// (una selección caducada ya no está en la lista) y, si no, el de origen.
+    /// </summary>
+    public static ClienteAutorizadoDto? Activo(IReadOnlyList<ClienteAutorizadoDto> autorizados, Guid? seleccionado) =>
+        autorizados.FirstOrDefault(c => c.TenantId == seleccionado)
+        ?? autorizados.FirstOrDefault(c => c.EsOrigen);
+
+    /// <summary>
     /// Decisión 5 del propietario del producto (2026-09-26): si la cartera tiene
     /// exactamente un Tenant beneficiario externo y el Tenant de origen no está
     /// gestionado, ese Tenant es el activo por defecto. Se exige además que no

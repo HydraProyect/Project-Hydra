@@ -10,6 +10,7 @@ using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
@@ -85,6 +86,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
         public List<object> Enviadas { get; } = [];
 
         public PerfilVocabularioTenant Perfil { get; set; } = PerfilVocabularioTenant.Consultora;
+        /// <summary>Por defecto, un usuario mono-Tenant: sin selector ni cabecera de empresa gestionada.</summary>
+        public List<ClienteAutorizadoDto> Autorizados { get; } = [new(Guid.NewGuid(), "Propia", EsOrigen: true)];
         public List<EmpresaSelectorDto> Empresas { get; } =
             [new(EmpresaEbro, "Montajes Ebro S.L."), new(EmpresaDexter, "Dexter Industrial S.A.")];
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
@@ -116,6 +119,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
             {
                 case ObtenerPerfilVocabularioActualQuery:
                     return Perfil;
+                case ObtenerClientesAutorizadosQuery:
+                    return (IReadOnlyList<ClienteAutorizadoDto>)Autorizados.ToList();
                 case ObtenerEmpresasParaSelectorQuery:
                     return (IReadOnlyList<EmpresaSelectorDto>)Empresas.ToList();
                 case ObtenerSubcontratasParaSelectorQuery:
@@ -266,10 +271,77 @@ public class TrabajadoresListaGen2Tests : BunitContext
             alias);
     }
 
+    private SeleccionEmpresaGestionadaDePrueba Seleccion = new();
+
+    // --- Empresa gestionada activa (lote 2 del selector de Tenant beneficiario) ----------------
+
+    private static readonly Guid Origen = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
+    private static readonly Guid EmpresaNorte = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000002");
+    private static readonly Guid EmpresaSur = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000003");
+
+    private static MediatorFalso ConCartera(bool origenGestionado)
+    {
+        var mediador = new MediatorFalso();
+        mediador.Autorizados.Clear();
+        mediador.Autorizados.AddRange(
+        [
+            new ClienteAutorizadoDto(Origen, "Operador de prueba", EsOrigen: true, EsGestionadoPorOperacion: origenGestionado),
+            new ClienteAutorizadoDto(EmpresaNorte, "Empresa Norte", EsOrigen: false, EsGestionadoPorOperacion: true),
+            new ClienteAutorizadoDto(EmpresaSur, "Empresa Sur", EsOrigen: false, EsGestionadoPorOperacion: true),
+        ]);
+        return mediador;
+    }
+
+    [Fact]
+    public void Con_varias_empresas_gestionadas_la_cabecera_de_la_lista_dice_cual_esta_activa()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+
+        var cut = Renderizar(ConCartera(origenGestionado: false));
+
+        var cabecera = cut.Find(".trabajadores-empresa");
+        cabecera.TextContent.Should().Contain("Empresa gestionada").And.Contain("Empresa Sur");
+        cabecera.QuerySelector(".avatar-tenant")!.TextContent.Trim().Should().Be("ES", "sin logo se pintan las iniciales");
+    }
+
+    [Fact]
+    public void Un_usuario_mono_Tenant_no_ve_cabecera_de_empresa_gestionada()
+    {
+        var cut = Renderizar(new MediatorFalso());
+
+        cut.FindAll(".trabajadores-empresa").Should().BeEmpty();
+        cut.FindAll("table, [role=grid]").Should().NotBeEmpty("la lista se pinta como siempre");
+    }
+
+    [Fact]
+    public void Sin_empresa_elegida_y_con_el_origen_sin_gestionar_pide_elegir_y_no_muestra_datos_del_origen()
+    {
+        var mediador = ConCartera(origenGestionado: false);
+
+        var cut = Renderizar(mediador);
+
+        cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
+        cut.FindAll(".barra-trabajo-trabajadores").Should().BeEmpty();
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría los datos del origen");
+        ConsultasDeLista(mediador).Should().Be(0, "no se piden los trabajadores de la organización de origen");
+    }
+
+    [Fact]
+    public void Con_el_origen_gestionado_y_sin_empresa_elegida_la_lista_es_la_del_origen()
+    {
+        var mediador = ConCartera(origenGestionado: true);
+
+        var cut = Renderizar(mediador);
+
+        cut.Markup.Should().NotContain("Selecciona una empresa de tu cartera");
+        cut.Find(".trabajadores-empresa").TextContent.Should().Contain("Operador de prueba");
+    }
+
     private void Registrar(MediatorFalso mediador, string url)
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
+        Services.AddScoped<IClienteActivoSeleccionado>(_ => Seleccion);
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new InlineValidator<CrearTrabajadorCommand>());

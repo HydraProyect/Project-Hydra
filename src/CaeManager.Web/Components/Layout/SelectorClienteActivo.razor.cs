@@ -1,9 +1,14 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Web.Recursos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 
 namespace CaeManager.Web.Components.Layout;
 
@@ -23,16 +28,108 @@ namespace CaeManager.Web.Components.Layout;
 /// </summary>
 public partial class SelectorClienteActivo
 {
+    /// <summary>
+    /// Desde cuántos Tenants la lista lleva buscador (contrato del selector,
+    /// decisión 7 ter): por debajo, el buscador es ruido.
+    /// </summary>
+    public const int UmbralBusqueda = 15;
+
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosComunes> Textos { get; set; } = default!;
     [Inject] private ILogger<ExcepcionDeCircuitoDesconectado> Logger { get; set; } = default!;
 
     private IReadOnlyList<ClienteAutorizadoDto>? _clientes;
-    private Guid _tenantIdActivo;
-    private string _returnUrl = "/";
+    private ClienteAutorizadoDto? _activo;
+    private ClienteAutorizadoDto? _origen;
+    private ElementReference _buscador;
+    private bool _enfocarBuscador;
+    private int _totalCartera;
     private AntiforgeryRequestToken? _token;
+    private bool _abierto;
+    private string _busqueda = string.Empty;
+
+    private string Busqueda
+    {
+        get => _busqueda;
+        set => _busqueda = value ?? string.Empty;
+    }
+
+    /// <summary>
+    /// La lista tal como se pinta: filtrada por el buscador sin distinguir
+    /// mayúsculas ni acentos. El buscador solo existe con
+    /// <see cref="UmbralBusqueda"/> Tenants o más; por debajo, su texto es siempre vacío.
+    /// </summary>
+    private IEnumerable<ClienteAutorizadoDto> Filtrados => string.IsNullOrWhiteSpace(_busqueda)
+        ? _clientes!.Where(c => !c.EsOrigen)
+        : _clientes!.Where(c => !c.EsOrigen && CultureInfo.CurrentCulture.CompareInfo.IndexOf(
+            c.Nombre, _busqueda.Trim(), CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0);
+
+    /// <summary>
+    /// Vuelve a la misma ruta SIN query: los filtros con Ids del Tenant anterior
+    /// (contrato del selector, § 4.2.4 e invariante I14) no sobreviven al cambio.
+    /// El endpoint usa LocalRedirect, así que un valor que no sea una ruta local
+    /// se rechaza allí. Se calcula al pintar y no al iniciar: el selector vive en
+    /// el layout y sobrevive a las navegaciones del circuito.
+    /// </summary>
+    private string RutaDeRetorno => new Uri(NavigationManager.Uri).AbsolutePath;
+
+    /// <summary>
+    /// Punto de enchufe del logo real (§ 4.1.5): el lote del logo lo rellena con
+    /// la URL versionada del endpoint. Hasta entonces, iniciales.
+    /// </summary>
+    private static string? UrlLogo(ClienteAutorizadoDto cliente) => null;
+
+    private string Empresas(int n) => n == 1
+        ? Textos["SelectorTenantEmpresasUna"].Value
+        : Textos["SelectorTenantEmpresasVarias", n].Value;
+
+    private void Alternar()
+    {
+        _abierto = !_abierto;
+        _busqueda = string.Empty;
+        _enfocarBuscador = _abierto && _totalCartera >= UmbralBusqueda;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_enfocarBuscador) return;
+
+        _enfocarBuscador = false;
+        try
+        {
+            await _buscador.FocusAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException or TaskCanceledException)
+        {
+            // Sin buscador en el DOM o circuito cerrado: el foco es una comodidad.
+        }
+    }
+
+    private void Cerrar()
+    {
+        _abierto = false;
+        _busqueda = string.Empty;
+    }
+
+    private void AlPulsarTecla(KeyboardEventArgs e)
+    {
+        if (_abierto && e.Key == "Escape")
+            Cerrar();
+    }
+
+    protected override void OnInitialized() => NavigationManager.LocationChanged += AlNavegar;
+
+    private void AlNavegar(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) =>
+        _ = InvokeAsync(() =>
+        {
+            _abierto = false;
+            StateHasChanged();
+        });
+
+    public void Dispose() => NavigationManager.LocationChanged -= AlNavegar;
 
     protected override async Task OnInitializedAsync()
     {
@@ -59,16 +156,9 @@ public partial class SelectorClienteActivo
             return;
         }
 
-        var activo = _clientes.FirstOrDefault(c => c.TenantId == ClienteActivoSeleccionado.TenantIdSeleccionado)
-            ?? _clientes.FirstOrDefault(c => c.EsOrigen);
-
-        if (activo is not null)
-            _tenantIdActivo = activo.TenantId;
-
-        // Volver a la página en la que está el usuario tras el cambio. El
-        // endpoint usa LocalRedirect, así que un valor manipulado que no sea
-        // una ruta local se rechaza allí.
-        _returnUrl = new Uri(NavigationManager.Uri).PathAndQuery;
+        _activo = ClientesAutorizados.Activo(_clientes, ClienteActivoSeleccionado.TenantIdSeleccionado);
+        _origen = _clientes.FirstOrDefault(c => c.EsOrigen);
+        _totalCartera = ClientesAutorizados.TotalCartera(_clientes);
 
         _token = AntiforgeryStateProvider.GetAntiforgeryToken();
     }

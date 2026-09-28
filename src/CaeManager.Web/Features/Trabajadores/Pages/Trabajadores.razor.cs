@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CaeManager.Application.Alertas;
+using CaeManager.Application.Common;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
@@ -13,6 +14,7 @@ using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
@@ -175,10 +177,31 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
 
     private record FiltrosTrabajadoresJson(string? Busqueda, string? EmpresaId, string? SubcontrataId);
 
+    /// <summary>
+    /// La empresa gestionada activa, solo para quien alcanza varias (mismo criterio
+    /// que el selector de la barra lateral): la cabecera dice de cuál es la lista.
+    /// </summary>
+    private ClienteAutorizadoDto? _empresaActiva;
+
+    /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
+    private bool _sinEmpresaSeleccionada;
+
+    [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
+
+        var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+        if (ClientesAutorizados.SelectorVisible(autorizados))
+        {
+            _empresaActiva = ClientesAutorizados.Activo(autorizados, ClienteActivoSeleccionado.TenantIdSeleccionado);
+            _sinEmpresaSeleccionada = ClientesAutorizados.SinEmpresaSeleccionada(autorizados, _empresaActiva);
+            // Sin empresa elegida no se piden los datos de la organización de origen.
+            if (_sinEmpresaSeleccionada)
+                return;
+        }
 
         _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
         _subcontratasDisponibles = await Mediator.Send(new ObtenerSubcontratasParaSelectorQuery());
