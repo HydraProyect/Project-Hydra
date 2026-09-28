@@ -14,9 +14,10 @@
      admite ninguno (consulta mínima de HO-099-01 § 8) y el propio mockup los
      marca como alcance nuevo. Exportar, además, sacaría datos de salud del
      sistema sin quedar auditado a su vez.
-   - «Documento» sigue siendo el identificador: el título es un dato nuevo de
-     la consulta, y el enlace al documento exigiría saber si quien mira puede
-     abrirlo — ver el rastro no implica poder abrir el documento.
+   - «Documento» es el nombre del Tipo de documento (DocumentoTitulo de la
+     consulta), sin enlace: abrirlo exigiría saber si quien mira puede —ver el
+     rastro no implica poder abrir el documento—. Si el documento ya no se puede
+     leer (dado de baja), cae al identificador, que sigue en el title.
    - Vive en Configuración › Auditoría (FS-26, 2026-09-26), como entrada que
      solo ve quien tiene el permiso granular; sin él, ni la entrada ni la ruta.
    - Cada afirmación de los dos avisos está comprobada en el código: el
@@ -111,7 +112,16 @@
                         <tr @key="acceso.Id" class="@ClaseFila(acceso.Id)">
                             <td class="accesos-sensibles-cuando">@Cuando(acceso.OcurridoEnUtc)</td>
                             <td><span class="@ClaseQuien(acceso.UsuarioId)">@NombreDe(acceso.UsuarioId)</span></td>
-                            <td><span class="accesos-sensibles-documento" translate="no" title="Identificador del documento">@acceso.DocumentoId</span></td>
+                            <td>
+                                @if (acceso.DocumentoTitulo is { } titulo)
+                                {
+                                    <span class="accesos-sensibles-documento-titulo" title="@acceso.DocumentoId">@titulo</span>
+                                }
+                                else
+                                {
+                                    <span class="accesos-sensibles-documento" translate="no" title="Documento dado de baja o no disponible">@acceso.DocumentoId</span>
+                                }
+                            </td>
                             <td><Badge Tono="TonoCategoria(acceso.Sensibilidad)" Tamano="TamanoBadge.Pequeno">@TextoCategoria(acceso.Sensibilidad)</Badge></td>
                             <td class="accesos-sensibles-tipo">@TextoTipoAcceso(acceso.TipoAcceso)</td>
                             <td><Badge Tono="TonoContexto(acceso)" Tamano="TamanoBadge.Pequeno">@TextoContexto(acceso)</Badge></td>
