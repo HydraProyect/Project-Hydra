@@ -1,4 +1,3 @@
-using CaeManager.Domain.Common;
 using Microsoft.Playwright;
 
 namespace CaeManager.E2ETests;
@@ -88,7 +87,7 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
 
         var modalAutorizar = page.Locator(".modal-contenido").Filter(new LocatorFilterOptions { HasText = "Autorizar la destrucción" });
         await modalAutorizar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        await modalAutorizar.GetByLabel("Fecha de ejecución").FillAsync(DiaDeNegocio.Hoy().ToString("yyyy-MM-dd"));
+        await modalAutorizar.GetByLabel("Fecha de ejecución").FillAsync(Ayudas.HoyDeNegocio().ToString("yyyy-MM-dd"));
         await modalAutorizar.Locator(".modal-pie").GetByText("Autorizar").ClickAsync();
         await modalAutorizar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
