@@ -32,6 +32,10 @@
     Estilos solo en wwwroot/css/list-page.css (sin CSS aislado: una regla
     aislada gana a la global y reabriría la deriva que este componente cierra).
 *@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
 <section class="barra-filtros-lista" aria-label="@EtiquetaRegion">
     <div class="barra-filtros-lista-fila">
         <div class="barra-filtros-lista-buscador">
@@ -40,8 +44,8 @@
         @Filtros
         @if (FiltrosGuardados.Count > 0)
         {
-            <CampoSelect Etiqueta="Filtros guardados" Valor="" ValorChanged="OnAplicarFiltroGuardado">
-                <option value="">Elegir…</option>
+            <CampoSelect Etiqueta="@Comunes["FiltrosGuardados"]" Valor="" ValorChanged="OnAplicarFiltroGuardado">
+                <option value="">@Comunes["FiltroGuardadoElegir"]</option>
                 @foreach (var filtro in FiltrosGuardados)
                 {
                     <option value="@filtro.Valor">@filtro.Texto</option>
@@ -56,11 +60,11 @@
             <div class="chips-filtros barra-filtros-lista-chips">
                 <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
                 @Chips
-                <button type="button" class="limpiar-filtros-barra" @onclick="OnLimpiarTodo">Limpiar todo</button>
+                <button type="button" class="limpiar-filtros-barra" @onclick="OnLimpiarTodo">@Comunes["LimpiarTodo"]</button>
             </div>
             @if (OnGuardarFiltro.HasDelegate)
             {
-                <button type="button" class="guardar-filtro-barra" @onclick="OnGuardarFiltro">Guardar filtro</button>
+                <button type="button" class="guardar-filtro-barra" @onclick="OnGuardarFiltro">@Comunes["GuardarFiltro"]</button>
             }
         </div>
     }

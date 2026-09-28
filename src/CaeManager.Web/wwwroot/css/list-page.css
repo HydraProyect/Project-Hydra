@@ -97,7 +97,8 @@
     gap: var(--space-3);
 }
 
-.barra-filtros-lista-chips {
+/* Doble clase: .chips-filtros (más abajo, misma especificidad) fija margin-bottom y ganaría por orden. */
+.chips-filtros.barra-filtros-lista-chips {
     align-items: center;
     margin-bottom: 0;
 }

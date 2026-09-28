@@ -409,6 +409,8 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
 
     private Task QuitarFiltroEstadoDocumentalAsync() => CambiarEstadoDocumentalFiltroAsync(string.Empty);
 
+    private string EtiquetaFiltroBusqueda => "Búsqueda: \"" + _busqueda + "\"";
+
     private string EtiquetaFiltroEjecutivo =>
         "Gestor CAE: " + (_ejecutivosParaFiltro.FirstOrDefault(g => g.Id.ToString() == _ejecutivoFiltro)?.NombreCompleto ?? "—");
 

@@ -3,6 +3,7 @@ using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
@@ -17,6 +18,10 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class BarraFiltrosTests : BunitContext
 {
+    // BarraFiltros pinta «Filtros guardados», «Limpiar todo» y «Guardar filtro» con
+    // IStringLocalizer<TextosComunes>.
+    public BarraFiltrosTests() => Services.AddLocalization();
+
     private IRenderedComponent<BarraFiltros> RenderizarConDosSelects(Action<ComponentParameterCollectionBuilder<BarraFiltros>>? ajustes = null) =>
         Render<BarraFiltros>(p =>
         {

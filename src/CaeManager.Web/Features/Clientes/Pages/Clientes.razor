@@ -108,7 +108,7 @@
         <Chips>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
-                <ChipFiltro Etiqueta="@($"Búsqueda: \"{_busqueda}\"")" EtiquetaAccesible="Quitar filtro de búsqueda" OnQuitar="QuitarFiltroBusquedaAsync" />
+                <ChipFiltro Etiqueta="@EtiquetaFiltroBusqueda" EtiquetaAccesible="Quitar filtro de búsqueda" OnQuitar="QuitarFiltroBusquedaAsync" />
             }
             @if (_soloCriticos)
             {
