@@ -192,7 +192,8 @@ public class IdentificadoresDeEntidadUuidV7Tests
         var despues = DateTimeOffset.UtcNow;
 
         id.Version.Should().Be(7);
-        (id.Variant & 0b1100).Should().Be(0b1000, "la variante RFC 9562 son los bits 10xx del nibble alto");
+        (id.ToByteArray(bigEndian: true)[8] & 0xC0).Should().Be(0x80,
+            "la variante RFC 9562 son los dos bits altos del octeto 8 a 10");
         var marca = MarcaDeTiempoV7(id);
         marca.Should().BeOnOrAfter(antes.AddMilliseconds(-1)).And.BeOnOrBefore(despues.AddMilliseconds(1));
     }
