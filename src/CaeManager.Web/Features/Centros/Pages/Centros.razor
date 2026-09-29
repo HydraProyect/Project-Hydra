@@ -1,6 +1,7 @@
 @page "/centros"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
+@implements IDisposable
 @attribute [Authorize]
 @using CaeManager.Application.Centros.Commands.CrearCentro
 @using CaeManager.Application.Centros.Commands.EditarCentro
@@ -33,7 +34,11 @@
     @* Mockup «Selector Empresa Gestionada» (lienzo 2): con varias empresas gestionadas, la lista dice de
        cuál es. El selector de la barra lateral cambia de empresa y recarga esta misma ruta sin query
        (I14: ningún Id de enlace profundo ni filtro sobrevive). *@
-    <CabeceraEmpresaActiva Empresa="_empresaActiva" />
+    @if (!_sinEmpresaSeleccionada)
+    {
+        @* En el estado 4a no hay empresa activa que nombrar: la cabecera de empresa no se pinta. *@
+        <CabeceraEmpresaActiva Empresa="_empresaActiva" />
+    }
 
     @*
         Pieza 1 del patrón de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3):

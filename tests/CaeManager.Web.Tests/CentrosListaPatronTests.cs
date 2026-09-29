@@ -52,9 +52,14 @@ public class CentrosListaPatronTests : BunitContext
         /// <summary>Si se fija, la respuesta de la lista de Tenants autorizados espera a esta tarea (mediador asíncrono).</summary>
         public Task? RetenerAutorizados { get; set; }
 
+        /// <summary>El token con el que la página pidió la lista de Tenants autorizados.</summary>
+        public CancellationToken? TokenDeAutorizados { get; private set; }
+
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            if (request is ObtenerClientesAutorizadosQuery)
+                TokenDeAutorizados = cancellationToken;
             if (request is ObtenerClientesAutorizadosQuery && RetenerAutorizados is { } espera)
                 await espera;
 
@@ -164,10 +169,28 @@ public class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("en el estado 4a no hay empresa activa que nombrar");
         cut.FindAll(".barra-filtros-lista").Should().BeEmpty();
         cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría los datos del origen");
         cut.Markup.Should().NotContain("+ Nuevo centro").And.NotContain("Centro del origen");
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().BeEmpty("no se piden los centros de la organización de origen");
+    }
+
+    [Fact]
+    public async Task Retirar_la_pagina_cancela_la_resolucion_de_la_empresa_activa()
+    {
+        var puerta = new TaskCompletionSource();
+        var mediador = ConCartera(origenGestionado: false, Centro("Centro Sur"));
+        mediador.RetenerAutorizados = puerta.Task;
+        var cut = Renderizar(mediador, tenantSeleccionado: EmpresaSur);
+
+        mediador.TokenDeAutorizados.Should().NotBeNull("la resolución se pidió con el token del ciclo de vida");
+        mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeFalse("la página sigue montada");
+
+        await DisposeComponentsAsync();
+
+        mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeTrue("al retirar la página nadie espera la respuesta");
+        puerta.SetResult();
     }
 
     [Fact]

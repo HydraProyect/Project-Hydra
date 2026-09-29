@@ -164,6 +164,25 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>La empresa activa aún no se ha resuelto: se pinta una carga en vez de la lista.</summary>
     private bool _resolviendoEmpresa = true;
 
+    /// <summary>
+    /// Ciclo de vida de la página: se cancela al retirarla, para que la resolución de la empresa activa
+    /// no trabaje para nadie ni repinte un componente ya desechado. Su <c>Token</c> se lee SIEMPRE antes
+    /// del primer <c>await</c> (leerlo después, con un <see cref="Dispose"/> intermedio, lanzaría
+    /// <see cref="ObjectDisposedException"/> donde nadie lo recoge).
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
     // Reutilizan las mismas reglas que ya corren en el servidor al guardar
     // (misma validación, sin duplicarla) — solo se les pide que validen un
     // único campo, no el Command completo, porque el resto del formulario
@@ -194,9 +213,10 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     {
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga (y la exportación) del origen.
+        var token = _ciclo.Token;
         try
         {
-            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual);
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, token);
             _empresaActiva = contexto.Activa;
             _sinEmpresaSeleccionada = contexto.SinSeleccion;
         }
