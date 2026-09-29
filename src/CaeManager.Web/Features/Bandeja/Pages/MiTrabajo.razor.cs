@@ -224,6 +224,9 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         _idEnfocado = fila.Item.Id;
     }
 
+    /// <summary>Cierra el detalle: sin tarea abierta el panel no se pinta y la cola recupera su ancho.</summary>
+    private void CerrarDetalle() => _idAbierto = null;
+
     /// <summary>j/k recorren las filas en orden de pantalla; Enter abre el detalle (mockup: «↵ abrir»). La acción en sí exige el botón, que hace el POST cross-Tenant.</summary>
     private Task ManejarAtajoAsync(string tecla)
     {
