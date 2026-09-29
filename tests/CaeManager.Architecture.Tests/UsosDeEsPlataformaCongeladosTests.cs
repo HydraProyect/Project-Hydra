@@ -657,6 +657,7 @@ public class UsosDeEsPlataformaCongeladosTests
         "PuedeActuarComoOperadorCaeExterno",
         "Reactivar",
         "RenombrarA",
+        "RestaurarLogo",
         "RetirarLogo",
         "StripeCustomerId",
         "StripeSubscriptionId",
