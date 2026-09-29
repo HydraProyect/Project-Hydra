@@ -24,20 +24,40 @@
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
+    @* Mockup «Selector Empresa Gestionada» (lienzo 2): con varias empresas gestionadas, la lista dice de
+       cuál es. El selector de la barra lateral cambia de empresa y recarga esta misma ruta sin query. *@
+    <CabeceraEmpresaActiva Empresa="_empresaActiva" />
+
     @* Cabecera Gen 2 (Subcontratas TALVEG.dc.html): el kicker es el grupo del
        menú al que pertenece la pantalla, y el alta sube a la cabecera junto a
        Exportar — antes vivía en la barra de trabajo, mezclada con los
        controles que actúan sobre la lista. *@
     <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["KickerNegocio"]">
         <Acciones>
-            <a class="enlace-exportar" href="/subcontratas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceExportarExcel"]</a>
-            @if (!_alcanceCero)
+            @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
+            {
+                <a class="enlace-exportar" href="/subcontratas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceExportarExcel"]</a>
+            }
+            @if (!_alcanceCero && !_sinEmpresaSeleccionada && !_resolviendoEmpresa)
             {
                 <SoloConEscritura><Boton OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
             }
         </Acciones>
     </CabeceraPagina>
 
+    @if (_resolviendoEmpresa)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_sinEmpresaSeleccionada)
+    {
+        @* Estado 4a del mockup: quien gestiona empresas externas y no tiene ninguna elegida no ve las
+           subcontratas de su organización presentadas como si fueran de su cartera. *@
+        <EstadoVacio NombreIcono="empresas" Titulo="@Textos["SinEmpresaTitulo"]"
+                     Descripcion="@Textos["SinEmpresaDescripcion"]" />
+    }
+    else
+    {
     @* El mockup dibuja además un desplegable «Nivel de servicio» y lo marca él
        mismo como PROPUESTA: ObtenerSubcontratasQuery no acepta ese filtro.
        Pintarlo sin el parámetro sería un control que no filtra nada, así que
@@ -271,6 +291,7 @@
         <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                           Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
                           TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+    }
     }
 </div>
 
