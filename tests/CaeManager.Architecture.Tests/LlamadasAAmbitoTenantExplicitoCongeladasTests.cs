@@ -143,6 +143,14 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// </para>
     ///
     /// <para>
+    /// Actualizado 2026-09-28 («Asignar empresas» a un Gestor CAE que ya existe):
+    /// <c>AsignarCarteraGestorCaeCommand.cs</c> entra con 1 llamada y
+    /// <c>AutoridadSobreCarteraDeGestorCae.cs</c> con 1, cuyo Guid sale del
+    /// Tenant de origen del propio usuario o de las listas del catálogo del
+    /// Operador CAE, nunca de la petición.
+    /// </para>
+    ///
+    /// <para>
     /// Actualizado 2026-09-28 (cartera en el alta de un Gestor CAE):
     /// <c>CrearUsuarioCommand.cs</c> entra con 1 llamada, sobre cada Tenant
     /// beneficiario que el catálogo de incorporación a cartera da por asignable
@@ -253,6 +261,15 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.DelegacionOClienteYaValidado, "solicitud.PropietarioTenantId, tras cargar la solicitud filtrada por el Operador CAE de origen y autorizar al Coordinador CAE o al propio Gestor CAE solicitante"),
         ["src/CaeManager.Application/Usuarios/Commands/CrearUsuario/CrearUsuarioCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "operacion.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerAsignablesAsync del Operador CAE de origen de quien da el alta, tras autorizarlo por AutoridadSobreCuentas; nunca el Guid que envía la página"),
+        ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AsignarCarteraGestorCaeCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "propietarioTenantId de cada empresa a asignar (de ICatalogoIncorporacionCartera.ObtenerAsignablesAsync) o a retirar (de ObtenerCarteraUniversalAsync del propio Gestor CAE), ambos del Operador CAE de origen tras AutoridadSobreCarteraDeGestorCae, que además se repite dentro del candado. Nunca un Guid de la página"),
+        ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AutoridadSobreCarteraDeGestorCae.cs"] =
+            new(Categoria.TenantDeOrigenDelUsuario,
+                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y la cuenta del Gestor CAE en la propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
+        ["src/CaeManager.Application/Usuarios/Queries/ObtenerEquipoDeCoordinador/ObtenerEquipoDeCoordinadorQuery.cs"] =
+            new(Categoria.TenantDeOrigenDelUsuario,
+                "ObtenerTenantOrigenIdAsync() del propio Coordinador CAE, para leer su rol en Identity y la lista de su equipo en la propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActividadSoporteQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, en OR con la vía del cliente visitado (ver UsosDeEsPlataformaCongeladosTests)"),
 

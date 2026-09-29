@@ -13,8 +13,10 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 /// Un Coordinador CAE acepta la solicitud de un Gestor CAE de su mismo
 /// Operador CAE. Crea la Asignación de Cartera: universal, con rol Gestor CAE
 /// y sin caducidad, sumada a las que ya hubiera sobre la misma operación. La
-/// otra vía que crea esa misma cartera, con la misma escritura del catálogo,
-/// es el alta del Gestor CAE con su cartera ya elegida (<c>CrearUsuarioCommand</c>).
+/// otras vías que crean esa misma cartera, con la misma escritura del catálogo,
+/// son el alta del Gestor CAE con su cartera ya elegida (<c>CrearUsuarioCommand</c>) y
+/// «Asignar empresas» a un Gestor CAE que ya existe (<c>AsignarCarteraGestorCaeCommand</c>,
+/// que también la retira).
 /// </summary>
 public record AceptarSolicitudIncorporacionCarteraCommand(Guid SolicitudId) : ICommand;
 

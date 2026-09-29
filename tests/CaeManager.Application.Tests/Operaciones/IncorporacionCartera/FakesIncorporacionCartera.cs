@@ -173,6 +173,29 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
         return Task.FromResult(new ResultadoIncorporacionCartera(cartera, Guid.NewGuid(), null));
     }
 
+    /// <summary>Los Tenants que cada Gestor CAE tiene enteros, por Operador CAE.</summary>
+    public List<(Guid OperadorTenantId, Guid UsuarioId, TenantEnCarteraDeGestor Tenant)> CarterasUniversales { get; } = [];
+
+    /// <summary>Cada retirada sin solicitud, con el Tenant activo con que se pidió.</summary>
+    public List<(Guid PropietarioTenantId, Guid OperadorTenantId, Guid UsuarioId, Guid ActorUsuarioId, Guid? TenantActivo)> Retiradas { get; } = [];
+
+    public Task<IReadOnlyList<TenantEnCarteraDeGestor>> ObtenerCarteraUniversalAsync(
+        Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<TenantEnCarteraDeGestor>>(CarterasUniversales
+            .Where(c => c.OperadorTenantId == operadorTenantId && c.UsuarioId == usuarioId)
+            .Select(c => c.Tenant)
+            .ToList());
+
+    public Task<bool> RetirarCarteraUniversalAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, Guid usuarioId, Guid actorUsuarioId,
+        CancellationToken cancellationToken = default)
+    {
+        Retiradas.Add((propietarioTenantId, operadorTenantId, usuarioId, actorUsuarioId, AmbitoTenantExplicito.TenantIdActual));
+        return Task.FromResult(CarterasUniversales.RemoveAll(c =>
+            c.OperadorTenantId == operadorTenantId && c.UsuarioId == usuarioId
+            && c.Tenant.PropietarioTenantId == propietarioTenantId) > 0);
+    }
+
     public Task RetirarAsync(SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default)
     {
         TenantsAlRetirar.Add(AmbitoTenantExplicito.TenantIdActual);
