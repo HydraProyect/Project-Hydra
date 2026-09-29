@@ -216,14 +216,14 @@ public class OrdenMenuLateralTests : BunitContext
     public void Con_orden_guardado_lo_reconcilia_y_marca_lo_que_el_orden_no_conocia()
     {
         var guardados = GruposPorDefecto.Where(g => g != "plataforma").Reverse().ToList();
-        _mediador.Orden = new OrdenMenuLateralDto(guardados, ["alertas", "mi-trabajo", "no-existe"], Guid.NewGuid(), ActorPlataformaId, GuardadoEnUtc);
+        _mediador.Orden = new OrdenMenuLateralDto(guardados, ["alertas", "calendario", "no-existe"], Guid.NewGuid(), ActorPlataformaId, GuardadoEnUtc);
 
         var cut = Renderizar();
 
         GruposEnPantalla(cut).Should().Equal([.. guardados, "plataforma"], "lo nuevo va al final de su lista");
         cut.Find(Fila(TipoDeFila.Grupo, "", "plataforma")).QuerySelector("[data-nuevo]").Should().NotBeNull();
         cut.Find(Fila(TipoDeFila.Grupo, "", "control")).QuerySelector("[data-nuevo]").Should().BeNull();
-        EnlacesEnPantalla(cut, "control").Take(2).Should().Equal(["alertas", "mi-trabajo"]);
+        EnlacesEnPantalla(cut, "control").Take(2).Should().Equal(["alertas", "calendario"]);
         cut.Find(Fila(TipoDeFila.Enlace, "control", "facturacion")).QuerySelector("[data-nuevo]").Should().NotBeNull();
         cut.Find(Fila(TipoDeFila.Grupo, "", "control")).QuerySelector("[data-nace-plegado]").Should().NotBeNull(
             "«Control» nace plegado en el catálogo");

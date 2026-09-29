@@ -49,7 +49,7 @@ public sealed record GrupoMenuLateral(
     bool AbiertoPorDefecto,
     Func<ContextoMenuLateral, bool> Visible);
 
-/// <summary>Un enlace del menú lateral. Pertenece a un único grupo y no puede cambiar de grupo.</summary>
+/// <summary>Un enlace del menú lateral. Pertenece a un único grupo, el que fija el catálogo: un orden guardado no puede cambiarlo.</summary>
 /// <param name="Id">Identificador estable, clave del orden guardado; no cambia aunque cambie la ruta o el rótulo.</param>
 /// <param name="Condicion">Restricción propia además de la del grupo; null si basta con ver el grupo.</param>
 /// <param name="CoincidenciaExacta">NavLinkMatch.All en vez de prefijo (el Dashboard, cuya ruta vacía casaría con todo).</param>
@@ -112,15 +112,18 @@ public static class CatalogoMenuLateral
         // de consolidación de menú, 2026-09-01 § 6) deja esa pregunta de producto abierta.
         new("dashboards", "Dashboards", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 
-        // Orden por DDL-073 (Project-Hydra-Negocio/tecnico/03_INFORMATION_ARCHITECTURE.md § 3.2): Negocio sigue la cadena de
-        // titularidad, de lo mío a lo ajeno, con Documentos al final por ser la vista transversal.
+        // Reparto y orden por mandato explícito del propietario (2026-09-29), que sustituye al de
+        // DDL-073 (cadena de titularidad, Documentos al final). Negocio: Empresas, Trabajadores,
+        // Documentos, Clientes, Centros, Vehículos, Proyectos y Subcontratas, en ese orden.
         new("negocio", "Negocio", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 
-        // Orden por DDL-073: Operación sigue la frecuencia de uso diario.
+        // Mismo mandato. Operación: Mi trabajo, Comunicaciones, Gestiones, Visitas e Incidencias, en
+        // ese orden; Vehículos y Proyectos pasaron a Negocio y Mi trabajo llegó desde Control.
         new("operacion", "Operación", AbiertoPorDefecto: true, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 
-        // Colapsado por defecto (informe de consolidación de menú, 2026-09-01 § 6): Control es, por
-        // el propio orden de DDL-073, el grupo de uso más esporádico frente a Negocio/Operación.
+        // Colapsado por defecto (informe de consolidación de menú, 2026-09-01 § 6): Control: Alertas,
+        // Facturación, Calendario y Reportes, y por el mandato del propietario del 2026-09-29
+        // cierra con Conectar extensión (Mi trabajo salió a Operación).
         new("control", "Control", AbiertoPorDefecto: false, c => c.TieneAlgunRol(RolesConMenuCompleto)),
 
         // Un único grupo visual para dos audiencias: DireccionCae solo ve Usuarios; solo
@@ -161,34 +164,35 @@ public static class CatalogoMenuLateral
         // usan los títulos de página; aquí solo se consume como RotulosPrimeraPersona.
         new("empresas", "negocio", "empresas", "empresas", "Empresas",
             RotuloPorContexto: c => c.RotulosPrimeraPersona ? "Mi empresa" : "Empresas"),
-        new("subcontratas", "negocio", "subcontratas", "subcontratas", "Subcontratas"),
         new("trabajadores", "negocio", "trabajadores", "trabajadores", "Trabajadores",
             RotuloPorContexto: c => c.RotulosPrimeraPersona ? "Mis trabajadores" : "Trabajadores"),
-        new("clientes", "negocio", "clientes", "clientes", "Clientes"),
-        new("centros", "negocio", "centros", "centros", "Centros"),
         // Revisión IA, Documentos generados y Plantillas no tienen enlace propio: viven como
         // pestañas de Documentos (REC-062, DEC-28, DDL-080). Sus rutas siguen funcionando para
         // enlaces guardados y notificaciones.
         new("documentos", "negocio", "documentos", "documentos", "Documentos"),
-        new("conectar-extension", "negocio", "cuenta/extension", "plataforma", "Conectar extensión"),
+        new("clientes", "negocio", "clientes", "clientes", "Clientes"),
+        new("centros", "negocio", "centros", "centros", "Centros"),
+        // Vehículos y Proyectos son de Negocio por mandato del propietario del 2026-09-29.
+        // "Vehículos" y no "Vehículos y Maquinaria": Maquinaria es un tramo bloqueado
+        // (2.4, pendiente de ADR-006) y un enlace no se adelanta a una entidad que no existe.
+        new("vehiculos", "negocio", "vehiculos", "vehiculos", "Vehículos"),
+        new("proyectos", "negocio", "proyectos", "proyectos", "Proyectos"),
+        new("subcontratas", "negocio", "subcontratas", "subcontratas", "Subcontratas"),
 
+        // "Mi trabajo" y no "Bandeja": "bandeja" en español significa inbox de correo. Con más de
+        // un Tenant autorizado (mismo criterio que el selector de Tenant de la cabecera) es la cola
+        // agregada de toda la cartera (/mi-trabajo); con uno solo, /bandeja. Abre Operación por
+        // mandato del propietario del 2026-09-29.
+        new("mi-trabajo", "operacion", "bandeja", "alertas", "Mi trabajo",
+            RutaPorContexto: c => c.VariosTenants ? "mi-trabajo" : "bandeja"),
         // Comunicaciones es la excepción explícita a "solo lo que ya funciona": se oculta con
         // Comunicaciones:Activo porque no hay ingesta real detrás (ver ComunicacionesOptions).
         new("comunicaciones", "operacion", "comunicaciones", "chat", "Comunicaciones",
             Condicion: c => c.ComunicacionesActivo),
         new("gestiones", "operacion", "gestiones", "evaluaciones", "Gestiones"),
-        new("incidencias", "operacion", "incidencias", "incidencias", "Incidencias"),
         new("visitas", "operacion", "visitas", "visitas", "Visitas"),
-        // "Vehículos" y no "Vehículos y Maquinaria": Maquinaria es un tramo bloqueado (2.4,
-        // pendiente de ADR-006) y un enlace no se adelanta a una entidad que no existe.
-        new("vehiculos", "operacion", "vehiculos", "vehiculos", "Vehículos"),
-        new("proyectos", "operacion", "proyectos", "proyectos", "Proyectos"),
+        new("incidencias", "operacion", "incidencias", "incidencias", "Incidencias"),
 
-        // "Mi trabajo" y no "Bandeja": "bandeja" en español significa inbox de correo. Con más de
-        // un Tenant autorizado (mismo criterio que el selector de Tenant de la cabecera) es la cola
-        // agregada de toda la cartera (/mi-trabajo); con uno solo, /bandeja.
-        new("mi-trabajo", "control", "bandeja", "alertas", "Mi trabajo",
-            RutaPorContexto: c => c.VariosTenants ? "mi-trabajo" : "bandeja"),
         // Alertas NO es una segunda cola de "qué hacer ahora": desde DEC-4 es la vista agregada de
         // documentación a reclamar, que conserva a propósito EstadoDocumento.Proximo.
         new("alertas", "control", "alertas", "alertas", "Alertas"),
@@ -196,6 +200,8 @@ public static class CatalogoMenuLateral
             Condicion: c => c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
         new("calendario", "control", "calendario", "calendario", "Calendario"),
         new("reportes", "control", "reportes", "reportes", "Reportes"),
+        // Cierra Control por mandato del propietario del 2026-09-29.
+        new("conectar-extension", "control", "cuenta/extension", "plataforma", "Conectar extensión"),
 
         // Roles, Claves API, Conexiones, Retención, Tipos de documento, Auditoría e Importación
         // viven como paneles de Configuración (DDL-078), su único punto de entrada. Usuarios se
