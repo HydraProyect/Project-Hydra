@@ -1,40 +1,110 @@
 @inherits CaeManager.Web.Components.IsloteInteractivo
+@implements IDisposable
+@using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
 @*
-    Project-Hydra-Negocio/tecnico/ADR-004-delegacion-consultoras-cae.md § 6 y § 12.1: solo se muestra
-    cuando el usuario tiene más de un cliente autorizado (Operador Delegado
-    de al menos una Consultora) — para cualquier otro usuario, cero cambio
-    de UX. Nunca se usa la palabra "tenant" de cara al usuario.
+    Mockup «Selector Empresa Gestionada TALVEG» y contrato del selector de Tenant
+    beneficiario (decisiones 1, 7 bis y 7 ter): vive en la cabecera de la barra
+    lateral, bajo la marca, y solo se pinta si el usuario alcanza varios Tenants
+    beneficiarios (ClientesAutorizados.SelectorVisible). Para cualquier otro
+    usuario, cero cambio de UX. Nunca se usa la palabra «tenant» de cara al
+    usuario: es la «empresa gestionada».
 
-    Es un <form> HTML corriente que hace POST, no un @onchange de Blazor:
-    cambiar de workspace escribe una cookie en el servidor y necesita token
-    antiforgery (hallazgo M-8). De paso deja de depender de que el circuito
-    de Blazor esté interactivo — el submit lo hace el navegador, sin viaje
-    por SignalR.
+    La selección es una coordenada de contexto, no una autoridad: cada opción es
+    un botón de envío de un <form> HTML corriente que hace POST a
+    /cuenta/cliente-activo (recarga completa en la empresa elegida), no un
+    @onchange de Blazor. Cambiar de Tenant escribe una cookie en el servidor y
+    necesita token antiforgery (hallazgo M-8); el endpoint revalida la Asignación
+    de Cartera y la de Operación en ese momento. Lo único interactivo (desplegar,
+    buscar) es estado de pantalla: abrir la lista no autoriza nada. Las flechas
+    ↑/↓ mueven el foco entre opciones con el listener delegado de
+    microinteracciones.js (data-selector-tenant), porque la CSP no admite scripts
+    en línea.
 *@
 <LimiteDeErrores Islote="this">
-@if (_clientes is { Count: > 1 })
+@if (_activo is not null && ClientesAutorizados.SelectorVisible(_clientes!, _activo))
 {
-    <form method="post" action="/cuenta/cliente-activo">
-        @if (_token is not null)
+    <div class="selector-tenant" data-selector-tenant @onkeydown="AlPulsarTecla">
+        <button type="button" class="selector-tenant-disparador @(_abierto ? "selector-tenant-disparador-abierto" : null)"
+                aria-haspopup="listbox" aria-expanded="@(_abierto ? "true" : "false")"
+                aria-label="@Textos["SelectorTenantEtiqueta"]: @_activo.Nombre"
+                data-tenant-id="@_activo.TenantId" @onclick="Alternar">
+            <AvatarTenant Nombre="@_activo.Nombre" LogoUrl="@UrlLogo(_activo)" Tamano="TamanoAvatarTenant.Pequeno" />
+            <span class="selector-tenant-texto">
+                <span class="selector-tenant-sub">@Textos["SelectorTenantRotulo"]</span>
+                <span class="selector-tenant-nombre" title="@_activo.Nombre">@_activo.Nombre</span>
+            </span>
+            <span class="selector-tenant-chevron @(_abierto ? "selector-tenant-chevron-abierto" : null)" aria-hidden="true">
+                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+            </span>
+        </button>
+
+        @if (_abierto)
         {
-            <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+            <button type="button" class="selector-tenant-velo" tabindex="-1" aria-hidden="true" @onclick="Cerrar"></button>
+            <div class="selector-tenant-panel">
+                <div class="selector-tenant-cabecera">@Textos["SelectorTenantCartera", Empresas(_totalCartera)]</div>
+
+                @if (_totalCartera >= UmbralBusqueda)
+                {
+                    @* Fuera del <form>: Intro en el buscador no debe enviar un POST sin Tenant. *@
+                    <input type="search" class="selector-tenant-busqueda" placeholder="@Textos["SelectorTenantBuscar"]"
+                           aria-label="@Textos["SelectorTenantBuscar"]" @ref="_buscador"
+                           @bind="Busqueda" @bind:event="oninput" />
+                }
+
+                <form method="post" action="/cuenta/cliente-activo">
+                    @if (_token is not null)
+                    {
+                        <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+                    }
+                    <input type="hidden" name="returnUrl" value="@RutaDeRetorno" />
+
+                    <div role="listbox" aria-label="@Textos["SelectorTenantLista"]" aria-orientation="vertical" class="selector-tenant-lista">
+                        @foreach (var cliente in Filtrados)
+                        {
+                            @Opcion(cliente, false)
+                        }
+                    </div>
+
+                    @if (!Filtrados.Any())
+                    {
+                        <p class="selector-tenant-vacio" role="status">@Textos["SelectorTenantSinResultados"]</p>
+                    }
+
+                    @* «Tu organización» queda fija bajo la lista, separada de la cartera. *@
+                    @if (_origen is not null)
+                    {
+                        <div class="selector-tenant-separador"></div>
+                        <div role="listbox" aria-label="@Textos["SelectorTenantOrigen"]">
+                            @Opcion(_origen, true)
+                        </div>
+                    }
+                </form>
+            </div>
         }
-        <input type="hidden" name="returnUrl" value="@_returnUrl" />
-
-        @* El envío lo dispara el listener delegado de microinteracciones.js:
-           la CSP (UseCabecerasSeguridad) no admite 'unsafe-inline' en
-           script-src, así que el onchange="…" que había aquí ya no correría. *@
-        <select class="selector-cliente-activo" name="tenantId"
-                data-enviar-al-cambiar aria-label="Contexto operativo actual">
-            @foreach (var cliente in _clientes)
-            {
-                <option value="@cliente.TenantId" selected="@(cliente.TenantId == _tenantIdActivo)">@cliente.Nombre</option>
-            }
-        </select>
-
-        @* Sin JS el <select> no se autoenvía: este botón mantiene el selector
-           utilizable en ese caso. Oculto cuando hay JS, que es lo normal. *@
-        <noscript><button type="submit">Cambiar</button></noscript>
-    </form>
+    </div>
 }
 </LimiteDeErrores>
+
+@code {
+    private RenderFragment Opcion(ClienteAutorizadoDto cliente, bool esOrigen) => __builder =>
+    {
+        var esActivo = cliente.TenantId == _activo!.TenantId;
+        <button type="submit" name="tenantId" value="@cliente.TenantId" role="option" aria-selected="@(esActivo ? "true" : "false")"
+                class="selector-tenant-fila @(esActivo ? "selector-tenant-fila-activa" : null)"
+                title="@cliente.Nombre" aria-label="@cliente.Nombre">
+            <AvatarTenant Nombre="@cliente.Nombre" LogoUrl="@UrlLogo(cliente)" Tamano="TamanoAvatarTenant.Pequeno" />
+            <span class="selector-tenant-texto">
+                <span class="selector-tenant-nombre">@cliente.Nombre</span>
+                @if (esOrigen)
+                {
+                    <span class="selector-tenant-sub">@Textos["SelectorTenantOrigen"]</span>
+                }
+            </span>
+            @if (esActivo)
+            {
+                <span class="selector-tenant-marca" aria-hidden="true"><Icono Nombre="check" Tamano="TamanoIcono.Pequeno" /></span>
+            }
+        </button>
+    };
+}

@@ -392,7 +392,11 @@ public class TerminologiaCanonicaTests
         ["Hydra"] = 39,
         ["EjecutivoUsuarioId"] = 43,
         ["Delegacion"] = 337,
-        ["ClienteActivo"] = 71,
+        // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
+        // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
+        // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un
+        // incremento propio (§ 5 del contrato de terminología).
+        ["ClienteActivo"] = 72,
     };
 
     [Theory]

@@ -17,8 +17,19 @@ internal static class RecorridoFichas360
 
     public static async Task ComprobarQueElTenantSigueActivoAsync(IPage page, string tenantEsperado, string dondeEstamos)
     {
-        await Expect(page.Locator(".selector-cliente-activo"))
-            .ToHaveValueAsync(tenantEsperado, new() { Timeout = 15_000 });
+        if (await Ayudas.DisparadorSelectorTenant(page).CountAsync() > 0)
+        {
+            await Expect(Ayudas.DisparadorSelectorTenant(page))
+                .ToHaveAttributeAsync("data-tenant-id", tenantEsperado, new() { Timeout = 15_000 });
+        }
+        else
+        {
+            // Con un único Tenant en su cartera el selector está oculto (decisión 1 del contrato del
+            // selector): lo observable es que la cookie de selección sigue puesta, que es justo lo que
+            // el aviso de fin de acceso retiraría (se comprueba abajo).
+            var cookies = await page.Context.CookiesAsync();
+            Assert.Contains(cookies, c => c.Name == "cae_cliente_activo");
+        }
         Assert.True(
             await page.Locator(".aviso-fin-de-acceso, .aviso-ventana-soporte").CountAsync() == 0,
             $"En {dondeEstamos} ({page.Url}) se pintó un aviso de fin de acceso: la selección del Tenant beneficiario se retiró.");

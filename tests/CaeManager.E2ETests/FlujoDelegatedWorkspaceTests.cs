@@ -25,12 +25,12 @@ public class FlujoDelegatedWorkspaceTests(WebAppFixture fixture)
         // El Administrador de ArcoSPA arranca en su tenant de origen (la
         // Consultora, ADR-004 § 5.1) — el <select> lo refleja como
         // seleccionado por defecto.
-        var origenId = await page.Locator(".selector-cliente-activo").InputValueAsync();
+        var origenId = await Ayudas.TenantActivoIdAsync(page);
         Assert.False(string.IsNullOrWhiteSpace(origenId));
 
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
 
-        var idDelegado = await page.Locator(".selector-cliente-activo").InputValueAsync();
+        var idDelegado = await Ayudas.TenantActivoIdAsync(page);
         Assert.NotEqual(origenId, idDelegado);
 
         // Locator en vez de EvalOnSelectorAsync a propósito: el <select> acaba
@@ -39,7 +39,7 @@ public class FlujoDelegatedWorkspaceTests(WebAppFixture fixture)
         // actual en cada acción — EvalOnSelectorAsync no reintenta, así que
         // podía toparse con "Execution context was destroyed" si la
         // navegación no había terminado de sustituir el documento.
-        var textoSeleccionado = await page.Locator(".selector-cliente-activo option:checked").TextContentAsync();
+        var textoSeleccionado = (await Ayudas.DisparadorSelectorTenant(page).Locator(".selector-tenant-nombre").TextContentAsync())?.Trim();
         Assert.Equal(Ayudas.NombreClienteDelegadoDemo, textoSeleccionado);
 
         // Vuelve al tenant de origen — el selector debe reflejar exactamente
@@ -47,7 +47,7 @@ public class FlujoDelegatedWorkspaceTests(WebAppFixture fixture)
         // delegado".
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreTenantConsultora);
 
-        var idTrasVolver = await page.Locator(".selector-cliente-activo").InputValueAsync();
+        var idTrasVolver = await Ayudas.TenantActivoIdAsync(page);
         Assert.Equal(origenId, idTrasVolver);
     }
 
@@ -66,10 +66,10 @@ public class FlujoDelegatedWorkspaceTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
 
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
-        var primerId = await page.Locator(".selector-cliente-activo").InputValueAsync();
+        var primerId = await Ayudas.TenantActivoIdAsync(page);
 
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo2);
-        var segundoId = await page.Locator(".selector-cliente-activo").InputValueAsync();
+        var segundoId = await Ayudas.TenantActivoIdAsync(page);
 
         Assert.NotEqual(primerId, segundoId);
 
@@ -79,7 +79,7 @@ public class FlujoDelegatedWorkspaceTests(WebAppFixture fixture)
         // actual en cada acción — EvalOnSelectorAsync no reintenta, así que
         // podía toparse con "Execution context was destroyed" si la
         // navegación no había terminado de sustituir el documento.
-        var textoSeleccionado = await page.Locator(".selector-cliente-activo option:checked").TextContentAsync();
+        var textoSeleccionado = (await Ayudas.DisparadorSelectorTenant(page).Locator(".selector-tenant-nombre").TextContentAsync())?.Trim();
         Assert.Equal(Ayudas.NombreClienteDelegadoDemo2, textoSeleccionado);
     }
 }

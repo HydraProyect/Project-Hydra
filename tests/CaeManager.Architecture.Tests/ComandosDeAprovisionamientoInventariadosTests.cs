@@ -9,13 +9,16 @@ namespace CaeManager.Architecture.Tests;
 /// <c>AutorizacionEscrituraBehavior</c> solo deja pasar, bajo una sesión de
 /// Aprovisionamiento, los comandos que la implementan. Este ratchet congela
 /// el inventario exacto: un comando nuevo que la implemente, o uno de los
-/// seis que deje de hacerlo, tiene que verse en la revisión de ESTE test, no
+/// declarados que deje de hacerlo, tiene que verse en la revisión de ESTE test, no
 /// perderse entre cientos de archivos.
 ///
 /// <b>Por qué seis y no menos.</b> Los tres del alta de contenido
 /// (Empresa/Centro/Trabajador) más los tres de importación —incluido
 /// <c>RegistrarHistorialImportacionCommand</c>, que no es opcional: sin él el
 /// alta quedaría hecha con su historial sin registrar, ver el propio comando.
+/// Más los dos del logo del Tenant (selector de Tenant, lote 1), que no son alta
+/// de contenido: su única escritura son las tres columnas del logo de
+/// <c>Tenants</c>, lo único de esa tabla que el rol elevado puede actualizar.
 /// </summary>
 public class ComandosDeAprovisionamientoInventariadosTests
 {
@@ -27,16 +30,22 @@ public class ComandosDeAprovisionamientoInventariadosTests
         "EjecutarImportacionCommand",
         "EjecutarImportacionCombinadaCommand",
         "RegistrarHistorialImportacionCommand",
+        // Logo del Tenant (contrato del selector de Tenant, decisión 4): Soporte TALVEG lo escribe con
+        // Aprovisionamiento sobre ese Tenant; el rol elevado solo actualiza las columnas del logo.
+        "GuardarLogoTenantCommand",
+        "RetirarLogoTenantCommand",
     ];
 
     [Fact]
-    public void Exactamente_los_seis_comandos_declarados_implementan_IComandoDeAprovisionamiento()
+    public void Exactamente_los_comandos_declarados_implementan_IComandoDeAprovisionamiento()
     {
         var raiz = RaizDelRepositorio();
         var directorio = Path.Combine(raiz, "src", "CaeManager.Application");
 
         var patron = new Regex(
-            @"public\s+record\s+(\w+)\s*\([^)]*\)[^;{]*:\s*[^;{]*\bIComandoDeAprovisionamiento\b",
+            // Paréntesis opcionales: un record sin parámetros (RetirarLogoTenantCommand) también
+            // cuenta; sin esto el detector no lo veía y el inventario habría quedado incompleto en verde.
+            @"public\s+record\s+(\w+)\s*(?:\([^)]*\))?[^;{(]*:\s*[^;{]*\bIComandoDeAprovisionamiento\b",
             RegexOptions.Compiled | RegexOptions.Singleline);
 
         var encontrados = new HashSet<string>();
@@ -50,7 +59,7 @@ public class ComandosDeAprovisionamientoInventariadosTests
 
         encontrados.Should().BeEquivalentTo(ComandosEsperados,
             "IComandoDeAprovisionamiento es una lista explícita: un comando nuevo que la implemente, o uno " +
-            "de los seis que deje de hacerlo, tiene que verse aquí y no perderse en el resto del repositorio");
+            "de los declarados que deje de hacerlo, tiene que verse aquí y no perderse en el resto del repositorio");
     }
 
     private static string RaizDelRepositorio()

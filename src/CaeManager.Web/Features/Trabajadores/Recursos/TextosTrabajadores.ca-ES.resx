@@ -651,4 +651,10 @@
   <data name="ToastActualizado" xml:space="preserve">
     <value>Trabajador actualizado correctamente.</value>
   </data>
+  <data name="SinEmpresaTitulo" xml:space="preserve">
+    <value>Selecciona una empresa de la teva cartera</value>
+  </data>
+  <data name="SinEmpresaDescripcion" xml:space="preserve">
+    <value>Els treballadors es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
+  </data>
 </root>
