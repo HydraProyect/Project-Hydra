@@ -8,9 +8,17 @@
     CascadingValue — ver ItemMenuAccion.razor.
 *@
 <div class="menu-acciones">
-    <button type="button" class="menu-acciones-disparador" aria-haspopup="menu" aria-expanded="@(_abierto ? "true" : "false")"
-            aria-controls="@_panelId" aria-label="Más acciones" @ref="_disparador" @onclick="Alternar" @onkeydown="ManejarTeclaDisparadorAsync">
-        <Icono Nombre="mas-opciones" />
+    <button type="button" class="menu-acciones-disparador @(Etiqueta is null ? null : "menu-acciones-disparador-texto")" aria-haspopup="menu" aria-expanded="@(_abierto ? "true" : "false")"
+            aria-controls="@_panelId" aria-label="@(Etiqueta ?? "Más acciones")" @ref="_disparador" @onclick="Alternar" @onkeydown="ManejarTeclaDisparadorAsync">
+        @if (Etiqueta is null)
+        {
+            <Icono Nombre="mas-opciones" />
+        }
+        else
+        {
+            @Etiqueta
+            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+        }
     </button>
     @if (_abierto)
     {
@@ -34,6 +42,12 @@
     private bool _disparadorPendienteDeFoco;
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// Texto del disparador («Más» en la cabecera de una lista). Sin valor, el
+    /// disparador es el icono «⋯» de las filas.
+    /// </summary>
+    [Parameter] public string? Etiqueta { get; set; }
 
     private void Alternar()
     {

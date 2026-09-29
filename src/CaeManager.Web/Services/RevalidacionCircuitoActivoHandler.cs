@@ -53,6 +53,14 @@ public class RevalidacionCircuitoActivoHandler(
     IConfiguration configuracion,
     ILogger<RevalidacionCircuitoActivoHandler> logger) : CircuitHandler, IAsyncDisposable
 {
+    /// <summary>
+    /// Intervalo por defecto de la revalidación del circuito (invariante I3 del contrato del
+    /// selector de Tenant beneficiario): junto con la caducidad de la memoización del alcance
+    /// (<c>CaducidadAlcanceOptions</c>, 60 s) acota a esa cota la ventana de lectura tras caducar
+    /// una Asignación de Cartera. Fijado en test: subirlo alarga la ventana.
+    /// </summary>
+    public const int IntervaloPorDefectoSegundos = 60;
+
     private CancellationTokenSource? _cts;
     private Task? _bucle;
 
@@ -65,7 +73,7 @@ public class RevalidacionCircuitoActivoHandler(
         // a competir de forma apreciable con las consultas propias del
         // usuario por PuertaAccesoDatos.
         var intervalo = TimeSpan.FromSeconds(
-            configuracion.GetValue("Circuit:RevalidacionIntervaloSegundos", 60));
+            configuracion.GetValue("Circuit:RevalidacionIntervaloSegundos", IntervaloPorDefectoSegundos));
 
         _cts = new CancellationTokenSource();
         _bucle = EjecutarBucleAsync(intervalo, _cts.Token);

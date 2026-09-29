@@ -43,11 +43,32 @@ document.addEventListener('click', function (evento) {
 });
 
 // Envío automático de los <form> que hacen las veces de selector (hoy solo
-// SelectorClienteActivo). Antes era un onchange="this.form.submit()" en el
+// SelectorIdioma). Antes era un onchange="this.form.submit()" en el
 // marcado; con la CSP de UseCabecerasSeguridad, que no admite
 // 'unsafe-inline' en script-src, un manejador inline ya no se ejecutaría.
 // Mismo patrón delegado que el ripple de arriba, por el mismo motivo.
 document.addEventListener('change', function (evento) {
     const control = evento.target.closest('[data-enviar-al-cambiar]');
     if (control && control.form) control.form.requestSubmit();
+});
+
+// Flechas arriba/abajo entre las opciones del selector de empresa gestionada
+// (SelectorClienteActivo, mockup "Selector Empresa Gestionada"): mueven el foco a
+// la opcion anterior o siguiente de la lista abierta, incluida "Tu organizacion"
+// bajo ella. Intro elige (son botones de envio) y Esc cierra (lo resuelve Blazor).
+// Delegado y sin marcado en linea, por la misma CSP que los dos de arriba.
+document.addEventListener('keydown', function (evento) {
+    if (evento.key !== 'ArrowDown' && evento.key !== 'ArrowUp') return;
+    const selector = evento.target.closest('[data-selector-tenant]');
+    if (!selector) return;
+
+    const controles = Array.from(selector.querySelectorAll('input[type="search"], [role="option"]'));
+    if (controles.length === 0) return;
+
+    const actual = controles.indexOf(evento.target);
+    const siguiente = evento.key === 'ArrowDown'
+        ? Math.min(actual + 1, controles.length - 1)
+        : Math.max(actual - 1, 0);
+    evento.preventDefault();
+    controles[siguiente].focus();
 });

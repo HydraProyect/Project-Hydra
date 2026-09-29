@@ -305,6 +305,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IVerificadorFirmaPdfService, VerificadorFirmaPdfService>();
         services.AddSingleton<IEstampadoFirmaEnCampoPdfService, EstampadoFirmaEnCampoPdfService>();
         services.AddSingleton<IConversorImagenSelloService, SkiaConversorImagenSelloService>();
+        services.AddSingleton<IConversorLogoTenantService, CaeManager.Infrastructure.Tenants.SkiaConversorLogoTenantService>();
         services.AddScoped<INotificacionUsuarioRepository, NotificacionUsuarioRepository>();
         services.AddScoped<IDocumentoRepository, DocumentoRepository>();
         services.AddScoped<IAsignacionRepository, AsignacionRepository>();
@@ -490,6 +491,13 @@ public static class InfrastructureServiceCollectionExtensions
         // inicia una delegación (§ 11.1).
         services.AddScoped<CaeManager.Application.Tenants.IAutorizacionDelegacionTenant,
             AutorizacionDelegacionPorAdministradorDelCliente>();
+        // Administrador del Tenant propietario, leído en base: el predicado que usa la autorización
+        // de arriba. Logo del Tenant: ese Administrador o Soporte TALVEG con Aprovisionamiento sobre
+        // ese Tenant (contrato del selector de Tenant, I7).
+        services.AddScoped<CaeManager.Application.Tenants.IAdministradorDelTenantPropietario,
+            AdministradorDelTenantPropietarioEnBase>();
+        services.AddScoped<CaeManager.Application.Tenants.Logo.IAutorizacionLogoTenant,
+            CaeManager.Application.Tenants.Logo.AutorizacionLogoTenant>();
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
 

@@ -20,6 +20,15 @@
     color: var(--color-text);
 }
 
+/* Disparador con texto («Más ▾» de la cabecera de lista): botón secundario. */
+.menu-acciones-disparador-texto {
+    gap: var(--space-1);
+    border: var(--border-default);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-label-md);
+}
+
 .menu-acciones-superposicion {
     position: fixed;
     inset: 0;

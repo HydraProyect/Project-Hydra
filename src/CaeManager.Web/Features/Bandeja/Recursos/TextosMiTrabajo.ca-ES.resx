@@ -153,15 +153,6 @@
   <data name="PlataformaCae" xml:space="preserve">
     <value>Plataforma CAE</value>
   </data>
-  <data name="NingunaTareaAbierta" xml:space="preserve">
-    <value>Cap tasca oberta</value>
-  </data>
-  <data name="SeleccionaTarea" xml:space="preserve">
-    <value>Selecciona una tasca de la cua, o fes servir</value>
-  </data>
-  <data name="Y" xml:space="preserve">
-    <value>i</value>
-  </data>
   <data name="AbreEnLaPantalla" xml:space="preserve">
     <value>Obre {0} a la pantalla d’aquesta tasca</value>
   </data>
@@ -293,5 +284,8 @@
   </data>
   <data name="AnadirAMiCartera" xml:space="preserve">
     <value>Afegir a la meva cartera</value>
+  </data>
+  <data name="CerrarDetalle" xml:space="preserve">
+    <value>Tancar el detall</value>
   </data>
 </root>

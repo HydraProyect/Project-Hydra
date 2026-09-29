@@ -105,16 +105,18 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         // el estado por defecto nunca resolvía aunque el elemento ya
         // existiera en el DOM (confirmado en CI: 34 reintentos, siempre
         // resuelto pero "hidden").
-        await page.Locator(".selector-cliente-activo option", new PageLocatorOptions { HasText = nombreClienteDelegante })
+        await Ayudas.AbrirSelectorTenantAsync(page);
+        await Ayudas.OpcionesSelectorTenant(page).Filter(new LocatorFilterOptions { HasText = nombreClienteDelegante })
             .WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached, Timeout = 15_000 });
+        await Ayudas.CerrarSelectorTenantAsync(page);
 
         // El tenant nuevo no tiene datos propios todavía (se acaba de crear),
         // así que la comprobación real es que el selector de Cliente activo
         // cambia y la app deja de estar en la Consultora de origen.
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, nombreClienteDelegante);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await Expect(page.Locator(".selector-cliente-activo")).ToHaveValueAsync(
-            await page.Locator(".selector-cliente-activo option", new PageLocatorOptions { HasText = nombreClienteDelegante }).GetAttributeAsync("value") ?? string.Empty);
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync(
+            "data-tenant-id", await Ayudas.IdDeOpcionSelectorTenantAsync(page, nombreClienteDelegante) ?? string.Empty);
 
         // Vuelve al origen antes de revocar — revocar el workspace en el que
         // se está operando en ese momento no es el escenario que se quiere
@@ -130,8 +132,8 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         // tarjeta no tiene "Revocar acceso", o no existe) — fallo real visto
         // en CI: timeout de 30s esperando ese texto tras volver al origen.
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreTenantOrigenPorDefecto);
-        await Expect(page.Locator(".selector-cliente-activo")).ToHaveValueAsync(
-            await page.Locator(".selector-cliente-activo option", new PageLocatorOptions { HasText = Ayudas.NombreTenantOrigenPorDefecto }).GetAttributeAsync("value") ?? string.Empty);
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync(
+            "data-tenant-id", await Ayudas.IdDeOpcionSelectorTenantAsync(page, Ayudas.NombreTenantOrigenPorDefecto) ?? string.Empty);
 
         // --- Revocación ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");

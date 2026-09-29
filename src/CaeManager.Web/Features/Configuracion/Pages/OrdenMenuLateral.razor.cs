@@ -2,6 +2,8 @@ using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma.OrdenMenu;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
+using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Comunicaciones;
@@ -68,6 +70,8 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
     private sealed record Previa(IReadOnlyList<GrupoPrevio> Grupos, string Texto);
 
     private bool? _esAdministradorPlataforma;
+    private PerfilVocabularioTenant _perfilVocabulario = PerfilVocabularioTenant.Consultora;
+    private bool _rotulosPrimeraPersona;
     private bool _cargando = true;
     private bool _guardando;
 
@@ -109,6 +113,10 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
                 return;
             }
 
+            // Mismas dos fuentes que el menú real (NavMenu): la vista previa no puede rotular
+            // distinto de lo que el propio usuario ve en su barra lateral.
+            _perfilVocabulario = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
+            _rotulosPrimeraPersona = await Mediator.Send(new UsaRotulosPrimeraPersonaQuery());
             _orden = await Mediator.Send(new ObtenerOrdenMenuLateralQuery());
             _autorOrden = await AutorDeAsync(_orden);
             AplicarGuardado();
@@ -468,8 +476,9 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
         Vista: null,
         OpcionesComunicaciones.Value.Activo,
         EsAdministradorPlataforma: false,
-        PerfilVocabularioTenant.Consultora,
-        VariosTenants: false);
+        _perfilVocabulario,
+        VariosTenants: false,
+        RotulosPrimeraPersona: _rotulosPrimeraPersona);
 
     private Previa VistaPrevia
     {

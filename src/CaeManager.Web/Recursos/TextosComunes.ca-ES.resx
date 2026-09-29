@@ -82,4 +82,43 @@
   <data name="SubirDocumento" xml:space="preserve">
     <value>+ Puja un document</value>
   </data>
+  <data name="SelectorTenantEtiqueta" xml:space="preserve">
+    <value>Context operatiu actual</value>
+  </data>
+  <data name="SelectorTenantRotulo" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="SelectorTenantCartera" xml:space="preserve">
+    <value>La meva cartera · {0}</value>
+  </data>
+  <data name="SelectorTenantEmpresasUna" xml:space="preserve">
+    <value>1 empresa</value>
+  </data>
+  <data name="SelectorTenantEmpresasVarias" xml:space="preserve">
+    <value>{0} empreses</value>
+  </data>
+  <data name="SelectorTenantBuscar" xml:space="preserve">
+    <value>Cerca una empresa</value>
+  </data>
+  <data name="SelectorTenantLista" xml:space="preserve">
+    <value>Canvia d'empresa gestionada</value>
+  </data>
+  <data name="SelectorTenantOrigen" xml:space="preserve">
+    <value>La teva organització</value>
+  </data>
+  <data name="SelectorTenantSinResultados" xml:space="preserve">
+    <value>Cap empresa coincideix amb la cerca.</value>
+  </data>
+  <data name="FiltrosGuardados" xml:space="preserve">
+    <value>Filtres desats</value>
+  </data>
+  <data name="FiltroGuardadoElegir" xml:space="preserve">
+    <value>Tria…</value>
+  </data>
+  <data name="GuardarFiltro" xml:space="preserve">
+    <value>Desa el filtre</value>
+  </data>
+  <data name="LimpiarTodo" xml:space="preserve">
+    <value>Neteja-ho tot</value>
+  </data>
 </root>

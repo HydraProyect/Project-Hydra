@@ -5,6 +5,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
@@ -58,6 +59,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
             Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerPerfilVocabularioActualQuery => PerfilVocabularioTenant.Consultora,
+                ObtenerClientesAutorizadosQuery => (object)(IReadOnlyList<ClienteAutorizadoDto>)[new ClienteAutorizadoDto(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 UsaRotulosPrimeraPersonaQuery => false,
                 ObtenerEmpresasParaSelectorQuery => (object)new[] { new EmpresaSelectorDto(EmpresaId, "Montajes Ebro S.L.") },
                 ObtenerSubcontratasParaSelectorQuery => new[] { new SubcontrataSelectorDto(SubcontrataId, "Aislamientos Nervión S.L.") },
@@ -101,6 +103,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Trabajadores = trabajadores, AlcanceCero = _alcanceCero });
         Services.AddScoped<ToastService>();
+        Services.AddScoped<ITenantActual, SeleccionEmpresaGestionadaDePrueba>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new InlineValidator<CrearTrabajadorCommand>());

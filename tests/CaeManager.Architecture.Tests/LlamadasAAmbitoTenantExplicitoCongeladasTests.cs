@@ -243,6 +243,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.DelegacionOClienteYaValidado, "tenant.TenantId, de ObtenerClientesAutorizadosQuery, mismo fan-out que ObtenerMiTrabajoAgregadoQuery; nunca el Tenant que nombre el texto de la orden"),
         ["src/CaeManager.Application/AsistenteIa/Candidatos/ComprobarInstruccionIaCarteraQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "tenant.TenantId, de ObtenerClientesAutorizadosQuery, todos los autorizados; solo lee la instrucción de tratamiento con IA de cada Tenant"),
+        ["src/CaeManager.Web/Features/Tenants/LogoTenantEndpoints.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado, "id del Tenant pedido, solo tras ObtenerLogoTenantQuery autorizarlo con el predicado del selector (TenantsBeneficiariosAutorizados) o como objetivo de la Sesión Privilegiada; solo abre el blob del logo (contrato del selector de Tenant, I13)"),
         ["src/CaeManager.Application/Tenants/Commands/AbrirAccesoSoporte/AbrirAccesoSoporteCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras cargar y autorizar la Delegación de soporte"),
         ["src/CaeManager.Application/Tenants/Commands/CerrarAccesoSoporte/CerrarAccesoSoporteCommand.cs"] =

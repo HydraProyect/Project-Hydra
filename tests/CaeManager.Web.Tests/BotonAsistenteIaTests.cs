@@ -25,6 +25,8 @@ public class BotonAsistenteIaTests : BunitContext
     {
         Services.AddScoped<AsistenteIaService>();
         Services.AddSingleton<IOptions<AnthropicOptions>>(Options.Create(new AnthropicOptions()));
+        Services.AddSingleton<IOptions<TypeSafeOptions>>(Options.Create(new TypeSafeOptions()));
+        Services.AddScoped<DisponibilidadAsistente>();
 
         var cut = Render<BotonAsistenteIa>();
 
@@ -36,6 +38,8 @@ public class BotonAsistenteIaTests : BunitContext
     {
         Services.AddScoped<AsistenteIaService>();
         Services.AddSingleton<IOptions<AnthropicOptions>>(Options.Create(new AnthropicOptions { ApiKey = "sk-ant-clave-de-prueba" }));
+        Services.AddSingleton<IOptions<TypeSafeOptions>>(Options.Create(new TypeSafeOptions()));
+        Services.AddScoped<DisponibilidadAsistente>();
 
         var cut = Render<BotonAsistenteIa>();
 

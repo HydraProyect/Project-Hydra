@@ -23,8 +23,10 @@ public class MiTrabajoGen2Tests(WebAppFixture fixture)
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
 
-        Assert.True(await page.Locator(".selector-cliente-activo option").CountAsync() > 1,
+        await Ayudas.AbrirSelectorTenantAsync(page);
+        Assert.True(await Ayudas.OpcionesSelectorTenant(page).CountAsync() > 1,
             "precondición: el Administrador de la Consultora debe tener más de una organización autorizada");
+        await Ayudas.CerrarSelectorTenantAsync(page);
         await Expect(EnlaceMiTrabajo(page)).ToHaveAttributeAsync("href", "mi-trabajo");
     }
 
@@ -56,15 +58,13 @@ public class MiTrabajoGen2Tests(WebAppFixture fixture)
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
 
-        var tenantDexter = await page.Locator(".selector-cliente-activo option", new PageLocatorOptions { HasText = Ayudas.NombreClienteDelegadoDemo })
-            .GetAttributeAsync("value");
+        var tenantDexter = await Ayudas.IdDeOpcionSelectorTenantAsync(page, Ayudas.NombreClienteDelegadoDemo);
 
         // El token se lee con el locator, que reintenta si un re-render de
         // Blazor desprende el nodo, y no con querySelector dentro del script:
         // entre la espera y la evaluación, ese re-render dejaba el nodo en
         // null (CI de #792, «Cannot read properties of null (reading 'name')»).
-        var token = await page.Locator("form:has(.selector-cliente-activo) input[name=__RequestVerificationToken]")
-            .GetAttributeAsync("value");
+        var token = await Ayudas.TokenAntiforgeryAsync(page);
 
         // Mismo formulario que emite AccionCrossTenant, pero creado fuera del
         // árbol de Blazor con el token de antiforgery de la página: sobre el
@@ -94,6 +94,6 @@ public class MiTrabajoGen2Tests(WebAppFixture fixture)
 
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         Assert.Equal(destino, new Uri(page.Url).PathAndQuery);
-        await Expect(page.Locator(".selector-cliente-activo")).ToHaveValueAsync(tenantDexter!);
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantDexter!);
     }
 }

@@ -36,10 +36,65 @@ public record ObtenerClientesAutorizadosQuery : IRequest<IReadOnlyList<ClienteAu
 /// visibilidad del selector (decisión 1) y el Tenant por defecto (decisión 5); no
 /// autoriza nada.
 /// </param>
-public record ClienteAutorizadoDto(Guid TenantId, string Nombre, bool EsOrigen, bool EsGestionadoPorOperacion = false);
+/// <param name="LogoVersion">
+/// Versión del logo del Tenant, o <c>null</c> si no tiene: construye la URL versionada del endpoint del
+/// logo (contrato del selector, § 4.1.5). No es un secreto ni autoriza nada; el endpoint revalida.
+/// </param>
+public record ClienteAutorizadoDto(
+    Guid TenantId, string Nombre, bool EsOrigen, bool EsGestionadoPorOperacion = false, string? LogoVersion = null);
 
 public static class ClientesAutorizados
 {
+    /// <summary>
+    /// Visibilidad del selector de Tenant beneficiario (decisión 1, evaluada por
+    /// condición y no por rol): el usuario alcanza dos o más Tenants beneficiarios
+    /// por la vía de Operación (el Tenant de origen cuenta solo si tiene cartera
+    /// sobre él). Con un único Tenant —incluido el que decide la decisión 5 por
+    /// defecto— el selector se oculta.
+    ///
+    /// <para>
+    /// Un Tenant alcanzado solo por la vía heredada de delegación (soporte,
+    /// Operador Delegado) también muestra el selector: es su único control para
+    /// pasar de su Tenant de origen a ese Tenant y volver, y hasta ahora lo veía.
+    /// No lo concede: la lista ya es el conjunto autorizado.
+    /// </para>
+    /// </summary>
+    public static bool SelectorVisible(IReadOnlyList<ClienteAutorizadoDto> autorizados, ClienteAutorizadoDto? activo) =>
+        autorizados.Count(c => c.EsGestionadoPorOperacion) >= 2
+        || autorizados.Any(c => !c.EsOrigen && !c.EsGestionadoPorOperacion)
+        // Mientras el contexto efectivo sea el origen y haya algún Tenant externo, el control
+        // se mantiene: quien volvió al origen a propósito (el Tenant por defecto respeta esa
+        // preferencia 8 h) o cuya cartera bajó a un solo Tenant no tendría otra vía de elegirlo.
+        || (activo is { EsOrigen: true } && autorizados.Any(c => !c.EsOrigen));
+
+    /// <summary>
+    /// Tenants externos que el usuario puede abrir: las filas de «Mi cartera» del
+    /// selector. El Tenant de origen no cuenta aquí: va aparte, fijo bajo la lista,
+    /// como «Tu organización». Es el «N» de «Mi cartera · N empresas».
+    /// </summary>
+    public static int TotalCartera(IReadOnlyList<ClienteAutorizadoDto> autorizados) =>
+        autorizados.Count(c => !c.EsOrigen);
+
+    /// <summary>
+    /// Estado 4a del mockup del selector: el usuario gestiona Tenants externos por
+    /// Operación, su Tenant de origen no está en su cartera y el activo es ese
+    /// origen (nunca eligió uno, o volvió a él). Las pantallas de un Tenant a la
+    /// vez piden entonces elegir uno en vez de presentar los datos del origen como
+    /// si fueran de la cartera. No aplica al Administrador del Operador CAE sin
+    /// cartera (su origen es su sitio) ni a quien solo tiene la vía heredada.
+    /// </summary>
+    public static bool SinEmpresaSeleccionada(IReadOnlyList<ClienteAutorizadoDto> autorizados, ClienteAutorizadoDto? activo) =>
+        activo is { EsOrigen: true, EsGestionadoPorOperacion: false }
+        && autorizados.Any(c => !c.EsOrigen && c.EsGestionadoPorOperacion);
+
+    /// <summary>
+    /// El Tenant activo dentro de la lista: el seleccionado si sigue autorizado
+    /// (una selección caducada ya no está en la lista) y, si no, el de origen.
+    /// </summary>
+    public static ClienteAutorizadoDto? Activo(IReadOnlyList<ClienteAutorizadoDto> autorizados, Guid? seleccionado) =>
+        autorizados.FirstOrDefault(c => c.TenantId == seleccionado)
+        ?? autorizados.FirstOrDefault(c => c.EsOrigen);
+
     /// <summary>
     /// Decisión 5 del propietario del producto (2026-09-26): si la cartera tiene
     /// exactamente un Tenant beneficiario externo y el Tenant de origen no está
@@ -77,12 +132,13 @@ public class ObtenerClientesAutorizadosQueryHandler(
 
         var tenantOrigen = await dbContext.Tenants
             .Where(t => t.Id == tenantOrigenId.Value)
-            .Select(t => new { t.Id, t.Nombre })
+            .Select(t => new { t.Id, t.Nombre, t.LogoVersion })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (tenantOrigen is not null)
             resultado.Add(new ClienteAutorizadoDto(
                 tenantOrigen.Id, tenantOrigen.Nombre, EsOrigen: true,
+                LogoVersion: tenantOrigen.LogoVersion,
                 EsGestionadoPorOperacion: await TenantsBeneficiariosAutorizados.OrigenGestionadoAsync(
                     operaciones, usuarioId.Value, tenantOrigenId.Value, ahora, cancellationToken)));
 
@@ -108,12 +164,12 @@ public class ObtenerClientesAutorizadosQueryHandler(
 
         var nombres = await dbContext.Tenants
             .Where(t => externos.Contains(t.Id))
-            .Select(t => new { t.Id, t.Nombre })
+            .Select(t => new { t.Id, t.Nombre, t.LogoVersion })
             .ToListAsync(cancellationToken);
 
         resultado.AddRange(nombres
             .Select(t => new ClienteAutorizadoDto(t.Id, t.Nombre, EsOrigen: false,
-                EsGestionadoPorOperacion: porOperacion.Contains(t.Id)))
+                EsGestionadoPorOperacion: porOperacion.Contains(t.Id), LogoVersion: t.LogoVersion))
             .OrderBy(c => c.Nombre)
             .ThenBy(c => c.TenantId));
 
