@@ -33,25 +33,52 @@
 <PageTitle>Documentos — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
+    @* Mockup «Selector Empresa Gestionada» (lienzo 2): con varias empresas gestionadas, la lista dice de
+       cuál es. El selector de la barra lateral cambia de empresa y recarga esta misma ruta sin query
+       (I14: ningún filtro con Ids del Tenant anterior sobrevive; los Ids de enlace profundo no viajan). *@
+    <CabeceraEmpresaActiva Empresa="_empresaActiva" />
+
     @*
-        Cabecera Gen 2: el mockup pone sobre el título el antetítulo del ciclo
-        al que pertenece la pantalla. "Exportar a Excel" no está en el mockup y
-        se queda: un mockup omite comportamiento, no lo deroga.
+        Pieza 1 del patrón de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3): antetítulo
+        del ciclo al que pertenece la pantalla; «Exportar» como enlace secundario, un menú «Más»
+        con lo que el mockup omite y la pantalla ya tenía (importar, subida múltiple) y UNA sola
+        primaria «+ Nuevo documento». Un mockup omite comportamiento, no lo deroga.
     *@
     <CabeceraPagina Titulo="Documentos" Kicker="Ciclo documental">
         <Acciones>
-            <a class="enlace-exportar" href="/documentos/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
-                <a class="enlace-exportar" href="/documentos/importar">Importar documentos</a>
-            </AuthorizeView>
-            <SoloConEscritura><a class="enlace-exportar" href="/documentos/subida-masiva">Subida múltiple</a></SoloConEscritura>
-            @if (!_alcanceCero)
+            @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
             {
-                <SoloConEscritura><Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
+                <a class="enlace-exportar" href="/documentos/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
+                @* «Más» solo existe si el rol puede escribir: importar y subida múltiple son escritura. *@
+                <SoloConEscritura>
+                    <MenuAcciones Etiqueta="@Textos["MasEtiqueta"]">
+                        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
+                            <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/documentos/importar")'>Importar documentos</ItemMenuAccion>
+                        </AuthorizeView>
+                        <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/documentos/subida-masiva")'>Subida múltiple</ItemMenuAccion>
+                    </MenuAcciones>
+                </SoloConEscritura>
+                @if (!_alcanceCero)
+                {
+                    <SoloConEscritura><Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
+                }
             }
         </Acciones>
     </CabeceraPagina>
 
+    @if (_resolviendoEmpresa)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_sinEmpresaSeleccionada)
+    {
+        @* Estado 4a del mockup: quien gestiona empresas externas y no tiene ninguna elegida no ve los
+           datos de su organización presentados como si fueran de su cartera. *@
+        <EstadoVacio NombreIcono="empresas" Titulo="@Textos["SinEmpresaTitulo"]"
+                     Descripcion="@Textos["SinEmpresaDescripcion"]" />
+    }
+    else
+    {
     <Pestanas Definiciones="PestanasDocumentos" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="Secciones de documentos">
         @if (_pestanaActiva == "plataforma")
         {
@@ -104,40 +131,48 @@
         }
         else
         {
-            <div class="barra-filtros">
-                <CampoTexto Placeholder="Buscar por propietario o tipo de documento…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-                <CampoSelect Etiqueta="Ámbito" Valor="@_ambitoFiltro" ValorChanged="CambiarAmbitoFiltroAsync">
-                    <option value="">Todos</option>
-                    <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
-                    <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente</option>
-                    <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
-                    <option value="@nameof(AmbitoAplicacion.Vehiculo)">Vehículo</option>
-                    <option value="@nameof(AmbitoAplicacion.Proyecto)">Proyecto</option>
-                </CampoSelect>
-                <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync">
-                    <option value="">Todos</option>
-                    <option value="@nameof(EstadoDocumento.Vencido)">Vencido</option>
-                    <option value="@nameof(EstadoDocumento.Urgente)">Urgente</option>
-                    <option value="@nameof(EstadoDocumento.Proximo)">Próximo</option>
-                    <option value="@nameof(EstadoDocumento.Vigente)">Vigente</option>
-                    <option value="@nameof(EstadoDocumento.SinConfirmar)">@TextosVigenciaDocumento.Texto("SinConfirmar")</option>
-                    <option value="@nameof(EstadoDocumento.SinCaducidad)">Sin caducidad</option>
-                </CampoSelect>
-                @if (_filtrosGuardados.Count > 0)
-                {
-                    <CampoSelect Etiqueta="" Valor="" ValorChanged="AplicarFiltroGuardadoAsync">
-                        <option value="">Filtros guardados…</option>
-                        @foreach (var filtro in _filtrosGuardados)
-                        {
-                            <option value="@filtro.Id">@filtro.Nombre</option>
-                        }
+            @* Pieza 2 (BarraFiltros): buscador y selects con su etiqueta visible encima, «Filtros
+               guardados» al final, y debajo los chips activos con «Limpiar todo» y «Guardar filtro».
+               El buscador conserva su texto: busca por propietario o tipo de documento. *@
+            <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="Buscar por propietario o tipo de documento…"
+                          HayFiltrosActivos="HayFiltrosActivos"
+                          OnLimpiarTodo="LimpiarFiltrosAsync"
+                          OnGuardarFiltro="AbrirGuardarFiltro"
+                          FiltrosGuardados="OpcionesFiltrosGuardados" OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync">
+                <Filtros>
+                    <CampoSelect Etiqueta="Ámbito" Valor="@_ambitoFiltro" ValorChanged="CambiarAmbitoFiltroAsync">
+                        <option value="">Todos</option>
+                        <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
+                        <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente</option>
+                        <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
+                        <option value="@nameof(AmbitoAplicacion.Vehiculo)">Vehículo</option>
+                        <option value="@nameof(AmbitoAplicacion.Proyecto)">Proyecto</option>
                     </CampoSelect>
-                }
-                @* Sin SoloConEscritura: GuardarFiltroCommand es IComandoDeAutoservicio y Consulta lo ejecuta. *@
-                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _mostrarGuardarFiltro = true">
-                    Guardar filtro
-                </Boton>
-            </div>
+                    <CampoSelect Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync">
+                        <option value="">Todos</option>
+                        <option value="@nameof(EstadoDocumento.Vencido)">Vencido</option>
+                        <option value="@nameof(EstadoDocumento.Urgente)">Urgente</option>
+                        <option value="@nameof(EstadoDocumento.Proximo)">Próximo</option>
+                        <option value="@nameof(EstadoDocumento.Vigente)">Vigente</option>
+                        <option value="@nameof(EstadoDocumento.SinConfirmar)">@TextosVigenciaDocumento.Texto("SinConfirmar")</option>
+                        <option value="@nameof(EstadoDocumento.SinCaducidad)">Sin caducidad</option>
+                    </CampoSelect>
+                </Filtros>
+                <Chips>
+                    @if (!string.IsNullOrWhiteSpace(_busqueda))
+                    {
+                        <ChipFiltro Etiqueta="@EtiquetaFiltroBusqueda" EtiquetaAccesible="@Textos["QuitarFiltroBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_ambitoFiltro))
+                    {
+                        <ChipFiltro Etiqueta="@EtiquetaFiltroAmbito" EtiquetaAccesible="@Textos["QuitarFiltroAmbito"]" OnQuitar="() => CambiarAmbitoFiltroAsync(string.Empty)" />
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
+                    {
+                        <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="@Textos["QuitarFiltroEstado"]" OnQuitar="() => CambiarEstadoFiltroAsync(string.Empty)" />
+                    }
+                </Chips>
+            </BarraFiltros>
 
             <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -151,7 +186,15 @@
             }
             else
             {
-                <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" />
+                <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
+                    <Extra>
+                        @if (_totalElementos > 0)
+                        {
+                            @* El total lo da la consulta ya filtrada: es el de las coincidencias, no el de la cartera. *@
+                            <span class="conteo-documentos">@TextoConteo</span>
+                        }
+                    </Extra>
+                </BarraHerramientasLista>
 
                 <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
                     <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
@@ -166,7 +209,11 @@
                                 </ChildContent>
                             </TemplateColumn>
                         }
-                        <PropertyColumn Property="@(d => d.PropietarioNombre)" Title="Propietario" Sortable="true" />
+                        <TemplateColumn Title="Propietario" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.PropietarioNombre))">
+                            @* Pieza 5: el propietario, en negrita y sin subrayado, abre la vista previa (pieza 6). En Documentos la
+                               vista previa ES el panel del Context Workspace, que ya existe: no se añade un segundo drawer. *@
+                            <button type="button" class="enlace-nombre-fila nombre-fila-entidad" @onclick="() => AbrirPanelAsync(context.Id)">@context.PropietarioNombre</button>
+                        </TemplateColumn>
                         <TemplateColumn Title="Ámbito" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Ambito))">
                             <Badge>@context.Ambito</Badge>
                         </TemplateColumn>
@@ -203,7 +250,7 @@
                         </TemplateColumn>
                         <TemplateColumn Title="Acciones" Align="Align.End">
                             <MenuAcciones>
-                                <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, context.Id, context.TipoDocumentoNombre, "informacion")'>
+                                <ItemMenuAccion OnClick="() => AbrirPanelAsync(context.Id)">
                                     Ver
                                 </ItemMenuAccion>
                                 <SoloConEscritura><ItemMenuAccion OnClick="() => _drawerGestion.AbrirEditarAsync(context.Id)">
@@ -251,7 +298,9 @@
             }
         }
     </Pestanas>
+    }
 </div>
+
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
 

@@ -1,0 +1,5 @@
+/* Recuento «N documentos» de la barra de herramientas. */
+.conteo-documentos {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
