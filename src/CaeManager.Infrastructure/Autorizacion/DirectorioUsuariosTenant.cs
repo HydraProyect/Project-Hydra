@@ -41,7 +41,8 @@ namespace CaeManager.Infrastructure.Autorizacion;
 public class DirectorioUsuariosTenant(
     UserManager<ApplicationUser> userManager, ITenantsQueryContext dbContext, ITenantActual tenantActual,
     PuertaAccesoDatos puertaAccesoDatos, Persistence.CaeManagerDbContext identidad)
-    : IDirectorioUsuariosService, CaeManager.Application.Clientes.IDirectorioDestinosCartera
+    : IDirectorioUsuariosService, CaeManager.Application.Clientes.IDirectorioDestinosCartera,
+      CaeManager.Application.Usuarios.IDirectorioEquipoCoordinador
 {
     /// <summary>
     /// Usuarios del tenant activo, más sus Operadores Delegados. Sin tenant
@@ -123,12 +124,63 @@ public class DirectorioUsuariosTenant(
         Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {
+            // Sin rastreo: con el DbContext del circuito, una cuenta rastreada devolvería el
+            // bloqueo de cuando se cargó, y una desactivada desde otro circuito seguiría "activa"
+            // (Codex, #996, pasada 1). Misma razón que ObtenerAsync.
             var usuario = await userManager.Users
+                .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Id == usuarioId && u.TenantId == tenantId, cancellationToken);
 
-            return usuario is not null
-                   && !usuario.EstaDesactivada(DateTimeOffset.UtcNow)
-                   && await userManager.IsInRoleAsync(usuario, rol);
+            if (usuario is null || usuario.EstaDesactivada(DateTimeOffset.UtcNow))
+                return false;
+
+            // El rol también sin rastreo: IsInRoleAsync acaba en UserRoles.FindAsync, que devuelve
+            // el UserRole rastreado si el circuito ya lo tenía, y no vería que a otro circuito le
+            // retiraron el rol.
+            return await (
+                from ur in identidad.UserRoles.AsNoTracking()
+                join r in identidad.Roles.AsNoTracking() on ur.RoleId equals r.Id
+                where ur.UserId == usuario.Id && r.Name == rol
+                select ur.UserId)
+                .AnyAsync(cancellationToken);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Los Gestores CAE propios del Tenant activo cuyo <c>CoordinadorUsuarioId</c> es el indicado.
+    /// Sin rastreo, como <see cref="ObtenerAsync"/>: la lista tiene que ver el bloqueo de ahora.
+    /// </summary>
+    public Task<IReadOnlyList<CaeManager.Application.Usuarios.MiembroDeEquipo>> ObtenerEquipoAsync(
+        Guid coordinadorUsuarioId, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<CaeManager.Application.Usuarios.MiembroDeEquipo>>(async () =>
+        {
+            if (tenantActual.TenantId is not { } tenantId) return [];
+
+            var cuentas = await (
+                from u in identidad.Users.AsNoTracking()
+                join ur in identidad.UserRoles on u.Id equals ur.UserId
+                join r in identidad.Roles on ur.RoleId equals r.Id
+                where u.TenantId == tenantId
+                      && u.CoordinadorUsuarioId == coordinadorUsuarioId
+                      && r.Name == Roles.GestorCae
+                orderby u.NombreCompleto
+                select u)
+                .ToListAsync(cancellationToken);
+
+            // Pendiente de activación = sin contraseña y sin login externo, el mismo criterio que la
+            // lista general: quien solo entra por SSO no está pendiente. (Consulta inline: la puerta
+            // no es reentrante.)
+            var ids = cuentas.Select(u => u.Id).ToList();
+            var conLoginExterno = ids.Count == 0
+                ? new HashSet<Guid>()
+                : (await identidad.UserLogins.Where(l => ids.Contains(l.UserId)).Select(l => l.UserId).Distinct()
+                    .ToListAsync(cancellationToken)).ToHashSet();
+
+            var ahora = DateTimeOffset.UtcNow;
+            return cuentas
+                .Select(u => new CaeManager.Application.Usuarios.MiembroDeEquipo(
+                    u.Id, u.Email ?? string.Empty, u.NombreCompleto, !u.EstaDesactivada(ahora),
+                    string.IsNullOrEmpty(u.PasswordHash) && !conLoginExterno.Contains(u.Id)))
+                .ToList();
         }, cancellationToken);
 
     public Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>

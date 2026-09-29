@@ -1,6 +1,9 @@
 @page "/usuarios"
 @rendermode InteractiveServer
-@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}")]
+@* El Coordinador CAE entra solo para «Asignar empresas» a su equipo (2026-09-29): ve a los
+   Gestores CAE que le reportan y ninguna otra acción; la lista sale filtrada de Application
+   (ObtenerEquipoDeCoordinadorQuery) y los demás Commands y Queries de Usuarios le niegan el paso. *@
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Infrastructure.Identity
 
@@ -16,7 +19,10 @@
        .acciones-cabecera, que es lo que el mockup nombra. *@
     <CabeceraPagina Titulo="Usuarios" Integrada="IntegradaEnConfiguracion">
         <Acciones>
-            <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo usuario</Boton></SoloConEscritura>
+            @if (!_modoEquipo)
+            {
+                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo usuario</Boton></SoloConEscritura>
+            }
         </Acciones>
     </CabeceraPagina>
 
@@ -169,6 +175,8 @@
                                antes ocupaban dos botones fantasma en línea que competían
                                visualmente y estiraban la fila. *@
                             <MenuAcciones>
+                                @if (!_modoEquipo)
+                                {
                                 <ItemMenuAccion OnClick="() => AbrirEditarAsync(usuario.Id)">
                                     Editar
                                 </ItemMenuAccion>
@@ -195,6 +203,16 @@
                                                 OnClick="() => usuario.Activo ? PedirDesactivacionAsync(usuario) : CambiarActivacionAsync(usuario)">
                                     @(usuario.Activo ? "Desactivar" : "Reactivar")
                                 </ItemMenuAccion>
+                                }
+                                @* Asignar empresas (2026-09-28): la cartera de un Gestor CAE que ya
+                                   existe. Solo se ofrece; quién puede y qué empresas son asignables
+                                   lo decide AsignarCarteraGestorCaeCommand. *@
+                                @if (PuedeAsignarEmpresas(usuario))
+                                {
+                                    <ItemMenuAccion OnClick="() => AbrirAsignarEmpresasAsync(usuario)">
+                                        @TextosUsuarios["AsignarEmpresasAccion"]
+                                    </ItemMenuAccion>
+                                }
                                 @* P0-8 (FS-01): la salida de quien perdió el móvil y los
                                    códigos de recuperación. Solo se ofrece a un Administrador,
                                    sobre otra cuenta de su organización con la 2FA activa; la
@@ -426,6 +444,61 @@
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_desactivando" OnClick="() => _usuarioADesactivar = null">@TextosUsuarios["DesactivarVolver"]</Boton>
         <Boton Variante="VarianteBoton.Destructivo" Cargando="_desactivando" OnClick="ConfirmarDesactivacionAsync">@TextosUsuarios["DesactivarConfirmar"]</Boton>
+    </Pie>
+</Modal>
+
+@* Asignar empresas: Tenants beneficiarios enteros en la cartera de un Gestor CAE que ya
+   existe. En pantalla, «empresa», nunca «tenant». El mockup de Usuarios aún no lo recoge. *@
+<Modal HayCambios="() => HayCambiosEnEmpresasDelGestor" Visible="@(_usuarioAAsignarEmpresas is not null)"
+       VisibleChanged="@(v => { if (!v) CerrarAsignarEmpresas(); })"
+       Titulo="@TextosUsuarios["AsignarEmpresasTitulo", _usuarioAAsignarEmpresas?.NombreCompleto ?? string.Empty]"
+       CerrarAlHacerClicFuera="!_guardandoEmpresasDelGestor">
+    <ChildContent>
+        @if (_errorEmpresasDelGestor is not null)
+        {
+            <div class="alerta-formulario" role="alert">@_errorEmpresasDelGestor</div>
+        }
+        @if (_cargandoEmpresasDelGestor)
+        {
+            <p>@TextosUsuarios["AsignarEmpresasCargando"]</p>
+        }
+        else if (_empresasDelGestor.Count == 0)
+        {
+            <p>@TextosUsuarios["AsignarEmpresasVacio"]</p>
+        }
+        else
+        {
+            <div class="campo" role="group">
+                <div class="lista-seleccion-multiple">
+                    @foreach (var empresa in _empresasDelGestor)
+                    {
+                        <label class="campo-checkbox">
+                            <input type="checkbox"
+                                   checked="@_empresasMarcadasDelGestor.Contains(empresa.TenantId)"
+                                   disabled="@(_guardandoEmpresasDelGestor || (!empresa.Asignable && !_empresasMarcadasDelGestor.Contains(empresa.TenantId)))"
+                                   @onchange="e => AlternarEmpresaDelGestor(empresa.TenantId, e.Value is bool marcada && marcada)" />
+                            <span class="avatar-iniciales-empresa" aria-hidden="true">@Iniciales(empresa.Nombre)</span>
+                            @empresa.Nombre
+                            @if (empresa.CarteraParcial)
+                            {
+                                <small class="texto-ayuda-campo"> (@TextosUsuarios["AsignarEmpresasParcial"])</small>
+                            }
+                            else if (!empresa.Asignable)
+                            {
+                                <small class="texto-ayuda-campo"> (@TextosUsuarios["AsignarEmpresasSoloRetirar"])</small>
+                            }
+                        </label>
+                    }
+                </div>
+                <p class="texto-ayuda-campo">@TextosUsuarios["AsignarEmpresasAyuda"]</p>
+            </div>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoEmpresasDelGestor" OnClick="CerrarAsignarEmpresas">@TextosUsuarios["AsignarEmpresasVolver"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoEmpresasDelGestor"
+               Deshabilitado="@(_cargandoEmpresasDelGestor || !HayCambiosEnEmpresasDelGestor)"
+               OnClick="GuardarEmpresasDelGestorAsync">@TextosUsuarios["AsignarEmpresasGuardar"]</Boton>
     </Pie>
 </Modal>
 

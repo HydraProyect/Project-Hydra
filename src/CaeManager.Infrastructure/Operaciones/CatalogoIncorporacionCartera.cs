@@ -165,6 +165,99 @@ public class CatalogoIncorporacionCartera(
         }
     }
 
+    /// <summary>
+    /// Las Asignaciones de Cartera universales vigentes del usuario, con rol Gestor CAE, sobre
+    /// una operación externa no raíz de este Operador CAE. Una sola definición para listar lo
+    /// que se puede retirar y para retirarlo.
+    /// </summary>
+    private IQueryable<AsignacionCartera> CarterasUniversalesDelGestor(Guid operadorTenantId, Guid usuarioId)
+    {
+        var ahora = DateTime.UtcNow;
+
+        return from c in dbContext.AsignacionesCartera
+               join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
+               where c.UsuarioId == usuarioId
+                     && c.Rol == RolIncorporado
+                     && c.Estado == EstadoAsignacion.Vigente
+                     && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
+                     && c.AmbitoRelacionClienteId == null
+                     && c.AmbitoCentroId == null
+                     && c.AmbitoTrabajadorId == null
+                     && c.AmbitoProyectoId == null
+                     && !o.EsRaiz
+                     && o.OperadorTenantId == operadorTenantId
+                     && o.PropietarioTenantId == c.PropietarioTenantId
+                     && c.PropietarioTenantId != operadorTenantId
+               select c;
+    }
+
+    public async Task<IReadOnlyList<TenantEnCarteraDeGestor>> ObtenerCarteraUniversalAsync(
+        Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default)
+    {
+        var enCartera = await (
+            from c in CarterasUniversalesDelGestor(operadorTenantId, usuarioId)
+            join t in dbContext.Tenants on c.PropietarioTenantId equals t.Id
+            select new TenantEnCarteraDeGestor(c.PropietarioTenantId, t.Nombre))
+            .ToListAsync(cancellationToken);
+
+        return enCartera
+            .GroupBy(t => t.PropietarioTenantId)
+            .Select(g => g.First())
+            .OrderBy(t => t.Nombre)
+            .ToList();
+    }
+
+    public async Task<bool> RetirarCarteraUniversalAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, Guid usuarioId, Guid actorUsuarioId,
+        CancellationToken cancellationToken = default)
+    {
+        var carteras = await CarterasUniversalesDelGestor(operadorTenantId, usuarioId)
+            .Where(c => c.PropietarioTenantId == propietarioTenantId)
+            .ToListAsync(cancellationToken);
+        if (carteras.Count == 0) return false;
+
+        var ahora = DateTime.UtcNow;
+        foreach (var cartera in carteras)
+            cartera.Cerrar(MotivoCierreAsignacion.RetiradaPorElOperador, ahora);
+        var cerradas = carteras.Select(c => c.Id).ToList();
+
+        // La solicitud que creó esa cartera deja de estar «aceptada» con una cartera cerrada.
+        var solicitudes = await dbContext.SolicitudesIncorporacionCartera
+            .Where(s => s.OperadorTenantId == operadorTenantId
+                        && s.SolicitanteUsuarioId == usuarioId
+                        && s.Estado == EstadoSolicitudIncorporacionCartera.Aceptada
+                        && s.AsignacionCarteraId != null && cerradas.Contains(s.AsignacionCarteraId.Value))
+            .ToListAsync(cancellationToken);
+        foreach (var solicitud in solicitudes)
+            solicitud.Revocar(actorUsuarioId, ahora);
+
+        // La fila heredada solo sobra si no queda otra cartera vigente del usuario en ese Tenant:
+        // un reparto por Cliente empresarial sigue necesitando que el Tenant le aparezca.
+        var vigenteAhora = DateTime.UtcNow;
+        var leQuedaOtra = await dbContext.AsignacionesCartera.AnyAsync(c =>
+            c.UsuarioId == usuarioId
+            && c.PropietarioTenantId == propietarioTenantId
+            && !cerradas.Contains(c.Id)
+            && c.Estado == EstadoAsignacion.Vigente
+            && (c.VigenciaHasta == null || vigenteAhora < c.VigenciaHasta), cancellationToken);
+
+        if (!leQuedaOtra)
+        {
+            var filas = await (
+                from fila in dbContext.AsignacionesOperadorDelegado
+                join vinculo in dbContext.DelegacionesTenant on fila.DelegacionTenantId equals vinculo.Id
+                where fila.UsuarioId == usuarioId
+                      && vinculo.TenantClienteId == propietarioTenantId
+                      && vinculo.TenantConsultoraId == operadorTenantId
+                      && vinculo.Proposito == PropositoDelegacion.OperadorExterno
+                select fila)
+                .ToListAsync(cancellationToken);
+            dbContext.AsignacionesOperadorDelegadoConRevocadas.RemoveRange(filas);
+        }
+
+        return true;
+    }
+
     /// <summary>Las restricciones únicas cuya violación es la carrera esperada, no un defecto.</summary>
     private static readonly HashSet<string> RestriccionesDeCarrera =
     [
