@@ -331,7 +331,9 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     protected override Task OnParametersSetAsync()
     {
-        if (_resolviendoEmpresa || _sinEmpresaSeleccionada)
+        // Retirada la página con la resolución en vuelo, ComponentBase aún invoca esto: no se procesan
+        // parámetros ni acciones de URL de un componente que ya no existe.
+        if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada)
             return Task.CompletedTask;
 
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;

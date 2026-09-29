@@ -1728,6 +1728,32 @@ public class ClientesListaGen2Tests : BunitContext
         mediador.Enviadas.Should().OnlyContain(e => e is ObtenerClientesAutorizadosQuery, "tras retirarse solo consta la resolución que ya iba en vuelo");
     }
 
+    /// <summary>
+    /// Codex, pasada 1: tras retirarse la página con la resolución en vuelo, ComponentBase todavía invoca
+    /// <c>OnParametersSetAsync</c> con <c>_resolviendoEmpresa</c> ya en false. Con <c>?accion=crear</c> en la URL
+    /// abriría el alta (y un intento de render) en un componente muerto.
+    /// </summary>
+    [Fact]
+    public void Retirada_la_pagina_con_la_resolucion_en_vuelo_no_se_procesan_los_parametros_de_la_url()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+
+        Registrar(mediador);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("clientes?accion=crear");
+        var cut = Render<Clientes>();
+        cut.Instance.Dispose();
+        puerta.SetResult();
+
+        // El componente está retirado y no hay DOM que mirar: se lee el estado que AbrirCrear habría fijado.
+        var drawerVisible = (bool)typeof(Clientes)
+            .GetField("_drawerVisible", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(cut.Instance)!;
+        drawerVisible.Should().BeFalse("una página retirada no atiende ?accion=crear");
+    }
+
     [Fact]
     public void Con_el_contexto_resuelto_a_una_empresa_la_lista_se_monta_tras_la_carga()
     {
