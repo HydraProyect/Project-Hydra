@@ -90,7 +90,7 @@ public class SubidaMasivaDelegadaTests(WebAppFixture fixture)
     private async Task EntrarEnWorkspaceDelegadoAsync(IPage page, string email)
     {
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, email, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture, Ayudas.NombreClienteDelegadoDemo);
     }
 
     private static async Task AfirmarSubidaMultipleAbiertaAsync(IPage page)

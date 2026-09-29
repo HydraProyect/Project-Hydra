@@ -18,11 +18,10 @@ public class SeleccionTenantDelegadoFichas360Tests(WebAppFixtureVentanaSoporte f
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailOperadorConsultaConsultora, Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
-        var tenantBeneficiario = await page
-            .Locator(".selector-cliente-activo option", new() { HasText = Ayudas.NombreClienteDelegadoDemo })
-            .GetAttributeAsync("value");
+        var tenantBeneficiario = await fixture.LeerValorSqlAsync(
+            """SELECT "Id"::text FROM "Tenants" WHERE "Nombre" = @n""", ("n", Ayudas.NombreClienteDelegadoDemo));
         Assert.NotNull(tenantBeneficiario);
-        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture, Ayudas.NombreClienteDelegadoDemo);
 
         await RecorridoFichas360.RecorrerTodasAsync(page, fixture.BaseUrl, tenantBeneficiario);
     }

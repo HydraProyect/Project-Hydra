@@ -1,0 +1,53 @@
+@*
+    Marca visual de un Tenant beneficiario: su logo si lo tiene, y si no, sus
+    iniciales (contrato del selector de Tenant beneficiario, § 4.1.5 y § 4.2). Es
+    decorativo: el nombre siempre lo lleva el texto de al lado, por eso el
+    conjunto va oculto para los lectores de pantalla.
+
+    LogoUrl es opcional a propósito: el endpoint del logo llega con otro lote, y
+    hasta entonces nadie lo rellena y se pintan las iniciales. Una URL vacía
+    equivale a «sin logo».
+*@
+<span class="@Clases" aria-hidden="true">
+    @if (!string.IsNullOrWhiteSpace(LogoUrl))
+    {
+        <img class="avatar-tenant-logo" src="@LogoUrl" alt="" loading="lazy" />
+    }
+    else
+    {
+        @Iniciales(Nombre)
+    }
+</span>
+
+@code {
+    [Parameter, EditorRequired] public string Nombre { get; set; } = string.Empty;
+
+    /// <summary>URL del logo, o <c>null</c> para pintar las iniciales.</summary>
+    [Parameter] public string? LogoUrl { get; set; }
+
+    [Parameter] public TamanoAvatarTenant Tamano { get; set; } = TamanoAvatarTenant.Normal;
+
+    /// <summary>
+    /// URL versionada del endpoint del logo de un Tenant (<c>/tenants/{id}/logo?v=…</c>), o <c>null</c>
+    /// si no tiene logo. La versión cambia con cada subida, así que el navegador no reutiliza el anterior.
+    /// </summary>
+    public static string? UrlDeLogo(Guid tenantId, string? version) =>
+        string.IsNullOrEmpty(version) ? null : $"/tenants/{tenantId}/logo?v={Uri.EscapeDataString(version)}";
+
+    private string Clases => Tamano == TamanoAvatarTenant.Pequeno ? "avatar-tenant avatar-tenant-pequeno" : "avatar-tenant";
+
+    /// <summary>
+    /// Hasta dos iniciales, de las dos primeras palabras que empiezan por letra
+    /// («Norte Servicios» → «NS»; «&amp; Co» → «C»). Sin ninguna, «?» para que
+    /// el avatar no quede en blanco.
+    /// </summary>
+    public static string Iniciales(string? nombre)
+    {
+        var iniciales = string.Concat((nombre ?? string.Empty)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(p => char.IsLetter(p[0]))
+            .Take(2)
+            .Select(p => char.ToUpperInvariant(p[0])));
+        return iniciales.Length == 0 ? "?" : iniciales;
+    }
+}

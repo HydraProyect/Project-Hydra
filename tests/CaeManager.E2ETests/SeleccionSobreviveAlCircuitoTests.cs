@@ -59,7 +59,7 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // (decisión 5 del selector de Tenant beneficiario). La línea base exige
         // volver a propósito al Tenant de origen, que además deja la preferencia
         // para que el defecto no se reactive en la navegación siguiente.
-        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreTenantConsultora);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture, Ayudas.NombreTenantConsultora);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await Assertions.Expect(page.GetByText("Aún no hay empresas"))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
@@ -89,7 +89,7 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // ocurriera estando ya en /empresas el paso siguiente no navegaría a ningún
         // sitio y no habría navegación de circuito que medir.
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
-        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture, Ayudas.NombreClienteDelegadoDemo);
 
         // ── La navegación de circuito ─────────────────────────────────────────
         // Esperar a que el cambio de workspace haya ASENTADO antes de tocar el
@@ -108,9 +108,13 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // servidor); esta aserción queda como comprobación adicional, sobre el DOM ya
         // asentado tras esa redirección, de que el <select> también quedó consistente
         // con lo que el servidor aplicó.
-        await Assertions.Expect(page.Locator(".selector-cliente-activo option:checked"))
-            .ToHaveTextAsync(Ayudas.NombreClienteDelegadoDemo,
-                new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
+        //
+        // Con un único Tenant beneficiario en su cartera este Operador Delegado no ve el selector
+        // (decisión 1 del contrato del selector): la comprobación sobre el DOM es que sigue oculto.
+        // Que el cambio surtió efecto lo demuestran el 3xx real del POST y, más abajo, que Empresas
+        // muestra las empresas de ese Tenant y no las del origen.
+        await Assertions.Expect(Ayudas.DisparadorSelectorTenant(page))
+            .ToHaveCountAsync(0, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
 
         // Este clic navega SIN recargar el documento, pero SÍ dispara una petición
         // HTTP real (enhanced navigation de Blazor Web Apps) — no es circuito puro,

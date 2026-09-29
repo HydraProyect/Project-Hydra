@@ -17,6 +17,14 @@
 </button>
 
 <Drawer Visible="_visible" VisibleChanged="v => _visible = v" Titulo="Menú">
+    @* Bajo 1024px la barra lateral no se pinta y con ella desaparecería el selector de empresa
+       gestionada: se ofrece aquí, encima del menú. El Drawer solo monta su contenido abierto,
+       así que la lista se pide al abrir y no en cada página. *@
+    <AuthorizeView>
+        <Authorized>
+            <SelectorClienteActivo />
+        </Authorized>
+    </AuthorizeView>
     <NavMenu />
 </Drawer>
 </LimiteDeErrores>
