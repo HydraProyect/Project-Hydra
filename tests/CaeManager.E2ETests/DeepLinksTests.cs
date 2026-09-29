@@ -229,9 +229,8 @@ public class DeepLinksTests(WebAppFixture fixture)
 
         // Documentos abre el panel desde el menú "⋯" de la fila (MenuAcciones),
         // no de un enlace directo como Trabajadores/Centros.
-        // Con el patrón de lista la cabecera lleva también un menú «Más»: el de la fila es el de la tabla,
-        // y «Ver» pasó a llamarse «Ver ficha 360» (contrato de patrón de lista, pieza 5).
-        await Ayudas.PulsarAccionDeMenuAsync(page.Locator("table .menu-acciones-disparador").First, "Ver ficha 360");
+        // Con el patrón de lista la cabecera lleva también un menú «Más»: el de la fila es el de la tabla.
+        await Ayudas.PulsarAccionDeMenuAsync(page.Locator("table .menu-acciones-disparador").First, "Ver");
 
         await page.Locator(".workspace-titulo-entidad").WaitForAsync();
         var tituloOriginal = (await page.Locator(".workspace-titulo-entidad").TextContentAsync())!.Trim();

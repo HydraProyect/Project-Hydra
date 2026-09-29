@@ -4,7 +4,6 @@ using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Common;
-using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.EliminarDocumento;
 using CaeManager.Application.Documentos.Commands.EliminarDocumentos;
@@ -22,6 +21,8 @@ using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Layout;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Documentos;
 using CaeManager.Web.Features.Documentos.Components;
@@ -92,7 +93,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosDocumentos> Textos { get; set; } = default!;
-    [Inject] private IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
 
     /// <summary>
@@ -349,13 +349,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // vuelo el render saldría con «hay empresa» y lanzaría la carga (y la exportación) del origen.
         try
         {
-            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery(), token);
-            var activa = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
-            if (ClientesAutorizados.SelectorVisible(autorizados, activa))
-            {
-                _empresaActiva = activa;
-                _sinEmpresaSeleccionada = ClientesAutorizados.SinEmpresaSeleccionada(autorizados, _empresaActiva);
-            }
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, token);
+            _empresaActiva = contexto.Activa;
+            _sinEmpresaSeleccionada = contexto.SinSeleccion;
         }
         finally
         {
@@ -934,8 +930,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
                 {
-                    // Enter abre la vista previa lateral (pieza 6), como el nombre de la fila.
-                    AbrirVistaPrevia(idAbrir);
+                    // Enter abre la vista previa (el panel del documento), como el propietario de la fila.
+                    await AbrirPanelAsync(idAbrir);
                 }
                 break;
         }
@@ -945,21 +941,17 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     // --- Patrón único de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md) ---
 
-    private DocumentoListaDto? _previewDocumento;
-    private bool _previewVisible;
-
-    /// <summary>Propietario de la fila y Enter sobre la fila enfocada: la vista previa lateral (pieza 6).</summary>
-    private void AbrirVistaPrevia(Guid id)
+    /// <summary>
+    /// Propietario de la fila, «Ver» del «⋯» y Enter sobre la fila enfocada: la vista previa (pieza 6). En
+    /// Documentos es el panel del Context Workspace, que ya existe; el contrato prohíbe sumarle un drawer.
+    /// </summary>
+    private Task AbrirPanelAsync(Guid id)
     {
         var documento = _elementosPagina.FirstOrDefault(e => e.Id == id);
-        if (documento is null) return;
-        _previewDocumento = documento;
-        _previewVisible = true;
+        return documento is null
+            ? Task.CompletedTask
+            : WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion");
     }
-
-    /// <summary>«Abrir ficha 360» del pie de la vista previa: el panel del documento (Context Workspace).</summary>
-    private Task AbrirFichaDesdeVistaPrevia(DocumentoListaDto documento) =>
-        WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion");
 
     private void AbrirGuardarFiltro() => _mostrarGuardarFiltro = true;
 

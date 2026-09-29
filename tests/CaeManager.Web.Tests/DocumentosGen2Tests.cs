@@ -897,7 +897,7 @@ public class DocumentosGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(ConCartera(origenGestionado: false, Documento("Reconocimiento médico")), tenantSeleccionado: EmpresaSur);
 
-        var cabecera = cut.Find(".documentos-empresa");
+        var cabecera = cut.Find(".cabecera-empresa-activa");
         cabecera.TextContent.Should().Contain("Empresa gestionada").And.Contain("Empresa Sur");
         cabecera.QuerySelector(".avatar-tenant")!.TextContent.Trim().Should().Be("ES", "sin logo se pintan las iniciales");
     }
@@ -907,7 +907,7 @@ public class DocumentosGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
 
-        cut.FindAll(".documentos-empresa").Should().BeEmpty();
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
         cut.FindAll("table, [role=grid]").Should().NotBeEmpty("la lista se pinta como siempre");
     }
 
@@ -930,7 +930,7 @@ public class DocumentosGen2Tests : BunitContext
         var (cut, _) = Renderizar(ConCartera(origenGestionado: true, Documento("Reconocimiento médico")));
 
         cut.Markup.Should().NotContain("Selecciona una empresa de tu cartera");
-        cut.Find(".documentos-empresa").TextContent.Should().Contain("Operador de prueba");
+        cut.Find(".cabecera-empresa-activa").TextContent.Should().Contain("Operador de prueba");
     }
 
     [Fact]
@@ -1053,36 +1053,30 @@ public class DocumentosGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task El_propietario_de_la_fila_abre_la_vista_previa_lateral_y_su_pie_abre_la_ficha_360()
+    public async Task El_propietario_de_la_fila_abre_el_panel_del_documento_y_no_un_segundo_drawer()
     {
+        // Pieza 6: en Documentos la vista previa ES el panel del Context Workspace, que ya existe; el
+        // contrato prohíbe sumarle un PreviewDrawer.
         var documento = Documento("Reconocimiento médico");
         var (cut, _) = Renderizar(ConDocumentos(documento));
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
 
-        cut.FindAll(".drawer-preview-documento").Should().BeEmpty("control: cerrada al inicio");
+        workspace.EstaAbierto.Should().BeFalse("control: cerrado al inicio");
         await cut.Find("table .nombre-fila-entidad").ClickAsync(new MouseEventArgs());
 
-        var vista = cut.Find(".drawer-preview-documento");
-        vista.TextContent.Should().Contain("Reconocimiento médico").And.Contain("Salas Moreno, Javier");
-        workspace.EstaAbierto.Should().BeFalse("la vista previa no es el panel de 520 px");
-
-        await cut.Find(".pie-preview-documento button").ClickAsync(new MouseEventArgs());
-
-        workspace.EstaAbierto.Should().BeTrue("«Abrir ficha 360» abre el panel del documento");
-        cut.FindAll(".drawer-preview-documento").Should().BeEmpty("abrir la ficha cierra la vista previa");
+        workspace.EstaAbierto.Should().BeTrue("el propietario abre el panel del documento");
+        cut.FindAll("[class*='drawer-preview']").Should().BeEmpty("no hay un segundo drawer de vista previa");
     }
 
     [Fact]
-    public async Task El_menu_de_fila_ofrece_Vista_previa_y_Ver_ficha_360_en_lugar_de_Ver()
+    public async Task El_menu_de_fila_conserva_Ver_Renovar_y_Eliminar_con_el_destructivo_al_final()
     {
         var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
 
         await cut.Find("table .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
         var items = cut.FindAll(".menu-acciones-item").Select(i => i.TextContent.Trim()).ToList();
-        items.Should().Contain("Vista previa").And.Contain("Ver ficha 360").And.Contain("Eliminar");
-        items.Should().NotContain("Ver");
-        items.IndexOf("Eliminar").Should().Be(items.Count - 1, "el destructivo va el último");
+        items.Should().Equal("Ver", "Renovar", "Eliminar");
     }
 
     [Fact]

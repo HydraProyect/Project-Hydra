@@ -39,12 +39,6 @@
   <data name="MasEtiqueta" xml:space="preserve">
     <value>Más</value>
   </data>
-  <data name="MenuVistaPrevia" xml:space="preserve">
-    <value>Vista previa</value>
-  </data>
-  <data name="MenuVerFicha360" xml:space="preserve">
-    <value>Ver ficha 360</value>
-  </data>
   <data name="QuitarFiltroBusqueda" xml:space="preserve">
     <value>Quitar filtro de búsqueda</value>
   </data>
@@ -74,44 +68,5 @@
   </data>
   <data name="ConteoVariosFiltrado" xml:space="preserve">
     <value>{0} documentos con estos filtros</value>
-  </data>
-  <data name="PreviewAria" xml:space="preserve">
-    <value>Vista previa del documento</value>
-  </data>
-  <data name="PreviewEtiqueta" xml:space="preserve">
-    <value>Vista rápida · Documento</value>
-  </data>
-  <data name="PreviewCerrar" xml:space="preserve">
-    <value>Cerrar</value>
-  </data>
-  <data name="PreviewPropietario" xml:space="preserve">
-    <value>Propietario</value>
-  </data>
-  <data name="PreviewAmbito" xml:space="preserve">
-    <value>Ámbito</value>
-  </data>
-  <data name="PreviewEmision" xml:space="preserve">
-    <value>Emisión</value>
-  </data>
-  <data name="PreviewVencimiento" xml:space="preserve">
-    <value>Vencimiento</value>
-  </data>
-  <data name="PreviewPlataformas" xml:space="preserve">
-    <value>Plataformas</value>
-  </data>
-  <data name="PreviewSinAcreditaciones" xml:space="preserve">
-    <value>Sin acreditaciones en plataformas.</value>
-  </data>
-  <data name="PreviewArchivo" xml:space="preserve">
-    <value>Archivo</value>
-  </data>
-  <data name="PreviewVerPdf" xml:space="preserve">
-    <value>Ver PDF</value>
-  </data>
-  <data name="PreviewSinAdjunto" xml:space="preserve">
-    <value>Sin adjunto.</value>
-  </data>
-  <data name="PreviewAbrirFicha" xml:space="preserve">
-    <value>Abrir ficha 360</value>
   </data>
 </root>

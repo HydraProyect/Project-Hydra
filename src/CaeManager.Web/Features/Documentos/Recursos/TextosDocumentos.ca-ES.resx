@@ -39,12 +39,6 @@
   <data name="MasEtiqueta" xml:space="preserve">
     <value>Més</value>
   </data>
-  <data name="MenuVistaPrevia" xml:space="preserve">
-    <value>Vista prèvia</value>
-  </data>
-  <data name="MenuVerFicha360" xml:space="preserve">
-    <value>Veure fitxa 360</value>
-  </data>
   <data name="QuitarFiltroBusqueda" xml:space="preserve">
     <value>Treu el filtre de cerca</value>
   </data>
@@ -74,44 +68,5 @@
   </data>
   <data name="ConteoVariosFiltrado" xml:space="preserve">
     <value>{0} documents amb aquests filtres</value>
-  </data>
-  <data name="PreviewAria" xml:space="preserve">
-    <value>Vista prèvia del document</value>
-  </data>
-  <data name="PreviewEtiqueta" xml:space="preserve">
-    <value>Vista ràpida · Document</value>
-  </data>
-  <data name="PreviewCerrar" xml:space="preserve">
-    <value>Tanca</value>
-  </data>
-  <data name="PreviewPropietario" xml:space="preserve">
-    <value>Propietari</value>
-  </data>
-  <data name="PreviewAmbito" xml:space="preserve">
-    <value>Àmbit</value>
-  </data>
-  <data name="PreviewEmision" xml:space="preserve">
-    <value>Emissió</value>
-  </data>
-  <data name="PreviewVencimiento" xml:space="preserve">
-    <value>Venciment</value>
-  </data>
-  <data name="PreviewPlataformas" xml:space="preserve">
-    <value>Plataformes</value>
-  </data>
-  <data name="PreviewSinAcreditaciones" xml:space="preserve">
-    <value>Sense acreditacions a plataformes.</value>
-  </data>
-  <data name="PreviewArchivo" xml:space="preserve">
-    <value>Arxiu</value>
-  </data>
-  <data name="PreviewVerPdf" xml:space="preserve">
-    <value>Veure PDF</value>
-  </data>
-  <data name="PreviewSinAdjunto" xml:space="preserve">
-    <value>Sense adjunt.</value>
-  </data>
-  <data name="PreviewAbrirFicha" xml:space="preserve">
-    <value>Obrir fitxa 360</value>
   </data>
 </root>

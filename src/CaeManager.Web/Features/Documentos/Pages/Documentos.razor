@@ -33,20 +33,10 @@
 <PageTitle>Documentos — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    @* Mockup «Selector Empresa Gestionada» (lienzo 2), igual que Trabajadores: con varias empresas
-       gestionadas, la lista dice de cuál es. El selector de la barra lateral cambia de empresa y
-       recarga esta misma ruta sin query (I14: ningún filtro con Ids del Tenant anterior sobrevive;
-       los pasos de pestaña y los Ids de enlace profundo no viajan al Tenant nuevo). *@
-    @if (_empresaActiva is not null)
-    {
-        <div class="documentos-empresa">
-            <AvatarTenant Nombre="@_empresaActiva.Nombre" LogoUrl="@AvatarTenant.UrlDeLogo(_empresaActiva.TenantId, _empresaActiva.LogoVersion)" />
-            <span class="documentos-empresa-texto">
-                <span class="documentos-empresa-rotulo">@Comunes["SelectorTenantRotulo"]</span>
-                <span class="documentos-empresa-nombre" title="@_empresaActiva.Nombre">@_empresaActiva.Nombre</span>
-            </span>
-        </div>
-    }
+    @* Mockup «Selector Empresa Gestionada» (lienzo 2): con varias empresas gestionadas, la lista dice de
+       cuál es. El selector de la barra lateral cambia de empresa y recarga esta misma ruta sin query
+       (I14: ningún filtro con Ids del Tenant anterior sobrevive; los Ids de enlace profundo no viajan). *@
+    <CabeceraEmpresaActiva Empresa="_empresaActiva" />
 
     @*
         Pieza 1 del patrón de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3): antetítulo
@@ -220,8 +210,9 @@
                             </TemplateColumn>
                         }
                         <TemplateColumn Title="Propietario" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.PropietarioNombre))">
-                            @* Pieza 5: el propietario, en negrita y sin subrayado, abre la vista previa lateral (pieza 6). *@
-                            <button type="button" class="enlace-nombre-fila nombre-fila-entidad" @onclick="() => AbrirVistaPrevia(context.Id)">@context.PropietarioNombre</button>
+                            @* Pieza 5: el propietario, en negrita y sin subrayado, abre la vista previa (pieza 6). En Documentos la
+                               vista previa ES el panel del Context Workspace, que ya existe: no se añade un segundo drawer. *@
+                            <button type="button" class="enlace-nombre-fila nombre-fila-entidad" @onclick="() => AbrirPanelAsync(context.Id)">@context.PropietarioNombre</button>
                         </TemplateColumn>
                         <TemplateColumn Title="Ámbito" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Ambito))">
                             <Badge>@context.Ambito</Badge>
@@ -259,11 +250,8 @@
                         </TemplateColumn>
                         <TemplateColumn Title="Acciones" Align="Align.End">
                             <MenuAcciones>
-                                <ItemMenuAccion OnClick="() => AbrirVistaPrevia(context.Id)">
-                                    @Textos["MenuVistaPrevia"]
-                                </ItemMenuAccion>
-                                <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, context.Id, context.TipoDocumentoNombre, "informacion")'>
-                                    @Textos["MenuVerFicha360"]
+                                <ItemMenuAccion OnClick="() => AbrirPanelAsync(context.Id)">
+                                    Ver
                                 </ItemMenuAccion>
                                 <SoloConEscritura><ItemMenuAccion OnClick="() => _drawerGestion.AbrirEditarAsync(context.Id)">
                                     Renovar
@@ -313,9 +301,6 @@
     }
 </div>
 
-@* Pieza 6: vista previa lateral. El pie ofrece «Abrir ficha 360» (el panel del documento). *@
-<DocumentoPreviewDrawer Documento="_previewDocumento" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v"
-                        OnAbrirFicha="AbrirFichaDesdeVistaPrevia" />
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
 
