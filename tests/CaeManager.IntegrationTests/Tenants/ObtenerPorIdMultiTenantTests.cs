@@ -110,6 +110,40 @@ public class ObtenerPorIdMultiTenantTests : IAsyncLifetime
         resultado.Should().BeNull();
     }
 
+    /// <summary>
+    /// I15 del contrato del selector de Tenant (§ 4.5): el enlace profundo a una ficha de otro Tenant no puede
+    /// distinguirse del enlace a una ficha que no existe. La página pinta el mismo estado de error cuando la
+    /// consulta devuelve null, así que la propiedad se cumple si la respuesta es idéntica (null) en los dos
+    /// casos: no se busca la entidad en otros Tenants ni se filtra su existencia.
+    /// </summary>
+    [Fact]
+    public async Task Un_Id_de_otro_tenant_y_un_Id_inexistente_dan_la_misma_respuesta_en_las_tres_fichas()
+    {
+        await using var contextoB = CrearContexto(_tenantB);
+        var alcance = new AlcanceDatosServiceFalso();
+        var inexistente = Guid.NewGuid();
+
+        var empresaHandler = new ObtenerEmpresaPorIdQueryHandler(contextoB, alcance);
+        var clienteHandler = new ObtenerClientePorIdQueryHandler(contextoB, alcance);
+        var centroHandler = new ObtenerCentroPorIdQueryHandler(contextoB, contextoB, alcance);
+
+        var deOtroTenant = new object?[]
+        {
+            await empresaHandler.Handle(new ObtenerEmpresaPorIdQuery(_empresaDeAId), CancellationToken.None),
+            await clienteHandler.Handle(new ObtenerClientePorIdQuery(_clienteDeAId), CancellationToken.None),
+            await centroHandler.Handle(new ObtenerCentroPorIdQuery(_centroDeAId), CancellationToken.None),
+        };
+        var ausentes = new object?[]
+        {
+            await empresaHandler.Handle(new ObtenerEmpresaPorIdQuery(inexistente), CancellationToken.None),
+            await clienteHandler.Handle(new ObtenerClientePorIdQuery(inexistente), CancellationToken.None),
+            await centroHandler.Handle(new ObtenerCentroPorIdQuery(inexistente), CancellationToken.None),
+        };
+
+        ausentes.Should().AllSatisfy(r => r.Should().BeNull("control positivo: un Id inexistente da null"));
+        deOtroTenant.Should().BeEquivalentTo(ausentes, "el Id de otro Tenant es indistinguible de uno inexistente");
+    }
+
     [Fact]
     public async Task Los_tres_identificadores_siguen_resolviendo_para_su_propio_tenant()
     {
