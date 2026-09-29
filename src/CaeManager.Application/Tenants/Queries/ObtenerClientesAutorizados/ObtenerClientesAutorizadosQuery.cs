@@ -54,9 +54,13 @@ public static class ClientesAutorizados
     /// No lo concede: la lista ya es el conjunto autorizado.
     /// </para>
     /// </summary>
-    public static bool SelectorVisible(IReadOnlyList<ClienteAutorizadoDto> autorizados) =>
+    public static bool SelectorVisible(IReadOnlyList<ClienteAutorizadoDto> autorizados, ClienteAutorizadoDto? activo) =>
         autorizados.Count(c => c.EsGestionadoPorOperacion) >= 2
-        || autorizados.Any(c => !c.EsOrigen && !c.EsGestionadoPorOperacion);
+        || autorizados.Any(c => !c.EsOrigen && !c.EsGestionadoPorOperacion)
+        // Mientras el contexto efectivo sea el origen y haya algún Tenant externo, el control
+        // se mantiene: quien volvió al origen a propósito (el Tenant por defecto respeta esa
+        // preferencia 8 h) o cuya cartera bajó a un solo Tenant no tendría otra vía de elegirlo.
+        || (activo is { EsOrigen: true } && autorizados.Any(c => !c.EsOrigen));
 
     /// <summary>
     /// Tenants externos que el usuario puede abrir: las filas de «Mi cartera» del

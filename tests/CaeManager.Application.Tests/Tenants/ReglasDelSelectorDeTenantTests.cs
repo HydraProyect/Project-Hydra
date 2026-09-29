@@ -18,6 +18,10 @@ public class ReglasDelSelectorDeTenantTests
     private static readonly Guid B = Guid.NewGuid();
     private static readonly Guid Delegado = Guid.NewGuid();
 
+    /// <summary>Visibilidad con el activo que resultaría de la selección (null = sin selección: el origen).</summary>
+    private static bool Visible(ClienteAutorizadoDto[] lista, Guid? seleccion = null) =>
+        ClientesAutorizados.SelectorVisible(lista, ClientesAutorizados.Activo(lista, seleccion));
+
     private static ClienteAutorizadoDto Propio(bool gestionado = false) =>
         new(Origen, "Origen", EsOrigen: true, EsGestionadoPorOperacion: gestionado);
 
@@ -30,29 +34,29 @@ public class ReglasDelSelectorDeTenantTests
     [Fact]
     public void Un_usuario_mono_Tenant_no_ve_el_selector()
     {
-        ClientesAutorizados.SelectorVisible([Propio()]).Should().BeFalse();
-        ClientesAutorizados.SelectorVisible([]).Should().BeFalse();
+        Visible([Propio()]).Should().BeFalse();
+        Visible([]).Should().BeFalse();
     }
 
     [Fact]
     public void Con_un_solo_Tenant_de_cartera_y_el_origen_sin_gestionar_el_selector_sigue_oculto()
     {
         // Decisión 5: ese Tenant es el activo por defecto y el selector no aparece.
-        ClientesAutorizados.SelectorVisible([Propio(), PorCartera(A, "A")]).Should().BeFalse();
+        Visible([Propio(), PorCartera(A, "A")], seleccion: A).Should().BeFalse();
     }
 
     [Fact]
     public void Con_dos_Tenants_de_cartera_el_selector_es_visible()
     {
-        ClientesAutorizados.SelectorVisible([Propio(), PorCartera(A, "A"), PorCartera(B, "B")]).Should().BeTrue();
+        Visible([Propio(), PorCartera(A, "A"), PorCartera(B, "B")]).Should().BeTrue();
     }
 
     [Fact]
     public void El_origen_cuenta_solo_si_el_Gestor_tiene_cartera_sobre_el()
     {
-        ClientesAutorizados.SelectorVisible([Propio(gestionado: true), PorCartera(A, "A")]).Should().BeTrue(
+        Visible([Propio(gestionado: true), PorCartera(A, "A")]).Should().BeTrue(
             "origen gestionado + un Tenant externo son dos Tenants de cartera");
-        ClientesAutorizados.SelectorVisible([Propio(gestionado: false), PorCartera(A, "A")]).Should().BeFalse();
+        Visible([Propio(gestionado: false), PorCartera(A, "A")], seleccion: A).Should().BeFalse();
     }
 
     [Fact]
@@ -60,7 +64,7 @@ public class ReglasDelSelectorDeTenantTests
     {
         // Es su único control para pasar a ese Tenant y volver a su origen; lo veía
         // antes del cambio y no lo concede: la lista ya es el conjunto autorizado.
-        ClientesAutorizados.SelectorVisible([Propio(), PorDelegacion()]).Should().BeTrue();
+        Visible([Propio(), PorDelegacion()]).Should().BeTrue();
     }
 
     [Fact]
@@ -96,6 +100,16 @@ public class ReglasDelSelectorDeTenantTests
         // Administrador del Operador CAE externo: sin cartera alcanza a lo sumo un Tenant por la
         // vía heredada (soporte / Operador Delegado). Sigue entrando en su Tenant de origen.
         ClientesAutorizados.TenantPorDefecto([Propio(), PorDelegacion()]).Should().BeNull();
+    }
+
+    [Fact]
+    public void Con_un_unico_Tenant_de_cartera_el_selector_reaparece_mientras_el_contexto_efectivo_es_el_origen()
+    {
+        // Volvió al origen a propósito (la preferencia impide el Tenant por defecto 8 h) y su cartera
+        // bajó a un solo Tenant: sin control no tendría cómo elegirlo.
+        Visible([Propio(), PorCartera(A, "A")], seleccion: null).Should().BeTrue();
+        Visible([Propio(), PorCartera(A, "A")], seleccion: A).Should().BeFalse("con el Tenant único activo se oculta (decisión 5)");
+        Visible([Propio()], seleccion: null).Should().BeFalse("sin Tenants externos no hay nada que elegir");
     }
 
     [Fact]

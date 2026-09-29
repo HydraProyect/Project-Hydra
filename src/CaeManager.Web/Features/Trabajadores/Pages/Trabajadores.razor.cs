@@ -187,6 +187,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
 
+    /// <summary>La empresa activa aún no se ha resuelto: se pinta una carga en vez de la lista.</summary>
+    private bool _resolviendoEmpresa = true;
+
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
@@ -194,15 +197,26 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
 
-        var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
-        if (ClientesAutorizados.SelectorVisible(autorizados))
+        // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
+        // vuelo el render saldría con «hay empresa» y lanzaría la carga (y la exportación) del origen.
+        try
         {
-            _empresaActiva = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
-            _sinEmpresaSeleccionada = ClientesAutorizados.SinEmpresaSeleccionada(autorizados, _empresaActiva);
-            // Sin empresa elegida no se piden los datos de la organización de origen.
-            if (_sinEmpresaSeleccionada)
-                return;
+            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+            var activa = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
+            if (ClientesAutorizados.SelectorVisible(autorizados, activa))
+            {
+                _empresaActiva = activa;
+                _sinEmpresaSeleccionada = ClientesAutorizados.SinEmpresaSeleccionada(autorizados, _empresaActiva);
+            }
         }
+        finally
+        {
+            _resolviendoEmpresa = false;
+        }
+
+        // Sin empresa elegida no se piden los datos de la organización de origen.
+        if (_sinEmpresaSeleccionada)
+            return;
 
         _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
         _subcontratasDisponibles = await Mediator.Send(new ObtenerSubcontratasParaSelectorQuery());

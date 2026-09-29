@@ -21,7 +21,7 @@
     en línea.
 *@
 <LimiteDeErrores Islote="this">
-@if (_activo is not null && ClientesAutorizados.SelectorVisible(_clientes!))
+@if (_activo is not null && ClientesAutorizados.SelectorVisible(_clientes!, _activo))
 {
     <div class="selector-tenant" data-selector-tenant @onkeydown="AlPulsarTecla">
         <button type="button" class="selector-tenant-disparador @(_abierto ? "selector-tenant-disparador-abierto" : null)"

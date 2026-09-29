@@ -88,6 +88,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
         public PerfilVocabularioTenant Perfil { get; set; } = PerfilVocabularioTenant.Consultora;
         /// <summary>Por defecto, un usuario mono-Tenant: sin selector ni cabecera de empresa gestionada.</summary>
+        /// <summary>Si se fija, la respuesta de la lista de Tenants autorizados espera a esta tarea (mediador asíncrono).</summary>
+        public Task? RetenerAutorizados { get; set; }
         public List<ClienteAutorizadoDto> Autorizados { get; } = [new(Guid.NewGuid(), "Propia", EsOrigen: true)];
         /// <summary>false = Operador CAE externo trabajando en un Tenant beneficiario ajeno.</summary>
         public bool EsDelPropioTenant { get; set; } = true;
@@ -107,6 +109,9 @@ public class TrabajadoresListaGen2Tests : BunitContext
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+
+            if (request is ObtenerClientesAutorizadosQuery && RetenerAutorizados is { } espera)
+                await espera;
 
             if (Retener?.Invoke(request) is { } retenida)
                 return (TResponse)await retenida;
@@ -341,6 +346,44 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
         cut.Markup.Should().NotContain("Selecciona una empresa de tu cartera");
         cut.Find(".trabajadores-empresa").TextContent.Should().Contain("Operador de prueba");
+    }
+
+    [Fact]
+    public void Mientras_se_resuelve_la_empresa_activa_no_se_monta_la_lista_ni_se_ofrece_la_exportacion()
+    {
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+        Registrar(mediador, "trabajadores");
+
+        var cut = Render<Trabajadores>();
+
+        cut.FindAll(".barra-trabajo-trabajadores").Should().BeEmpty();
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría los datos del origen");
+        ConsultasDeLista(mediador).Should().Be(0);
+
+        puerta.SetResult();
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Selecciona una empresa de tu cartera"));
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty();
+        ConsultasDeLista(mediador).Should().Be(0, "ni antes ni después de resolverse se pide la lista del origen");
+    }
+
+    [Fact]
+    public void Con_el_contexto_resuelto_a_una_empresa_la_lista_se_monta_tras_la_carga()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+        Registrar(mediador, "trabajadores");
+
+        var cut = Render<Trabajadores>();
+        cut.FindAll(".barra-trabajo-trabajadores").Should().BeEmpty();
+
+        puerta.SetResult();
+
+        cut.WaitForAssertion(() => cut.FindAll(".barra-trabajo-trabajadores").Should().NotBeEmpty());
     }
 
     private void Registrar(MediatorFalso mediador, string url)

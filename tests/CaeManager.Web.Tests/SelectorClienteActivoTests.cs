@@ -170,9 +170,20 @@ public class SelectorClienteActivoTests : BunitContext
         _lista = [Propio(), Gestionado(Norte, "Empresa Norte")];
         var refrescado = Render<SelectorClienteActivo>();
 
-        refrescado.FindAll(".selector-tenant").Should().BeEmpty(
-            "con un único Tenant de cartera y el origen sin gestionar el selector se oculta (decisión 5)");
-        refrescado.Markup.Should().NotContain("Empresa Sur");
+        // Su selección (Sur) ya no está autorizada: el contexto efectivo vuelve al origen y, como aún
+        // alcanza a Norte, el control se mantiene para que pueda elegirlo.
+        refrescado.Find(".selector-tenant-disparador").GetAttribute("data-tenant-id").Should().Be(Origen.ToString());
+        await refrescado.Find(".selector-tenant-disparador").ClickAsync(new MouseEventArgs());
+        refrescado.Markup.Should().Contain("Empresa Norte").And.NotContain("Empresa Sur");
+    }
+
+    [Fact]
+    public void Con_un_unico_Tenant_de_cartera_el_selector_reaparece_si_el_contexto_efectivo_es_el_origen()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte")];
+
+        Renderizar(seleccionado: null).FindAll(".selector-tenant").Should().ContainSingle(
+            "volvió al origen a propósito y la preferencia impide el Tenant por defecto");
     }
 
     [Fact]

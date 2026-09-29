@@ -50,18 +50,22 @@
        perfil. *@
     <CabeceraPagina Titulo="@TituloPagina">
         <Acciones>
-            @if (!_sinEmpresaSeleccionada)
+            @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
             {
                 <a class="enlace-exportar" href="/trabajadores/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceExportarExcel"]</a>
             }
-            @if (!_alcanceCero && !_sinEmpresaSeleccionada)
+            @if (!_alcanceCero && !_sinEmpresaSeleccionada && !_resolviendoEmpresa)
             {
                 <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoTrabajador"]</Boton></SoloConEscritura>
             }
         </Acciones>
     </CabeceraPagina>
 
-    @if (_sinEmpresaSeleccionada)
+    @if (_resolviendoEmpresa)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_sinEmpresaSeleccionada)
     {
         @* Estado 4a del mockup: quien gestiona empresas externas y no tiene ninguna elegida no ve los
            datos de su organización presentados como si fueran de su cartera. *@
