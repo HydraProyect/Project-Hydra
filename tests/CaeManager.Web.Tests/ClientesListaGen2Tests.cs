@@ -101,12 +101,18 @@ public class ClientesListaGen2Tests : BunitContext
         /// <summary>Si se fija, la respuesta de la lista de Tenants autorizados espera a esta tarea (mediador asíncrono).</summary>
         public Task? RetenerAutorizados { get; set; }
 
+        /// <summary>El token con el que la página pidió la lista de Tenants autorizados (solo con <see cref="RetenerAutorizados"/>).</summary>
+        public CancellationToken? TokenDeAutorizados { get; private set; }
+
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
 
             if (request is ObtenerClientesAutorizadosQuery && RetenerAutorizados is { } espera)
-                await espera;
+            {
+                TokenDeAutorizados = cancellationToken;
+                await espera.WaitAsync(cancellationToken);
+            }
 
             if (Retener?.Invoke(request) is { } retenida)
                 return (TResponse)await retenida;
@@ -1610,6 +1616,7 @@ public class ClientesListaGen2Tests : BunitContext
 
         cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
         cut.Markup.Should().NotContain("Refrielectric S.A.");
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("no hay empresa activa que nombrar en el estado 4a");
         cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría los datos del origen");
         ConsultasDeLista(mediador).Should().Be(0, "no se piden los clientes de la organización de origen");
         mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().BeEmpty("tampoco los filtros guardados del origen");
@@ -1666,6 +1673,29 @@ public class ClientesListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Selecciona una empresa de tu cartera"));
         cut.FindAll("a.enlace-exportar").Should().BeEmpty();
         ConsultasDeLista(mediador).Should().Be(0, "ni antes ni después de resolverse se pide la lista del origen");
+    }
+
+    /// <summary>Salir de la página con la resolución en vuelo la cancela: no se repinta ni se pide la lista de nadie.</summary>
+    [Fact]
+    public void Salir_de_la_pagina_con_la_empresa_activa_en_vuelo_cancela_la_resolucion()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+
+        Registrar(mediador);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("clientes");
+        var cut = Render<Clientes>();
+        mediador.TokenDeAutorizados.Should().NotBeNull("la página pidió la lista de Tenants autorizados");
+        mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeFalse("control positivo: sigue montada");
+
+        cut.Instance.Dispose();
+
+        mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeTrue();
+        puerta.SetResult();
+        ConsultasDeLista(mediador).Should().Be(0);
+        mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().BeEmpty();
     }
 
     [Fact]

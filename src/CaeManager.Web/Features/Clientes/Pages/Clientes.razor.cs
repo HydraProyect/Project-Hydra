@@ -29,8 +29,25 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 
 public record GestorCaeSelectorDto(Guid Id, string NombreCompleto, string Email);
 
-public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
+public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
+    /// <summary>
+    /// Se cancela al salir de la página: la resolución de la empresa activa que siga en vuelo deja de trabajar
+    /// para nadie y su respuesta tardía no repinta un componente ya retirado.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
@@ -243,9 +260,14 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
         // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
         try
         {
-            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual);
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, _ciclo.Token);
             _empresaActiva = contexto.Activa;
             _sinEmpresaSeleccionada = contexto.SinSeleccion;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        {
+            // La página se retiró con la resolución en vuelo: no queda nadie a quien pintar.
+            return;
         }
         finally
         {
