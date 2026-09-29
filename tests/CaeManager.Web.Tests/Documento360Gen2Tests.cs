@@ -16,7 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
-public class Documento360Gen2Tests : BunitContext
+public partial class Documento360Gen2Tests : BunitContext
 {
     private sealed class MediadorFalso : IMediator
     {

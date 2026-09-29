@@ -33,6 +33,16 @@ public static class Ayudas
     public const string ContrasenaUsuariosPrueba = "Prueba#2026";
 
     /// <summary>
+    /// El «hoy» del producto: día de negocio en Europe/Madrid (DiaDeNegocio.Hoy() en
+    /// CaeManager.Domain, decisión de producto 2026-09-28) — duplicado aquí en vez de
+    /// referenciado porque este proyecto de test no referencia Domain. Entre las 22:00 y las
+    /// 24:00 UTC en verano difiere del día UTC, así que un test que rellene o busque una fecha
+    /// «de hoy» o «de mañana» sembrada por el producto no debe usar <c>DateTime.UtcNow</c>.
+    /// </summary>
+    public static DateOnly HoyDeNegocio() =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Europe/Madrid")).DateTime);
+
+    /// <summary>
     /// Nombre del tenant Cliente Delegante que DelegacionDemoSeeder siembra
     /// para el Administrador inicial (ver esa clase en
     /// CaeManager.Infrastructure.Persistence.Seed) — duplicado aquí en vez de
