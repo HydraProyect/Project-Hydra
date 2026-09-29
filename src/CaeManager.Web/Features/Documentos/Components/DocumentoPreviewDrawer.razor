@@ -7,16 +7,19 @@
 *@
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosDocumentos> Textos
 
 @if (Visible && Documento is { } d)
 {
-    <aside class="drawer-preview-documento" role="complementary" aria-label="Vista previa del documento">
+    <aside class="drawer-preview-documento" role="complementary" aria-label="@Textos["PreviewAria"]">
         <div class="cabecera-preview-documento">
             <div class="texto-cabecera-preview-documento">
-                <span class="etiqueta-cabecera-preview-documento">Vista rápida · Documento</span>
+                <span class="etiqueta-cabecera-preview-documento">@Textos["PreviewEtiqueta"]</span>
                 <span class="nombre-cabecera-preview-documento">@d.TipoDocumentoNombre</span>
             </div>
-            <button type="button" class="boton-cerrar-preview-documento" aria-label="Cerrar" @onclick="Cerrar"><Icono Nombre="cerrar" /></button>
+            <button type="button" class="boton-cerrar-preview-documento" aria-label="@Textos["PreviewCerrar"]" @onclick="Cerrar"><Icono Nombre="cerrar" /></button>
         </div>
 
         <div class="cuerpo-preview-documento">
@@ -24,17 +27,17 @@
                 <Badge Tono="EstadoDocumentoUi.Tono(d.Estado)" ConIcono>@EstadoDocumentoUi.Texto(d.Estado)</Badge>
             </div>
             <div class="rejilla-info-preview-documento">
-                <div class="celda-info-preview-documento"><span>Propietario</span><strong>@d.PropietarioNombre</strong></div>
-                <div class="celda-info-preview-documento"><span>Ámbito</span><strong>@d.Ambito</strong></div>
-                <div class="celda-info-preview-documento"><span>Emisión</span><strong>@d.FechaEmision.ToString("dd/MM/yyyy")</strong></div>
-                <div class="celda-info-preview-documento"><span>Vencimiento</span><strong>@(d.FechaVencimiento is null ? "—" : d.FechaVencimiento.Value.ToString("dd/MM/yyyy"))</strong></div>
+                <div class="celda-info-preview-documento"><span>@Textos["PreviewPropietario"]</span><strong>@d.PropietarioNombre</strong></div>
+                <div class="celda-info-preview-documento"><span>@Textos["PreviewAmbito"]</span><strong>@d.Ambito</strong></div>
+                <div class="celda-info-preview-documento"><span>@Textos["PreviewEmision"]</span><strong>@d.FechaEmision.ToString("dd/MM/yyyy")</strong></div>
+                <div class="celda-info-preview-documento"><span>@Textos["PreviewVencimiento"]</span><strong>@(d.FechaVencimiento is null ? "—" : d.FechaVencimiento.Value.ToString("dd/MM/yyyy"))</strong></div>
             </div>
 
             <div class="bloque-preview-documento">
-                <span class="titulo-bloque-preview-documento">Plataformas</span>
+                <span class="titulo-bloque-preview-documento">@Textos["PreviewPlataformas"]</span>
                 @if (d.Acreditaciones.Count == 0)
                 {
-                    <span class="vacio-preview-documento">Sin acreditaciones en plataformas.</span>
+                    <span class="vacio-preview-documento">@Textos["PreviewSinAcreditaciones"]</span>
                 }
                 else
                 {
@@ -43,20 +46,20 @@
             </div>
 
             <div class="bloque-preview-documento">
-                <span class="titulo-bloque-preview-documento">Archivo</span>
+                <span class="titulo-bloque-preview-documento">@Textos["PreviewArchivo"]</span>
                 @if (d.ArchivoUrl is not null)
                 {
-                    <a href="/documentos/@d.Id/archivo" target="_blank">Ver PDF</a>
+                    <a href="/documentos/@d.Id/archivo" target="_blank">@Textos["PreviewVerPdf"]</a>
                 }
                 else
                 {
-                    <span class="vacio-preview-documento">Sin adjunto.</span>
+                    <span class="vacio-preview-documento">@Textos["PreviewSinAdjunto"]</span>
                 }
             </div>
         </div>
 
         <div class="pie-preview-documento">
-            <Boton OnClick="AbrirFichaAsync">Abrir ficha 360</Boton>
+            <Boton OnClick="AbrirFichaAsync">@Textos["PreviewAbrirFicha"]</Boton>
         </div>
     </aside>
 }

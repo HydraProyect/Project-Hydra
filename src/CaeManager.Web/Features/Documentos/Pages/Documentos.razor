@@ -49,7 +49,7 @@
     }
 
     @*
-        Pieza 1 del patrón de lista (CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3): antetítulo
+        Pieza 1 del patrón de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3): antetítulo
         del ciclo al que pertenece la pantalla; «Exportar» como enlace secundario, un menú «Más»
         con lo que el mockup omite y la pantalla ya tenía (importar, subida múltiple) y UNA sola
         primaria «+ Nuevo documento». Un mockup omite comportamiento, no lo deroga.
@@ -61,7 +61,7 @@
                 <a class="enlace-exportar" href="/documentos/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
                 @* «Más» solo existe si el rol puede escribir: importar y subida múltiple son escritura. *@
                 <SoloConEscritura>
-                    <MenuAcciones Etiqueta="Más">
+                    <MenuAcciones Etiqueta="@Textos["MasEtiqueta"]">
                         <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
                             <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/documentos/importar")'>Importar documentos</ItemMenuAccion>
                         </AuthorizeView>
@@ -171,15 +171,15 @@
                 <Chips>
                     @if (!string.IsNullOrWhiteSpace(_busqueda))
                     {
-                        <ChipFiltro Etiqueta="@EtiquetaFiltroBusqueda" EtiquetaAccesible="Quitar filtro de búsqueda" OnQuitar="() => BuscarAsync(string.Empty)" />
+                        <ChipFiltro Etiqueta="@EtiquetaFiltroBusqueda" EtiquetaAccesible="@Textos["QuitarFiltroBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
                     }
                     @if (!string.IsNullOrWhiteSpace(_ambitoFiltro))
                     {
-                        <ChipFiltro Etiqueta="@EtiquetaFiltroAmbito" EtiquetaAccesible="Quitar filtro de ámbito" OnQuitar="() => CambiarAmbitoFiltroAsync(string.Empty)" />
+                        <ChipFiltro Etiqueta="@EtiquetaFiltroAmbito" EtiquetaAccesible="@Textos["QuitarFiltroAmbito"]" OnQuitar="() => CambiarAmbitoFiltroAsync(string.Empty)" />
                     }
                     @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
                     {
-                        <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="Quitar filtro de estado" OnQuitar="() => CambiarEstadoFiltroAsync(string.Empty)" />
+                        <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="@Textos["QuitarFiltroEstado"]" OnQuitar="() => CambiarEstadoFiltroAsync(string.Empty)" />
                     }
                 </Chips>
             </BarraFiltros>
@@ -260,10 +260,10 @@
                         <TemplateColumn Title="Acciones" Align="Align.End">
                             <MenuAcciones>
                                 <ItemMenuAccion OnClick="() => AbrirVistaPrevia(context.Id)">
-                                    Vista previa
+                                    @Textos["MenuVistaPrevia"]
                                 </ItemMenuAccion>
                                 <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, context.Id, context.TipoDocumentoNombre, "informacion")'>
-                                    Ver ficha 360
+                                    @Textos["MenuVerFicha360"]
                                 </ItemMenuAccion>
                                 <SoloConEscritura><ItemMenuAccion OnClick="() => _drawerGestion.AbrirEditarAsync(context.Id)">
                                     Renovar

@@ -943,7 +943,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         StateHasChanged();
     }
 
-    // --- Patrón único de lista (CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md) ---
+    // --- Patrón único de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md) ---
 
     private DocumentoListaDto? _previewDocumento;
     private bool _previewVisible;
@@ -966,20 +966,23 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private IReadOnlyList<OpcionEstado> OpcionesFiltrosGuardados =>
         _filtrosGuardados.Select(f => new OpcionEstado(f.Id.ToString(), f.Nombre)).ToList();
 
-    private string EtiquetaFiltroBusqueda => "Búsqueda: \"" + _busqueda + "\"";
+    private string EtiquetaFiltroBusqueda => Textos["ChipBusqueda", _busqueda].Value;
 
-    private string EtiquetaFiltroAmbito => "Ámbito: " + _ambitoFiltro;
+    private string EtiquetaFiltroAmbito => Textos["ChipAmbito", _ambitoFiltro].Value;
 
     private string EtiquetaFiltroEstado =>
-        "Estado: " + (Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado) ? EstadoDocumentoUi.Texto(estado) : "—");
+        Textos["ChipEstado", Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado) ? EstadoDocumentoUi.Texto(estado) : "—"].Value;
 
     /// <summary>«N documentos»; con filtros, dice que el número es el de los que coinciden.</summary>
     private string TextoConteo
     {
         get
         {
-            var sustantivo = _totalElementos == 1 ? "documento" : "documentos";
-            return HayFiltrosActivos ? $"{_totalElementos} {sustantivo} con estos filtros" : $"{_totalElementos} {sustantivo}";
+            var uno = _totalElementos == 1;
+            var clave = HayFiltrosActivos
+                ? (uno ? "ConteoUnoFiltrado" : "ConteoVariosFiltrado")
+                : (uno ? "ConteoUno" : "ConteoVarios");
+            return Textos[clave, _totalElementos].Value;
         }
     }
 

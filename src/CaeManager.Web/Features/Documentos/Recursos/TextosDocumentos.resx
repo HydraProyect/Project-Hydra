@@ -36,4 +36,82 @@
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Los documentos se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
   </data>
+  <data name="MasEtiqueta" xml:space="preserve">
+    <value>Más</value>
+  </data>
+  <data name="MenuVistaPrevia" xml:space="preserve">
+    <value>Vista previa</value>
+  </data>
+  <data name="MenuVerFicha360" xml:space="preserve">
+    <value>Ver ficha 360</value>
+  </data>
+  <data name="QuitarFiltroBusqueda" xml:space="preserve">
+    <value>Quitar filtro de búsqueda</value>
+  </data>
+  <data name="QuitarFiltroAmbito" xml:space="preserve">
+    <value>Quitar filtro de ámbito</value>
+  </data>
+  <data name="QuitarFiltroEstado" xml:space="preserve">
+    <value>Quitar filtro de estado</value>
+  </data>
+  <data name="ChipBusqueda" xml:space="preserve">
+    <value>Búsqueda: "{0}"</value>
+  </data>
+  <data name="ChipAmbito" xml:space="preserve">
+    <value>Ámbito: {0}</value>
+  </data>
+  <data name="ChipEstado" xml:space="preserve">
+    <value>Estado: {0}</value>
+  </data>
+  <data name="ConteoUno" xml:space="preserve">
+    <value>{0} documento</value>
+  </data>
+  <data name="ConteoVarios" xml:space="preserve">
+    <value>{0} documentos</value>
+  </data>
+  <data name="ConteoUnoFiltrado" xml:space="preserve">
+    <value>{0} documento con estos filtros</value>
+  </data>
+  <data name="ConteoVariosFiltrado" xml:space="preserve">
+    <value>{0} documentos con estos filtros</value>
+  </data>
+  <data name="PreviewAria" xml:space="preserve">
+    <value>Vista previa del documento</value>
+  </data>
+  <data name="PreviewEtiqueta" xml:space="preserve">
+    <value>Vista rápida · Documento</value>
+  </data>
+  <data name="PreviewCerrar" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="PreviewPropietario" xml:space="preserve">
+    <value>Propietario</value>
+  </data>
+  <data name="PreviewAmbito" xml:space="preserve">
+    <value>Ámbito</value>
+  </data>
+  <data name="PreviewEmision" xml:space="preserve">
+    <value>Emisión</value>
+  </data>
+  <data name="PreviewVencimiento" xml:space="preserve">
+    <value>Vencimiento</value>
+  </data>
+  <data name="PreviewPlataformas" xml:space="preserve">
+    <value>Plataformas</value>
+  </data>
+  <data name="PreviewSinAcreditaciones" xml:space="preserve">
+    <value>Sin acreditaciones en plataformas.</value>
+  </data>
+  <data name="PreviewArchivo" xml:space="preserve">
+    <value>Archivo</value>
+  </data>
+  <data name="PreviewVerPdf" xml:space="preserve">
+    <value>Ver PDF</value>
+  </data>
+  <data name="PreviewSinAdjunto" xml:space="preserve">
+    <value>Sin adjunto.</value>
+  </data>
+  <data name="PreviewAbrirFicha" xml:space="preserve">
+    <value>Abrir ficha 360</value>
+  </data>
 </root>
