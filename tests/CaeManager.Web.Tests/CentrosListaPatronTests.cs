@@ -214,6 +214,20 @@ public class CentrosListaPatronTests : BunitContext
     }
 
     [Fact]
+    public void Un_cambio_de_filtro_en_la_url_no_carga_la_lista_mientras_hay_que_elegir_empresa()
+    {
+        var mediador = ConCartera(origenGestionado: false, Centro("Centro del origen"));
+        var cut = Renderizar(mediador);
+        cut.Markup.Should().Contain("Selecciona una empresa de tu cartera", "control positivo: estamos en el 4a");
+
+        // OnParametersSetAsync re-sincroniza desde la URL: sin la guarda, esto cargaría los centros del origen.
+        cut.InvokeAsync(() => Services.GetRequiredService<NavigationManager>().NavigateTo("centros?q=origen"));
+
+        cut.Markup.Should().NotContain("Centro del origen");
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().BeEmpty();
+    }
+
+    [Fact]
     public void La_lista_nunca_pide_consultas_agregadas_entre_Tenants()
     {
         // I5: «Todos» existe solo en Mi trabajo y Dashboard; una lista trabaja sobre un Tenant.
