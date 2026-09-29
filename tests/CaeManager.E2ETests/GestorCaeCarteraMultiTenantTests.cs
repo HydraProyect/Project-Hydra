@@ -336,6 +336,62 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await RecorridoFichas360.RecorrerTodasAsync(page, fixture.BaseUrl, tenantB);
     }
 
+    /// <summary>
+    /// Lote 3 del selector, § 4.5 e I15. Con A activo, el enlace profundo a un Centro da el MISMO
+    /// EstadoVacio si el Centro no existe, si existe en otra empresa de la cartera (B) o si existe en
+    /// un Tenant fuera de la cartera: la ficha no revela existencia. La pista <c>?tenant</c> de una
+    /// empresa de la cartera añade un botón «Abrir en…» (POST) y no cambia la empresa activa por GET;
+    /// una pista de fuera de la cartera se ignora sin decir nada distinto. Pulsar el botón cambia de
+    /// empresa y vuelve al mismo enlace, sin la pista, donde ya carga la ficha.
+    /// </summary>
+    [Fact]
+    public async Task Un_enlace_profundo_a_un_Centro_de_otra_empresa_da_el_mismo_EstadoVacio_exista_o_no_y_la_pista_solo_ofrece_un_POST()
+    {
+        var tenantA = await IdTenantAsync(TenantBeneficiarioA);
+        var tenantB = await IdTenantAsync(TenantBeneficiarioB);
+        var tenantFuera = await IdTenantAsync(TenantFueraDeCartera);
+        var centroB = await IdCentroAsync(CentroB);
+        var centroFuera = await IdCentroAsync(CentroFueraDeCartera);
+
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestorCae, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioA);
+
+        async Task<string> EstadoVacioDeAsync(string ruta)
+        {
+            await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}{ruta}");
+            await Expect(page.Locator(".estado-vacio")).ToBeVisibleAsync(EsperaEnFrio);
+            return await page.Locator(".estado-vacio").InnerTextAsync();
+        }
+
+        var inexistente = await EstadoVacioDeAsync($"/centros/{Guid.NewGuid()}");
+        Assert.Contains("No pudimos cargar este centro", inexistente);
+        Assert.Contains("Puede pertenecer a otra empresa de tu cartera", inexistente);
+        Assert.DoesNotContain("Abrir en", inexistente);
+
+        Assert.Equal(inexistente, await EstadoVacioDeAsync($"/centros/{centroB}"));
+        Assert.Equal(inexistente, await EstadoVacioDeAsync($"/centros/{centroFuera}"));
+        Assert.Equal(inexistente, await EstadoVacioDeAsync($"/centros/{centroFuera}?tenant={tenantFuera}"));
+        Assert.Equal(inexistente, await EstadoVacioDeAsync($"/centros/{centroB}?tenant={Guid.NewGuid()}"));
+
+        // Control positivo del instrumento: una pista de la cartera sí cambia la salida (el botón), y
+        // solo con el GET la empresa activa sigue siendo A.
+        var conPista = await EstadoVacioDeAsync($"/centros/{centroB}?tenant={tenantB}");
+        Assert.Contains($"Abrir en {TenantBeneficiarioB}", conPista);
+        Assert.Equal(tenantA, await Ayudas.TenantActivoIdAsync(page));
+        await page.ReloadAsync();
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = $"Abrir en {TenantBeneficiarioB}" })).ToBeVisibleAsync(EsperaEnFrio);
+        Assert.Equal(tenantA, await Ayudas.TenantActivoIdAsync(page));
+
+        // El botón es un POST: cambia de empresa y vuelve al mismo enlace, sin la pista.
+        await page.GetByRole(AriaRole.Button, new() { Name = $"Abrir en {TenantBeneficiarioB}" }).ClickAsync();
+        await page.WaitForURLAsync(url => new Uri(url).PathAndQuery == $"/centros/{centroB}");
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Name = CentroB })).ToBeVisibleAsync(EsperaEnFrio);
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
+    }
+
     /// <summary>Fila de Mi trabajo de un Tenant beneficiario con ese badge (aria-label = «{Título} · {Tenant}»).</summary>
     private static ILocator FilaMiTrabajo(IPage page, string tenant, string badge) =>
         page.Locator($"div[role=button][aria-label$='· {tenant}']").Filter(new() { HasText = badge });

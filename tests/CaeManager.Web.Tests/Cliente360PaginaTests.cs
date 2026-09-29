@@ -455,6 +455,7 @@ public class Cliente360PaginaTests : BunitContext
     [Fact]
     public void Un_cliente_inexistente_o_fuera_de_alcance_muestra_el_error_con_Reintentar()
     {
+        Services.ConEnlaceProfundoOtraEmpresa();
         var mediador = Registrar(new MediatorFalso());
         var id = Guid.NewGuid();
 
@@ -463,7 +464,9 @@ public class Cliente360PaginaTests : BunitContext
         cut.Find(".estado-vacio").TextContent.Should()
             .Contain("No pudimos cargar este cliente").And.Contain("Puede que ya no exista o que no tengas acceso.");
         cut.FindAll(".cabecera-pagina").Should().BeEmpty();
-        mediador.Enviadas.Should().ContainSingle().Which.Should().BeOfType<ObtenerClientePorIdQuery>();
+        // Del cliente pide solo su ficha; la lista de empresas autorizadas es del aviso de enlace profundo (§ 4.5).
+        mediador.Enviadas.Where(e => e is not CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados.ObtenerClientesAutorizadosQuery)
+            .Should().ContainSingle().Which.Should().BeOfType<ObtenerClientePorIdQuery>();
 
         mediador.Detalles[id] = new ClienteDetalleDto(id, "Refrielectric S.A.", "A-48.220.917", false, null, Alta, null, Guid.NewGuid());
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Reintentar").Click();

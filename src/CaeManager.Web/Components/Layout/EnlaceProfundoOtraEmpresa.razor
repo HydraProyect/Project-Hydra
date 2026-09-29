@@ -1,0 +1,110 @@
+@*
+    Enlace profundo a una ficha que este Tenant no devuelve (contrato del selector de Tenant, § 4.5, I15).
+
+    La ficha ausente y la ficha de otro Tenant son el mismo estado: la consulta devuelve null en los dos
+    casos y aquí nunca se busca la entidad en otro Tenant (sería un oráculo de existencia entre Tenants).
+    Lo que este componente añade depende solo de quien mira y de la URL, jamás de si la entidad existe:
+
+    - el aviso «puede pertenecer a otra empresa de tu cartera», si el usuario tiene selector;
+    - con la pista opcional ?tenant={id} (la ponen los enlaces que genera la aplicación), un botón
+      «Abrir en {empresa}» solo si esa empresa está en el conjunto autorizado del usuario y no es la ya
+      activa. Es un POST con antiforgery a /cuenta/cliente-activo y vuelve a esta misma ruta, sin la
+      pista. Nunca hay cambio por GET: la pista sola no cambia de contexto. Una pista que no está
+      autorizada se ignora sin decir nada distinto.
+
+    El nombre del botón sale de la lista autorizada, no de la URL.
+*@
+@implements IDisposable
+@using System.Web
+@using CaeManager.Application.Common
+@using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Recursos
+@using MediatR
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Localization
+
+@if (_mostrarAviso)
+{
+    <p class="enlace-otra-empresa-aviso" role="note">@Textos["EnlaceOtraEmpresaAviso"]</p>
+}
+@if (_destino is not null)
+{
+    <form method="post" action="/cuenta/cliente-activo" class="enlace-otra-empresa-abrir" data-enlace-otra-empresa>
+        @if (_token is not null)
+        {
+            <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+        }
+        <input type="hidden" name="tenantId" value="@_destino.TenantId" />
+        <input type="hidden" name="returnUrl" value="@_rutaDeRetorno" />
+        <Boton Type="submit" Variante="VarianteBoton.Primario">@Textos["EnlaceOtraEmpresaAbrir", _destino.Nombre]</Boton>
+    </form>
+}
+
+@code {
+    [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosComunes> Textos { get; set; } = default!;
+
+    private bool _mostrarAviso;
+    private ClienteAutorizadoDto? _destino;
+    private AntiforgeryRequestToken? _token;
+    private string _rutaDeRetorno = "/";
+
+    private IReadOnlyList<ClienteAutorizadoDto>? _autorizados;
+    private ClienteAutorizadoDto? _activa;
+
+    protected override async Task OnInitializedAsync()
+    {
+        NavigationManager.LocationChanged += AlCambiarLaUbicacion;
+
+        try
+        {
+            _autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+        }
+        catch (Exception)
+        {
+            // Sin la lista autorizada no se ofrece nada: el estado vacío de la ficha queda como estaba.
+            return;
+        }
+
+        _activa = ClientesAutorizados.Activo(_autorizados, TenantActual.TenantId);
+        _mostrarAviso = ClientesAutorizados.SelectorVisible(_autorizados, _activa);
+        RecalcularDeLaUrl();
+    }
+
+    /// <summary>
+    /// La misma instancia sigue montada si solo cambia la URL (otra pista, otra ficha con el estado de error
+    /// aún en pantalla): la ruta de retorno y el destino se recalculan con la lista ya leída, sin otra consulta.
+    /// </summary>
+    private void AlCambiarLaUbicacion(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) =>
+        _ = InvokeAsync(() =>
+        {
+            RecalcularDeLaUrl();
+            StateHasChanged();
+        });
+
+    private void RecalcularDeLaUrl()
+    {
+        _destino = null;
+        _token = null;
+        if (_autorizados is null)
+            return;
+
+        var uri = new Uri(NavigationManager.Uri);
+        _rutaDeRetorno = uri.AbsolutePath;
+
+        // La pista se contrasta con el conjunto autorizado del usuario; la entidad no interviene.
+        if (Guid.TryParse(HttpUtility.ParseQueryString(uri.Query)["tenant"], out var pista)
+            && _autorizados.FirstOrDefault(c => c.TenantId == pista) is { } destino
+            && destino.TenantId != _activa?.TenantId)
+        {
+            _destino = destino;
+            _token = AntiforgeryStateProvider.GetAntiforgeryToken();
+        }
+    }
+
+    public void Dispose() => NavigationManager.LocationChanged -= AlCambiarLaUbicacion;
+}
