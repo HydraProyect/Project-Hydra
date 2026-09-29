@@ -93,9 +93,6 @@
   <data name="MenuVerFicha360" xml:space="preserve">
     <value>Ver ficha 360</value>
   </data>
-  <data name="MenuAbrirPanel" xml:space="preserve">
-    <value>Abrir panel de detalles</value>
-  </data>
   <data name="MenuFilaEtiqueta" xml:space="preserve">
     <value>Acciones del centro</value>
   </data>
@@ -137,50 +134,5 @@
   </data>
   <data name="GestionarAtenuadoAlDia" xml:space="preserve">
     <value>Al día: no necesita intervención, pero puedes sustituirlo</value>
-  </data>
-  <data name="PreviewAria" xml:space="preserve">
-    <value>Vista previa del centro</value>
-  </data>
-  <data name="PreviewEtiqueta" xml:space="preserve">
-    <value>Vista rápida · Centro</value>
-  </data>
-  <data name="PreviewCerrar" xml:space="preserve">
-    <value>Cerrar</value>
-  </data>
-  <data name="PreviewCliente" xml:space="preserve">
-    <value>Cliente</value>
-  </data>
-  <data name="PreviewEmpresa" xml:space="preserve">
-    <value>Empresa</value>
-  </data>
-  <data name="PreviewCodigo" xml:space="preserve">
-    <value>Código</value>
-  </data>
-  <data name="PreviewEstado" xml:space="preserve">
-    <value>Estado</value>
-  </data>
-  <data name="PreviewCumplimiento" xml:space="preserve">
-    <value>Cumplimiento</value>
-  </data>
-  <data name="PreviewVencidos" xml:space="preserve">
-    <value>Documentos vencidos</value>
-  </data>
-  <data name="PreviewProximos" xml:space="preserve">
-    <value>Próximos a vencer</value>
-  </data>
-  <data name="PreviewVisitas" xml:space="preserve">
-    <value>Visitas programadas</value>
-  </data>
-  <data name="PreviewSinVisitas" xml:space="preserve">
-    <value>Sin visitas programadas.</value>
-  </data>
-  <data name="PreviewVisitaLinea" xml:space="preserve">
-    <value>{0} – {1} · {2} trabajador(es)</value>
-  </data>
-  <data name="PreviewAbrirFicha" xml:space="preserve">
-    <value>Abrir ficha 360</value>
-  </data>
-  <data name="PreviewAbrirPanel" xml:space="preserve">
-    <value>Abrir panel de detalles</value>
   </data>
 </root>

@@ -11,6 +11,7 @@ using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
 using CaeManager.Web.Features.Clientes.Components;
@@ -149,7 +150,6 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     public string? EstadoInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
-    [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
 
     /// <summary>
@@ -196,13 +196,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         // vuelo el render saldría con «hay empresa» y lanzaría la carga (y la exportación) del origen.
         try
         {
-            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
-            var activa = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
-            if (ClientesAutorizados.SelectorVisible(autorizados, activa))
-            {
-                _empresaActiva = activa;
-                _sinEmpresaSeleccionada = ClientesAutorizados.SinEmpresaSeleccionada(autorizados, _empresaActiva);
-            }
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual);
+            _empresaActiva = contexto.Activa;
+            _sinEmpresaSeleccionada = contexto.SinSeleccion;
         }
         finally
         {
@@ -406,26 +402,20 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     // --- Patrón único de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md) ---
 
-    private CentroListaDto? _previewCentro;
-    private IReadOnlyList<VisitaResumenDto> _previewVisitas = [];
-    private bool _previewVisible;
-
-    /// <summary>Nombre de la fila, «Vista previa» del «⋯» y Enter sobre la fila enfocada: la vista previa lateral (pieza 6).</summary>
-    private void AbrirVistaPrevia(Guid id)
+    /// <summary>
+    /// Nombre de la fila, «Vista previa» del «⋯» y Enter sobre la fila enfocada: la vista previa (pieza 6). En
+    /// Centros es el panel del Context Workspace, que ya existe; el contrato prohíbe sumarle un drawer.
+    /// </summary>
+    private Task AbrirPanelAsync(Guid id)
     {
         var centro = _elementosPagina.FirstOrDefault(e => e.Id == id);
-        if (centro is null) return;
-        _previewCentro = centro;
-        _previewVisitas = _visitasPorCentro.GetValueOrDefault(id) ?? [];
-        _previewVisible = true;
+        return centro is null
+            ? Task.CompletedTask
+            : WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
     }
 
-    /// <summary>«Ver ficha 360» del «⋯» y del pie de la vista previa: la página /centros/{id}.</summary>
+    /// <summary>«Ver ficha 360» del «⋯»: la página /centros/{id}.</summary>
     private void AbrirFichaCentro(Guid id) => NavigationManager.NavigateTo($"/centros/{id}");
-
-    /// <summary>«Abrir panel de detalles» de la vista previa: el panel de 520 px (Context Workspace).</summary>
-    private Task AbrirPanelDesdeVistaPrevia(CentroListaDto centro) =>
-        WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
 
     private string EtiquetaFiltroBusqueda => Textos["ChipBusqueda", _busqueda].Value;
 
@@ -790,8 +780,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
                 {
-                    // Enter abre la vista previa lateral (pieza 6), como el nombre de la fila.
-                    AbrirVistaPrevia(idAbrir);
+                    // Enter abre la vista previa (el panel del centro), como el nombre de la fila.
+                    await AbrirPanelAsync(idAbrir);
                 }
                 break;
         }

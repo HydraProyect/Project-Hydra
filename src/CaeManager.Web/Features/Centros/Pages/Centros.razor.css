@@ -1,33 +1,6 @@
 /* La barra de filtros (tarjeta, chips, «Limpiar todo») vive ahora en el componente BarraFiltros y en
    list-page.css: la superficie de .barra-trabajo-centros que había aquí ya no se usa. */
 
-/* Cabecera de la lista con la empresa gestionada activa (mockup «Selector Empresa Gestionada», lienzo 2).
-   Clase propia: las de CSS aislado no viajan entre componentes. */
-.centros-empresa {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    margin-bottom: var(--space-3);
-}
-
-.centros-empresa-texto {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-
-.centros-empresa-rotulo {
-    font: var(--font-caption);
-    color: var(--color-text-muted);
-}
-
-.centros-empresa-nombre {
-    font: var(--font-label-md);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 /* Recuento «N centros» de la barra de herramientas. */
 .conteo-centros {
     font: var(--font-caption);

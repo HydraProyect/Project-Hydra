@@ -142,7 +142,7 @@ public class CentrosListaPatronTests : BunitContext
     {
         var cut = Renderizar(ConCartera(origenGestionado: false, Centro("Centro Norte")), tenantSeleccionado: EmpresaSur);
 
-        var cabecera = cut.Find(".centros-empresa");
+        var cabecera = cut.Find(".cabecera-empresa-activa");
         cabecera.TextContent.Should().Contain("Empresa gestionada").And.Contain("Empresa Sur");
         cabecera.QuerySelector(".avatar-tenant")!.TextContent.Trim().Should().Be("ES", "sin logo se pintan las iniciales");
     }
@@ -152,7 +152,7 @@ public class CentrosListaPatronTests : BunitContext
     {
         var cut = Renderizar(ConCentros(Centro("Centro Norte")));
 
-        cut.FindAll(".centros-empresa").Should().BeEmpty();
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
         cut.FindAll(".tarjeta-fila-acordeon").Should().ContainSingle("la lista se pinta como siempre");
     }
 
@@ -176,7 +176,7 @@ public class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConCartera(origenGestionado: true, Centro("Centro del origen")));
 
         cut.Markup.Should().NotContain("Selecciona una empresa de tu cartera");
-        cut.Find(".centros-empresa").TextContent.Should().Contain("Operador de prueba");
+        cut.Find(".cabecera-empresa-activa").TextContent.Should().Contain("Operador de prueba");
         cut.Markup.Should().Contain("Centro del origen");
     }
 
@@ -335,7 +335,7 @@ public class CentrosListaPatronTests : BunitContext
         await cut.Find(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
         var items = cut.FindAll(".menu-acciones-item").Select(i => i.TextContent.Trim()).ToList();
-        items.Should().Equal("Ver ficha 360", "Vista previa", "Abrir panel de detalles");
+        items.Should().Equal("Ver ficha 360", "Vista previa");
     }
 
     [Fact]
@@ -351,40 +351,30 @@ public class CentrosListaPatronTests : BunitContext
     }
 
     [Fact]
-    public async Task El_nombre_de_la_fila_abre_la_vista_previa_lateral_y_su_pie_abre_la_ficha_360()
+    public async Task El_nombre_de_la_fila_abre_el_panel_del_centro_y_no_un_segundo_drawer()
     {
-        var centro = Centro("Centro Norte", EstadoCentro.Urgente);
-        var mediador = ConCentros(centro);
-        mediador.Visitas[centro.Id] = [new VisitaResumenDto(Guid.NewGuid(), new DateOnly(2026, 10, 15), new DateOnly(2026, 10, 16), 4)];
-        var cut = Renderizar(mediador);
+        // Pieza 6: en Centros la vista previa ES el panel del Context Workspace, que ya existe; el contrato
+        // prohíbe sumarle un PreviewDrawer.
+        var cut = Renderizar(ConCentros(Centro("Centro Norte")));
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
 
-        cut.FindAll(".drawer-preview-centro").Should().BeEmpty("control: cerrada al inicio");
+        workspace.EstaAbierto.Should().BeFalse("control: cerrado al inicio");
         await cut.Find(".tarjeta-fila-acordeon-identidad .enlace-nombre-fila").ClickAsync(new MouseEventArgs());
 
-        var vista = cut.Find(".drawer-preview-centro");
-        vista.TextContent.Should().Contain("Centro Norte").And.Contain("Refrielectric S.A.").And.Contain("87%")
-            .And.Contain("15/10 – 16/10 · 4 trabajador(es)");
-        workspace.EstaAbierto.Should().BeFalse("la vista previa no es el panel de 520 px");
-
-        await cut.Find(".pie-preview-centro button").ClickAsync(new MouseEventArgs());
-
-        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith($"/centros/{centro.Id}");
-        cut.FindAll(".drawer-preview-centro").Should().BeEmpty("abrir la ficha cierra la vista previa");
+        workspace.EstaAbierto.Should().BeTrue("el nombre abre el panel del centro");
+        cut.FindAll("[class*='drawer-preview']").Should().BeEmpty("no hay un segundo drawer de vista previa");
     }
 
     [Fact]
-    public async Task El_enlace_de_la_vista_previa_abre_el_panel_de_detalles()
+    public async Task Vista_previa_del_menu_de_fila_abre_el_mismo_panel()
     {
-        var centro = Centro("Centro Norte");
-        var cut = Renderizar(ConCentros(centro));
+        var cut = Renderizar(ConCentros(Centro("Centro Norte")));
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
 
-        await cut.Find(".tarjeta-fila-acordeon-identidad .enlace-nombre-fila").ClickAsync(new MouseEventArgs());
-        await cut.Find(".enlace-panel-preview-centro").ClickAsync(new MouseEventArgs());
+        await cut.Find(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Vista previa").ClickAsync(new MouseEventArgs());
 
         workspace.EstaAbierto.Should().BeTrue();
-        cut.FindAll(".drawer-preview-centro").Should().BeEmpty();
     }
 
     [Fact]

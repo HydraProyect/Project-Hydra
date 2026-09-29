@@ -93,9 +93,6 @@
   <data name="MenuVerFicha360" xml:space="preserve">
     <value>Veure fitxa 360</value>
   </data>
-  <data name="MenuAbrirPanel" xml:space="preserve">
-    <value>Obrir el panell de detalls</value>
-  </data>
   <data name="MenuFilaEtiqueta" xml:space="preserve">
     <value>Accions del centre</value>
   </data>
@@ -137,50 +134,5 @@
   </data>
   <data name="GestionarAtenuadoAlDia" xml:space="preserve">
     <value>Al dia: no cal intervenir-hi, però el pots substituir</value>
-  </data>
-  <data name="PreviewAria" xml:space="preserve">
-    <value>Vista prèvia del centre</value>
-  </data>
-  <data name="PreviewEtiqueta" xml:space="preserve">
-    <value>Vista ràpida · Centre</value>
-  </data>
-  <data name="PreviewCerrar" xml:space="preserve">
-    <value>Tanca</value>
-  </data>
-  <data name="PreviewCliente" xml:space="preserve">
-    <value>Client</value>
-  </data>
-  <data name="PreviewEmpresa" xml:space="preserve">
-    <value>Empresa</value>
-  </data>
-  <data name="PreviewCodigo" xml:space="preserve">
-    <value>Codi</value>
-  </data>
-  <data name="PreviewEstado" xml:space="preserve">
-    <value>Estat</value>
-  </data>
-  <data name="PreviewCumplimiento" xml:space="preserve">
-    <value>Compliment</value>
-  </data>
-  <data name="PreviewVencidos" xml:space="preserve">
-    <value>Documents vençuts</value>
-  </data>
-  <data name="PreviewProximos" xml:space="preserve">
-    <value>Propers a vencer</value>
-  </data>
-  <data name="PreviewVisitas" xml:space="preserve">
-    <value>Visites programades</value>
-  </data>
-  <data name="PreviewSinVisitas" xml:space="preserve">
-    <value>Sense visites programades.</value>
-  </data>
-  <data name="PreviewVisitaLinea" xml:space="preserve">
-    <value>{0} – {1} · {2} treballador(s)</value>
-  </data>
-  <data name="PreviewAbrirFicha" xml:space="preserve">
-    <value>Obrir fitxa 360</value>
-  </data>
-  <data name="PreviewAbrirPanel" xml:space="preserve">
-    <value>Obrir el panell de detalls</value>
   </data>
 </root>

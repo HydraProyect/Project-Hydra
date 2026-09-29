@@ -30,19 +30,10 @@
 <PageTitle>Centros — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    @* Mockup «Selector Empresa Gestionada» (lienzo 2), igual que Trabajadores: con varias empresas
-       gestionadas, la lista dice de cuál es. El selector de la barra lateral cambia de empresa y
-       recarga esta misma ruta sin query (I14: ningún Id de enlace profundo ni filtro sobrevive). *@
-    @if (_empresaActiva is not null)
-    {
-        <div class="centros-empresa">
-            <AvatarTenant Nombre="@_empresaActiva.Nombre" LogoUrl="@AvatarTenant.UrlDeLogo(_empresaActiva.TenantId, _empresaActiva.LogoVersion)" />
-            <span class="centros-empresa-texto">
-                <span class="centros-empresa-rotulo">@Comunes["SelectorTenantRotulo"]</span>
-                <span class="centros-empresa-nombre" title="@_empresaActiva.Nombre">@_empresaActiva.Nombre</span>
-            </span>
-        </div>
-    }
+    @* Mockup «Selector Empresa Gestionada» (lienzo 2): con varias empresas gestionadas, la lista dice de
+       cuál es. El selector de la barra lateral cambia de empresa y recarga esta misma ruta sin query
+       (I14: ningún Id de enlace profundo ni filtro sobrevive). *@
+    <CabeceraEmpresaActiva Empresa="_empresaActiva" />
 
     @*
         Pieza 1 del patrón de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3):
@@ -235,7 +226,7 @@
                             cada fila.
                         *@
                         <span class="tarjeta-fila-acordeon-identidad">
-                            <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirVistaPrevia(centro.Id)">
+                            <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirPanelAsync(centro.Id)">
                                 @centro.Nombre
                             </button>
                             <span class="tarjeta-fila-acordeon-meta">@centro.ClienteRazonSocial · @centro.EmpresaRazonSocial@(string.IsNullOrEmpty(centro.CodigoCentro) ? "" : $" · {centro.CodigoCentro}")</span>
@@ -345,11 +336,8 @@
                                 <ItemMenuAccion OnClick="() => AbrirFichaCentro(centro.Id)">
                                     @Textos["MenuVerFicha360"]
                                 </ItemMenuAccion>
-                                <ItemMenuAccion OnClick="() => AbrirVistaPrevia(centro.Id)">
+                                <ItemMenuAccion OnClick="() => AbrirPanelAsync(centro.Id)">
                                     @Textos["MenuVistaPrevia"]
-                                </ItemMenuAccion>
-                                <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
-                                    @Textos["MenuAbrirPanel"]
                                 </ItemMenuAccion>
                             </MenuAcciones>
                         </div>
@@ -396,10 +384,6 @@
     }
     }
 </div>
-
-@* Pieza 6: vista previa lateral. El pie ofrece «Abrir ficha 360». *@
-<CentroPreviewDrawer Centro="_previewCentro" Visitas="_previewVisitas" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v"
-                     OnAbrirFicha="AbrirFichaCentro" OnAbrirPanel="AbrirPanelDesdeVistaPrevia" />
 
 <Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="Nuevo centro" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
