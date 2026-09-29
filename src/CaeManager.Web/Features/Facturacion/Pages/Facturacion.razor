@@ -56,7 +56,7 @@
             <div class="bloque-selector-cliente">
                 <label for="sel-cliente" class="etiqueta-facturacion">Cliente empresarial</label>
                 <select id="sel-cliente" class="control-facturacion"
-                        @bind="_clienteSeleccionadoId" @bind:after="OnClienteChangedAsync">
+                        @bind:get="_clienteSeleccionadoId" @bind:set="CambiarClienteAsync">
                     <option value="@Guid.Empty">— Selecciona un cliente —</option>
                     @foreach (var c in _clientes)
                     {
@@ -88,6 +88,8 @@
         }
         else
         {
+            @* El ámbito del Cliente elegido: cambiarlo también descarta el alta y la edición de tarifa. *@
+            <CascadingValue Value="_ambitoCliente" IsFixed="true">
             <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana"
                       EtiquetaGrupo="Secciones de facturación">
                 @* Dentro de Pestanas a propósito: cambiar de pestaña cierra el alta y la
@@ -175,7 +177,7 @@
                                                         <td class="col-moneda texto-atenuado">@tarifa.MonedaIso</td>
                                                         <td class="col-acciones">
                                                             <span class="acciones-fila">
-                                                                <button type="button" class="enlace-accion" @onclick="() => IniciarEdicion(tarifa)">Editar</button>
+                                                                <button type="button" class="enlace-accion" @onclick="() => IniciarEdicionAsync(tarifa)">Editar</button>
                                                                 <button type="button" class="enlace-accion enlace-peligro" @onclick="() => AbrirConfirmarEliminar(tarifa)">Eliminar</button>
                                                             </span>
                                                         </td>
@@ -381,6 +383,7 @@
                     </section>
                 }
             </Pestanas>
+            </CascadingValue>
         }
     }
 </div>

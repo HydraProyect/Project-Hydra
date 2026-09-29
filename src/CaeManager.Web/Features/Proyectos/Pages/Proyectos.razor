@@ -43,7 +43,7 @@
     {
         <div class="barra-filtros-proyectos">
             <div class="filtro-cliente-proyectos">
-                <CampoSelect Etiqueta="@Textos["EtiquetaCliente"]" Valor="@_clienteSeleccionadoId.ToString()" ValorChanged="OnClienteSeleccionadoAsync">
+                <CampoSelect @key="_versionSelectorCliente" Etiqueta="@Textos["EtiquetaCliente"]" Valor="@_clienteSeleccionadoId.ToString()" ValorChanged="OnClienteSeleccionadoAsync">
                     <option value="@Guid.Empty">@Textos["OpcionElegirCliente"]</option>
                     @foreach (var c in _clientes)
                     {
@@ -147,7 +147,7 @@
                         {
                             <tr class="@ClaseFila(proyecto)">
                                 <td>
-                                    <button type="button" class="enlace-nombre-fila nombre-proyecto" @onclick="() => SeleccionarProyectoAsync(proyecto.Id)">@proyecto.Nombre</button>
+                                    <button type="button" class="enlace-nombre-fila nombre-proyecto" @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)">@proyecto.Nombre</button>
                                 </td>
                                 <td>@proyecto.CentroNombre</td>
                                 <td class="celda-fecha-proyecto">@proyecto.FechaInicio.ToString("dd/MM/yyyy")</td>
@@ -166,16 +166,16 @@
                                 </td>
                                 <td class="col-acciones">
                                     <MenuAcciones>
-                                        <ItemMenuAccion OnClick="() => SeleccionarProyectoAsync(proyecto.Id)">@Textos["MenuDetalles"]</ItemMenuAccion>
+                                        <ItemMenuAccion OnClick="() => AbrirDetalleConAvisoAsync(proyecto.Id)">@Textos["MenuDetalles"]</ItemMenuAccion>
                                         @if (proyecto.EstaAbierto)
                                         {
-                                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirCerrarConfirm(proyecto.Id)">@Textos["AccionCerrarProyecto"]</ItemMenuAccion></SoloConEscritura>
+                                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirCerrarConfirmAsync(proyecto.Id)">@Textos["AccionCerrarProyecto"]</ItemMenuAccion></SoloConEscritura>
                                         }
                                         else
                                         {
-                                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirReabrirConfirm(proyecto.Id)">@Textos["AccionReabrirProyecto"]</ItemMenuAccion></SoloConEscritura>
+                                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirReabrirConfirmAsync(proyecto.Id)">@Textos["AccionReabrirProyecto"]</ItemMenuAccion></SoloConEscritura>
                                         }
-                                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(proyecto.Id, proyecto.Nombre)">@Textos["MenuEliminar"]</ItemMenuAccion></SoloConEscritura>
+                                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminarAsync(proyecto.Id, proyecto.Nombre)">@Textos["MenuEliminar"]</ItemMenuAccion></SoloConEscritura>
                                     </MenuAcciones>
                                 </td>
                             </tr>
@@ -214,7 +214,7 @@
                     </div>
                 }
             </div>
-            <button type="button" class="cerrar-panel-proyecto" aria-label="@Textos["AriaCerrarPanel"]" @onclick="CerrarDetalle"><Icono Nombre="cerrar" /></button>
+            <button type="button" class="cerrar-panel-proyecto" aria-label="@Textos["AriaCerrarPanel"]" @onclick="CerrarDetalleConAvisoAsync"><Icono Nombre="cerrar" /></button>
         </div>
 
         <div class="cuerpo-panel-proyecto">
@@ -349,11 +349,11 @@
                     <Boton OnClick="IniciarEdicionInfo" Variante="VarianteBoton.Secundario">@Textos["BotonEditar"]</Boton>
                     @if (_detalle.EstaAbierto)
                     {
-                        <Boton OnClick="() => AbrirCerrarConfirm(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionCerrarProyecto"]</Boton>
+                        <Boton OnClick="() => AbrirCerrarConfirmAsync(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionCerrarProyecto"]</Boton>
                     }
                     else
                     {
-                        <Boton OnClick="() => AbrirReabrirConfirm(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionReabrirProyecto"]</Boton>
+                        <Boton OnClick="() => AbrirReabrirConfirmAsync(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionReabrirProyecto"]</Boton>
                     }
                 </div>
             </SoloConEscritura>
@@ -361,7 +361,7 @@
     </aside>
 }
 
-<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer HayCambios="() => HayCambiosEnElDrawer" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
@@ -391,7 +391,7 @@
     </Pie>
 </Drawer>
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarCerrarConfirm" VisibleChanged="v => _mostrarCerrarConfirm = v" Titulo="@Textos["AccionCerrarProyecto"]" CerrarAlHacerClicFuera="!_guardando">
+<Modal HayCambios="() => HayCambiosEnElModalDeCierre" Visible="_mostrarCerrarConfirm" VisibleChanged="v => _mostrarCerrarConfirm = v" Titulo="@Textos["AccionCerrarProyecto"]" CerrarAlHacerClicFuera="!_guardando">
     <ChildContent>
         <p>@Textos["ModalCerrarExplicacion"]</p>
         <CampoTexto Etiqueta="@Textos["EtiquetaFechaCierre"]" Type="date" Valor="@_fechaCierre" ValorChanged="v => _fechaCierre = v" />
@@ -432,7 +432,9 @@
     EnProgreso="_dandoDeBajaTecnico"
     OnConfirmar="ConfirmarBajaTecnicoAsync" />
 
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
+<CascadingValue Value="_ambitoDetalle" IsFixed="true">
+    <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
+</CascadingValue>
 </LimiteDeErrores>
 
 @code {
