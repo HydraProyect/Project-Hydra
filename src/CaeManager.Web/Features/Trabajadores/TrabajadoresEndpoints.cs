@@ -1,3 +1,5 @@
+using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Exportacion;
@@ -27,22 +29,35 @@ public static class TrabajadoresEndpoints
 {
     public static IEndpointRouteBuilder MapTrabajadoresEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/trabajadores/exportar.xlsx", async (IMediator mediator, CancellationToken cancellationToken) =>
-        {
-            var trabajadores = PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
-                mediator.Send(
-                    new ObtenerTrabajadoresQuery(Busqueda: null, Pagina: pagina, TamanoPagina: tamanoPagina),
-                    cancellationToken));
-
-            var stream = await GenerarLibroAsync(trabajadores, cancellationToken);
-
-            return Results.File(
-                stream,
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "trabajadores.xlsx");
-        });
+        endpoints.MapGet("/trabajadores/exportar.xlsx", ExportarAsync);
 
         return endpoints;
+    }
+
+    /// <summary>
+    /// Público para que el test mida la decisión del estado 4a sin levantar la aplicación.
+    /// </summary>
+    public static async Task<IResult> ExportarAsync(
+        IMediator mediator, ITenantActual tenantActual, CancellationToken cancellationToken)
+    {
+        // Estado 4a: la página no muestra los datos del Tenant de origen a quien tiene que
+        // elegir una empresa de su cartera; el endpoint no los exporta tampoco. Misma
+        // condición, misma fuente (ClientesAutorizados.PideElegirEmpresa).
+        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        if (ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId))
+            return Results.Redirect("/trabajadores");
+
+        var trabajadores = PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
+            mediator.Send(
+                new ObtenerTrabajadoresQuery(Busqueda: null, Pagina: pagina, TamanoPagina: tamanoPagina),
+                cancellationToken));
+
+        var stream = await GenerarLibroAsync(trabajadores, cancellationToken);
+
+        return Results.File(
+            stream,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "trabajadores.xlsx");
     }
 
     /// <summary>

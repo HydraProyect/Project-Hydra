@@ -1,6 +1,8 @@
 using CaeManager.Application.BusquedaGlobal.Commands.RegistrarUsoReciente;
 using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 using CaeManager.Application.BusquedaGlobal.Queries.ObtenerRecientes;
+using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.AspNetCore.Components.Web;
@@ -99,6 +101,8 @@ public partial class BuscadorGlobal
 
     /// <summary>"En esta pantalla" del estado inicial — resuelto una sola vez al abrir, a partir de la ruta actual.</summary>
     private IReadOnlyList<ItemBusquedaDto> _accionesPantalla = [];
+
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
 
     /// <summary>true mientras la query está vacía (&lt;2 caracteres) — el estado que muestra Recientes + En esta pantalla en vez de resultados de búsqueda.</summary>
     private bool ConsultaVacia => _termino.Trim().Length < 2;
@@ -403,13 +407,16 @@ public partial class BuscadorGlobal
     /// abrir el modal, y "guardar filtro actual" acabaría guardando un
     /// filtro vacío.
     /// </summary>
-    private IReadOnlyList<ItemBusquedaDto> ConstruirAccionesPantalla()
+    private IReadOnlyList<ItemBusquedaDto> ConstruirAccionesPantalla(bool exportarPermitido = false)
     {
         var segmento = SegmentoDeRuta(Navigation.Uri);
         if (segmento is null || !AccionesContextualesPorPantalla.TryGetValue(segmento, out var acciones))
             return [];
 
         return acciones
+            // La exportación de Trabajadores solo se ofrece cuando ya se ha comprobado que la
+            // pantalla no está en el estado 4a (ver ResolverExportacionDeTrabajadoresAsync).
+            .Where(a => exportarPermitido || !EsExportacionDeTrabajadores(a.Ruta))
             .Select(a => new ItemBusquedaDto(
                 Guid.Empty,
                 a.Titulo,
@@ -418,6 +425,33 @@ public partial class BuscadorGlobal
                     ? Navigation.GetUriWithQueryParameter("accion", "guardar-filtro")
                     : a.Ruta))
             .ToList();
+    }
+
+    private static bool EsExportacionDeTrabajadores(string ruta) =>
+        string.Equals(ruta, RutaExportarTrabajadores, StringComparison.Ordinal);
+
+    private const string RutaExportarTrabajadores = "/trabajadores/exportar.xlsx";
+
+    /// <summary>
+    /// Estado 4a (misma fuente que la página y el endpoint,
+    /// <see cref="ClientesAutorizados.PideElegirEmpresa"/>): solo si la comprobación sale
+    /// limpia se añade la exportación. Cualquier fallo la deja fuera.
+    /// </summary>
+    private async Task ResolverExportacionDeTrabajadoresAsync(int apertura, CancellationToken token)
+    {
+        if (SegmentoDeRuta(Navigation.Uri) != "trabajadores") return;
+        try
+        {
+            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery(), token);
+            if (apertura != _generacionApertura || ClientesAutorizados.PideElegirEmpresa(autorizados, TenantActual.TenantId))
+                return;
+            _accionesPantalla = ConstruirAccionesPantalla(exportarPermitido: true);
+            StateHasChanged();
+        }
+        catch
+        {
+            // Sin comprobación no se ofrece la exportación.
+        }
     }
 
     /// <summary>
@@ -531,6 +565,9 @@ public partial class BuscadorGlobal
 
             _suscripcionTab = await modulo.InvokeAsync<IJSObjectReference>("registrarSaltoDeGrupo", _inputElemento, _referenciaDotNet);
         }
+
+        await ResolverExportacionDeTrabajadoresAsync(apertura, token.Value);
+        if (apertura != _generacionApertura) return;
 
         try
         {

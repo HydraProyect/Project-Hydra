@@ -96,6 +96,19 @@ public static class ClientesAutorizados
         && autorizados.Any(c => !c.EsOrigen && c.EsGestionadoPorOperacion);
 
     /// <summary>
+    /// UNA sola fuente de la condición del estado 4a para quien tenga que decidir si
+    /// una pantalla, un endpoint o una acción de la paleta sirve los datos del Tenant
+    /// activo: cierto cuando el selector es visible y <see cref="SinEmpresaSeleccionada"/>.
+    /// La usan la página de Trabajadores, su endpoint de exportación y la paleta de
+    /// comandos; ninguna vuelve a escribir la condición.
+    /// </summary>
+    public static bool PideElegirEmpresa(IReadOnlyList<ClienteAutorizadoDto> autorizados, Guid? tenantActualId)
+    {
+        var activo = Activo(autorizados, tenantActualId);
+        return SelectorVisible(autorizados, activo) && SinEmpresaSeleccionada(autorizados, activo);
+    }
+
+    /// <summary>
     /// El Tenant activo dentro de la lista: el seleccionado si sigue autorizado
     /// (una selección caducada ya no está en la lista) y, si no, el de origen.
     /// </summary>
