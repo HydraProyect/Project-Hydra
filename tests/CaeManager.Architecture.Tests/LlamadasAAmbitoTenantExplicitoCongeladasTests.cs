@@ -265,6 +265,9 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AutoridadSobreCarteraDeGestorCae.cs"] =
             new(Categoria.TenantDeOrigenDelUsuario,
                 "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y la cuenta del Gestor CAE en la propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
+        ["src/CaeManager.Application/Usuarios/Queries/ObtenerEquipoDeCoordinador/ObtenerEquipoDeCoordinadorQuery.cs"] =
+            new(Categoria.TenantDeOrigenDelUsuario,
+                "ObtenerTenantOrigenIdAsync() del propio Coordinador CAE, para leer su rol en Identity y la lista de su equipo en la propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActividadSoporteQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, en OR con la vía del cliente visitado (ver UsosDeEsPlataformaCongeladosTests)"),
 

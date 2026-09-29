@@ -363,7 +363,8 @@ public partial class UsuariosGen2Tests : BunitContext
             if (Despachar is not null && request is CrearUsuarioCommand or EditarUsuarioCommand
                     or CambiarActivacionUsuarioCommand or EliminarUsuarioPendienteCommand
                     or GenerarActivacionUsuarioCommand or ObtenerCuentaUsuarioQuery
-                    or ObtenerEmpresasAsignablesEnAltaQuery or AsignarCarteraGestorCaeCommand or ObtenerCarteraDeGestorCaeQuery)
+                    or ObtenerEmpresasAsignablesEnAltaQuery or AsignarCarteraGestorCaeCommand or ObtenerCarteraDeGestorCaeQuery
+                    or ObtenerEquipoDeCoordinadorQuery)
                 return (TResponse)(await Despachar(request, cancellationToken))!;
 
             // TResponse es anulable en las dos consultas de esta pantalla
@@ -468,8 +469,15 @@ public partial class UsuariosGen2Tests : BunitContext
     /// Tenant y la cuenta destino. La regla real se prueba en <c>AsignarCarteraGestorCaeCommandTests</c>.
     /// </summary>
     private sealed class DirectorioCarteraFalso(Guid actorId, string rolActor, UserManagerFalso identidad)
-        : IDirectorioUsuariosService, IDirectorioDestinosCartera
+        : IDirectorioUsuariosService, IDirectorioDestinosCartera, IDirectorioEquipoCoordinador
     {
+        public Task<IReadOnlyList<MiembroDeEquipo>> ObtenerEquipoAsync(Guid coordinadorUsuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<MiembroDeEquipo>>(identidad.Cuentas.Values
+                .Where(c => c.CoordinadorUsuarioId == coordinadorUsuarioId
+                            && identidad.RolesPorCuenta.TryGetValue(c.Id, out var r) && r.FirstOrDefault() == RolesIdentidad.GestorCae)
+                .Select(c => new MiembroDeEquipo(c.Id, c.Email!, c.NombreCompleto, c.LockoutEnd is null, false))
+                .ToList());
+
         public Task<bool> EsCuentaActivaConRolAsync(Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
             Task.FromResult(usuarioId == actorId && tenantId == TenantDelArnes && rol == rolActor);
 
@@ -618,6 +626,8 @@ public partial class UsuariosGen2Tests : BunitContext
                 usuarioActual, tenantActual, _catalogo).Handle(q, ct),
             AsignarCarteraGestorCaeCommand c => await new AsignarCarteraGestorCaeCommandHandler(
                 usuarioActual, directorioCartera, directorioCartera, _catalogo, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, ct),
+            ObtenerEquipoDeCoordinadorQuery q => await new ObtenerEquipoDeCoordinadorQueryHandler(
+                usuarioActual, directorioCartera, directorioCartera).Handle(q, ct),
             ObtenerCarteraDeGestorCaeQuery q => await new ObtenerCarteraDeGestorCaeQueryHandler(
                 usuarioActual, directorioCartera, directorioCartera, _catalogo).Handle(q, ct),
             EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
@@ -1356,6 +1366,64 @@ public partial class UsuariosGen2Tests : BunitContext
 
         cut.Find("[role=dialog] .alerta-formulario").TextContent.Should().Contain("ya no gestiona");
         _catalogo.Incorporadas.Should().BeEmpty();
+    }
+
+    // ---------- El Coordinador CAE abre /usuarios solo para su equipo (2026-09-29) ----------
+
+    private static readonly Guid CoordinadoraId = Guid.Parse("c1c1c1c1-0000-0000-0000-00000000c1c1");
+
+    private void SembrarEquipoYOtros()
+    {
+        var suyo = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        suyo.CoordinadorUsuarioId = CoordinadoraId;
+        var deOtro = Cuenta(Guid.Parse("d0d0d0d0-0000-0000-0000-00000000d0d0"), "otro.gestor@talveg.es", "Gestor De Otro Equipo");
+        deOtro.CoordinadorUsuarioId = Guid.NewGuid();
+        Sembrar(
+            (Cuenta(CoordinadoraId, "coord@talveg.es", "Coordinadora"), RolesIdentidad.CoordinadorCae),
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (suyo, RolesIdentidad.GestorCae),
+            (deOtro, RolesIdentidad.GestorCae),
+            (Cuenta(Guid.Parse("c0c0c0c0-0000-0000-0000-00000000c0c0"), "c.consulta@talveg.es", "Carla Consulta"), RolesIdentidad.Consulta));
+    }
+
+    [Fact]
+    public async Task El_Coordinador_CAE_ve_solo_a_su_equipo_y_solo_la_accion_Asignar_empresas()
+    {
+        SembrarEquipoYOtros();
+        _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte");
+
+        var cut = Renderizar(actorId: CoordinadoraId, rolActor: RolesIdentidad.CoordinadorCae);
+
+        Filas(cut).Select(f => Celdas(f)[0].TextContent.Trim()).Should().Equal("a.beitia@talveg.es");
+        cut.Markup.Should().NotContain("otro.gestor@talveg.es").And.NotContain("marta.r@talveg.es").And.NotContain("c.consulta@talveg.es");
+        cut.FindAll(".acciones-cabecera button").Should().BeEmpty("sin alta de usuarios");
+        _mediador.Enviadas.OfType<ObtenerEquipoDeCoordinadorQuery>().Should().ContainSingle();
+
+        await AbrirMenuAsync(cut, "a.beitia@talveg.es");
+        Fila(cut, "a.beitia@talveg.es").QuerySelectorAll(".menu-acciones-item").Select(b => b.TextContent.Trim())
+            .Should().Equal("Asignar empresas");
+
+        await Fila(cut, "a.beitia@talveg.es").QuerySelectorAll(".menu-acciones-item").Single().ClickAsync(new());
+        cut.WaitForAssertion(() => CasillasAsignarEmpresas(cut).Should().ContainSingle());
+        await CasillasAsignarEmpresas(cut)[0].ChangeAsync(new() { Value = true });
+        await GuardarAsignarEmpresasAsync(cut);
+
+        _mediador.Enviadas.OfType<AsignarCarteraGestorCaeCommand>().Should().ContainSingle()
+            .Which.TenantsAAsignar.Should().Equal(BeneficiarioNorte);
+    }
+
+    [Fact]
+    public async Task El_Administrador_sigue_viendo_a_todos_y_todas_las_acciones()
+    {
+        SembrarEquipoYOtros();
+        var cut = Renderizar(actorId: MartaId);
+
+        Filas(cut).Should().HaveCount(5);
+        cut.FindAll(".acciones-cabecera button").Should().NotBeEmpty();
+        _mediador.Enviadas.OfType<ObtenerEquipoDeCoordinadorQuery>().Should().BeEmpty();
+        await AbrirMenuAsync(cut, "a.beitia@talveg.es");
+        Fila(cut, "a.beitia@talveg.es").QuerySelectorAll(".menu-acciones-item").Select(b => b.TextContent.Trim())
+            .Should().Contain(["Editar", "Desactivar", "Asignar empresas"]);
     }
 
     // -------------------------------------- el permiso sobre lo sensible

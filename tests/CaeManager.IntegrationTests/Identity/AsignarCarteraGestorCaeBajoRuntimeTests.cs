@@ -55,6 +55,9 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
     private readonly Guid _otroCoordinador = Guid.NewGuid();
     private readonly Guid _gestor = Guid.NewGuid();
     private readonly Guid _gestorAjeno = Guid.NewGuid();
+    private readonly Guid _gestorDeOtroEquipo = Guid.NewGuid();
+    private readonly Guid _gestorSinCoordinador = Guid.NewGuid();
+    private readonly Guid _consultaConCoordinador = Guid.NewGuid();
 
     public async Task InitializeAsync()
     {
@@ -105,7 +108,10 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
         Cuenta(_otroCoordinador, _operador.Id, Roles.CoordinadorCae);
         Cuenta(_gestor, _operador.Id, Roles.GestorCae, _coordinador);
         Cuenta(_administradorAjeno, _otroOperador.Id, Roles.Administrador);
-        Cuenta(_gestorAjeno, _otroOperador.Id, Roles.GestorCae);
+        Cuenta(_gestorAjeno, _otroOperador.Id, Roles.GestorCae, _coordinador);
+        Cuenta(_gestorDeOtroEquipo, _operador.Id, Roles.GestorCae, _otroCoordinador);
+        Cuenta(_gestorSinCoordinador, _operador.Id, Roles.GestorCae);
+        Cuenta(_consultaConCoordinador, _operador.Id, Roles.Consulta, _coordinador);
 
         await contexto.SaveChangesAsync();
     }
@@ -162,6 +168,20 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
         await using var propietario = ContextoPropietario(_operador.Id);
         (await propietario.AsignacionesCartera.Where(c => c.UsuarioId == _gestor).Select(c => c.PropietarioTenantId).ToListAsync())
             .Should().Equal(_beneficiarioA.Id);
+    }
+
+    [Fact]
+    public async Task La_lista_de_un_Coordinador_CAE_trae_solo_los_Gestores_CAE_de_su_equipo_y_nadie_mas()
+    {
+        var equipo = await Equipo(_coordinador, Roles.CoordinadorCae, _operador.Id);
+
+        equipo.Select(m => m.Id).Should().Equal([_gestor],
+            "no el Gestor CAE de otro equipo, ni uno sin coordinador, ni una cuenta que no es Gestor CAE aunque le reporte, ni la de otro Operador CAE");
+
+        (await Equipo(_otroCoordinador, Roles.CoordinadorCae, _operador.Id)).Select(m => m.Id)
+            .Should().Equal([_gestorDeOtroEquipo]);
+        (await Equipo(_administrador, Roles.Administrador, _operador.Id)).Should().BeEmpty("el Administrador usa la lista completa, no esta");
+        (await Equipo(_gestor, Roles.GestorCae, _operador.Id)).Should().BeEmpty();
     }
 
     [Fact]
@@ -358,9 +378,27 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
                select r.Name!).ToListAsync();
 
     /// <summary>Handler de producción sobre un contexto de runtime, en una sesión del Operador CAE.</summary>
-    private async Task<CaeManager.Domain.Common.Result> Ejecutar(
+    private Task<CaeManager.Domain.Common.Result> Ejecutar(
         Guid usuarioId, string rolDeSesion, Guid origen, AsignarCarteraGestorCaeCommand comando,
-        ActorAuditoria? actor = null, Func<Guid, Task>? antesDeIncorporar = null)
+        ActorAuditoria? actor = null, Func<Guid, Task>? antesDeIncorporar = null) =>
+        EnArnes(usuarioId, rolDeSesion, origen, actor, (usuario, contexto, directorio) =>
+        {
+            var catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
+            var handler = new AsignarCarteraGestorCaeCommandHandler(
+                usuario, directorio, directorio,
+                antesDeIncorporar is null ? catalogo : new CatalogoConGancho(catalogo, antesDeIncorporar),
+                new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto));
+            return handler.Handle(comando, CancellationToken.None);
+        });
+
+    private Task<IReadOnlyList<CaeManager.Application.Usuarios.MiembroDeEquipo>> Equipo(Guid usuarioId, string rolDeSesion, Guid origen) =>
+        EnArnes(usuarioId, rolDeSesion, origen, null, (usuario, contexto, directorio) =>
+            new CaeManager.Application.Usuarios.ObtenerEquipoDeCoordinadorQueryHandler(usuario, directorio, directorio)
+                .Handle(new CaeManager.Application.Usuarios.ObtenerEquipoDeCoordinadorQuery(), CancellationToken.None));
+
+    private async Task<T> EnArnes<T>(
+        Guid usuarioId, string rolDeSesion, Guid origen, ActorAuditoria? actor,
+        Func<UsuarioDeSesion, CaeManagerDbContext, DirectorioUsuariosTenant, Task<T>> ejecutar)
     {
         var usuario = new UsuarioDeSesion(usuarioId, rolDeSesion, origen);
         var tenantActual = new TenantSegunAmbito(origen);
@@ -395,13 +433,8 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
         await using var proveedor = servicios.BuildServiceProvider();
         using var ambito = proveedor.CreateScope();
         var directorio = ambito.ServiceProvider.GetRequiredService<DirectorioUsuariosTenant>();
-        var catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
 
-        var handler = new AsignarCarteraGestorCaeCommandHandler(
-            usuario, directorio, directorio,
-            antesDeIncorporar is null ? catalogo : new CatalogoConGancho(catalogo, antesDeIncorporar),
-            new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto));
-        return await handler.Handle(comando, CancellationToken.None);
+        return await ejecutar(usuario, contexto, directorio);
     }
 
     private sealed class CatalogoConGancho(CatalogoIncorporacionCartera real, Func<Guid, Task> antes) : ICatalogoIncorporacionCartera
@@ -443,7 +476,7 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>La sesión de una cuenta del Operador CAE, en su Tenant de origen.</summary>
-    private sealed class UsuarioDeSesion(Guid usuarioId, string rol, Guid origen) : ICurrentUserService
+    internal sealed class UsuarioDeSesion(Guid usuarioId, string rol, Guid origen) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
         public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(rol);
