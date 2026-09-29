@@ -100,7 +100,7 @@
     <value>Veure fitxa 360</value>
   </data>
   <data name="MenuFilaEtiqueta" xml:space="preserve">
-    <value>Accions del centre</value>
+    <value>Accions de {0}</value>
   </data>
   <data name="QuitarFiltroBusqueda" xml:space="preserve">
     <value>Treu el filtre de cerca</value>

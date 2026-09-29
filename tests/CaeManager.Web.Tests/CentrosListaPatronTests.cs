@@ -209,6 +209,17 @@ public class CentrosListaPatronTests : BunitContext
     }
 
     [Fact]
+    public void Cada_fila_tiene_un_nombre_accesible_distinto_en_su_menu()
+    {
+        var cut = Renderizar(ConCentros(Centro("Centro Norte"), Centro("Centro Sur")));
+
+        var nombres = cut.FindAll(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador")
+            .Select(d => d.GetAttribute("aria-label")).ToList();
+
+        nombres.Should().Equal("Acciones de Centro Norte", "Acciones de Centro Sur");
+    }
+
+    [Fact]
     public void El_disparador_del_menu_de_fila_es_el_icono_y_tiene_nombre_accesible()
     {
         var cut = Renderizar(ConCentros(Centro("Centro Norte")));

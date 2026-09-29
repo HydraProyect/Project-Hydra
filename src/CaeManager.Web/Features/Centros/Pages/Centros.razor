@@ -340,7 +340,7 @@
                            suelto «Detalles». Orden del contrato: «Ver ficha 360» primero. Eliminar sigue
                            disponible en lote, activando «Selección múltiple»: no hay baja por fila. *@
                         <div class="tarjeta-fila-acordeon-acciones">
-                            <MenuAcciones>
+                            <MenuAcciones EtiquetaAccesible="@Textos["MenuFilaEtiqueta", centro.Nombre]">
                                 <ItemMenuAccion OnClick="() => AbrirFichaCentro(centro.Id)">
                                     @Textos["MenuVerFicha360"]
                                 </ItemMenuAccion>

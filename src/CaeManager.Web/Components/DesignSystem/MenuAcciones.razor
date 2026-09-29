@@ -9,7 +9,7 @@
 *@
 <div class="menu-acciones">
     <button type="button" class="menu-acciones-disparador @(Etiqueta is null ? null : "menu-acciones-disparador-texto")" aria-haspopup="menu" aria-expanded="@(_abierto ? "true" : "false")"
-            aria-controls="@_panelId" aria-label="@(Etiqueta ?? "Más acciones")" @ref="_disparador" @onclick="Alternar" @onkeydown="ManejarTeclaDisparadorAsync">
+            aria-controls="@_panelId" aria-label="@(Etiqueta ?? EtiquetaAccesible ?? "Más acciones")" @ref="_disparador" @onclick="Alternar" @onkeydown="ManejarTeclaDisparadorAsync">
         @if (Etiqueta is null)
         {
             <Icono Nombre="mas-opciones" />
@@ -48,6 +48,13 @@
     /// disparador es el icono «⋯» de las filas.
     /// </summary>
     [Parameter] public string? Etiqueta { get; set; }
+
+    /// <summary>
+    /// Nombre accesible del disparador cuando es solo el icono «⋯» (p. ej. «Acciones de {fila}»), para
+    /// que las filas de una lista se distingan entre sí. No se ve en pantalla; si hay <see cref="Etiqueta"/>,
+    /// manda esta. Sin valor, el nombre es «Más acciones», como siempre.
+    /// </summary>
+    [Parameter] public string? EtiquetaAccesible { get; set; }
 
     private void Alternar()
     {

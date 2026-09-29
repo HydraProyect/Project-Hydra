@@ -100,7 +100,7 @@
     <value>Ver ficha 360</value>
   </data>
   <data name="MenuFilaEtiqueta" xml:space="preserve">
-    <value>Acciones del centro</value>
+    <value>Acciones de {0}</value>
   </data>
   <data name="QuitarFiltroBusqueda" xml:space="preserve">
     <value>Quitar filtro de búsqueda</value>
