@@ -82,6 +82,12 @@
   <data name="SubirDocumento" xml:space="preserve">
     <value>+ Puja un document</value>
   </data>
+  <data name="EnlaceOtraEmpresaAviso" xml:space="preserve">
+    <value>Pot pertànyer a una altra empresa de la teva cartera. Canvia d'empresa al selector.</value>
+  </data>
+  <data name="EnlaceOtraEmpresaAbrir" xml:space="preserve">
+    <value>Obre a {0}</value>
+  </data>
   <data name="SelectorTenantEtiqueta" xml:space="preserve">
     <value>Context operatiu actual</value>
   </data>

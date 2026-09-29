@@ -245,6 +245,7 @@ public class Empresa360PaginaTests : BunitContext
     [Fact]
     public void Si_la_empresa_no_llega_se_ofrece_reintentar_y_no_se_consulta_nada_mas()
     {
+        Services.ConEnlaceProfundoOtraEmpresa();
         var mediador = Registrar(new MediatorFalso());
 
         var cut = Renderizar();

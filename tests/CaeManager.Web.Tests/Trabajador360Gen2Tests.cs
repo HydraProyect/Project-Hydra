@@ -765,6 +765,7 @@ public class Trabajador360Gen2Tests : BunitContext
     public void Si_el_trabajador_no_existe_se_dice_y_se_ofrece_reintentar()
     {
         var id = Guid.NewGuid();
+        Services.ConEnlaceProfundoOtraEmpresa();
         Registrar(new MediatorFalso());
 
         var cut = Renderizar(id);

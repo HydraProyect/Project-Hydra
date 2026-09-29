@@ -111,6 +111,12 @@
   <data name="SelectorTenantSinResultados" xml:space="preserve">
     <value>Ninguna empresa coincide con la búsqueda.</value>
   </data>
+  <data name="EnlaceOtraEmpresaAviso" xml:space="preserve">
+    <value>Puede pertenecer a otra empresa de tu cartera. Cambia de empresa en el selector.</value>
+  </data>
+  <data name="EnlaceOtraEmpresaAbrir" xml:space="preserve">
+    <value>Abrir en {0}</value>
+  </data>
   <data name="FiltrosGuardados" xml:space="preserve">
     <value>Filtros guardados</value>
   </data>
