@@ -329,6 +329,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         cut.FindAll(".barra-trabajo-trabajadores").Should().BeEmpty();
         cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría los datos del origen");
         ConsultasDeLista(mediador).Should().Be(0, "no se piden los trabajadores de la organización de origen");
+        mediador.Enviadas.OfType<ObtenerEmpresasParaSelectorQuery>().Should().BeEmpty("tampoco los catálogos del origen");
     }
 
     [Fact]
