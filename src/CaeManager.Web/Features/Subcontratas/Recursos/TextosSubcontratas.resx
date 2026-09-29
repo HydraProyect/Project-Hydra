@@ -702,4 +702,10 @@
   <data name="ErrorGuardarCredenciales" xml:space="preserve">
     <value>No pudimos guardar las credenciales. Intenta nuevamente en unos segundos.</value>
   </data>
+  <data name="SinEmpresaTitulo" xml:space="preserve">
+    <value>Selecciona una empresa de tu cartera</value>
+  </data>
+  <data name="SinEmpresaDescripcion" xml:space="preserve">
+    <value>Las subcontratas se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
+  </data>
 </root>

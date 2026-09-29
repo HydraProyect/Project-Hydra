@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Domain.Common;
@@ -42,6 +43,7 @@ public class EmpresasAvisoCambiosSinGuardarTests : BunitContext
             {
                 ObtenerPerfilVocabularioActualQuery => PerfilVocabularioTenant.Consultora,
                 UsaRotulosPrimeraPersonaQuery => false,
+                ObtenerClientesAutorizadosQuery => (object)(IReadOnlyList<ClienteAutorizadoDto>)[new(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 ObtenerEmpresasQuery q => new ResultadoPaginado<EmpresaListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerAlcanceCeroQuery => false,
                 ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
@@ -81,6 +83,7 @@ public class EmpresasAvisoCambiosSinGuardarTests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => new MediatorFalso());
         Services.AddScoped<ToastService>();
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.AddLocalization();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();

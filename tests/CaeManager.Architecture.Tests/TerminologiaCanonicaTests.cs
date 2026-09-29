@@ -391,7 +391,11 @@ public class TerminologiaCanonicaTests
     {
         ["Hydra"] = 39,
         ["EjecutivoUsuarioId"] = 43,
-        ["Delegacion"] = 337,
+        // 337 → 340 (2026-09-28, «Asignar empresas» a un Gestor CAE existente): tres usos de
+        // identificadores legacy que ya existen y no se renombran aquí —DelegacionesTenant,
+        // DelegacionTenantId y PropositoDelegacion— en la retirada de la fila heredada de
+        // Operador Delegado de CatalogoIncorporacionCartera (mismo join que PropietariosEnCarteraAsync).
+        ["Delegacion"] = 340,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

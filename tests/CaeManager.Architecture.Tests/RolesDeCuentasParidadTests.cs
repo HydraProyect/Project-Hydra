@@ -37,8 +37,12 @@ public class RolesDeCuentasParidadTests
             .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
             .Single(a => a.Roles is not null);
 
+        // Decisión del propietario, 2026-09-29: el Coordinador CAE abre la página solo para «Asignar
+        // empresas» a su equipo. Es el único rol añadido: la lista que ve sale filtrada de
+        // ObtenerEquipoDeCoordinadorQuery y los Commands de cuentas le siguen negando el paso
+        // (GestionCuentasCommandsTests, DesactivarGestorCaeConCarteraCommandHandlerTests, ...).
         atributo.Roles!.Split(',', StringSplitOptions.TrimEntries)
-            .Should().BeEquivalentTo(AutoridadSobreCuentas.RolesQueGestionanCuentas,
+            .Should().BeEquivalentTo([.. AutoridadSobreCuentas.RolesQueGestionanCuentas, "CoordinadorCae"],
                 "si la página se abre a un rol que los Commands rechazan, o al revés, la autorización vuelve a vivir en la página");
     }
 }

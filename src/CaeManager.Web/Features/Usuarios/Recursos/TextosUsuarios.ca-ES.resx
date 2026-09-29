@@ -72,6 +72,39 @@
   <data name="CarteraAltaAyuda" xml:space="preserve">
     <value>Gestionarà sencera cada empresa que marquis. Pots deixar-ho sense cap i assignar-les-hi després.</value>
   </data>
+  <data name="AsignarEmpresasAccion" xml:space="preserve">
+    <value>Assignar empreses</value>
+  </data>
+  <data name="AsignarEmpresasTitulo" xml:space="preserve">
+    <value>Empreses de {0}</value>
+  </data>
+  <data name="AsignarEmpresasAyuda" xml:space="preserve">
+    <value>Gestionarà sencera cada empresa que marquis. En desmarcar-ne una, en perd l'accés.</value>
+  </data>
+  <data name="AsignarEmpresasParcial" xml:space="preserve">
+    <value>ja té part dels seus clients; no s'amplia des d'aquí</value>
+  </data>
+  <data name="AsignarEmpresasCargando" xml:space="preserve">
+    <value>Carregant empreses…</value>
+  </data>
+  <data name="AsignarEmpresasVacio" xml:space="preserve">
+    <value>La teva organització no gestiona cap empresa que es pugui assignar.</value>
+  </data>
+  <data name="AsignarEmpresasSoloRetirar" xml:space="preserve">
+    <value>ja no es pot assignar; només retirar</value>
+  </data>
+  <data name="AsignarEmpresasGuardar" xml:space="preserve">
+    <value>Desar</value>
+  </data>
+  <data name="AsignarEmpresasVolver" xml:space="preserve">
+    <value>Tornar</value>
+  </data>
+  <data name="AsignarEmpresasGuardadas" xml:space="preserve">
+    <value>Cartera de {0} actualitzada.</value>
+  </data>
+  <data name="AsignarEmpresasErrorCarga" xml:space="preserve">
+    <value>No hem pogut carregar les empreses de la seva cartera. Tanca i torna a obrir.</value>
+  </data>
   <data name="CarteraAltaErrorCarga" xml:space="preserve">
     <value>No hem pogut carregar les empreses per a la seva cartera. Pots desar sense cap i assignar-les-hi després.</value>
   </data>
