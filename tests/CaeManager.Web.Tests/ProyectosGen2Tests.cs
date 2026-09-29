@@ -7,6 +7,7 @@ using CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
 using CaeManager.Application.Proyectos.Commands.CerrarProyecto;
 using CaeManager.Application.Proyectos.Commands.CrearProyecto;
 using CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
+using CaeManager.Application.Proyectos.Commands.EliminarProyecto;
 using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
@@ -145,6 +146,9 @@ public class ProyectosGen2Tests : BunitContext
             if (request is DesasignarTecnicoProyectoCommand baja)
                 _tecnicosDadosDeBaja.Add(baja.Id);
 
+            if (request is EliminarProyectoCommand eliminado)
+                Proyectos.RemoveAll(p => p.Id == eliminado.Id);
+
             object? respuesta = request switch
             {
                 ObtenerClientesParaSelectorQuery => new[]
@@ -159,6 +163,7 @@ public class ProyectosGen2Tests : BunitContext
                 ObtenerTecnicosProyectoQuery q => TecnicosPorProyecto.GetValueOrDefault(q.ProyectoId) ?? TecnicosPorDefecto(),
                 ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[new TrabajadorSelectorDto(Guid.NewGuid(), "Salas Moreno, Javier", null, null)],
                 DesasignarTecnicoProyectoCommand => Result.Exito(),
+                EliminarProyectoCommand => Result.Exito(),
                 CerrarProyectoCommand => Result.Exito(),
                 CrearProyectoCommand => Result.Exito(Guid.NewGuid()),
                 ReabrirProyectoCommand => Result.Exito(),
@@ -1333,5 +1338,201 @@ public class ProyectosGen2Tests : BunitContext
 
         cut.FindAll(".drawer-panel").Should().BeEmpty("el drawer no tiene nada escrito: la edición del panel no es suya");
         ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "y la edición del panel sigue intacta");
+    }
+
+    // ------------------------------------------------------------------ P1-E2b lote 2: revisión estática independiente
+
+    /// <summary>Abre el menú de la fila del proyecto y pulsa una de sus acciones (sin esperar a lo que ella dispare).</summary>
+    private static async Task<Task> PulsarAccionDeLaFilaAsync(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto, string accion)
+    {
+        var fila = cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim() == proyecto.Nombre);
+        await fila.QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
+        return BotonConTexto(cut, "[role=menuitem]", accion).ClickAsync(new MouseEventArgs());
+    }
+
+    /// <summary>Elimina desde el menú de la fila y confirma en el diálogo (su botón de confirmar dice «Eliminar»).</summary>
+    private async Task EliminarDesdeLaFilaAsync(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto)
+    {
+        await (await PulsarAccionDeLaFilaAsync(cut, proyecto, "Eliminar")).WaitAsync(Paciencia);
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Eliminar").ClickAsync(new MouseEventArgs());
+        _mediator.Enviados.OfType<EliminarProyectoCommand>().Should().ContainSingle("el caso solo vale si se eliminó")
+            .Which.Id.Should().Be(proyecto.Id);
+        PanelDeDetalleAbierto(cut).Should().BeFalse("eliminar el proyecto abierto cierra su panel");
+    }
+
+    // ---- Eliminar el proyecto cuyo detalle está abierto no deja un aviso fantasma (defecto de este diff, corregido en f440cea4)
+
+    [Fact]
+    public async Task Aviso_eliminar_el_proyecto_abierto_con_el_alta_de_tecnico_a_medias_no_deja_un_aviso_al_salir()
+    {
+        var cut = await AbrirElAltaDeTecnicoAsync();
+        await CambiarLaFechaDeAltaAsync(cut);
+
+        await EliminarDesdeLaFilaAsync(cut, ProyectoAbierto);
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "el proyecto con el alta a medias ya no existe: no queda nada que perder");
+    }
+
+    [Fact]
+    public async Task Aviso_eliminar_el_proyecto_abierto_con_el_alta_de_tecnico_a_medias_no_pregunta_al_abrir_otro()
+    {
+        var cut = await AbrirElAltaDeTecnicoAsync();
+        await CambiarLaFechaDeAltaAsync(cut);
+
+        await EliminarDesdeLaFilaAsync(cut, ProyectoAbierto);
+
+        await ComprobarQueTerminaSinPreguntarAsync(cut, AbrirDetalle(cut, ProyectoAbierto2), "el alta a medias era del proyecto eliminado");
+        cut.Find(".nombre-cabecera-panel-proyecto").TextContent.Should().Be(ProyectoAbierto2.Nombre);
+    }
+
+    // ---- Enter y «Detalles» del menú de la fila con la edición de información sucia (ManejarAtajoAsync y menú → AbrirDetalleConAvisoAsync)
+
+    [Fact]
+    public async Task Aviso_Enter_sobre_otra_fila_con_la_edicion_a_medias_pregunta_seguir_conserva_y_descartar_abre_el_otro()
+    {
+        var cut = await AbrirLaEdicionDelDetalleAsync();
+        await EscribirEnElPanelAsync(cut, "Otro nombre");
+        await Atajo(cut, "j");
+        await Atajo(cut, "j");
+        FilasEnfocadas(cut).Should().Equal([ProyectoAbierto2.Nombre], "el test necesita el foco en la otra fila");
+
+        var apertura = Atajo(cut, "Enter");
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("Enter sobre otra fila tira lo escrito"));
+        await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
+        await apertura.WaitAsync(Paciencia);
+        ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "«Seguir editando» conserva la edición");
+
+        var segunda = Atajo(cut, "Enter");
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
+        await PulsarEnLaPreguntaAsync(cut, "Salir y descartar");
+        await segunda.WaitAsync(Paciencia);
+
+        cut.Find(".nombre-cabecera-panel-proyecto").TextContent.Should().Be(ProyectoAbierto2.Nombre, "descartar abre el otro proyecto");
+    }
+
+    [Fact]
+    public async Task Aviso_Enter_con_la_edicion_sin_tocar_no_pregunta()
+    {
+        var cut = await AbrirLaEdicionDelDetalleAsync();
+        await Atajo(cut, "j");
+        await Atajo(cut, "j");
+
+        await ComprobarQueTerminaSinPreguntarAsync(cut, Atajo(cut, "Enter"), "la edición está como se abrió");
+
+        cut.Find(".nombre-cabecera-panel-proyecto").TextContent.Should().Be(ProyectoAbierto2.Nombre);
+    }
+
+    [Fact]
+    public async Task Aviso_menu_Detalles_de_otra_fila_con_la_edicion_a_medias_pregunta_seguir_conserva_y_descartar_abre_el_otro()
+    {
+        var cut = await AbrirLaEdicionDelDetalleAsync();
+        await EscribirEnElPanelAsync(cut, "Otro nombre");
+
+        var apertura = await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto2, "Detalles");
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("«Detalles» de otra fila tira lo escrito"));
+        await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
+        await apertura.WaitAsync(Paciencia);
+        ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "«Seguir editando» conserva la edición");
+
+        var segunda = await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto2, "Detalles");
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
+        await PulsarEnLaPreguntaAsync(cut, "Salir y descartar");
+        await segunda.WaitAsync(Paciencia);
+
+        cut.Find(".nombre-cabecera-panel-proyecto").TextContent.Should().Be(ProyectoAbierto2.Nombre, "descartar abre el otro proyecto");
+    }
+
+    [Fact]
+    public async Task Aviso_menu_Detalles_con_la_edicion_sin_tocar_no_pregunta()
+    {
+        var cut = await AbrirLaEdicionDelDetalleAsync();
+
+        var apertura = await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto2, "Detalles");
+
+        await ComprobarQueTerminaSinPreguntarAsync(cut, apertura, "la edición está como se abrió");
+        cut.Find(".nombre-cabecera-panel-proyecto").TextContent.Should().Be(ProyectoAbierto2.Nombre);
+    }
+
+    // ---- Alta de técnico sucia: abrir otro proyecto y cambiar de Cliente empresarial
+
+    [Fact]
+    public async Task Aviso_abrir_otro_proyecto_con_el_alta_de_tecnico_a_medias_pregunta_seguir_conserva_y_descartar_abre_el_otro()
+    {
+        var cut = await AbrirElAltaDeTecnicoAsync();
+        await CambiarLaFechaDeAltaAsync(cut);
+
+        var apertura = AbrirDetalle(cut, ProyectoAbierto2);
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("abrir otro proyecto tira el alta a medias"));
+        await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
+        await apertura.WaitAsync(Paciencia);
+        ValorDelCampo(cut, "Fecha de alta").Should().Be("2020-01-01", "«Seguir editando» conserva el alta");
+
+        var segunda = AbrirDetalle(cut, ProyectoAbierto2);
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
+        await PulsarEnLaPreguntaAsync(cut, "Salir y descartar");
+        await segunda.WaitAsync(Paciencia);
+
+        cut.Find(".nombre-cabecera-panel-proyecto").TextContent.Should().Be(ProyectoAbierto2.Nombre, "descartar abre el otro proyecto");
+        cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Etiqueta == "Fecha de alta", "el alta se descartó");
+    }
+
+    [Fact]
+    public async Task Aviso_cambiar_de_Cliente_empresarial_con_el_alta_de_tecnico_a_medias_pregunta_seguir_conserva_y_descartar_cambia()
+    {
+        var cut = await AbrirElAltaDeTecnicoAsync();
+        await CambiarLaFechaDeAltaAsync(cut);
+        var consultasDeProyectosAntes = _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count();
+
+        var cambio = ElegirCliente(cut, ClienteBId);
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("cambiar de Cliente empresarial tira el alta a medias"));
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count().Should().Be(consultasDeProyectosAntes,
+            "no se cambia de Cliente empresarial mientras pregunta");
+
+        await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
+        await cambio.WaitAsync(Paciencia);
+        PanelDeDetalleAbierto(cut).Should().BeTrue("«Seguir editando» conserva el panel");
+        ValorDelCampo(cut, "Fecha de alta").Should().Be("2020-01-01");
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count().Should().Be(consultasDeProyectosAntes);
+
+        var segundo = ElegirCliente(cut, ClienteBId);
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
+        await PulsarEnLaPreguntaAsync(cut, "Salir y descartar");
+        await segundo.WaitAsync(Paciencia);
+
+        PanelDeDetalleAbierto(cut).Should().BeFalse("descartar cambia de Cliente empresarial y cierra el panel");
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Last().ClienteId.Should().Be(ClienteBId);
+    }
+
+    // ---- El modal de cierre pregunta solo por lo suyo
+
+    [Fact]
+    public async Task Aviso_el_modal_de_cierre_pregunta_solo_por_su_contenido_no_por_la_edicion_del_panel()
+    {
+        var cut = await AbrirLaEdicionDelDetalleAsync();
+        await EscribirEnElPanelAsync(cut, "Otro nombre");
+        await (await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto, "Cerrar proyecto")).WaitAsync(Paciencia);
+        cut.FindAll("[role=dialog]").Should().NotBeEmpty("el test necesita el modal de cierre abierto");
+
+        await cut.Find("[role=dialog] .modal-cerrar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".modal-pie button").Should().NotContain(b => b.TextContent.Trim() == "Descartar cambios",
+            "el modal de cierre no tiene nada escrito: la edición del panel no es suya");
+        cut.FindAll("[role=dialog]").Should().BeEmpty("el modal se cerró sin preguntar");
+        ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "y la edición del panel sigue intacta");
+    }
+
+    [Fact]
+    public async Task Aviso_el_modal_de_cierre_con_otra_fecha_pregunta_al_cerrar_con_la_X()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+        await CerrarDesdeLaFilaAsync(cut, ProyectoAbierto);
+        await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de cierre")
+            .Find("input").InputAsync(new ChangeEventArgs { Value = "2020-01-01" });
+
+        await cut.Find("[role=dialog] .modal-cerrar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".modal-pie button").Should().Contain(b => b.TextContent.Trim() == "Descartar cambios",
+            "la fecha de cierre cambiada se perdería al cerrar con la X");
     }
 }
