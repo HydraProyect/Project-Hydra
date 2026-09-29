@@ -149,12 +149,27 @@ public class ClienteActivoSeleccionado(
     {
         if (_leidoDeCookie) return;
 
+        // Lectura prematura: el principal de la petición aún no está autenticado. Ocurre cuando el
+        // acceso a datos de la propia autenticación (revalidación del security stamp de la cookie de
+        // Identity, cada Sesion:IntervaloRevalidacionSegundos) abre una conexión y el interceptor de
+        // RLS consulta la sesión privilegiada seleccionada ANTES de que UseAuthentication haya fijado
+        // HttpContext.User. Ese null no es «no hay selección»: memoizarlo dejaba la selección en nulo
+        // durante toda la petición y RevalidacionClienteActivoMiddleware borraba la cookie en silencio
+        // (P0 2026-09-28: el Tenant beneficiario elegido volvía al de origen). Se responde nulo (fallo
+        // cerrado) sin memoizar, y la primera lectura con usuario autenticado decide.
+        if (LecturaPrematura()) return;
+
         var leido = LeerDeCookie();
         _tenantIdSeleccionado = leido.TenantId;
         _asignacionOperacionIdSeleccionada = leido.AsignacionOperacionId;
         _sesionPrivilegiadaIdSeleccionada = leido.SesionPrivilegiadaId;
         _leidoDeCookie = true;
     }
+
+    private bool LecturaPrematura() =>
+        httpContextAccessor.HttpContext is { } contexto
+        && !string.IsNullOrEmpty(contexto.Request.Cookies[NombreCookie])
+        && LeerUsuarioActual(contexto.User) is null;
 
     /// <summary>
     /// Descarta la selección para el resto de esta petición. Lo llama
