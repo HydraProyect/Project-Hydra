@@ -63,7 +63,7 @@ public static class VistaDemoEndpoints
                 });
             }
 
-            return Results.LocalRedirect(RedireccionLocal.Sanear(returnUrl));
+            return Results.LocalRedirect(RedireccionLocal.SanearParaVolver(returnUrl));
         });
 
         return endpoints;

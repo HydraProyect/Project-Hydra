@@ -71,7 +71,7 @@ public static class IdiomaEndpoints
             || !CulturaUsuarioCookie.EstaActivo(idiomaElegido, localizacion))
             return Results.BadRequest();
 
-        var destino = RedireccionLocal.Sanear(returnUrl);
+        var destino = RedireccionLocal.SanearParaVolver(returnUrl);
 
         if (!await GuardarAsync(userManager, desenganchador, logger, usuarioId, idiomaElegido))
             return RespuestaNoCambiado(textos, destino);

@@ -75,4 +75,63 @@ public class RedireccionLocalTests
     [InlineData("/clientes?q=Refri&critico=true")]
     public void Un_fragmento_o_una_consulta_normales_siguen_pasando(string entrada)
         => RedireccionLocal.Sanear(entrada).Should().Be(entrada);
+
+    /// <summary>
+    /// Los selectores de MainLayout reciben como returnUrl la URL con la que se creó el circuito,
+    /// que tras iniciar sesión es "/?desde=login": volver ahí reactivaría el aterrizaje D-2. Solo se
+    /// quita el parámetro exacto (todas sus apariciones); el resto de la consulta y su orden se
+    /// conservan, y un fragmento se mantiene tras la consulta.
+    /// </summary>
+    [Theory]
+    [InlineData("/?desde=login", "/")]
+    [InlineData("/?desde=login&x=1", "/?x=1")]
+    [InlineData("/?x=1&desde=login", "/?x=1")]
+    [InlineData("/clientes?a=1&desde=login&b=2", "/clientes?a=1&b=2")]
+    [InlineData("/?desde=login&desde=login", "/")]
+    [InlineData("/?desde=login&a=1&desde=login", "/?a=1")]
+    [InlineData("/?desde=login&", "/")]
+    [InlineData("/?otro=1", "/?otro=1")]
+    [InlineData("/?desde=otro", "/?desde=otro")]
+    [InlineData("/?desde=login2", "/?desde=login2")]
+    [InlineData("/?xdesde=login", "/?xdesde=login")]
+    [InlineData("/?DESDE=login", "/?DESDE=login")]
+    [InlineData("/?desde=Login", "/?desde=Login")]
+    [InlineData("/?desde=", "/?desde=")]
+    [InlineData("/documentos", "/documentos")]
+    [InlineData("/", "/")]
+    [InlineData("/clientes?a=1&desde=login#seccion", "/clientes?a=1#seccion")]
+    [InlineData("/?desde=login#seccion", "/#seccion")]
+    [InlineData("/documentos#a?desde=login", "/documentos#a?desde=login")]
+    [InlineData("/documentos#desde=login", "/documentos#desde=login")]
+    public void SanearParaVolver_descarta_solo_la_marca_exacta_de_login(string entrada, string esperado)
+        => RedireccionLocal.SanearParaVolver(entrada).Should().Be(esperado);
+
+    /// <summary>Nunca más permisivo que Sanear: lo peligroso sigue cayendo a la raíz.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("//atacante.com")]
+    [InlineData("//atacante.com?desde=login")]
+    [InlineData("/\\atacante.com")]
+    [InlineData("/\t/atacante.com")]
+    [InlineData("/?desde=login\t")]
+    [InlineData("https://atacante.com")]
+    [InlineData("https://atacante.com/?desde=login")]
+    [InlineData("javascript:alert(1)")]
+    public void SanearParaVolver_deja_caer_a_la_raiz_lo_que_Sanear_rechaza(string? entrada)
+        => RedireccionLocal.SanearParaVolver(entrada).Should().Be("/");
+
+    [Theory]
+    [InlineData("/?desde=login")]
+    [InlineData("/a?x=1&desde=login#f")]
+    [InlineData("/documentos")]
+    public void SanearParaVolver_siempre_devuelve_una_ruta_local_segura(string entrada)
+    {
+        var resultado = RedireccionLocal.SanearParaVolver(entrada);
+
+        resultado.Should().StartWith("/");
+        resultado.Should().NotStartWith("//").And.NotStartWith("/\\");
+        resultado.Should().Be(RedireccionLocal.Sanear(resultado), "el resultado es un valor que Sanear acepta tal cual");
+    }
 }

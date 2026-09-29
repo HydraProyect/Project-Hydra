@@ -41,7 +41,7 @@ public static class VistaVocabularioPreviewEndpoints
                 httpContext.Response.Cookies.Delete(VistaVocabularioPreviewCookie.NombreCookie);
             }
 
-            return Results.LocalRedirect(RedireccionLocal.Sanear(returnUrl));
+            return Results.LocalRedirect(RedireccionLocal.SanearParaVolver(returnUrl));
         });
 
         return endpoints;
