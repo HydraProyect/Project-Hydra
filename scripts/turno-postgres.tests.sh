@@ -277,8 +277,14 @@ senal_arbol CONT "$pc"
 sleep 3                                    # C solo, con el mundo aún dormido: sin arreglo le basta
                                            # (todo lleva 8 s caducado); con arreglo, 3 s < CADUCIDAD.
 senal_arbol CONT "$pa" "$pb"
-wait "$pa" "$pb" "$pc"
+wait "$pa"; rca=$?; wait "$pb"; rcb=$?; wait "$pc"; rcc=$?
 comprobar "tras una suspensión: sin solape y en orden de llegada A, B, C" "A_ini A_fin B_ini B_fin C_ini C_fin" "$(tr '\n' ' ' < "$REGISTRO" | sed 's/ $//')"
+if [ "$(tr '\n' ' ' < "$REGISTRO" | sed 's/ $//')" != "A_ini A_fin B_ini B_fin C_ini C_fin" ]; then
+  # Un fallo intermitente sin su salida obliga a inferir la causa (el de CI de #982 solo
+  # enseñó el registro): se vuelcan los códigos de salida y el final de cada salida.
+  echo "        salidas: A=$rca B=$rcb C=$rcc"
+  for f in oA oB oC; do echo "        --- $f"; tail -n 6 "$CASO/$f" | sed 's/^/        /'; done
+fi
 comprobar "tras una suspensión: no retira el cerrojo de un dueño vivo" "0" "$(cat "$CASO"/o? | grep -c 'cerrojo huérfano retirado')"
 
 # 11c -----------------------------------------------------------------------
@@ -295,6 +301,51 @@ senal_arbol CONT "$pa" "$pb"
 wait "$pa"; wait "$pb"; rcb=$?
 comprobar "tras una suspensión más larga que la espera máxima: B no se rinde y ejecuta" "0 A_ini A_fin B_ini B_fin" "$rcb $(tr '\n' ' ' < "$REGISTRO" | sed 's/ $//')"
 export HYDRA_TURNO_CADUCIDAD_S=20
+
+# 11d -----------------------------------------------------------------------
+# El primero de la cola intenta `mkdir cerrojo`; si falla porque lo tiene el dueño y
+# este lo libera ANTES de la comprobación `[ ! -d cerrojo ]`, el waiter veía «no hay
+# directorio», aborta con 74 sin ejecutar y borra su propio ticket: pierde su turno y
+# el siguiente le adelanta (visto en CI, caso 11b: B ausente del registro y C tras A).
+# Es más probable justo tras una suspensión, cuando dueño y waiter despiertan a la vez.
+# Aquí no se depende del reloj: `mkdir` se sustituye por un envoltorio que falla UNA
+# vez sobre el cerrojo sin crearlo, que es el estado exacto que deja esa carrera, y
+# delega en el real después.
+nuevo_caso mkdir-del-cerrojo-falla-una-vez
+MKDIR_REAL=$(command -v mkdir)
+mkdir -p "$CASO/bin"
+cat > "$CASO/bin/mkdir" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+  case "\$a" in
+    */cerrojo) if [ ! -e "$CASO/ya-fallo" ]; then : > "$CASO/ya-fallo"; exit 1; fi ;;
+  esac
+done
+exec "$MKDIR_REAL" "\$@"
+EOF
+chmod +x "$CASO/bin/mkdir"
+PATH="$CASO/bin:$PATH" bash "$GUION" -- bash -c "$(tarea B 0.1)" > "$CASO/o" 2>&1; rc=$?
+comprobar "mkdir del cerrojo falla y el directorio ya no está: el waiter reintenta y ejecuta" "0 B_ini B_fin envoltorio-usado" "$rc $(tr '\n' ' ' < "$REGISTRO" | sed 's/ $//') $([ -e "$CASO/ya-fallo" ] && echo envoltorio-usado || echo envoltorio-NO-usado)"
+
+# 11e -----------------------------------------------------------------------
+# Contrapeso de 11d: el reintento NO convierte en éxito un fallo real. Si `mkdir` del
+# cerrojo falla SIEMPRE y el directorio nunca existe (permisos, directorio padre
+# ausente), sigue abortando con 74, sin ejecutar y diciéndolo.
+nuevo_caso mkdir-del-cerrojo-falla-siempre
+mkdir -p "$CASO/bin"
+cat > "$CASO/bin/mkdir" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+  case "\$a" in
+    */cerrojo) : > "$CASO/intentado"; exit 1 ;;
+  esac
+done
+exec "$MKDIR_REAL" "\$@"
+EOF
+chmod +x "$CASO/bin/mkdir"
+PATH="$CASO/bin:$PATH" bash "$GUION" --espera-max-s 30 -- bash -c "$(tarea B 0.1)" > "$CASO/o" 2>&1; rc=$?
+comprobar "mkdir del cerrojo falla siempre: aborta con 74 y no ejecuta" "74 sin-registro intentado" "$rc $([ -s "$REGISTRO" ] && echo con-registro || echo sin-registro) $([ -e "$CASO/intentado" ] && echo intentado || echo NO-intentado)"
+comprobar "lo dice: ABORTADO_SIN_EJECUTAR motivo=sin_directorio_de_turno" "1" "$(grep -c 'ABORTADO_SIN_EJECUTAR motivo=sin_directorio_de_turno' "$CASO/o")"
 
 # 12 ------------------------------------------------------------------------
 nuevo_caso uso

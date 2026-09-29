@@ -47,6 +47,13 @@
     flex: 1;
 }
 
+/* Un botón de la barra (p. ej. «Guardar filtro» en Documentos) no se encoge por flex ni parte su
+   rótulo: con max-width 480px y varios campos flex:1, el botón quedaba en «rdar f». */
+.barra-filtros > button {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
 /*
   Toolbar de Centros (lámina L3 ".toolbar", contrato de fidelidad
   2026-08-09 § 1.4): una sola fila con buscar/estado/orden/selección
@@ -967,6 +974,19 @@
     color: var(--color-text-muted);
     background-color: var(--color-surface-hover);
     border-bottom: var(--border-default);
+}
+
+/*
+  Columna ordenable de QuickGrid: pinta la cabecera como <button class="col-title"> y un botón
+  no hereda font, color ni text-transform del <th> (el agente de usuario los fija). Sin esto, en
+  la misma tabla las columnas Sortable salían en minúsculas y con otro tamaño, y las demás en
+  versalitas. El nombre accesible no cambia: es el texto del botón.
+*/
+.tabla-datos th button {
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    color: inherit;
 }
 
 .tabla-datos td {

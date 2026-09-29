@@ -11,6 +11,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Tenants;
@@ -64,6 +65,8 @@ public class EmpresasListaGen2Tests : BunitContext
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> ClientesDe { get; } = [];
         public HashSet<Guid> ClientesQueFallan { get; } = [];
         public PerfilVocabularioTenant Perfil { get; set; } = PerfilVocabularioTenant.Consultora;
+        /// <summary>false = Operador CAE externo trabajando en un Tenant beneficiario ajeno.</summary>
+        public bool EsDelPropioTenant { get; set; } = true;
         public List<object> Enviadas { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
 
@@ -88,6 +91,7 @@ public class EmpresasListaGen2Tests : BunitContext
         private object Responder(object request) => request switch
         {
             ObtenerPerfilVocabularioActualQuery => Perfil,
+            UsaRotulosPrimeraPersonaQuery => Perfil == PerfilVocabularioTenant.ClienteDirecto && EsDelPropioTenant,
             ObtenerEmpresasQuery q => Filtrar(q),
             ObtenerClientesDeEmpresaQuery c => ClientesQueFallan.Contains(c.EmpresaId)
                 ? throw new InvalidOperationException("Fallo simulado de la consulta de clientes de la empresa.")
@@ -211,6 +215,23 @@ public class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Perfil = PerfilVocabularioTenant.ClienteDirecto, Almacen = { Empresa("Refrielectric S.A.") } });
 
         cut.Find("header.cabecera-pagina h1.titulo-pagina").TextContent.Trim().Should().Be("Mi empresa");
+    }
+
+    /// <summary>
+    /// Decisión del propietario 2026-09-28: un usuario que no es del Tenant propietario (Operador CAE
+    /// externo en un Tenant beneficiario Cliente Directo) ve una lista ajena, no «Mi empresa».
+    /// </summary>
+    [Fact]
+    public void Con_perfil_ClienteDirecto_pero_usuario_de_otro_Tenant_el_titulo_es_Empresas()
+    {
+        var cut = Renderizar(new MediatorFalso
+        {
+            Perfil = PerfilVocabularioTenant.ClienteDirecto,
+            EsDelPropioTenant = false,
+            Almacen = { Empresa("Refrielectric S.A.") }
+        });
+
+        cut.Find("header.cabecera-pagina h1.titulo-pagina").TextContent.Trim().Should().Be("Empresas");
     }
 
     [Fact]
