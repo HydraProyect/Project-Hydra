@@ -10,6 +10,7 @@ using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Domain.Common;
@@ -77,10 +78,19 @@ public class EmpresasListaGen2Tests : BunitContext
         /// </summary>
         public Func<object, Task<object>?>? Retener { get; set; }
 
+        /// <summary>Por defecto, un usuario mono-Tenant: sin selector ni cabecera de empresa gestionada.</summary>
+        public List<ClienteAutorizadoDto> Autorizados { get; } = [new(Guid.NewGuid(), "Propia", EsOrigen: true)];
+
+        /// <summary>Si se fija, la respuesta de la lista de Tenants autorizados espera a esta tarea (mediador asíncrono).</summary>
+        public Task? RetenerAutorizados { get; set; }
+
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
             Tokens.Add(cancellationToken);
+
+            if (request is ObtenerClientesAutorizadosQuery && RetenerAutorizados is { } espera)
+                await espera;
 
             if (Retener?.Invoke(request) is { } retenida)
                 return (TResponse)await retenida;
@@ -91,6 +101,7 @@ public class EmpresasListaGen2Tests : BunitContext
         private object Responder(object request) => request switch
         {
             ObtenerPerfilVocabularioActualQuery => Perfil,
+            ObtenerClientesAutorizadosQuery => Autorizados,
             UsaRotulosPrimeraPersonaQuery => Perfil == PerfilVocabularioTenant.ClienteDirecto && EsDelPropioTenant,
             ObtenerEmpresasQuery q => Filtrar(q),
             ObtenerClientesDeEmpresaQuery c => ClientesQueFallan.Contains(c.EmpresaId)
@@ -148,10 +159,13 @@ public class EmpresasListaGen2Tests : BunitContext
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
+    private SeleccionEmpresaGestionadaDePrueba Seleccion { get; set; } = new();
+
     private void Registrar(MediatorFalso mediador)
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
+        Services.AddScoped<ITenantActual>(_ => Seleccion);
         // Empresas pinta con IStringLocalizer<TextosEmpresas> (la «Vista rápida» del menú de fila).
         Services.AddLocalization();
         Services.AddScoped<ContextWorkspaceService>();
@@ -930,5 +944,107 @@ public class EmpresasListaGen2Tests : BunitContext
         mediador.Enviadas.OfType<RestaurarEmpresaCommand>().Select(c => c.Id).Should().Equal([elegida.Id],
             "se restaura solo lo que el lote eliminó, no lo que pidió");
         Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje == "1 empresa(s) restaurada(s).");
+    }
+
+    // --- Empresa gestionada activa (lote 3 del selector de Tenant beneficiario) ----------------
+
+    private static readonly Guid Origen = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
+    private static readonly Guid EmpresaNorte = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000002");
+    private static readonly Guid EmpresaSur = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000003");
+
+    private static MediatorFalso ConCartera(bool origenGestionado)
+    {
+        var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } };
+        mediador.Autorizados.Clear();
+        mediador.Autorizados.AddRange(
+        [
+            new ClienteAutorizadoDto(Origen, "Operador de prueba", EsOrigen: true, EsGestionadoPorOperacion: origenGestionado),
+            new ClienteAutorizadoDto(EmpresaNorte, "Empresa Norte", EsOrigen: false, EsGestionadoPorOperacion: true),
+            new ClienteAutorizadoDto(EmpresaSur, "Empresa Sur", EsOrigen: false, EsGestionadoPorOperacion: true),
+        ]);
+        return mediador;
+    }
+
+    [Fact]
+    public void Con_varias_empresas_gestionadas_la_cabecera_de_la_lista_dice_cual_esta_activa()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+
+        var cut = Renderizar(ConCartera(origenGestionado: false));
+
+        var cabecera = cut.Find(".cabecera-empresa-activa");
+        cabecera.TextContent.Should().Contain("Empresa gestionada").And.Contain("Empresa Sur");
+        cut.Markup.Should().Contain("Refrielectric S.A.");
+    }
+
+    [Fact]
+    public void Un_usuario_mono_Tenant_no_ve_cabecera_de_empresa_gestionada()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } });
+
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
+        cut.Markup.Should().Contain("Refrielectric S.A.");
+    }
+
+    [Fact]
+    public void Sin_empresa_elegida_y_con_el_origen_sin_gestionar_pide_elegir_y_no_muestra_datos_del_origen()
+    {
+        var mediador = ConCartera(origenGestionado: false);
+
+        var cut = Renderizar(mediador);
+
+        cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
+        cut.Markup.Should().NotContain("Refrielectric S.A.");
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría los datos del origen");
+        ConsultasDeLista(mediador).Should().Be(0, "no se piden las empresas de la organización de origen");
+    }
+
+    [Fact]
+    public void Con_el_origen_gestionado_y_sin_empresa_elegida_la_lista_es_la_del_origen()
+    {
+        var cut = Renderizar(ConCartera(origenGestionado: true));
+
+        cut.Markup.Should().NotContain("Selecciona una empresa de tu cartera");
+        cut.Find(".cabecera-empresa-activa").TextContent.Should().Contain("Operador de prueba");
+        cut.Markup.Should().Contain("Refrielectric S.A.");
+    }
+
+    [Fact]
+    public void Mientras_se_resuelve_la_empresa_activa_no_se_monta_la_lista_ni_se_ofrece_la_exportacion()
+    {
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+
+        Registrar(mediador);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("empresas");
+        var cut = Render<Empresas>();
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty();
+        ConsultasDeLista(mediador).Should().Be(0);
+
+        puerta.SetResult();
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Selecciona una empresa de tu cartera"));
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty();
+        ConsultasDeLista(mediador).Should().Be(0, "ni antes ni después de resolverse se pide la lista del origen");
+    }
+
+    [Fact]
+    public void Con_el_contexto_resuelto_a_una_empresa_la_lista_se_monta_tras_la_carga()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+
+        Registrar(mediador);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("empresas");
+        var cut = Render<Empresas>();
+        ConsultasDeLista(mediador).Should().Be(0);
+        cut.Markup.Should().NotContain("Refrielectric S.A.");
+
+        puerta.SetResult();
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Refrielectric S.A."));
     }
 }

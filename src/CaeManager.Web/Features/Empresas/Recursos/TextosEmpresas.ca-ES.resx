@@ -267,4 +267,10 @@
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>
+  <data name="SinEmpresaTitulo" xml:space="preserve">
+    <value>Selecciona una empresa de la teva cartera</value>
+  </data>
+  <data name="SinEmpresaDescripcion" xml:space="preserve">
+    <value>Les empreses es mostren d'una en una. Tria'n una a la barra lateral.</value>
+  </data>
 </root>
