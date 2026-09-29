@@ -314,7 +314,9 @@ public class InicioGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => UrlActual.Should().EndWith(Inicio.RutaMiTrabajo));
         var entradas = ((BunitNavigationManager)Services.GetRequiredService<NavigationManager>()).History;
-        entradas.Count.Should().Be(_entradasDeHistorialAntesDeInicio + 1);
+        // No se cuenta cuántas entradas hay: el arnés de bUnit modela «replace» sustituyendo la
+        // última entrada, de modo que el recuento no aumenta. Lo que demuestra el replace es que
+        // la entrada superior es Mi trabajo y lleva ReplaceHistoryEntry.
         entradas.First().Uri.Should().EndWith(Inicio.RutaMiTrabajo);
         entradas.First().Options.ReplaceHistoryEntry.Should().BeTrue();
         _moduloMarca.VerifyNotInvoke("quitarMarca");
