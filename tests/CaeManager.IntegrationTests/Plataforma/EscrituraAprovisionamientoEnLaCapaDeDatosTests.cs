@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
@@ -62,20 +63,146 @@ public class EscrituraAprovisionamientoEnLaCapaDeDatosTests : IAsyncLifetime
         ((bool)(await comando.ExecuteScalarAsync())!).Should().Be(esperado);
     }
 
-    [Fact]
-    public async Task El_rol_no_tiene_ningun_privilegio_sobre_Tenants()
+    // ── Tenants: solo las tres columnas del logo (selector de Tenant, lote 1) ──
+    //
+    // "Tenants" es administración de plano 3, no contenido CAE del alta: el rol no
+    // puede crear, borrar ni cambiar un Tenant. Excepción declarada (contrato del
+    // selector de Tenant, decisión 4 e invariante I8): Soporte TALVEG con
+    // Aprovisionamiento escribe el logo, así que el rol actualiza esas tres
+    // columnas y ninguna otra. El SELECT de tabla es el que exige cargar la
+    // entidad con EF; cae_app_soporte ya lo tenía para el mismo actor.
+
+    [Theory]
+    [InlineData("SELECT", true)]
+    [InlineData("INSERT", false)]
+    [InlineData("UPDATE", false)]
+    [InlineData("DELETE", false)]
+    public async Task Los_privilegios_de_tabla_del_rol_sobre_Tenants_son_los_declarados(string privilegio, bool esperado)
     {
-        // Fuera de la lista de GRANT a propósito: el plano de administración de
-        // tenants no es contenido CAE del alta.
         await using var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
 
         await using var comando = conexion.CreateCommand();
-        comando.CommandText =
-            "SELECT has_table_privilege('cae_app_aprovisionamiento', '\"Tenants\"', 'SELECT') OR " +
-            "has_table_privilege('cae_app_aprovisionamiento', '\"Tenants\"', 'INSERT');";
+        comando.CommandText = "SELECT has_table_privilege('cae_app_aprovisionamiento', '\"Tenants\"', @privilegio);";
+        comando.Parameters.AddWithValue("privilegio", privilegio);
 
-        ((bool)(await comando.ExecuteScalarAsync())!).Should().BeFalse();
+        ((bool)(await comando.ExecuteScalarAsync())!).Should().Be(esperado);
+    }
+
+    [Fact]
+    public async Task El_rol_solo_puede_actualizar_las_tres_columnas_del_logo_de_Tenants()
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = """
+            SELECT column_name FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'Tenants'
+              AND has_column_privilege('cae_app_aprovisionamiento', '"Tenants"', column_name, 'UPDATE')
+            ORDER BY column_name;
+            """;
+        var columnas = new List<string>();
+        await using (var lector = await comando.ExecuteReaderAsync())
+            while (await lector.ReadAsync())
+                columnas.Add(lector.GetString(0));
+
+        columnas.Should().Equal("LogoActualizadoEnUtc", "LogoArchivoClave", "LogoVersion");
+    }
+
+    [Fact]
+    public async Task Por_SQL_el_rol_cambia_el_logo_pero_ninguna_otra_columna_de_un_Tenant()
+    {
+        var tenantId = await CrearTenantAsync();
+        await using var conexion = await AbrirComoAprovisionamientoAsync(tenantId);
+
+        async Task<int> ActualizarAsync(string asignacion)
+        {
+            await using var comando = conexion.CreateCommand();
+            comando.CommandText = $"UPDATE \"Tenants\" SET {asignacion} WHERE \"Id\" = @id;";
+            comando.Parameters.AddWithValue("id", tenantId);
+            return await comando.ExecuteNonQueryAsync();
+        }
+
+        (await ActualizarAsync(
+                "\"LogoVersion\" = '0123456789abcdef', \"LogoArchivoClave\" = 'x/y.png', \"LogoActualizadoEnUtc\" = now()"))
+            .Should().Be(1, "control positivo: las columnas del logo sí");
+
+        foreach (var asignacion in new[]
+                 {
+                     "\"Nombre\" = 'Renombrado'",
+                     "\"EstadoComercial\" = \"EstadoComercial\"",
+                     "\"Estado\" = \"Estado\"",
+                     "\"EsPlataforma\" = true",
+                     "\"PuedeActuarComoOperadorCaeExterno\" = true",
+                     "\"StripeCustomerId\" = 'cus_x'",
+                 })
+        {
+            var accion = async () => await ActualizarAsync(asignacion);
+            (await accion.Should().ThrowAsync<PostgresException>(asignacion))
+                .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, asignacion);
+        }
+    }
+
+    [Fact]
+    public async Task Elevado_por_el_ambito_EF_guarda_el_logo_de_un_Tenant()
+    {
+        var tenantId = await CrearTenantAsync();
+        var sesionId = Guid.NewGuid();
+        var clave = $"{tenantId:N}/{Guid.NewGuid():N}.png";
+
+        await using (var contexto = CrearContexto(tenantId, sesionPrivilegiadaId: sesionId, tenantSeleccionado: tenantId))
+        using (AmbitoEscrituraPrivilegiada.Establecer(sesionId, tenantId))
+        {
+            var tenant = await contexto.Tenants.SingleAsync(t => t.Id == tenantId);
+            tenant.EstablecerLogo(clave, "0123456789abcdef", DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto(tenantId);
+        (await lectura.Tenants.SingleAsync(t => t.Id == tenantId)).LogoArchivoClave.Should().Be(clave);
+    }
+
+    [Fact]
+    public async Task Elevado_por_el_ambito_EF_no_puede_renombrar_un_Tenant()
+    {
+        var tenantId = await CrearTenantAsync();
+        var sesionId = Guid.NewGuid();
+
+        await using var contexto = CrearContexto(tenantId, sesionPrivilegiadaId: sesionId, tenantSeleccionado: tenantId);
+        using (AmbitoEscrituraPrivilegiada.Establecer(sesionId, tenantId))
+        {
+            var tenant = await contexto.Tenants.SingleAsync(t => t.Id == tenantId);
+            tenant.RenombrarA("Renombrado por aprovisionamiento");
+
+            var accion = async () => await contexto.SaveChangesAsync();
+
+            (await accion.Should().ThrowAsync<DbUpdateException>())
+                .Which.InnerException.Should().BeOfType<PostgresException>()
+                .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        }
+    }
+
+    [Fact]
+    public async Task Dos_subidas_simultaneas_del_logo_una_gana_y_la_otra_da_conflicto()
+    {
+        // LogoVersion es token de concurrencia (revisión Codex C9): la segunda no puede pisar la
+        // columna de la primera ni dejarla apuntando a un blob que la primera borraría.
+        var tenantId = await CrearTenantAsync();
+        await using var primera = CrearContexto(tenantId);
+        await using var segunda = CrearContexto(tenantId);
+        var enPrimera = await primera.Tenants.SingleAsync(t => t.Id == tenantId);
+        var enSegunda = await segunda.Tenants.SingleAsync(t => t.Id == tenantId);
+
+        enPrimera.EstablecerLogo($"{tenantId:N}/{Guid.NewGuid():N}.png", "aaaaaaaaaaaaaaaa", DateTime.UtcNow);
+        await primera.SaveChangesAsync();
+
+        enSegunda.EstablecerLogo($"{tenantId:N}/{Guid.NewGuid():N}.png", "bbbbbbbbbbbbbbbb", DateTime.UtcNow);
+        var accion = async () => await segunda.SaveChangesAsync();
+
+        await accion.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        await using var lectura = CrearContexto(tenantId);
+        (await lectura.Tenants.SingleAsync(t => t.Id == tenantId)).LogoVersion.Should().Be("aaaaaaaaaaaaaaaa");
     }
 
     // ── El rol, por sus efectos (SQL directo, bajo cae_app_runtime) ────────
@@ -255,6 +382,15 @@ public class EscrituraAprovisionamientoEnLaCapaDeDatosTests : IAsyncLifetime
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    private async Task<Guid> CrearTenantAsync()
+    {
+        await using var contexto = CrearContexto(Guid.NewGuid());
+        var tenant = new Tenant("Tenant con logo de prueba");
+        contexto.Tenants.Add(tenant);
+        await contexto.SaveChangesAsync();
+        return tenant.Id;
     }
 
     private async Task<NpgsqlConnection> AbrirComoAprovisionamientoAsync(Guid tenantId)

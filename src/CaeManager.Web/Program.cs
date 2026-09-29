@@ -1066,6 +1066,7 @@ app.MapFacturacionEndpoints();
 app.MapDocumentosEndpoints();
 app.MapTrabajadoresEndpoints();
 app.MapFirmasGuardadasEndpoints();
+app.MapLogoTenantEndpoints();
 app.MapRequisitosDocumentalesEndpoints();
 app.MapComunicacionesEndpoints();
 app.MapSubcontratasEndpoints();
