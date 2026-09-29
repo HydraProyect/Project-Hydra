@@ -54,11 +54,10 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // que da valor a la aserción final: sin esta línea base, "hay empresas" al
         // final podría significar simplemente que el origen también las tenía.
         //
-        // Su cartera tiene un único Tenant beneficiario externo y su origen no está
-        // gestionado, así que al entrar ese Tenant es el activo por defecto
-        // (decisión 5 del selector de Tenant beneficiario). La línea base exige
-        // volver a propósito al Tenant de origen, que además deja la preferencia
-        // para que el defecto no se reactive en la navegación siguiente.
+        // Su cartera tiene un único Tenant beneficiario externo, pero de rol Consulta: el Tenant
+        // por defecto (decisión 5) solo se aplica a una cartera de rol Gestor CAE (decisión 7
+        // quater), así que entra en su Tenant de origen y ve el selector. La línea base vuelve
+        // a propósito al Tenant de origen igualmente, para no depender de dónde aterrice.
         await Ayudas.CambiarClienteActivoAsync(page, fixture, Ayudas.NombreTenantConsultora);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await Assertions.Expect(page.GetByText("Aún no hay empresas"))
@@ -109,12 +108,13 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // asentado tras esa redirección, de que el <select> también quedó consistente
         // con lo que el servidor aplicó.
         //
-        // Con un único Tenant beneficiario en su cartera este Operador Delegado no ve el selector
-        // (decisión 1 del contrato del selector): la comprobación sobre el DOM es que sigue oculto.
-        // Que el cambio surtió efecto lo demuestran el 3xx real del POST y, más abajo, que Empresas
-        // muestra las empresas de ese Tenant y no las del origen.
-        await Assertions.Expect(Ayudas.DisparadorSelectorTenant(page))
-            .ToHaveCountAsync(0, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
+        // Este Operador Delegado (cartera de rol Consulta) ve el selector (decisión 7 quater): la
+        // comprobación sobre el DOM es que el Tenant activo que muestra es el elegido. Que el
+        // cambio surtió efecto en el servidor lo demuestran además el 3xx real del POST y, más
+        // abajo, que Empresas muestra las empresas de ese Tenant y no las del origen.
+        await Assertions.Expect(Ayudas.DisparadorSelectorTenant(page).Locator(".selector-tenant-nombre"))
+            .ToHaveTextAsync(Ayudas.NombreClienteDelegadoDemo,
+                new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
 
         // Este clic navega SIN recargar el documento, pero SÍ dispara una petición
         // HTTP real (enhanced navigation de Blazor Web Apps) — no es circuito puro,

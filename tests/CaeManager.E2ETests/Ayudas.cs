@@ -228,9 +228,10 @@ public static class Ayudas
     /// Cambia de empresa gestionada con el selector si está a la vista y, si no, con el mismo POST
     /// que enviaría el selector. El selector se oculta a quien alcanza un único Tenant beneficiario
     /// (decisión 1 del contrato del selector) y ese Tenant es entonces el activo por defecto
-    /// (decisión 5): un Operador Delegado con una sola cartera no tiene control que pulsar, pero el
-    /// endpoint revalida la misma autorización, y eso es lo que estos tests necesitan ejercitar
-    /// (workspace activo, rol efectivo, circuito). Igual que en la vía del selector, se exige un 3xx
+    /// (decisión 5) cuando su cartera es de rol Gestor CAE (decisión 7 quater): un Gestor CAE con una
+    /// sola cartera no tiene control que pulsar, pero el endpoint revalida la misma autorización, y
+    /// eso es lo que estos tests necesitan ejercitar (workspace activo, rol efectivo, circuito). Un
+    /// Operador Delegado con cartera de otro rol (Consulta) sí ve el selector y va por él. Igual que en la vía del selector, se exige un 3xx
     /// real que no aterrice en acceso denegado ni en inicio de sesión.
     /// </summary>
     public static async Task CambiarClienteActivoAsync(IPage page, WebAppFixture fixture, string nombreTenant)
