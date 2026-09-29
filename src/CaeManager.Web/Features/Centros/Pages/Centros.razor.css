@@ -1,15 +1,94 @@
+/* La barra de filtros (tarjeta, chips, «Limpiar todo») vive ahora en el componente BarraFiltros y en
+   list-page.css: la superficie de .barra-trabajo-centros que había aquí ya no se usa. */
+
+/* Cabecera de la lista con la empresa gestionada activa (mockup «Selector Empresa Gestionada», lienzo 2).
+   Clase propia: las de CSS aislado no viajan entre componentes. */
+.centros-empresa {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.centros-empresa-texto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.centros-empresa-rotulo {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.centros-empresa-nombre {
+    font: var(--font-label-md);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Recuento «N centros» de la barra de herramientas. */
+.conteo-centros {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
 /*
-  Toolbar de Centros como superficie (Lista Centros TALVEG.dc.html): la fila
-  única de buscar/estado/orden/selección/expandir/exportar/nuevo va sobre una
-  tarjeta, igual que en el mockup. La disposición en una sola fila sigue
-  viniendo de .barra-trabajo-centros en list-page.css; aquí solo se añade la
-  superficie.
+  Cabecera de columnas (pieza 4). Mismo esqueleto que la cabecera de la fila
+  (.tarjeta-fila-acordeon-cabecera, list-page.css): huecos fijos para lo de
+  tamaño fijo (casilla, chevron + aro de cumplimiento, indicadores de 200 px,
+  menú «⋯») y una columna elástica para la identidad. Versalitas, como el resto
+  de listas del patrón. Los anchos de casilla, chevron y aro son los de sus
+  componentes; si cambian, cambia aquí.
 */
-.barra-trabajo-centros {
-    background-color: var(--color-surface);
+.cabecera-columnas-centros {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 40px;
+    padding: 0 var(--space-4);
+    margin-bottom: var(--space-2);
+    background: var(--color-surface-hover);
     border: var(--border-default);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
+    border-radius: var(--radius-lg);
+    font: var(--font-label);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--color-text-muted);
+}
+
+.cabecera-columnas-centros-seleccion {
+    width: 16px;
+    flex-shrink: 0;
+}
+
+/* chevron (24 px) + hueco + aro pequeño (24 px) */
+.cabecera-columnas-centros-inicio {
+    width: calc(24px + var(--space-2) + 24px);
+    flex-shrink: 0;
+}
+
+.cabecera-columnas-centros-centro {
+    flex: 1;
+    min-width: 0;
+}
+
+.cabecera-columnas-centros-indicadores {
+    display: grid;
+    grid-template-columns: 26px 26px minmax(0, 1fr);
+    gap: var(--space-1);
+    width: 200px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.cabecera-columnas-centros-acciones,
+.tarjeta-fila-acordeon-acciones {
+    width: 44px;
+    flex-shrink: 0;
+    justify-content: flex-end;
 }
 
 /* Título del contenido expandido de la fila de Centro. */

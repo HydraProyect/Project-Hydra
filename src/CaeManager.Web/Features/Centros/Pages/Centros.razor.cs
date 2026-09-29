@@ -1,10 +1,12 @@
 using CaeManager.Application.Centros;
+using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentros;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
@@ -147,6 +149,20 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     public string? EstadoInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
+
+    /// <summary>
+    /// La empresa gestionada activa, solo para quien alcanza varias (mismo criterio que el selector
+    /// de la barra lateral): la cabecera dice de cuál es la lista. Mismo patrón que Trabajadores.
+    /// </summary>
+    private ClienteAutorizadoDto? _empresaActiva;
+
+    /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
+    private bool _sinEmpresaSeleccionada;
+
+    /// <summary>La empresa activa aún no se ha resuelto: se pinta una carga en vez de la lista.</summary>
+    private bool _resolviendoEmpresa = true;
 
     // Reutilizan las mismas reglas que ya corren en el servidor al guardar
     // (misma validación, sin duplicarla) — solo se les pide que validen un
@@ -176,6 +192,27 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     protected override async Task OnInitializedAsync()
     {
+        // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
+        // vuelo el render saldría con «hay empresa» y lanzaría la carga (y la exportación) del origen.
+        try
+        {
+            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+            var activa = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
+            if (ClientesAutorizados.SelectorVisible(autorizados, activa))
+            {
+                _empresaActiva = activa;
+                _sinEmpresaSeleccionada = ClientesAutorizados.SinEmpresaSeleccionada(autorizados, _empresaActiva);
+            }
+        }
+        finally
+        {
+            _resolviendoEmpresa = false;
+        }
+
+        // Sin empresa elegida no se piden los datos de la organización de origen ni se abre el alta.
+        if (_sinEmpresaSeleccionada)
+            return;
+
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _estadoFiltro = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
         _centroIdFiltro = CentroId;
@@ -223,6 +260,10 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     protected override async Task OnParametersSetAsync()
     {
+        // Mientras se resuelve la empresa, o con el 4a, la lista no se carga (ni por cambio de URL).
+        if (_resolviendoEmpresa || _sinEmpresaSeleccionada)
+            return;
+
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var estadoDeLaUrl = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
 
@@ -346,13 +387,62 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro);
 
+    /// <summary>
+    /// «Limpiar todo»: quita los dos filtros <b>también de la URL</b>, en una sola llamada (cada
+    /// <c>NavigateTo</c> lee la URL vigente y varias seguidas se pisan; ver el helper). Si la URL
+    /// conservara alguno, <c>OnParametersSetAsync</c> —que re-sincroniza desde ella— lo devolvería.
+    /// </summary>
     private async Task LimpiarFiltrosAsync()
     {
         _busqueda = string.Empty;
         _estadoFiltro = string.Empty;
-        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
-        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = null,
+            ["estado"] = null,
+        });
         await CargarAsync(resetPagina: true);
+    }
+
+    // --- Patrón único de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md) ---
+
+    private CentroListaDto? _previewCentro;
+    private IReadOnlyList<VisitaResumenDto> _previewVisitas = [];
+    private bool _previewVisible;
+
+    /// <summary>Nombre de la fila, «Vista previa» del «⋯» y Enter sobre la fila enfocada: la vista previa lateral (pieza 6).</summary>
+    private void AbrirVistaPrevia(Guid id)
+    {
+        var centro = _elementosPagina.FirstOrDefault(e => e.Id == id);
+        if (centro is null) return;
+        _previewCentro = centro;
+        _previewVisitas = _visitasPorCentro.GetValueOrDefault(id) ?? [];
+        _previewVisible = true;
+    }
+
+    /// <summary>«Ver ficha 360» del «⋯» y del pie de la vista previa: la página /centros/{id}.</summary>
+    private void AbrirFichaCentro(Guid id) => NavigationManager.NavigateTo($"/centros/{id}");
+
+    /// <summary>«Abrir panel de detalles» de la vista previa: el panel de 520 px (Context Workspace).</summary>
+    private Task AbrirPanelDesdeVistaPrevia(CentroListaDto centro) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
+
+    private string EtiquetaFiltroBusqueda => Textos["ChipBusqueda", _busqueda].Value;
+
+    private string EtiquetaFiltroEstado =>
+        Textos["ChipEstado", EstadoCentroUi.Opciones.FirstOrDefault(o => o.Valor == _estadoFiltro)?.Texto ?? "—"].Value;
+
+    /// <summary>«N centros»; con filtros, dice que el número es el de los que coinciden.</summary>
+    private string TextoConteo
+    {
+        get
+        {
+            var uno = _totalElementos == 1;
+            var clave = HayFiltrosActivos
+                ? (uno ? "ConteoUnoFiltrado" : "ConteoVariosFiltrado")
+                : (uno ? "ConteoUno" : "ConteoVarios");
+            return Textos[clave, _totalElementos].Value;
+        }
     }
 
     private async Task AbrirCrearAsync()
@@ -700,9 +790,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
                 {
-                    var elemento = _elementosPagina.FirstOrDefault(e => e.Id == idAbrir);
-                    if (elemento is not null)
-                        await WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, elemento.Id, elemento.Nombre, "informacion");
+                    // Enter abre la vista previa lateral (pieza 6), como el nombre de la fila.
+                    AbrirVistaPrevia(idAbrir);
                 }
                 break;
         }

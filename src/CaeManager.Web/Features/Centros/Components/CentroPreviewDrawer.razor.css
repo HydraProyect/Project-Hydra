@@ -1,0 +1,180 @@
+/*
+    Mismo criterio de apilamiento que ContextWorkspace.razor.css: sin scrim
+    (role="complementary", se puede seguir interactuando con la lista detrás)
+    — "vista previa" es intencionalmente más ligera que el Context Workspace
+    completo que abre al pulsar "Operar →". Ancho 400px según el mockup
+    (Lista Clientes TALVEG.dc.html), algo más estrecho que los 420-520px del
+    resto de paneles Overlay porque solo enseña un resumen, no un formulario.
+*/
+.drawer-preview-centro {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 400px;
+    background-color: var(--color-overlay);
+    box-shadow: var(--shadow-overlay);
+    border-left: var(--border-default);
+    z-index: 1045;
+    display: flex;
+    flex-direction: column;
+    animation: preview-centro-entrar var(--motion-transition) var(--ease-fluid);
+}
+
+@keyframes preview-centro-entrar {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .drawer-preview-centro {
+        animation: none;
+    }
+}
+
+.cabecera-preview-centro {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border-bottom: var(--border-default);
+    flex-shrink: 0;
+}
+
+.texto-cabecera-preview-centro {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.etiqueta-cabecera-preview-centro {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+}
+
+.nombre-cabecera-preview-centro {
+    font: var(--font-heading-md);
+}
+
+.boton-cerrar-preview-centro {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: var(--space-1);
+    flex-shrink: 0;
+}
+
+.boton-cerrar-preview-centro:hover {
+    color: var(--color-text);
+}
+
+.boton-cerrar-preview-centro:focus-visible {
+    outline: var(--border-focus);
+}
+
+.cuerpo-preview-centro {
+    padding: 0 var(--space-5) var(--space-5);
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.rejilla-info-preview-centro {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+}
+
+.celda-info-preview-centro {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.celda-info-preview-centro span {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.celda-info-preview-centro strong {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.vacio-preview-centro {
+    display: block;
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+}
+
+.pie-preview-centro {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border-top: var(--border-default);
+    flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+    .drawer-preview-centro {
+        max-width: 100%;
+    }
+}
+
+.estado-preview-centro {
+    padding: var(--space-4) 0 var(--space-3);
+}
+
+.bloque-preview-centro {
+    margin-top: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.titulo-bloque-preview-centro {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.linea-visita-preview-centro {
+    font: var(--font-body-md);
+}
+
+.enlace-panel-preview-centro {
+    margin-top: var(--space-4);
+    border: 0;
+    background: none;
+    padding: 0;
+    text-align: left;
+    color: var(--color-primary-500);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.enlace-panel-preview-centro:hover {
+    color: var(--color-primary-600);
+}

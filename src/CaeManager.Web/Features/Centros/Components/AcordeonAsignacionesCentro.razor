@@ -131,10 +131,14 @@ else
                         </TextoFechaCopiable>
                     </span>
                     <span class="columna-accion" role="cell">
-                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                               OnClick="() => GestionarEmpresaAsync(incidencia)">
-                            Gestionar
-                        </Boton>
+                        @* Como en AcordeonTrabajadoresSubcontrata: DrawerGestionDocumento solo crea o renueva
+                           (ICommand denegados a Consulta), así que a quien solo lee no se le ofrece. *@
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                   OnClick="() => GestionarEmpresaAsync(incidencia)">
+                                Gestionar
+                            </Boton>
+                        </SoloConEscritura>
                     </span>
                 </div>
             }
@@ -410,11 +414,14 @@ else
                                                     la necesita (blueprint § 3.4, 04 § 2.5) — no desaparece: un
                                                     documento al día también puede querer sustituirse.
                                                 *@
-                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                                       class="@("accion-fila-enlace" + (RequiereIntervencion(documento) ? null : " accion-atenuada"))"
-                                                       OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
-                                                    Gestionar
-                                                </Boton>
+                                                <SoloConEscritura>
+                                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                           class="@("accion-fila-enlace" + (RequiereIntervencion(documento) ? null : " accion-atenuada"))"
+                                                           title="@(RequiereIntervencion(documento) ? null : Textos["GestionarAtenuadoAlDia"].Value)"
+                                                           OnClick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
+                                                        Gestionar
+                                                    </Boton>
+                                                </SoloConEscritura>
                                             </span>
                                         </div>
                                     }

@@ -81,4 +81,106 @@
   <data name="QuitarAjusteConfirmar" xml:space="preserve">
     <value>Treure l'ajust</value>
   </data>
+  <data name="SinEmpresaTitulo" xml:space="preserve">
+    <value>Selecciona una empresa de la teva cartera</value>
+  </data>
+  <data name="SinEmpresaDescripcion" xml:space="preserve">
+    <value>Els centres es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
+  </data>
+  <data name="MenuVistaPrevia" xml:space="preserve">
+    <value>Vista prèvia</value>
+  </data>
+  <data name="MenuVerFicha360" xml:space="preserve">
+    <value>Veure fitxa 360</value>
+  </data>
+  <data name="MenuAbrirPanel" xml:space="preserve">
+    <value>Obrir el panell de detalls</value>
+  </data>
+  <data name="MenuFilaEtiqueta" xml:space="preserve">
+    <value>Accions del centre</value>
+  </data>
+  <data name="QuitarFiltroBusqueda" xml:space="preserve">
+    <value>Treu el filtre de cerca</value>
+  </data>
+  <data name="QuitarFiltroEstado" xml:space="preserve">
+    <value>Treu el filtre d'estat</value>
+  </data>
+  <data name="ChipBusqueda" xml:space="preserve">
+    <value>Cerca: "{0}"</value>
+  </data>
+  <data name="ChipEstado" xml:space="preserve">
+    <value>Estat: {0}</value>
+  </data>
+  <data name="ConteoUno" xml:space="preserve">
+    <value>{0} centre</value>
+  </data>
+  <data name="ConteoVarios" xml:space="preserve">
+    <value>{0} centres</value>
+  </data>
+  <data name="ConteoUnoFiltrado" xml:space="preserve">
+    <value>{0} centre amb aquests filtres</value>
+  </data>
+  <data name="ConteoVariosFiltrado" xml:space="preserve">
+    <value>{0} centres amb aquests filtres</value>
+  </data>
+  <data name="ColCentro" xml:space="preserve">
+    <value>Centre</value>
+  </data>
+  <data name="ColVencidos" xml:space="preserve">
+    <value>Venc.</value>
+  </data>
+  <data name="ColProximos" xml:space="preserve">
+    <value>Prop.</value>
+  </data>
+  <data name="ColEstadoVisita" xml:space="preserve">
+    <value>Estat / visita</value>
+  </data>
+  <data name="GestionarAtenuadoAlDia" xml:space="preserve">
+    <value>Al dia: no cal intervenir-hi, però el pots substituir</value>
+  </data>
+  <data name="PreviewAria" xml:space="preserve">
+    <value>Vista prèvia del centre</value>
+  </data>
+  <data name="PreviewEtiqueta" xml:space="preserve">
+    <value>Vista ràpida · Centre</value>
+  </data>
+  <data name="PreviewCerrar" xml:space="preserve">
+    <value>Tanca</value>
+  </data>
+  <data name="PreviewCliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="PreviewEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="PreviewCodigo" xml:space="preserve">
+    <value>Codi</value>
+  </data>
+  <data name="PreviewEstado" xml:space="preserve">
+    <value>Estat</value>
+  </data>
+  <data name="PreviewCumplimiento" xml:space="preserve">
+    <value>Compliment</value>
+  </data>
+  <data name="PreviewVencidos" xml:space="preserve">
+    <value>Documents vençuts</value>
+  </data>
+  <data name="PreviewProximos" xml:space="preserve">
+    <value>Propers a vencer</value>
+  </data>
+  <data name="PreviewVisitas" xml:space="preserve">
+    <value>Visites programades</value>
+  </data>
+  <data name="PreviewSinVisitas" xml:space="preserve">
+    <value>Sense visites programades.</value>
+  </data>
+  <data name="PreviewVisitaLinea" xml:space="preserve">
+    <value>{0} – {1} · {2} treballador(s)</value>
+  </data>
+  <data name="PreviewAbrirFicha" xml:space="preserve">
+    <value>Obrir fitxa 360</value>
+  </data>
+  <data name="PreviewAbrirPanel" xml:space="preserve">
+    <value>Obrir el panell de detalls</value>
+  </data>
 </root>

@@ -30,58 +30,99 @@
 <PageTitle>Centros — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    @* Cabecera Gen 2 (Lista Centros TALVEG.dc.html): el mockup no lleva
-       kicker ni entradilla, solo el h1. *@
-    <CabeceraPagina Titulo="Centros" />
+    @* Mockup «Selector Empresa Gestionada» (lienzo 2), igual que Trabajadores: con varias empresas
+       gestionadas, la lista dice de cuál es. El selector de la barra lateral cambia de empresa y
+       recarga esta misma ruta sin query (I14: ningún Id de enlace profundo ni filtro sobrevive). *@
+    @if (_empresaActiva is not null)
+    {
+        <div class="centros-empresa">
+            <AvatarTenant Nombre="@_empresaActiva.Nombre" LogoUrl="@AvatarTenant.UrlDeLogo(_empresaActiva.TenantId, _empresaActiva.LogoVersion)" />
+            <span class="centros-empresa-texto">
+                <span class="centros-empresa-rotulo">@Comunes["SelectorTenantRotulo"]</span>
+                <span class="centros-empresa-nombre" title="@_empresaActiva.Nombre">@_empresaActiva.Nombre</span>
+            </span>
+        </div>
+    }
 
     @*
-        Toolbar de Centros (contrato de fidelidad 2026-08-09 § 1.4): una sola
-        fila con buscar/estado/orden/selección-múltiple/expandir-todos/
-        exportar/nuevo, en vez de las 3 regiones fragmentadas que había antes
-        (cabecera de página, barra de filtros, BarraHerramientasLista). Los
-        controles de selección múltiple y expandir/colapsar todos llaman
-        directamente a los métodos que ya usaba BarraHerramientasLista — se
-        reutiliza el comportamiento, no su composición en región propia
-        (prohibida, contrato § 1.2).
+        Pieza 1 del patrón de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3):
+        antetítulo del grupo del menú, «Exportar» como enlaces secundarios y UNA sola primaria. Las
+        acciones que antes vivían dentro de la barra de trabajo (exportar, nuevo) suben aquí: nunca hay
+        acciones de la página dentro de la barra de filtros. Frente al mockup «Lista Centros TALVEG.dc.html»
+        (una sola fila con todo), manda el contrato. Se conservan los dos enlaces de exportación: son
+        secundarios y no hay más acciones extra, así que no hace falta un menú «Más».
     *@
-    <div class="barra-trabajo-centros">
-        <CampoTexto Placeholder="Buscar centro, cliente o empresa…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <FiltroEstado Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                      Opciones="EstadoCentroUi.Opciones" />
-        @*
-            Orden por cumplimiento (blueprint § 3.1, DDL-036). Existe para
-            atacar los peores centros SIN depender de que haya una visita
-            próxima, que es la única forma que había hasta ahora de priorizar.
-        *@
-        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-               OnClick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))"
-               aria-pressed="@(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? "true" : "false")">
-            Cumplimiento @(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? (_ordenDescendente ? "↓" : "↑") : "")
-        </Boton>
-        @*
-            Selección múltiple / Expandir todos van en Secundario, no
-            Fantasma: son controles de la barra de herramientas (lámina L3
-            ".btn.ghost", con borde), no acciones de fila — Fantasma pasó a
-            ser el link plano de fila (".splink") al corregir el botón
-            "Detalles"/"Eliminar", y usarlo aquí los dejaría sin el borde que
-            los distingue como controles de la toolbar.
-        *@
-        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-               OnClick="() => AlternarSeleccionMultiple(!_seleccionMultiple)"
-               aria-pressed="@(_seleccionMultiple ? "true" : "false")">
-            Selección múltiple
-        </Boton>
-        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-               OnClick="() => AlternarTodosExpandidos(!TodosExpandidos)">
-            @(TodosExpandidos ? "Colapsar todos" : "Expandir todos")
-        </Boton>
-        <a class="enlace-exportar" href="/centros/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-        <a class="enlace-exportar" href="/asignaciones/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar asignaciones</a>
-        @if (!_alcanceCero)
-        {
-            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>
-        }
-    </div>
+    <CabeceraPagina Titulo="Centros" Kicker="Negocio">
+        <Acciones>
+            @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
+            {
+                <a class="enlace-exportar" href="/centros/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
+                <a class="enlace-exportar" href="/asignaciones/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar asignaciones</a>
+                @if (!_alcanceCero)
+                {
+                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>
+                }
+            }
+        </Acciones>
+    </CabeceraPagina>
+
+    @if (_resolviendoEmpresa)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_sinEmpresaSeleccionada)
+    {
+        @* Estado 4a del mockup: quien gestiona empresas externas y no tiene ninguna elegida no ve los
+           datos de su organización presentados como si fueran de su cartera. *@
+        <EstadoVacio NombreIcono="empresas" Titulo="@Textos["SinEmpresaTitulo"]"
+                     Descripcion="@Textos["SinEmpresaDescripcion"]" />
+    }
+    else
+    {
+    @*
+        Pieza 2 (BarraFiltros): buscador y estado con su etiqueta visible encima y, debajo, los chips
+        activos con «Limpiar todo». Centros no tiene filtros guardados: no se pasa OnGuardarFiltro y
+        «Guardar filtro» no se pinta.
+    *@
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="Buscar centro, cliente o empresa…"
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+        <Filtros>
+            <FiltroEstado Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                          Opciones="EstadoCentroUi.Opciones" />
+        </Filtros>
+        <Chips>
+            @if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                <ChipFiltro Etiqueta="@EtiquetaFiltroBusqueda" EtiquetaAccesible="@Textos["QuitarFiltroBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
+            {
+                <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="@Textos["QuitarFiltroEstado"]" OnQuitar="() => CambiarEstadoAsync(string.Empty)" />
+            }
+        </Chips>
+    </BarraFiltros>
+
+    @*
+        Pieza 3 (BarraHerramientasLista): «Selección múltiple», «Expandir todos» y el recuento, en esta
+        fila y en este orden. El orden por cumplimiento (blueprint § 3.1, DDL-036) existe para atacar los
+        peores centros SIN depender de que haya una visita próxima; es un control de la lista entera, así
+        que vive aquí.
+    *@
+    <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
+                            TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos">
+        <Extra>
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                   OnClick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))"
+                   aria-pressed="@(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? "true" : "false")">
+                Cumplimiento @(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? (_ordenDescendente ? "↓" : "↑") : "")
+            </Boton>
+            @if (_totalElementos > 0)
+            {
+                @* El total lo da la consulta ya filtrada: es el de las coincidencias, no el de la cartera. *@
+                <span class="conteo-centros">@TextoConteo</span>
+            }
+        </Extra>
+    </BarraHerramientasLista>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -149,6 +190,24 @@
             </label>
         }
 
+        @* Cabecera de columnas (pieza 4), la MISMA que en Empresas. Sin roles de tabla a propósito: esto no
+           es una tabla —la fila se despliega— y anunciarlo como tal prometería a un lector de pantalla una
+           navegación por celdas que no existe. Los anchos son los de la fila (indicadores de 200 px). *@
+        <div class="cabecera-columnas-centros">
+            @if (_seleccionMultiple)
+            {
+                <span class="cabecera-columnas-centros-seleccion"></span>
+            }
+            <span class="cabecera-columnas-centros-inicio"></span>
+            <span class="cabecera-columnas-centros-centro">@Textos["ColCentro"]</span>
+            <span class="cabecera-columnas-centros-indicadores">
+                <span>@Textos["ColVencidos"]</span>
+                <span>@Textos["ColProximos"]</span>
+                <span>@Textos["ColEstadoVisita"]</span>
+            </span>
+            <span class="cabecera-columnas-centros-acciones"></span>
+        </div>
+
         <div class="lista-filas-acordeon">
             @foreach (var centro in _elementosPagina)
             {
@@ -176,7 +235,7 @@
                             cada fila.
                         *@
                         <span class="tarjeta-fila-acordeon-identidad">
-                            <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
+                            <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirVistaPrevia(centro.Id)">
                                 @centro.Nombre
                             </button>
                             <span class="tarjeta-fila-acordeon-meta">@centro.ClienteRazonSocial · @centro.EmpresaRazonSocial@(string.IsNullOrEmpty(centro.CodigoCentro) ? "" : $" · {centro.CodigoCentro}")</span>
@@ -278,13 +337,21 @@
                                 }
                             </span>
                         </span>
-                        @* Acción por fila de Centro: una sola, "Detalles" (contrato de
-                           fidelidad 2026-08-09 § 1.1). Eliminar sigue disponible en
-                           lote, activando "Selección múltiple". *@
+                        @* Pieza 5: la última columna es siempre el menú «⋯» (MenuAcciones). Antes era el enlace
+                           suelto «Detalles». Orden del contrato: «Ver ficha 360» primero. Eliminar sigue
+                           disponible en lote, activando «Selección múltiple»: no hay baja por fila. *@
                         <div class="tarjeta-fila-acordeon-acciones">
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
-                                Detalles
-                            </Boton>
+                            <MenuAcciones Etiqueta="@Textos["MenuFilaEtiqueta"]">
+                                <ItemMenuAccion OnClick="() => AbrirFichaCentro(centro.Id)">
+                                    @Textos["MenuVerFicha360"]
+                                </ItemMenuAccion>
+                                <ItemMenuAccion OnClick="() => AbrirVistaPrevia(centro.Id)">
+                                    @Textos["MenuVistaPrevia"]
+                                </ItemMenuAccion>
+                                <ItemMenuAccion OnClick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion")'>
+                                    @Textos["MenuAbrirPanel"]
+                                </ItemMenuAccion>
+                            </MenuAcciones>
                         </div>
                     </div>
                     @if (expandido)
@@ -327,7 +394,12 @@
                           Etiqueta="centro(s)" PaginaActualChanged="CambiarPaginaAsync"
                           TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
     }
+    }
 </div>
+
+@* Pieza 6: vista previa lateral. El pie ofrece «Abrir ficha 360». *@
+<CentroPreviewDrawer Centro="_previewCentro" Visitas="_previewVisitas" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v"
+                     OnAbrirFicha="AbrirFichaCentro" OnAbrirPanel="AbrirPanelDesdeVistaPrevia" />
 
 <Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="Nuevo centro" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
