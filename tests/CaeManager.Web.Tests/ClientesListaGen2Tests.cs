@@ -1344,6 +1344,37 @@ public class ClientesListaGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// I14 del contrato del selector: los filtros guardados son del usuario y no del Tenant, así que uno
+    /// guardado con la empresa anterior puede llevar el Id de un Gestor CAE que esta empresa no ve.
+    /// No se repone (filtraría por alguien que la pantalla no puede nombrar): la consulta sale sin Gestor
+    /// CAE, el desplegable queda vacío y no hay chip. Lo demás del filtro sí se aplica.
+    /// </summary>
+    [Fact]
+    public async Task Un_filtro_guardado_con_un_Gestor_CAE_de_otra_empresa_no_lo_repone()
+    {
+        var marta = GestorCae("Marta Ibarra");
+        var deOtraEmpresa = Guid.NewGuid();
+        var filtro = new FiltroGuardadoDto(Guid.NewGuid(), "Guardado con la empresa anterior",
+            JsonSerializer.Serialize(new { Busqueda = "Refri", SoloCriticos = false, GestorCaeId = deOtraEmpresa.ToString(), EstadoDocumental = (string?)null }),
+            DateTime.UtcNow);
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Cliente("Refrielectric S.A.") with { EjecutivoUsuarioId = marta.Id } },
+            FiltrosGuardados = { filtro }
+        };
+        var cut = Renderizar(mediador, gestores: [marta]);
+
+        await SelectEtiquetado(cut, "Filtros guardados").ChangeAsync(new ChangeEventArgs { Value = filtro.Id.ToString() });
+
+        var consulta = UltimaConsulta(mediador);
+        consulta.Busqueda.Should().Be("Refri", "el resto del filtro sí se aplica");
+        consulta.EjecutivoUsuarioId.Should().BeNull("el Gestor CAE del filtro no existe en esta empresa");
+        SelectEtiquetado(cut, "Gestor CAE").GetAttribute("value").Should().BeNullOrEmpty();
+        TextosDeLosChips(cut).Should().NotContain(t => t.StartsWith("Gestor CAE"));
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain(deOtraEmpresa.ToString());
+    }
+
+    /// <summary>
     /// <c>ValoresJson</c> vive en la tabla <c>FiltrosGuardados</c> y Application
     /// solo exige que no esté vacío: puede llegar corrupto, con otra forma o
     /// con un tipo que no es el suyo. Ninguno tumba el circuito: los filtros se
