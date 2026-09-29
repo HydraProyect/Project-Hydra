@@ -56,7 +56,7 @@ public class TextosSinLocalizarCongeladosTests
         // EstadoCentroUi.Texto. Es un switch estático sin localizar entero; migrar
         // solo la rama nueva lo dejaría a medias. Los demás textos de P1-X2 van a
         // TextosCentros.resx. Baja cuando se migre EstadoCentroUi completo.
-        ["Centros"] = 313,
+        ["Centros"] = 309, // 313 → 310 el 2026-09-29: lote 3, textos nuevos y varios de la cabecera/menú de fila a TextosCentros.resx. 310 → 309: «Más» y «Exportar asignaciones».
         // 256 → 250 el 2026-09-28 (piloto del patrón de lista) SIN migrar a .resx: la pantalla dejó de
         // pintar rótulos con el nombre del filtro dentro de la opción («Estado: todos», «Gestor CAE: todos»),
         // los textos de «Limpiar todo» / «Guardar filtro» / «Filtros guardados…» pasaron a BarraFiltros

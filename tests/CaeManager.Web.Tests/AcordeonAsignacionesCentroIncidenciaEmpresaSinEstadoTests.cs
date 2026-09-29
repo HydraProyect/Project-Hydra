@@ -82,6 +82,8 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
         // IStringLocalizer<TextosCentros> (Codex, oleada 3: ratchet de
         // textos sin localizar).
         Services.AddLocalization();
+        // «Gestionar» va tras SoloConEscritura (como en Subcontratas): hace falta un rol que escriba.
+        this.ConRolDeEscritura();
         Services.AddScoped<IMediator>(_ => new MediatorFalso());
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();

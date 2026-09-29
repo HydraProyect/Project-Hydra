@@ -1,6 +1,7 @@
 using CaeManager.Domain.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using Bunit;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
@@ -50,6 +51,7 @@ public class CentrosVacioPorFiltroTests : BunitContext
             {
                 ObtenerClientesParaSelectorQuery => (object)Array.Empty<ClienteSelectorDto>(),
                 ObtenerProximaVisitaPorCentroQuery => (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>(),
+                ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new ClienteAutorizadoDto(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>(
                     Centros, Centros.Count, q.Pagina, q.TamanoPagina),
                 ObtenerAlcanceCeroQuery => (object)AlcanceCero,
@@ -93,6 +95,7 @@ public class CentrosVacioPorFiltroTests : BunitContext
         params CentroListaDto[] centros)
     {
         Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Centros = centros, AlcanceCero = _alcanceCero });
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();

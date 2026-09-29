@@ -81,4 +81,64 @@
   <data name="QuitarAjusteConfirmar" xml:space="preserve">
     <value>Treure l'ajust</value>
   </data>
+  <data name="SinEmpresaTitulo" xml:space="preserve">
+    <value>Selecciona una empresa de la teva cartera</value>
+  </data>
+  <data name="SinEmpresaDescripcion" xml:space="preserve">
+    <value>Els centres es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
+  </data>
+  <data name="MenuVistaPrevia" xml:space="preserve">
+    <value>Vista prèvia</value>
+  </data>
+  <data name="CabeceraMas" xml:space="preserve">
+    <value>Més</value>
+  </data>
+  <data name="ExportarAsignaciones" xml:space="preserve">
+    <value>Exportar assignacions</value>
+  </data>
+  <data name="MenuVerFicha360" xml:space="preserve">
+    <value>Veure fitxa 360</value>
+  </data>
+  <data name="MenuFilaEtiqueta" xml:space="preserve">
+    <value>Accions de {0}</value>
+  </data>
+  <data name="QuitarFiltroBusqueda" xml:space="preserve">
+    <value>Treu el filtre de cerca</value>
+  </data>
+  <data name="QuitarFiltroEstado" xml:space="preserve">
+    <value>Treu el filtre d'estat</value>
+  </data>
+  <data name="ChipBusqueda" xml:space="preserve">
+    <value>Cerca: "{0}"</value>
+  </data>
+  <data name="ChipEstado" xml:space="preserve">
+    <value>Estat: {0}</value>
+  </data>
+  <data name="ConteoUno" xml:space="preserve">
+    <value>{0} centre</value>
+  </data>
+  <data name="ConteoVarios" xml:space="preserve">
+    <value>{0} centres</value>
+  </data>
+  <data name="ConteoUnoFiltrado" xml:space="preserve">
+    <value>{0} centre amb aquests filtres</value>
+  </data>
+  <data name="ConteoVariosFiltrado" xml:space="preserve">
+    <value>{0} centres amb aquests filtres</value>
+  </data>
+  <data name="ColCentro" xml:space="preserve">
+    <value>Centre</value>
+  </data>
+  <data name="ColVencidos" xml:space="preserve">
+    <value>Venc.</value>
+  </data>
+  <data name="ColProximos" xml:space="preserve">
+    <value>Prop.</value>
+  </data>
+  <data name="ColEstadoVisita" xml:space="preserve">
+    <value>Estat / visita</value>
+  </data>
+  <data name="GestionarAtenuadoAlDia" xml:space="preserve">
+    <value>Al dia: no cal intervenir-hi, però el pots substituir</value>
+  </data>
 </root>

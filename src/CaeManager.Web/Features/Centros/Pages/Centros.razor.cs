@@ -1,14 +1,17 @@
 using CaeManager.Application.Centros;
+using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentros;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
 using CaeManager.Web.Features.Clientes.Components;
@@ -147,6 +150,38 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     public string? EstadoInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
+
+    /// <summary>
+    /// La empresa gestionada activa, solo para quien alcanza varias (mismo criterio que el selector
+    /// de la barra lateral): la cabecera dice de cuál es la lista. Mismo patrón que Trabajadores.
+    /// </summary>
+    private ClienteAutorizadoDto? _empresaActiva;
+
+    /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
+    private bool _sinEmpresaSeleccionada;
+
+    /// <summary>La empresa activa aún no se ha resuelto: se pinta una carga en vez de la lista.</summary>
+    private bool _resolviendoEmpresa = true;
+
+    /// <summary>
+    /// Ciclo de vida de la página: se cancela al retirarla, para que la resolución de la empresa activa
+    /// no trabaje para nadie ni repinte un componente ya desechado. Su <c>Token</c> se lee SIEMPRE antes
+    /// del primer <c>await</c> (leerlo después, con un <see cref="Dispose"/> intermedio, lanzaría
+    /// <see cref="ObjectDisposedException"/> donde nadie lo recoge).
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
 
     // Reutilizan las mismas reglas que ya corren en el servidor al guardar
     // (misma validación, sin duplicarla) — solo se les pide que validen un
@@ -176,6 +211,33 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     protected override async Task OnInitializedAsync()
     {
+        // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
+        // vuelo el render saldría con «hay empresa» y lanzaría la carga (y la exportación) del origen.
+        var token = _ciclo.Token;
+        try
+        {
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, token);
+            if (_desechado)
+                return;
+
+            _empresaActiva = contexto.Activa;
+            _sinEmpresaSeleccionada = contexto.SinSeleccion;
+        }
+        finally
+        {
+            if (!_desechado)
+                _resolviendoEmpresa = false;
+        }
+
+        // La página se retiró mientras se resolvía la empresa (p. ej. una dependencia que ignora el
+        // token): ni carga ni estado nuevo sobre un componente desechado.
+        if (_desechado)
+            return;
+
+        // Sin empresa elegida no se piden los datos de la organización de origen ni se abre el alta.
+        if (_sinEmpresaSeleccionada)
+            return;
+
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _estadoFiltro = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
         _centroIdFiltro = CentroId;
@@ -223,6 +285,10 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     protected override async Task OnParametersSetAsync()
     {
+        // Mientras se resuelve la empresa, o con el 4a, la lista no se carga (ni por cambio de URL).
+        if (_resolviendoEmpresa || _sinEmpresaSeleccionada)
+            return;
+
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var estadoDeLaUrl = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
 
@@ -346,13 +412,56 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro);
 
+    /// <summary>
+    /// «Limpiar todo»: quita los dos filtros <b>también de la URL</b>, en una sola llamada (cada
+    /// <c>NavigateTo</c> lee la URL vigente y varias seguidas se pisan; ver el helper). Si la URL
+    /// conservara alguno, <c>OnParametersSetAsync</c> —que re-sincroniza desde ella— lo devolvería.
+    /// </summary>
     private async Task LimpiarFiltrosAsync()
     {
         _busqueda = string.Empty;
         _estadoFiltro = string.Empty;
-        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
-        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = null,
+            ["estado"] = null,
+        });
         await CargarAsync(resetPagina: true);
+    }
+
+    // --- Patrón único de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md) ---
+
+    /// <summary>
+    /// Nombre de la fila, «Vista previa» del «⋯» y Enter sobre la fila enfocada: la vista previa (pieza 6). En
+    /// Centros es el panel del Context Workspace, que ya existe; el contrato prohíbe sumarle un drawer.
+    /// </summary>
+    private Task AbrirPanelAsync(Guid id)
+    {
+        var centro = _elementosPagina.FirstOrDefault(e => e.Id == id);
+        return centro is null
+            ? Task.CompletedTask
+            : WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
+    }
+
+    /// <summary>«Ver ficha 360» del «⋯»: la página /centros/{id}.</summary>
+    private void AbrirFichaCentro(Guid id) => NavigationManager.NavigateTo($"/centros/{id}");
+
+    private string EtiquetaFiltroBusqueda => Textos["ChipBusqueda", _busqueda].Value;
+
+    private string EtiquetaFiltroEstado =>
+        Textos["ChipEstado", EstadoCentroUi.Opciones.FirstOrDefault(o => o.Valor == _estadoFiltro)?.Texto ?? "—"].Value;
+
+    /// <summary>«N centros»; con filtros, dice que el número es el de los que coinciden.</summary>
+    private string TextoConteo
+    {
+        get
+        {
+            var uno = _totalElementos == 1;
+            var clave = HayFiltrosActivos
+                ? (uno ? "ConteoUnoFiltrado" : "ConteoVariosFiltrado")
+                : (uno ? "ConteoUno" : "ConteoVarios");
+            return Textos[clave, _totalElementos].Value;
+        }
     }
 
     private async Task AbrirCrearAsync()
@@ -700,9 +809,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
                 {
-                    var elemento = _elementosPagina.FirstOrDefault(e => e.Id == idAbrir);
-                    if (elemento is not null)
-                        await WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, elemento.Id, elemento.Nombre, "informacion");
+                    // Enter abre la vista previa (el panel del centro), como el nombre de la fila.
+                    await AbrirPanelAsync(idAbrir);
                 }
                 break;
         }

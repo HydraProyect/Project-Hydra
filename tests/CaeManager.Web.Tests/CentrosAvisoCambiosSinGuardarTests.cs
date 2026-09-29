@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
@@ -60,6 +61,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
 
             return (TResponse)(object)(request switch
             {
+                ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new ClienteAutorizadoDto(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerProximaVisitaPorCentroQuery => (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>(),
                 ObtenerAlcanceCeroQuery => false,
@@ -106,6 +108,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     private IRenderedComponent<Centros> Renderizar(string ruta = "centros")
     {
         Services.AddScoped<IMediator>(_ => _mediador);
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();

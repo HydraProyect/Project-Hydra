@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
@@ -73,6 +74,7 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
             {
                 ObtenerClientesParaSelectorQuery => (object)Array.Empty<ClienteSelectorDto>(),
                 ObtenerProximaVisitaPorCentroQuery => (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>(),
+                ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new ClienteAutorizadoDto(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>(
                     Centros, Centros.Count, q.Pagina, q.TamanoPagina),
                 ObtenerAsignacionesDocumentacionPorCentroQuery => Trabajadores,
@@ -162,6 +164,7 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
         // y "No aplica" de la fila de Empresa sin Estado, Codex oleada 3).
         Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => mediator);
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();

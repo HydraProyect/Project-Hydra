@@ -177,7 +177,11 @@ public class ImportacionTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
         await page.GetByPlaceholder("Buscar centro, cliente o empresa…").FillAsync(nombreCentro);
         await page.WaitForTimeoutAsync(500);
-        await Expect(page.GetByText(nombreCentro)).Not.ToBeVisibleAsync();
+        // El nombre buscado ahora también sale en el chip del filtro activo («Búsqueda: …»), así que ya no
+        // sirve afirmar que el texto no se ve en ningún sitio: se afirma que ninguna FILA de centro lo lleva
+        // y que la lista dice que no hay coincidencias.
+        await Expect(page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = nombreCentro })).ToHaveCountAsync(0);
+        await Expect(page.GetByText("Ningún centro con estos filtros")).ToBeVisibleAsync();
     }
 
     /// <summary>
