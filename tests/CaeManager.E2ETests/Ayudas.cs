@@ -196,7 +196,7 @@ public static class Ayudas
             {
                 await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 1_500 });
             }
-            catch (PlaywrightException)
+            catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
             {
                 // El circuito aún no había conectado: se vuelve a pulsar.
             }
@@ -222,6 +222,55 @@ public static class Ayudas
             .GetAttributeAsync("value");
         await CerrarSelectorTenantAsync(page);
         return id;
+    }
+
+    /// <summary>
+    /// Cambia de empresa gestionada con el selector si está a la vista y, si no, con el mismo POST
+    /// que enviaría el selector. El selector se oculta a quien alcanza un único Tenant beneficiario
+    /// (decisión 1 del contrato del selector) y ese Tenant es entonces el activo por defecto
+    /// (decisión 5): un Operador Delegado con una sola cartera no tiene control que pulsar, pero el
+    /// endpoint revalida la misma autorización, y eso es lo que estos tests necesitan ejercitar
+    /// (workspace activo, rol efectivo, circuito). Igual que en la vía del selector, se exige un 3xx
+    /// real que no aterrice en acceso denegado ni en inicio de sesión.
+    /// </summary>
+    public static async Task CambiarClienteActivoAsync(IPage page, WebAppFixture fixture, string nombreTenant)
+    {
+        if (await DisparadorSelectorTenant(page).CountAsync() > 0)
+        {
+            await CambiarClienteActivoAsync(page, fixture.BaseUrl, nombreTenant);
+            return;
+        }
+
+        var tenantId = await fixture.LeerValorSqlAsync(
+            """SELECT "Id"::text FROM "Tenants" WHERE "Nombre" = @n""", ("n", nombreTenant));
+        var token = await TokenAntiforgeryAsync(page);
+
+        var respuesta = await page.RunAndWaitForResponseAsync(
+            () => page.EvaluateAsync(
+                """
+                ([tenant, token]) => {
+                    const form = document.createElement("form");
+                    form.method = "post";
+                    form.action = "/cuenta/cliente-activo";
+                    for (const [nombre, valor] of [["__RequestVerificationToken", token], ["tenantId", tenant], ["returnUrl", "/"]]) {
+                        const campo = document.createElement("input");
+                        campo.type = "hidden";
+                        campo.name = nombre;
+                        campo.value = valor;
+                        form.appendChild(campo);
+                    }
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+                """, new[] { tenantId, token! }),
+            r => r.Url.Contains("/cuenta/cliente-activo") && r.Request.Method == "POST");
+
+        Assert.True(respuesta.Status is >= 300 and < 400,
+            $"POST a /cuenta/cliente-activo devolvió {respuesta.Status} al cambiar a «{nombreTenant}».");
+        var destino = respuesta.Headers.GetValueOrDefault("location") ?? string.Empty;
+        Assert.False(destino.Contains("acceso-denegado") || destino.Contains("iniciar-sesion"),
+            $"El POST a /cuenta/cliente-activo redirigió a «{destino}»: el servidor no aplicó el cambio a «{nombreTenant}».");
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
     }
 
     /// <summary>Token antiforgery de la página, leído del formulario de cerrar sesión (siempre presente al autenticarse).</summary>
@@ -986,7 +1035,7 @@ public static class Ayudas
                 null,
                 new PageWaitForFunctionOptions { Timeout = timeoutMs });
         }
-        catch (PlaywrightException)
+        catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
         {
             var estado = await LeerEstadoDelAnalisisAsync(page);
             throw new TimeoutException(
@@ -1046,7 +1095,7 @@ public static class Ayudas
         {
             return await page.EvaluateAsync<string?>(GuionEstadoDelAnalisis) ?? "inerte";
         }
-        catch (PlaywrightException)
+        catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
         {
             return "no se pudo leer (la página ya no responde)";
         }
@@ -1071,7 +1120,7 @@ public static class Ayudas
             var toasts = await page.Locator(".toast").AllInnerTextsAsync();
             return toasts.Count == 0 ? string.Empty : $" Toasts visibles: {string.Join(" | ", toasts).Trim()}.";
         }
-        catch (PlaywrightException)
+        catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
         {
             return string.Empty;
         }
