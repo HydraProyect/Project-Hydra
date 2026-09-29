@@ -273,6 +273,7 @@ builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<BusquedaGlobalService>();
 builder.Services.AddScoped<AsistenteIaService>();
+builder.Services.AddScoped<DisponibilidadAsistente>();
 builder.Services.AddScoped<CaeManager.Web.Components.Workspace.ContextWorkspaceService>();
 builder.Services.AddApexCharts();
 

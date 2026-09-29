@@ -1,20 +1,19 @@
 @rendermode InteractiveServer
 @inject AsistenteIaService AsistenteIaService
-@using CaeManager.Infrastructure.AsistenteIa
 @using CaeManager.Web.Features.AsistenteIa.Recursos
 @using Microsoft.Extensions.Localization
-@using Microsoft.Extensions.Options
-@inject IOptions<AnthropicOptions> Opciones
+@inject DisponibilidadAsistente Disponibilidad
 @inject IStringLocalizer<TextosAsistenteIa> Textos
 @inherits CaeManager.Web.Components.IsloteInteractivo
 
-@* Sin Anthropic:ApiKey configurada el botón ni se muestra — el chat queda
-   completamente inerte en vez de mostrar algo roto (mismo principio que
+@* Sin ningún proveedor configurado (Anthropic:ApiKey para las consultas, o
+   TypeSafe:Activo + TypeSafe:ApiKey para el agente) el botón ni se muestra — el
+   chat queda completamente inerte en vez de mostrar algo roto (mismo principio que
    Sentry/Backups: funciona sin configurar, se activa con una variable). *@
 <LimiteDeErrores Islote="this">
-@if (!string.IsNullOrWhiteSpace(Opciones.Value.ApiKey))
+@if (Disponibilidad.Alguna)
 {
-    <button type="button" class="boton-asistente-ia" @onclick="() => AsistenteIaService.Abrir()" title="@Textos["Titulo", Marca.Nombre]">
+    <button type="button" class="boton-asistente-ia" @onclick="() => AsistenteIaService.Abrir()" title="@TituloBoton" aria-label="@TituloBoton">
         <Icono Nombre="chat" Tamano="TamanoIcono.Medio" />
     </button>
 }

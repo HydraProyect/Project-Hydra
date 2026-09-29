@@ -7,53 +7,120 @@
     <div class="asistente-superposicion" @onmousedown="() => _mouseDownEnSuperposicion = true" @onclick="ManejarClicSuperposicion">
         <div class="asistente-panel" @onmousedown="() => _mouseDownEnSuperposicion = false" @onmousedown:stopPropagation="true" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="asistente-titulo">
             <div class="asistente-cabecera">
-                <h2 id="asistente-titulo">@Textos["Titulo", Marca.Nombre]</h2>
-                <button type="button" class="asistente-cerrar" @onclick="Cerrar" aria-label="@Textos["CerrarEtiqueta"]"><Icono Nombre="cerrar" /></button>
+                <h2 id="asistente-titulo">@TituloPanel</h2>
+                <div class="asistente-cabecera-acciones">
+                    @if (Disponibilidad.AgenteDisponible)
+                    {
+                        <button type="button" class="asistente-cerrar" @onclick="AlternarBorradoresAsync"
+                                aria-pressed="@(_verBorradores ? "true" : "false")"
+                                aria-label="@Textos["BorradoresEtiqueta"]" title="@Textos["BorradoresEtiqueta"]"><Icono Nombre="reloj" /></button>
+                    }
+                    <button type="button" class="asistente-cerrar" @onclick="Cerrar" aria-label="@Textos["CerrarEtiqueta"]"><Icono Nombre="cerrar" /></button>
+                </div>
             </div>
 
-            <p class="asistente-descripcion">@Textos["Descripcion"]</p>
+            @if (Disponibilidad.PreguntasDisponibles && Disponibilidad.AgenteDisponible)
+            {
+                <div class="asistente-modos" role="group" aria-label="@Textos["ModoEtiqueta"]">
+                    <button type="button" class="asistente-modo" aria-pressed="@(EnModoGestion ? "true" : "false")" @onclick="() => CambiarModo(ModoAsistente.Gestion)">@Textos["ModoGestion"]</button>
+                    <button type="button" class="asistente-modo" aria-pressed="@(!EnModoGestion ? "true" : "false")" @onclick="() => CambiarModo(ModoAsistente.Preguntar)">@Textos["ModoPreguntar"]</button>
+                </div>
+            }
 
-            <div class="asistente-mensajes">
-                @if (_historial.Count == 0)
-                {
-                    <p class="asistente-mensaje-vacio">@Textos["MensajeVacio"]</p>
-                }
+            <p class="asistente-descripcion">@TextoDescripcion</p>
 
-                @foreach (var mensaje in _historial)
-                {
-                    @if (mensaje.Rol == RolMensajeChat.Usuario)
+            @if (!Disponibilidad.AgenteDisponible)
+            {
+                <p class="asistente-nota" role="note">@Textos["AgenteNoDisponible"]</p>
+            }
+
+            @if (_verBorradores)
+            {
+                <div class="asistente-mensajes" aria-label="@Textos["BorradoresEtiqueta"]" role="region">
+                    <p class="asistente-nota">@Textos["BorradoresAyuda"]</p>
+                    @if (_borradores is null)
                     {
-                        <div class="asistente-mensaje asistente-mensaje-usuario">@mensaje.Texto</div>
+                        <p class="asistente-mensaje-vacio">@Textos["IndicadorPensando"]</p>
+                    }
+                    else if (_borradores.Count == 0)
+                    {
+                        <p class="asistente-mensaje-vacio">@Textos["BorradoresVacio"]</p>
                     }
                     else
                     {
-                        <div class="asistente-mensaje asistente-mensaje-asistente asistente-mensaje-markdown">@RenderizarMarkdown(mensaje.Texto)</div>
+                        <ul class="asistente-borradores">
+                            @foreach (var borrador in _borradores)
+                            {
+                                <li class="asistente-borrador">
+                                    <span class="asistente-borrador-estado">@Textos[$"TareaEstado_{borrador.Estado}"]</span>
+                                    <span class="asistente-borrador-texto">@borrador.PrimerTextoOriginal</span>
+                                    <span class="asistente-borrador-fecha">@FechaDeBorrador(borrador.ActualizadaEnUtc)</span>
+                                    <button type="button" class="asistente-borrador-descartar" @onclick="() => DescartarBorradorAsync(borrador.Id)">@Textos["Plan_Descartar"]</button>
+                                </li>
+                            }
+                        </ul>
                     }
-                }
+                    @if (_mensajeError is not null)
+                    {
+                        <div class="asistente-mensaje-error" role="alert">@_mensajeError</div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="asistente-mensajes" aria-live="polite">
+                    @if (_hilo.Count == 0)
+                    {
+                        <p class="asistente-mensaje-vacio">@TextoMensajeVacio</p>
+                    }
 
-                @if (_enviando)
-                {
-                    <div class="asistente-mensaje asistente-mensaje-asistente asistente-mensaje-cargando">@Textos["IndicadorPensando"]</div>
-                }
+                    @foreach (var entrada in _hilo)
+                    {
+                        @switch (entrada.Tipo)
+                        {
+                            case TipoEntradaHilo.Usuario:
+                                <div class="asistente-mensaje asistente-mensaje-usuario">@entrada.Texto</div>
+                                break;
+                            case TipoEntradaHilo.Asistente:
+                                <div class="asistente-mensaje asistente-mensaje-asistente asistente-mensaje-markdown">@RenderizarMarkdown(entrada.Texto)</div>
+                                break;
+                            case TipoEntradaHilo.Aviso:
+                                <div class="asistente-mensaje asistente-mensaje-asistente" role="status">@entrada.Texto</div>
+                                break;
+                            case TipoEntradaHilo.Plan:
+                                <PlanAsistente Vista="entrada.Plan!" Ocupado="_enviando"
+                                               OnConfirmar="() => ConfirmarAsync(entrada.Plan!)"
+                                               OnDescartar="() => DescartarPlanAsync(entrada.Plan!)"
+                                               OnElegirTenant="id => ElegirTenantAsync(entrada.Plan!, id)" />
+                                break;
+                        }
+                    }
 
-                @if (_mensajeError is not null)
-                {
-                    <div class="asistente-mensaje-error" role="alert">@_mensajeError</div>
-                }
-            </div>
+                    @if (_enviando)
+                    {
+                        <div class="asistente-mensaje asistente-mensaje-asistente asistente-mensaje-cargando">@Textos["IndicadorPensando"]</div>
+                    }
 
-            <div class="asistente-entrada">
-                <textarea class="asistente-textarea"
-                          aria-label="@Textos["EtiquetaPregunta"]"
-                          placeholder="@Textos["PlaceholderPregunta"]"
-                          value="@_valorMostrado"
-                          disabled="@_enviando"
-                          @oninput="e => _pregunta = e.Value?.ToString() ?? string.Empty"
-                          @onkeydown="ManejarTeclaAsync"></textarea>
-                <button type="button" class="asistente-boton-enviar" disabled="@(_enviando || _pregunta.Trim().Length == 0)" @onclick="EnviarAsync">
-                    @Textos["BotonEnviar"]
-                </button>
-            </div>
+                    @if (_mensajeError is not null)
+                    {
+                        <div class="asistente-mensaje-error" role="alert">@_mensajeError</div>
+                    }
+                </div>
+
+                <div class="asistente-entrada">
+                    <textarea class="asistente-textarea"
+                              aria-label="@EtiquetaEntrada"
+                              placeholder="@PlaceholderEntrada"
+                              value="@_valorMostrado"
+                              disabled="@_enviando"
+                              maxlength="@(EnModoGestion ? CaeManager.Domain.AsistenteIa.TurnoTareaAsistente.LongitudMaximaTexto : (int?)null)"
+                              @oninput="e => _pregunta = e.Value?.ToString() ?? string.Empty"
+                              @onkeydown="ManejarTeclaAsync"></textarea>
+                    <button type="button" class="asistente-boton-enviar" disabled="@(_enviando || _pregunta.Trim().Length == 0)" @onclick="EnviarAsync">
+                        @Textos["BotonEnviar"]
+                    </button>
+                </div>
+            }
         </div>
     </div>
 }
