@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Security.Claims;
 using AngleSharp.Dom;
 using Bunit;
+using Bunit.TestDoubles;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Common;
@@ -26,6 +27,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.JSInterop;
 using static CaeManager.Web.Tests.BandejaDatosDePrueba;
 
 namespace CaeManager.Web.Tests;
@@ -53,7 +55,18 @@ public class InicioGen2Tests : BunitContext
     private static readonly Guid CentroSur = Guid.NewGuid();
     private static readonly Guid CervezasDuff = Guid.NewGuid();
 
-    public InicioGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    /// <summary>
+    /// Módulo con el que Inicio quita la marca <c>?desde=login</c> (history.replaceState).
+    /// Se declara explícito, y no solo Loose, para poder contar sus llamadas: en Loose
+    /// una llamada sin configurar se registra y devuelve el valor por defecto.
+    /// </summary>
+    private readonly BunitJSModuleInterop _moduloMarca;
+
+    public InicioGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        _moduloMarca = JSInterop.SetupModule("./js/marca-aterrizaje.js");
+    }
 
     // ------------------------------------------------------------ contexto sin datos
 
@@ -165,6 +178,26 @@ public class InicioGen2Tests : BunitContext
 
     private string UrlActual => Services.GetRequiredService<NavigationManager>().Uri;
 
+    private int _entradasDeHistorialAntesDeInicio;
+
+    /// <summary>
+    /// Navegaciones que hizo Inicio desde que se montó (la navegación previa a la ruta
+    /// de prueba no cuenta). Quitar la marca con history.replaceState NO navega: no
+    /// hay LocationChanged, que es lo que cerraba el selector de empresa y pisaba el
+    /// envío de su formulario.
+    /// </summary>
+    private int NavegacionesDeInicio =>
+        ((BunitNavigationManager)Services.GetRequiredService<NavigationManager>()).History.Count
+        - _entradasDeHistorialAntesDeInicio;
+
+    private void VerificarMarcaQuitadaSinNavegar(IRenderedComponent<Inicio> cut)
+    {
+        cut.WaitForAssertion(() => _moduloMarca.VerifyInvoke("quitarMarca", calledTimes: 1));
+        var llamada = _moduloMarca.Invocations["quitarMarca"].Single();
+        llamada.Arguments.Should().Equal("desde", "login");
+        NavegacionesDeInicio.Should().Be(0, "quitar la marca no puede pasar por el NavigationManager: un LocationChanged tardío cierra el selector de empresa");
+    }
+
     /// <summary>
     /// D-2: el Gestor CAE de un Operador CAE externo aterriza en Mi trabajo. En el
     /// Tenant de origen del Operador CAE no tiene cartera —su cartera vive en los
@@ -203,7 +236,7 @@ public class InicioGen2Tests : BunitContext
 
         cut.FindAll(".dashboard-resumen").Should().NotBeEmpty();
         // La marca es de un solo uso: recargar no repite el aterrizaje.
-        cut.WaitForAssertion(() => UrlActual.Should().NotContain("desde="));
+        VerificarMarcaQuitadaSinNavegar(cut);
     }
 
     /// <summary>
@@ -218,7 +251,7 @@ public class InicioGen2Tests : BunitContext
             ruta: "/?desde=login");
 
         cut.Find(".estado-vacio a[href='/mi-trabajo']").TextContent.Should().Contain("Mi trabajo");
-        cut.WaitForAssertion(() => UrlActual.Should().NotContain("desde="));
+        VerificarMarcaQuitadaSinNavegar(cut);
         UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
     }
 
@@ -228,7 +261,7 @@ public class InicioGen2Tests : BunitContext
         var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true), rol: Roles.Consulta, ruta: "/?desde=login");
 
         cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin cartera asignada");
-        cut.WaitForAssertion(() => UrlActual.Should().NotContain("desde="));
+        VerificarMarcaQuitadaSinNavegar(cut);
         UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
     }
 
@@ -238,7 +271,7 @@ public class InicioGen2Tests : BunitContext
         var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: false), ruta: "/?desde=login");
 
         cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin cartera asignada");
-        cut.WaitForAssertion(() => UrlActual.Should().NotContain("desde="));
+        VerificarMarcaQuitadaSinNavegar(cut);
         UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
     }
 
@@ -253,6 +286,78 @@ public class InicioGen2Tests : BunitContext
 
         cut.Find(".estado-vacio a[href='/mi-trabajo']").TextContent.Should().Contain("Mi trabajo");
         UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
+        _moduloMarca.VerifyNotInvoke("quitarMarca");
+        NavegacionesDeInicio.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Sin la marca (visita por el menú) Inicio no toca la URL: ni navegación ni JS.
+    /// </summary>
+    [Fact]
+    public void Sin_la_marca_no_hay_ni_navegacion_ni_llamada_de_limpieza()
+    {
+        var cut = Renderizar(new MediadorDeInicio(), ruta: "/");
+
+        cut.FindAll(".dashboard-resumen").Should().NotBeEmpty();
+        _moduloMarca.VerifyNotInvoke("quitarMarca");
+        NavegacionesDeInicio.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Con la marca y D-2 Inicio se va a Mi trabajo con replace: esa navegación quita la
+    /// marca de la URL por sí sola, así que no hay llamada JS de limpieza.
+    /// </summary>
+    [Fact]
+    public void Con_la_marca_y_D2_navega_a_Mi_trabajo_con_replace_y_no_llama_a_la_limpieza()
+    {
+        var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true), ruta: "/?desde=login");
+
+        cut.WaitForAssertion(() => UrlActual.Should().EndWith(Inicio.RutaMiTrabajo));
+        var entradas = ((BunitNavigationManager)Services.GetRequiredService<NavigationManager>()).History;
+        entradas.Count.Should().Be(_entradasDeHistorialAntesDeInicio + 1);
+        entradas.First().Uri.Should().EndWith(Inicio.RutaMiTrabajo);
+        entradas.First().Options.ReplaceHistoryEntry.Should().BeTrue();
+        _moduloMarca.VerifyNotInvoke("quitarMarca");
+    }
+
+    /// <summary>
+    /// La marca se consume una vez: una recarga posterior de datos (Reintentar, cambio
+    /// de Tenant) ni repite la limpieza ni reactiva D-2 aunque ahora sí correspondiera.
+    /// </summary>
+    [Fact]
+    public async Task Una_recarga_posterior_no_repite_la_limpieza_ni_reactiva_D2()
+    {
+        var carteras = new Dictionary<Guid, bool> { [PropietarioConCartera] = false };
+        var mediador = new MediadorDeInicio
+        {
+            Kpis = KpisACero() with { SinCarteraAsignada = true },
+            Autorizados = OrigenYDosPropietarios(),
+            CarteraPorTenant = carteras,
+        };
+        var cut = Renderizar(mediador, ruta: "/?desde=login");
+        VerificarMarcaQuitadaSinNavegar(cut);
+
+        carteras[PropietarioConCartera] = true;
+        await cut.InvokeAsync(() => Recargar(cut));
+
+        _moduloMarca.VerifyInvoke("quitarMarca", calledTimes: 1);
+        NavegacionesDeInicio.Should().Be(0, "sin marca vigente D-2 no se reactiva: la recarga no puede llevar a Mi trabajo");
+        UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
+    }
+
+    /// <summary>
+    /// La limpieza es cosmética: si el circuito ya no está o el módulo no carga, Inicio
+    /// sigue pintando el dashboard sin caer en el estado de error.
+    /// </summary>
+    [Fact]
+    public void Si_la_limpieza_de_la_marca_falla_el_dashboard_se_pinta_igual()
+    {
+        _moduloMarca.SetupVoid("quitarMarca", _ => true).SetException(new JSException("sin JS"));
+
+        var cut = Renderizar(new MediadorDeInicio(), ruta: "/?desde=login");
+
+        cut.FindAll(".dashboard-resumen").Should().NotBeEmpty();
+        cut.FindAll(".estado-vacio").Should().BeEmpty();
     }
 
     [Fact]
@@ -788,6 +893,9 @@ public class InicioGen2Tests : BunitContext
 
         if (ruta is not null)
             Services.GetRequiredService<NavigationManager>().NavigateTo(ruta);
+
+        _entradasDeHistorialAntesDeInicio =
+            ((BunitNavigationManager)Services.GetRequiredService<NavigationManager>()).History.Count;
 
         return Render<Inicio>();
     }

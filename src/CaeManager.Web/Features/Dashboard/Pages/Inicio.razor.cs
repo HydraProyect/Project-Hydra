@@ -16,6 +16,7 @@ using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.Dashboard.Pages;
 
@@ -40,6 +41,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
+    [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
 
     /// <summary>
     /// Destino del aterrizaje del Gestor CAE de un Operador CAE externo (D-2 del
@@ -379,14 +381,45 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
                     // La marca es de un solo uso: ya decidido que no se va a Mi
                     // trabajo, se quita de la URL para que recargar no repita el
                     // aterrizaje. Solo en interactivo: durante el prerenderizado
-                    // NavigateTo sería una redirección de servidor.
+                    // no hay JS y la URL aún la necesita el circuito interactivo.
                     if (_aterrizaTrasLogin && RendererInfo.IsInteractive)
                     {
+                        // Antes del await: otra carga (Reintentar, cambio de Tenant)
+                        // no repite ni la limpieza ni la lógica D-2.
                         _aterrizaTrasLogin = false;
-                        NavigationManager.NavigateTo("/", replace: true);
+                        await QuitarMarcaDeLaUrlAsync(token);
                     }
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Quita la marca <c>?desde=login</c> de la URL visible con
+    /// <c>history.replaceState</c>, NO con <c>NavigationManager.NavigateTo</c>: esa
+    /// navegación emitía un <c>LocationChanged</c> tardío que cerraba el selector de
+    /// empresa (<c>SelectorClienteActivo</c> cierra su panel en cada cambio de
+    /// ubicación) y podía pisar el envío de su formulario. Consecuencia: el
+    /// <c>NavigationManager.Uri</c> del circuito conserva <c>/?desde=login</c> hasta la
+    /// siguiente navegación real. Es inocuo para <see cref="Desde"/>, que solo se lee
+    /// al inicializar. Es cosmético: si el JS no está (circuito cerrado, sin
+    /// interactividad, módulo no servido), la marca simplemente se queda en la URL.
+    /// </summary>
+    private async Task QuitarMarcaDeLaUrlAsync(CancellationToken token)
+    {
+        try
+        {
+            await using var modulo = await JsRuntime.InvokeAsync<IJSObjectReference>(
+                "import", token, "./js/marca-aterrizaje.js");
+            await modulo.InvokeVoidAsync("quitarMarca", token,
+                CaeManager.Web.Components.Account.RedireccionLocal.ParametroAterrizaje,
+                CaeManager.Web.Components.Account.RedireccionLocal.ValorAterrizajeLogin);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or OperationCanceledException
+                                       or InvalidOperationException or JSException)
+        {
+            // El circuito se cerró, la pantalla se retiró o el JS no está disponible
+            // en este punto del ciclo de vida: no hay nada que limpiar ni a quién avisar.
         }
     }
 
