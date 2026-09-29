@@ -74,14 +74,20 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await filaB.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // --- Atajos de teclado: j/k mueven el foco, x alterna selección ---
-        // El primer Tab llega al selector de Gestor CAE, que conserva sus
-        // teclas nativas. Comprobamos el destino antes de situar el foco
-        // en la casilla: allí j/k sí deben recorrer la lista. No suponemos
-        // que la casilla sea el siguiente control tras el buscador.
+        // El primer Tab llega al selector de Gestor CAE (el primero de la
+        // BarraFiltros), que conserva sus teclas nativas. Comprobamos el
+        // destino antes de situar el foco en un control que no consume j/k:
+        // allí j/k sí deben recorrer la lista. «Solo críticos» ya no es una
+        // casilla sino el select «Criticidad» (patrón de lista), que sí
+        // consume teclas, así que el control neutro pasa a ser el botón
+        // «Selección múltiple» (los botones no bloquean j/k/x). No suponemos
+        // que sea el siguiente control tras el buscador.
         await page.Keyboard.PressAsync("Tab");
-        await Expect(page.Locator(".barra-filtros select").First).ToBeFocusedAsync();
-        await page.GetByLabel("Solo críticos", new PageGetByLabelOptions { Exact = true }).FocusAsync();
-        await Expect(page.GetByLabel("Solo críticos", new PageGetByLabelOptions { Exact = true })).ToBeFocusedAsync();
+        await Expect(page.Locator(".barra-filtros-lista select").First).ToBeFocusedAsync();
+        await Expect(page.GetByLabel("Criticidad", new PageGetByLabelOptions { Exact = true })).ToBeVisibleAsync();
+        var botonSeleccionMultiple = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple" });
+        await botonSeleccionMultiple.FocusAsync();
+        await Expect(botonSeleccionMultiple).ToBeFocusedAsync();
 
         // Salir del buscador dispara ManejarBlurAsync (CampoTexto.razor),
         // que reinvoca ValorChanged aunque el valor no haya cambiado — eso
@@ -127,20 +133,17 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("1 seleccionado en esta página");
         await page.WaitForTimeoutAsync(300);
 
-        // --- Enter abre la vista rápida del Cliente enfocado: el Workspace
-        // panel de 520 px, el mismo que «Vista rápida» del menú de la fila.
-        // (Antes abría el drawer ligero ClientePreviewDrawer y había que pulsar
-        // «Operar →»; la lista ya no lo monta desde la página Cliente 360.) ---
+        // --- Enter abre la vista previa lateral del Cliente enfocado
+        // (ClientePreviewDrawer, pieza 6 del patrón de lista), la misma que
+        // abre el nombre de la fila. Desde el patrón, el panel de 520 px del
+        // Context Workspace solo se abre con «Ver toda su documentación» de
+        // la vista previa. El drawer no maneja Escape: se cierra con su ✕. ---
         await page.Keyboard.PressAsync("Enter");
-        var workspacePanel = page.Locator(".workspace-panel");
-        await workspacePanel.GetByText(razonSocialA).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        // La apertura renderiza el panel antes de que su interop coloque el
-        // foco. Escape se procesa dentro del panel: esperamos esa condición
-        // observable, sin enfocar desde el test ni añadir una pausa fija.
-        await Expect(page.Locator(".workspace-panel:focus-within")).ToBeVisibleAsync();
-        await page.Keyboard.PressAsync("Escape");
-        // El cierre actualiza ?ctx= y reconcilia el estado mediante LocationChanged.
-        await workspacePanel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
+        var vistaPrevia = page.GetByRole(AriaRole.Complementary, new PageGetByRoleOptions { Name = "Vista previa del cliente" });
+        await vistaPrevia.Locator(".nombre-cabecera-preview-cliente", new LocatorLocatorOptions { HasText = razonSocialA })
+            .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await vistaPrevia.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cerrar" }).ClickAsync();
+        await vistaPrevia.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Selección múltiple visible + segunda fila por checkbox, y borrado en lote ---
         await page.GetByText("Selección múltiple").ClickAsync();
@@ -156,7 +159,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         // --- Filtros guardados: guardar, ver el chip, aplicarlo y borrarlo ---
         var nombreFiltro = $"P331 filtro {sufijo}";
         await page.GetByPlaceholder("Buscar por nombre…").FillAsync(razonSocialA);
-        await page.GetByText("Guardar filtro").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Guardar filtro", Exact = true }).ClickAsync();
 
         var modalGuardarFiltro = page.GetByRole(AriaRole.Dialog).Filter(new LocatorFilterOptions { HasText = "Guardar filtro actual" });
         await modalGuardarFiltro.GetByLabel("Nombre").FillAsync(nombreFiltro);
@@ -173,7 +176,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await page.GetByPlaceholder("Buscar por nombre…").FillAsync(string.Empty);
         await page.WaitForTimeoutAsync(400); // debounce de CampoTexto (300ms)
 
-        await page.Locator("select").Filter(new LocatorFilterOptions { HasText = "Filtros guardados…" })
+        await page.GetByLabel("Filtros guardados", new PageGetByLabelOptions { Exact = true })
             .SelectOptionAsync(new SelectOptionValue { Label = nombreFiltro });
         await Expect(page.GetByPlaceholder("Buscar por nombre…")).ToHaveValueAsync(razonSocialA);
 
@@ -220,7 +223,8 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         var drawer = page.Locator(".drawer-panel");
         await Expect(drawer.GetByText("Nuevo cliente", new LocatorGetByTextOptions { Exact = true }))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
-        // Ni la vista rápida de ninguna fila: Enter era del botón, no de la lista.
+        // Ni la vista previa de ninguna fila: Enter era del botón, no de la lista.
+        await Expect(page.Locator(".drawer-preview-cliente")).Not.ToBeVisibleAsync();
         await Expect(page.Locator(".workspace-panel")).Not.ToBeVisibleAsync();
     }
 

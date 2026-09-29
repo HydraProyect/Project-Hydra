@@ -1,0 +1,135 @@
+@using CaeManager.Application.AsistenteIa.Candidatos
+@using CaeManager.Web.Features.AsistenteIa.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosAsistenteIa> Textos
+
+@* Plan que propone el agente, según «Asistente TALVEG.dc.html» (estados «plan listo»,
+   «borrador», «¿en qué Tenant?» y «mezcla», más el plan cerrado). Propone, no ejecuta:
+   confirmar registra la confirmación en la Tarea del asistente y nada más. *@
+@if (Vista.Estado == EstadoVistaPlan.Propuesto)
+{
+    <div class="plan plan-@ClaseEstado" role="group" aria-label="@Titulo" @onkeydown="ManejarTeclaAsync">
+        <div class="plan-cabecera">
+            <span class="plan-chip @(DestinoBloquea ? "plan-chip-bloqueado" : "")" aria-label="@AriaChip" title="@AriaChip">
+                <span class="plan-chip-ini" aria-hidden="true">@IniciaTenant</span>@NombreTenant
+            </span>
+            <span class="plan-pastilla plan-pastilla-@ClaseEstado">@TextoEstado</span>
+        </div>
+
+        <div class="plan-titulo-bloque">
+            <span class="plan-titulo">@Titulo</span>
+            <span class="plan-subtitulo">@Textos["Plan_Subtitulo", Vista.Plan.ConfianzaOrden]</span>
+        </div>
+
+        @if (Vista.Plan.Destino is { } destino && destino.Situacion != SituacionTenantDestino.Unico)
+        {
+            <div class="plan-aviso plan-aviso-peligro" role="alert">
+                <strong>@Textos[$"Plan_Destino_{destino.Situacion}"]</strong>
+                <span>@destino.Motivo</span>
+            </div>
+        }
+        else if (Vista.Plan.Destino is { Recomendado: { } recomendado })
+        {
+            <div class="plan-aviso" role="status">
+                <span>@Textos["Plan_TextoNombraOtroTenant", recomendado.Nombre]</span>
+                <button type="button" class="plan-opcion" @onclick="() => ElegirTenant(recomendado.TenantId)" @onkeydown:stopPropagation="true">
+                    @Textos["Plan_CambiarA", recomendado.Nombre]
+                </button>
+            </div>
+        }
+
+        @if (Vista.Cartera.Count > 1)
+        {
+            <div class="plan-tenants" role="group" aria-label="@Textos["Plan_ElegirTenantEtiqueta"]">
+                @foreach (var tenant in Vista.Cartera)
+                {
+                    var pulsado = Vista.Plan.Destino?.Tenant?.TenantId == tenant.TenantId;
+                    <button type="button" class="plan-opcion" aria-pressed="@(pulsado ? "true" : "false")" disabled="@Ocupado"
+                            @onclick="() => ElegirTenant(tenant.TenantId)" @onkeydown:stopPropagation="true">
+                        @tenant.Nombre
+                    </button>
+                }
+            </div>
+        }
+
+        <div class="plan-seccion">
+            <span class="plan-seccion-titulo">@Textos["Plan_LoQueEntendi"]</span>
+            @foreach (var dato in Vista.Plan.Datos)
+            {
+                <div class="plan-dato @(DatoFalta(dato) ? "plan-dato-falta" : "")">
+                    <span class="plan-dato-campo">@Textos[$"Campo_{dato.Campo}"]</span>
+                    <span class="plan-dato-valor">
+                        @if (dato.CandidatoId is not null)
+                        {
+                            <strong>@dato.Nombre</strong>
+                        }
+                        else
+                        {
+                            <span>@TextoDatoSinValor(dato)</span>
+                        }
+                    </span>
+                </div>
+            }
+        </div>
+
+        <div class="plan-seccion">
+            <span class="plan-seccion-titulo">@Textos["Plan_QueHare"]</span>
+            @if (Orden is { Modo: CaeManager.Application.AsistenteIa.Ordenes.ModoDeEjecucion.Alternativa })
+            {
+                <span class="plan-nota">@Textos["Plan_UnoDeEstos"]</span>
+            }
+            <ol class="plan-pasos">
+                @foreach (var paso in Orden?.Ejecucion ?? [])
+                {
+                    <li>
+                        <span class="plan-paso-marca" role="img" aria-label="@Textos["Plan_PasoPendiente"]">&#9711;</span>
+                        <span>
+                            @Textos[$"Paso_{paso.Operacion.Name}"]
+                            @if (!string.IsNullOrWhiteSpace(paso.Cuando))
+                            {
+                                <span class="plan-nota"> · @paso.Cuando</span>
+                            }
+                        </span>
+                    </li>
+                }
+            </ol>
+        </div>
+
+        @if (Vista.Plan.Limitacion is not null)
+        {
+            <p class="plan-nota"><strong>@Textos["Plan_Limitacion"]</strong> @Vista.Plan.Limitacion</p>
+        }
+
+        <p class="plan-nota">@Textos["Plan_Pie"]</p>
+
+        @if (Vista.ErrorGuardado is not null)
+        {
+            <div class="plan-aviso plan-aviso-peligro" role="alert">@Vista.ErrorGuardado</div>
+        }
+
+        <div class="plan-acciones">
+            <button type="button" class="plan-confirmar" aria-disabled="@(Vista.PuedeConfirmar && !Ocupado ? "false" : "true")" @onclick="ConfirmarAsync" @onkeydown:stopPropagation="true">
+                @TextoBotonConfirmar<span class="plan-kbd" aria-hidden="true">@Textos["Plan_TeclaEnter"]</span>
+            </button>
+            <button type="button" class="plan-descartar" disabled="@(Ocupado || Vista.TareaId is null)" @onclick="DescartarAsync" @onkeydown:stopPropagation="true">
+                @Textos["Plan_Descartar"]
+            </button>
+        </div>
+    </div>
+}
+else if (Vista.Estado == EstadoVistaPlan.Confirmado)
+{
+    <div class="plan plan-cerrado" role="group" aria-label="@Titulo">
+        <div class="plan-cabecera">
+            <span class="plan-titulo"><span class="plan-ok" aria-hidden="true">&#10004;</span> @Textos["Plan_Cerrado", Titulo]</span>
+            <span class="plan-chip"><span class="plan-chip-ini" aria-hidden="true">@IniciaTenant</span>@NombreTenant</span>
+        </div>
+        <p class="plan-nota" role="status">@Textos["Plan_ConfirmadoSinEjecucion"]</p>
+    </div>
+}
+else
+{
+    <div class="plan plan-cerrado" role="group" aria-label="@Titulo">
+        <p class="plan-nota" role="status">@Textos["Plan_Descartado", Titulo]</p>
+    </div>
+}

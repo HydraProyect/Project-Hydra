@@ -34,7 +34,7 @@
     @if (_empresaActiva is not null)
     {
         <div class="trabajadores-empresa">
-            <AvatarTenant Nombre="@_empresaActiva.Nombre" />
+            <AvatarTenant Nombre="@_empresaActiva.Nombre" LogoUrl="@AvatarTenant.UrlDeLogo(_empresaActiva.TenantId, _empresaActiva.LogoVersion)" />
             <span class="trabajadores-empresa-texto">
                 <span class="trabajadores-empresa-rotulo">@Comunes["SelectorTenantRotulo"]</span>
                 <span class="trabajadores-empresa-nombre" title="@_empresaActiva.Nombre">@_empresaActiva.Nombre</span>

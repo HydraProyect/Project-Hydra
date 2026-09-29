@@ -377,7 +377,7 @@ public class WebAppFixture : IAsyncLifetime
     private async Task EsperarArranqueAsync()
     {
         using var cliente = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-        var limite = DateTime.UtcNow.AddSeconds(120);
+        var limite = DateTime.UtcNow.AddSeconds(240);
 
         while (DateTime.UtcNow < limite)
         {
@@ -489,5 +489,29 @@ public class AppCollectionGestorCaeCarteraMultiTenant : ICollectionFixture<WebAp
 public sealed class WebAppFixtureGestorCaeCarteraMultiTenant : WebAppFixture
 {
     protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
-        new Dictionary<string, string> { ["DatosPrueba__GestorCaeCarteraMultiTenant"] = "true" };
+        new Dictionary<string, string>
+        {
+            ["DatosPrueba__GestorCaeCarteraMultiTenant"] = "true",
+            ["Circuit__RevalidacionIntervaloSegundos"] = "2",
+        };
+}
+
+/// <summary>
+/// Instancia propia con la siembra de escenarios de dirección (DatosPrueba:EscenariosDireccion):
+/// un Coordinador CAE de un Operador CAE externo que alcanza Pizza Planet y Duff por delegación
+/// heredada (AsignacionOperadorDelegado con rol CoordinadorCae): el caso de la cuenta demo del
+/// piloto (P0 2026-09-28). En su colección: añade Tenants a todos los selectores.
+/// </summary>
+[CollectionDefinition("AppCollectionEscenariosDireccion")]
+public class AppCollectionEscenariosDireccion : ICollectionFixture<WebAppFixtureEscenariosDireccion>;
+
+public sealed class WebAppFixtureEscenariosDireccion : WebAppFixture
+{
+    protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
+        new Dictionary<string, string>
+        {
+            ["DatosPrueba__EscenariosDireccion"] = "true",
+            ["Sesion__IntervaloRevalidacionSegundos"] = "1",
+            ["Circuit__RevalidacionIntervaloSegundos"] = "2",
+        };
 }

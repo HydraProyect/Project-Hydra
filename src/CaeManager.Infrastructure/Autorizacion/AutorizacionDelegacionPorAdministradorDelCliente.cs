@@ -38,25 +38,10 @@ namespace CaeManager.Infrastructure.Autorizacion;
 public class AutorizacionDelegacionPorAdministradorDelCliente(
     UserManager<ApplicationUser> userManager) : IAutorizacionDelegacionTenant
 {
-    public async Task<bool> PuedeGestionarDelegacionesAsync(
-        Guid usuarioId, Guid tenantClienteDeleganteId, CancellationToken cancellationToken = default)
-    {
-        if (tenantClienteDeleganteId == Guid.Empty) return false;
-
-        var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
-        if (usuario is null) return false;
-
-        // El tenant primero: es la mitad que distingue a quien concede de quien
-        // recibe, y evita consultar roles de un usuario que ya sabemos que no
-        // pinta nada aquí.
-        if (usuario.TenantId != tenantClienteDeleganteId) return false;
-
-        // Sin esto, una cuenta desactivada podía seguir autorizando delegaciones
-        // durante la ventana de gracia de EstaDesactivada (cookie/token ya
-        // emitidos antes del Desactivar; ver su propio comentario) — hallazgo
-        // de la revisión puente del incremento 1b.
-        if (usuario.EstaDesactivada(DateTimeOffset.UtcNow)) return false;
-
-        return await userManager.IsInRoleAsync(usuario, Roles.Administrador);
-    }
+    // El predicado vive en AdministradorDelTenantPropietarioEnBase: una sola implementación para
+    // las delegaciones heredadas y para el logo del Tenant.
+    public Task<bool> PuedeGestionarDelegacionesAsync(
+        Guid usuarioId, Guid tenantClienteDeleganteId, CancellationToken cancellationToken = default) =>
+        new AdministradorDelTenantPropietarioEnBase(userManager)
+            .EsAdministradorEnBaseAsync(usuarioId, tenantClienteDeleganteId, cancellationToken);
 }

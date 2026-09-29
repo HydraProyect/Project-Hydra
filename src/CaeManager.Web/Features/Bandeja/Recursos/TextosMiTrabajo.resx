@@ -153,15 +153,6 @@
   <data name="PlataformaCae" xml:space="preserve">
     <value>Plataforma CAE</value>
   </data>
-  <data name="NingunaTareaAbierta" xml:space="preserve">
-    <value>Ninguna tarea abierta</value>
-  </data>
-  <data name="SeleccionaTarea" xml:space="preserve">
-    <value>Selecciona una tarea de la cola, o usa</value>
-  </data>
-  <data name="Y" xml:space="preserve">
-    <value>y</value>
-  </data>
   <data name="AbreEnLaPantalla" xml:space="preserve">
     <value>Abre {0} en la pantalla de esta tarea</value>
   </data>
@@ -293,5 +284,8 @@
   </data>
   <data name="AnadirAMiCartera" xml:space="preserve">
     <value>Añadir a mi cartera</value>
+  </data>
+  <data name="CerrarDetalle" xml:space="preserve">
+    <value>Cerrar detalle</value>
   </data>
 </root>

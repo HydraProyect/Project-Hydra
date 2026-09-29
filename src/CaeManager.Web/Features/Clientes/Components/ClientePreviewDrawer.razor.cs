@@ -81,6 +81,16 @@ public partial class ClientePreviewDrawer : ComponentBase
         StateHasChanged();
     }
 
+    /// <summary>«Abrir ficha 360» del pie: la página /clientes/{id}, que resuelve quien monta el drawer.</summary>
+    [Parameter] public EventCallback<Guid> OnAbrirFicha { get; set; }
+
+    private async Task AbrirFichaAsync()
+    {
+        if (ClienteId is not { } id) return;
+        await VisibleChanged.InvokeAsync(false);
+        await OnAbrirFicha.InvokeAsync(id);
+    }
+
     private Task Cerrar() => VisibleChanged.InvokeAsync(false);
 
     private async Task Operar(string pestana)

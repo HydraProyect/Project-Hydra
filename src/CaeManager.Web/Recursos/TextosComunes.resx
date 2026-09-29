@@ -111,4 +111,16 @@
   <data name="SelectorTenantSinResultados" xml:space="preserve">
     <value>Ninguna empresa coincide con la búsqueda.</value>
   </data>
+  <data name="FiltrosGuardados" xml:space="preserve">
+    <value>Filtros guardados</value>
+  </data>
+  <data name="FiltroGuardadoElegir" xml:space="preserve">
+    <value>Elegir…</value>
+  </data>
+  <data name="GuardarFiltro" xml:space="preserve">
+    <value>Guardar filtro</value>
+  </data>
+  <data name="LimpiarTodo" xml:space="preserve">
+    <value>Limpiar todo</value>
+  </data>
 </root>

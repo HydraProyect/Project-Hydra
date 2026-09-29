@@ -36,7 +36,12 @@ public record ObtenerClientesAutorizadosQuery : IRequest<IReadOnlyList<ClienteAu
 /// visibilidad del selector (decisión 1) y el Tenant por defecto (decisión 5); no
 /// autoriza nada.
 /// </param>
-public record ClienteAutorizadoDto(Guid TenantId, string Nombre, bool EsOrigen, bool EsGestionadoPorOperacion = false);
+/// <param name="LogoVersion">
+/// Versión del logo del Tenant, o <c>null</c> si no tiene: construye la URL versionada del endpoint del
+/// logo (contrato del selector, § 4.1.5). No es un secreto ni autoriza nada; el endpoint revalida.
+/// </param>
+public record ClienteAutorizadoDto(
+    Guid TenantId, string Nombre, bool EsOrigen, bool EsGestionadoPorOperacion = false, string? LogoVersion = null);
 
 public static class ClientesAutorizados
 {
@@ -127,12 +132,13 @@ public class ObtenerClientesAutorizadosQueryHandler(
 
         var tenantOrigen = await dbContext.Tenants
             .Where(t => t.Id == tenantOrigenId.Value)
-            .Select(t => new { t.Id, t.Nombre })
+            .Select(t => new { t.Id, t.Nombre, t.LogoVersion })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (tenantOrigen is not null)
             resultado.Add(new ClienteAutorizadoDto(
                 tenantOrigen.Id, tenantOrigen.Nombre, EsOrigen: true,
+                LogoVersion: tenantOrigen.LogoVersion,
                 EsGestionadoPorOperacion: await TenantsBeneficiariosAutorizados.OrigenGestionadoAsync(
                     operaciones, usuarioId.Value, tenantOrigenId.Value, ahora, cancellationToken)));
 
@@ -158,12 +164,12 @@ public class ObtenerClientesAutorizadosQueryHandler(
 
         var nombres = await dbContext.Tenants
             .Where(t => externos.Contains(t.Id))
-            .Select(t => new { t.Id, t.Nombre })
+            .Select(t => new { t.Id, t.Nombre, t.LogoVersion })
             .ToListAsync(cancellationToken);
 
         resultado.AddRange(nombres
             .Select(t => new ClienteAutorizadoDto(t.Id, t.Nombre, EsOrigen: false,
-                EsGestionadoPorOperacion: porOperacion.Contains(t.Id)))
+                EsGestionadoPorOperacion: porOperacion.Contains(t.Id), LogoVersion: t.LogoVersion))
             .OrderBy(c => c.Nombre)
             .ThenBy(c => c.TenantId));
 

@@ -324,6 +324,19 @@ public class SelectorClienteActivoTests : BunitContext
         conLogo.Find(".avatar-tenant").TextContent.Trim().Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Con_version_de_logo_el_selector_pinta_la_imagen_del_endpoint_versionado()
+    {
+        _lista = [Propio(), new ClienteAutorizadoDto(Norte, "Empresa Norte", false, true, LogoVersion: "abcdef0123456789"),
+            Gestionado(Sur, "Empresa Sur")];
+        var cut = Renderizar(seleccionado: Norte);
+
+        cut.Find(".selector-tenant-disparador img").GetAttribute("src").Should().Be($"/tenants/{Norte}/logo?v=abcdef0123456789");
+        await Abrir(cut);
+        cut.FindAll(".selector-tenant-fila img").Should().ContainSingle("solo el Tenant con logo lo pinta; el resto, iniciales");
+        AvatarTenant.UrlDeLogo(Sur, null).Should().BeNull();
+    }
+
     [Theory]
     [InlineData("Refrielectric Norte", "RN")]
     [InlineData("  ", "?")]

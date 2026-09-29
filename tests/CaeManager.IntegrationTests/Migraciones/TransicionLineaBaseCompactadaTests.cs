@@ -5,6 +5,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 using Xunit;
 
@@ -30,7 +31,23 @@ public class TransicionLineaBaseCompactadaTests : IAsyncLifetime
 
     private readonly string _cadena = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
-    public async Task InitializeAsync() => await BaseDatosPostgresDePruebas.MigrarAsync(_cadena);
+    public async Task InitializeAsync()
+    {
+        await BaseDatosPostgresDePruebas.MigrarAsync(_cadena);
+
+        // Las migraciones posteriores a la línea base ya dejaron su esquema: se deshacen para que la
+        // base «previa» que fabrican los tests tenga solo el esquema de la línea base y el
+        // MigrateAsync del migrador aplique las posteriores de verdad, como en un servidor real.
+        await using var contexto = NuevoContexto();
+        await contexto.GetService<IMigrator>().MigrateAsync(TransicionLineaBaseCompactada.IdLineaBase);
+    }
+
+    /// <summary>Todas las migraciones del ensamblado: la línea base y las posteriores a ella.</summary>
+    private List<string> TodasLasMigraciones()
+    {
+        using var contexto = NuevoContexto();
+        return contexto.Database.GetMigrations().ToList();
+    }
 
     public async Task DisposeAsync() => await BaseDatosPostgresDePruebas.EliminarAsync(_cadena);
 
@@ -40,8 +57,12 @@ public class TransicionLineaBaseCompactadaTests : IAsyncLifetime
         using var contexto = NuevoContexto();
         var migraciones = contexto.Database.GetMigrations().ToList();
 
-        migraciones.Should().Equal([TransicionLineaBaseCompactada.IdLineaBase],
-            "la compactación deja una sola migración, y la transición anota exactamente ese id");
+        migraciones[0].Should().Be(TransicionLineaBaseCompactada.IdLineaBase,
+            "la línea base es la primera migración del ensamblado y la transición anota exactamente ese id");
+        migraciones.Skip(1).Should().OnlyContain(
+            id => string.CompareOrdinal(id, TransicionLineaBaseCompactada.IdLineaBase) > 0
+                  && !TransicionLineaBaseCompactada.IdsHistoriaPrevia.Contains(id),
+            "las migraciones posteriores a la compactación son nuevas: ninguna es una de las 185 previas");
         TransicionLineaBaseCompactada.IdsHistoriaPrevia.Should().HaveCount(185)
             .And.OnlyHaveUniqueItems()
             .And.BeInAscendingOrder(StringComparer.Ordinal)
@@ -96,8 +117,9 @@ public class TransicionLineaBaseCompactadaTests : IAsyncLifetime
         var resultado = await MigrarComoElMigradorAsync();
 
         resultado.Should().Be(ResultadoTransicionLineaBase.Aplicada);
-        (await LeerHistorialAsync()).Should().Equal(
-            [(TransicionLineaBaseCompactada.IdLineaBase, ProductInfo.GetVersion())]);
+        var historial = await LeerHistorialAsync();
+        historial.Select(f => f.Id).Should().Equal(TodasLasMigraciones());
+        historial[0].Should().Be((TransicionLineaBaseCompactada.IdLineaBase, ProductInfo.GetVersion()));
     }
 
     [Fact]
@@ -108,7 +130,7 @@ public class TransicionLineaBaseCompactadaTests : IAsyncLifetime
         await ReemplazarHistorialAsync(TransicionLineaBaseCompactada.IdsHistoriaPrevia.Reverse().ToList());
 
         (await MigrarComoElMigradorAsync()).Should().Be(ResultadoTransicionLineaBase.Aplicada);
-        (await LeerHistorialAsync()).Select(f => f.Id).Should().Equal(TransicionLineaBaseCompactada.IdLineaBase);
+        (await LeerHistorialAsync()).Select(f => f.Id).Should().Equal(TodasLasMigraciones());
     }
 
     [Fact]
@@ -183,7 +205,7 @@ public class TransicionLineaBaseCompactadaTests : IAsyncLifetime
             await using (var contexto = NuevoContexto(nueva))
                 await contexto.Database.MigrateAsync();
 
-            (await LeerHistorialAsync(nueva)).Select(f => f.Id).Should().Equal(TransicionLineaBaseCompactada.IdLineaBase);
+            (await LeerHistorialAsync(nueva)).Select(f => f.Id).Should().Equal(TodasLasMigraciones());
             (await TransicionLineaBaseCompactada.AplicarAsync(nueva, ProductInfo.GetVersion(), CancellationToken.None))
                 .Should().Be(ResultadoTransicionLineaBase.YaTransicionada);
         }
@@ -207,7 +229,7 @@ public class TransicionLineaBaseCompactadaTests : IAsyncLifetime
 
             await using (var contexto = NuevoContexto(inexistente))
                 await contexto.Database.MigrateAsync();
-            (await LeerHistorialAsync(inexistente)).Select(f => f.Id).Should().Equal(TransicionLineaBaseCompactada.IdLineaBase);
+            (await LeerHistorialAsync(inexistente)).Select(f => f.Id).Should().Equal(TodasLasMigraciones());
         }
         finally
         {

@@ -76,11 +76,9 @@ public partial class SelectorClienteActivo
     /// </summary>
     private string RutaDeRetorno => new Uri(NavigationManager.Uri).AbsolutePath;
 
-    /// <summary>
-    /// Punto de enchufe del logo real (§ 4.1.5): el lote del logo lo rellena con
-    /// la URL versionada del endpoint. Hasta entonces, iniciales.
-    /// </summary>
-    private static string? UrlLogo(ClienteAutorizadoDto cliente) => null;
+    /// <summary>URL versionada del logo del Tenant (§ 4.1.5), o <c>null</c> para pintar las iniciales.</summary>
+    private static string? UrlLogo(ClienteAutorizadoDto cliente) =>
+        CaeManager.Web.Components.DesignSystem.AvatarTenant.UrlDeLogo(cliente.TenantId, cliente.LogoVersion);
 
     private string Empresas(int n) => n == 1
         ? Textos["SelectorTenantEmpresasUna"].Value

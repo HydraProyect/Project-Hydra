@@ -175,12 +175,6 @@
     flex-shrink: 0;
 }
 
-.nota-pie-preview-cliente {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--color-text-muted);
-}
-
 @media (max-width: 767px) {
     .drawer-preview-cliente {
         max-width: 100%;

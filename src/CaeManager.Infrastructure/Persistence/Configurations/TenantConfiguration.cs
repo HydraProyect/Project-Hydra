@@ -44,6 +44,14 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.HasIndex(t => t.StripeSubscriptionId)
             .HasFilter("\"StripeSubscriptionId\" IS NOT NULL");
 
+        // Logo del Tenant (selector de Tenant beneficiario, lote 1). LogoVersion es token de
+        // concurrencia: dos subidas simultáneas no pueden dejar la columna apuntando a un blob que
+        // la otra ya borró como "anterior" (C9 de la revisión Codex del contrato).
+        builder.Property(t => t.LogoArchivoClave).HasMaxLength(Tenant.LongitudMaximaLogoArchivoClave);
+        builder.Property(t => t.LogoVersion)
+            .HasMaxLength(Tenant.LongitudLogoVersion)
+            .IsConcurrencyToken();
+
         // Sin HasQueryFilter: Tenant no pertenece a ningún tenant (ver
         // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.1) y no tiene soft delete (ver Tenant.cs).
 

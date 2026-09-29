@@ -59,8 +59,15 @@
     align-items: start;
 }
 
+/* Sin tarea abierta el detalle no se pinta y no reserva columna: la cola
+   gana esos 320px. Con tarea abierta vuelve la rejilla de tres. */
+.mi-trabajo-paneles-sin-detalle {
+    grid-template-columns: 260px minmax(0, 1fr);
+}
+
 @media (max-width: 1200px) {
-    .mi-trabajo-paneles {
+    .mi-trabajo-paneles,
+    .mi-trabajo-paneles-sin-detalle {
         grid-template-columns: 240px minmax(0, 1fr);
     }
 
@@ -70,7 +77,8 @@
 }
 
 @media (max-width: 768px) {
-    .mi-trabajo-paneles {
+    .mi-trabajo-paneles,
+    .mi-trabajo-paneles-sin-detalle {
         grid-template-columns: minmax(0, 1fr);
     }
 }
@@ -244,8 +252,7 @@
     color: var(--color-text-muted);
 }
 
-.mi-trabajo-atajos kbd,
-.mi-trabajo-detalle-vacio kbd {
+.mi-trabajo-atajos kbd {
     font: var(--font-body-sm);
     font-weight: 700;
     color: var(--color-text);
@@ -428,6 +435,18 @@
     gap: var(--space-2);
 }
 
+.mi-trabajo-detalle-cerrar {
+    margin-left: auto;
+}
+
+/* El tipo de la fila («Revisión IA») no se parte en dos líneas ni se encoge
+   cuando el título compite por el ancho: quien cede es el título/sujeto.
+   ::deep porque el .badge lo pinta <Badge>, un componente hijo. */
+.mi-trabajo-fila-linea ::deep .badge {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
 .mi-trabajo-detalle-tipo,
 .mi-trabajo-detalle-sujeto,
 .mi-trabajo-detalle-plazo {
@@ -461,11 +480,6 @@
     margin: 0 0 var(--space-2);
     font: var(--font-body-md);
     color: var(--color-text);
-}
-
-.mi-trabajo-detalle-vacio p {
-    font: var(--font-body-sm);
-    color: var(--color-text-muted);
 }
 
 .mi-trabajo ::deep .accion-cross-tenant {

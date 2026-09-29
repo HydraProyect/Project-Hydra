@@ -27,6 +27,13 @@
 
     [Parameter] public TamanoAvatarTenant Tamano { get; set; } = TamanoAvatarTenant.Normal;
 
+    /// <summary>
+    /// URL versionada del endpoint del logo de un Tenant (<c>/tenants/{id}/logo?v=…</c>), o <c>null</c>
+    /// si no tiene logo. La versión cambia con cada subida, así que el navegador no reutiliza el anterior.
+    /// </summary>
+    public static string? UrlDeLogo(Guid tenantId, string? version) =>
+        string.IsNullOrEmpty(version) ? null : $"/tenants/{tenantId}/logo?v={Uri.EscapeDataString(version)}";
+
     private string Clases => Tamano == TamanoAvatarTenant.Pequeno ? "avatar-tenant avatar-tenant-pequeno" : "avatar-tenant";
 
     /// <summary>
