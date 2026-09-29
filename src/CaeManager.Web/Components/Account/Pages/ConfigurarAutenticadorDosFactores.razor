@@ -214,7 +214,13 @@
 
     private bool HayVueltaAFicha => SegundoFactorParaCredenciales.EsRutaLocal(ReturnUrl);
 
-    private string RutaDeVuelta => HayVueltaAFicha ? ReturnUrl! : "/";
+    // Salida sin ficha: quien llega forzado por la 2FA obligatoria (_dosFactoresObligatorio)
+    // acaba de iniciar sesión y termina aquí su login, así que aterriza con la marca de un
+    // solo uso (D-2: Mi trabajo es el aterrizaje tras iniciar sesión). Un returnUrl local
+    // explícito manda siempre; el alta voluntaria desde el perfil no es un login y vuelve a "/".
+    private string RutaDeVuelta => HayVueltaAFicha
+        ? ReturnUrl!
+        : _dosFactoresObligatorio ? RedireccionLocal.DestinoTrasLogin(null) : "/";
 
     // Dentro de @code no hay interpolacion de Razor: el literal "@Marca.Nombre" llegaba tal cual
     // a la URI del TOTP. Y Marca.Nombre se fija desde la configuracion al arrancar, asi que se

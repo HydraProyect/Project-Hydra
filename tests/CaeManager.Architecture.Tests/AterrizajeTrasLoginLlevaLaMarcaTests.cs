@@ -37,6 +37,8 @@ public class AterrizajeTrasLoginLlevaLaMarcaTests
         ("src/CaeManager.Web/Components/Account/Pages/LoginCon2fa.razor", 2),
         ("src/CaeManager.Web/Components/Account/Pages/CambiarContrasena.razor", 1),
         ("src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs", 1),
+        // Alta forzada de 2FA (Administrador): termina el login del que la exige.
+        ("src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor", 1),
     ];
 
     private static readonly Regex LlamaADestinoTrasLogin = new(

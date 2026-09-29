@@ -36,13 +36,15 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         Usuario = new ApplicationUser { Id = UsuarioId, Email = "marta@arcospa.es", UserName = "marta@arcospa.es" },
     };
 
+    private readonly GestorUsuariosFallaAVoluntad _gestor;
     private readonly SignInManagerFalso _signIn = new();
     private readonly RegistroCapturado _registro = new();
     private MediatorCodigosRecuperacionFalso _mediador = new();
 
     public ConfigurarAutenticadorDosFactoresEscrituraTests()
     {
-        Services.AddSingleton<UserManager<ApplicationUser>>(new GestorUsuariosFallaAVoluntad(_almacen));
+        _gestor = new GestorUsuariosFallaAVoluntad(_almacen);
+        Services.AddSingleton<UserManager<ApplicationUser>>(_gestor);
         Services.AddSingleton<SignInManager<ApplicationUser>>(_signIn);
         Services.AddSingleton<ILoggerFactory>(new LoggerFactory([_registro]));
         Services.AddLocalization();
@@ -195,6 +197,68 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         cut.Find("a.boton-continuar").GetAttribute("href").Should().Be("/");
     }
 
+    /// <summary>
+    /// D-2: quien llega forzado por la 2FA obligatoria (Administrador) termina aquí
+    /// su inicio de sesión, y aterriza con la marca de un solo uso; el alta
+    /// voluntaria (no Administrador) no es un login y sigue saliendo a «/».
+    /// </summary>
+    [Theory]
+    [InlineData(true, "/?desde=login")]
+    [InlineData(false, "/")]
+    public async Task La_salida_tras_activar_lleva_la_marca_de_login_solo_si_la_2fa_era_obligatoria(bool obligatoria, string esperado)
+    {
+        _gestor.EsAdministrador = obligatoria;
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/cuenta/configurar-2fa");
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarCodigoAsync(cut);
+
+        cut.Find("a.boton-continuar").GetAttribute("href").Should().Be(esperado);
+    }
+
+    [Fact]
+    public async Task Forzado_por_la_2fa_obligatoria_un_returnUrl_local_manda_sobre_la_marca()
+    {
+        _gestor.EsAdministrador = true;
+        const string ficha = "/empresas/3f2a";
+        Services.GetRequiredService<NavigationManager>().NavigateTo(
+            "/cuenta/configurar-2fa?returnUrl=" + Uri.EscapeDataString(ficha));
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarCodigoAsync(cut);
+
+        cut.Find("a.boton-continuar").GetAttribute("href").Should().Be(ficha);
+    }
+
+    [Fact]
+    public async Task Forzado_por_la_2fa_obligatoria_un_returnUrl_no_local_se_ignora_y_aterriza_con_la_marca()
+    {
+        _gestor.EsAdministrador = true;
+        Services.GetRequiredService<NavigationManager>().NavigateTo(
+            "/cuenta/configurar-2fa?returnUrl=" + Uri.EscapeDataString("//evil.example"));
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarCodigoAsync(cut);
+
+        cut.Find("a.boton-continuar").GetAttribute("href").Should().Be("/?desde=login");
+    }
+
+    [Fact]
+    public async Task Forzado_por_la_2fa_obligatoria_si_generar_los_codigos_falla_navega_con_la_marca()
+    {
+        _gestor.EsAdministrador = true;
+        _mediador = new MediatorCodigosRecuperacionFalso(
+            CaeManager.Domain.Common.Error.Crear("SegundoFactor.CodigosNoGuardados", "No pudimos guardar los códigos."));
+        Services.AddSingleton<MediatR.IMediator>(_mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo("/cuenta/configurar-2fa");
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarCodigoAsync(cut);
+
+        navegacion.Uri.Should().Be(navegacion.BaseUri + "?desde=login");
+    }
+
     [Fact]
     public async Task Si_generar_los_codigos_falla_con_un_returnUrl_local_sale_a_la_ficha()
     {
@@ -268,7 +332,10 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         // La página pregunta el rol solo para decidir el aviso de 2FA obligatoria,
         // que aquí no se mide (lo cubre ConfigurarDosFactoresGen2Tests); el
         // almacén falso no implementa IUserRoleStore.
-        public override Task<bool> IsInRoleAsync(ApplicationUser user, string role) => Task.FromResult(false);
+        public bool EsAdministrador { get; set; }
+
+        public override Task<bool> IsInRoleAsync(ApplicationUser user, string role) =>
+            Task.FromResult(EsAdministrador && role == Roles.Administrador);
     }
 
     /// <summary>
