@@ -10,6 +10,7 @@ using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Common;
@@ -69,13 +70,20 @@ public class SubcontratasListaGen2Tests : BunitContext
         public Result ResultadoEliminar { get; init; } = Result.Exito();
 
         public List<object> Enviadas { get; } = [];
+        /// <summary>Por defecto, un usuario mono-Tenant: sin selector ni cabecera de empresa gestionada.</summary>
+        public List<ClienteAutorizadoDto> Autorizados { get; } = [new(Guid.NewGuid(), "Propia", EsOrigen: true)];
+        /// <summary>Si se fija, la respuesta de la lista de Tenants autorizados espera a esta tarea (mediador asíncrono).</summary>
+        public Task? RetenerAutorizados { get; set; }
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
-            return Task.FromResult((TResponse)(request switch
+            if (request is ObtenerClientesAutorizadosQuery && RetenerAutorizados is { } espera)
+                await espera;
+            return (TResponse)(request switch
             {
                 ObtenerPerfilVocabularioActualQuery => (object)PerfilVocabularioTenant.Consultora,
+                ObtenerClientesAutorizadosQuery => Autorizados,
                 ObtenerSubcontratasQuery q => FiltrarPorBusqueda(q),
                 ObtenerSubcontrataPorIdQuery q => Detalle is not null && Detalle.Id == q.Id ? Detalle : null!,
                 ObtenerTrabajadoresQuery q => new ResultadoPaginado<TrabajadorListaDto>(
@@ -85,7 +93,7 @@ public class SubcontratasListaGen2Tests : BunitContext
                 EliminarSubcontrataCommand => ResultadoEliminar,
                 EliminarSubcontratasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? lote.Ids.Count, [])),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
-            }));
+            });
         }
 
         /// <summary>
@@ -143,11 +151,14 @@ public class SubcontratasListaGen2Tests : BunitContext
         id, "Andamios Bidasoa S.L.", "B-20.774.115", new DateTime(2021, 4, 10, 0, 0, 0, DateTimeKind.Utc),
         ClienteIds: [], EmpresaIds: empresaIds, Guid.NewGuid(), NivelServicioSubcontrata.Gestionada);
 
+    private SeleccionEmpresaGestionadaDePrueba Seleccion { get; set; } = new();
+
     /// <param name="busqueda">Valor del filtro de texto que llega por la URL (?q=).</param>
     private IRenderedComponent<Subcontratas> Renderizar(MediatorFalso mediador, string? busqueda = null)
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
+        Services.AddScoped<ITenantActual>(_ => Seleccion);
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearSubcontrataCommand>>(_ => new InlineValidator<CrearSubcontrataCommand>());
@@ -622,5 +633,106 @@ public class SubcontratasListaGen2Tests : BunitContext
         cut.Markup.Should().Contain("Andamios Bidasoa S.L.", "la lista es lectura: la fila se ve");
         cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
         cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Eliminar seleccionados");
+    }
+
+    // --- Empresa gestionada activa (lote 3 del selector de Tenant beneficiario) ----------------
+
+    private static readonly Guid Origen = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
+    private static readonly Guid EmpresaNorte = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000002");
+    private static readonly Guid EmpresaSur = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000003");
+
+    private static MediatorFalso ConCartera(bool origenGestionado)
+    {
+        var mediador = new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.")] };
+        mediador.Autorizados.Clear();
+        mediador.Autorizados.AddRange(
+        [
+            new ClienteAutorizadoDto(Origen, "Operador de prueba", EsOrigen: true, EsGestionadoPorOperacion: origenGestionado),
+            new ClienteAutorizadoDto(EmpresaNorte, "Empresa Norte", EsOrigen: false, EsGestionadoPorOperacion: true),
+            new ClienteAutorizadoDto(EmpresaSur, "Empresa Sur", EsOrigen: false, EsGestionadoPorOperacion: true),
+        ]);
+        return mediador;
+    }
+
+    private static int ConsultasDeLista(MediatorFalso mediador) => mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Count();
+
+    [Fact]
+    public void Con_varias_empresas_gestionadas_la_cabecera_de_la_lista_dice_cual_esta_activa()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+
+        var cut = Renderizar(ConCartera(origenGestionado: false));
+
+        var cabecera = cut.Find(".cabecera-empresa-activa");
+        cabecera.TextContent.Should().Contain("Empresa gestionada").And.Contain("Empresa Sur");
+        cabecera.QuerySelector(".avatar-tenant")!.TextContent.Trim().Should().Be("ES", "sin logo se pintan las iniciales");
+        cut.Markup.Should().Contain("Andamios Bidasoa S.L.");
+    }
+
+    [Fact]
+    public void Un_usuario_mono_Tenant_no_ve_cabecera_de_empresa_gestionada()
+    {
+        var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.")] });
+
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
+        cut.Markup.Should().Contain("Andamios Bidasoa S.L.", "la lista se pinta como siempre");
+    }
+
+    [Fact]
+    public void Sin_empresa_elegida_y_con_el_origen_sin_gestionar_pide_elegir_y_no_muestra_datos_del_origen()
+    {
+        var mediador = ConCartera(origenGestionado: false);
+
+        var cut = Renderizar(mediador);
+
+        cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
+        cut.Markup.Should().NotContain("Andamios Bidasoa S.L.");
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría los datos del origen");
+        ConsultasDeLista(mediador).Should().Be(0, "no se piden las subcontratas de la organización de origen");
+    }
+
+    [Fact]
+    public void Con_el_origen_gestionado_y_sin_empresa_elegida_la_lista_es_la_del_origen()
+    {
+        var cut = Renderizar(ConCartera(origenGestionado: true));
+
+        cut.Markup.Should().NotContain("Selecciona una empresa de tu cartera");
+        cut.Find(".cabecera-empresa-activa").TextContent.Should().Contain("Operador de prueba");
+        cut.Markup.Should().Contain("Andamios Bidasoa S.L.");
+    }
+
+    [Fact]
+    public void Mientras_se_resuelve_la_empresa_activa_no_se_monta_la_lista_ni_se_ofrece_la_exportacion()
+    {
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+
+        var cut = Renderizar(mediador);
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty();
+        ConsultasDeLista(mediador).Should().Be(0);
+
+        puerta.SetResult();
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Selecciona una empresa de tu cartera"));
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty();
+        ConsultasDeLista(mediador).Should().Be(0, "ni antes ni después de resolverse se pide la lista del origen");
+    }
+
+    [Fact]
+    public void Con_el_contexto_resuelto_a_una_empresa_la_lista_se_monta_tras_la_carga()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+
+        var cut = Renderizar(mediador);
+        ConsultasDeLista(mediador).Should().Be(0);
+        cut.Markup.Should().NotContain("Andamios Bidasoa S.L.");
+
+        puerta.SetResult();
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Andamios Bidasoa S.L."));
     }
 }
