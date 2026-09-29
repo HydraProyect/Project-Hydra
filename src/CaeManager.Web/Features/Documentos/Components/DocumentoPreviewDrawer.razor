@@ -1,0 +1,80 @@
+@*
+    Vista previa lateral del documento — pieza 6 del patrón único de pantalla de lista
+    (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3): resume el
+    estado y ofrece «Abrir ficha 360». Se alimenta de la propia fila de la lista
+    (<c>DocumentoListaDto</c>): no hay consulta nueva, así que no puede enseñar más que la lista
+    ni saltarse el alcance de datos con el que ya se cargó.
+*@
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
+@using CaeManager.Domain.Documentos
+
+@if (Visible && Documento is { } d)
+{
+    <aside class="drawer-preview-documento" role="complementary" aria-label="Vista previa del documento">
+        <div class="cabecera-preview-documento">
+            <div class="texto-cabecera-preview-documento">
+                <span class="etiqueta-cabecera-preview-documento">Vista rápida · Documento</span>
+                <span class="nombre-cabecera-preview-documento">@d.TipoDocumentoNombre</span>
+            </div>
+            <button type="button" class="boton-cerrar-preview-documento" aria-label="Cerrar" @onclick="Cerrar"><Icono Nombre="cerrar" /></button>
+        </div>
+
+        <div class="cuerpo-preview-documento">
+            <div class="estado-preview-documento">
+                <Badge Tono="EstadoDocumentoUi.Tono(d.Estado)" ConIcono>@EstadoDocumentoUi.Texto(d.Estado)</Badge>
+            </div>
+            <div class="rejilla-info-preview-documento">
+                <div class="celda-info-preview-documento"><span>Propietario</span><strong>@d.PropietarioNombre</strong></div>
+                <div class="celda-info-preview-documento"><span>Ámbito</span><strong>@d.Ambito</strong></div>
+                <div class="celda-info-preview-documento"><span>Emisión</span><strong>@d.FechaEmision.ToString("dd/MM/yyyy")</strong></div>
+                <div class="celda-info-preview-documento"><span>Vencimiento</span><strong>@(d.FechaVencimiento is null ? "—" : d.FechaVencimiento.Value.ToString("dd/MM/yyyy"))</strong></div>
+            </div>
+
+            <div class="bloque-preview-documento">
+                <span class="titulo-bloque-preview-documento">Plataformas</span>
+                @if (d.Acreditaciones.Count == 0)
+                {
+                    <span class="vacio-preview-documento">Sin acreditaciones en plataformas.</span>
+                }
+                else
+                {
+                    <BadgesAcreditacion Acreditaciones="d.Acreditaciones" />
+                }
+            </div>
+
+            <div class="bloque-preview-documento">
+                <span class="titulo-bloque-preview-documento">Archivo</span>
+                @if (d.ArchivoUrl is not null)
+                {
+                    <a href="/documentos/@d.Id/archivo" target="_blank">Ver PDF</a>
+                }
+                else
+                {
+                    <span class="vacio-preview-documento">Sin adjunto.</span>
+                }
+            </div>
+        </div>
+
+        <div class="pie-preview-documento">
+            <Boton OnClick="AbrirFichaAsync">Abrir ficha 360</Boton>
+        </div>
+    </aside>
+}
+
+@code {
+    [Parameter] public DocumentoListaDto? Documento { get; set; }
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+
+    /// <summary>«Abrir ficha 360» del pie: cierra la vista previa y abre el panel del documento; lo resuelve quien monta el drawer.</summary>
+    [Parameter] public EventCallback<DocumentoListaDto> OnAbrirFicha { get; set; }
+
+    private Task Cerrar() => VisibleChanged.InvokeAsync(false);
+
+    private async Task AbrirFichaAsync()
+    {
+        if (Documento is not { } documento) return;
+        await VisibleChanged.InvokeAsync(false);
+        await OnAbrirFicha.InvokeAsync(documento);
+    }
+}

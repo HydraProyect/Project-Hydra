@@ -30,4 +30,10 @@
   <data name="Documento360Reclamar" xml:space="preserve">
     <value>Reclamar</value>
   </data>
+  <data name="SinEmpresaTitulo" xml:space="preserve">
+    <value>Selecciona una empresa de tu cartera</value>
+  </data>
+  <data name="SinEmpresaDescripcion" xml:space="preserve">
+    <value>Los documentos se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
+  </data>
 </root>
