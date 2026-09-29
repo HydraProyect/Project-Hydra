@@ -11,6 +11,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
@@ -94,9 +95,29 @@ public class ClientesListaGen2Tests : BunitContext
         /// </summary>
         public Func<object, Task<object>?>? Retener { get; set; }
 
+        /// <summary>Por defecto, un usuario mono-Tenant: sin selector ni cabecera de empresa gestionada.</summary>
+        public List<ClienteAutorizadoDto> Autorizados { get; } = [new(Guid.NewGuid(), "Propia", EsOrigen: true)];
+
+        /// <summary>Si se fija, la respuesta de la lista de Tenants autorizados espera a esta tarea (mediador asíncrono).</summary>
+        public Task? RetenerAutorizados { get; set; }
+
+        /// <summary>El token con el que la página pidió la lista de Tenants autorizados (solo con <see cref="RetenerAutorizados"/>).</summary>
+        public CancellationToken? TokenDeAutorizados { get; private set; }
+
+        /// <summary>Si es cierto, la respuesta retenida ignora el token: simula una resolución que vuelve normal tras cancelarse.</summary>
+        public bool IgnorarCancelacionDeAutorizados { get; set; }
+
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+
+            if (request is ObtenerClientesAutorizadosQuery && RetenerAutorizados is { } espera)
+            {
+                TokenDeAutorizados = cancellationToken;
+                // Un mediador real lanza al cancelarse; uno que "vuelve" con el contexto por defecto es el caso
+                // que la guarda de Dispose de la página debe cubrir por sí sola.
+                await (IgnorarCancelacionDeAutorizados ? espera : espera.WaitAsync(cancellationToken));
+            }
 
             if (Retener?.Invoke(request) is { } retenida)
                 return (TResponse)await retenida;
@@ -112,6 +133,9 @@ public class ClientesListaGen2Tests : BunitContext
             {
                 case ObtenerClientesQuery q:
                     return Filtrar(q);
+
+                case ObtenerClientesAutorizadosQuery:
+                    return (IReadOnlyList<ClienteAutorizadoDto>)Autorizados.ToList();
 
                 case ObtenerFiltrosGuardadosQuery:
                     return (IReadOnlyList<FiltroGuardadoDto>)FiltrosGuardados.ToList();
@@ -433,10 +457,13 @@ public class ClientesListaGen2Tests : BunitContext
             tenantActual, new PuertaAccesoDatos(), identidad);
     }
 
+    private SeleccionEmpresaGestionadaDePrueba Seleccion { get; set; } = new();
+
     private void Registrar(MediatorFalso mediador, string rol = Roles.Administrador, IReadOnlyList<ApplicationUser>? gestores = null)
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
+        Services.AddScoped<ITenantActual>(_ => Seleccion);
         // AvisoCambiosSinGuardar (P1-E2b) pinta sus textos con IStringLocalizer<TextosComunes>.
         Services.AddLocalization();
         Services.AddScoped<ContextWorkspaceService>();
@@ -1328,6 +1355,37 @@ public class ClientesListaGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// I14 del contrato del selector: los filtros guardados son del usuario y no del Tenant, así que uno
+    /// guardado con la empresa anterior puede llevar el Id de un Gestor CAE que esta empresa no ve.
+    /// No se repone (filtraría por alguien que la pantalla no puede nombrar): la consulta sale sin Gestor
+    /// CAE, el desplegable queda vacío y no hay chip. Lo demás del filtro sí se aplica.
+    /// </summary>
+    [Fact]
+    public async Task Un_filtro_guardado_con_un_Gestor_CAE_de_otra_empresa_no_lo_repone()
+    {
+        var marta = GestorCae("Marta Ibarra");
+        var deOtraEmpresa = Guid.NewGuid();
+        var filtro = new FiltroGuardadoDto(Guid.NewGuid(), "Guardado con la empresa anterior",
+            JsonSerializer.Serialize(new { Busqueda = "Refri", SoloCriticos = false, GestorCaeId = deOtraEmpresa.ToString(), EstadoDocumental = (string?)null }),
+            DateTime.UtcNow);
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Cliente("Refrielectric S.A.") with { EjecutivoUsuarioId = marta.Id } },
+            FiltrosGuardados = { filtro }
+        };
+        var cut = Renderizar(mediador, gestores: [marta]);
+
+        await SelectEtiquetado(cut, "Filtros guardados").ChangeAsync(new ChangeEventArgs { Value = filtro.Id.ToString() });
+
+        var consulta = UltimaConsulta(mediador);
+        consulta.Busqueda.Should().Be("Refri", "el resto del filtro sí se aplica");
+        consulta.EjecutivoUsuarioId.Should().BeNull("el Gestor CAE del filtro no existe en esta empresa");
+        SelectEtiquetado(cut, "Gestor CAE").GetAttribute("value").Should().BeNullOrEmpty();
+        TextosDeLosChips(cut).Should().NotContain(t => t.StartsWith("Gestor CAE"));
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain(deOtraEmpresa.ToString());
+    }
+
+    /// <summary>
     /// <c>ValoresJson</c> vive en la tabla <c>FiltrosGuardados</c> y Application
     /// solo exige que no esté vacío: puede llegar corrupto, con otra forma o
     /// con un tipo que no es el suyo. Ninguno tumba el circuito: los filtros se
@@ -1513,5 +1571,205 @@ public class ClientesListaGen2Tests : BunitContext
 
         mediador.Enviadas.OfType<EliminarClientesCommand>().Single().Ids.Should().Equal([pedido.Id], "el caso solo vale si el lote pidió a ese cliente");
         workspace.EstaAbierto.Should().BeTrue("no cayó nada: no hay nada muerto que retirar");
+    }
+
+    // --- Empresa gestionada activa (lote 3 del selector de Tenant beneficiario) ----------------
+
+    private static readonly Guid Origen = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
+    private static readonly Guid EmpresaNorte = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000002");
+    private static readonly Guid EmpresaSur = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000003");
+
+    private static MediatorFalso ConCartera(bool origenGestionado)
+    {
+        var mediador = new MediatorFalso { Almacen = { Cliente("Refrielectric S.A.") } };
+        mediador.Autorizados.Clear();
+        mediador.Autorizados.AddRange(
+        [
+            new ClienteAutorizadoDto(Origen, "Operador de prueba", EsOrigen: true, EsGestionadoPorOperacion: origenGestionado),
+            new ClienteAutorizadoDto(EmpresaNorte, "Empresa Norte", EsOrigen: false, EsGestionadoPorOperacion: true),
+            new ClienteAutorizadoDto(EmpresaSur, "Empresa Sur", EsOrigen: false, EsGestionadoPorOperacion: true),
+        ]);
+        return mediador;
+    }
+
+    [Fact]
+    public void Con_varias_empresas_gestionadas_la_cabecera_de_la_lista_dice_cual_esta_activa()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+
+        var cut = Renderizar(ConCartera(origenGestionado: false));
+
+        cut.Find(".cabecera-empresa-activa").TextContent.Should().Contain("Empresa gestionada").And.Contain("Empresa Sur");
+        cut.Markup.Should().Contain("Refrielectric S.A.");
+    }
+
+    [Fact]
+    public void Un_usuario_mono_Tenant_no_ve_cabecera_de_empresa_gestionada()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { Cliente("Refrielectric S.A.") } });
+
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
+        cut.Markup.Should().Contain("Refrielectric S.A.");
+    }
+
+    [Fact]
+    public void Sin_empresa_elegida_y_con_el_origen_sin_gestionar_pide_elegir_y_no_muestra_datos_del_origen()
+    {
+        var mediador = ConCartera(origenGestionado: false);
+
+        var cut = Renderizar(mediador);
+
+        cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
+        cut.Markup.Should().NotContain("Refrielectric S.A.");
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("no hay empresa activa que nombrar en el estado 4a");
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría los datos del origen");
+        ConsultasDeLista(mediador).Should().Be(0, "no se piden los clientes de la organización de origen");
+        mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().BeEmpty("tampoco los filtros guardados del origen");
+    }
+
+    /// <summary>Un enlace con filtros (<c>?q=</c>) no salta el estado 4a: los parámetros de la URL no piden la lista del origen.</summary>
+    [Fact]
+    public void Sin_empresa_elegida_un_enlace_con_filtros_tampoco_pide_la_lista_del_origen()
+    {
+        var mediador = ConCartera(origenGestionado: false);
+
+        var cut = Renderizar(mediador, "clientes?q=Refri&critico=true");
+
+        cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
+        cut.Markup.Should().NotContain("Refrielectric S.A.");
+        ConsultasDeLista(mediador).Should().Be(0, "la URL trae filtros pero no hay empresa elegida");
+    }
+
+    /// <summary>Tampoco lo salta la acción por URL (atajo «n», palette): el alta se abriría contra la organización de origen.</summary>
+    [Fact]
+    public void Sin_empresa_elegida_la_accion_crear_de_la_url_no_abre_el_alta()
+    {
+        var cut = Renderizar(ConCartera(origenGestionado: false), "clientes?accion=crear");
+
+        cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
+        cut.FindAll("[role=dialog]").Should().BeEmpty("el alta iría al Tenant de origen, que no es la empresa activa");
+    }
+
+    [Fact]
+    public void Con_el_origen_gestionado_y_sin_empresa_elegida_la_lista_es_la_del_origen()
+    {
+        var cut = Renderizar(ConCartera(origenGestionado: true));
+
+        cut.Markup.Should().NotContain("Selecciona una empresa de tu cartera");
+        cut.Find(".cabecera-empresa-activa").TextContent.Should().Contain("Operador de prueba");
+        cut.Markup.Should().Contain("Refrielectric S.A.");
+    }
+
+    [Fact]
+    public void Mientras_se_resuelve_la_empresa_activa_no_se_monta_la_lista_ni_se_ofrece_la_exportacion()
+    {
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+
+        Registrar(mediador);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("clientes");
+        var cut = Render<Clientes>();
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty();
+        ConsultasDeLista(mediador).Should().Be(0);
+
+        puerta.SetResult();
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Selecciona una empresa de tu cartera"));
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty();
+        ConsultasDeLista(mediador).Should().Be(0, "ni antes ni después de resolverse se pide la lista del origen");
+    }
+
+    /// <summary>Salir de la página con la resolución en vuelo la cancela: no se repinta ni se pide la lista de nadie.</summary>
+    [Fact]
+    public void Salir_de_la_pagina_con_la_empresa_activa_en_vuelo_cancela_la_resolucion()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+
+        Registrar(mediador);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("clientes");
+        var cut = Render<Clientes>();
+        mediador.TokenDeAutorizados.Should().NotBeNull("la página pidió la lista de Tenants autorizados");
+        mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeFalse("control positivo: sigue montada");
+
+        cut.Instance.Dispose();
+
+        mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeTrue();
+        puerta.SetResult();
+        ConsultasDeLista(mediador).Should().Be(0);
+        mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Si la resolución vuelve sin lanzar tras retirarse la página (contexto sin empresa activa ni 4a), la
+    /// página tampoco sigue: ni lista ni filtros guardados de una página que ya no existe.
+    /// </summary>
+    [Fact]
+    public void Una_resolucion_que_vuelve_sin_lanzar_tras_retirar_la_pagina_no_pide_ni_la_lista_ni_los_filtros_guardados()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
+        mediador.IgnorarCancelacionDeAutorizados = true;
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+
+        Registrar(mediador);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("clientes");
+        var cut = Render<Clientes>();
+        cut.Instance.Dispose();
+
+        puerta.SetResult();
+
+        ConsultasDeLista(mediador).Should().Be(0);
+        mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().BeEmpty();
+        mediador.Enviadas.Should().OnlyContain(e => e is ObtenerClientesAutorizadosQuery, "tras retirarse solo consta la resolución que ya iba en vuelo");
+    }
+
+    /// <summary>
+    /// Codex, pasada 1: tras retirarse la página con la resolución en vuelo, ComponentBase todavía invoca
+    /// <c>OnParametersSetAsync</c> con <c>_resolviendoEmpresa</c> ya en false. Con <c>?accion=crear</c> en la URL
+    /// abriría el alta (y un intento de render) en un componente muerto.
+    /// </summary>
+    [Fact]
+    public void Retirada_la_pagina_con_la_resolucion_en_vuelo_no_se_procesan_los_parametros_de_la_url()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+
+        Registrar(mediador);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("clientes?accion=crear");
+        var cut = Render<Clientes>();
+        cut.Instance.Dispose();
+        puerta.SetResult();
+
+        // El componente está retirado y no hay DOM que mirar: se lee el estado que AbrirCrear habría fijado.
+        var drawerVisible = (bool)typeof(Clientes)
+            .GetField("_drawerVisible", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(cut.Instance)!;
+        drawerVisible.Should().BeFalse("una página retirada no atiende ?accion=crear");
+    }
+
+    [Fact]
+    public void Con_el_contexto_resuelto_a_una_empresa_la_lista_se_monta_tras_la_carga()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+
+        Registrar(mediador);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("clientes");
+        var cut = Render<Clientes>();
+        ConsultasDeLista(mediador).Should().Be(0);
+        cut.Markup.Should().NotContain("Refrielectric S.A.");
+
+        puerta.SetResult();
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Refrielectric S.A."));
     }
 }

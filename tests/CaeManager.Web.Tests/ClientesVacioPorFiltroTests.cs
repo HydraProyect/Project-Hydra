@@ -6,6 +6,7 @@ using Bunit;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Documentos;
@@ -64,6 +65,7 @@ public class ClientesVacioPorFiltroTests : BunitContext
             Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerFiltrosGuardadosQuery => (object)Array.Empty<FiltroGuardadoDto>(),
+                ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 CrearClienteCommand => Result.Exito(ClienteCreadoId),
                 ObtenerClientesQuery q => new ResultadoPaginado<ClienteListaDto>(
                     Clientes, Clientes.Count, q.Pagina, q.TamanoPagina),
@@ -187,6 +189,7 @@ public class ClientesVacioPorFiltroTests : BunitContext
         Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Clientes = clientes, AlcanceCero = _alcanceCero });
         Services.AddLocalization();
         Services.AddScoped<ToastService>();
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         // La página lleva AuthorizeView y pregunta por el rol para decidir si
