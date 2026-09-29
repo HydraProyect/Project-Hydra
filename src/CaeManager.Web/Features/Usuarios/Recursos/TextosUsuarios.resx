@@ -81,6 +81,9 @@
   <data name="AsignarEmpresasAyuda" xml:space="preserve">
     <value>Gestionará entera cada empresa que marques. Al desmarcar una, deja de tener acceso a ella.</value>
   </data>
+  <data name="AsignarEmpresasParcial" xml:space="preserve">
+    <value>ya tiene parte de sus clientes; no se amplía desde aquí</value>
+  </data>
   <data name="AsignarEmpresasCargando" xml:space="preserve">
     <value>Cargando empresas…</value>
   </data>

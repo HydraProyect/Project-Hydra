@@ -12,7 +12,7 @@ namespace CaeManager.Application.Usuarios.Queries.ObtenerCarteraDeGestorCae;
 /// Operador CAE puede asignarlo hoy (una cartera cuya operación caducó sale con
 /// <c>EnCartera</c> y sin <c>Asignable</c>: solo se puede retirar).
 /// </summary>
-public record EmpresaDeCarteraDeGestor(Guid TenantId, string Nombre, bool EnCartera, bool Asignable);
+public record EmpresaDeCarteraDeGestor(Guid TenantId, string Nombre, bool EnCartera, bool Asignable, bool CarteraParcial = false);
 
 /// <summary>
 /// Las empresas del diálogo «Asignar empresas»: las que el Operador CAE puede asignar más las
@@ -40,11 +40,19 @@ public class ObtenerCarteraDeGestorCaeQueryHandler(
 
         var asignables = await catalogo.ObtenerAsignablesAsync(ctx.OperadorTenantId, cancellationToken);
         var enCartera = await catalogo.ObtenerCarteraUniversalAsync(ctx.OperadorTenantId, ctx.GestorUsuarioId, cancellationToken);
+        // Los candidatos son los asignables que este Gestor CAE no tiene de ninguna forma: los que
+        // sí están en su cartera solo en parte (reparto por Cliente empresarial) no se pueden
+        // ampliar a enteros desde aquí, y ofrecerlos haría fallar siempre el guardado.
+        var candidatosIds = (await catalogo.ObtenerCandidatosAsync(ctx.OperadorTenantId, ctx.GestorUsuarioId, cancellationToken))
+            .Select(c => c.PropietarioTenantId).ToHashSet();
         var enCarteraIds = enCartera.Select(e => e.PropietarioTenantId).ToHashSet();
         var asignablesIds = asignables.Select(a => a.PropietarioTenantId).ToHashSet();
 
         return asignables
-            .Select(a => new EmpresaDeCarteraDeGestor(a.PropietarioTenantId, a.Nombre, enCarteraIds.Contains(a.PropietarioTenantId), true))
+            .Select(a => new EmpresaDeCarteraDeGestor(
+                a.PropietarioTenantId, a.Nombre, enCarteraIds.Contains(a.PropietarioTenantId),
+                Asignable: enCarteraIds.Contains(a.PropietarioTenantId) || candidatosIds.Contains(a.PropietarioTenantId),
+                CarteraParcial: !enCarteraIds.Contains(a.PropietarioTenantId) && !candidatosIds.Contains(a.PropietarioTenantId)))
             .Concat(enCartera
                 .Where(e => !asignablesIds.Contains(e.PropietarioTenantId))
                 .Select(e => new EmpresaDeCarteraDeGestor(e.PropietarioTenantId, e.Nombre, true, false)))

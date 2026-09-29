@@ -144,7 +144,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     ///
     /// <para>
     /// Actualizado 2026-09-28 («Asignar empresas» a un Gestor CAE que ya existe):
-    /// <c>AsignarCarteraGestorCaeCommand.cs</c> entra con 2 llamadas y
+    /// <c>AsignarCarteraGestorCaeCommand.cs</c> entra con 1 llamada y
     /// <c>AutoridadSobreCarteraDeGestorCae.cs</c> con 1, cuyo Guid sale del
     /// Tenant de origen del propio usuario o de las listas del catálogo del
     /// Operador CAE, nunca de la petición.
@@ -261,7 +261,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.DelegacionOClienteYaValidado, "operacion.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerAsignablesAsync del Operador CAE de origen de quien da el alta, tras autorizarlo por AutoridadSobreCuentas; nunca el Guid que envía la página"),
         ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AsignarCarteraGestorCaeCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
-                "2 llamadas — el Tenant propietario de cada empresa a asignar (de ICatalogoIncorporacionCartera.ObtenerAsignablesAsync) o a retirar (de ObtenerCarteraUniversalAsync del propio Gestor CAE), ambos del Operador CAE de origen tras AutoridadSobreCarteraDeGestorCae; y el ctx.OperadorTenantId que esa misma autoridad resolvió (el Tenant de origen de quien opera) para releer la cuenta del Gestor CAE bajo el candado. Nunca un Guid de la página"),
+                "propietarioTenantId de cada empresa a asignar (de ICatalogoIncorporacionCartera.ObtenerAsignablesAsync) o a retirar (de ObtenerCarteraUniversalAsync del propio Gestor CAE), ambos del Operador CAE de origen tras AutoridadSobreCarteraDeGestorCae, que además se repite dentro del candado. Nunca un Guid de la página"),
         ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AutoridadSobreCarteraDeGestorCae.cs"] =
             new(Categoria.TenantDeOrigenDelUsuario,
                 "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y la cuenta del Gestor CAE en la propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
@@ -457,7 +457,6 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/IncorporacionCartera/ContextoOperadorCae.cs"] = 2,
-            ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AsignarCarteraGestorCaeCommand.cs"] = 2,
         };
 
         foreach (var fichero in conocidos)

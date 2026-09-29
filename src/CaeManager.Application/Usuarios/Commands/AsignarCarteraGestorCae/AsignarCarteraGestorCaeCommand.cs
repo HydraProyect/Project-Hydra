@@ -56,6 +56,15 @@ public class AsignarCarteraGestorCaeCommandHandler(
         "Cartera.EmpresaNoEnCartera",
         "Alguna de las empresas a retirar ya no está entera en la cartera de este Gestor CAE. Revisa la lista y vuelve a guardar.");
 
+    /// <summary>
+    /// El Gestor CAE ya tiene esa empresa: entera (cambió mientras decidías) o solo una parte de sus
+    /// Clientes empresariales. Ampliar de parcial a entera no lo hace este Command: el writer no
+    /// ensancha en silencio el alcance que otro decidió (ver <c>ICatalogoIncorporacionCartera</c>).
+    /// </summary>
+    public static readonly Error YaTieneCartera = Error.Crear(
+        "Cartera.YaTieneCartera",
+        "Ese Gestor CAE ya tiene esa empresa en su cartera, entera o en parte. Revisa la lista; ampliar un reparto por cliente no se hace desde aquí.");
+
     public static readonly Error EmpresaEnAmbasListas = Error.Crear(
         "Cartera.EmpresaEnAmbasListas", "Una empresa no puede asignarse y retirarse a la vez.");
 
@@ -111,17 +120,27 @@ public class AsignarCarteraGestorCaeCommandHandler(
         {
             return await transaccion.EjecutarAsync(async ct =>
             {
-                // Candado compartido de FS-25: espera a una desactivación con traspaso en
-                // curso sobre este Gestor CAE y ve su resultado.
-                await bloqueoCartera.BloquearCompartidoAsync([ctx.GestorUsuarioId], ct);
-                if (aAsignar.Count > 0)
-                {
-                    using (AmbitoTenantExplicito.Establecer(ctx.OperadorTenantId))
-                    {
-                        if (await directorioDestinos.ObtenerAsync(ctx.GestorUsuarioId, ct) is not { Activa: true })
-                            return Result.Fallo(GestorDesactivado);
-                    }
-                }
+                // Candado de FS-25 sobre el Gestor CAE. Asignar toma el compartido (espera a una
+                // desactivación con traspaso en curso y ve su resultado). Retirar toma el EXCLUSIVO:
+                // decide si la fila heredada sobra mirando las demás carteras, y una reasignación de
+                // Cliente empresarial hacia este Gestor CAE (que toma el compartido) podría confirmar
+                // una cartera parcial entre esa lectura y el borrado (Codex, #996, pasada 1).
+                if (aRetirar.Count > 0)
+                    await bloqueoCartera.BloquearExclusivoAsync(ctx.GestorUsuarioId, ct);
+                else
+                    await bloqueoCartera.BloquearCompartidoAsync([ctx.GestorUsuarioId], ct);
+
+                // Autoridad completa OTRA VEZ, ya con el candado: la de antes se leyó fuera de la
+                // transacción, y otro circuito pudo mover al Gestor CAE a otro equipo, cambiarle el
+                // rol, desactivarlo o quitarle el rol al actor (Codex, #996, pasada 1).
+                var vigente = await AutoridadSobreCarteraDeGestorCae.ResolverAsync(
+                    request.GestorUsuarioId, currentUserService, directorioUsuarios, directorioDestinos, ct);
+                if (vigente.EsFallido)
+                    return Result.Fallo(vigente.Error);
+                if (vigente.Valor.OperadorTenantId != ctx.OperadorTenantId || vigente.Valor.ActorUsuarioId != ctx.ActorUsuarioId)
+                    return Result.Fallo(AutoridadSobreCarteraDeGestorCae.SinAutoridad);
+                if (aAsignar.Count > 0 && !vigente.Valor.GestorActivo)
+                    return Result.Fallo(GestorDesactivado);
 
                 foreach (var propietarioTenantId in aRetirar)
                 {
@@ -145,6 +164,7 @@ public class AsignarCarteraGestorCaeCommandHandler(
                         {
                             null => Result.Exito(),
                             MotivoAnulacionSolicitudCartera.OperacionNoVigente => Result.Fallo(EmpresaNoAsignable),
+                            MotivoAnulacionSolicitudCartera.YaEnCartera => Result.Fallo(YaTieneCartera),
                             _ => Result.Fallo(CarteraNoGuardada),
                         };
                     }, ct);

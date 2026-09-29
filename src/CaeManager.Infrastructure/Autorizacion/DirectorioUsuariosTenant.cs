@@ -124,7 +124,11 @@ public class DirectorioUsuariosTenant(
         Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {
+            // Sin rastreo: con el DbContext del circuito, una cuenta rastreada devolvería el
+            // bloqueo de cuando se cargó, y una desactivada desde otro circuito seguiría "activa"
+            // (Codex, #996, pasada 1). Misma razón que ObtenerAsync.
             var usuario = await userManager.Users
+                .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Id == usuarioId && u.TenantId == tenantId, cancellationToken);
 
             return usuario is not null
@@ -153,10 +157,20 @@ public class DirectorioUsuariosTenant(
                 select u)
                 .ToListAsync(cancellationToken);
 
+            // Pendiente de activación = sin contraseña y sin login externo, el mismo criterio que la
+            // lista general: quien solo entra por SSO no está pendiente. (Consulta inline: la puerta
+            // no es reentrante.)
+            var ids = cuentas.Select(u => u.Id).ToList();
+            var conLoginExterno = ids.Count == 0
+                ? new HashSet<Guid>()
+                : (await identidad.UserLogins.Where(l => ids.Contains(l.UserId)).Select(l => l.UserId).Distinct()
+                    .ToListAsync(cancellationToken)).ToHashSet();
+
             var ahora = DateTimeOffset.UtcNow;
             return cuentas
                 .Select(u => new CaeManager.Application.Usuarios.MiembroDeEquipo(
-                    u.Id, u.Email ?? string.Empty, u.NombreCompleto, !u.EstaDesactivada(ahora), string.IsNullOrEmpty(u.PasswordHash)))
+                    u.Id, u.Email ?? string.Empty, u.NombreCompleto, !u.EstaDesactivada(ahora),
+                    string.IsNullOrEmpty(u.PasswordHash) && !conLoginExterno.Contains(u.Id)))
                 .ToList();
         }, cancellationToken);
 

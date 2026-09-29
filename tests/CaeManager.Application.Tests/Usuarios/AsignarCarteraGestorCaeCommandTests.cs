@@ -127,7 +127,8 @@ public class AsignarCarteraGestorCaeCommandTests
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
         e.Catalogo.Retiradas.Should().ContainSingle().Which.Should().Be((Beneficiario1, Operador, Gestor, Actor, (Guid?)Beneficiario1));
         e.Catalogo.TenantsAlGuardar.Should().Equal(Beneficiario1);
-        e.Bloqueo.Compartidos.Should().Equal(Gestor);
+        e.Bloqueo.Exclusivos.Should().BeEquivalentTo(new[] { Gestor }, "retirar decide si la fila heredada sobra: excluye a las reasignaciones de Cliente empresarial hacia este Gestor CAE");
+        e.Bloqueo.Compartidos.Should().BeEmpty();
         e.Transaccion.Confirmadas.Should().Be(1);
     }
 
@@ -325,7 +326,7 @@ public class AsignarCarteraGestorCaeCommandTests
 
         var resultado = await e.Handler().Handle(Asignar(Beneficiario1), default);
 
-        resultado.Error.Should().Be(AsignarCarteraGestorCaeCommandHandler.CarteraNoGuardada);
+        resultado.Error.Should().Be(AsignarCarteraGestorCaeCommandHandler.YaTieneCartera);
         e.Transaccion.Deshechas.Should().Be(1);
     }
 
@@ -404,6 +405,61 @@ public class AsignarCarteraGestorCaeCommandTests
         e.Transaccion.Deshechas.Should().Be(1);
     }
 
+    // --- La autoridad se repite con el candado (Codex, #996, pasada 1) ---
+
+    /// <summary>Un destino que cambia entre la primera lectura (fuera del candado) y la segunda (dentro).</summary>
+    private sealed class DestinoQueCambia(DestinoCartera antes, DestinoCartera despues) : IDirectorioDestinosCartera
+    {
+        private int _lecturas;
+
+        public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<DestinoCartera?>(++_lecturas == 1 ? antes : despues);
+
+        public Task<CarteraVigente> ObtenerCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(CarteraVigente.Vacia);
+    }
+
+    private static async Task<(Escenario Escenario, CaeManager.Domain.Common.Result Resultado)> EjecutarConCambioDeDestino(
+        DestinoCartera antes, DestinoCartera despues, AsignarCarteraGestorCaeCommand comando)
+    {
+        var e = new Escenario().ActorConRol("CoordinadorCae");
+        e.Catalogo.CarterasUniversales.Add((Operador, Gestor, new TenantEnCarteraDeGestor(Beneficiario1, "Beneficiario Uno")));
+        var resultado = await new AsignarCarteraGestorCaeCommandHandler(
+                new CurrentUserServicePorAmbito(Actor, Operador, "CoordinadorCae"), e.Directorio,
+                new DestinoQueCambia(antes, despues), e.Catalogo, e.Transaccion, e.Bloqueo)
+            .Handle(comando, default);
+        return (e, resultado);
+    }
+
+    [Fact]
+    public async Task Si_el_Gestor_CAE_cambia_de_equipo_durante_el_comando_no_se_asigna_ni_se_retira_nada()
+    {
+        var suyo = new DestinoCartera(true, "GestorCae", Actor, false);
+        var deOtro = new DestinoCartera(true, "GestorCae", Guid.NewGuid(), false);
+
+        var (asignar, r1) = await EjecutarConCambioDeDestino(suyo, deOtro, Asignar(Beneficiario2));
+        r1.Error.Should().Be(AutoridadSobreCarteraDeGestorCae.GestorFueraDeTuEquipo);
+        asignar.Catalogo.IncorporacionesDirectas.Should().BeEmpty();
+        asignar.Transaccion.Deshechas.Should().Be(1);
+
+        // Solo retirar: antes no había una segunda lectura y la retirada seguía adelante.
+        var (retirar, r2) = await EjecutarConCambioDeDestino(suyo, deOtro, Retirar(Beneficiario1));
+        r2.Error.Should().Be(AutoridadSobreCarteraDeGestorCae.GestorFueraDeTuEquipo);
+        retirar.Catalogo.Retiradas.Should().BeEmpty();
+        retirar.Catalogo.CarterasUniversales.Should().ContainSingle();
+        retirar.Transaccion.Deshechas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Si_la_cuenta_deja_de_ser_Gestor_CAE_durante_el_comando_no_se_retira_nada()
+    {
+        var suyo = new DestinoCartera(true, "GestorCae", Actor, false);
+        var (e, resultado) = await EjecutarConCambioDeDestino(suyo, suyo with { RolEfectivo = "Consulta" }, Retirar(Beneficiario1));
+
+        resultado.Error.Should().Be(AutoridadSobreCarteraDeGestorCae.CuentaNoEsGestorCae);
+        e.Catalogo.Retiradas.Should().BeEmpty();
+    }
+
     private sealed class DestinoQueSeDesactivaAlSegundaLectura : IDirectorioDestinosCartera
     {
         private int _lecturas;
@@ -422,15 +478,21 @@ public class AsignarCarteraGestorCaeCommandTests
     {
         var e = new Escenario().ActorConRol("Administrador");
         var caducada = Guid.NewGuid();
+        var parcial = Guid.NewGuid();
         e.Catalogo.CarterasUniversales.Add((Operador, Gestor, new TenantEnCarteraDeGestor(Beneficiario1, "Beneficiario Uno")));
         e.Catalogo.CarterasUniversales.Add((Operador, Gestor, new TenantEnCarteraDeGestor(caducada, "Caducada")));
+        // Asignable por el Operador CAE, pero el Gestor CAE ya tiene una parte de sus clientes: no es candidato.
+        e.Catalogo.RegistrarAsignable(Operador, Operacion(parcial, Operador), "Parcial");
+        // Candidato: asignable y sin cartera de ninguna forma.
+        e.Catalogo.RegistrarCandidato(Operador, Gestor, Operacion(Beneficiario2, Operador), "Beneficiario Dos");
 
         var lista = await Consulta(e).Handle(new ObtenerCarteraDeGestorCaeQuery(Gestor), default);
 
         lista.Should().Equal(
             new EmpresaDeCarteraDeGestor(Beneficiario2, "Beneficiario Dos", EnCartera: false, Asignable: true),
             new EmpresaDeCarteraDeGestor(Beneficiario1, "Beneficiario Uno", EnCartera: true, Asignable: true),
-            new EmpresaDeCarteraDeGestor(caducada, "Caducada", EnCartera: true, Asignable: false));
+            new EmpresaDeCarteraDeGestor(caducada, "Caducada", EnCartera: true, Asignable: false),
+            new EmpresaDeCarteraDeGestor(parcial, "Parcial", EnCartera: false, Asignable: false, CarteraParcial: true));
     }
 
     [Fact]

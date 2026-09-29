@@ -479,7 +479,11 @@
                                    @onchange="e => AlternarEmpresaDelGestor(empresa.TenantId, e.Value is bool marcada && marcada)" />
                             <span class="avatar-iniciales-empresa" aria-hidden="true">@Iniciales(empresa.Nombre)</span>
                             @empresa.Nombre
-                            @if (!empresa.Asignable)
+                            @if (empresa.CarteraParcial)
+                            {
+                                <small class="texto-ayuda-campo"> (@TextosUsuarios["AsignarEmpresasParcial"])</small>
+                            }
+                            else if (!empresa.Asignable)
                             {
                                 <small class="texto-ayuda-campo"> (@TextosUsuarios["AsignarEmpresasSoloRetirar"])</small>
                             }

@@ -451,8 +451,15 @@ public partial class UsuariosGen2Tests : BunitContext
             return Task.FromResult(EnCartera.RemoveAll(t => t.PropietarioTenantId == propietarioTenantId) > 0);
         }
 
+        /// <summary>Tenants de los que el Gestor CAE ya tiene solo una parte (reparto por Cliente empresarial).</summary>
+        public HashSet<Guid> Parciales { get; } = [];
+
         public Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerCandidatosAsync(
-            Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<TenantCandidatoIncorporacion>>(operadorTenantId != TenantDelArnes ? [] : Asignables
+                .Where(a => !Parciales.Contains(a.PropietarioTenantId)
+                            && !EnCartera.Any(e => e.PropietarioTenantId == a.PropietarioTenantId))
+                .ToList());
         public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
             Guid asignacionOperacionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ResultadoIncorporacionCartera> IncorporarAsync(
@@ -1333,6 +1340,21 @@ public partial class UsuariosGen2Tests : BunitContext
         _catalogo.Incorporadas.Should().Equal((BeneficiarioSur, AnderId));
         _catalogo.Retiradas.Should().Equal(BeneficiarioNorte);
         _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Contain("Ander Beitia");
+    }
+
+    [Fact]
+    public async Task Una_empresa_de_la_que_ya_tiene_solo_una_parte_no_se_ofrece_para_asignar()
+    {
+        SembrarAdministradoraYGestor();
+        _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte");
+        _catalogo.Parciales.Add(BeneficiarioNorte);
+        var cut = Renderizar();
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
+
+        cut.WaitForAssertion(() => CasillasAsignarEmpresas(cut).Should().ContainSingle());
+        CasillasAsignarEmpresas(cut)[0].HasAttribute("disabled").Should().BeTrue("ampliar un reparto por cliente falla siempre");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("ya tiene parte de sus clientes");
     }
 
     [Fact]
