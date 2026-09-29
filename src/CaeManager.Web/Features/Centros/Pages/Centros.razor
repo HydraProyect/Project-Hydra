@@ -40,15 +40,18 @@
         antetítulo del grupo del menú, «Exportar» como enlaces secundarios y UNA sola primaria. Las
         acciones que antes vivían dentro de la barra de trabajo (exportar, nuevo) suben aquí: nunca hay
         acciones de la página dentro de la barra de filtros. Frente al mockup «Lista Centros TALVEG.dc.html»
-        (una sola fila con todo), manda el contrato. Se conservan los dos enlaces de exportación: son
-        secundarios y no hay más acciones extra, así que no hace falta un menú «Más».
+        (una sola fila con todo), manda el contrato: «Exportar a Excel» queda como enlace secundario y
+        «Exportar asignaciones», acción extra, va dentro de «Más».
     *@
     <CabeceraPagina Titulo="Centros" Kicker="Negocio">
         <Acciones>
             @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
             {
                 <a class="enlace-exportar" href="/centros/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-                <a class="enlace-exportar" href="/asignaciones/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar asignaciones</a>
+                @* Acción extra: va en «Más» (contrato § 3, pieza 1); es una descarga, no una ruta de Blazor. *@
+                <MenuAcciones Etiqueta="Más">
+                    <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/asignaciones/exportar.xlsx", forceLoad: true)'>Exportar asignaciones</ItemMenuAccion>
+                </MenuAcciones>
                 @if (!_alcanceCero)
                 {
                     <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>

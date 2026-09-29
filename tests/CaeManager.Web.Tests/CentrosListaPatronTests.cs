@@ -249,8 +249,20 @@ public class CentrosListaPatronTests : BunitContext
 
         cut.Find("header.cabecera-pagina").TextContent.Should().Contain("Negocio");
         var acciones = cut.Find(".cabecera-pagina .acciones-cabecera");
-        acciones.TextContent.Should().Contain("Exportar a Excel").And.Contain("Exportar asignaciones").And.Contain("+ Nuevo centro");
-        acciones.QuerySelectorAll("button").Should().ContainSingle("una sola acción primaria");
+        acciones.TextContent.Should().Contain("Exportar a Excel").And.Contain("Más").And.Contain("+ Nuevo centro");
+        acciones.TextContent.Should().NotContain("Exportar asignaciones", "es una acción extra: vive dentro de «Más»");
+        acciones.QuerySelectorAll("button.boton-primario").Should().ContainSingle("una sola acción primaria");
+    }
+
+    [Fact]
+    public async Task El_menu_Mas_de_la_cabecera_ofrece_Exportar_asignaciones()
+    {
+        var cut = Renderizar(ConCentros(Centro("Centro Norte")));
+
+        await cut.Find(".cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
+            .Should().Equal("Exportar asignaciones");
     }
 
     [Fact]
