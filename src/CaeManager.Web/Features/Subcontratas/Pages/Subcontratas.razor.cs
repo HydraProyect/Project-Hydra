@@ -23,7 +23,7 @@ using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Subcontratas.Pages;
 
-public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva
+public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
@@ -125,6 +125,15 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva
     [Inject] private IStringLocalizer<TextosSubcontratas> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
 
+    /// <summary>Se cancela al retirar la página: la resolución de la empresa activa no sigue consultando servicios del circuito.</summary>
+    private readonly CancellationTokenSource _ciclo = new();
+
+    public void Dispose()
+    {
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
     protected override async Task OnInitializedAsync()
     {
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
@@ -133,7 +142,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva
         // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
         try
         {
-            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual);
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, _ciclo.Token);
             _empresaActiva = contexto.Activa;
             _sinEmpresaSeleccionada = contexto.SinSeleccion;
         }
@@ -141,6 +150,10 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva
         {
             _resolviendoEmpresa = false;
         }
+
+        // La página se retiró mientras se resolvía la empresa: nada más que pedir.
+        if (_ciclo.IsCancellationRequested)
+            return;
 
         // Sin empresa elegida no se piden los datos de la organización de origen.
         if (_sinEmpresaSeleccionada)

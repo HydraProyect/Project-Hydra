@@ -65,7 +65,8 @@ public class SubidaMasivaDelegadaTests(WebAppFixture fixture)
         await EntrarEnWorkspaceDelegadoAsync(page, Ayudas.EmailAdministradorConsultora);
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-        await page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Subida múltiple" }).ClickAsync();
+        // «Subida múltiple» vive ahora en el menú «Más» de la cabecera (una sola primaria, patrón de lista).
+        await Ayudas.PulsarAccionDeMenuAsync(page.Locator(".cabecera-pagina .menu-acciones-disparador"), "Subida múltiple");
 
         await AfirmarSubidaMultipleAbiertaAsync(page);
     }
@@ -85,6 +86,8 @@ public class SubidaMasivaDelegadaTests(WebAppFixture fixture)
             .ToBeVisibleAsync();
         await Expect(page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Subida múltiple" }))
             .ToHaveCountAsync(0);
+        // Ya no es un enlace: el acceso es el menú «Más», que Consulta tampoco tiene (todo lo que contiene escribe).
+        await Expect(page.Locator(".cabecera-pagina .menu-acciones-disparador")).ToHaveCountAsync(0);
     }
 
     private async Task EntrarEnWorkspaceDelegadoAsync(IPage page, string email)

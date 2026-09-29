@@ -198,7 +198,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
         try
         {
-            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual);
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, _ciclo.Token);
             _empresaActiva = contexto.Activa;
             _sinEmpresaSeleccionada = contexto.SinSeleccion;
         }
@@ -206,6 +206,10 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         {
             _resolviendoEmpresa = false;
         }
+
+        // La página se retiró mientras se resolvía la empresa: nada más que pedir.
+        if (_desechado)
+            return;
 
         // Misma fuente que el enlace del menú lateral (DDL-072, decisión 2026-09-28): primera persona
         // solo para quien es del Tenant propietario en perfil Cliente Directo.
