@@ -5,6 +5,9 @@ using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
@@ -146,6 +149,16 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
+    /// <summary>La empresa gestionada activa, solo para quien ve el selector de la barra lateral.</summary>
+    private ClienteAutorizadoDto? _empresaActiva;
+
+    /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
+    private bool _sinEmpresaSeleccionada;
+
+    /// <summary>La empresa activa aún no se ha resuelto: se pinta una carga en vez de la lista.</summary>
+    private bool _resolviendoEmpresa = true;
+
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IValidator<CrearEmpresaCommand> ValidadorCrear { get; set; } = default!;
 
@@ -181,10 +194,27 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _estadoFiltro = EstadoDesdeUrl();
 
+        // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
+        // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
+        try
+        {
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual);
+            _empresaActiva = contexto.Activa;
+            _sinEmpresaSeleccionada = contexto.SinSeleccion;
+        }
+        finally
+        {
+            _resolviendoEmpresa = false;
+        }
+
         // Misma fuente que el enlace del menú lateral (DDL-072, decisión 2026-09-28): primera persona
         // solo para quien es del Tenant propietario en perfil Cliente Directo.
         var primeraPersona = await Mediator.Send(new UsaRotulosPrimeraPersonaQuery());
         _tituloPagina = primeraPersona ? "Mi empresa" : "Empresas";
+
+        // Sin empresa elegida no se piden los datos de la organización de origen.
+        if (_sinEmpresaSeleccionada)
+            return;
 
         await CargarAsync();
     }
@@ -203,6 +233,9 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     protected override async Task OnParametersSetAsync()
     {
+        if (_resolviendoEmpresa || _sinEmpresaSeleccionada)
+            return;
+
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var estadoDeLaUrl = EstadoDesdeUrl();
 

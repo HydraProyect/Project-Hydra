@@ -32,19 +32,39 @@
 <PageTitle>@_tituloPagina — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
+    @* Mockup «Selector Empresa Gestionada» (lienzo 2): con varias empresas gestionadas, la lista dice de
+       cuál es. El selector de la barra lateral cambia de empresa y recarga esta misma ruta sin query. *@
+    <CabeceraEmpresaActiva Empresa="_empresaActiva" />
+
     @* Cabecera Gen 2 (Empresas TALVEG.dc.html): el kicker es el grupo del menú
        y el título lo sigue decidiendo el perfil de vocabulario del tenant
        («Empresas», o «Mi empresa» con el perfil ClienteDirecto). *@
     <CabeceraPagina Titulo="@_tituloPagina" Kicker="Negocio">
         <Acciones>
-            <a class="enlace-exportar" href="/empresas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-            @if (!_alcanceCero)
+            @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
+            {
+                <a class="enlace-exportar" href="/empresas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
+            }
+            @if (!_alcanceCero && !_sinEmpresaSeleccionada && !_resolviendoEmpresa)
             {
                 <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva empresa</Boton></SoloConEscritura>
             }
         </Acciones>
     </CabeceraPagina>
 
+    @if (_resolviendoEmpresa)
+    {
+        <EstadoCargando Filas="3" />
+    }
+    else if (_sinEmpresaSeleccionada)
+    {
+        @* Estado 4a del mockup: quien gestiona empresas externas y no tiene ninguna elegida no ve las
+           empresas de su organización presentadas como si fueran de su cartera. *@
+        <EstadoVacio NombreIcono="empresas" Titulo="@Textos["SinEmpresaTitulo"]"
+                     Descripcion="@Textos["SinEmpresaDescripcion"]" />
+    }
+    else
+    {
     @* Tarjeta de filtros del mockup, con los filtros activos dentro.
 
        Frente al mockup:
@@ -54,39 +74,27 @@
        - El filtro documental conserva su rótulo visible «Documentación»: el
          mockup lo mete en la primera opción, pero CampoSelect sin etiqueta
          deja el desplegable sin nombre accesible. *@
-    <div class="barra-filtros">
-        <CampoTexto Placeholder="Buscar por razón social…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <FiltroEstado Etiqueta="Documentación" TextoTodos="Todas" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                      Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
-
-        @* Lo que está filtrando se ve y se quita de uno en uno (#497). El
-           valor del FiltroEstado vive dentro de un desplegable cerrado, así que
-           sin esto una lista corta parece una lista corta, y no una recortada. *@
-        @if (HayFiltrosActivos)
-        {
-            <div class="chips-filtros chips-filtros-barra">
-                <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
-                @if (!string.IsNullOrWhiteSpace(_busqueda))
-                {
-                    <span class="chip-filtro">
-                        Búsqueda: "@_busqueda"
-                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroBusquedaAsync" aria-label="Quitar filtro de búsqueda"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                    </span>
-                }
-                @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
-                {
-                    <span class="chip-filtro">
-                        @EtiquetaFiltroEstado
-                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="Quitar filtro de documentación"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                    </span>
-                }
-                @* «Limpiar todo» del mockup: el mismo LimpiarFiltrosAsync que
-                   «Quitar los filtros» del estado vacío, que limpia también los
-                   dos filtros de la URL. *@
-                <button type="button" class="limpiar-filtros-barra" @onclick="LimpiarFiltrosAsync">Limpiar todo</button>
-            </div>
-        }
-    </div>
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="Buscar por razón social…"
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+        <Filtros>
+            <FiltroEstado Etiqueta="Documentación" TextoTodos="Todas" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                          Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
+        </Filtros>
+        @* Lo que está filtrando se ve y se quita de uno en uno (#497). El valor del FiltroEstado vive
+           dentro de un desplegable cerrado, así que sin esto una lista corta parece una lista corta,
+           y no una recortada. «Limpiar todo» es el mismo LimpiarFiltrosAsync que «Quitar los filtros»
+           del estado vacío, que limpia también los dos filtros de la URL. *@
+        <Chips>
+            @if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                <ChipFiltro Etiqueta="@($"Búsqueda: \"{_busqueda}\"")" EtiquetaAccesible="Quitar filtro de búsqueda" OnQuitar="QuitarFiltroBusquedaAsync" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
+            {
+                <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="Quitar filtro de documentación" OnQuitar="QuitarFiltroEstadoAsync" />
+            }
+        </Chips>
+    </BarraFiltros>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -323,6 +331,7 @@
         <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                           Etiqueta="empresa(s)" PaginaActualChanged="CambiarPaginaAsync"
                           TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+    }
     }
 </div>
 
