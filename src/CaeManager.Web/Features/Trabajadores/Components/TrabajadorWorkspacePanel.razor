@@ -141,6 +141,12 @@ else
     </Pestanas>
 }
 
+@* P1-E2b: la edición en línea de Información vive en el panel, no en la pestaña: cambiar de pestaña no la pierde
+   y no pregunta, por eso el aviso va fuera de <Pestanas>. Abrir otra ficha, volver, el
+   breadcrumb o cerrar el panel sí la pierden: el Context Workspace pregunta a este aviso
+   antes. Fuera del if/else, para que recargar la cabecera tras guardar no lo desmonte. *@
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CancelarEdicionInformacion" />
+
 @code {
     private IReadOnlyList<PestanaDefinicion> _pestanas =>
     [
@@ -179,6 +185,15 @@ else
     private string _telefonoInfo = string.Empty;
     private string _fechaNacimientoInfo = string.Empty;
     private string _observacionesInfo = string.Empty;
+
+    private readonly InstantaneaFormulario _instantaneaInformacion = new();
+
+    /// <summary>P1-E2b: la edición en línea de Información comparada con cómo se abrió.</summary>
+    private bool HayCambiosSinGuardar =>
+        _editandoInformacion && _instantaneaInformacion.Difiere(ValoresInformacion());
+
+    private object?[] ValoresInformacion() =>
+        [_nombreInfo, _apellidosInfo, _aliasInfo, _puestoInfo, _emailInfo, _telefonoInfo, _fechaNacimientoInfo, _observacionesInfo];
     private bool _guardandoInformacion;
     private string? _mensajeErrorInformacion;
     private Dictionary<string, string> _erroresInformacion = new();
@@ -262,6 +277,7 @@ else
         _mensajeErrorInformacion = null;
         _erroresInformacion = new Dictionary<string, string>();
         _editandoInformacion = true;
+        _instantaneaInformacion.Fijar(ValoresInformacion());
     }
 
     private void CancelarEdicionInformacion() => _editandoInformacion = false;
