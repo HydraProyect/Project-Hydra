@@ -5,6 +5,7 @@ using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Documentos.Commands.EliminarDocumento;
 using CaeManager.Application.Documentos.Commands.EliminarDocumentos;
 using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
@@ -80,6 +81,12 @@ public class DocumentosGen2Tests : BunitContext
 
         public Func<EliminarDocumentoCommand, Result>? AlEliminar { get; set; }
 
+        /// <summary>
+        /// Tenants que alcanza el usuario. Por defecto uno solo (el de origen): sin selector ni cabecera
+        /// de empresa gestionada, la pantalla de siempre. Retener la respuesta: <see cref="Interceptar"/>.
+        /// </summary>
+        public List<ClienteAutorizadoDto> Autorizados { get; } = [new(Guid.NewGuid(), "Propia", EsOrigen: true)];
+
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
@@ -94,6 +101,7 @@ public class DocumentosGen2Tests : BunitContext
         private object? Responder(object request) => request switch
         {
             ObtenerFiltrosGuardadosQuery => Array.Empty<FiltroGuardadoDto>(),
+            ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)Autorizados.ToList(),
             ObtenerDocumentosQuery q => Pagina(q),
             GuardarFiltroCommand => Result.Exito(Guid.NewGuid()),
             EliminarDocumentoCommand c => AlEliminar?.Invoke(c) ?? Result.Exito(),
@@ -192,9 +200,11 @@ public class DocumentosGen2Tests : BunitContext
     // ---------------------------------------------------------------- arnés
 
     private (IRenderedComponent<PaginaDocumentos> Cut, MediadorControlado Mediador) Renderizar(
-        MediadorControlado? mediador = null, string url = "documentos", string rol = "Administrador")
+        MediadorControlado? mediador = null, string url = "documentos", string rol = "Administrador",
+        Guid? tenantSeleccionado = null)
     {
         mediador ??= new MediadorControlado();
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba(tenantSeleccionado));
 
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddLocalization();
@@ -291,8 +301,13 @@ public class DocumentosGen2Tests : BunitContext
 
         var acciones = cut.Find(".cabecera-pagina .acciones-cabecera");
         acciones.TextContent.Should().Contain("+ Nuevo documento", "es el punto de partida de este caso");
-        acciones.TextContent.Should().Contain("Subida múltiple");
         acciones.TextContent.Should().Contain("Exportar a Excel");
+        acciones.TextContent.Should().NotContain("Subida múltiple",
+            "el patrón de lista deja una sola primaria: lo demás va dentro de «Más»");
+
+        // «Subida múltiple» sigue ahí, dentro de «Más».
+        cut.Find(".cabecera-pagina .menu-acciones-disparador").Click();
+        cut.FindAll(".menu-acciones-item").Select(i => i.TextContent.Trim()).Should().Contain("Subida múltiple");
     }
 
     /// <summary>
@@ -436,9 +451,9 @@ public class DocumentosGen2Tests : BunitContext
 
         var (cut, _) = Renderizar(mediador);
 
-        var selectorEstado = cut.FindAll(".barra-filtros select")[1];
+        var selectorEstado = cut.FindAll(".barra-filtros-lista select")[1];
         var filtroVencido = selectorEstado.ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
-        var filtroUrgente = cut.FindAll(".barra-filtros select")[1]
+        var filtroUrgente = cut.FindAll(".barra-filtros-lista select")[1]
             .ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Urgente) });
 
         // El vigente responde primero; el abandonado, después.
@@ -479,7 +494,7 @@ public class DocumentosGen2Tests : BunitContext
 
         // Una consulta que se queda esperando: es la que de verdad hay que cortar.
         mediador.Interceptar = p => p is ObtenerDocumentosQuery ? enVuelo.Task : null;
-        var recarga = cut.FindAll(".barra-filtros select")[1]
+        var recarga = cut.FindAll(".barra-filtros-lista select")[1]
             .ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
 
         var tokenEnVuelo = mediador.Tokens[^1];
@@ -550,7 +565,7 @@ public class DocumentosGen2Tests : BunitContext
         await AbrirConfirmacionDeLote(cut);
         cut.Markup.Should().Contain("Se ocultarán de las listas activas", "es el punto de partida de este caso");
 
-        await cut.FindAll(".barra-filtros select")[1]
+        await cut.FindAll(".barra-filtros-lista select")[1]
             .ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
 
         cut.Markup.Should().NotContain("Se ocultarán de las listas activas");
@@ -578,9 +593,10 @@ public class DocumentosGen2Tests : BunitContext
         var mediador = ConDocumentos(Documento("Reconocimiento médico"));
         mediador.Interceptar = p => p is GuardarFiltroCommand ? retenido.Task : null;
 
-        var (cut, _) = Renderizar(mediador);
+        // «Guardar filtro» vive junto a los chips (BarraFiltros): solo con un filtro activo.
+        var (cut, _) = Renderizar(mediador, url: "documentos?Estado=Vencido");
 
-        await BotonPorTexto(cut, ".barra-filtros button", "Guardar filtro").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, ".barra-filtros-lista button", "Guardar filtro").ClickAsync(new MouseEventArgs());
         // El campo rebota 300 ms sobre oninput y no engancha onchange: teclearlo
         // por DOM dejaría vivo un temporizador que se traga el clic siguiente
         // (medido en TiposDocumentoVacioPorFiltroTests). Se invoca su callback.
@@ -609,9 +625,10 @@ public class DocumentosGen2Tests : BunitContext
     [Fact]
     public void Consulta_ve_Guardar_filtro_porque_guardar_sus_filtros_es_autoservicio()
     {
-        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")), rol: "Consulta");
+        // «Guardar filtro» vive junto a los chips (BarraFiltros): solo con un filtro activo.
+        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")), url: "documentos?Estado=Vencido", rol: "Consulta");
 
-        cut.FindAll(".barra-filtros button").Select(b => b.TextContent.Trim())
+        cut.FindAll(".barra-filtros-lista button").Select(b => b.TextContent.Trim())
             .Should().Contain("Guardar filtro");
         cut.Markup.Should().NotContain("+ Nuevo documento", "Consulta no crea documentos del Tenant");
     }
@@ -762,7 +779,8 @@ public class DocumentosGen2Tests : BunitContext
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Documento, documento.Id, "Reconocimiento médico", "informacion"));
         workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
 
-        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        // Hay dos menús: «Más» de la cabecera y el «⋯» de la fila.
+        await cut.Find("table .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
         await BotonPorTexto(cut, ".menu-acciones-item", "Eliminar").ClickAsync(new MouseEventArgs());
         await ConfirmarDialogo(cut);
 
@@ -852,5 +870,227 @@ public class DocumentosGen2Tests : BunitContext
         mediador.Enviadas.OfType<RestaurarDocumentoCommand>().Select(c => c.Id).Should().Equal([elegido.Id],
             "se restaura solo lo que el lote eliminó, no lo que pidió");
         Toasts().Should().Contain(t => t.Mensaje == "1 documento(s) restaurado(s)." && t.Tono == TonoToast.Exito);
+    }
+
+    // ------------------------------------------------- lote 3 del selector: empresa gestionada activa
+
+    private static readonly Guid Origen = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
+    private static readonly Guid EmpresaNorte = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000002");
+    private static readonly Guid EmpresaSur = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000003");
+
+    /// <summary>Un Operador CAE externo con dos Tenants beneficiarios; el origen no está gestionado por Operación.</summary>
+    private static MediadorControlado ConCartera(bool origenGestionado, params DocumentoListaDto[] documentos)
+    {
+        var mediador = ConDocumentos(documentos);
+        mediador.Autorizados.Clear();
+        mediador.Autorizados.AddRange(
+        [
+            new ClienteAutorizadoDto(Origen, "Operador de prueba", EsOrigen: true, EsGestionadoPorOperacion: origenGestionado),
+            new ClienteAutorizadoDto(EmpresaNorte, "Empresa Norte", EsOrigen: false, EsGestionadoPorOperacion: true),
+            new ClienteAutorizadoDto(EmpresaSur, "Empresa Sur", EsOrigen: false, EsGestionadoPorOperacion: true),
+        ]);
+        return mediador;
+    }
+
+    [Fact]
+    public void Con_varias_empresas_gestionadas_la_cabecera_de_la_lista_dice_cual_esta_activa()
+    {
+        var (cut, _) = Renderizar(ConCartera(origenGestionado: false, Documento("Reconocimiento médico")), tenantSeleccionado: EmpresaSur);
+
+        var cabecera = cut.Find(".documentos-empresa");
+        cabecera.TextContent.Should().Contain("Empresa gestionada").And.Contain("Empresa Sur");
+        cabecera.QuerySelector(".avatar-tenant")!.TextContent.Trim().Should().Be("ES", "sin logo se pintan las iniciales");
+    }
+
+    [Fact]
+    public void Un_usuario_mono_Tenant_no_ve_cabecera_de_empresa_gestionada()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
+
+        cut.FindAll(".documentos-empresa").Should().BeEmpty();
+        cut.FindAll("table, [role=grid]").Should().NotBeEmpty("la lista se pinta como siempre");
+    }
+
+    [Fact]
+    public void Sin_empresa_elegida_y_con_el_origen_sin_gestionar_pide_elegir_y_no_muestra_datos_del_origen()
+    {
+        var (cut, mediador) = Renderizar(ConCartera(origenGestionado: false, Documento("Reconocimiento médico")));
+
+        cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
+        cut.FindAll(".barra-filtros-lista").Should().BeEmpty();
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría los datos del origen");
+        cut.Markup.Should().NotContain("+ Nuevo documento");
+        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().BeEmpty("no se piden los documentos de la organización de origen");
+        mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().BeEmpty("tampoco sus filtros guardados");
+    }
+
+    [Fact]
+    public void Con_el_origen_gestionado_y_sin_empresa_elegida_la_lista_es_la_del_origen()
+    {
+        var (cut, _) = Renderizar(ConCartera(origenGestionado: true, Documento("Reconocimiento médico")));
+
+        cut.Markup.Should().NotContain("Selecciona una empresa de tu cartera");
+        cut.Find(".documentos-empresa").TextContent.Should().Contain("Operador de prueba");
+    }
+
+    [Fact]
+    public void Mientras_se_resuelve_la_empresa_activa_no_se_monta_la_lista_ni_se_ofrece_la_exportacion()
+    {
+        var puerta = new TaskCompletionSource<object?>();
+        var mediador = ConCartera(origenGestionado: false, Documento("Reconocimiento médico"));
+        mediador.Interceptar = p => p is ObtenerClientesAutorizadosQuery ? puerta.Task : null;
+
+        var (cut, _) = Renderizar(mediador, tenantSeleccionado: EmpresaSur);
+
+        cut.FindAll(".barra-filtros-lista").Should().BeEmpty();
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty();
+        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().BeEmpty();
+
+        puerta.SetResult((IReadOnlyList<ClienteAutorizadoDto>)mediador.Autorizados.ToList());
+
+        cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-lista").Should().NotBeEmpty());
+        cut.FindAll("a.enlace-exportar").Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void Un_enlace_profundo_no_abre_el_drawer_mientras_hay_que_elegir_empresa()
+    {
+        var mediador = ConCartera(origenGestionado: false);
+
+        var (cut, _) = Renderizar(mediador, url: "documentos?accion=crear");
+
+        cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
+        mediador.Enviadas.Select(r => r.GetType().Name).Should().OnlyContain(
+            n => n == nameof(ObtenerClientesAutorizadosQuery),
+            "el drawer de alta escribiría en el Tenant de origen y solo la consulta de la cartera es legítima aquí");
+    }
+
+    [Fact]
+    public void La_lista_nunca_pide_consultas_agregadas_entre_Tenants()
+    {
+        // I5: «Todos» existe solo en Mi trabajo y Dashboard; una lista trabaja sobre un Tenant.
+        var (cut, mediador) = Renderizar(ConCartera(origenGestionado: false, Documento("Reconocimiento médico")), tenantSeleccionado: EmpresaNorte);
+
+        cut.FindAll("table, [role=grid]").Should().NotBeEmpty("control positivo: la lista se pintó");
+        mediador.Enviadas.Select(r => r.GetType().Namespace ?? "").Should().NotContain(
+            n => n.Contains(".Dashboard") || n.Contains(".MiTrabajo"));
+    }
+
+    // ------------------------------------------------- patrón único de lista
+
+    [Fact]
+    public void Los_filtros_activos_salen_como_chips_y_cada_chip_quita_su_filtro_de_la_url()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")),
+            url: "documentos?q=medico&Ambito=Trabajador&Estado=Vencido");
+
+        var chips = cut.FindAll(".barra-filtros-lista .chip-filtro").Select(c => c.TextContent.Trim()).ToList();
+        chips.Should().HaveCount(3);
+        chips.Should().Contain(c => c.Contains("medico")).And.Contain(c => c.Contains("Trabajador")).And.Contain(c => c.Contains("Vencido"));
+
+        cut.FindAll(".barra-filtros-lista .chip-filtro")
+            .Single(c => c.TextContent.Contains("Vencido")).QuerySelector(".chip-filtro-quitar")!.Click();
+
+        var url = Services.GetRequiredService<NavigationManager>().Uri;
+        url.Should().NotContain("Estado=").And.Contain("Ambito=Trabajador").And.Contain("q=medico");
+        cut.FindAll(".barra-filtros-lista .chip-filtro").Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void Limpiar_todo_quita_los_tres_filtros_de_la_url()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")),
+            url: "documentos?q=medico&Ambito=Trabajador&Estado=Vencido");
+
+        cut.Find(".limpiar-filtros-barra").Click();
+
+        var url = Services.GetRequiredService<NavigationManager>().Uri;
+        url.Should().NotContain("q=").And.NotContain("Estado=").And.NotContain("Ambito=");
+        cut.FindAll(".barra-filtros-lista .chip-filtro").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Los_filtros_llevan_su_etiqueta_visible_encima()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
+
+        var etiquetas = cut.FindAll(".barra-filtros-lista label").Select(l => l.TextContent.Trim()).ToList();
+        etiquetas.Should().Contain("Ámbito").And.Contain("Estado");
+    }
+
+    [Fact]
+    public void Las_pestanas_se_quedan_entre_la_cabecera_y_la_barra_de_filtros()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
+
+        var html = cut.Markup;
+        var cabecera = html.IndexOf("cabecera-pagina", StringComparison.Ordinal);
+        var pestanas = html.IndexOf("role=\"tablist\"", StringComparison.Ordinal);
+        var filtros = html.IndexOf("barra-filtros-lista", StringComparison.Ordinal);
+        cabecera.Should().BeGreaterThanOrEqualTo(0);
+        pestanas.Should().BeGreaterThan(cabecera);
+        filtros.Should().BeGreaterThan(pestanas);
+    }
+
+    [Fact]
+    public void Nunca_hay_acciones_de_la_pagina_dentro_de_la_barra_de_filtros()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
+
+        cut.FindAll(".barra-filtros-lista a").Should().BeEmpty();
+        cut.FindAll(".cabecera-pagina .acciones-cabecera a.enlace-exportar").Should().ContainSingle("Exportar es la acción secundaria de la cabecera");
+    }
+
+    [Fact]
+    public void El_paginador_ofrece_Mostrar_N_y_cambiarlo_vuelve_a_pedir_con_ese_tamano()
+    {
+        var mediador = ConDocumentos(Documento("Reconocimiento médico"));
+        var (cut, _) = Renderizar(mediador);
+
+        cut.Find(".paginador-tamano-select").Change("50");
+
+        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().TamanoPagina.Should().Be(50);
+    }
+
+    [Fact]
+    public async Task El_propietario_de_la_fila_abre_la_vista_previa_lateral_y_su_pie_abre_la_ficha_360()
+    {
+        var documento = Documento("Reconocimiento médico");
+        var (cut, _) = Renderizar(ConDocumentos(documento));
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+
+        cut.FindAll(".drawer-preview-documento").Should().BeEmpty("control: cerrada al inicio");
+        await cut.Find("table .nombre-fila-entidad").ClickAsync(new MouseEventArgs());
+
+        var vista = cut.Find(".drawer-preview-documento");
+        vista.TextContent.Should().Contain("Reconocimiento médico").And.Contain("Salas Moreno, Javier");
+        workspace.EstaAbierto.Should().BeFalse("la vista previa no es el panel de 520 px");
+
+        await cut.Find(".pie-preview-documento button").ClickAsync(new MouseEventArgs());
+
+        workspace.EstaAbierto.Should().BeTrue("«Abrir ficha 360» abre el panel del documento");
+        cut.FindAll(".drawer-preview-documento").Should().BeEmpty("abrir la ficha cierra la vista previa");
+    }
+
+    [Fact]
+    public async Task El_menu_de_fila_ofrece_Vista_previa_y_Ver_ficha_360_en_lugar_de_Ver()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
+
+        await cut.Find("table .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+
+        var items = cut.FindAll(".menu-acciones-item").Select(i => i.TextContent.Trim()).ToList();
+        items.Should().Contain("Vista previa").And.Contain("Ver ficha 360").And.Contain("Eliminar");
+        items.Should().NotContain("Ver");
+        items.IndexOf("Eliminar").Should().Be(items.Count - 1, "el destructivo va el último");
+    }
+
+    [Fact]
+    public void El_recuento_de_la_barra_de_herramientas_dice_cuantos_documentos_coinciden()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico"), Documento("Formación PRL")),
+            url: "documentos?Estado=Vencido");
+
+        cut.Find(".conteo-documentos").TextContent.Should().Be("2 documentos con estos filtros");
     }
 }
