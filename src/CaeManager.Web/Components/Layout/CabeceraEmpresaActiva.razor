@@ -1,0 +1,22 @@
+@*
+    Cabecera de las pantallas de un Tenant beneficiario a la vez (mockup «Selector Empresa Gestionada»,
+    lienzo 2): con varias empresas gestionadas, la lista dice de cuál es. Solo se pinta cuando el
+    selector de la barra lateral es visible (Empresa != null). Compartida por las pantallas del lote 3
+    (Subcontratas, Empresas, Clientes, Centros, Documentos): quien la use no repite marcado ni CSS.
+*@
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
+
+@if (Empresa is not null)
+{
+    <div class="cabecera-empresa-activa">
+        <AvatarTenant Nombre="@Empresa.Nombre" LogoUrl="@AvatarTenant.UrlDeLogo(Empresa.TenantId, Empresa.LogoVersion)" />
+        <span class="cabecera-empresa-activa-texto">
+            <span class="cabecera-empresa-activa-rotulo">@Comunes["SelectorTenantRotulo"]</span>
+            <span class="cabecera-empresa-activa-nombre" title="@Empresa.Nombre">@Empresa.Nombre</span>
+        </span>
+    </div>
+}
+
+@code {
+    [Parameter] public CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados.ClienteAutorizadoDto? Empresa { get; set; }
+}

@@ -5,6 +5,9 @@ using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
+using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Subcontratas;
@@ -107,6 +110,16 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Comando del palette "Crear subcontrata": /subcontratas?accion=crear abre el modal directamente — mismo patrón que Clientes/Empresas/Centros/Trabajadores/Documentos.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
 
+    /// <summary>La empresa gestionada activa, solo para quien ve el selector de la barra lateral.</summary>
+    private ClienteAutorizadoDto? _empresaActiva;
+
+    /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
+    private bool _sinEmpresaSeleccionada;
+
+    /// <summary>La empresa activa aún no se ha resuelto: se pinta una carga en vez de la lista.</summary>
+    private bool _resolviendoEmpresa = true;
+
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IValidator<CrearSubcontrataCommand> ValidadorCrear { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosSubcontratas> Textos { get; set; } = default!;
@@ -115,6 +128,24 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva
     protected override async Task OnInitializedAsync()
     {
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
+
+        // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
+        // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
+        try
+        {
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual);
+            _empresaActiva = contexto.Activa;
+            _sinEmpresaSeleccionada = contexto.SinSeleccion;
+        }
+        finally
+        {
+            _resolviendoEmpresa = false;
+        }
+
+        // Sin empresa elegida no se piden los datos de la organización de origen.
+        if (_sinEmpresaSeleccionada)
+            return;
+
         await CargarAsync();
 
         if (Accion == "crear")
@@ -124,6 +155,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Se re-ejecuta en cada navegación dentro de la propia página — mismo criterio que Centros.razor.cs.</summary>
     protected override async Task OnParametersSetAsync()
     {
+        if (_resolviendoEmpresa || _sinEmpresaSeleccionada)
+            return;
+
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (deLaUrl == _busqueda)
             return;
