@@ -117,6 +117,26 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
+    /// <summary>
+    /// P1-E2b: la zona del Cliente empresarial elegido (pestañas, alta y edición de tarifa): se
+    /// desmonta sin navegar al cambiar de Cliente, así que el cambio pregunta con el mismo aviso.
+    /// </summary>
+    private readonly AmbitoCambiosSinGuardar _ambitoCliente = new();
+
+    /// <summary>
+    /// Cambiar de Cliente empresarial cierra el alta y la edición de tarifa (OnClienteChangedAsync):
+    /// con algo escrito se pregunta antes. Si se sigue editando, la selección no cambia y el
+    /// <c>@bind:get</c> devuelve el selector al Cliente de antes.
+    /// </summary>
+    private async Task CambiarClienteAsync(Guid nuevo)
+    {
+        if (nuevo == _clienteSeleccionadoId) return;
+        if (!await _ambitoCliente.ConfirmarAbandonoAsync()) return;
+
+        _clienteSeleccionadoId = nuevo;
+        await OnClienteChangedAsync();
+    }
+
     private async Task OnClienteChangedAsync()
     {
         _tarifas = [];
@@ -289,6 +309,20 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
         {
             _guardando = false;
         }
+    }
+
+    /// <summary>
+    /// «Editar» sobre otra fila sustituye la edición abierta: si esa tenía un precio o una moneda
+    /// cambiados, se pregunta antes (con el mismo aviso) en vez de tirarlos sin decir nada.
+    /// </summary>
+    private async Task IniciarEdicionAsync(TarifaClienteDto tarifa)
+    {
+        var sustituyeUnaEdicionSucia = _tarifaEditandoId != Guid.Empty
+            && _tarifaEditandoId != tarifa.Id
+            && _instantaneaEdicion.Difiere(ValoresEdicion());
+        if (sustituyeUnaEdicionSucia && !await _ambitoCliente.ConfirmarAbandonoAsync()) return;
+
+        IniciarEdicion(tarifa);
     }
 
     private void IniciarEdicion(TarifaClienteDto tarifa)

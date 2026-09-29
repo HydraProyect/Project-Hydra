@@ -70,11 +70,24 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
-    private Task OnClienteSeleccionadoAsync(string valor)
+    private async Task OnClienteSeleccionadoAsync(string valor)
     {
-        _clienteSeleccionadoId = Guid.TryParse(valor, out var id) ? id : Guid.Empty;
-        return OnClienteChangedAsync();
+        var nuevo = Guid.TryParse(valor, out var id) ? id : Guid.Empty;
+
+        // Cambiar de Cliente empresarial cierra el panel de detalle (OnClienteChangedAsync): si
+        // tenía algo escrito, se pregunta antes y, si se sigue editando, la selección vuelve
+        // al Cliente de antes (nueva versión del selector: su <select> ya muestra el elegido).
+        if (nuevo != _clienteSeleccionadoId && !await _ambitoDetalle.ConfirmarAbandonoAsync())
+        {
+            _versionSelectorCliente++;
+            return;
+        }
+
+        _clienteSeleccionadoId = nuevo;
+        await OnClienteChangedAsync();
     }
+
+    private int _versionSelectorCliente;
 
     private async Task OnClienteChangedAsync()
     {
@@ -298,15 +311,66 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
     private readonly InstantaneaFormulario _instantanea = new();
     private readonly InstantaneaFormulario _instantaneaCierre = new();
 
+    private readonly InstantaneaFormulario _instantaneaEdicionInfo = new();
+    private readonly InstantaneaFormulario _instantaneaTecnico = new();
+
     /// <summary>
-    /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de nuevo
-    /// proyecto o el modal de cerrar proyecto comparados con cómo se abrieron (la fecha de
-    /// hoy que traen puesta no es un cambio). Lo lee AvisoCambiosSinGuardar; cerrados
-    /// (también tras guardar) nunca hay nada que perder.
+    /// P1-E2b: único punto de verdad de «hay cambios» en la página: cualquiera de los cuatro
+    /// formularios (drawer de nuevo proyecto, modal de cerrar proyecto, edición de la
+    /// información del panel de detalle y alta de técnico) comparado con cómo se abrió (la
+    /// fecha de hoy que traen puesta no es un cambio). Lo lee AvisoCambiosSinGuardar; cerrados
+    /// (también tras guardar) nunca hay nada que perder. Cada drawer o modal pregunta solo por
+    /// su propio contenido (HayCambiosEnElDrawer, HayCambiosEnElModalDeCierre).
     /// </summary>
     private bool HayCambiosSinGuardar =>
-        (_drawerVisible && _instantanea.Difiere(ValoresFormulario()))
-        || (_mostrarCerrarConfirm && _instantaneaCierre.Difiere(_fechaCierre));
+        HayCambiosEnElDrawer || HayCambiosEnElModalDeCierre || HayCambiosEnElDetalle;
+
+    private bool HayCambiosEnElDrawer => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+
+    private bool HayCambiosEnElModalDeCierre => _mostrarCerrarConfirm && _instantaneaCierre.Difiere(_fechaCierre);
+
+    /// <summary>
+    /// La edición de la información y el alta de técnico del panel de detalle: cerrar el panel,
+    /// abrir otro proyecto o cambiar de Cliente empresarial los descartan sin navegar, así que
+    /// esas salidas preguntan con el mismo aviso (ConfirmarAbandonoAsync del ámbito).
+    /// </summary>
+    private bool HayCambiosEnElDetalle =>
+        (_editandoInfo && _instantaneaEdicionInfo.Difiere(ValoresEdicionInfo()))
+        || (_mostrarFormularioTecnico && _instantaneaTecnico.Difiere(ValoresTecnico()));
+
+    private object?[] ValoresEdicionInfo() => [_editNombre, _editFechaFinPrevista, _editNotas];
+
+    private object?[] ValoresTecnico() => [_nuevoTecnicoTrabajadorId, _nuevoTecnicoFechaAlta];
+
+    /// <summary>
+    /// El panel de detalle como zona que se desmonta sin navegar: cerrarlo, abrir otro
+    /// proyecto o cambiar de Cliente empresarial preguntan con el aviso antes de hacerlo.
+    /// </summary>
+    private readonly AmbitoCambiosSinGuardar _ambitoDetalle = new();
+
+    /// <summary>Cierra el panel de detalle (la X) preguntando antes si hay algo escrito que se perdería.</summary>
+    private async Task CerrarDetalleConAvisoAsync()
+    {
+        if (!await _ambitoDetalle.ConfirmarAbandonoAsync()) return;
+        CerrarDetalle();
+    }
+
+    /// <summary>
+    /// Cerrar, reabrir o eliminar el proyecto cuyo detalle está abierto recarga o cierra el panel y tira lo que
+    /// haya a medias en él (edición de información, alta de técnico): se pregunta antes de pedir la confirmación
+    /// propia de la acción. Sobre otra fila no se pierde nada del panel, así que no pregunta.
+    /// </summary>
+    private async Task<bool> ConfirmarQueNoSePierdeElDetalleAsync(Guid idDelProyecto) =>
+        idDelProyecto != _proyectoSeleccionadoId
+        || !HayCambiosEnElDetalle
+        || await _ambitoDetalle.ConfirmarAbandonoAsync();
+
+    /// <summary>Abre el detalle de otro proyecto preguntando antes si el panel actual tiene cambios sin guardar.</summary>
+    private async Task AbrirDetalleConAvisoAsync(Guid id)
+    {
+        if (!await _ambitoDetalle.ConfirmarAbandonoAsync()) return;
+        await SeleccionarProyectoAsync(id);
+    }
 
     private object?[] ValoresFormulario() => [_nuevoCentroId, _nuevoNombre, _nuevaFechaInicio, _nuevaFechaFinPrevista, _nuevasNotas];
 
@@ -314,6 +378,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
     {
         _drawerVisible = false;
         _mostrarCerrarConfirm = false;
+        _mostrarFormularioTecnico = false;
+        CancelarEdicionInfo();
     }
 
     private Task CerrarDrawerAsync(bool visible)
@@ -432,7 +498,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
                 // histórico del enlace equivocado no puede reaparecer.
                 if (_idEnfocado is { } idAbrir && IndiceEnfocado(visibles) >= 0)
                 {
-                    await SeleccionarProyectoAsync(idAbrir);
+                    await AbrirDetalleConAvisoAsync(idAbrir);
                     return;
                 }
                 break;
@@ -501,6 +567,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
         _proyectoSeleccionadoId = null;
         _detalle = null;
         _editandoInfo = false;
+        _mostrarFormularioTecnico = false;
         _mostrarCerrarConfirm = false;
     }
 
@@ -557,6 +624,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
     {
         _pestanaDetalle = "informacion";
         _editandoInfo = true;
+        _instantaneaEdicionInfo.Fijar(ValoresEdicionInfo());
     }
 
     private void CancelarEdicionInfo()
@@ -641,8 +709,9 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
     private string _fechaCierre = string.Empty;
     private string? _errorCierre;
 
-    private void AbrirCerrarConfirm(Guid id)
+    private async Task AbrirCerrarConfirmAsync(Guid id)
     {
+        if (!await ConfirmarQueNoSePierdeElDetalleAsync(id)) return;
         _idACerrar = id;
         _fechaCierre = Hoy.ToString("yyyy-MM-dd");
         _errorCierre = null;
@@ -700,8 +769,9 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
     private DateOnly? _fechaCierreAReabrir;
     private bool _reabriendo;
 
-    private void AbrirReabrirConfirm(Guid id)
+    private async Task AbrirReabrirConfirmAsync(Guid id)
     {
+        if (!await ConfirmarQueNoSePierdeElDetalleAsync(id)) return;
         var fila = _proyectos.FirstOrDefault(p => p.Id == id);
         _idAReabrir = id;
         _nombreAReabrir = fila?.Nombre ?? _detalle?.Nombre ?? string.Empty;
@@ -745,8 +815,9 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
     private string _nombreAEliminar = string.Empty;
     private bool _eliminando;
 
-    private void AbrirEliminar(Guid id, string nombre)
+    private async Task AbrirEliminarAsync(Guid id, string nombre)
     {
+        if (!await ConfirmarQueNoSePierdeElDetalleAsync(id)) return;
         _idAEliminar = id;
         _nombreAEliminar = nombre;
         _confirmarEliminarVisible = true;
@@ -824,6 +895,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
         _nuevoTecnicoFechaAlta = Hoy.ToString("yyyy-MM-dd");
         _errorTecnico = null;
         _mostrarFormularioTecnico = true;
+        _instantaneaTecnico.Fijar(ValoresTecnico());
     }
 
     private async Task AsignarTecnicoAsync()
