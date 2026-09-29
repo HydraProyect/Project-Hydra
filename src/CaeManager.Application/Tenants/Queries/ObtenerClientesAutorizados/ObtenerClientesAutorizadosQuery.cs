@@ -174,14 +174,26 @@ public class ObtenerClientesAutorizadosQueryHandler(
                 EsGestionadoPorOperacion: await TenantsBeneficiariosAutorizados.OrigenGestionadoAsync(
                     operaciones, usuarioId.Value, tenantOrigenId.Value, ahora, cancellationToken)));
 
-        var carteras = await TenantsBeneficiariosAutorizados
+        var porOperacion = (await TenantsBeneficiariosAutorizados
             .CarterasPorOperacion(operaciones, usuarioId.Value, tenantOrigenId.Value, ahora)
-            .Select(v => new { Tenant = v.Operacion.PropietarioTenantId, v.Cartera.Rol })
-            .ToListAsync(cancellationToken);
-        var porOperacion = carteras.Select(v => v.Tenant).ToHashSet();
-        var comoGestorCae = carteras
-            .Where(v => v.Rol == ContextoOperadorCae.RolGestorCae)
-            .Select(v => v.Tenant).ToHashSet();
+            .Select(v => v.Operacion.PropietarioTenantId)
+            .ToListAsync(cancellationToken)).ToHashSet();
+
+        // Decisión 7 quater: el rol se resuelve con la MISMA selección de operación y la misma
+        // precedencia de carteras que el rol efectivo (RolPorOperacionAsync), no con «existe alguna
+        // cartera de ese rol»: con una universal Consulta y una parcial GestorCae manda la universal.
+        var comoGestorCae = new HashSet<Guid>();
+        foreach (var tenantId in porOperacion)
+        {
+            if (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
+                    operaciones, usuarioId.Value, tenantOrigenId.Value, tenantId, ahora, cancellationToken)
+                is not { } operacionId)
+                continue;
+            if (await TenantsBeneficiariosAutorizados.RolPorOperacionAsync(
+                    operaciones, usuarioId.Value, tenantOrigenId.Value, tenantId, operacionId, ahora, cancellationToken)
+                == ContextoOperadorCae.RolGestorCae)
+                comoGestorCae.Add(tenantId);
+        }
 
         var porDelegacion = await TenantsBeneficiariosAutorizados
             .AsignacionesHeredadasVigentes(dbContext, usuarioId.Value, ahora)

@@ -70,6 +70,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     private readonly Guid _gestorUnico = Guid.NewGuid();
     private readonly Guid _gestorConOrigen = Guid.NewGuid();
     private readonly Guid _consultaUnico = Guid.NewGuid();
+    private readonly Guid _consultaUniversalGestorParcial = Guid.NewGuid();
     private readonly Guid _administradorSinCartera = Guid.NewGuid();
     private CaeManagerDbContext _propietario = null!;
     private readonly List<IAsyncDisposable> _desechables = [];
@@ -198,6 +199,19 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 await _propietario.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionA),
                 _consultaUnico, Roles.Consulta, AmbitoAsignacion.Universal, ayer, null, ahora));
+            // Universal Consulta + parcial GestorCae en el MISMO Tenant: el rol efectivo es el de la
+            // universal (Consulta), así que tampoco hay defecto (revisión Codex, pasada 1).
+            var operacionDeA = await _propietario.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionA);
+            var clienteDeA = await _propietario.Empresas.SingleAsync(e => e.RazonSocial == "Cliente empresarial de A");
+            // La parcial se crea PRIMERO: el Id (v7) la ordenaría antes, así que solo la precedencia
+            // «universal primero» hace que gane la Consulta.
+            _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                operacionDeA, _consultaUniversalGestorParcial, Roles.GestorCae,
+                AmbitoAsignacion.DeRelacionCliente(clienteDeA.Id), ayer, null, ahora));
+            await _propietario.SaveChangesAsync();
+            await Task.Delay(20); // Ids v7: milisegundos distintos, la parcial queda con el Id menor.
+            _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                operacionDeA, _consultaUniversalGestorParcial, Roles.Consulta, AmbitoAsignacion.Universal, ayer, null, ahora));
             await _propietario.SaveChangesAsync();
         }
         // Además, una operación INTERNA no raíz (propietario = operador = origen)
@@ -506,6 +520,25 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         (await FijarPorDefectoAsync(httpContext, _administradorSinCartera)).Should().BeNull(
             "el Administrador sin cartera sigue entrando en su Tenant de origen");
         CookieEmitida(httpContext, ClienteActivoSeleccionado.NombreCookie).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Decision_7_quater_cartera_universal_Consulta_y_parcial_GestorCae_el_rol_es_el_de_la_universal_sin_defecto()
+    {
+        // El rol efectivo (fan-out) sale de la misma función que la marca de la lista.
+        var lista = await ListaAsync(_consultaUniversalGestorParcial);
+        lista.Single(c => !c.EsOrigen).EsCarteraGestorCae.Should().BeFalse("manda la cartera universal (Consulta)");
+        ClientesAutorizados.TenantPorDefecto(lista).Should().BeNull();
+        ClientesAutorizados.SelectorVisible(lista, ClientesAutorizados.Activo(lista, _a)).Should().BeTrue(
+            "dentro del Tenant externo el selector es su control para volver");
+
+        await using var runtime = CrearRuntime(_consultaUniversalGestorParcial, tenantDeLaPeticion: _origen);
+        var usuario = CrearCurrentUserService(runtime, _consultaUniversalGestorParcial);
+        using (AmbitoTenantExplicito.Establecer(_a))
+            (await usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.Consulta);
+
+        var httpContext = PeticionDePagina(_consultaUniversalGestorParcial, "/trabajadores", "");
+        (await FijarPorDefectoAsync(httpContext, _consultaUniversalGestorParcial)).Should().BeNull();
     }
 
     [Fact]
