@@ -54,6 +54,12 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // que da valor a la aserción final: sin esta línea base, "hay empresas" al
         // final podría significar simplemente que el origen también las tenía.
         //
+        // Tras #1002, en el origen activo y sin gestionar, con algún Tenant externo
+        // gestionado en su cartera, Empresas muestra el estado 4a («Selecciona una
+        // empresa de tu cartera») y no monta ni la lista ni «Aún no hay empresas».
+        // Que en el origen no se muestran datos se comprueba, pues, con ese estado 4a
+        // visible y con la lista de filas y «Aún no hay empresas» ausentes.
+        //
         // Su cartera tiene un único Tenant beneficiario externo y su origen no está
         // gestionado, así que al entrar ese Tenant es el activo por defecto
         // (decisión 5 del selector de Tenant beneficiario). La línea base exige
@@ -61,8 +67,12 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // para que el defecto no se reactive en la navegación siguiente.
         await Ayudas.CambiarClienteActivoAsync(page, fixture, Ayudas.NombreTenantConsultora);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await Assertions.Expect(page.GetByText("Aún no hay empresas"))
+        await Assertions.Expect(page.GetByText("Selecciona una empresa de tu cartera"))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await Assertions.Expect(page.GetByText("Aún no hay empresas"))
+            .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await Assertions.Expect(page.Locator(".lista-filas-acordeon"))
+            .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         // ── Cambio de workspace ───────────────────────────────────────────────
         // HO-136-05: el primer intento de arreglar este test usaba el
@@ -83,7 +93,9 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // depender de cartera (AlcanceDatosService.TieneAccesoTotalAsync) — así
         // que si la selección de workspace se pierde en el circuito, la única
         // explicación de un "Aún no hay empresas" en la aserción final vuelve a
-        // ser el propio circuito, no un alcance vacío por delegación.
+        // ser el propio circuito, no un alcance vacío por delegación. Y si la
+        // selección se perdiera, el origen volvería a mostrar el estado 4a de la
+        // línea base, no la lista de filas.
         //
         // Vuelve al inicio primero: el selector redirige a returnUrl, y si el cambio
         // ocurriera estando ya en /empresas el paso siguiente no navegaría a ningún
@@ -213,6 +225,12 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
             + "mide lo que dice medir.");
 
         await Assertions.Expect(page.GetByText("Aún no hay empresas")).Not.ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await Assertions.Expect(page.GetByText("Selecciona una empresa de tu cartera")).Not.ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        // La lista de filas SÍ visible demuestra que la selección sobrevivió al circuito:
+        // el origen (línea base) no la muestra.
+        await Assertions.Expect(page.Locator(".lista-filas-acordeon")).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
     }
 

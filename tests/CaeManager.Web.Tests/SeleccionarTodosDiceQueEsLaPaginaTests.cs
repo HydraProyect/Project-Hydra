@@ -2,6 +2,7 @@ using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Domain.Tenants;
@@ -45,6 +46,7 @@ public class SeleccionarTodosDiceQueEsLaPaginaTests : BunitContext
             {
                 ObtenerPerfilVocabularioActualQuery => PerfilVocabularioTenant.Consultora,
                 UsaRotulosPrimeraPersonaQuery => false,
+                ObtenerClientesAutorizadosQuery => (object)(IReadOnlyList<ClienteAutorizadoDto>)[new(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 ObtenerEmpresasQuery q => (object)new ResultadoPaginado<EmpresaListaDto>(
                     Pagina, TotalFiltrado, q.Pagina, q.TamanoPagina),
                 _ => throw new NotSupportedException($"Consulta no prevista: {request.GetType().Name}.")
@@ -84,6 +86,7 @@ public class SeleccionarTodosDiceQueEsLaPaginaTests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Pagina = pagina, TotalFiltrado = totalFiltrado });
         Services.AddScoped<ToastService>();
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         // Empresas pinta con IStringLocalizer<TextosEmpresas> (la «Vista rápida» del menú de fila).
         Services.AddLocalization();
         Services.AddScoped<ContextWorkspaceService>();
