@@ -90,6 +90,13 @@ public class TrabajadoresListaGen2Tests : BunitContext
         /// <summary>Por defecto, un usuario mono-Tenant: sin selector ni cabecera de empresa gestionada.</summary>
         /// <summary>Si se fija, la respuesta de la lista de Tenants autorizados espera a esta tarea (mediador asíncrono).</summary>
         public Task? RetenerAutorizados { get; set; }
+
+        /// <summary>El token con el que la página pidió la lista de Tenants autorizados (solo con <see cref="RetenerAutorizados"/>).</summary>
+        public CancellationToken? TokenDeAutorizados { get; private set; }
+
+        /// <summary>Si es cierto, la respuesta retenida ignora el token: simula una resolución que vuelve normal tras cancelarse.</summary>
+        public bool IgnorarCancelacionDeAutorizados { get; set; }
+
         public List<ClienteAutorizadoDto> Autorizados { get; } = [new(Guid.NewGuid(), "Propia", EsOrigen: true)];
         /// <summary>false = Operador CAE externo trabajando en un Tenant beneficiario ajeno.</summary>
         public bool EsDelPropioTenant { get; set; } = true;
@@ -111,7 +118,12 @@ public class TrabajadoresListaGen2Tests : BunitContext
             Enviadas.Add(request);
 
             if (request is ObtenerClientesAutorizadosQuery && RetenerAutorizados is { } espera)
-                await espera;
+            {
+                TokenDeAutorizados = cancellationToken;
+                // Un mediador real lanza al cancelarse; uno que "vuelve" con el contexto por defecto es el caso
+                // que la guarda de Dispose de la página debe cubrir por sí sola.
+                await (IgnorarCancelacionDeAutorizados ? espera : espera.WaitAsync(cancellationToken));
+            }
 
             if (Retener?.Invoke(request) is { } retenida)
                 return (TResponse)await retenida;
@@ -309,7 +321,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
         var cut = Renderizar(ConCartera(origenGestionado: false));
 
-        var cabecera = cut.Find(".trabajadores-empresa");
+        var cabecera = cut.Find(".cabecera-empresa-activa");
         cabecera.TextContent.Should().Contain("Empresa gestionada").And.Contain("Empresa Sur");
         cabecera.QuerySelector(".avatar-tenant")!.TextContent.Trim().Should().Be("ES", "sin logo se pintan las iniciales");
     }
@@ -319,7 +331,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediatorFalso());
 
-        cut.FindAll(".trabajadores-empresa").Should().BeEmpty();
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
         cut.FindAll("table, [role=grid]").Should().NotBeEmpty("la lista se pinta como siempre");
     }
 
@@ -345,7 +357,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.Markup.Should().NotContain("Selecciona una empresa de tu cartera");
-        cut.Find(".trabajadores-empresa").TextContent.Should().Contain("Operador de prueba");
+        cut.Find(".cabecera-empresa-activa").TextContent.Should().Contain("Operador de prueba");
     }
 
     [Fact]
@@ -368,6 +380,114 @@ public class TrabajadoresListaGen2Tests : BunitContext
         cut.FindAll("a.enlace-exportar").Should().BeEmpty();
         ConsultasDeLista(mediador).Should().Be(0, "ni antes ni después de resolverse se pide la lista del origen");
     }
+
+    /// <summary>
+    /// En el estado 4a no hay empresa elegida: la cabecera no enseña el Tenant de origen como si lo fuera,
+    /// encima del «Selecciona una empresa» (hueco medio preexistente: la página resolvía por su cuenta).
+    /// </summary>
+    [Fact]
+    public void Sin_empresa_elegida_la_cabecera_de_empresa_activa_no_se_pinta()
+    {
+        var cut = Renderizar(ConCartera(origenGestionado: false));
+
+        cut.Markup.Should().Contain("Selecciona una empresa de tu cartera", "control positivo: es el estado 4a");
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("el origen no es la empresa elegida");
+    }
+
+    /// <summary>Un enlace de guardar filtro no abre el diálogo en el estado 4a: no hay lista del Tenant de origen.</summary>
+    [Fact]
+    public void Sin_empresa_elegida_la_accion_guardar_filtro_de_la_url_no_abre_el_dialogo()
+    {
+        var cut = Renderizar(ConCartera(origenGestionado: false), "trabajadores?accion=guardar-filtro");
+
+        cut.Markup.Should().Contain("Selecciona una empresa de tu cartera", "control positivo: es el estado 4a");
+        MostrarGuardarFiltro(cut).Should().BeFalse();
+    }
+
+    /// <summary>Control positivo del anterior: con una empresa elegida, la misma URL sí abre el diálogo.</summary>
+    [Fact]
+    public void Con_empresa_elegida_la_accion_guardar_filtro_de_la_url_abre_el_dialogo()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+
+        var cut = Renderizar(ConCartera(origenGestionado: false), "trabajadores?accion=guardar-filtro");
+
+        MostrarGuardarFiltro(cut).Should().BeTrue();
+    }
+
+    /// <summary>Salir de la página con la resolución en vuelo la cancela: no se repinta ni se pide la lista de nadie.</summary>
+    [Fact]
+    public void Salir_de_la_pagina_con_la_empresa_activa_en_vuelo_cancela_la_resolucion()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+        Registrar(mediador, "trabajadores");
+
+        var cut = Render<Trabajadores>();
+        mediador.TokenDeAutorizados.Should().NotBeNull("la página pidió la lista de Tenants autorizados");
+        mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeFalse("control positivo: sigue montada");
+
+        cut.Instance.Dispose();
+
+        mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeTrue();
+        puerta.SetResult();
+        ConsultasDeLista(mediador).Should().Be(0);
+        mediador.Enviadas.OfType<ObtenerEmpresasParaSelectorQuery>().Should().BeEmpty();
+        mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Si la resolución vuelve sin lanzar tras retirarse la página (contexto sin empresa activa ni 4a), la
+    /// página tampoco sigue: ni catálogos ni filtros guardados de una página que ya no existe.
+    /// </summary>
+    [Fact]
+    public void Una_resolucion_que_vuelve_sin_lanzar_tras_retirar_la_pagina_no_pide_catalogos_ni_filtros_guardados()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
+        mediador.IgnorarCancelacionDeAutorizados = true;
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+        Registrar(mediador, "trabajadores");
+
+        var cut = Render<Trabajadores>();
+        cut.Instance.Dispose();
+        puerta.SetResult();
+
+        ConsultasDeLista(mediador).Should().Be(0);
+        mediador.Enviadas.OfType<ObtenerEmpresasParaSelectorQuery>().Should().BeEmpty();
+        mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().BeEmpty();
+        mediador.Enviadas.Should().OnlyContain(e => e is ObtenerClientesAutorizadosQuery, "tras retirarse solo consta la resolución que ya iba en vuelo");
+    }
+
+    /// <summary>
+    /// Retirada la página con la resolución en vuelo, ComponentBase todavía invoca <c>OnParametersSetAsync</c>
+    /// con <c>_resolviendoEmpresa</c> ya en false: con <c>?accion=guardar-filtro</c> abriría el diálogo en un
+    /// componente muerto.
+    /// </summary>
+    [Fact]
+    public void Retirada_la_pagina_con_la_resolucion_en_vuelo_no_se_procesan_los_parametros_de_la_url()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+        Registrar(mediador, "trabajadores?accion=guardar-filtro");
+
+        var cut = Render<Trabajadores>();
+        cut.Instance.Dispose();
+        puerta.SetResult();
+
+        // El componente está retirado y no hay DOM que mirar: se lee el estado que la acción habría fijado.
+        MostrarGuardarFiltro(cut).Should().BeFalse("una página retirada no atiende ?accion=guardar-filtro");
+    }
+
+    private static bool MostrarGuardarFiltro(IRenderedComponent<Trabajadores> cut) =>
+        (bool)typeof(Trabajadores)
+            .GetField("_mostrarGuardarFiltro", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(cut.Instance)!;
 
     [Fact]
     public void Con_el_contexto_resuelto_a_una_empresa_la_lista_se_monta_tras_la_carga()

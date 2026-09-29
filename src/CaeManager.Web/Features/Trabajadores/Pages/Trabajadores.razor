@@ -31,16 +31,7 @@
 <div class="contenedor-pagina">
     @* Mockup «Selector Empresa Gestionada» (lienzo 2): con varias empresas gestionadas, la lista dice de
        cuál es. El selector de la barra lateral cambia de empresa y recarga esta misma ruta sin query. *@
-    @if (_empresaActiva is not null)
-    {
-        <div class="trabajadores-empresa">
-            <AvatarTenant Nombre="@_empresaActiva.Nombre" LogoUrl="@AvatarTenant.UrlDeLogo(_empresaActiva.TenantId, _empresaActiva.LogoVersion)" />
-            <span class="trabajadores-empresa-texto">
-                <span class="trabajadores-empresa-rotulo">@Comunes["SelectorTenantRotulo"]</span>
-                <span class="trabajadores-empresa-nombre" title="@_empresaActiva.Nombre">@_empresaActiva.Nombre</span>
-            </span>
-        </div>
-    }
+    <CabeceraEmpresaActiva Empresa="_empresaActiva" />
 
 
     @* Cabecera Gen 2 (Lista Trabajadores TALVEG.dc.html): h1 sin kicker ni
