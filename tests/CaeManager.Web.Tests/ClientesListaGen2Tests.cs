@@ -447,6 +447,12 @@ public class ClientesListaGen2Tests : BunitContext
         Services.AddCascadingAuthenticationState();
         Services.AddScoped<IValidator<CrearClienteCommand>>(_ => new InlineValidator<CrearClienteCommand>());
         Services.AddScoped(_ => CrearDirectorio(gestores ?? []));
+        // ClientePreviewDrawer (pieza 6 del patrón de lista) inyecta el
+        // UserManager; solo lo usa al abrirse, para resolver el nombre del
+        // Gestor CAE del resumen.
+        Services.AddScoped(_ => new UserManager<ApplicationUser>(
+            gestores is { Count: > 0 } ? new AlmacenGestoresCae(gestores) : new AlmacenUsuariosQueNadieDebeTocar(),
+            null!, null!, null!, null!, null!, null!, null!, null!));
         Services.AddScoped<PuertaAccesoDatos>();
     }
 
@@ -476,14 +482,18 @@ public class ClientesListaGen2Tests : BunitContext
     private static ObtenerClientesQuery UltimaConsulta(MediatorFalso mediador) =>
         mediador.Enviadas.OfType<ObtenerClientesQuery>().Last();
 
-    private static IElement SelectConOpcion(IRenderedComponent<Clientes> cut, string textoOpcion) =>
-        cut.FindAll(".barra-filtros select").Single(s => s.TextContent.Contains(textoOpcion));
+    /// <summary>El select cuya etiqueta VISIBLE (asociada por <c>for</c>) es esa: patrón de lista, pieza 2.</summary>
+    private static IElement SelectEtiquetado(IRenderedComponent<Clientes> cut, string etiqueta)
+    {
+        var label = cut.FindAll(".barra-filtros-lista label").Single(l => l.TextContent.Trim() == etiqueta);
+        return cut.Find("select#" + label.GetAttribute("for"));
+    }
 
     private static ApplicationUser GestorCae(string nombreCompleto) =>
         new() { Id = Guid.NewGuid(), NombreCompleto = nombreCompleto, Email = "gestor@arnes.invalid", TenantId = TenantDelArnes };
 
     private static List<string> TextosDeLosChips(IRenderedComponent<Clientes> cut) =>
-        cut.FindAll(".barra-filtros .chip-filtro").Select(c => c.TextContent.Trim()).ToList();
+        cut.FindAll(".barra-filtros-lista .chip-filtro").Select(c => c.TextContent.Trim()).ToList();
 
     private static IElement BotonDelDialogo(IRenderedComponent<Clientes> cut, string texto) =>
         cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == texto);
@@ -512,11 +522,45 @@ public class ClientesListaGen2Tests : BunitContext
         cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Negocio");
         cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be("Clientes");
 
+        // Pieza 1 del patrón de lista: Exportar (enlace), «Más» y UNA primaria.
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
-        acciones.TextContent.Should().Contain("Exportar a Excel").And.Contain("Alta guiada").And.Contain("+ Nuevo cliente");
-        acciones.QuerySelectorAll("a").Select(a => a.GetAttribute("href"))
-            .Should().Contain(["/clientes/exportar.xlsx", "/clientes/alta-guiada", "/importacion?plantilla=clientes"],
-                "las importaciones (Administrador) y el alta guiada ya estaban y el mockup no las retira");
+        acciones.QuerySelectorAll("a").Select(a => a.GetAttribute("href")).Should().Equal("/clientes/exportar.xlsx");
+        acciones.QuerySelectorAll("button").Select(b => b.TextContent.Trim())
+            .Should().Equal("Más", "+ Nuevo cliente");
+    }
+
+    [Fact]
+    public async Task El_menu_Mas_guarda_las_importaciones_del_Administrador_y_el_alta_guiada()
+    {
+        var cut = Renderizar(new MediatorFalso());
+
+        await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
+            .Should().Equal("Importar clientes", "Importación combinada", "Alta guiada");
+        await cut.FindAll("header.cabecera-pagina .menu-acciones-item").Single(i => i.TextContent.Trim() == "Alta guiada")
+            .ClickAsync(new MouseEventArgs());
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath.Should().Be("/clientes/alta-guiada");
+    }
+
+    [Fact]
+    public async Task El_menu_Mas_de_un_Gestor_CAE_no_ofrece_las_importaciones_del_Administrador()
+    {
+        var cut = Renderizar(new MediatorFalso(), rol: Roles.GestorCae);
+
+        await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
+            .Should().Equal("Alta guiada");
+    }
+
+    [Fact]
+    public void Un_rol_de_Consulta_no_ve_ni_Mas_ni_el_alta()
+    {
+        var cut = Renderizar(new MediatorFalso(), rol: Roles.Consulta);
+
+        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty();
+        cut.Find("header.cabecera-pagina .acciones-cabecera").TextContent.Should().NotContain("Nuevo cliente");
     }
 
     [Fact]
@@ -525,7 +569,7 @@ public class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso());
         cut.FindAll(".drawer-panel").Should().BeEmpty("punto de partida: el drawer está cerrado");
 
-        await cut.Find("header.cabecera-pagina .acciones-cabecera button").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("header.cabecera-pagina .acciones-cabecera button").Single(b => b.TextContent.Trim() == "+ Nuevo cliente").ClickAsync(new MouseEventArgs());
 
         cut.Find(".drawer-panel h2").TextContent.Trim().Should().Be("Nuevo cliente");
     }
@@ -535,7 +579,7 @@ public class ClientesListaGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediatorFalso());
 
-        cut.Find(".barra-filtros input[type=text]").GetAttribute("placeholder").Should().Be("Buscar por nombre…",
+        cut.Find(".barra-filtros-lista input[type=text]").GetAttribute("placeholder").Should().Be("Buscar por nombre…",
             "ObtenerClientesQuery solo busca en la razón social y el DTO no tiene alias; el E2E P331 usa este texto");
         cut.Markup.Should().NotContain("alias o CIF");
     }
@@ -575,7 +619,7 @@ public class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         // InputAsync espera al debounce de CampoTexto (300 ms) y a su recarga.
-        await cut.Find(".barra-filtros input[type=text]").InputAsync(new ChangeEventArgs { Value = "refri" });
+        await cut.Find(".barra-filtros-lista input[type=text]").InputAsync(new ChangeEventArgs { Value = "refri" });
 
         UltimaConsulta(mediador).Busqueda.Should().Be("refri");
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=refri");
@@ -597,7 +641,7 @@ public class ClientesListaGen2Tests : BunitContext
         mediador.EstadosPresentes[montajes.Id] = [EstadoDocumento.Faltante, EstadoDocumento.Vencido];
         var cut = Renderizar(mediador);
 
-        await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+        await SelectEtiquetado(cut, "Estado").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
 
         UltimaConsulta(mediador).EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Montajes Ebro S.L.", "Refrielectric S.A."]));
@@ -612,7 +656,7 @@ public class ClientesListaGen2Tests : BunitContext
         var mediador = new MediatorFalso { Almacen = { deLaGestora, Cliente("Montajes Ebro S.L.") } };
         var cut = Renderizar(mediador);
 
-        await SelectConOpcion(cut, "Gestor CAE: todos").ChangeAsync(new ChangeEventArgs { Value = gestora.ToString() });
+        await SelectEtiquetado(cut, "Gestor CAE").ChangeAsync(new ChangeEventArgs { Value = gestora.ToString() });
 
         UltimaConsulta(mediador).EjecutivoUsuarioId.Should().Be(gestora);
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A."]));
@@ -730,11 +774,11 @@ public class ClientesListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
 
-        await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+        await SelectEtiquetado(cut, "Estado").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal("Refrielectric S.A."));
         var consultasAntes = ConsultasDeLista(mediador);
 
-        await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vigente) });
+        await SelectEtiquetado(cut, "Estado").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vigente) });
 
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal("Montajes Ebro S.L."));
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
@@ -808,7 +852,7 @@ public class ClientesListaGen2Tests : BunitContext
         Services.GetRequiredService<NavigationManager>().NavigateTo("clientes");
         var cut = Render<Clientes>();
 
-        await cut.Find(".filtro-critico input").ChangeAsync(new ChangeEventArgs { Value = true });
+        await SelectEtiquetado(cut, "Criticidad").ChangeAsync(new ChangeEventArgs { Value = "critico" });
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ningún cliente con estos filtros"));
 
         await cut.InvokeAsync(() => respuestaVieja.SetResult(
@@ -878,7 +922,7 @@ public class ClientesListaGen2Tests : BunitContext
         var mediador = new MediatorFalso { Retener = p => p is CrearClienteCommand ? respuesta.Task : null };
         var cut = Renderizar(mediador);
 
-        await cut.Find("header.cabecera-pagina .acciones-cabecera button").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("header.cabecera-pagina .acciones-cabecera button").Single(b => b.TextContent.Trim() == "+ Nuevo cliente").ClickAsync(new MouseEventArgs());
         var primero = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
         var segundo = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
 
@@ -925,7 +969,7 @@ public class ClientesListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.Find("[role=dialog] h2").TextContent.Trim().Should().Be("Guardar filtro actual"));
 
         await BotonDelDialogo(cut, "Cancelar").ClickAsync(new MouseEventArgs());
-        await cut.Find(".filtro-critico input").ChangeAsync(new ChangeEventArgs { Value = true });
+        await SelectEtiquetado(cut, "Criticidad").ChangeAsync(new ChangeEventArgs { Value = "critico" });
 
         cut.FindAll("[role=dialog]").Should().BeEmpty("el modal ya se atendió y se cerró");
     }
@@ -985,54 +1029,73 @@ public class ClientesListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// El nombre de la fila es un enlace real a la página Cliente 360: se puede
-    /// abrir en otra pestaña o copiar, y no abre ningún panel.
+    /// El nombre de la fila (pieza 5 del patrón de lista) es un botón en
+    /// negrita que abre la vista previa lateral (pieza 6): no navega a la ficha
+    /// ni abre el panel de 520 px.
     /// </summary>
     [Fact]
-    public void El_nombre_de_la_fila_enlaza_a_la_pagina_Cliente_360()
+    public async Task El_nombre_de_la_fila_abre_la_vista_previa_lateral_sin_salir_de_la_lista()
     {
         var otro = Cliente("Aislamientos Nervión S.L.");
-        var enlazado = Cliente("Montajes Ebro S.L.");
-        var cut = Renderizar(new MediatorFalso { Almacen = { otro, enlazado } });
+        var abierto = Cliente("Montajes Ebro S.L.");
+        var cut = Renderizar(new MediatorFalso { Almacen = { otro, abierto } });
+        cut.FindAll("aside.drawer-preview-cliente").Should().BeEmpty("punto de partida: la vista previa está cerrada");
 
         var nombre = cut.FindAll("tbody tr")[1].QuerySelector(".enlace-nombre-fila")!;
+        nombre.TagName.Should().Be("BUTTON");
+        nombre.ClassList.Should().Contain("nombre-fila-entidad");
+        await nombre.ClickAsync(new MouseEventArgs());
 
-        nombre.TagName.Should().Be("A", "un botón no se puede abrir en otra pestaña ni copiar");
-        nombre.GetAttribute("href").Should().Be($"/clientes/{enlazado.Id}");
-        nombre.TextContent.Trim().Should().Be("Montajes Ebro S.L.");
+        cut.WaitForAssertion(() =>
+            cut.Find("aside.drawer-preview-cliente .nombre-cabecera-preview-cliente").TextContent.Trim()
+                .Should().Be("Montajes Ebro S.L."));
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath.Should().Be("/clientes");
+        Services.GetRequiredService<ContextWorkspaceService>().EstaAbierto.Should().BeFalse(
+            "la vista previa lateral no es el Context Workspace");
     }
 
     [Fact]
-    public async Task Abrir_Cliente_360_del_menu_navega_a_la_pagina_de_esa_fila()
+    public async Task Abrir_ficha_360_del_pie_de_la_vista_previa_navega_a_la_pagina_y_la_cierra()
+    {
+        var abierto = Cliente("Montajes Ebro S.L.");
+        var cut = Renderizar(new MediatorFalso { Almacen = { abierto } });
+        await cut.Find("tbody tr .enlace-nombre-fila").ClickAsync(new MouseEventArgs());
+
+        await cut.Find("aside.drawer-preview-cliente .pie-preview-cliente button").ClickAsync(new MouseEventArgs());
+
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath.Should().Be($"/clientes/{abierto.Id}");
+        cut.FindAll("aside.drawer-preview-cliente").Should().BeEmpty("al abrir la ficha la vista previa se cierra");
+    }
+
+    [Fact]
+    public async Task Ver_ficha_360_del_menu_navega_a_la_pagina_de_esa_fila()
     {
         var otro = Cliente("Aislamientos Nervión S.L.");
         var abierto = Cliente("Montajes Ebro S.L.");
         var cut = Renderizar(new MediatorFalso { Almacen = { otro, abierto } });
 
-        await PulsarEnElMenuDeLaFila(cut, 1, "Abrir Cliente 360");
+        await PulsarEnElMenuDeLaFila(cut, 1, "Ver ficha 360");
 
         new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath
             .Should().Be($"/clientes/{abierto.Id}");
         Services.GetRequiredService<ContextWorkspaceService>().EstaAbierto.Should().BeFalse(
-            "«Abrir Cliente 360» lleva a la página; el panel es «Vista rápida»");
+            "«Ver ficha 360» lleva a la página; la vista previa es el nombre de la fila");
     }
 
+    /// <summary>
+    /// Pieza 5 del patrón: el «⋯» lleva el orden «Ver ficha 360 · Editar ·
+    /// Eliminar» (aquí «Dar de baja», la baja lógica) y ya no lleva «Vista
+    /// rápida», que es el nombre de la fila.
+    /// </summary>
     [Fact]
-    public async Task Vista_rapida_del_menu_abre_el_panel_de_esa_fila_sin_salir_de_la_lista()
+    public async Task El_menu_de_la_fila_sigue_el_orden_del_patron_de_lista()
     {
-        var otro = Cliente("Aislamientos Nervión S.L.");
-        var abierto = Cliente("Montajes Ebro S.L.");
-        var cut = Renderizar(new MediatorFalso { Almacen = { otro, abierto } });
+        var cut = Renderizar(new MediatorFalso { Almacen = { Cliente("Montajes Ebro S.L.") } });
 
-        await PulsarEnElMenuDeLaFila(cut, 1, "Vista rápida");
+        await cut.Find("tbody .menu-acciones .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
-        var frame = Services.GetRequiredService<ContextWorkspaceService>().FrameActual;
-        frame.Should().NotBeNull();
-        frame!.Tipo.Should().Be(EntidadWorkspace.Cliente);
-        frame.EntidadId.Should().Be(abierto.Id);
-        frame.PestanaActiva.Should().Be("informacion");
-        new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath.Should().Be("/clientes");
-        cut.FindAll("aside.drawer-preview-cliente").Should().BeEmpty("el drawer ligero ya no se monta");
+        cut.FindAll("tbody .menu-acciones .menu-acciones-item").Select(i => i.TextContent.Trim())
+            .Should().Equal("Ver ficha 360", "Editar", "Dar de baja");
     }
 
     // ------------------------------------------------------ Teclado y lote
@@ -1057,10 +1120,9 @@ public class ClientesListaGen2Tests : BunitContext
         cut.Find(".barra-acciones-lote-cantidad").TextContent.Trim().Should().Be("1 seleccionado en esta página");
 
         await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("Enter"));
-        var frame = Services.GetRequiredService<ContextWorkspaceService>().FrameActual;
-        frame.Should().NotBeNull();
-        frame!.Tipo.Should().Be(EntidadWorkspace.Cliente);
-        frame.TituloVisible.Should().Be("Montajes Ebro S.L.");
+        cut.WaitForAssertion(() =>
+            cut.Find("aside.drawer-preview-cliente .nombre-cabecera-preview-cliente").TextContent.Trim()
+                .Should().Be("Montajes Ebro S.L."));
     }
 
     /// <summary>
@@ -1127,8 +1189,8 @@ public class ClientesListaGen2Tests : BunitContext
             Almacen = { Cliente("Refrielectric S.A.", critico: true, peor: EstadoDocumento.Vencido, cantidad: 2) with { EjecutivoUsuarioId = marta.Id } }
         };
         var cut = Renderizar(mediador, "clientes?q=Refri&critico=true", gestores: [marta]);
-        await SelectConOpcion(cut, "Gestor CAE: todos").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
-        await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+        await SelectEtiquetado(cut, "Gestor CAE").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
+        await SelectEtiquetado(cut, "Estado").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
 
         // Punto de partida: los cuatro ejes están puestos en la consulta vigente.
         var vigente = UltimaConsulta(mediador);
@@ -1137,7 +1199,7 @@ public class ClientesListaGen2Tests : BunitContext
         vigente.EjecutivoUsuarioId.Should().Be(marta.Id);
         vigente.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
 
-        await cut.FindAll(".barra-filtros button").Single(b => b.TextContent.Trim() == "Guardar filtro").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".barra-filtros-lista button").Single(b => b.TextContent.Trim() == "Guardar filtro").ClickAsync(new MouseEventArgs());
         await cut.Find("[role=dialog] input").InputAsync(new ChangeEventArgs { Value = "Refri críticos de Marta con vencidos" });
         await BotonDelDialogo(cut, "Guardar").ClickAsync(new MouseEventArgs());
 
@@ -1178,7 +1240,7 @@ public class ClientesListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador, gestores: [marta]);
 
-        await SelectConOpcion(cut, "Filtros guardados…").ChangeAsync(new ChangeEventArgs { Value = filtro.Id.ToString() });
+        await SelectEtiquetado(cut, "Filtros guardados").ChangeAsync(new ChangeEventArgs { Value = filtro.Id.ToString() });
 
         var consulta = UltimaConsulta(mediador);
         consulta.Busqueda.Should().Be("Refri");
@@ -1188,7 +1250,7 @@ public class ClientesListaGen2Tests : BunitContext
         var uri = Services.GetRequiredService<NavigationManager>().Uri;
         uri.Should().Contain("q=Refri").And.Contain("critico=true");
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A."]));
-        SelectConOpcion(cut, "Gestor CAE: todos").GetAttribute("value").Should().Be(marta.Id.ToString(),
+        SelectEtiquetado(cut, "Gestor CAE").GetAttribute("value").Should().Be(marta.Id.ToString(),
             "el desplegable enseña elegido al Gestor CAE del filtro");
         TextosDeLosChips(cut).Should().Contain(t => t.StartsWith("Gestor CAE: Marta Ibarra"));
     }
@@ -1215,10 +1277,10 @@ public class ClientesListaGen2Tests : BunitContext
             FiltrosGuardados = { antiguo }
         };
         var cut = Renderizar(mediador, "clientes?critico=true", gestores: [marta]);
-        await SelectConOpcion(cut, "Gestor CAE: todos").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
-        await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+        await SelectEtiquetado(cut, "Gestor CAE").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
+        await SelectEtiquetado(cut, "Estado").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
 
-        await SelectConOpcion(cut, "Filtros guardados…").ChangeAsync(new ChangeEventArgs { Value = antiguo.Id.ToString() });
+        await SelectEtiquetado(cut, "Filtros guardados").ChangeAsync(new ChangeEventArgs { Value = antiguo.Id.ToString() });
 
         var consulta = UltimaConsulta(mediador);
         consulta.Busqueda.Should().Be("Refri");
@@ -1227,7 +1289,7 @@ public class ClientesListaGen2Tests : BunitContext
         consulta.EstadoDocumental.Should().Be(EstadoDocumento.Vencido, "el filtro antiguo no declara estado: se queda el que había");
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Refri").And.NotContain("critico");
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A."]));
-        SelectConOpcion(cut, "Gestor CAE: todos").GetAttribute("value").Should().Be(marta.Id.ToString());
+        SelectEtiquetado(cut, "Gestor CAE").GetAttribute("value").Should().Be(marta.Id.ToString());
         TextosDeLosChips(cut).Should().Contain(t => t.StartsWith("Gestor CAE: Marta Ibarra")).And.Contain(t => t.StartsWith("Estado: Vencido"));
     }
 
@@ -1251,16 +1313,16 @@ public class ClientesListaGen2Tests : BunitContext
             FiltrosGuardados = { nuevo }
         };
         var cut = Renderizar(mediador, gestores: [marta]);
-        await SelectConOpcion(cut, "Gestor CAE: todos").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
-        await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+        await SelectEtiquetado(cut, "Gestor CAE").ChangeAsync(new ChangeEventArgs { Value = marta.Id.ToString() });
+        await SelectEtiquetado(cut, "Estado").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
         UltimaConsulta(mediador).EjecutivoUsuarioId.Should().Be(marta.Id, "punto de partida: hay Gestor CAE elegido");
 
-        await SelectConOpcion(cut, "Filtros guardados…").ChangeAsync(new ChangeEventArgs { Value = nuevo.Id.ToString() });
+        await SelectEtiquetado(cut, "Filtros guardados").ChangeAsync(new ChangeEventArgs { Value = nuevo.Id.ToString() });
 
         var consulta = UltimaConsulta(mediador);
         consulta.EjecutivoUsuarioId.Should().BeNull("el filtro declara GestorCaeId: null");
         consulta.EstadoDocumental.Should().BeNull("el filtro declara EstadoDocumental: null");
-        SelectConOpcion(cut, "Gestor CAE: todos").GetAttribute("value").Should().BeNullOrEmpty();
+        SelectEtiquetado(cut, "Gestor CAE").GetAttribute("value").Should().BeNullOrEmpty();
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Montajes Ebro S.L.", "Refrielectric S.A."]));
         TextosDeLosChips(cut).Should().BeEmpty();
     }
@@ -1286,11 +1348,11 @@ public class ClientesListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
         var navegacion = Services.GetRequiredService<NavigationManager>();
-        await SelectConOpcion(cut, "Estado: todos").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+        await SelectEtiquetado(cut, "Estado").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
         var consultasAntes = mediador.Enviadas.OfType<ObtenerClientesQuery>().Count();
         var uriAntes = navegacion.Uri;
 
-        await SelectConOpcion(cut, "Filtros guardados…").ChangeAsync(new ChangeEventArgs { Value = roto.Id.ToString() });
+        await SelectEtiquetado(cut, "Filtros guardados").ChangeAsync(new ChangeEventArgs { Value = roto.Id.ToString() });
 
         mediador.Enviadas.OfType<ObtenerClientesQuery>().Should().HaveCount(consultasAntes, "no se aplicó nada, así que no hay nada que recargar");
         UltimaConsulta(mediador).EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
@@ -1299,7 +1361,7 @@ public class ClientesListaGen2Tests : BunitContext
         Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m =>
             m.Tono == TonoToast.Advertencia && m.Mensaje.StartsWith("No se pudo aplicar este filtro guardado"));
 
-        await cut.Find(".filtro-critico input").ChangeAsync(new ChangeEventArgs { Value = true });
+        await SelectEtiquetado(cut, "Criticidad").ChangeAsync(new ChangeEventArgs { Value = "critico" });
         UltimaConsulta(mediador).SoloCriticos.Should().BeTrue("la página sigue viva y aplica el filtro siguiente");
     }
 
@@ -1393,8 +1455,8 @@ public class ClientesListaGen2Tests : BunitContext
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Cliente, a.Id, a.RazonSocial, "informacion"));
         workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
 
-        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+        await cut.Find("tbody .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("tbody .menu-acciones-item").Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
         await BotonDelDialogo(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EliminarClienteCommand>().Should().ContainSingle("la baja se ejecutó");

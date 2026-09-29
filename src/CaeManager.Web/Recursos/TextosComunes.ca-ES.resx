@@ -82,4 +82,16 @@
   <data name="SubirDocumento" xml:space="preserve">
     <value>+ Puja un document</value>
   </data>
+  <data name="FiltrosGuardados" xml:space="preserve">
+    <value>Filtres desats</value>
+  </data>
+  <data name="FiltroGuardadoElegir" xml:space="preserve">
+    <value>Tria…</value>
+  </data>
+  <data name="GuardarFiltro" xml:space="preserve">
+    <value>Desa el filtre</value>
+  </data>
+  <data name="LimpiarTodo" xml:space="preserve">
+    <value>Neteja-ho tot</value>
+  </data>
 </root>

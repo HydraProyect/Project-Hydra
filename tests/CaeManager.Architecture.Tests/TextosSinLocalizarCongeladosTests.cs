@@ -57,7 +57,13 @@ public class TextosSinLocalizarCongeladosTests
         // solo la rama nueva lo dejaría a medias. Los demás textos de P1-X2 van a
         // TextosCentros.resx. Baja cuando se migre EstadoCentroUi completo.
         ["Centros"] = 313,
-        ["Clientes"] = 256,
+        // 256 → 250 el 2026-09-28 (piloto del patrón de lista) SIN migrar a .resx: la pantalla dejó de
+        // pintar rótulos con el nombre del filtro dentro de la opción («Estado: todos», «Gestor CAE: todos»),
+        // los textos de «Limpiar todo» / «Guardar filtro» / «Filtros guardados…» pasaron a BarraFiltros
+        // (que los localiza en TextosComunes) y desaparecieron «Vista rápida», «Operar →» y «Ejecutivo».
+        // Entran «Todos», «Criticidad», «Más», «Ver ficha 360» y «Búsqueda: \"». Recuento por diferencia
+        // con un port del detector (no ejecutado en .NET): la CI confirma la cifra o la corrige.
+        ["Clientes"] = 250,
         ["Comercial"] = 61,
         ["Components/Account"] = 93,
         ["Components/DesignSystem"] = 51,
