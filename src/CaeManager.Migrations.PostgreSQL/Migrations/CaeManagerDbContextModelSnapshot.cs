@@ -6894,6 +6894,18 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime?>("EstadoComercialActualizadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("LogoActualizadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LogoArchivoClave")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("LogoVersion")
+                        .IsConcurrencyToken()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(200)

@@ -234,6 +234,34 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         otroPropietario.Should().BeNull();
     }
 
+    [Fact]
+    public async Task El_rol_revocado_desde_otro_circuito_corta_la_autorizacion_en_un_circuito_ya_cargado()
+    {
+        // Revisión Codex (lote 1 del selector de Tenant, ronda 1): FindByIdAsync + IsInRoleAsync
+        // reutilizaban la instancia y la afiliación rastreadas por el contexto del circuito, así que
+        // una segunda decisión seguía autorizando con un rol ya revocado (C6/I7).
+        var administrador = await SembrarUsuarioAsync("admin-revocable", _propietario, Roles.Administrador);
+
+        using var ambito = _arnes.Servicios.CreateScope();
+        var predicado = new AdministradorDelTenantPropietarioEnBase(
+            ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>());
+
+        using (AmbitoTenantExplicito.Establecer(_propietario))
+            (await predicado.EsAdministradorEnBaseAsync(administrador.Id, _propietario)).Should().BeTrue();
+
+        using (var otroCircuito = _arnes.Servicios.CreateScope())
+        using (AmbitoTenantExplicito.Establecer(_propietario))
+        {
+            var otroUserManager = otroCircuito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var usuario = await otroUserManager.FindByIdAsync(administrador.Id.ToString());
+            (await otroUserManager.RemoveFromRoleAsync(usuario!, Roles.Administrador)).Succeeded.Should().BeTrue();
+        }
+
+        using (AmbitoTenantExplicito.Establecer(_propietario))
+            (await predicado.EsAdministradorEnBaseAsync(administrador.Id, _propietario)).Should().BeFalse(
+                "el rol efectivo se lee de la base en cada decisión, no del seguimiento del circuito");
+    }
+
     // ── Montaje ──────────────────────────────────────────────────────────────
 
     private async Task<bool> PuedeAutorizarAsync(ApplicationUser usuario, Guid? workspaceActivo = null)

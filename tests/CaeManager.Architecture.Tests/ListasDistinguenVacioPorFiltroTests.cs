@@ -67,10 +67,15 @@ public class ListasDistinguenVacioPorFiltroTests
         "barra-filtros",                   // la barra compartida de la mayoría
         "barra-trabajo",                   // Centros y Subcontratas
         "<FiltroEstado",                   // filtro por estado documental
+        "<BarraFiltros",                   // barra del patrón único de lista (Clientes; sin la clase barra-filtros)
         "CampoTexto Placeholder=\"Buscar", // buscador de lista (Bandeja y otras)
         "aria-label=\"Filtrar",            // grupo de chips de filtro (Mi trabajo)
         "data-lista-con-filtros",          // marca declarada, sin texto: sobrevive a la localización
     ];
+
+    // «<BarraFiltros» entró el 2026-09-28 con el piloto del patrón de lista: Clientes.razor dejó de
+    // llevar la clase «barra-filtros» y, sin esta marca, saldría del radar en silencio. La lista de
+    // detectadas CRECE (Clientes sigue dentro, y distingue los dos vacíos con HayFiltrosActivos).
 
     /// <summary>
     /// La cuarta marca entró el 2026-09-12 con el rediseño de Mi trabajo y la

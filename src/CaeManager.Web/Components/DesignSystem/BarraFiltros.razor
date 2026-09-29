@@ -1,0 +1,104 @@
+@*
+    Barra de filtros de una lista — pieza 2 del patrón único de pantalla de
+    lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3).
+
+    Una tarjeta con:
+    - el buscador primero y los filtros después, CADA UNO con su etiqueta
+      visible encima (nunca «Estado: todos» dentro de la opción);
+    - «Filtros guardados» al final de la fila, si el llamador pasa alguno;
+    - debajo, cuando hay filtros activos: los chips (con su ✕), «Limpiar todo»
+      junto a ellos y «Guardar filtro» a la derecha.
+
+    Nunca lleva acciones de la página (Exportar, Importar, Nuevo…): eso es de
+    la cabecera (pieza 1).
+
+    Uso:
+
+        <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
+                      PlaceholderBuscador="Buscar por nombre…"
+                      HayFiltrosActivos="HayFiltrosActivos"
+                      OnLimpiarTodo="LimpiarFiltrosAsync" OnGuardarFiltro="AbrirGuardar"
+                      FiltrosGuardados="_opcionesGuardadas" OnAplicarFiltroGuardado="Aplicar">
+            <Filtros>
+                <FiltroEstado Etiqueta="Estado" ... />   (o un CampoSelect con Etiqueta)
+            </Filtros>
+            <Chips>
+                <ChipFiltro Etiqueta="Estado: Activo" EtiquetaAccesible="Quitar filtro de estado" OnQuitar="..." />
+            </Chips>
+        </BarraFiltros>
+
+    «Limpiar todo» solo invoca OnLimpiarTodo: quien lo recibe tiene que quitar
+    también los filtros que viajan en la URL, o OnParametersSet los devuelve.
+    Estilos solo en wwwroot/css/list-page.css (sin CSS aislado: una regla
+    aislada gana a la global y reabriría la deriva que este componente cierra).
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<section class="barra-filtros-lista" aria-label="@EtiquetaRegion">
+    <div class="barra-filtros-lista-fila">
+        <div class="barra-filtros-lista-buscador">
+            <CampoTexto Etiqueta="@EtiquetaBuscador" Placeholder="@PlaceholderBuscador" Valor="@Busqueda" ValorChanged="BusquedaChanged" />
+        </div>
+        @Filtros
+        @if (FiltrosGuardados.Count > 0)
+        {
+            <CampoSelect Etiqueta="@Comunes["FiltrosGuardados"]" Valor="" ValorChanged="OnAplicarFiltroGuardado">
+                <option value="">@Comunes["FiltroGuardadoElegir"]</option>
+                @foreach (var filtro in FiltrosGuardados)
+                {
+                    <option value="@filtro.Valor">@filtro.Texto</option>
+                }
+            </CampoSelect>
+        }
+    </div>
+
+    @if (HayFiltrosActivos)
+    {
+        <div class="barra-filtros-lista-activos">
+            <div class="chips-filtros barra-filtros-lista-chips">
+                <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
+                @Chips
+                <button type="button" class="limpiar-filtros-barra" @onclick="OnLimpiarTodo">@Comunes["LimpiarTodo"]</button>
+            </div>
+            @if (OnGuardarFiltro.HasDelegate)
+            {
+                <button type="button" class="guardar-filtro-barra" @onclick="OnGuardarFiltro">@Comunes["GuardarFiltro"]</button>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    /// <summary>Etiqueta visible del buscador.</summary>
+    [Parameter] public string EtiquetaBuscador { get; set; } = "Buscar";
+
+    [Parameter] public string? PlaceholderBuscador { get; set; }
+    [Parameter] public string Busqueda { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> BusquedaChanged { get; set; }
+
+    /// <summary>Nombre accesible de la región de filtros.</summary>
+    [Parameter] public string EtiquetaRegion { get; set; } = "Filtros";
+
+    /// <summary>Los selects de filtro, en orden. Cada uno con <c>Etiqueta</c> visible (<see cref="CampoSelect"/> o <see cref="FiltroEstado"/>).</summary>
+    [Parameter] public RenderFragment? Filtros { get; set; }
+
+    /// <summary>Filtros guardados del usuario para esta pantalla. Vacío: no se pinta el select.</summary>
+    [Parameter] public IReadOnlyList<OpcionEstado> FiltrosGuardados { get; set; } = [];
+
+    /// <summary>Se invoca con el <c>Valor</c> del filtro guardado elegido.</summary>
+    [Parameter] public EventCallback<string> OnAplicarFiltroGuardado { get; set; }
+
+    /// <summary>Hay algún filtro (buscador incluido) aplicado: solo entonces se pinta la fila de chips.</summary>
+    [Parameter] public bool HayFiltrosActivos { get; set; }
+
+    /// <summary>Un <see cref="ChipFiltro"/> por filtro activo.</summary>
+    [Parameter] public RenderFragment? Chips { get; set; }
+
+    /// <summary>«Limpiar todo». Debe limpiar también la URL.</summary>
+    [Parameter] public EventCallback OnLimpiarTodo { get; set; }
+
+    /// <summary>«Guardar filtro». Sin delegado no se pinta el botón.</summary>
+    [Parameter] public EventCallback OnGuardarFiltro { get; set; }
+}

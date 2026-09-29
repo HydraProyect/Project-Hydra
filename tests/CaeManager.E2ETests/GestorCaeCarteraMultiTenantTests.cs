@@ -54,6 +54,39 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
     /// </summary>
     private static readonly LocatorAssertionsToBeVisibleOptions EsperaEnFrio = new() { Timeout = 30_000 };
 
+    /// <summary>
+    /// Lote 2 del selector de empresa gestionada: seleccionar → Trabajadores. La cabecera de la
+    /// lista dice de qué empresa es, el cambio vuelve a la misma ruta SIN query (los filtros del
+    /// Tenant anterior se descartan, I14) y la selección persiste al navegar (cookie, no estado de
+    /// pantalla).
+    /// </summary>
+    [Fact]
+    public async Task El_Gestor_CAE_cambia_de_empresa_gestionada_y_Trabajadores_lleva_la_cabecera_de_la_elegida_sin_filtros_del_anterior()
+    {
+        var tenantA = await IdTenantAsync(TenantBeneficiarioA);
+        var tenantB = await IdTenantAsync(TenantBeneficiarioB);
+
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestorCae, Ayudas.ContrasenaUsuariosPrueba);
+
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioA);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores?q={TrabajadorA}");
+        await Expect(page.Locator(".trabajadores-empresa")).ToContainTextAsync(TenantBeneficiarioA, new() { Timeout = 30_000 });
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantA);
+
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioB);
+        await page.WaitForURLAsync(url => new Uri(url).PathAndQuery == "/trabajadores");
+        await Expect(page.Locator(".trabajadores-empresa")).ToContainTextAsync(TenantBeneficiarioB, new() { Timeout = 30_000 });
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
+
+        // La selección sobrevive a navegar a otra pantalla y volver a Trabajadores.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
+        await Expect(page.Locator(".trabajadores-empresa")).ToContainTextAsync(TenantBeneficiarioB, new() { Timeout = 30_000 });
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
+    }
+
     [Fact]
     public async Task El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola()
     {
@@ -74,7 +107,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
         // El Tenant beneficiario A queda activo con el selector real; B es el no activo.
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioA);
-        Assert.NotEqual(tenantB, await page.Locator(".selector-cliente-activo").InputValueAsync());
+        Assert.NotEqual(tenantB, await Ayudas.TenantActivoIdAsync(page));
 
         // Mi trabajo: filas de los dos Tenants beneficiarios en la misma cola.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");
@@ -99,7 +132,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         Assert.Equal(destinoEsperado, cambio.Headers.GetValueOrDefault("location"));
         await page.WaitForURLAsync(url => url.EndsWith(destinoEsperado, StringComparison.Ordinal));
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await Expect(page.Locator(".selector-cliente-activo")).ToHaveValueAsync(tenantB);
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
 
         // Corregir la Rechazada: versión corregida, que la devuelve a pendiente de envío.
         var filaAcreditacion = page.Locator($".plataforma-fila-documento[data-acreditacion-id='{rechazadaB}']");
@@ -183,10 +216,12 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestorCae, Ayudas.ContrasenaUsuariosPrueba);
 
         // Selector de organización: los dos Tenants beneficiarios de la cartera, no el tercero.
-        var opciones = page.Locator(".selector-cliente-activo option");
+        await Ayudas.AbrirSelectorTenantAsync(page);
+        var opciones = Ayudas.OpcionesSelectorTenant(page);
         await Expect(opciones.Filter(new() { HasText = TenantBeneficiarioA })).ToHaveCountAsync(1);
         await Expect(opciones.Filter(new() { HasText = TenantBeneficiarioB })).ToHaveCountAsync(1);
         await Expect(opciones.Filter(new() { HasText = TenantFueraDeCartera })).ToHaveCountAsync(0);
+        await Ayudas.CerrarSelectorTenantAsync(page);
 
         // Mi trabajo: el panel de cartera lista A y B (barrera) y no el Tenant de fuera.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");
@@ -222,8 +257,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
         // Activar el Tenant de fuera por el mismo endpoint que usa la cola: el servidor
         // no lo aplica y la organización activa sigue siendo A.
-        var token = await page.Locator("form:has(.selector-cliente-activo) input[name=__RequestVerificationToken]")
-            .GetAttributeAsync("value");
+        var token = await Ayudas.TokenAntiforgeryAsync(page);
         var respuesta = await page.RunAndWaitForResponseAsync(
             () => page.EvaluateAsync(
                 """
@@ -246,7 +280,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         Assert.NotEqual("/centros", respuesta.Headers.GetValueOrDefault("location"));
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");
-        await Expect(page.Locator(".selector-cliente-activo")).ToHaveValueAsync(tenantA);
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantA);
     }
 
     /// <summary>
@@ -270,15 +304,32 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioB);
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        await Expect(page.Locator(".selector-cliente-activo")).ToHaveValueAsync(tenantB);
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
         await Expect(page.GetByText(CentroB, new() { Exact = true })).ToBeVisibleAsync(EsperaEnFrio);
         await Expect(page.GetByText(CentroA, new() { Exact = true })).ToHaveCountAsync(0);
 
         await page.ReloadAsync();
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await Expect(page.Locator(".selector-cliente-activo")).ToHaveValueAsync(tenantB);
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
         await Expect(page.GetByText(CentroB, new() { Exact = true })).ToBeVisibleAsync();
         await Expect(page.GetByText(CentroA, new() { Exact = true })).ToHaveCountAsync(0);
+    }
+
+    /// <summary>
+    /// P0 del piloto Outbound (2026-09-28): con B activo, abrir Trabajador 360 desde la
+    /// lista devolvía el contexto al Tenant de origen con el aviso de acceso no vigente.
+    /// </summary>
+    [Fact]
+    public async Task El_Tenant_beneficiario_elegido_sobrevive_a_abrir_las_fichas_360_desde_sus_listas()
+    {
+        var tenantB = await IdTenantAsync(TenantBeneficiarioB);
+
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestorCae, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioB);
+
+        await RecorridoFichas360.RecorrerTodasAsync(page, fixture.BaseUrl, tenantB);
     }
 
     /// <summary>Fila de Mi trabajo de un Tenant beneficiario con ese badge (aria-label = «{Título} · {Tenant}»).</summary>

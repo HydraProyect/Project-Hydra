@@ -34,3 +34,29 @@
 .pista-documento-info {
     color: var(--color-text-muted);
 }
+
+/* Cabecera de la lista con la empresa gestionada activa (mockup «Selector Empresa Gestionada», lienzo 2). */
+.trabajadores-empresa {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.trabajadores-empresa-texto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.trabajadores-empresa-rotulo {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.trabajadores-empresa-nombre {
+    font: var(--font-label-md);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

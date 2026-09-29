@@ -273,6 +273,7 @@ builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<BusquedaGlobalService>();
 builder.Services.AddScoped<AsistenteIaService>();
+builder.Services.AddScoped<DisponibilidadAsistente>();
 builder.Services.AddScoped<CaeManager.Web.Components.Workspace.ContextWorkspaceService>();
 builder.Services.AddApexCharts();
 
@@ -1065,6 +1066,7 @@ app.MapFacturacionEndpoints();
 app.MapDocumentosEndpoints();
 app.MapTrabajadoresEndpoints();
 app.MapFirmasGuardadasEndpoints();
+app.MapLogoTenantEndpoints();
 app.MapRequisitosDocumentalesEndpoints();
 app.MapComunicacionesEndpoints();
 app.MapSubcontratasEndpoints();

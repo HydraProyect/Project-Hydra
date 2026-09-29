@@ -113,18 +113,39 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Restauraciones en vuelo, por Cliente: el «Deshacer» del aviso no manda dos veces la misma.</summary>
     private readonly HashSet<Guid> _restaurando = [];
 
+    /// <summary>Valor del select «Criticidad» que equivale a «Solo críticos».</summary>
+    private const string ValorSoloCriticos = "critico";
+
+    private Guid? _previewClienteId;
+    private bool _previewVisible;
+
     /// <summary>
-    /// «Vista rápida» del menú y Enter sobre la fila enfocada: el panel de
-    /// 520 px del Cliente empresarial (Context Workspace), el mismo que abre
-    /// el botón 360 de las páginas (decisión 2026-09-22). Antes abrían el
-    /// drawer ligero ClientePreviewDrawer, que la lista ya no monta; el nombre
-    /// de la fila lleva ahora a la página /clientes/{id}.
+    /// Nombre de la fila y Enter sobre la fila enfocada: la vista previa
+    /// lateral (pieza 6 del patrón de lista, <c>ClientePreviewDrawer</c>).
+    /// Desde el contrato del 2026-09-28 el nombre ya no navega a la ficha
+    /// (decisión 2026-09-22): eso lo hacen «Ver ficha 360» del «⋯» y el pie de
+    /// la vista previa.
     /// </summary>
-    private Task AbrirPreviewAsync(Guid id)
+    private void AbrirVistaPrevia(Guid id)
     {
-        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == id)?.RazonSocial ?? string.Empty;
-        return WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, id, nombre, "informacion");
+        _previewClienteId = id;
+        _previewVisible = true;
     }
+
+    /// <summary>«Abrir ficha 360» del pie de la vista previa: la página /clientes/{id}.</summary>
+    private void AbrirFichaDesdeVistaPrevia(Guid id) => NavigationManager.NavigateTo($"/clientes/{id}");
+
+    /// <summary>«Ver toda su documentación» de la vista previa: el panel de 520 px del Cliente empresarial (Context Workspace).</summary>
+    private Task AbrirDesdeVistaPreviaAsync((Guid Id, string Pestana) destino)
+    {
+        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == destino.Id)?.RazonSocial ?? string.Empty;
+        return WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, destino.Id, nombre, destino.Pestana);
+    }
+
+    private void AbrirGuardarFiltro() => _mostrarGuardarFiltro = true;
+
+    private IReadOnlyList<OpcionEstado> OpcionesFiltrosGuardados =>
+        _filtrosGuardados.Select(f => new OpcionEstado(f.Id.ToString(), f.Nombre)).ToList();
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
@@ -387,6 +408,8 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
     private Task QuitarFiltroEjecutivoAsync() => CambiarEjecutivoFiltroAsync(string.Empty);
 
     private Task QuitarFiltroEstadoDocumentalAsync() => CambiarEstadoDocumentalFiltroAsync(string.Empty);
+
+    private string EtiquetaFiltroBusqueda => "Búsqueda: \"" + _busqueda + "\"";
 
     private string EtiquetaFiltroEjecutivo =>
         "Gestor CAE: " + (_ejecutivosParaFiltro.FirstOrDefault(g => g.Id.ToString() == _ejecutivoFiltro)?.NombreCompleto ?? "—");
@@ -879,7 +902,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
-                    await AbrirPreviewAsync(idAbrir);
+                    AbrirVistaPrevia(idAbrir);
                 break;
         }
 

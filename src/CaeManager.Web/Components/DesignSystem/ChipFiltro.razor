@@ -1,0 +1,21 @@
+@*
+    Chip de un filtro activo (patrón único de pantalla de lista, pieza 2:
+    Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3).
+    Va dentro de <BarraFiltros> como parte de «Chips». El texto lleva el
+    nombre del filtro y su valor («Estado: Con vencidos»); el ✕ lo quita.
+    Estilos globales en list-page.css (.chip-filtro, .chip-filtro-quitar).
+*@
+<span class="chip-filtro">
+    @Etiqueta
+    <button type="button" class="chip-filtro-quitar" @onclick="OnQuitar" aria-label="@EtiquetaAccesible"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+</span>
+
+@code {
+    /// <summary>Texto visible del chip, con el nombre del filtro y su valor.</summary>
+    [Parameter, EditorRequired] public string Etiqueta { get; set; } = string.Empty;
+
+    /// <summary>Nombre accesible del ✕ («Quitar filtro de Gestor CAE»).</summary>
+    [Parameter, EditorRequired] public string EtiquetaAccesible { get; set; } = string.Empty;
+
+    [Parameter] public EventCallback OnQuitar { get; set; }
+}

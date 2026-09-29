@@ -23,6 +23,7 @@ public class RedireccionLocalTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("https://atacante.com")]
+    [InlineData("/	/atacante.com")]
     [InlineData("http://atacante.com/phish")]
     [InlineData("//atacante.com")]
     [InlineData("/\\atacante.com")]
@@ -41,6 +42,7 @@ public class RedireccionLocalTests
     [InlineData("/")]
     [InlineData("//atacante.com")]
     [InlineData("https://atacante.com")]
+    [InlineData("/	/atacante.com")]
     public void El_destino_tras_login_sin_returnUrl_propio_es_Inicio_con_la_marca(string? entrada)
         => RedireccionLocal.DestinoTrasLogin(entrada).Should().Be("/?desde=login");
 
@@ -50,4 +52,27 @@ public class RedireccionLocalTests
     [InlineData("/documentos?filtro=urgente")]
     public void El_destino_tras_login_respeta_un_returnUrl_explicito_a_otra_ruta(string entrada)
         => RedireccionLocal.DestinoTrasLogin(entrada).Should().Be(entrada);
+
+    /// <summary>
+    /// Los navegadores descartan tabulador, CR y LF al interpretar una URL, así que
+    /// "/" + tabulador + "/atacante.com" llega como "//atacante.com" aunque la segunda
+    /// posición no sea una barra. Cualquier carácter de control, en cualquier posición,
+    /// se rechaza.
+    /// </summary>
+    [Theory]
+    [InlineData("/\t/atacante.com")]
+    [InlineData("/\n/atacante.com")]
+    [InlineData("/\r/atacante.com")]
+    [InlineData("/\t\\atacante.com")]
+    [InlineData("/\0/atacante.com")]
+    [InlineData("/documentos\t")]
+    [InlineData("/doc\numents")]
+    public void Los_caracteres_de_control_caen_a_la_raiz_aunque_el_resto_parezca_local(string entrada)
+        => RedireccionLocal.Sanear(entrada).Should().Be("/");
+
+    [Theory]
+    [InlineData("/documentos#seccion")]
+    [InlineData("/clientes?q=Refri&critico=true")]
+    public void Un_fragmento_o_una_consulta_normales_siguen_pasando(string entrada)
+        => RedireccionLocal.Sanear(entrada).Should().Be(entrada);
 }
