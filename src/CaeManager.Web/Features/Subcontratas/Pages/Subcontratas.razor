@@ -58,27 +58,17 @@
     }
     else
     {
-    @* El mockup dibuja además un desplegable «Nivel de servicio» y lo marca él
-       mismo como PROPUESTA: ObtenerSubcontratasQuery no acepta ese filtro.
-       Pintarlo sin el parámetro sería un control que no filtra nada, así que
-       no se dibuja hasta que exista. *@
-    <div class="barra-trabajo-centros">
-        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-    </div>
-
-    @* Mismo bloque que Empresas: lo que está filtrando se ve y se quita. Aquí
-       hay un único filtro, así que un único chip — y sin «Limpiar todo», que
-       con un solo chip haría exactamente lo mismo que su aspa. *@
-    @if (HayFiltrosActivos)
-    {
-        <div class="chips-filtros">
-            <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
-            <span class="chip-filtro">
-                @Textos["ChipBusqueda", _busqueda]
-                <button type="button" class="chip-filtro-quitar" @onclick="LimpiarFiltrosAsync" aria-label="@Textos["BotonQuitarBusqueda"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-            </span>
-        </div>
-    }
+    @* Pieza 2 del patrón de lista (BarraFiltros), la misma que Clientes. El mockup dibuja además un
+       desplegable «Nivel de servicio» y lo marca él mismo como PROPUESTA: ObtenerSubcontratasQuery
+       no acepta ese filtro (ni uno de estado documental), así que no se dibuja un control que no
+       filtra nada hasta que exista en la consulta. Sin «Filtros guardados» hasta que haya filtro
+       guardable (el patrón lo pinta solo si se le pasa alguno). *@
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+        <Chips>
+            <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["BotonQuitarBusqueda"]" OnQuitar="LimpiarFiltrosAsync" />
+        </Chips>
+    </BarraFiltros>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
