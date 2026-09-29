@@ -106,6 +106,33 @@ public class EnlaceProfundoOtraEmpresaTests : BunitContext
         cut.FindAll("a").Should().BeEmpty("nunca un enlace GET que cambie de empresa");
     }
 
+    /// <summary>
+    /// Codex, pasada 1: si solo cambia la URL con el estado de error aún montado, Blazor reutiliza la
+    /// instancia; pista, destino y ruta de retorno se recalculan y no se vuelve a consultar la lista.
+    /// </summary>
+    [Fact]
+    public void Si_solo_cambia_la_URL_con_la_instancia_montada_el_boton_sigue_a_la_pista_y_a_la_ruta()
+    {
+        var cut = Renderizar("centros/aaaaaaaa-0000-0000-0000-000000000001", activa: Sur);
+        cut.FindAll("form").Should().BeEmpty("control positivo: sin pista no hay botón");
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        cut.InvokeAsync(() => navegacion.NavigateTo($"centros/aaaaaaaa-0000-0000-0000-000000000001?tenant={Norte}"));
+        cut.WaitForAssertion(() => cut.Find("form input[name=tenantId]").GetAttribute("value").Should().Be(Norte.ToString()));
+
+        cut.InvokeAsync(() => navegacion.NavigateTo($"centros/aaaaaaaa-0000-0000-0000-000000000002?tenant={Origen}"));
+        cut.WaitForAssertion(() =>
+        {
+            cut.Find("form input[name=tenantId]").GetAttribute("value").Should().Be(Origen.ToString());
+            cut.Find("form input[name=returnUrl]").GetAttribute("value").Should().Be("/centros/aaaaaaaa-0000-0000-0000-000000000002");
+        });
+
+        cut.InvokeAsync(() => navegacion.NavigateTo($"centros/aaaaaaaa-0000-0000-0000-000000000002?tenant={Ajena}"));
+        cut.WaitForAssertion(() => cut.FindAll("form").Should().BeEmpty("una pista no autorizada retira el botón"));
+
+        _mediador.Enviadas.OfType<ObtenerClientesAutorizadosQuery>().Should().ContainSingle("la lista se lee una sola vez");
+    }
+
     [Fact]
     public void La_pista_por_si_sola_no_cambia_de_empresa_ni_navega()
     {

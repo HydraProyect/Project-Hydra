@@ -14,6 +14,7 @@
 
     El nombre del botón sale de la lista autorizada, no de la URL.
 *@
+@implements IDisposable
 @using System.Web
 @using CaeManager.Application.Common
 @using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados
@@ -52,12 +53,16 @@
     private AntiforgeryRequestToken? _token;
     private string _rutaDeRetorno = "/";
 
+    private IReadOnlyList<ClienteAutorizadoDto>? _autorizados;
+    private ClienteAutorizadoDto? _activa;
+
     protected override async Task OnInitializedAsync()
     {
-        IReadOnlyList<ClienteAutorizadoDto> autorizados;
+        NavigationManager.LocationChanged += AlCambiarLaUbicacion;
+
         try
         {
-            autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+            _autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
         }
         catch (Exception)
         {
@@ -65,19 +70,41 @@
             return;
         }
 
-        var activa = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
-        _mostrarAviso = ClientesAutorizados.SelectorVisible(autorizados, activa);
+        _activa = ClientesAutorizados.Activo(_autorizados, TenantActual.TenantId);
+        _mostrarAviso = ClientesAutorizados.SelectorVisible(_autorizados, _activa);
+        RecalcularDeLaUrl();
+    }
+
+    /// <summary>
+    /// La misma instancia sigue montada si solo cambia la URL (otra pista, otra ficha con el estado de error
+    /// aún en pantalla): la ruta de retorno y el destino se recalculan con la lista ya leída, sin otra consulta.
+    /// </summary>
+    private void AlCambiarLaUbicacion(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) =>
+        _ = InvokeAsync(() =>
+        {
+            RecalcularDeLaUrl();
+            StateHasChanged();
+        });
+
+    private void RecalcularDeLaUrl()
+    {
+        _destino = null;
+        _token = null;
+        if (_autorizados is null)
+            return;
 
         var uri = new Uri(NavigationManager.Uri);
         _rutaDeRetorno = uri.AbsolutePath;
 
         // La pista se contrasta con el conjunto autorizado del usuario; la entidad no interviene.
         if (Guid.TryParse(HttpUtility.ParseQueryString(uri.Query)["tenant"], out var pista)
-            && autorizados.FirstOrDefault(c => c.TenantId == pista) is { } destino
-            && destino.TenantId != activa?.TenantId)
+            && _autorizados.FirstOrDefault(c => c.TenantId == pista) is { } destino
+            && destino.TenantId != _activa?.TenantId)
         {
             _destino = destino;
             _token = AntiforgeryStateProvider.GetAntiforgeryToken();
         }
     }
+
+    public void Dispose() => NavigationManager.LocationChanged -= AlCambiarLaUbicacion;
 }
