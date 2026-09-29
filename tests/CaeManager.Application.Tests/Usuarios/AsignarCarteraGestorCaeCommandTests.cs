@@ -380,6 +380,7 @@ public class AsignarCarteraGestorCaeCommandTests
 
         (await e.Handler().Handle(Asignar(Beneficiario2), default)).Error.Should().Be(AsignarCarteraGestorCaeCommandHandler.GestorDesactivado);
         e.Catalogo.IncorporacionesDirectas.Should().BeEmpty();
+        e.Transaccion.Ejecutadas.Should().Be(0, "se rechaza antes de abrir la transacción");
 
         (await e.Handler().Handle(Retirar(Beneficiario1), default)).EsExitoso.Should().BeTrue();
         e.Catalogo.Retiradas.Should().ContainSingle();
