@@ -329,4 +329,10 @@
   <data name="DarDeBajaSeleccionados" xml:space="preserve">
     <value>Dar de baja seleccionados</value>
   </data>
+  <data name="SinEmpresaTitulo" xml:space="preserve">
+    <value>Selecciona una empresa de tu cartera</value>
+  </data>
+  <data name="SinEmpresaDescripcion" xml:space="preserve">
+    <value>Los clientes se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
+  </data>
 </root>

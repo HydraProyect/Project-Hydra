@@ -12,6 +12,9 @@ using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -32,6 +35,16 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
 
+    /// <summary>La empresa gestionada activa, solo para quien ve el selector de la barra lateral.</summary>
+    private ClienteAutorizadoDto? _empresaActiva;
+
+    /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
+    private bool _sinEmpresaSeleccionada;
+
+    /// <summary>La empresa activa aún no se ha resuelto: se pinta una carga en vez de la lista.</summary>
+    private bool _resolviendoEmpresa = true;
+
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private IValidator<CrearClienteCommand> ValidadorCrear { get; set; } = default!;
@@ -226,6 +239,23 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
 
     protected override async Task OnInitializedAsync()
     {
+        // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
+        // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
+        try
+        {
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual);
+            _empresaActiva = contexto.Activa;
+            _sinEmpresaSeleccionada = contexto.SinSeleccion;
+        }
+        finally
+        {
+            _resolviendoEmpresa = false;
+        }
+
+        // Sin empresa elegida no se piden los datos de la organización de origen.
+        if (_sinEmpresaSeleccionada)
+            return;
+
         // Delegado estable: pasar el grupo de método directamente en el
         // markup crea un delegado nuevo en cada render, QuickGrid lo trata
         // como "fuente de datos distinta" y recarga — combinado con el
@@ -274,6 +304,9 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     protected override Task OnParametersSetAsync()
     {
+        if (_resolviendoEmpresa || _sinEmpresaSeleccionada)
+            return Task.CompletedTask;
+
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var soloCriticosDeLaUrl = SoloCriticosInicial ?? false;
         var cambio = deLaUrl != _busqueda || soloCriticosDeLaUrl != _soloCriticos;
