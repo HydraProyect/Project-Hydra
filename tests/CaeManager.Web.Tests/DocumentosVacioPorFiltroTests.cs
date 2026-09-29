@@ -6,6 +6,7 @@ using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -61,6 +62,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
             return Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerFiltrosGuardadosQuery => (object)Array.Empty<FiltroGuardadoDto>(),
+                ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new ClienteAutorizadoDto(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 ObtenerDocumentosQuery q => new ResultadoPaginado<DocumentoListaDto>(
                     Documentos, Documentos.Count, q.Pagina, q.TamanoPagina),
                 ObtenerAlcanceCeroQuery => (object)AlcanceCero,
@@ -163,6 +165,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     {
         var mediador = new MediatorPorTipo { Documentos = documentos, AlcanceCero = _alcanceCero };
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
@@ -349,9 +352,11 @@ public class DocumentosVacioPorFiltroTests : BunitContext
 
     private async Task<(IRenderedComponent<PaginaDocumentos> Cut, NavigationManager Navegacion)> AbrirGuardarFiltroAsync()
     {
-        var cut = Renderizar();
+        // Con un filtro activo: desde el patrón único de lista (BarraFiltros) «Guardar filtro» solo se
+        // pinta junto a los chips, así que reabrir el modal por su botón exige un filtro puesto.
+        var cut = Renderizar(estado: nameof(EstadoDocumento.Vencido));
         var navegacion = Services.GetRequiredService<NavigationManager>();
-        await cut.InvokeAsync(() => navegacion.NavigateTo("documentos?accion=guardar-filtro"));
+        await cut.InvokeAsync(() => navegacion.NavigateTo("documentos?Estado=Vencido&accion=guardar-filtro"));
         cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Etiqueta == "Nombre"));
         return (cut, navegacion);
     }

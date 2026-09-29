@@ -229,7 +229,8 @@ public class DeepLinksTests(WebAppFixture fixture)
 
         // Documentos abre el panel desde el menú "⋯" de la fila (MenuAcciones),
         // no de un enlace directo como Trabajadores/Centros.
-        await Ayudas.PulsarAccionDeMenuAsync(page.Locator(".menu-acciones-disparador").First, "Ver");
+        // Con el patrón de lista la cabecera lleva también un menú «Más»: el de la fila es el de la tabla.
+        await Ayudas.PulsarAccionDeMenuAsync(page.Locator("table .menu-acciones-disparador").First, "Ver");
 
         await page.Locator(".workspace-titulo-entidad").WaitForAsync();
         var tituloOriginal = (await page.Locator(".workspace-titulo-entidad").TextContentAsync())!.Trim();

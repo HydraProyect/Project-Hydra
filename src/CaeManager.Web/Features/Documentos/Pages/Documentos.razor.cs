@@ -3,6 +3,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
+using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.EliminarDocumento;
 using CaeManager.Application.Documentos.Commands.EliminarDocumentos;
@@ -20,6 +21,8 @@ using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Layout;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Documentos;
 using CaeManager.Web.Features.Documentos.Components;
@@ -90,6 +93,22 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosDocumentos> Textos { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
+
+    /// <summary>
+    /// La empresa gestionada activa, solo para quien alcanza varias (mismo criterio que el selector
+    /// de la barra lateral): la cabecera dice de cuál es la lista. Mismo patrón que Trabajadores.
+    /// </summary>
+    private ClienteAutorizadoDto? _empresaActiva;
+
+    /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
+    private bool _sinEmpresaSeleccionada;
+
+    /// <summary>La empresa activa aún no se ha resuelto: se pinta una carga en vez de la lista.</summary>
+    private bool _resolviendoEmpresa = true;
+
+    /// <summary>El enlace profundo (query) ya se aplicó o se descartó; solo se aplica una vez, con la empresa resuelta.</summary>
+    private bool _enlaceProfundoAplicado;
 
     /// <summary>Comando del palette "Crear documento" (P3-31): /documentos?accion=crear abre el Drawer directamente.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
@@ -325,6 +344,28 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _proveedorElementos = ProveerElementosAsync;
 
         var token = _ciclo.Token;
+
+        // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
+        // vuelo el render saldría con «hay empresa» y lanzaría la carga (y la exportación) del origen.
+        try
+        {
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, token);
+            _empresaActiva = contexto.Activa;
+            _sinEmpresaSeleccionada = contexto.SinSeleccion;
+        }
+        finally
+        {
+            _resolviendoEmpresa = false;
+        }
+
+        // La página se retiró mientras se resolvía la empresa: nada más que pedir.
+        if (_desechado)
+            return;
+
+        // Sin empresa elegida no se piden los datos de la organización de origen.
+        if (_sinEmpresaSeleccionada)
+            return;
+
         _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Documentos), token);
     }
 
@@ -336,7 +377,11 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        // El enlace profundo espera a que la empresa esté resuelta: con el 4a activo no se abre nada
+        // (el drawer escribiría en el Tenant de origen), y mientras se resuelve tampoco.
+        if (_enlaceProfundoAplicado || _resolviendoEmpresa) return;
+        _enlaceProfundoAplicado = true;
+        if (_sinEmpresaSeleccionada) return;
 
         if (DocumentoId is not null)
             await _drawerGestion.AbrirEditarAsync(DocumentoId.Value);
@@ -889,14 +934,52 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
                 {
-                    var elemento = _elementosPagina.FirstOrDefault(e => e.Id == idAbrir);
-                    if (elemento is not null)
-                        await WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, elemento.Id, elemento.TipoDocumentoNombre, "informacion");
+                    // Enter abre la vista previa (el panel del documento), como el propietario de la fila.
+                    await AbrirPanelAsync(idAbrir);
                 }
                 break;
         }
 
         StateHasChanged();
+    }
+
+    // --- Patrón único de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md) ---
+
+    /// <summary>
+    /// Propietario de la fila, «Ver» del «⋯» y Enter sobre la fila enfocada: la vista previa (pieza 6). En
+    /// Documentos es el panel del Context Workspace, que ya existe; el contrato prohíbe sumarle un drawer.
+    /// </summary>
+    private Task AbrirPanelAsync(Guid id)
+    {
+        var documento = _elementosPagina.FirstOrDefault(e => e.Id == id);
+        return documento is null
+            ? Task.CompletedTask
+            : WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion");
+    }
+
+    private void AbrirGuardarFiltro() => _mostrarGuardarFiltro = true;
+
+    private IReadOnlyList<OpcionEstado> OpcionesFiltrosGuardados =>
+        _filtrosGuardados.Select(f => new OpcionEstado(f.Id.ToString(), f.Nombre)).ToList();
+
+    private string EtiquetaFiltroBusqueda => Textos["ChipBusqueda", _busqueda].Value;
+
+    private string EtiquetaFiltroAmbito => Textos["ChipAmbito", _ambitoFiltro].Value;
+
+    private string EtiquetaFiltroEstado =>
+        Textos["ChipEstado", Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado) ? EstadoDocumentoUi.Texto(estado) : "—"].Value;
+
+    /// <summary>«N documentos»; con filtros, dice que el número es el de los que coinciden.</summary>
+    private string TextoConteo
+    {
+        get
+        {
+            var uno = _totalElementos == 1;
+            var clave = HayFiltrosActivos
+                ? (uno ? "ConteoUnoFiltrado" : "ConteoVariosFiltrado")
+                : (uno ? "ConteoUno" : "ConteoVarios");
+            return Textos[clave, _totalElementos].Value;
+        }
     }
 
     // --- P3-31: filtros guardados ---

@@ -30,4 +30,43 @@
   <data name="Documento360Reclamar" xml:space="preserve">
     <value>Reclamar</value>
   </data>
+  <data name="SinEmpresaTitulo" xml:space="preserve">
+    <value>Selecciona una empresa de la teva cartera</value>
+  </data>
+  <data name="SinEmpresaDescripcion" xml:space="preserve">
+    <value>Els documents es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
+  </data>
+  <data name="MasEtiqueta" xml:space="preserve">
+    <value>Més</value>
+  </data>
+  <data name="QuitarFiltroBusqueda" xml:space="preserve">
+    <value>Treu el filtre de cerca</value>
+  </data>
+  <data name="QuitarFiltroAmbito" xml:space="preserve">
+    <value>Treu el filtre d'àmbit</value>
+  </data>
+  <data name="QuitarFiltroEstado" xml:space="preserve">
+    <value>Treu el filtre d'estat</value>
+  </data>
+  <data name="ChipBusqueda" xml:space="preserve">
+    <value>Cerca: "{0}"</value>
+  </data>
+  <data name="ChipAmbito" xml:space="preserve">
+    <value>Àmbit: {0}</value>
+  </data>
+  <data name="ChipEstado" xml:space="preserve">
+    <value>Estat: {0}</value>
+  </data>
+  <data name="ConteoUno" xml:space="preserve">
+    <value>{0} document</value>
+  </data>
+  <data name="ConteoVarios" xml:space="preserve">
+    <value>{0} documents</value>
+  </data>
+  <data name="ConteoUnoFiltrado" xml:space="preserve">
+    <value>{0} document amb aquests filtres</value>
+  </data>
+  <data name="ConteoVariosFiltrado" xml:space="preserve">
+    <value>{0} documents amb aquests filtres</value>
+  </data>
 </root>

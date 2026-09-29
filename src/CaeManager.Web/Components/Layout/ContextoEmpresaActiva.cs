@@ -22,10 +22,26 @@ public sealed record ContextoEmpresaActiva(ClienteAutorizadoDto? Activa, bool Si
     public static async Task<ContextoEmpresaActiva> ResolverAsync(
         IMediator mediator, ITenantActual tenantActual, CancellationToken ct = default)
     {
-        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), ct);
+        IReadOnlyList<ClienteAutorizadoDto> autorizados;
+        try
+        {
+            autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // La página se retiró mientras se resolvía: salida normal. Quien llama comprueba su token
+            // antes de seguir cargando datos.
+            return Ninguno;
+        }
+
         var activa = ClientesAutorizados.Activo(autorizados, tenantActual.TenantId);
-        return ClientesAutorizados.SelectorVisible(autorizados, activa)
-            ? new ContextoEmpresaActiva(activa, ClientesAutorizados.SinEmpresaSeleccionada(autorizados, activa))
-            : Ninguno;
+        if (!ClientesAutorizados.SelectorVisible(autorizados, activa))
+            return Ninguno;
+
+        // En el estado 4a (hay que elegir empresa) no hay empresa activa: si no, la cabecera enseñaría el
+        // Tenant de origen como si fuera la empresa elegida, encima del «Selecciona una empresa».
+        return ClientesAutorizados.SinEmpresaSeleccionada(autorizados, activa)
+            ? new ContextoEmpresaActiva(null, true)
+            : new ContextoEmpresaActiva(activa, false);
     }
 }
