@@ -31,6 +31,8 @@ public class VistaDemoEndpointsTests
     [InlineData("coordinador", "/", "/")]
     [InlineData("coordinador", "https://ajeno.example/", "/")]
     [InlineData("coordinador", "//ajeno.example/", "/")]
+    [InlineData("coordinador", "/?desde=login", "/")]
+    [InlineData("direccion", "/empresas?x=1&desde=login", "/empresas?x=1")]
     public async Task Cambiar_de_vista_responde_con_una_redireccion_local_nunca_un_resultado_dentro_del_circuito(
         string opcion, string returnUrl, string destinoEsperado)
     {

@@ -401,9 +401,13 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     /// empresa (<c>SelectorClienteActivo</c> cierra su panel en cada cambio de
     /// ubicación) y podía pisar el envío de su formulario. Consecuencia: el
     /// <c>NavigationManager.Uri</c> del circuito conserva <c>/?desde=login</c> hasta la
-    /// siguiente navegación real. Es inocuo para <see cref="Desde"/>, que solo se lee
-    /// al inicializar. Es cosmético: si el JS no está (circuito cerrado, sin
-    /// interactividad, módulo no servido), la marca simplemente se queda en la URL.
+    /// siguiente navegación real. Para <see cref="Desde"/> es inocuo (solo se lee al
+    /// inicializar), pero no para quien más lea ese <c>Uri</c>: los selectores de idioma
+    /// y de vista de MainLayout lo toman al inicializarse como <c>returnUrl</c> de su
+    /// POST, y por eso los endpoints de esos POST redirigen con
+    /// <c>RedireccionLocal.SanearParaVolver</c>, que descarta la marca. Quitarla de la
+    /// barra es cosmético: si el JS no está (circuito cerrado, sin interactividad,
+    /// módulo no servido), la marca simplemente se queda en la URL.
     /// </summary>
     private async Task QuitarMarcaDeLaUrlAsync(CancellationToken token)
     {

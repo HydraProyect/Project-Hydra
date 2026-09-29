@@ -178,6 +178,22 @@ public class LocalizacionInfraestructuraTests
         UnicoSetCookie(contexto).Should().StartWith(".AspNetCore.Culture=c%3Des-ES%7Cuic%3Des-ES;");
     }
 
+    [Theory]
+    [InlineData("/?desde=login", "/")]
+    [InlineData("/clientes?a=1&desde=login", "/clientes?a=1")]
+    [InlineData("/documentos", "/documentos")]
+    public async Task Cambiar_de_idioma_vuelve_sin_la_marca_de_un_solo_uso_del_login(string returnUrl, string esperado)
+    {
+        var usuario = NuevoUsuario();
+        var usuarios = new UsuariosFalsos(usuario);
+        var contexto = ContextoAutenticado(usuario.Id);
+
+        var resultado = await IdiomaEndpoints.CambiarAsync(
+            "es-ES", returnUrl, contexto, usuarios, new DesenganchadorFalso(), Textos(), SinCatalan, NullLogger.Instance);
+
+        resultado.Should().BeOfType<RedirectHttpResult>().Which.Url.Should().Be(esperado);
+    }
+
     // ── Cookie de cultura ─────────────────────────────────────────────────
 
     [Theory]

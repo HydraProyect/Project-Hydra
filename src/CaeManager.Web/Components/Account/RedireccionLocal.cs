@@ -37,6 +37,48 @@ public static class RedireccionLocal
         return returnUrl;
     }
 
+    /// <summary>
+    /// Igual que <see cref="Sanear"/> (el resultado siempre pasa por él, así que nunca es más
+    /// permisivo), pero sin la marca de un solo uso <c>desde=login</c>. Es el saneado de los
+    /// selectores de MainLayout (idioma, vista de demo, vista de vocabulario): reciben como
+    /// <c>returnUrl</c> la URL con la que se creó el circuito, que tras iniciar sesión es
+    /// <c>/?desde=login</c>; devolver al usuario ahí reactivaría el aterrizaje D-2 (Mi trabajo)
+    /// en vez de dejarle donde estaba. Solo se quita el parámetro exacto
+    /// (<see cref="ParametroAterrizaje"/>=<see cref="ValorAterrizajeLogin"/>, comparación
+    /// ordinal del parámetro completo, todas sus apariciones); el resto de parámetros y su orden
+    /// se conservan. Si la consulta queda vacía se quita también el "?". Un fragmento, si lo hay,
+    /// se conserva tras la consulta: se separa antes de tocarla, de modo que un "?" o un
+    /// "desde=login" dentro del fragmento no se interpretan como consulta.
+    /// </summary>
+    public static string SanearParaVolver(string? returnUrl)
+    {
+        var saneado = Sanear(returnUrl);
+
+        var inicioConsulta = saneado.IndexOf('?');
+        if (inicioConsulta < 0)
+            return saneado;
+
+        var inicioFragmento = saneado.IndexOf('#');
+        if (inicioFragmento >= 0 && inicioFragmento < inicioConsulta)
+            return saneado;
+
+        var finConsulta = inicioFragmento >= 0 ? inicioFragmento : saneado.Length;
+        var marca = $"{ParametroAterrizaje}={ValorAterrizajeLogin}";
+        var parametros = saneado[(inicioConsulta + 1)..finConsulta].Split('&');
+
+        if (!parametros.Any(p => string.Equals(p, marca, StringComparison.Ordinal)))
+            return saneado;
+
+        var conservados = parametros
+            .Where(p => p.Length > 0 && !string.Equals(p, marca, StringComparison.Ordinal))
+            .ToArray();
+
+        var ruta = saneado[..inicioConsulta];
+        var consulta = conservados.Length > 0 ? "?" + string.Join('&', conservados) : "";
+        var fragmento = inicioFragmento >= 0 ? saneado[inicioFragmento..] : "";
+        return ruta + consulta + fragmento;
+    }
+
     /// <summary>Parámetro de un solo uso que Inicio consume (aterrizaje D-2).</summary>
     public const string ParametroAterrizaje = "desde";
 
