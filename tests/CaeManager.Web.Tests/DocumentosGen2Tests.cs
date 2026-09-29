@@ -954,7 +954,7 @@ public class DocumentosGen2Tests : BunitContext
     }
 
     [Fact]
-    public void Retirar_la_pagina_mientras_se_resuelve_la_empresa_no_lanza_consultas_posteriores()
+    public async Task Retirar_la_pagina_mientras_se_resuelve_la_empresa_no_lanza_consultas_posteriores()
     {
         var puerta = new TaskCompletionSource<object?>();
         var mediador = ConCartera(origenGestionado: false, Documento("Reconocimiento médico"));
@@ -965,7 +965,9 @@ public class DocumentosGen2Tests : BunitContext
 
         cut.Instance.Dispose();
         mediador.Tokens[0].IsCancellationRequested.Should().BeTrue();
-        puerta.SetResult(mediador.Autorizados.ToList());
+        await cut.InvokeAsync(() => puerta.SetResult(mediador.Autorizados.ToList()));
+        // Es una ausencia: se deja correr la continuación de la resolución antes de mirar que no pidió nada.
+        await Task.Delay(200);
 
         mediador.Enviadas.Select(r => r.GetType().Name).Should().OnlyContain(n => n == nameof(ObtenerClientesAutorizadosQuery),
             "la página desmontada no pide filtros guardados ni documentos");
