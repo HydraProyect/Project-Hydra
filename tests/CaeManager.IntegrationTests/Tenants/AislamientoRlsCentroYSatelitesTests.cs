@@ -144,7 +144,11 @@ public class AislamientoRlsCentroYSatelitesTests : IAsyncLifetime
     /// </summary>
     [Theory]
     [InlineData("Centros", "\"Nombre\" = 'Planta Sevilla (editada)'")]
-    [InlineData("Asignaciones", "\"FechaBaja\" = CURRENT_DATE")]
+    // FechaBaja = FechaAlta (vigencia vacía, válida por EX_Asignaciones_SinSolapeVigencia): la
+    // siembra usa el día de negocio de Madrid y CURRENT_DATE es el día UTC de PostgreSQL, que entre
+    // las 22:00 y las 24:00 UTC difieren y darían FechaBaja < FechaAlta (22000). Lo que se prueba
+    // es el UPDATE dentro del tenant, no la fecha: así no depende de ningún reloj.
+    [InlineData("Asignaciones", "\"FechaBaja\" = \"FechaAlta\"")]
     [InlineData("TiposDocumentoCentros", "\"BloqueaAcceso\" = true")]
     public async Task Un_update_que_deja_la_fila_en_su_tenant_si_se_permite(string tabla, string asignacion)
     {

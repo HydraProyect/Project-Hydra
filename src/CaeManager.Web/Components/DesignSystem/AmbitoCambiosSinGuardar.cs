@@ -2,7 +2,8 @@ namespace CaeManager.Web.Components.DesignSystem;
 
 /// <summary>
 /// P1-E2b: una zona de la interfaz que se desmonta sin navegar: el contenido de
-/// <c>Pestanas</c> (las del Context Workspace, las de /documentos y cualquier otra). El
+/// <c>Pestanas</c> (las del Context Workspace, las de /documentos y cualquier otra) o la
+/// ficha visible del Context Workspace (<see cref="NombreAmbitoFicha"/>). El
 /// componente la ofrece en cascada; cada <c>AvisoCambiosSinGuardar</c> de dentro se
 /// registra, y antes de cambiar de pestaña se llama a <see cref="ConfirmarAbandonoAsync"/>,
 /// que pregunta con el mismo aviso si hay cambios sin guardar.
@@ -16,6 +17,14 @@ namespace CaeManager.Web.Components.DesignSystem;
 /// </summary>
 public sealed class AmbitoCambiosSinGuardar
 {
+    /// <summary>
+    /// Nombre de la cascada con la que el Context Workspace ofrece el ámbito de la ficha
+    /// visible (abrir otra ficha, volver, el breadcrumb o cerrar el panel la desmontan sin
+    /// navegar antes). Va con nombre, aparte del de <c>Pestanas</c>: un aviso fuera de las
+    /// pestañas del panel sigue sin ámbito de pestañas, y cambiar de pestaña no le pregunta.
+    /// </summary>
+    public const string NombreAmbitoFicha = "AmbitoFichaWorkspace";
+
     private readonly List<AvisoCambiosSinGuardar> _avisos = [];
     private readonly AmbitoCambiosSinGuardar? _padre;
 

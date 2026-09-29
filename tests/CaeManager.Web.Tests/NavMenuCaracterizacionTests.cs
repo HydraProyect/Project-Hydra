@@ -7,6 +7,7 @@ using CaeManager.Application.Plataforma.OrdenMenu;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Comunicaciones;
@@ -56,11 +57,11 @@ public class NavMenuCaracterizacionTests
 
     public sealed record Combinacion(
         string Rol, VistaDemo? Vista, bool Comunicaciones, bool AdminPlataforma,
-        PerfilVocabularioTenant Perfil, int Tenants)
+        PerfilVocabularioTenant Perfil, int Tenants, bool OtroTenant = false)
     {
         public override string ToString() =>
             $"{Rol}|vista={(Vista?.ToString() ?? "-")}|com={(Comunicaciones ? 1 : 0)}|plat={(AdminPlataforma ? 1 : 0)}" +
-            $"|perfil={Perfil}|tenants={Tenants}";
+            $"|perfil={Perfil}|tenants={Tenants}" + (OtroTenant ? "|otroTenant=1" : "");
     }
 
     /// <summary>
@@ -133,6 +134,25 @@ public class NavMenuCaracterizacionTests
     /// los grupos al momento; el catálogo tiene que hacer lo mismo en vez de quedarse con el
     /// usuario con el que se inicializó.
     /// </summary>
+    /// <summary>
+    /// DDL-072, decisión del propietario 2026-09-28: el rótulo en primera persona exige perfil Cliente
+    /// Directo Y usuario del propio Tenant propietario. Un Coordinador CAE externo dentro de un
+    /// Tenant beneficiario Cliente Directo ve «Empresas» y «Trabajadores».
+    /// </summary>
+    [Theory]
+    [InlineData(PerfilVocabularioTenant.ClienteDirecto, false, "Mi empresa", "Mis trabajadores")]
+    [InlineData(PerfilVocabularioTenant.ClienteDirecto, true, "Empresas", "Trabajadores")]
+    [InlineData(PerfilVocabularioTenant.Consultora, false, "Empresas", "Trabajadores")]
+    public void Los_rotulos_en_primera_persona_exigen_perfil_ClienteDirecto_y_usuario_del_Tenant_propietario(
+        PerfilVocabularioTenant perfil, bool otroTenant, string empresas, string trabajadores)
+    {
+        var cut = Pintar(new Combinacion(Roles.Administrador, null, true, false, perfil, 1, otroTenant), orden: null);
+
+        string Rotulo(string href) => cut.Find($"nav.nav-principal a[href='{href}']").TextContent.Trim();
+        Rotulo("empresas").Should().Be(empresas);
+        Rotulo("trabajadores").Should().Be(trabajadores);
+    }
+
     [Fact]
     public void Si_la_sesion_pasa_a_anonima_en_un_circuito_el_menu_oculta_los_grupos()
     {
@@ -277,6 +297,7 @@ public class NavMenuCaracterizacionTests
             Task.FromResult((TResponse)(request switch
             {
                 ObtenerPerfilVocabularioActualQuery => (object)c.Perfil,
+                UsaRotulosPrimeraPersonaQuery => c.Perfil == PerfilVocabularioTenant.ClienteDirecto && !c.OtroTenant,
                 EsAdministradorPlataformaQuery => c.AdminPlataforma,
                 // Sin Workspace operativo derivado, el rol de origen es el del claim.
                 ParticipaEnIncorporacionCarteraQuery => c.Rol is Roles.CoordinadorCae or Roles.GestorCae,

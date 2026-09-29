@@ -289,6 +289,13 @@ else
     </Pestanas>
 }
 
+@* P1-E2b: la edición en línea de la identidad y el borrador de la nota viven en el panel, no
+   en la pestaña: cambiar de pestaña no los pierde y no pregunta, por eso el aviso va fuera de
+   <Pestanas>. Abrir otra ficha, volver, el breadcrumb o cerrar el panel sí los pierden: el
+   Context Workspace pregunta a este aviso antes. Fuera del if/else, para que recargar la
+   cabecera tras guardar no lo desmonte. *@
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="DescartarCambios" />
+
 @code {
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
     [
@@ -386,6 +393,25 @@ else
     /// </summary>
     private string _notaEditada = string.Empty;
     private bool _guardandoNota;
+
+    private readonly InstantaneaFormulario _instantaneaIdentidad = new();
+
+    /// <summary>
+    /// P1-E2b: único punto de verdad de «hay cambios» en el panel: la edición en línea de la
+    /// identidad comparada con cómo se abrió, y la nota (siempre editable) comparada con la
+    /// guardada.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        (_editandoIdentidad && _instantaneaIdentidad.Difiere(ValoresIdentidad()))
+        || (_detalle is not null && _notaEditada != (_detalle.Notas ?? string.Empty));
+
+    private object?[] ValoresIdentidad() => [_razonSocialEditada, _cifEditado, _esCriticoEditado];
+
+    private void DescartarCambios()
+    {
+        _editandoIdentidad = false;
+        _notaEditada = _detalle?.Notas ?? string.Empty;
+    }
     private string? _mensajeErrorNota;
 
     /// <summary>
@@ -665,6 +691,7 @@ else
         _mensajeErrorIdentidad = null;
         _erroresIdentidad = new Dictionary<string, string>();
         _editandoIdentidad = true;
+        _instantaneaIdentidad.Fijar(ValoresIdentidad());
     }
 
     private void CancelarEdicionIdentidad() => _editandoIdentidad = false;

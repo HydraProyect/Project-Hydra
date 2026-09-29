@@ -25,7 +25,10 @@
     Dentro de un AmbitoCambiosSinGuardar en cascada (la pestaña de un panel del Context
     Workspace o de /documentos), además se registra en él: cambiar de pestaña no navega
     antes de desmontar, así que quien cambia pregunta con este mismo aviso
-    (ConfirmarAbandonoAsync) antes de hacerlo.
+    (ConfirmarAbandonoAsync) antes de hacerlo. Dentro de un panel del Context Workspace se
+    registra también en el ámbito de la ficha (cascada con nombre): abrir otra ficha, volver,
+    el breadcrumb o cerrar el panel tampoco navegan antes de desmontarlo, y el
+    ContextWorkspaceService pregunta igual antes de cambiar la pila.
 
     Solo funciona en componentes interactivos: en una página estática (las de cuenta y
     2FA) no hay circuito que reciba el evento de navegación.
@@ -68,16 +71,24 @@
     /// <summary>La zona que se desmonta sin navegar (pestaña), si la hay.</summary>
     [CascadingParameter] public AmbitoCambiosSinGuardar? Ambito { get; set; }
 
+    /// <summary>La ficha del Context Workspace que contiene el formulario, si la hay.</summary>
+    [CascadingParameter(Name = AmbitoCambiosSinGuardar.NombreAmbitoFicha)] public AmbitoCambiosSinGuardar? AmbitoFicha { get; set; }
+
     private bool _preguntando;
     private string? _destinoPendiente;
     private bool _salidaConfirmada;
     private TaskCompletionSource<bool>? _abandonoPendiente;
 
-    protected override void OnInitialized() => Ambito?.Registrar(this);
+    protected override void OnInitialized()
+    {
+        Ambito?.Registrar(this);
+        AmbitoFicha?.Registrar(this);
+    }
 
     public void Dispose()
     {
         Ambito?.Retirar(this);
+        AmbitoFicha?.Retirar(this);
         // Desmontado mientras preguntaba: quien espera no se queda colgado.
         _abandonoPendiente?.TrySetResult(true);
     }
@@ -108,6 +119,11 @@
             _salidaConfirmada = false;
             return Task.CompletedTask;
         }
+
+        // Cambiar de ficha en el Context Workspace ya confirmado (o sin nada que perder) escribe
+        // ?ctx= con la ficha nueva mientras esta todavía está montada: no es otra salida.
+        if (AmbitoFicha?.EnAbandonoAutorizado == true)
+            return Task.CompletedTask;
 
         // Cambiar de pestaña en el Context Workspace escribe ?ctx= con la pestaña nueva de la
         // misma ficha. Un formulario fuera de las pestañas (sin ámbito) no se desmonta con

@@ -56,6 +56,9 @@
                cerrar siguen funcionando. La @key rehace el límite al cambiar de ficha,
                para que un fallo de una no deje el aviso puesto en la siguiente. *@
             <LimiteDeErrores @key="(frame.Tipo, frame.EntidadId)">
+            @* P1-E2b: el ámbito de la ficha visible. Cambiar de ficha la desmonta antes de
+               que cambie la URL; ContextWorkspaceService pregunta a sus avisos antes. *@
+            <CascadingValue Value="_ambitoFicha" Name="@AmbitoCambiosSinGuardar.NombreAmbitoFicha" IsFixed="true">
             @switch (frame.Tipo)
             {
                 case EntidadWorkspace.Cliente:
@@ -80,6 +83,7 @@
                     <DocumentoWorkspacePanel EntidadId="@frame.EntidadId" PestanaActiva="@frame.PestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" />
                     break;
             }
+            </CascadingValue>
             </LimiteDeErrores>
         </div>
     </aside>
@@ -118,8 +122,11 @@
     /// </summary>
     private string? _ctxSincronizado;
 
+    private readonly AmbitoCambiosSinGuardar _ambitoFicha = new();
+
     protected override void OnInitialized()
     {
+        WorkspaceService.EstablecerAmbitoFicha(_ambitoFicha);
         WorkspaceService.OnCambio += ManejarCambio;
         Navigation.LocationChanged += ManejarNavegacion;
         AplicarCtxDeUrl();
@@ -149,7 +156,7 @@
 
         if (ctx is null)
         {
-            WorkspaceService.CerrarAsync();
+            WorkspaceService.SincronizarConUrl(null);
             return;
         }
 
@@ -159,7 +166,7 @@
         // Título de marcador: al restaurar desde URL todavía no sabemos el
         // nombre de la entidad (lo carga el panel concreto, que además lo pinta
         // en su propia cabecera). El breadcrumb muestra el tipo hasta entonces.
-        WorkspaceService.AbrirAsync(tipo, entidadId, tipo.ToString(), pestana);
+        WorkspaceService.SincronizarConUrl(new WorkspaceFrame(tipo, entidadId, tipo.ToString(), pestana));
     }
 
     private void ActualizarUrlDesdeEstado()
@@ -362,6 +369,7 @@
     {
         WorkspaceService.OnCambio -= ManejarCambio;
         Navigation.LocationChanged -= ManejarNavegacion;
+        WorkspaceService.EstablecerAmbitoFicha(null);
 
         await LiberarTrampaFocoAsync();
 
