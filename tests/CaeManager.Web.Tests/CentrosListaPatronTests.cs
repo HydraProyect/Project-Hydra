@@ -194,6 +194,33 @@ public class CentrosListaPatronTests : BunitContext
     }
 
     [Fact]
+    public async Task Si_la_resolucion_termina_tras_retirar_la_pagina_no_se_pide_ninguna_lista()
+    {
+        var puerta = new TaskCompletionSource();
+        var mediador = ConCartera(origenGestionado: false, Centro("Centro Sur"));
+        mediador.RetenerAutorizados = puerta.Task; // este mediador ignora el token, como una dependencia mal portada
+        Renderizar(mediador, tenantSeleccionado: EmpresaSur);
+
+        await DisposeComponentsAsync();
+        puerta.SetResult();
+        await Task.Delay(300); // la continuación corre en el hilo del pool: se le da margen antes de afirmar la ausencia
+
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().BeEmpty("la página ya no existe: no hay carga posterior");
+    }
+
+    [Fact]
+    public void El_disparador_del_menu_de_fila_es_el_icono_y_tiene_nombre_accesible()
+    {
+        var cut = Renderizar(ConCentros(Centro("Centro Norte")));
+
+        var disparador = cut.Find(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador");
+        disparador.ClassList.Should().NotContain("menu-acciones-disparador-texto", "en la columna de 44 px no cabe un texto");
+        disparador.TextContent.Trim().Should().BeEmpty("el disparador es el icono «⋯»");
+        disparador.QuerySelector("svg, .icono").Should().NotBeNull();
+        disparador.GetAttribute("aria-label").Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
     public void Con_el_origen_gestionado_y_sin_empresa_elegida_la_lista_es_la_del_origen()
     {
         var cut = Renderizar(ConCartera(origenGestionado: true, Centro("Centro del origen")));

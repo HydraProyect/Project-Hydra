@@ -217,13 +217,22 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         try
         {
             var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, token);
+            if (_desechado)
+                return;
+
             _empresaActiva = contexto.Activa;
             _sinEmpresaSeleccionada = contexto.SinSeleccion;
         }
         finally
         {
-            _resolviendoEmpresa = false;
+            if (!_desechado)
+                _resolviendoEmpresa = false;
         }
+
+        // La página se retiró mientras se resolvía la empresa (p. ej. una dependencia que ignora el
+        // token): ni carga ni estado nuevo sobre un componente desechado.
+        if (_desechado)
+            return;
 
         // Sin empresa elegida no se piden los datos de la organización de origen ni se abre el alta.
         if (_sinEmpresaSeleccionada)
