@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentros;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
@@ -65,6 +66,7 @@ public class CentrosListaGen2Tests : BunitContext
                     EliminadosDelLote is null ? lote.Ids.Where(id => !NoEliminables.Contains(id)).ToList() : null)),
                 RestaurarCentroCommand => Result.Exito(),
                 ObtenerProximaVisitaPorCentroQuery => (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>(),
+                ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new ClienteAutorizadoDto(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>(
                     Centros, Centros.Count, q.Pagina, q.TamanoPagina),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
@@ -114,6 +116,7 @@ public class CentrosListaGen2Tests : BunitContext
     {
         _mediador = new MediatorPorTipo { Centros = centros };
         Services.AddScoped<IMediator>(_ => _mediador);
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();

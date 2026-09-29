@@ -77,6 +77,8 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
         // El acordeón inyecta IStringLocalizer<TextosCentros> (badge "Rechazado"
         // y "No aplica" de la fila de Empresa sin Estado, Codex oleada 3).
         Services.AddLocalization();
+        // «Gestionar» va tras SoloConEscritura (como en Subcontratas): hace falta un rol que escriba.
+        this.ConRolDeEscritura();
         Services.AddScoped<IMediator>(_ => mediator);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
@@ -118,5 +120,86 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
         var disparador = cut.Find(".tabla-documentos-requeridos .ventana-contexto");
         disparador.GetAttribute("aria-label")!.Should().Contain("porque lo tiene configurado")
             .And.Contain("si no dice nada, porque el tipo se pide siempre");
+    }
+
+    // ---- «Gestionar» unificado con AcordeonTrabajadoresSubcontrata (lote 3, patrón de lista pieza 5) ----
+
+    private static TrabajadorAsignacionDocumentacionDto TrabajadorConDocumento(EstadoDocumento estado) => new(
+        Guid.NewGuid(), Guid.NewGuid(), "Ruiz Peña, Ana", new DateOnly(2026, 1, 15), estado,
+        [new DocumentoRequeridoDto(estado == EstadoDocumento.Faltante ? null : Guid.NewGuid(), Guid.NewGuid(), "Reconocimiento médico", estado,
+            estado == EstadoDocumento.Faltante ? null : new DateOnly(2027, 1, 15))]);
+
+    private async Task<IRenderedComponent<AcordeonAsignacionesCentro>> RenderizarExpandidoAsync(EstadoDocumento estado, string? rol = null)
+    {
+        RegistrarServicios(new MediatorFalso { Trabajadores = [TrabajadorConDocumento(estado)] });
+        if (rol is not null)
+            this.ConRolDeEscritura(rol);
+
+        var cut = Render<AcordeonAsignacionesCentro>(p => p
+            .Add(a => a.CentroId, Guid.NewGuid())
+            .Add(a => a.CentroNombre, "Centro Logístico Norte"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ruiz Peña, Ana"));
+        await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("tabla-documentos-requeridos"));
+        return cut;
+    }
+
+    [Fact]
+    public async Task Gestionar_se_ofrece_a_quien_escribe_y_no_a_Consulta()
+    {
+        var escribe = await RenderizarExpandidoAsync(EstadoDocumento.Faltante);
+        escribe.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().Contain("Gestionar",
+            "control positivo: con un rol que escribe el botón está");
+
+        // Otro contexto: mismo montaje con Consulta, que no puede ejecutar CrearDocumento/RenovarDocumento.
+        using var consulta = new ConsultaSinEscritura();
+        var cut = await consulta.RenderizarAsync();
+        cut.FindAll(".tabla-documentos-requeridos button").Select(b => b.TextContent.Trim()).Should().NotContain("Gestionar");
+    }
+
+    [Fact]
+    public async Task Gestionar_atenuado_de_un_documento_al_dia_explica_por_que()
+    {
+        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Vigente);
+
+        var boton = cut.FindAll(".tabla-documentos-requeridos button").Single(b => b.TextContent.Trim() == "Gestionar");
+        boton.ClassList.Should().Contain("accion-atenuada");
+        boton.GetAttribute("title").Should().Contain("Al día", "una acción atenuada sin motivo visible es un botón roto");
+    }
+
+    [Fact]
+    public async Task Gestionar_de_un_documento_que_pide_intervencion_no_esta_atenuado_ni_lleva_titulo()
+    {
+        var cut = await RenderizarExpandidoAsync(EstadoDocumento.Faltante);
+
+        var boton = cut.FindAll(".tabla-documentos-requeridos button").Single(b => b.TextContent.Trim() == "Gestionar");
+        boton.ClassList.Should().NotContain("accion-atenuada");
+        boton.GetAttribute("title").Should().BeNull();
+    }
+
+    /// <summary>Segundo contexto de bUnit con rol Consulta: el rol se fija al construir los servicios.</summary>
+    private sealed class ConsultaSinEscritura : BunitContext
+    {
+        public ConsultaSinEscritura() => JSInterop.Mode = JSRuntimeMode.Loose;
+
+        public async Task<IRenderedComponent<AcordeonAsignacionesCentro>> RenderizarAsync()
+        {
+            Services.AddLocalization();
+            this.ConRolDeEscritura(CaeManager.Infrastructure.Identity.Roles.Consulta);
+            Services.AddScoped<IMediator>(_ => new MediatorFalso { Trabajadores = [TrabajadorConDocumento(EstadoDocumento.Faltante)] });
+            Services.AddScoped<ToastService>();
+            Services.AddScoped<ContextWorkspaceService>();
+            Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
+            Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
+            Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+
+            var cut = Render<AcordeonAsignacionesCentro>(p => p
+                .Add(a => a.CentroId, Guid.NewGuid())
+                .Add(a => a.CentroNombre, "Centro Logístico Norte"));
+            cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ruiz Peña, Ana"));
+            await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
+            cut.WaitForAssertion(() => cut.Markup.Should().Contain("tabla-documentos-requeridos"));
+            return cut;
+        }
     }
 }

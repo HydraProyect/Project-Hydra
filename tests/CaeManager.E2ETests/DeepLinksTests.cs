@@ -183,8 +183,10 @@ public class DeepLinksTests(WebAppFixture fixture)
         await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
 
-        var disparador = page.Locator(".enlace-nombre-fila").First;
-        await disparador.ClickAsync();
+        // El nombre de la fila abre la vista previa lateral (patrón de lista) y ya no el panel: el panel se
+        // abre desde el «⋯» de la fila con «Abrir panel de detalles».
+        var disparador = page.Locator(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador").First;
+        await Ayudas.PulsarAccionDeMenuAsync(disparador, "Abrir panel de detalles");
         var panel = page.Locator(".workspace-panel");
         await panel.Locator(".workspace-titulo-entidad").WaitForAsync();
         var tituloOriginal = (await page.Locator(".workspace-titulo-entidad").TextContentAsync())!.Trim();
