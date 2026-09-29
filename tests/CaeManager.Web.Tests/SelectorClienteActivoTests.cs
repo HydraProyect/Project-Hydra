@@ -70,7 +70,7 @@ public class SelectorClienteActivoTests : BunitContext
         new(Origen, "Operador de prueba", EsOrigen: true, EsGestionadoPorOperacion: gestionado);
 
     private static ClienteAutorizadoDto Gestionado(Guid id, string nombre) =>
-        new(id, nombre, EsOrigen: false, EsGestionadoPorOperacion: true);
+        new(id, nombre, EsOrigen: false, EsGestionadoPorOperacion: true, EsCarteraGestorCae: true);
 
     private IRenderedComponent<SelectorClienteActivo> Renderizar(Guid? seleccionado = null, string url = "trabajadores")
     {
@@ -104,6 +104,15 @@ public class SelectorClienteActivoTests : BunitContext
         _lista = [Propio(), Gestionado(Norte, "Empresa Norte")];
 
         Renderizar(seleccionado: Norte).FindAll(".selector-tenant").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Decision_7_quater_con_un_unico_Tenant_de_cartera_de_otro_rol_el_selector_se_ve_tambien_dentro_del_Tenant()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte") with { EsCarteraGestorCae = false }];
+
+        Renderizar(seleccionado: Norte).FindAll(".selector-tenant").Should().NotBeEmpty(
+            "es el único control del Operador delegado para volver a su Tenant de origen");
     }
 
     [Fact]

@@ -70,6 +70,10 @@ public static class ClientesAutorizados
     public static bool SelectorVisible(IReadOnlyList<ClienteAutorizadoDto> autorizados, ClienteAutorizadoDto? activo) =>
         autorizados.Count(c => c.EsGestionadoPorOperacion) >= 2
         || autorizados.Any(c => !c.EsOrigen && !c.EsGestionadoPorOperacion)
+        // Decisión 7 quater: un Tenant externo de cartera que no es de rol Gestor CAE (p. ej. Consulta)
+        // nunca es el Tenant por defecto; si el usuario lo abre, el selector es su único control
+        // para volver a su Tenant de origen, así que se mantiene aunque sea el único.
+        || autorizados.Any(c => !c.EsOrigen && c.EsGestionadoPorOperacion && !c.EsCarteraGestorCae)
         // Mientras el contexto efectivo sea el origen y haya algún Tenant externo, el control
         // se mantiene: quien volvió al origen a propósito (el Tenant por defecto respeta esa
         // preferencia 8 h) o cuya cartera bajó a un solo Tenant no tendría otra vía de elegirlo.

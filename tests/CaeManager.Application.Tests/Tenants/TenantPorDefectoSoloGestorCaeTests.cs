@@ -35,6 +35,24 @@ public class TenantPorDefectoSoloGestorCaeTests
     }
 
     [Fact]
+    public void Con_cartera_de_otro_rol_el_selector_se_ve_tambien_dentro_del_Tenant_externo()
+    {
+        var consulta = Externo(gestorCae: false);
+
+        ClientesAutorizados.SelectorVisible([Origen, consulta], Origen).Should().BeTrue("entra en el origen y elige");
+        ClientesAutorizados.SelectorVisible([Origen, consulta], consulta).Should().BeTrue(
+            "dentro del Tenant externo es su único control para volver al origen");
+    }
+
+    [Fact]
+    public void Con_cartera_de_Gestor_CAE_y_un_unico_Tenant_el_selector_sigue_oculto()
+    {
+        var gestor = Externo(gestorCae: true);
+
+        ClientesAutorizados.SelectorVisible([Origen, gestor], gestor).Should().BeFalse();
+    }
+
+    [Fact]
     public void Con_dos_Tenants_externos_no_hay_defecto_aunque_ambos_sean_de_Gestor_CAE()
     {
         ClientesAutorizados.TenantPorDefecto([Origen, Externo(true), Externo(true)]).Should().BeNull();
