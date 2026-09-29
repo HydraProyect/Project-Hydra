@@ -278,6 +278,10 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
                 """, new[] { tenantFuera, token! }),
             r => r.Url.Contains("/cuenta/cliente-activo") && r.Request.Method == "POST");
         Assert.NotEqual("/centros", respuesta.Headers.GetValueOrDefault("location"));
+        // El servidor deniega (Forbid) y el navegador sigue esa redirección a /acceso-denegado.
+        // Esperar a que aterrice antes de navegar: un GotoAsync lanzado con la redirección en
+        // vuelo se cruza con ella («Navigation ... is interrupted by another navigation»).
+        await page.WaitForURLAsync("**/acceso-denegado**");
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantA);
