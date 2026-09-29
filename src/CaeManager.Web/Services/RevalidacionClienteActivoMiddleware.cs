@@ -226,8 +226,10 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
             logger.LogWarning(
                 "Selección de Workspace operativo derivado descartada en {Ruta}: la cookie está presente pero el "
                 + "token no resolvió a ningún tenant (no se pudo descifrar, formato inesperado, o no ligado al "
-                + "usuario actual).",
-                contexto.Request.Path);
+                + "usuario actual). Usuario autenticado: {Autenticado}; con NameIdentifier: {ConId}.",
+                contexto.Request.Path,
+                contexto.User.Identity?.IsAuthenticated == true,
+                ClienteActivoSeleccionado.LeerUsuarioActual(contexto.User) is not null);
 
             contexto.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
         }
