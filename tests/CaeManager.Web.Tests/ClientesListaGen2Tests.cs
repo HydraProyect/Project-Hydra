@@ -1628,6 +1628,16 @@ public class ClientesListaGen2Tests : BunitContext
         ConsultasDeLista(mediador).Should().Be(0, "la URL trae filtros pero no hay empresa elegida");
     }
 
+    /// <summary>Tampoco lo salta la acción por URL (atajo «n», palette): el alta se abriría contra la organización de origen.</summary>
+    [Fact]
+    public void Sin_empresa_elegida_la_accion_crear_de_la_url_no_abre_el_alta()
+    {
+        var cut = Renderizar(ConCartera(origenGestionado: false), "clientes?accion=crear");
+
+        cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
+        cut.FindAll("[role=dialog]").Should().BeEmpty("el alta iría al Tenant de origen, que no es la empresa activa");
+    }
+
     [Fact]
     public void Con_el_origen_gestionado_y_sin_empresa_elegida_la_lista_es_la_del_origen()
     {
