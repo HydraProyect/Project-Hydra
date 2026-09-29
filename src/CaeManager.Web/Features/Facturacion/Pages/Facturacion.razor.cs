@@ -311,6 +311,20 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
+    /// <summary>
+    /// «Editar» sobre otra fila sustituye la edición abierta: si esa tenía un precio o una moneda
+    /// cambiados, se pregunta antes (con el mismo aviso) en vez de tirarlos sin decir nada.
+    /// </summary>
+    private async Task IniciarEdicionAsync(TarifaClienteDto tarifa)
+    {
+        var sustituyeUnaEdicionSucia = _tarifaEditandoId != Guid.Empty
+            && _tarifaEditandoId != tarifa.Id
+            && _instantaneaEdicion.Difiere(ValoresEdicion());
+        if (sustituyeUnaEdicionSucia && !await _ambitoCliente.ConfirmarAbandonoAsync()) return;
+
+        IniciarEdicion(tarifa);
+    }
+
     private void IniciarEdicion(TarifaClienteDto tarifa)
     {
         _tarifaEditandoId = tarifa.Id;

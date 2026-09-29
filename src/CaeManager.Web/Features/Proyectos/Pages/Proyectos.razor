@@ -169,13 +169,13 @@
                                         <ItemMenuAccion OnClick="() => AbrirDetalleConAvisoAsync(proyecto.Id)">@Textos["MenuDetalles"]</ItemMenuAccion>
                                         @if (proyecto.EstaAbierto)
                                         {
-                                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirCerrarConfirm(proyecto.Id)">@Textos["AccionCerrarProyecto"]</ItemMenuAccion></SoloConEscritura>
+                                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirCerrarConfirmAsync(proyecto.Id)">@Textos["AccionCerrarProyecto"]</ItemMenuAccion></SoloConEscritura>
                                         }
                                         else
                                         {
-                                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirReabrirConfirm(proyecto.Id)">@Textos["AccionReabrirProyecto"]</ItemMenuAccion></SoloConEscritura>
+                                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirReabrirConfirmAsync(proyecto.Id)">@Textos["AccionReabrirProyecto"]</ItemMenuAccion></SoloConEscritura>
                                         }
-                                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(proyecto.Id, proyecto.Nombre)">@Textos["MenuEliminar"]</ItemMenuAccion></SoloConEscritura>
+                                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminarAsync(proyecto.Id, proyecto.Nombre)">@Textos["MenuEliminar"]</ItemMenuAccion></SoloConEscritura>
                                     </MenuAcciones>
                                 </td>
                             </tr>
@@ -349,11 +349,11 @@
                     <Boton OnClick="IniciarEdicionInfo" Variante="VarianteBoton.Secundario">@Textos["BotonEditar"]</Boton>
                     @if (_detalle.EstaAbierto)
                     {
-                        <Boton OnClick="() => AbrirCerrarConfirm(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionCerrarProyecto"]</Boton>
+                        <Boton OnClick="() => AbrirCerrarConfirmAsync(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionCerrarProyecto"]</Boton>
                     }
                     else
                     {
-                        <Boton OnClick="() => AbrirReabrirConfirm(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionReabrirProyecto"]</Boton>
+                        <Boton OnClick="() => AbrirReabrirConfirmAsync(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionReabrirProyecto"]</Boton>
                     }
                 </div>
             </SoloConEscritura>

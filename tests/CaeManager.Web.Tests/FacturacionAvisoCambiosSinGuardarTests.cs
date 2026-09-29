@@ -35,16 +35,27 @@ public class FacturacionAvisoCambiosSinGuardarTests : BunitContext
     {
         public List<object> Enviados { get; } = [];
 
+        /// <summary>Con dos tarifas, «Editar» existe en dos filas (para sustituir una edición por otra).</summary>
+        public bool DosTarifas { get; set; }
+
+        private List<TarifaClienteDto> TarifasDelCliente()
+        {
+            var tarifas = new List<TarifaClienteDto>
+            {
+                new(Guid.NewGuid(), ClienteId, ConceptoFacturable.TrabajadorActivo, "Trabajador activo", 3.50m, "EUR", Guid.NewGuid()),
+            };
+            if (DosTarifas)
+                tarifas.Add(new(Guid.NewGuid(), ClienteId, ConceptoFacturable.AltaCentro, "Alta de centro", 40m, "EUR", Guid.NewGuid()));
+            return tarifas;
+        }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviados.Add(request);
             object? respuesta = request switch
             {
                 ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)[new ClienteSelectorDto(ClienteId, "Refrielectric S.L."), new ClienteSelectorDto(ClienteBId, "Frigoríficos Arcos S.A.")],
-                ObtenerTarifasClienteQuery => new List<TarifaClienteDto>
-                {
-                    new(Guid.NewGuid(), ClienteId, ConceptoFacturable.TrabajadorActivo, "Trabajador activo", 3.50m, "EUR", Guid.NewGuid()),
-                },
+                ObtenerTarifasClienteQuery => TarifasDelCliente(),
                 ObtenerResumenFacturacionQuery => null,
                 ActualizarTarifaClienteCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
@@ -82,7 +93,7 @@ public class FacturacionAvisoCambiosSinGuardarTests : BunitContext
         navegacion.NavigateTo("facturacion");
         var cut = Render<FacturacionPagina>();
         await cut.Find("#sel-cliente").ChangeAsync(new ChangeEventArgs { Value = ClienteId.ToString() });
-        cut.WaitForAssertion(() => cut.FindAll("table.tabla-facturacion tbody tr").Should().HaveCount(1));
+        cut.WaitForAssertion(() => cut.FindAll("table.tabla-facturacion tbody tr").Should().HaveCount(_mediator.DosTarifas ? 2 : 1));
         return (cut, navegacion);
     }
 
@@ -223,5 +234,60 @@ public class FacturacionAvisoCambiosSinGuardarTests : BunitContext
         cambio.IsCompleted.Should().BeTrue("sin cambios el cambio de Cliente empresarial no se queda esperando una respuesta");
         await cambio;
         ConsultasDeTarifasDe(ClienteBId).Should().Be(1, "el cambio se hace directamente");
+    }
+
+    // ---- «Editar» sobre otra fila sustituye la edición abierta (P1-E2b, M2)
+
+    private static Task EditarLaFilaAsync(IRenderedComponent<FacturacionPagina> cut, int fila) =>
+        cut.FindAll("table.tabla-facturacion tbody tr")[fila].QuerySelectorAll("button")
+            .First(b => b.TextContent.Trim() == "Editar").ClickAsync(new MouseEventArgs());
+
+    private static bool FilaEnEdicion(IRenderedComponent<FacturacionPagina> cut, int fila) =>
+        cut.FindAll("table.tabla-facturacion tbody tr")[fila].QuerySelector("input[aria-label='Precio unitario']") is not null;
+
+    [Fact]
+    public async Task Editar_otra_fila_con_la_edicion_a_medias_pregunta_seguir_conserva_y_descartar_edita_la_otra()
+    {
+        _mediator.DosTarifas = true;
+        var (cut, _) = await RenderizarConClienteAsync();
+        await EditarLaFilaAsync(cut, 0);
+        await EditarPrecioAsync(cut, "4.25");
+
+        // Sin await: «Editar» queda pendiente de la respuesta del aviso; se afirma antes de esperarla.
+        var otra = EditarLaFilaAsync(cut, 1);
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("«Editar» en otra fila tira la edición a medias"));
+        FilaEnEdicion(cut, 0).Should().BeTrue("mientras pregunta, la edición sigue ahí");
+
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+        await otra.WaitAsync(TimeSpan.FromSeconds(10));
+
+        FilaEnEdicion(cut, 0).Should().BeTrue("«Seguir editando» conserva la edición en la primera fila");
+        FilaEnEdicion(cut, 1).Should().BeFalse("y no abre la de la otra");
+        cut.Find("input[aria-label='Precio unitario']").GetAttribute("value").Should().Be("4.25", "con lo escrito");
+
+        var segunda = EditarLaFilaAsync(cut, 1);
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        await segunda.WaitAsync(TimeSpan.FromSeconds(10));
+
+        FilaEnEdicion(cut, 1).Should().BeTrue("descartar deja editar la otra fila");
+        FilaEnEdicion(cut, 0).Should().BeFalse("y la primera deja de estar en edición");
+    }
+
+    [Fact]
+    public async Task Editar_otra_fila_con_la_edicion_sin_tocar_no_pregunta()
+    {
+        _mediator.DosTarifas = true;
+        var (cut, _) = await RenderizarConClienteAsync();
+        await EditarLaFilaAsync(cut, 0);
+
+        // Con tope corto: si el aviso preguntara y nadie contestara, la tarea no termina y esperarla colgaría el test.
+        var otra = EditarLaFilaAsync(cut, 1);
+        await Task.WhenAny(otra, Task.Delay(TimeSpan.FromSeconds(2)));
+
+        PreguntaAbierta(cut).Should().BeFalse("la edición está como se abrió");
+        otra.IsCompleted.Should().BeTrue("sin cambios el gesto no se queda esperando una respuesta");
+        await otra;
+        FilaEnEdicion(cut, 1).Should().BeTrue("se edita directamente la otra fila");
     }
 }

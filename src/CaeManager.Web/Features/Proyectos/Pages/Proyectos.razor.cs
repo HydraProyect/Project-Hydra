@@ -355,6 +355,16 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
         CerrarDetalle();
     }
 
+    /// <summary>
+    /// Cerrar, reabrir o eliminar el proyecto cuyo detalle está abierto recarga o cierra el panel y tira lo que
+    /// haya a medias en él (edición de información, alta de técnico): se pregunta antes de pedir la confirmación
+    /// propia de la acción. Sobre otra fila no se pierde nada del panel, así que no pregunta.
+    /// </summary>
+    private async Task<bool> ConfirmarQueNoSePierdeElDetalleAsync(Guid idDelProyecto) =>
+        idDelProyecto != _proyectoSeleccionadoId
+        || !HayCambiosEnElDetalle
+        || await _ambitoDetalle.ConfirmarAbandonoAsync();
+
     /// <summary>Abre el detalle de otro proyecto preguntando antes si el panel actual tiene cambios sin guardar.</summary>
     private async Task AbrirDetalleConAvisoAsync(Guid id)
     {
@@ -699,8 +709,9 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
     private string _fechaCierre = string.Empty;
     private string? _errorCierre;
 
-    private void AbrirCerrarConfirm(Guid id)
+    private async Task AbrirCerrarConfirmAsync(Guid id)
     {
+        if (!await ConfirmarQueNoSePierdeElDetalleAsync(id)) return;
         _idACerrar = id;
         _fechaCierre = Hoy.ToString("yyyy-MM-dd");
         _errorCierre = null;
@@ -758,8 +769,9 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
     private DateOnly? _fechaCierreAReabrir;
     private bool _reabriendo;
 
-    private void AbrirReabrirConfirm(Guid id)
+    private async Task AbrirReabrirConfirmAsync(Guid id)
     {
+        if (!await ConfirmarQueNoSePierdeElDetalleAsync(id)) return;
         var fila = _proyectos.FirstOrDefault(p => p.Id == id);
         _idAReabrir = id;
         _nombreAReabrir = fila?.Nombre ?? _detalle?.Nombre ?? string.Empty;
@@ -803,8 +815,9 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
     private string _nombreAEliminar = string.Empty;
     private bool _eliminando;
 
-    private void AbrirEliminar(Guid id, string nombre)
+    private async Task AbrirEliminarAsync(Guid id, string nombre)
     {
+        if (!await ConfirmarQueNoSePierdeElDetalleAsync(id)) return;
         _idAEliminar = id;
         _nombreAEliminar = nombre;
         _confirmarEliminarVisible = true;
