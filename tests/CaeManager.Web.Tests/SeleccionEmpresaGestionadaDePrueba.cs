@@ -8,9 +8,10 @@ namespace CaeManager.Web.Tests;
 /// conocen la empresa gestionada activa (selector de la barra lateral y cabecera
 /// de Trabajadores): la cookie de selección, sin cookie ni HttpContext.
 /// </summary>
-public sealed class SeleccionEmpresaGestionadaDePrueba(Guid? tenantSeleccionado = null) : IClienteActivoSeleccionado
+public sealed class SeleccionEmpresaGestionadaDePrueba(Guid? tenantSeleccionado = null) : IClienteActivoSeleccionado, ITenantActual
 {
     public Guid? TenantIdSeleccionado { get; } = tenantSeleccionado;
+    Guid? ITenantActual.TenantId => TenantIdSeleccionado;
     public Guid? AsignacionOperacionIdSeleccionada => null;
     public Guid? SesionPrivilegiadaIdSeleccionada => null;
 }

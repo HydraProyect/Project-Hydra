@@ -186,7 +186,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
 
-    [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
@@ -196,7 +196,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
         var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
         if (ClientesAutorizados.SelectorVisible(autorizados))
         {
-            _empresaActiva = ClientesAutorizados.Activo(autorizados, ClienteActivoSeleccionado.TenantIdSeleccionado);
+            _empresaActiva = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
             _sinEmpresaSeleccionada = ClientesAutorizados.SinEmpresaSeleccionada(autorizados, _empresaActiva);
             // Sin empresa elegida no se piden los datos de la organización de origen.
             if (_sinEmpresaSeleccionada)

@@ -341,7 +341,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
-        Services.AddScoped<IClienteActivoSeleccionado>(_ => Seleccion);
+        Services.AddScoped<ITenantActual>(_ => Seleccion);
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new InlineValidator<CrearTrabajadorCommand>());

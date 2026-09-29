@@ -101,7 +101,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Trabajadores = trabajadores, AlcanceCero = _alcanceCero });
         Services.AddScoped<ToastService>();
-        Services.AddScoped<IClienteActivoSeleccionado, SeleccionEmpresaGestionadaDePrueba>();
+        Services.AddScoped<ITenantActual, SeleccionEmpresaGestionadaDePrueba>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new InlineValidator<CrearTrabajadorCommand>());
