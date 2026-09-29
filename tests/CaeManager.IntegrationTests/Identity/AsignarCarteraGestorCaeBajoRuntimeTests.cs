@@ -58,6 +58,7 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
     private readonly Guid _gestorDeOtroEquipo = Guid.NewGuid();
     private readonly Guid _gestorSinCoordinador = Guid.NewGuid();
     private readonly Guid _consultaConCoordinador = Guid.NewGuid();
+    private readonly Guid _gestorSso = Guid.NewGuid();
 
     public async Task InitializeAsync()
     {
@@ -112,6 +113,9 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
         Cuenta(_gestorDeOtroEquipo, _operador.Id, Roles.GestorCae, _otroCoordinador);
         Cuenta(_gestorSinCoordinador, _operador.Id, Roles.GestorCae);
         Cuenta(_consultaConCoordinador, _operador.Id, Roles.Consulta, _coordinador);
+        Cuenta(_gestorSso, _operador.Id, Roles.GestorCae, _coordinador);
+        // Solo entra por SSO: sin contraseña, con un login externo. No está pendiente de activación.
+        contexto.UserLogins.Add(new IdentityUserLogin<Guid> { LoginProvider = "Microsoft", ProviderKey = "clave-sso", UserId = _gestorSso });
 
         await contexto.SaveChangesAsync();
     }
@@ -175,13 +179,61 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
     {
         var equipo = await Equipo(_coordinador, Roles.CoordinadorCae, _operador.Id);
 
-        equipo.Select(m => m.Id).Should().Equal([_gestor],
+        equipo.Select(m => m.Id).Should().BeEquivalentTo([_gestor, _gestorSso],
             "no el Gestor CAE de otro equipo, ni uno sin coordinador, ni una cuenta que no es Gestor CAE aunque le reporte, ni la de otro Operador CAE");
+        equipo.Single(m => m.Id == _gestorSso).PendienteActivacion.Should().BeFalse("solo entra por SSO: no está pendiente, y debe conservar «Asignar empresas»");
+        equipo.Single(m => m.Id == _gestor).PendienteActivacion.Should().BeTrue("sin contraseña ni login externo");
 
         (await Equipo(_otroCoordinador, Roles.CoordinadorCae, _operador.Id)).Select(m => m.Id)
             .Should().Equal([_gestorDeOtroEquipo]);
         (await Equipo(_administrador, Roles.Administrador, _operador.Id)).Should().BeEmpty("el Administrador usa la lista completa, no esta");
         (await Equipo(_gestor, Roles.GestorCae, _operador.Id)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_cuenta_desactivada_desde_otro_circuito_deja_de_estar_activa_en_el_mismo_contexto()
+    {
+        // Con rastreo, la segunda lectura devolvía el bloqueo de cuando se cargó la cuenta.
+        var (antes, despues) = await EnArnes(_administrador, Roles.Administrador, _operador.Id, null, async (usuario, contexto, directorio) =>
+        {
+            var primera = await directorio.EsCuentaActivaConRolAsync(_gestor, _operador.Id, Roles.GestorCae);
+            await using (var otro = ContextoPropietario(_operador.Id))
+            {
+                await otro.Users.Where(u => u.Id == _gestor)
+                    .ExecuteUpdateAsync(s => s.SetProperty(u => u.LockoutEnd, DateTimeOffset.UtcNow.AddYears(100)));
+            }
+
+            return (primera, await directorio.EsCuentaActivaConRolAsync(_gestor, _operador.Id, Roles.GestorCae));
+        });
+
+        antes.Should().BeTrue();
+        despues.Should().BeFalse("se desactivó desde otro circuito entre las dos lecturas");
+    }
+
+    [Fact]
+    public async Task Retirar_espera_a_una_reasignacion_en_curso_hacia_ese_Gestor_CAE_y_asignar_no()
+    {
+        await SembrarCarteraPorSolicitudAceptadaAsync(_gestor, _beneficiarioA);
+
+        // Una reasignación de Cliente empresarial en curso: toma el candado COMPARTIDO del Gestor CAE.
+        await using var otro = ContextoPropietario(_operador.Id);
+        await using var transaccionAjena = await otro.Database.BeginTransactionAsync();
+        await new BloqueoCarteraUsuario(otro).BloquearCompartidoAsync([_gestor]);
+
+        // Asignar toma también el compartido: no espera.
+        var asignar = Ejecutar(_administrador, Roles.Administrador, _operador.Id,
+            new AsignarCarteraGestorCaeCommand(_gestor, [_beneficiarioB.Id], null));
+        (await Task.WhenAny(asignar, Task.Delay(TimeSpan.FromSeconds(30)))).Should().BeSameAs(asignar);
+        (await asignar).EsExitoso.Should().BeTrue();
+
+        // Retirar toma el EXCLUSIVO: la fila heredada depende de que nadie confirme una cartera parcial a la vez.
+        var retirar = Ejecutar(_administrador, Roles.Administrador, _operador.Id,
+            new AsignarCarteraGestorCaeCommand(_gestor, null, [_beneficiarioA.Id]));
+        (await Task.WhenAny(retirar, Task.Delay(TimeSpan.FromSeconds(3)))).Should().NotBeSameAs(retirar,
+            "retirar tiene que esperar a que la reasignación en curso termine");
+
+        await transaccionAjena.RollbackAsync();
+        (await retirar).EsExitoso.Should().BeTrue();
     }
 
     [Fact]
