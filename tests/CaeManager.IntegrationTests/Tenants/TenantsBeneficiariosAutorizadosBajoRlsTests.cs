@@ -69,6 +69,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     private readonly Guid _gestor = Guid.NewGuid();
     private readonly Guid _gestorUnico = Guid.NewGuid();
     private readonly Guid _gestorConOrigen = Guid.NewGuid();
+    private readonly Guid _consultaUnico = Guid.NewGuid();
     private CaeManagerDbContext _propietario = null!;
     private readonly List<IAsyncDisposable> _desechables = [];
 
@@ -191,6 +192,11 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 await _propietario.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionA),
                 _gestorUnico, Roles.GestorCae, AmbitoAsignacion.Universal, ayer, null, ahora));
+            // Decisión 7 quater: mismo Tenant único, pero la cartera es de rol Consulta
+            // (el Operador delegado): no debe tener Tenant por defecto.
+            _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                await _propietario.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionA),
+                _consultaUnico, Roles.Consulta, AmbitoAsignacion.Universal, ayer, null, ahora));
             await _propietario.SaveChangesAsync();
         }
         // Además, una operación INTERNA no raíz (propietario = operador = origen)
@@ -298,7 +304,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         lista.Should().BeEquivalentTo(new[]
         {
             new ClienteAutorizadoDto(_origen, "Operador CAE externo de prueba", EsOrigen: true, EsGestionadoPorOperacion: false),
-            new ClienteAutorizadoDto(_a, "Tenant beneficiario A", EsOrigen: false, EsGestionadoPorOperacion: true),
+            new ClienteAutorizadoDto(_a, "Tenant beneficiario A", EsOrigen: false, EsGestionadoPorOperacion: true, EsCarteraGestorCae: true),
             new ClienteAutorizadoDto(_heredado, "Tenant por vía heredada", EsOrigen: false, EsGestionadoPorOperacion: false),
         });
     }
@@ -461,6 +467,22 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             .Should().BeNull("su Tenant de origen está gestionado");
         ClientesAutorizados.TenantPorDefecto(await ListaAsync(_gestor))
             .Should().BeNull("alcanza además un Tenant por la vía heredada");
+    }
+
+    [Fact]
+    public async Task Decision_7_quater_con_cartera_de_rol_Consulta_no_hay_Tenant_por_defecto_ni_middleware()
+    {
+        var lista = await ListaAsync(_consultaUnico);
+
+        lista.Single(c => !c.EsOrigen).Should().Match<ClienteAutorizadoDto>(c =>
+            c.TenantId == _a && c.EsGestionadoPorOperacion && !c.EsCarteraGestorCae,
+            "el rol sale de la Asignación de Cartera vigente");
+        ClientesAutorizados.TenantPorDefecto(lista).Should().BeNull("la cartera no es de rol Gestor CAE");
+
+        var httpContext = PeticionDePagina(_consultaUnico, "/trabajadores", "");
+        (await FijarPorDefectoAsync(httpContext, _consultaUnico)).Should().BeNull();
+        CookieEmitida(httpContext, ClienteActivoSeleccionado.NombreCookie).Should().BeNull(
+            "entra en su Tenant de origen");
     }
 
     [Fact]
