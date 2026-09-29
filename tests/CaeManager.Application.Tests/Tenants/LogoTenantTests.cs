@@ -211,8 +211,25 @@ public class LogoTenantTests
         _propietario.LogoArchivoClave.Should().Be(vigente, "la entidad rastreada no puede conservar la referencia al blob borrado");
         _propietario.LogoVersion.Should().Be(versionVigente);
         _propietario.LogoActualizadoEnUtc.Should().Be(actualizadoVigente);
+        escenario.Descarte.Veces.Should().Be(1, "el estado rastreado del guardado fallido se descarta en el contexto");
         escenario.Almacenamiento.ArchivosGuardados.Should().Be(1, "solo queda el blob que la base sigue referenciando");
         escenario.Almacenamiento.Contiene(vigente).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Si_retirar_falla_al_guardar_se_descarta_el_estado_rastreado()
+    {
+        var escenario = new Escenario(_propietario, autoriza: true);
+        await escenario.GuardarAsync();
+        var vigente = _propietario.LogoArchivoClave!;
+        escenario.UnidadDeTrabajo.ExcepcionAlGuardar = new DbUpdateConcurrencyException("otra retirada ganó");
+
+        var accion = () => escenario.RetirarAsync();
+
+        await accion.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        _propietario.LogoArchivoClave.Should().Be(vigente);
+        escenario.Descarte.Veces.Should().Be(1);
+        escenario.Almacenamiento.Contiene(vigente).Should().BeTrue("no se borra el blob si la columna no cambió");
     }
 
     [Fact]
@@ -326,18 +343,26 @@ public class LogoTenantTests
         public ConversorFalso Conversor { get; } = new();
         public AlmacenamientoConClaveDeTenant Almacenamiento { get; } = new();
         public UnitOfWorkFalso UnidadDeTrabajo { get; } = new();
+        public DescarteFalso Descarte { get; } = new();
 
         public Task<Domain.Common.Result> GuardarAsync() =>
             new GuardarLogoTenantCommandHandler(
                     new TenantActualFijo(_tenant.Id), Autorizacion, Conversor, new TenantRepositoryFalso(_tenant),
-                    Almacenamiento.Para(_tenant.Id), UnidadDeTrabajo, NullLogger<GuardarLogoTenantCommandHandler>.Instance)
+                    Almacenamiento.Para(_tenant.Id), UnidadDeTrabajo, Descarte, NullLogger<GuardarLogoTenantCommandHandler>.Instance)
                 .Handle(new GuardarLogoTenantCommand([1, 2, 3]), CancellationToken.None);
 
         public Task<Domain.Common.Result> RetirarAsync() =>
             new RetirarLogoTenantCommandHandler(
                     new TenantActualFijo(_tenant.Id), Autorizacion, new TenantRepositoryFalso(_tenant),
-                    Almacenamiento.Para(_tenant.Id), UnidadDeTrabajo, NullLogger<RetirarLogoTenantCommandHandler>.Instance)
+                    Almacenamiento.Para(_tenant.Id), UnidadDeTrabajo, Descarte, NullLogger<RetirarLogoTenantCommandHandler>.Instance)
                 .Handle(new RetirarLogoTenantCommand(), CancellationToken.None);
+    }
+
+    private sealed class DescarteFalso : IDescarteCambiosPendientes
+    {
+        public int Veces { get; private set; }
+
+        public void DescartarCambiosPendientes() => Veces++;
     }
 
     /// <summary>Administrador en base de un solo Tenant, o de ninguno.</summary>

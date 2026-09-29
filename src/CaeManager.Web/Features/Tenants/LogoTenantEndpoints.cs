@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Queries.ObtenerLogoTenant;
 using MediatR;
+using Microsoft.AspNetCore.Diagnostics;
 
 namespace CaeManager.Web.Features.Tenants;
 
@@ -31,6 +32,11 @@ public static class LogoTenantEndpoints
         CancellationToken cancellationToken)
     {
         // Antes de decidir nada, para que las cabeceras sean las mismas en todas las respuestas.
+        // UseStatusCodePagesWithReExecute convertiría cualquier 404 sin cuerpo en la página Blazor
+        // /not-found, y los negativos dejarían de ser idénticos (I11): en esta ruta, no.
+        var paginasDeEstado = contexto.Features.Get<IStatusCodePagesFeature>();
+        if (paginasDeEstado is not null) paginasDeEstado.Enabled = false;
+
         CabecerasArchivoSensible.ProhibirCache(contexto);
         contexto.Response.Headers.XContentTypeOptions = "nosniff";
 

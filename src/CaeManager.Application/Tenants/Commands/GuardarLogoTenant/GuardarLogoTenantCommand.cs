@@ -38,6 +38,7 @@ public class GuardarLogoTenantCommandHandler(
     ITenantRepository tenantRepository,
     IFileStorageService almacenamiento,
     IUnitOfWork unitOfWork,
+    IDescarteCambiosPendientes descarteCambios,
     ILogger<GuardarLogoTenantCommandHandler> logger)
     : IRequestHandler<GuardarLogoTenantCommand, Result>
 {
@@ -91,6 +92,10 @@ public class GuardarLogoTenantCommandHandler(
             // La entidad sigue rastreada: sin restaurar, otro guardado del mismo contexto persistiría una
             // referencia al blob que se acaba de borrar (revisión Codex ronda 1).
             tenant.RestaurarLogo(claveAnterior, versionAnterior, actualizadoAnterior);
+            // Además de restaurar la instancia: tras un conflicto de concurrencia el token original quedó
+            // obsoleto y el contexto (vive lo que el circuito) seguiría fallando en todo guardado posterior,
+            // con los registros de auditoría añadidos aún pendientes (revisión Codex ronda 2).
+            descarteCambios.DescartarCambiosPendientes();
             await BorrarEnMejorEsfuerzoAsync(claveNueva, tenantId);
             throw;
         }
