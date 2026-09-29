@@ -211,6 +211,25 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Un_rol_retirado_desde_otro_circuito_deja_de_verse_en_el_mismo_contexto()
+    {
+        // Con rastreo, IsInRoleAsync devolvía el UserRole cargado en la primera lectura.
+        var (antes, despues) = await EnArnes(_administrador, Roles.Administrador, _operador.Id, null, async (usuario, contexto, directorio) =>
+        {
+            var primera = await directorio.EsCuentaActivaConRolAsync(_coordinador, _operador.Id, Roles.CoordinadorCae);
+            await using (var otro = ContextoPropietario(_operador.Id))
+            {
+                await otro.UserRoles.Where(ur => ur.UserId == _coordinador).ExecuteDeleteAsync();
+            }
+
+            return (primera, await directorio.EsCuentaActivaConRolAsync(_coordinador, _operador.Id, Roles.CoordinadorCae));
+        });
+
+        antes.Should().BeTrue();
+        despues.Should().BeFalse("se le retiró el rol desde otro circuito entre las dos lecturas");
+    }
+
+    [Fact]
     public async Task Retirar_espera_a_una_reasignacion_en_curso_hacia_ese_Gestor_CAE_y_asignar_no()
     {
         await SembrarCarteraPorSolicitudAceptadaAsync(_gestor, _beneficiarioA);

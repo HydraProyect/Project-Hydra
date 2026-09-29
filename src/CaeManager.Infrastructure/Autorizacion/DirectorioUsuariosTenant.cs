@@ -131,9 +131,18 @@ public class DirectorioUsuariosTenant(
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Id == usuarioId && u.TenantId == tenantId, cancellationToken);
 
-            return usuario is not null
-                   && !usuario.EstaDesactivada(DateTimeOffset.UtcNow)
-                   && await userManager.IsInRoleAsync(usuario, rol);
+            if (usuario is null || usuario.EstaDesactivada(DateTimeOffset.UtcNow))
+                return false;
+
+            // El rol también sin rastreo: IsInRoleAsync acaba en UserRoles.FindAsync, que devuelve
+            // el UserRole rastreado si el circuito ya lo tenía, y no vería que a otro circuito le
+            // retiraron el rol.
+            return await (
+                from ur in identidad.UserRoles.AsNoTracking()
+                join r in identidad.Roles.AsNoTracking() on ur.RoleId equals r.Id
+                where ur.UserId == usuario.Id && r.Name == rol
+                select ur.UserId)
+                .AnyAsync(cancellationToken);
         }, cancellationToken);
 
     /// <summary>
