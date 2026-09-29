@@ -104,6 +104,9 @@ public class ClientesListaGen2Tests : BunitContext
         /// <summary>El token con el que la página pidió la lista de Tenants autorizados (solo con <see cref="RetenerAutorizados"/>).</summary>
         public CancellationToken? TokenDeAutorizados { get; private set; }
 
+        /// <summary>Si es cierto, la respuesta retenida ignora el token: simula una resolución que vuelve normal tras cancelarse.</summary>
+        public bool IgnorarCancelacionDeAutorizados { get; set; }
+
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
@@ -111,7 +114,9 @@ public class ClientesListaGen2Tests : BunitContext
             if (request is ObtenerClientesAutorizadosQuery && RetenerAutorizados is { } espera)
             {
                 TokenDeAutorizados = cancellationToken;
-                await espera.WaitAsync(cancellationToken);
+                // Un mediador real lanza al cancelarse; uno que "vuelve" con el contexto por defecto es el caso
+                // que la guarda de Dispose de la página debe cubrir por sí sola.
+                await (IgnorarCancelacionDeAutorizados ? espera : espera.WaitAsync(cancellationToken));
             }
 
             if (Retener?.Invoke(request) is { } retenida)
@@ -1696,6 +1701,31 @@ public class ClientesListaGen2Tests : BunitContext
         puerta.SetResult();
         ConsultasDeLista(mediador).Should().Be(0);
         mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Si la resolución vuelve sin lanzar tras retirarse la página (contexto sin empresa activa ni 4a), la
+    /// página tampoco sigue: ni lista ni filtros guardados de una página que ya no existe.
+    /// </summary>
+    [Fact]
+    public void Una_resolucion_que_vuelve_sin_lanzar_tras_retirar_la_pagina_no_pide_ni_la_lista_ni_los_filtros_guardados()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
+        mediador.IgnorarCancelacionDeAutorizados = true;
+        var puerta = new TaskCompletionSource();
+        mediador.RetenerAutorizados = puerta.Task;
+
+        Registrar(mediador);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("clientes");
+        var cut = Render<Clientes>();
+        cut.Instance.Dispose();
+
+        puerta.SetResult();
+
+        ConsultasDeLista(mediador).Should().Be(0);
+        mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().BeEmpty();
+        mediador.Enviadas.Should().OnlyContain(e => e is ObtenerClientesAutorizadosQuery, "tras retirarse solo consta la resolución que ya iba en vuelo");
     }
 
     [Fact]

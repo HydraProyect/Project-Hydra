@@ -274,6 +274,11 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             _resolviendoEmpresa = false;
         }
 
+        // Retirada la página, una resolución que vuelva sin lanzar (contexto «Ninguno») no es 4a: no hay
+        // a quién pintarle la lista, y seguir pediría los datos de una página que ya no existe.
+        if (_desechado)
+            return;
+
         // Sin empresa elegida no se piden los datos de la organización de origen.
         if (_sinEmpresaSeleccionada)
             return;
