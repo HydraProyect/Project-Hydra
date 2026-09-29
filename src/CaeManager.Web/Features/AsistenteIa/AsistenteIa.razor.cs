@@ -209,7 +209,7 @@ public partial class AsistenteIa : IDisposable
         }
 
         var tareaId = creada.Valor;
-        var propuesta = await Mediator.Send(new ProponerPlanAsistenteQuery(texto));
+        var propuesta = await Mediator.Send(new ProponerPlanDeTareaAsistenteCommand(tareaId));
 
         if (propuesta.EsFallido)
         {
@@ -318,7 +318,7 @@ public partial class AsistenteIa : IDisposable
         try
         {
             vista.ErrorGuardado = null;
-            var propuesta = await Mediator.Send(new ProponerPlanAsistenteQuery(vista.TextoOrden, tenantId));
+            var propuesta = await Mediator.Send(new ProponerPlanDeTareaAsistenteCommand(vista.TareaId.Value, tenantId));
             if (propuesta.EsFallido)
             {
                 vista.ErrorGuardado = propuesta.Error.Mensaje;

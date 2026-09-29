@@ -107,7 +107,7 @@ public class AsistenteIaAgenteTests : BunitContext
     private void GuionDeAgente(PlanPropuestoDto plan)
     {
         _mediador.Guion[typeof(CrearTareaAsistenteCommand)] = _ => Result.Exito(TareaId);
-        _mediador.Guion[typeof(ProponerPlanAsistenteQuery)] = _ => Result.Exito(plan);
+        _mediador.Guion[typeof(ProponerPlanDeTareaAsistenteCommand)] = _ => Result.Exito(plan);
         _mediador.Guion[typeof(ObtenerCandidatosAsistenteQuery)] =
             _ => new CandidatosAsistenteDto([A, B], new Dictionary<string, IReadOnlyList<CandidatoSelladoDto>>());
         _mediador.Guion[typeof(GuardarPlanTareaAsistenteCommand)] = _ => Result.Exito();
@@ -183,7 +183,7 @@ public class AsistenteIaAgenteTests : BunitContext
         Enviar(panel, "reclama la documentación a Montajes Ebro");
 
         var orden = _mediador.Recibidos.Select(r => r.GetType()).ToList();
-        orden.IndexOf(typeof(CrearTareaAsistenteCommand)).Should().BeLessThan(orden.IndexOf(typeof(ProponerPlanAsistenteQuery)),
+        orden.IndexOf(typeof(CrearTareaAsistenteCommand)).Should().BeLessThan(orden.IndexOf(typeof(ProponerPlanDeTareaAsistenteCommand)),
             "la escritura tiene que estar autorizada antes de que el texto llegue al proveedor");
         _mediador.De<CrearTareaAsistenteCommand>().Single().TextoOriginal.Should().Be("reclama la documentación a Montajes Ebro");
 
@@ -285,7 +285,7 @@ public class AsistenteIaAgenteTests : BunitContext
 
         panel.FindAll(".plan-tenants .plan-opcion")[1].Click();
 
-        var peticiones = _mediador.De<ProponerPlanAsistenteQuery>().ToList();
+        var peticiones = _mediador.De<ProponerPlanDeTareaAsistenteCommand>().ToList();
         peticiones.Should().HaveCount(2);
         peticiones[1].TenantElegido.Should().Be(TenantB);
         _mediador.De<GuardarPlanTareaAsistenteCommand>().Select(g => g.TareaId).Should().OnlyContain(id => id == TareaId).And.HaveCount(2);
@@ -318,7 +318,7 @@ public class AsistenteIaAgenteTests : BunitContext
         Enviar(panel, "reclama");
 
         panel.Find(".asistente-mensaje-error").TextContent.Should().Be("No tienes permiso.");
-        _mediador.De<ProponerPlanAsistenteQuery>().Should().BeEmpty();
+        _mediador.De<ProponerPlanDeTareaAsistenteCommand>().Should().BeEmpty();
     }
 
     [Fact]
@@ -326,7 +326,7 @@ public class AsistenteIaAgenteTests : BunitContext
     {
         Configurar(anthropic: true, typeSafeActivo: true);
         GuionDeAgente(PlanConfirmable());
-        _mediador.Guion[typeof(ProponerPlanAsistenteQuery)] = _ => Result.Fallo<PlanPropuestoDto>(
+        _mediador.Guion[typeof(ProponerPlanDeTareaAsistenteCommand)] = _ => Result.Fallo<PlanPropuestoDto>(
             Error.Crear("AsistenteIa.SinInstruccion", "Este tenant todavía no tiene una instrucción de tratamiento con IA vigente."));
         var panel = Abrir();
         Enviar(panel, "reclama");
@@ -341,7 +341,7 @@ public class AsistenteIaAgenteTests : BunitContext
     {
         Configurar(anthropic: true, typeSafeActivo: true);
         GuionDeAgente(PlanConfirmable());
-        _mediador.Guion[typeof(ProponerPlanAsistenteQuery)] =
+        _mediador.Guion[typeof(ProponerPlanDeTareaAsistenteCommand)] =
             _ => Result.Exito(new PlanPropuestoDto(SituacionPlan.NoEntendido, null, 5, [], null, false, null));
         var panel = Abrir();
         Enviar(panel, "qué tiempo hace");
