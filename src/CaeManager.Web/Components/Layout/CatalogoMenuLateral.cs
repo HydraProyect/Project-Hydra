@@ -14,6 +14,10 @@ namespace CaeManager.Web.Components.Layout;
 /// <param name="ParticipaEnIncorporacionCartera">Gestor o Coordinador CAE en su tenant de origen
 /// (ParticipaEnIncorporacionCarteraQuery). No sale de <see cref="Usuario"/>: dentro de un Workspace
 /// operativo derivado su claim de rol es el de la cartera en ese Tenant propietario.</param>
+/// <param name="RotulosPrimeraPersona">«Mi empresa» / «Mis trabajadores» en vez de «Empresas» /
+/// «Trabajadores» (UsaRotulosPrimeraPersonaQuery: perfil Cliente Directo y usuario del propio Tenant
+/// propietario). El perfil solo no basta: un Operador CAE externo dentro de un Tenant beneficiario
+/// ve una lista ajena.</param>
 public sealed record ContextoMenuLateral(
     ClaimsPrincipal Usuario,
     VistaDemo? Vista,
@@ -21,7 +25,8 @@ public sealed record ContextoMenuLateral(
     bool EsAdministradorPlataforma,
     PerfilVocabularioTenant Perfil,
     bool VariosTenants,
-    bool ParticipaEnIncorporacionCartera = false)
+    bool ParticipaEnIncorporacionCartera = false,
+    bool RotulosPrimeraPersona = false)
 {
     /// <summary>
     /// Mismo criterio que <c>&lt;AuthorizeView Roles="…"&gt;</c>, que era como el marcado lo
@@ -150,13 +155,15 @@ public static class CatalogoMenuLateral
         new("dashboard-ejecutivo", "dashboards", "dashboard-ejecutivo", "dashboard", "Dashboard Ejecutivo",
             Condicion: c => c.TieneAlgunRol(RolesDeDashboardEjecutivo)),
 
-        // DDL-072: "Mi empresa" (registro único) en perfil Cliente Directo, "Empresas" (lista) en
-        // perfil Consultora — la misma entrada bajo los dos perfiles, solo cambia el rótulo.
+        // DDL-072 (decisión del propietario 2026-09-28): "Mi empresa" (registro único) solo si el
+        // perfil es Cliente Directo Y el usuario es del propio Tenant propietario; "Empresas" (lista)
+        // en cualquier otro caso. La condición vive en UsaRotulosPrimeraPersonaQuery, la misma que
+        // usan los títulos de página; aquí solo se consume como RotulosPrimeraPersona.
         new("empresas", "negocio", "empresas", "empresas", "Empresas",
-            RotuloPorContexto: c => c.Perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mi empresa" : "Empresas"),
+            RotuloPorContexto: c => c.RotulosPrimeraPersona ? "Mi empresa" : "Empresas"),
         new("subcontratas", "negocio", "subcontratas", "subcontratas", "Subcontratas"),
         new("trabajadores", "negocio", "trabajadores", "trabajadores", "Trabajadores",
-            RotuloPorContexto: c => c.Perfil == PerfilVocabularioTenant.ClienteDirecto ? "Mis trabajadores" : "Trabajadores"),
+            RotuloPorContexto: c => c.RotulosPrimeraPersona ? "Mis trabajadores" : "Trabajadores"),
         new("clientes", "negocio", "clientes", "clientes", "Clientes"),
         new("centros", "negocio", "centros", "centros", "Centros"),
         // Revisión IA, Documentos generados y Plantillas no tienen enlace propio: viven como
