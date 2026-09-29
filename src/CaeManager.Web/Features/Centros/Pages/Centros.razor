@@ -49,8 +49,8 @@
             {
                 <a class="enlace-exportar" href="/centros/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
                 @* Acción extra: va en «Más» (contrato § 3, pieza 1); es una descarga, no una ruta de Blazor. *@
-                <MenuAcciones Etiqueta="Más">
-                    <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/asignaciones/exportar.xlsx", forceLoad: true)'>Exportar asignaciones</ItemMenuAccion>
+                <MenuAcciones Etiqueta="@Textos["CabeceraMas"]">
+                    <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/asignaciones/exportar.xlsx", forceLoad: true)'>@Textos["ExportarAsignaciones"]</ItemMenuAccion>
                 </MenuAcciones>
                 @if (!_alcanceCero)
                 {

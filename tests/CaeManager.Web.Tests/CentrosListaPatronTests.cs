@@ -191,12 +191,14 @@ public class CentrosListaPatronTests : BunitContext
 
         cut.FindAll(".barra-filtros-lista").Should().BeEmpty();
         cut.FindAll("a.enlace-exportar").Should().BeEmpty();
+        cut.FindAll(".cabecera-pagina .menu-acciones-disparador").Should().BeEmpty();
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().BeEmpty();
 
         puerta.SetResult();
 
         cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-lista").Should().NotBeEmpty());
-        cut.FindAll("a.enlace-exportar").Should().HaveCount(2);
+        cut.FindAll("a.enlace-exportar").Should().ContainSingle();
+        cut.FindAll(".cabecera-pagina .menu-acciones-disparador").Should().ContainSingle("«Más» con la exportación de asignaciones");
         cut.Markup.Should().Contain("Centro Sur");
     }
 

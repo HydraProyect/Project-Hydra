@@ -90,6 +90,12 @@
   <data name="MenuVistaPrevia" xml:space="preserve">
     <value>Vista previa</value>
   </data>
+  <data name="CabeceraMas" xml:space="preserve">
+    <value>Más</value>
+  </data>
+  <data name="ExportarAsignaciones" xml:space="preserve">
+    <value>Exportar asignaciones</value>
+  </data>
   <data name="MenuVerFicha360" xml:space="preserve">
     <value>Ver ficha 360</value>
   </data>
