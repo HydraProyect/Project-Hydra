@@ -100,6 +100,7 @@ public class BuscadorGlobalIrAAreasNuevasTests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => new MediatorBuscadorVacio());
         Services.AddScoped<BusquedaGlobalService>();
+        Services.AddScoped<CaeManager.Application.Common.ITenantActual, TenantActualDePaletaFalso>();
 
         var cut = Render<BuscadorGlobal>();
         await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
@@ -121,6 +122,7 @@ public class BuscadorGlobalIrAAreasNuevasTests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => new MediatorBuscadorVacio());
         Services.AddScoped<BusquedaGlobalService>();
+        Services.AddScoped<CaeManager.Application.Common.ITenantActual, TenantActualDePaletaFalso>();
 
         var cut = Render<BuscadorGlobal>();
         await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());

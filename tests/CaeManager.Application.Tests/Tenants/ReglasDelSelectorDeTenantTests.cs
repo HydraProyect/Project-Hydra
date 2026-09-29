@@ -26,7 +26,7 @@ public class ReglasDelSelectorDeTenantTests
         new(Origen, "Origen", EsOrigen: true, EsGestionadoPorOperacion: gestionado);
 
     private static ClienteAutorizadoDto PorCartera(Guid id, string nombre) =>
-        new(id, nombre, EsOrigen: false, EsGestionadoPorOperacion: true);
+        new(id, nombre, EsOrigen: false, EsGestionadoPorOperacion: true, EsCarteraGestorCae: true);
 
     private static ClienteAutorizadoDto PorDelegacion() =>
         new(Delegado, "Delegado", EsOrigen: false, EsGestionadoPorOperacion: false);

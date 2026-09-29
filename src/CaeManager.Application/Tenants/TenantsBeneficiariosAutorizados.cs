@@ -121,6 +121,29 @@ public static class TenantsBeneficiariosAutorizados
             .Select(v => (Guid?)v.Operacion.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
+    /// <summary>Roles que una cartera EXTERNA puede aportar como rol efectivo en el Tenant propietario.</summary>
+    public static readonly IReadOnlyList<string> RolesDelegablesPorOperacion = ["CoordinadorCae", "GestorCae", "Consulta"];
+
+    /// <summary>
+    /// UNA sola definición del rol efectivo por la vía de Operación, para la
+    /// operación ya elegida (<see cref="OperacionQueAutorizaAsync"/> o la del token):
+    /// el par (operación, usuario) NO es único, así que entre las carteras vigentes
+    /// con rol delegable manda la universal y, a igualdad, la de menor Id. Lo usan
+    /// <c>CurrentUserService</c> (rol efectivo) y <c>ObtenerClientesAutorizadosQuery</c>
+    /// (Tenant por defecto, decisión 7 quater): ambos deben coincidir siempre.
+    /// </summary>
+    public static Task<string?> RolPorOperacionAsync(
+        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
+        Guid asignacionOperacionId, DateTime ahora, CancellationToken cancellationToken) =>
+        CarterasPorOperacion(operaciones, usuarioId, tenantOrigenId, ahora)
+            .Where(v => v.Operacion.Id == asignacionOperacionId
+                        && v.Operacion.PropietarioTenantId == tenantId
+                        && v.Cartera.Rol != null && RolesDelegablesPorOperacion.Contains(v.Cartera.Rol))
+            .OrderBy(v => v.Cartera.AmbitoRelacionClienteId == null ? 0 : 1)
+            .ThenBy(v => v.Cartera.Id)
+            .Select(v => v.Cartera.Rol)
+            .FirstOrDefaultAsync(cancellationToken);
+
     /// <summary>
     /// Revalidación de una selección que nombra una Asignación de Operación
     /// concreta: la operación sigue autorizando <paramref name="tenantId"/> a este

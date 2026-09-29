@@ -160,6 +160,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<BusquedaGlobalService>();
+        Services.AddScoped<CaeManager.Application.Common.ITenantActual, TenantActualDePaletaFalso>();
         return Render<BuscadorGlobal>();
     }
 

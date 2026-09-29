@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.VistaDemo;
 using MediatR;
@@ -40,8 +41,15 @@ public record ObtenerClientesAutorizadosQuery : IRequest<IReadOnlyList<ClienteAu
 /// Versión del logo del Tenant, o <c>null</c> si no tiene: construye la URL versionada del endpoint del
 /// logo (contrato del selector, § 4.1.5). No es un secreto ni autoriza nada; el endpoint revalida.
 /// </param>
+/// <param name="EsCarteraGestorCae">
+/// La Asignación de Cartera vigente que da acceso a ese Tenant es de rol Gestor CAE
+/// (leído del dato vigente, nunca de la claim). Condición de la decisión 7 quater
+/// para el Tenant por defecto; no autoriza nada. Siempre falso para el origen y para
+/// la vía heredada.
+/// </param>
 public record ClienteAutorizadoDto(
-    Guid TenantId, string Nombre, bool EsOrigen, bool EsGestionadoPorOperacion = false, string? LogoVersion = null);
+    Guid TenantId, string Nombre, bool EsOrigen, bool EsGestionadoPorOperacion = false, string? LogoVersion = null,
+    bool EsCarteraGestorCae = false);
 
 public static class ClientesAutorizados
 {
@@ -62,6 +70,10 @@ public static class ClientesAutorizados
     public static bool SelectorVisible(IReadOnlyList<ClienteAutorizadoDto> autorizados, ClienteAutorizadoDto? activo) =>
         autorizados.Count(c => c.EsGestionadoPorOperacion) >= 2
         || autorizados.Any(c => !c.EsOrigen && !c.EsGestionadoPorOperacion)
+        // Decisión 7 quater: un Tenant externo de cartera que no es de rol Gestor CAE (p. ej. Consulta)
+        // nunca es el Tenant por defecto; si el usuario lo abre, el selector es su único control
+        // para volver a su Tenant de origen, así que se mantiene aunque sea el único.
+        || autorizados.Any(c => !c.EsOrigen && c.EsGestionadoPorOperacion && !c.EsCarteraGestorCae)
         // Mientras el contexto efectivo sea el origen y haya algún Tenant externo, el control
         // se mantiene: quien volvió al origen a propósito (el Tenant por defecto respeta esa
         // preferencia 8 h) o cuya cartera bajó a un solo Tenant no tendría otra vía de elegirlo.
@@ -88,6 +100,19 @@ public static class ClientesAutorizados
         && autorizados.Any(c => !c.EsOrigen && c.EsGestionadoPorOperacion);
 
     /// <summary>
+    /// UNA sola fuente de la condición del estado 4a para quien tenga que decidir si
+    /// una pantalla, un endpoint o una acción de la paleta sirve los datos del Tenant
+    /// activo: cierto cuando el selector es visible y <see cref="SinEmpresaSeleccionada"/>.
+    /// La usan la página de Trabajadores, su endpoint de exportación y la paleta de
+    /// comandos; ninguna vuelve a escribir la condición.
+    /// </summary>
+    public static bool PideElegirEmpresa(IReadOnlyList<ClienteAutorizadoDto> autorizados, Guid? tenantActualId)
+    {
+        var activo = Activo(autorizados, tenantActualId);
+        return SelectorVisible(autorizados, activo) && SinEmpresaSeleccionada(autorizados, activo);
+    }
+
+    /// <summary>
     /// El Tenant activo dentro de la lista: el seleccionado si sigue autorizado
     /// (una selección caducada ya no está en la lista) y, si no, el de origen.
     /// </summary>
@@ -101,13 +126,20 @@ public static class ClientesAutorizados
     /// gestionado, ese Tenant es el activo por defecto. Se exige además que no
     /// haya ningún otro Tenant externo alcanzable (p. ej. una delegación de
     /// soporte): con dos, elegir uno sería decidir por el usuario.
+    ///
+    /// <para>
+    /// Decisión 7 quater (2026-09-29, opción A): solo cuando esa Asignación de
+    /// Cartera es de rol Gestor CAE. Con otro rol (p. ej. Consulta, el Operador
+    /// delegado) el usuario entra en su Tenant de origen y ve el selector: nadie
+    /// queda dentro de un Tenant externo sin forma de volver.
+    /// </para>
     /// </summary>
     public static ClienteAutorizadoDto? TenantPorDefecto(IReadOnlyList<ClienteAutorizadoDto> autorizados)
     {
         var origen = autorizados.FirstOrDefault(c => c.EsOrigen);
         if (origen is null || origen.EsGestionadoPorOperacion) return null;
 
-        return autorizados.Where(c => !c.EsOrigen).ToList() is [{ EsGestionadoPorOperacion: true } unico]
+        return autorizados.Where(c => !c.EsOrigen).ToList() is [{ EsGestionadoPorOperacion: true, EsCarteraGestorCae: true } unico]
             ? unico
             : null;
     }
@@ -147,6 +179,22 @@ public class ObtenerClientesAutorizadosQueryHandler(
             .Select(v => v.Operacion.PropietarioTenantId)
             .ToListAsync(cancellationToken)).ToHashSet();
 
+        // Decisión 7 quater: el rol se resuelve con la MISMA selección de operación y la misma
+        // precedencia de carteras que el rol efectivo (RolPorOperacionAsync), no con «existe alguna
+        // cartera de ese rol»: con una universal Consulta y una parcial GestorCae manda la universal.
+        var comoGestorCae = new HashSet<Guid>();
+        foreach (var tenantId in porOperacion)
+        {
+            if (await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
+                    operaciones, usuarioId.Value, tenantOrigenId.Value, tenantId, ahora, cancellationToken)
+                is not { } operacionId)
+                continue;
+            if (await TenantsBeneficiariosAutorizados.RolPorOperacionAsync(
+                    operaciones, usuarioId.Value, tenantOrigenId.Value, tenantId, operacionId, ahora, cancellationToken)
+                == ContextoOperadorCae.RolGestorCae)
+                comoGestorCae.Add(tenantId);
+        }
+
         var porDelegacion = await TenantsBeneficiariosAutorizados
             .AsignacionesHeredadasVigentes(dbContext, usuarioId.Value, ahora)
             .Select(v => v.Concesion.TenantClienteId)
@@ -169,7 +217,8 @@ public class ObtenerClientesAutorizadosQueryHandler(
 
         resultado.AddRange(nombres
             .Select(t => new ClienteAutorizadoDto(t.Id, t.Nombre, EsOrigen: false,
-                EsGestionadoPorOperacion: porOperacion.Contains(t.Id), LogoVersion: t.LogoVersion))
+                EsGestionadoPorOperacion: porOperacion.Contains(t.Id), LogoVersion: t.LogoVersion,
+                EsCarteraGestorCae: comoGestorCae.Contains(t.Id)))
             .OrderBy(c => c.Nombre)
             .ThenBy(c => c.TenantId));
 

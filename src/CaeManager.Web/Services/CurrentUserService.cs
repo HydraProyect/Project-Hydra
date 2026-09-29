@@ -239,17 +239,10 @@ public class CurrentUserService(
         // La operación llega ya elegida (token o, en el fan-out, la misma que
         // embebería el POST). Elegirla dentro de esta misma expresión creaba una
         // expresión autorreferente que desbordaba la pila del funcletizador de EF.
-        return await TenantsBeneficiariosAutorizados
-            .CarterasPorOperacion(
-                serviceProvider.GetRequiredService<IOperacionesQueryContext>(),
-                usuarioId, tenantOrigenId, DateTime.UtcNow)
-            .Where(v => v.Operacion.Id == asignacionOperacionId
-                        && v.Operacion.PropietarioTenantId == tenantId
-                        && v.Cartera.Rol != null && RolesDelegables.Contains(v.Cartera.Rol))
-            .OrderBy(v => v.Cartera.AmbitoRelacionClienteId == null ? 0 : 1)
-            .ThenBy(v => v.Cartera.Id)
-            .Select(v => v.Cartera.Rol)
-            .FirstOrDefaultAsync();
+        // La consulta es la única de TenantsBeneficiariosAutorizados.RolPorOperacionAsync.
+        return await TenantsBeneficiariosAutorizados.RolPorOperacionAsync(
+            serviceProvider.GetRequiredService<IOperacionesQueryContext>(),
+            usuarioId, tenantOrigenId, tenantId, asignacionOperacionId, DateTime.UtcNow, CancellationToken.None);
     }
 
     /// <summary>

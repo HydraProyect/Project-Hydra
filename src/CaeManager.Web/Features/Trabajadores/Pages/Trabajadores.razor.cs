@@ -206,7 +206,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
             if (ClientesAutorizados.SelectorVisible(autorizados, activa))
             {
                 _empresaActiva = activa;
-                _sinEmpresaSeleccionada = ClientesAutorizados.SinEmpresaSeleccionada(autorizados, _empresaActiva);
+                // Misma fuente que el endpoint de exportación y la paleta.
+                _sinEmpresaSeleccionada = ClientesAutorizados.PideElegirEmpresa(autorizados, TenantActual.TenantId);
             }
         }
         finally
