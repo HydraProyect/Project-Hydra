@@ -14,48 +14,6 @@
   es compartida con Subcontratas y Centros: cambiarla allí a grid movería tres
   pantallas en un incremento que solo ha verificado una.
 */
-
-/*
-  Tarjeta de filtros Gen 2. .barra-filtros (list-page.css, global) trae
-  max-width:480px, pensado para buscador + un filtro sin chips; aquí los
-  filtros activos y «Limpiar todo» van dentro, en su propia fila. La regla
-  lleva el atributo de ámbito de esta página: no toca las demás listas.
-*/
-.barra-filtros {
-    max-width: none;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    padding: var(--space-3);
-    background: var(--color-surface);
-    border: var(--border-default);
-    border-radius: var(--radius-lg);
-}
-
-/* Los filtros activos van dentro de la tarjeta, a todo el ancho (mismas
-   clases y reglas que Clientes.razor.css: cada una en su CSS aislado). */
-.chips-filtros-barra {
-    flex-basis: 100%;
-    align-items: center;
-    margin-bottom: 0;
-}
-
-.limpiar-filtros-barra {
-    border: 0;
-    background: none;
-    padding: 0;
-    font: var(--font-caption);
-    color: var(--color-text-muted);
-    cursor: pointer;
-}
-
-.limpiar-filtros-barra:hover {
-    color: var(--color-text);
-}
-
-.limpiar-filtros-barra:focus-visible {
-    outline: var(--border-focus);
-}
-
 .conteo-empresas {
     font: var(--font-caption);
     color: var(--color-text-muted);

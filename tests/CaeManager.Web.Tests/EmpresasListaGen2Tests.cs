@@ -190,7 +190,7 @@ public class EmpresasListaGen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerClientesDeEmpresaQuery>().Count();
 
     private static List<string> TextosDeLosChips(IRenderedComponent<Empresas> cut) =>
-        cut.FindAll(".barra-filtros .chip-filtro").Select(c => c.TextContent.Trim()).ToList();
+        cut.FindAll(".barra-filtros-lista .chip-filtro").Select(c => c.TextContent.Trim()).ToList();
 
     // ------------------------------------------------------------------ Cabecera
 
@@ -255,7 +255,7 @@ public class EmpresasListaGen2Tests : BunitContext
             Almacen = { Empresa("Refrielectric S.A.", estado: EstadoDocumento.Vencido), Empresa("Montajes Ebro S.L.", estado: EstadoDocumento.Vigente) }
         };
         var cut = Renderizar(mediador);
-        var select = cut.Find(".barra-filtros select");
+        var select = cut.Find(".barra-filtros-lista select");
         select.QuerySelector("option")!.TextContent.Trim().Should().Be("Todas");
 
         await select.ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
@@ -272,7 +272,7 @@ public class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.", estado: EstadoDocumento.Vencido) } },
             "empresas?q=Refri&estado=Vencido");
 
-        var tarjeta = cut.Find(".barra-filtros");
+        var tarjeta = cut.Find(".barra-filtros-lista");
         tarjeta.QuerySelectorAll(".chip-filtro").Should().HaveCount(2);
         tarjeta.QuerySelector("button.limpiar-filtros-barra")!.TextContent.Trim().Should().Be("Limpiar todo");
     }
@@ -295,7 +295,7 @@ public class EmpresasListaGen2Tests : BunitContext
         Navegacion.Uri.Should().Contain("estado=Vencido", "es el punto de partida de este caso");
         var consultasAntes = ConsultasDeLista(mediador);
 
-        await cut.Find(".barra-filtros button.limpiar-filtros-barra").ClickAsync(new MouseEventArgs());
+        await cut.Find(".barra-filtros-lista button.limpiar-filtros-barra").ClickAsync(new MouseEventArgs());
 
         Navegacion.Uri.Should().NotContain("q=").And.NotContain("estado=");
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1, "quitar los dos filtros es una sola pregunta nueva");
@@ -575,7 +575,7 @@ public class EmpresasListaGen2Tests : BunitContext
 
         // Sin await: su manejador espera a la consulta retenida.
         var expansion = cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
-        await cut.Find(".barra-filtros select").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+        await cut.Find(".barra-filtros-lista select").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
         cut.WaitForAssertion(() => cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty(
             "recargar la lista pliega las filas"));
 
@@ -617,7 +617,7 @@ public class EmpresasListaGen2Tests : BunitContext
         Navegacion.NavigateTo("empresas");
         var cut = Render<Empresas>();
 
-        await cut.Find(".barra-filtros select").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+        await cut.Find(".barra-filtros-lista select").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ninguna empresa con este filtro"));
 
         await cut.InvokeAsync(() => respuestaVieja.SetResult(mediador.Filtrar(new ObtenerEmpresasQuery(null))));
