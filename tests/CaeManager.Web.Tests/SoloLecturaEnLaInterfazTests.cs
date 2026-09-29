@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion.Queries;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Layout;
@@ -84,6 +85,7 @@ public class SoloLecturaEnLaInterfazTests : BunitContext
             {
                 ObtenerDocumentosQuery q => new ResultadoPaginado<DocumentoListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerFiltrosGuardadosQuery => Array.Empty<FiltroGuardadoDto>(),
+                ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new ClienteAutorizadoDto(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 _ => ListaVaciaSiLoEs(typeof(TResponse))
             };
 
@@ -141,6 +143,7 @@ public class SoloLecturaEnLaInterfazTests : BunitContext
     {
         RegistrarComun(rol);
         Services.AddScoped<IMediator, MediadorVacio>();
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService>(_ => new UsuarioActual(rol));
