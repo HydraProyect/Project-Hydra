@@ -1615,6 +1615,19 @@ public class ClientesListaGen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().BeEmpty("tampoco los filtros guardados del origen");
     }
 
+    /// <summary>Un enlace con filtros (<c>?q=</c>) no salta el estado 4a: los parámetros de la URL no piden la lista del origen.</summary>
+    [Fact]
+    public void Sin_empresa_elegida_un_enlace_con_filtros_tampoco_pide_la_lista_del_origen()
+    {
+        var mediador = ConCartera(origenGestionado: false);
+
+        var cut = Renderizar(mediador, "clientes?q=Refri&critico=true");
+
+        cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
+        cut.Markup.Should().NotContain("Refrielectric S.A.");
+        ConsultasDeLista(mediador).Should().Be(0, "la URL trae filtros pero no hay empresa elegida");
+    }
+
     [Fact]
     public void Con_el_origen_gestionado_y_sin_empresa_elegida_la_lista_es_la_del_origen()
     {
