@@ -358,6 +358,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _resolviendoEmpresa = false;
         }
 
+        // La página se retiró mientras se resolvía la empresa: nada más que pedir.
+        if (_desechado)
+            return;
+
         // Sin empresa elegida no se piden los datos de la organización de origen.
         if (_sinEmpresaSeleccionada)
             return;

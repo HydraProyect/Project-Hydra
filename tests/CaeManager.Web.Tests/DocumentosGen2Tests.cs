@@ -917,6 +917,7 @@ public class DocumentosGen2Tests : BunitContext
         var (cut, mediador) = Renderizar(ConCartera(origenGestionado: false, Documento("Reconocimiento médico")));
 
         cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("el origen no es la empresa elegida: la cabecera no lo enseña como tal");
         cut.FindAll(".barra-filtros-lista").Should().BeEmpty();
         cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría los datos del origen");
         cut.Markup.Should().NotContain("+ Nuevo documento");
@@ -950,6 +951,24 @@ public class DocumentosGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-lista").Should().NotBeEmpty());
         cut.FindAll("a.enlace-exportar").Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void Retirar_la_pagina_mientras_se_resuelve_la_empresa_no_lanza_consultas_posteriores()
+    {
+        var puerta = new TaskCompletionSource<object?>();
+        var mediador = ConCartera(origenGestionado: false, Documento("Reconocimiento médico"));
+        mediador.Interceptar = p => p is ObtenerClientesAutorizadosQuery ? puerta.Task : null;
+        var (cut, _) = Renderizar(mediador, tenantSeleccionado: EmpresaSur);
+        mediador.Tokens.Should().ContainSingle("solo la resolución de la empresa está en vuelo");
+        mediador.Tokens[0].CanBeCanceled.Should().BeTrue("un token no cancelable sigue consultando para una página que ya no existe");
+
+        cut.Instance.Dispose();
+        mediador.Tokens[0].IsCancellationRequested.Should().BeTrue();
+        puerta.SetResult(mediador.Autorizados.ToList());
+
+        mediador.Enviadas.Select(r => r.GetType().Name).Should().OnlyContain(n => n == nameof(ObtenerClientesAutorizadosQuery),
+            "la página desmontada no pide filtros guardados ni documentos");
     }
 
     [Fact]

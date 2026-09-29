@@ -187,7 +187,7 @@ public static class IdentityEndpointsExtensions
             // Sanear en vez de confiar en que LocalRedirect lance: con un
             // returnUrl malicioso ("//atacante.com") LocalRedirect responde
             // 500; saneado, el usuario aterriza en "/" y sigue trabajando.
-            return Results.LocalRedirect(RedireccionLocal.Sanear(returnUrl));
+            return Results.LocalRedirect(RedireccionLocal.DestinoTrasLogin(returnUrl));
         }).AllowAnonymous();
 
         return endpoints;
