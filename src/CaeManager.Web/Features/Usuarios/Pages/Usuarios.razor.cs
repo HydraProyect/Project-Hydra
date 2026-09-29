@@ -128,6 +128,12 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// </summary>
     private bool _usuarioActualEsAdministrador;
 
+    /// <summary>
+    /// Un Coordinador CAE (sin rol de Propiedad) abre /usuarios solo para «Asignar empresas» a su
+    /// equipo. Presentación: lo que puede hacer lo decide Application, que le niega el resto.
+    /// </summary>
+    private bool _modoEquipo;
+
     private int _pagina = 1;
 
     private string _busqueda = string.Empty;
@@ -422,6 +428,25 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             var idClaim = estadoAutenticacion.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             _usuarioActualId = Guid.TryParse(idClaim, out var id) ? id : null;
             _usuarioActualEsAdministrador = estadoAutenticacion.User.IsInRole(Roles.Administrador);
+            _modoEquipo = estadoAutenticacion.User.IsInRole(Roles.CoordinadorCae)
+                && !estadoAutenticacion.User.IsInRole(Roles.Administrador)
+                && !estadoAutenticacion.User.IsInRole(Roles.DireccionCae);
+
+            if (_modoEquipo)
+            {
+                // Un Coordinador CAE solo ve a su equipo, y la lista sale ya filtrada de
+                // Application: esta rama no lee a ningún otro usuario.
+                var equipo = await Mediator.Send(new ObtenerEquipoDeCoordinadorQuery(), token);
+                if (version != _versionCarga) return;
+                _usuarios = equipo
+                    .Select(m => new UsuarioListaDto(
+                        m.Id, m.Email, m.NombreCompleto, Roles.GestorCae, m.Activo, false, m.PendienteActivacion,
+                        new AlcanceUsuarioDto("—", false, string.Empty)))
+                    .ToList();
+                _pagina = 1;
+                return;
+            }
+
             _rolesNoAsignables = await Mediator.Send(new ObtenerRolesNoAsignablesQuery(), token) ?? [];
 
             var usuarios = new List<UsuarioListaDto>();
@@ -792,6 +817,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     private void AbrirCrear()
     {
+        if (_modoEquipo) return;
         _versionApertura++;
         _versionBusquedaCif++;
         _editandoId = null;
@@ -816,6 +842,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     private async Task AbrirEditarAsync(Guid id)
     {
+        if (_modoEquipo) return;
         var version = ++_versionApertura;
         var token = _ciclo.Token;
 

@@ -1,6 +1,9 @@
 @page "/usuarios"
 @rendermode InteractiveServer
-@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae}")]
+@* El Coordinador CAE entra solo para «Asignar empresas» a su equipo (2026-09-29): ve a los
+   Gestores CAE que le reportan y ninguna otra acción; la lista sale filtrada de Application
+   (ObtenerEquipoDeCoordinadorQuery) y los demás Commands y Queries de Usuarios le niegan el paso. *@
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Infrastructure.Identity
 
@@ -16,7 +19,10 @@
        .acciones-cabecera, que es lo que el mockup nombra. *@
     <CabeceraPagina Titulo="Usuarios" Integrada="IntegradaEnConfiguracion">
         <Acciones>
-            <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo usuario</Boton></SoloConEscritura>
+            @if (!_modoEquipo)
+            {
+                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo usuario</Boton></SoloConEscritura>
+            }
         </Acciones>
     </CabeceraPagina>
 
@@ -169,6 +175,8 @@
                                antes ocupaban dos botones fantasma en línea que competían
                                visualmente y estiraban la fila. *@
                             <MenuAcciones>
+                                @if (!_modoEquipo)
+                                {
                                 <ItemMenuAccion OnClick="() => AbrirEditarAsync(usuario.Id)">
                                     Editar
                                 </ItemMenuAccion>
@@ -195,6 +203,7 @@
                                                 OnClick="() => usuario.Activo ? PedirDesactivacionAsync(usuario) : CambiarActivacionAsync(usuario)">
                                     @(usuario.Activo ? "Desactivar" : "Reactivar")
                                 </ItemMenuAccion>
+                                }
                                 @* Asignar empresas (2026-09-28): la cartera de un Gestor CAE que ya
                                    existe. Solo se ofrece; quién puede y qué empresas son asignables
                                    lo decide AsignarCarteraGestorCaeCommand. *@

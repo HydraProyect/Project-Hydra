@@ -41,7 +41,8 @@ namespace CaeManager.Infrastructure.Autorizacion;
 public class DirectorioUsuariosTenant(
     UserManager<ApplicationUser> userManager, ITenantsQueryContext dbContext, ITenantActual tenantActual,
     PuertaAccesoDatos puertaAccesoDatos, Persistence.CaeManagerDbContext identidad)
-    : IDirectorioUsuariosService, CaeManager.Application.Clientes.IDirectorioDestinosCartera
+    : IDirectorioUsuariosService, CaeManager.Application.Clientes.IDirectorioDestinosCartera,
+      CaeManager.Application.Usuarios.IDirectorioEquipoCoordinador
 {
     /// <summary>
     /// Usuarios del tenant activo, más sus Operadores Delegados. Sin tenant
@@ -129,6 +130,34 @@ public class DirectorioUsuariosTenant(
             return usuario is not null
                    && !usuario.EstaDesactivada(DateTimeOffset.UtcNow)
                    && await userManager.IsInRoleAsync(usuario, rol);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Los Gestores CAE propios del Tenant activo cuyo <c>CoordinadorUsuarioId</c> es el indicado.
+    /// Sin rastreo, como <see cref="ObtenerAsync"/>: la lista tiene que ver el bloqueo de ahora.
+    /// </summary>
+    public Task<IReadOnlyList<CaeManager.Application.Usuarios.MiembroDeEquipo>> ObtenerEquipoAsync(
+        Guid coordinadorUsuarioId, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<CaeManager.Application.Usuarios.MiembroDeEquipo>>(async () =>
+        {
+            if (tenantActual.TenantId is not { } tenantId) return [];
+
+            var cuentas = await (
+                from u in identidad.Users.AsNoTracking()
+                join ur in identidad.UserRoles on u.Id equals ur.UserId
+                join r in identidad.Roles on ur.RoleId equals r.Id
+                where u.TenantId == tenantId
+                      && u.CoordinadorUsuarioId == coordinadorUsuarioId
+                      && r.Name == Roles.GestorCae
+                orderby u.NombreCompleto
+                select u)
+                .ToListAsync(cancellationToken);
+
+            var ahora = DateTimeOffset.UtcNow;
+            return cuentas
+                .Select(u => new CaeManager.Application.Usuarios.MiembroDeEquipo(
+                    u.Id, u.Email ?? string.Empty, u.NombreCompleto, !u.EstaDesactivada(ahora), string.IsNullOrEmpty(u.PasswordHash)))
+                .ToList();
         }, cancellationToken);
 
     public Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
