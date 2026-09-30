@@ -22,6 +22,7 @@ using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -32,8 +33,25 @@ using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Trabajadores.Pages;
 
-public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
+public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
+    /// <summary>
+    /// Se cancela al salir de la página: la resolución de la empresa activa que siga en vuelo deja de trabajar
+    /// para nadie y su respuesta tardía no repinta un componente ya retirado.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
@@ -201,19 +219,24 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
         // vuelo el render saldría con «hay empresa» y lanzaría la carga (y la exportación) del origen.
         try
         {
-            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
-            var activa = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
-            if (ClientesAutorizados.SelectorVisible(autorizados, activa))
-            {
-                _empresaActiva = activa;
-                // Misma fuente que el endpoint de exportación y la paleta.
-                _sinEmpresaSeleccionada = ClientesAutorizados.PideElegirEmpresa(autorizados, TenantActual.TenantId);
-            }
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, _ciclo.Token);
+            _empresaActiva = contexto.Activa;
+            _sinEmpresaSeleccionada = contexto.SinSeleccion;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        {
+            // La página se retiró con la resolución en vuelo: no queda nadie a quien pintar.
+            return;
         }
         finally
         {
             _resolviendoEmpresa = false;
         }
+
+        // Retirada la página, una resolución que vuelva sin lanzar (contexto «Ninguno») no es 4a: no hay
+        // a quién pintarle la lista, y seguir pediría los datos de una página que ya no existe.
+        if (_desechado)
+            return;
 
         // Sin empresa elegida no se piden los datos de la organización de origen.
         if (_sinEmpresaSeleccionada)
@@ -257,6 +280,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     protected override async Task OnParametersSetAsync()
     {
+        // Retirada la página con la resolución en vuelo, ComponentBase aún invoca esto: no se procesan
+        // parámetros ni acciones de URL de un componente que ya no existe, ni en el estado 4a (una
+        // ?accion=guardar-filtro no abre el diálogo contra el Tenant de origen).
+        if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada)
+            return;
+
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var estadoDeLaUrl = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial)
             ? EstadoInicial!

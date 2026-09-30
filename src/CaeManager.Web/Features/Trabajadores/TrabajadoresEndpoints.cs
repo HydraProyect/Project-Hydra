@@ -42,7 +42,8 @@ public static class TrabajadoresEndpoints
     {
         // Estado 4a: la página no muestra los datos del Tenant de origen a quien tiene que
         // elegir una empresa de su cartera; el endpoint no los exporta tampoco. Misma
-        // condición, misma fuente (ClientesAutorizados.PideElegirEmpresa).
+        // condición que la página (ContextoEmpresaActiva.ResolverAsync compone las mismas dos
+        // condiciones que ClientesAutorizados.PideElegirEmpresa, que es la que usa el endpoint).
         var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
         if (ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId))
             return Results.Redirect("/trabajadores");

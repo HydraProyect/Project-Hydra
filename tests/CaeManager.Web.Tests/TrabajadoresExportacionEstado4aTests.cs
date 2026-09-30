@@ -13,7 +13,8 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// La página de Trabajadores no muestra los datos del Tenant de origen en el estado 4a
 /// («Selecciona una empresa de tu cartera»); el endpoint de exportación aplica la
-/// misma condición (<see cref="ClientesAutorizados.PideElegirEmpresa"/>) y no los exporta.
+/// misma condición (<see cref="ClientesAutorizados.PideElegirEmpresa"/>; la página la resuelve con
+/// <c>ContextoEmpresaActiva.ResolverAsync</c>, que compone las mismas dos) y no los exporta.
 /// </summary>
 public class TrabajadoresExportacionEstado4aTests
 {

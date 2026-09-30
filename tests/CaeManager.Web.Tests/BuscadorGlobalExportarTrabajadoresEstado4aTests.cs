@@ -19,7 +19,7 @@ internal sealed class TenantActualDePaletaFalso : ITenantActual
 
 /// <summary>
 /// La paleta no ofrece «Exportar a Excel» en /trabajadores mientras la pantalla esté en el
-/// estado 4a: usa la misma fuente que la página y el endpoint
+/// estado 4a: aplica la misma condición que la página (vía <c>ContextoEmpresaActiva</c>) y que el endpoint
 /// (<see cref="ClientesAutorizados.PideElegirEmpresa"/>).
 /// </summary>
 public class BuscadorGlobalExportarTrabajadoresEstado4aTests : BunitContext

@@ -72,18 +72,18 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioA);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores?q={TrabajadorA}");
-        await Expect(page.Locator(".trabajadores-empresa")).ToContainTextAsync(TenantBeneficiarioA, new() { Timeout = 30_000 });
+        await Expect(page.Locator(".cabecera-empresa-activa")).ToContainTextAsync(TenantBeneficiarioA, new() { Timeout = 30_000 });
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantA);
 
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioB);
         await page.WaitForURLAsync(url => new Uri(url).PathAndQuery == "/trabajadores");
-        await Expect(page.Locator(".trabajadores-empresa")).ToContainTextAsync(TenantBeneficiarioB, new() { Timeout = 30_000 });
+        await Expect(page.Locator(".cabecera-empresa-activa")).ToContainTextAsync(TenantBeneficiarioB, new() { Timeout = 30_000 });
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
 
         // La selección sobrevive a navegar a otra pantalla y volver a Trabajadores.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await Expect(page.Locator(".trabajadores-empresa")).ToContainTextAsync(TenantBeneficiarioB, new() { Timeout = 30_000 });
+        await Expect(page.Locator(".cabecera-empresa-activa")).ToContainTextAsync(TenantBeneficiarioB, new() { Timeout = 30_000 });
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
     }
 
