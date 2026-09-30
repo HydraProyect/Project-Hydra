@@ -75,8 +75,13 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # contenedor corre en UTC; .NET resuelve la zona IANA desde /usr/share/zoneinfo.
 # Se declara aunque la imagen base lo traiga, para no depender de ello: sin
 # tzdata la app no arranca (Program.cs resuelve la zona al inicio).
+#
+# libssl3t64 y openssl: la imagen base va fijada por digest y puede traer una versión
+# con CVE ya parcheada en el archivo de Ubuntu (CVE-2026-84782, Trivy, 2026-09-30).
+# Nombrarlos aquí hace que apt los actualice al instalar; sin ello el escaneo de Trivy
+# (CRITICAL,HIGH, exit-code 1) pone en rojo todas las PRs hasta el siguiente digest.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libreoffice-writer curl ca-certificates gosu tzdata \
+    && apt-get install -y --no-install-recommends libreoffice-writer curl ca-certificates gosu tzdata libssl3t64 openssl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build --chown=$APP_UID:$APP_UID /app/publish .
