@@ -433,8 +433,8 @@ public partial class BuscadorGlobal
     private const string RutaExportarTrabajadores = "/trabajadores/exportar.xlsx";
 
     /// <summary>
-    /// Estado 4a (misma fuente que la página y el endpoint,
-    /// <see cref="ClientesAutorizados.PideElegirEmpresa"/>): solo si la comprobación sale
+    /// Estado 4a (misma condición que aplica la página vía <c>ContextoEmpresaActiva</c>; el endpoint y esta
+    /// paleta usan <see cref="ClientesAutorizados.PideElegirEmpresa"/>): solo si la comprobación sale
     /// limpia se añade la exportación. Cualquier fallo la deja fuera.
     /// </summary>
     private async Task ResolverExportacionDeTrabajadoresAsync(int apertura, CancellationToken token)

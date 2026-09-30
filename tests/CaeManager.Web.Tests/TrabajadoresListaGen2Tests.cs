@@ -401,7 +401,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(ConCartera(origenGestionado: false), "trabajadores?accion=guardar-filtro");
 
         cut.Markup.Should().Contain("Selecciona una empresa de tu cartera", "control positivo: es el estado 4a");
-        MostrarGuardarFiltro(cut).Should().BeFalse();
+        MostrarGuardarFiltro(cut.Instance).Should().BeFalse();
     }
 
     /// <summary>Control positivo del anterior: con una empresa elegida, la misma URL sí abre el diálogo.</summary>
@@ -412,12 +412,12 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
         var cut = Renderizar(ConCartera(origenGestionado: false), "trabajadores?accion=guardar-filtro");
 
-        MostrarGuardarFiltro(cut).Should().BeTrue();
+        MostrarGuardarFiltro(cut.Instance).Should().BeTrue();
     }
 
     /// <summary>Salir de la página con la resolución en vuelo la cancela: no se repinta ni se pide la lista de nadie.</summary>
     [Fact]
-    public void Salir_de_la_pagina_con_la_empresa_activa_en_vuelo_cancela_la_resolucion()
+    public async Task Salir_de_la_pagina_con_la_empresa_activa_en_vuelo_cancela_la_resolucion()
     {
         Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
         var mediador = ConCartera(origenGestionado: false);
@@ -429,10 +429,12 @@ public class TrabajadoresListaGen2Tests : BunitContext
         mediador.TokenDeAutorizados.Should().NotBeNull("la página pidió la lista de Tenants autorizados");
         mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeFalse("control positivo: sigue montada");
 
-        cut.Instance.Dispose();
+        var pagina = cut.Instance;
+        await DisposeComponentsAsync();
 
         mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeTrue();
         puerta.SetResult();
+        await EsperarFinDeResolucionAsync(pagina);
         ConsultasDeLista(mediador).Should().Be(0);
         mediador.Enviadas.OfType<ObtenerEmpresasParaSelectorQuery>().Should().BeEmpty();
         mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().BeEmpty();
@@ -443,7 +445,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
     /// página tampoco sigue: ni catálogos ni filtros guardados de una página que ya no existe.
     /// </summary>
     [Fact]
-    public void Una_resolucion_que_vuelve_sin_lanzar_tras_retirar_la_pagina_no_pide_catalogos_ni_filtros_guardados()
+    public async Task Una_resolucion_que_vuelve_sin_lanzar_tras_retirar_la_pagina_no_pide_catalogos_ni_filtros_guardados()
     {
         Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
         var mediador = ConCartera(origenGestionado: false);
@@ -453,8 +455,10 @@ public class TrabajadoresListaGen2Tests : BunitContext
         Registrar(mediador, "trabajadores");
 
         var cut = Render<Trabajadores>();
-        cut.Instance.Dispose();
+        var pagina = cut.Instance;
+        await DisposeComponentsAsync();
         puerta.SetResult();
+        await EsperarFinDeResolucionAsync(pagina);
 
         ConsultasDeLista(mediador).Should().Be(0);
         mediador.Enviadas.OfType<ObtenerEmpresasParaSelectorQuery>().Should().BeEmpty();
@@ -468,7 +472,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
     /// componente muerto.
     /// </summary>
     [Fact]
-    public void Retirada_la_pagina_con_la_resolucion_en_vuelo_no_se_procesan_los_parametros_de_la_url()
+    public async Task Retirada_la_pagina_con_la_resolucion_en_vuelo_no_se_procesan_los_parametros_de_la_url()
     {
         Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
         var mediador = ConCartera(origenGestionado: false);
@@ -477,17 +481,36 @@ public class TrabajadoresListaGen2Tests : BunitContext
         Registrar(mediador, "trabajadores?accion=guardar-filtro");
 
         var cut = Render<Trabajadores>();
-        cut.Instance.Dispose();
+        var pagina = cut.Instance;
+        await DisposeComponentsAsync();
         puerta.SetResult();
+        await EsperarFinDeResolucionAsync(pagina);
 
         // El componente está retirado y no hay DOM que mirar: se lee el estado que la acción habría fijado.
-        MostrarGuardarFiltro(cut).Should().BeFalse("una página retirada no atiende ?accion=guardar-filtro");
+        MostrarGuardarFiltro(pagina).Should().BeFalse("una página retirada no atiende ?accion=guardar-filtro");
     }
 
-    private static bool MostrarGuardarFiltro(IRenderedComponent<Trabajadores> cut) =>
+    /// <summary>
+    /// Barrera positiva: las continuaciones de <c>OnInitializedAsync</c> y <c>OnParametersSetAsync</c> se
+    /// publican en el contexto del renderer, así que un negativo evaluado justo tras <c>SetResult</c> podría
+    /// pasar antes de que corran. Se espera a que la resolución termine y se vacía la cola del renderer.
+    /// </summary>
+    private static async Task EsperarFinDeResolucionAsync(Trabajadores pagina)
+    {
+        // Retirada del árbol, el componente ya no admite WaitForAssertion ni InvokeAsync: se sondea la instancia.
+        var campo = typeof(Trabajadores).GetField("_resolviendoEmpresa", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var limite = DateTime.UtcNow.AddSeconds(5);
+        while ((bool)campo.GetValue(pagina)! && DateTime.UtcNow < limite)
+            await Task.Delay(10);
+
+        ((bool)campo.GetValue(pagina)!).Should().BeFalse("la resolución en vuelo ya terminó");
+        await Task.Delay(50); // deja correr lo que siga a la resolución (OnParametersSetAsync)
+    }
+
+    private static bool MostrarGuardarFiltro(Trabajadores pagina) =>
         (bool)typeof(Trabajadores)
             .GetField("_mostrarGuardarFiltro", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-            .GetValue(cut.Instance)!;
+            .GetValue(pagina)!;
 
     [Fact]
     public void Con_el_contexto_resuelto_a_una_empresa_la_lista_se_monta_tras_la_carga()
