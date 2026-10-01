@@ -602,6 +602,38 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _tipoEmpleador = tipo;
         _empresaId = string.Empty;
         _subcontrataId = string.Empty;
+        LimpiarAvisoDeEmpleadorFaltante();
+    }
+
+    private Drawer? _drawerAlta;
+
+    /// <summary>
+    /// «Cancelar» pasa por el mismo guardián que la X: con datos escritos pregunta «¿Descartar cambios?»
+    /// (D-05); sin cambios cierra directamente.
+    /// </summary>
+    private Task CancelarAltaAsync() =>
+        _drawerAlta is { } drawer ? drawer.SolicitarCierreAsync() : CerrarDrawerAsync(false);
+
+    // D-05: el aviso «Selecciona una empresa/subcontrata.» era de un intento anterior de guardar;
+    // al elegir el empleador deja de ser verdad y no puede quedarse en pantalla hasta el siguiente guardado.
+    private void AlElegirEmpresa(string valor)
+    {
+        _empresaId = valor;
+        LimpiarAvisoDeEmpleadorFaltante();
+    }
+
+    private void AlElegirSubcontrata(string valor)
+    {
+        _subcontrataId = valor;
+        LimpiarAvisoDeEmpleadorFaltante();
+    }
+
+    /// <summary>Solo retira los avisos de empleador sin elegir: un error de servidor (DNI duplicado…) sigue en pantalla.</summary>
+    private void LimpiarAvisoDeEmpleadorFaltante()
+    {
+        if (_mensajeErrorFormulario == Textos["ErrorSeleccionaEmpresa"]
+            || _mensajeErrorFormulario == Textos["ErrorSeleccionaSubcontrata"])
+            _mensajeErrorFormulario = null;
     }
 
     private Task CerrarDrawerAsync(bool visible)

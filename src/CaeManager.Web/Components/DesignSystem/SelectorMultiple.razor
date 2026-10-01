@@ -18,8 +18,8 @@
     {
         <div class="selector-multiple-controles">
             <CampoTexto Placeholder="Buscar…" Valor="@_busqueda" ValorChanged="CambiarBusquedaAsync" />
-            <label class="campo-checkbox">
-                <input type="checkbox"
+            <label class="campo-checkbox" for="@($"{_idBase}-relacionados")">
+                <input type="checkbox" id="@($"{_idBase}-relacionados")"
                        checked="@_soloRelacionados"
                        @onchange="e => CambiarSoloRelacionados(e.Value is bool marcado && marcado)" />
                 Solo mostrar relacionados
@@ -35,8 +35,8 @@
             <div class="lista-seleccion-multiple">
                 @foreach (var elemento in ElementosPagina)
                 {
-                    <label class="campo-checkbox">
-                        <input type="checkbox"
+                    <label class="campo-checkbox" for="@($"{_idBase}-{elemento.Id}")">
+                        <input type="checkbox" id="@($"{_idBase}-{elemento.Id}")"
                                checked="@Seleccionados.Contains(elemento.Id)"
                                @onchange="e => AlternarAsync(elemento.Id, e.Value is bool marcado && marcado)" />
                         @elemento.Nombre
@@ -56,6 +56,10 @@
 
 @code {
     private const int ItemsPorPagina = 20;
+
+    // Las etiquetas se asocian a su casilla por for/id, además de envolverla (D-08: nombre accesible «on»).
+    private static int _contador;
+    private readonly string _idBase = $"selector-multiple-{System.Threading.Interlocked.Increment(ref _contador)}";
 
     private string _busqueda = string.Empty;
     private bool _soloRelacionados;

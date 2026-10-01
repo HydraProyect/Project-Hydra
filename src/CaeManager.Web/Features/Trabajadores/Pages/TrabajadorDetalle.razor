@@ -63,9 +63,9 @@
                     {
                         <Badge Tono="EstadoDocumentoUi.Tono(peorEstado)">@EstadoDocumentoUi.Texto(peorEstado)</Badge>
                     }
-                    @if (CentroMasUrgente is { PeorEstado: not EstadoDocumento.Vigente } centroUrgente)
+                    @if (CentroMasUrgente is { } centroUrgente && TieneIncidencias(centroUrgente))
                     {
-                        var incidenciasCentro = centroUrgente.Documentos.Count(d => d.Estado != EstadoDocumento.Vigente);
+                        var incidenciasCentro = Incidencias(centroUrgente);
                         <VentanaContexto Etiqueta="@(incidenciasCentro == 1 ? Textos["VentanaIncidenciasUno", centroUrgente.CentroNombre] : Textos["VentanaIncidenciasVarios", incidenciasCentro, centroUrgente.CentroNombre])"
                                          Titulo="@(Textos["VentanaProblemaUrgente", centroUrgente.CentroNombre])">
                             <Disparador>
@@ -74,18 +74,22 @@
                                 </Badge>
                             </Disparador>
                             <Detalle>
-                                @foreach (var documento in centroUrgente.Documentos.Where(d => d.Estado != EstadoDocumento.Vigente))
+                                @foreach (var documento in centroUrgente.Documentos.Where(EsIncidencia))
                                 {
                                     <span class="ventana-linea">@documento.TipoDocumentoNombre — @EstadoDocumentoUi.Texto(documento.Estado)</span>
                                 }
                             </Detalle>
                         </VentanaContexto>
                     }
+                    @if (TotalSinConfirmar != 0)
+                    {
+                        <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["AvisoVigenciaSinConfirmar", TotalSinConfirmar]</Badge>
+                    }
                 </span>
             </Descripcion>
             <Acciones>
                 <span class="trabajador360-acciones">
-                    <SoloConEscritura><Boton Deshabilitado="DocumentoMasUrgente is null" OnClick="SubirDocumentoMasUrgenteAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
+                    <SoloConEscritura><Boton OnClick="SubirDocumentoAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
                     <MenuAcciones>
                         <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditar"]</ItemMenuAccion></SoloConEscritura>
                         <SoloConEscritura><ItemMenuAccion OnClick="ReclamarFaltantesAsync">@Textos["AccionReclamarFaltantes"]</ItemMenuAccion></SoloConEscritura>
@@ -151,8 +155,9 @@
                             @foreach (var centro in _centros)
                             {
                                 var expandido = _expandidosCentro.Contains(centro.CentroId);
-                                var alDia = centro.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente);
-                                var incidencias = centro.Documentos.Count(d => d.Estado != EstadoDocumento.Vigente);
+                                var alDia = AlDia(centro);
+                                var incidencias = Incidencias(centro);
+                                var sinConfirmarCentro = SinConfirmar(centro);
                                 <div class="trabajador360-centro @(incidencias > 0 ? "trabajador360-centro-con-incidencia" : null)" @key="centro.CentroId">
                                     <div class="trabajador360-centro-cabecera">
                                         @*
@@ -178,7 +183,7 @@
                                         </button>
                                         <Badge Tono="EstadoDocumentoUi.Tono(centro.PeorEstado)" Tamano="TamanoBadge.Pequeno">
                                             @(incidencias == 0
-                                                ? Textos["BadgeCompleto"]
+                                                ? (sinConfirmarCentro != 0 ? Textos["BadgeAlDiaSinConfirmar"] : Textos["BadgeCompleto"])
                                                 : incidencias == 1 ? Textos["IncidenciasUno"] : Textos["IncidenciasVarios", incidencias])
                                         </Badge>
                                         <a class="trabajador360-centro-360" href="@($"/centros/{centro.CentroId}")"
@@ -356,6 +361,7 @@
                         @if (_documentos.Count == 0)
                         {
                             <p class="texto-vacio-seccion">@Textos["SinDocumentos"]</p>
+                            <SoloConEscritura><Boton OnClick="SubirDocumentoAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
                         }
                         else
                         {

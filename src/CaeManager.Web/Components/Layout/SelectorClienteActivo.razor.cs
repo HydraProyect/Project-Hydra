@@ -73,8 +73,32 @@ public partial class SelectorClienteActivo
     /// El endpoint usa LocalRedirect, así que un valor que no sea una ruta local
     /// se rechaza allí. Se calcula al pintar y no al iniciar: el selector vive en
     /// el layout y sobrevive a las navegaciones del circuito.
+    /// <para>
+    /// Única excepción: en una ficha 360 por Id (<c>/trabajadores/{id}</c>, <c>/centros/{id}</c>,
+    /// <c>/empresas/{id}</c>, <c>/clientes/{id}</c>) se añade la pista <c>?tenant={Tenant que se deja}</c>
+    /// (contrato del selector, § 4.5, I15). La ficha pertenece al Tenant que se abandona; sin la pista el
+    /// usuario aterriza en «No pudimos cargar…» sin salida. La pista es una coordenada de contexto, no
+    /// autoridad: <c>EnlaceProfundoOtraEmpresa</c> solo ofrece «Abrir en…» si ese Tenant está en el
+    /// conjunto autorizado del usuario y el cambio sigue siendo un POST revalidado por el servidor.
+    /// No lleva Ids de filtros, así que no contradice I14.
+    /// </para>
     /// </summary>
-    private string RutaDeRetorno => new Uri(NavigationManager.Uri).AbsolutePath;
+    private string RutaDeRetorno
+    {
+        get
+        {
+            var ruta = new Uri(NavigationManager.Uri).AbsolutePath;
+            return _activo is not null && EsFichaPorId(ruta)
+                ? $"{ruta}?tenant={_activo.TenantId}"
+                : ruta;
+        }
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex FichaPorId = new(
+        "^/(trabajadores|centros|empresas|clientes)/[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}/?$",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static bool EsFichaPorId(string ruta) => FichaPorId.IsMatch(ruta);
 
     /// <summary>URL versionada del logo del Tenant (§ 4.1.5), o <c>null</c> para pintar las iniciales.</summary>
     private static string? UrlLogo(ClienteAutorizadoDto cliente) =>
