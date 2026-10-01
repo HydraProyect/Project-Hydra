@@ -274,7 +274,7 @@
     }
 </div>
 
-<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer @ref="_drawerAlta" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
@@ -304,7 +304,7 @@
         }
         else if (_tipoEmpleador == "empresa")
         {
-            <CampoSelect Etiqueta="@Textos["EtiquetaEmpresa"]" Valor="@_empresaId" ValorChanged="v => _empresaId = v">
+            <CampoSelect Etiqueta="@Textos["EtiquetaEmpresa"]" Valor="@_empresaId" ValorChanged="AlElegirEmpresa">
                 <option value="">@Textos["OpcionSeleccionaEmpresa"]</option>
                 @foreach (var empresa in _empresasDisponibles)
                 {
@@ -314,7 +314,7 @@
         }
         else
         {
-            <CampoSelect Etiqueta="@Textos["EtiquetaSubcontrata"]" Valor="@_subcontrataId" ValorChanged="v => _subcontrataId = v">
+            <CampoSelect Etiqueta="@Textos["EtiquetaSubcontrata"]" Valor="@_subcontrataId" ValorChanged="AlElegirSubcontrata">
                 <option value="">@Textos["OpcionSeleccionaSubcontrata"]</option>
                 @foreach (var subcontrata in _subcontratasDisponibles)
                 {
@@ -339,7 +339,7 @@
         <CampoTextarea Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="CancelarAltaAsync">
             @Textos["BotonCancelar"]
         </Boton>
         <Boton Cargando="_guardando" OnClick="GuardarAsync">

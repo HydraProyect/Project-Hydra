@@ -6,7 +6,7 @@
     Lo que este componente añade depende solo de quien mira y de la URL, jamás de si la entidad existe:
 
     - el aviso «puede pertenecer a otra empresa de tu cartera», si el usuario tiene selector;
-    - con la pista opcional ?tenant={id} (la ponen los enlaces que genera la aplicación), un botón
+    - con la pista opcional ?tenant={id} (la pone el selector de empresa de la cabecera al cambiar de empresa desde una ficha por Id: el Tenant que se deja; D-04), un botón
       «Abrir en {empresa}» solo si esa empresa está en el conjunto autorizado del usuario y no es la ya
       activa. Es un POST con antiforgery a /cuenta/cliente-activo y vuelve a esta misma ruta, sin la
       pista. Nunca hay cambio por GET: la pista sola no cambia de contexto. Una pista que no está

@@ -5,6 +5,7 @@ using CaeManager.Web.Recursos;
 using Microsoft.Extensions.Localization;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Documentos.DocumentacionBase;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
@@ -183,14 +184,34 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         new("historial", Textos["PestanaHistorial"])
     ];
 
-    private int TotalConIncidencia =>
-        _centros.Sum(c => c.Documentos.Count(d => d.Estado != EstadoDocumento.Vigente));
+    // D-22: «Sin confirmar» no es incidencia, cuenta como al día con aviso (misma regla que el panel
+    // Documentación base, #1015: DocumentacionBaseTrabajador.CuentaComoIncidencia).
+    private static bool EsIncidencia(DocumentoRequeridoDto documento) =>
+        DocumentacionBaseTrabajador.CuentaComoIncidencia(documento.Estado);
+
+    private static int Incidencias(CentroDocumentacionTrabajadorDto centro) => centro.Documentos.Count(EsIncidencia);
+
+    private static bool TieneIncidencias(CentroDocumentacionTrabajadorDto centro) => centro.Documentos.Any(EsIncidencia);
+
+    /// <summary>
+    /// Documentos vigentes: lo que cuenta el porcentaje de cumplimiento, que (como en Centro 360 y en la lista,
+    /// CalculadoraEstadoCentro) deja fuera «Sin confirmar». La regla «sin confirmar = al día con aviso» solo
+    /// gobierna las incidencias y el panel Documentación base; cambiar el porcentaje es decisión pendiente del propietario.
+    /// </summary>
+    private static int Vigentes(CentroDocumentacionTrabajadorDto centro) => centro.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente);
+
+    private static int SinConfirmar(CentroDocumentacionTrabajadorDto centro) =>
+        centro.Documentos.Count(d => d.Estado == EstadoDocumento.SinConfirmar);
+
+    private int TotalConIncidencia => _centros.Sum(Incidencias);
+
+    private int TotalSinConfirmar => _centros.Sum(SinConfirmar);
 
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         new[] { new BreadcrumbElemento(Textos["MigaTrabajadores"]), new BreadcrumbElemento(NombreCompleto ?? "…") };
 
     private int TotalRequeridos => _centros.Sum(c => c.Documentos.Count);
-    private int TotalAlDia => _centros.Sum(c => c.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente));
+    private int TotalAlDia => _centros.Sum(Vigentes);
     private int? Cumplimiento => TotalRequeridos == 0 ? null : (int)Math.Round(TotalAlDia * 100.0 / TotalRequeridos);
 
     private CentroDocumentacionTrabajadorDto? CentroMasUrgente =>
@@ -200,7 +221,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     /// <summary>El primer documento faltante/vencido del centro más urgente — lo que abre el botón primario "Subir documento" de la cabecera (mockup § cabecera: el botón y el badge de urgencia hablan del mismo problema).</summary>
     private DocumentoRequeridoDto? DocumentoMasUrgente =>
-        CentroMasUrgente?.Documentos.FirstOrDefault(d => d.Estado != EstadoDocumento.Vigente);
+        CentroMasUrgente?.Documentos.FirstOrDefault(EsIncidencia);
 
     protected override async Task OnParametersSetAsync() => await CargarAsync();
 
@@ -478,8 +499,17 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             ? _drawerGestion.AbrirEditarAsync(documentoId)
             : _drawerGestion.AbrirCrearParaFaltanteAsync(TrabajadorId, documento.TipoDocumentoId);
 
-    private Task SubirDocumentoMasUrgenteAsync() =>
-        DocumentoMasUrgente is { } documento ? GestionarDocumentoAsync(documento) : Task.CompletedTask;
+    /// <summary>
+    /// «Subir documento» de la cabecera y del estado vacío de la pestaña Documentación. Con una
+    /// incidencia abre el documento más urgente (el badge y el botón hablan del mismo problema);
+    /// sin ella (trabajador recién creado, o todo al día) abre el mismo drawer de Nuevo documento con
+    /// el trabajador ya elegido y el tipo por elegir allí (D-06/D-22): acreditar no puede quedarse
+    /// sin salida desde la ficha.
+    /// </summary>
+    private Task SubirDocumentoAsync() =>
+        DocumentoMasUrgente is { } documento
+            ? GestionarDocumentoAsync(documento)
+            : _drawerGestion.AbrirCrearParaTrabajadorAsync(TrabajadorId);
 
     private async Task ManejarDocumentoGuardadoAsync() => await CargarAsync();
 
@@ -554,6 +584,8 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// igual que en <c>ObtenerLoteReclamacionQuery</c>: "reclamar" pide una
     /// renovación, no puede pedir la creación de algo que nunca existió.
     /// </summary>
+    // «Sin confirmar» sigue siendo reclamable aunque no cuente como incidencia: reclamar pide al
+    // Cliente empresarial una renovación o la confirmación de la vigencia (decisión de D-22: solo cambia el cómputo).
     private async Task ReclamarFaltantesAsync()
     {
         var clientes = _centros

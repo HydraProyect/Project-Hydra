@@ -105,6 +105,61 @@ public class AvisoCambiosSinGuardarEnPestanasTests : BunitContext
         cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
     }
 
+    /// <summary>D-05 (recorrido de 2026-10-01): «Cancelar» con datos escritos cerraba sin avisar.</summary>
+    [Fact]
+    public async Task Cancelar_el_contacto_con_datos_escritos_pregunta_y_sin_ellos_cierra()
+    {
+        var cut = RenderizarContacto();
+        await cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Nombre").Find("input")
+            .InputAsync(new ChangeEventArgs { Value = "Marta Ruiz" });
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        _contactoVisible.Should().BeTrue("Cancelar con cambios pregunta «¿Descartar cambios?» antes de cerrar");
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+
+        _contactoVisible = true;
+        var limpio = RenderizarContacto();
+        await limpio.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        _contactoVisible.Should().BeFalse("sin cambios no hay nada que perder");
+    }
+
+    /// <summary>D-05: los avisos «obligatorio» eran del intento de guardar anterior; al rellenar el campo desaparecen.</summary>
+    [Fact]
+    public async Task Los_avisos_de_nombre_y_email_obligatorios_desaparecen_al_rellenarlos()
+    {
+        var cut = RenderizarContacto();
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        cut.Markup.Should().Contain("El nombre es obligatorio.").And.Contain("El email es obligatorio",
+            "control positivo: los avisos existen antes de rellenar");
+
+        await cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Nombre").Find("input")
+            .InputAsync(new ChangeEventArgs { Value = "Marta Ruiz" });
+        cut.Markup.Should().NotContain("El nombre es obligatorio.").And.Contain("El email es obligatorio",
+            "solo se retira el aviso del campo ya rellenado");
+
+        await cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Email").Find("input")
+            .InputAsync(new ChangeEventArgs { Value = "marta@example.com" });
+        cut.Markup.Should().NotContain("El email es obligatorio");
+    }
+
+    /// <summary>D-08: las casillas tenían el nombre accesible «on» (valor por defecto de la casilla).</summary>
+    [Fact]
+    public void Todas_las_casillas_del_contacto_llevan_nombre_accesible_con_su_texto_visible()
+    {
+        var cut = RenderizarContacto();
+
+        var casillas = cut.FindAll(".modal-cuerpo input[type=checkbox]");
+        casillas.Should().HaveCountGreaterThanOrEqualTo(6, "tres de envío y tres roles, más las del selector de tipos si hay catálogo");
+        foreach (var casilla in casillas)
+        {
+            casilla.Id.Should().NotBeNullOrWhiteSpace("la etiqueta se asocia por for/id");
+            var etiqueta = cut.FindAll("label").Single(l => l.GetAttribute("for") == casilla.Id);
+            etiqueta.TextContent.Trim().Should().NotBeEmpty("la etiqueta visible es el nombre accesible, no el «on» por defecto");
+            etiqueta.Contains(casilla).Should().BeTrue("además de asociarla por for/id sigue envolviéndola");
+        }
+    }
+
     [Fact]
     public async Task Contacto_de_agenda_sin_tocar_no_pregunta()
     {
