@@ -1,4 +1,7 @@
 using CaeManager.Domain.Common;
+using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
@@ -20,8 +23,35 @@ using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Proyectos.Pages;
 
-public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
+public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
+    /// <summary>
+    /// Se cancela al salir de la página: la resolución de la empresa activa que siga en vuelo deja de trabajar
+    /// para nadie y su respuesta tardía no repinta un componente ya retirado.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+    private bool _desechado;
+
+    public void Dispose()
+    {
+        if (_desechado)
+            return;
+
+        _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
+    /// <summary>La empresa gestionada activa, solo para quien ve el selector de la barra lateral.</summary>
+    private ClienteAutorizadoDto? _empresaActiva;
+
+    /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
+    private bool _sinEmpresaSeleccionada;
+
+    /// <summary>La empresa activa aún no se ha resuelto: se pinta una carga en vez de la lista.</summary>
+    private bool _resolviendoEmpresa = true;
+
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -48,7 +78,37 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
 
     private static DateOnly Hoy => DiaDeNegocio.Hoy();
 
-    protected override Task OnInitializedAsync() => CargarAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
+        // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
+        try
+        {
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, _ciclo.Token);
+            _empresaActiva = contexto.Activa;
+            _sinEmpresaSeleccionada = contexto.SinSeleccion;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        {
+            // La página se retiró con la resolución en vuelo: no queda nadie a quien pintar.
+            return;
+        }
+        finally
+        {
+            _resolviendoEmpresa = false;
+        }
+
+        // Retirada la página, una resolución que vuelva sin lanzar (contexto «Ninguno») no es 4a: no hay
+        // a quién pintarle la lista, y seguir pediría los datos de una página que ya no existe.
+        if (_desechado)
+            return;
+
+        // Sin empresa elegida no se piden los datos de la organización de origen.
+        if (_sinEmpresaSeleccionada)
+            return;
+
+        await CargarAsync();
+    }
 
     private async Task CargarAsync()
     {
@@ -201,10 +261,16 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>
     /// La URL es la fuente de verdad de los dos filtros, no solo su semilla:
     /// se re-sincroniza en cada navegación dentro de la página (mismo criterio
-    /// que Vehiculos.razor.cs).
+    /// que Vehiculos.razor.cs). Mientras se resuelve la empresa activa, en el
+    /// estado 4a y con la página retirada la URL no se sincroniza.
     /// </summary>
     protected override void OnParametersSet()
     {
+        // Retirada la página con la resolución en vuelo, ComponentBase aún invoca esto: no se procesan
+        // parámetros de la URL de un componente que ya no existe, ni en el estado 4a.
+        if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada)
+            return;
+
         var busquedaDeLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (busquedaDeLaUrl != _busqueda)
             _busqueda = busquedaDeLaUrl;
