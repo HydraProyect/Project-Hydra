@@ -4,6 +4,7 @@ using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
@@ -56,6 +57,7 @@ public class VehiculosVacioPorFiltroTests : BunitContext
             Enviadas.Add(request);
             return Task.FromResult((TResponse)(object)(request switch
             {
+                ObtenerClientesAutorizadosQuery => (object)(IReadOnlyList<ClienteAutorizadoDto>)[],
                 ObtenerPerfilVocabularioActualQuery => PerfilVocabularioTenant.Consultora,
                 ObtenerEmpresasParaSelectorQuery => (object)new[] { new EmpresaSelectorDto(EmpresaId, "Montajes Ebro S.L.") },
                 ObtenerSubcontratasParaSelectorQuery => new[] { new SubcontrataSelectorDto(SubcontrataId, "Aislamientos Nervión S.L.") },
@@ -104,6 +106,7 @@ public class VehiculosVacioPorFiltroTests : BunitContext
         var mediador = new MediatorPorTipo { Vehiculos = vehiculos, AlcanceCero = _alcanceCero };
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearVehiculoCommand>>(_ => new InlineValidator<CrearVehiculoCommand>());

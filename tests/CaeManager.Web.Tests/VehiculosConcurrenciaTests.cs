@@ -3,6 +3,7 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
@@ -63,7 +64,8 @@ public class VehiculosConcurrenciaTests : BunitContext
             // object? y se convierte una sola vez: sin esto, CS0029 por rama.
             object? valor = request switch
             {
-                ObtenerEmpresasParaSelectorQuery => (object)Array.Empty<EmpresaSelectorDto>(),
+                ObtenerClientesAutorizadosQuery => (object)Array.Empty<ClienteAutorizadoDto>(),
+                ObtenerEmpresasParaSelectorQuery => Array.Empty<EmpresaSelectorDto>(),
                 ObtenerSubcontratasParaSelectorQuery => Array.Empty<SubcontrataSelectorDto>(),
                 ObtenerVehiculosQuery q => Paginado(q),
                 EliminarVehiculoCommand => Baja,
@@ -93,6 +95,7 @@ public class VehiculosConcurrenciaTests : BunitContext
         m.ResultadosPorBusqueda[string.Empty] = (vehiculos.ToList(), vehiculos.Length);
         Services.AddScoped<IMediator>(_ => m);
         Services.AddScoped<ToastService>();
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<IValidator<CrearVehiculoCommand>>(_ => new InlineValidator<CrearVehiculoCommand>());
         Services.GetRequiredService<NavigationManager>().NavigateTo("vehiculos");
