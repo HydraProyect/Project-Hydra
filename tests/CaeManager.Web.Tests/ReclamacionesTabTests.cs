@@ -442,10 +442,25 @@ public class ReclamacionesTabTests : BunitContext
 
         await BotonPorTexto(cut, "Volver").ClickAsync(new MouseEventArgs());
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty("Volver no envía");
+        cut.Markup.Should().NotContain("Revisar antes de enviar", "Volver cierra la revisión");
 
         await BotonPorTexto(cut, $"Enviar reclamación ({lote.Documentos.Count})").ClickAsync(new MouseEventArgs());
         await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle();
+    }
+
+    /// <summary>La vista previa pinta el cuerpo con MarkupString: los datos del lote deben ir codificados.</summary>
+    [Fact]
+    public async Task La_revision_codifica_los_datos_del_lote_en_el_cuerpo()
+    {
+        var lote = LoteConTodoPreseleccionado("Arcos <script>alert(1)</script> SPA");
+        var (cut, _) = Renderizar(new MediadorControlado { Lotes = _ => [lote] });
+        await AbrirComponerAsync(cut);
+
+        await BotonPorTexto(cut, $"Enviar reclamación ({lote.Documentos.Count})").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".reclamacion-revision-cuerpo script").Should().BeEmpty();
+        cut.Find(".reclamacion-revision-cuerpo").TextContent.Should().Contain("<script>alert(1)</script>");
     }
 
     /// <summary>D-01: "Reclamar de nuevo" también pide confirmación antes de mandar el correo.</summary>
@@ -496,6 +511,8 @@ public class ReclamacionesTabTests : BunitContext
         await BotonPorTexto(cut, $"Enviar reclamación ({lote.Documentos.Count})").ClickAsync(new MouseEventArgs());
         var primero = BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
         var segundo = BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+
+        cut.Markup.Should().Contain("Revisar antes de enviar", "el segundo clic no cierra la revisión con el envío en vuelo");
 
         await cut.InvokeAsync(() => retenido.SetResult(Result.Exito(new EnvioReclamacionResultado(
             lote.Documentos.Select(d => d.DocumentoId).ToList(), []))));

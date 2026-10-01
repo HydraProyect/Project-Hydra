@@ -95,10 +95,12 @@
                         }
                     </span>
                     <span class="columna-accion" role="cell">
-                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                               Cargando="_reenviandoId == reclamacion.Id" OnClick="() => _reclamacionAReenviar = reclamacion">
-                            Reclamar de nuevo
-                        </Boton>
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                   Cargando="_reenviandoId == reclamacion.Id" OnClick="() => _reclamacionAReenviar = reclamacion">
+                                Reclamar de nuevo
+                            </Boton>
+                        </SoloConEscritura>
                         @if (reclamacion.ConversacionId is not null)
                         {
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
@@ -559,7 +561,10 @@ else
 
     private string CuerpoRevision(LoteReclamacionClienteDto lote)
     {
-        var seleccionados = _seleccionPorCliente[lote.ClienteId];
+        // TryGetValue: una recarga concurrente vacía el diccionario con el modal abierto.
+        if (!_seleccionPorCliente.TryGetValue(lote.ClienteId, out var seleccionados))
+            return string.Empty;
+
         return EnviarReclamacionCommandHandler.ConstruirCuerpoHtml(
             lote.RazonSocialCliente,
             lote.Documentos
@@ -586,21 +591,35 @@ else
     private async Task ConfirmarReenvioAsync()
     {
         var reclamacion = _reclamacionAReenviar;
-        if (reclamacion is null)
+        // Un segundo clic con el envío en vuelo no cierra nada: el diálogo sigue
+        // mostrando el progreso hasta que termina el primero.
+        if (reclamacion is null || _reenviandoId is not null)
             return;
 
-        await ReclamarDeNuevoAsync(reclamacion);
-        _reclamacionAReenviar = null;
+        try
+        {
+            await ReclamarDeNuevoAsync(reclamacion);
+        }
+        finally
+        {
+            _reclamacionAReenviar = null;
+        }
     }
 
     private async Task ConfirmarEnvioAsync()
     {
         var lote = _loteEnRevision;
-        if (lote is null)
+        if (lote is null || _enviandoClienteId is not null)
             return;
 
-        await EnviarAsync(lote);
-        _loteEnRevision = null;
+        try
+        {
+            await EnviarAsync(lote);
+        }
+        finally
+        {
+            _loteEnRevision = null;
+        }
     }
 
     private async Task EnviarAsync(LoteReclamacionClienteDto lote)

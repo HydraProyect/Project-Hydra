@@ -553,13 +553,18 @@ else
                 }
 
                 var total = _idsVigenciaEnBloque.Count;
-                _idsVigenciaEnBloque = [];
-                _vigenciaVisible = false;
 
                 if (primerFallo is not null)
                     ToastService.MostrarError(primerFallo);
-                if (anotadas > 0)
-                    ToastService.Mostrar(Textos["PlatBloqueResultado", anotadas, total].Value,anotadas == total ? TonoToast.Exito : TonoToast.Advertencia);
+
+                // Si ninguna se anotó, el modal sigue abierto con la fecha tecleada
+                // para poder reintentar; si alguna sí, se cierra y se recarga.
+                if (anotadas == 0)
+                    return;
+
+                _idsVigenciaEnBloque = [];
+                _vigenciaVisible = false;
+                ToastService.Mostrar(Textos["PlatBloqueResultado", anotadas, total].Value, anotadas == total ? TonoToast.Exito : TonoToast.Advertencia);
 
                 await CargarAsync();
                 return;
