@@ -29,6 +29,14 @@
     color: var(--color-text-muted);
 }
 
+/* D-23: acciones en bloque a la derecha de la cabecera del proveedor. */
+.plataforma-vigencia-bloque {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: auto;
+}
+
 .plataforma-separador {
     margin: 0 var(--space-2);
     color: var(--color-border-strong);

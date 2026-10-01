@@ -25,6 +25,7 @@ public sealed class PlataformaTabAcreditacionesSubidasTests : BunitContext
     public PlataformaTabAcreditacionesSubidasTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
         Services.AddSingleton<IMediator>(_mediador);
         Services.AddSingleton(new ToastService());
         // AvisoCambiosSinGuardar (P1-E2) saca sus textos de IStringLocalizer<TextosComunes>.

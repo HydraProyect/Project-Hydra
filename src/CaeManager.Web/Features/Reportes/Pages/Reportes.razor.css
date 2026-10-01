@@ -300,6 +300,21 @@ a.boton-exportar-informe:hover {
     min-width: 0;
 }
 
+/* D-25: la tabla del informe ocupa todo el ancho de la hoja y el nombre del
+   trabajador no se parte en tres líneas dentro de una columna de 90 px. */
+.tabla-hoja-informe {
+    width: 100%;
+}
+
+.tabla-hoja-informe th:first-child,
+.tabla-hoja-informe td:first-child {
+    min-width: 9rem;
+}
+
+.tabla-hoja-informe td:last-child {
+    white-space: nowrap;
+}
+
 /* La región de estado del progreso vive siempre en el DOM (ver Reportes.razor):
    vacía, su margen negativo anula el hueco de la columna que si no dejaría. La
    clase la pone la página según _generando: un :has(.progreso-carga) apuntaría

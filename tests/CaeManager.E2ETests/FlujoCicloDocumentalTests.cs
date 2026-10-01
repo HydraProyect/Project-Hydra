@@ -304,6 +304,10 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
             "El botón \"Enviar reclamación\" está deshabilitado — seleccionados o ContactosMarcados vacío en ReclamacionesTab (ver DrawerGestionDocumento/ModalContactoAgenda).");
         await botonEnviarReclamacion.ClickAsync();
 
+        // Revisión previa al envío (D-01): el primer clic solo abre el modal.
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Confirmar y enviar", Exact = true })
+            .ClickAsync();
+
         // El entorno E2E no tiene SMTP configurado ni buzón Microsoft 365
         // conectado, así que el correo de la reclamación no puede salir. Desde
         // la corrección del «error tragado» de RegistroEnvioReclamacionService,

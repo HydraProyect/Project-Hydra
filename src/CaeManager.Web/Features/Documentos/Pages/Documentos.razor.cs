@@ -192,6 +192,29 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             ? null
             : new ContadorPestana(total, total == 1 ? "documento" : "documentos");
 
+    /// <summary>
+    /// D-32: además de los ids canónicos, la URL acepta el nombre de la pestaña
+    /// tal como se lee en pantalla (<c>plataformas</c>, <c>preventivo</c>,
+    /// <c>estado</c>, <c>revision</c>), que es lo que se escribe a mano. Un
+    /// valor desconocido devuelve null y la pestaña no cambia.
+    /// </summary>
+    public static string? IdDePestanaDeUrl(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor))
+            return null;
+
+        var v = valor.Trim().ToLowerInvariant();
+        v = v switch
+        {
+            "estado" => "listado",
+            "plataformas" => "plataforma",
+            "preventivo" => "sugerencias",
+            "revision" => "revision-ia",
+            _ => v
+        };
+        return _idsDePestana.Contains(v) ? v : null;
+    }
+
     private string _pestanaActiva = "listado";
 
     /// <summary>
@@ -397,8 +420,30 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         StateHasChanged();
     }
 
+    /// <summary>
+    /// D-32: el cajón abierto por enlace profundo dejaba <c>?documentoId=…</c> en
+    /// la URL tras cerrarlo, y recargar lo reabría. Al cerrar (o guardar) se
+    /// quitan los parámetros que lo abrieron; solo si estaban, para no navegar en vano.
+    /// </summary>
+    private void LimpiarEnlaceProfundoDeUrl()
+    {
+        if (DocumentoId is null && TrabajadorId is null && EmpresaIdFaltante is null && TipoDocumentoId is null && Accion is null)
+            return;
+
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["documentoId"] = null,
+            ["trabajadorId"] = null,
+            ["empresaIdFaltante"] = null,
+            ["tipoDocumentoId"] = null,
+            ["accion"] = null,
+        });
+    }
+
     private async Task ManejarDocumentoGuardadoAsync()
     {
+        LimpiarEnlaceProfundoDeUrl();
+
         // La versión corregida devuelve las acreditaciones del Documento a
         // Pendiente de subir: la pestaña Plataforma tiene que enseñarlo ya,
         // no la fila Rechazada que había antes de guardar. La rejilla del
@@ -433,8 +478,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // Deep-link de pestaña: lo usa el timeline de Comunicaciones para llevar
         // desde el evento de reclamación enviada a su pestaña. Se ignora un
         // valor que no exista en vez de dejar la página en blanco.
-        if (!string.IsNullOrWhiteSpace(Pestana) && _idsDePestana.Contains(Pestana))
-            _pestanaActiva = Pestana;
+        if (IdDePestanaDeUrl(Pestana) is { } pestanaDeUrl)
+            _pestanaActiva = pestanaDeUrl;
 
         // Los filtros son la fuente de verdad de QUÉ hay en pantalla, y viajan
         // por la URL: cambiarlos desde el selector, desde otra pantalla o

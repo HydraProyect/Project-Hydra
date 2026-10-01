@@ -23,6 +23,8 @@
 @using CaeManager.Web.Features.Centros.Components
 @using CaeManager.Web.Features.Documentos.Recursos
 @using MediatR
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosDocumentos> Textos
 @inject IMediator Mediator
 @inject ToastService ToastService
 
@@ -73,7 +75,32 @@ else
                         @ContarPendientes(proveedor) pendiente@(ContarPendientes(proveedor) == 1 ? "" : "s") de subir
                         <span class="plataforma-separador">·</span>
                         <span class="plataforma-rechazados">@ContarRechazados(proveedor) rechazado@(ContarRechazados(proveedor) == 1 ? "" : "s")</span>
+                        @* D-23: la lista también trae las aceptadas; el resumen dice
+                           cuántas siguen sin vigencia en vez de dejar filas «Aceptada»
+                           bajo una cabecera que solo habla de pendientes y rechazos. *@
+                        @if (SinVigencia(proveedor).Count is > 0 and var sinVigencia)
+                        {
+                            <span class="plataforma-separador">·</span>
+                            <span>@Textos["PlatSinVigenciaResumen", sinVigencia]</span>
+                        }
                     </span>
+                    @if (SinVigencia(proveedor) is { Count: > 0 } idsSinVigencia)
+                    {
+                        <SoloConEscritura>
+                            <span class="plataforma-vigencia-bloque">
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                       OnClick="() => AlternarTodasSinVigencia(idsSinVigencia)">
+                                    @(idsSinVigencia.All(_seleccionVigencia.Contains) ? Textos["PlatQuitarSeleccion"] : Textos["PlatSeleccionarSinVigencia"])
+                                </Boton>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                       Deshabilitado="@(SeleccionadasDe(idsSinVigencia).Count == 0)"
+                                       title="@(SeleccionadasDe(idsSinVigencia).Count == 0 ? Textos["PlatAnotarBloqueAyuda"].Value : null)"
+                                       OnClick="() => AbrirVigenciaEnBloque(idsSinVigencia)">
+                                    @Textos["PlatAnotarBloque", SeleccionadasDe(idsSinVigencia).Count]
+                                </Boton>
+                            </span>
+                        </SoloConEscritura>
+                    }
                 </div>
                 @foreach (var cliente in proveedor.Clientes)
                 {
@@ -114,6 +141,14 @@ else
                                        ella es decir hasta cuándo vale en la plataforma. *@
                                     @if (documento.Estado == EstadoAcreditacion.Aceptada)
                                     {
+                                        @if (documento.EstadoVigencia == EstadoVigenciaEnPlataforma.SinConfirmar)
+                                        {
+                                            <SoloConEscritura>
+                                                <input type="checkbox" checked="@_seleccionVigencia.Contains(documento.AcreditacionId)"
+                                                       aria-label="@Textos["PlatIncluirEnBloque", documento.TipoDocumentoNombre, documento.PropietarioNombre]"
+                                                       @onchange="e => AlternarSinVigencia(documento.AcreditacionId, (bool)e.Value!)" />
+                                            </SoloConEscritura>
+                                        }
                                         <span class="plataforma-vigencia">@TextoVigencia(documento)</span>
                                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                OnClick="() => AbrirVigencia(documento.AcreditacionId)">
@@ -179,6 +214,10 @@ else
 
 <Modal HayCambios="() => HayCambiosSinGuardar" Visible="_vigenciaVisible" VisibleChanged="v => _vigenciaVisible = v" Titulo="@(_soloVigencia ? "Anotar vigencia" : "Marcar como aceptado")" CerrarAlHacerClicFuera="!_confirmandoVigencia">
     <ChildContent>
+        @if (_idsVigenciaEnBloque.Count > 1)
+        {
+            <p>@Textos["PlatBloqueAviso", _idsVigenciaEnBloque.Count]</p>
+        }
         @* Se pregunta aquí, y no en una pantalla aparte, porque este es el
            momento en que el Gestor CAE lo sabe: acaba de mirar la plataforma.
            "Todavía no lo sé" es una respuesta válida y se guarda como tal: lo
@@ -374,6 +413,48 @@ else
     private static int ContarPendientes(ProveedorAcreditacionesDto proveedor) =>
         proveedor.Clientes.Sum(c => c.Documentos.Count(d => d.Estado == EstadoAcreditacion.PendienteDeSubir));
 
+    /// <summary>Acreditaciones Aceptadas cuya vigencia en esta plataforma sigue sin confirmar.</summary>
+    private static List<Guid> SinVigencia(ProveedorAcreditacionesDto proveedor) =>
+        proveedor.Clientes
+            .SelectMany(c => c.Documentos)
+            .Where(d => d.Estado == EstadoAcreditacion.Aceptada && d.EstadoVigencia == EstadoVigenciaEnPlataforma.SinConfirmar)
+            .Select(d => d.AcreditacionId)
+            .ToList();
+
+    private readonly HashSet<Guid> _seleccionVigencia = [];
+
+    /// <summary>
+    /// Acreditaciones a las que se anota la misma vigencia a la vez. Vacío: el
+    /// modal de vigencia es el de una sola fila (<see cref="_acreditacionIdVigencia"/>).
+    /// </summary>
+    private List<Guid> _idsVigenciaEnBloque = [];
+
+    private List<Guid> SeleccionadasDe(List<Guid> ids) => ids.Where(_seleccionVigencia.Contains).ToList();
+
+    private void AlternarSinVigencia(Guid acreditacionId, bool marcada)
+    {
+        if (marcada) _seleccionVigencia.Add(acreditacionId);
+        else _seleccionVigencia.Remove(acreditacionId);
+    }
+
+    private void AlternarTodasSinVigencia(List<Guid> ids)
+    {
+        if (ids.All(_seleccionVigencia.Contains))
+            _seleccionVigencia.ExceptWith(ids);
+        else
+            _seleccionVigencia.UnionWith(ids);
+    }
+
+    private void AbrirVigenciaEnBloque(List<Guid> ids)
+    {
+        var elegidas = SeleccionadasDe(ids);
+        if (elegidas.Count == 0)
+            return;
+
+        AbrirModalVigencia(elegidas[0], yaAceptada: true);
+        _idsVigenciaEnBloque = elegidas;
+    }
+
     private static int ContarRechazados(ProveedorAcreditacionesDto proveedor) =>
         proveedor.Clientes.Sum(c => c.Documentos.Count(d => d.Estado == EstadoAcreditacion.Rechazada));
 
@@ -402,6 +483,7 @@ else
     private void AbrirModalVigencia(Guid acreditacionId, bool yaAceptada)
     {
         _acreditacionIdVigencia = acreditacionId;
+        _idsVigenciaEnBloque = [];
         _soloVigencia = yaAceptada;
         _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
         _fechaVigencia = string.Empty;
@@ -450,6 +532,44 @@ else
             // en la plataforma, la otra solo corrige un dato de una acreditación que
             // ya estaba aceptada. Mezclarlas volvería a marcar como aceptada algo que
             // ya lo estaba, escribiendo un hecho que no ha ocurrido.
+            if (_idsVigenciaEnBloque.Count > 0)
+            {
+                // En bloque (D-23): el mismo comando unitario por cada acreditación, de
+                // modo que cada una pasa por la misma autorización y el mismo alcance de
+                // datos que anotarla de una en una; no hay un comando nuevo que se salte nada.
+                // Un fallo no corta el resto: se cuenta y se avisa de cuántas quedaron sin anotar.
+                var anotadas = 0;
+                Error? primerFallo = null;
+                foreach (var id in _idsVigenciaEnBloque)
+                {
+                    var uno = await Mediator.Send(new ConfirmarVigenciaAcreditacionCommand(id, vigencia.Value));
+                    if (uno.EsFallido)
+                        primerFallo ??= uno.Error;
+                    else
+                    {
+                        anotadas++;
+                        _seleccionVigencia.Remove(id);
+                    }
+                }
+
+                var total = _idsVigenciaEnBloque.Count;
+
+                if (primerFallo is not null)
+                    ToastService.MostrarError(primerFallo);
+
+                // Si ninguna se anotó, el modal sigue abierto con la fecha tecleada
+                // para poder reintentar; si alguna sí, se cierra y se recarga.
+                if (anotadas == 0)
+                    return;
+
+                _idsVigenciaEnBloque = [];
+                _vigenciaVisible = false;
+                ToastService.Mostrar(Textos["PlatBloqueResultado", anotadas, total].Value, anotadas == total ? TonoToast.Exito : TonoToast.Advertencia);
+
+                await CargarAsync();
+                return;
+            }
+
             resultado = _soloVigencia
                 ? await Mediator.Send(new ConfirmarVigenciaAcreditacionCommand(_acreditacionIdVigencia, vigencia.Value))
                 : await Mediator.Send(new MarcarAcreditacionAceptadaCommand(_acreditacionIdVigencia, vigencia.Value));
