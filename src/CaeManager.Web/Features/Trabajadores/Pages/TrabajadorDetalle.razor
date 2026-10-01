@@ -155,7 +155,7 @@
                             @foreach (var centro in _centros)
                             {
                                 var expandido = _expandidosCentro.Contains(centro.CentroId);
-                                var alDia = AlDia(centro);
+                                var alDia = Vigentes(centro);
                                 var incidencias = Incidencias(centro);
                                 var sinConfirmarCentro = SinConfirmar(centro);
                                 <div class="trabajador360-centro @(incidencias > 0 ? "trabajador360-centro-con-incidencia" : null)" @key="centro.CentroId">

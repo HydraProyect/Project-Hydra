@@ -296,8 +296,8 @@ public class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         var cabecera = cut.Find(".cabecera-pagina");
-        // 2 de 3 al día (el vigente y el sin confirmar); la única incidencia es el vencido.
-        cabecera.QuerySelector(".cabecera-pagina-inicio .anillo-cumplimiento-texto")!.TextContent.Trim().Should().StartWith("67");
+        // El porcentaje sigue la regla de Centro 360 (solo cuenta lo vigente: 1 de 3); la única incidencia es el vencido.
+        cabecera.QuerySelector(".cabecera-pagina-inicio .anillo-cumplimiento-texto")!.TextContent.Trim().Should().StartWith("33");
         cabecera.TextContent.Should().Contain("1 incidencia — Centro Norte")
             .And.Contain("Formación específica de centro — Vencido")
             .And.NotContain("Reconocimiento médico — Sin confirmar");
@@ -324,8 +324,9 @@ public class Trabajador360Gen2Tests : BunitContext
             "el badge rojo de incidencias del centro no aparece");
         var tarjeta = cut.Find(".trabajador360-centro");
         tarjeta.ClassList.Should().NotContain("trabajador360-centro-con-incidencia");
-        tarjeta.TextContent.Should().Contain("Al día · vigencia sin confirmar").And.Contain("1 de 1");
-        cut.Find(".anillo-cumplimiento-texto").TextContent.Trim().Should().StartWith("100");
+        tarjeta.TextContent.Should().Contain("Sin incidencias · vigencia sin confirmar");
+        cut.Find(".anillo-cumplimiento-texto").TextContent.Trim().Should().StartWith("0",
+            "el porcentaje no cambia con D-22: solo cuenta lo vigente, como Centro 360 (decisión pendiente del propietario)");
     }
 
     /// <summary>

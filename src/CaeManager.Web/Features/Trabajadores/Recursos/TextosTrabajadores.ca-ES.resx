@@ -715,7 +715,7 @@
     <value>sense confirmar</value>
   </data>
   <data name="BadgeAlDiaSinConfirmar" xml:space="preserve">
-    <value>Al dia · vigència sense confirmar</value>
+    <value>Sense incidències · vigència sense confirmar</value>
   </data>
   <data name="AvisoVigenciaSinConfirmar" xml:space="preserve">
     <value>Vigència sense confirmar: {0}</value>

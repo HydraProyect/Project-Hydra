@@ -193,7 +193,12 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     private static bool TieneIncidencias(CentroDocumentacionTrabajadorDto centro) => centro.Documentos.Any(EsIncidencia);
 
-    private static int AlDia(CentroDocumentacionTrabajadorDto centro) => centro.Documentos.Count(d => !EsIncidencia(d));
+    /// <summary>
+    /// Documentos vigentes: lo que cuenta el porcentaje de cumplimiento, que (como en Centro 360 y en la lista,
+    /// CalculadoraEstadoCentro) deja fuera «Sin confirmar». La regla «sin confirmar = al día con aviso» solo
+    /// gobierna las incidencias y el panel Documentación base; cambiar el porcentaje es decisión pendiente del propietario.
+    /// </summary>
+    private static int Vigentes(CentroDocumentacionTrabajadorDto centro) => centro.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente);
 
     private static int SinConfirmar(CentroDocumentacionTrabajadorDto centro) =>
         centro.Documentos.Count(d => d.Estado == EstadoDocumento.SinConfirmar);
@@ -206,7 +211,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         new[] { new BreadcrumbElemento(Textos["MigaTrabajadores"]), new BreadcrumbElemento(NombreCompleto ?? "…") };
 
     private int TotalRequeridos => _centros.Sum(c => c.Documentos.Count);
-    private int TotalAlDia => _centros.Sum(c => c.Documentos.Count(d => !EsIncidencia(d)));
+    private int TotalAlDia => _centros.Sum(Vigentes);
     private int? Cumplimiento => TotalRequeridos == 0 ? null : (int)Math.Round(TotalAlDia * 100.0 / TotalRequeridos);
 
     private CentroDocumentacionTrabajadorDto? CentroMasUrgente =>
@@ -579,6 +584,8 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// igual que en <c>ObtenerLoteReclamacionQuery</c>: "reclamar" pide una
     /// renovación, no puede pedir la creación de algo que nunca existió.
     /// </summary>
+    // «Sin confirmar» sigue siendo reclamable aunque no cuente como incidencia: reclamar pide al
+    // Cliente empresarial una renovación o la confirmación de la vigencia (decisión de D-22: solo cambia el cómputo).
     private async Task ReclamarFaltantesAsync()
     {
         var clientes = _centros

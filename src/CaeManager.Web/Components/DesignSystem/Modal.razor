@@ -103,8 +103,8 @@
     /// <summary>
     /// P1-E2b: si el formulario de dentro tiene algo que se perdería al cerrar. Se consulta
     /// al pedir el cierre con la X, Escape o un clic en el fondo; con <c>true</c>, antes de
-    /// cerrar se pregunta «¿Descartar cambios?» (ConfirmarDescartarCambios). Los botones del
-    /// propio formulario («Cancelar», «Guardar») no pasan por aquí: son decisión explícita.
+    /// cerrar se pregunta «¿Descartar cambios?» (ConfirmarDescartarCambios). «Guardar» no pasa por aquí;
+    /// «Cancelar» sí, si el formulario llama a <see cref="SolicitarCierreAsync"/> (D-05).
     /// Es la misma función que el formulario pasa a AvisoCambiosSinGuardar.
     /// </summary>
     [Parameter] public Func<bool>? HayCambios { get; set; }
