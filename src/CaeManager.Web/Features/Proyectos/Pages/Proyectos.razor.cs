@@ -261,7 +261,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// <summary>
     /// La URL es la fuente de verdad de los dos filtros, no solo su semilla:
     /// se re-sincroniza en cada navegación dentro de la página (mismo criterio
-    /// que Vehiculos.razor.cs).
+    /// que Vehiculos.razor.cs). Mientras se resuelve la empresa activa, en el
+    /// estado 4a y con la página retirada la URL no se sincroniza.
     /// </summary>
     protected override void OnParametersSet()
     {
