@@ -100,4 +100,12 @@ public class NombreArchivoDocumentoTests
         // El servicio solo recibe nombres: un DNI solo aparecería si alguien lo pasara como nombre.
         NombreArchivoDocumento.Suelto("Perez Ana", "Entrega de EPI", Emision).Should().NotMatchRegex(@"\d{8}[A-Z]");
     }
+
+    [Fact]
+    public void MismoTipo_agrupa_los_alias_y_distingue_el_resto()
+    {
+        NombreArchivoDocumento.MismoTipo("Certificado de aptitud médica", "Reconocimiento médico").Should().BeTrue();
+        NombreArchivoDocumento.MismoTipo("Entrega de EPI", "entrega de epi").Should().BeTrue();
+        NombreArchivoDocumento.MismoTipo("Entrega de EPI", "Formación Art. 19").Should().BeFalse();
+    }
 }

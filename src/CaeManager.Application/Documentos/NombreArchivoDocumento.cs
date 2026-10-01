@@ -48,6 +48,10 @@ public static class NombreArchivoDocumento
             : tipo ?? "";
     }
 
+    /// <summary>¿Dos nombres de tipo producen el mismo componente de fichero?</summary>
+    public static bool MismoTipo(string? a, string? b) =>
+        string.Equals(Limpiar(TipoCorto(a), "Documento"), Limpiar(TipoCorto(b), "Documento"), StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Sin acentos ni ñ, solo letras, dígitos, espacio y <c>- . ( )</c>; espacios colapsados.</summary>
     public static string Limpiar(string? texto, string alternativa)
     {

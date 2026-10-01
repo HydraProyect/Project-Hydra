@@ -150,9 +150,10 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
 
         // Coincidencias de mismo propietario, tipo y emisión: la más antigua conserva el
         // nombre sin sufijo y las siguientes llevan _v2, _v3… de forma estable.
-        var anteriores = await documentosContext.Documentos
+        // "Mismo tipo" = mismo tipo canónico de nombre de fichero (Aptitud médica y Reconocimiento
+        // médico dan el mismo nombre aunque sean TipoDocumentoId distintos).
+        var tiposDeAnteriores = await documentosContext.Documentos
             .Where(d => d.Id != documento.Id
-                && d.TipoDocumentoId == documento.TipoDocumentoId
                 && d.FechaEmision == documento.FechaEmision
                 && d.TrabajadorId == documento.TrabajadorId
                 && d.ClienteId == documento.ClienteId
@@ -161,7 +162,15 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
                 && d.ProyectoId == documento.ProyectoId
                 && (d.CreadoEnUtc < documento.CreadoEnUtc
                     || (d.CreadoEnUtc == documento.CreadoEnUtc && d.Id.CompareTo(documento.Id) < 0)))
-            .CountAsync(cancellationToken);
+            .Select(d => d.TipoDocumentoId)
+            .ToListAsync(cancellationToken);
+        var nombresDeTipos = tiposDeAnteriores.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await tiposDocumentoContext.TiposDocumento
+                .Where(t => tiposDeAnteriores.Contains(t.Id))
+                .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
+        var anteriores = tiposDeAnteriores.Count(id =>
+            nombresDeTipos.TryGetValue(id, out var nombre) && NombreArchivoDocumento.MismoTipo(nombre, tipoDocumento.Nombre));
 
         return new DocumentoDetalleDto(
             documento.Id, ambito, propietarioNombre, tipoDocumento.Nombre,
