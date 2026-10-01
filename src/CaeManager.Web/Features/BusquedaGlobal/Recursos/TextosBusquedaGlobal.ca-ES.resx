@@ -15,4 +15,13 @@
   <data name="IrAMiTrabajoDeLaCartera" xml:space="preserve">
     <value>Vés a La meva feina de tota la cartera</value>
   </data>
+  <data name="AmbitoGenerico" xml:space="preserve">
+    <value>l'empresa activa</value>
+  </data>
+  <data name="AmbitoPie" xml:space="preserve">
+    <value>Cercant a {0}</value>
+  </data>
+  <data name="SinResultados" xml:space="preserve">
+    <value>Sense resultats per a «{0}» a {1}. La cerca només cobreix l'empresa activa: canvia-la al selector per cercar en una altra.</value>
+  </data>
 </root>

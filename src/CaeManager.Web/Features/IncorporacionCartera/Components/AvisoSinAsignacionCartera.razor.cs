@@ -1,6 +1,8 @@
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Web.Features.IncorporacionCartera.Recursos;
 using MediatR;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Localization;
 
@@ -32,10 +34,23 @@ public partial class AvisoSinAsignacionCartera : ComponentBase
     /// <summary>Descripción propia de la pantalla; por defecto, la genérica que remite al Coordinador CAE.</summary>
     [Parameter] public string? Descripcion { get; set; }
 
+    /// <summary>
+    /// D-15: el texto por defecto remite a «tu Coordinador CAE», que es justo quien lo lee si es Coordinador CAE.
+    /// Solo cambia el destinatario del texto; no concede ni quita nada (la autorización no se toca).
+    /// Opcional: sin estado de autenticación en cascada se queda el texto general.
+    /// </summary>
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    private bool _esCoordinador;
     private bool _puedeAnadirACartera;
     private bool _dialogoVisible;
 
-    protected override Task OnInitializedAsync() => CargarCandidatosAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacion is not null)
+            _esCoordinador = (await EstadoAutenticacion).User.IsInRole(Roles.CoordinadorCae);
+        await CargarCandidatosAsync();
+    }
 
     private async Task CargarCandidatosAsync()
     {

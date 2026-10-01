@@ -89,6 +89,10 @@
     [SupplyParameterFromQuery]
     private string? ErrorSso { get; set; }
 
+    // Único sitio que llama a DestinoTrasLogin: tanto el fin del login como el redirect de quien ya
+    // tiene sesión aterrizan con la marca de un solo uso (AterrizajeTrasLoginLlevaLaMarcaTests).
+    private string DestinoFinal => RedireccionLocal.DestinoTrasLogin(ReturnUrl);
+
     private string EnlaceLoginMicrosoft => string.IsNullOrWhiteSpace(ReturnUrl)
         ? "/cuenta/iniciar-sesion-microsoft"
         : $"/cuenta/iniciar-sesion-microsoft?returnUrl={Uri.EscapeDataString(ReturnUrl)}";
@@ -102,7 +106,7 @@
         // está autenticada (no hay identidad hasta completar el segundo factor).
         if (HttpContext is { Request.Method: "GET" } contexto && contexto.User.Identity?.IsAuthenticated == true)
         {
-            Navigation.NavigateTo(RedireccionLocal.Sanear(ReturnUrl), forceLoad: true);
+            Navigation.NavigateTo(DestinoFinal, forceLoad: true);
             return;
         }
         mensajeErrorSso = ErrorSso switch
@@ -192,7 +196,7 @@
                 return;
             }
 
-            Navigation.NavigateTo(RedireccionLocal.DestinoTrasLogin(ReturnUrl), forceLoad: true);
+            Navigation.NavigateTo(DestinoFinal, forceLoad: true);
             return;
         }
 

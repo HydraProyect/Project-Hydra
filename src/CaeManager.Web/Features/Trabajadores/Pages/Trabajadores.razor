@@ -41,7 +41,8 @@
        perfil. *@
     <CabeceraPagina Titulo="@TituloPagina">
         <Acciones>
-            @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
+            @* D-15: con alcance cero la lista no puede existir; exportarla daría un fichero vacío. *@
+            @if (!_alcanceCero && !_sinEmpresaSeleccionada && !_resolviendoEmpresa)
             {
                 <a class="enlace-exportar" href="/trabajadores/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceExportarExcel"]</a>
             }
@@ -75,6 +76,9 @@
        desplegable que no filtra nada mentiría. Tampoco se funden Empresa y
        Subcontrata en un solo desplegable: son dos parámetros distintos de la
        consulta. Los filtros guardados no salen en el mockup y se conservan. *@
+    @* D-15: sin alcance (Asignación de Cartera) no hay lista que filtrar, guardar ni seleccionar. *@
+    @if (!_alcanceCero)
+    {
     <div class="barra-trabajo-centros barra-trabajo-trabajadores">
         <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
         <FiltroEstado Etiqueta="@Textos["EtiquetaDocumentacion"]" TextoTodos="@Textos["OpcionTodas"]" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
@@ -116,6 +120,7 @@
             @Textos["BotonGuardarFiltro"]
         </Boton>
     </div>
+    }
 
     @* Mismo bloque que Clientes y Empresas. Aquí importa más que en ninguna
        otra lista: son CUATRO filtros y tres de ellos viven dentro de

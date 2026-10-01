@@ -3,6 +3,8 @@ using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 using CaeManager.Application.BusquedaGlobal.Queries.ObtenerRecientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Web.Features.BusquedaGlobal.Recursos;
+using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.AspNetCore.Components.Web;
@@ -439,20 +441,37 @@ public partial class BuscadorGlobal
     /// </summary>
     private async Task ResolverExportacionDeTrabajadoresAsync(int apertura, CancellationToken token)
     {
-        if (SegmentoDeRuta(Navigation.Uri) != "trabajadores") return;
+        // D-14: el ámbito honesto de la búsqueda (la empresa gestionada activa, no «tu cartera»)
+        // sale de la misma lista autorizada que decide el estado 4a: una sola consulta por apertura.
+        // Es solo un rótulo: el alcance real lo siguen decidiendo la consulta y RLS.
+        var enTrabajadores = SegmentoDeRuta(Navigation.Uri) == "trabajadores";
+        _nombreAmbito = null;
         try
         {
             var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery(), token);
-            if (apertura != _generacionApertura || ClientesAutorizados.PideElegirEmpresa(autorizados, TenantActual.TenantId))
-                return;
-            _accionesPantalla = ConstruirAccionesPantalla(exportarPermitido: true);
+            if (apertura != _generacionApertura) return;
+            _nombreAmbito = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId)?.Nombre;
+            if (enTrabajadores && !ClientesAutorizados.PideElegirEmpresa(autorizados, TenantActual.TenantId))
+                _accionesPantalla = ConstruirAccionesPantalla(exportarPermitido: true);
             StateHasChanged();
         }
         catch
         {
-            // Sin comprobación no se ofrece la exportación.
+            // Sin comprobación no se ofrece la exportación y el rótulo queda genérico.
         }
     }
+
+    /// <summary>Nombre de la empresa gestionada activa, resuelto al abrir; null si aún no se conoce.</summary>
+    private string? _nombreAmbito;
+
+    private string AmbitoRotulo => string.IsNullOrWhiteSpace(_nombreAmbito)
+        ? TextosBusquedaGlobal.Texto("AmbitoGenerico")
+        : _nombreAmbito;
+
+    private string TextoAmbitoPie => string.Format(CultureInfo.CurrentUICulture, TextosBusquedaGlobal.Texto("AmbitoPie"), AmbitoRotulo);
+
+    private string TextoSinResultados => string.Format(
+        CultureInfo.CurrentUICulture, TextosBusquedaGlobal.Texto("SinResultados"), _termino, AmbitoRotulo);
 
     /// <summary>
     /// Segmento de ruta, pero SOLO si es la pantalla de listado exacta
