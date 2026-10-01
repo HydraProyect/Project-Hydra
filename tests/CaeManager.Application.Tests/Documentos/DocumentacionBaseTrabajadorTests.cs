@@ -78,6 +78,21 @@ public class DocumentacionBaseTrabajadorTests
     }
 
     [Fact]
+    public void Del_mismo_tipo_un_sin_confirmar_representa_frente_a_un_vencido_y_cuenta_como_al_dia()
+    {
+        // PreferenciaDocumentoPorTipo antepone lo no vencido: la renovación cuya fecha falta por
+        // confirmar representa el tipo, y por la decisión del propietario cuenta como al día.
+        var d = Calcular(
+            Vence("Certificado de aptitud médica", -30),
+            Doc("Certificado de aptitud médica", EstadoVigenciaDocumento.SinConfirmar, null),
+            Vence("Formación Art. 19", 200), Doc("Información Art. 18", EstadoVigenciaDocumento.NoCaduca, null),
+            Vence("Entrega de EPI", 200));
+        Estado(d, TipoDocumentoBase.AptitudMedica).Should().Be(EstadoIndicadorBase.SinConfirmar);
+        d.AlDia.Should().BeTrue();
+        d.TieneVigenciaSinConfirmar.Should().BeTrue();
+    }
+
+    [Fact]
     public void Sin_confirmar_no_tapa_un_vencido_ni_una_falta()
     {
         var conVencido = Calcular(

@@ -4,8 +4,8 @@
     Es una vista de referencia: ni afirma que ninguno sea obligatorio por oficio ni equivale
     a «apto para un Centro» (TipoDocumentoCentro, otro plano). Los estados salen de
     DocumentacionBaseTrabajador, que reutiliza CalculadoraEstadoDocumento. «Vigencia sin
-    confirmar» cuenta como al día, pero se avisa: en el indicador, en el resumen y en una línea
-    propia del panel completo.
+    confirmar» cuenta como al día, pero se avisa con texto visible: junto al resumen compacto y
+    en una línea propia del panel completo, además del indicador.
 
     Dos modos de alimentarlo: con Datos ya cargados (la lista pide una página entera de una
     vez) o con TrabajadorId (cajón y ficha), que lo carga él. Compacto = solo cuatro puntos
@@ -29,6 +29,10 @@
             <Badge Tono="@(_datos.AlDia ? TonoBadge.Exito : TonoBadge.Advertencia)" Tamano="TamanoBadge.Pequeno">
                 @(_datos.AlDia ? Textos["DocBaseAlDia"] : Textos["DocBaseNoAlDia"])
             </Badge>
+            @if (_datos.TieneVigenciaSinConfirmar)
+            {
+                <span class="panel-doc-base-compacto-aviso">@Textos["DocBaseCompactoSinConfirmar"]</span>
+            }
             @foreach (var indicador in _datos.Indicadores)
             {
                 <span class="panel-doc-base-punto panel-doc-base-punto-@Clase(indicador.Estado)"

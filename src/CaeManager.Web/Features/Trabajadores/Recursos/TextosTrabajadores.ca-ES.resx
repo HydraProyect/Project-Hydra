@@ -658,57 +658,60 @@
     <value>Els treballadors es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
   </data>
   <data name="DocBaseTitulo" xml:space="preserve">
-    <value>Documentación base</value>
+    <value>Documentació base</value>
   </data>
   <data name="DocBaseAlDia" xml:space="preserve">
-    <value>Al día en lo básico</value>
+    <value>Al dia en allò bàsic</value>
   </data>
   <data name="DocBaseNoAlDia" xml:space="preserve">
-    <value>Falta algo en lo básico</value>
+    <value>Falta alguna cosa en allò bàsic</value>
   </data>
   <data name="DocBaseNota" xml:space="preserve">
-    <value>Cuatro documentos de referencia. No indica aptitud para un Centro ni que sean obligatorios para su oficio.</value>
+    <value>Quatre documents de referència. No indica aptitud per a un Centre ni que siguin obligatoris per al seu ofici.</value>
   </data>
   <data name="DocBaseTipoAptitudMedica" xml:space="preserve">
-    <value>Aptitud médica</value>
+    <value>Aptitud mèdica</value>
   </data>
   <data name="DocBaseTipoFormacionArt19" xml:space="preserve">
-    <value>Formación Art. 19</value>
+    <value>Formació Art. 19</value>
   </data>
   <data name="DocBaseTipoInformacionArt18" xml:space="preserve">
-    <value>Información Art. 18</value>
+    <value>Informació Art. 18</value>
   </data>
   <data name="DocBaseTipoEntregaEpi" xml:space="preserve">
-    <value>Entrega de EPI</value>
+    <value>Lliurament d'EPI</value>
   </data>
   <data name="DocBaseEstadoVigente" xml:space="preserve">
-    <value>Vigente</value>
+    <value>Vigent</value>
   </data>
   <data name="DocBaseEstadoPresente" xml:space="preserve">
-    <value>Presente</value>
+    <value>Present</value>
   </data>
   <data name="DocBaseEstadoProximoAVencer" xml:space="preserve">
-    <value>Próximo a vencer</value>
+    <value>A punt de vèncer</value>
   </data>
   <data name="DocBaseEstadoVencido" xml:space="preserve">
-    <value>Vencido</value>
+    <value>Vençut</value>
   </data>
   <data name="DocBaseEstadoFalta" xml:space="preserve">
     <value>Falta</value>
   </data>
   <data name="DocBaseEstadoSinConfirmar" xml:space="preserve">
-    <value>Vigencia sin confirmar</value>
+    <value>Vigència sense confirmar</value>
   </data>
   <data name="DocBaseResumenAriaAlDia" xml:space="preserve">
-    <value>Documentación base: al día</value>
+    <value>Documentació base: al dia</value>
   </data>
   <data name="DocBaseResumenAriaNoAlDia" xml:space="preserve">
-    <value>Documentación base: falta o requiere revisión</value>
+    <value>Documentació base: falta o requereix revisió</value>
   </data>
   <data name="DocBaseAvisoSinConfirmar" xml:space="preserve">
-    <value>Hay documentos con la vigencia sin confirmar: cuentan como al día, pero conviene confirmar su fecha de vencimiento.</value>
+    <value>Hi ha documents amb la vigència sense confirmar: compten com al dia, però convé confirmar-ne la data de venciment.</value>
   </data>
   <data name="DocBaseResumenAriaAlDiaSinConfirmar" xml:space="preserve">
-    <value>Documentación base: al día, con vigencia sin confirmar</value>
+    <value>Documentació base: al dia, amb vigència sense confirmar</value>
+  </data>
+  <data name="DocBaseCompactoSinConfirmar" xml:space="preserve">
+    <value>sense confirmar</value>
   </data>
 </root>

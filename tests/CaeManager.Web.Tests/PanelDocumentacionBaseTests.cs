@@ -62,7 +62,10 @@ public class PanelDocumentacionBaseTests : BunitContext
             EstadoIndicadorBase.Vencido, EstadoIndicadorBase.Falta, EstadoIndicadorBase.SinConfirmar, EstadoIndicadorBase.Vigente)));
 
         cut.Markup.Should().Contain("Falta algo en lo básico").And.NotContain("Al día en lo básico");
-        cut.Markup.Should().Contain("Vencido").And.Contain("Falta").And.Contain("Vigencia sin confirmar");
+        var filas = cut.FindAll(".panel-doc-base-fila").Select(f => f.TextContent).ToList();
+        filas[0].Should().Contain("Vencido");
+        filas[1].Should().Contain("Falta");
+        filas[2].Should().Contain("Vigencia sin confirmar");
     }
 
     [Fact]
@@ -83,6 +86,11 @@ public class PanelDocumentacionBaseTests : BunitContext
             EstadoIndicadorBase.Vigente, EstadoIndicadorBase.ProximoAVencer, EstadoIndicadorBase.Vigente, EstadoIndicadorBase.Vigente)));
 
         cut.FindAll(".panel-doc-base-aviso").Should().BeEmpty();
+        var compacto = Render<PanelDocumentacionBase>(p => p
+            .Add(c => c.Compacto, true)
+            .Add(c => c.Datos, Dto(EstadoIndicadorBase.Vigente, EstadoIndicadorBase.ProximoAVencer, EstadoIndicadorBase.Vigente, EstadoIndicadorBase.Vigente)));
+        compacto.FindAll(".panel-doc-base-compacto-aviso").Should().BeEmpty();
+        compacto.Find(".panel-doc-base-compacto").GetAttribute("aria-label").Should().Be("Documentación base: al día");
     }
 
     [Fact]
@@ -96,6 +104,7 @@ public class PanelDocumentacionBaseTests : BunitContext
         var resumen = cut.Find(".panel-doc-base-compacto");
         resumen.GetAttribute("aria-label").Should().Be("Documentación base: al día, con vigencia sin confirmar");
         resumen.GetAttribute("title").Should().Contain("vigencia sin confirmar");
+        cut.Find(".panel-doc-base-compacto-aviso").TextContent.Should().Be("sin confirmar");
         cut.FindAll(".panel-doc-base-punto-aviso").Should().HaveCount(1);
     }
 
