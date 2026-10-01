@@ -228,4 +228,7 @@
   <data name="SinAsignacionAnadir" xml:space="preserve">
     <value>Afegir a la meva cartera</value>
   </data>
+  <data name="SinAsignacionDetalleCoordinador" xml:space="preserve">
+    <value>No tens cap Assignació de Cartera vigent en aquesta empresa, així que aquí no hi apareix res: no és que estigui al dia ni que falti donar-ho d'alta. Demana-la a Direcció CAE.</value>
+  </data>
 </root>

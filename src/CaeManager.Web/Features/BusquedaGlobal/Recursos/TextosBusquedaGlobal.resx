@@ -15,4 +15,16 @@
   <data name="IrAMiTrabajoDeLaCartera" xml:space="preserve">
     <value>Ir a Mi trabajo de toda la cartera</value>
   </data>
+  <data name="AmbitoGenerico" xml:space="preserve">
+    <value>la empresa activa</value>
+  </data>
+  <data name="AmbitoPie" xml:space="preserve">
+    <value>Buscando en {0}</value>
+  </data>
+  <data name="SinResultados" xml:space="preserve">
+    <value>Sin resultados para «{0}» en {1}.</value>
+  </data>
+  <data name="SinResultadosPistaSelector" xml:space="preserve">
+    <value>La búsqueda cubre solo la empresa activa: cámbiala en el selector para buscar en otra.</value>
+  </data>
 </root>

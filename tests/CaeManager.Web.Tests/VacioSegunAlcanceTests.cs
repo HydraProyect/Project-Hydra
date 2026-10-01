@@ -89,6 +89,37 @@ public class VacioSegunAlcanceTests : BunitContext
         cut.Markup.Should().NotContain("Todo al día");
     }
 
+    private static Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState> Estado(string rol) =>
+        Task.FromResult(new Microsoft.AspNetCore.Components.Authorization.AuthenticationState(
+            new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+                [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, rol)], "prueba"))));
+
+    // D-15: al propio Coordinador CAE no se le dice «pídesela a tu Coordinador CAE».
+    [Fact]
+    public void Al_Coordinador_CAE_no_se_le_remite_a_su_propio_rol()
+    {
+        Registrar(new MediatorAlcance { AlcanceCero = () => Task.FromResult(true) });
+
+        var cut = Render<VacioSegunAlcance>(p => p
+            .AddChildContent(VacioPositivo)
+            .AddCascadingValue(Estado(CaeManager.Infrastructure.Identity.Roles.CoordinadorCae)));
+
+        var texto = cut.Find("[data-estado=sin-asignacion-cartera]").TextContent;
+        texto.Should().Contain("Sin Asignación de Cartera").And.Contain("Dirección CAE").And.NotContain("Coordinador CAE");
+    }
+
+    [Fact]
+    public void Al_Gestor_CAE_se_le_sigue_remitiendo_a_su_Coordinador_CAE()
+    {
+        Registrar(new MediatorAlcance { AlcanceCero = () => Task.FromResult(true) });
+
+        var cut = Render<VacioSegunAlcance>(p => p
+            .AddChildContent(VacioPositivo)
+            .AddCascadingValue(Estado(CaeManager.Infrastructure.Identity.Roles.GestorCae)));
+
+        cut.Find("[data-estado=sin-asignacion-cartera]").TextContent.Should().Contain("Pídesela a tu Coordinador CAE");
+    }
+
     [Fact]
     public void Con_alcance_pinta_el_vacio_de_la_pantalla_sin_cambios()
     {

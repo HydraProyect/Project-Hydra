@@ -89,6 +89,10 @@
     [SupplyParameterFromQuery]
     private string? ErrorSso { get; set; }
 
+    // Único sitio que llama a DestinoTrasLogin: tanto el fin del login como el redirect de quien ya
+    // tiene sesión aterrizan con la marca de un solo uso (AterrizajeTrasLoginLlevaLaMarcaTests).
+    private string DestinoFinal => RedireccionLocal.DestinoTrasLogin(ReturnUrl);
+
     private string EnlaceLoginMicrosoft => string.IsNullOrWhiteSpace(ReturnUrl)
         ? "/cuenta/iniciar-sesion-microsoft"
         : $"/cuenta/iniciar-sesion-microsoft?returnUrl={Uri.EscapeDataString(ReturnUrl)}";
@@ -96,6 +100,17 @@
     protected override void OnInitialized()
     {
         Entrada ??= new DatosEntrada();
+        // D-09: con sesión iniciada, la página de login no se muestra: se redirige a donde iba
+        // (ReturnUrl, saneado como en el login) o al inicio. Solo en la petición GET: el POST del
+        // formulario lo gestiona IniciarSesionAsync, y una cuenta con 2FA pendiente todavía no
+        // está autenticada (no hay identidad hasta completar el segundo factor).
+        if (HttpContext is { Request.Method: "GET" } contexto && contexto.User.Identity?.IsAuthenticated == true)
+        {
+            // Un returnUrl que apunta al propio login (enlace manual) daría un bucle: se va al inicio.
+            var vuelveAlLogin = ReturnUrl?.StartsWith("/cuenta/iniciar-sesion", StringComparison.OrdinalIgnoreCase) == true;
+            Navigation.NavigateTo(vuelveAlLogin ? "/" : DestinoFinal, forceLoad: true);
+            return;
+        }
         mensajeErrorSso = ErrorSso switch
         {
             // Interpolado: dentro de una cadena C# «@Marca.Nombre» no es Razor,
@@ -183,7 +198,7 @@
                 return;
             }
 
-            Navigation.NavigateTo(RedireccionLocal.DestinoTrasLogin(ReturnUrl), forceLoad: true);
+            Navigation.NavigateTo(DestinoFinal, forceLoad: true);
             return;
         }
 

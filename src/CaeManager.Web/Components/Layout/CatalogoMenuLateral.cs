@@ -200,8 +200,16 @@ public static class CatalogoMenuLateral
             Condicion: c => c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
         new("calendario", "control", "calendario", "calendario", "Calendario"),
         new("reportes", "control", "reportes", "reportes", "Reportes"),
-        // Cierra Control por mandato del propietario del 2026-09-29.
+        // Cierra Control por mandato del propietario del 2026-09-29 (salvo el enlace de equipo del Coordinador CAE, de más abajo).
         new("conectar-extension", "control", "cuenta/extension", "plataforma", "Conectar extensión"),
+        // D-12: el Coordinador CAE gestiona su equipo en /usuarios (la página ya lo autoriza por rol,
+        // Usuarios.razor) pero no ve el grupo «Administración», que es de Administrador y Dirección CAE.
+        // Este enlace solo hace descubrible lo ya autorizado: misma ruta, misma autorización, ningún
+        // permiso nuevo. Administrador y Dirección CAE conservan «usuarios» en Administración, y no
+        // lo ven duplicado aquí.
+        new("usuarios-equipo", "control", "usuarios", "usuarios", "Usuarios",
+            Condicion: c => c.TieneAlgunRol(Roles.CoordinadorCae)
+                            && !c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
 
         // Roles, Claves API, Conexiones, Retención, Tipos de documento, Auditoría e Importación
         // viven como paneles de Configuración (DDL-078), su único punto de entrada. Usuarios se

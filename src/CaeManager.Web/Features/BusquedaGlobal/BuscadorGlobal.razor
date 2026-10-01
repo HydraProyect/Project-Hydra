@@ -48,7 +48,7 @@
                 }
                 else if (!ConsultaVacia && grupos.Count == 0)
                 {
-                    <p class="buscador-mensaje" role="status">Sin resultados para «@_termino» en tu cartera.</p>
+                    <p class="buscador-mensaje" role="status">@TextoSinResultados</p>
                 }
                 else
                 {
@@ -61,7 +61,7 @@
                        hubiera ninguna acción, cosa que nunca ocurre. *@
                     @if (!ConsultaVacia && _resultado is not null && !_resultado.TieneResultados)
                     {
-                        <p class="buscador-mensaje buscador-mensaje-vacio" role="status">Sin resultados para «@_termino» en tu cartera.</p>
+                        <p class="buscador-mensaje buscador-mensaje-vacio" role="status">@TextoSinResultados</p>
                     }
                     <div id="buscador-lista" class="buscador-lista" role="listbox" aria-label="Resultados">
                         @foreach (var grupo in grupos)
@@ -102,7 +102,7 @@
             </div>
 
             <div class="buscador-pie">
-                <span class="buscador-ambito">Buscando en tu cartera</span>
+                <span class="buscador-ambito">@TextoAmbitoPie</span>
                 <span class="buscador-leyenda">
                     <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
                     <span><kbd>Tab</kbd> grupo</span>

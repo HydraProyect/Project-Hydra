@@ -374,6 +374,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 return GridItemsProviderResult.From(new List<TrabajadorListaDto>(), 0);
 
             _totalElementos = resultado.TotalElementos;
+            // El alcance cero solo lo fija VacioSegunAlcance con la lista vacía: con datos ya no aplica
+            // (cambio de empresa o Asignación de Cartera concedida con la página abierta).
+            if (_totalElementos > 0) _alcanceCero = false;
 
             var elementos = resultado.Elementos.ToList();
 
