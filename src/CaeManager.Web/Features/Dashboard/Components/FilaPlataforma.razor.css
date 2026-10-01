@@ -51,17 +51,17 @@
 }
 
 /*
-  Tamaños del mockup (Inicio TALVEG): 72px de ancho máximo y 28 de alto.
-  object-fit: contain y width/height auto porque los originales no comparten
+  Tamaños del mockup (Inicio TALVEG): celda de 72px de ancho y 28 de alto.
+  object-fit: contain porque los originales no comparten
   proporción —CTAIMA es apaisado 1536x688, Dokify y Nalanda son cuadrados de
-  400— y estirarlos deformaría una marca registrada. Se sirven tal cual: no se
-  recolorean, no se recortan y no se reescalan en origen.
+  400— y estirarlos deformaría una marca registrada. Caja fija de 72x28 (la celda
+  del mockup) alineada a la izquierda: con marcas de anchos distintos, una caja
+  variable desalinearía los nombres. No se recolorean ni se deforman.
 */
 .fila-plataforma-logo {
     flex: none;
-    width: auto;
-    height: auto;
-    max-width: 72px;
-    max-height: 28px;
+    width: 72px;
+    height: 28px;
     object-fit: contain;
+    object-position: left center;
 }

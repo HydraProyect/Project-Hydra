@@ -14,7 +14,7 @@ namespace CaeManager.Web.Tests;
 /// <para>
 /// Los dos riesgos reales de este mapa son silenciosos, y por eso están los dos
 /// primeros tests: un slug mal escrito no rompe nada —la fila se pinta sin
-/// marca, como las 19 plataformas que no tienen— y un fichero que falte da un
+/// marca, como las pocas plataformas que no tienen— y un fichero que falte da un
 /// 404 que solo se ve en la consola del navegador.
 /// </para>
 /// </summary>
@@ -57,16 +57,17 @@ public class LogoPlataformaTests : BunitContext
     }
 
     /// <summary>
-    /// El caso normal: 23 proveedores en el catálogo y 4 marcas. Devolver null
-    /// es una respuesta de primera clase, no un hueco.
+    /// Quedan proveedores sin marca oficial localizable (ver
+    /// <see cref="SinLogoDocumentado"/>). Devolver null es una respuesta de
+    /// primera clase, no un hueco.
     /// </summary>
     [Fact]
     public void Una_plataforma_sin_logo_se_pinta_igual_solo_con_su_nombre()
     {
         var cut = Render<FilaPlataforma>(p => p.Add(c => c.Plataforma,
-            new PendientePorPlataformaDto(Guid.NewGuid(), "Metacontratas", 3, 0, "metacontratas")));
+            new PendientePorPlataformaDto(Guid.NewGuid(), "Valora", 3, 0, "valora")));
 
-        cut.Markup.Should().Contain("Metacontratas");
+        cut.Markup.Should().Contain("Valora");
         cut.FindAll("img").Should().BeEmpty("no hay marca para este proveedor, y eso es lo habitual");
     }
 
@@ -108,9 +109,47 @@ public class LogoPlataformaTests : BunitContext
     [Fact]
     public void Compartir_grupo_comercial_no_hereda_el_logotipo()
     {
-        LogoPlataforma.Ruta("twind").Should().BeNull(
-            "son proveedores separados aunque compartan marca: el grupo no es lógica operativa");
+        LogoPlataforma.Ruta("twind").Should().NotBe(LogoPlataforma.Ruta("ctaimacae-legacy"),
+            "son proveedores separados aunque compartan marca: cada slug lleva el suyo y el grupo no es lógica operativa");
+        LogoPlataforma.Ruta("twind").Should().NotBeNull();
         LogoPlataforma.Ruta("ctaimacae-legacy").Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// Proveedores del catálogo sin marca oficial localizable el 2026-10-02: el
+    /// dominio de Valora redirige hoy a otra marca, el de Arch está en venta, el
+    /// de Opground no resuelve y Norprevención solo tiene el logotipo del grupo
+    /// matriz. Con este test, un proveedor nuevo del catálogo obliga a decidir:
+    /// añadir su marca o anotarlo aquí.
+    /// </summary>
+    private static readonly string[] SinLogoDocumentado = ["valora", "arch", "opground", "norprevencion"];
+
+    [Fact]
+    public void Todo_proveedor_del_catalogo_tiene_logo_o_esta_documentado_sin_el()
+    {
+        var semilla = LeerSemillaDelCatalogo();
+        semilla.Should().NotBeEmpty("sin códigos leídos este test no mira nada");
+
+        var sinDecidir = semilla
+            .Where(c => LogoPlataforma.Ruta(c) is null && !SinLogoDocumentado.Contains(c, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        sinDecidir.Should().BeEmpty("cada proveedor del catálogo o tiene marca o está documentado como sin ella");
+        SinLogoDocumentado.Should().OnlyContain(c => semilla.Contains(c) && LogoPlataforma.Ruta(c) == null,
+            "la lista de excepciones no puede quedarse con slugs que ya no existen o que ya tienen marca");
+    }
+
+    /// <summary>La UI pinta como mucho 72×28 px: un fichero grande solo añade peso a la página de Inicio.</summary>
+    [Fact]
+    public void Los_logos_pesan_poco()
+    {
+        var raiz = RaizDelRepositorio();
+        foreach (var codigo in LogoPlataforma.CodigosConLogo)
+        {
+            var fisica = Path.Combine(raiz, "src", "CaeManager.Web", "wwwroot",
+                LogoPlataforma.Ruta(codigo)!.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+            new FileInfo(fisica).Length.Should().BeLessThan(40_000, $"el logotipo de «{codigo}» es demasiado pesado para pintarse a 72×28");
+        }
     }
 
     [Theory]
