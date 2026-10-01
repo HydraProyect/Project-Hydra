@@ -2,6 +2,8 @@ using AngleSharp.Dom;
 using CaeManager.Infrastructure.Identity;
 using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
+using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
 using CaeManager.Application.Proyectos.Commands.CerrarProyecto;
@@ -151,6 +153,7 @@ public class ProyectosGen2Tests : BunitContext
 
             object? respuesta = request switch
             {
+                ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[],
                 ObtenerClientesParaSelectorQuery => new[]
                 {
                     new ClienteSelectorDto(ClienteId, "Refrielectric S.L."),
@@ -208,6 +211,7 @@ public class ProyectosGen2Tests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => _mediator);
         Services.AddScoped<ToastService>();
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.GetRequiredService<NavigationManager>().NavigateTo(ruta);
         return Render<Proyectos>();
     }

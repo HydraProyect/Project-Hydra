@@ -333,4 +333,10 @@
   <data name="ErrorDarDeBaja" xml:space="preserve">
     <value>No pudimos dar de baja al técnico. Intenta nuevamente en unos segundos.</value>
   </data>
+  <data name="SinEmpresaTitulo" xml:space="preserve">
+    <value>Selecciona una empresa de la teva cartera</value>
+  </data>
+  <data name="SinEmpresaDescripcion" xml:space="preserve">
+    <value>Els projectes es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
+  </data>
 </root>
