@@ -93,9 +93,6 @@
   <data name="RecReenvioTitulo" xml:space="preserve">
     <value>Reclamar de nuevo</value>
   </data>
-  <data name="RecReenvioMensaje" xml:space="preserve">
-    <value>Se enviará de nuevo un correo externo a {0} (asunto «{1}», {2} documento(s)). Los destinatarios se resuelven en este momento desde la agenda; el envío no se puede deshacer.</value>
-  </data>
   <data name="RecBotonSinContacto" xml:space="preserve">
     <value>No hay ningún contacto en la agenda al que reclamar. Añade uno con «Añadir contacto».</value>
   </data>

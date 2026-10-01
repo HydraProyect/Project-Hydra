@@ -8,6 +8,7 @@ using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas;
+using CaeManager.Application.Reclamaciones.Queries.ObtenerVistaPreviaReclamacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -72,6 +73,13 @@ public class ReclamacionesTabTests : BunitContext
         /// <summary>Lo que devuelve <see cref="ObtenerLoteReclamacionQuery"/> (vista de componer/enviar).</summary>
         public Func<ObtenerLoteReclamacionQuery, IReadOnlyList<LoteReclamacionClienteDto>> Lotes { get; set; } = _ => [];
 
+        /// <summary>Lo que devuelve la vista previa del reenvío; por defecto, un destinatario, asunto y texto reconocibles.</summary>
+        public Func<ObtenerVistaPreviaReclamacionQuery, Result<ReclamacionPreparada>> Previa { get; set; } =
+            q => Result.Exito(new ReclamacionPreparada(
+                q.TitularId, "Refrielectric SL", q.DocumentoIds, ["contacto@refrielectric.example"],
+                [new DestinatarioAgendaDto(Guid.NewGuid(), "Contacto Refri", "contacto@refrielectric.example", ["RLC"])],
+                "Asunto de la vista previa", "<p>Texto de la vista previa</p>"));
+
         public Func<EnviarReclamacionCommand, Result<EnvioReclamacionResultado>>? AlEnviar { get; set; }
 
         public Func<EnviarReclamacionEmpresaCommand, Result<EnvioReclamacionResultado>>? AlEnviarEmpresa { get; set; }
@@ -94,6 +102,7 @@ public class ReclamacionesTabTests : BunitContext
         {
             ObtenerReclamacionesEnviadasQuery q => Historial(q),
             ObtenerLoteReclamacionQuery q => Lotes(q),
+            ObtenerVistaPreviaReclamacionQuery q => Previa(q),
             EnviarReclamacionCommand c => AlEnviar?.Invoke(c) ?? Result.Exito(new EnvioReclamacionResultado(c.DocumentoIds, [])),
             EnviarReclamacionEmpresaCommand c => AlEnviarEmpresa?.Invoke(c) ?? Result.Exito(new EnvioReclamacionResultado(c.DocumentoIds, [])),
             // La usa ModalContactoAgenda ("Añadir contacto"), que ReclamacionesTab monta siempre.
@@ -473,8 +482,29 @@ public class ReclamacionesTabTests : BunitContext
         await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty();
 
+        // La revisión enseña lo que resolvió la vista previa: destinatario, asunto y texto.
+        var consulta = mediador.Enviadas.OfType<ObtenerVistaPreviaReclamacionQuery>().Should().ContainSingle().Subject;
+        consulta.DocumentoIds.Should().NotBeEmpty();
+        cut.Markup.Should().Contain("contacto@refrielectric.example").And.Contain("Asunto de la vista previa")
+            .And.Contain("Texto de la vista previa");
+
         await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle();
+    }
+
+    /// <summary>Si la vista previa falla (el envío fallaría igual), se avisa y no se abre ninguna revisión ni se envía.</summary>
+    [Fact]
+    public async Task Reclamar_de_nuevo_con_vista_previa_fallida_avisa_y_no_abre_la_revision()
+    {
+        var mediador = ConHistorial(ReclamacionEnviada());
+        mediador.Previa = _ => Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.SinDestinatario", "No hay ningún contacto."));
+        var (cut, _) = Renderizar(mediador);
+
+        await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+
+        cut.Markup.Should().NotContain("Confirmar y enviar");
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty();
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Error);
     }
 
     /// <summary>D-02: sin contacto en la agenda el botón deshabilitado explica el motivo.</summary>

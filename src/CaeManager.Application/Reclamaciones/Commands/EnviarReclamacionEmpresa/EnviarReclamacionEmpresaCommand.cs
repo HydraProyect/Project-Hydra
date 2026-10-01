@@ -59,20 +59,37 @@ public class EnviarReclamacionEmpresaCommandHandler(
 {
     public async Task<Result<EnvioReclamacionResultado>> Handle(EnviarReclamacionEmpresaCommand request, CancellationToken cancellationToken)
     {
+        var preparada = await PrepararAsync(request, cancellationToken);
+        if (preparada.EsFallido)
+            return Result.Fallo<EnvioReclamacionResultado>(preparada.Error);
+
+        var p = preparada.Valor;
+        var envio = await registroEnvio.EnviarYRegistrarAsync(
+            new TitularReclamacion(p.TitularId, p.TitularRazonSocial, AmbitoAplicacion.Empresa),
+            p.DocumentoIds, p.Correos, p.Asunto, p.CuerpoHtml, cancellationToken);
+
+        return envio.EsFallido
+            ? Result.Fallo<EnvioReclamacionResultado>(envio.Error)
+            : Result.Exito(new EnvioReclamacionResultado(p.DocumentoIds, p.Correos));
+    }
+
+    /// <summary>Misma idea que <c>EnviarReclamacionCommandHandler.PrepararAsync</c>: decide qué se envía y a quién, sin enviar; el envío y la vista previa comparten esta única implementación.</summary>
+    public async Task<Result<ReclamacionPreparada>> PrepararAsync(EnviarReclamacionEmpresaCommand request, CancellationToken cancellationToken)
+    {
         // Cartera de Empresas, no de Clientes: reclamar es escribir historial y
         // mandar un correo en nombre del tenant, así que la puerta va antes de
         // leer nada (CLAUDE.md § 14 — una coordenada de contexto no es
         // autoridad).
         if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
-            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear("Reclamacion.SinAcceso", "No tienes acceso a esta empresa."));
+            return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.SinAcceso", "No tienes acceso a esta empresa."));
 
         var empresa = await empresasContext.Empresas
             .FirstOrDefaultAsync(e => e.Id == request.EmpresaId, cancellationToken);
         if (empresa is null)
-            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear("Reclamacion.EmpresaNoEncontrada", "No encontramos esta empresa."));
+            return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.EmpresaNoEncontrada", "No encontramos esta empresa."));
 
         if (request.DocumentoIds.Count == 0)
-            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear("Reclamacion.SinDocumentos", "Selecciona al menos un documento a reclamar."));
+            return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.SinDocumentos", "Selecciona al menos un documento a reclamar."));
 
         var idsSolicitados = request.DocumentoIds.Distinct().ToList();
 
@@ -103,7 +120,7 @@ public class EnviarReclamacionEmpresaCommandHandler(
 
         if (filas.Count == 0)
         {
-            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
+            return Result.Fallo<ReclamacionPreparada>(Error.Crear(
                 "Reclamacion.SinDocumentosValidos",
                 "Ninguno de los documentos seleccionados sigue siendo reclamable para esta empresa — puede que ya se hayan renovado."));
         }
@@ -114,7 +131,7 @@ public class EnviarReclamacionEmpresaCommandHandler(
         var idsEncontrados = filas.Select(f => f.DocumentoId).ToHashSet();
         if (idsSolicitados.Exists(id => !idsEncontrados.Contains(id)))
         {
-            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
+            return Result.Fallo<ReclamacionPreparada>(Error.Crear(
                 "Reclamacion.DocumentosDesactualizados",
                 "Algunos de los documentos seleccionados ya no son reclamables — puede que se hayan renovado o hayan salido de la ventana de reclamación. Actualiza la vista antes de volver a intentarlo."));
         }
@@ -130,7 +147,7 @@ public class EnviarReclamacionEmpresaCommandHandler(
             var contactoIdsResueltos = resueltos.Select(d => d.ContactoId).ToHashSet();
             if (seleccionados.Any(id => !contactoIdsResueltos.Contains(id)))
             {
-                return Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
+                return Result.Fallo<ReclamacionPreparada>(Error.Crear(
                     "Reclamacion.ContactosDesactualizados",
                     "Alguno de los contactos seleccionados ya no está en la agenda para esta documentación. Actualiza la vista antes de volver a intentarlo."));
             }
@@ -140,24 +157,20 @@ public class EnviarReclamacionEmpresaCommandHandler(
 
         if (resueltos.Count == 0)
         {
-            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
+            return Result.Fallo<ReclamacionPreparada>(Error.Crear(
                 "Reclamacion.SinDestinatario",
                 "No hay ningún contacto en la agenda al que reclamar esta documentación — añade uno en la ficha de la empresa."));
         }
 
         var documentoIds = filas.Select(f => f.DocumentoId).Distinct().ToList();
         var destinatarios = resueltos.Select(d => d.Email).Distinct().ToList();
-        var asunto = $"{Marca.Nombre} — documentación pendiente de {empresa.RazonSocial}";
+        var asunto = EnviarReclamacionCommandHandler.ConstruirAsunto(empresa.RazonSocial);
         var cuerpoHtml = ConstruirCuerpoHtml(
             empresa.RazonSocial, filas.Select(f => (f.TipoDocumentoNombre, f.FechaVencimiento!.Value)));
 
-        var envio = await registroEnvio.EnviarYRegistrarAsync(
-            new TitularReclamacion(request.EmpresaId, empresa.RazonSocial, AmbitoAplicacion.Empresa),
-            documentoIds, destinatarios, asunto, cuerpoHtml, cancellationToken);
-
-        return envio.EsFallido
-            ? Result.Fallo<EnvioReclamacionResultado>(envio.Error)
-            : Result.Exito(new EnvioReclamacionResultado(documentoIds, destinatarios));
+        return Result.Exito(new ReclamacionPreparada(
+            request.EmpresaId, empresa.RazonSocial, documentoIds, destinatarios,
+            [.. resueltos.GroupBy(d => d.Email).Select(g => g.First())], asunto, cuerpoHtml));
     }
 
     /// <summary>
@@ -165,7 +178,7 @@ public class EnviarReclamacionEmpresaCommandHandler(
     /// documento de empresa el propietario es la propia destinataria, así que
     /// repetir su razón social en cada fila no informaría de nada.
     /// </summary>
-    private static string ConstruirCuerpoHtml(
+    public static string ConstruirCuerpoHtml(
         string razonSocialEmpresa, IEnumerable<(string TipoDocumentoNombre, DateOnly FechaVencimiento)> documentos)
     {
         var builder = new StringBuilder();

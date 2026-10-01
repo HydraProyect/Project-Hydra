@@ -17,6 +17,8 @@ public class RegistroEnvioReclamacionServiceFalso : IRegistroEnvioReclamacionSer
     public TitularReclamacion? UltimoTitular { get; private set; }
     public IReadOnlyList<Guid>? UltimosDocumentoIds { get; private set; }
     public IReadOnlyList<string>? UltimosDestinatarios { get; private set; }
+    public string? UltimoAsunto { get; private set; }
+    public string? UltimoCuerpoHtml { get; private set; }
 
     public Task<Result> EnviarYRegistrarAsync(
         TitularReclamacion titular,
@@ -30,6 +32,8 @@ public class RegistroEnvioReclamacionServiceFalso : IRegistroEnvioReclamacionSer
         UltimoTitular = titular;
         UltimosDocumentoIds = documentoIds;
         UltimosDestinatarios = destinatarios;
+        UltimoAsunto = asunto;
+        UltimoCuerpoHtml = cuerpoHtml;
         return Task.FromResult(RespuestaAEnviar);
     }
 }

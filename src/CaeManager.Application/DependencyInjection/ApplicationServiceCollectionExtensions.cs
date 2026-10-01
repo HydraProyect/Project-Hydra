@@ -126,6 +126,10 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<
             Reclamaciones.Commands.EnviarReclamacion.IRegistroEnvioReclamacionService,
             Reclamaciones.Commands.EnviarReclamacion.RegistroEnvioReclamacionService>();
+        // La vista previa de una reclamación llama a PrepararAsync de los handlers de envío (una sola
+        // implementación de «qué se envía y a quién»): hace falta resolverlos como clases concretas.
+        services.AddScoped<Reclamaciones.Commands.EnviarReclamacion.EnviarReclamacionCommandHandler>();
+        services.AddScoped<Reclamaciones.Commands.EnviarReclamacionEmpresa.EnviarReclamacionEmpresaCommandHandler>();
         services.AddScoped<IClasificacionRuidoMensajeService, ClasificacionRuidoMensajeService>();
         services.AddScoped<IRelevanciaCaeService, RelevanciaCaeService>();
         services.AddScoped<IMotorCoincidenciaConversacionesService, MotorCoincidenciaConversacionesService>();
