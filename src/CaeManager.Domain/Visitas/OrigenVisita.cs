@@ -1,6 +1,6 @@
 namespace CaeManager.Domain.Visitas;
 
-/// <summary>Cómo llegó la petición de agendar la visita — no cómo se dio de alta en Hydra (ambas rutas usan el mismo formulario/Command).</summary>
+/// <summary>Cómo nació la Visita: <see cref="Manual"/> si una persona la dio de alta a mano desde el formulario; Correo o WhatsApp si viene de una sugerencia detectada en esa conversación. <see cref="Plataforma"/> es el valor histórico (y de los seeders) de las altas anteriores a D-21.</summary>
 public enum OrigenVisita
 {
     Plataforma,
