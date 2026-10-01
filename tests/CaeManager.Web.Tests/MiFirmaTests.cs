@@ -125,7 +125,7 @@ public class MiFirmaTests : BunitContext
         var cut = Renderizar(() => Firma(actualizada));
 
         cut.Find("img").GetAttribute("src").Should().StartWith("/mi-firma/archivo");
-        cut.Markup.Should().Contain(actualizada.ToLocalTime().ToString("dd/MM/yyyy HH:mm"));
+        cut.Markup.Should().Contain(actualizada.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm"));
         cut.Markup.Should().NotContain("Aún no tienes ninguna firma guardada");
         cut.Find("a[href='/documentos']").TextContent.Should().Contain("Ir a Documentos");
     }

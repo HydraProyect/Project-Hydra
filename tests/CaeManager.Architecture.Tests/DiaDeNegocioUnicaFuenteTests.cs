@@ -109,6 +109,29 @@ public class DiaDeNegocioUnicaFuenteTests
             "sale en UTC. Si es un uso técnico (nombre de fichero, formato máquina), justifícalo en la lista");
     }
 
+    /// <summary>
+    /// Formato único de fecha y hora en pantalla, dd/MM/yyyy HH:mm (decisión del
+    /// 2026-09-29; D-19 del recorrido en staging: convivían «28/9/2026 14:50»,
+    /// «01/10/26» y «01/10/2026»). Ni año de dos cifras ni el formato corto de la
+    /// cultura (<c>"g"</c>/<c>"G"</c>), que cambia con el idioma.
+    /// </summary>
+    private static readonly Regex PatronFormatoNoCanonico = new(
+        @"""dd/MM/yy(?:[\s""])|ToString\s*\(\s*""[gG]""", RegexOptions.Compiled);
+
+    [Fact]
+    public void Las_fechas_y_horas_usan_el_formato_unico()
+    {
+        EsCodigoQueCasa("<span>@item.GeneradoEnUtc.EnHoraPeninsular().ToString(\"dd/MM/yy HH:mm\")</span>", PatronFormatoNoCanonico)
+            .Should().BeTrue("control positivo: año de dos cifras");
+        EsCodigoQueCasa("        utc.EnHoraPeninsular().ToString(\"g\", CultureInfo.CurrentCulture);", PatronFormatoNoCanonico)
+            .Should().BeTrue("control positivo: formato corto de la cultura");
+        EsCodigoQueCasa("<span>@item.GeneradoEnUtc.EnHoraPeninsular().ToString(\"dd/MM/yyyy HH:mm\")</span>", PatronFormatoNoCanonico)
+            .Should().BeFalse("control negativo: el formato único");
+
+        ContarPorFichero(RaizDelRepositorio(), "src", PatronFormatoNoCanonico).Keys.Should().BeEmpty(
+            "fecha y hora en pantalla: dd/MM/yyyy HH:mm, en hora peninsular");
+    }
+
     [Fact]
     public void El_reloj_ambiental_de_tests_no_se_fija_desde_produccion()
     {

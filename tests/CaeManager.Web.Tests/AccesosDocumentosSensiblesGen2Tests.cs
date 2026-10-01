@@ -8,6 +8,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Auditoria.Pages;
+using CaeManager.Domain.Common;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -265,7 +266,7 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         var cut = Renderizar();
 
         var cuando = Celda(Filas(cut).Single(), 0);
-        cuando.Should().Be(Base.ToLocalTime().ToString("dd/MM/yyyy HH:mm"));
+        cuando.Should().Be(Base.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm"));
         cuando.Should().NotContain(":37", "antes se pintaba ToLocalTime() a pelo, con segundos");
     }
 

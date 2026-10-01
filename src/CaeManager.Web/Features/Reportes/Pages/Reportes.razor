@@ -157,7 +157,7 @@
                         <div class="item-historial-informes">
                             <div class="fila-item-historial-informes">
                                 <span class="nombre-item-historial-informes">@item.TipoInforme</span>
-                                <span class="fecha-item-historial-informes">@(item.GeneradoEnUtc.EnHoraPeninsular().ToString("dd/MM/yy HH:mm"))</span>
+                                <span class="fecha-item-historial-informes">@(item.GeneradoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm"))</span>
                             </div>
                             <span class="detalle-item-historial-informes">@(item.ClienteNombre ?? Textos["HistorialTodaLaCartera"].Value) · @NombreUsuario(item.GeneradoPorUsuarioId)</span>
                         </div>
