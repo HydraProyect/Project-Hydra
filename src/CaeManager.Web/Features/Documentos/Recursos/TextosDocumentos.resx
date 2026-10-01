@@ -69,4 +69,64 @@
   <data name="ConteoVariosFiltrado" xml:space="preserve">
     <value>{0} documentos con estos filtros</value>
   </data>
+  <data name="RecRevisionTitulo" xml:space="preserve">
+    <value>Revisar antes de enviar</value>
+  </data>
+  <data name="RecRevisionPara" xml:space="preserve">
+    <value>Para</value>
+  </data>
+  <data name="RecRevisionAsunto" xml:space="preserve">
+    <value>Asunto</value>
+  </data>
+  <data name="RecRevisionTexto" xml:space="preserve">
+    <value>Texto</value>
+  </data>
+  <data name="RecRevisionAviso" xml:space="preserve">
+    <value>Se enviará un correo externo a {0} destinatario(s). No se puede deshacer.</value>
+  </data>
+  <data name="RecVolver" xml:space="preserve">
+    <value>Volver</value>
+  </data>
+  <data name="RecConfirmarEnviar" xml:space="preserve">
+    <value>Confirmar y enviar</value>
+  </data>
+  <data name="RecReenvioTitulo" xml:space="preserve">
+    <value>Reclamar de nuevo</value>
+  </data>
+  <data name="RecReenvioMensaje" xml:space="preserve">
+    <value>Se enviará de nuevo un correo externo a {0} (asunto «{1}», {2} documento(s)). Los destinatarios se resuelven en este momento desde la agenda; el envío no se puede deshacer.</value>
+  </data>
+  <data name="RecBotonSinContacto" xml:space="preserve">
+    <value>No hay ningún contacto en la agenda al que reclamar. Añade uno con «Añadir contacto».</value>
+  </data>
+  <data name="RecBotonMarcaDestinatario" xml:space="preserve">
+    <value>Marca al menos un destinatario en «Se solicita a».</value>
+  </data>
+  <data name="RecBotonMarcaDocumento" xml:space="preserve">
+    <value>Marca al menos un documento para reclamar.</value>
+  </data>
+  <data name="PlatSinVigenciaResumen" xml:space="preserve">
+    <value>{0} aceptada(s) sin vigencia</value>
+  </data>
+  <data name="PlatSeleccionarSinVigencia" xml:space="preserve">
+    <value>Seleccionar sin vigencia</value>
+  </data>
+  <data name="PlatQuitarSeleccion" xml:space="preserve">
+    <value>Quitar selección</value>
+  </data>
+  <data name="PlatAnotarBloque" xml:space="preserve">
+    <value>Anotar vigencia ({0})…</value>
+  </data>
+  <data name="PlatAnotarBloqueAyuda" xml:space="preserve">
+    <value>Marca antes las aceptadas a las que anotar la misma vigencia.</value>
+  </data>
+  <data name="PlatIncluirEnBloque" xml:space="preserve">
+    <value>Incluir {0} de {1} en la vigencia en bloque</value>
+  </data>
+  <data name="PlatBloqueAviso" xml:space="preserve">
+    <value>Se anotará la misma vigencia en {0} acreditaciones aceptadas.</value>
+  </data>
+  <data name="PlatBloqueResultado" xml:space="preserve">
+    <value>Vigencia anotada en {0} de {1} acreditaciones.</value>
+  </data>
 </root>

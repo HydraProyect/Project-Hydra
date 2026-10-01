@@ -49,6 +49,7 @@ public class ReclamacionesTabTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.ConRolDeEscritura();
+        Services.AddLocalization();
     }
 
     // ---------------------------------------------------------------- dobles
@@ -180,6 +181,7 @@ public class ReclamacionesTabTests : BunitContext
 
         var (cut, _) = Renderizar(mediador);
         await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
 
         var toasts = Services.GetRequiredService<ToastService>().Mensajes;
         toasts.Should().ContainSingle().Which.Should().Match<ToastMensaje>(
@@ -237,7 +239,8 @@ public class ReclamacionesTabTests : BunitContext
             _ => null
         };
 
-        var reenvio = BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+        var reenvio = BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
         var siguiente = cut.FindAll(".paginador button").Single(b => b.TextContent.Contains("Siguiente"))
             .ClickAsync(new MouseEventArgs());
 
@@ -293,7 +296,8 @@ public class ReclamacionesTabTests : BunitContext
         };
 
         // Primero se envía la reclamación del lote (queda retenida)...
-        var envio = BotonPorTexto(cut, $"Enviar reclamación ({lote.Documentos.Count})").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, $"Enviar reclamación ({lote.Documentos.Count})").ClickAsync(new MouseEventArgs());
+        var envio = BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
 
         // ...y, con el envío todavía en vuelo, se da de alta un contacto —
         // ruta de código totalmente distinta que también recarga los lotes.
@@ -403,8 +407,9 @@ public class ReclamacionesTabTests : BunitContext
         // invalidado por el primer render, no con el defecto que se prueba.
         // Volver a buscarlo simula el clic real que sí llega tras ese primer
         // render — la guarda de entrada es la que tiene que pararlo.
-        var primero = BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
-        var segundo = BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+        var primero = BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+        var segundo = BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
 
         await cut.InvokeAsync(() => retenido.SetResult(Result.Exito(new EnvioReclamacionResultado(reclamacion.DocumentoIds, []))));
         await primero;
@@ -412,6 +417,62 @@ public class ReclamacionesTabTests : BunitContext
 
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle(
             "el segundo clic llegó con el primero todavía en vuelo");
+    }
+
+    // ------------------------------------------------- D-01 / D-02: revisión previa
+
+    /// <summary>
+    /// D-01: pulsar "Enviar reclamación" no manda nada; enseña destinatarios,
+    /// asunto y texto, y solo "Confirmar y enviar" despacha el comando. "Volver"
+    /// cierra sin enviar.
+    /// </summary>
+    [Fact]
+    public async Task Enviar_reclamacion_pide_revision_y_solo_confirmar_despacha_el_comando()
+    {
+        var lote = LoteConTodoPreseleccionado("Arcos SPA");
+        var mediador = new MediadorControlado { Lotes = _ => [lote] };
+        var (cut, _) = Renderizar(mediador);
+        await AbrirComponerAsync(cut);
+
+        await BotonPorTexto(cut, $"Enviar reclamación ({lote.Documentos.Count})").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty("el primer clic solo abre la revisión");
+        cut.Markup.Should().Contain("marta@arcos.example").And.Contain(EnviarReclamacionCommandHandler.ConstruirAsunto("Arcos SPA"))
+            .And.Contain("Reconocimiento médico");
+
+        await BotonPorTexto(cut, "Volver").ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty("Volver no envía");
+
+        await BotonPorTexto(cut, $"Enviar reclamación ({lote.Documentos.Count})").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle();
+    }
+
+    /// <summary>D-01: "Reclamar de nuevo" también pide confirmación antes de mandar el correo.</summary>
+    [Fact]
+    public async Task Reclamar_de_nuevo_no_envia_hasta_confirmar()
+    {
+        var mediador = ConHistorial(ReclamacionEnviada());
+        var (cut, _) = Renderizar(mediador);
+
+        await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty();
+
+        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle();
+    }
+
+    /// <summary>D-02: sin contacto en la agenda el botón deshabilitado explica el motivo.</summary>
+    [Fact]
+    public async Task El_boton_deshabilitado_por_falta_de_contacto_lleva_title_con_el_motivo()
+    {
+        var sinContacto = LoteConTodoPreseleccionado() with { Destinatarios = [] };
+        var (cut, _) = Renderizar(new MediadorControlado { Lotes = _ => [sinContacto] });
+        await AbrirComponerAsync(cut);
+
+        var boton = cut.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Enviar reclamación"));
+        boton.HasAttribute("disabled").Should().BeTrue();
+        boton.GetAttribute("title").Should().Contain("contacto");
     }
 
     /// <summary>
@@ -432,9 +493,9 @@ public class ReclamacionesTabTests : BunitContext
 
         // Mismo motivo que en el caso de "Reclamar de nuevo": el delegado del
         // botón cambia en cada render porque su lambda cierra sobre "lote".
-        var texto = $"Enviar reclamación ({lote.Documentos.Count})";
-        var primero = BotonPorTexto(cut, texto).ClickAsync(new MouseEventArgs());
-        var segundo = BotonPorTexto(cut, texto).ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, $"Enviar reclamación ({lote.Documentos.Count})").ClickAsync(new MouseEventArgs());
+        var primero = BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+        var segundo = BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
 
         await cut.InvokeAsync(() => retenido.SetResult(Result.Exito(new EnvioReclamacionResultado(
             lote.Documentos.Select(d => d.DocumentoId).ToList(), []))));

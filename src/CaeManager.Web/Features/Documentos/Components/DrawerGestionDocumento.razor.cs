@@ -30,6 +30,9 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// <summary>Se dispara tras crear o renovar con éxito — el host decide qué recargar (rejilla, acordeón…).</summary>
     [Parameter] public EventCallback OnGuardado { get; set; }
 
+    /// <summary>Se dispara al cerrar el cajón sin guardar (Escape, aspa, clic fuera): el host limpia el enlace profundo de la URL.</summary>
+    [Parameter] public EventCallback OnCerrado { get; set; }
+
     private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
@@ -318,6 +321,9 @@ public partial class DrawerGestionDocumento : ComponentBase
             await DescartarArchivoSinAdoptarAsync();
 
         _drawerVisible = visible;
+
+        if (!visible && OnCerrado.HasDelegate)
+            await OnCerrado.InvokeAsync();
     }
 
     /// <summary>
