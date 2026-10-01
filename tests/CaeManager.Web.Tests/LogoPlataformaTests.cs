@@ -14,7 +14,7 @@ namespace CaeManager.Web.Tests;
 /// <para>
 /// Los dos riesgos reales de este mapa son silenciosos, y por eso están los dos
 /// primeros tests: un slug mal escrito no rompe nada —la fila se pinta sin
-/// marca, como las 19 plataformas que no tienen— y un fichero que falte da un
+/// marca, como las pocas plataformas que no tienen— y un fichero que falte da un
 /// 404 que solo se ve en la consola del navegador.
 /// </para>
 /// </summary>
@@ -141,7 +141,7 @@ public class LogoPlataformaTests : BunitContext
 
     /// <summary>La UI pinta como mucho 72×28 px: un fichero grande solo añade peso a la página de Inicio.</summary>
     [Fact]
-    public void Los_logos_nuevos_pesan_poco()
+    public void Los_logos_pesan_poco()
     {
         var raiz = RaizDelRepositorio();
         foreach (var codigo in LogoPlataforma.CodigosConLogo)
