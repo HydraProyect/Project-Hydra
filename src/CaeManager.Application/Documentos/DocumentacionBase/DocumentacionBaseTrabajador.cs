@@ -21,7 +21,8 @@ public enum TipoDocumentoBase
 /// Estado de un indicador. Parte de <see cref="EstadoDocumento"/> (la única fuente de vigencia):
 /// Vigente y SinCaducidad → <see cref="Vigente"/> (Información Art. 18 «presente» al no vencer);
 /// Proximo y Urgente → <see cref="ProximoAVencer"/>; Vencido; SinConfirmar queda aparte porque
-/// «no lo sé» no es «vigente»; sin documento → <see cref="Falta"/>.
+/// «no lo sé» no es «vigente» (aunque cuenta como al día, con aviso: ver
+/// <see cref="DocumentacionBaseTrabajadorDto.AlDia"/>); sin documento → <see cref="Falta"/>.
 /// </summary>
 public enum EstadoIndicadorBase
 {
@@ -41,10 +42,17 @@ public record IndicadorDocumentacionBase(
 public record DocumentacionBaseTrabajadorDto(IReadOnlyList<IndicadorDocumentacionBase> Indicadores)
 {
     /// <summary>
-    /// Al día = ningún indicador Falta, Vencido ni SinConfirmar. «Próximo a vencer» sigue
-    /// siendo válido hoy (como en <see cref="PreferenciaDocumentoPorTipo"/>) y se avisa aparte.
+    /// Al día = ningún indicador Falta ni Vencido. «Próximo a vencer» sigue siendo válido hoy
+    /// (como en <see cref="PreferenciaDocumentoPorTipo"/>) y «Vigencia sin confirmar» también
+    /// cuenta (decisión del propietario, 2026-10-01): el documento está y lo pendiente es
+    /// confirmar su fecha. Los dos se avisan aparte, en el indicador y, el segundo, también en
+    /// el resumen (<see cref="TieneVigenciaSinConfirmar"/>).
     /// </summary>
-    public bool AlDia => Indicadores.All(i => i.Estado is EstadoIndicadorBase.Vigente or EstadoIndicadorBase.ProximoAVencer);
+    public bool AlDia => Indicadores.All(i => i.Estado is EstadoIndicadorBase.Vigente
+        or EstadoIndicadorBase.ProximoAVencer or EstadoIndicadorBase.SinConfirmar);
+
+    /// <summary>Algún indicador tiene la vigencia sin confirmar: el panel lo avisa aunque esté al día.</summary>
+    public bool TieneVigenciaSinConfirmar => Indicadores.Any(i => i.Estado == EstadoIndicadorBase.SinConfirmar);
 }
 
 public record DocumentoParaDocumentacionBase(

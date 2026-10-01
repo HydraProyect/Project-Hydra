@@ -705,4 +705,10 @@
   <data name="DocBaseResumenAriaNoAlDia" xml:space="preserve">
     <value>Documentación base: falta o requiere revisión</value>
   </data>
+  <data name="DocBaseAvisoSinConfirmar" xml:space="preserve">
+    <value>Hay documentos con la vigencia sin confirmar: cuentan como al día, pero conviene confirmar su fecha de vencimiento.</value>
+  </data>
+  <data name="DocBaseResumenAriaAlDiaSinConfirmar" xml:space="preserve">
+    <value>Documentación base: al día, con vigencia sin confirmar</value>
+  </data>
 </root>

@@ -3,7 +3,9 @@
     (aptitud médica, formación Art. 19, información Art. 18, entrega de EPI) y si está al día.
     Es una vista de referencia: ni afirma que ninguno sea obligatorio por oficio ni equivale
     a «apto para un Centro» (TipoDocumentoCentro, otro plano). Los estados salen de
-    DocumentacionBaseTrabajador, que reutiliza CalculadoraEstadoDocumento.
+    DocumentacionBaseTrabajador, que reutiliza CalculadoraEstadoDocumento. «Vigencia sin
+    confirmar» cuenta como al día, pero se avisa: en el indicador, en el resumen y en una línea
+    propia del panel completo.
 
     Dos modos de alimentarlo: con Datos ya cargados (la lista pide una página entera de una
     vez) o con TrabajadorId (cajón y ficha), que lo carga él. Compacto = solo cuatro puntos
@@ -22,8 +24,8 @@
 {
     @if (Compacto)
     {
-        <span class="panel-doc-base-compacto" role="group"
-              aria-label="@(_datos.AlDia ? Textos["DocBaseResumenAriaAlDia"] : Textos["DocBaseResumenAriaNoAlDia"])">
+        <span class="panel-doc-base-compacto" role="group" aria-label="@AriaResumen(_datos)"
+              title="@(_datos.TieneVigenciaSinConfirmar ? Textos["DocBaseAvisoSinConfirmar"].Value : null)">
             <Badge Tono="@(_datos.AlDia ? TonoBadge.Exito : TonoBadge.Advertencia)" Tamano="TamanoBadge.Pequeno">
                 @(_datos.AlDia ? Textos["DocBaseAlDia"] : Textos["DocBaseNoAlDia"])
             </Badge>
@@ -56,6 +58,10 @@
                     </li>
                 }
             </ul>
+            @if (_datos.TieneVigenciaSinConfirmar)
+            {
+                <p class="panel-doc-base-aviso" role="note">@Textos["DocBaseAvisoSinConfirmar"]</p>
+            }
             <p class="panel-doc-base-nota">@Textos["DocBaseNota"]</p>
         </section>
     }
@@ -107,6 +113,11 @@
                 _datos = null;
         }
     }
+
+    private string AriaResumen(DocumentacionBaseTrabajadorDto datos) =>
+        !datos.AlDia ? Textos["DocBaseResumenAriaNoAlDia"]
+        : datos.TieneVigenciaSinConfirmar ? Textos["DocBaseResumenAriaAlDiaSinConfirmar"]
+        : Textos["DocBaseResumenAriaAlDia"];
 
     private string TextoTipo(TipoDocumentoBase tipo) => tipo switch
     {

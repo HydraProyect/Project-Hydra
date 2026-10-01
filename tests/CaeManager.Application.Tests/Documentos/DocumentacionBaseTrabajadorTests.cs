@@ -65,14 +65,30 @@ public class DocumentacionBaseTrabajadorTests
     }
 
     [Fact]
-    public void Una_vigencia_sin_confirmar_ni_es_vigente_ni_cuenta_como_al_dia()
+    public void Una_vigencia_sin_confirmar_no_es_vigente_pero_cuenta_como_al_dia_con_aviso()
     {
+        // Decisión del propietario (2026-10-01): el documento está; lo pendiente es su fecha.
         var d = Calcular(
             Vence("Certificado de aptitud médica", 200), Vence("Formación Art. 19", 200),
             Doc("Información Art. 18", EstadoVigenciaDocumento.NoCaduca, null),
             Doc("Entrega de EPI", EstadoVigenciaDocumento.SinConfirmar, null));
         Estado(d, TipoDocumentoBase.EntregaEpi).Should().Be(EstadoIndicadorBase.SinConfirmar);
-        d.AlDia.Should().BeFalse();
+        d.AlDia.Should().BeTrue();
+        d.TieneVigenciaSinConfirmar.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Sin_confirmar_no_tapa_un_vencido_ni_una_falta()
+    {
+        var conVencido = Calcular(
+            Doc("Certificado de aptitud médica", EstadoVigenciaDocumento.SinConfirmar, null), Vence("Formación Art. 19", -5),
+            Doc("Información Art. 18", EstadoVigenciaDocumento.NoCaduca, null), Vence("Entrega de EPI", 200));
+        var conFalta = Calcular(
+            Doc("Certificado de aptitud médica", EstadoVigenciaDocumento.SinConfirmar, null), Vence("Formación Art. 19", 200),
+            Doc("Información Art. 18", EstadoVigenciaDocumento.NoCaduca, null));
+        conVencido.AlDia.Should().BeFalse();
+        conFalta.AlDia.Should().BeFalse();
+        conVencido.TieneVigenciaSinConfirmar.Should().BeTrue();
     }
 
     [Fact]
@@ -82,6 +98,7 @@ public class DocumentacionBaseTrabajadorTests
             Vence("Certificado de aptitud médica", 20), Vence("Formación Art. 19", 200),
             Doc("Información Art. 18", EstadoVigenciaDocumento.NoCaduca, null), Vence("Entrega de EPI", 200));
         d.AlDia.Should().BeTrue();
+        d.TieneVigenciaSinConfirmar.Should().BeFalse();
     }
 
     [Theory]

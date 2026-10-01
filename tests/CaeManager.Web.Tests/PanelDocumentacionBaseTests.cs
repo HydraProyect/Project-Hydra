@@ -66,6 +66,40 @@ public class PanelDocumentacionBaseTests : BunitContext
     }
 
     [Fact]
+    public void Una_vigencia_sin_confirmar_cuenta_como_al_dia_y_se_avisa()
+    {
+        var cut = Render<PanelDocumentacionBase>(p => p.Add(c => c.Datos, Dto(
+            EstadoIndicadorBase.Vigente, EstadoIndicadorBase.SinConfirmar, EstadoIndicadorBase.Vigente, EstadoIndicadorBase.Vigente)));
+
+        cut.Markup.Should().Contain("Al día en lo básico").And.NotContain("Falta algo en lo básico");
+        cut.FindAll(".panel-doc-base-fila")[1].TextContent.Should().Contain("Vigencia sin confirmar");
+        cut.Find(".panel-doc-base-aviso").TextContent.Should().Contain("vigencia sin confirmar");
+    }
+
+    [Fact]
+    public void Sin_vigencias_sin_confirmar_no_hay_aviso()
+    {
+        var cut = Render<PanelDocumentacionBase>(p => p.Add(c => c.Datos, Dto(
+            EstadoIndicadorBase.Vigente, EstadoIndicadorBase.ProximoAVencer, EstadoIndicadorBase.Vigente, EstadoIndicadorBase.Vigente)));
+
+        cut.FindAll(".panel-doc-base-aviso").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Compacto_con_vigencia_sin_confirmar_dice_al_dia_y_lo_avisa_en_el_resumen()
+    {
+        var cut = Render<PanelDocumentacionBase>(p => p
+            .Add(c => c.Compacto, true)
+            .Add(c => c.Datos, Dto(EstadoIndicadorBase.SinConfirmar, EstadoIndicadorBase.Vigente, EstadoIndicadorBase.Vigente, EstadoIndicadorBase.Vigente)));
+
+        cut.Markup.Should().Contain("Al día en lo básico");
+        var resumen = cut.Find(".panel-doc-base-compacto");
+        resumen.GetAttribute("aria-label").Should().Be("Documentación base: al día, con vigencia sin confirmar");
+        resumen.GetAttribute("title").Should().Contain("vigencia sin confirmar");
+        cut.FindAll(".panel-doc-base-punto-aviso").Should().HaveCount(1);
+    }
+
+    [Fact]
     public void Informacion_Art_18_vigente_se_lee_presente_y_los_demas_vigente()
     {
         var cut = Render<PanelDocumentacionBase>(p => p.Add(c => c.Datos, Dto(

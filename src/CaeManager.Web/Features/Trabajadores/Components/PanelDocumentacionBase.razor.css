@@ -36,6 +36,15 @@
     font-size: 0.85em;
 }
 
+.panel-doc-base-aviso {
+    margin: 0.6rem 0 0;
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius-sm);
+    background: var(--color-warning-50);
+    color: var(--color-warning-700);
+    font-size: 0.85em;
+}
+
 .panel-doc-base-nota {
     margin: 0.6rem 0 0;
     color: var(--color-text-muted);
