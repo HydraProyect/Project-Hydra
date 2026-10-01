@@ -399,4 +399,7 @@
   <data name="AyudaNotificadaSoloMarca" xml:space="preserve">
     <value>Solo marca la visita como avisada a la empresa titular; no envía ningún aviso.</value>
   </data>
+  <data name="OrigenManual" xml:space="preserve">
+    <value>Manual</value>
+  </data>
 </root>
