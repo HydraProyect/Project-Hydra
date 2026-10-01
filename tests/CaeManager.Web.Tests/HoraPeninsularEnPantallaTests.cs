@@ -49,8 +49,10 @@ public sealed class ZonaDelServidorFijadaCollection
 /// <para>
 /// <b>Lo que NO observa:</b> los otros 30-y-pico sitios uno a uno. De que
 /// ninguno vuelva a <c>ToLocalTime()</c> se encarga el trinquete
-/// <c>DiaDeNegocioUnicaFuenteTests</c> (tolerancia cero); de que ninguno pinte
-/// el instante UTC en crudo, nadie: es un hueco declarado.
+/// <c>DiaDeNegocioUnicaFuenteTests</c> (tolerancia cero), que además prohíbe
+/// formatear en crudo un instante cuyo nombre acaba en <c>Utc</c>. Un instante
+/// que no lleve ese sufijo y se pinte sin convertir sigue sin vigilancia: hueco
+/// declarado.
 /// </para>
 /// </summary>
 [Collection(ZonaDelServidorFijadaCollection.Nombre)]
@@ -146,9 +148,19 @@ public sealed class HoraPeninsularEnPantallaTests : BunitContext
         zonaLocal.Should().NotBeNull("sin poder fijar la zona del servidor, este test no distingue Madrid de ToLocalTime() en una máquina en hora de Madrid");
 
         zonaLocal!.SetValue(cache, TimeZoneInfo.Utc);
-        TimeZoneInfo.Local.BaseUtcOffset.Should().Be(TimeSpan.Zero, "la zona del servidor tiene que quedar fijada en UTC");
-        new DateTime(2026, 7, 15, 22, 30, 0, DateTimeKind.Utc).ToLocalTime().Hour.Should().Be(22,
-            "ToLocalTime() tiene que comportarse como en los contenedores");
+        try
+        {
+            TimeZoneInfo.Local.BaseUtcOffset.Should().Be(TimeSpan.Zero, "la zona del servidor tiene que quedar fijada en UTC");
+            new DateTime(2026, 7, 15, 22, 30, 0, DateTimeKind.Utc).ToLocalTime().Hour.Should().Be(22,
+                "ToLocalTime() tiene que comportarse como en los contenedores");
+        }
+        catch
+        {
+            // Si el constructor lanza, xUnit no llama a Dispose: se restaura aquí
+            // para no dejar la zona fijada al resto de la ejecución.
+            TimeZoneInfo.ClearCachedData();
+            throw;
+        }
 
         return new Restaurar();
     }

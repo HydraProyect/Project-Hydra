@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Common;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.AsignarRolACuenta;
@@ -142,7 +143,7 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
 
     private string TituloPendientes =>
         $"{_usuariosPendientes.Count} pendiente(s) de asignar: " +
-        string.Join("; ", _usuariosPendientes.Select(p => $"{p.NombreCompleto} ({p.FechaCreacion:dd/MM/yyyy HH:mm})"));
+        string.Join("; ", _usuariosPendientes.Select(p => $"{p.NombreCompleto} ({p.FechaCreacion.EnHoraPeninsular():dd/MM/yyyy HH:mm})"));
 
     /// <summary>Roles que el selector de pendientes ofrece en el Context Workspace activo.</summary>
     private IReadOnlyList<string> _rolesOfrecidos = CaeManager.Infrastructure.Identity.Roles.Todos.ToList();

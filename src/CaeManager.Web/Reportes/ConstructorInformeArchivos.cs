@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Common;
 using CaeManager.Application.Reportes.Queries;
 using CaeManager.Web.Features.Documentos;
 using ClosedXML.Excel;
@@ -43,7 +44,7 @@ public static class ConstructorInformeArchivos
     public static byte[] PdfVigencia(InformeVigenciaDto informe, bool incluirVigentes)
     {
         var titulo = incluirVigentes ? "Informe de vigencia documental" : "Informe de incidencias";
-        var subtitulo = $"{Marca.Nombre} — {informe.Alcance} — generado el {DateTime.UtcNow:dd/MM/yyyy HH:mm} UTC — {informe.Filas.Count} fila(s)";
+        var subtitulo = $"{Marca.Nombre} — {informe.Alcance} — generado el {DiaDeNegocio.AhoraEnHoraPeninsular():dd/MM/yyyy HH:mm} (hora peninsular) — {informe.Filas.Count} fila(s)";
         var filas = informe.Filas.Select(f => new[]
         {
             EstadoDocumentoUi.Texto(f.Estado), f.TrabajadorNombre, f.EmpresaRazonSocial,
@@ -78,7 +79,7 @@ public static class ConstructorInformeArchivos
 
     public static byte[] PdfAsignaciones(InformeAsignacionesDto informe)
     {
-        var subtitulo = $"{Marca.Nombre} — {informe.Alcance} — generado el {DateTime.UtcNow:dd/MM/yyyy HH:mm} UTC — {informe.Filas.Count} fila(s)";
+        var subtitulo = $"{Marca.Nombre} — {informe.Alcance} — generado el {DiaDeNegocio.AhoraEnHoraPeninsular():dd/MM/yyyy HH:mm} (hora peninsular) — {informe.Filas.Count} fila(s)";
         var filas = informe.Filas.Select(f => new[] { f.TrabajadorNombre, f.CentroNombre, f.FechaAlta.ToString("dd/MM/yyyy") }).ToList();
 
         return GeneradorPdfInforme.Generar("Informe de asignaciones activas", subtitulo, ["Trabajador", "Centro", "Asignado desde"], [180, 180, 155], filas);

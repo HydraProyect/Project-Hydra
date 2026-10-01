@@ -24,6 +24,9 @@ namespace CaeManager.Architecture.Tests;
 ///    hora para el usuario es <c>instanteUtc.EnHoraPeninsular()</c>.
 /// 3. Que el código de producción fije el reloj ambiental de
 ///    <see cref="DiaDeNegocio.FijarRelojEnEsteFlujo"/>, que es solo para tests.
+/// 4. Que un instante UTC (<c>…Utc</c>, <c>UtcNow</c>) se formatee para mostrar
+///    sin pasar por <c>EnHoraPeninsular()</c>. Los usos técnicos justificados
+///    viven en <see cref="InstanteUtcEnCrudoTecnico"/>.
 ///
 /// Mismo mecanismo de ratchet por texto que <see cref="IdentificadoresDeEntidadUuidV7Tests"/>:
 /// una propiedad estática no es una dependencia de tipo, la reflexión no la ve.
@@ -48,6 +51,33 @@ public class DiaDeNegocioUnicaFuenteTests
 
     private static readonly Regex PatronRelojDeTests = new(@"\bFijarRelojEnEsteFlujo\b", RegexOptions.Compiled);
 
+    /// <summary>
+    /// Un instante UTC (nombre acabado en <c>Utc</c>, o <c>UtcNow</c>) formateado
+    /// tal cual: <c>x.CreadoEnUtc.ToString("dd/MM/yyyy")</c> o
+    /// <c>{x.ExpiraEnUtc:dd/MM HH:mm}</c>. Sin pasar por <c>EnHoraPeninsular()</c>
+    /// pinta la hora UTC, y entre las 22:00 y las 24:00 UTC el día anterior. El
+    /// formato máquina de ida y vuelta (<c>"O"</c>) no es presentación.
+    /// </summary>
+    private static readonly Regex PatronInstanteUtcEnCrudo = new(
+        @"\b(?:\w*Utc|UtcNow)(?:\s*\.\s*Value)?\s*\??\s*\.\s*ToString\s*\(\s*""(?![Oo]"")"
+        + @"|\b(?:\w*Utc|UtcNow)(?:\s*\.\s*Value)?:[dHMyfFgGt]",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// Formateos de un instante UTC que no se enseñan al usuario como hora. Cada
+    /// entrada dice por qué; un uso nuevo de presentación convierte con
+    /// <c>EnHoraPeninsular()</c>.
+    /// </summary>
+    private static readonly Dictionary<string, int> InstanteUtcEnCrudoTecnico = new()
+    {
+        // Fecha de cada mensaje dentro del prompt al modelo de relevancia CAE: contexto para la IA, no pantalla.
+        ["src/CaeManager.Application/Comunicaciones/Deteccion/IRelevanciaCaeService.cs"] = 1,
+        // Nombre de fichero de un adjunto de WhatsApp sin nombre: identificador técnico.
+        ["src/CaeManager.Application/Integraciones/IngestaWebhookWhatsAppService.cs"] = 1,
+        // Nombre del fichero de credenciales de la siembra demo, con sufijo Z: zona explícita.
+        ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 1,
+    };
+
     [Fact]
     public void Ningun_sitio_nuevo_calcula_el_dia_desde_el_reloj_fuera_de_la_fuente_unica()
     {
@@ -67,6 +97,16 @@ public class DiaDeNegocioUnicaFuenteTests
         Divergencias(esperado, medidos).Should().BeEmpty(
             "los contenedores corren en UTC: convierte con DiaDeNegocio.Zona o DiaDeNegocio.De(instante), y " +
             "Europe/Madrid solo se resuelve en DiaDeNegocio; para mostrar una hora, instanteUtc.EnHoraPeninsular()");
+    }
+
+    [Fact]
+    public void Ningun_instante_utc_se_formatea_para_mostrar_sin_pasar_a_hora_peninsular()
+    {
+        var medidos = ContarPorFichero(RaizDelRepositorio(), "src", PatronInstanteUtcEnCrudo);
+
+        Divergencias(InstanteUtcEnCrudoTecnico, medidos).Should().BeEmpty(
+            "una fecha u hora que ve el usuario es instanteUtc.EnHoraPeninsular().ToString(...); formateado en crudo " +
+            "sale en UTC. Si es un uso técnico (nombre de fichero, formato máquina), justifícalo en la lista");
     }
 
     [Fact]
@@ -114,6 +154,28 @@ public class DiaDeNegocioUnicaFuenteTests
             .Should().BeTrue();
         EsCodigoQueCasa("    var local = TimeZoneInfo.ConvertTimeFromUtc(instante, DiaDeNegocio.Zona);", PatronZonaDelServidor)
             .Should().BeFalse();
+
+        string[] instantesEnCrudo =
+        [
+            "<td>@registro.FechaUtc.ToString(\"dd/MM/yyyy HH:mm\")</td>",
+            "        return fechaUtc.ToString(\"dd/MM/yyyy\");",
+            "<td>@(clave.UltimoUsoUtc?.ToString(\"dd/MM/yyyy\"))</td>",
+            "        var texto = $\"Expira el {_expiraEnUtc.Value:dd/MM/yyyy HH:mm}\";",
+            "        var subtitulo = $\"generado el {DateTime.UtcNow:dd/MM/yyyy HH:mm} UTC\";",
+        ];
+        foreach (var linea in instantesEnCrudo)
+            EsCodigoQueCasa(linea, PatronInstanteUtcEnCrudo).Should().BeTrue(linea);
+
+        string[] instantesConvertidos =
+        [
+            "<td>@registro.FechaUtc.EnHoraPeninsular().ToString(\"dd/MM/yyyy HH:mm\")</td>",
+            "        var texto = $\"Expira el {_expiraEnUtc.Value.EnHoraPeninsular():dd/MM/yyyy HH:mm}\";",
+            "        expiraEnUtc = _expiraEnUtc.Value.ToString(\"O\"),",
+            "        var vence = documento.FechaVencimiento.ToString(\"dd/MM/yyyy\");",
+            "        var hoy = esUtc ? aUtc : bUtc;",
+        ];
+        foreach (var linea in instantesConvertidos)
+            EsCodigoQueCasa(linea, PatronInstanteUtcEnCrudo).Should().BeFalse(linea);
     }
 
     private static List<string> Divergencias(Dictionary<string, int> esperado, Dictionary<string, int> medido) =>

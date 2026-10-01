@@ -144,7 +144,7 @@
                                     <tr class="@ClaseFila(pendiente.Id)">
                                         <td>@pendiente.Email</td>
                                         <td class="celda-nombre">@pendiente.NombreCompleto</td>
-                                        <td class="celda-solicitado">@pendiente.FechaCreacion.ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td class="celda-solicitado">@(pendiente.FechaCreacion.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm"))</td>
                                         <td class="celda-rol">
                                             @* La etiqueta existe para el lector de pantalla —el
                                                encabezado de columna no nombra el control— y se
