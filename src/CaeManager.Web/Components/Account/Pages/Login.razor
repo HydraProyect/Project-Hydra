@@ -96,6 +96,15 @@
     protected override void OnInitialized()
     {
         Entrada ??= new DatosEntrada();
+        // D-09: con sesión iniciada, la página de login no se muestra: se redirige a donde iba
+        // (ReturnUrl, saneado como en el login) o al inicio. Solo en la petición GET: el POST del
+        // formulario lo gestiona IniciarSesionAsync, y una cuenta con 2FA pendiente todavía no
+        // está autenticada (no hay identidad hasta completar el segundo factor).
+        if (HttpContext is { Request.Method: "GET" } contexto && contexto.User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo(RedireccionLocal.Sanear(ReturnUrl), forceLoad: true);
+            return;
+        }
         mensajeErrorSso = ErrorSso switch
         {
             // Interpolado: dentro de una cadena C# «@Marca.Nombre» no es Razor,

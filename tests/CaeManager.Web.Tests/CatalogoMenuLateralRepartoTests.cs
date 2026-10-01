@@ -115,6 +115,8 @@ public class CatalogoMenuLateralRepartoTests
         };
         var administracionAmpliada = rol is Roles.Administrador or Roles.DireccionCae;
         if (administracionAmpliada) comunes.AddRange(["facturacion", "usuarios"]);
+        // D-12: el Coordinador CAE llega a /usuarios (ya autorizado por rol) desde Control; no es un permiso nuevo.
+        if (rol == Roles.CoordinadorCae) comunes.Add("usuarios-equipo");
         if (rol is Roles.Administrador or Roles.DireccionCae or Roles.CoordinadorCae) comunes.Add("vision-cartera");
         if (rol is Roles.CoordinadorCae or Roles.GestorCae) comunes.Add("solicitudes-cartera");
         if (rol is Roles.Administrador or Roles.DireccionCae or Roles.Consulta) comunes.Add("dashboard-ejecutivo");
