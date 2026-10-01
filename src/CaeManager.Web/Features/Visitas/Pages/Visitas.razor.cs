@@ -736,6 +736,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     {
         OrigenVisita.Correo => Textos["OrigenCorreo"].Value,
         OrigenVisita.WhatsApp => Textos["OrigenWhatsApp"].Value,
+        OrigenVisita.Manual => Textos["OrigenManual"].Value,
         _ => Textos["OrigenPlataforma"].Value
     };
 

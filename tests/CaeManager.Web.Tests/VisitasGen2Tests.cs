@@ -217,9 +217,10 @@ public class VisitasGen2Tests : BunitContext
     }
 
     private static VisitaListaDto Visita(
-        string centro, bool notificado = false, NivelUrgenciaVisita urgencia = NivelUrgenciaVisita.Urgente) =>
+        string centro, bool notificado = false, NivelUrgenciaVisita urgencia = NivelUrgenciaVisita.Urgente,
+        OrigenVisita origen = OrigenVisita.Correo) =>
         new(Guid.NewGuid(), Guid.NewGuid(), centro, Guid.NewGuid(), "Iberojet S.A.", Guid.NewGuid(), "Instalaciones Arbeko S.L.",
-            Hoy, Hoy.AddDays(2), TotalTrabajadores: 3, DocumentacionCompleta: false, notificado, OrigenVisita.Correo, urgencia);
+            Hoy, Hoy.AddDays(2), TotalTrabajadores: 3, DocumentacionCompleta: false, notificado, origen, urgencia);
 
     private static ResultadoPaginado<VisitaListaDto> Pagina(params VisitaListaDto[] visitas) =>
         new(visitas, visitas.Length, 1, 20);
@@ -1007,5 +1008,22 @@ public class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         Interruptor(cut, "Centro Norte").GetAttribute("title").Should().Contain("no envía ningún aviso");
+    }
+
+    /// <summary>D-21: una Visita dada de alta a mano figura con Origen «Manual», no «Plataforma»; las demás conservan el suyo.</summary>
+    [Theory]
+    [InlineData(OrigenVisita.Manual, "Manual")]
+    [InlineData(OrigenVisita.Plataforma, "Plataforma")]
+    [InlineData(OrigenVisita.Correo, "Correo")]
+    [InlineData(OrigenVisita.WhatsApp, "WhatsApp")]
+    public void El_origen_se_pinta_con_su_rotulo(OrigenVisita origen, string rotulo)
+    {
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(Visita("Centro Norte", origen: origen));
+        var cut = Renderizar(mediator);
+
+        var rotulos = new[] { "Manual", "Plataforma", "Correo", "WhatsApp" };
+        Fila(cut, "Centro Norte").QuerySelectorAll(".badge").Select(b => b.TextContent.Trim()).Where(rotulos.Contains)
+            .Should().ContainSingle("la fila pinta un solo rótulo de Origen").Which.Should().Be(rotulo);
     }
 }

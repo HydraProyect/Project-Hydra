@@ -87,7 +87,7 @@ public class CrearVisitaCommandHandler(
         if (encontrados != trabajadorIds.Count)
             return Result.Fallo<Guid>(Error.Crear("Visita.TrabajadorNoEncontrado", "Alguno de los trabajadores seleccionados no existe."));
 
-        var origen = request.SugerenciaVisitaCorreoId is not null ? OrigenVisita.Correo : OrigenVisita.Plataforma;
+        var origen = Visita.OrigenAlCrear(request.SugerenciaVisitaCorreoId is not null);
         var visita = new Visita(request.CentroId, request.FechaInicio, request.FechaFin, request.Notas, origen, request.HoraEstimadaAcceso);
         repositorio.Agregar(visita);
 

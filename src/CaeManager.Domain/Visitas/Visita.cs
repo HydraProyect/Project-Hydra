@@ -92,6 +92,13 @@ public class Visita : EntidadBase
     {
     }
 
+    /// <summary>
+    /// Origen de una Visita que se crea por el comando de alta: con sugerencia detectada en un
+    /// correo hereda el origen del correo; sin ella la ha dado de alta una persona a mano.
+    /// </summary>
+    public static OrigenVisita OrigenAlCrear(bool desdeSugerencia) =>
+        desdeSugerencia ? OrigenVisita.Correo : OrigenVisita.Manual;
+
     public Visita(Guid centroId, DateOnly fechaInicio, DateOnly fechaFin, string? notas, OrigenVisita origen = OrigenVisita.Plataforma, TimeOnly? horaEstimadaAcceso = null)
     {
         if (centroId == Guid.Empty)
