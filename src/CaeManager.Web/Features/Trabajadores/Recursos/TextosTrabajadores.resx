@@ -714,4 +714,10 @@
   <data name="DocBaseCompactoSinConfirmar" xml:space="preserve">
     <value>sin confirmar</value>
   </data>
+  <data name="BadgeAlDiaSinConfirmar" xml:space="preserve">
+    <value>Sin incidencias · vigencia sin confirmar</value>
+  </data>
+  <data name="AvisoVigenciaSinConfirmar" xml:space="preserve">
+    <value>Vigencia sin confirmar: {0}</value>
+  </data>
 </root>

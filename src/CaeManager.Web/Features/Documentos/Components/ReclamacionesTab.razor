@@ -21,8 +21,11 @@
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos.Recursos
 @using MediatR
+@using Microsoft.Extensions.Localization
 @implements IDisposable
+@inject IStringLocalizer<TextosDocumentos> Textos
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject NavigationManager NavigationManager
@@ -92,10 +95,12 @@
                         }
                     </span>
                     <span class="columna-accion" role="cell">
-                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                               Cargando="_reenviandoId == reclamacion.Id" OnClick="() => ReclamarDeNuevoAsync(reclamacion)">
-                            Reclamar de nuevo
-                        </Boton>
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                   Cargando="_reenviandoId == reclamacion.Id" OnClick="() => _reclamacionAReenviar = reclamacion">
+                                Reclamar de nuevo
+                            </Boton>
+                        </SoloConEscritura>
                         @if (reclamacion.ConversacionId is not null)
                         {
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
@@ -139,7 +144,8 @@ else
         <Tarjeta @key="lote.ClienteId" Titulo="@lote.RazonSocialCliente" Class="tarjeta-reclamacion">
             <AccionesHeader>
                 <SoloConEscritura><Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.ClienteId).Count == 0)"
-                       Cargando="enviando" OnClick="() => EnviarAsync(lote)">
+                       Cargando="enviando" OnClick="() => AbrirRevision(lote)"
+                       title="@TituloBotonEnviar(lote, seleccionados.Count)">
                     Enviar reclamación (@seleccionados.Count)
                 </Boton></SoloConEscritura>
             </AccionesHeader>
@@ -230,6 +236,37 @@ else
         </Tarjeta>
     }
 }
+
+@* Revisión previa al envío (D-01): un correo externo no se puede deshacer, así
+   que antes de mandarlo se enseñan destinatarios, asunto y texto exactos (el
+   asunto y el cuerpo salen de las mismas funciones que usa el handler) y hace
+   falta una confirmación explícita. *@
+<Modal Visible="_loteEnRevision is not null" VisibleChanged="CerrarRevision" Titulo="@Textos["RecRevisionTitulo"]"
+       Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="_enviandoClienteId is null">
+    <ChildContent>
+        @if (_loteEnRevision is { } revisado)
+        {
+            var destinatariosRevision = DestinatariosMarcados(revisado);
+            <dl class="reclamacion-revision">
+                <dt>@Textos["RecRevisionPara"]</dt>
+                <dd>@string.Join(", ", destinatariosRevision.Select(d => $"{d.Nombre} <{d.Email}>"))</dd>
+                <dt>@Textos["RecRevisionAsunto"]</dt>
+                <dd>@EnviarReclamacionCommandHandler.ConstruirAsunto(revisado.RazonSocialCliente)</dd>
+                <dt>@Textos["RecRevisionTexto"]</dt>
+                <dd class="reclamacion-revision-cuerpo">@((MarkupString)CuerpoRevision(revisado))</dd>
+            </dl>
+            <p class="texto-vacio-seccion">@Textos["RecRevisionAviso", destinatariosRevision.Count]</p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviandoClienteId is not null" OnClick="() => CerrarRevision(false)">@Textos["RecVolver"]</Boton>
+        <Boton Cargando="_enviandoClienteId is not null" OnClick="ConfirmarEnvioAsync">@Textos["RecConfirmarEnviar"]</Boton>
+    </Pie>
+</Modal>
+
+<DialogoConfirmacion Visible="_reclamacionAReenviar is not null" VisibleChanged="v => { if (!v) _reclamacionAReenviar = null; }"
+                     Titulo="@Textos["RecReenvioTitulo"]" Mensaje="@MensajeReenvio" TextoBotonConfirmar="@Textos["RecConfirmarEnviar"]"
+                     VarianteConfirmar="VarianteBoton.Primario" EnProgreso="_reenviandoId is not null" OnConfirmar="ConfirmarReenvioAsync" />
 
 @* Alta inline: el gestor que ve que falta el destinatario lo crea sin salir
    de la pantalla y la lista se recarga con él ya resuelto. *@
@@ -484,6 +521,105 @@ else
     {
         _clienteAltaContacto = clienteId;
         _altaContactoVisible = true;
+    }
+
+    private LoteReclamacionClienteDto? _loteEnRevision;
+    private ReclamacionEnviadaDto? _reclamacionAReenviar;
+
+    private string MensajeReenvio => _reclamacionAReenviar is null
+        ? string.Empty
+        : Textos["RecReenvioMensaje", _reclamacionAReenviar.TitularRazonSocial,
+            EnviarReclamacionCommandHandler.ConstruirAsunto(_reclamacionAReenviar.TitularRazonSocial),
+            _reclamacionAReenviar.TotalDocumentos].Value;
+
+    /// <summary>
+    /// D-02: el botón deshabilitado dice por qué. Sin documentos marcados o sin
+    /// destinatario marcado no se puede enviar; sin título el motivo solo
+    /// estaba en el aviso de abajo.
+    /// </summary>
+    private string? TituloBotonEnviar(LoteReclamacionClienteDto lote, int documentos)
+    {
+        if (lote.Destinatarios is not { Count: > 0 })
+            return Textos["RecBotonSinContacto"].Value;
+        if (ContactosMarcados(lote.ClienteId).Count == 0)
+            return Textos["RecBotonMarcaDestinatario"].Value;
+        if (documentos == 0)
+            return Textos["RecBotonMarcaDocumento"].Value;
+        return null;
+    }
+
+    private List<DestinatarioReclamacion> DestinatariosMarcados(LoteReclamacionClienteDto lote)
+    {
+        var marcados = ContactosMarcados(lote.ClienteId);
+        return (lote.Destinatarios ?? [])
+            .Where(d => marcados.Contains(d.ContactoId))
+            .Select(d => new DestinatarioReclamacion(d.Nombre, d.Email))
+            .ToList();
+    }
+
+    private sealed record DestinatarioReclamacion(string Nombre, string Email);
+
+    private string CuerpoRevision(LoteReclamacionClienteDto lote)
+    {
+        // TryGetValue: una recarga concurrente vacía el diccionario con el modal abierto.
+        if (!_seleccionPorCliente.TryGetValue(lote.ClienteId, out var seleccionados))
+            return string.Empty;
+
+        return EnviarReclamacionCommandHandler.ConstruirCuerpoHtml(
+            lote.RazonSocialCliente,
+            lote.Documentos
+                .Where(d => seleccionados.Contains(d.DocumentoId))
+                .Select(d => (d.TrabajadorNombre ?? string.Empty, d.TipoDocumentoNombre, d.FechaVencimiento)));
+    }
+
+    private void AbrirRevision(LoteReclamacionClienteDto lote)
+    {
+        if (_enviandoClienteId is not null || _desechado)
+            return;
+        if (_seleccionPorCliente[lote.ClienteId].Count == 0 || ContactosMarcados(lote.ClienteId).Count == 0)
+            return;
+
+        _loteEnRevision = lote;
+    }
+
+    private void CerrarRevision(bool visible)
+    {
+        if (!visible && _enviandoClienteId is null)
+            _loteEnRevision = null;
+    }
+
+    private async Task ConfirmarReenvioAsync()
+    {
+        var reclamacion = _reclamacionAReenviar;
+        // Un segundo clic con el envío en vuelo no cierra nada: el diálogo sigue
+        // mostrando el progreso hasta que termina el primero.
+        if (reclamacion is null || _reenviandoId is not null)
+            return;
+
+        try
+        {
+            await ReclamarDeNuevoAsync(reclamacion);
+        }
+        finally
+        {
+            _reclamacionAReenviar = null;
+        }
+    }
+
+    private async Task ConfirmarEnvioAsync()
+    {
+        var lote = _loteEnRevision;
+        if (lote is null || _enviandoClienteId is not null)
+            return;
+
+        try
+        {
+            await EnviarAsync(lote);
+        }
+        finally
+        {
+            _loteEnRevision = null;
+        }
     }
 
     private async Task EnviarAsync(LoteReclamacionClienteDto lote)

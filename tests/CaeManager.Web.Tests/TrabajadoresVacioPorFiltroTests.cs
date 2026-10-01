@@ -213,6 +213,9 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
             .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
         cut.Markup.Should().NotContain("Aún no hay trabajadores");
         cut.Markup.Should().NotContain("+ Nuevo trabajador", "invitar a crear con alcance cero termina en un duplicado");
+        // D-15: sin alcance no hay lista que filtrar, guardar ni exportar.
+        cut.FindAll(".barra-trabajo-trabajadores").Should().BeEmpty("filtros y «Guardar filtro» sobre una lista que no puede existir");
+        cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría un fichero vacío");
     }
 
     [Fact]
@@ -225,5 +228,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         cut.Markup.Should().Contain("Aún no hay trabajadores");
         cut.Markup.Should().Contain("+ Nuevo trabajador");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
+        cut.FindAll(".barra-trabajo-trabajadores").Should().NotBeEmpty();
+        cut.FindAll("a.enlace-exportar").Should().ContainSingle();
     }
 }

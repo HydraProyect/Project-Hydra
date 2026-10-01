@@ -302,7 +302,7 @@
 </div>
 
 
-<DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
+<DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" OnCerrado="LimpiarEnlaceProfundoDeUrl" />
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"

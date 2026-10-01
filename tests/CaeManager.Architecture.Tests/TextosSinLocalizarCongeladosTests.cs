@@ -51,12 +51,12 @@ public class TextosSinLocalizarCongeladosTests
         ["AuditoriaIa"] = 50,
         ["Bandeja"] = 107,
         ["Blindaje42"] = 46,
-        ["BusquedaGlobal"] = 72,
+        ["BusquedaGlobal"] = 70,
         // 312 → 313 el 2026-09-25 (P1-X2): la rama «No requiere gestión CAE» de
         // EstadoCentroUi.Texto. Es un switch estático sin localizar entero; migrar
         // solo la rama nueva lo dejaría a medias. Los demás textos de P1-X2 van a
         // TextosCentros.resx. Baja cuando se migre EstadoCentroUi completo.
-        ["Centros"] = 309, // 313 → 310 el 2026-09-29: lote 3, textos nuevos y varios de la cabecera/menú de fila a TextosCentros.resx. 310 → 309: «Más» y «Exportar asignaciones».
+        ["Centros"] = 310, // 309 → 310 (D-17): «Sin datos» de EstadoCentroUi.Texto, static switch sin localizar entero (precedente P1-X2). 313 → 310 el 2026-09-29: lote 3, textos nuevos y varios de la cabecera/menú de fila a TextosCentros.resx. 310 → 309: «Más» y «Exportar asignaciones».
         // 256 → 250 el 2026-09-28 (piloto del patrón de lista) SIN migrar a .resx: la pantalla dejó de
         // pintar rótulos con el nombre del filtro dentro de la opción («Estado: todos», «Gestor CAE: todos»),
         // los textos de «Limpiar todo» / «Guardar filtro» / «Filtros guardados…» pasaron a BarraFiltros
@@ -130,18 +130,18 @@ public class TextosSinLocalizarCongeladosTests
         // «ValorChanged="v => _ambito = Enum.Parse<AmbitoAplicacion>(v)"» (y los de _requerido
         // y _naturaleza). No se reescriben las lambdas para esquivar la heurística.
         ["TiposDocumento"] = 6,
-        // 193 → 13 el 2026-09-23 al migrar la Feature a TextosTrabajadores.resx. Quedan:
+        // 193 → 13 el 2026-09-23 al migrar la Feature a TextosTrabajadores.resx (13 → 12 el 2026-10-02: D-22 sustituye
+        // la comparación «!= EstadoDocumento.Vigente» del markup de Trabajador 360 por métodos del código). Quedan:
         // «DNI» y «DNI:» (sigla oficial del documento de la Administración: no se localiza; «DNI» cuenta dos
         // veces, como atributo —Title/Etiqueta— y como markup —<span>DNI</span>—);
         // «Documentación», cabecera de la exportación trabajadores.xlsx (contrato de datos del
         // fichero, igual que el resto de sus columnas, que el detector no ve por no llevar tilde);
         // y falsos positivos del detector de markup: «.ToString("dd/MM/yyyy")» tras
-        // «@gestion.CreadoEnUtc.EnHoraPeninsular()», «d.Estado != EstadoDocumento.Vigente);» del
-        // «var incidenciasCentro = …» dentro del markup, y los trozos de los ternarios Razor
+        // «@gestion.CreadoEnUtc.EnHoraPeninsular()» y los trozos de los ternarios Razor
         // partidos en varias líneas («@(incidencias == 0», «? Textos["BadgeCompleto"]»… en Trabajador 360,
         // «0 ? Textos["BotonAsignarIgualmente"]» en Trabajadores.razor), cuyo
         // «>» de comparación toma por texto lo que sigue. No se reformatea para esquivar la heurística.
-        ["Trabajadores"] = 13,
+        ["Trabajadores"] = 12,
         // 147 → 146 el 2026-09-26 (P1-E2b): el toast de reenvío de activación fallido va a TextosUsuarios.resx.
         ["Usuarios"] = 146,
         // 112 → 10 el 2026-09-23: Visitas.razor(.cs) migrados a TextosVisitas.resx. Los 10

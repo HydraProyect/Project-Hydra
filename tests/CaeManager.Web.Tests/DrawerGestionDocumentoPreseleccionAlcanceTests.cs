@@ -154,6 +154,30 @@ public class DrawerGestionDocumentoPreseleccionAlcanceTests : BunitContext
             "un Id que no está en el catálogo con alcance ya cargado no puede quedar preseleccionado");
     }
 
+    /// <summary>D-06/D-22: alta desde la ficha de un trabajador sin documentos, con el tipo por elegir en el drawer.</summary>
+    [Fact]
+    public async Task Abrir_para_un_trabajador_lo_preselecciona_y_deja_el_tipo_por_elegir()
+    {
+        var trabajador = new TrabajadorSelectorDto(Guid.NewGuid(), "Ruiz Peña, Ana", null, null);
+        var cut = Renderizar(new MediatorFalso { Trabajadores = [trabajador], Empresas = [] });
+
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearParaTrabajadorAsync(trabajador.Id));
+
+        LeerCampoPrivado(cut.Instance, "_trabajadorId").Should().Be(trabajador.Id.ToString());
+        LeerCampoPrivado(cut.Instance, "_tipoDocumentoId").Should().BeEmpty("el tipo se elige en el propio drawer");
+        cut.Markup.Should().Contain("Nuevo documento");
+    }
+
+    [Fact]
+    public async Task Abrir_para_un_trabajador_ajeno_al_catalogo_con_alcance_no_preselecciona_nada()
+    {
+        var cut = Renderizar(new MediatorFalso { Trabajadores = [], Empresas = [] });
+
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearParaTrabajadorAsync(Guid.NewGuid()));
+
+        LeerCampoPrivado(cut.Instance, "_trabajadorId").Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Un_trabajadorId_presente_en_el_catalogo_cargado_si_se_preselecciona()
     {

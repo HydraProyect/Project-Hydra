@@ -141,4 +141,22 @@
   <data name="GestionarAtenuadoAlDia" xml:space="preserve">
     <value>Al dia: no cal intervenir-hi, però el pots substituir</value>
   </data>
+  <data name="MenuEliminarCentro" xml:space="preserve">
+    <value>Eliminar centro</value>
+  </data>
+  <data name="EliminarCentroTitulo" xml:space="preserve">
+    <value>¿Eliminar el centro «{0}»?</value>
+  </data>
+  <data name="EliminarCentroMensaje" xml:space="preserve">
+    <value>Se ocultará de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador del Tenant puede recuperarlo desde Auditoría.</value>
+  </data>
+  <data name="ToastCentroEliminado" xml:space="preserve">
+    <value>Centro «{0}» eliminado.</value>
+  </data>
+  <data name="ToastCentroEliminadoError" xml:space="preserve">
+    <value>No pudimos eliminar el centro. Intenta nuevamente.</value>
+  </data>
+  <data name="ToastCentroRestaurado" xml:space="preserve">
+    <value>Centro restaurado. Sus asignaciones siguen de baja.</value>
+  </data>
 </root>

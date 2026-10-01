@@ -170,7 +170,7 @@ public class EnviarReclamacionCommandHandler(
 
         var documentoIds = filas.Select(f => f.DocumentoId).Distinct().ToList();
         var destinatarios = resueltos.Select(d => d.Email).Distinct().ToList();
-        var asunto = $"{Marca.Nombre} — documentación pendiente de {cliente.RazonSocial}";
+        var asunto = ConstruirAsunto(cliente.RazonSocial);
         var cuerpoHtml = ConstruirCuerpoHtml(cliente.RazonSocial, filas.Select(f => (f.TrabajadorNombre, f.TipoDocumentoNombre, f.FechaVencimiento!.Value)));
 
         var envio = await registroEnvio.EnviarYRegistrarAsync(
@@ -182,7 +182,12 @@ public class EnviarReclamacionCommandHandler(
             : Result.Exito(new EnvioReclamacionResultado(documentoIds, destinatarios));
     }
 
-    private static string ConstruirCuerpoHtml(string razonSocialCliente, IEnumerable<(string TrabajadorNombre, string TipoDocumentoNombre, DateOnly FechaVencimiento)> documentos)
+    /// <summary>Asunto del correo. Público para que la vista previa de la pestaña Reclamaciones muestre exactamente el que se enviará, sin copiarlo.</summary>
+    public static string ConstruirAsunto(string razonSocialCliente) =>
+        $"{Marca.Nombre} — documentación pendiente de {razonSocialCliente}";
+
+    /// <summary>Cuerpo HTML del correo (todo dato interpolado va codificado). Público por la misma razón que <see cref="ConstruirAsunto"/>.</summary>
+    public static string ConstruirCuerpoHtml(string razonSocialCliente, IEnumerable<(string TrabajadorNombre, string TipoDocumentoNombre, DateOnly FechaVencimiento)> documentos)
     {
         var builder = new StringBuilder();
         builder.Append("<p>Estimado/a ").Append(System.Net.WebUtility.HtmlEncode(razonSocialCliente)).Append(",</p>");

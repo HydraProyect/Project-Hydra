@@ -63,6 +63,7 @@ public sealed class HoraPeninsularEnPantallaTests : BunitContext
     public HoraPeninsularEnPantallaTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         this.ConRolDeEscritura();
     }
 

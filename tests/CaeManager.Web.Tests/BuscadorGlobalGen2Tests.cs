@@ -4,6 +4,7 @@ using Bunit;
 using CaeManager.Application.BusquedaGlobal.Commands.RegistrarUsoReciente;
 using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 using CaeManager.Application.BusquedaGlobal.Queries.ObtenerRecientes;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Web.Features.BusquedaGlobal;
 using FluentAssertions;
 using MediatR;
@@ -99,6 +100,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
         public ConcurrentQueue<CancellationToken> TokensRecibidos { get; } = [];
         public ResultadoBusquedaGlobalDto Resultado { get; set; } = SinNada;
         public IReadOnlyList<ItemRecienteDto> Recientes { get; set; } = [];
+        public IReadOnlyList<ClienteAutorizadoDto> Autorizados { get; set; } = [];
         public Exception? FalloDeBusqueda { get; set; }
 
         public TaskCompletionSource<object> Retener(Func<object, bool> criterio)
@@ -126,6 +128,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
             return (TResponse)(request switch
             {
                 ObtenerRecientesQuery => (object)Recientes,
+                ObtenerClientesAutorizadosQuery => Autorizados,
                 BuscarGlobalQuery => Resultado,
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             })!;
@@ -246,7 +249,8 @@ public class BuscadorGlobalGen2Tests : BunitContext
     {
         var cut = await RenderizarYAbrir(new MediadorControlado());
 
-        cut.Find(".buscador-ambito").TextContent.Should().Contain("tu cartera");
+        // D-14: el ámbito es el de la empresa gestionada activa, no «tu cartera» (la búsqueda no cruza Tenants).
+        cut.Find(".buscador-ambito").TextContent.Should().Contain("Buscando en").And.NotContain("tu cartera");
         cut.Find(".buscador-leyenda").TextContent.Should().Contain("navegar").And.Contain("grupo").And.Contain("cerrar");
     }
 
@@ -771,7 +775,40 @@ public class BuscadorGlobalGen2Tests : BunitContext
         await Input(cut).EscribirAsync("zzzqqq");
 
         var mensaje = cut.Find(".buscador-mensaje").TextContent;
-        mensaje.Should().Contain("zzzqqq").And.Contain("cartera");
+        mensaje.Should().Contain("zzzqqq").And.Contain("empresa activa").And.NotContain("tu cartera");
+    }
+
+    /// <summary>D-14: con el nombre de la empresa activa resuelto, el pie y el vacío la nombran.</summary>
+    [Fact]
+    public async Task El_pie_y_el_vacio_nombran_la_empresa_activa()
+    {
+        var activa = new ClienteAutorizadoDto(Guid.NewGuid(), "Empresa D", EsOrigen: true);
+        var mediador = new MediadorControlado { Resultado = SinNada, Autorizados = [activa] };
+        var cut = await RenderizarYAbrir(mediador);
+
+        cut.WaitForAssertion(() => cut.Find(".buscador-ambito").TextContent.Should().Be("Buscando en Empresa D"));
+
+        await Input(cut).EscribirAsync("zzzqqq");
+
+        cut.Find(".buscador-mensaje").TextContent.Should().Contain("«zzzqqq» en Empresa D")
+            .And.NotContain("selector", "con un único Tenant no hay selector que aconsejar");
+    }
+
+    /// <summary>D-14: en el estado 4a no hay empresa activa que nombrar; el Tenant de origen no es una empresa de la cartera.</summary>
+    [Fact]
+    public async Task En_el_estado_4a_el_pie_no_nombra_el_Tenant_de_origen_y_aconseja_el_selector()
+    {
+        var origen = new ClienteAutorizadoDto(Guid.NewGuid(), "Operador CAE", EsOrigen: true);
+        var cartera = new ClienteAutorizadoDto(Guid.NewGuid(), "Empresa D", EsOrigen: false, EsGestionadoPorOperacion: true, EsCarteraGestorCae: true);
+        var mediador = new MediadorControlado { Resultado = SinNada, Autorizados = [origen, cartera] };
+        var cut = await RenderizarYAbrir(mediador);
+
+        cut.WaitForAssertion(() => cut.Find(".buscador-ambito").TextContent.Should().Be("Buscando en la empresa activa"));
+        cut.Markup.Should().NotContain("Operador CAE");
+
+        await Input(cut).EscribirAsync("zzzqqq");
+
+        cut.Find(".buscador-mensaje").TextContent.Should().Contain("selector");
     }
 
     /// <summary>Un fallo de "Recientes" no puede tumbar el palette: sigue abierto y usable.</summary>

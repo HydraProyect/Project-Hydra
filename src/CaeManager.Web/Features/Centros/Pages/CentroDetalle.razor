@@ -133,6 +133,7 @@
                 *@
                 <MenuAcciones>
                     <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">Editar centro</ItemMenuAccion></SoloConEscritura>
+                    <SoloConEscritura><ItemMenuAccion OnClick="() => _confirmarEliminarVisible = true">@Textos["MenuEliminarCentro"]</ItemMenuAccion></SoloConEscritura>
                     @if (_documentosPorReclamar > 0)
                     {
                         <ItemMenuAccion OnClick="AbrirInformacion">Reclamar documentación (@_documentosPorReclamar)</ItemMenuAccion>
@@ -296,4 +297,11 @@
         </div>
     }
 </div>
+
+<DialogoConfirmacion Visible="_confirmarEliminarVisible"
+                     VisibleChanged="v => _confirmarEliminarVisible = v"
+                     Titulo="@Textos["EliminarCentroTitulo", _detalle?.Nombre ?? string.Empty].Value"
+                     Mensaje="@Textos["EliminarCentroMensaje"].Value"
+                     EnProgreso="_eliminando"
+                     OnConfirmar="ConfirmarEliminarAsync" />
 </LimiteDeErrores>

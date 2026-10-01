@@ -8,6 +8,23 @@ public class VisitaTests
 {
     private static readonly Guid CentroIdValido = Guid.NewGuid();
 
+    [Theory]
+    [InlineData(false, OrigenVisita.Manual)]
+    [InlineData(true, OrigenVisita.Correo)]
+    public void El_origen_al_crear_distingue_la_alta_a_mano_de_la_sugerencia_de_correo(bool desdeSugerencia, OrigenVisita esperado)
+    {
+        Visita.OrigenAlCrear(desdeSugerencia).Should().Be(esperado);
+    }
+
+    [Fact]
+    public void Manual_se_anade_al_final_del_enum_sin_renumerar_los_valores_persistidos()
+    {
+        ((int)OrigenVisita.Plataforma).Should().Be(0);
+        ((int)OrigenVisita.Correo).Should().Be(1);
+        ((int)OrigenVisita.WhatsApp).Should().Be(2);
+        ((int)OrigenVisita.Manual).Should().Be(3);
+    }
+
     [Fact]
     public void Crea_una_visita_valida()
     {

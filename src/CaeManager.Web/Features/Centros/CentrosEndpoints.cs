@@ -40,7 +40,7 @@ public static class CentrosEndpoints
                 hoja.Cell(fila, 2).Value = centro.CodigoCentro;
                 hoja.Cell(fila, 3).Value = centro.ClienteRazonSocial;
                 hoja.Cell(fila, 4).Value = centro.EmpresaRazonSocial;
-                hoja.Cell(fila, 5).Value = EstadoCentroUi.Texto(centro.Estado);
+                hoja.Cell(fila, 5).Value = EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje);
                 if (centro.CumplimientoPorcentaje is not null)
                     hoja.Cell(fila, 6).Value = centro.CumplimientoPorcentaje.Value / 100.0;
                 fila++;

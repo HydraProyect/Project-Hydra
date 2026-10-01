@@ -1239,6 +1239,31 @@
     margin-top: 0;
 }
 
+/*
+  Cabecera de cada ventana de vencimiento de Preventivo (D-24): a ancho
+  completo, con el rótulo en una línea y el recuento en línea al final. Antes
+  reutilizaba la rejilla de 5 columnas fijas de la fila de Trabajador con solo
+  3 hijos, y el rótulo caía en la columna de 14 px y se partía en cinco líneas.
+*/
+.cabecera-ventana-preventivo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) 0;
+}
+
+.cabecera-ventana-preventivo > .fila-trabajador-nombre {
+    font: var(--font-body-md);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.cabecera-ventana-preventivo > .fila-trabajador-fraccion {
+    margin-left: auto;
+    white-space: nowrap;
+}
+
 
 /*
   Ámbito Empresa dentro del acordeón de un Centro (OD-13, blueprint § 3.3).

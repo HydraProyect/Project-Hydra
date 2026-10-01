@@ -10,6 +10,7 @@ using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
+using CaeManager.Domain.Visitas;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.DataProtection;
@@ -85,6 +86,9 @@ public class CrearVisitaCommandTests : IAsyncLifetime
         publicador.Publicados.Should().ContainSingle()
             .Which.Should().BeOfType<VisitaCreadaEvent>()
             .Which.Should().BeEquivalentTo(new VisitaCreadaEvent(conversacion.Id, resultado.Valor));
+        await using var lectura = CrearContexto();
+        (await lectura.Visitas.SingleAsync(v => v.Id == resultado.Valor)).Origen.Should().Be(OrigenVisita.Correo,
+            "una Visita creada desde una sugerencia de correo conserva su origen");
     }
 
     [Fact]
@@ -120,6 +124,9 @@ public class CrearVisitaCommandTests : IAsyncLifetime
 
         resultado.EsFallido.Should().BeFalse();
         publicador.Publicados.Should().BeEmpty();
+        await using var lectura = CrearContexto();
+        (await lectura.Visitas.SingleAsync(v => v.Id == resultado.Valor)).Origen.Should().Be(OrigenVisita.Manual,
+            "D-21: la Visita dada de alta a mano guarda Manual, no Plataforma");
     }
 
     private CaeManagerDbContext CrearContexto()

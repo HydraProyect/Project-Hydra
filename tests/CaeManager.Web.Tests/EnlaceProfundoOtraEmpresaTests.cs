@@ -168,6 +168,32 @@ public class EnlaceProfundoOtraEmpresaTests : BunitContext
         conPista.Should().NotContain("Abrir en");
     }
 
+    /// <summary>
+    /// D-04: la pista que ahora produce el selector al cambiar de empresa desde una ficha es una coordenada,
+    /// no autoridad. Un usuario sin Asignación (de Cartera u Operación) en el Tenant de la pista no lo tiene
+    /// en su conjunto autorizado: la ficha de Trabajador sale idéntica a la de sin pista, sin botón ni nombre del Tenant.
+    /// </summary>
+    [Fact]
+    public void Una_pista_a_un_Tenant_sin_Asignacion_del_usuario_no_ofrece_nada_en_la_ficha_de_trabajador()
+    {
+        var url = "trabajadores/aaaaaaaa-0000-0000-0000-000000000001";
+        _lista.Should().NotContain(c => c.TenantId == Ajena, "premisa: el usuario no tiene Asignación en ese Tenant");
+        var sinPista = Renderizar(url, activa: Sur).Markup;
+
+        using var otro = new BunitContext();
+        otro.JSInterop.Mode = JSRuntimeMode.Loose;
+        otro.Services.AddLocalization();
+        otro.Services.AddScoped<IMediator>(_ => _mediador);
+        otro.Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
+        otro.Services.AddScoped<ITenantActual>(_ => new TenantActualFijo(Sur));
+        otro.Services.GetRequiredService<NavigationManager>().NavigateTo($"{url}?tenant={Ajena}");
+        var conPista = otro.Render<EnlaceProfundoOtraEmpresa>();
+
+        conPista.Markup.Should().Be(sinPista);
+        conPista.FindAll("form").Should().BeEmpty("la pista no concede acceso: lo decide el servidor con la lista autorizada");
+        conPista.Markup.Should().NotContain("Abrir en");
+    }
+
     [Fact]
     public void Un_usuario_sin_selector_no_recibe_ni_aviso_ni_boton_aunque_traiga_pista()
     {

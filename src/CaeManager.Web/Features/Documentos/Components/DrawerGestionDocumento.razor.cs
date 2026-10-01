@@ -30,6 +30,9 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// <summary>Se dispara tras crear o renovar con éxito — el host decide qué recargar (rejilla, acordeón…).</summary>
     [Parameter] public EventCallback OnGuardado { get; set; }
 
+    /// <summary>Se dispara al cerrar el cajón sin guardar (Escape, aspa, clic fuera): el host limpia el enlace profundo de la URL.</summary>
+    [Parameter] public EventCallback OnCerrado { get; set; }
+
     private IReadOnlyList<TrabajadorSelectorDto> _trabajadoresDisponibles = [];
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
@@ -186,6 +189,23 @@ public partial class DrawerGestionDocumento : ComponentBase
         StateHasChanged();
     }
 
+    /// <summary>
+    /// «Subir documento» de una ficha de Trabajador sin documento al que apuntar: alta con el
+    /// trabajador ya elegido y el tipo por elegir en el propio drawer (D-06/D-22). Fuera del
+    /// catálogo con alcance no se preselecciona y se dice, igual que el alta para un faltante.
+    /// </summary>
+    public async Task AbrirCrearParaTrabajadorAsync(Guid trabajadorId)
+    {
+        await AbrirCrearAsync();
+        if (_trabajadoresDisponibles.Any(t => t.Id == trabajadorId))
+            _trabajadorId = trabajadorId.ToString();
+        else
+            _mensajeErrorFormulario = TextosDrawerGestionDocumento.Texto("TrabajadorPreseleccionadoNoEncontrado");
+        // La preselección la hace la pantalla que abre, no quien mira: no cuenta como cambio.
+        FijarInstantaneaFormulario();
+        StateHasChanged();
+    }
+
     public async Task AbrirCrearParaFaltanteEmpresaAsync(Guid empresaId, Guid tipoDocumentoId)
     {
         await AbrirCrearAsync();
@@ -318,6 +338,9 @@ public partial class DrawerGestionDocumento : ComponentBase
             await DescartarArchivoSinAdoptarAsync();
 
         _drawerVisible = visible;
+
+        if (!visible && OnCerrado.HasDelegate)
+            await OnCerrado.InvokeAsync();
     }
 
     /// <summary>

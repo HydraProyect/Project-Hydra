@@ -99,6 +99,15 @@ public static class DocumentacionBaseTrabajador
         return new DocumentacionBaseTrabajadorDto(indicadores);
     }
 
+    /// <summary>
+    /// Si un documento requerido cuenta como incidencia en Trabajador 360 (D-22 del recorrido de
+    /// 2026-10-01). Una sola regla con el panel Documentación base: lo que allí es
+    /// <see cref="EstadoIndicadorBase.SinConfirmar"/> cuenta como al día, con aviso, y no como
+    /// incidencia; Faltante, Vencido, Urgente y Próximo siguen siéndolo.
+    /// </summary>
+    public static bool CuentaComoIncidencia(EstadoDocumento estado) =>
+        Traducir(estado) is not (EstadoIndicadorBase.Vigente or EstadoIndicadorBase.SinConfirmar);
+
     public static EstadoIndicadorBase Traducir(EstadoDocumento estado) => estado switch
     {
         EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad => EstadoIndicadorBase.Vigente,

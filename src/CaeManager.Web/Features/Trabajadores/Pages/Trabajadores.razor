@@ -41,7 +41,8 @@
        perfil. *@
     <CabeceraPagina Titulo="@TituloPagina">
         <Acciones>
-            @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
+            @* D-15: con alcance cero la lista no puede existir; exportarla daría un fichero vacío. *@
+            @if (!_alcanceCero && !_sinEmpresaSeleccionada && !_resolviendoEmpresa)
             {
                 <a class="enlace-exportar" href="/trabajadores/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceExportarExcel"]</a>
             }
@@ -75,6 +76,9 @@
        desplegable que no filtra nada mentiría. Tampoco se funden Empresa y
        Subcontrata en un solo desplegable: son dos parámetros distintos de la
        consulta. Los filtros guardados no salen en el mockup y se conservan. *@
+    @* D-15: sin alcance (Asignación de Cartera) no hay lista que filtrar, guardar ni seleccionar. *@
+    @if (!_alcanceCero)
+    {
     <div class="barra-trabajo-centros barra-trabajo-trabajadores">
         <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
         <FiltroEstado Etiqueta="@Textos["EtiquetaDocumentacion"]" TextoTodos="@Textos["OpcionTodas"]" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
@@ -116,6 +120,7 @@
             @Textos["BotonGuardarFiltro"]
         </Boton>
     </div>
+    }
 
     @* Mismo bloque que Clientes y Empresas. Aquí importa más que en ninguna
        otra lista: son CUATRO filtros y tres de ellos viven dentro de
@@ -269,7 +274,7 @@
     }
 </div>
 
-<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer @ref="_drawerAlta" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
@@ -299,7 +304,7 @@
         }
         else if (_tipoEmpleador == "empresa")
         {
-            <CampoSelect Etiqueta="@Textos["EtiquetaEmpresa"]" Valor="@_empresaId" ValorChanged="v => _empresaId = v">
+            <CampoSelect Etiqueta="@Textos["EtiquetaEmpresa"]" Valor="@_empresaId" ValorChanged="AlElegirEmpresa">
                 <option value="">@Textos["OpcionSeleccionaEmpresa"]</option>
                 @foreach (var empresa in _empresasDisponibles)
                 {
@@ -309,7 +314,7 @@
         }
         else
         {
-            <CampoSelect Etiqueta="@Textos["EtiquetaSubcontrata"]" Valor="@_subcontrataId" ValorChanged="v => _subcontrataId = v">
+            <CampoSelect Etiqueta="@Textos["EtiquetaSubcontrata"]" Valor="@_subcontrataId" ValorChanged="AlElegirSubcontrata">
                 <option value="">@Textos["OpcionSeleccionaSubcontrata"]</option>
                 @foreach (var subcontrata in _subcontratasDisponibles)
                 {
@@ -334,7 +339,7 @@
         <CampoTextarea Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="CancelarAltaAsync">
             @Textos["BotonCancelar"]
         </Boton>
         <Boton Cargando="_guardando" OnClick="GuardarAsync">

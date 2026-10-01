@@ -410,7 +410,9 @@ public class CentrosListaPatronTests : BunitContext
         await cut.Find(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
         var items = cut.FindAll(".menu-acciones-item").Select(i => i.TextContent.Trim()).ToList();
-        items.Should().Equal("Ver ficha 360", "Vista previa");
+        // D-16: «Eliminar centro» (solo con escritura) cierra el menú; el mockup no lo dibuja, pero sin él un
+        // Centro creado no tenía baja por fila.
+        items.Should().Equal("Ver ficha 360", "Vista previa", "Eliminar centro");
     }
 
     [Fact]

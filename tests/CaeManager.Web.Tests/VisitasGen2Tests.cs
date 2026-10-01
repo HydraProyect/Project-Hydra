@@ -217,9 +217,10 @@ public class VisitasGen2Tests : BunitContext
     }
 
     private static VisitaListaDto Visita(
-        string centro, bool notificado = false, NivelUrgenciaVisita urgencia = NivelUrgenciaVisita.Urgente) =>
+        string centro, bool notificado = false, NivelUrgenciaVisita urgencia = NivelUrgenciaVisita.Urgente,
+        OrigenVisita origen = OrigenVisita.Correo) =>
         new(Guid.NewGuid(), Guid.NewGuid(), centro, Guid.NewGuid(), "Iberojet S.A.", Guid.NewGuid(), "Instalaciones Arbeko S.L.",
-            Hoy, Hoy.AddDays(2), TotalTrabajadores: 3, DocumentacionCompleta: false, notificado, OrigenVisita.Correo, urgencia);
+            Hoy, Hoy.AddDays(2), TotalTrabajadores: 3, DocumentacionCompleta: false, notificado, origen, urgencia);
 
     private static ResultadoPaginado<VisitaListaDto> Pagina(params VisitaListaDto[] visitas) =>
         new(visitas, visitas.Length, 1, 20);
@@ -868,7 +869,7 @@ public class VisitasGen2Tests : BunitContext
         cliente.IsMatch(cut.Markup).Should().BeFalse("en el detalle");
 
         await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
-        cut.Markup.Should().Contain("Notificada a la empresa titular del centro", "el formulario tiene que estar abierto");
+        cut.Markup.Should().Contain("Marcar como avisada a la empresa titular del centro", "el formulario tiene que estar abierto");
         cliente.IsMatch(cut.Markup).Should().BeFalse("en el formulario");
     }
 
@@ -969,5 +970,60 @@ public class VisitasGen2Tests : BunitContext
 
         navegacion.Uri.Should().EndWith("/visitas", "con el drawer cerrado ya no hay formulario que perder");
         cut.FindAll(".modal-contenido").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// D-20: guardar sin trabajador dejaba el drawer abierto sin mensaje visible (la excepción de
+    /// validación se guardaba en un diccionario que nadie pintaba). Ahora no se envía el comando,
+    /// el error sale en línea junto a la lista y como aviso, y desaparece al marcar a alguien.
+    /// </summary>
+    [Fact]
+    public async Task Guardar_sin_trabajador_avisa_en_linea_y_con_un_aviso_y_no_envia_el_comando()
+    {
+        var trabajador = Guid.NewGuid();
+        var mediator = new MediatorVisitas
+        {
+            TrabajadoresSelector = [TrabajadorSelectorFalso.Crear(trabajador, "Iker Zubiri Olano")],
+        };
+        var cut = Renderizar(mediator);
+        await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty("barrera: antes de guardar no hay error");
+
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".drawer-panel .campo-mensaje-error").TextContent.Should().Contain("Marca al menos un trabajador");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje.Contains("Marca al menos un trabajador"));
+        mediator.Comandos.Should().BeEmpty();
+
+        await cut.Find(".drawer-panel .lista-seleccion-multiple input").ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.FindAll(".drawer-panel .campo-mensaje-error").Should().BeEmpty("el error se quita al marcar a alguien");
+    }
+
+    /// <summary>D-21: el interruptor solo marca; el texto del formulario y el título del interruptor lo dicen.</summary>
+    [Fact]
+    public void El_interruptor_de_notificada_dice_que_solo_marca_y_no_envia_nada()
+    {
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(Visita("Centro Norte"));
+        var cut = Renderizar(mediator);
+
+        Interruptor(cut, "Centro Norte").GetAttribute("title").Should().Contain("no envía ningún aviso");
+    }
+
+    /// <summary>D-21: una Visita dada de alta a mano figura con Origen «Manual», no «Plataforma»; las demás conservan el suyo.</summary>
+    [Theory]
+    [InlineData(OrigenVisita.Manual, "Manual")]
+    [InlineData(OrigenVisita.Plataforma, "Plataforma")]
+    [InlineData(OrigenVisita.Correo, "Correo")]
+    [InlineData(OrigenVisita.WhatsApp, "WhatsApp")]
+    public void El_origen_se_pinta_con_su_rotulo(OrigenVisita origen, string rotulo)
+    {
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(Visita("Centro Norte", origen: origen));
+        var cut = Renderizar(mediator);
+
+        var rotulos = new[] { "Manual", "Plataforma", "Correo", "WhatsApp" };
+        Fila(cut, "Centro Norte").QuerySelectorAll(".badge").Select(b => b.TextContent.Trim()).Where(rotulos.Contains)
+            .Should().ContainSingle("la fila pinta un solo rótulo de Origen").Which.Should().Be(rotulo);
     }
 }

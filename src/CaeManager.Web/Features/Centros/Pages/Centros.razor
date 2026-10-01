@@ -332,13 +332,13 @@
                                 }
                                 else if (MostrarEstadoEnIndicadores(centro))
                                 {
-                                    <Badge Tono="EstadoCentroUi.Tono(centro.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(centro.Estado)</Badge>
+                                    <Badge Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)</Badge>
                                 }
                             </span>
                         </span>
                         @* Pieza 5: la última columna es siempre el menú «⋯» (MenuAcciones). Antes era el enlace
-                           suelto «Detalles». Orden del contrato: «Ver ficha 360» primero. Eliminar sigue
-                           disponible en lote, activando «Selección múltiple»: no hay baja por fila. *@
+                           suelto «Detalles». Orden del contrato: «Ver ficha 360» primero. «Eliminar centro» (baja lógica con «Deshacer»,
+                           D-16) está aquí y en lote, activando «Selección múltiple». *@
                         <div class="tarjeta-fila-acordeon-acciones">
                             <MenuAcciones EtiquetaAccesible="@Textos["MenuFilaEtiqueta", centro.Nombre]">
                                 <ItemMenuAccion OnClick="() => AbrirFichaCentro(centro.Id)">
@@ -347,6 +347,9 @@
                                 <ItemMenuAccion OnClick="() => AbrirPanelAsync(centro.Id)">
                                     @Textos["MenuVistaPrevia"]
                                 </ItemMenuAccion>
+                                <SoloConEscritura>
+                                    <ItemMenuAccion OnClick="() => PedirEliminarCentro(centro)">@Textos["MenuEliminarCentro"]</ItemMenuAccion>
+                                </SoloConEscritura>
                             </MenuAcciones>
                         </div>
                     </div>
@@ -470,9 +473,9 @@
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"
-    VisibleChanged="v => _confirmarEliminarLoteVisible = v"
-    Titulo="@($"¿Eliminar {_seleccionados.Count} centro(s)?")"
-    Mensaje="Se ocultarán de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador del Tenant puede recuperarlos desde Auditoría."
+    VisibleChanged="CambiarVisibilidadConfirmarEliminar"
+    Titulo="@(_centroAEliminarId is { } ? Textos["EliminarCentroTitulo", _centroAEliminarNombre].Value : $"¿Eliminar {_seleccionados.Count} centro(s)?")"
+    Mensaje="Se ocultará(n) de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador del Tenant puede recuperarlos desde Auditoría."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 </LimiteDeErrores>

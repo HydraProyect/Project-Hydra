@@ -69,4 +69,64 @@
   <data name="ConteoVariosFiltrado" xml:space="preserve">
     <value>{0} documents amb aquests filtres</value>
   </data>
+  <data name="RecRevisionTitulo" xml:space="preserve">
+    <value>Revisa abans d&apos;enviar</value>
+  </data>
+  <data name="RecRevisionPara" xml:space="preserve">
+    <value>Per a</value>
+  </data>
+  <data name="RecRevisionAsunto" xml:space="preserve">
+    <value>Assumpte</value>
+  </data>
+  <data name="RecRevisionTexto" xml:space="preserve">
+    <value>Text</value>
+  </data>
+  <data name="RecRevisionAviso" xml:space="preserve">
+    <value>S&apos;enviarà un correu extern a {0} destinatari(s). No es pot desfer.</value>
+  </data>
+  <data name="RecVolver" xml:space="preserve">
+    <value>Torna</value>
+  </data>
+  <data name="RecConfirmarEnviar" xml:space="preserve">
+    <value>Confirma i envia</value>
+  </data>
+  <data name="RecReenvioTitulo" xml:space="preserve">
+    <value>Reclama de nou</value>
+  </data>
+  <data name="RecReenvioMensaje" xml:space="preserve">
+    <value>S&apos;enviarà de nou un correu extern a {0} (assumpte «{1}», {2} document(s)). Els destinataris es resolen en aquest moment des de l&apos;agenda; l&apos;enviament no es pot desfer.</value>
+  </data>
+  <data name="RecBotonSinContacto" xml:space="preserve">
+    <value>No hi ha cap contacte a l&apos;agenda a qui reclamar. Afegeix-ne un amb «Afegeix contacte».</value>
+  </data>
+  <data name="RecBotonMarcaDestinatario" xml:space="preserve">
+    <value>Marca almenys un destinatari a «Se sol·licita a».</value>
+  </data>
+  <data name="RecBotonMarcaDocumento" xml:space="preserve">
+    <value>Marca almenys un document per reclamar.</value>
+  </data>
+  <data name="PlatSinVigenciaResumen" xml:space="preserve">
+    <value>{0} acceptada(s) sense vigència</value>
+  </data>
+  <data name="PlatSeleccionarSinVigencia" xml:space="preserve">
+    <value>Selecciona sense vigència</value>
+  </data>
+  <data name="PlatQuitarSeleccion" xml:space="preserve">
+    <value>Treu la selecció</value>
+  </data>
+  <data name="PlatAnotarBloque" xml:space="preserve">
+    <value>Anota vigència ({0})…</value>
+  </data>
+  <data name="PlatAnotarBloqueAyuda" xml:space="preserve">
+    <value>Marca abans les acceptades a les quals anotar la mateixa vigència.</value>
+  </data>
+  <data name="PlatIncluirEnBloque" xml:space="preserve">
+    <value>Inclou {0} de {1} en la vigència en bloc</value>
+  </data>
+  <data name="PlatBloqueAviso" xml:space="preserve">
+    <value>S&apos;anotarà la mateixa vigència en {0} acreditacions acceptades.</value>
+  </data>
+  <data name="PlatBloqueResultado" xml:space="preserve">
+    <value>Vigència anotada en {0} de {1} acreditacions.</value>
+  </data>
 </root>

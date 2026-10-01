@@ -13,6 +13,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
+using CaeManager.Web.Features.Centros;
 using CaeManager.Web.Features.Centros.Pages;
 using FluentAssertions;
 using FluentValidation;
@@ -235,5 +236,42 @@ public class CentrosListaGen2Tests : BunitContext
         _mediador.Enviadas.OfType<RestaurarCentroCommand>().Select(c => c.Id).Should().Equal([elegido.Id],
             "se restaura solo lo que el lote eliminó, no lo que pidió");
         Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje == "1 centro(s) restaurado(s).");
+    }
+
+    /// <summary>
+    /// D-16: la baja de UN Centro desde el «⋯» de su fila, con confirmación y «Deshacer». Pide solo ese
+    /// centro, no toca la selección múltiple y el aviso restaura exactamente lo eliminado.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_un_centro_desde_su_menu_confirma_pide_solo_ese_y_ofrece_deshacer()
+    {
+        var elegido = Centro("Centro Logístico Norte");
+        var otro = Centro("Centro Logístico Sur");
+        var cut = Renderizar(elegido, otro);
+        var fila = cut.FindAll(".tarjeta-fila-acordeon").Single(f => f.TextContent.Contains("Centro Logístico Norte"));
+
+        fila.QuerySelector(".menu-acciones-disparador")!.Click();
+        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Eliminar centro").ClickAsync(new MouseEventArgs());
+        cut.Find("[role=dialog]").TextContent.Should().Contain("¿Eliminar el centro «Centro Logístico Norte»?");
+        _mediador.Enviadas.OfType<EliminarCentrosCommand>().Should().BeEmpty("barrera: hasta confirmar no se elimina nada");
+
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        _mediador.Enviadas.OfType<EliminarCentrosCommand>().Single().Ids.Should().Equal([elegido.Id]);
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+        _mediador.Enviadas.OfType<RestaurarCentroCommand>().Select(c => c.Id).Should().Equal([elegido.Id]);
+    }
+
+    /// <summary>D-17: sin denominador de cumplimiento un Centro «Vigente» no se mide: «Sin datos», neutro.</summary>
+    [Theory]
+    [InlineData(EstadoCentro.Vigente, null, true)]
+    [InlineData(EstadoCentro.Vigente, 100, false)]
+    [InlineData(EstadoCentro.Vencido, null, false)]
+    public void Un_centro_vigente_sin_cumplimiento_medido_figura_sin_datos(EstadoCentro estado, int? cumplimiento, bool sinDatos)
+    {
+        EstadoCentroUi.EsSinDatos(estado, cumplimiento).Should().Be(sinDatos);
+        EstadoCentroUi.Texto(estado, cumplimiento).Should().Be(sinDatos ? "Sin datos" : EstadoCentroUi.Texto(estado));
+        EstadoCentroUi.Tono(estado, cumplimiento).Should().Be(sinDatos ? TonoBadge.Neutro : EstadoCentroUi.Tono(estado));
     }
 }

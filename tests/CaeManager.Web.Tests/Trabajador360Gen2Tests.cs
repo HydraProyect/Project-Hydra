@@ -11,6 +11,7 @@ using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Gestiones;
@@ -72,6 +73,7 @@ public class Trabajador360Gen2Tests : BunitContext
         public Dictionary<Guid, List<CentroDocumentacionTrabajadorDto>> Centros { get; } = [];
         public Dictionary<Guid, List<GestionListaDto>> Gestiones { get; } = [];
         public List<TipoDocumentoListaDto> Tipos { get; } = [];
+        public List<TrabajadorSelectorDto> Selector { get; } = [];
         public Dictionary<Guid, List<DocumentoListaDto>> Documentos { get; } = [];
 
         /// <summary>Si es true, ObtenerDocumentosQuery lanza: el resto de la página tiene que seguir en pie.</summary>
@@ -107,6 +109,7 @@ public class Trabajador360Gen2Tests : BunitContext
                 (IReadOnlyList<CentroDocumentacionTrabajadorDto>)(Centros.GetValueOrDefault(q.TrabajadorId) ?? []),
             ObtenerGestionesQuery q => Paginar(q),
             ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)Tipos,
+            ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)Selector,
             ObtenerAgendaContactosQuery => (IReadOnlyList<ContactoAgendaDto>)[],
             ObtenerDocumentosQuery when FallarDocumentos => throw new InvalidOperationException("Fallo simulado de la consulta de documentos."),
             ObtenerDocumentosQuery q => PaginarDocumentos(q),
@@ -269,6 +272,101 @@ public class Trabajador360Gen2Tests : BunitContext
         SinEspaciosDeMas(contadores[0].TextContent).Should().Be("2 documentos con incidencia",
             "el número sin unidad no dice qué cuenta: la glosa existe para el nombre accesible del botón");
         contadores[0].ClassList.Should().Contain("pestanas-contador-alerta");
+    }
+
+    /// <summary>
+    /// D-22 (recorrido de 2026-10-01): «Sin confirmar» no es incidencia —cuenta como al día, con
+    /// aviso—, igual que en el panel Documentación base (#1015). Faltante, Vencido, Urgente y Próximo
+    /// siguen contando.
+    /// </summary>
+    [Fact]
+    public void Sin_confirmar_cuenta_como_al_dia_con_aviso_y_no_como_incidencia_roja()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.SinConfirmar,
+                Documento("Reconocimiento médico", EstadoDocumento.SinConfirmar),
+                Documento("Formación PRL — 20 h", EstadoDocumento.Vigente),
+                Documento("Formación específica de centro", EstadoDocumento.Vencido))
+        ];
+
+        var cut = Renderizar(id);
+
+        var cabecera = cut.Find(".cabecera-pagina");
+        // El porcentaje sigue la regla de Centro 360 (solo cuenta lo vigente: 1 de 3); la única incidencia es el vencido.
+        cabecera.QuerySelector(".cabecera-pagina-inicio .anillo-cumplimiento-texto")!.TextContent.Trim().Should().StartWith("33");
+        cabecera.TextContent.Should().Contain("1 incidencia — Centro Norte")
+            .And.Contain("Formación específica de centro — Vencido")
+            .And.NotContain("Reconocimiento médico — Sin confirmar");
+        cabecera.TextContent.Should().Contain("Vigencia sin confirmar: 1", "al día no es «sin aviso»");
+        SinEspaciosDeMas(cut.Find(".pestanas-contador").TextContent).Should().Be("1 documento con incidencia");
+    }
+
+    [Fact]
+    public void Un_centro_con_solo_documentos_sin_confirmar_no_tiene_incidencias_y_lo_avisa()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.SinConfirmar,
+                Documento("Reconocimiento médico", EstadoDocumento.SinConfirmar))
+        ];
+
+        var cut = Renderizar(id);
+
+        cut.FindAll(".pestanas-contador").Should().BeEmpty("sin incidencias no hay píldora de alerta");
+        cut.Find(".cabecera-pagina").TextContent.Should().NotContain("incidencia —",
+            "el badge rojo de incidencias del centro no aparece");
+        var tarjeta = cut.Find(".trabajador360-centro");
+        tarjeta.ClassList.Should().NotContain("trabajador360-centro-con-incidencia");
+        tarjeta.TextContent.Should().Contain("Sin incidencias · vigencia sin confirmar");
+        cut.Find(".anillo-cumplimiento-texto").TextContent.Trim().Should().StartWith("0",
+            "el porcentaje no cambia con D-22: solo cuenta lo vigente, como Centro 360 (decisión pendiente del propietario)");
+    }
+
+    /// <summary>
+    /// D-06/D-22: el botón primario no puede quedar deshabilitado y sin salida en un trabajador
+    /// recién creado; abre el drawer de Nuevo documento con el trabajador elegido y el tipo por elegir allí.
+    /// </summary>
+    [Fact]
+    public async Task Subir_documento_en_un_trabajador_sin_documentos_esta_habilitado_y_abre_Nuevo_documento_con_el_trabajador_elegido()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [];
+        mediador.Selector.Add(new TrabajadorSelectorDto(id, "Salas Moreno, Javier", null, null));
+
+        var cut = Renderizar(id);
+
+        var boton = cut.Find(".cabecera-pagina .trabajador360-acciones > button");
+        boton.TextContent.Trim().Should().Be("Subir documento");
+        boton.HasAttribute("disabled").Should().BeFalse("sin documento al que apuntar abre el alta, no queda muerto");
+
+        await boton.ClickAsync(new MouseEventArgs());
+
+        cut.Markup.Should().Contain("Nuevo documento");
+        mediador.Enviadas.OfType<ObtenerTrabajadoresParaSelectorQuery>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task La_pestana_Documentacion_vacia_ofrece_Subir_documento()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [];
+
+        var cut = Renderizar(id);
+        await cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Documentación")).ClickAsync(new MouseEventArgs());
+
+        cut.Markup.Should().Contain("todavía no tiene documentos");
+        cut.Find(".texto-vacio-seccion + button, .texto-vacio-seccion ~ button").TextContent.Trim().Should().Be("Subir documento");
     }
 
     [Fact]

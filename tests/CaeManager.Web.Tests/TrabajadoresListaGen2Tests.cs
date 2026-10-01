@@ -1447,6 +1447,57 @@ public class TrabajadoresListaGen2Tests : BunitContext
         await SalirYComprobarQuePreguntaAsync(cut);
     }
 
+    /// <summary>D-05 (recorrido de 2026-10-01): «Cancelar» con datos escritos cerraba sin avisar.</summary>
+    [Fact]
+    public async Task Cancelar_el_alta_con_datos_escritos_pregunta_si_descartar_y_seguir_editando_la_mantiene()
+    {
+        var cut = Renderizar(new MediatorFalso());
+        await AbrirAltaAsync(cut);
+        await EscribirDocumentoAsync(cut, "12345678Z");
+
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        cut.FindAll(".drawer-panel").Should().NotBeEmpty("el formulario sigue abierto hasta que se confirme");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-panel").Should().NotBeEmpty();
+
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-panel").Should().BeEmpty("confirmar el descarte cierra");
+    }
+
+    [Fact]
+    public async Task Cancelar_el_alta_sin_tocar_cierra_sin_preguntar()
+    {
+        var cut = Renderizar(new MediatorFalso());
+        await AbrirAltaAsync(cut);
+
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// D-05: «Selecciona una empresa.» era del intento de guardar anterior; al elegir la empresa no puede
+    /// seguir en pantalla hasta el siguiente guardado.
+    /// </summary>
+    [Fact]
+    public async Task El_aviso_de_empresa_sin_elegir_desaparece_al_elegirla()
+    {
+        var cut = Renderizar(new MediatorFalso());
+        await AbrirAltaAsync(cut);
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        cut.Find(".drawer-panel .alerta-formulario").TextContent.Trim().Should().Be("Selecciona una empresa.",
+            "control positivo: el aviso existe antes de elegir");
+
+        await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = EmpresaEbro.ToString() });
+
+        cut.FindAll(".drawer-panel .alerta-formulario").Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Aviso_el_alta_sin_tocar_con_la_Empresa_del_filtro_preseleccionada_no_pregunta()
     {

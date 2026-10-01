@@ -79,6 +79,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private bool _guardando;
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
+    private string? _errorTrabajadores => ObtenerError("TrabajadorIds");
 
     // Prellenado desde "Crear visita" de una sugerencia detectada por IA en
     // un correo (ver SugerenciaVisitaCorreo) — se manda de vuelta en
@@ -735,6 +736,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     {
         OrigenVisita.Correo => Textos["OrigenCorreo"].Value,
         OrigenVisita.WhatsApp => Textos["OrigenWhatsApp"].Value,
+        OrigenVisita.Manual => Textos["OrigenManual"].Value,
         _ => Textos["OrigenPlataforma"].Value
     };
 
@@ -784,6 +786,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     private void AlternarTrabajador(Guid trabajadorId, bool seleccionado)
     {
+        _erroresCampo.Remove("TrabajadorIds");
         if (seleccionado)
             _trabajadorIdsSeleccionados.Add(trabajadorId);
         else
@@ -819,6 +822,16 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
         try
         {
+            // Sin trabajadores el comando se rechazaría igualmente: se avisa en línea junto a
+            // la lista y con un toast, porque con el cuerpo del drawer desplazado el banner de
+            // arriba no se ve (D-20).
+            if (_trabajadorIdsSeleccionados.Count == 0)
+            {
+                _erroresCampo["TrabajadorIds"] = Textos["ErrorSeleccionaTrabajador"];
+                ToastService.Mostrar(Textos["ErrorSeleccionaTrabajador"], TonoToast.Error);
+                return;
+            }
+
             if (!DateOnly.TryParse(_fechaInicio, out var fechaInicio) || !DateOnly.TryParse(_fechaFin, out var fechaFin))
             {
                 _mensajeErrorFormulario = Textos["ErrorFechasNoValidas"];
@@ -865,6 +878,12 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             _erroresCampo = ex.Errors
                 .GroupBy(e => e.PropertyName)
                 .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
+
+            // Los errores de campo sin sitio propio en el formulario también deben verse.
+            var sinCampo = _erroresCampo.Where(e => e.Key != "TrabajadorIds").Select(e => e.Value).FirstOrDefault();
+            if (sinCampo is not null)
+                _mensajeErrorFormulario = sinCampo;
+            ToastService.Mostrar(_errorTrabajadores ?? sinCampo ?? Textos["ErrorGuardar"], TonoToast.Error);
         }
         catch (Exception)
         {

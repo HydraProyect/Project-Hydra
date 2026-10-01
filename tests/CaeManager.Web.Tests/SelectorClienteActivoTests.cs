@@ -214,6 +214,38 @@ public class SelectorClienteActivoTests : BunitContext
             new[] { Norte, Sur, Origen }.Select(id => id.ToString()));
     }
 
+    [Theory]
+    [InlineData("trabajadores/11111111-2222-3333-4444-555555555555")]
+    [InlineData("centros/11111111-2222-3333-4444-555555555555")]
+    [InlineData("empresas/11111111-2222-3333-4444-555555555555")]
+    [InlineData("clientes/11111111-2222-3333-4444-555555555555?q=x")]
+    public async Task En_una_ficha_por_Id_la_ruta_de_retorno_lleva_la_pista_del_Tenant_que_se_deja(string url)
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        var cut = Renderizar(seleccionado: Norte, url: url);
+
+        await Abrir(cut);
+
+        var ruta = "/" + url.Split('?')[0];
+        cut.Find("input[name=returnUrl]").GetAttribute("value").Should().Be($"{ruta}?tenant={Norte}",
+            "la ficha pertenece al Tenant que se abandona (I15); la pista es solo una coordenada, nunca autoridad");
+    }
+
+    [Theory]
+    [InlineData("trabajadores")]
+    [InlineData("clientes/11111111-2222-3333-4444-555555555555/lectura-ia")]
+    [InlineData("empresas/11111111-2222-3333-4444-555555555555/deteccion-trabajadores")]
+    [InlineData("trabajadores/no-es-un-guid")]
+    public async Task Fuera_de_una_ficha_por_Id_la_ruta_de_retorno_no_lleva_pista(string url)
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        var cut = Renderizar(seleccionado: Norte, url: url);
+
+        await Abrir(cut);
+
+        cut.Find("input[name=returnUrl]").GetAttribute("value").Should().Be("/" + url);
+    }
+
     [Fact]
     public async Task La_ruta_de_retorno_sigue_a_la_navegacion_del_circuito()
     {

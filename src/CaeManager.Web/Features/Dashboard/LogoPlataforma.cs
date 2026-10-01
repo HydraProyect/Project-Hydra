@@ -11,11 +11,14 @@ namespace CaeManager.Web.Features.Dashboard;
 /// </para>
 ///
 /// <para>
-/// <b>El catálogo tiene 23 proveedores y aquí hay 4 marcas.</b> Eso no es un
-/// inventario a medio hacer: es el caso normal, y por eso devolver
-/// <see langword="null"/> es una respuesta de primera clase — la fila se pinta
-/// igual, solo con el nombre. Añadir una marca es añadir una entrada y su
-/// fichero; no hay nada más que tocar.
+/// <b>El catálogo tiene 23 proveedores y aquí hay 19 marcas.</b> Las cuatro
+/// restantes (Valora, Arch, Opground y Norprevención) no tienen una marca
+/// oficial localizable —dominio redirigido a otra marca, en venta o inactivo,
+/// o logotipo solo del grupo matriz—, así que devolver
+/// <see langword="null"/> sigue siendo una respuesta de primera clase: la fila
+/// se pinta igual, solo con el nombre. Añadir una marca es añadir una entrada y
+/// su fichero; no hay nada más que tocar. La procedencia de cada fichero está
+/// registrada fuera de este repositorio.
 /// </para>
 ///
 /// <para>
@@ -35,6 +38,21 @@ public static class LogoPlataforma
         ["dokify"] = "dokify.jpg",
         ["e-coordina"] = "ecoordina.png",
         ["ctaimacae-legacy"] = "ctaima.png",
+        ["twind"] = "twind.png",
+        ["metacontratas"] = "metacontratas.png",
+        ["coordinaplus"] = "coordinaplus.png",
+        ["ucae"] = "ucae.png",
+        ["validate"] = "validate.png",
+        ["egestiona"] = "egestiona.png",
+        ["smartosh"] = "smartosh.png",
+        ["ecogestor"] = "ecogestor.png",
+        ["sabentis"] = "sabentis.png",
+        ["unifikas"] = "unifikas.png",
+        ["quiron-prevencion"] = "quironprevencion.png",
+        ["previntegral"] = "previntegral.png",
+        ["ergasia"] = "ergasia.png",
+        ["playcae"] = "playcae.png",
+        ["docuprl"] = "docuprl.png",
     };
 
     /// <summary>

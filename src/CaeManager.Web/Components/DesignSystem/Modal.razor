@@ -103,15 +103,21 @@
     /// <summary>
     /// P1-E2b: si el formulario de dentro tiene algo que se perdería al cerrar. Se consulta
     /// al pedir el cierre con la X, Escape o un clic en el fondo; con <c>true</c>, antes de
-    /// cerrar se pregunta «¿Descartar cambios?» (ConfirmarDescartarCambios). Los botones del
-    /// propio formulario («Cancelar», «Guardar») no pasan por aquí: son decisión explícita.
+    /// cerrar se pregunta «¿Descartar cambios?» (ConfirmarDescartarCambios). «Guardar» no pasa por aquí;
+    /// «Cancelar» sí, si el formulario llama a <see cref="SolicitarCierreAsync"/> (D-05).
     /// Es la misma función que el formulario pasa a AvisoCambiosSinGuardar.
     /// </summary>
     [Parameter] public Func<bool>? HayCambios { get; set; }
 
     private bool _confirmandoDescarte;
 
-    private Task SolicitarCierreAsync()
+    /// <summary>
+    /// Cierre «como la X»: con cambios sin guardar pregunta «¿Descartar cambios?» y sin ellos cierra.
+    /// Lo usan la X, Escape y el clic en el fondo, y el botón «Cancelar» del formulario de dentro
+    /// (D-05 del recorrido de 2026-10-01: Cancelar con datos escritos cerraba sin aviso), a través
+    /// de una referencia al componente.
+    /// </summary>
+    public Task SolicitarCierreAsync()
     {
         if (HayCambios?.Invoke() == true)
         {

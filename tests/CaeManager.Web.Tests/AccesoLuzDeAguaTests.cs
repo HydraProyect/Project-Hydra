@@ -165,6 +165,67 @@ public class AccesoLuzDeAguaTests : BunitContext
         _azureAd.ClientSecret = "secreto";
     }
 
+    // D-09: con sesión iniciada la página de login redirige en vez de mostrarse.
+    [Theory]
+    [InlineData(null, "/")]
+    [InlineData("/trabajadores", "/trabajadores")]
+    [InlineData("//atacante.example", "/")]
+    public void Con_sesion_iniciada_el_login_redirige_al_destino_saneado(string? returnUrl, string esperado)
+    {
+        var nav = Services.GetRequiredService<NavigationManager>();
+        var contexto = ContextoHttp("GET", autenticado: true);
+        if (returnUrl is not null)
+            nav.NavigateTo("/cuenta/iniciar-sesion?returnUrl=" + Uri.EscapeDataString(returnUrl));
+
+        Render<Login>(p => p.AddCascadingValue(contexto));
+
+        new Uri(nav.Uri).AbsolutePath.Should().Be(esperado);
+    }
+
+    [Fact]
+    public void Con_sesion_un_returnUrl_que_apunta_al_propio_login_va_al_inicio_sin_bucle()
+    {
+        var nav = Services.GetRequiredService<NavigationManager>();
+        nav.NavigateTo("/cuenta/iniciar-sesion?returnUrl=" + Uri.EscapeDataString("/cuenta/iniciar-sesion"));
+
+        Render<Login>(p => p.AddCascadingValue(ContextoHttp("GET", autenticado: true)));
+
+        new Uri(nav.Uri).AbsolutePath.Should().Be("/");
+    }
+
+    [Fact]
+    public void Sin_sesion_el_login_se_muestra_y_no_redirige()
+    {
+        var nav = Services.GetRequiredService<NavigationManager>();
+        var uriInicial = nav.Uri;
+
+        var cut = Render<Login>(p => p.AddCascadingValue(ContextoHttp("GET", autenticado: false)));
+
+        nav.Uri.Should().Be(uriInicial);
+        cut.FindAll("button[type=submit]").Should().ContainSingle();
+    }
+
+    [Fact]
+    public void El_POST_del_formulario_no_redirige_aunque_el_contexto_traiga_identidad()
+    {
+        var nav = Services.GetRequiredService<NavigationManager>();
+        var uriInicial = nav.Uri;
+
+        Render<Login>(p => p.AddCascadingValue(ContextoHttp("POST", autenticado: true)));
+
+        nav.Uri.Should().Be(uriInicial, "el POST lo resuelve IniciarSesionAsync, no el guard de GET");
+    }
+
+    private static Microsoft.AspNetCore.Http.HttpContext ContextoHttp(string metodo, bool autenticado)
+    {
+        var contexto = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        contexto.Request.Method = metodo;
+        if (autenticado)
+            contexto.User = new System.Security.Claims.ClaimsPrincipal(
+                new System.Security.Claims.ClaimsIdentity("Cookies"));
+        return contexto;
+    }
+
     /// <summary>El UserManager solo existe para construir el SignInManager; no se consulta.</summary>
     private sealed class AlmacenSinUso : IUserStore<ApplicationUser>
     {

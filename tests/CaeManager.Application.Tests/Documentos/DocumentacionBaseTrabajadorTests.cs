@@ -148,4 +148,18 @@ public class DocumentacionBaseTrabajadorTests
         DocumentacionBaseTrabajador.Traducir(EstadoDocumento.Faltante).Should().Be(EstadoIndicadorBase.Falta);
         DocumentacionBaseTrabajador.Traducir((EstadoDocumento)99).Should().Be(EstadoIndicadorBase.Falta);
     }
+
+    /// <summary>D-22: Trabajador 360 cuenta las incidencias con la misma regla que el panel (sin confirmar = al día con aviso).</summary>
+    [Theory]
+    [InlineData(EstadoDocumento.Vigente, false)]
+    [InlineData(EstadoDocumento.SinCaducidad, false)]
+    [InlineData(EstadoDocumento.SinConfirmar, false)]
+    [InlineData(EstadoDocumento.Proximo, true)]
+    [InlineData(EstadoDocumento.Urgente, true)]
+    [InlineData(EstadoDocumento.Vencido, true)]
+    [InlineData(EstadoDocumento.Faltante, true)]
+    public void Solo_lo_que_el_panel_no_da_por_al_dia_con_aviso_cuenta_como_incidencia_en_la_ficha(EstadoDocumento estado, bool esperado)
+    {
+        DocumentacionBaseTrabajador.CuentaComoIncidencia(estado).Should().Be(esperado);
+    }
 }

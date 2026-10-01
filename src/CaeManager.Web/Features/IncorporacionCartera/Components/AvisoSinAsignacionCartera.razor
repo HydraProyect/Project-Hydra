@@ -4,7 +4,7 @@
 <div class="aviso-sin-asignacion-cartera" data-estado="sin-asignacion-cartera">
     <EstadoVacio NombreIcono="cartera"
                  Titulo="@(Titulo ?? Textos["SinAsignacionTitulo"])"
-                 Descripcion="@(Descripcion ?? Textos["SinAsignacionDetalle"])">
+                 Descripcion="@(Descripcion ?? Textos[_esCoordinador ? "SinAsignacionDetalleCoordinador" : "SinAsignacionDetalle"])">
         <Accion>
             @if (_puedeAnadirACartera)
             {
