@@ -210,6 +210,9 @@
                         @EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)
                     </Badge>
                 </TemplateColumn>
+                <TemplateColumn Title="@Textos["DocBaseTitulo"]">
+                    <PanelDocumentacionBase Compacto="true" Datos="DocumentacionBaseDe(context.Id)" />
+                </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
                     <MenuAcciones>
                         <ItemMenuAccion OnClick='() => AbrirPreview(context.Id)'>

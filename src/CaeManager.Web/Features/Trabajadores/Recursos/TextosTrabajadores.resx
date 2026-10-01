@@ -657,4 +657,52 @@
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Los trabajadores se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
   </data>
+  <data name="DocBaseTitulo" xml:space="preserve">
+    <value>Documentación base</value>
+  </data>
+  <data name="DocBaseAlDia" xml:space="preserve">
+    <value>Al día en lo básico</value>
+  </data>
+  <data name="DocBaseNoAlDia" xml:space="preserve">
+    <value>Falta algo en lo básico</value>
+  </data>
+  <data name="DocBaseNota" xml:space="preserve">
+    <value>Cuatro documentos de referencia. No indica aptitud para un Centro ni que sean obligatorios para su oficio.</value>
+  </data>
+  <data name="DocBaseTipoAptitudMedica" xml:space="preserve">
+    <value>Aptitud médica</value>
+  </data>
+  <data name="DocBaseTipoFormacionArt19" xml:space="preserve">
+    <value>Formación Art. 19</value>
+  </data>
+  <data name="DocBaseTipoInformacionArt18" xml:space="preserve">
+    <value>Información Art. 18</value>
+  </data>
+  <data name="DocBaseTipoEntregaEpi" xml:space="preserve">
+    <value>Entrega de EPI</value>
+  </data>
+  <data name="DocBaseEstadoVigente" xml:space="preserve">
+    <value>Vigente</value>
+  </data>
+  <data name="DocBaseEstadoPresente" xml:space="preserve">
+    <value>Presente</value>
+  </data>
+  <data name="DocBaseEstadoProximoAVencer" xml:space="preserve">
+    <value>Próximo a vencer</value>
+  </data>
+  <data name="DocBaseEstadoVencido" xml:space="preserve">
+    <value>Vencido</value>
+  </data>
+  <data name="DocBaseEstadoFalta" xml:space="preserve">
+    <value>Falta</value>
+  </data>
+  <data name="DocBaseEstadoSinConfirmar" xml:space="preserve">
+    <value>Vigencia sin confirmar</value>
+  </data>
+  <data name="DocBaseResumenAriaAlDia" xml:space="preserve">
+    <value>Documentación base: al día</value>
+  </data>
+  <data name="DocBaseResumenAriaNoAlDia" xml:space="preserve">
+    <value>Documentación base: falta o requiere revisión</value>
+  </data>
 </root>
