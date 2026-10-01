@@ -14,6 +14,7 @@
 @using CaeManager.Web.Components.Workspace
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Trabajadores.Components
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(NombreCompleto ?? Textos["TituloDetalleSinNombre"].Value) — @Marca.Nombre</PageTitle>
@@ -96,6 +97,7 @@
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
+        <PanelDocumentacionBase TrabajadorId="TrabajadorId" />
         <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="@Textos["AriaSeccionesTrabajador360"]">
             @switch (_pestanaActiva)
             {

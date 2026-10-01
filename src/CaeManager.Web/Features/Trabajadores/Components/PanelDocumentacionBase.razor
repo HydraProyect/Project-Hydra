@@ -1,0 +1,160 @@
+@*
+    Panel «Documentación base»: los cuatro documentos que se miran primero de un Trabajador
+    (aptitud médica, formación Art. 19, información Art. 18, entrega de EPI) y si está al día.
+    Es una vista de referencia: ni afirma que ninguno sea obligatorio por oficio ni equivale
+    a «apto para un Centro» (TipoDocumentoCentro, otro plano). Los estados salen de
+    DocumentacionBaseTrabajador, que reutiliza CalculadoraEstadoDocumento. «Vigencia sin
+    confirmar» cuenta como al día, pero se avisa con texto visible: junto al resumen compacto y
+    en una línea propia del panel completo, además del indicador.
+
+    Dos modos de alimentarlo: con Datos ya cargados (la lista pide una página entera de una
+    vez) o con TrabajadorId (cajón y ficha), que lo carga él. Compacto = solo cuatro puntos
+    con el resumen, para la fila de la lista.
+*@
+@using CaeManager.Application.Documentos.DocumentacionBase
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentacionBaseTrabajadores
+@using CaeManager.Web.Components.DesignSystem
+@using MediatR
+@using CaeManager.Web.Features.Trabajadores.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosTrabajadores> Textos
+@inject IMediator Mediator
+
+@if (_datos is not null)
+{
+    @if (Compacto)
+    {
+        <span class="panel-doc-base-compacto" role="group" aria-label="@AriaResumen(_datos)"
+              title="@(_datos.TieneVigenciaSinConfirmar ? Textos["DocBaseAvisoSinConfirmar"].Value : null)">
+            <Badge Tono="@(_datos.AlDia ? TonoBadge.Exito : TonoBadge.Advertencia)" Tamano="TamanoBadge.Pequeno">
+                @(_datos.AlDia ? Textos["DocBaseAlDia"] : Textos["DocBaseNoAlDia"])
+            </Badge>
+            @if (_datos.TieneVigenciaSinConfirmar)
+            {
+                <span class="panel-doc-base-compacto-aviso">@Textos["DocBaseCompactoSinConfirmar"]</span>
+            }
+            @foreach (var indicador in _datos.Indicadores)
+            {
+                <span class="panel-doc-base-punto panel-doc-base-punto-@Clase(indicador.Estado)"
+                      title="@($"{TextoTipo(indicador.Tipo)}: {TextoEstado(indicador)}")" @key="indicador.Tipo"></span>
+            }
+        </span>
+    }
+    else
+    {
+        <section class="panel-doc-base" aria-label="@Textos["DocBaseTitulo"]">
+            <div class="panel-doc-base-cabecera">
+                <strong>@Textos["DocBaseTitulo"]</strong>
+                <Badge Tono="@(_datos.AlDia ? TonoBadge.Exito : TonoBadge.Advertencia)">
+                    @(_datos.AlDia ? Textos["DocBaseAlDia"] : Textos["DocBaseNoAlDia"])
+                </Badge>
+            </div>
+            <ul class="panel-doc-base-lista">
+                @foreach (var indicador in _datos.Indicadores)
+                {
+                    <li class="panel-doc-base-fila" @key="indicador.Tipo">
+                        <span>@TextoTipo(indicador.Tipo)</span>
+                        <Badge Tono="TonoDe(indicador.Estado)" Tamano="TamanoBadge.Pequeno">@TextoEstado(indicador)</Badge>
+                        @if (indicador.FechaVencimiento is { } vence && indicador.Estado is EstadoIndicadorBase.Vigente or EstadoIndicadorBase.ProximoAVencer or EstadoIndicadorBase.Vencido)
+                        {
+                            <span class="panel-doc-base-fecha">@vence.ToString("dd/MM/yyyy")</span>
+                        }
+                    </li>
+                }
+            </ul>
+            @if (_datos.TieneVigenciaSinConfirmar)
+            {
+                <p class="panel-doc-base-aviso" role="note">@Textos["DocBaseAvisoSinConfirmar"]</p>
+            }
+            <p class="panel-doc-base-nota">@Textos["DocBaseNota"]</p>
+        </section>
+    }
+}
+
+@code {
+    private DocumentacionBaseTrabajadorDto? _datos;
+    private Guid? _cargadoPara;
+
+    /// <summary>Datos ya cargados (lista). Si es null y hay <see cref="TrabajadorId"/>, se cargan aquí.</summary>
+    [Parameter] public DocumentacionBaseTrabajadorDto? Datos { get; set; }
+
+    [Parameter] public Guid? TrabajadorId { get; set; }
+
+    [Parameter] public bool Compacto { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Datos is not null)
+        {
+            _datos = Datos;
+            _cargadoPara = null;
+            return;
+        }
+
+        if (TrabajadorId is not { } id)
+        {
+            _datos = null;
+            _cargadoPara = null;
+            return;
+        }
+
+        if (_cargadoPara == id)
+            return;
+
+        _cargadoPara = id;
+        _datos = null;
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerDocumentacionBaseTrabajadoresQuery([id]));
+            // Una respuesta de un Trabajador anterior no es de este.
+            if (_cargadoPara == id)
+                _datos = resultado.GetValueOrDefault(id);
+        }
+        catch (Exception)
+        {
+            // Es una ayuda de lectura: si falla, el panel no se pinta y el resto de la pantalla sigue.
+            if (_cargadoPara == id)
+                _datos = null;
+        }
+    }
+
+    private string AriaResumen(DocumentacionBaseTrabajadorDto datos) =>
+        !datos.AlDia ? Textos["DocBaseResumenAriaNoAlDia"]
+        : datos.TieneVigenciaSinConfirmar ? Textos["DocBaseResumenAriaAlDiaSinConfirmar"]
+        : Textos["DocBaseResumenAriaAlDia"];
+
+    private string TextoTipo(TipoDocumentoBase tipo) => tipo switch
+    {
+        TipoDocumentoBase.AptitudMedica => Textos["DocBaseTipoAptitudMedica"],
+        TipoDocumentoBase.FormacionArt19 => Textos["DocBaseTipoFormacionArt19"],
+        TipoDocumentoBase.InformacionArt18 => Textos["DocBaseTipoInformacionArt18"],
+        TipoDocumentoBase.EntregaEpi => Textos["DocBaseTipoEntregaEpi"],
+        _ => tipo.ToString()
+    };
+
+    // Información Art. 18 no vence: su «vigente» se lee «presente».
+    private string TextoEstado(IndicadorDocumentacionBase indicador) => indicador.Estado switch
+    {
+        EstadoIndicadorBase.Vigente when indicador.Tipo == TipoDocumentoBase.InformacionArt18 => Textos["DocBaseEstadoPresente"],
+        EstadoIndicadorBase.Vigente => Textos["DocBaseEstadoVigente"],
+        EstadoIndicadorBase.ProximoAVencer => Textos["DocBaseEstadoProximoAVencer"],
+        EstadoIndicadorBase.Vencido => Textos["DocBaseEstadoVencido"],
+        EstadoIndicadorBase.SinConfirmar => Textos["DocBaseEstadoSinConfirmar"],
+        _ => Textos["DocBaseEstadoFalta"]
+    };
+
+    private static TonoBadge TonoDe(EstadoIndicadorBase estado) => estado switch
+    {
+        EstadoIndicadorBase.Vigente => TonoBadge.Exito,
+        EstadoIndicadorBase.ProximoAVencer => TonoBadge.Advertencia,
+        EstadoIndicadorBase.SinConfirmar => TonoBadge.Advertencia,
+        _ => TonoBadge.Peligro
+    };
+
+    private static string Clase(EstadoIndicadorBase estado) => estado switch
+    {
+        EstadoIndicadorBase.Vigente => "ok",
+        EstadoIndicadorBase.ProximoAVencer or EstadoIndicadorBase.SinConfirmar => "aviso",
+        _ => "mal"
+    };
+}

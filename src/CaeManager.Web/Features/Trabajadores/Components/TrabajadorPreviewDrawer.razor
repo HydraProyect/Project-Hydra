@@ -25,6 +25,7 @@
         </div>
 
         <div class="cuerpo-preview-trabajador">
+        <PanelDocumentacionBase TrabajadorId="TrabajadorId" />
         <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="@Textos["AriaSeccionesTrabajador"]">
             @if (_cargando && _pestanaActiva == "informacion")
             {

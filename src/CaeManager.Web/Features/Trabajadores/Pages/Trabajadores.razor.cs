@@ -7,6 +7,8 @@ using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajadores;
 using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
+using CaeManager.Application.Documentos.DocumentacionBase;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentacionBaseTrabajadores;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
@@ -173,6 +175,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             _seleccionados.Clear();
     }
     private List<TrabajadorListaDto> _elementosPagina = [];
+    private IReadOnlyDictionary<Guid, DocumentacionBaseTrabajadorDto> _documentacionBase = new Dictionary<Guid, DocumentacionBaseTrabajadorDto>();
+
+    private DocumentacionBaseTrabajadorDto? DocumentacionBaseDe(Guid trabajadorId) => _documentacionBase.GetValueOrDefault(trabajadorId);
     private Guid? _idEnfocado;
     private bool _eliminandoLote;
     private bool _confirmarEliminarLoteVisible;
@@ -329,6 +334,19 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// </summary>
     private int _cargaVigente;
 
+    private async Task<IReadOnlyDictionary<Guid, DocumentacionBaseTrabajadorDto>> CargarDocumentacionBaseAsync(
+        List<TrabajadorListaDto> elementos, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await Mediator.Send(new ObtenerDocumentacionBaseTrabajadoresQuery(elementos.Select(e => e.Id).ToList()), cancellationToken);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new Dictionary<Guid, DocumentacionBaseTrabajadorDto>();
+        }
+    }
+
     private async ValueTask<GridItemsProviderResult<TrabajadorListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<TrabajadorListaDto> request)
     {
@@ -358,6 +376,13 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             _totalElementos = resultado.TotalElementos;
 
             var elementos = resultado.Elementos.ToList();
+
+            // Ayuda de lectura de la página ya pedida: si falla, la columna queda vacía y la lista sigue.
+            var documentacionBase = await CargarDocumentacionBaseAsync(elementos, request.CancellationToken);
+            if (carga != _cargaVigente)
+                return GridItemsProviderResult.From(new List<TrabajadorListaDto>(), 0);
+            _documentacionBase = documentacionBase;
+
             _elementosPagina = elementos;
             _seleccionados.Clear();
             _idEnfocado = null;

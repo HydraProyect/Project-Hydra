@@ -1,5 +1,7 @@
 ﻿using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Domain.Common;
+using CaeManager.Application.Documentos.DocumentacionBase;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentacionBaseTrabajadores;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -168,6 +170,33 @@ public class AlcancePorIdTests : IAsyncLifetime
             new ObtenerDocumentoPorIdQuery(_documentoDeTrabajadorVisible.Id), CancellationToken.None);
 
         resultado.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task La_documentacion_base_solo_sale_de_los_trabajadores_visibles_y_cuenta_sus_documentos()
+    {
+        var tipo = await _dbContext.TiposDocumento.FirstOrDefaultAsync(t => t.Nombre == "Entrega de EPI")
+            ?? new TipoDocumento("Entrega de EPI", 12, true, 95, AmbitoAplicacion.Trabajador);
+        if (_dbContext.Entry(tipo).State == EntityState.Detached)
+            _dbContext.TiposDocumento.Add(tipo);
+        await _dbContext.SaveChangesAsync();
+        var trabajadorAjenoId = _documentoDeTrabajadorAjeno.TrabajadorId!.Value;
+        _dbContext.Documentos.AddRange(
+            Documento.DeTrabajador(_trabajadorVisibleId, tipo.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca),
+            Documento.DeTrabajador(trabajadorAjenoId, tipo.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca));
+        await _dbContext.SaveChangesAsync();
+
+        var handler = new ObtenerDocumentacionBaseTrabajadoresQueryHandler(
+            _dbContext, _dbContext, _dbContext, new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisibleId]));
+
+        var resultado = await handler.Handle(
+            new ObtenerDocumentacionBaseTrabajadoresQuery([_trabajadorVisibleId, trabajadorAjenoId]), CancellationToken.None);
+
+        resultado.Keys.Should().Equal(_trabajadorVisibleId);
+        var epi = resultado[_trabajadorVisibleId].Indicadores.Single(i => i.Tipo == TipoDocumentoBase.EntregaEpi);
+        epi.Estado.Should().Be(EstadoIndicadorBase.Vigente);
+        resultado[_trabajadorVisibleId].Indicadores.Where(i => i.Tipo != TipoDocumentoBase.EntregaEpi)
+            .Should().OnlyContain(i => i.Estado == EstadoIndicadorBase.Falta);
     }
 
     [Fact]

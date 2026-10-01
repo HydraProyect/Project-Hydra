@@ -657,4 +657,61 @@
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Els treballadors es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
   </data>
+  <data name="DocBaseTitulo" xml:space="preserve">
+    <value>Documentació base</value>
+  </data>
+  <data name="DocBaseAlDia" xml:space="preserve">
+    <value>Al dia en allò bàsic</value>
+  </data>
+  <data name="DocBaseNoAlDia" xml:space="preserve">
+    <value>Falta alguna cosa en allò bàsic</value>
+  </data>
+  <data name="DocBaseNota" xml:space="preserve">
+    <value>Quatre documents de referència. No indica aptitud per a un Centre ni que siguin obligatoris per al seu ofici.</value>
+  </data>
+  <data name="DocBaseTipoAptitudMedica" xml:space="preserve">
+    <value>Aptitud mèdica</value>
+  </data>
+  <data name="DocBaseTipoFormacionArt19" xml:space="preserve">
+    <value>Formació Art. 19</value>
+  </data>
+  <data name="DocBaseTipoInformacionArt18" xml:space="preserve">
+    <value>Informació Art. 18</value>
+  </data>
+  <data name="DocBaseTipoEntregaEpi" xml:space="preserve">
+    <value>Lliurament d'EPI</value>
+  </data>
+  <data name="DocBaseEstadoVigente" xml:space="preserve">
+    <value>Vigent</value>
+  </data>
+  <data name="DocBaseEstadoPresente" xml:space="preserve">
+    <value>Present</value>
+  </data>
+  <data name="DocBaseEstadoProximoAVencer" xml:space="preserve">
+    <value>A punt de vèncer</value>
+  </data>
+  <data name="DocBaseEstadoVencido" xml:space="preserve">
+    <value>Vençut</value>
+  </data>
+  <data name="DocBaseEstadoFalta" xml:space="preserve">
+    <value>Falta</value>
+  </data>
+  <data name="DocBaseEstadoSinConfirmar" xml:space="preserve">
+    <value>Vigència sense confirmar</value>
+  </data>
+  <data name="DocBaseResumenAriaAlDia" xml:space="preserve">
+    <value>Documentació base: al dia</value>
+  </data>
+  <data name="DocBaseResumenAriaNoAlDia" xml:space="preserve">
+    <value>Documentació base: falta o requereix revisió</value>
+  </data>
+  <data name="DocBaseAvisoSinConfirmar" xml:space="preserve">
+    <value>Hi ha documents amb la vigència sense confirmar: compten com al dia, però convé confirmar-ne la data de venciment.</value>
+  </data>
+  <data name="DocBaseResumenAriaAlDiaSinConfirmar" xml:space="preserve">
+    <value>Documentació base: al dia, amb vigència sense confirmar</value>
+  </data>
+  <data name="DocBaseCompactoSinConfirmar" xml:space="preserve">
+    <value>sense confirmar</value>
+  </data>
 </root>
