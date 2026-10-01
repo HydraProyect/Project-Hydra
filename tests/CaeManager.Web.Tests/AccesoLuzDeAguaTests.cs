@@ -183,6 +183,17 @@ public class AccesoLuzDeAguaTests : BunitContext
     }
 
     [Fact]
+    public void Con_sesion_un_returnUrl_que_apunta_al_propio_login_va_al_inicio_sin_bucle()
+    {
+        var nav = Services.GetRequiredService<NavigationManager>();
+        nav.NavigateTo("/cuenta/iniciar-sesion?returnUrl=" + Uri.EscapeDataString("/cuenta/iniciar-sesion"));
+
+        Render<Login>(p => p.AddCascadingValue(ContextoHttp("GET", autenticado: true)));
+
+        new Uri(nav.Uri).AbsolutePath.Should().Be("/");
+    }
+
+    [Fact]
     public void Sin_sesion_el_login_se_muestra_y_no_redirige()
     {
         var nav = Services.GetRequiredService<NavigationManager>();

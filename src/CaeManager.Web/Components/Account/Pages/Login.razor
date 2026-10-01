@@ -106,7 +106,9 @@
         // está autenticada (no hay identidad hasta completar el segundo factor).
         if (HttpContext is { Request.Method: "GET" } contexto && contexto.User.Identity?.IsAuthenticated == true)
         {
-            Navigation.NavigateTo(DestinoFinal, forceLoad: true);
+            // Un returnUrl que apunta al propio login (enlace manual) daría un bucle: se va al inicio.
+            var vuelveAlLogin = ReturnUrl?.StartsWith("/cuenta/iniciar-sesion", StringComparison.OrdinalIgnoreCase) == true;
+            Navigation.NavigateTo(vuelveAlLogin ? "/" : DestinoFinal, forceLoad: true);
             return;
         }
         mensajeErrorSso = ErrorSso switch

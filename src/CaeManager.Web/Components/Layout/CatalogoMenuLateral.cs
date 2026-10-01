@@ -200,7 +200,7 @@ public static class CatalogoMenuLateral
             Condicion: c => c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
         new("calendario", "control", "calendario", "calendario", "Calendario"),
         new("reportes", "control", "reportes", "reportes", "Reportes"),
-        // Cierra Control por mandato del propietario del 2026-09-29.
+        // Cierra Control por mandato del propietario del 2026-09-29 (salvo el enlace de equipo del Coordinador CAE, de más abajo).
         new("conectar-extension", "control", "cuenta/extension", "plataforma", "Conectar extensión"),
         // D-12: el Coordinador CAE gestiona su equipo en /usuarios (la página ya lo autoriza por rol,
         // Usuarios.razor) pero no ve el grupo «Administración», que es de Administrador y Dirección CAE.

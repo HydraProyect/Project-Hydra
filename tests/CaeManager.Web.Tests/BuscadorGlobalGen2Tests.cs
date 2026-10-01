@@ -790,7 +790,25 @@ public class BuscadorGlobalGen2Tests : BunitContext
 
         await Input(cut).EscribirAsync("zzzqqq");
 
-        cut.Find(".buscador-mensaje").TextContent.Should().Contain("«zzzqqq» en Empresa D").And.Contain("solo cubre la empresa activa");
+        cut.Find(".buscador-mensaje").TextContent.Should().Contain("«zzzqqq» en Empresa D")
+            .And.NotContain("selector", "con un único Tenant no hay selector que aconsejar");
+    }
+
+    /// <summary>D-14: en el estado 4a no hay empresa activa que nombrar; el Tenant de origen no es una empresa de la cartera.</summary>
+    [Fact]
+    public async Task En_el_estado_4a_el_pie_no_nombra_el_Tenant_de_origen_y_aconseja_el_selector()
+    {
+        var origen = new ClienteAutorizadoDto(Guid.NewGuid(), "Operador CAE", EsOrigen: true);
+        var cartera = new ClienteAutorizadoDto(Guid.NewGuid(), "Empresa D", EsOrigen: false, EsGestionadoPorOperacion: true, EsCarteraGestorCae: true);
+        var mediador = new MediadorControlado { Resultado = SinNada, Autorizados = [origen, cartera] };
+        var cut = await RenderizarYAbrir(mediador);
+
+        cut.WaitForAssertion(() => cut.Find(".buscador-ambito").TextContent.Should().Be("Buscando en la empresa activa"));
+        cut.Markup.Should().NotContain("Operador CAE");
+
+        await Input(cut).EscribirAsync("zzzqqq");
+
+        cut.Find(".buscador-mensaje").TextContent.Should().Contain("selector");
     }
 
     /// <summary>Un fallo de "Recientes" no puede tumbar el palette: sigue abierto y usable.</summary>

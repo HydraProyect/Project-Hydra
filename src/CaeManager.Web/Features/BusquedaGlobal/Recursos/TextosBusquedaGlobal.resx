@@ -22,6 +22,9 @@
     <value>Buscando en {0}</value>
   </data>
   <data name="SinResultados" xml:space="preserve">
-    <value>Sin resultados para «{0}» en {1}. La búsqueda solo cubre la empresa activa: cámbiala en el selector para buscar en otra.</value>
+    <value>Sin resultados para «{0}» en {1}.</value>
+  </data>
+  <data name="SinResultadosPistaSelector" xml:space="preserve">
+    <value>La búsqueda cubre solo la empresa activa: cámbiala en el selector para buscar en otra.</value>
   </data>
 </root>

@@ -446,11 +446,16 @@ public partial class BuscadorGlobal
         // Es solo un rótulo: el alcance real lo siguen decidiendo la consulta y RLS.
         var enTrabajadores = SegmentoDeRuta(Navigation.Uri) == "trabajadores";
         _nombreAmbito = null;
+        _selectorVisible = false;
         try
         {
             var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery(), token);
             if (apertura != _generacionApertura) return;
-            _nombreAmbito = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId)?.Nombre;
+            var activo = ClientesAutorizados.Activo(autorizados, TenantActual.TenantId);
+            // Estado 4a: sin empresa elegida no hay empresa activa que nombrar (el Tenant de origen no es
+            // una empresa de la cartera): rótulo genérico, igual que pide la pantalla.
+            _nombreAmbito = ClientesAutorizados.PideElegirEmpresa(autorizados, TenantActual.TenantId) ? null : activo?.Nombre;
+            _selectorVisible = ClientesAutorizados.SelectorVisible(autorizados, activo);
             if (enTrabajadores && !ClientesAutorizados.PideElegirEmpresa(autorizados, TenantActual.TenantId))
                 _accionesPantalla = ConstruirAccionesPantalla(exportarPermitido: true);
             StateHasChanged();
@@ -464,14 +469,18 @@ public partial class BuscadorGlobal
     /// <summary>Nombre de la empresa gestionada activa, resuelto al abrir; null si aún no se conoce.</summary>
     private string? _nombreAmbito;
 
+    /// <summary>El selector de empresa existe solo con varios Tenants: sin él no se aconseja «cámbiala en el selector».</summary>
+    private bool _selectorVisible;
+
     private string AmbitoRotulo => string.IsNullOrWhiteSpace(_nombreAmbito)
         ? TextosBusquedaGlobal.Texto("AmbitoGenerico")
         : _nombreAmbito;
 
     private string TextoAmbitoPie => string.Format(CultureInfo.CurrentUICulture, TextosBusquedaGlobal.Texto("AmbitoPie"), AmbitoRotulo);
 
-    private string TextoSinResultados => string.Format(
-        CultureInfo.CurrentUICulture, TextosBusquedaGlobal.Texto("SinResultados"), _termino, AmbitoRotulo);
+    private string TextoSinResultados =>
+        string.Format(CultureInfo.CurrentUICulture, TextosBusquedaGlobal.Texto("SinResultados"), _termino, AmbitoRotulo)
+        + (_selectorVisible ? " " + TextosBusquedaGlobal.Texto("SinResultadosPistaSelector") : "");
 
     /// <summary>
     /// Segmento de ruta, pero SOLO si es la pantalla de listado exacta
