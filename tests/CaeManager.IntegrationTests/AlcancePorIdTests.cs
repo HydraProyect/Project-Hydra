@@ -1,6 +1,7 @@
 ﻿using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
+using CaeManager.Application.Documentos.Queries.ObtenerPaqueteAcreditacionEmpresa;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
@@ -215,5 +216,45 @@ public class AlcancePorIdTests : IAsyncLifetime
 
         a!.NombreArchivoDescarga.Should().Contain("Aptitud medica").And.NotContain("_v2");
         b!.NombreArchivoDescarga.Should().Contain("Aptitud medica").And.EndWith("_v2.pdf");
+    }
+
+    [Fact]
+    public async Task El_paquete_de_acreditacion_respeta_empresa_y_cartera_y_no_pone_el_DNI_en_ninguna_ruta()
+    {
+        var trabajador = await _dbContext.Trabajadores.FirstAsync(t => t.Id == _trabajadorVisibleId);
+        var empresaId = trabajador.EmpresaId!.Value;
+        var tipoEpi = await _dbContext.TiposDocumento.FirstOrDefaultAsync(t => t.Nombre == "Entrega de EPI")
+            ?? new TipoDocumento("Entrega de EPI", 12, true, 95, AmbitoAplicacion.Trabajador);
+        if (_dbContext.Entry(tipoEpi).State == EntityState.Detached)
+            _dbContext.TiposDocumento.Add(tipoEpi);
+        await _dbContext.SaveChangesAsync();
+
+        var vigente = Documento.DeTrabajador(_trabajadorVisibleId, tipoEpi.Id, new DateOnly(2026, 3, 14), VigenciaDocumento.NoCaduca);
+        vigente.AdjuntarArchivo("blob-vigente");
+        var antigua = Documento.DeTrabajador(_trabajadorVisibleId, tipoEpi.Id, new DateOnly(2025, 3, 14), VigenciaDocumento.NoCaduca);
+        antigua.AdjuntarArchivo("blob-antigua");
+        var ajeno = Documento.DeTrabajador(_documentoDeTrabajadorAjeno.TrabajadorId!.Value, tipoEpi.Id, new DateOnly(2026, 3, 14), VigenciaDocumento.NoCaduca);
+        ajeno.AdjuntarArchivo("blob-ajeno");
+        _dbContext.Documentos.AddRange(vigente, antigua, ajeno);
+        await _dbContext.SaveChangesAsync();
+
+        var contextoVisible = new AlcanceDatosServiceFalso(empresaIds: [empresaId], trabajadorIds: [_trabajadorVisibleId]);
+        var handler = new ObtenerPaqueteAcreditacionEmpresaQueryHandler(
+            _dbContext, _dbContext, _dbContext, _dbContext, contextoVisible);
+
+        var paquete = await handler.Handle(new ObtenerPaqueteAcreditacionEmpresaQuery(empresaId), CancellationToken.None);
+
+        paquete.Should().NotBeNull();
+        paquete!.Entradas.Should().ContainSingle();
+        paquete.Entradas[0].ArchivoUrl.Should().Be("blob-vigente");
+        paquete.Entradas[0].Ruta.Should().StartWith("02-Documentacion de Trabajadores/Sanchez Martin Alvaro/04-Entrega de EPI (2026-03-14)");
+        paquete.NombreRaiz.Should().EndWith($" - Documentacion - {DiaDeNegocio.Hoy():yyyy-MM-dd}");
+        paquete.Entradas.Select(e => e.Ruta).Concat([paquete.NombreRaiz]).Should().NotContain(r => r.Contains("77189989B"));
+        paquete.Filas.Should().Contain(f => f.DniNie == "77189989B" && f.Resultado.StartsWith("excluido: no es la versión más reciente"));
+        paquete.Filas.Should().NotContain(f => f.DocumentoId == ajeno.Id);
+
+        var fueraDeAlcance = new ObtenerPaqueteAcreditacionEmpresaQueryHandler(
+            _dbContext, _dbContext, _dbContext, _dbContext, new AlcanceDatosServiceFalso(empresaIds: []));
+        (await fueraDeAlcance.Handle(new ObtenerPaqueteAcreditacionEmpresaQuery(empresaId), CancellationToken.None)).Should().BeNull();
     }
 }

@@ -1,4 +1,7 @@
+using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Queries.ObtenerPaqueteAcreditacionEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Web.Exportacion;
 using CaeManager.Web.Features.Documentos;
 using ClosedXML.Excel;
@@ -56,6 +59,29 @@ public static class EmpresasEndpoints
                 stream,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "empresas.xlsx");
+        });
+
+        // Paquete de acreditación de la Empresa (sus documentos y los de sus Trabajadores, solo vigentes,
+        // uno por tipo). Alcance: el de la consulta —Empresa visible y Trabajadores de cartera—; un
+        // Documento sensible registra su apertura como en la descarga individual. Streaming: no se
+        // acumula el ZIP en memoria. Sesión de usuario (no extensión ni clave de API): es una descarga humana.
+        endpoints.MapGet("/empresas/{empresaId:guid}/paquete-documentacion.zip", async (
+            Guid empresaId, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
+            IRegistroAccesoDocumentoSensibleService registroAcceso, CancellationToken cancellationToken) =>
+        {
+            var paquete = await mediator.Send(new ObtenerPaqueteAcreditacionEmpresaQuery(empresaId), cancellationToken);
+            if (paquete is null)
+                return Results.NotFound();
+
+            CabecerasArchivoSensible.ProhibirCache(contexto);
+
+            return Results.Stream(
+                destino => PaqueteAcreditacionZip.EscribirAsync(
+                    destino, paquete,
+                    almacenamiento.AbrirAsync,
+                    (documentoId, ct) => registroAcceso.RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.Apertura, ct),
+                    PaqueteAcreditacionZip.TopeBytesPorDefecto, cancellationToken),
+                "application/zip", paquete.NombreZip);
         });
 
         return endpoints;

@@ -117,6 +117,7 @@
             <Acciones>
                 <span class="empresa360-acciones">
                     <Boton Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
+                    <a class="enlace-exportar" href="/empresas/@_detalle.Id/paquete-documentacion.zip" data-enhance-nav="false"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["AccionDescargarPaquete"]</a>
                     @* El único ítem del menú es de escritura: sin escritura no hay menú. *@
                     <SoloConEscritura>
                         <MenuAcciones>

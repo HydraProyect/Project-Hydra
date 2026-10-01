@@ -273,4 +273,8 @@
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Les empreses es mostren d'una en una. Tria'n una a la barra lateral.</value>
   </data>
+  <data name="AccionDescargarPaquete" xml:space="preserve">
+    <value>Descargar paquete de acreditación</value>
+    <comment>Enlace de cabecera: ZIP con la documentación vigente de la Empresa y de sus Trabajadores (uno por tipo, el más reciente).</comment>
+  </data>
 </root>
