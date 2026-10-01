@@ -42,7 +42,7 @@ public static class DocumentosEndpoints
             // memoria antes de servirlo (medición de Módulo 2, PR #360) — la
             // lectura por rangos que sí lo haría exige un formato cifrado por
             // bloques, pendiente de decisión.
-            return Results.File(flujo, "application/pdf", $"{documento.TipoDocumentoNombre}.pdf", enableRangeProcessing: true);
+            return Results.File(flujo, "application/pdf", documento.NombreArchivoDescarga, enableRangeProcessing: true);
         })
         // Único endpoint que la extensión de navegador necesita de este
         // fichero: sin el PDF no puede subir nada a la plataforma CAE, y

@@ -39,7 +39,10 @@ public record DocumentoDetalleDto(
     Guid? EmpresaId,
     // Titular de un documento de Trabajador: Documento 360 abre con él la reclamación
     // existente (DrawerReclamacionLote). Opcional y al final: ningún productor cambia.
-    Guid? TrabajadorId = null);
+    Guid? TrabajadorId = null,
+    // Nombre canónico para descargar/enviar/exportar (NombreArchivoDocumento.Suelto):
+    // calculado aquí, donde se conocen propietario, tipo y coincidencias del mismo día.
+    string NombreArchivoDescarga = "");
 
 public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentoPorIdQuery, DocumentoDetalleDto?>
@@ -62,7 +65,8 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
                 d.EstadoVigencia,
                 d.ArchivoUrl,
                 d.Comentarios,
-                d.Version
+                d.Version,
+                d.CreadoEnUtc
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -137,11 +141,34 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
                             .Select(e => e.RazonSocial)
                             .FirstAsync(cancellationToken));
 
+        var nombreEnArchivo = documento.TrabajadorId is not null
+            ? await trabajadoresContext.Trabajadores
+                .Where(t => t.Id == documento.TrabajadorId)
+                .Select(t => t.Apellidos + " " + t.Nombre)
+                .FirstAsync(cancellationToken)
+            : propietarioNombre;
+
+        // Coincidencias de mismo propietario, tipo y emisión: la más antigua conserva el
+        // nombre sin sufijo y las siguientes llevan _v2, _v3… de forma estable.
+        var anteriores = await documentosContext.Documentos
+            .Where(d => d.Id != documento.Id
+                && d.TipoDocumentoId == documento.TipoDocumentoId
+                && d.FechaEmision == documento.FechaEmision
+                && d.TrabajadorId == documento.TrabajadorId
+                && d.ClienteId == documento.ClienteId
+                && d.EmpresaId == documento.EmpresaId
+                && d.VehiculoId == documento.VehiculoId
+                && d.ProyectoId == documento.ProyectoId
+                && (d.CreadoEnUtc < documento.CreadoEnUtc
+                    || (d.CreadoEnUtc == documento.CreadoEnUtc && d.Id.CompareTo(documento.Id) < 0)))
+            .CountAsync(cancellationToken);
+
         return new DocumentoDetalleDto(
             documento.Id, ambito, propietarioNombre, tipoDocumento.Nombre,
             tipoDocumento.AplicaVencimientoAutomatico, documento.FechaEmision, documento.FechaVencimiento,
             documento.EstadoVigencia, documento.ArchivoUrl, documento.Comentarios,
             tipoDocumento.Descripcion, tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones,
-            documento.Version, tipoDocumento.PerfilDocumentoOficial, documento.EmpresaId, documento.TrabajadorId);
+            documento.Version, tipoDocumento.PerfilDocumentoOficial, documento.EmpresaId, documento.TrabajadorId,
+            NombreArchivoDocumento.Suelto(nombreEnArchivo, tipoDocumento.Nombre, documento.FechaEmision, anteriores + 1));
     }
 }

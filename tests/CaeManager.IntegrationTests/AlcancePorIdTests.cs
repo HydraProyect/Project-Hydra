@@ -169,4 +169,24 @@ public class AlcancePorIdTests : IAsyncLifetime
 
         resultado.Should().BeNull();
     }
+
+    [Fact]
+    public async Task El_nombre_de_descarga_lleva_Apellidos_Nombre_sin_DNI_y_v2_para_el_segundo_documento_del_mismo_dia()
+    {
+        var segundo = Documento.DeTrabajador(
+            _trabajadorVisibleId, _documentoDeTrabajadorVisible.TipoDocumentoId, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
+        _dbContext.Documentos.Add(segundo);
+        await _dbContext.SaveChangesAsync();
+
+        var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisibleId]);
+        var handler = new ObtenerDocumentoPorIdQueryHandler(
+            _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, alcance);
+
+        var primero = await handler.Handle(new ObtenerDocumentoPorIdQuery(_documentoDeTrabajadorVisible.Id), CancellationToken.None);
+        var conSufijo = await handler.Handle(new ObtenerDocumentoPorIdQuery(segundo.Id), CancellationToken.None);
+
+        primero!.NombreArchivoDescarga.Should().StartWith("Sanchez Martin Alvaro - ").And.EndWith($"emitido {DiaDeNegocio.Hoy():yyyy-MM-dd}.pdf");
+        conSufijo!.NombreArchivoDescarga.Should().EndWith($"emitido {DiaDeNegocio.Hoy():yyyy-MM-dd}_v2.pdf");
+        primero.NombreArchivoDescarga.Should().NotContain("77189989B");
+    }
 }
