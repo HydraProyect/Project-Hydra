@@ -8,6 +8,8 @@ using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentaci
 using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
 using CaeManager.Application.Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion;
 using CaeManager.Application.Centros;
+using CaeManager.Application.Centros.Commands.EliminarCentro;
+using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
@@ -119,6 +121,8 @@ public class Centro360Gen2Tests : BunitContext
             ObtenerDocumentosFaltantesParaAsignacionQuery => new List<DocumentoFaltanteDto>(),
             DarDeBajaAsignacionesCommand => ResultadoBaja,
             CrearAsignacionCommand => ResultadoCrearAsignacion,
+            EliminarCentroCommand => Result.Exito(),
+            RestaurarCentroCommand => Result.Exito(),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -1125,5 +1129,30 @@ public class Centro360Gen2Tests : BunitContext
             "una pantalla sin filtro cuya URL siga llevándolo lo repone al recargar");
         cut.FindAll(".barra-filtros button").Where(b => b.TextContent.Trim() == "Limpiar filtros")
             .Should().BeEmpty("sin filtros puestos no hay nada que limpiar");
+    }
+
+    /// <summary>D-16: la ficha del Centro ofrece «Eliminar centro» con confirmación y «Deshacer».</summary>
+    [Fact]
+    public async Task La_ficha_elimina_el_centro_con_confirmacion_y_ofrece_deshacer()
+    {
+        this.ConRolDeEscritura();
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Almacén Sur");
+        mediador.Resumenes[id] = Resumen(id, "Almacén Sur", porcentaje: 100, estado: EstadoCentro.Vigente);
+        var cut = Renderizar(id);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Almacén Sur"));
+
+        cut.Find(".menu-acciones-disparador").Click();
+        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Eliminar centro").ClickAsync(new MouseEventArgs());
+        cut.Find("[role=dialog]").TextContent.Should().Contain("¿Eliminar el centro «Almacén Sur»?");
+        mediador.Enviadas.OfType<EliminarCentroCommand>().Should().BeEmpty("hasta confirmar no se elimina nada");
+
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarCentroCommand>().Single().Id.Should().Be(id);
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+        mediador.Enviadas.OfType<RestaurarCentroCommand>().Single().Id.Should().Be(id);
     }
 }

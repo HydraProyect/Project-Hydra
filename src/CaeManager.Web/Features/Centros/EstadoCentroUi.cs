@@ -65,4 +65,19 @@ public static class EstadoCentroUi
         EstadoCentro.SinGestionCae => "No requiere gestión CAE",
         _ => "Estado desconocido"
     };
+
+    /// <summary>
+    /// D-17: «Vigente» afirma «todo al día», y con el denominador de cumplimiento a 0
+    /// (<paramref name="cumplimientoPorcentaje"/> <c>null</c>: ningún Trabajador×TipoDocumento
+    /// obligatorio aplicable) no se ha medido nada. Ese caso se rotula «Sin datos», en neutro.
+    /// El resto de estados no cambian: Próximo, Vencido, Faltante o Bloqueado ya dicen algo medido.
+    /// </summary>
+    public static bool EsSinDatos(EstadoCentro estado, int? cumplimientoPorcentaje) =>
+        estado == EstadoCentro.Vigente && cumplimientoPorcentaje is null;
+
+    public static TonoBadge Tono(EstadoCentro estado, int? cumplimientoPorcentaje) =>
+        EsSinDatos(estado, cumplimientoPorcentaje) ? TonoBadge.Neutro : Tono(estado);
+
+    public static string Texto(EstadoCentro estado, int? cumplimientoPorcentaje) =>
+        EsSinDatos(estado, cumplimientoPorcentaje) ? "Sin datos" : Texto(estado);
 }

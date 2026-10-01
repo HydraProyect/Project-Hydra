@@ -52,6 +52,11 @@
             }
         }
     }
+
+    @if (!string.IsNullOrWhiteSpace(MensajeError))
+    {
+        <span class="campo-mensaje-error" role="alert">@MensajeError</span>
+    }
 </div>
 
 @code {
@@ -65,6 +70,8 @@
     [Parameter] public IReadOnlyList<ElementoSeleccionable> Elementos { get; set; } = [];
     [Parameter] public IReadOnlySet<Guid> Seleccionados { get; set; } = new HashSet<Guid>();
     [Parameter] public EventCallback<(Guid Id, bool Marcado)> OnAlternar { get; set; }
+    /// <summary>Error de validación del campo, en línea bajo la lista (mismo estilo que CampoTexto).</summary>
+    [Parameter] public string? MensajeError { get; set; }
     [Parameter] public string TextoVacio { get; set; } = "Todavía no hay elementos creados.";
 
     private IReadOnlyList<ElementoSeleccionable> ElementosFiltrados =>

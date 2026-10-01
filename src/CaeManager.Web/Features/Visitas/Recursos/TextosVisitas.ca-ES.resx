@@ -154,7 +154,7 @@
     <value>Todavía no hay trabajadores creados.</value>
   </data>
   <data name="CasillaNotificadaTitularCentro" xml:space="preserve">
-    <value>Notificada a la empresa titular del centro</value>
+    <value>Marcar como avisada a la empresa titular del centro (no envía nada)</value>
   </data>
   <data name="EtiquetaNotas" xml:space="preserve">
     <value>Notas</value>
@@ -392,5 +392,11 @@
   </data>
   <data name="BotonQuitarSeleccion" xml:space="preserve">
     <value>Quitar selección</value>
+  </data>
+  <data name="ErrorSeleccionaTrabajador" xml:space="preserve">
+    <value>Marca al menos un trabajador que entra.</value>
+  </data>
+  <data name="AyudaNotificadaSoloMarca" xml:space="preserve">
+    <value>Solo marca la visita como avisada a la empresa titular; no envía ningún aviso.</value>
   </data>
 </root>
