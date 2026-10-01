@@ -1,3 +1,5 @@
+using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
 using CaeManager.Application.Vehiculos.Commands.EliminarVehiculo;
 using CaeManager.Application.Vehiculos.Commands.EliminarVehiculos;
@@ -9,6 +11,7 @@ using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -21,6 +24,15 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
+
+    /// <summary>La empresa gestionada activa, solo para quien ve el selector de la barra lateral.</summary>
+    private ClienteAutorizadoDto? _empresaActiva;
+
+    /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
+    private bool _sinEmpresaSeleccionada;
+
+    /// <summary>La empresa activa aún no se ha resuelto: se pinta una carga en vez de la lista.</summary>
+    private bool _resolviendoEmpresa = true;
 
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
@@ -125,6 +137,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     public string? EstadoInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private IValidator<CrearVehiculoCommand> ValidadorCrear { get; set; } = default!;
 
     private GridItemsProvider<VehiculoListaDto>? _proveedorElementos;
@@ -162,6 +175,33 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     protected override async Task OnInitializedAsync()
     {
+        // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
+        // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
+        try
+        {
+            var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, _ciclo.Token);
+            _empresaActiva = contexto.Activa;
+            _sinEmpresaSeleccionada = contexto.SinSeleccion;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        {
+            // La página se retiró con la resolución en vuelo: no queda nadie a quien pintar.
+            return;
+        }
+        finally
+        {
+            _resolviendoEmpresa = false;
+        }
+
+        // Retirada la página, una resolución que vuelva sin lanzar (contexto «Ninguno») no es 4a: no hay
+        // a quién pintarle la lista, y seguir pediría los datos de una página que ya no existe.
+        if (_desechado)
+            return;
+
+        // Sin empresa elegida no se piden los datos de la organización de origen.
+        if (_sinEmpresaSeleccionada)
+            return;
+
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
 
@@ -177,6 +217,11 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// </summary>
     protected override void OnParametersSet()
     {
+        // Retirada la página con la resolución en vuelo, ComponentBase aún invoca esto: no se procesan
+        // parámetros de la URL de un componente que ya no existe, ni en el estado 4a.
+        if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada)
+            return;
+
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (deLaUrl != _busqueda)
             _busqueda = deLaUrl;
