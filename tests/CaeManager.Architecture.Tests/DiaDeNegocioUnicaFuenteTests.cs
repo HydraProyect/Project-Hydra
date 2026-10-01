@@ -116,7 +116,8 @@ public class DiaDeNegocioUnicaFuenteTests
     /// cultura (<c>"g"</c>/<c>"G"</c>), que cambia con el idioma.
     /// </summary>
     private static readonly Regex PatronFormatoNoCanonico = new(
-        @"""dd/MM/yy(?:[\s""])|ToString\s*\(\s*""[gG]""", RegexOptions.Compiled);
+        @"""dd/MM/yy(?:[\s""])|ToString\s*\(\s*""[gG]""|:[gG]\}|\bToShort(?:Date|Time)String\s*\(",
+        RegexOptions.Compiled);
 
     [Fact]
     public void Las_fechas_y_horas_usan_el_formato_unico()
@@ -125,6 +126,10 @@ public class DiaDeNegocioUnicaFuenteTests
             .Should().BeTrue("control positivo: año de dos cifras");
         EsCodigoQueCasa("        utc.EnHoraPeninsular().ToString(\"g\", CultureInfo.CurrentCulture);", PatronFormatoNoCanonico)
             .Should().BeTrue("control positivo: formato corto de la cultura");
+        EsCodigoQueCasa("        var texto = $\"Creada el {solicitud.CreadaEnUtc.EnHoraPeninsular():g}\";", PatronFormatoNoCanonico)
+            .Should().BeTrue("control positivo: formato corto de la cultura en interpolación");
+        EsCodigoQueCasa("        var texto = fecha.ToShortDateString();", PatronFormatoNoCanonico)
+            .Should().BeTrue("control positivo: fecha corta de la cultura");
         EsCodigoQueCasa("<span>@item.GeneradoEnUtc.EnHoraPeninsular().ToString(\"dd/MM/yyyy HH:mm\")</span>", PatronFormatoNoCanonico)
             .Should().BeFalse("control negativo: el formato único");
 

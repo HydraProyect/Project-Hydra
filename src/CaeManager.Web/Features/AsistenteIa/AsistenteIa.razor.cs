@@ -129,9 +129,12 @@ public partial class AsistenteIa : IDisposable
 
     private string PlaceholderEntrada => EnModoGestion ? Textos["PlaceholderOrden"] : Textos["PlaceholderPregunta"];
 
-    /// <summary>Día de negocio (Europe/Madrid) de la última actualización, con el formato de la cultura de la persona.</summary>
+    /// <summary>
+    /// Día de negocio (Europe/Madrid) de la última actualización, con el formato único
+    /// dd/MM/yyyy (vale igual para es-ES y ca-ES; el formato corto de la cultura daba «2/10/2026»).
+    /// </summary>
     private static string FechaDeBorrador(DateTime instanteUtc) =>
-        DiaDeNegocio.De(instanteUtc).ToString(System.Globalization.CultureInfo.CurrentCulture);
+        DiaDeNegocio.De(instanteUtc).ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
 
     private bool ModoPermitido(ModoAsistente modo) => modo == ModoAsistente.Gestion
         ? Disponibilidad.AgenteDisponible
