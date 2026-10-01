@@ -868,7 +868,7 @@ public class VisitasGen2Tests : BunitContext
         cliente.IsMatch(cut.Markup).Should().BeFalse("en el detalle");
 
         await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
-        cut.Markup.Should().Contain("Notificada a la empresa titular del centro", "el formulario tiene que estar abierto");
+        cut.Markup.Should().Contain("Marcar como avisada a la empresa titular del centro", "el formulario tiene que estar abierto");
         cliente.IsMatch(cut.Markup).Should().BeFalse("en el formulario");
     }
 
@@ -969,5 +969,43 @@ public class VisitasGen2Tests : BunitContext
 
         navegacion.Uri.Should().EndWith("/visitas", "con el drawer cerrado ya no hay formulario que perder");
         cut.FindAll(".modal-contenido").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// D-20: guardar sin trabajador dejaba el drawer abierto sin mensaje visible (la excepción de
+    /// validación se guardaba en un diccionario que nadie pintaba). Ahora no se envía el comando,
+    /// el error sale en línea junto a la lista y como aviso, y desaparece al marcar a alguien.
+    /// </summary>
+    [Fact]
+    public async Task Guardar_sin_trabajador_avisa_en_linea_y_con_un_aviso_y_no_envia_el_comando()
+    {
+        var trabajador = Guid.NewGuid();
+        var mediator = new MediatorVisitas
+        {
+            TrabajadoresSelector = [TrabajadorSelectorFalso.Crear(trabajador, "Iker Zubiri Olano")],
+        };
+        var cut = Renderizar(mediator);
+        await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty("barrera: antes de guardar no hay error");
+
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".drawer-panel .campo-mensaje-error").TextContent.Should().Contain("Marca al menos un trabajador");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje.Contains("Marca al menos un trabajador"));
+        mediator.Comandos.Should().BeEmpty();
+
+        await cut.Find(".drawer-panel .lista-seleccion-multiple input").ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.FindAll(".drawer-panel .campo-mensaje-error").Should().BeEmpty("el error se quita al marcar a alguien");
+    }
+
+    /// <summary>D-21: el interruptor solo marca; el texto del formulario y el título del interruptor lo dicen.</summary>
+    [Fact]
+    public void El_interruptor_de_notificada_dice_que_solo_marca_y_no_envia_nada()
+    {
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(Visita("Centro Norte"));
+        var cut = Renderizar(mediator);
+
+        Interruptor(cut, "Centro Norte").GetAttribute("title").Should().Contain("no envía ningún aviso");
     }
 }

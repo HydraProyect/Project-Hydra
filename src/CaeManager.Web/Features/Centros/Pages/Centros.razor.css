@@ -50,11 +50,25 @@
 
 .cabecera-columnas-centros-indicadores {
     display: grid;
-    grid-template-columns: 26px 26px minmax(0, 1fr);
+    /* 40 px por recuento: «VENC.» y «PRÓX.» en versalitas no caben en 26 px y se pisaban
+       («VENCPRÓXESTADO / VISITA»). La fila usa las mismas columnas (regla de abajo). */
+    grid-template-columns: 40px 40px minmax(0, 1fr);
     gap: var(--space-1);
     width: 200px;
     flex-shrink: 0;
     white-space: nowrap;
+    letter-spacing: .03em;
+}
+
+.cabecera-columnas-centros-indicadores > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Mismas columnas que la cabecera, para que cada recuento caiga bajo su rótulo. */
+.tarjeta-fila-acordeon-indicadores {
+    grid-template-columns: 40px 40px minmax(0, 1fr);
 }
 
 .cabecera-columnas-centros-acciones,

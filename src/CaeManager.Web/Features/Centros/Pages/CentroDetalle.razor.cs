@@ -3,6 +3,8 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
+using CaeManager.Application.Centros.Commands.EliminarCentro;
+using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
@@ -335,6 +337,54 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         InvalidarCargas();
         _ciclo.Cancel();
         _ciclo.Dispose();
+    }
+
+    private bool _confirmarEliminarVisible;
+    private bool _eliminando;
+
+    /// <summary>
+    /// D-16: baja lógica del Centro desde su ficha (mismo EliminarCentroCommand que la baja en
+    /// lote de /centros: oculta el Centro y da de baja sus asignaciones activas). El aviso ofrece
+    /// «Deshacer» (RestaurarCentroCommand), como Empresa.
+    /// </summary>
+    private async Task ConfirmarEliminarAsync()
+    {
+        if (_eliminando) return;
+        _eliminando = true;
+        var id = CentroId;
+        var nombre = _detalle?.Nombre ?? string.Empty;
+
+        try
+        {
+            var resultado = await Mediator.Send(new EliminarCentroCommand(id));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Centro, [id]);
+            _confirmarEliminarVisible = false;
+            ToastService.Mostrar(Textos["ToastCentroEliminado", nombre].Value, TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(id));
+            NavigationManager.NavigateTo("/centros");
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ToastCentroEliminadoError"].Value, TonoToast.Error);
+        }
+        finally
+        {
+            _eliminando = false;
+        }
+    }
+
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        var resultado = await Mediator.Send(new RestaurarCentroCommand(id));
+        if (resultado.EsFallido)
+            ToastService.MostrarError(resultado.Error);
+        else
+            ToastService.Mostrar(Textos["ToastCentroRestaurado"].Value, TonoToast.Exito);
     }
 
     private void IrABreadcrumb(int indice)

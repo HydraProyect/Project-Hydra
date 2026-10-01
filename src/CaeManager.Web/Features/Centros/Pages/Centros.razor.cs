@@ -84,6 +84,24 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private List<CentroListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
     private bool _eliminandoLote;
+    // D-16: baja de un solo Centro desde el «⋯» de su fila. Reutiliza el diálogo y el camino de la
+    // baja en lote (EliminarCentrosCommand con un id, «Deshacer» incluido) sin tocar la selección.
+    private Guid? _centroAEliminarId;
+    private string _centroAEliminarNombre = string.Empty;
+
+    private void PedirEliminarCentro(CentroListaDto centro)
+    {
+        _centroAEliminarId = centro.Id;
+        _centroAEliminarNombre = centro.Nombre;
+        _confirmarEliminarLoteVisible = true;
+    }
+
+    private void CambiarVisibilidadConfirmarEliminar(bool visible)
+    {
+        _confirmarEliminarLoteVisible = visible;
+        if (!visible)
+            _centroAEliminarId = null;
+    }
     private bool _confirmarEliminarLoteVisible;
 
     // Crear inline desde el propio selector (Fase A4): si el Cliente o la
@@ -717,7 +735,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
         try
         {
-            var idsPedidos = _seleccionados.ToList();
+            var individual = _centroAEliminarId;
+            var idsPedidos = individual is { } uno ? [uno] : _seleccionados.ToList();
             var resultado = await Mediator.Send(new EliminarCentrosCommand(idsPedidos));
             var dto = resultado.Valor;
 
@@ -738,7 +757,11 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             if (dto.Eliminados > 0)
                 WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Centro, dto.IdsEliminados ?? idsPedidos);
 
-            _seleccionados.Clear();
+            if (individual is null)
+                _seleccionados.Clear();
+            else
+                _seleccionados.Remove(individual.Value);
+            _centroAEliminarId = null;
             _confirmarEliminarLoteVisible = false;
             await CargarAsync();
         }
