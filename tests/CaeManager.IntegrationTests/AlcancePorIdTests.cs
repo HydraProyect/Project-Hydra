@@ -169,4 +169,51 @@ public class AlcancePorIdTests : IAsyncLifetime
 
         resultado.Should().BeNull();
     }
+
+    [Fact]
+    public async Task El_nombre_de_descarga_lleva_Apellidos_Nombre_sin_DNI_y_v2_para_el_segundo_documento_del_mismo_dia()
+    {
+        var segundo = Documento.DeTrabajador(
+            _trabajadorVisibleId, _documentoDeTrabajadorVisible.TipoDocumentoId, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
+        _dbContext.Documentos.Add(segundo);
+        await _dbContext.SaveChangesAsync();
+
+        var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisibleId]);
+        var handler = new ObtenerDocumentoPorIdQueryHandler(
+            _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, alcance);
+
+        var primero = await handler.Handle(new ObtenerDocumentoPorIdQuery(_documentoDeTrabajadorVisible.Id), CancellationToken.None);
+        var conSufijo = await handler.Handle(new ObtenerDocumentoPorIdQuery(segundo.Id), CancellationToken.None);
+
+        primero!.NombreArchivoDescarga.Should().StartWith("Sanchez Martin Alvaro - ").And.EndWith($"emitido {DiaDeNegocio.Hoy():yyyy-MM-dd}.pdf");
+        conSufijo!.NombreArchivoDescarga.Should().EndWith($"emitido {DiaDeNegocio.Hoy():yyyy-MM-dd}_v2.pdf");
+        primero.NombreArchivoDescarga.Should().NotContain("77189989B");
+    }
+
+    [Fact]
+    public async Task Dos_tipos_con_el_mismo_nombre_canonico_el_mismo_dia_reciben_sufijo_distinto()
+    {
+        // «Aptitud médica» y «Reconocimiento médico» son TipoDocumentoId distintos que dan el mismo
+        // componente de fichero: el ordinal debe agruparlos igual que el nombre, o chocarían.
+        var tipoA = new TipoDocumento("Aptitud médica", 12, true, 90, AmbitoAplicacion.Trabajador);
+        var tipoB = new TipoDocumento("Reconocimiento médico", 12, true, 91, AmbitoAplicacion.Trabajador);
+        _dbContext.TiposDocumento.AddRange(tipoA, tipoB);
+        await _dbContext.SaveChangesAsync();
+        var docA = Documento.DeTrabajador(_trabajadorVisibleId, tipoA.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
+        _dbContext.Documentos.Add(docA);
+        await _dbContext.SaveChangesAsync();
+        var docB = Documento.DeTrabajador(_trabajadorVisibleId, tipoB.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
+        _dbContext.Documentos.Add(docB);
+        await _dbContext.SaveChangesAsync();
+
+        var alcance = new AlcanceDatosServiceFalso(trabajadorIds: [_trabajadorVisibleId]);
+        var handler = new ObtenerDocumentoPorIdQueryHandler(
+            _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, alcance);
+
+        var a = await handler.Handle(new ObtenerDocumentoPorIdQuery(docA.Id), CancellationToken.None);
+        var b = await handler.Handle(new ObtenerDocumentoPorIdQuery(docB.Id), CancellationToken.None);
+
+        a!.NombreArchivoDescarga.Should().Contain("Aptitud medica").And.NotContain("_v2");
+        b!.NombreArchivoDescarga.Should().Contain("Aptitud medica").And.EndWith("_v2.pdf");
+    }
 }
