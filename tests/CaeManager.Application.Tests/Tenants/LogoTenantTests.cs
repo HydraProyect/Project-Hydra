@@ -5,6 +5,7 @@ using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Commands.GuardarLogoTenant;
 using CaeManager.Application.Tenants.Commands.RetirarLogoTenant;
 using CaeManager.Application.Tenants.Logo;
+using CaeManager.Application.Tenants.Queries.ObtenerLogoOrganizacion;
 using CaeManager.Application.Tenants.Queries.ObtenerLogoTenant;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
@@ -319,6 +320,62 @@ public class LogoTenantTests
         (await handler.Handle(new ObtenerLogoTenantQuery(_otro.Id), CancellationToken.None)).Should().BeNull();
     }
 
+    // ── ObtenerLogoOrganizacionQuery: qué ofrece la pantalla de Configuración → Organización ──
+
+    [Fact]
+    public async Task La_pantalla_ofrece_editar_al_Administrador_del_Tenant_y_no_es_sesion_de_soporte()
+    {
+        _propietario.EstablecerLogo($"{_propietario.Id:N}/{Guid.NewGuid():N}.png", "0123456789abcdef", DateTime.UtcNow);
+
+        var dto = await PantallaAsync(sesion: null, administradorDe: _propietario.Id);
+
+        dto.Should().Be(new LogoOrganizacionDto(_propietario.Id, "Tenant propietario", "0123456789abcdef", true, false));
+    }
+
+    [Fact]
+    public async Task La_pantalla_no_ofrece_editar_a_quien_no_es_Administrador_del_Tenant()
+    {
+        var dto = await PantallaAsync(sesion: null, administradorDe: _otro.Id);
+
+        dto!.PuedeEditar.Should().BeFalse();
+        dto.EnSesionDeSoporte.Should().BeFalse();
+        dto.LogoVersion.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task La_pantalla_ofrece_editar_a_Soporte_con_Aprovisionamiento_y_lo_marca_como_sesion_de_soporte()
+    {
+        var dto = await PantallaAsync(Sesion(CapacidadPrivilegio.Aprovisionamiento, _propietario.Id), administradorDe: null);
+
+        dto!.PuedeEditar.Should().BeTrue();
+        dto.EnSesionDeSoporte.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task La_pantalla_no_ofrece_editar_a_Soporte_con_solo_lectura()
+    {
+        var dto = await PantallaAsync(Sesion(CapacidadPrivilegio.SoporteLectura, _propietario.Id), administradorDe: null);
+
+        dto!.PuedeEditar.Should().BeFalse();
+        dto.EnSesionDeSoporte.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task La_pantalla_sin_Tenant_actual_no_devuelve_nada()
+    {
+        var handler = new ObtenerLogoOrganizacionQueryHandler(
+            new TenantActualFijo(null), new TenantsQueryContextQueCuenta(_propietario),
+            Autorizador(null, _propietario.Id), new SesionPrivilegiadaFalsa(null));
+
+        (await handler.Handle(new ObtenerLogoOrganizacionQuery(), CancellationToken.None)).Should().BeNull();
+    }
+
+    private Task<LogoOrganizacionDto?> PantallaAsync(SesionPrivilegiadaActiva? sesion, Guid? administradorDe) =>
+        new ObtenerLogoOrganizacionQueryHandler(
+                new TenantActualFijo(_propietario.Id), new TenantsQueryContextQueCuenta(_propietario, _otro),
+                Autorizador(sesion, administradorDe), new SesionPrivilegiadaFalsa(sesion))
+            .Handle(new ObtenerLogoOrganizacionQuery(), CancellationToken.None);
+
     // ── Andamiaje ──────────────────────────────────────────────────────────
 
     private static AutorizacionLogoTenant Autorizador(SesionPrivilegiadaActiva? sesion, Guid? administradorDe) =>
@@ -431,7 +488,7 @@ public class LogoTenantTests
         }
     }
 
-    private sealed class TenantActualFijo(Guid tenantId) : ITenantActual
+    private sealed class TenantActualFijo(Guid? tenantId) : ITenantActual
     {
         public Guid? TenantId => tenantId;
     }

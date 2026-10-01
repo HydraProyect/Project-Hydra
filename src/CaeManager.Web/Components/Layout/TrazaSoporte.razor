@@ -2,6 +2,7 @@
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @inject CaeManager.Web.Services.TrazaSoporteService Traza
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 @inject CaeManager.Application.Common.IClienteActivoSeleccionado ClienteActivoSeleccionado
 @inherits CaeManager.Web.Components.IsloteInteractivo
 
@@ -31,6 +32,7 @@ else if (_sesionPrivilegiadaId is not null)
     <div class="aviso-sesion-soporte" role="status">
         Sesión de soporte de plataforma — estás operando datos de otra organización y tu actividad queda
         registrada.
+        <a href="/configuracion/organizacion" class="enlace-logo-organizacion-soporte">@Comunes["SoporteEnlaceLogoOrganizacion"]</a>
         <form method="post" action="/cuenta/soporte/salir" class="form-salir-sesion-soporte">
             <AntiforgeryToken />
             <button type="submit" class="enlace-salir-sesion-soporte">Salir de la sesión</button>

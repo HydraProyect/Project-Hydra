@@ -60,6 +60,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
     [
         ("Acceso e identidad", "Usuarios", "Cuentas y carteras asignadas", "/configuracion/usuarios"),
         ("Acceso e identidad", "Roles", "Permisos por perfil", "/configuracion/roles"),
+        ("Acceso e identidad", "Organización", "Logo de la organización", "/configuracion/organizacion"),
         ("Plataforma y conexiones", "Claves API", "Acceso programático", "/configuracion/api"),
         ("Plataforma y conexiones", "Conexiones de integración", "M365, portales, webhooks", "/configuracion/integraciones"),
         ("Plataforma y conexiones", "Importar datos", "Cuadro de Control CAE (Excel)", "/configuracion/importar"),
@@ -219,7 +220,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
         var cut = RenderizarHub("plataforma");
 
         var enlaces = Navegacion(cut).QuerySelectorAll("a");
-        enlaces.Should().HaveCount(14);
+        enlaces.Should().HaveCount(15);
 
         foreach (var enlace in enlaces)
         {
@@ -363,7 +364,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
         rutas.Should().Contain("/configuracion/auditoria", "control positivo: el grupo se pintó");
         rutas.Contains("/configuracion/accesos-sensibles").Should().Be(conPermiso);
-        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(conPermiso ? 15 : 14);
+        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(conPermiso ? 16 : 15);
     }
 
     [Fact]
@@ -381,7 +382,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
     {
         var cut = RenderizarHub("plataforma", esAdministradorPlataforma: false);
 
-        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(14);
+        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(15);
         PlataformaYConexiones(cut).Select(e => e.Ruta).Should().NotContain("/configuracion/orden-menu",
             "un Administrador de Tenant no ordena el menú global: la entrada ni existe para él");
     }
@@ -391,7 +392,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
     {
         var cut = RenderizarHub("plataforma", esAdministradorPlataforma: true);
 
-        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(15);
+        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(16);
         PlataformaYConexiones(cut).Last().Should().Be(
             ("Orden del menú", "Solo Actor de Plataforma TALVEG", "/configuracion/orden-menu"));
     }
