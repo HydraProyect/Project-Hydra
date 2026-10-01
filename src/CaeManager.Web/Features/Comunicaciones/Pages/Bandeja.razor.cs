@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Application.Common;
 using CaeManager.Web.Features.Comunicaciones.Components;
@@ -201,7 +202,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private string CierreVentanaLocal =>
         _detalle?.FechaUltimoMensajeEntranteUtc is { } ultimo
-            ? ultimo.Add(Conversacion.DuracionVentanaServicio).ToLocalTime().ToString("dd/MM 'a las' HH:mm")
+            ? ultimo.Add(Conversacion.DuracionVentanaServicio).EnHoraPeninsular().ToString("dd/MM 'a las' HH:mm")
             : string.Empty;
 
     // --- Action Center (Project-Hydra-Negocio/tecnico/docs/COMUNICACIONES.md § 12.6): agrega las sugerencias

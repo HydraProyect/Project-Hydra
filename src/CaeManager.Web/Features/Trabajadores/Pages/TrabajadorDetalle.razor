@@ -309,7 +309,7 @@
                                 <div class="fila-documento-requerido" role="row" @key="gestion.Id">
                                     <span class="celda-documento-nombre" role="cell">@gestion.TipoDocumentoNombre</span>
                                     <span role="cell">@gestion.CentroNombre</span>
-                                    <span role="cell">@gestion.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</span>
+                                    <span role="cell">@gestion.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</span>
                                     <span class="columna-accion" role="cell">
                                         @* CompletarGestionCommand es ICommand, denegado a Consulta. *@
                                         <SoloConEscritura>

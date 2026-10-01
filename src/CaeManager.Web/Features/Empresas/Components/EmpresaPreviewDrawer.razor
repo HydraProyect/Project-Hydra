@@ -44,7 +44,7 @@
                     <div class="celda-info-preview-empresa"><span>Trabajadores</span><strong>@_totalTrabajadores</strong></div>
                     <div class="celda-info-preview-empresa"><span>Cumplimiento</span><strong>@(_cumplimiento is { } c ? $"{c}%" : "—")</strong></div>
                     <div class="celda-info-preview-empresa"><span>Anexo I RSP</span><strong>@(_detalle.EsActividadAnexoI ? "Sí" : "No")</strong></div>
-                    <div class="celda-info-preview-empresa"><span>Alta</span><strong>@_detalle.CreadoEnUtc.ToLocalTime().ToString("MM/yyyy")</strong></div>
+                    <div class="celda-info-preview-empresa"><span>Alta</span><strong>@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("MM/yyyy")</strong></div>
                     <div class="celda-info-preview-empresa"><span>Convenio</span><strong>@(_detalle.ConvenioAplicable ?? "—")</strong></div>
                 </div>
 

@@ -130,7 +130,7 @@ public partial class SolicitudesCartera : CaeManager.Web.Components.PaginaIntera
     }
 
     private static string FormatearFecha(DateTime utc) =>
-        utc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
+        utc.EnHoraPeninsular().ToString("g", CultureInfo.CurrentCulture);
 
     private static TonoBadge TonoDe(EstadoSolicitudIncorporacionCartera estado) => estado switch
     {

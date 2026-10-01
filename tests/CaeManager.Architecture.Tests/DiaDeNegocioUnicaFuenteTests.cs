@@ -18,10 +18,10 @@ namespace CaeManager.Architecture.Tests;
 ///    todos migrados), así que no hay lista de deuda: cualquier uso es rojo.
 /// 2. Que un sitio nuevo dependa de la zona horaria del servidor para mostrar o
 ///    cortar un instante (<c>ToLocalTime()</c>, <c>LocalDateTime</c>,
-///    <c>TimeZoneInfo.Local</c>…) o resuelva Europe/Madrid por su cuenta. Deuda
-///    congelada en <see cref="DeudaZonaDelServidor"/>: casi toda es presentación
-///    de instantes (hora de un registro), no día de negocio, pero en producción
-///    se pinta en UTC.
+///    <c>TimeZoneInfo.Local</c>…) o resuelva Europe/Madrid por su cuenta. Tolerancia
+///    cero: la deuda congelada por #982 (46 <c>ToLocalTime()</c> en 38 ficheros, casi
+///    toda hora de un registro pintada en UTC en producción) se retiró entera; una
+///    hora para el usuario es <c>instanteUtc.EnHoraPeninsular()</c>.
 /// 3. Que el código de producción fije el reloj ambiental de
 ///    <see cref="DiaDeNegocio.FijarRelojEnEsteFlujo"/>, que es solo para tests.
 ///
@@ -31,52 +31,6 @@ namespace CaeManager.Architecture.Tests;
 public class DiaDeNegocioUnicaFuenteTests
 {
     private const string FuenteUnica = "src/CaeManager.Domain/Common/DiaDeNegocio.cs";
-
-    /// <summary>
-    /// Sitios que dependen de la zona horaria del servidor. Congelados: un sitio
-    /// nuevo convierte con <see cref="DiaDeNegocio.Zona"/> o <see cref="DiaDeNegocio.De(DateTime)"/>.
-    /// </summary>
-    private static readonly Dictionary<string, int> DeudaZonaDelServidor = new()
-    {
-        ["src/CaeManager.Infrastructure/Firmas/EstampadoFirmaEnCampoPdfService.cs"] = 1,
-        ["src/CaeManager.Infrastructure/Firmas/VerificadorFirmaPdfService.cs"] = 1,
-        ["src/CaeManager.Web/Components/Workspace/PestanaHistorial.razor"] = 1,
-        ["src/CaeManager.Web/Features/ApiKeys/Pages/ClavesApi.razor"] = 2,
-        ["src/CaeManager.Web/Features/Auditoria/AuditoriaEndpoints.cs"] = 1,
-        ["src/CaeManager.Web/Features/Auditoria/Pages/AccesosDocumentosSensibles.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Auditoria/Pages/Auditoria.razor"] = 1,
-        ["src/CaeManager.Web/Features/AuditoriaIa/Pages/AuditoriaIa.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor"] = 2,
-        ["src/CaeManager.Web/Features/Clientes/Components/ClientePreviewDrawer.razor"] = 1,
-        ["src/CaeManager.Web/Features/Clientes/Components/ClienteWorkspacePanel.razor"] = 1,
-        ["src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor"] = 1,
-        ["src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor"] = 1,
-        ["src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Comunicaciones/Pages/Buzon.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Configuracion/Components/AutomatizacionesPanel.razor.cs"] = 2,
-        ["src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor"] = 3,
-        ["src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor.cs"] = 2,
-        ["src/CaeManager.Web/Features/Documentos/Components/DocumentoWorkspacePanel.razor"] = 1,
-        ["src/CaeManager.Web/Features/Documentos/Components/FirmaEnCampoTab.razor"] = 1,
-        ["src/CaeManager.Web/Features/Documentos/Components/ReclamacionesTab.razor"] = 1,
-        ["src/CaeManager.Web/Features/Empresas/Components/EmpresaPreviewDrawer.razor"] = 1,
-        ["src/CaeManager.Web/Features/Empresas/Components/EmpresaWorkspacePanel.razor"] = 1,
-        ["src/CaeManager.Web/Features/Empresas/Components/PestanaSelloEmpresa.razor"] = 1,
-        ["src/CaeManager.Web/Features/Empresas/Pages/EmpresaDetalle.razor"] = 1,
-        ["src/CaeManager.Web/Features/Extension/Pages/ConectarExtension.razor"] = 1,
-        ["src/CaeManager.Web/Features/Importacion/Pages/Importacion.razor"] = 1,
-        ["src/CaeManager.Web/Features/IncorporacionCartera/Pages/SolicitudesCartera.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Integraciones/Pages/Conexiones.razor"] = 1,
-        ["src/CaeManager.Web/Features/Plantillas/Components/DocumentosGeneradosPanel.razor"] = 1,
-        ["src/CaeManager.Web/Features/Plataforma/Pages/Plataforma.razor"] = 2,
-        ["src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor"] = 1,
-        ["src/CaeManager.Web/Features/Retencion/Pages/Retencion.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataPreviewDrawer.razor"] = 1,
-        ["src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor"] = 1,
-        ["src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor"] = 1,
-        ["src/CaeManager.Web/Features/Usuarios/Pages/MiFirma.razor"] = 1,
-    };
 
     private static readonly Regex PatronDiaDesdeReloj = new(
         @"\bDateTime\s*\.\s*Today\b"
@@ -107,12 +61,12 @@ public class DiaDeNegocioUnicaFuenteTests
     [Fact]
     public void Ningun_sitio_nuevo_depende_de_la_zona_horaria_del_servidor()
     {
-        var esperado = new Dictionary<string, int>(DeudaZonaDelServidor) { [FuenteUnica] = 1 };
+        var esperado = new Dictionary<string, int> { [FuenteUnica] = 1 };
         var medidos = ContarPorFichero(RaizDelRepositorio(), "src", PatronZonaDelServidor);
 
         Divergencias(esperado, medidos).Should().BeEmpty(
             "los contenedores corren en UTC: convierte con DiaDeNegocio.Zona o DiaDeNegocio.De(instante), y " +
-            "Europe/Madrid solo se resuelve en DiaDeNegocio. Si has retirado un uso, baja su recuento");
+            "Europe/Madrid solo se resuelve en DiaDeNegocio; para mostrar una hora, instanteUtc.EnHoraPeninsular()");
     }
 
     [Fact]

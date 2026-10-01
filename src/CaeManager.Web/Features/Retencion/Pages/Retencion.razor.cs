@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Retencion.Commands;
 using CaeManager.Application.Retencion.Queries;
@@ -390,7 +391,7 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
     /// </summary>
     private static string DescribirEjecutada(SolicitudPurgaDto solicitud)
     {
-        var fecha = solicitud.EjecutadaEnUtc?.ToLocalTime().ToString("dd/MM/yyyy");
+        var fecha = solicitud.EjecutadaEnUtc?.EnHoraPeninsular().ToString("dd/MM/yyyy");
 
         if (solicitud.ResultadoEjecucion is not { } resultado)
             return $"Ejecutada el {fecha}";

@@ -23,7 +23,7 @@ else
             <CampoInfo Etiqueta="Sello guardado actualmente">
                 <img src="/empresas/@EntidadId/sello/archivo" alt="Sello de la empresa" class="firma-guardada-vista-previa" />
             </CampoInfo>
-            <CampoInfo Etiqueta="Actualizado" Valor="@_selloActual.ActualizadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")" />
+            <CampoInfo Etiqueta="Actualizado" Valor="@_selloActual.ActualizadaEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")" />
         </div>
     }
     else

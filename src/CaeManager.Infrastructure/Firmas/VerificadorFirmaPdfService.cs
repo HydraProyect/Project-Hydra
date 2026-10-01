@@ -285,8 +285,10 @@ public class VerificadorFirmaPdfService(
         cadena.ChainPolicy.UrlRetrievalTimeout = TimeoutRevocacion;
         // Sin sello de tiempo verificado, se evalúa a fecha actual (default
         // de X509Chain) — nunca a la fecha que el propio firmante declaró.
+        // Es un instante, no una hora para mostrar: se pasa marcado como UTC y
+        // X509Chain lo convierte según su Kind, sin depender de la zona del servidor.
         if (fechaFirmaVerificadaUtc is { } fecha)
-            cadena.ChainPolicy.VerificationTime = fecha.ToLocalTime();
+            cadena.ChainPolicy.VerificationTime = DateTime.SpecifyKind(fecha, DateTimeKind.Utc);
         return cadena;
     }
 

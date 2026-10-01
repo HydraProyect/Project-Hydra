@@ -577,7 +577,7 @@
                 }
                 @if (_borradorPrioridad.UltimaSolicitudEnviadaEnUtc is { } ultima)
                 {
-                    <p class="workspace-nota-contextual">Ya se pidió prioridad para este centro el @ultima.ToLocalTime().ToString("dd/MM/yyyy HH:mm").</p>
+                    <p class="workspace-nota-contextual">Ya se pidió prioridad para este centro el @ultima.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm").</p>
                 }
                 @if (_mensajeErrorPrioridad is not null)
                 {

@@ -56,7 +56,7 @@ else
             {
                 <CampoInfo Etiqueta="@firma.FirmanteNombre">
                     <span class="detalle-tecnico">
-                        @firma.FirmanteRol · @firma.FirmadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                        @firma.FirmanteRol · @firma.FirmadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")
                         @(firma.Ubicacion is not null ? $" · {firma.Ubicacion}" : "")
                     </span>
                 </CampoInfo>

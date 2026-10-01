@@ -75,7 +75,7 @@
                         @reclamacion.TitularRazonSocial
                         <span class="fila-trabajador-fraccion">@reclamacion.DestinatarioEmail</span>
                     </span>
-                    <span role="cell">@reclamacion.FechaEnvioUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                    <span role="cell">@reclamacion.FechaEnvioUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</span>
                     <span role="cell">@reclamacion.TotalDocumentos</span>
                     <span role="cell">
                         @if (reclamacion.SinRespuesta is null)

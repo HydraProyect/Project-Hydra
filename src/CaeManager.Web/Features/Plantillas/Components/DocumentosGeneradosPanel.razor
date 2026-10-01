@@ -101,7 +101,7 @@ else
             <tbody>
                 @foreach (var generado in _documentosGenerados)
                 {
-                    var generadoEn = generado.GeneradoEnUtc.ToLocalTime();
+                    var generadoEn = generado.GeneradoEnUtc.EnHoraPeninsular();
                     <tr @key="generado.DocumentoGeneradoId" class="@(generado.DocumentoGeneradoId == _idEnfocado ? "fila-enfocada" : null)">
                         <td class="nombre-generado">
                             @if (_versionActualPorPlantilla.TryGetValue(generado.PlantillaDocumentoId, out var versionId))

@@ -187,7 +187,7 @@ else
                         <div class="celda-info-subcontrata-360"><span>@Textos["RotuloNivelServicio"]</span><strong>@EstadoSupervisionUi.TextoNivel(Textos, _detalle.NivelServicio)</strong></div>
                         <div class="celda-info-subcontrata-360"><span>@Textos["RotuloClientesEmpresariales"]</span><strong>@TextoRelaciones(_detalle.ClienteIds, _nombresClientes)</strong></div>
                         <div class="celda-info-subcontrata-360"><span>@Textos["EtiquetaEmpresasPrestaServicio"]</span><strong>@TextoRelaciones(_detalle.EmpresaIds, _nombresEmpresas)</strong></div>
-                        <div class="celda-info-subcontrata-360"><span>@Textos["RotuloAlta"]</span><strong>@(_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy", CultureInfo.CurrentCulture))</strong></div>
+                        <div class="celda-info-subcontrata-360"><span>@Textos["RotuloAlta"]</span><strong>@(_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy", CultureInfo.CurrentCulture))</strong></div>
                     </div>
 
                     <p class="workspace-nota-contextual">

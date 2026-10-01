@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Configuracion.Commands.ActualizarEstadoAutomatizacion;
 using CaeManager.Application.Configuracion.Queries.ObtenerEstadoAutomatizaciones;
@@ -91,14 +92,14 @@ public partial class AutomatizacionesPanel : ComponentBase
     }
 
     private static string FormatearUltimaEjecucion(DateTime? ultimaEjecucionUtc) =>
-        ultimaEjecucionUtc is null ? "—" : ultimaEjecucionUtc.Value.ToLocalTime().ToString("dd/MM HH:mm");
+        ultimaEjecucionUtc is null ? "—" : ultimaEjecucionUtc.Value.EnHoraPeninsular().ToString("dd/MM HH:mm");
 
     /// <summary>"Continuo" para los trabajos sin Cadencia (sondean en segundos); "—" para los que aún no han ejecutado nunca.</summary>
     private string FormatearProximoCiclo(AutomatizacionDto trabajo) => trabajo switch
     {
         { UltimaEjecucionUtc: null } => "—",
         { ProximoCicloUtc: null } => Textos["ProximoCicloContinuo"].Value,
-        _ => trabajo.ProximoCicloUtc!.Value.ToLocalTime().ToString("dd/MM HH:mm")
+        _ => trabajo.ProximoCicloUtc!.Value.EnHoraPeninsular().ToString("dd/MM HH:mm")
     };
 
     /// <summary>REC-126: detalle bajo el badge de resultado — el mensaje de error si falló, o el recuento de evaluados/afectados si tuvo éxito.</summary>

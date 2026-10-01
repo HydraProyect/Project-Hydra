@@ -39,7 +39,7 @@ else
                     <Badge Tono="@(registro.Accion switch { "Creado" => TonoBadge.Exito, "Eliminado" => TonoBadge.Peligro, _ => TonoBadge.Advertencia })">
                         @registro.Accion
                     </Badge>
-                    <span class="workspace-historial-fecha">@registro.FechaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                    <span class="workspace-historial-fecha">@registro.FechaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</span>
                 </div>
                 <span class="workspace-historial-usuario">@NombreUsuario(registro.UsuarioId)</span>
             </li>

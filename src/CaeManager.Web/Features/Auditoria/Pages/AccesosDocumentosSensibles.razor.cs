@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
@@ -186,7 +187,7 @@ public partial class AccesosDocumentosSensibles : CaeManager.Web.Components.Pagi
             : "accesos-sensibles-quien";
 
     /// <summary>Formato de fecha del resto de la app: sin segundos.</summary>
-    private static string Cuando(DateTime ocurridoEnUtc) => ocurridoEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+    private static string Cuando(DateTime ocurridoEnUtc) => ocurridoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm");
 
     private static string TextoCategoria(SensibilidadDocumental sensibilidad) => sensibilidad switch
     {

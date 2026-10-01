@@ -123,7 +123,7 @@
                             </div>
                             <div class="mi-firma-dato">
                                 <span class="mi-firma-dato-etiqueta">Actualizada</span>
-                                <span class="mi-firma-dato-valor">@_firmaActual.ActualizadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                                <span class="mi-firma-dato-valor">@_firmaActual.ActualizadaEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</span>
                             </div>
                             <span class="mi-firma-ayuda">Solo hay una firma guardada. La próxima que confirmes reemplaza a esta.</span>
                         }
