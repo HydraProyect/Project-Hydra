@@ -136,7 +136,12 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
         new(Textos["GrupoAccesoIdentidad"],
         [
             new("usuarios", "US", Textos["EntradaUsuariosNombre"], Textos["EntradaUsuariosResumen"], typeof(Features.Usuarios.Pages.Usuarios)),
-            new("roles", "RL", Textos["EntradaRolesNombre"], Textos["EntradaRolesResumen"], typeof(Features.GestionRoles.Pages.Roles))
+            new("roles", "RL", Textos["EntradaRolesNombre"], Textos["EntradaRolesResumen"], typeof(Features.GestionRoles.Pages.Roles)),
+            // "organizacion" es una salida pura, como "plataforma": Soporte TALVEG en Sesión Privilegiada no
+            // lleva rol de negocio y no puede abrir este hub ([Authorize(Roles=Administrador)]), así que
+            // la pantalla vive en su ruta literal /configuracion/organizacion, sin gate de rol; quién
+            // escribe el logo lo decide Application (IAutorizacionLogoTenant), no la ruta.
+            new("organizacion", "OR", Textos["EntradaOrganizacionNombre"], Textos["EntradaOrganizacionResumen"], null, false)
         ]),
         // Delegaciones y Estado comercial NO viven aquí (ver CatalogoMenuLateral,
         // grupo "Plataforma"): su autoridad real es de CAPACIDAD

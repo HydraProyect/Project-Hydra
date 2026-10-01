@@ -567,4 +567,82 @@
   <data name="EntradaAccesosSensiblesResumen" xml:space="preserve">
     <value>Quién abrió o descargó datos de salud</value>
   </data>
+  <data name="EntradaOrganizacionNombre" xml:space="preserve">
+    <value>Organización</value>
+  </data>
+  <data name="EntradaOrganizacionResumen" xml:space="preserve">
+    <value>Logo de la organización</value>
+  </data>
+  <data name="OrganizacionTituloDocumento" xml:space="preserve">
+    <value>Organización — Configuración</value>
+  </data>
+  <data name="OrganizacionAriaMigas" xml:space="preserve">
+    <value>Ruta de navegación</value>
+  </data>
+  <data name="OrganizacionTitulo" xml:space="preserve">
+    <value>Logo de la organización</value>
+  </data>
+  <data name="OrganizacionDescripcion" xml:space="preserve">
+    <value>Aparece junto al nombre de la organización en el selector y en las cabeceras. Sin logo se muestran sus iniciales.</value>
+  </data>
+  <data name="OrganizacionErrorCargaTitulo" xml:space="preserve">
+    <value>No se pudo cargar la organización</value>
+  </data>
+  <data name="OrganizacionLogoActual" xml:space="preserve">
+    <value>Logo actual</value>
+  </data>
+  <data name="OrganizacionLogoAlt" xml:space="preserve">
+    <value>Logo de {0}</value>
+  </data>
+  <data name="OrganizacionSinLogo" xml:space="preserve">
+    <value>Todavía no hay logo: se muestran las iniciales.</value>
+  </data>
+  <data name="OrganizacionAsiSeVe" xml:space="preserve">
+    <value>Así se ve en el selector</value>
+  </data>
+  <data name="OrganizacionSubir" xml:space="preserve">
+    <value>Sube el logo</value>
+  </data>
+  <data name="OrganizacionSustituir" xml:space="preserve">
+    <value>Sustituye el logo</value>
+  </data>
+  <data name="OrganizacionFormatos" xml:space="preserve">
+    <value>PNG o JPG, máx. 5 MB</value>
+  </data>
+  <data name="OrganizacionNotaConversion" xml:space="preserve">
+    <value>Se convertirá a PNG de 256 px.</value>
+  </data>
+  <data name="OrganizacionRetirar" xml:space="preserve">
+    <value>Retirar logo</value>
+  </data>
+  <data name="OrganizacionRetirarTitulo" xml:space="preserve">
+    <value>Retirar el logo</value>
+  </data>
+  <data name="OrganizacionRetirarTexto" xml:space="preserve">
+    <value>Se mostrarán de nuevo las iniciales de la organización. Puedes subir otro logo cuando quieras.</value>
+  </data>
+  <data name="OrganizacionRetirarConfirmar" xml:space="preserve">
+    <value>Retirar</value>
+  </data>
+  <data name="OrganizacionCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="OrganizacionToastGuardado" xml:space="preserve">
+    <value>Logo actualizado</value>
+  </data>
+  <data name="OrganizacionToastRetirado" xml:space="preserve">
+    <value>Logo retirado</value>
+  </data>
+  <data name="OrganizacionErrorTamano" xml:space="preserve">
+    <value>Máximo 5 MB.</value>
+  </data>
+  <data name="OrganizacionErrorGuardar" xml:space="preserve">
+    <value>No se pudo guardar el logo. Inténtalo de nuevo.</value>
+  </data>
+  <data name="OrganizacionSoloLecturaAdministrador" xml:space="preserve">
+    <value>Solo el Administrador de la organización puede cambiar el logo.</value>
+  </data>
+  <data name="OrganizacionSoloLecturaSoporte" xml:space="preserve">
+    <value>Esta sesión de soporte no tiene la capacidad de aprovisionamiento sobre esta organización: solo puedes ver el logo.</value>
+  </data>
 </root>

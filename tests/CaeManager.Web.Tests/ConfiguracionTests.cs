@@ -62,8 +62,9 @@ public class ConfiguracionTests : BunitContext
         // CatalogoMenuLateral, grupo "Plataforma"): su autoridad es de capacidad
         // AdminPlataforma, no del rol Administrador que gatea este hub —
         // 16 bajó a 14. H-4 retira "2fa" (sin política de obligatoriedad) y
-        // H-2/DEC-2 añade "plataforma" (enlace de salida puro): 14 se mantiene.
-        enlaces.Should().HaveCount(14);
+        // H-2/DEC-2 añade "plataforma" (enlace de salida puro): 14 se mantiene; el logo
+        // de la organización añade "organizacion" (otra salida pura): 15.
+        enlaces.Should().HaveCount(15);
         enlaces.Select(enlace => enlace.GetAttribute("href"))
             .Should().OnlyContain(ruta => ruta != null && ruta.StartsWith("/configuracion/", StringComparison.Ordinal));
         enlaces.Select(enlace => enlace.GetAttribute("href"))

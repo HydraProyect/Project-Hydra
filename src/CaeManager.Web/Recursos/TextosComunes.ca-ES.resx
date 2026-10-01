@@ -127,4 +127,7 @@
   <data name="LimpiarTodo" xml:space="preserve">
     <value>Neteja-ho tot</value>
   </data>
+  <data name="SoporteEnlaceLogoOrganizacion" xml:space="preserve">
+    <value>Logo de la organización</value>
+  </data>
 </root>

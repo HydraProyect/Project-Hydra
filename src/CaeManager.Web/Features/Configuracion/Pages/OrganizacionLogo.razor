@@ -1,0 +1,110 @@
+@page "/configuracion/organizacion"
+@rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize]
+@using CaeManager.Web.Components.Layout
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["OrganizacionTituloDocumento"] — @Marca.Nombre</PageTitle>
+
+@* Ruta literal, sin gate de rol, como /configuracion/plataforma: Soporte TALVEG en Sesión Privilegiada no
+   lleva rol de negocio y no puede abrir el hub (Configuracion.razor, [Authorize(Roles=Administrador)]).
+   La barrera real está en Application (IAutorizacionLogoTenant, la que aplican los dos comandos): la
+   pantalla solo ofrece o esconde los botones según LogoOrganizacionDto.PuedeEditar. No hay mockup de
+   esta sección; el copy sigue el brief de Design (ítems 7 y 8) y el vocabulario de la interfaz
+   («organización», nunca «tenant»). *@
+<div class="contenedor-pagina organizacion-logo">
+    <nav class="organizacion-logo-migas" aria-label="@Textos["OrganizacionAriaMigas"]">
+        <a href="/configuracion">@Textos["OrdenMenuMigaConfiguracion"]</a>
+        <span aria-hidden="true">→</span>
+        <span class="organizacion-logo-miga-actual" aria-current="page">@Textos["EntradaOrganizacionNombre"]</span>
+    </nav>
+
+    <header class="organizacion-logo-cabecera">
+        <h1 class="titulo-pagina">@Textos["OrganizacionTitulo"]</h1>
+        <p>@Textos["OrganizacionDescripcion"]</p>
+    </header>
+
+    @if (_errorCarga)
+    {
+        <EstadoVacio NombreIcono="error-circulo"
+                     Titulo="@Textos["OrganizacionErrorCargaTitulo"]"
+                     Descripcion="@Textos["ErrorCargaDetalle"]">
+            <Accion>
+                <Boton OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_organizacion is null)
+    {
+        <EstadoCargando Filas="2" />
+    }
+    else
+    {
+        <Tarjeta Titulo="@Textos["OrganizacionLogoActual"]" Class="tarjeta-configuracion organizacion-logo-tarjeta">
+            <div class="organizacion-logo-vista">
+                @if (TieneLogo)
+                {
+                    <img class="organizacion-logo-imagen" src="@UrlLogo" width="256" height="256"
+                         alt="@string.Format(Textos["OrganizacionLogoAlt"], _organizacion.Nombre)" />
+                }
+                else
+                {
+                    <div class="organizacion-logo-sin-logo">
+                        <AvatarTenant Nombre="@_organizacion.Nombre" />
+                        <p>@Textos["OrganizacionSinLogo"]</p>
+                    </div>
+                }
+            </div>
+
+            <div class="organizacion-logo-selector">
+                <AvatarTenant Nombre="@_organizacion.Nombre" LogoUrl="@UrlLogo" Tamano="TamanoAvatarTenant.Pequeno" />
+                <span>@Textos["OrganizacionAsiSeVe"]</span>
+            </div>
+
+            @if (_mensajeError is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeError</div>
+            }
+
+            @if (_organizacion.PuedeEditar)
+            {
+                <ZonaSoltarArchivo Titulo="@(TieneLogo ? Textos["OrganizacionSustituir"] : Textos["OrganizacionSubir"])"
+                                   FormatosTexto="@Textos["OrganizacionFormatos"]"
+                                   Accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                                   Cargando="_guardando"
+                                   OnChange="SubirArchivoAsync" />
+                <p class="organizacion-logo-nota">@Textos["OrganizacionNotaConversion"]</p>
+
+                @if (TieneLogo)
+                {
+                    <div class="acciones-formulario">
+                        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="PedirRetirar">
+                            @Textos["OrganizacionRetirar"]
+                        </Boton>
+                    </div>
+                }
+            }
+            else
+            {
+                <p class="organizacion-logo-solo-lectura" role="note">@TextoSoloLectura</p>
+            }
+        </Tarjeta>
+    }
+</div>
+
+<Modal Visible="_confirmandoRetirada" VisibleChanged="CerrarConfirmacion" Titulo="@Textos["OrganizacionRetirarTitulo"]"
+       Ancho="AnchoModal.Pequeno" CerrarAlHacerClicFuera="@(!_guardando)">
+    <ChildContent>
+        <p>@Textos["OrganizacionRetirarTexto"]</p>
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarConfirmacion(false)">
+            @Textos["OrganizacionCancelar"]
+        </Boton>
+        <Boton Variante="VarianteBoton.Destructivo" Cargando="_guardando" OnClick="RetirarAsync">
+            @Textos["OrganizacionRetirarConfirmar"]
+        </Boton>
+    </Pie>
+</Modal>
+</LimiteDeErrores>
