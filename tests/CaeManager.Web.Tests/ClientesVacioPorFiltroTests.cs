@@ -369,7 +369,7 @@ public class ClientesVacioPorFiltroTests : BunitContext
 
         cut.Markup.Should().Contain("Aún no hay Clientes empresariales");
         cut.Markup.Should().Contain("+ Nuevo Cliente empresarial");
-        cut.Markup.Should().Contain("Alta guiada");
+        cut.Markup.Should().Contain("Alta guiada (Cliente empresarial + Empresa + Centro)");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }
 
