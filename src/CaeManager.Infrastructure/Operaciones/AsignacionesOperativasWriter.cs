@@ -259,23 +259,29 @@ public class AsignacionesOperativasWriter(
         var gestores = operadores.Where(o => o.Rol == Roles.GestorCae).Select(o => o.UsuarioId).ToList();
         if (gestores.Count == 0) return;
 
-        var anteriorId = await dbContext.AsignacionesOperacion
+        // La última operación externa cerrada del mismo par, sea cual sea su motivo: si la última etapa
+        // terminó por caducidad (Expirada) o por traspaso, no se repone nada desde una anterior.
+        var anterior = await dbContext.AsignacionesOperacion
             .Where(o => o.Id != operacion.Id
                         && !o.EsRaiz
                         && o.PropietarioTenantId == operacion.PropietarioTenantId
                         && o.OperadorTenantId == operacion.OperadorTenantId
                         && o.Servicio == operacion.Servicio
-                        && o.Estado == EstadoAsignacion.Cerrada
-                        && o.MotivoCierre == MotivoCierreAsignacion.Revocada)
+                        && o.Estado == EstadoAsignacion.Cerrada)
             .OrderByDescending(o => o.VigenciaHasta)
-            .Select(o => (Guid?)o.Id)
+            .Select(o => new { o.Id, o.MotivoCierre, o.VigenciaHasta })
             .FirstOrDefaultAsync(cancellationToken);
-        if (anteriorId is null) return;
+        if (anterior is null || anterior.MotivoCierre != MotivoCierreAsignacion.Revocada) return;
 
+        // Solo las carteras que cerró la cascada de esa misma desactivación: CerrarOperacionDelegadaAsync
+        // cierra operación y carteras con el mismo instante, así que comparten VigenciaHasta. Una cartera
+        // revocada a un operador concreto con la operación aún vigente (CerrarCarteraOperadorAsync) se
+        // cerró antes y no se repone: nadie decidió devolvérsela.
         var conCarteraCerrada = await dbContext.AsignacionesCartera
-            .Where(c => c.AsignacionOperacionId == anteriorId
+            .Where(c => c.AsignacionOperacionId == anterior.Id
                         && c.Estado == EstadoAsignacion.Cerrada
                         && c.MotivoCierre == MotivoCierreAsignacion.Revocada
+                        && c.VigenciaHasta == anterior.VigenciaHasta
                         && gestores.Contains(c.UsuarioId))
             .Select(c => c.UsuarioId)
             .Distinct()

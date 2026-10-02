@@ -25,7 +25,6 @@ src/CaeManager.Application/Centros/Queries/ObtenerCentros/ObtenerCentrosQuery.cs
 src/CaeManager.Application/Centros/Queries/ObtenerCentrosParaSelector/ObtenerCentrosParaSelectorQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionBloqueantePendiente/ObtenerDocumentacionBloqueantePendienteQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Clientes/Commands/ReasignarEjecutivoCliente/ReasignarEjecutivoClienteCommand.cs :: ClienteId = 2
-src/CaeManager.Application/Clientes/DestinoCarteraCliente.cs :: ClienteIds = 2
 src/CaeManager.Application/Clientes/Queries/ObtenerCentrosDeCliente/ObtenerCentrosDeClienteQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Clientes/Queries/ObtenerClientes/ObtenerClientesQuery.cs :: ClienteId = 9
 src/CaeManager.Application/Clientes/Queries/ObtenerClientes/ObtenerClientesQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
@@ -316,7 +315,7 @@ src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: _clienteIds
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteId = 2
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteIds = 20
 src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: AmbitoRelacionClienteId = 2
-src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: ClienteIds = 3
+src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: ClienteIds = 2
 src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Identity/ApplicationUser.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Identity/GestionCuentasUsuarioIdentity.cs :: ClienteId = 5

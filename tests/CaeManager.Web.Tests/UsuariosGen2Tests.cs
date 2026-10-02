@@ -483,9 +483,6 @@ public partial class UsuariosGen2Tests : BunitContext
                 ? new DestinoCartera(cuenta.LockoutEnd is null, roles.FirstOrDefault(), cuenta.CoordinadorUsuarioId, EsOperadorDelegado: false)
                 : null);
 
-        public Task<CarteraVigente> ObtenerCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(CarteraVigente.Vacia);
-
         public Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default) => throw new NotSupportedException();

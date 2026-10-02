@@ -47,6 +47,52 @@ public class RepartoDeCarteraPorClienteRetiradoTests
             "empresarial. Control positivo incluido: la definición tiene que aparecer, o el escaneo no mira");
     }
 
+    [Fact]
+    public void Nadie_construye_un_AmbitoAsignacion_a_mano_fuera_de_su_definicion()
+    {
+        // new AmbitoAsignacion(clienteId, ...) crea un ámbito por Cliente empresarial sin pasar por la fábrica
+        // DeRelacionCliente. (Un new(...) de destino implícito no se ve desde la sintaxis: el modelo de EF y
+        // la propiedad Ambito de las asignaciones lo usan para leer, no para conceder.)
+        var raiz = RaizDelRepositorio();
+
+        var infractores = ArchivosDeProduccion(raiz)
+            .Where(a => CSharpSyntaxTree.ParseText(File.ReadAllText(a)).GetRoot()
+                .DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.ObjectCreationExpressionSyntax>()
+                .Any(n => n.Type.ToString() == "AmbitoAsignacion"))
+            .Select(a => Rel(raiz, a))
+            .ToList();
+
+        infractores.Should().BeEquivalentTo([DefinicionDelAmbito],
+            "solo la definición del ámbito lo construye (en su fábrica DeRelacionCliente); control positivo incluido");
+    }
+
+    /// <summary>
+    /// <c>AsegurarCarteraTenantEnteroAsync</c> concede el Tenant entero a un Gestor CAE sin comprobar la
+    /// autoridad de quien llama: es el acto de una siembra, no de un Command. Un handler que la inyectara
+    /// concedería alcance saltándose <c>AutoridadSobreCarteraDeGestorCae</c>.
+    /// </summary>
+    [Fact]
+    public void Solo_las_siembras_y_el_propio_escritor_conceden_la_cartera_del_Tenant_entero_sin_autoridad()
+    {
+        var raiz = RaizDelRepositorio();
+        var permitidos = new[]
+        {
+            "src/CaeManager.Application/Operaciones/IAsignacionesOperativasWriter.cs",
+            "src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs",
+        };
+
+        var usos = ArchivosDeProduccion(raiz)
+            .Where(a => ContieneIdentificador(a, "AsegurarCarteraTenantEnteroAsync"))
+            .Select(a => Rel(raiz, a))
+            .ToList();
+
+        usos.Should().Contain(permitidos, "control positivo: el instrumento ve la definición y la implementación");
+        usos.Except(permitidos).Should().OnlyContain(u => u.Contains("/Persistence/Seed/"),
+            "fuera del escritor, solo las siembras (src/CaeManager.Infrastructure/Persistence/Seed) conceden la cartera del " +
+            "Tenant entero sin autoridad; un Command debe pasar por AutoridadSobreCarteraDeGestorCae");
+        usos.Except(permitidos).Should().NotBeEmpty("las siembras lo usan");
+    }
+
     [Theory]
     [InlineData("src/CaeManager.Infrastructure/Operaciones")]
     [InlineData("src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs")]

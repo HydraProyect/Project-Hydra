@@ -11,7 +11,7 @@ namespace CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 /// (ver Roles.cs)—. <b>Es una referencia, no una cartera</b> (D-7, 2026-10-02): no abre
 /// ni cierra ninguna Asignación de Cartera ni cambia lo que nadie alcanza; la cartera de un
 /// Gestor CAE es siempre el Tenant entero. Dispara los dos
-/// avisos pedidos por el usuario: cambio de cartera a los Gestores
+/// avisos pedidos por el usuario: cambio de referencia a los Gestores
 /// afectados, y — si el Cliente tiene algún TipoDocumento con lectura IA
 /// desactivada — un aviso aparte al nuevo Gestor con enlace a la pantalla
 /// de configuración, porque la configuración de IA se conserva tal cual al
@@ -49,7 +49,7 @@ public class ReasignarEjecutivoClienteCommandHandler(
     {
         var rol = await currentUserService.ObtenerRolEfectivoAsync();
         if (rol is null || !RolesPermitidos.Contains(rol))
-            return Result.Fallo(Error.Crear("Cliente.SinPermisoReasignar", "Tu rol no puede reasignar la cartera de un Cliente empresarial."));
+            return Result.Fallo(Error.Crear("Cliente.SinPermisoReasignar", "Tu rol no puede cambiar el Gestor CAE de referencia de un Cliente empresarial."));
 
         try
         {

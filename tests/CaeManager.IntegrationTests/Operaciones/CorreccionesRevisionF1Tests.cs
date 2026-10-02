@@ -316,6 +316,53 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         (await verificacion.AsignacionesCartera.AnyAsync(c => c.UsuarioId == _gestorConsultora)).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Reactivar_no_repone_la_cartera_que_se_revoco_a_ese_operador_antes_de_desactivar()
+    {
+        // La cartera de este Gestor CAE se le retiró a él solo (cerrada Revocada con la operación aún vigente).
+        // Después se desactiva y se reactiva la delegación: la reposición es de lo que cerró la cascada, no de
+        // todo lo que alguna vez se revocó. Sin esto, quien perdió la cartera por decisión explícita la
+        // recuperaba sin que nadie lo decidiera.
+        await EjecutarBackfillAsync();
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            await CrearWriter(contexto).AsegurarCarteraTenantEnteroAsync(_propietario, _gestorConsultora);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            await CrearWriter(contexto).CerrarCarteraOperadorAsync(
+                _propietario, _consultora, _gestorConsultora, MotivoCierreAsignacion.Revocada);
+            await contexto.SaveChangesAsync();
+        }
+
+        (await ClientesVisiblesParaElGestorDelegadoAsync()).Should().BeEmpty("control: la cartera quedó revocada");
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var handler = new DesactivarDelegacionTenantCommandHandler(
+                new DelegacionTenantRepository(contexto),
+                new CurrentUserServiceFalso(tenantOrigenId: _consultora),
+                CrearWriter(contexto), contexto);
+            (await handler.Handle(new DesactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
+                .EsExitoso.Should().BeTrue();
+        }
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var handler = new ReactivarDelegacionTenantCommandHandler(
+                new DelegacionTenantRepository(contexto),
+                new AutorizacionAdministradorDe(_propietario),
+                new CurrentUserServiceFalso(Guid.NewGuid()),
+                CrearWriter(contexto), contexto, contexto);
+            (await handler.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
+                .EsExitoso.Should().BeTrue();
+        }
+
+        (await ClientesVisiblesParaElGestorDelegadoAsync()).Should().BeEmpty("lo revocado a un operador concreto no se repone al reactivar");
+    }
+
     // ---------- O1: revalidación al activar una programada ----------
 
     [Fact]

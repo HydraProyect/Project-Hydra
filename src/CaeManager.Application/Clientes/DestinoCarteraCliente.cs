@@ -4,11 +4,11 @@ using CaeManager.Domain.Common;
 namespace CaeManager.Application.Clientes;
 
 /// <summary>
-/// Lo que Application necesita saber de la cuenta que va a recibir la cartera de
-/// un Cliente empresarial, leído en el momento de escribir. Es un puerto por el
+/// Lo que Application necesita saber de la cuenta que va a ser el Gestor CAE de
+/// referencia de un Cliente empresarial, leído en el momento de escribir. Es un puerto por el
 /// mismo motivo que <see cref="IDirectorioUsuariosService"/>: <c>ApplicationUser</c>
 /// vive en Infrastructure.Identity. <b>No decide nada</b>: devuelve hechos, y
-/// quién puede recibir la cartera lo decide <see cref="ReglaDestinoCarteraCliente"/>.
+/// quién puede ser la referencia lo decide <see cref="ReglaDestinoCarteraCliente"/>.
 /// </summary>
 public interface IDirectorioDestinosCartera
 {
@@ -19,22 +19,6 @@ public interface IDirectorioDestinosCartera
     /// hay Tenant resuelto (fallo cerrado).
     /// </summary>
     Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Las Asignaciones de Cartera vigentes de la cuenta en el Tenant activo, leídas en el
-    /// momento: si alguna es universal y qué Clientes empresariales concretos cubren. Una
-    /// cartera universal no se reparte cliente a cliente.
-    /// </summary>
-    Task<CarteraVigente> ObtenerCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken = default);
-}
-
-/// <param name="EsUniversal">Alguna Asignación de Cartera vigente cubre toda la operación del Tenant activo.</param>
-/// <param name="ClienteIds">Los Clientes empresariales concretos.</param>
-public record CarteraVigente(bool EsUniversal, IReadOnlyList<Guid> ClienteIds)
-{
-    public static readonly CarteraVigente Vacia = new(false, []);
-
-    public bool EstaVacia => !EsUniversal && ClienteIds.Count == 0;
 }
 
 /// <param name="Activa">La cuenta no está desactivada.</param>
@@ -48,7 +32,7 @@ public record CarteraVigente(bool EsUniversal, IReadOnlyList<Guid> ClienteIds)
 public record DestinoCartera(bool Activa, string? RolEfectivo, Guid? CoordinadorUsuarioId, bool EsOperadorDelegado);
 
 /// <summary>
-/// Quién puede recibir la cartera de un Cliente empresarial (FS-25, revisión Codex
+/// Quién puede ser el Gestor CAE de referencia de un Cliente empresarial (FS-25, revisión Codex
 /// de la PR #931). Antes solo lo comprobaba la pantalla de Usuarios: un Command
 /// enviado con otro Guid dejaba el Cliente empresarial en manos de una cuenta
 /// desactivada, de un rol sin cartera (una cartera de Cliente empresarial no le
@@ -78,10 +62,10 @@ public static class ReglaDestinoCarteraCliente
         "Cliente.DestinoInactivo", "Ese Gestor CAE tiene la cuenta desactivada: elige otro.");
 
     public static readonly Error NoEsGestorCae = Error.Crear(
-        "Cliente.DestinoNoEsGestorCae", "La cartera de un Cliente empresarial solo puede pasar a un Gestor CAE.");
+        "Cliente.DestinoNoEsGestorCae", "El Gestor CAE de referencia de un Cliente empresarial solo puede ser un Gestor CAE.");
 
     public static readonly Error FueraDeAlcance = Error.Crear(
-        "Cliente.DestinoFueraDeAlcance", "Ese Gestor CAE no está a tu cargo: solo puedes pasar la cartera a los tuyos.");
+        "Cliente.DestinoFueraDeAlcance", "Ese Gestor CAE no está a tu cargo: solo puedes dejar como referencia a los tuyos.");
 
     public static async Task<Result> ValidarAsync(
         Guid destinoUsuarioId, IDirectorioDestinosCartera directorio, ICurrentUserService currentUserService,

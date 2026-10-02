@@ -22,10 +22,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// las carteras por Cliente empresarial no cerradas. El histórico cerrado se conserva.</item>
     /// </list>
     /// Solo convierte lo que concedía alcance hoy: cartera <c>Vigente</c> y sin caducar, bajo una
-    /// Asignación de Operación <c>Vigente</c> de ámbito universal. Una cartera por Cliente empresarial
-    /// bajo una operación acotada, con caducidad pasada, <c>Programada</c> o <c>Suspendida</c> se cierra
-    /// sin sustituir: convertirla daría más de lo que daba. Los roles de Propiedad (Administrador,
-    /// Dirección CAE) nunca se convierten: una cartera no los concede (decisión del 2026-09-23).
+    /// Asignación de Operación <c>Vigente</c> de ámbito universal o acotada al mismo Cliente empresarial
+    /// (el ámbito efectivo era ese Cliente y una universal bajo esa operación da exactamente ese Cliente: no
+    /// se pierde ni se gana). Una cartera con caducidad pasada, <c>Programada</c> o <c>Suspendida</c>, o bajo
+    /// una operación acotada a otro Cliente (ámbito efectivo vacío), se cierra sin sustituir: convertirla
+    /// daría más de lo que daba. Los roles de Propiedad (Administrador, Dirección CAE) nunca se convierten:
+    /// una cartera no los concede (decisión del 2026-09-23). En una cartera externa el rol es el de la
+    /// propia cartera; en una interna (sin rol) se comprueba el rol de Identity del usuario.
     /// </para>
     ///
     /// <para>
@@ -76,8 +79,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   AND (c."Rol" IS NULL OR c."Rol" NOT IN ('Administrador', 'DireccionCae'))
                   AND o."Estado" = 'Vigente'
                   AND o."VigenciaDesde" <= now() AND (o."VigenciaHasta" IS NULL OR o."VigenciaHasta" > now())
-                  AND o."AmbitoRelacionClienteId" IS NULL AND o."AmbitoCentroId" IS NULL
-                  AND o."AmbitoTrabajadorId" IS NULL AND o."AmbitoProyectoId" IS NULL
+                  AND (o."AmbitoRelacionClienteId" IS NULL OR o."AmbitoRelacionClienteId" = c."AmbitoRelacionClienteId")
+                  AND o."AmbitoCentroId" IS NULL AND o."AmbitoTrabajadorId" IS NULL AND o."AmbitoProyectoId" IS NULL
+                  AND (c."Rol" IS NOT NULL OR NOT EXISTS (
+                      SELECT 1 FROM "AspNetUserRoles" ur JOIN "AspNetRoles" r ON r."Id" = ur."RoleId"
+                      WHERE ur."UserId" = c."UsuarioId" AND r."Name" IN ('Administrador', 'DireccionCae')))
                   AND NOT EXISTS (
                       SELECT 1 FROM "AsignacionesCartera" u
                       WHERE u."AsignacionOperacionId" = c."AsignacionOperacionId"

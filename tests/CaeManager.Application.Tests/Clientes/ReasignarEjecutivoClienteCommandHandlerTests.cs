@@ -80,8 +80,8 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         cliente.EjecutivoUsuarioId.Should().Be(gestorNuevoId);
         unitOfWork.VecesGuardado.Should().Be(1);
 
-        notificacionRepositorio.Notificaciones.Should().Contain(n => n.UsuarioDestinatarioId == gestorAnteriorId && n.Mensaje.Contains("quitado"));
-        notificacionRepositorio.Notificaciones.Should().Contain(n => n.UsuarioDestinatarioId == gestorNuevoId && n.Mensaje.Contains("asignado"));
+        notificacionRepositorio.Notificaciones.Should().Contain(n => n.UsuarioDestinatarioId == gestorAnteriorId && n.Mensaje.Contains("Ya no eres"));
+        notificacionRepositorio.Notificaciones.Should().Contain(n => n.UsuarioDestinatarioId == gestorNuevoId && n.Mensaje.Contains("Eres ahora"));
     }
 
     [Fact]
@@ -359,26 +359,11 @@ public class DirectorioDestinosCarteraFalso(DestinoCartera? destino) : IDirector
     /// <summary>Registro compartido con <see cref="BloqueoCarteraUsuarioFalso"/> para comprobar el orden.</summary>
     public List<string>? Eventos { get; init; }
 
-    /// <summary>
-    /// Lo que devuelve cada lectura de cartera, en orden; la última se repite. Permite
-    /// simular un Cliente empresarial que llega entre dos lecturas.
-    /// </summary>
-    public Queue<CarteraVigente> Carteras { get; } = new();
-
-    private CarteraVigente _ultimaCartera = CarteraVigente.Vacia;
-
     public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default)
     {
         Consultados.Add(usuarioId);
         Eventos?.Add("leer-destino");
         return Task.FromResult(destino);
-    }
-
-    public Task<CarteraVigente> ObtenerCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken = default)
-    {
-        Eventos?.Add("leer-cartera");
-        if (Carteras.TryDequeue(out var siguiente)) _ultimaCartera = siguiente;
-        return Task.FromResult(_ultimaCartera);
     }
 }
 

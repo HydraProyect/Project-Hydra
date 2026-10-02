@@ -129,7 +129,8 @@ public interface IAsignacionesOperativasWriter
     /// <b>Solo repone concesiones explícitas.</b> Un Gestor CAE recupera la cartera del Tenant
     /// entero únicamente si la tenía vigente en la operación que esa misma desactivación cerró
     /// (una Asignación de Cartera cerrada con motivo <see cref="MotivoCierreAsignacion.Revocada"/>
-    /// bajo la última operación externa cerrada del mismo par): la fila de operador delegado por
+    /// en el mismo instante que la última operación externa cerrada del mismo par, es decir, por la cascada
+    /// de esa desactivación y no por la revocación de un operador concreto): la fila de operador delegado por
     /// sí sola no es una cartera, y <c>Empresa.EjecutivoUsuarioId</c> ya no reconstruye alcance.
     /// </summary>
     Task ReabrirCarterasDeOperadoresAsync(

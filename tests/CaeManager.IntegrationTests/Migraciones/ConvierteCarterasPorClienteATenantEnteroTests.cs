@@ -55,6 +55,8 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
     private readonly Guid _coordinadorExterno = Guid.NewGuid();
     private readonly Guid _propiedadExterna = Guid.NewGuid();
     private readonly Guid _bajoOperacionAcotada = Guid.NewGuid();
+    private readonly Guid _bajoOperacionAcotadaAOtroCliente = Guid.NewGuid();
+    private readonly Guid _administradorInterno = Guid.NewGuid();
 
     // Tenant ajeno: ya tiene su universal y ninguna por Cliente empresarial.
     private readonly Guid _gestorAjeno = Guid.NewGuid();
@@ -232,17 +234,50 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Bajo_una_operacion_acotada_a_un_Cliente_empresarial_se_cierra_sin_convertir()
+    public async Task Bajo_una_operacion_acotada_al_mismo_Cliente_la_universal_da_lo_mismo_y_no_se_pierde_nada()
     {
-        // Una universal bajo una operación acotada a X daría solo X, pero la cartera por Cliente Y bajo esa
-        // operación no daba nada: convertirla concedería lo que no concedía.
+        // El ámbito efectivo era {X} (cartera por X ∩ operación acotada a X). Una universal bajo esa operación
+        // da exactamente {X}: convertirla no gana ni pierde alcance.
         await MigrarAsync();
 
         await using var contexto = NuevoContexto(null);
         var del = await contexto.AsignacionesCartera.Where(c => c.UsuarioId == _bajoOperacionAcotada).ToListAsync();
 
+        del.Should().HaveCount(2);
+        del.Single(c => c.AmbitoRelacionClienteId != null).Estado.Should().Be(EstadoAsignacion.Cerrada);
+        var universal = del.Single(c => c.Ambito.EsUniversal);
+        universal.Estado.Should().Be(EstadoAsignacion.Vigente);
+        universal.AsignacionOperacionId.Should().Be(del.Single(c => c.AmbitoRelacionClienteId != null).AsignacionOperacionId,
+            "cuelga de la misma operación acotada: la intersección sigue dando solo ese Cliente");
+    }
+
+    [Fact]
+    public async Task Bajo_una_operacion_acotada_a_otro_Cliente_el_ambito_efectivo_era_vacio_y_se_cierra_sin_convertir()
+    {
+        // Cartera por Y bajo una operación acotada a X: la intersección era vacía, no daba nada. Una universal
+        // bajo esa operación daría X: convertirla concedería lo que no concedía.
+        await MigrarAsync();
+
+        await using var contexto = NuevoContexto(null);
+        var del = await contexto.AsignacionesCartera.Where(c => c.UsuarioId == _bajoOperacionAcotadaAOtroCliente).ToListAsync();
+
         del.Should().ContainSingle();
         del[0].Estado.Should().Be(EstadoAsignacion.Cerrada);
+    }
+
+    [Fact]
+    public async Task Una_cartera_interna_de_un_usuario_que_en_Identity_es_Administrador_no_se_convierte()
+    {
+        // Las carteras internas no llevan rol propio: el de Identity decide. Una universal latente sobre una
+        // cuenta de Propiedad se activaría si algún día cambiara de rol.
+        await MigrarAsync();
+
+        await using var contexto = NuevoContexto(null);
+        var del = await contexto.AsignacionesCartera.Where(c => c.UsuarioId == _administradorInterno).ToListAsync();
+
+        del.Should().ContainSingle();
+        del[0].Estado.Should().Be(EstadoAsignacion.Cerrada);
+        del[0].MotivoCierre.Should().Be(MotivoCierreAsignacion.Reorganizada);
     }
 
     [Fact]
@@ -308,7 +343,7 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
 
         // IX_AsignacionesCartera_ResponsableRelacionVigente: un solo responsable vigente por Cliente
         // empresarial, así que cada cartera por Cliente empresarial lleva el suyo.
-        var clientes = Enumerable.Range(0, 10).Select(i => Cliente(contexto, $"Cliente interno {i}")).ToList();
+        var clientes = Enumerable.Range(0, 11).Select(i => Cliente(contexto, $"Cliente interno {i}")).ToList();
         await contexto.SaveChangesAsync();
 
         AsignacionCartera Interna(Guid usuario, int cliente, DateTime desde, DateTime? hasta = null) =>
@@ -325,6 +360,15 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
             Interna(_caducadaSinCerrar, 6, ahora.AddDays(-30), ahora.AddDays(-1)),
             Interna(_programada, 7, ahora.AddDays(5), ahora.AddDays(50)));
 
+        // Una cuenta del propio Tenant que en Identity es Administrador, con una cartera interna (sin rol propio).
+        var rolAdministrador = await contexto.Roles.SingleAsync(x => x.Name == Roles.Administrador);
+        contexto.Users.Add(new ApplicationUser
+        {
+            Id = _administradorInterno, TenantId = _interno.Id, UserName = "admin@conversion.test", Email = "admin@conversion.test",
+        });
+        contexto.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<Guid> { UserId = _administradorInterno, RoleId = rolAdministrador.Id });
+        contexto.AsignacionesCartera.Add(Interna(_administradorInterno, 9, ahora.AddDays(-30)));
+
         var historica = Interna(_soloHistorico, 8, ahora.AddDays(-40));
         historica.Cerrar(MotivoCierreAsignacion.Revocada, ahora.AddDays(-10));
         contexto.AsignacionesCartera.Add(historica);
@@ -339,7 +383,7 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
             _propietario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora.AddDays(-60), null, ahora.AddDays(-60));
         contexto.AsignacionesOperacion.Add(externa);
 
-        var clientes = Enumerable.Range(0, 4).Select(i => Cliente(contexto, $"Cliente externo {i}")).ToList();
+        var clientes = Enumerable.Range(0, 5).Select(i => Cliente(contexto, $"Cliente externo {i}")).ToList();
         await contexto.SaveChangesAsync();
 
         var acotada = AsignacionOperacion.Externa(
@@ -356,7 +400,8 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
             Externa(externa, _gestorExterno, Roles.GestorCae, 0),
             Externa(externa, _coordinadorExterno, Roles.CoordinadorCae, 1),
             Externa(externa, _propiedadExterna, Roles.Administrador, 2),
-            Externa(acotada, _bajoOperacionAcotada, Roles.GestorCae, 3));
+            Externa(acotada, _bajoOperacionAcotada, Roles.GestorCae, 3),
+            Externa(acotada, _bajoOperacionAcotadaAOtroCliente, Roles.GestorCae, 4));
 
         await contexto.SaveChangesAsync();
     }

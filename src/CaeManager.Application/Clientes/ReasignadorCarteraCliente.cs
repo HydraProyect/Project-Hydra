@@ -80,15 +80,15 @@ public class ReasignadorCarteraCliente(
         if (gestorAnteriorId is not null)
             notificacionRepositorio.Agregar(new NotificacionUsuario(
                 gestorAnteriorId.Value,
-                "Cambio en tu cartera de Clientes empresariales",
-                $"Se te ha quitado el Cliente empresarial \"{empresa.RazonSocial}\" de tu cartera."));
+                "Cambio en tus Clientes empresariales de referencia",
+                $"Ya no eres el Gestor CAE de referencia del Cliente empresarial \"{empresa.RazonSocial}\". Tu cartera no cambia."));
 
         if (nuevoGestorId is not null)
         {
             notificacionRepositorio.Agregar(new NotificacionUsuario(
                 nuevoGestorId.Value,
-                "Cambio en tu cartera de Clientes empresariales",
-                $"Se te ha asignado el Cliente empresarial \"{empresa.RazonSocial}\" en tu cartera."));
+                "Cambio en tus Clientes empresariales de referencia",
+                $"Eres ahora el Gestor CAE de referencia del Cliente empresarial \"{empresa.RazonSocial}\". Tu cartera no cambia."));
 
             var tiposSinLecturaIa = await configuracionIaRepositorio.ObtenerNombresTiposDocumentoSinLecturaIaAsync(empresa.Id, cancellationToken);
             if (tiposSinLecturaIa.Count > 0)

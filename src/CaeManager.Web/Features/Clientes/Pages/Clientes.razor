@@ -105,8 +105,8 @@
          «Criticidad» (Todos / Solo críticos), coherente con el patrón. Sigue
          viajando en la URL como <c>critico</c>.
        - «Ejecutivo» era deuda terminológica que el propio mockup anota:
-         nombra al Gestor CAE (la persona) con Asignación de Cartera sobre
-         este Cliente empresarial. Etiqueta, columna y chip dicen «Gestor CAE»;
+         nombra al Gestor CAE (la persona) de referencia de este Cliente
+         empresarial (no concede alcance: la cartera es el Tenant entero). Etiqueta, columna y chip dicen «Gestor CAE»;
          el campo del modelo sigue siendo deuda terminológica en código. *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="Buscar por nombre…"
                   HayFiltrosActivos="HayFiltrosActivos"
@@ -366,7 +366,7 @@
                     <option value="@gestor.Id">@gestor.NombreCompleto (@gestor.Email)</option>
                 }
             </CampoSelect>
-            <p class="texto-vacio-seccion">Al cambiarlo, se avisa al Gestor CAE anterior y al nuevo de este cambio de cartera.</p>
+            <p class="texto-vacio-seccion">Al cambiarlo, se avisa al Gestor CAE anterior y al nuevo. Es el Gestor CAE de referencia del Cliente empresarial: no cambia lo que cada uno puede ver.</p>
         }
     </ChildContent>
     <Pie>

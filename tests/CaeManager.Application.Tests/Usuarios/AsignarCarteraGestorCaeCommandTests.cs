@@ -414,9 +414,6 @@ public class AsignarCarteraGestorCaeCommandTests
 
         public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult<DestinoCartera?>(++_lecturas == 1 ? antes : despues);
-
-        public Task<CarteraVigente> ObtenerCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(CarteraVigente.Vacia);
     }
 
     private static async Task<(Escenario Escenario, CaeManager.Domain.Common.Result Resultado)> EjecutarConCambioDeDestino(
@@ -466,9 +463,6 @@ public class AsignarCarteraGestorCaeCommandTests
 
         public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult<DestinoCartera?>(new(Activa: ++_lecturas == 1, "GestorCae", null, false));
-
-        public Task<CarteraVigente> ObtenerCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(CarteraVigente.Vacia);
     }
 
     // --- La lista del diálogo ---
