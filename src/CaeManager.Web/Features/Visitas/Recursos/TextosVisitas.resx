@@ -31,7 +31,7 @@
     <value>Solo urgentes</value>
   </data>
   <data name="EtiquetaNotificadaTitular" xml:space="preserve">
-    <value>Notificada a la empresa titular</value>
+    <value>Notificada al titular del Centro</value>
   </data>
   <data name="OpcionTodas" xml:space="preserve">
     <value>Todas</value>
@@ -85,7 +85,7 @@
     <value>Por gestionar</value>
   </data>
   <data name="AriaNotificadaTitular" xml:space="preserve">
-    <value>Notificada a la empresa titular: {0}, {1}</value>
+    <value>Notificada al titular del Centro: {0}, {1}</value>
   </data>
   <data name="ColumnaAcciones" xml:space="preserve">
     <value>Acciones</value>
@@ -154,7 +154,7 @@
     <value>Todavía no hay trabajadores creados.</value>
   </data>
   <data name="CasillaNotificadaTitularCentro" xml:space="preserve">
-    <value>Marcar como avisada a la empresa titular del centro (no envía nada)</value>
+    <value>Marcar como avisado al titular del Centro (no envía nada)</value>
   </data>
   <data name="EtiquetaNotas" xml:space="preserve">
     <value>Notas</value>

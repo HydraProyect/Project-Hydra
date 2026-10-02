@@ -118,7 +118,7 @@
     <value>Sin gestiones</value>
   </data>
   <data name="VacioDescripcion" xml:space="preserve">
-    <value>Las gestiones se generan desde la Bandeja cuando se detecta la actualización de un documento de un trabajador, o desde el propio Trabajador/Centro.</value>
+    <value>Las gestiones se generan desde Mi trabajo cuando se detecta la actualización de un documento de un trabajador, o desde el propio Trabajador/Centro.</value>
   </data>
   <data name="BotonIrAMiTrabajo" xml:space="preserve">
     <value>Ir a Mi trabajo →</value>

@@ -34,10 +34,10 @@
     <value>Reintentar</value>
   </data>
   <data name="EtiquetaCliente" xml:space="preserve">
-    <value>Cliente</value>
+    <value>Cliente empresarial</value>
   </data>
   <data name="OpcionElegirCliente" xml:space="preserve">
-    <value>— Selecciona un cliente —</value>
+    <value>— Selecciona un Cliente empresarial —</value>
   </data>
   <data name="EtiquetaEstado" xml:space="preserve">
     <value>Estado</value>
@@ -70,7 +70,7 @@
     <value>Limpiar todo</value>
   </data>
   <data name="SinClienteTitulo" xml:space="preserve">
-    <value>Elige un cliente para ver sus proyectos</value>
+    <value>Elige un Cliente empresarial para ver sus proyectos</value>
   </data>
   <data name="SinClienteDescripcion" xml:space="preserve">
     <value>Cada proyecto de obra o instalación pertenece a un centro de un cliente concreto.</value>

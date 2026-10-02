@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="CabeceraCliente" xml:space="preserve">
-    <value>Cliente:</value>
+    <value>Cliente empresarial:</value>
     <comment>Rótulo en pantalla del Cliente empresarial del Centro (contrato Gen2 § 14: Cliente empresarial se rotula «Cliente»).</comment>
   </data>
   <data name="CabeceraEmpresa" xml:space="preserve">
@@ -88,7 +88,7 @@
     <value>Los centros se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
   </data>
   <data name="MenuVistaPrevia" xml:space="preserve">
-    <value>Vista previa</value>
+    <value>Vista rápida</value>
   </data>
   <data name="CabeceraMas" xml:space="preserve">
     <value>Más</value>
@@ -97,7 +97,7 @@
     <value>Exportar asignaciones</value>
   </data>
   <data name="MenuVerFicha360" xml:space="preserve">
-    <value>Ver ficha 360</value>
+    <value>Abrir ficha 360</value>
   </data>
   <data name="MenuFilaEtiqueta" xml:space="preserve">
     <value>Acciones de {0}</value>

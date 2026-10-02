@@ -85,13 +85,13 @@
     <value>Notificada</value>
   </data>
   <data name="NotificadaDetalle" xml:space="preserve">
-    <value>La empresa titular del centro ya está avisada de la visita</value>
+    <value>El titular del Centro ya está avisado de la visita</value>
   </data>
   <data name="SinNotificar" xml:space="preserve">
     <value>Sin notificar</value>
   </data>
   <data name="SinNotificarDetalle" xml:space="preserve">
-    <value>La empresa titular del centro todavía no está avisada de la visita</value>
+    <value>El titular del Centro todavía no está avisado de la visita</value>
   </data>
   <data name="VencimientoUno" xml:space="preserve">
     <value>{0} vencimiento</value>

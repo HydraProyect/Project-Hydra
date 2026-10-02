@@ -434,7 +434,7 @@ public class VisitasGen2Tests : BunitContext
             "la fila se pinta con lo que devuelve la recarga, no con el clic"));
         Interruptor(cut, "Centro Norte").HasAttribute("checked").Should().BeFalse();
         Interruptor(cut, "Planta Zaragoza").GetAttribute("role").Should().Be("switch");
-        Interruptor(cut, "Planta Zaragoza").GetAttribute("aria-label").Should().StartWith("Notificada a la empresa titular: Planta Zaragoza");
+        Interruptor(cut, "Planta Zaragoza").GetAttribute("aria-label").Should().StartWith("Notificada al titular del Centro: Planta Zaragoza");
     }
 
     /// <summary>
@@ -869,7 +869,7 @@ public class VisitasGen2Tests : BunitContext
         cliente.IsMatch(cut.Markup).Should().BeFalse("en el detalle");
 
         await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
-        cut.Markup.Should().Contain("Marcar como avisada a la empresa titular del centro", "el formulario tiene que estar abierto");
+        cut.Markup.Should().Contain("Marcar como avisado al titular del Centro", "el formulario tiene que estar abierto");
         cliente.IsMatch(cut.Markup).Should().BeFalse("en el formulario");
     }
 

@@ -1101,16 +1101,16 @@ public class ClientesListaGen2Tests : BunitContext
         var abierto = Cliente("Montajes Ebro S.L.");
         var cut = Renderizar(new MediatorFalso { Almacen = { otro, abierto } });
 
-        await PulsarEnElMenuDeLaFila(cut, 1, "Ver ficha 360");
+        await PulsarEnElMenuDeLaFila(cut, 1, "Abrir ficha 360");
 
         new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath
             .Should().Be($"/clientes/{abierto.Id}");
         Services.GetRequiredService<ContextWorkspaceService>().EstaAbierto.Should().BeFalse(
-            "«Ver ficha 360» lleva a la página; la vista previa es el nombre de la fila");
+            "«Abrir ficha 360» lleva a la página; la vista previa es el nombre de la fila");
     }
 
     /// <summary>
-    /// Pieza 5 del patrón: el «⋯» lleva el orden «Ver ficha 360 · Editar ·
+    /// Pieza 5 del patrón: el «⋯» lleva el orden «Abrir ficha 360 · Editar ·
     /// Eliminar» (aquí «Dar de baja», la baja lógica) y ya no lleva «Vista
     /// rápida», que es el nombre de la fila.
     /// </summary>
@@ -1122,7 +1122,7 @@ public class ClientesListaGen2Tests : BunitContext
         await cut.Find("tbody .menu-acciones .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
         cut.FindAll("tbody .menu-acciones .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Equal("Ver ficha 360", "Editar", "Dar de baja");
+            .Should().Equal("Abrir ficha 360", "Editar", "Dar de baja");
     }
 
     // ------------------------------------------------------ Teclado y lote

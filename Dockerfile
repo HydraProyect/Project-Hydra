@@ -98,4 +98,9 @@ EXPOSE 8080
 # ese caso — reproducido en producción, ver docker-entrypoint.sh), y baja de
 # privilegios a $APP_UID con gosu antes de ejecutar la app real. El proceso
 # de la app en sí sigue sin correr nunca como root.
+# Revisión (SHA) que contiene la imagen; /salud la devuelve en X-Talveg-Revision.
+# Al final del Dockerfile a propósito: un ARG que cambia en cada commit invalida la caché
+# de todo lo que va detrás, y aquí detrás ya no queda nada.
+ARG REVISION=desconocida
+ENV TALVEG_REVISION=$REVISION
 ENTRYPOINT ["/docker-entrypoint.sh"]

@@ -19,3 +19,10 @@
     color: var(--color-text-muted);
     white-space: nowrap;
 }
+
+/* Aparta la acción destructiva de «Cancelar» (D-29). */
+.barra-acciones-lote-separador {
+    align-self: stretch;
+    width: 1px;
+    background-color: var(--color-border);
+}

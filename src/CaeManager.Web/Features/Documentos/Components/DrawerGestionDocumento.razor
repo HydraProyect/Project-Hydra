@@ -42,7 +42,7 @@
         {
             <CampoSelect Etiqueta="¿A quién pertenece?" Valor="@_ambitoAplicacion" ValorChanged="CambiarAmbitoAsync">
                 <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
-                <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente</option>
+                <option value="@nameof(AmbitoAplicacion.Cliente)">Cliente empresarial</option>
                 <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
                 <option value="@nameof(AmbitoAplicacion.Vehiculo)">Vehículo</option>
                 <option value="@nameof(AmbitoAplicacion.Proyecto)">Proyecto</option>
@@ -77,8 +77,8 @@
             }
             else if (_ambitoAplicacion == nameof(AmbitoAplicacion.Cliente))
             {
-                <CampoSelect Etiqueta="Cliente" Valor="@_clienteId" ValorChanged="v => _clienteId = v">
-                    <option value="">Selecciona un cliente…</option>
+                <CampoSelect Etiqueta="Cliente empresarial" Valor="@_clienteId" ValorChanged="v => _clienteId = v">
+                    <option value="">Selecciona un Cliente empresarial…</option>
                     @foreach (var cliente in _clientesDisponibles)
                     {
                         <option value="@cliente.Id">@cliente.RazonSocial</option>

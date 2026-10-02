@@ -723,7 +723,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
         var encabezados = cut.FindAll("table.tabla-datos thead th");
         encabezados.Select(th => th.TextContent.Trim())
-            .Should().Equal("Correo", "Nombre", "Rol", "Alcance", "Estado", "Acciones");
+            .Should().Equal("Correo", "Nombre", "Rol", "Ámbito efectivo", "Estado", "Acciones");
         encabezados.Should().OnlyContain(th => th.GetAttribute("scope") == "col");
         encabezados[^1].QuerySelector(".encabezado-solo-lectores").Should().NotBeNull(
             "el rótulo existe para el lector de pantalla, no para la vista");

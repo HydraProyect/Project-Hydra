@@ -179,7 +179,7 @@ public partial class Cliente360Gen2Tests : BunitContext
 
         var cabecera = cut.Find(".cabecera-cliente-360");
         cabecera.QuerySelector("h2")!.TextContent.Trim().Should().Be("Refrielectric S.A.");
-        cabecera.QuerySelector(".kicker-cliente-360")!.TextContent.Trim().Should().Be("Cliente",
+        cabecera.QuerySelector(".kicker-cliente-360")!.TextContent.Trim().Should().Be("Cliente empresarial",
             "en pantalla el Cliente empresarial se rotula «Cliente» (contrato Gen2 § 14), igual que la página Cliente 360");
         cabecera.QuerySelectorAll(".badge").Select(b => b.TextContent.Trim()).Should().Equal(["Crítico"]);
         cabecera.TextContent.Should().Contain("3 centros · 42 trabajadores");

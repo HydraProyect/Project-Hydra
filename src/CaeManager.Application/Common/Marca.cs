@@ -7,9 +7,12 @@ namespace CaeManager.Application.Common;
 /// —títulos de pestaña, cabeceras, asuntos de correo, pies de PDF—, y eso
 /// convierte cualquier cambio de marca en una cacería. Ahora es un valor.
 ///
-/// El valor por defecto es el histórico y se puede sustituir por configuración
-/// (<c>Marca:Nombre</c>), que es como se activa el nombre nuevo sin escribirlo
-/// en el repositorio — recuérdese que este repositorio es público.
+/// El valor por defecto es el nombre actual del producto (TALVEG). Hasta el
+/// 2026-10-02 era el nombre anterior, con la esperanza de activar el nuevo solo
+/// por configuración (<c>Marca:Nombre</c>); como esa configuración no llegó a
+/// existir en ningún entorno, el título de pestaña, los correos y el emisor del
+/// segundo factor seguían diciendo el nombre antiguo (D-10 y D-33 del recorrido
+/// en vivo). La configuración sigue pudiendo sustituirlo.
 ///
 /// Estado estático mutable, sí: es un compromiso consciente. La alternativa era
 /// inyectar un servicio en las treinta y tantas páginas que solo necesitan
@@ -22,8 +25,8 @@ namespace CaeManager.Application.Common;
 /// </summary>
 public static class Marca
 {
-    /// <summary>Nombre histórico. Se usa si la configuración no dice otra cosa.</summary>
-    public const string PorDefecto = "CAE Manager";
+    /// <summary>Nombre del producto. Se usa si la configuración no dice otra cosa.</summary>
+    public const string PorDefecto = "TALVEG";
 
     public static string Nombre { get; private set; } = PorDefecto;
 

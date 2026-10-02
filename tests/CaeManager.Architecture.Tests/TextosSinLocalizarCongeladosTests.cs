@@ -63,7 +63,7 @@ public class TextosSinLocalizarCongeladosTests
         // (que los localiza en TextosComunes) y desaparecieron «Vista rápida», «Operar →» y «Ejecutivo».
         // Entran «Todos», «Criticidad», «Más», «Ver ficha 360» y «Búsqueda: \"». Recuento por diferencia
         // con un port del detector (no ejecutado en .NET): la CI confirma la cifra o la corrige.
-        ["Clientes"] = 250,
+        ["Clientes"] = 249, // 250→249 (D-29): «Ver ficha 360» pasó a «Abrir ficha 360», que ya contaba en esta superficie (ClientePreviewDrawer). No se ha migrado nada a .resx.
         ["Comercial"] = 61,
         ["Components/Account"] = 93,
         ["Components/DesignSystem"] = 51,

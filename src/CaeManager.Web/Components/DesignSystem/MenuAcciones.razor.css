@@ -71,3 +71,12 @@
 .menu-acciones-panel ::deep .menu-acciones-item-destructivo {
     color: var(--color-danger-700);
 }
+
+/* Acción destructiva (D-29): separada de las demás con una línea, para que no
+   cuelgue del mismo grupo y no se pulse por error al apuntar a la de al lado. */
+.menu-acciones-panel ::deep .menu-acciones-item:not(.menu-acciones-item-destructivo) + .menu-acciones-item-destructivo {
+    border-top: 1px solid var(--color-border);
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    margin-top: var(--space-1);
+    padding-top: var(--space-3);
+}

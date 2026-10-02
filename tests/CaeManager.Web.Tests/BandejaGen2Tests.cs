@@ -387,7 +387,7 @@ public class BandejaGen2Tests : BunitContext
         await cut.InvokeAsync(() => Task.CompletedTask);
 
         cut.Markup.Should().Contain("Montajes Ebro", "la cola vigente sigue en pie");
-        cut.Markup.Should().NotContain("No pudimos cargar la bandeja",
+        cut.Markup.Should().NotContain("No pudimos cargar Mi trabajo",
             "el fallo de una carga superada no es un error de la que sí fue bien");
         cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reintentar");
     }

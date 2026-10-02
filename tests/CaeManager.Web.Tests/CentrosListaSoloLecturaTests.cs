@@ -99,7 +99,7 @@ public class CentrosListaSoloLecturaTests : BunitContext
         await cut.Find(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
         var items = cut.FindAll("[role=menu] button, [role=menu] [role=menuitem]").Select(i => i.TextContent.Trim()).ToList();
-        items.Should().Contain("Ver ficha 360", "barrera: el menú se abrió y pinta sus acciones de lectura");
+        items.Should().Contain("Abrir ficha 360", "barrera: el menú se abrió y pinta sus acciones de lectura");
         items.Contains("Eliminar centro").Should().Be(debeVerse);
     }
 

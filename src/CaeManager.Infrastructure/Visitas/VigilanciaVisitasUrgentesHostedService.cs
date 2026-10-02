@@ -137,7 +137,7 @@ public class VigilanciaVisitasUrgentesHostedService(
             : $"Hay {gestionesUrgentes} gestiones urgentes de visita pendientes (ventana mínima de validación).";
 
         foreach (var destinatario in destinatarios)
-            repositorio.Agregar(new NotificacionUsuario(destinatario.Id, "Gestiones urgentes de visita", mensaje, "/bandeja", "Ver bandeja"));
+            repositorio.Agregar(new NotificacionUsuario(destinatario.Id, "Gestiones urgentes de visita", mensaje, "/bandeja", "Ver Mi trabajo"));
 
         await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
 

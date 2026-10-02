@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="Kicker" xml:space="preserve">
-    <value>Cliente</value>
+    <value>Cliente empresarial</value>
     <comment>Rótulo en pantalla del Cliente empresarial (contrato Gen2 § 14): kicker de la página Cliente 360 y de su panel.</comment>
   </data>
   <data name="MigaClientes" xml:space="preserve">
