@@ -1,7 +1,7 @@
 @*
     Pestaña "Reclamaciones" de /documentos (Parte XVI PROMPT 03: "seguimiento",
     tabla de lotes YA ENVIADOS). Por defecto muestra ese historial
-    (ObtenerReclamacionesEnviadasQuery); "+ Nueva reclamación" revela la
+    (ObtenerReclamacionesEnviadasQuery); la subvista "+ Nueva reclamación" (pestaña) revela la
     vista de COMPONER/ENVIAR que ya existía aquí (MVP1, decisión del usuario
     2026-08-08: agrupa por Cliente los Documentos de sus Trabajadores que
     vencen en los próximos 3 meses o ya vencieron, para reclamarlos en un
@@ -50,7 +50,7 @@
     }
     else if (_historial.Count == 0)
     {
-        <EstadoVacio Titulo="Todavía no se ha enviado ninguna reclamación" Descripcion='Los lotes que envíes desde "+ Nueva reclamación" aparecerán aquí.' />
+        <EstadoVacio Titulo="Todavía no se ha enviado ninguna reclamación" Descripcion='Los lotes que envíes desde la pestaña "+ Nueva reclamación" aparecerán aquí.' />
     }
     else
     {

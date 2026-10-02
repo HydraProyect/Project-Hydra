@@ -142,12 +142,6 @@ public class AlertasGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- Procedencia de «Falta»
 
-    /// <summary>
-    /// «Falta» sale de ResolucionTipoDocumentoCentro.Aplica: la fila del centro
-    /// si existe y, si no, el valor general del tipo (Requerido == Si). Un
-    /// texto que lo atribuye solo al centro miente en los centros que no han
-    /// configurado nada. Y es configuración, no norma: nada de «obligatorio».
-    /// </summary>
     private static void AbrirProcedencia(IRenderedComponent<Features.Alertas.Pages.Alertas> cut) =>
         cut.FindAll(".seccion-colapsable-cabecera")
             .Single(b => b.TextContent.Contains("¿De dónde sale esta lista?")).Click();
@@ -171,6 +165,12 @@ public class AlertasGen2Tests : BunitContext
         cut.FindAll(".alertas-procedencia").Should().ContainSingle();
     }
 
+    /// <summary>
+    /// «Falta» sale de ResolucionTipoDocumentoCentro.Aplica: la fila del centro
+    /// si existe y, si no, el valor general del tipo (Requerido == Si). Un
+    /// texto que lo atribuye solo al centro miente en los centros que no han
+    /// configurado nada. Y es configuración, no norma: nada de «obligatorio».
+    /// </summary>
     [Fact]
     public void La_procedencia_nombra_la_configuracion_del_centro_y_el_valor_general_del_tipo()
     {
