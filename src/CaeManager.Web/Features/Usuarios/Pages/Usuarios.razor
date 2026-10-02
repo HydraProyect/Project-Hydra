@@ -449,7 +449,7 @@
 
 @* Asignar empresas: Tenants beneficiarios enteros en la cartera de un Gestor CAE que ya
    existe. En pantalla, «empresa», nunca «tenant». El mockup de Usuarios aún no lo recoge. *@
-<Modal HayCambios="() => HayCambiosEnEmpresasDelGestor" Visible="@(_usuarioAAsignarEmpresas is not null)"
+<Modal @ref="_modalAsignarEmpresas" HayCambios="() => HayCambiosEnEmpresasDelGestor" Visible="@(_usuarioAAsignarEmpresas is not null)"
        VisibleChanged="@(v => { if (!v) CerrarAsignarEmpresas(); })"
        Titulo="@TextosUsuarios["AsignarEmpresasTitulo", _usuarioAAsignarEmpresas?.NombreCompleto ?? string.Empty]"
        CerrarAlHacerClicFuera="!_guardandoEmpresasDelGestor">
@@ -497,7 +497,7 @@
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoEmpresasDelGestor" OnClick="CerrarAsignarEmpresas">@TextosUsuarios["AsignarEmpresasVolver"]</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoEmpresasDelGestor" OnClick="() => _modalAsignarEmpresas?.SolicitarCierreAsync() ?? Task.CompletedTask">@TextosUsuarios["AsignarEmpresasVolver"]</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoEmpresasDelGestor"
                Deshabilitado="@(_cargandoEmpresasDelGestor || !HayCambiosEnEmpresasDelGestor)"
                OnClick="GuardarEmpresasDelGestorAsync">@TextosUsuarios["AsignarEmpresasGuardar"]</Boton>

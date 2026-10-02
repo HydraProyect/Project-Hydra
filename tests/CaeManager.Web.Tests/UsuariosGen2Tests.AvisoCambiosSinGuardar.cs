@@ -1,4 +1,6 @@
 using Bunit;
+using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
+using CaeManager.Application.Operaciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
@@ -53,6 +55,40 @@ public partial class UsuariosGen2Tests
 
         cut.FindAll(".drawer-panel").Should().BeEmpty("el alta vacía no tiene nada que perder");
         cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+    }
+
+    /// <summary>
+    /// D-05 (ampliado el 2026-10-03): el secundario del pie de «Asignar empresas» (clave AsignarEmpresasVolver, rótulo «Cancelar») es la salida y cierra como la X: con marcas cambiadas pregunta
+    /// «¿Descartar cambios?», «Seguir editando» las conserva, y sin cambios cierra directamente.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_volver_de_asignar_empresas_con_marcas_cambiadas_pregunta_y_sin_tocar_cierra()
+    {
+        SembrarAdministradoraYGestor();
+        _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte");
+        _catalogo.Registrar(BeneficiarioSur, "Montajes del Sur");
+        _catalogo.EnCartera.Add(new TenantEnCarteraDeGestor(BeneficiarioNorte, "Talleres Norte"));
+        var cut = Renderizar();
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
+        cut.WaitForAssertion(() => CasillasAsignarEmpresas(cut).Should().HaveCount(2));
+
+        await cut.PulsarCancelarDelPieAsync("[role=dialog] .modal-pie");
+        cut.FindAll("[role=dialog]").Should().BeEmpty("sin marcas cambiadas, la salida cierra directamente");
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
+        cut.WaitForAssertion(() => CasillasAsignarEmpresas(cut).Should().HaveCount(2));
+        await CasillasAsignarEmpresas(cut)[0].ChangeAsync(new() { Value = true });
+        await cut.PulsarCancelarDelPieAsync("[role=dialog] .modal-pie");
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?", "con marcas cambiadas, la salida pregunta como la X");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new());
+        CasillasAsignarEmpresas(cut)[0].HasAttribute("checked").Should().BeTrue("«Seguir editando» conserva las marcas");
+
+        await cut.PulsarCancelarDelPieAsync("[role=dialog] .modal-pie");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new());
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        _mediador.Enviadas.OfType<AsignarCarteraGestorCaeCommand>().Should().BeEmpty("descartar no guarda");
     }
 
     [Fact]

@@ -37,8 +37,8 @@ internal static class AvisoCambiosSinGuardarPrueba
     /// D-05: pulsa el «Cancelar» del pie del Drawer o Modal abierto (<paramref name="pie"/> = <c>.drawer-pie</c> o <c>.modal-pie</c>).
     /// Con el formulario a medias, ese botón cierra como la X: pregunta «¿Descartar cambios?».
     /// </summary>
-    public static Task PulsarCancelarDelPieAsync<T>(this IRenderedComponent<T> cut, string pie) where T : IComponent =>
-        cut.FindAll(pie + " button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+    public static Task PulsarCancelarDelPieAsync<T>(this IRenderedComponent<T> cut, string pie, string rotulo = "Cancelar") where T : IComponent =>
+        cut.FindAll(pie + " button").Single(b => b.TextContent.Trim() == rotulo).ClickAsync(new MouseEventArgs());
 
     /// <summary>
     /// D-05: tras <see cref="PulsarCancelarDelPieAsync{T}"/> con cambios, comprueba que pregunta «¿Descartar cambios?» (y que lo
