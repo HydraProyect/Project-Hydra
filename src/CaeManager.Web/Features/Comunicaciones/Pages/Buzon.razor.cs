@@ -27,6 +27,7 @@ namespace CaeManager.Web.Features.Comunicaciones.Pages;
 /// </summary>
 public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
+    private Drawer? _drawerRedactar;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Buzon> Logger { get; set; } = default!;
 

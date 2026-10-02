@@ -37,6 +37,8 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 
 public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
+    private Modal? _modalGuardarFiltro;
+    private Modal? _modalAsignarCentro;
     /// <summary>
     /// Se cancela al salir de la página: la resolución de la empresa activa que siga en vuelo deja de trabajar
     /// para nadie y su respuesta tardía no repinta un componente ya retirado.

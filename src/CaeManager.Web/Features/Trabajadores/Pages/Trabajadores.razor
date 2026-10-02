@@ -379,7 +379,7 @@
 
 <TrabajadorPreviewDrawer TrabajadorId="_previewTrabajadorId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" />
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_asignarCentroVisible" VisibleChanged="v => { if (!v) CerrarAsignarCentro(); }" Titulo="@(Textos["ModalAsignarCentroTitulo", _seleccionados.Count])" CerrarAlHacerClicFuera="!_asignandoLote">
+<Modal @ref="_modalAsignarCentro" HayCambios="() => HayCambiosSinGuardar" Visible="_asignarCentroVisible" VisibleChanged="v => { if (!v) CerrarAsignarCentro(); }" Titulo="@(Textos["ModalAsignarCentroTitulo", _seleccionados.Count])" CerrarAlHacerClicFuera="!_asignandoLote">
     <ChildContent>
         <CampoBuscarSelect
             Etiqueta="@Textos["EtiquetaCentro"]"
@@ -415,7 +415,7 @@
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_asignandoLote" OnClick="CerrarAsignarCentro">
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_asignandoLote" OnClick="() => _modalAsignarCentro?.SolicitarCierreAsync() ?? Task.CompletedTask">
             @Textos["BotonCancelar"]
         </Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_asignandoLote" OnClick="ConfirmarAsignarCentroAsync">
@@ -424,12 +424,12 @@
     </Pie>
 </Modal>
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarGuardarFiltro" VisibleChanged="v => { if (!v) CerrarModalGuardarFiltro(); }" Titulo="@Textos["ModalGuardarFiltroTitulo"]" CerrarAlHacerClicFuera="!_guardandoFiltro">
+<Modal @ref="_modalGuardarFiltro" HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarGuardarFiltro" VisibleChanged="v => { if (!v) CerrarModalGuardarFiltro(); }" Titulo="@Textos["ModalGuardarFiltroTitulo"]" CerrarAlHacerClicFuera="!_guardandoFiltro">
     <ChildContent>
         <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombreFiltroNuevo" ValorChanged="v => _nombreFiltroNuevo = v" Placeholder="@Textos["PlaceholderNombreFiltro"]" />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="CerrarModalGuardarFiltro">@Textos["BotonCancelar"]</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => _modalGuardarFiltro?.SolicitarCierreAsync() ?? Task.CompletedTask">@Textos["BotonCancelar"]</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">@Textos["BotonGuardar"]</Boton>
     </Pie>
 </Modal>

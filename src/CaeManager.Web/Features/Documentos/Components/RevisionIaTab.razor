@@ -210,7 +210,7 @@
         </div>
     }
 </section>
-<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_correccionManualVisible" VisibleChanged="v => _correccionManualVisible = v" Titulo="Corregir a mano" CerrarAlHacerClicFuera="@(!_operacionEnCurso)">
+<Drawer @ref="_drawerCorreccion" HayCambios="() => HayCambiosSinGuardar" Visible="_correccionManualVisible" VisibleChanged="v => _correccionManualVisible = v" Titulo="Corregir a mano" CerrarAlHacerClicFuera="@(!_operacionEnCurso)">
     <ChildContent>
         @if (RevisionSeleccionada is { } seleccionada)
         {
@@ -221,7 +221,7 @@
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_operacionEnCurso" OnClick="CerrarCorreccionManual">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_operacionEnCurso" OnClick="() => _drawerCorreccion?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="@(_procesandoId == _revisionIdSeleccionada)" OnClick="CorregirSeleccionadaAsync">Guardar y cerrar el aviso</Boton>
     </Pie>
 </Drawer>

@@ -32,6 +32,29 @@ public partial class UsuariosGen2Tests
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
     }
 
+    /// <summary>D-05: «Cancelar» del alta cierra como la X; con algo escrito pregunta «¿Descartar cambios?».</summary>
+    [Fact]
+    public async Task Aviso_cancelar_el_alta_a_medias_pregunta_y_sin_tocar_nada_cierra()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+        var cut = Renderizar();
+        await AbrirAltaAsync(cut);
+        await EscribirAsync(cut, "Nombre completo", "Nueva Persona");
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new());
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        cut.FindAll(".drawer-panel").Should().NotBeEmpty("con algo escrito, Cancelar no cierra hasta que se confirme");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new());
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+
+        await AbrirAltaAsync(cut);
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new());
+
+        cut.FindAll(".drawer-panel").Should().BeEmpty("el alta vacía no tiene nada que perder");
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+    }
+
     [Fact]
     public async Task Aviso_abrir_el_alta_sin_tocar_nada_no_pregunta()
     {

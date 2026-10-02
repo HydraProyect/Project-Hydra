@@ -330,12 +330,12 @@
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarGuardarFiltro" VisibleChanged="CerrarModalGuardarFiltro" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
+<Modal @ref="_modalGuardarFiltro" HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarGuardarFiltro" VisibleChanged="CerrarModalGuardarFiltro" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
     <ChildContent>
         <CampoTexto Etiqueta="Nombre" Valor="@_nombreFiltroNuevo" ValorChanged="v => _nombreFiltroNuevo = v" Placeholder="Vencidos de trabajadores" />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => CerrarModalGuardarFiltro(false)">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => _modalGuardarFiltro?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
     </Pie>
 </Modal>

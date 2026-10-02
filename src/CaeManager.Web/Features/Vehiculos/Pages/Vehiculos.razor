@@ -170,7 +170,7 @@
     }
 </div>
 
-<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer @ref="_drawerVehiculo" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
@@ -224,7 +224,7 @@
         <CampoTexto Etiqueta="@Textos["EtiquetaMatricula"]" Valor="@_numeroPlaca" ValorChanged="v => _numeroPlaca = v" OnBlur="ValidarNumeroPlacaAsync" MensajeError="@ObtenerError(nameof(CrearVehiculoCommand.NumeroPlaca))" />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawerVehiculo?.SolicitarCierreAsync() ?? Task.CompletedTask">
             @Textos["BotonCancelar"]
         </Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">

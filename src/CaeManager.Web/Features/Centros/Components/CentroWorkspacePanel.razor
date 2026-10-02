@@ -419,7 +419,7 @@ else
         }
     </Pestanas>
 
-    <Drawer HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerDocVisible" VisibleChanged="v => _drawerDocVisible = v"
+    <Drawer @ref="_drawerDoc" HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerDocVisible" VisibleChanged="v => _drawerDocVisible = v"
             Titulo="@($"Configurar «{_nombreTipoDocumentoEditando}» en este centro")"
             CerrarAlHacerClicFuera="@(_mensajeErrorDocumentacion is null && !_guardandoDocumentacion)">
         <ChildContent>
@@ -472,7 +472,7 @@ else
             </div>
         </ChildContent>
         <Pie>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerDocVisible = false" Deshabilitado="_guardandoDocumentacion">Cancelar</Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerDoc?.SolicitarCierreAsync() ?? Task.CompletedTask" Deshabilitado="_guardandoDocumentacion">Cancelar</Boton>
             <Boton Variante="VarianteBoton.Primario" OnClick="GuardarDocumentacionAsync" Cargando="_guardandoDocumentacion" Deshabilitado="_subiendoArchivoEdicion">Guardar</Boton>
         </Pie>
     </Drawer>
@@ -494,7 +494,7 @@ else
         EnProgreso="_quitandoAjuste"
         OnConfirmar="ConfirmarQuitarAjusteAsync" />
 
-    <Drawer HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerCanalVisible" VisibleChanged="v => _drawerCanalVisible = v"
+    <Drawer @ref="_drawerCanal" HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerCanalVisible" VisibleChanged="v => _drawerCanalVisible = v"
             Titulo="@(_canalIdEditando is null ? "Añadir acceso de gestión documental" : "Editar acceso de gestión documental")"
             CerrarAlHacerClicFuera="@(_mensajeErrorCanal is null && !_guardandoCanal)">
         <ChildContent>
@@ -564,12 +564,12 @@ else
             <CampoTextarea Etiqueta="Notas" Valor="@_notasCanalEdicion" ValorChanged="v => _notasCanalEdicion = v" Filas="3" />
         </ChildContent>
         <Pie>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerCanalVisible = false" Deshabilitado="_guardandoCanal">Cancelar</Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerCanal?.SolicitarCierreAsync() ?? Task.CompletedTask" Deshabilitado="_guardandoCanal">Cancelar</Boton>
             <Boton Variante="VarianteBoton.Primario" OnClick="GuardarCanalAsync" Cargando="_guardandoCanal">Guardar</Boton>
         </Pie>
     </Drawer>
 
-    <Drawer HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
+    <Drawer @ref="_drawerPrioridad" HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
             Titulo="Pedir prioridad de validación"
             CerrarAlHacerClicFuera="@(_mensajeErrorPrioridad is null && !_enviandoPrioridad)">
         <ChildContent>
@@ -602,7 +602,7 @@ else
             }
         </ChildContent>
         <Pie>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerPrioridadVisible = false" Deshabilitado="_enviandoPrioridad">Cancelar</Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerPrioridad?.SolicitarCierreAsync() ?? Task.CompletedTask" Deshabilitado="_enviandoPrioridad">Cancelar</Boton>
             <Boton Variante="VarianteBoton.Primario" OnClick="EnviarPrioridadAsync" Cargando="_enviandoPrioridad" Deshabilitado="_cargandoBorradorPrioridad || _borradorPrioridad is null">Enviar</Boton>
         </Pie>
     </Drawer>
@@ -614,7 +614,7 @@ else
        manda nada solo. El cuerpo del correo lo compone el propio Command
        (ConstruirCuerpoHtml), por eso aquí solo se revisa la lista, no se edita
        texto libre (a diferencia de "Pedir prioridad", que sí es texto libre). *@
-    <Drawer HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerReclamacionCentroVisible" VisibleChanged="v => _drawerReclamacionCentroVisible = v"
+    <Drawer @ref="_drawerReclamacionCentro" HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerReclamacionCentroVisible" VisibleChanged="v => _drawerReclamacionCentroVisible = v"
             Titulo="Reclamar documentación del centro"
             CerrarAlHacerClicFuera="!_enviandoReclamacionCentro">
         <ChildContent>
@@ -678,7 +678,7 @@ else
             }
         </ChildContent>
         <Pie>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerReclamacionCentroVisible = false" Deshabilitado="_enviandoReclamacionCentro">Cancelar</Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerReclamacionCentro?.SolicitarCierreAsync() ?? Task.CompletedTask" Deshabilitado="_enviandoReclamacionCentro">Cancelar</Boton>
             <Boton Variante="VarianteBoton.Primario" OnClick="EnviarReclamacionCentroAsync" Cargando="_enviandoReclamacionCentro"
                    Deshabilitado="_loteReclamacionCentro is null || _contactosReclamacionCentro.Count == 0">Enviar</Boton>
         </Pie>
@@ -693,6 +693,10 @@ else
 <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarDrawersDescartando" />
 
 @code {
+    private Drawer? _drawerReclamacionCentro;
+    private Drawer? _drawerPrioridad;
+    private Drawer? _drawerCanal;
+    private Drawer? _drawerDoc;
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
     [
         new("informacion", "Información"),

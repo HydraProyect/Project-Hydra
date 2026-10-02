@@ -31,10 +31,12 @@ namespace CaeManager.Architecture.Tests;
 /// puede sumar); una <c>Variante="Variante"</c> o <c>VarianteConfirmar</c> que llegue por parámetro (su valor
 /// real lo pone el llamador, que sí se cuenta en su fichero); botones con primarios en ramas excluyentes
 /// (<c>@if/else</c>), que cuentan como si convivieran. Esas ramas excluyentes son parte de la lista, no un
-/// agujero: se retiran de ella al revisar cada pantalla. Tampoco ve un primario que no pase por
-/// <c>&lt;Boton&gt;</c> (marcado a pelo con <c>class="boton boton-primario"</c>, hoy en
-/// <c>ConfigurarAutenticadorDosFactores</c> y <c>OrdenMenuLateral</c>) ni el que pinte un componente
-/// envoltorio por dentro: cuenta una vez en su fichero, no en cada uso.
+/// agujero: se retiran de ella al revisar cada pantalla. Tampoco ve el primario que pinte un componente
+/// envoltorio por dentro: cuenta una vez en su fichero, no en cada uso. Un primario que no pase por
+/// <c>&lt;Boton&gt;</c> (marcado a pelo con <c>class="boton-primario"</c>, como tenían
+/// <c>ConfigurarAutenticadorDosFactores</c> y <c>OrdenMenuLateral</c>) ya no se cuenta de otra forma:
+/// <see cref="Ningun_primario_se_marca_a_pelo_fuera_de_Boton"/> lo prohíbe, de modo que todo primario del
+/// fuente es un <c>&lt;Boton Variante="…Primario"&gt;</c> y entra en la medición de arriba.
 /// </para>
 /// </summary>
 public class BotonVarianteYUnSoloPrimarioTests
@@ -50,6 +52,7 @@ public class BotonVarianteYUnSoloPrimarioTests
     /// </summary>
     private static readonly IReadOnlyDictionary<string, int> PrimariosPermitidosPorSuperficie = new Dictionary<string, int>(StringComparer.Ordinal)
     {
+        ["src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor"] = 4,
         ["src/CaeManager.Web/Components/Workspace/PestanaAgendaContactos.razor"] = 2,
         ["src/CaeManager.Web/Components/Workspace/PestanaDocumentacion.razor"] = 2,
         ["src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor"] = 3,
@@ -73,6 +76,7 @@ public class BotonVarianteYUnSoloPrimarioTests
         ["src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor"] = 4,
         ["src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor#Drawer1"] = 2,
         ["src/CaeManager.Web/Features/Configuracion/Components/ParametrosSistemaPanel.razor"] = 4,
+        ["src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor"] = 2,
         ["src/CaeManager.Web/Features/DashboardEjecutivo/Pages/DashboardEjecutivo.razor"] = 2,
         ["src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor"] = 3,
         ["src/CaeManager.Web/Features/Documentos/Components/DocumentoWorkspacePanel.razor"] = 2,
@@ -152,6 +156,63 @@ public class BotonVarianteYUnSoloPrimarioTests
             "cada <Boton> declara Variante (Primario, Secundario, Fantasma o Destructivo); un solo Primario por vista");
     }
 
+    /// <summary>
+    /// Una clase de primario («boton-primario», «orden-menu-boton-primario»…) puesta a mano en un <c>&lt;a&gt;</c> o
+    /// <c>&lt;button&gt;</c> es un primario que el conteo de abajo no ve (S2a lo dejó fuera: 6 de ellos en 2 ficheros). El único
+    /// sitio que escribe «boton-primario» es la hoja de <c>Boton</c>, que lo compone en <c>Boton.razor</c> a partir de la
+    /// variante; en los demás <c>.razor</c>, un primario es <c>&lt;Boton Variante="VarianteBoton.Primario"&gt;</c>.
+    /// </summary>
+    [Fact]
+    public void Ningun_primario_se_marca_a_pelo_fuera_de_Boton()
+    {
+        var infractores = new List<string>();
+        var ficheros = 0;
+
+        foreach (var (ruta, texto) in LeerRazor())
+        {
+            ficheros++;
+            var limpio = LimpiadorDeComentarios.Quitar(texto, razor: true);
+            foreach (var clase in PrimarioAPelo(limpio)) infractores.Add($"{ruta}: «{clase}»");
+        }
+
+        ficheros.Should().BeGreaterThan(150, "había 221 .razor al escribirlo; si esto es bajo, el recorrido dejó de ver el árbol real");
+
+        string.Join(Environment.NewLine, infractores).Should().BeEmpty(
+            "un primario es <Boton Variante=\"VarianteBoton.Primario\">: marcado a pelo con una clase «…boton-primario» no lo ve el " +
+            "trinquete de un solo primario por superficie ni la hoja de contraste de Boton");
+    }
+
+    [Fact]
+    public void El_detector_de_primario_a_pelo_ve_las_formas_reales_y_no_lo_parecido()
+    {
+        PrimarioAPelo("""<button type="submit" class="boton-primario">Guardar</button>""").Should().Equal("boton-primario");
+        PrimarioAPelo("""<a class="boton-primario boton-continuar" href="x">Seguir</a>""").Should().Equal("boton-primario");
+        PrimarioAPelo("""<button class="orden-menu-boton orden-menu-boton-primario">Guardar</button>""").Should().Equal("orden-menu-boton-primario");
+        PrimarioAPelo("""<button class="boton @(esPrimario ? "boton-primario" : "boton-secundario")">X</button>""").Should().Equal("boton-primario");
+        PrimarioAPelo("""<Boton Variante="VarianteBoton.Primario" class="boton-2fa">X</Boton>""").Should().BeEmpty("es el componente");
+        PrimarioAPelo("""<button class="boton-primarioso">X</button>""").Should().BeEmpty("otro token que lo contiene");
+        PrimarioAPelo("""<button class="boton-secundario">X</button>""").Should().BeEmpty();
+    }
+
+    /// <summary>Los tokens de clase que terminan en <c>boton-primario</c> dentro de un atributo <c>class</c> de la etiqueta de apertura.</summary>
+    private static List<string> PrimarioAPelo(string razor)
+    {
+        var resultado = new List<string>();
+        foreach (var etiqueta in MarcadoRazor.Aperturas(razor, "[a-z][a-z0-9]*"))
+        {
+            var m = AtributoClase.Match(etiqueta.Texto);
+            if (!m.Success) continue;
+            var valor = MarcadoRazor.ValorDeComillas(etiqueta.Texto, m.Index + m.Length);
+            foreach (Match token in TokenPrimario.Matches(valor)) resultado.Add(token.Value);
+        }
+
+        return resultado;
+    }
+
+    private static readonly Regex AtributoClase = new(@"(?:^|\s)class\s*=\s*""", RegexOptions.Compiled);
+
+    private static readonly Regex TokenPrimario = new(@"(?<![\w-])(?:[\w]+-)*boton-primario(?![\w-])", RegexOptions.Compiled);
+
     // -------------------------------------------------------------------------------------------
     // 2. Un solo primario por superficie
     // -------------------------------------------------------------------------------------------
@@ -193,8 +254,8 @@ public class BotonVarianteYUnSoloPrimarioTests
     [Fact]
     public void La_lista_de_excepciones_no_crece()
     {
-        PrimariosPermitidosPorSuperficie.Count.Should().BeLessThanOrEqualTo(64, "entradas medidas el 2026-10-02");
-        PrimariosPermitidosPorSuperficie.Values.Sum().Should().BeLessThanOrEqualTo(193, "primarios en superficies excepcionales medidos el 2026-10-02");
+        PrimariosPermitidosPorSuperficie.Count.Should().BeLessThanOrEqualTo(66, "entradas medidas el 2026-10-02 (64) más las dos de primarios marcados a pelo que se migraron a <Boton> y pasaron a contarse");
+        PrimariosPermitidosPorSuperficie.Values.Sum().Should().BeLessThanOrEqualTo(199, "primarios en superficies excepcionales: 193 medidos el 2026-10-02 y 6 que no se veían por estar marcados a pelo (2FA 4, orden del menú 2); no es un primario nuevo");
     }
 
     // -------------------------------------------------------------------------------------------

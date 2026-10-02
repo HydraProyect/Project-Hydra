@@ -2,7 +2,7 @@
 @using CaeManager.Web.Features.IncorporacionCartera.Recursos
 @using Microsoft.Extensions.Localization
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@Textos["DialogoTitulo"]">
+<Modal @ref="_modal" HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@Textos["DialogoTitulo"]">
     <ChildContent>
         @if (_cargando)
         {
@@ -40,7 +40,7 @@
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" OnClick="CerrarAsync" Deshabilitado="_enviando">@Textos["Cancelar"]</Boton>
+        <Boton Variante="VarianteBoton.Secundario" OnClick="() => _modal?.SolicitarCierreAsync() ?? Task.CompletedTask" Deshabilitado="_enviando">@Textos["Cancelar"]</Boton>
         @if (_candidatos.Count > 0)
         {
             <Boton Variante="VarianteBoton.Primario" OnClick="EnviarAsync" Deshabilitado="!PuedeEnviar" Cargando="_enviando">@Textos["DialogoEnviar"]</Boton>

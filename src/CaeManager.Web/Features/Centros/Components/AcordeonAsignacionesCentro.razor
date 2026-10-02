@@ -465,13 +465,13 @@ else
     }
 }
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_confirmarBajaLoteVisible" VisibleChanged="v => _confirmarBajaLoteVisible = v" Titulo="@($"Dar de baja a {_seleccionados.Count} trabajador(es)")">
+<Modal @ref="_modalBajaLote" HayCambios="() => HayCambiosSinGuardar" Visible="_confirmarBajaLoteVisible" VisibleChanged="v => _confirmarBajaLoteVisible = v" Titulo="@($"Dar de baja a {_seleccionados.Count} trabajador(es)")">
     <ChildContent>
         <p>Dejarán de estar activos en @CentroNombre a partir de la fecha indicada. El historial de la asignación se conserva.</p>
         <CampoTexto Etiqueta="Fecha de baja" Type="date" Valor="@_fechaBajaLote" ValorChanged="v => _fechaBajaLote = v" />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesandoBajaLote" OnClick="() => _confirmarBajaLoteVisible = false">
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesandoBajaLote" OnClick="() => _modalBajaLote?.SolicitarCierreAsync() ?? Task.CompletedTask">
             Cancelar
         </Boton>
         <Boton Variante="VarianteBoton.Destructivo" Cargando="_procesandoBajaLote" OnClick="ConfirmarBajaLoteAsync">

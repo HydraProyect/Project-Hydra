@@ -474,29 +474,12 @@
     color: var(--color-text-muted);
 }
 
-.orden-menu-boton,
 .orden-menu-boton-texto {
     height: 40px;
     border-radius: var(--radius-md);
     font: var(--font-label);
     font-size: 14px;
     cursor: pointer;
-}
-
-.orden-menu-boton {
-    padding: 0 var(--space-5);
-    border: 1px solid var(--color-border-control);
-    background: var(--color-surface);
-    color: var(--color-text);
-}
-
-.orden-menu-boton-primario {
-    border: 0;
-    background: var(--color-primario-fondo);
-    color: var(--color-primario-texto);
-}
-
-.orden-menu-boton-texto {
     padding: 0 var(--space-2);
     border: 0;
     background: none;
@@ -507,7 +490,6 @@
     color: var(--color-primary-600);
 }
 
-.orden-menu-boton:disabled,
 .orden-menu-boton-texto:disabled {
     opacity: .5;
     cursor: not-allowed;

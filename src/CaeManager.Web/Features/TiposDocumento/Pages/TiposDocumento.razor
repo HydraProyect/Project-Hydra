@@ -230,7 +230,7 @@
     }
 </div>
 
-<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? Textos["DrawerTituloNuevo"].Value : Textos["DrawerTituloEditar"].Value)" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer @ref="_drawerTipo" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? Textos["DrawerTituloNuevo"].Value : Textos["DrawerTituloEditar"].Value)" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         <p class="nivel-drawer">@Textos["NivelDrawer"]</p>
 
@@ -369,7 +369,7 @@
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawerTipo?.SolicitarCierreAsync() ?? Task.CompletedTask">
             @Textos["BotonCancelar"]
         </Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
@@ -390,6 +390,7 @@
 </LimiteDeErrores>
 
 @code {
+    private Drawer? _drawerTipo;
     /// <summary>
     /// Interruptor de una fila. Sigue siendo un <c>&lt;input type="checkbox"&gt;</c>
     /// —con <c>role="switch"</c> y aspecto de interruptor por CSS— y no un

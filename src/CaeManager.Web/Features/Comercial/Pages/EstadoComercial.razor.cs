@@ -43,6 +43,7 @@ namespace CaeManager.Web.Features.Comercial.Pages;
 /// </summary>
 public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IAsyncDisposable
 {
+    private Modal? _modalVincular;
     private const string PrefijoSuscripcionStripe = "sub_";
 
     [Inject] private IMediator Mediator { get; set; } = default!;

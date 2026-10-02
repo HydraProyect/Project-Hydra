@@ -329,6 +329,32 @@ public class BuzonGen2Tests : BunitContext
         await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "abrir el drawer vacío no deja nada que perder");
     }
 
+    /// <summary>D-05: «Cancelar» cierra como la X; con el mensaje a medias pregunta «¿Descartar cambios?».</summary>
+    [Fact]
+    public async Task Cancelar_con_el_mensaje_a_medias_pregunta_y_sin_escribir_cierra()
+    {
+        var (cut, _) = await RenderizarConRedactarAbiertoAsync(new Escenario());
+        await EscribirDestinatarioAsync(cut);
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        cut.FindAll(".drawer-panel").Should().NotBeEmpty("con el mensaje a medias, Cancelar no cierra hasta que se confirme");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Cancelar_sin_escribir_nada_cierra_directamente()
+    {
+        var (cut, _) = await RenderizarConRedactarAbiertoAsync(new Escenario());
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+    }
+
     [Fact]
     public async Task Enviar_el_mensaje_y_salir_no_pregunta()
     {

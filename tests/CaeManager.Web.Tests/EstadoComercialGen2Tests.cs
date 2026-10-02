@@ -255,6 +255,18 @@ public partial class EstadoComercialGen2Tests : BunitContext
     private static IElement BotonDe(IElement contenedor, string texto) =>
         contenedor.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == texto);
 
+    /// <summary>
+    /// «Cancelar» del formulario con algo escrito pregunta «¿Descartar cambios?» (D-05, como la X): para cerrarlo hay que
+    /// descartar. Con el formulario vacío no pregunta y no hay nada que descartar.
+    /// </summary>
+    private static async Task CancelarFormularioDescartandoAsync(IRenderedComponent<EstadoComercial> cut)
+    {
+        await BotonDe(Dialogo(cut, TituloFormulario)!, "Cancelar").ClickAsync(new MouseEventArgs());
+        var pregunta = Dialogo(cut, "¿Descartar cambios?");
+        if (pregunta is not null)
+            await BotonDe(pregunta, "Descartar cambios").ClickAsync(new MouseEventArgs());
+    }
+
     private static List<T> Enviados<T>(MediadorControlado mediador) => mediador.Enviados.OfType<T>().ToList();
 
     /// <summary>
@@ -459,6 +471,28 @@ public partial class EstadoComercialGen2Tests : BunitContext
         Celda(cut, TenantBeitia, 1).Should().Be("Activa", "el estado lo decide Stripe, no la pantalla");
         Celda(cut, TenantBeitia, 2).Should().Be("sub_beitia");
         BotonDeFila(cut, TenantBeitia).TextContent.Trim().Should().Be("Actualizar desde Stripe");
+    }
+
+    /// <summary>D-05: «Cancelar» del formulario cierra como la X; con el identificador escrito pregunta, sin nada cierra.</summary>
+    [Fact]
+    public async Task Cancelar_el_formulario_con_el_identificador_escrito_pregunta_y_vacio_cierra()
+    {
+        var (cut, mediador, _) = Montar(new Escenario());
+        await BotonDeFila(cut, TenantBeitia).ClickAsync(new MouseEventArgs());
+        await BotonDe(Dialogo(cut, TituloFormulario)!, "Cancelar").ClickAsync(new MouseEventArgs());
+        Dialogo(cut, TituloFormulario).Should().BeNull("sin nada escrito, Cancelar cierra directamente");
+        Dialogo(cut, "¿Descartar cambios?").Should().BeNull();
+
+        await BotonDeFila(cut, TenantBeitia).ClickAsync(new MouseEventArgs());
+        await EscribirIdAsync(cut, "sub_beitia");
+        await BotonDe(Dialogo(cut, TituloFormulario)!, "Cancelar").ClickAsync(new MouseEventArgs());
+
+        Dialogo(cut, "¿Descartar cambios?").Should().NotBeNull("con el identificador escrito, Cancelar pregunta como la X");
+        Dialogo(cut, TituloFormulario).Should().NotBeNull("el formulario sigue abierto hasta que se confirme");
+        await BotonDe(Dialogo(cut, "¿Descartar cambios?")!, "Descartar cambios").ClickAsync(new MouseEventArgs());
+
+        Dialogo(cut, TituloFormulario).Should().BeNull();
+        Enviados<RegistrarSuscripcionTenantCommand>(mediador).Should().BeEmpty();
     }
 
     [Fact]
@@ -778,7 +812,7 @@ public partial class EstadoComercialGen2Tests : BunitContext
         await AbrirFormularioYPedirConfirmacionAsync(cut, TenantBeitia, "sub_x");
         textos.Add(TextoDe(cut));
         await BotonDe(Dialogo(cut, TituloConfirmarVincular)!, "Cancelar").ClickAsync(new MouseEventArgs());
-        await BotonDe(Dialogo(cut, TituloFormulario)!, "Cancelar").ClickAsync(new MouseEventArgs());
+        await CancelarFormularioDescartandoAsync(cut);
         await BotonDeFila(cut, TenantArbeko).ClickAsync(new MouseEventArgs());
         textos.Add(TextoDe(cut));
         await BotonDe(Dialogo(cut, TituloConfirmarActualizar)!, "Actualizar desde Stripe").ClickAsync(new MouseEventArgs());
@@ -789,7 +823,7 @@ public partial class EstadoComercialGen2Tests : BunitContext
         await AbrirFormularioYPedirConfirmacionAsync(cut, TenantBeitia, "sub_beitia");
         await BotonDe(Dialogo(cut, TituloConfirmarVincular)!, "Vincular suscripción").ClickAsync(new MouseEventArgs());
         textos.Add(TextoDe(cut));
-        await BotonDe(Dialogo(cut, TituloFormulario)!, "Cancelar").ClickAsync(new MouseEventArgs());
+        await CancelarFormularioDescartandoAsync(cut);
 
         // Rechazo de actualizar: el error sale en un aviso.
         await BotonDeFila(cut, TenantElorrio).ClickAsync(new MouseEventArgs());

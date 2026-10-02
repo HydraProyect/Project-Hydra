@@ -31,6 +31,8 @@ public record GestorCaeSelectorDto(Guid Id, string NombreCompleto, string Email)
 
 public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
+    private Modal? _modalGuardarFiltro;
+    private Drawer? _drawerCliente;
     /// <summary>
     /// Se cancela al salir de la página: la resolución de la empresa activa que siga en vuelo deja de trabajar
     /// para nadie y su respuesta tardía no repinta un componente ya retirado.

@@ -20,6 +20,7 @@ namespace CaeManager.Web.Features.IncorporacionCartera.Components;
 /// </summary>
 public partial class DialogoSolicitarIncorporacion : ComponentBase
 {
+    private Modal? _modal;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService Toasts { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosIncorporacionCartera> Textos { get; set; } = default!;

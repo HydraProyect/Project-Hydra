@@ -376,6 +376,18 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         await cut.SalirYComprobarQuePreguntaAsync(navegacion);
     }
 
+    /// <summary>D-05: sin nada escrito, «Cancelar» cierra directamente (no hay nada que preguntar).</summary>
+    [Fact]
+    public async Task Cancelar_el_filtro_sin_nombre_cierra_sin_preguntar()
+    {
+        var (cut, _) = await AbrirGuardarFiltroAsync();
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+    }
+
     /// <summary>P1-E2b: cancelar el modal descarta el nombre; reabrirlo sin tocarlo y salir no pregunta.</summary>
     [Fact]
     public async Task Cancelar_el_filtro_y_reabrirlo_sin_tocar_nada_no_pregunta()
@@ -383,6 +395,9 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         var (cut, navegacion) = await AbrirGuardarFiltroAsync();
         await EscribirNombreDelFiltroAsync(cut, "Vencidos de trabajadores");
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        // D-05: «Cancelar» cierra como la X, así que con el nombre escrito pregunta; descartarlo es lo que vacía el modal.
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
 
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar filtro").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Etiqueta == "Nombre"));

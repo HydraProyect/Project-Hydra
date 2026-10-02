@@ -73,7 +73,7 @@
                 <div role="alert" class="orden-menu-aviso orden-menu-aviso-error" data-aviso="error">
                     <span class="orden-menu-aviso-icono" aria-hidden="true"><Icono Nombre="info" /></span>
                     <div><strong>@Textos["OrdenMenuAvisoErrorTitulo"]</strong><span>@Textos["OrdenMenuAvisoErrorTexto"]</span></div>
-                    <button type="button" class="orden-menu-boton" @onclick="ReintentarAsync">@Textos["OrdenMenuReintentar"]</button>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarAsync">@Textos["OrdenMenuReintentar"]</Boton>
                 </div>
             }
             else if (_aviso == Aviso.Conflicto)
@@ -84,7 +84,7 @@
                         <strong>@Textos["OrdenMenuAvisoConflictoTitulo"]</strong>
                         <span>@TextoConflicto</span>
                     </div>
-                    <button type="button" class="orden-menu-boton" @onclick="CargarOrdenActual">@Textos["OrdenMenuCargarActual"]</button>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="CargarOrdenActual">@Textos["OrdenMenuCargarActual"]</Boton>
                 </div>
             }
         </div>
@@ -160,10 +160,10 @@
             </div>
             <button type="button" class="orden-menu-boton-texto" data-accion="restablecer" disabled="@(_cargando || _guardando)"
                     @onclick="() => _confirmarRestablecer = true">@Textos["OrdenMenuRestablecer"]</button>
-            <button type="button" class="orden-menu-boton" data-accion="descartar" disabled="@(CambiosSinGuardar == 0 || _guardando)"
-                    @onclick="Descartar">@Textos["OrdenMenuDescartar"]</button>
-            <button type="button" class="orden-menu-boton orden-menu-boton-primario" data-accion="guardar" disabled="@(CambiosSinGuardar == 0 || _guardando)"
-                    @onclick="GuardarAsync">@Textos["OrdenMenuGuardar"]</button>
+            <Boton Variante="VarianteBoton.Secundario" data-accion="descartar" Deshabilitado="CambiosSinGuardar == 0 || _guardando"
+                    OnClick="Descartar">@Textos["OrdenMenuDescartar"]</Boton>
+            <Boton Variante="VarianteBoton.Primario" data-accion="guardar" Deshabilitado="CambiosSinGuardar == 0 || _guardando"
+                    OnClick="GuardarAsync">@Textos["OrdenMenuGuardar"]</Boton>
         </div>
 
         <section class="orden-menu-tarjeta" aria-labelledby="orden-menu-ultimo-titulo">
@@ -204,8 +204,8 @@
                 <h2 id="orden-menu-dialogo-titulo">@Textos["OrdenMenuDialogoTitulo"]</h2>
                 <p>@Textos["OrdenMenuDialogoTexto"]</p>
                 <div class="orden-menu-dialogo-acciones">
-                    <button type="button" class="orden-menu-boton" data-dialogo="cancelar" @onclick="() => _confirmarRestablecer = false">@Textos["OrdenMenuCancelar"]</button>
-                    <button type="button" class="orden-menu-boton orden-menu-boton-primario" data-dialogo="restablecer" @onclick="RestablecerAsync">@Textos["OrdenMenuRestablecerConfirmar"]</button>
+                    <Boton Variante="VarianteBoton.Secundario" data-dialogo="cancelar" OnClick="() => _confirmarRestablecer = false">@Textos["OrdenMenuCancelar"]</Boton>
+                    <Boton Variante="VarianteBoton.Primario" data-dialogo="restablecer" OnClick="RestablecerAsync">@Textos["OrdenMenuRestablecerConfirmar"]</Boton>
                 </div>
             </div>
         </div>

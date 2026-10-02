@@ -459,7 +459,7 @@
         }
     </div>
 
-    <Modal HayCambios="() => HayCambiosActualizarDocumento" Visible="_modalActualizarDocumentoVisible" VisibleChanged="v => { if (!v) CerrarModalActualizarDocumento(); }"
+    <Modal @ref="_modalActualizarDocumento" HayCambios="() => HayCambiosActualizarDocumento" Visible="_modalActualizarDocumentoVisible" VisibleChanged="v => { if (!v) CerrarModalActualizarDocumento(); }"
            Titulo="Actualizar documentación" Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="!_aplicandoDocumento">
         <ChildContent>
             @if (_detectandoDocumento)
@@ -525,7 +525,7 @@
             }
         </ChildContent>
         <Pie>
-            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_aplicandoDocumento" OnClick="CerrarModalActualizarDocumento">Cancelar</Boton>
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_aplicandoDocumento" OnClick="() => _modalActualizarDocumento?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
             <Boton Variante="VarianteBoton.Primario" Cargando="_aplicandoDocumento" Deshabilitado="_detectandoDocumento" OnClick="AplicarActualizacionDocumentoAsync">Aplicar y registrar</Boton>
         </Pie>
     </Modal>
@@ -539,7 +539,7 @@
         buzón candidato se pide explícitamente, nunca se manda "a ciegas"
         desde el primero que aparezca.
     *@
-    <Drawer HayCambios="() => HayCambiosRedactar" Visible="_redactarVisible" VisibleChanged="v => _redactarVisible = v" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviandoRedaccion">
+    <Drawer @ref="_drawerRedactar" HayCambios="() => HayCambiosRedactar" Visible="_redactarVisible" VisibleChanged="v => _redactarVisible = v" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviandoRedaccion">
         <ChildContent>
             @if (_redactarError is not null)
             {
@@ -562,13 +562,13 @@
             <CampoTextarea Etiqueta="Mensaje" Valor="@_redactarCuerpo" ValorChanged="v => _redactarCuerpo = v" Filas="6" />
         </ChildContent>
         <Pie>
-            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviandoRedaccion" OnClick="() => _redactarVisible = false">Cancelar</Boton>
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviandoRedaccion" OnClick="() => _drawerRedactar?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
             <Boton Variante="VarianteBoton.Primario" Cargando="_enviandoRedaccion" OnClick="EnviarMensajeNuevoDesdeRedactarAsync">Enviar</Boton>
         </Pie>
     </Drawer>
 
     @* "Pedir prioridad" a nivel conversación — mismo Drawer que ya usa CentroWorkspacePanel, aquí sobre el Centro elegido en el composer. *@
-    <Drawer HayCambios="() => HayCambiosPrioridad" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
+    <Drawer @ref="_drawerPrioridad" HayCambios="() => HayCambiosPrioridad" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
             Titulo="Pedir prioridad de validación"
             CerrarAlHacerClicFuera="@(_mensajeErrorPrioridad is null && !_enviandoPrioridad)">
         <ChildContent>
@@ -601,7 +601,7 @@
             }
         </ChildContent>
         <Pie>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerPrioridadVisible = false" Deshabilitado="_enviandoPrioridad">Cancelar</Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerPrioridad?.SolicitarCierreAsync() ?? Task.CompletedTask" Deshabilitado="_enviandoPrioridad">Cancelar</Boton>
             <Boton Variante="VarianteBoton.Primario" OnClick="EnviarPrioridadAsync" Cargando="_enviandoPrioridad" Deshabilitado="_cargandoBorradorPrioridad || _borradorPrioridad is null">Enviar</Boton>
         </Pie>
     </Drawer>

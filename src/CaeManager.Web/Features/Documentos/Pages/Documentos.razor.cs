@@ -38,6 +38,7 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 
 public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
+    private Modal? _modalGuardarFiltro;
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;

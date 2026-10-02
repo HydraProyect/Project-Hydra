@@ -467,7 +467,7 @@ else
         EnProgreso="_eliminandoVerificacion"
         OnConfirmar="ConfirmarEliminarVerificacionAsync" />
 
-    <Drawer HayCambios="() => HayCambiosEnElDrawer" Visible="_drawerVerificacionVisible" VisibleChanged="CerrarDrawerVerificacion" Titulo="@Textos["TituloDrawerVerificacion"]"
+    <Drawer @ref="_drawerVerificacion" HayCambios="() => HayCambiosEnElDrawer" Visible="_drawerVerificacionVisible" VisibleChanged="CerrarDrawerVerificacion" Titulo="@Textos["TituloDrawerVerificacion"]"
             CerrarAlHacerClicFuera="@(_mensajeErrorVerificacion is null && !_guardandoVerificacion)">
         <ChildContent>
             @if (_mensajeErrorVerificacion is not null)
@@ -516,7 +516,7 @@ else
             </div>
         </ChildContent>
         <Pie>
-            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoVerificacion" OnClick="() => CerrarDrawerVerificacion(false)">
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoVerificacion" OnClick="() => _drawerVerificacion?.SolicitarCierreAsync() ?? Task.CompletedTask">
                 @Textos["BotonCancelar"]
             </Boton>
             <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoVerificacion" OnClick="GuardarVerificacionAsync">
@@ -535,6 +535,7 @@ else
 <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="DescartarCambios" />
 
 @code {
+    private Drawer? _drawerVerificacion;
     private IReadOnlyList<PestanaDefinicion> PestanasBase =>
     [
         new("informacion", Textos["PestanaInformacion"]),

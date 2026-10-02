@@ -160,7 +160,7 @@
     }
 </div>
 
-<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nueva macro" : "Editar macro")"
+<Drawer @ref="_drawerMacro" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nueva macro" : "Editar macro")"
         CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando && !_conflicto)">
     <ChildContent>
         <p class="macros-drawer-subtitulo">
@@ -223,7 +223,7 @@
         </p>
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawerMacro?.SolicitarCierreAsync() ?? Task.CompletedTask">
             Cancelar
         </Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" Deshabilitado="_conflicto" OnClick="GuardarAsync">

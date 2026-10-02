@@ -7,7 +7,7 @@
 @using MediatR
 @inject IMediator Mediator
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Nuevo Cliente empresarial" Ancho="AnchoModal.Pequeno"
+<Modal @ref="_modal" HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Nuevo Cliente empresarial" Ancho="AnchoModal.Pequeno"
        CerrarAlHacerClicFuera="@(!_guardando)">
     <ChildContent>
         @if (_mensajeError is not null)
@@ -21,7 +21,7 @@
                     MensajeError="@ObtenerError(nameof(CrearClienteCommand.Cif))" />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarAsync(false)">
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _modal?.SolicitarCierreAsync() ?? Task.CompletedTask">
             Cancelar
         </Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">Crear</Boton>

@@ -171,14 +171,26 @@ public class EmpresasAvisoCambiosSinGuardarTests : BunitContext
         cut.FindAll(".modal-contenido").Should().BeEmpty();
     }
 
-    /// <summary>Revisión Codex (PR 2): cancelar a propósito cierra y limpia la URL sin preguntar: no es salir de la página.</summary>
+    /// <summary>
+    /// Revisión Codex (PR 2) y D-05: «Cancelar» cierra como la X, así que con el alta a medias pregunta «¿Descartar cambios?»
+    /// (antes cerraba sin preguntar y tiraba lo escrito). «Seguir editando» la conserva; al descartar se cierra y se limpia la URL,
+    /// y no es salir de la página: no sale el aviso de navegación.
+    /// </summary>
     [Fact]
-    public async Task Cancelar_con_cambios_limpia_la_URL_sin_preguntar()
+    public async Task Cancelar_con_cambios_pregunta_y_al_descartar_limpia_la_URL()
     {
         var (cut, navegacion) = RenderizarConAltaAbierta();
         await EscribirCifAsync(cut, "B12345678");
 
         await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        cut.FindAll(".modal-pie button").Should().NotContain(b => b.TextContent.Trim() == "Salir y descartar", "no es una navegación");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-panel").Should().NotBeEmpty("«Seguir editando» conserva el alta");
+
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
 
         navegacion.Uri.Should().NotContain("accion=crear");
         cut.FindAll(".modal-contenido").Should().BeEmpty();

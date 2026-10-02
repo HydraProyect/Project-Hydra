@@ -297,7 +297,7 @@
     }
 </Drawer>
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_delegacionSoporteAAbrir is not null"
+<Modal @ref="_modalSoporte" HayCambios="() => HayCambiosSinGuardar" Visible="_delegacionSoporteAAbrir is not null"
        VisibleChanged="v => CerrarFormularioSoporte(v)"
        Titulo="Abrir acceso de soporte"
        CerrarAlHacerClicFuera="!EstaProcesando(_delegacionSoporteAAbrir?.Id)">
@@ -329,7 +329,7 @@
     <Pie>
         <Boton Variante="VarianteBoton.Secundario"
                Deshabilitado="@EstaProcesando(_delegacionSoporteAAbrir?.Id)"
-               OnClick="() => CerrarFormularioSoporte(false)">
+               OnClick="() => _modalSoporte?.SolicitarCierreAsync() ?? Task.CompletedTask">
             Cancelar
         </Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="@EstaProcesando(_delegacionSoporteAAbrir?.Id)"
@@ -355,7 +355,7 @@
                      EnProgreso="@EstaProcesando(_operadorARetirar?.Operador.AsignacionId)"
                      OnConfirmar="RetirarOperadorAsync" />
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarNuevaDelegacion"
+<Modal @ref="_modalAlta" HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarNuevaDelegacion"
        VisibleChanged="v => CerrarFormularioNueva(v)"
        Titulo="Nueva delegación"
        CerrarAlHacerClicFuera="!_creandoDelegacion">
@@ -373,7 +373,7 @@
     <Pie>
         <Boton Variante="VarianteBoton.Secundario"
                Deshabilitado="_creandoDelegacion"
-               OnClick="() => CerrarFormularioNueva(false)">
+               OnClick="() => _modalAlta?.SolicitarCierreAsync() ?? Task.CompletedTask">
             Cancelar
         </Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_creandoDelegacion" OnClick="CrearDelegacionAsync">Crear</Boton>
