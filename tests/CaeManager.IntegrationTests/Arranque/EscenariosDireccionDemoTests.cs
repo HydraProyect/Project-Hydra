@@ -47,12 +47,12 @@ public sealed class EscenariosDireccionDemoFixture : IAsyncLifetime
     internal IConfiguration Configuracion { get; private set; } = null!;
 
     /// <summary>
-    /// Los Clientes empresariales del catálogo que YA tenían cartera vigente
-    /// justo antes del backfill. El backfill proyecta la cartera de cualquier
-    /// Cliente con ejecutivo, así que sin esta foto previa un sembrador que se
-    /// saltara el escritor de asignaciones seguiría dando verde.
+    /// Las carteras del Tenant entero (Tenant propietario, correo del Gestor CAE) que YA existían, vigentes,
+    /// justo antes del backfill. Desde D-7 el backfill no deriva ninguna cartera de
+    /// <c>Empresa.EjecutivoUsuarioId</c>, así que si el sembrador no abriera la cartera por el escritor de
+    /// asignaciones esta foto saldría vacía y el test que la lee se pondría rojo.
     /// </summary>
-    public IReadOnlyList<string> ClientesConCarteraAntesDelBackfill { get; private set; } = [];
+    public IReadOnlyList<(string Tenant, string Email)> CarterasDelTenantEnteroAntesDelBackfill { get; private set; } = [];
 
     public async Task InitializeAsync()
     {
@@ -76,15 +76,21 @@ public sealed class EscenariosDireccionDemoFixture : IAsyncLifetime
 
         await using (var antes = Arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear())
         {
-            var nombres = CatalogoEscenariosDireccionDemo.Ramas.SelectMany(r => r.Clientes.Select(c => c.RazonSocial)).ToList();
-            var conCartera = await antes.AsignacionesCartera
-                .Where(c => c.Estado == EstadoAsignacion.Vigente && c.AmbitoRelacionClienteId != null)
-                .Select(c => c.AmbitoRelacionClienteId!.Value)
-                .ToListAsync();
-            ClientesConCarteraAntesDelBackfill = await antes.Empresas.IgnoreQueryFilters()
-                .Where(e => e.EsCritico != null && nombres.Contains(e.RazonSocial) && conCartera.Contains(e.Id))
-                .Select(e => e.RazonSocial)
-                .ToListAsync();
+            var tenants = CatalogoEscenariosDireccionDemo.Ramas.Select(r => r.NombreTenant).ToList();
+            CarterasDelTenantEnteroAntesDelBackfill = (await (
+                    from c in antes.AsignacionesCartera
+                    join t in antes.Tenants on c.PropietarioTenantId equals t.Id
+                    join u in antes.Users on c.UsuarioId equals u.Id
+                    where c.Estado == EstadoAsignacion.Vigente
+                          && c.AmbitoRelacionClienteId == null && c.AmbitoCentroId == null
+                          && c.AmbitoTrabajadorId == null && c.AmbitoProyectoId == null
+                          && tenants.Contains(t.Nombre)
+                          && (u.Email == EscenariosDireccionDemoSeeder.EmailGestorPrimero
+                              || u.Email == EscenariosDireccionDemoSeeder.EmailGestorSegundo)
+                    select new { Tenant = t.Nombre, Email = u.Email! })
+                .ToListAsync())
+                .Select(x => (x.Tenant, x.Email))
+                .ToList();
         }
 
         // El backfill corre DESPUÉS en el arranque real (Program.cs): tiene que
@@ -249,54 +255,63 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
 
     // ── Las carteras: quién ve qué ──────────────────────────────────────────
 
+    /// <summary>
+    /// Los (Tenant, correo) que el catálogo da a cada Gestor CAE: uno por cada Tenant propietario en el que
+    /// lleva al menos un Cliente empresarial como referencia.
+    /// </summary>
+    private static IEnumerable<(string Tenant, string Email)> CarterasEsperadas() =>
+        CatalogoEscenariosDireccionDemo.Ramas
+            .SelectMany(r => r.Clientes.Select(c => (r.NombreTenant, c.Gestor)))
+            .Distinct()
+            .Select(x => (x.NombreTenant, x.Gestor == GestorDemo.Primero
+                ? EscenariosDireccionDemoSeeder.EmailGestorPrimero
+                : EscenariosDireccionDemoSeeder.EmailGestorSegundo));
+
     [Fact]
-    public async Task Cada_cliente_tiene_una_unica_cartera_vigente_y_es_de_su_gestor()
+    public async Task Cada_gestor_tiene_una_unica_cartera_vigente_del_Tenant_entero_en_cada_Tenant_en_el_que_lleva_un_cliente()
     {
         await using var bootstrap = fixture.Arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
-        var usuarios = await bootstrap.Users
-            .Where(u => u.Email == EscenariosDireccionDemoSeeder.EmailGestorPrimero || u.Email == EscenariosDireccionDemoSeeder.EmailGestorSegundo)
-            .ToDictionaryAsync(u => u.Email!, u => u.Id);
+        var tenants = CatalogoEscenariosDireccionDemo.Ramas.Select(r => r.NombreTenant).ToList();
 
-        foreach (var (tenant, cliente) in Clientes)
-        {
-            var clienteId = await IdDeClienteAsync(bootstrap, tenant, cliente);
-            var vigentes = await bootstrap.AsignacionesCartera
-                .Where(c => c.AmbitoRelacionClienteId == clienteId && c.Estado == EstadoAsignacion.Vigente)
-                .ToListAsync();
+        var carteras = await (
+                from c in bootstrap.AsignacionesCartera
+                join t in bootstrap.Tenants on c.PropietarioTenantId equals t.Id
+                join u in bootstrap.Users on c.UsuarioId equals u.Id
+                where tenants.Contains(t.Nombre)
+                      && (u.Email == EscenariosDireccionDemoSeeder.EmailGestorPrimero
+                          || u.Email == EscenariosDireccionDemoSeeder.EmailGestorSegundo)
+                select new { Tenant = t.Nombre, Email = u.Email!, c.Estado, Universal = c.AmbitoRelacionClienteId == null })
+            .ToListAsync();
 
-            var esperado = usuarios[cliente.Gestor == GestorDemo.Primero
-                ? EscenariosDireccionDemoSeeder.EmailGestorPrimero
-                : EscenariosDireccionDemoSeeder.EmailGestorSegundo];
-
-            vigentes.Should().ContainSingle($"MEDIDO ({cliente.RazonSocial}): una sola cartera vigente")
-                .Which.UsuarioId.Should().Be(esperado, $"MEDIDO ({cliente.RazonSocial}): la cartera es de su Gestor CAE");
-        }
+        carteras.Should().OnlyContain(c => c.Universal, "D-7: la cartera es siempre el Tenant entero, nunca por Cliente empresarial");
+        carteras.Where(c => c.Estado == EstadoAsignacion.Vigente).Select(c => (c.Tenant, c.Email))
+            .Should().BeEquivalentTo(CarterasEsperadas(), "MEDIDO: una cartera vigente por Gestor CAE y Tenant, y ninguna más");
     }
 
     [Fact]
     public void La_cartera_ya_existe_antes_del_backfill_porque_la_abre_el_escritor_de_asignaciones()
     {
-        fixture.ClientesConCarteraAntesDelBackfill.Should().BeEquivalentTo(
-            Clientes.Select(c => c.Cliente.RazonSocial),
-            "MEDIDO: el sembrador abre la cartera por el mismo escritor que la aplicación (AsignacionesOperativasWriter), " +
-            "no espera a que el backfill de arranque la proyecte desde Empresa.EjecutivoUsuarioId");
+        fixture.CarterasDelTenantEnteroAntesDelBackfill.Should().BeEquivalentTo(
+            CarterasEsperadas(),
+            "MEDIDO: el sembrador abre la cartera por el mismo escritor que la aplicación (AsignacionesOperativasWriter." +
+            "AsegurarCarteraTenantEnteroAsync); el backfill de arranque ya no la proyecta desde Empresa.EjecutivoUsuarioId");
     }
 
     [Fact]
-    public async Task Cada_gestor_ve_en_cada_tenant_exactamente_sus_clientes_y_el_coordinador_ve_los_de_ambos()
+    public async Task Cada_gestor_con_cartera_ve_el_Tenant_entero_y_sin_ella_nada_y_el_coordinador_ve_todo()
     {
         foreach (var rama in CatalogoEscenariosDireccionDemo.Ramas)
         {
-            var esperadosPrimero = rama.Clientes.Where(c => c.Gestor == GestorDemo.Primero).Select(c => c.RazonSocial).Order().ToList();
-            var esperadosSegundo = rama.Clientes.Where(c => c.Gestor == GestorDemo.Segundo).Select(c => c.RazonSocial).Order().ToList();
-            var esperadosCoordinador = rama.Clientes.Select(c => c.RazonSocial).Order().ToList();
+            var todos = rama.Clientes.Select(c => c.RazonSocial).Order().ToList();
+            var esperadosPrimero = rama.Clientes.Any(c => c.Gestor == GestorDemo.Primero) ? todos : [];
+            var esperadosSegundo = rama.Clientes.Any(c => c.Gestor == GestorDemo.Segundo) ? todos : [];
 
             (await ClientesVisiblesAsync(EscenariosDireccionDemoSeeder.EmailGestorPrimero, Roles.GestorCae, rama.NombreTenant))
-                .Should().Equal(esperadosPrimero, $"MEDIDO ({rama.NombreTenant}): Gestor CAE primero");
+                .Should().Equal(esperadosPrimero, $"MEDIDO ({rama.NombreTenant}): Gestor CAE primero, con cartera si lleva algún cliente");
             (await ClientesVisiblesAsync(EscenariosDireccionDemoSeeder.EmailGestorSegundo, Roles.GestorCae, rama.NombreTenant))
-                .Should().Equal(esperadosSegundo, $"MEDIDO ({rama.NombreTenant}): Gestor CAE segundo");
+                .Should().Equal(esperadosSegundo, $"MEDIDO ({rama.NombreTenant}): Gestor CAE segundo, con cartera si lleva algún cliente");
             (await ClientesVisiblesAsync(EscenariosDireccionDemoSeeder.EmailCoordinador, Roles.CoordinadorCae, rama.NombreTenant))
-                .Should().Equal(esperadosCoordinador, $"MEDIDO ({rama.NombreTenant}): Coordinador CAE, cartera de los dos Gestores CAE");
+                .Should().Equal(todos, $"MEDIDO ({rama.NombreTenant}): Coordinador CAE, cartera de los dos Gestores CAE");
         }
     }
 
@@ -316,20 +331,22 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
     public async Task El_backfill_posterior_no_cierra_ni_duplica_las_carteras_de_la_matriz()
     {
         await using var bootstrap = fixture.Arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
-        var clienteIds = new List<Guid>();
-        foreach (var (tenant, cliente) in Clientes)
-            clienteIds.Add(await IdDeClienteAsync(bootstrap, tenant, cliente));
+        var tenants = CatalogoEscenariosDireccionDemo.Ramas.Select(r => r.NombreTenant).ToList();
 
-        var porCliente = await bootstrap.AsignacionesCartera
-            .Where(c => c.AmbitoRelacionClienteId != null && clienteIds.Contains(c.AmbitoRelacionClienteId.Value))
-            .GroupBy(c => c.AmbitoRelacionClienteId)
-            .Select(g => new { g.Key, Vigentes = g.Count(c => c.Estado == EstadoAsignacion.Vigente), Todas = g.Count() })
+        var carteras = await (
+                from c in bootstrap.AsignacionesCartera
+                join t in bootstrap.Tenants on c.PropietarioTenantId equals t.Id
+                join u in bootstrap.Users on c.UsuarioId equals u.Id
+                where tenants.Contains(t.Nombre)
+                      && (u.Email == EscenariosDireccionDemoSeeder.EmailGestorPrimero
+                          || u.Email == EscenariosDireccionDemoSeeder.EmailGestorSegundo)
+                select new { Tenant = t.Nombre, Email = u.Email!, c.Estado })
             .ToListAsync();
 
-        porCliente.Should().HaveCount(Clientes.Length);
-        porCliente.Should().OnlyContain(x => x.Vigentes == 1 && x.Todas == 1,
-            "MEDIDO: tras el backfill (que corre en el fixture, como en Program.cs) cada Cliente empresarial " +
-            "sigue con su única cartera vigente, sin cerradas ni repetidas");
+        carteras.Should().HaveCount(CarterasEsperadas().Count(),
+            "MEDIDO: tras el backfill (que corre en el fixture, como en Program.cs) cada Gestor CAE sigue con su única " +
+            "cartera por Tenant, sin cerradas ni repetidas");
+        carteras.Should().OnlyContain(c => c.Estado == EstadoAsignacion.Vigente);
     }
 
     // ── Vigencias relativas a hoy ───────────────────────────────────────────

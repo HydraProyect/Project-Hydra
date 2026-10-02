@@ -384,9 +384,10 @@ public class AlcanceDatosService(
 
     /// <summary>
     /// La cartera de uno o varios usuarios, leída de las asignaciones
-    /// operativas (F1 del plan de migración). Sustituye a la consulta directa
-    /// sobre <c>Cliente.EjecutivoUsuarioId</c>, que queda como proyección de
-    /// compatibilidad para los lectores informativos.
+    /// operativas (F1 del plan de migración). <c>Empresa.EjecutivoUsuarioId</c>
+    /// es solo la referencia del Gestor CAE de un Cliente empresarial (enrutado,
+    /// avisos, columna de la lista): <b>no concede alcance</b> y no se lee aquí
+    /// (D-7, 2026-10-02: la cartera es siempre el Tenant entero).
     ///
     /// Dos condiciones que no estaban en el modelo anterior y que ahora hay que
     /// imponer explícitamente:
@@ -463,8 +464,9 @@ public class AlcanceDatosService(
         // Gestor CAE es siempre sobre el Tenant entero). Las listas las materializa cada método de
         // rama: ver AlcanzaTenantEnteroPorCarteraAsync. Un rol de alcance total ya salió por
         // TieneAccesoTotalAsync sin consultar carteras; a un rol de cartera solo se le emite una
-        // universal cuando un Coordinador CAE acepta su solicitud de incorporación al Tenant
-        // propietario entero (CatalogoIncorporacionCartera).
+        // universal por un acto explícito: un Coordinador CAE acepta su solicitud de
+        // incorporación al Tenant propietario entero, o quien tiene la autoridad se lo asigna
+        // (CatalogoIncorporacionCartera, AsignarCarteraGestorCaeCommand).
         if (efectivas.Any(id => id is null))
             return AlcanceCartera.Universal;
 

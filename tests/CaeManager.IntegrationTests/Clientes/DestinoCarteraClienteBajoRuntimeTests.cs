@@ -21,7 +21,8 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Clientes;
 
 /// <summary>
-/// Destino de la cartera de un Cliente empresarial (revisión Codex de la PR #931)
+/// Destino de la referencia de un Cliente empresarial (revisión Codex de la PR #931;
+/// desde D-7, 2026-10-02, reasignar solo mueve la referencia y no escribe cartera)
 /// contra PostgreSQL real, autenticando como <c>cae_app_runtime</c> —RLS siempre
 /// aplica— con el <see cref="TenantRlsConnectionInterceptor"/> real. El handler,
 /// el <see cref="DirectorioUsuariosTenant"/>, el <see cref="AsignacionesOperativasWriter"/>
@@ -125,8 +126,9 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
 
         var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, _gestorActual);
         contexto.Empresas.Add(cliente);
+        // La cartera de _gestorActual es el Tenant entero (D-7), y es la que da alcance a su Coordinador CAE.
         contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
-            raiz, _gestorActual, AmbitoAsignacion.DeRelacionCliente(cliente.Id), ahora.AddDays(-1), vigenciaHasta: null, ahora, null));
+            raiz, _gestorActual, AmbitoAsignacion.Universal, ahora.AddDays(-1), vigenciaHasta: null, ahora, null));
 
         await contexto.SaveChangesAsync();
         _clienteId = cliente.Id;
@@ -217,9 +219,9 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(nameof(_gestorDelCoordinador), false)]
-    [InlineData(nameof(_gestorDelegado), true)]
-    public async Task Un_Administrador_pasa_la_cartera_a_un_Gestor_CAE_propio_o_delegado(string destino, bool externa)
+    [InlineData(nameof(_gestorDelCoordinador))]
+    [InlineData(nameof(_gestorDelegado))]
+    public async Task Un_Administrador_pasa_la_referencia_a_un_Gestor_CAE_propio_o_delegado_sin_escribir_cartera(string destino)
     {
         var destinoId = Cuenta(destino);
 
@@ -228,12 +230,10 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
         await using var contexto = ContextoPropietario();
         (await contexto.Empresas.AsNoTracking().SingleAsync(e => e.Id == _clienteId)).EjecutivoUsuarioId.Should().Be(destinoId);
-        var vigentes = await contexto.AsignacionesCartera.AsNoTracking()
-            .Where(c => c.AmbitoRelacionClienteId == _clienteId && c.Estado == EstadoAsignacion.Vigente)
-            .ToListAsync();
-        vigentes.Should().ContainSingle().Which.UsuarioId.Should().Be(destinoId);
-        var operacion = await contexto.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == vigentes[0].AsignacionOperacionId);
-        operacion.EsRaiz.Should().Be(!externa);
+
+        // D-7: la referencia no es cartera. Reasignar no abre ni cierra ninguna Asignación de Cartera: el
+        // destino no gana alcance y el Gestor CAE anterior no lo pierde.
+        await AfirmarCarterasIntactasAsync(contexto);
     }
 
     [Fact]
@@ -250,7 +250,7 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
 
     /// <summary>
     /// Outbound: el Coordinador CAE de un Operador CAE externo, operando el Tenant
-    /// propietario por delegación, reparte entre los Gestores CAE de su organización que
+    /// propietario por delegación, reparte la referencia entre los Gestores CAE de su organización que
     /// le reportan. Y un Coordinador CAE del Tenant propietario no puede ceder el Cliente
     /// empresarial a un Gestor CAE del Operador CAE externo: no le reporta (D-001).
     /// </summary>
@@ -262,17 +262,35 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         cedido.Error.Codigo.Should().Be("Cliente.DestinoFueraDeAlcance");
         await AfirmarSinCambiosAsync();
 
-        (await ReasignarAsync(_administrador, "Administrador", _gestorDelegado)).EsExitoso.Should().BeTrue("preparación");
+        // Preparación: el Gestor CAE delegado recibe, por un acto explícito, la cartera del Tenant entero.
+        // Sin ella su Coordinador CAE delegado no alcanza ningún Cliente empresarial y no puede reasignar.
+        await using (var contexto = ContextoRuntime(_administrador, "Administrador"))
+        {
+            await Writer(contexto).AsegurarCarteraTenantEnteroAsync(_propietario.Id, _gestorDelegado);
+            await contexto.SaveChangesAsync();
+        }
 
         var resultado = await ReasignarAsync(_coordinadorDelegado, "CoordinadorCae", _otroGestorDelegado, _operadorExterno.Id);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
-        await using var contexto = ContextoPropietario();
-        (await contexto.AsignacionesCartera.AsNoTracking()
-                .Where(c => c.AmbitoRelacionClienteId == _clienteId && c.Estado == EstadoAsignacion.Vigente)
-                .Select(c => c.UsuarioId)
-                .ToListAsync())
-            .Should().Equal(_otroGestorDelegado);
+        await using var comprobacion = ContextoPropietario();
+        (await comprobacion.Empresas.AsNoTracking().SingleAsync(e => e.Id == _clienteId)).EjecutivoUsuarioId.Should().Be(_otroGestorDelegado);
+        (await comprobacion.AsignacionesCartera.AsNoTracking()
+                .Where(c => c.Estado == EstadoAsignacion.Vigente && c.UsuarioId == _otroGestorDelegado)
+                .AnyAsync())
+            .Should().BeFalse("ser la referencia no da cartera: _otroGestorDelegado sigue sin alcance");
+    }
+
+    [Fact]
+    public async Task Un_Coordinador_CAE_delegado_sin_Gestor_CAE_con_cartera_no_alcanza_el_Cliente_y_no_puede_reasignarlo()
+    {
+        // Control negativo del alcance de la autoridad de reasignar: rol Coordinador CAE no basta;
+        // hace falta alcance efectivo, que sale de las carteras de sus Gestores CAE.
+        var resultado = await ReasignarAsync(_coordinadorDelegado, "CoordinadorCae", _otroGestorDelegado, _operadorExterno.Id);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Cliente.NoEncontrado");
+        await AfirmarSinCambiosAsync();
     }
 
     [Fact]
@@ -280,25 +298,24 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
     {
         await using (var contexto = ContextoRuntime(_administrador, "Administrador"))
         {
-            var accion = () => Writer(contexto).ReasignarCarteraClienteAsync(_clienteId, _coordinadorDelegado);
+            var accion = () => Writer(contexto).AsegurarCarteraTenantEnteroAsync(_propietario.Id, _coordinadorDelegado);
 
             (await accion.Should().ThrowAsync<UnauthorizedAccessException>()).Which.Message.Should().Contain("GestorCae");
         }
 
-        // Control positivo, en un contexto limpio (el anterior conserva la cartera
-        // que cerró antes de lanzar): el mismo camino con el Gestor CAE delegado sí escribe.
+        // Control positivo, en un contexto limpio: el mismo camino con el Gestor CAE delegado sí escribe.
         await using (var contexto = ContextoRuntime(_administrador, "Administrador"))
         {
-            await Writer(contexto).ReasignarCarteraClienteAsync(_clienteId, _gestorDelegado);
+            await Writer(contexto).AsegurarCarteraTenantEnteroAsync(_propietario.Id, _gestorDelegado);
             await contexto.SaveChangesAsync();
         }
 
         await using var comprobacion = ContextoPropietario();
-        (await comprobacion.AsignacionesCartera.AsNoTracking()
-                .Where(c => c.AmbitoRelacionClienteId == _clienteId && c.Estado == EstadoAsignacion.Vigente)
-                .Select(c => c.UsuarioId)
-                .ToListAsync())
-            .Should().Equal(_gestorDelegado);
+        var carteras = await comprobacion.AsignacionesCartera.AsNoTracking()
+            .Where(c => c.UsuarioId == _gestorDelegado || c.UsuarioId == _coordinadorDelegado)
+            .ToListAsync();
+        carteras.Should().ContainSingle().Which.Should().Match<AsignacionCartera>(
+            c => c.UsuarioId == _gestorDelegado && c.Estado == EstadoAsignacion.Vigente && c.Ambito.EsUniversal && c.Rol == "GestorCae");
     }
 
     private AsignacionesOperativasWriter Writer(CaeManagerDbContext contexto) =>
@@ -320,7 +337,6 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
             new EmpresaRepository(contexto), new ConfiguracionIaDocumentoClienteRepository(contexto),
             new NotificacionUsuarioRepository(contexto), usuario,
             new AlcanceDatosService(contexto, usuario, tenantActual, new SesionPrivilegiadaAusente()),
-            new AsignacionesOperativasWriter(contexto, tenantActual, usuario),
             Directorio(contexto), new BloqueoCarteraUsuario(contexto));
         var handler = new ReasignarEjecutivoClienteCommandHandler(
             reasignador, contexto, usuario, contexto, new TransaccionDeComando(contexto));
@@ -332,12 +348,16 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
     {
         await using var contexto = ContextoPropietario();
         (await contexto.Empresas.AsNoTracking().SingleAsync(e => e.Id == _clienteId)).EjecutivoUsuarioId.Should().Be(_gestorActual);
-        (await contexto.AsignacionesCartera.AsNoTracking()
-                .Where(c => c.AmbitoRelacionClienteId == _clienteId && c.Estado == EstadoAsignacion.Vigente)
-                .Select(c => c.UsuarioId)
-                .ToListAsync())
-            .Should().Equal(_gestorActual);
+        await AfirmarCarterasIntactasAsync(contexto);
         (await contexto.NotificacionesUsuario.AsNoTracking().CountAsync()).Should().Be(0);
+    }
+
+    /// <summary>La única cartera de la base es la universal vigente de <c>_gestorActual</c> de la preparación.</summary>
+    private async Task AfirmarCarterasIntactasAsync(CaeManagerDbContext contexto)
+    {
+        var carteras = await contexto.AsignacionesCartera.AsNoTracking().ToListAsync();
+        carteras.Should().ContainSingle().Which.Should().Match<AsignacionCartera>(
+            c => c.UsuarioId == _gestorActual && c.Estado == EstadoAsignacion.Vigente && c.Ambito.EsUniversal);
     }
 
     /// <summary>

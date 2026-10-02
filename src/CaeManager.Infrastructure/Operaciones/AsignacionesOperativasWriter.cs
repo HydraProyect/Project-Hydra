@@ -26,86 +26,97 @@ public class AsignacionesOperativasWriter(
     /// </summary>
     private static readonly string[] RolesDeAlcanceTotal = [Roles.Consulta];
 
-    public async Task ReasignarCarteraClienteAsync(
-        Guid clienteId, Guid? nuevoEjecutivoUsuarioId, CancellationToken cancellationToken = default)
+    public async Task AsegurarCarteraTenantEnteroAsync(
+        Guid propietarioTenantId, Guid gestorUsuarioId, CancellationToken cancellationToken = default)
     {
-        if (tenantActual.TenantId is not { } propietarioTenantId)
+        // Como toda escritura de cartera, ocurre dentro del workspace del propietario: quien llama
+        // no puede conceder el Tenant entero de un Tenant que no es el del contexto.
+        if (tenantActual.TenantId != propietarioTenantId)
             throw new InvalidOperationException(
-                $"No se puede repartir la cartera del cliente {clienteId} sin un tenant resuelto (ver ITenantActual).");
+                $"No se puede dar la cartera del Tenant {propietarioTenantId} desde el contexto del Tenant {tenantActual.TenantId}.");
+
+        var tenantDelGestor = await dbContext.Users
+            .Where(u => u.Id == gestorUsuarioId)
+            .Select(u => (Guid?)u.TenantId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (tenantDelGestor is null)
+            throw new InvalidOperationException(
+                $"No se puede dar la cartera del Tenant {propietarioTenantId} al usuario {gestorUsuarioId}: ese usuario no existe.");
 
         var ahora = DateTime.UtcNow;
         var actorId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
-        // Se cierran TODAS las vigentes sobre este cliente, no solo las de la
-        // operación esperada: si el ejecutivo pasa de interno a delegado (o al
-        // revés) la anterior cuelga de otra operación, y el índice único, que
-        // es por operación, no la habría detectado.
-        var vigentes = await dbContext.AsignacionesCartera
-            .Where(c => c.PropietarioTenantId == propietarioTenantId
-                        && c.AmbitoRelacionClienteId == clienteId
-                        && c.Estado == EstadoAsignacion.Vigente)
-            .ToListAsync(cancellationToken);
-
-        // Se decide antes de cerrar nada, y se cierran todas las que no sean
-        // suyas: con el "ya es suya" dentro del bucle, el resultado dependía
-        // del orden en que la base de datos devolviera las filas — si la
-        // coincidente salía primero, las demás quedaban vigentes y su usuario
-        // conservaba el acceso al cliente.
-        var yaEsSuya = nuevoEjecutivoUsuarioId is not null
-                       && vigentes.Any(v => v.UsuarioId == nuevoEjecutivoUsuarioId);
-
-        foreach (var vigente in vigentes.Where(v => v.UsuarioId != nuevoEjecutivoUsuarioId))
-            vigente.Cerrar(MotivoCierreAsignacion.Reorganizada, ahora);
-
-        if (yaEsSuya || nuevoEjecutivoUsuarioId is not { } ejecutivoId) return;
-
-        var tenantDelEjecutivo = await dbContext.Users
-            .Where(u => u.Id == ejecutivoId)
-            .Select(u => (Guid?)u.TenantId)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (tenantDelEjecutivo is null)
-            throw new InvalidOperationException(
-                $"No se puede asignar el cliente {clienteId} al usuario {ejecutivoId}: ese usuario no existe.");
-
-        var ambito = AmbitoAsignacion.DeRelacionCliente(clienteId);
-
-        if (tenantDelEjecutivo == propietarioTenantId)
+        if (tenantDelGestor == propietarioTenantId)
         {
+            // Un Gestor CAE del propio Tenant opera con el rol de Identity: la cartera interna no lleva rol.
+            var roles = await (
+                from ur in dbContext.UserRoles
+                join r in dbContext.Roles on ur.RoleId equals r.Id
+                where ur.UserId == gestorUsuarioId
+                select r.Name).ToListAsync(cancellationToken);
+
+            if (roles.Count != 1 || roles[0] != Roles.GestorCae)
+                throw new UnauthorizedAccessException(
+                    $"El usuario {gestorUsuarioId} no es un {Roles.GestorCae}: la cartera del Tenant entero solo la lleva un Gestor CAE.");
+
             var raiz = await ObtenerRaizVigenteAsync(propietarioTenantId, cancellationToken)
                        ?? throw new InvalidOperationException(
-                           $"El tenant {propietarioTenantId} no tiene operación raíz vigente: no hay dónde colgar la cartera del cliente {clienteId}.");
+                           $"El Tenant {propietarioTenantId} no tiene operación raíz vigente: no hay dónde colgar la cartera del usuario {gestorUsuarioId}.");
+
+            if (await TieneUniversalVigenteAsync(raiz, gestorUsuarioId, cancellationToken)) return;
 
             dbContext.AsignacionesCartera.Add(AsignacionCartera.Interna(
-                raiz, ejecutivoId, ambito, ahora, vigenciaHasta: null, ahora, actorId));
+                raiz, gestorUsuarioId, AmbitoAsignacion.Universal, ahora, vigenciaHasta: null, ahora, actorId));
             return;
         }
 
-        // El ejecutivo es de otro tenant: su cartera cuelga de la operación
-        // externa de ese tenant. Colgarla de la raíz rompería la cadena "el
-        // usuario pertenece al tenant operador".
-        var externa = await ObtenerOperacionExternaVigenteAsync(
-                          propietarioTenantId, tenantDelEjecutivo.Value, cancellationToken)
+        // El Gestor CAE es de otro Tenant: su cartera cuelga de la operación externa de ese Tenant.
+        // Colgarla de la raíz rompería la cadena "el usuario pertenece al Tenant operador".
+        var externa = await ObtenerOperacionExternaVigenteAsync(propietarioTenantId, tenantDelGestor.Value, cancellationToken)
                       ?? throw new InvalidOperationException(
-                          $"El usuario {ejecutivoId} pertenece al tenant {tenantDelEjecutivo}, que no tiene operación " +
-                          $"externa vigente sobre {propietarioTenantId}: no puede ser ejecutivo del cliente {clienteId}.");
+                          $"El usuario {gestorUsuarioId} pertenece al Tenant {tenantDelGestor}, que no tiene operación " +
+                          $"externa vigente sobre {propietarioTenantId}: no puede llevar su cartera.");
 
-        var rol = await ObtenerRolDelegadoAsync(ejecutivoId, propietarioTenantId, tenantDelEjecutivo.Value, cancellationToken);
+        var rol = await ObtenerRolDelegadoAsync(gestorUsuarioId, propietarioTenantId, tenantDelGestor.Value, cancellationToken);
 
-        // La cartera de un Cliente empresarial solo la lleva un Gestor CAE, también
-        // por delegación (revisión Codex de la PR #931). Un Coordinador CAE delegado
-        // no deriva su alcance de sus propias carteras sino de las de sus Gestores
-        // CAE, y Consulta ya lo ve todo por su rol: con cualquiera de los dos el
-        // Cliente empresarial quedaba sin nadie que lo gestionara. Coordinador CAE
-        // y Consulta siguen siendo roles delegables (RolesDelegadosPermitidos): lo
-        // que no pueden es recibir la cartera de un cliente.
+        // La cartera del Tenant entero solo la lleva un Gestor CAE, también por delegación (revisión
+        // Codex de la PR #931). Un Coordinador CAE delegado no deriva su alcance de sus propias
+        // carteras sino de las de sus Gestores CAE, y Consulta ya lo ve todo por su rol.
         if (rol != Roles.GestorCae)
             throw new UnauthorizedAccessException(
-                $"El usuario {ejecutivoId} opera este tenant como {rol} por delegación: la cartera del cliente " +
-                $"{clienteId} solo puede ir a un {Roles.GestorCae}.");
+                $"El usuario {gestorUsuarioId} opera este tenant como {rol} por delegación: la cartera del Tenant " +
+                $"{propietarioTenantId} solo puede ir a un {Roles.GestorCae}.");
+
+        if (await TieneUniversalVigenteAsync(externa, gestorUsuarioId, cancellationToken)) return;
 
         dbContext.AsignacionesCartera.Add(AsignacionCartera.Externa(
-            externa, ejecutivoId, rol, ambito, ahora, vigenciaHasta: null, ahora, actorId));
+            externa, gestorUsuarioId, rol, AmbitoAsignacion.Universal, ahora, vigenciaHasta: null, ahora, actorId));
+    }
+
+    /// <summary>
+    /// Si el usuario ya tiene una cartera universal vigente bajo la operación, mirando también las
+    /// ya añadidas al contexto y aún sin guardar (mismo motivo que <see cref="ObtenerOperacionExternaVigenteAsync"/>).
+    /// </summary>
+    private async Task<bool> TieneUniversalVigenteAsync(
+        AsignacionOperacion operacion, Guid usuarioId, CancellationToken cancellationToken)
+    {
+        var enElContexto = dbContext.ChangeTracker.Entries<AsignacionCartera>()
+            .Any(e => e.Entity.AsignacionOperacionId == operacion.Id
+                      && e.Entity.UsuarioId == usuarioId
+                      && e.Entity.Ambito.EsUniversal
+                      && e.Entity.Estado == EstadoAsignacion.Vigente);
+        if (enElContexto) return true;
+        if (dbContext.Entry(operacion).State == EntityState.Added) return false;
+
+        return await dbContext.AsignacionesCartera
+            .AnyAsync(c => c.AsignacionOperacionId == operacion.Id
+                           && c.UsuarioId == usuarioId
+                           && c.AmbitoRelacionClienteId == null
+                           && c.AmbitoCentroId == null
+                           && c.AmbitoTrabajadorId == null
+                           && c.AmbitoProyectoId == null
+                           && c.Estado == EstadoAsignacion.Vigente, cancellationToken);
     }
 
     public async Task AsegurarOperacionRaizAsync(
@@ -178,10 +189,10 @@ public class AsignacionesOperativasWriter(
                 $"El rol {rol} no se concede por Asignación de Cartera ni por delegación: " +
                 $"solo {string.Join(", ", RolesDelegadosPermitidos)}.");
 
-        // Un rol de cartera no recibe aquí cartera universal: sus carteras
-        // nacen cliente a cliente al asignárselos, o enteras solo cuando un
-        // Coordinador CAE acepta su solicitud de incorporación o quien le da de
-        // alta elige su cartera (CatalogoIncorporacionCartera). Emitirle una
+        // Un rol de cartera no recibe aquí cartera universal: su cartera (siempre
+        // el Tenant entero, D-7) nace solo cuando un Coordinador CAE acepta su
+        // solicitud de incorporación o quien tiene la autoridad se la asigna o
+        // elige en su alta (CatalogoIncorporacionCartera). Emitirle una
         // universal aquí le daría de golpe el tenant delegado entero —todas sus
         // ramas operativas, ver AlcanceDatosService— sin que nadie lo decidiera.
         if (!RolesDeAlcanceTotal.Contains(rol)) return;
@@ -242,27 +253,43 @@ public class AsignacionesOperativasWriter(
         foreach (var operador in operadores)
             await AbrirCarteraOperadorAsync(operacion, operador.UsuarioId, operador.Rol, cancellationToken);
 
-        // Los roles de cartera recuperan sus clientes: sus carteras se
-        // cerraron en cascada al desactivar y hay que reconstruirlas desde la
-        // proyección, que es la que conserva el reparto durante F1.
-        var idsOperadores = operadores.Select(o => o.UsuarioId).ToList();
-        if (idsOperadores.Count == 0) return;
+        // Un Gestor CAE recupera la cartera del Tenant entero solo si la tenía vigente en la
+        // operación que esta desactivación cerró: una concesión explícita anterior, no una
+        // referencia (Empresa.EjecutivoUsuarioId) ni la mera fila de operador delegado.
+        var gestores = operadores.Where(o => o.Rol == Roles.GestorCae).Select(o => o.UsuarioId).ToList();
+        if (gestores.Count == 0) return;
 
-        // F3b — Empresas, no la tabla legacy Clientes (ver AlcanceDatosService).
-        var clientes = await dbContext.Empresas
-            .Where(c => c.EsCritico != null && c.EjecutivoUsuarioId != null && idsOperadores.Contains(c.EjecutivoUsuarioId!.Value))
-            .Select(c => new { c.Id, EjecutivoId = c.EjecutivoUsuarioId!.Value })
+        var anteriorId = await dbContext.AsignacionesOperacion
+            .Where(o => o.Id != operacion.Id
+                        && !o.EsRaiz
+                        && o.PropietarioTenantId == operacion.PropietarioTenantId
+                        && o.OperadorTenantId == operacion.OperadorTenantId
+                        && o.Servicio == operacion.Servicio
+                        && o.Estado == EstadoAsignacion.Cerrada
+                        && o.MotivoCierre == MotivoCierreAsignacion.Revocada)
+            .OrderByDescending(o => o.VigenciaHasta)
+            .Select(o => (Guid?)o.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (anteriorId is null) return;
+
+        var conCarteraCerrada = await dbContext.AsignacionesCartera
+            .Where(c => c.AsignacionOperacionId == anteriorId
+                        && c.Estado == EstadoAsignacion.Cerrada
+                        && c.MotivoCierre == MotivoCierreAsignacion.Revocada
+                        && gestores.Contains(c.UsuarioId))
+            .Select(c => c.UsuarioId)
+            .Distinct()
             .ToListAsync(cancellationToken);
 
         var ahora = DateTime.UtcNow;
         var actorId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
-        foreach (var cliente in clientes)
+        foreach (var gestorId in conCarteraCerrada)
         {
-            var rol = operadores.First(o => o.UsuarioId == cliente.EjecutivoId).Rol;
+            if (await TieneUniversalVigenteAsync(operacion, gestorId, cancellationToken)) continue;
 
             dbContext.AsignacionesCartera.Add(AsignacionCartera.Externa(
-                operacion, cliente.EjecutivoId, rol, AmbitoAsignacion.DeRelacionCliente(cliente.Id),
+                operacion, gestorId, Roles.GestorCae, AmbitoAsignacion.Universal,
                 ahora, vigenciaHasta: null, ahora, actorId));
         }
     }

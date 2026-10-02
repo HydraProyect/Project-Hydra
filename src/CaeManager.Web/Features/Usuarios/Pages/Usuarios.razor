@@ -416,9 +416,9 @@
 
 @* FS-25 (auditoría UX de flujos sin salida, 2026-09-24): desactivar actuaba al
    primer clic y dejaba la cartera del Gestor CAE sin decir nada. Ahora se confirma
-   y, si es un Gestor CAE con Clientes empresariales en su Asignación de Cartera,
-   se ofrece pasarlos a otro Gestor CAE activo. Sin elegir a nadie la cartera sigue
-   abierta y la conserva su Coordinador CAE (decisión del 2026-09-24). *@
+   y, si es un Gestor CAE con la cartera del Tenant entero, se dice que sigue abierta y
+   la conserva su Coordinador CAE (decisión del 2026-09-24). No hay traspaso: la cartera
+   ya no se reparte por Cliente empresarial (D-7, 2026-10-02). *@
 <Modal HayCambios="() => HayCambiosSinGuardar" Visible="@(_usuarioADesactivar is not null)"
        VisibleChanged="@(v => { if (!v && !_desactivando) _usuarioADesactivar = null; })"
        Titulo="@TextosUsuarios["DesactivarTitulo", _usuarioADesactivar?.NombreCompleto ?? string.Empty]"
@@ -428,17 +428,6 @@
         @if (_carteraADesactivar is { EsUniversal: true })
         {
             <p>@TextosUsuarios["DesactivarCarteraUniversal"]</p>
-        }
-        else if (_clientesADesactivar.Count > 0)
-        {
-            <p>@TextosUsuarios["DesactivarCarteraClientes", _clientesADesactivar.Count]</p>
-            <CampoSelect Etiqueta="@TextosUsuarios["DesactivarPasarCarteraA"].Value" Valor="@_gestorDestinoCartera" ValorChanged="v => _gestorDestinoCartera = v">
-                <option value="">@TextosUsuarios["DesactivarNoReasignar"]</option>
-                @foreach (var gestor in _gestoresDestino)
-                {
-                    <option value="@gestor.Id">@gestor.NombreCompleto</option>
-                }
-            </CampoSelect>
         }
     </ChildContent>
     <Pie>

@@ -87,11 +87,24 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
     // ---------- B3: el alcance no se ensancha ----------
 
     [Fact]
-    public async Task Un_gestor_delegado_ve_solo_sus_clientes_no_todos_los_del_tenant()
+    public async Task La_referencia_de_un_Cliente_empresarial_no_concede_cartera_ni_alcance()
     {
-        // Antes de la corrección, el backfill le daba una cartera universal y
-        // el alcance la expandía a todos los clientes del tenant delegado: un
-        // gestor que veía sus 3 clientes pasaba a ver los 200.
+        // D-7 (2026-10-02): Empresa.EjecutivoUsuarioId es una referencia, no una cartera. El Gestor CAE
+        // delegado es la referencia de _clienteId, tiene su fila de operador delegado y la operación
+        // externa existe, y aun así no alcanza nada: sin una Asignación de Cartera explícita, alcance
+        // cero. Antes, el backfill derivaba de la referencia una cartera por Cliente empresarial.
+        await EjecutarBackfillAsync();
+
+        await using var contexto = CrearContexto(_propietario);
+        (await contexto.AsignacionesCartera.AnyAsync(c => c.UsuarioId == _gestorConsultora))
+            .Should().BeFalse("el backfill ya no deriva carteras de la referencia");
+
+        (await ClientesVisiblesParaElGestorDelegadoAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_cartera_explicita_da_el_Tenant_entero_y_no_solo_los_clientes_de_los_que_es_referencia()
+    {
         await using (var otros = CrearContexto(_propietario))
         {
             otros.Empresas.Add(Empresa.CrearComoCliente(
@@ -102,17 +115,13 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         }
 
         await EjecutarBackfillAsync();
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            await CrearWriter(contexto).AsegurarCarteraTenantEnteroAsync(_propietario, _gestorConsultora);
+            await contexto.SaveChangesAsync();
+        }
 
-        await using var contexto = CrearContexto(_propietario);
-        var alcance = new AlcanceDatosService(
-            contexto,
-            new CurrentUserServiceFalso(_gestorConsultora, Roles.GestorCae, tenantOrigenId: _consultora),
-            new TenantActualAmbiental { TenantId = _propietario },
-            new SesionPrivilegiadaAusente());
-
-        var visibles = await alcance.ObtenerClienteIdsVisiblesAsync();
-
-        visibles.Should().BeEquivalentTo([_clienteId]);
+        (await ClientesVisiblesParaElGestorDelegadoAsync()).Should().HaveCount(3, "el Tenant entero: los tres Clientes empresariales");
     }
 
     [Fact]
@@ -128,92 +137,94 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         universales.Should().BeEmpty();
     }
 
-    // ---------- D2: se cierran todas las carteras, no hasta la primera ----------
-    // (auditoría Módulo 5, hallazgo crítico 3/9, endurece el propio escenario de D2)
+    // ---------- D2: la cartera explícita es idempotente y no cierra lo de otros ----------
 
     [Fact]
-    public async Task El_indice_de_responsable_de_cliente_es_ahora_global_no_por_operacion()
-    {
-        // Hasta esta corrección, dos carteras vigentes sobre el mismo cliente
-        // eran posibles porque el índice único era POR OPERACIÓN: una interna y
-        // una externa convivían sin chocar (era justo el escenario que D2 tenía
-        // que preparar a mano para forzar el bug del `return` dentro del bucle,
-        // ver ReasignarCarteraClienteAsync). Eso permitía que dos reasignaciones
-        // concurrentes hacia operaciones distintas dejaran dos operadores con
-        // acceso simultáneo, cada una creyendo haber reemplazado al responsable.
-        //
-        // Ahora el propio segundo INSERT choca en la base de datos: la garantía
-        // ya no depende de que ReasignarCarteraClienteAsync llegue a tiempo de
-        // cerrarlas todas, la impone el esquema.
-        await EjecutarBackfillAsync();
-        // El backfill ya deja una cartera vigente de _gestorConsultora sobre _clienteId.
-
-        var ahora = DateTime.UtcNow;
-        await using var contexto = CrearContexto(_propietario);
-        var raiz = await contexto.AsignacionesOperacion
-            .FirstAsync(o => o.EsRaiz && o.PropietarioTenantId == _propietario);
-
-        contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
-            raiz, _gestorPropietario, AmbitoAsignacion.DeRelacionCliente(_clienteId),
-            ahora, null, ahora));
-
-        await contexto.Invoking(c => c.SaveChangesAsync())
-            .Should().ThrowAsync<DbUpdateException>("el índice único global impide una segunda cartera vigente");
-    }
-
-    [Fact]
-    public async Task Reasignar_cierra_la_cartera_vigente_existente_del_cliente()
+    public async Task Asegurar_la_cartera_del_Tenant_entero_es_idempotente_y_no_cierra_nada()
     {
         await EjecutarBackfillAsync();
-        // _gestorConsultora ya es el responsable vigente de _clienteId.
 
-        await using (var contexto = CrearContexto(_propietario))
+        for (var vez = 0; vez < 2; vez++)
         {
-            var writer = new AsignacionesOperativasWriter(
-                contexto, new TenantActualAmbiental { TenantId = _propietario },
-                new CurrentUserServiceFalso(_gestorPropietario, Roles.Administrador));
-
-            await writer.ReasignarCarteraClienteAsync(_clienteId, _gestorPropietario);
+            await using var contexto = CrearContexto(_propietario);
+            await CrearWriter(contexto).AsegurarCarteraTenantEnteroAsync(_propietario, _gestorConsultora);
             await contexto.SaveChangesAsync();
         }
 
         await using var verificacion = CrearContexto(_propietario);
-        var vigentes = await verificacion.AsignacionesCartera
-            .Where(c => c.AmbitoRelacionClienteId == _clienteId && c.Estado == EstadoAsignacion.Vigente)
-            .ToListAsync();
-
-        vigentes.Should().ContainSingle().Which.UsuarioId.Should().Be(_gestorPropietario);
+        var carteras = await verificacion.AsignacionesCartera.Where(c => c.UsuarioId == _gestorConsultora).ToListAsync();
+        carteras.Should().ContainSingle().Which.Should().Match<AsignacionCartera>(
+            c => c.Estado == EstadoAsignacion.Vigente && c.Ambito.EsUniversal && c.Rol == Roles.GestorCae);
     }
 
-    // ---------- D3: la doble escritura falla, no se degrada en silencio ----------
+    [Fact]
+    public async Task Asegurar_la_cartera_de_un_Gestor_CAE_del_propio_Tenant_cuelga_de_la_raiz_sin_rol_propio()
+    {
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var rol = await contexto.Roles.SingleOrDefaultAsync(r => r.Name == Roles.GestorCae);
+            if (rol is null)
+            {
+                rol = new Microsoft.AspNetCore.Identity.IdentityRole<Guid> { Id = Guid.NewGuid(), Name = Roles.GestorCae, NormalizedName = Roles.GestorCae.ToUpperInvariant() };
+                contexto.Roles.Add(rol);
+            }
+
+            contexto.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<Guid> { UserId = _gestorPropietario, RoleId = rol.Id });
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            await CrearWriter(contexto).AsegurarCarteraTenantEnteroAsync(_propietario, _gestorPropietario);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var verificacion = CrearContexto(_propietario);
+        var raiz = await verificacion.AsignacionesOperacion.SingleAsync(o => o.EsRaiz && o.PropietarioTenantId == _propietario);
+        var cartera = await verificacion.AsignacionesCartera.SingleAsync(c => c.UsuarioId == _gestorPropietario);
+        cartera.AsignacionOperacionId.Should().Be(raiz.Id);
+        cartera.Ambito.EsUniversal.Should().BeTrue();
+        cartera.Rol.Should().BeNull("en su propio Tenant opera con el rol de Identity");
+    }
 
     [Fact]
-    public async Task Reasignar_a_un_usuario_inexistente_falla_en_vez_de_dejar_la_cartera_sin_escribir()
+    public async Task Asegurar_la_cartera_a_un_usuario_del_propio_Tenant_que_no_es_Gestor_CAE_falla()
+    {
+        // _gestorPropietario no tiene ningún rol de Identity en la base de este test.
+        await using var contexto = CrearContexto(_propietario);
+
+        await CrearWriter(contexto).Invoking(w => w.AsegurarCarteraTenantEnteroAsync(_propietario, _gestorPropietario))
+            .Should().ThrowAsync<UnauthorizedAccessException>();
+    }
+
+    [Fact]
+    public async Task Asegurar_la_cartera_de_otro_Tenant_que_no_es_el_del_contexto_falla()
     {
         await using var contexto = CrearContexto(_propietario);
-        var writer = new AsignacionesOperativasWriter(
-            contexto, new TenantActualAmbiental { TenantId = _propietario },
-            new CurrentUserServiceFalso(_gestorPropietario, Roles.Administrador));
 
-        // Antes registraba un aviso y seguía: el cliente quedaba con la
-        // proyección puesta y sin cartera, y su gestor no lo veía — sin ningún
-        // error en pantalla — hasta el siguiente reinicio.
-        await writer.Invoking(w => w.ReasignarCarteraClienteAsync(_clienteId, Guid.NewGuid()))
+        await CrearWriter(contexto).Invoking(w => w.AsegurarCarteraTenantEnteroAsync(_consultora, _gestorConsultora))
+            .Should().ThrowAsync<InvalidOperationException>("el acto ocurre dentro del workspace del propietario");
+    }
+
+    // ---------- D3: la escritura falla, no se degrada en silencio ----------
+
+    [Fact]
+    public async Task Asegurar_la_cartera_a_un_usuario_inexistente_falla_en_vez_de_dejarla_sin_escribir()
+    {
+        await using var contexto = CrearContexto(_propietario);
+
+        await CrearWriter(contexto).Invoking(w => w.AsegurarCarteraTenantEnteroAsync(_propietario, Guid.NewGuid()))
             .Should().ThrowAsync<InvalidOperationException>();
     }
 
     [Fact]
-    public async Task Reasignar_sin_operacion_donde_colgar_la_cartera_falla()
+    public async Task Asegurar_la_cartera_sin_operacion_donde_colgarla_falla()
     {
         await using var contexto = CrearContexto(_propietario);
 
-        // El gestor de la consultora sin operación externa vigente: no hay
-        // dónde colgar su cartera y el comando no puede fingir que la escribió.
-        var writer = new AsignacionesOperativasWriter(
-            contexto, new TenantActualAmbiental { TenantId = _propietario },
-            new CurrentUserServiceFalso(_gestorPropietario, Roles.Administrador));
-
-        await writer.Invoking(w => w.ReasignarCarteraClienteAsync(_clienteId, _gestorConsultora))
+        // El gestor de la consultora sin operación externa vigente: no hay dónde colgar su cartera y la
+        // escritura no puede fingir que la hizo.
+        await CrearWriter(contexto).Invoking(w => w.AsegurarCarteraTenantEnteroAsync(_propietario, _gestorConsultora))
             .Should().ThrowAsync<InvalidOperationException>();
     }
 
@@ -223,8 +234,13 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
     public async Task El_ciclo_desactivar_reactivar_devuelve_el_acceso_del_operador()
     {
         await EjecutarBackfillAsync();
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            await CrearWriter(contexto).AsegurarCarteraTenantEnteroAsync(_propietario, _gestorConsultora);
+            await contexto.SaveChangesAsync();
+        }
 
-        // Estado inicial: el gestor delegado ve su cliente.
+        // Estado inicial: el gestor delegado, con su cartera explícita, ve el Tenant entero.
         (await ClientesVisiblesParaElGestorDelegadoAsync()).Should().BeEquivalentTo([_clienteId]);
 
         // Desactivar cierra la operación y sus carteras en cascada.
@@ -263,6 +279,41 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 
         (await ClientesVisiblesParaElGestorDelegadoAsync())
             .Should().BeEquivalentTo([_clienteId], "reactivar devuelve el acceso que tenía");
+    }
+
+    [Fact]
+    public async Task Reactivar_no_da_cartera_a_quien_solo_tiene_la_fila_de_operador_ni_a_quien_es_la_referencia()
+    {
+        // El gestor delegado es la referencia de _clienteId y tiene su fila de operador delegado, pero
+        // nunca tuvo una Asignación de Cartera. Desactivar y reactivar la delegación no se la inventa:
+        // reponer solo repone lo que existía como concesión explícita (D-7).
+        await EjecutarBackfillAsync();
+        (await ClientesVisiblesParaElGestorDelegadoAsync()).Should().BeEmpty();
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var handler = new DesactivarDelegacionTenantCommandHandler(
+                new DelegacionTenantRepository(contexto),
+                new CurrentUserServiceFalso(tenantOrigenId: _consultora),
+                CrearWriter(contexto), contexto);
+            (await handler.Handle(new DesactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
+                .EsExitoso.Should().BeTrue();
+        }
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var handler = new ReactivarDelegacionTenantCommandHandler(
+                new DelegacionTenantRepository(contexto),
+                new AutorizacionAdministradorDe(_propietario),
+                new CurrentUserServiceFalso(Guid.NewGuid()),
+                CrearWriter(contexto), contexto, contexto);
+            (await handler.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
+                .EsExitoso.Should().BeTrue();
+        }
+
+        (await ClientesVisiblesParaElGestorDelegadoAsync()).Should().BeEmpty("sin cartera previa, reactivar no la crea");
+        await using var verificacion = CrearContexto(_propietario);
+        (await verificacion.AsignacionesCartera.AnyAsync(c => c.UsuarioId == _gestorConsultora)).Should().BeFalse();
     }
 
     // ---------- O1: revalidación al activar una programada ----------
@@ -327,10 +378,12 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
             var externa = await contexto.AsignacionesOperacion
                 .FirstAsync(o => !o.EsRaiz && o.PropietarioTenantId == _propietario);
 
-            // El backfill ya dejó una cartera por cliente para este usuario.
-            // Se le añade una universal: dos carteras del MISMO usuario bajo la
-            // MISMA operación, que los índices permiten. Con roles distintos,
-            // un FirstOrDefault sin orden elegiría uno al azar.
+            // Una cartera por Cliente empresarial heredada (el modo retirado ya no se produce, pero
+            // la fila puede existir hasta que la conversión la cierre) más una universal: dos carteras
+            // del MISMO usuario bajo la MISMA operación, que los índices permiten. Con roles
+            // distintos, un FirstOrDefault sin orden elegiría uno al azar.
+            contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                externa, _gestorConsultora, Roles.GestorCae, AmbitoAsignacion.DeRelacionCliente(_clienteId), ahora, null, ahora));
             contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 externa, _gestorConsultora, Roles.Consulta, AmbitoAsignacion.Universal, ahora, null, ahora));
 
@@ -363,7 +416,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
     // ---------- Auditoría Módulo 5: rol delegado falla cerrado ----------
 
     [Fact]
-    public async Task Reasignar_a_un_usuario_del_operador_sin_asignacion_delegada_falla_en_vez_de_heredar_GestorCae()
+    public async Task Asegurar_la_cartera_a_un_usuario_del_operador_sin_asignacion_delegada_falla_en_vez_de_heredar_GestorCae()
     {
         // Antes de la corrección, ObtenerRolDelegadoAsync devolvía
         // Roles.GestorCae cuando no encontraba fila: cualquier usuario del
@@ -387,11 +440,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 
         await using (var contexto = CrearContexto(_propietario))
         {
-            var writer = new AsignacionesOperativasWriter(
-                contexto, new TenantActualAmbiental { TenantId = _propietario },
-                new CurrentUserServiceFalso(_gestorPropietario, Roles.Administrador));
-
-            await writer.Invoking(w => w.ReasignarCarteraClienteAsync(_clienteId, otroUsuarioConsultora))
+            await CrearWriter(contexto).Invoking(w => w.AsegurarCarteraTenantEnteroAsync(_propietario, otroUsuarioConsultora))
                 .Should().ThrowAsync<UnauthorizedAccessException>();
         }
 
@@ -401,17 +450,15 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Reasignar_a_un_operador_de_una_delegacion_desactivada_falla_aunque_la_operacion_siga_vigente()
+    public async Task Asegurar_la_cartera_a_un_operador_de_una_delegacion_desactivada_falla_aunque_la_operacion_siga_vigente()
     {
         // ObtenerRolDelegadoAsync comprueba Activa por sí mismo, sin depender
         // de que la operación externa ya se haya cerrado en cascada — las dos
         // comprobaciones son capas independientes, no una la garantía de la
         // otra (ver AbrirCarteraOperadorAsync/CerrarOperacionDelegadaAsync).
         //
-        // La operación externa se crea a mano, sin pasar por el backfill: el
-        // backfill dejaría a _gestorConsultora como dueño YA vigente de la
-        // cartera del cliente, y el "ya es suya" de ReasignarCarteraClienteAsync
-        // haría un return temprano antes de llegar a ObtenerRolDelegadoAsync.
+        // La operación externa se crea a mano, sin pasar por el backfill, que
+        // no la dejaría vigente con la delegación desactivada.
         var ahora = DateTime.UtcNow;
         await using (var contexto = CrearContexto(_propietario))
         {
@@ -426,11 +473,8 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         }
 
         await using var verificacionContexto = CrearContexto(_propietario);
-        var writer = new AsignacionesOperativasWriter(
-            verificacionContexto, new TenantActualAmbiental { TenantId = _propietario },
-            new CurrentUserServiceFalso(_gestorPropietario, Roles.Administrador));
 
-        await writer.Invoking(w => w.ReasignarCarteraClienteAsync(_clienteId, _gestorConsultora))
+        await CrearWriter(verificacionContexto).Invoking(w => w.AsegurarCarteraTenantEnteroAsync(_propietario, _gestorConsultora))
             .Should().ThrowAsync<UnauthorizedAccessException>();
     }
 

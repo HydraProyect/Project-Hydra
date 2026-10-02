@@ -1,5 +1,4 @@
 using CaeManager.Application.Common;
-using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using FluentValidation;
@@ -41,8 +40,7 @@ public class CrearClienteCommandValidator : AbstractValidator<CrearClienteComman
 /// </summary>
 public class CrearClienteCommandHandler(
     IEmpresaRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService currentUserService,
-    IAsignacionesOperativasWriter asignacionesWriter, ITransaccionDeComando transaccion,
-    IBloqueoCarteraUsuario bloqueoCartera, IDirectorioDestinosCartera directorio)
+    ITransaccionDeComando transaccion, IBloqueoCarteraUsuario bloqueoCartera, IDirectorioDestinosCartera directorio)
     : IRequestHandler<CrearClienteCommand, Result<Guid>>
 {
     // Application no puede referenciar Infrastructure.Identity.Roles — mismo
@@ -57,10 +55,14 @@ public class CrearClienteCommandHandler(
         if (await repositorio.ExisteConCifAsync(request.Cif, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Cliente.CifDuplicado", "Ya existe una organización con este CIF."));
 
-        // Un Cliente creado por un Gestor CAE queda automáticamente en su
-        // cartera — "creados o asignados" (ver Roles.cs). El resto de roles
-        // que pueden crear Clientes (Administrador, DireccionCae,
-        // CoordinadorCae) lo dejan sin gestor hasta asignarlo explícitamente.
+        // Un Cliente creado por un Gestor CAE lo tiene a él como Gestor CAE de
+        // referencia (Empresa.EjecutivoUsuarioId). Es solo una referencia —enrutado
+        // de WhatsApp, avisos, columna de la lista—: no escribe ninguna Asignación
+        // de Cartera ni concede alcance (D-7, 2026-10-02). El Gestor CAE que crea el
+        // Cliente ya lo alcanza si tiene la cartera del Tenant entero, y si no la
+        // tiene, crearlo no se la da. El resto de roles que pueden crear Clientes
+        // (Administrador, DireccionCae, CoordinadorCae) lo dejan sin referencia
+        // hasta indicarla explícitamente.
         var rol = await currentUserService.ObtenerRolEfectivoAsync();
         var ejecutivoUsuarioId = rol == RolGestorCae ? await currentUserService.ObtenerUsuarioActualIdAsync() : null;
 
@@ -68,8 +70,8 @@ public class CrearClienteCommandHandler(
         var resultado = await transaccion.EjecutarAsync(async ct =>
         {
             // Revisión Codex de FS-25: con el candado compartido de cartera, el alta espera a una
-            // desactivación en curso de este Gestor CAE y, si la cuenta quedó desactivada, no le
-            // pone el Cliente empresarial en la cartera.
+            // desactivación en curso de este Gestor CAE y, si la cuenta quedó desactivada, no la
+            // deja como referencia del Cliente empresarial.
             if (ejecutivoUsuarioId is { } gestorId)
             {
                 await bloqueoCartera.BloquearCompartidoAsync([gestorId], ct);
@@ -80,15 +82,6 @@ public class CrearClienteCommandHandler(
             var empresa = Empresa.CrearComoCliente(request.RazonSocial, request.Cif, request.EsCritico, request.Notas, ejecutivoUsuarioId);
             repositorio.Agregar(empresa);
             empresaId = empresa.Id;
-
-            // Doble escritura también aquí, y no solo al reasignar: sin esto, el
-            // Gestor CAE que crea un cliente se quedaría con la proyección puesta
-            // pero sin cartera, y al conmutar la autorización perdería de vista el
-            // cliente que acaba de crear. La Empresa todavía no tiene TenantId
-            // (lo sella el interceptor al guardar), así que el propietario se
-            // resuelve del contexto, no de la entidad.
-            if (ejecutivoUsuarioId is not null)
-                await asignacionesWriter.ReasignarCarteraClienteAsync(empresa.Id, ejecutivoUsuarioId, ct);
 
             await unitOfWork.SaveChangesAsync(ct);
             return Result.Exito();

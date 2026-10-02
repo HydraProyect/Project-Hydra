@@ -402,16 +402,31 @@ public class TerminologiaCanonicaTests
     /// literal de cadena en <c>.cs</c>, como el título de la API o el prompt del asistente— lo vigila
     /// <see cref="La_marca_antigua_no_aparece_en_literales_de_cadena_de_codigo"/>, con base cero.
     /// </para>
+    /// <para>
+    /// <b>EjecutivoUsuarioId 43 → 32 (D-7, el reparto por Cliente empresarial deja de existir,
+    /// 2026-10-02): −11.</b> Dejan de nombrar la referencia los sitios que la leían para derivar o
+    /// reconstruir carteras —<c>AsignacionesOperativasWriter</c> (reapertura de carteras al
+    /// reactivar una delegación), <c>AsignacionesOperativasBackfillSeeder</c> (el paso que derivaba
+    /// carteras de ella) y el comando retirado <c>DesactivarGestorCaeConCarteraCommand</c>— y se
+    /// simplifican <c>CrearClienteCommand</c> y <c>ReasignarEjecutivoClienteCommand</c>. Lo que queda es
+    /// la referencia misma —columna y filtro de la lista, enrutado de WhatsApp, aviso de detección—,
+    /// que no concede alcance. Lo vigila <c>RepartoDeCarteraPorClienteRetiradoTests</c> en el
+    /// alcance y en las escrituras de cartera.
+    /// </para>
+    /// <para>
+    /// <b><c>Delegacion</c> 340 → 339 (D-7, 2026-10-02): −1.</b> Misma retirada: un identificador menos
+    /// tras reescribir la reapertura de carteras del writer y retirar de él el reparto por Cliente empresarial.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
         ["Hydra"] = 3,
-        ["EjecutivoUsuarioId"] = 43,
+        ["EjecutivoUsuarioId"] = 32,
         // 337 → 340 (2026-09-28, «Asignar empresas» a un Gestor CAE existente): tres usos de
         // identificadores legacy que ya existen y no se renombran aquí —DelegacionesTenant,
         // DelegacionTenantId y PropositoDelegacion— en la retirada de la fila heredada de
         // Operador Delegado de CatalogoIncorporacionCartera (mismo join que PropietariosEnCarteraAsync).
-        ["Delegacion"] = 340,
+        ["Delegacion"] = 339,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

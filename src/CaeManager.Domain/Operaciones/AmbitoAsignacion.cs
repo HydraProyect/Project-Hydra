@@ -18,8 +18,13 @@ namespace CaeManager.Domain.Operaciones;
 /// del agregado, que es lo que hace <b>físicamente imposible</b> apuntar a
 /// datos de otro tenant.
 ///
-/// <b>Alcance de F1</b>: solo se emiten <see cref="Universal"/> y
-/// <see cref="DeRelacionCliente"/>. Las otras tres dimensiones existen como
+/// <b>Alcance hoy</b>: solo se emite <see cref="Universal"/>. El ámbito por
+/// Cliente empresarial (<see cref="DeRelacionCliente"/>) lo retiró D-7
+/// (2026-10-02) como reparto de la Asignación de Cartera: ningún productor lo
+/// crea ya, y los datos que existían se convirtieron al Tenant entero (migración
+/// <c>ConvierteCarterasPorClienteATenantEntero</c>). Una Asignación de Operación
+/// acotada a un Cliente empresarial sigue siendo representable. Las otras tres
+/// dimensiones existen como
 /// columnas para no tener que migrar el esquema cuando entren, pero no hay UI
 /// ni comandos que las creen — y habilitarlas exige antes la revisión de la
 /// arquitectura de consulta que fija el plan de migración (§ 5).

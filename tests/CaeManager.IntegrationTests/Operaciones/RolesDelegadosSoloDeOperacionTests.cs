@@ -20,7 +20,7 @@ namespace CaeManager.IntegrationTests.Operaciones;
 /// propietario (ADR-011 § 1) y <see cref="AsignacionesOperativasWriter"/> no
 /// los concede por ninguno de sus dos caminos: la cartera universal
 /// (<c>AbrirCarteraOperadorAsync</c>) y la cartera de un Cliente empresarial
-/// (<c>ReasignarCarteraClienteAsync</c>, que lee el rol de la delegación). Esta
+/// (<c>AsegurarCarteraTenantEnteroAsync</c>, que lee el rol de la delegación). Esta
 /// última, además, solo la recibe un Gestor CAE (revisión Codex de la PR #931).
 ///
 /// <para>
@@ -115,14 +115,14 @@ public class RolesDelegadosSoloDeOperacionTests : IAsyncLifetime
     [Theory]
     [InlineData(Roles.Administrador)]
     [InlineData(Roles.DireccionCae)]
-    public async Task La_cartera_de_un_Cliente_empresarial_no_hereda_un_rol_de_Propiedad_de_la_delegacion(string rol)
+    public async Task La_cartera_del_Tenant_entero_no_hereda_un_rol_de_Propiedad_de_la_delegacion(string rol)
     {
         await SembrarAsignacionDelegadaAsync(rol);
 
         await using (var contexto = CrearContexto(_propietario))
         {
             await CrearWriter(contexto)
-                .Invoking(w => w.ReasignarCarteraClienteAsync(_clienteId, _personaDelOperador))
+                .Invoking(w => w.AsegurarCarteraTenantEnteroAsync(_propietario, _personaDelOperador))
                 .Should().ThrowAsync<UnauthorizedAccessException>();
 
             await contexto.SaveChangesAsync();
@@ -140,14 +140,14 @@ public class RolesDelegadosSoloDeOperacionTests : IAsyncLifetime
     [Theory]
     [InlineData(Roles.CoordinadorCae)]
     [InlineData(Roles.Consulta)]
-    public async Task La_cartera_de_un_Cliente_empresarial_no_va_a_un_rol_de_Operacion_que_no_sea_Gestor_CAE(string rol)
+    public async Task La_cartera_del_Tenant_entero_no_va_a_un_rol_de_Operacion_que_no_sea_Gestor_CAE(string rol)
     {
         await SembrarAsignacionDelegadaAsync(rol);
 
         await using (var contexto = CrearContexto(_propietario))
         {
             await CrearWriter(contexto)
-                .Invoking(w => w.ReasignarCarteraClienteAsync(_clienteId, _personaDelOperador))
+                .Invoking(w => w.AsegurarCarteraTenantEnteroAsync(_propietario, _personaDelOperador))
                 .Should().ThrowAsync<UnauthorizedAccessException>();
 
             await contexto.SaveChangesAsync();
@@ -157,18 +157,18 @@ public class RolesDelegadosSoloDeOperacionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Control_positivo_la_cartera_de_un_Cliente_empresarial_la_hereda_un_Gestor_CAE_delegado()
+    public async Task Control_positivo_la_cartera_del_Tenant_entero_la_recibe_un_Gestor_CAE_delegado()
     {
         await SembrarAsignacionDelegadaAsync(Roles.GestorCae);
 
         await using (var contexto = CrearContexto(_propietario))
         {
-            await CrearWriter(contexto).ReasignarCarteraClienteAsync(_clienteId, _personaDelOperador);
+            await CrearWriter(contexto).AsegurarCarteraTenantEnteroAsync(_propietario, _personaDelOperador);
             await contexto.SaveChangesAsync();
         }
 
         var carteras = await CarterasDeLaPersonaAsync();
-        carteras.Should().ContainSingle(c => c.AmbitoRelacionClienteId == _clienteId).Which.Rol.Should().Be(Roles.GestorCae);
+        carteras.Should().ContainSingle(c => c.Ambito.EsUniversal).Which.Rol.Should().Be(Roles.GestorCae);
     }
 
     /// <summary>

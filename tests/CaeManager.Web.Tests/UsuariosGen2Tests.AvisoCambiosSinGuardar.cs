@@ -86,25 +86,18 @@ public partial class UsuariosGen2Tests
     }
 
     [Fact]
-    public async Task Aviso_desactivar_con_un_Gestor_CAE_de_destino_elegido_pregunta_y_sin_elegir_no()
+    public async Task Aviso_el_dialogo_de_desactivar_no_deja_nada_que_perder()
     {
-        var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
+        // Desde D-7 no hay traspaso de cartera: el diálogo solo confirma, sin ningún dato escrito.
         var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
         Sembrar(
             (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
-            (ander, RolesIdentidad.GestorCae),
-            (iker, RolesIdentidad.GestorCae));
-        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(false, [ClienteUno]) };
-        _fuente.EnRol = rol => rol == RolesIdentidad.GestorCae ? [ander, iker] : [];
+            (ander, RolesIdentidad.GestorCae));
+        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(true, []) };
 
         var cut = Renderizar(actorId: MartaId);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
-        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "sin destino elegido no hay nada que perder");
 
-        Navegacion.NavigateTo("/usuarios");
-        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
-        await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = IkerId.ToString() });
-
-        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "el diálogo de desactivar no tiene nada que perder");
     }
 }

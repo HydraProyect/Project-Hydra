@@ -5,11 +5,14 @@ namespace CaeManager.Domain.Operaciones;
 /// <see cref="AsignacionOperacion"/> — el nivel de persona de la asignación de
 /// responsabilidad operativa (ADR-011 § 2.7).
 ///
-/// Sustituye conceptualmente a <c>Cliente.EjecutivoUsuarioId</c> (cartera
-/// interna, ámbito {relaciónCliente}, sobre la raíz) y a
-/// <c>AsignacionOperadorDelegado</c> de una delegación Comercial (cartera
-/// externa, ámbito universal, con rol propio). Durante F1 los dos originales
-/// siguen vivos y escritos en paralelo.
+/// <b>La cartera de un Gestor CAE es siempre el Tenant entero</b> (ámbito
+/// universal; ADR-011 § 2.7, enmienda 2026-09-23 y D-7, 2026-10-02): el reparto
+/// por Cliente empresarial (ámbito {relaciónCliente}) está retirado y ningún
+/// productor lo escribe ya. <c>Empresa.EjecutivoUsuarioId</c> es solo la
+/// referencia del Gestor CAE de un Cliente empresarial y no concede alcance.
+/// Sustituye conceptualmente a <c>AsignacionOperadorDelegado</c> de una
+/// delegación Comercial (cartera externa, con rol propio), que durante F1
+/// sigue viva y escrita en paralelo.
 ///
 /// <b>El ámbito efectivo es la intersección</b> del ámbito de esta cartera con
 /// el de su operación — no una validación de subconjunto. La contención entre

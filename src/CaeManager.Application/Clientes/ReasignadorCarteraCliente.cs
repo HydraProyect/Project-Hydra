@@ -1,5 +1,4 @@
 using CaeManager.Application.Common;
-using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -8,17 +7,24 @@ using CaeManager.Domain.Notificaciones;
 namespace CaeManager.Application.Clientes;
 
 /// <summary>
-/// Pasa un Cliente empresarial a otro Gestor CAE (o se lo quita) <b>sin guardar</b>:
-/// deja en el contexto la proyección <c>Empresa</c>, la Asignación de Cartera y los
-/// avisos, para que el Command que lo usa los confirme en su propio guardado. Lo
-/// comparten <c>ReasignarEjecutivoClienteCommand</c> (un Cliente empresarial) y
-/// <c>DesactivarGestorCaeConCarteraCommand</c> (toda la cartera y la baja, en una
-/// transacción), para que las dos vías apliquen las mismas reglas.
+/// Pasa la <b>referencia</b> de un Cliente empresarial a otro Gestor CAE (o se la quita)
+/// <b>sin guardar</b>: deja en el contexto la proyección <c>Empresa</c> y los avisos, para que
+/// el Command que lo usa los confirme en su propio guardado. Lo comparten
+/// <c>ReasignarEjecutivoClienteCommand</c> (un Cliente empresarial) y
+/// <c>DesactivarGestorCaeConCarteraCommand</c> (todos los suyos y la baja, en una transacción),
+/// para que las dos vías apliquen las mismas reglas.
+///
+/// <para>
+/// <b>La referencia no es cartera</b> (D-7, 2026-10-02): <c>Empresa.EjecutivoUsuarioId</c> solo
+/// alimenta el enrutado de WhatsApp, los avisos y la columna de la lista. Reasignarla no abre ni
+/// cierra ninguna Asignación de Cartera y no cambia lo que nadie alcanza: la cartera de un
+/// Gestor CAE es siempre el Tenant entero.
+/// </para>
 ///
 /// <para>
 /// <b>No autoriza el rol de quien reasigna</b>: eso lo decide cada Command. Sí
 /// comprueba que el Cliente empresarial esté en su alcance y que el destino pueda
-/// llevar la cartera (<see cref="ReglaDestinoCarteraCliente"/>).
+/// llevar la referencia (<see cref="ReglaDestinoCarteraCliente"/>).
 /// </para>
 /// </summary>
 public class ReasignadorCarteraCliente(
@@ -27,33 +33,24 @@ public class ReasignadorCarteraCliente(
     INotificacionUsuarioRepository notificacionRepositorio,
     ICurrentUserService currentUserService,
     IAlcanceDatosService alcanceDatos,
-    IAsignacionesOperativasWriter asignacionesWriter,
     IDirectorioDestinosCartera directorioDestinos,
     IBloqueoCarteraUsuario bloqueoCartera)
 {
     public static readonly Error ClienteNoEncontrado = Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial.");
 
-    /// <param name="alinearCartera">
-    /// Aunque la proyección <c>Empresa</c> ya apunte al destino, cerrar las Asignaciones de
-    /// Cartera de otros y abrir la del destino. Lo usa el traspaso de cartera al desactivar,
-    /// que parte de las Asignaciones de Cartera: si la proyección y la cartera divergen, sin
-    /// esto el Cliente empresarial se quedaba en la cartera de quien se desactiva
-    /// (revisión puente del incremento B).
-    /// </param>
     /// <returns>
     /// <c>true</c> si dejó cambios que guardar; <c>false</c> si el Cliente empresarial ya
-    /// era de ese Gestor CAE y no hay nada que hacer.
+    /// tenía a ese Gestor CAE como referencia y no hay nada que hacer.
     /// </returns>
     public async Task<Result<bool>> ReasignarAsync(
-        Guid clienteId, Guid? nuevoGestorId, CancellationToken cancellationToken, bool alinearCartera = false)
+        Guid clienteId, Guid? nuevoGestorId, CancellationToken cancellationToken)
     {
         var empresa = await empresaRepositorio.ObtenerPorIdAsync(clienteId, cancellationToken);
         if (empresa is null || !await alcanceDatos.ClienteVisibleAsync(empresa.Id, cancellationToken))
             return Result.Fallo<bool>(ClienteNoEncontrado);
 
         var gestorAnteriorId = empresa.EjecutivoUsuarioId;
-        var cambiaDeGestor = gestorAnteriorId != nuevoGestorId;
-        if (!cambiaDeGestor && !alinearCartera)
+        if (gestorAnteriorId == nuevoGestorId)
             return Result.Exito(false);
 
         // Antes de validar el destino: si una desactivación con traspaso está en curso sobre
@@ -70,13 +67,7 @@ public class ReasignadorCarteraCliente(
                 return Result.Fallo<bool>(destinoValido.Error);
         }
 
-        if (cambiaDeGestor)
-            await AplicarCambioDeGestorAsync(empresa, gestorAnteriorId, nuevoGestorId, cancellationToken);
-
-        // Doble escritura: la cartera nueva entra en el mismo guardado que la
-        // proyección Empresa, así que o se guardan las dos o ninguna. La
-        // proyección sigue siendo la autoritativa durante F1.
-        await asignacionesWriter.ReasignarCarteraClienteAsync(empresa.Id, nuevoGestorId, cancellationToken);
+        await AplicarCambioDeGestorAsync(empresa, gestorAnteriorId, nuevoGestorId, cancellationToken);
 
         return Result.Exito(true);
     }
