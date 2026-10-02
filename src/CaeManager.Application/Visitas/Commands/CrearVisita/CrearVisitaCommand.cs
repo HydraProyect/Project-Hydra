@@ -87,7 +87,19 @@ public class CrearVisitaCommandHandler(
         if (encontrados != trabajadorIds.Count)
             return Result.Fallo<Guid>(Error.Crear("Visita.TrabajadorNoEncontrado", "Alguno de los trabajadores seleccionados no existe."));
 
-        var origen = Visita.OrigenAlCrear(request.SugerenciaVisitaCorreoId is not null);
+        // El origen sale del canal del mensaje del que nació la sugerencia, no de que exista una:
+        // una sugerencia detectada por WhatsApp crea una Visita de origen WhatsApp.
+        CanalConversacion? canalDelMensaje = null;
+        if (request.SugerenciaVisitaCorreoId is { } sugerenciaDelOrigen
+            && await sugerenciaRepositorio.ObtenerPorIdAsync(sugerenciaDelOrigen, cancellationToken) is { } sugerenciaOrigen)
+        {
+            canalDelMensaje = await comunicacionesContext.Mensajes
+                .Where(m => m.Id == sugerenciaOrigen.MensajeId)
+                .Select(m => (CanalConversacion?)m.Canal)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        var origen = Visita.OrigenAlCrear(request.SugerenciaVisitaCorreoId is not null, canalDelMensaje);
         var visita = new Visita(request.CentroId, request.FechaInicio, request.FechaFin, request.Notas, origen, request.HoraEstimadaAcceso);
         repositorio.Agregar(visita);
 
