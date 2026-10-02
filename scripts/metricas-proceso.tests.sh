@@ -49,6 +49,8 @@ mutante "M11 ignora los paréntesis dentro de la etiqueta" 's/elif c in "({\[":/
 mutante "M15 cuenta el First de LINQ"                's/(?!\\s\*\[(<\])//'                                             "test_M15_locators_e2e"
 mutante "gh que falla devuelve datos vacíos"         's/raise GhNoDisponible(f"gh {/return [] if True else (f"gh {/'  "test_gh_que_falla_es_NO_MEDIDA"
 mutante "M16 cuenta Cliente empresarial"             's/(?!\\s+(?:empresarial|empresariales|comercial|de servicio|delegante))//' "test_M16_cliente_a_secas"
+mutante "M16 ignora Vocabulario.json y usa su regex local" 's/    if vocabulario.is_file():/    if False:/'                "test_M16_toma_el_patron"
+mutante "M16 da 0 si Vocabulario.json está roto"    's/            patron = None/            patron = re.compile("")/'                                "test_M16_con_Vocabulario_json_ilegible"
 mutante "M3 la negación no admite la barra («sin ALTA/MEDIA»)" 's/(?:,|\/|y|ni|o)/(?:,|y|ni|o)/'  "test_M3_la_negacion_admite_la_barra"
 mutante "M5 cuenta cualquier rama, no solo main"      's/r\["headBranch"\] == "main"/True/'                           "test_M5_cuenta_los_rojos"
 mutante "M5 cuenta cualquier evento, no solo push"    's/r\["event"\] == "push" and r\["headBranch"\]/r["headBranch"]/' "test_M5_cuenta_los_rojos"

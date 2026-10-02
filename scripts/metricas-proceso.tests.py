@@ -222,6 +222,25 @@ class Repo(unittest.TestCase):
     def test_M16_cliente_a_secas_en_resx_y_marcado_pero_no_en_codigo_ni_el_satelite(self):
         self.assertEqual(self.filas()["M16"]["valor"], "2 valores .resx + 1 en marcado")
 
+    def test_M16_toma_el_patron_de_Vocabulario_json_cuando_existe(self):
+        # Con S1 en el árbol, la cifra la manda el patrón del JSON y no el regex local: aquí, uno que SOLO caza «suelto».
+        with tempfile.TemporaryDirectory() as t:
+            raiz = Path(t)
+            self.arbol(raiz)
+            vocab = {"prohibidos": [{"id": "cliente-a-secas", "patron": r"\bsuelto\b", "ignorarMayusculas": True}]}
+            escribir(raiz, "tests/CaeManager.Architecture.Tests/Vocabulario/Vocabulario.json", json.dumps(vocab))
+            f = {x["id"]: x for x in mp.metricas_de_repo(raiz)}["M16"]
+        self.assertEqual(f["valor"], "1 valores .resx + 0 en marcado")
+        self.assertIn("Vocabulario.json", f["detalle"])
+
+    def test_M16_con_Vocabulario_json_ilegible_es_NO_MEDIDA_y_no_un_cero(self):
+        with tempfile.TemporaryDirectory() as t:
+            raiz = Path(t)
+            self.arbol(raiz)
+            escribir(raiz, "tests/CaeManager.Architecture.Tests/Vocabulario/Vocabulario.json", "{ roto")
+            f = {x["id"]: x for x in mp.metricas_de_repo(raiz)}["M16"]
+        self.assertEqual(f["clase"], "NO_MEDIDA")
+
     def test_M17_M18_M21_leen_los_trinquetes(self):
         f = self.filas()
         self.assertEqual(f["M17"]["valor"], "Hydra 10 · Delegacion 340")
