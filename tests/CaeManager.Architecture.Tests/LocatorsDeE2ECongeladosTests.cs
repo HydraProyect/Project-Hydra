@@ -82,6 +82,8 @@ public class LocatorsDeE2ECongeladosTests
     [InlineData("// await page.GetByText(\"Guardar\").First.ClickAsync();")]
     [InlineData("var s = \"GetByText y .First en una cadena\";")]
     [InlineData("var url = \"/buscar?text=hola\";")]
+    [InlineData("await page.GotoAsync(\"/buscar?q=1&text=hola\");")]
+    [InlineData("await page.GotoAsync(\"/buscar?text=hola\");")]
     [InlineData("const string Selector = \"li:first-child\";")]
     [InlineData("string s; s = \"button:has-text('x')\";")]
     public void Lo_que_no_es_fragil_no_cuenta(string cuerpo) =>

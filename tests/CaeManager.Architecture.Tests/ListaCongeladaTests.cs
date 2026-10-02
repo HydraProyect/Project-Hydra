@@ -146,10 +146,11 @@ public class ListaCongeladaTests
     [Fact]
     public void Evaluar_sin_directorio_de_volcado_no_escribe_nada()
     {
-        var antes = Directory.Exists("volcado-inexistente");
+        // Sin directorio (nulo o vacío) no hay volcado: Directory.CreateDirectory("") lanzaría si el guard
+        // desapareciera, así que esta prueba falla por la excepción, que es lo que observa.
         ListaCongelada.Evaluar("n", "r.txt", Medido, "g", "", _ => true, _ => "a.cs :: X = 2\n").Should().BeNull();
+        ListaCongelada.Evaluar("n", "r.txt", Medido, "g", "   ", _ => true, _ => "a.cs :: X = 2\n").Should().BeNull();
         ListaCongelada.Evaluar("n", "r.txt", Medido, "g", null, _ => true, _ => "a.cs :: X = 2\n").Should().BeNull();
-        Directory.Exists("volcado-inexistente").Should().Be(antes);
     }
 
     [Fact]

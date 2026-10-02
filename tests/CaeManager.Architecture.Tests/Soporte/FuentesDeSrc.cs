@@ -268,7 +268,7 @@ internal static class FuentesDeSrc
     private static readonly Regex ComparacionEnRazor = new(
         @"\b(?<n>EsCritico|NivelServicio)\b\s*(?:!=|==)\s*(?:null|default)\b"
         + @"|\b(?:null|default)\s*(?:!=|==)\s*(?:[\w.]*\.)?(?<n>EsCritico|NivelServicio)\b"
-        + @"|\b(?<n>EsCritico|NivelServicio)\s+is\s+(?:not\s+)?(?:null\b|\{|bool\b|string\b|\()"
+        + @"|\b(?<n>EsCritico|NivelServicio)\s+is\s+(?:not\s+)?(?:null\b|\{|bool\b|string\b|\(|true\s+or\s+false\b)"
         + @"|\b(?<n>EsCritico|NivelServicio)\.HasValue\b"
         + @"|IsNullOr(?:Empty|WhiteSpace)\(\s*[\w.?!]*?\b(?<n>EsCritico|NivelServicio)\b\s*\)",
         RegexOptions.Compiled);

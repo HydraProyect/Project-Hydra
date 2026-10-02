@@ -66,7 +66,7 @@ internal static class AnalisisDeCatalan
             var catalan = Valores(textoCatalan);
             foreach (var (clave, valor) in Valores(textoNeutral))
             {
-                if (catalan.TryGetValue(clave, out var valorCatalan) && valor.Trim() == valorCatalan.Trim())
+                if (catalan.TryGetValue(clave, out var valorCatalan) && EsIgualYLargo(valor, valorCatalan, new HashSet<string>()))
                     enUso.Add(Normalizar(valor));
             }
         }

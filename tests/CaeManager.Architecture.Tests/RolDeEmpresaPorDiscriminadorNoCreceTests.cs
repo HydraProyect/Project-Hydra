@@ -162,12 +162,13 @@ public class RolDeEmpresaPorDiscriminadorNoCreceTests
                 bool EsSub(dynamic e) => e.NivelServicio is not null;
                 bool EsSub2(dynamic e) => !string.IsNullOrEmpty(e.NivelServicio);
                 bool EsCli2(dynamic e) => e.EsCritico is bool;
+                bool EsCli3(dynamic e) => e.EsCritico is true or false;
                 bool NoCuenta(dynamic e) => e.EsCritico == true;
             }
             """;
 
         FuentesDeSrc.AnalizarRazor(fuente).ComparacionesConNull
-            .Should().Equal(new Dictionary<string, int> { ["EsCritico"] = 2, ["NivelServicio"] = 2 });
+            .Should().Equal(new Dictionary<string, int> { ["EsCritico"] = 3, ["NivelServicio"] = 2 });
     }
 
     [Theory]

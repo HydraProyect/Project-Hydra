@@ -49,7 +49,7 @@ internal static class AnalisisDeLocatorsE2E
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex SelectorPorTexto = new(
-        @"(?<![\w-])text=|:has-text\(|:text\(|:text-is\(|:text-matches\(|\btext\(\)|normalize-space\(",
+        @"(?<![\w?&-])text=|:has-text\(|:text\(|:text-is\(|:text-matches\(|\btext\(\)|normalize-space\(",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static Dictionary<string, int> Analizar(string texto)
