@@ -135,6 +135,9 @@
   <data name="AvisoPrellenado" xml:space="preserve">
     <value>Prellenado desde un correo: {0} — revisa los datos y elige los trabajadores antes de guardar.</value>
   </data>
+  <data name="AvisoCentroSinTrabajadoresAsignados" xml:space="preserve">
+    <value>Este centro no tiene trabajadores asignados.</value>
+  </data>
   <data name="OpcionSeleccionaCentro" xml:space="preserve">
     <value>Selecciona un centro…</value>
   </data>

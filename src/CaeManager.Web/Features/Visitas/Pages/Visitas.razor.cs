@@ -1,5 +1,6 @@
 using CaeManager.Domain.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
+using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciaVisitaCorreo;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
@@ -80,6 +81,14 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
     private string? _errorTrabajadores => ObtenerError("TrabajadorIds");
+
+    // D-20 (2ª parte, decisión del propietario 2026-10-02): en Nueva visita, «relacionado» es el
+    // Trabajador con Asignación activa al Centro elegido. null = sin filtro (sin Centro, o edición).
+    private IReadOnlySet<Guid>? _trabajadoresRelacionados;
+    private bool _soloRelacionados;
+    private bool _avisoCentroSinAsignados;
+    private int _cargaRelacionados;
+    private SelectorMultiple? _selectorTrabajadores;
 
     // Prellenado desde "Crear visita" de una sugerencia detectada por IA en
     // un correo (ver SugerenciaVisitaCorreo) — se manda de vuelta en
@@ -379,6 +388,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _fechaFin = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
         _horaEstimadaAcceso = string.Empty;
         _trabajadorIdsSeleccionados = [];
+        ReiniciarRelacionados();
         _notificadoCliente = false;
         _notas = string.Empty;
         _erroresCampo = new Dictionary<string, string>();
@@ -414,6 +424,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             && _centrosDisponibles.Any(c => c.Id == centroIdCorregido)
             ? centroIdCorregido.ToString()
             : sugerencia.CentroId?.ToString() ?? string.Empty;
+        await RecalcularRelacionadosAsync();
 
         if (DateOnly.TryParse(FechaInicioOverride, out var fechaInicioCorregida))
             _fechaInicio = fechaInicioCorregida.ToString("yyyy-MM-dd");
@@ -435,6 +446,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         if (await PrepararCrearAsync() && _centrosDisponibles.Any(c => c.Id == centroId))
         {
             _centroId = centroId.ToString();
+            await RecalcularRelacionadosAsync();
             FijarInstantaneaFormulario();
         }
     }
@@ -470,6 +482,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _fechaFin = visita.FechaFin.ToString("yyyy-MM-dd");
         _horaEstimadaAcceso = visita.HoraEstimadaAcceso?.ToString("HH:mm") ?? string.Empty;
         _trabajadorIdsSeleccionados = visita.TrabajadorIds.ToHashSet();
+        ReiniciarRelacionados();
         _notificadoCliente = visita.NotificadoCliente;
         _notas = visita.Notas ?? string.Empty;
         _erroresCampo = new Dictionary<string, string>();
@@ -814,6 +827,65 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         return Task.CompletedTask;
     }
 
+    private void ReiniciarRelacionados()
+    {
+        _cargaRelacionados++;
+        _trabajadoresRelacionados = null;
+        _soloRelacionados = false;
+        _avisoCentroSinAsignados = false;
+    }
+
+    private async Task AlCambiarCentroAsync(string centroId)
+    {
+        _centroId = centroId;
+        await RecalcularRelacionadosAsync();
+    }
+
+    /// <summary>
+    /// Recalcula los Trabajadores «relacionados» con la Visita nueva: los de Asignación activa al
+    /// Centro elegido (misma query y mismo alcance de Centro visible que la pestaña Trabajadores
+    /// del Centro). Solo se mantienen los que además ofrece el selector, así que no amplía lo que
+    /// el usuario puede ver. Sin Centro no hay filtro; con Centro sin asignados se avisa y el
+    /// filtro se desmarca solo para no dejar la lista vacía sin explicación.
+    /// </summary>
+    private async Task RecalcularRelacionadosAsync()
+    {
+        var carga = ++_cargaRelacionados;
+        _avisoCentroSinAsignados = false;
+
+        if (_editandoId is not null || !Guid.TryParse(_centroId, out var centroId))
+        {
+            _trabajadoresRelacionados = null;
+            _soloRelacionados = false;
+            return;
+        }
+
+        IReadOnlyList<TrabajadorAsignadoDto> asignados;
+        try
+        {
+            asignados = await Mediator.Send(new ObtenerTrabajadoresAsignadosDeCentroQuery(centroId));
+        }
+        catch (Exception)
+        {
+            // Sin la lista de asignados el selector sigue siendo utilizable, solo que sin filtro.
+            if (carga == _cargaRelacionados)
+            {
+                _trabajadoresRelacionados = null;
+                _soloRelacionados = false;
+            }
+            return;
+        }
+
+        if (carga != _cargaRelacionados)
+            return;
+
+        var ofrecidos = _trabajadoresDisponibles.Select(t => t.Id).ToHashSet();
+        var relacionados = asignados.Select(a => a.TrabajadorId).Where(ofrecidos.Contains).ToHashSet();
+        _trabajadoresRelacionados = relacionados;
+        _avisoCentroSinAsignados = relacionados.Count == 0;
+        _soloRelacionados = relacionados.Count > 0;
+    }
+
     private async Task GuardarAsync()
     {
         _guardando = true;
@@ -829,6 +901,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             {
                 _erroresCampo["TrabajadorIds"] = Textos["ErrorSeleccionaTrabajador"];
                 ToastService.Mostrar(Textos["ErrorSeleccionaTrabajador"], TonoToast.Error);
+                if (_selectorTrabajadores is not null)
+                    await _selectorTrabajadores.EnfocarAsync();
                 return;
             }
 

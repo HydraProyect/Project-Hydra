@@ -3,6 +3,7 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
+using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
@@ -74,6 +75,10 @@ public class VisitasGen2Tests : BunitContext
         public TramoAntelacion? Tramo { get; set; }
 
         public IReadOnlyList<TrabajadorSelectorDto> TrabajadoresSelector { get; set; } = [];
+
+        public IReadOnlyList<CentroSelectorDto> CentrosSelector { get; set; } = [];
+
+        public Dictionary<Guid, Guid[]> AsignadosPorCentro { get; } = [];
 
         public List<object> Comandos { get; } = [];
 
@@ -188,7 +193,10 @@ public class VisitasGen2Tests : BunitContext
                     }
 
                 case ObtenerCentrosParaSelectorQuery:
-                    return Respuesta<TResponse>(Array.Empty<CentroSelectorDto>());
+                    return Respuesta<TResponse>(CentrosSelector);
+
+                case ObtenerTrabajadoresAsignadosDeCentroQuery asignados:
+                    return Respuesta<TResponse>((IReadOnlyList<TrabajadorAsignadoDto>)(AsignadosPorCentro.TryGetValue(asignados.CentroId, out var ids) ? ids : []).Select(id => new TrabajadorAsignadoDto(id, "x", "y", Hoy)).ToList());
 
                 case ObtenerTrabajadoresParaSelectorQuery:
                     return Respuesta<TResponse>(TrabajadoresSelector);
@@ -1025,5 +1033,133 @@ public class VisitasGen2Tests : BunitContext
         var rotulos = new[] { "Manual", "Plataforma", "Correo", "WhatsApp" };
         Fila(cut, "Centro Norte").QuerySelectorAll(".badge").Select(b => b.TextContent.Trim()).Where(rotulos.Contains)
             .Should().ContainSingle("la fila pinta un solo rótulo de Origen").Which.Should().Be(rotulo);
+    }
+
+    // ── D-20, segunda parte: «relacionado» = Trabajador asignado al Centro de la Visita ──
+
+    private static readonly Guid CentroConAsignados = Guid.NewGuid();
+    private static readonly Guid CentroSinAsignados = Guid.NewGuid();
+    private static readonly Guid CentroOtro = Guid.NewGuid();
+    private static readonly Guid Asignado = Guid.NewGuid();
+    private static readonly Guid OtroAsignado = Guid.NewGuid();
+    private static readonly Guid NoAsignado = Guid.NewGuid();
+
+    private static MediatorVisitas MediatorConCentros() => new()
+    {
+        CentrosSelector =
+        [
+            new CentroSelectorDto(CentroConAsignados, "Planta Norte", "Cliente A", "Empresa A"),
+            new CentroSelectorDto(CentroSinAsignados, "Planta Vacía", "Cliente A", "Empresa A"),
+            new CentroSelectorDto(CentroOtro, "Planta Otra", "Cliente A", "Empresa A"),
+        ],
+        TrabajadoresSelector =
+        [
+            TrabajadorSelectorFalso.Crear(Asignado, "Iker Zubiri Olano"),
+            TrabajadorSelectorFalso.Crear(OtroAsignado, "Maite Goikoetxea Arana"),
+            TrabajadorSelectorFalso.Crear(NoAsignado, "Unai Etxeberria Ruiz"),
+        ],
+        AsignadosPorCentro =
+        {
+            [CentroConAsignados] = [Asignado],
+            [CentroOtro] = [OtroAsignado],
+        },
+    };
+
+    private async Task<IRenderedComponent<Visitas>> AbrirNuevaVisitaAsync(MediatorVisitas mediator)
+    {
+        var cut = Renderizar(mediator);
+        await cut.FindAll(".acciones-cabecera button").First(b => b.TextContent.Contains("Nueva visita")).ClickAsync(new MouseEventArgs());
+        return cut;
+    }
+
+    private static Task ElegirCentroAsync(IRenderedComponent<Visitas> cut, Guid centro) =>
+        cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = centro.ToString() });
+
+    private static string[] TrabajadoresListados(IRenderedComponent<Visitas> cut) =>
+        cut.FindAll(".drawer-panel .lista-seleccion-multiple label").Select(l => l.TextContent.Trim()).ToArray();
+
+    private static IElement CasillaRelacionados(IRenderedComponent<Visitas> cut) =>
+        cut.FindAll(".drawer-panel .selector-multiple-controles input[type=checkbox]").Single();
+
+    [Fact]
+    public async Task Sin_centro_elegido_la_lista_no_esta_filtrada()
+    {
+        var cut = await AbrirNuevaVisitaAsync(MediatorConCentros());
+
+        TrabajadoresListados(cut).Should().HaveCount(3);
+        CasillaRelacionados(cut).HasAttribute("checked").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Al_elegir_centro_la_lista_abre_filtrada_a_sus_asignados_y_solo_relacionados_marcado()
+    {
+        var cut = await AbrirNuevaVisitaAsync(MediatorConCentros());
+
+        await ElegirCentroAsync(cut, CentroConAsignados);
+
+        CasillaRelacionados(cut).HasAttribute("checked").Should().BeTrue();
+        TrabajadoresListados(cut).Should().ContainSingle().Which.Should().Contain("Iker Zubiri");
+        cut.FindAll(".drawer-panel .alerta-info").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Al_cambiar_de_centro_el_filtro_se_recalcula()
+    {
+        var cut = await AbrirNuevaVisitaAsync(MediatorConCentros());
+        await ElegirCentroAsync(cut, CentroConAsignados);
+
+        await ElegirCentroAsync(cut, CentroOtro);
+
+        TrabajadoresListados(cut).Should().ContainSingle().Which.Should().Contain("Maite Goikoetxea");
+        CasillaRelacionados(cut).HasAttribute("checked").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Centro_sin_asignados_avisa_y_desmarca_el_filtro_para_no_dejar_la_lista_vacia()
+    {
+        var cut = await AbrirNuevaVisitaAsync(MediatorConCentros());
+
+        await ElegirCentroAsync(cut, CentroSinAsignados);
+
+        cut.Find(".drawer-panel .alerta-info").TextContent.Should().Contain("Este centro no tiene trabajadores asignados");
+        CasillaRelacionados(cut).HasAttribute("checked").Should().BeFalse();
+        TrabajadoresListados(cut).Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task Desmarcar_solo_relacionados_muestra_el_resto_de_trabajadores_y_volver_a_marcar_filtra()
+    {
+        var cut = await AbrirNuevaVisitaAsync(MediatorConCentros());
+        await ElegirCentroAsync(cut, CentroConAsignados);
+
+        await CasillaRelacionados(cut).ChangeAsync(new ChangeEventArgs { Value = false });
+        TrabajadoresListados(cut).Should().HaveCount(3);
+
+        await CasillaRelacionados(cut).ChangeAsync(new ChangeEventArgs { Value = true });
+        TrabajadoresListados(cut).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Un_asignado_que_el_selector_no_ofrece_no_amplia_la_lista()
+    {
+        var mediator = MediatorConCentros();
+        mediator.AsignadosPorCentro[CentroConAsignados] = [Guid.NewGuid()];
+        var cut = await AbrirNuevaVisitaAsync(mediator);
+
+        await ElegirCentroAsync(cut, CentroConAsignados);
+
+        cut.Find(".drawer-panel .alerta-info").TextContent.Should().Contain("no tiene trabajadores asignados");
+        TrabajadoresListados(cut).Should().HaveCount(3, "solo se ofrecen los trabajadores que ya ofrecía el selector");
+    }
+
+    [Fact]
+    public async Task Guardar_sin_trabajador_lleva_el_foco_al_campo_con_error()
+    {
+        var cut = await AbrirNuevaVisitaAsync(MediatorConCentros());
+
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        var foco = JSInterop.VerifyFocusAsyncInvoke();
+        foco.Arguments[0].Should().BeOfType<ElementReference>().Which.Id.Should().NotBeNullOrEmpty();
     }
 }
