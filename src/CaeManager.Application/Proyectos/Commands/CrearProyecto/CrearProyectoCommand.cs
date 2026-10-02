@@ -16,7 +16,7 @@ public class CrearProyectoCommandValidator : AbstractValidator<CrearProyectoComm
 {
     public CrearProyectoCommandValidator()
     {
-        RuleFor(c => c.ClienteId).NotEmpty().WithMessage("Selecciona un cliente.");
+        RuleFor(c => c.ClienteId).NotEmpty().WithMessage("Selecciona un Cliente empresarial.");
         RuleFor(c => c.CentroId).NotEmpty().WithMessage("Selecciona un centro.");
         RuleFor(c => c.Nombre).NotEmpty().MaximumLength(Proyecto.LongitudMaximaNombre);
         RuleFor(c => c.Notas).MaximumLength(Proyecto.LongitudMaximaNotas);
@@ -39,7 +39,7 @@ public class CrearProyectoCommandHandler(
             return Result.Fallo<Guid>(Error.Crear("Proyecto.CentroNoEncontrado", "No encontramos este centro."));
 
         if (centro.ClienteId != request.ClienteId)
-            return Result.Fallo<Guid>(Error.Crear("Proyecto.CentroNoPerteneceACliente", "Este centro no pertenece al cliente seleccionado."));
+            return Result.Fallo<Guid>(Error.Crear("Proyecto.CentroNoPerteneceACliente", "Este centro no pertenece al Cliente empresarial seleccionado."));
 
         // Autoridad sobre el cliente, no solo existencia (auditoría Módulo 5,
         // hallazgo crítico 5/9) — mismo criterio que usan ya las escrituras
@@ -48,7 +48,7 @@ public class CrearProyectoCommandHandler(
             return Result.Fallo<Guid>(Error.Crear("Proyecto.CentroNoEncontrado", "No encontramos este centro."));
 
         if (await repositorio.ExisteNombreParaClienteAsync(request.ClienteId, request.Nombre, cancellationToken: cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("Proyecto.NombreDuplicado", "Ya existe un proyecto con este nombre para el cliente seleccionado."));
+            return Result.Fallo<Guid>(Error.Crear("Proyecto.NombreDuplicado", "Ya existe un proyecto con este nombre para el Cliente empresarial seleccionado."));
 
         var proyecto = Proyecto.Crear(request.ClienteId, request.CentroId, request.Nombre, request.FechaInicio, request.FechaFinPrevista, request.Notas);
         repositorio.Agregar(proyecto);

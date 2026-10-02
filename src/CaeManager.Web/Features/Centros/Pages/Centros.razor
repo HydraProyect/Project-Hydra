@@ -83,7 +83,7 @@
         activos con «Limpiar todo». Centros no tiene filtros guardados: no se pasa OnGuardarFiltro y
         «Guardar filtro» no se pinta.
     *@
-    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="Buscar centro, cliente o empresa…"
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="Buscar centro, Cliente empresarial o empresa…"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
         <Filtros>
             <FiltroEstado Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"

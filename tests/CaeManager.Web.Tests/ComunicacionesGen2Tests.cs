@@ -665,7 +665,7 @@ public class ComunicacionesGen2Tests : BunitContext
         await filtroRefrielectric;
 
         AsuntosVisibles(cut).Should().Equal(["Solo de Ebro"],
-            "el cliente empresarial filtrado es Montajes Ebro: la lista de Refrielectric llegó tarde");
+            "el Cliente empresarial filtrado es Montajes Ebro: la lista de Refrielectric llegó tarde");
         cut.FindAll(".bandeja-lista .esqueleto-lista").Should().BeEmpty(
             "la carga vigente terminó: la que llegó tarde no puede dejar la lista en «cargando» tampoco");
     }

@@ -49,7 +49,7 @@ else
             <h2 class="workspace-titulo-entidad titulo-empresa-360">@_detalle.RazonSocial</h2>
             @if (PestanaActiva == "clientes" && _clientes is { Count: > 0 })
             {
-                <span class="recuentos-empresa-360">@(_clientes.Count == 1 ? "1 cliente empresarial" : $"{_clientes.Count} clientes empresariales")</span>
+                <span class="recuentos-empresa-360">@(_clientes.Count == 1 ? "1 Cliente empresarial" : $"{_clientes.Count} Clientes empresariales")</span>
             }
         </div>
         @if (_cumplimiento is not null)
@@ -91,7 +91,7 @@ else
                                        Elementos="@_clientesDisponiblesSelector"
                                        Seleccionados="@_clienteIdsInfo"
                                        OnAlternar="args => AlternarClienteInfo(args.Id, args.Marcado)"
-                                       TextoVacio="Todavía no hay clientes empresariales creados." />
+                                       TextoVacio="Todavía no hay Clientes empresariales creados." />
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
                         <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar</Boton>
@@ -165,7 +165,7 @@ else
                 }
                 else if (_errorClientes)
                 {
-                    <EstadoVacio Titulo="No pudimos cargar los clientes" Descripcion="Intenta nuevamente en unos segundos.">
+                    <EstadoVacio Titulo="No pudimos cargar los Clientes empresariales" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
                             <Boton OnClick="CargarClientesAsync">Reintentar</Boton>
                         </Accion>
@@ -173,7 +173,7 @@ else
                 }
                 else if (_clientes is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin clientes empresariales que puedas consultar" Descripcion="Esta empresa no tiene Clientes empresariales asociados, o no están dentro de tu alcance de gestión." />
+                    <EstadoVacio Titulo="Sin Clientes empresariales que puedas consultar" Descripcion="Esta empresa no tiene Clientes empresariales asociados, o no están dentro de tu alcance de gestión." />
                 }
                 else if (_clientes is not null)
                 {

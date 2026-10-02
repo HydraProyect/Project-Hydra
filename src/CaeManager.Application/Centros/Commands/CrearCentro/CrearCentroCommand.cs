@@ -28,7 +28,7 @@ public class CrearCentroCommandValidator : AbstractValidator<CrearCentroCommand>
 {
     public CrearCentroCommandValidator()
     {
-        RuleFor(c => c.ClienteId).NotEmpty().WithMessage("Selecciona un cliente.");
+        RuleFor(c => c.ClienteId).NotEmpty().WithMessage("Selecciona un Cliente empresarial.");
         RuleFor(c => c.EmpresaId).NotEmpty().WithMessage("Selecciona una empresa.");
 
         RuleFor(c => c.Nombre)
@@ -83,7 +83,7 @@ public class CrearCentroCommandHandler(
         // "Cliente" es una Empresa contraparte (Empresa.CrearComoCliente), Clientes
         // queda congelada.
         if (!await empresasContext.Empresas.AnyAsync(e => e.Id == request.ClienteId, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("Centro.ClienteNoEncontrado", "No encontramos este cliente."));
+            return Result.Fallo<Guid>(Error.Crear("Centro.ClienteNoEncontrado", "No encontramos este Cliente empresarial."));
 
         if (!await empresasContext.Empresas.AnyAsync(e => e.Id == request.EmpresaId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Centro.EmpresaNoEncontrada", "No encontramos esta empresa."));
@@ -92,7 +92,7 @@ public class CrearCentroCommandHandler(
         // 5, hallazgo crítico 5/9): un gestor podía crear un centro dentro de
         // la cartera de OTRO gestor con solo conocer el Id de su cliente.
         if (!await alcanceDatos.ClienteVisibleAsync(request.ClienteId, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("Centro.ClienteNoEncontrado", "No encontramos este cliente."));
+            return Result.Fallo<Guid>(Error.Crear("Centro.ClienteNoEncontrado", "No encontramos este Cliente empresarial."));
 
         // Defensa en profundidad (REC-149): inalcanzable para el rol Cliente
         // vía AutorizacionEscrituraBehavior; alcance de gestión como segunda
@@ -101,7 +101,7 @@ public class CrearCentroCommandHandler(
             return Result.Fallo<Guid>(Error.Crear("Centro.EmpresaNoEncontrada", "No encontramos esta empresa."));
 
         if (await repositorio.ExisteConNombreEnClienteAsync(request.ClienteId, request.Nombre, cancellationToken: cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("Centro.NombreDuplicado", "Este cliente ya tiene un centro con este nombre."));
+            return Result.Fallo<Guid>(Error.Crear("Centro.NombreDuplicado", "Este Cliente empresarial ya tiene un centro con este nombre."));
 
         var centro = new Centro(
             request.ClienteId, request.EmpresaId, request.Nombre,

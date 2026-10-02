@@ -63,7 +63,7 @@ public class AsignarCarteraGestorCaeCommandHandler(
     /// </summary>
     public static readonly Error YaTieneCartera = Error.Crear(
         "Cartera.YaTieneCartera",
-        "Ese Gestor CAE ya tiene esa empresa en su cartera, entera o en parte. Revisa la lista; ampliar un reparto por cliente no se hace desde aquí.");
+        "Ese Gestor CAE ya tiene esa empresa en su cartera, entera o en parte. Revisa la lista; ampliar un reparto por Cliente empresarial no se hace desde aquí.");
 
     public static readonly Error EmpresaEnAmbasListas = Error.Crear(
         "Cartera.EmpresaEnAmbasListas", "Una empresa no puede asignarse y retirarse a la vez.");

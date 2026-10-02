@@ -26,14 +26,14 @@ public class ClientesListaLeeEmpresasE2ETests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo cliente" }).First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo Cliente empresarial" }).First.ClickAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocial);
         await page.GetByLabel("Identificación fiscal", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_997_801));
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
 
         // El drawer se cierra tras guardar — señal de que el comando ya
         // persistió, no de que la lista se haya actualizado.
-        await Expect(page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Nuevo cliente" })).Not.ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Nuevo Cliente empresarial" })).Not.ToBeVisibleAsync();
 
         // La prueba real del P0: el Cliente recién creado aparece en su
         // propio listado sin recargar manualmente ni buscar por CIF — antes

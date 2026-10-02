@@ -7,7 +7,7 @@
 @using MediatR
 @inject IMediator Mediator
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Nuevo cliente" Ancho="AnchoModal.Pequeno"
+<Modal HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Nuevo Cliente empresarial" Ancho="AnchoModal.Pequeno"
        CerrarAlHacerClicFuera="@(!_guardando)">
     <ChildContent>
         @if (_mensajeError is not null)

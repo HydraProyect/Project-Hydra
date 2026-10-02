@@ -103,7 +103,7 @@
     <value>Cartera al día</value>
   </data>
   <data name="AlDiaEmpresaDetalle" xml:space="preserve">
-    <value>No queda ninguna gestión pendiente para los clientes de {0}.</value>
+    <value>No queda ninguna gestión pendiente para los Clientes empresariales de {0}.</value>
   </data>
   <data name="AlDiaCarteraDetalle" xml:space="preserve">
     <value>Ninguna empresa de tu cartera tiene bloqueos, documentación pendiente ni vencimientos próximos.</value>

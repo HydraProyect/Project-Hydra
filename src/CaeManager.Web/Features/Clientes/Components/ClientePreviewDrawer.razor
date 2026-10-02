@@ -19,10 +19,10 @@
 
 @if (Visible)
 {
-    <aside class="drawer-preview-cliente" role="complementary" aria-label="Vista previa del cliente">
+    <aside class="drawer-preview-cliente" role="complementary" aria-label="Vista previa del Cliente empresarial">
         <div class="cabecera-preview-cliente">
             <div class="texto-cabecera-preview-cliente">
-                <span class="etiqueta-cabecera-preview-cliente">Vista rápida · Cliente</span>
+                <span class="etiqueta-cabecera-preview-cliente">Vista rápida · Cliente empresarial</span>
                 @if (_resumen is not null)
                 {
                     <span class="nombre-cabecera-preview-cliente">@_resumen.RazonSocial</span>
@@ -36,7 +36,7 @@
         </div>
 
         <div class="cuerpo-preview-cliente">
-        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Secciones del cliente">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="Secciones del Cliente empresarial">
             @if (_cargandoResumen && _pestanaActiva == "informacion")
             {
                 <EstadoCargando Filas="3" />

@@ -53,11 +53,11 @@
     <comment>Complemento del nombre accesible del botón Copiar («Copiar el CIF»).</comment>
   </data>
   <data name="MetaClientesUno" xml:space="preserve">
-    <value>1 cliente</value>
-    <comment>Recuento de Clientes empresariales visibles con alcance de gestión (ObtenerClientesDeEmpresaQuery; nunca ClienteIds). En pantalla, «cliente».</comment>
+    <value>1 Cliente empresarial</value>
+    <comment>Recuento de Clientes empresariales visibles con alcance de gestión (ObtenerClientesDeEmpresaQuery; nunca ClienteIds). En pantalla, «Cliente empresarial» (CONTRATO_TERMINOLOGIA § 3.2).</comment>
   </data>
   <data name="MetaClientesVarios" xml:space="preserve">
-    <value>{0} clientes</value>
+    <value>{0} Clientes empresariales</value>
     <comment>Recuento de Clientes empresariales visibles con alcance de gestión (ObtenerClientesDeEmpresaQuery; nunca ClienteIds). {0} = número.</comment>
   </data>
   <data name="MetaTrabajadoresUno" xml:space="preserve">
@@ -125,8 +125,8 @@
     <comment>Pestaña.</comment>
   </data>
   <data name="PestanaClientes" xml:space="preserve">
-    <value>Clientes</value>
-    <comment>Pestaña de Clientes empresariales (en pantalla, «Clientes»; rótulo corto pendiente de alinear con CONTRATO_TERMINOLOGIA § 3.2).</comment>
+    <value>Clientes empresariales</value>
+    <comment>Pestaña de Clientes empresariales (en pantalla, «Clientes empresariales», CONTRATO_TERMINOLOGIA § 3.2).</comment>
   </data>
   <data name="PestanaDocumentacion" xml:space="preserve">
     <value>Documentación</value>
@@ -149,7 +149,7 @@
     <comment>Glosa accesible del contador de la pestaña Trabajadores.</comment>
   </data>
   <data name="GlosaClientes" xml:space="preserve">
-    <value>clientes</value>
+    <value>Clientes empresariales</value>
     <comment>Glosa accesible del contador de la pestaña Clientes.</comment>
   </data>
   <data name="EtiquetaFiltros" xml:space="preserve">
@@ -209,23 +209,23 @@
     <comment>Error de carga de la pestaña Trabajadores.</comment>
   </data>
   <data name="ClientesApoyo" xml:space="preserve">
-    <value>Clientes para los que esta empresa trabaja. Cada relación tiene su propia exigencia documental.</value>
+    <value>Clientes empresariales para los que esta empresa trabaja. Cada relación tiene su propia exigencia documental.</value>
     <comment>Texto de apoyo de la pestaña Clientes.</comment>
   </data>
   <data name="ListaClientes" xml:space="preserve">
-    <value>Clientes de esta empresa</value>
+    <value>Clientes empresariales de esta empresa</value>
     <comment>Nombre accesible de la lista.</comment>
   </data>
   <data name="VacioClientesTitulo" xml:space="preserve">
-    <value>Sin clientes que puedas consultar</value>
+    <value>Sin Clientes empresariales que puedas consultar</value>
     <comment>Estado vacío de la pestaña Clientes.</comment>
   </data>
   <data name="VacioClientesDescripcion" xml:space="preserve">
-    <value>Esta empresa no tiene clientes asociados, o no están dentro de tu alcance de gestión.</value>
+    <value>Esta empresa no tiene Clientes empresariales asociados, o no están dentro de tu alcance de gestión.</value>
     <comment>Estado vacío de la pestaña Clientes.</comment>
   </data>
   <data name="ErrorClientes" xml:space="preserve">
-    <value>No pudimos cargar los clientes</value>
+    <value>No pudimos cargar los Clientes empresariales</value>
     <comment>Error de carga de la pestaña Clientes.</comment>
   </data>
   <data name="EtiquetaLateral" xml:space="preserve">

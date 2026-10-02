@@ -255,7 +255,7 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
                     {
                         advertencias.Add(new ItemImportacionDto(
                             HojaEmpresas, fila, $"{razonSocial} — {nombreCliente}",
-                            $"No se encontró el cliente \"{nombreCliente}\" (ni en el sistema ni en la hoja Clientes de este archivo) — se omitió esta asociación."));
+                            $"No se encontró el Cliente empresarial \"{nombreCliente}\" (ni en el sistema ni en la hoja Clientes de este archivo) — se omitió esta asociación."));
                     }
                 }
             }
@@ -302,7 +302,7 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
             if (!nombresClientesDisponibles.Contains(cliente))
             {
                 omitidos.Add(new ItemImportacionDto(
-                    HojaCentros, fila, nombre, $"No se encontró el cliente \"{cliente}\" (ni en el sistema ni en la hoja Clientes de este archivo)."));
+                    HojaCentros, fila, nombre, $"No se encontró el Cliente empresarial \"{cliente}\" (ni en el sistema ni en la hoja Clientes de este archivo)."));
                 continue;
             }
 
@@ -316,7 +316,7 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
             var clave = cliente + ClaveSeparador + nombre;
             if (!clavesVistas.Add(clave))
             {
-                omitidos.Add(new ItemImportacionDto(HojaCentros, fila, nombre, "Este cliente ya tiene un centro con este nombre dentro del propio archivo."));
+                omitidos.Add(new ItemImportacionDto(HojaCentros, fila, nombre, "Este Cliente empresarial ya tiene un centro con este nombre dentro del propio archivo."));
                 continue;
             }
 

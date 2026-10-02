@@ -19,7 +19,7 @@
     <value>Importar documentos</value>
   </data>
   <data name="TituloImportarClientes" xml:space="preserve">
-    <value>Importar clientes</value>
+    <value>Importar Clientes empresariales</value>
   </data>
   <data name="TituloImportacionCombinada" xml:space="preserve">
     <value>Importación combinada</value>
@@ -28,13 +28,13 @@
     <value>Importar datos</value>
   </data>
   <data name="EnlaceVolverClientes" xml:space="preserve">
-    <value>Volver a Clientes</value>
+    <value>Volver a Clientes empresariales</value>
   </data>
   <data name="MigaNegocio" xml:space="preserve">
     <value>Negocio</value>
   </data>
   <data name="MigaClientes" xml:space="preserve">
-    <value>Clientes</value>
+    <value>Clientes empresariales</value>
   </data>
   <data name="KickerCicloDocumental" xml:space="preserve">
     <value>Ciclo documental</value>
@@ -97,16 +97,16 @@
     <value>Importación CAE completa</value>
   </data>
   <data name="PlantillaCaeDescripcion" xml:space="preserve">
-    <value>Clientes, empresas, centros, trabajadores y sus documentos en un solo libro (Cuadro de Control CAE) que ya existe. No da de alta ningún Cliente empresarial ni Centro nuevos — solo reutiliza los que ya existan. Para incorporar un Cliente empresarial nuevo con su estructura completa, usa Combinada.</value>
+    <value>Clientes empresariales, empresas, centros, trabajadores y sus documentos en un solo libro (Cuadro de Control CAE) que ya existe. No da de alta ningún Cliente empresarial ni Centro nuevos — solo reutiliza los que ya existan. Para incorporar un Cliente empresarial nuevo con su estructura completa, usa Combinada.</value>
   </data>
   <data name="PlantillaClientesTitulo" xml:space="preserve">
-    <value>Plantilla de Clientes</value>
+    <value>Plantilla de Clientes empresariales</value>
   </data>
   <data name="PlantillaClientesDescripcion" xml:space="preserve">
     <value>Una fila por nombre de Cliente empresarial y Centro, con criticidad, dirección y contacto. No recoge CIF ni Empresa, así que no da de alta ninguno nuevo.</value>
   </data>
   <data name="PlantillaCombinadaTitulo" xml:space="preserve">
-    <value>Combinada: Cliente + Empresas + Centros + Trabajadores</value>
+    <value>Combinada: Cliente empresarial + Empresas + Centros + Trabajadores</value>
   </data>
   <data name="PlantillaCombinadaNombreCorto" xml:space="preserve">
     <value>Combinada</value>
@@ -265,7 +265,7 @@
     <value>{0} altas de Cliente empresarial o Centro no se harán al importar.</value>
   </data>
   <data name="IndicacionAltaManual" xml:space="preserve">
-    <value>Dalos de alta a mano en Clientes y Centros.</value>
+    <value>Dalos de alta a mano en Clientes empresariales y Centros.</value>
   </data>
   <data name="FilasOmitiranUno" xml:space="preserve">
     <value>La fila de Cliente empresarial o Centro con un nombre que todavía no existe se omitirá: esta importación no recoge el CIF que exige el alta de un Cliente empresarial ni la Empresa que exige la de un Centro.</value>
@@ -307,7 +307,7 @@
     <value>Elemento</value>
   </data>
   <data name="AccionCrearCliente" xml:space="preserve">
-    <value>Crear cliente</value>
+    <value>Crear Cliente empresarial</value>
   </data>
   <data name="AccionCrearCentro" xml:space="preserve">
     <value>Crear centro</value>
@@ -346,7 +346,7 @@
     <value>CIF {0} nuevo.</value>
   </data>
   <data name="MotivoClienteDelCentro" xml:space="preserve">
-    <value>Cliente {0}.</value>
+    <value>Cliente empresarial {0}.</value>
   </data>
   <data name="BotonVolverArchivo" xml:space="preserve">
     <value>← Volver al archivo</value>
@@ -505,13 +505,13 @@
     <value>No se creará</value>
   </data>
   <data name="OrigenPlantillaClientes" xml:space="preserve">
-    <value>La plantilla de Clientes</value>
+    <value>La plantilla de Clientes empresariales</value>
   </data>
   <data name="OrigenHoja" xml:space="preserve">
     <value>La hoja «{0}»</value>
   </data>
   <data name="MotivoNoSeCreaCliente" xml:space="preserve">
-    <value>{0} no recoge CIF, y el Cliente empresarial lo exige. Créalo a mano en Clientes.</value>
+    <value>{0} no recoge CIF, y el Cliente empresarial lo exige. Créalo a mano en Clientes empresariales.</value>
   </data>
   <data name="MotivoNoSeCreaCentro" xml:space="preserve">
     <value>{0} no recoge Empresa, y el Centro la exige. Créalo a mano en Centros.</value>

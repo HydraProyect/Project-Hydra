@@ -138,7 +138,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     {
         await cut.Find("input[placeholder='Busca o crea un Cliente empresarial…']").InputAsync(new ChangeEventArgs { Value = texto });
         await cut.Find("li.selector-entidad-opcion-crear").ClickAsync(new MouseEventArgs());
-        cut.WaitForAssertion(() => cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "Nuevo cliente"));
+        cut.WaitForAssertion(() => cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "Nuevo Cliente empresarial"));
     }
 
     private static async Task ElegirEnElSelectorAsync(IRenderedComponent<Centros> cut, string placeholder, string opcion)
@@ -224,7 +224,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
         await cut.PulsarEnElAvisoAsync("Seguir editando");
 
-        var modalCliente = cut.FindAll(".modal-contenido").Single(m => m.QuerySelector("h2")?.TextContent.Trim() == "Nuevo cliente");
+        var modalCliente = cut.FindAll(".modal-contenido").Single(m => m.QuerySelector("h2")?.TextContent.Trim() == "Nuevo Cliente empresarial");
         await modalCliente.QuerySelector("button.modal-cerrar")!.ClickAsync(new MouseEventArgs());
         cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?",
             "la X del modal con algo escrito pregunta antes de tirarlo");
@@ -255,7 +255,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         // Una salida a la propia página: descartar cierra el drawer y el modal sin desmontar la página.
         await cut.InvokeAsync(() => Navegacion.NavigateTo("centros?q=zaragoza"));
         await cut.PulsarEnElAvisoAsync("Salir y descartar");
-        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo cliente");
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo Cliente empresarial");
 
         await AbrirAltaAsync(cut);
         await CrearClienteDesdeElSelectorAsync(cut, "Aceros Ebro");
@@ -341,7 +341,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
 
         _mediador.Enviadas.OfType<CrearClienteCommand>().Should().ContainSingle("barrera: el Cliente se creó");
-        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo cliente");
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo Cliente empresarial");
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
         PreguntasDeSalida(cut).Should().Be(1);
     }

@@ -19,10 +19,10 @@
     <value>Clients empresarials</value>
   </data>
   <data name="RutaNavegacion" xml:space="preserve">
-    <value>Ruta de Client 360</value>
+    <value>Ruta de Client empresarial 360</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No hem pogut carregar aquest client empresarial</value>
+    <value>No hem pogut carregar aquest Client empresarial</value>
   </data>
   <data name="ErrorCargaDescripcion" xml:space="preserve">
     <value>Potser ja no existeix o no hi tens accés.</value>
@@ -91,7 +91,7 @@
     <value>{0}: {1}. Prem per veure els centres</value>
   </data>
   <data name="EditarCliente" xml:space="preserve">
-    <value>Editar el client empresarial</value>
+    <value>Editar el Client empresarial</value>
   </data>
   <data name="PestanaCentros" xml:space="preserve">
     <value>Centres</value>
@@ -118,7 +118,7 @@
     <value>Historial</value>
   </data>
   <data name="EtiquetaPestanas" xml:space="preserve">
-    <value>Seccions del client empresarial</value>
+    <value>Seccions del Client empresarial</value>
   </data>
   <data name="GlosaCentroUno" xml:space="preserve">
     <value>centre</value>
@@ -139,10 +139,10 @@
     <value>subcontractes</value>
   </data>
   <data name="ResumenCentrosUno" xml:space="preserve">
-    <value>1 centre d’aquest client empresarial.</value>
+    <value>1 centre d’aquest Client empresarial.</value>
   </data>
   <data name="ResumenCentrosVarios" xml:space="preserve">
-    <value>{0} centres d’aquest client empresarial, del pitjor estat al millor.</value>
+    <value>{0} centres d’aquest Client empresarial, del pitjor estat al millor.</value>
   </data>
   <data name="ResumenCentrosTruncado" xml:space="preserve">
     <value>Es mostren els {0} centres amb pitjor estat de {1}.</value>
@@ -172,7 +172,7 @@
     <value>Sense centres</value>
   </data>
   <data name="SinCentrosDescripcion" xml:space="preserve">
-    <value>Aquest client empresarial encara no té cap centre.</value>
+    <value>Aquest Client empresarial encara no té cap centre.</value>
   </data>
   <data name="ErrorCentrosTitulo" xml:space="preserve">
     <value>No hem pogut carregar els centres</value>
@@ -190,7 +190,7 @@
     <value>Sense empreses</value>
   </data>
   <data name="SinEmpresasDescripcion" xml:space="preserve">
-    <value>Aquest client empresarial encara no té cap empresa contractada amb relació viva.</value>
+    <value>Aquest Client empresarial encara no té cap empresa contractada amb relació viva.</value>
   </data>
   <data name="ErrorEmpresasTitulo" xml:space="preserve">
     <value>No hem pogut carregar les empreses</value>
@@ -205,22 +205,22 @@
     <value>Sense subcontractes</value>
   </data>
   <data name="SinSubcontratasDescripcion" xml:space="preserve">
-    <value>Aquest client empresarial encara no té cap subcontracta declarada.</value>
+    <value>Aquest Client empresarial encara no té cap subcontracta declarada.</value>
   </data>
   <data name="ErrorSubcontratasTitulo" xml:space="preserve">
     <value>No hem pogut carregar les subcontractes</value>
   </data>
   <data name="ListaCentros" xml:space="preserve">
-    <value>Centres d’aquest client empresarial</value>
+    <value>Centres d’aquest Client empresarial</value>
   </data>
   <data name="ListaEmpresas" xml:space="preserve">
-    <value>Empreses d’aquest client empresarial</value>
+    <value>Empreses d’aquest Client empresarial</value>
   </data>
   <data name="ListaSubcontratas" xml:space="preserve">
-    <value>Subcontractes d’aquest client empresarial</value>
+    <value>Subcontractes d’aquest Client empresarial</value>
   </data>
   <data name="EtiquetaLateral" xml:space="preserve">
-    <value>Context del client empresarial</value>
+    <value>Context del Client empresarial</value>
   </data>
   <data name="TarjetaInformacion" xml:space="preserve">
     <value>Informació</value>
@@ -313,6 +313,6 @@
     <value>Selecciona una empresa de la teva cartera</value>
   </data>
   <data name="SinEmpresaDescripcion" xml:space="preserve">
-    <value>Els clients empresarials es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
+    <value>Els Clients empresarials es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
   </data>
 </root>

@@ -222,7 +222,7 @@ public class MacrosGen2Tests : BunitContext
         var (cut, mediador) = Renderizar(escenario);
 
         cut.Find(".macros-filtro-resumen").TextContent.Trim()
-            .Should().Be("2 macros genéricas. Elige un cliente para ver también las suyas.");
+            .Should().Be("2 macros genéricas. Elige un Cliente empresarial para ver también las suyas.");
 
         await ElegirCliente(cut, ClienteA.Id);
 

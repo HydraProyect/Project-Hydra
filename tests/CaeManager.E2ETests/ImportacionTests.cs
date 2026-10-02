@@ -175,7 +175,7 @@ public class ImportacionTests(WebAppFixture fixture)
         await Expect(page.Locator("tr", new PageLocatorOptions { HasText = nombreCentro })).ToHaveCountAsync(0);
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        await page.GetByPlaceholder("Buscar centro, cliente o empresa…").FillAsync(nombreCentro);
+        await page.GetByPlaceholder("Buscar centro, Cliente empresarial o empresa…").FillAsync(nombreCentro);
         await page.WaitForTimeoutAsync(500);
         // El nombre buscado ahora también sale en el chip del filtro activo («Búsqueda: …»), así que ya no
         // sirve afirmar que el texto no se ve en ningún sitio: se afirma que ninguna FILA de centro lo lleva

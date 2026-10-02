@@ -1354,7 +1354,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => CasillasAsignarEmpresas(cut).Should().ContainSingle());
         CasillasAsignarEmpresas(cut)[0].HasAttribute("disabled").Should().BeTrue("ampliar un reparto por cliente falla siempre");
-        cut.Find("[role=dialog]").TextContent.Should().Contain("ya tiene parte de sus clientes");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("ya tiene parte de sus Clientes empresariales");
     }
 
     [Fact]

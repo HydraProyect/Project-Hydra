@@ -51,7 +51,7 @@ public partial class ImportarClientesGen2Tests
             vistos.Add(titulo.Id);
         }
 
-        await AvanzarYComprobar("Continuar con Plantilla de Clientes", "Sube el archivo", 1);
+        await AvanzarYComprobar("Continuar con Plantilla de Clientes empresariales", "Sube el archivo", 1);
         await Subir(cut, "a.xlsx", "A");
         await AvanzarYComprobar("Ver plan de importación", "Revisar plan", 2);
         await AvanzarYComprobar("Continuar a confirmar", "Confirmar importación", 3);
@@ -63,7 +63,7 @@ public partial class ImportarClientesGen2Tests
     public async Task Volver_a_elegir_plantilla_tambien_lleva_el_foco_a_su_titulo()
     {
         var (cut, _) = Renderizar(new Escenario());
-        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
 
         await Pulsar(cut, "← Cambiar plantilla");
 
@@ -81,7 +81,7 @@ public partial class ImportarClientesGen2Tests
         var puerta = Puerta();
         escenario.Retener = p => p is AnalizarPlantillaClientesQuery ? puerta.Task : null;
         var (cut, _) = Renderizar(escenario);
-        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
 
         // Antes de analizar: la región ya está, vacía, para que el lector de
         // pantalla la vigile cuando el progreso aparezca.

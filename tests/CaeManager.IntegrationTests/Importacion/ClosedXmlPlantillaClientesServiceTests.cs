@@ -64,7 +64,7 @@ public class ClosedXmlPlantillaClientesServiceTests
     /// puede prometer "se creará" para una fila que la escritura omitirá. Antes
     /// de este fix, esta fila entraba en <c>ClientesCentros</c> con
     /// <c>YaExisteCliente</c>/<c>YaExisteCentro</c> en <c>false</c> y la pantalla
-    /// la pintaba en verde como "Crear cliente"/"Crear centro".
+    /// la pintaba en verde como "Crear Cliente empresarial"/"Crear centro".
     /// </summary>
     [Fact]
     public async Task Fila_con_Cliente_y_Centro_nuevos_no_se_promete_crear_va_omitida()
@@ -80,7 +80,7 @@ public class ClosedXmlPlantillaClientesServiceTests
         var omitido = plan.Omitidos.Should().ContainSingle().Subject;
         omitido.Fila.Should().Be(2);
         omitido.Descripcion.Should().Be("Cliente Nuevo S.A.");
-        omitido.Motivo.Should().Contain("Este cliente no existe todavía").And.Contain("CIF");
+        omitido.Motivo.Should().Contain("Este Cliente empresarial no existe todavía").And.Contain("CIF");
     }
 
     /// <summary>
@@ -123,7 +123,7 @@ public class ClosedXmlPlantillaClientesServiceTests
 
         plan.ClientesCentros.Should().BeEmpty();
         var omitido = plan.Omitidos.Should().ContainSingle().Subject;
-        omitido.Motivo.Should().Contain("Este cliente no existe todavía");
+        omitido.Motivo.Should().Contain("Este Cliente empresarial no existe todavía");
     }
 
     [Fact]

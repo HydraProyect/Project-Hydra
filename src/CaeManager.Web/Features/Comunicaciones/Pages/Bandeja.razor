@@ -110,7 +110,7 @@
 
                             <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
 
-                            <CampoSelect Etiqueta="Cliente" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
+                            <CampoSelect Etiqueta="Cliente empresarial" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
                                 <option value="">Todos los Clientes empresariales</option>
                                 @foreach (var cliente in _clientesSelector)
                                 {
@@ -306,7 +306,7 @@
                             @if (_detalle.ClienteId is null)
                             {
                                 <CampoSelect Valor="@_clienteTriageSeleccionado" ValorChanged="v => _clienteTriageSeleccionado = v">
-                                    <option value="">Asignar cliente…</option>
+                                    <option value="">Asignar Cliente empresarial…</option>
                                     @foreach (var cliente in _clientesSelector)
                                     {
                                         <option value="@cliente.Id">@cliente.RazonSocial</option>
@@ -401,7 +401,7 @@
                 @if (_clienteActivo is not null)
                 {
                     <div class="bandeja-cliente-titulo">
-                        <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" /> Contexto del cliente
+                        <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" /> Contexto del Cliente empresarial
                     </div>
                     <div class="bandeja-cliente-cabecera">
                         <span class="bandeja-cliente-avatar" aria-hidden="true">@ObtenerInicialesCliente(_clienteActivo.RazonSocial)</span>
@@ -421,7 +421,7 @@
                     @if (!string.IsNullOrWhiteSpace(_clienteActivo.Notas))
                     {
                         <div class="bandeja-cliente-notas">
-                            <span class="bandeja-cliente-notas-titulo">Notas del cliente</span>
+                            <span class="bandeja-cliente-notas-titulo">Notas del Cliente empresarial</span>
                             <p>@_clienteActivo.Notas</p>
                         </div>
                     }

@@ -173,7 +173,7 @@ public class ClosedXmlPlantillaCombinadaServiceTests
     }
 
     /// <summary>
-    /// Mismo defecto que en la Plantilla de Clientes y en la importación CAE
+    /// Mismo defecto que en la Plantilla de Clientes empresariales y en la importación CAE
     /// completa: la hoja "Centros" resuelve su columna "Cliente" contra
     /// CUALQUIER Empresa existente por nombre, pero la escritura
     /// (EjecutarImportacionCombinadaCommandHandler) solo indexa
@@ -199,7 +199,7 @@ public class ClosedXmlPlantillaCombinadaServiceTests
 
         plan.Centros.Should().BeEmpty();
         var omitido = plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Centros").Subject;
-        omitido.Motivo.Should().Contain("No se encontró el cliente");
+        omitido.Motivo.Should().Contain("No se encontró el Cliente empresarial");
     }
 
     private static void EscribirClienteValido(XLWorkbook libro, int fila, string razonSocial)

@@ -121,7 +121,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         // Con alcance cero, desde P0-9a (FS-05) el estado vacío ya no es «Aún no
         // hay clientes» —que invitaba a crear lo que existe fuera de su
         // cartera— sino el aviso «Sin Asignación de Cartera», y la cabecera
-        // deja de ofrecer «+ Nuevo cliente».
+        // deja de ofrecer «+ Nuevo Cliente empresarial».
         var contador = page.GetByText(PatronContadorElementos()).First;
         var totalVisible = await contador.IsVisibleAsync();
 
@@ -131,8 +131,8 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         {
             await Assertions.Expect(page.Locator("[data-estado=sin-asignacion-cartera]"))
                 .ToContainTextAsync("Sin Asignación de Cartera", new LocatorAssertionsToContainTextOptions { Timeout = 10_000 });
-            await Assertions.Expect(page.GetByText("Aún no hay clientes")).Not.ToBeVisibleAsync();
-            await Assertions.Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo cliente" }))
+            await Assertions.Expect(page.GetByText("Aún no hay Clientes empresariales")).Not.ToBeVisibleAsync();
+            await Assertions.Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo Cliente empresarial" }))
                 .Not.ToBeVisibleAsync();
         }
     }
@@ -182,13 +182,13 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         Assert.Equal(9, ExtraerTotalElementos(await contador.InnerTextAsync()));
 
         // Desde la demo a dirección (2026-09-20) la interfaz ya no ofrece lo que el rol
-        // no puede hacer: antes «+ Nuevo cliente» se veía habilitado y fallaba al guardar
+        // no puede hacer: antes «+ Nuevo Cliente empresarial» se veía habilitado y fallaba al guardar
         // con «Tu rol no permite crear, editar ni eliminar datos». Ahora ni se ofrece —ni
         // en la cabecera ni en el EstadoVacio— y una franja dice que es modo solo consulta.
         // La denegación de verdad (AutorizacionEscrituraBehavior, «Autorizacion.SoloLectura»)
         // sigue siendo la que decide, y la vigila RolesConEscrituraParidadTests contra la
         // lista que usa la interfaz.
-        await Assertions.Expect(page.GetByText("+ Nuevo cliente")).ToHaveCountAsync(0);
+        await Assertions.Expect(page.GetByText("+ Nuevo Cliente empresarial")).ToHaveCountAsync(0);
         await Assertions.Expect(page.Locator(".aviso-solo-consulta")).ToBeVisibleAsync();
     }
 

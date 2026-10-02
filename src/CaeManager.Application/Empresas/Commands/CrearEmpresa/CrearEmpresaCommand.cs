@@ -70,7 +70,7 @@ public class CrearEmpresaCommandHandler(
             .CountAsync(cancellationToken);
 
         if (clientesEncontrados != clienteIds.Count)
-            return Result.Fallo<Guid>(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los clientes seleccionados no existe."));
+            return Result.Fallo<Guid>(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los Clientes empresariales seleccionados no existe."));
 
         var empresa = new Empresa(request.RazonSocial, request.Cif, request.Cnae, request.ConvenioAplicable, request.EsActividadAnexoI);
         repositorio.Agregar(empresa);

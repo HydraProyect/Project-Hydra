@@ -97,12 +97,12 @@ public class EnviarReclamacionCommandHandler(
         {
             var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
             if (clienteIdsVisibles is null || !clienteIdsVisibles.Contains(request.ClienteId))
-                return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.SinAcceso", "No tienes acceso a este cliente."));
+                return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.SinAcceso", "No tienes acceso a este Cliente empresarial."));
         }
 
         var cliente = await empresasContext.Empresas.FirstOrDefaultAsync(c => c.Id == request.ClienteId, cancellationToken);
         if (cliente is null)
-            return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.ClienteNoEncontrado", "No encontramos este cliente."));
+            return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.ClienteNoEncontrado", "No encontramos este Cliente empresarial."));
 
         if (request.DocumentoIds.Count == 0)
             return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.SinDocumentos", "Selecciona al menos un documento a reclamar."));
@@ -155,7 +155,7 @@ public class EnviarReclamacionCommandHandler(
         {
             return Result.Fallo<ReclamacionPreparada>(Error.Crear(
                 "Reclamacion.SinDocumentosValidos",
-                "Ninguno de los documentos seleccionados sigue siendo reclamable para este cliente — puede que ya se hayan renovado."));
+                "Ninguno de los documentos seleccionados sigue siendo reclamable para este Cliente empresarial — puede que ya se hayan renovado."));
         }
 
         // Todo o nada (revisión 2026-09-11): si algo de lo pedido ya no es
@@ -199,7 +199,7 @@ public class EnviarReclamacionCommandHandler(
         {
             return Result.Fallo<ReclamacionPreparada>(Error.Crear(
                 "Reclamacion.SinDestinatario",
-                "No hay ningún contacto en la agenda al que reclamar esta documentación — añade uno en la ficha del cliente."));
+                "No hay ningún contacto en la agenda al que reclamar esta documentación — añade uno en la ficha del Cliente empresarial."));
         }
 
         var documentoIds = filas.Select(f => f.DocumentoId).Distinct().ToList();

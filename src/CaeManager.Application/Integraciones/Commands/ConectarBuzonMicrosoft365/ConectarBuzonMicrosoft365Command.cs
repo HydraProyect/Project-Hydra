@@ -33,7 +33,7 @@ public class ConectarBuzonMicrosoft365CommandValidator : AbstractValidator<Conec
         RuleFor(c => c.RefreshToken).NotEmpty();
         RuleFor(c => c.NotificationUrlBase).NotEmpty();
         RuleFor(c => c).Must(c => c.ClienteId is null || c.GestorPropietarioId is null)
-            .WithMessage("Un buzón no puede ser a la vez de un Cliente y personal de un gestor.");
+            .WithMessage("Un buzón no puede ser a la vez de un Cliente empresarial y personal de un gestor.");
     }
 }
 
@@ -58,7 +58,7 @@ public class ConectarBuzonMicrosoft365CommandHandler(
         {
             var cliente = await empresaRepositorio.ObtenerPorIdAsync(clienteId, cancellationToken);
             if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
-                return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
+                return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial."));
         }
 
         if (request.GestorPropietarioId is { } gestorId && !await directorioUsuarios.EsVisibleEnTenantActualAsync(gestorId, cancellationToken))

@@ -78,7 +78,7 @@ public static class ReglaDestinoCarteraCliente
         "Cliente.DestinoInactivo", "Ese Gestor CAE tiene la cuenta desactivada: elige otro.");
 
     public static readonly Error NoEsGestorCae = Error.Crear(
-        "Cliente.DestinoNoEsGestorCae", "La cartera de un cliente solo puede pasar a un Gestor CAE.");
+        "Cliente.DestinoNoEsGestorCae", "La cartera de un Cliente empresarial solo puede pasar a un Gestor CAE.");
 
     public static readonly Error FueraDeAlcance = Error.Crear(
         "Cliente.DestinoFueraDeAlcance", "Ese Gestor CAE no está a tu cargo: solo puedes pasar la cartera a los tuyos.");

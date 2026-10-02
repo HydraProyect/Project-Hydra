@@ -426,7 +426,7 @@ public class RolesGen2Tests : BunitContext
         var cut = Renderizar();
 
         cut.FindAll(".tarjeta-titulo").Select(t => t.TextContent.Trim()).Should().Equal(
-            "Administrador", "Dirección CAE", "Coordinador CAE", "Gestor CAE", "Consulta", "Cliente empresarial");
+            "Administrador", "Dirección CAE", "Coordinador CAE", "Gestor CAE", "Consulta", "Usuario de Cliente empresarial");
         Contador(cut, "Gestor CAE").Should().Be("3 usuario(s)");
         Contador(cut, "Administrador").Should().Be("1 usuario(s)");
         Contador(cut, "Consulta").Should().Be("0 usuario(s)",

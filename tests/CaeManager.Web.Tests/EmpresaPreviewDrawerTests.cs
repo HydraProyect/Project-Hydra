@@ -57,7 +57,7 @@ public class EmpresaPreviewDrawerTests : BunitContext
         Services.AddScoped<IMediator>(_ => m);
         var cut = Render<EmpresaPreviewDrawer>(p => p.Add(x => x.EmpresaId, id).Add(x => x.Visible, true));
         return cut.WaitForElements(".celda-info-preview-empresa")
-            .Where(c => c.QuerySelector("span")!.TextContent.Trim() == "Clientes")
+            .Where(c => c.QuerySelector("span")!.TextContent.Trim() == "Clientes empresariales")
             .Should().ContainSingle().Subject
             .QuerySelector("strong")!.TextContent.Trim();
     }

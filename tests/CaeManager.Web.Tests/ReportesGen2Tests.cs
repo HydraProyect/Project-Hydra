@@ -27,7 +27,7 @@ namespace CaeManager.Web.Tests;
 /// <para>
 /// <b>Lo que esto SÍ observa:</b> qué consultas y comandos llegan al mediador
 /// y con qué parámetros —el doble responde según ellos: filtra filas por
-/// cliente empresarial, por centro y por «incluir vigentes», y rotula el alcance con el
+/// Cliente empresarial, por centro y por «incluir vigentes», y rotula el alcance con el
 /// cliente o centro pedido, así que una pantalla que no los enviara recibiría
 /// otra cosa—, qué se pinta con lo que vuelve, la URL que queda, y qué pasa
 /// cuando las respuestas llegan fuera de orden (mediador controlado por
@@ -185,8 +185,8 @@ public class ReportesGen2Tests : BunitContext
 
         private string Alcance(Guid? clienteId, Guid? centroId) =>
             centroId is { } c ? $"Solo centro: {Centros.Values.SelectMany(l => l).Single(x => x.Id == c).Nombre}"
-            : clienteId is { } id ? $"{Clientes.Single(x => x.Id == id).RazonSocial} · todo el cliente"
-            : "Toda la cartera (sin filtrar por cliente)";
+            : clienteId is { } id ? $"{Clientes.Single(x => x.Id == id).RazonSocial} · todo el Cliente empresarial"
+            : "Toda la cartera (sin filtrar por Cliente empresarial)";
 
         private Result Registrar(RegistrarHistorialInformeCommand c)
         {
@@ -296,7 +296,7 @@ public class ReportesGen2Tests : BunitContext
             .Should().Be("Abarca: Solo centro: Nave Norte · incluye los vigentes · 3 documentos");
         mediador.Enviados.OfType<GenerarInformeVigenciaQuery>().Should().ContainSingle()
             .Which.Should().Be(new GenerarInformeVigenciaQuery(ClienteA, CentroA1, true),
-                "el enlace profundo desde Centro 360 preselecciona cliente empresarial y centro");
+                "el enlace profundo desde Centro 360 preselecciona Cliente empresarial y centro");
     }
 
     [Fact]
@@ -344,7 +344,7 @@ public class ReportesGen2Tests : BunitContext
         mediador.Enviados.OfType<GenerarInformeVigenciaQuery>().Single()
             .Should().Be(new GenerarInformeVigenciaQuery(ClienteA, null, false));
         cut.FindAll(".metadato-hoja-informe").Select(Texto).Last()
-            .Should().Be($"Abarca: {NombreA} · todo el cliente · solo vencidos y urgentes · 2 documentos");
+            .Should().Be($"Abarca: {NombreA} · todo el Cliente empresarial · solo vencidos y urgentes · 2 documentos");
         Descargas(cut).Should().Contain($"/reportes/vigencia.pdf?clienteId={ClienteA}&incluirVigentes=false");
     }
 
@@ -574,7 +574,7 @@ public class ReportesGen2Tests : BunitContext
 
         Navegacion.Uri.Should().NotContain("clienteId").And.NotContain("centroId",
             "con el clienteId viejo en la URL, recargar la página volvía a filtrar por el cliente quitado");
-        Texto(cut.Find(".aviso-sin-cliente-informe")).Should().Be("Sin filtrar por cliente empresarial: la vista previa abarca toda tu cartera");
+        Texto(cut.Find(".aviso-sin-cliente-informe")).Should().Be("Sin filtrar por Cliente empresarial: la vista previa abarca toda tu cartera");
         cut.Find(".campo-cliente-informe input").GetAttribute("value").Should().BeEmpty();
         cut.Find(".campo-centro-informe select").HasAttribute("disabled").Should().BeTrue();
         cut.FindAll("button.quitar-filtro-cliente").Should().BeEmpty();
@@ -592,7 +592,7 @@ public class ReportesGen2Tests : BunitContext
         var (cut, mediador) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteB}");
 
         cut.FindAll(".campo-centro-informe option").Select(Texto)
-            .Should().Equal("Todos los centros del cliente empresarial", "Solo centro: Planta Zaragoza");
+            .Should().Equal("Todos los centros del Cliente empresarial", "Solo centro: Planta Zaragoza");
         await cut.Find(".campo-centro-informe select").ChangeAsync(new ChangeEventArgs { Value = CentroB1.ToString() });
         Navegacion.Uri.Should().Contain($"centroId={CentroB1}").And.Contain($"clienteId={ClienteB}");
 
@@ -668,7 +668,7 @@ public class ReportesGen2Tests : BunitContext
         await eleccionA;
 
         cut.FindAll(".campo-centro-informe option").Select(Texto)
-            .Should().Equal(["Todos los centros del cliente empresarial", "Solo centro: Planta Zaragoza"],
+            .Should().Equal(["Todos los centros del Cliente empresarial", "Solo centro: Planta Zaragoza"],
                 "los centros de Refrielectric llegaron tarde y el cliente elegido es Montajes Ebro");
     }
 
@@ -728,7 +728,7 @@ public class ReportesGen2Tests : BunitContext
     /// <summary>
     /// Con exactamente una fila, la cabecera usa el singular de su recurso
     /// (<c>ConteoDocumentosUno</c>, <c>ConteoAsignacionesActivasUno</c>); los
-    /// demás tests solo ven el plural. El cliente empresarial B tiene una sola fila
+    /// demás tests solo ven el plural. El Cliente empresarial B tiene una sola fila
     /// de vigencia (Laura Ortiz) y una sola asignación.
     /// </summary>
     [Fact]
@@ -738,12 +738,12 @@ public class ReportesGen2Tests : BunitContext
 
         await Generar(cut);
         cut.FindAll(".metadato-hoja-informe").Select(Texto).Last()
-            .Should().Be($"Abarca: {NombreB} · todo el cliente · incluye los vigentes · 1 documento");
+            .Should().Be($"Abarca: {NombreB} · todo el Cliente empresarial · incluye los vigentes · 1 documento");
 
         await ElegirInforme(cut, "Asignaciones activas");
         await Generar(cut);
         cut.FindAll(".metadato-hoja-informe").Select(Texto).Last()
-            .Should().Be($"Abarca: {NombreB} · todo el cliente · 1 asignación activa");
+            .Should().Be($"Abarca: {NombreB} · todo el Cliente empresarial · 1 asignación activa");
     }
 
     /// <summary>

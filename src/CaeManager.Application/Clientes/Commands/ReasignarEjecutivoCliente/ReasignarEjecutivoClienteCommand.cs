@@ -46,7 +46,7 @@ public class ReasignarEjecutivoClienteCommandHandler(
     {
         var rol = await currentUserService.ObtenerRolEfectivoAsync();
         if (rol is null || !RolesPermitidos.Contains(rol))
-            return Result.Fallo(Error.Crear("Cliente.SinPermisoReasignar", "Tu rol no puede reasignar la cartera de un cliente."));
+            return Result.Fallo(Error.Crear("Cliente.SinPermisoReasignar", "Tu rol no puede reasignar la cartera de un Cliente empresarial."));
 
         try
         {
@@ -81,5 +81,5 @@ public class ReasignarEjecutivoClienteCommandHandler(
 
     public static readonly Error ConflictoDeReasignacion = Error.Crear(
         "Cliente.ConflictoDeReasignacion",
-        "Otro cambio sobre la cartera de este cliente se completó primero. Vuelve a intentarlo.");
+        "Otro cambio sobre la cartera de este Cliente empresarial se completó primero. Vuelve a intentarlo.");
 }

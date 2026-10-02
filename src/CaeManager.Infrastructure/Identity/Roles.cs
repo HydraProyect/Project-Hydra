@@ -44,7 +44,7 @@ public static class Roles
         [CoordinadorCae] = "Coordinador CAE",
         [GestorCae] = "Gestor CAE",
         [Consulta] = "Consulta",
-        [Cliente] = "Cliente empresarial"
+        [Cliente] = "Usuario de Cliente empresarial"
     };
 
     /// <summary>Etiqueta en español para mostrar en la UI — el código interno nunca se muestra tal cual.</summary>

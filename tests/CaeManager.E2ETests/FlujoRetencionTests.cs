@@ -40,7 +40,7 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         // Antes esto se hacía como el Administrador de ArcoSPA cambiando al
         // workspace del cliente, con un comentario que afirmaba que "el rol
         // Administrador es global a la cuenta, no por tenant". Era falso, y
-        // era el agujero: la cartera de ese usuario sobre este cliente le da
+        // era el agujero: la cartera de ese usuario sobre este Cliente empresarial le da
         // GestorCae (DelegacionDemoSeeder.RolOperadorDelegadoDemo), no
         // Administrador. AutorizacionEscrituraBehavior ya comprobaba el rol
         // EFECTIVO para las escrituras; lo que no lo comprobaba eran las

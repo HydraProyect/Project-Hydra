@@ -187,10 +187,10 @@
     <value>CIF, DNI o NIE</value>
   </data>
   <data name="EtiquetaClientesQueLaContrataron" xml:space="preserve">
-    <value>Clientes que la contrataron</value>
+    <value>Clientes empresariales que la contrataron</value>
   </data>
   <data name="VacioClientesSelector" xml:space="preserve">
-    <value>Todavía no hay clientes creados.</value>
+    <value>Todavía no hay Clientes empresariales creados.</value>
   </data>
   <data name="EtiquetaEmpresaPrestaServicio" xml:space="preserve">
     <value>Empresa a la que presta servicio</value>
@@ -418,7 +418,7 @@
     <value>Clientes empresariales para los que trabaja</value>
   </data>
   <data name="VacioClientesEmpresarialesSelector" xml:space="preserve">
-    <value>Todavía no hay clientes empresariales creados.</value>
+    <value>Todavía no hay Clientes empresariales creados.</value>
   </data>
   <data name="RotuloCredencialesPlataformaExterna" xml:space="preserve">
     <value>Credenciales de acceso a plataforma externa</value>
@@ -508,7 +508,7 @@
     <value>Documentación no modelada a nivel de Subcontrata</value>
   </data>
   <data name="DocumentacionNoModeladaDescripcion" xml:space="preserve">
-    <value>El modelo de datos actual solo asocia Documentos a Trabajador, Cliente, Empresa o Vehículo — consulta la pestaña Documentación de cada Trabajador de esta subcontrata.</value>
+    <value>El modelo de datos actual solo asocia Documentos a Trabajador, Cliente empresarial, Empresa o Vehículo — consulta la pestaña Documentación de cada Trabajador de esta subcontrata.</value>
   </data>
   <data name="BotonVerSusTrabajadores" xml:space="preserve">
     <value>Ver sus trabajadores</value>

@@ -55,7 +55,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
 
         foreach (var razonSocial in new[] { razonSocialA, razonSocialB })
         {
-            await page.GetByText("+ Nuevo cliente").First.ClickAsync();
+            await page.GetByText("+ Nuevo Cliente empresarial").First.ClickAsync();
             await drawer.GetByLabel("Razón social").FillAsync(razonSocial);
             await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true })
                 .FillAsync(Ayudas.GenerarCifValido(razonSocial == razonSocialA ? 9_998_801 : 9_998_802));
@@ -139,7 +139,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         // Context Workspace solo se abre con «Ver toda su documentación» de
         // la vista previa. El drawer no maneja Escape: se cierra con su ✕. ---
         await page.Keyboard.PressAsync("Enter");
-        var vistaPrevia = page.GetByRole(AriaRole.Complementary, new PageGetByRoleOptions { Name = "Vista previa del cliente" });
+        var vistaPrevia = page.GetByRole(AriaRole.Complementary, new PageGetByRoleOptions { Name = "Vista previa del Cliente empresarial" });
         await vistaPrevia.Locator(".nombre-cabecera-preview-cliente", new LocatorLocatorOptions { HasText = razonSocialA })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await vistaPrevia.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cerrar" }).ClickAsync();
@@ -194,7 +194,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
     /// sin mirar dónde estaba el foco, así que tabular hasta CUALQUIER botón
     /// o enlace de una lista Gen 2 y pulsar Enter abría la fila "enfocada"
     /// por j/k en vez de activar el control con el foco — el usuario de
-    /// teclado nunca podía disparar "+ Nuevo cliente" con Enter.
+    /// teclado nunca podía disparar "+ Nuevo Cliente empresarial" con Enter.
     /// </summary>
     [Fact]
     public async Task Enter_sobre_un_boton_enfocado_activa_el_boton_y_no_el_atajo_de_fila()
@@ -210,7 +210,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         // document.activeElement en el momento del keydown, no cuántos Tabs
         // hicieron falta para llegar ahí, y depender del orden de tabulación
         // real es frágil en Chromium headless.
-        var botonNuevoCliente = page.GetByText("+ Nuevo cliente").First;
+        var botonNuevoCliente = page.GetByText("+ Nuevo Cliente empresarial").First;
         await botonNuevoCliente.FocusAsync();
         await Expect(botonNuevoCliente).ToBeFocusedAsync();
 
@@ -221,7 +221,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         // "j"/"k" tampoco habían fijado ninguna fila enfocada, así que
         // RecibirAtajo("Enter") no tenía nada que abrir.
         var drawer = page.Locator(".drawer-panel");
-        await Expect(drawer.GetByText("Nuevo cliente", new LocatorGetByTextOptions { Exact = true }))
+        await Expect(drawer.GetByText("Nuevo Cliente empresarial", new LocatorGetByTextOptions { Exact = true }))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
         // Ni la vista previa de ninguna fila: Enter era del botón, no de la lista.
         await Expect(page.Locator(".drawer-preview-cliente")).Not.ToBeVisibleAsync();

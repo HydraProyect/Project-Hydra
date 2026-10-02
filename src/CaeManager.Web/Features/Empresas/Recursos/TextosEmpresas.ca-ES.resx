@@ -43,10 +43,10 @@
     <value>el CIF</value>
   </data>
   <data name="MetaClientesUno" xml:space="preserve">
-    <value>1 client</value>
+    <value>1 Client empresarial</value>
   </data>
   <data name="MetaClientesVarios" xml:space="preserve">
-    <value>{0} clients</value>
+    <value>{0} Clients empresarials</value>
   </data>
   <data name="MetaTrabajadoresUno" xml:space="preserve">
     <value>1 treballador</value>
@@ -97,7 +97,7 @@
     <value>Treballadors</value>
   </data>
   <data name="PestanaClientes" xml:space="preserve">
-    <value>Clients</value>
+    <value>Clients empresarials</value>
   </data>
   <data name="PestanaDocumentacion" xml:space="preserve">
     <value>Documentació</value>
@@ -115,7 +115,7 @@
     <value>treballadors</value>
   </data>
   <data name="GlosaClientes" xml:space="preserve">
-    <value>clients</value>
+    <value>Clients empresarials</value>
   </data>
   <data name="EtiquetaFiltros" xml:space="preserve">
     <value>Filtra els treballadors per estat documental</value>
@@ -160,19 +160,19 @@
     <value>No hem pogut carregar els treballadors</value>
   </data>
   <data name="ClientesApoyo" xml:space="preserve">
-    <value>Clients per als quals treballa aquesta empresa. Cada relació té la seva pròpia exigència documental.</value>
+    <value>Clients empresarials per als quals treballa aquesta empresa. Cada relació té la seva pròpia exigència documental.</value>
   </data>
   <data name="ListaClientes" xml:space="preserve">
-    <value>Clients d'aquesta empresa</value>
+    <value>Clients empresarials d'aquesta empresa</value>
   </data>
   <data name="VacioClientesTitulo" xml:space="preserve">
-    <value>Sense clients que puguis consultar</value>
+    <value>Sense Clients empresarials que puguis consultar</value>
   </data>
   <data name="VacioClientesDescripcion" xml:space="preserve">
-    <value>Aquesta empresa no té clients associats, o no són dins del teu abast de gestió.</value>
+    <value>Aquesta empresa no té Clients empresarials associats, o no són dins del teu abast de gestió.</value>
   </data>
   <data name="ErrorClientes" xml:space="preserve">
-    <value>No hem pogut carregar els clients</value>
+    <value>No hem pogut carregar els Clients empresarials</value>
   </data>
   <data name="EtiquetaLateral" xml:space="preserve">
     <value>Context de l'empresa</value>

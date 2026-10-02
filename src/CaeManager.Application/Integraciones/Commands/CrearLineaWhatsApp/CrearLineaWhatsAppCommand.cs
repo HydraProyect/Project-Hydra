@@ -81,7 +81,7 @@ public class CrearLineaWhatsAppCommandHandler(
         {
             var cliente = await empresaRepositorio.ObtenerPorIdAsync(clienteId, cancellationToken);
             if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
-                return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
+                return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial."));
         }
 
         foreach (var usuarioId in UsuariosReferidos(request))

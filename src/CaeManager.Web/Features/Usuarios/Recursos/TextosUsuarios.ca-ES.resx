@@ -37,7 +37,7 @@
     <value>Tiene {0} Cliente(s) empresarial(es) en su Asignación de Cartera. Si no la pasas a otro Gestor CAE, sigue abierta y la conserva su Coordinador CAE.</value>
   </data>
   <data name="DesactivarCarteraUniversal" xml:space="preserve">
-    <value>Su Asignación de Cartera es toda la operación de esta organización: no se reparte cliente a cliente. Sigue abierta y la conserva su Coordinador CAE.</value>
+    <value>Su Asignación de Cartera es toda la operación de esta organización: no se reparte por Cliente empresarial. Sigue abierta y la conserva su Coordinador CAE.</value>
   </data>
   <data name="DesactivarPasarCarteraA" xml:space="preserve">
     <value>Pasar su cartera a</value>
@@ -82,7 +82,7 @@
     <value>Gestionarà sencera cada empresa que marquis. En desmarcar-ne una, en perd l'accés.</value>
   </data>
   <data name="AsignarEmpresasParcial" xml:space="preserve">
-    <value>ja té part dels seus clients; no s'amplia des d'aquí</value>
+    <value>ja té part dels seus Clients empresarials; no s'amplia des d'aquí</value>
   </data>
   <data name="AsignarEmpresasCargando" xml:space="preserve">
     <value>Carregant empreses…</value>

@@ -70,7 +70,7 @@
     <value>Ir a Mi trabajo</value>
   </data>
   <data name="AccionNuevoAqui" xml:space="preserve">
-    <value>Nuevo aquí (en Clientes, Empresas, Centros, Trabajadores o Documentos)</value>
+    <value>Nuevo aquí (en Clientes empresariales, Empresas, Centros, Trabajadores o Documentos)</value>
   </data>
   <data name="AccionBuscadorGlobal" xml:space="preserve">
     <value>Buscador global</value>
