@@ -76,7 +76,6 @@ src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.ca-ES.resx :: QuitarA
 src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: EliminarCentroMensaje [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: QuitarAjusteMensaje [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: QuitarAjusteMensajeConFormulario [tenant-a-secas] = 1
-src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor :: [cliente-a-secas] = 1
 src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor :: [gestor-a-secas] = 1
 src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor :: [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.ca-ES.resx :: PresupuestoDescripcion [operador-a-secas] = 1
@@ -110,8 +109,6 @@ src/CaeManager.Web/Features/Facturacion/Pages/Facturacion.razor :: [alcance-a-se
 src/CaeManager.Web/Features/IncorporacionCartera/Recursos/TextosIncorporacionCartera.ca-ES.resx :: SinAsignacionDetalleCoordinador [alcance-a-secas] = 1
 src/CaeManager.Web/Features/IncorporacionCartera/Recursos/TextosIncorporacionCartera.resx :: SinAsignacionDetalleCoordinador [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor :: [tenant-a-secas] = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.ca-ES.resx :: RotuloCampoEmpresa [cliente-a-secas] = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: RotuloCampoEmpresa [cliente-a-secas] = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.ca-ES.resx :: DialogoEliminarLoteMensaje [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DialogoEliminarLoteMensaje [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.ca-ES.resx :: AyudaNotificadaSoloMarca [empresa-titular] = 1

@@ -430,7 +430,7 @@
     <value>la URL</value>
   </data>
   <data name="RotuloCampoEmpresa" xml:space="preserve">
-    <value>Empresa / Cliente / Proveedor</value>
+    <value>Empresa / Cliente empresarial / Proveedor</value>
   </data>
   <data name="CopiarEsteCampo" xml:space="preserve">
     <value>este campo</value>
