@@ -54,6 +54,10 @@
   <data name="ChipAmbito" xml:space="preserve">
     <value>Ámbito: {0}</value>
   </data>
+  <data name="ChipAmbitoCliente" xml:space="preserve">
+    <value>Cliente empresarial</value>
+    <comment>Valor del chip «Ámbito: …» cuando el filtro es el Cliente empresarial (CONTRATO_TERMINOLOGIA § 3.2).</comment>
+  </data>
   <data name="ChipEstado" xml:space="preserve">
     <value>Estado: {0}</value>
   </data>

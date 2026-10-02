@@ -47,7 +47,7 @@ public class AltaGuiadaTests(WebAppFixture fixture)
         await page.GetByText("Guardar y continuar").ClickAsync();
 
         // --- Paso 2: Cliente ---
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
+        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente empresarial" }).WaitForAsync();
         // El resumen del paso demuestra que la Empresa del paso 1 ya está
         // persistida y encadenada — no es solo estado en memoria del wizard.
         // Locator acotado con HasText, no ".texto-vacio-seccion" a secas: el

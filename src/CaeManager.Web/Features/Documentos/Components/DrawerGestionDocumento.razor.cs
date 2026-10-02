@@ -644,7 +644,7 @@ public partial class DrawerGestionDocumento : ComponentBase
                     _mensajeErrorFormulario = ambito switch
                     {
                         AmbitoAplicacion.Trabajador => "Selecciona un trabajador.",
-                        AmbitoAplicacion.Cliente => "Selecciona un cliente.",
+                        AmbitoAplicacion.Cliente => "Selecciona un Cliente empresarial.",
                         AmbitoAplicacion.Vehiculo => "Selecciona un vehículo.",
                         AmbitoAplicacion.Proyecto => "Selecciona un proyecto.",
                         _ => "Selecciona una empresa."

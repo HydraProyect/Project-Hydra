@@ -290,6 +290,23 @@ public class DocumentosGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// D-27: el filtro Ámbito rotula al Cliente empresarial con su nombre completo
+    /// (CONTRATO_TERMINOLOGIA § 3.2), no «Cliente» a secas.
+    /// </summary>
+    [Fact]
+    public async Task El_filtro_Ambito_y_su_chip_rotulan_Cliente_empresarial_y_no_Cliente_a_secas()
+    {
+        var (cut, _) = Renderizar();
+
+        cut.Find($"option[value='{nameof(AmbitoAplicacion.Cliente)}']").TextContent.Trim().Should().Be("Cliente empresarial");
+        var selectAmbito = cut.FindAll("select").Single(x => x.QuerySelector($"option[value='{nameof(AmbitoAplicacion.Cliente)}']") is not null);
+        await selectAmbito.ChangeAsync(new ChangeEventArgs { Value = nameof(AmbitoAplicacion.Cliente) });
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ámbito: Cliente empresarial",
+            "el chip del filtro activo no puede devolver «Cliente» a secas"));
+    }
+
+    /// <summary>
     /// Las acciones del mockup siguen en la cabecera, y con ellas «Exportar a
     /// Excel», que el mockup no dibuja: un mockup omite comportamiento, no lo
     /// deroga. La barrera va delante para que la aserción no sea verde vacío.

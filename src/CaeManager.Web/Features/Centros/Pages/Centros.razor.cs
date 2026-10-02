@@ -539,7 +539,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _empresaId = string.Empty;
     }
 
-    private const string AvisoSeleccionaCliente = "Selecciona un cliente.";
+    private const string AvisoSeleccionaCliente = "Selecciona un Cliente empresarial.";
     private const string AvisoSeleccionaEmpresa = "Selecciona una empresa.";
 
     private void AlElegirEmpresa(string valor)
@@ -584,7 +584,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     {
         _clientesDisponibles = [.. _clientesDisponibles, new ClienteSelectorDto(creado.Id, creado.RazonSocial)];
         await CambiarClienteCreacionAsync(creado.Id.ToString());
-        ToastService.Mostrar("Cliente creado correctamente.", TonoToast.Exito);
+        ToastService.Mostrar("Cliente empresarial creado correctamente.", TonoToast.Exito);
     }
 
     private void AbrirCrearEmpresaInline(string texto)

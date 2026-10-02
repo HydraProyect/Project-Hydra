@@ -76,7 +76,7 @@
     <value>Prioritat</value>
   </data>
   <data name="Cliente" xml:space="preserve">
-    <value>Client</value>
+    <value>Client empresarial</value>
   </data>
   <data name="FiltroEtiqueta" xml:space="preserve">
     <value>Filtra aquesta cua per treballador, document o centre</value>
@@ -148,7 +148,7 @@
     <value>Treu els filtres</value>
   </data>
   <data name="SinCliente" xml:space="preserve">
-    <value>Sense client</value>
+    <value>Sense Client empresarial</value>
   </data>
   <data name="LoteGestiones" xml:space="preserve">
     <value>{0} gestions</value>

@@ -171,7 +171,7 @@
     private string EtiquetaAmbito(AmbitoAplicacion ambito) => ambito switch
     {
         AmbitoAplicacion.Trabajador => "Trabajador",
-        AmbitoAplicacion.Cliente => "Cliente",
+        AmbitoAplicacion.Cliente => "Cliente empresarial",
         AmbitoAplicacion.Empresa => "Empresa",
         AmbitoAplicacion.Vehiculo => "Vehículo",
         AmbitoAplicacion.Proyecto => "Proyecto",
@@ -181,7 +181,7 @@
     private string EtiquetaAmbitoSingular(AmbitoAplicacion? ambito) => ambito switch
     {
         AmbitoAplicacion.Trabajador => "trabajadora o trabajador",
-        AmbitoAplicacion.Cliente => "cliente",
+        AmbitoAplicacion.Cliente => "cliente empresarial",
         AmbitoAplicacion.Empresa => "empresa",
         AmbitoAplicacion.Vehiculo => "vehículo",
         AmbitoAplicacion.Proyecto => "proyecto",
@@ -191,7 +191,7 @@
     private string EtiquetaAmbitoPlural(AmbitoAplicacion? ambito) => ambito switch
     {
         AmbitoAplicacion.Trabajador => "trabajadoras y trabajadores",
-        AmbitoAplicacion.Cliente => "clientes",
+        AmbitoAplicacion.Cliente => "clientes empresariales",
         AmbitoAplicacion.Empresa => "empresas",
         AmbitoAplicacion.Vehiculo => "vehículos",
         AmbitoAplicacion.Proyecto => "proyectos",

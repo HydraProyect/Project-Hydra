@@ -13,11 +13,11 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="Kicker" xml:space="preserve">
-    <value>Cliente</value>
+    <value>Cliente empresarial</value>
     <comment>Rótulo en pantalla del Cliente empresarial (contrato Gen2 § 14): kicker de la página Cliente 360 y de su panel.</comment>
   </data>
   <data name="MigaClientes" xml:space="preserve">
-    <value>Clientes</value>
+    <value>Clientes empresariales</value>
     <comment>Primera miga de Cliente 360: vuelve a la lista.</comment>
   </data>
   <data name="RutaNavegacion" xml:space="preserve">
@@ -25,7 +25,7 @@
     <comment>Nombre accesible de las migas.</comment>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar este cliente</value>
+    <value>No pudimos cargar este cliente empresarial</value>
     <comment>La consulta devolvió null (no existe o está fuera del alcance): no se distingue a propósito.</comment>
   </data>
   <data name="ErrorCargaDescripcion" xml:space="preserve">
@@ -102,7 +102,7 @@
     <comment>Nombre accesible de un indicador: el recuento, la lista de centros y qué hace al pulsarlo.</comment>
   </data>
   <data name="EditarCliente" xml:space="preserve">
-    <value>Editar cliente</value>
+    <value>Editar cliente empresarial</value>
     <comment>Menú de acciones: abre el panel en Información.</comment>
   </data>
   <data name="PestanaCentros" xml:space="preserve">
@@ -130,7 +130,7 @@
     <value>Historial</value>
   </data>
   <data name="EtiquetaPestanas" xml:space="preserve">
-    <value>Secciones del cliente</value>
+    <value>Secciones del cliente empresarial</value>
   </data>
   <data name="GlosaCentroUno" xml:space="preserve">
     <value>centro</value>
@@ -151,10 +151,10 @@
     <value>subcontratas</value>
   </data>
   <data name="ResumenCentrosUno" xml:space="preserve">
-    <value>1 centro de este cliente.</value>
+    <value>1 centro de este cliente empresarial.</value>
   </data>
   <data name="ResumenCentrosVarios" xml:space="preserve">
-    <value>{0} centros de este cliente, del peor estado al mejor.</value>
+    <value>{0} centros de este cliente empresarial, del peor estado al mejor.</value>
   </data>
   <data name="ResumenCentrosTruncado" xml:space="preserve">
     <value>Se muestran los {0} centros con peor estado de {1}.</value>
@@ -187,7 +187,7 @@
     <value>Sin centros</value>
   </data>
   <data name="SinCentrosDescripcion" xml:space="preserve">
-    <value>Este cliente todavía no tiene ningún centro.</value>
+    <value>Este cliente empresarial todavía no tiene ningún centro.</value>
   </data>
   <data name="ErrorCentrosTitulo" xml:space="preserve">
     <value>No pudimos cargar los centros</value>
@@ -205,7 +205,7 @@
     <value>Sin empresas</value>
   </data>
   <data name="SinEmpresasDescripcion" xml:space="preserve">
-    <value>Este cliente todavía no tiene ninguna empresa contratada con relación viva.</value>
+    <value>Este cliente empresarial todavía no tiene ninguna empresa contratada con relación viva.</value>
   </data>
   <data name="ErrorEmpresasTitulo" xml:space="preserve">
     <value>No pudimos cargar las empresas</value>
@@ -220,22 +220,22 @@
     <value>Sin subcontratas</value>
   </data>
   <data name="SinSubcontratasDescripcion" xml:space="preserve">
-    <value>Este cliente todavía no tiene ninguna subcontrata declarada.</value>
+    <value>Este cliente empresarial todavía no tiene ninguna subcontrata declarada.</value>
   </data>
   <data name="ErrorSubcontratasTitulo" xml:space="preserve">
     <value>No pudimos cargar las subcontratas</value>
   </data>
   <data name="ListaCentros" xml:space="preserve">
-    <value>Centros de este cliente</value>
+    <value>Centros de este cliente empresarial</value>
   </data>
   <data name="ListaEmpresas" xml:space="preserve">
-    <value>Empresas de este cliente</value>
+    <value>Empresas de este cliente empresarial</value>
   </data>
   <data name="ListaSubcontratas" xml:space="preserve">
-    <value>Subcontratas de este cliente</value>
+    <value>Subcontratas de este cliente empresarial</value>
   </data>
   <data name="EtiquetaLateral" xml:space="preserve">
-    <value>Contexto del cliente</value>
+    <value>Contexto del cliente empresarial</value>
   </data>
   <data name="TarjetaInformacion" xml:space="preserve">
     <value>Información</value>
@@ -263,68 +263,68 @@
     <value>Solo visible para tu equipo.</value>
   </data>
   <data name="AltaGuiadaTitulo" xml:space="preserve">
-    <value>Alta guiada de Cliente</value>
-    <comment>Alta guiada: título de la página. Contrato Gen2 § 14: el Cliente empresarial se rotula «Cliente» en todo el asistente.</comment>
+    <value>Alta guiada de Cliente empresarial</value>
+    <comment>Alta guiada: título de la página. Gen2 § 14 enmendado el 2026-10-02: el Cliente empresarial se rotula «Cliente empresarial» en todo el asistente.</comment>
   </data>
   <data name="AltaGuiadaDescripcion" xml:space="preserve">
-    <value>Da de alta la Empresa, su Cliente, el primer Centro y sus Trabajadores en un solo sitio. Cada paso se guarda al confirmarlo — si te detienes a mitad de camino, lo ya creado no se pierde.</value>
+    <value>Da de alta la Empresa, su Cliente empresarial, el primer Centro y sus Trabajadores en un solo sitio. Cada paso se guarda al confirmarlo — si te detienes a mitad de camino, lo ya creado no se pierde.</value>
   </data>
   <data name="AltaGuiadaVolver" xml:space="preserve">
-    <value>Volver a Clientes</value>
+    <value>Volver a Clientes empresariales</value>
     <comment>Alta guiada: enlace de vuelta a la lista.</comment>
   </data>
   <data name="AltaGuiadaPasoCliente" xml:space="preserve">
-    <value>Cliente</value>
+    <value>Cliente empresarial</value>
     <comment>Alta guiada: rótulo del paso 2 en el indicador de pasos.</comment>
   </data>
   <data name="AltaGuiadaTituloPasoCliente" xml:space="preserve">
-    <value>2. Cliente</value>
+    <value>2. Cliente empresarial</value>
     <comment>Alta guiada: encabezado del paso 2.</comment>
   </data>
   <data name="AltaGuiadaVincularExistente" xml:space="preserve">
-    <value>Vincular a un Cliente que ya existe</value>
+    <value>Vincular a un Cliente empresarial que ya existe</value>
   </data>
   <data name="AltaGuiadaCatalogoVacioTitulo" xml:space="preserve">
-    <value>Todavía no hay ningún Cliente dado de alta</value>
+    <value>Todavía no hay ningún Cliente empresarial dado de alta</value>
   </data>
   <data name="AltaGuiadaCatalogoVacioDescripcion" xml:space="preserve">
-    <value>No es que el filtro no encuentre nada: el catálogo entero está vacío. Desmarca la casilla y crea el primer Cliente aquí mismo.</value>
+    <value>No es que el filtro no encuentre nada: el catálogo entero está vacío. Desmarca la casilla y crea el primer Cliente empresarial aquí mismo.</value>
   </data>
   <data name="AltaGuiadaEtiquetaEmpresa" xml:space="preserve">
     <value>Empresa</value>
     <comment>Alta guiada: prefijo «Empresa: nombre» de los resúmenes (la Empresa del Tenant propietario).</comment>
   </data>
   <data name="AltaGuiadaEtiquetaCliente" xml:space="preserve">
-    <value>Cliente</value>
+    <value>Cliente empresarial</value>
     <comment>Alta guiada: etiqueta del selector y prefijo «Cliente: nombre» de los resúmenes.</comment>
   </data>
   <data name="AltaGuiadaOpcionSeleccionaCliente" xml:space="preserve">
-    <value>Selecciona un Cliente…</value>
+    <value>Selecciona un Cliente empresarial…</value>
   </data>
   <data name="AltaGuiadaClienteCritico" xml:space="preserve">
-    <value>Cliente crítico</value>
+    <value>Cliente empresarial crítico</value>
   </data>
   <data name="AltaGuiadaNotasCliente" xml:space="preserve">
-    <value>Notas del Cliente</value>
+    <value>Notas del Cliente empresarial</value>
   </data>
   <data name="AltaGuiadaVerCliente" xml:space="preserve">
-    <value>Ver el Cliente</value>
+    <value>Ver el Cliente empresarial</value>
   </data>
   <data name="AltaGuiadaOtroCentro" xml:space="preserve">
-    <value>El formulario se ha vaciado: puedes crear otro centro para esta misma Empresa y este mismo Cliente sin salir del paso.</value>
+    <value>El formulario se ha vaciado: puedes crear otro centro para esta misma Empresa y este mismo Cliente empresarial sin salir del paso.</value>
   </data>
   <data name="AltaGuiadaErrorSeleccionaCliente" xml:space="preserve">
-    <value>Selecciona un Cliente.</value>
+    <value>Selecciona un Cliente empresarial.</value>
   </data>
   <data name="AltaGuiadaToastVinculada" xml:space="preserve">
-    <value>Empresa vinculada al Cliente.</value>
+    <value>Empresa vinculada al Cliente empresarial.</value>
   </data>
   <data name="AltaGuiadaToastCreadoSinVincular" xml:space="preserve">
-    <value>Cliente «{0}» creado, pero no se pudo vincular con la Empresa: {1}</value>
+    <value>Cliente empresarial «{0}» creado, pero no se pudo vincular con la Empresa: {1}</value>
     <comment>{0} razón social del Cliente; {1} motivo del fallo de la vinculación.</comment>
   </data>
   <data name="AltaGuiadaToastCreado" xml:space="preserve">
-    <value>Cliente creado correctamente.</value>
+    <value>Cliente empresarial creado correctamente.</value>
   </data>
   <data name="DarDeBaja" xml:space="preserve">
     <value>Dar de baja</value>
@@ -336,6 +336,6 @@
     <value>Selecciona una empresa de tu cartera</value>
   </data>
   <data name="SinEmpresaDescripcion" xml:space="preserve">
-    <value>Los clientes se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
+    <value>Los clientes empresariales se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
   </data>
 </root>

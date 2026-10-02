@@ -76,7 +76,7 @@
     <value>Prioridad</value>
   </data>
   <data name="Cliente" xml:space="preserve">
-    <value>Cliente</value>
+    <value>Cliente empresarial</value>
   </data>
   <data name="FiltroEtiqueta" xml:space="preserve">
     <value>Filtrar esta cola por trabajador, documento o centro</value>
@@ -148,7 +148,7 @@
     <value>Quitar filtros</value>
   </data>
   <data name="SinCliente" xml:space="preserve">
-    <value>Sin cliente</value>
+    <value>Sin Cliente empresarial</value>
   </data>
   <data name="LoteGestiones" xml:space="preserve">
     <value>{0} gestiones</value>
