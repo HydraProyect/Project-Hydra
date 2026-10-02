@@ -443,6 +443,21 @@ public class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
+    public void Al_Coordinador_CAE_con_una_Empresa_filtrada_sin_alcance_tampoco_se_le_remite_a_su_propio_rol()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+        [
+            Tenant(TenantOrigen, "ArcoSPA", esOrigen: true, []),
+            Tenant(TenantRefri, "Refrielectric", false, [], alcanceCero: true),
+        ]), rol: CaeManager.Infrastructure.Identity.Roles.CoordinadorCae);
+
+        cut.FindAll(".mi-trabajo-cartera-fila").Single(f => f.TextContent.Contains("Refrielectric")).Click();
+
+        var vacio = cut.Find(".mi-trabajo-cola").TextContent;
+        vacio.Should().Contain("Refrielectric").And.Contain("Dirección CAE").And.NotContain("Coordinador CAE");
+    }
+
+    [Fact]
     public void Al_Gestor_CAE_sin_alcance_se_le_sigue_remitiendo_a_su_Coordinador_CAE()
     {
         var cut = Renderizar(() => new MiTrabajoAgregadoDto([Tenant(TenantOrigen, "ArcoSPA", esOrigen: true, [])]),

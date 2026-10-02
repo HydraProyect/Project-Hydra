@@ -276,10 +276,15 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
     private CurrentUserService CrearCurrentUserService(
         CaeManagerDbContext contexto, Guid usuario, string rol, IClienteActivoSeleccionado seleccion)
     {
+        // El rol de la sesión en el Tenant de origen NO es el de la cartera (Consulta frente a Gestor/Coordinador
+        // CAE): lo que cuenta el fan-out tiene que salir de la cartera de cada Tenant (#571), no del claim. En
+        // Inicio, el middleware de Workspace operativo derivado sustituye el claim de rol por el de la cartera y
+        // conserva el de origen aparte.
         var identidad = new ClaimsIdentity(
             [
                 new Claim(ClaimTypes.NameIdentifier, usuario.ToString()),
-                new Claim(ClaimTypes.Role, rol),
+                new Claim(ClaimTypes.Role, seleccion.TenantIdSeleccionado is null ? Roles.Consulta : rol),
+                new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimRolDeSesionOrigen, Roles.Consulta),
                 new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, _origen.ToString())
             ],
             "prueba");
