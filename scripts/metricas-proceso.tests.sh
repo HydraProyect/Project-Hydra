@@ -29,7 +29,7 @@ mutante() { # mutante <nombre> <expresion sed> <fragmento que debe aparecer en e
   fi
   if METRICAS_SCRIPT="$TMP/mutado.py" "$PY" "$AQUI/metricas-proceso.tests.py" >"$TMP/mut.txt" 2>&1; then
     echo "  FALLO mutante '$nombre': las pruebas siguen en VERDE (no vigilan esa regla)"; FALLOS=$((FALLOS + 1))
-  elif grep -q "$esperado" "$TMP/mut.txt"; then
+  elif grep -Eq "^(FAIL|ERROR): $esperado" "$TMP/mut.txt"; then
     echo "  ok    mutante '$nombre': rojo en $esperado"
   else
     echo "  FALLO mutante '$nombre': rojo, pero NO por el motivo previsto ($esperado)"; grep -E "^(FAIL|ERROR)" "$TMP/mut.txt" | head -n 5; FALLOS=$((FALLOS + 1))

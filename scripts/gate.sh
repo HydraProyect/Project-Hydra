@@ -189,15 +189,19 @@ migraciones_pendientes() {
 # podría tratar como fijable (IDE…, CA… nuevos) o una salida vacía. HYPOTHESIS: la diferencia con CI viene
 # de la versión del SDK/analizadores; si CI empezara a salir con 2 por lo mismo, esto no lo oculta.
 etapa_formato() {
-  local log="$LOGS/formato.log" t0=$SECONDS rc motivo=""
+  local log="$LOGS/formato.log" t0=$SECONDS rc motivo="" advertencias
   local toleradas="${GATE_ADVERTENCIAS_TOLERADAS:-CA2255}"
   "$DOTNET" format "$SLN" --no-restore --verify-no-changes >"$log" 2>&1
   rc=$?
+  # Las advertencias van a una variable y se filtran con `<<<`, no con una tubería: bajo `set -o pipefail` un
+  # `grep | grep -q` puede acabar con SIGPIPE (141) en el primero cuando el segundo cierra pronto, y el `!` que lo
+  # niega convertiría una advertencia nueva en tolerada.
+  advertencias="$(grep -E ': warning ' "$log")"
   if [ "$rc" -ne 0 ]; then
     if [ "$rc" -eq 2 ] && ! grep -Eq ': error ' "$log" \
-       && grep -Eq ': warning ' "$log" && ! grep -E ': warning ' "$log" | grep -Evq "warning ($toleradas)[: ]"; then
+       && [ -n "$advertencias" ] && ! grep -Evq "warning ($toleradas)[: ]" <<<"$advertencias"; then
       echo "GATE: AVISO formato: dotnet format salió con 2 sin ninguna línea de error de formato y solo con advertencias conocidas ($toleradas); no cuenta como rojo"
-      grep -E ': warning ' "$log" | head -n 3 | sed 's/^/    /'
+      head -n 3 <<<"$advertencias" | sed 's/^/    /'
       rc=0
     elif ! grep -Eq ': error ' "$log"; then
       motivo="salió con $rc sin ninguna línea de error de formato ni solo advertencias conocidas: puede ser un fallo del propio dotnet format o una advertencia nueva"

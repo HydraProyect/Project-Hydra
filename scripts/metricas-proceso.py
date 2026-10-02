@@ -48,7 +48,10 @@ class GhNoDisponible(Exception):
 def gh_json(args: list[str]):
     """Ejecuta `gh <args>` y devuelve el JSON parseado. Lanza GhNoDisponible si falla: nunca devuelve
     una lista vacía por un error (un resultado vacío no es una ausencia, § 3)."""
-    exe = [t.strip('"') for t in shlex.split(os.environ.get("METRICAS_GH", "gh"), posix=(os.name != "nt"))]
+    try:
+        exe = [t.strip('"') for t in shlex.split(os.environ.get("METRICAS_GH", "gh"), posix=(os.name != "nt"))]
+    except ValueError as e:
+        raise GhNoDisponible(f"METRICAS_GH mal formado (comillas sin cerrar): {e}") from e
     try:
         proc = subprocess.run([*exe, *args], capture_output=True, text=True, encoding="utf-8", timeout=300)
     except (OSError, subprocess.TimeoutExpired) as e:

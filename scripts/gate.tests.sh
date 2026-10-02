@@ -137,10 +137,11 @@ gate() {
   SALIDA="$(cd "$REPO" && bash "$guion" "$@" 2>&1)"; RC=$?
   if [ -n "${DEPURAR:-}" ]; then echo "--- rc=$RC args=$*"; echo "$SALIDA" | sed 's/^/    | /'; echo "--- log"; sed 's/^/    > /' "$LOG"; fi
 }
-tocar() { ( cd "$REPO" && echo "x$RANDOM" >>"$1" ); }
+tocar() { ( cd "$REPO" && mkdir -p "$(dirname "$1")" && echo "x$RANDOM" >>"$1" ); }
 limpiar() { ( cd "$REPO" && git checkout -q -- . && git clean -fdq ); }
 # comprometer: deja un cambio YA COMPROMETIDO en la rama (el camino «base...HEAD» de diff_toca_codigo);
 # reiniciar vuelve la rama al commit base.
+# gancho_de_ficheros: una lista de ficheros de configuración que deben ejecutar Web.Tests
 comprometer() { ( cd "$REPO" && echo "c$RANDOM" >>"$1" && git add -A && git commit -q -m "cambio $1" ); }
 reiniciar() { ( cd "$REPO" && git reset -q --hard "$(git rev-parse refs/remotes/origin/main)" && git clean -fdq ); }
 orden_de() { grep -n "^$1" "$LOG" | head -n1 | cut -d: -f1; }
@@ -190,6 +191,14 @@ comprometer NOTAS.md
 gate "$GATE_REAL"
 aserta "web: una nota ya comprometida no la ejecuta" bash -c "! grep -q '^test tests/CaeManager.Web.Tests' '$LOG'"
 reiniciar
+
+# 2a. la configuración de compilación también cuenta (cada rama de la expresión de diff_toca_codigo)
+for fichero in CaeManager.slnx tests/CaeManager.Domain.Tests/CaeManager.Domain.Tests.csproj tests/CaeManager.Domain.Tests/packages.lock.json; do
+  tocar "$fichero"
+  gate "$GATE_REAL"
+  aserta "web: tocar $fichero ejecuta Web.Tests" grep -q "^test tests/CaeManager.Web.Tests" "$LOG"
+  limpiar
+done
 
 # 2b. migraciones pendientes
 MIGRACION_PENDIENTE=1 gate "$GATE_REAL"
@@ -352,7 +361,7 @@ if mutar "format: tolerar cualquier código" 's/\[ "\$rc" -eq 2 \] \&\& //'; the
   FORMATO_CODIGO_1_CON_CA2255=1 gate "$TMP_ROOT/mutado.sh"
   aserta "mutación que tolera cualquier código: el gate mutado da VERDE con código 1 y solo CA2255 (la prueba lo detectaría)" test "$RC" -eq 0
 fi
-if mutar "format: tolerar cualquier advertencia" 's/ \&\& ! grep -E .: warning . "\$log" [|] grep -Evq "warning (\$toleradas)\[: \]"//'; then
+if mutar "format: tolerar cualquier advertencia" 's/ \&\& ! grep -Evq "warning (\$toleradas)\[: \]" <<<"\$advertencias"//'; then
   FORMATO_ADVERTENCIA_NUEVA=1 gate "$TMP_ROOT/mutado.sh"
   aserta "mutación que tolera toda advertencia: el gate mutado da VERDE con IDE0005 (la prueba lo detectaría)" test "$RC" -eq 0
 fi

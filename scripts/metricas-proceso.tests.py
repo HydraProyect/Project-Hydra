@@ -304,7 +304,7 @@ class ConGhFalso(unittest.TestCase):
             return {"number": n, "title": titulo, "body": cuerpo, "createdAt": creado, "mergedAt": f,
                     "changedFiles": ficheros, "headRefName": f"r{n}", "author": {"login": autor}}
         return [
-            p(5, "viejo", "", "2026-09-01T00:00:00Z", 10, 50),                     # antes de --desde
+            p(5, "viejo", "", "2026-09-01T00:00:00Z", 600, 1),                     # antes de --desde (desplazaría las medianas)
             p(8, "bump", "", "2026-09-20T00:00:00Z", 10, 2, autor="dependabot[bot]"),
             p(9, "fuera del lote", "", "2026-09-20T00:00:00Z", 30, 5),
             p(10, "fix D-01", "## Defectos\nD-01\n## Revisión Codex\nSin hallazgos altos/medios.", "2026-10-01T00:00:00Z", 60, 3),
@@ -345,6 +345,19 @@ class ConGhFalso(unittest.TestCase):
         self.assertIn("ATENCIÓN", f["M2"]["detalle"])
         f, _ = self.valores(limite_pr=100)
         self.assertNotIn("ATENCIÓN", f["M2"]["detalle"])
+
+    def test_una_linea_base_de_otra_ventana_avisa_de_que_no_es_comparable(self):
+        import contextlib
+        import io
+        with tempfile.TemporaryDirectory() as t:
+            raiz = Path(t)
+            Repo().arbol(raiz)
+            base = raiz / "base.json"
+            base.write_text(json.dumps({"ventana_lote": [1, 2], "metricas": []}), encoding="utf-8")
+            err = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+                mp.main(["--solo", "repo", "--raiz", str(raiz), "--negocio", str(raiz / "no"), "--comparar", str(base)])
+        self.assertIn("no son comparables", err.getvalue())
 
     def test_sin_PR_en_la_ventana_es_NO_MEDIDA_no_cero(self):
         f, lote = self.valores(pr_min=900, pr_max=910)
