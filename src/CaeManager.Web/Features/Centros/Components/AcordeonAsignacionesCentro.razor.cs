@@ -558,6 +558,15 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private Task ManejarAsignacionGuardadaAsync() => ManejarDocumentoGuardadoAsync();
 
+    /// <summary>
+    /// Clase de la celda de vigencia: «Sin confirmar» lleva el mismo aviso ámbar que el panel Documentación base
+    /// (cuenta como al día, con aviso); el resto, el estilo neutro de la columna.
+    /// </summary>
+    private static string ClaseVigencia(EstadoDocumento? estado) =>
+        estado == EstadoDocumento.SinConfirmar
+            ? "celda-documento-vigencia celda-documento-vigencia-sin-confirmar"
+            : "celda-documento-vigencia";
+
     private string TextoVigenciaEmpresa(IncidenciaCentroDto incidencia)
     {
         // Un rechazo en plataforma (Estado: null a propósito, ver
@@ -569,7 +578,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             return Textos["VigenciaNoAplica"];
 
         if (incidencia.FechaVencimiento is not { } fecha)
-            return "Sin caducidad";
+            return EstadoDocumentoUi.TextoSinFechaDeVencimiento(incidencia.Estado);
 
         var texto = fecha.ToString("dd/MM/yyyy");
         return incidencia.Estado == EstadoDocumento.Vencido ? $"Vencio {texto}" : $"Caduca {texto}";
@@ -727,10 +736,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
         if (documento.FechaVencimiento is not { } fecha)
         {
-            // Documento sin caducidad: no es un hueco de datos, es una
-            // propiedad del tipo documental. Se declara en vez de dejar "—",
-            // que se leeria como "falta el dato".
-            return "Sin caducidad";
+            // Sin fecha NO es «no caduca»: «Sin caducidad» solo si está confirmado; si nadie ha anotado hasta
+            // cuándo vale, «Sin confirmar» (el modelo eliminó el «nulo = no caduca»).
+            return EstadoDocumentoUi.TextoSinFechaDeVencimiento(documento.Estado);
         }
 
         var texto = fecha.ToString("dd/MM/yyyy");
