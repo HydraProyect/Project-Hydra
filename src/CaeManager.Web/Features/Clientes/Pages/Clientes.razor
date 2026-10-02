@@ -341,7 +341,7 @@
     }
 </div>
 
-<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo Cliente empresarial" : "Editar Cliente empresarial")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer @ref="_drawerCliente" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo Cliente empresarial" : "Editar Cliente empresarial")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
@@ -370,7 +370,7 @@
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawerCliente?.SolicitarCierreAsync() ?? Task.CompletedTask">
             Cancelar
         </Boton>
         @if (_editandoId is null)
@@ -425,12 +425,12 @@
     EnProgreso="_eliminandoFiltroGuardado"
     OnConfirmar="ConfirmarEliminarFiltroGuardadoAsync" />
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarGuardarFiltro" VisibleChanged="CerrarModalGuardarFiltro" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
+<Modal @ref="_modalGuardarFiltro" HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarGuardarFiltro" VisibleChanged="CerrarModalGuardarFiltro" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
     <ChildContent>
         <CampoTexto Etiqueta="Nombre" Valor="@_nombreFiltroNuevo" ValorChanged="v => _nombreFiltroNuevo = v" Placeholder="Críticos sin CIF verificado" />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => CerrarModalGuardarFiltro(false)">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => _modalGuardarFiltro?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
     </Pie>
 </Modal>

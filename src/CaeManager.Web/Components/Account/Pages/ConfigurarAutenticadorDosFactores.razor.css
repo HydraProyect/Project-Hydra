@@ -202,18 +202,17 @@
     margin-bottom: var(--space-2);
 }
 
-.boton-primario {
-    width: auto;
-    min-height: 48px;
+/* El aspecto lo da <Boton Variante=Primario>; esta clase solo coloca el botón en la tarjeta (D-30: antes era una copia a pelo del primario). */
+.boton-2fa {
     margin-top: var(--space-6);
-    border-radius: var(--radius-md);
-    border: none;
-    background-color: var(--color-primario-fondo);
-    color: var(--color-primario-texto);
-    font: var(--font-label-md);
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
+}
+
+/* Boton no parte la etiqueta (nowrap) y recorta el desborde: «Activar autenticación en dos pasos» a 320 px de ancho se cortaría. Con
+   la especificidad de .boton + esta clase, la etiqueta pasa a línea y el botón crece en alto (su altura es un mínimo). */
+.boton.boton-2fa {
+    white-space: normal;
+    text-align: center;
+    padding-block: var(--space-2);
 }
 
 @media (max-width: 1024px) {
@@ -224,12 +223,7 @@
 @media (max-width: 640px) {
     .clave-manual { align-items: flex-start; flex-direction: column; }
     .tarjeta-2fa ::deep input { max-width: 100%; }
-    .boton-primario { width: 100%; }
-}
-
-.boton-primario:hover {
-    background-color: var(--color-primario-fondo-hover);
-    transform: translateY(-1px);
+    .boton-2fa { width: 100%; }
 }
 
 /*

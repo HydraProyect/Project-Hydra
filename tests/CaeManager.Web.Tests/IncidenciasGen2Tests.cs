@@ -595,6 +595,21 @@ public class IncidenciasGen2Tests : BunitContext
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "los datos cargados de la incidencia no son un cambio");
     }
 
+    /// <summary>D-05: «Cancelar» cierra como la X.</summary>
+    [Fact]
+    public async Task Cancelar_la_edicion_con_la_descripcion_cambiada_pregunta_y_sin_tocar_cierra()
+    {
+        var (cut, _) = await AbrirEdicionDeAlfaAsync();
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
+
+        await cut.FindAll(".menu-acciones-disparador")[0].ClickAsync(new());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new());
+        await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Caída en la nave 2" });
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
     [Fact]
     public async Task Aviso_la_edicion_con_la_descripcion_cambiada_pregunta_al_salir()
     {

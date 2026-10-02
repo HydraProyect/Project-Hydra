@@ -28,6 +28,9 @@ namespace CaeManager.Web.Features.Delegaciones.Pages;
 
 public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
+    private Modal? _modalAutorizar;
+    private Modal? _modalAlta;
+    private Modal? _modalSoporte;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosAutorizarOperadorCaeExterno> TextosAutorizar { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosAccesosSoporteTalveg> TextosAccesos { get; set; } = default!;

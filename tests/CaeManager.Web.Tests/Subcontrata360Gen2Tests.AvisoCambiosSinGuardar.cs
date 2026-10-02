@@ -73,6 +73,20 @@ public partial class Subcontrata360Gen2Tests
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "el centro y la fecha preseleccionados no son un cambio de quien edita");
     }
 
+    /// <summary>D-05: «Cancelar» del drawer de verificación cierra como la X.</summary>
+    [Fact]
+    public async Task Cancelar_la_verificacion_a_medias_pregunta_y_sin_tocar_cierra()
+    {
+        var cut = await AbrirVerificacionAsync();
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
+
+        await Boton(cut, "+ Registrar verificación").ClickAsync(new MouseEventArgs());
+        await Control(cut, "Observaciones").InputAsync(new ChangeEventArgs { Value = "Verificado por teléfono." });
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
     [Fact]
     public async Task Aviso_cerrar_el_drawer_no_pregunta_por_la_edicion_en_linea()
     {

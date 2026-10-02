@@ -423,6 +423,74 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
         cut.FindAll(".modal-pie button").Should().NotContain(b => b.TextContent.Trim() == "Salir y descartar");
     }
 
+    // ------------------------------------------------ D-05: «Cancelar» de los cuatro drawers cierra como la X
+
+    private async Task<IRenderedComponent<CentroWorkspacePanel>> AbrirDrawerAsync(string drawer) => drawer switch
+    {
+        "prioridad" => await AbrirPrioridadAsync(),
+        "reclamacion" => await AbrirReclamacionAsync(),
+        "acceso" => await AbrirAltaDeAccesoAsync(),
+        _ => await AbrirConfigurarRequisitoAsync(),
+    };
+
+    private static async Task TocarAlgoAsync(IRenderedComponent<CentroWorkspacePanel> cut, string drawer)
+    {
+        switch (drawer)
+        {
+            case "prioridad":
+                await Control(cut, "Asunto").InputAsync(new ChangeEventArgs { Value = "Urgente: prioridad de validación" });
+                break;
+            case "reclamacion":
+                await cut.FindAll(".reclamacion-destinatarios input[type=checkbox]")[1].ChangeAsync(new ChangeEventArgs { Value = false });
+                break;
+            case "acceso":
+                await Control(cut, "Para qué sirve este acceso").InputAsync(new ChangeEventArgs { Value = "Gestión general" });
+                break;
+            default:
+                var bloquea = cut.FindAll("label.campo-checkbox").Single(l => l.TextContent.Contains("Bloquea el acceso")).QuerySelector("input")!;
+                await bloquea.ChangeAsync(new ChangeEventArgs { Value = true });
+                break;
+        }
+    }
+
+    private static Task CancelarDelDrawerAsync(IRenderedComponent<CentroWorkspacePanel> cut) =>
+        cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+    /// <summary>D-05: con algo escrito, «Cancelar» pregunta «¿Descartar cambios?» (como la X) y no lo tira en silencio.</summary>
+    [Theory]
+    [InlineData("prioridad")]
+    [InlineData("reclamacion")]
+    [InlineData("acceso")]
+    [InlineData("requisito")]
+    public async Task Cancelar_con_cambios_pregunta_antes_de_cerrar_el_drawer(string drawer)
+    {
+        var cut = await AbrirDrawerAsync(drawer);
+        await TocarAlgoAsync(cut, drawer);
+
+        await CancelarDelDrawerAsync(cut);
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        cut.FindAll(".drawer-panel").Should().NotBeEmpty("con cambios, Cancelar no cierra hasta que se confirme");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("prioridad")]
+    [InlineData("reclamacion")]
+    [InlineData("acceso")]
+    [InlineData("requisito")]
+    public async Task Cancelar_sin_cambios_cierra_el_drawer_directamente(string drawer)
+    {
+        var cut = await AbrirDrawerAsync(drawer);
+        cut.FindAll(".drawer-panel").Should().NotBeEmpty();
+
+        await CancelarDelDrawerAsync(cut);
+
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+    }
+
     // ------------------------------------------------ lote 1: edición en línea de Información
 
     private async Task<IRenderedComponent<CentroWorkspacePanel>> EditarInformacionAsync()

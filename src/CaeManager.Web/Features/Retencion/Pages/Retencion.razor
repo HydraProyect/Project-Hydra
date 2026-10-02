@@ -177,7 +177,7 @@
     }
 </div>
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_aProgramar is not null" VisibleChanged="v => { if (!v) _aProgramar = null; }"
+<Modal @ref="_modalProgramar" HayCambios="() => HayCambiosSinGuardar" Visible="_aProgramar is not null" VisibleChanged="v => { if (!v) _aProgramar = null; }"
        Titulo="Autorizar la destrucción" CerrarAlHacerClicFuera="!_procesando">
     <ChildContent>
         @if (_aProgramar is not null)
@@ -200,7 +200,7 @@
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesando" OnClick="() => _aProgramar = null">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesando" OnClick="() => _modalProgramar?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_procesando" OnClick="ProgramarAsync">Autorizar</Boton>
     </Pie>
 </Modal>

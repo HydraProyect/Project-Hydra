@@ -499,6 +499,21 @@ public class RetencionTests : BunitContext
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "la fecha propuesta no es un cambio de quien autoriza");
     }
 
+    /// <summary>D-05: «Cancelar» del diálogo de autorizar cierra como la X.</summary>
+    [Fact]
+    public async Task Cancelar_autorizar_con_otra_fecha_pregunta_y_sin_tocar_cierra()
+    {
+        var (cut, _) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".modal-pie", "[role=dialog]");
+
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+        await cut.Find("[role=dialog] input[type=date]").InputAsync(new ChangeEventArgs { Value = "2031-05-20" });
+        await cut.PulsarCancelarDelPieAsync(".modal-pie");
+
+        await cut.ComprobarQuePreguntaYDescartarAsync("[role=dialog] input[type=date]");
+    }
+
     [Fact]
     public async Task Aviso_autorizar_con_otra_fecha_pregunta_al_salir()
     {

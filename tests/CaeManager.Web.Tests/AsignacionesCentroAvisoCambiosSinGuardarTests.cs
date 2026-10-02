@@ -153,6 +153,38 @@ public class AsignacionesCentroAvisoCambiosSinGuardarTests : BunitContext
         cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
     }
 
+    /// <summary>D-05: «Cancelar» de la baja en lote cierra como la X.</summary>
+    [Fact]
+    public async Task Cancelar_la_baja_en_lote_con_otra_fecha_pregunta_y_sin_tocar_cierra()
+    {
+        var cut = await AbrirBajaEnLoteAsync();
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".modal-pie", ".modal-contenido");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Etiqueta == "Fecha de baja"));
+        await CambiarFechaDeBajaAsync(cut);
+        await cut.PulsarCancelarDelPieAsync(".modal-pie");
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".modal-contenido").Should().BeEmpty("al descartar se cierra");
+    }
+
+    /// <summary>D-05: «Cancelar» del alta masiva cierra como la X.</summary>
+    [Fact]
+    public async Task Cancelar_el_alta_masiva_con_un_trabajador_marcado_pregunta_y_sin_tocar_cierra()
+    {
+        var (cut, _) = await AbrirAltaMasivaAsync();
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
+
+        await cut.InvokeAsync(() => cut.Instance.AbrirAsync([CentroId]));
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+        await MarcarTrabajadorAsync(cut);
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
     [Fact]
     public async Task Alta_masiva_con_el_centro_preseleccionado_y_la_fecha_de_hoy_no_pregunta()
     {

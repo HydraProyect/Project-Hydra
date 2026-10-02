@@ -50,6 +50,9 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 /// </summary>
 public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
+    private Modal? _modalReclamarFaltantes;
+    private Modal? _modalCrearGestion;
+
     [Parameter] public Guid TrabajadorId { get; set; }
 
     [Inject] private IMediator Mediator { get; set; } = default!;

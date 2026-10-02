@@ -376,7 +376,7 @@
     </aside>
 }
 
-<Drawer HayCambios="() => HayCambiosEnElDrawer" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<Drawer @ref="_drawerProyecto" HayCambios="() => HayCambiosEnElDrawer" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
     <ChildContent>
         @if (_mensajeErrorFormulario is not null)
         {
@@ -402,11 +402,11 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Primario" OnClick="CrearProyectoAsync" Cargando="_guardando">@Textos["BotonCrearProyecto"]</Boton>
-        <Boton OnClick="() => CerrarDrawerAsync(false)" Variante="VarianteBoton.Secundario">@Textos["BotonCancelar"]</Boton>
+        <Boton OnClick="() => _drawerProyecto?.SolicitarCierreAsync() ?? Task.CompletedTask" Variante="VarianteBoton.Secundario">@Textos["BotonCancelar"]</Boton>
     </Pie>
 </Drawer>
 
-<Modal HayCambios="() => HayCambiosEnElModalDeCierre" Visible="_mostrarCerrarConfirm" VisibleChanged="v => _mostrarCerrarConfirm = v" Titulo="@Textos["AccionCerrarProyecto"]" CerrarAlHacerClicFuera="!_guardando">
+<Modal @ref="_modalCerrarProyecto" HayCambios="() => HayCambiosEnElModalDeCierre" Visible="_mostrarCerrarConfirm" VisibleChanged="v => _mostrarCerrarConfirm = v" Titulo="@Textos["AccionCerrarProyecto"]" CerrarAlHacerClicFuera="!_guardando">
     <ChildContent>
         <p>@Textos["ModalCerrarExplicacion"]</p>
         <CampoTexto Etiqueta="@Textos["EtiquetaFechaCierre"]" Type="date" Valor="@_fechaCierre" ValorChanged="v => _fechaCierre = v" />
@@ -416,7 +416,7 @@
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _mostrarCerrarConfirm = false">@Textos["BotonCancelar"]</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _modalCerrarProyecto?.SolicitarCierreAsync() ?? Task.CompletedTask">@Textos["BotonCancelar"]</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="ConfirmarCerrarAsync">@Textos["AccionCerrarProyecto"]</Boton>
     </Pie>
 </Modal>
@@ -453,6 +453,8 @@
 </LimiteDeErrores>
 
 @code {
+    private Modal? _modalCerrarProyecto;
+    private Drawer? _drawerProyecto;
     // De instancia, no static: las etiquetas salen del localizador inyectado.
     private IReadOnlyList<PestanaDefinicion>? _pestanasDetalle;
 

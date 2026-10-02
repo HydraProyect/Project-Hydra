@@ -212,7 +212,7 @@ else
     </div>
 }
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_vigenciaVisible" VisibleChanged="v => _vigenciaVisible = v" Titulo="@(_soloVigencia ? "Anotar vigencia" : "Marcar como aceptado")" CerrarAlHacerClicFuera="!_confirmandoVigencia">
+<Modal @ref="_modalVigencia" HayCambios="() => HayCambiosSinGuardar" Visible="_vigenciaVisible" VisibleChanged="v => _vigenciaVisible = v" Titulo="@(_soloVigencia ? "Anotar vigencia" : "Marcar como aceptado")" CerrarAlHacerClicFuera="!_confirmandoVigencia">
     <ChildContent>
         @if (_idsVigenciaEnBloque.Count > 1)
         {
@@ -237,12 +237,12 @@ else
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_confirmandoVigencia" OnClick="() => _vigenciaVisible = false">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_confirmandoVigencia" OnClick="() => _modalVigencia?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_confirmandoVigencia" OnClick="ConfirmarAceptadoAsync">@(_soloVigencia ? "Guardar vigencia" : "Marcar aceptado")</Boton>
     </Pie>
 </Modal>
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_rechazoVisible" VisibleChanged="v => _rechazoVisible = v" Titulo="Marcar como rechazado" CerrarAlHacerClicFuera="!_rechazando">
+<Modal @ref="_modalRechazo" HayCambios="() => HayCambiosSinGuardar" Visible="_rechazoVisible" VisibleChanged="v => _rechazoVisible = v" Titulo="Marcar como rechazado" CerrarAlHacerClicFuera="!_rechazando">
     <ChildContent>
         <CampoSelect Etiqueta="Causa del rechazo" Valor="@_causaRechazo" ValorChanged="v => _causaRechazo = v">
             @foreach (var causa in Enum.GetValues<CausaRechazoAcreditacion>())
@@ -254,7 +254,7 @@ else
                         Placeholder="Texto literal del portal, si lo hay" Filas="3" MensajeError="@_errorMotivo" />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_rechazando" OnClick="() => _rechazoVisible = false">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_rechazando" OnClick="() => _modalRechazo?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_rechazando" OnClick="ConfirmarRechazoAsync">Marcar rechazado</Boton>
     </Pie>
 </Modal>
@@ -264,6 +264,8 @@ else
 <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarModalesDeEdicion" />
 
 @code {
+    private Modal? _modalRechazo;
+    private Modal? _modalVigencia;
     /// <summary>
     /// P1-E2: único punto de verdad de «hay cambios» en esta pestaña: lo tecleado en el
     /// modal de vigencia (la fecha) o en el de rechazo (el detalle), o su confirmación en

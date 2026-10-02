@@ -8,6 +8,7 @@ namespace CaeManager.Web.Features.Empresas.Components;
 
 public partial class FormularioRapidoEmpresa : ComponentBase
 {
+    private Modal? _modal;
     private string _razonSocial = string.Empty;
     private string _cif = string.Empty;
     private bool _guardando;

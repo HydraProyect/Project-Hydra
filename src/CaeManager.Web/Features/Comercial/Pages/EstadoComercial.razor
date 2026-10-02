@@ -114,7 +114,7 @@
     }
 </div>
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="FormularioVincularVisible" VisibleChanged="CerrarFormularioVincular"
+<Modal @ref="_modalVincular" HayCambios="() => HayCambiosSinGuardar" Visible="FormularioVincularVisible" VisibleChanged="CerrarFormularioVincular"
        Titulo="Vincular suscripción de Stripe" CerrarAlHacerClicFuera="!_vinculando">
     <ChildContent>
         @if (_tenantAVincular is not null)
@@ -141,7 +141,7 @@
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_vinculando" OnClick="() => CerrarFormularioVincular(false)">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_vinculando" OnClick="() => _modalVincular?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_vinculando" OnClick="PedirConfirmacionVincular">Vincular</Boton>
     </Pie>
 </Modal>

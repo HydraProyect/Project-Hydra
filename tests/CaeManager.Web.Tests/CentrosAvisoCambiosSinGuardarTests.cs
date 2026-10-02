@@ -214,6 +214,37 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "ni el drawer ni el modal tienen nada escrito por quien edita");
     }
 
+    /// <summary>D-05: «Cancelar» del alta de centro cierra como la X.</summary>
+    [Fact]
+    public async Task Cancelar_el_alta_de_centro_a_medias_pregunta_y_sin_tocar_cierra()
+    {
+        var cut = await AbrirAltaAsync(Renderizar());
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
+
+        await AbrirAltaAsync(cut);
+        await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
+    /// <summary>D-05: «Cancelar» del modal «Nuevo Cliente empresarial» (alta rápida) cierra como la X.</summary>
+    [Fact]
+    public async Task Cancelar_el_modal_de_crear_Cliente_con_lo_escrito_pregunta()
+    {
+        var cut = await AbrirAltaAsync(Renderizar());
+        await CrearClienteDesdeElSelectorAsync(cut, "Hierros Aragón");
+        await EscribirAsync(cut, "Identificación fiscal", "B50123456");
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?",
+            "«Cancelar» del modal con algo escrito pregunta antes de tirarlo");
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "Nuevo Cliente empresarial", "hasta que se confirme, el modal sigue abierto");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo Cliente empresarial");
+    }
+
     [Fact]
     public async Task Lo_escrito_en_el_modal_de_crear_Cliente_pregunta_al_salir_y_al_cerrarlo_con_la_X()
     {

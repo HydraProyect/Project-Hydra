@@ -17,6 +17,7 @@ namespace CaeManager.Web.Features.Comunicaciones.Pages;
 
 public partial class Macros : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
+    private Drawer? _drawerMacro;
     /// <summary>Largo máximo del resumen del contenido bajo el título de cada fila.</summary>
     internal const int LongitudResumen = 96;
 

@@ -71,6 +71,7 @@ public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
 
 public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
+    private Drawer? _drawerUsuario;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;

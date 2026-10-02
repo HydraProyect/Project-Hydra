@@ -36,10 +36,10 @@
     Qué NO cubre: cerrar el drawer o el modal que contiene el formulario no es navegar.
     La X, Escape o el clic en el fondo preguntan «¿Descartar cambios?» si el formulario
     pasa ese mismo HayCambios a su Drawer/Modal (ConfirmarDescartarCambios, P1-E2b);
-    «Cancelar» solo pregunta en los formularios que llaman a SolicitarCierreAsync del Drawer o Modal por
-    referencia (D-05: ModalContactoAgenda, Trabajadores, ClavesApi, Conexiones); en el resto cierra sin
-    preguntar aunque pase HayCambios. DrawerYModalConCamposPreguntanAlDescartarTests exige HayCambios en todo
-    Drawer o Modal con campos, no que su Cancelar lo use.
+    «Cancelar» (o «Descartar») del pie pregunta igual que la X: el formulario llama a SolicitarCierreAsync del
+    Drawer o Modal por referencia (@ref) en vez de poner Visible a false (D-05).
+    DrawerYModalConCamposPreguntanAlDescartarTests exige las dos cosas: HayCambios en todo Drawer o Modal con
+    campos y que, si lo pasa, su «Cancelar» use SolicitarCierreAsync.
 *@
 
 <NavigationLock OnBeforeInternalNavigation="AntesDeSalirAsync" ConfirmExternalNavigation="HayCambios()" />

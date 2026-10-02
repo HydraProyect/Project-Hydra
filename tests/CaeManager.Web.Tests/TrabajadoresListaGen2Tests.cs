@@ -1250,6 +1250,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
         // Sin await: la consulta de faltantes de A queda retenida.
         var eleccionA = cut.InvokeAsync(() => campo.Instance.ValorChanged.InvokeAsync(centroA.Id.ToString()));
         await cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        // D-05: con el centro ya elegido, «Cancelar» pregunta como la X; se descarta para cerrar.
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
         cut.FindComponents<CampoBuscarSelect>().Should().BeEmpty("Cancelar cierra el diálogo");
         await BotonAsignarACentro(cut).ClickAsync(new MouseEventArgs());
         cut.FindComponent<CampoBuscarSelect>().Instance.Valor.Should().BeNullOrEmpty("es un diálogo nuevo");
@@ -1572,6 +1574,9 @@ public class TrabajadoresListaGen2Tests : BunitContext
         await SalirYComprobarQuePreguntaAsync(cut);
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new MouseEventArgs());
         await cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        // D-05: «Cancelar» cierra como la X: con el nombre escrito pregunta, y descartar es lo que lo tira a propósito.
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
 
         await SalirYComprobarQueNoPreguntaAsync(cut, "cancelar descarta el nombre a propósito");
     }

@@ -25,6 +25,7 @@ namespace CaeManager.Web.Features.Subcontratas.Pages;
 
 public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
+    private Drawer? _drawerSubcontrata;
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;

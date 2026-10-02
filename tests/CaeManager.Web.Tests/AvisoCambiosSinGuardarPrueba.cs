@@ -33,6 +33,33 @@ internal static class AvisoCambiosSinGuardarPrueba
         cut.FindAll(".modal-pie button").Should().NotContain(b => b.TextContent.Trim() == "Salir y descartar");
     }
 
+    /// <summary>
+    /// D-05: pulsa el «Cancelar» del pie del Drawer o Modal abierto (<paramref name="pie"/> = <c>.drawer-pie</c> o <c>.modal-pie</c>).
+    /// Con el formulario a medias, ese botón cierra como la X: pregunta «¿Descartar cambios?».
+    /// </summary>
+    public static Task PulsarCancelarDelPieAsync<T>(this IRenderedComponent<T> cut, string pie) where T : IComponent =>
+        cut.FindAll(pie + " button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+    /// <summary>
+    /// D-05: tras <see cref="PulsarCancelarDelPieAsync{T}"/> con cambios, comprueba que pregunta «¿Descartar cambios?» (y que lo
+    /// escrito sigue en su sitio: <paramref name="contenedor"/> sigue abierto) y descarta para cerrar.
+    /// </summary>
+    public static async Task ComprobarQuePreguntaYDescartarAsync<T>(this IRenderedComponent<T> cut, string contenedor) where T : IComponent
+    {
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?", "«Cancelar» con cambios pregunta como la X");
+        cut.FindAll(contenedor).Should().NotBeEmpty("hasta que se confirme, no se cierra");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cut.FindAll(contenedor).Should().BeEmpty("al descartar se cierra");
+    }
+
+    /// <summary>D-05: sin cambios, «Cancelar» cierra directamente y no pregunta.</summary>
+    public static async Task ComprobarQueCancelarSinCambiosCierraAsync<T>(this IRenderedComponent<T> cut, string pie, string contenedor) where T : IComponent
+    {
+        await cut.PulsarCancelarDelPieAsync(pie);
+        cut.FindAll(contenedor).Should().BeEmpty("sin cambios, Cancelar cierra directamente");
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+    }
+
     public static Task PulsarEnElAvisoAsync<T>(this IRenderedComponent<T> cut, string texto) where T : IComponent =>
         BotonDelAviso(cut, texto)!.ClickAsync(new MouseEventArgs());
 

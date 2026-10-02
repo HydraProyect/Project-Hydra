@@ -100,6 +100,35 @@ public class DrawerReclamacionLoteAvisoCambiosSinGuardarTests : BunitContext
     private static Task ContinuarAsync(IRenderedComponent<DrawerReclamacionLote> cut) =>
         cut.FindAll(".selector-lote-acciones button").Single(b => b.TextContent.Trim() == "Continuar").ClickAsync(new MouseEventArgs());
 
+    /// <summary>
+    /// D-05 (hallazgo de la revisión puente): su «Cancelar» vive en el hijo <c>SelectorLoteDocumental</c> y llega por <c>OnCancelar</c>;
+    /// cierra como la X: con el filtro cambiado pregunta, sin cambios cierra.
+    /// </summary>
+    [Fact]
+    public async Task Cancelar_con_el_filtro_cambiado_pregunta_y_sin_tocar_cierra()
+    {
+        var cierres = new List<bool>();
+        var cut = Render<DrawerReclamacionLote>(p => p
+            .Add(x => x.Visible, true)
+            .Add(x => x.VisibleChanged, v => cierres.Add(v))
+            .Add(x => x.AmbitosDisponibles, [AmbitoAplicacion.Trabajador])
+            .Add(x => x.AmbitoInicial, AmbitoAplicacion.Trabajador));
+        cut.WaitForAssertion(() => cut.FindAll(".selector-lote-documental input[type=checkbox]").Should().NotBeEmpty());
+
+        await cut.FindAll(".selector-lote-acciones button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        cierres.Should().Equal(false);
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+
+        cierres.Clear();
+        await cut.Find(".selector-lote-documental input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = false });
+        await cut.FindAll(".selector-lote-acciones button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cierres.Should().BeEmpty("con el filtro cambiado, Cancelar pregunta antes de cerrar");
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cierres.Should().Equal(false);
+    }
+
     [Fact]
     public async Task Cambiar_el_filtro_y_salir_pregunta()
     {
