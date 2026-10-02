@@ -208,8 +208,8 @@
     margin-top: var(--space-6);
     border-radius: var(--radius-md);
     border: none;
-    background-color: var(--color-primary-500);
-    color: var(--color-neutral-0);
+    background-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
     font: var(--font-label-md);
     font-weight: 600;
     cursor: pointer;
@@ -228,7 +228,7 @@
 }
 
 .boton-primario:hover {
-    background-color: var(--color-primary-600);
+    background-color: var(--color-primario-fondo-hover);
     transform: translateY(-1px);
 }
 

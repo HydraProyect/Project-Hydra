@@ -75,14 +75,18 @@
 
 /* El mockup pinta las cajas con fondo de superficie opaco porque su página es
    un marcador vacío. Sobre el PDF real un fondo opaco taparía el texto que la
-   caja tiene que rellenar: se conserva translúcido. */
+   caja tiene que rellenar: se conserva translúcido.
+
+   Los colores son de PAPEL (--color-papel-caja-*, tokens.css), no de superficie:
+   la página del PDF es blanca en los dos temas y, con --color-surface al 55 % y
+   --color-text-muted, en oscuro la etiqueta quedaba ~1,1:1 sobre un gris medio. */
 .editor-plantilla-caja {
     position: absolute;
     box-sizing: border-box;
-    border: 1px dashed var(--color-border-control);
+    border: 1px dashed var(--color-papel-caja-borde);
     border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--color-surface) 55%, transparent);
-    color: var(--color-text-muted);
+    background: var(--color-papel-caja-fondo);
+    color: var(--color-papel-caja-texto);
     cursor: move;
     touch-action: none;
     display: flex;
@@ -95,22 +99,22 @@
 }
 
 .editor-plantilla-caja:hover {
-    border-color: var(--color-primary-500);
+    border-color: var(--color-papel-caja-realce);
 }
 
 .editor-plantilla-caja:focus-visible {
-    outline: 2px solid var(--color-primary-500);
+    outline: 2px solid var(--color-papel-caja-realce);
     outline-offset: 2px;
 }
 
 .editor-plantilla-caja-firma {
-    background: color-mix(in srgb, var(--color-surface-subtle) 70%, transparent);
+    background: var(--color-papel-caja-firma-fondo);
 }
 
 .editor-plantilla-caja-seleccionada {
-    border: 2px solid var(--color-primary-500);
-    background: color-mix(in srgb, var(--color-primary-50) 70%, transparent);
-    color: var(--color-primary-700);
+    border: 2px solid var(--color-papel-caja-realce);
+    background: var(--color-papel-caja-seleccionada-fondo);
+    color: var(--color-papel-caja-seleccionada-texto);
 }
 
 .editor-plantilla-caja-etiqueta {
@@ -134,7 +138,7 @@
     font-size: 11px;
     font-weight: 700;
     line-height: 1.2;
-    color: var(--color-danger-700);
+    color: var(--color-papel-caja-obligatorio);
 }
 
 /* 10px y no los 7px del mockup: es el área que se agarra para redimensionar. */
@@ -145,7 +149,7 @@
     width: 10px;
     height: 10px;
     border-radius: 2px;
-    background: var(--color-primary-500);
+    background: var(--color-papel-caja-realce);
     cursor: nwse-resize;
     touch-action: none;
 }

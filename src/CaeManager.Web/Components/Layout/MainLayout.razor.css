@@ -6,8 +6,8 @@
     z-index: 1000;
     padding: var(--space-2) var(--space-4);
     border-radius: var(--radius-md);
-    background-color: var(--color-primary-500);
-    color: var(--color-neutral-0);
+    background-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
     font: var(--font-label-md);
     text-decoration: none;
     transform: translateY(-200%);

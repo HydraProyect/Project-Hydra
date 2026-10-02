@@ -230,8 +230,8 @@
     padding: 0 var(--space-4);
     border: none;
     border-radius: var(--radius-md);
-    background-color: var(--color-primary-500);
-    color: var(--color-neutral-0);
+    background-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
     font: var(--font-body-md);
     cursor: pointer;
 }

@@ -164,9 +164,11 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
     /// </summary>
     private static readonly Dictionary<string, string> DoblePapelCongelado = new(StringComparer.Ordinal)
     {
-        ["--color-primary-500"] = "botón primario y chips activos: 6,27:1 en claro, 2,65:1 en oscuro",
-        ["--color-primary-600"] = "hover del botón primario: 8,31:1 en claro, 1,44:1 en oscuro",
-        ["--color-success-700"] = "círculo del stepper completado: 5,02:1 en claro, 1,74:1 en oscuro",
+        // El botón primario, sus copias y sus chips activos ya no usan --color-primary-500/600 de fondo (pasaron a
+        // --color-primario-fondo/-hover, ContrasteDeComponentesPorTemaTests); quedan como fondo los rellenos sin letra (barras, interruptores,
+        // el punto de la leyenda) y el paso actual de Importación, cuya letra es --color-surface.
+        ["--color-primary-500"] = "rellenos sin letra (barras, pistas de interruptor) y paso actual de Importación (letra --color-surface); no medido par a par",
+        ["--color-success-700"] = "círculo del stepper completado: la letra ya tiene token propio (--color-exito-solido-texto); el relleno sigue siendo el token de texto",
         ["--color-warning-700"] = "punto de la leyenda del donut: 5,02:1 en claro, 1,67:1 en oscuro",
         ["--color-danger-500"] = "toast de error y botón destructivo: 3,76:1 en los dos temas",
         ["--color-success-500"] = "toast de éxito: 2,28:1 en los dos temas",
