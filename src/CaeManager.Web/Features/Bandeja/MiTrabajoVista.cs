@@ -40,6 +40,14 @@ public sealed record GrupoMiTrabajo(
     string? ResumenCalendario,
     string? ResumenCabecera);
 
+/// <summary>
+/// Tramo de filas consecutivas de la misma gestión sobre el mismo trabajador
+/// (D-03): <see cref="Colapsable"/> cuando son al menos
+/// <see cref="MiTrabajoVista.MinimoParaAgrupar"/>. Solo cambia cómo se pinta; las
+/// filas, sus acciones y los recuentos son los mismos.
+/// </summary>
+public sealed record LoteMiTrabajo(string Clave, IReadOnlyList<FilaMiTrabajo> Filas, bool Colapsable);
+
 /// <param name="AlcanceCero">Quien mira no alcanza nada en este Tenant (<see cref="MiTrabajoTenantDto.AlcanceCero"/>).</param>
 public sealed record FilaCarteraMiTrabajo(Guid TenantId, string Nombre, int Total, int Bloqueos, bool AlcanceCero);
 
@@ -207,6 +215,42 @@ public sealed class MiTrabajoVista
 
         return grupos;
     }
+
+    /// <summary>Tramos de la misma gestión sobre el mismo trabajador a partir de los que se pliegan en una sola fila.</summary>
+    public const int MinimoParaAgrupar = 3;
+
+    /// <summary>
+    /// Agrupa filas consecutivas del mismo Tipo, trabajador, severidad, Cliente
+    /// empresarial, plataforma y Centro (D-03: 10
+    /// «Pendiente de envío» por trabajador). Nunca pliega un Bloqueo —lo que
+    /// bloquea se ve entero— ni filas sin trabajador. Conserva el orden de pantalla.
+    /// </summary>
+    public static IReadOnlyList<LoteMiTrabajo> AgruparPorTrabajador(IReadOnlyList<FilaMiTrabajo> filas)
+    {
+        var lotes = new List<LoteMiTrabajo>();
+        var repeticiones = new Dictionary<string, int>();
+        var i = 0;
+        while (i < filas.Count)
+        {
+            var clave = ClaveLote(filas[i]);
+            var j = i + 1;
+            while (clave is not null && j < filas.Count && ClaveLote(filas[j]) == clave) j++;
+            var tramo = filas.Skip(i).Take(j - i).ToList();
+            // Dos tramos con la misma clave base (otras filas de por medio) no pueden compartir
+            // @key ni estado de apertura: se numera cada repetición.
+            var unica = clave is null ? filas[i].Item.Id : $"{clave}#{repeticiones.GetValueOrDefault(clave)}";
+            if (clave is not null) repeticiones[clave] = repeticiones.GetValueOrDefault(clave) + 1;
+            lotes.Add(new LoteMiTrabajo(unica, tramo, clave is not null && tramo.Count >= MinimoParaAgrupar));
+            i = j;
+        }
+        return lotes;
+    }
+
+    /// <summary>Identifica el tramo de la fila; null si la fila no se agrupa nunca.</summary>
+    public static string? ClaveLote(FilaMiTrabajo fila) =>
+        fila.Severidad == SeveridadMiTrabajo.Bloqueo || fila.Item.TrabajadorId is not { } trabajador
+            ? null
+            : $"{fila.TenantId}|{fila.Item.Tipo}|{trabajador}|{fila.Severidad}|{fila.Item.ClienteNombre}|{fila.Item.ProveedorNombre}|{fila.Item.Subtitulo}|{fila.Item.EsAltaNueva}";
 
     public string Titular(FiltroMiTrabajo filtro)
     {

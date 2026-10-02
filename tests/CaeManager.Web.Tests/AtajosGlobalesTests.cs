@@ -61,6 +61,8 @@ public class AtajosGlobalesTests : BunitContext
     [Theory]
     [InlineData("p", "/proyectos")]
     [InlineData("i", "/incidencias")]
+    [InlineData("v", "/visitas")]
+    [InlineData("m", "/mi-trabajo")]
     public void IrA_navega_a_las_dos_areas_nuevas_con_letra_directa(string tecla, string rutaEsperada)
     {
         var cut = Render<AtajosGlobales>();
@@ -85,6 +87,8 @@ public class AtajosGlobalesTests : BunitContext
 
         cut.Markup.Should().Contain("g p").And.Contain("Ir a Proyectos");
         cut.Markup.Should().Contain("g i").And.Contain("Ir a Incidencias");
+        cut.Markup.Should().Contain("g v").And.Contain("Ir a Visitas");
+        cut.Markup.Should().Contain("g m").And.Contain("Ir a Mi trabajo");
     }
 
     /// <summary>

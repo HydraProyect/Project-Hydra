@@ -469,7 +469,9 @@
         else
         {
             <div class="campo" role="group">
-                <div class="lista-seleccion-multiple">
+                @* Altura natural (D-31): con una caja de 200 px y barra de desplazamiento, 6 filas
+                   dejaban cortado el texto de ayuda; el propio diálogo desplaza si no cabe. *@
+                <div class="lista-seleccion-multiple lista-seleccion-multiple-natural">
                     @foreach (var empresa in _empresasDelGestor)
                     {
                         <label class="campo-checkbox">

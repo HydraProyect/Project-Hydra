@@ -12,6 +12,11 @@
     scrollbar-width: thin;
 }
 
+.pestanas-lista.pestanas-lista-envuelta {
+    flex-wrap: wrap;
+    overflow-x: visible;
+}
+
 .pestanas-boton {
     display: inline-flex;
     align-items: center;

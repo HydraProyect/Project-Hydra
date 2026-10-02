@@ -221,35 +221,57 @@
                                 }
 
                                 @{ string? clienteAnterior = null; var primera = true; }
-                                @foreach (var fila in grupo.Filas)
+                                @foreach (var lote in MiTrabajoVista.AgruparPorTrabajador(grupo.Filas))
                                 {
-                                    var cliente = fila.Item.ClienteNombre ?? Textos["SinCliente"];
-                                    @if (_agrupar == AgruparMiTrabajo.Tenant && _orden == OrdenMiTrabajo.Cliente && (primera || cliente != clienteAnterior))
+                                    var abiertoLote = LoteAbierto(lote);
+                                    var cabeza = lote.Filas[0];
+                                    var clienteLote = cabeza.Item.ClienteNombre ?? Textos["SinCliente"];
+                                    @if (_agrupar == AgruparMiTrabajo.Tenant && _orden == OrdenMiTrabajo.Cliente && (primera || clienteLote != clienteAnterior))
                                     {
-                                        <div class="mi-trabajo-subcabecera">@cliente</div>
+                                        <div class="mi-trabajo-subcabecera">@clienteLote</div>
                                     }
-                                    clienteAnterior = cliente;
+                                    clienteAnterior = clienteLote;
                                     primera = false;
-                                    <div @key="fila.Item.Id" class="@ClaseFila(fila)" role="button" tabindex="0"
-                                         aria-label="@($"{fila.Item.Titulo} · {fila.TenantNombre}")"
-                                         @onclick="() => AbrirDetalle(fila)">
-                                        <span class="mi-trabajo-fila-cuerpo">
-                                            <span class="mi-trabajo-fila-linea">
-                                                <Badge Tono="TonoSeveridad(fila.Severidad)" Tamano="TamanoBadge.Pequeno">@TipoItemBandejaUi.Texto(fila.Item)</Badge>
-                                                <span class="mi-trabajo-fila-titulo">@fila.Item.Titulo</span>
-                                                <span class="mi-trabajo-fila-sujeto">· @MiTrabajoVista.Sujeto(fila.Item)</span>
-                                            </span>
-                                            <span class="mi-trabajo-fila-contexto">@ContextoFila(fila)</span>
-                                        </span>
-                                        <span class="mi-trabajo-fila-derecha" @onclick:stopPropagation="true">
-                                            @if (fila.Item.Fecha is { } fecha)
+                                    @if (lote.Colapsable)
+                                    {
+                                        <button type="button" @key="@("lote-" + lote.Clave)" class="mi-trabajo-lote" aria-expanded="@(abiertoLote ? "true" : "false")"
+                                                @onclick="() => AlternarLote(lote)">
+                                            <span class="@("mi-trabajo-chevron" + (abiertoLote ? "" : " mi-trabajo-chevron-plegado"))"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+                                            <Badge Tono="TonoSeveridad(cabeza.Severidad)" Tamano="TamanoBadge.Pequeno">@TipoItemBandejaUi.Texto(cabeza.Item)</Badge>
+                                            <span class="mi-trabajo-lote-titulo">@Textos["LoteGestiones", lote.Filas.Count]</span>
+                                            <span class="mi-trabajo-fila-sujeto">· @MiTrabajoVista.Sujeto(cabeza.Item)</span>
+                                            @if (!abiertoLote)
                                             {
-                                                <span class="mi-trabajo-fila-fecha">@fecha.ToString(Textos["FormatoDiaMes"], Cultura)</span>
+                                                <span class="mi-trabajo-lote-resumen">@ResumenLote(lote)</span>
                                             }
-                                            <AccionCrossTenant TenantId="fila.TenantId" Item="fila.Item" Token="_token"
-                                                               Titulo="@Textos["AbreEnLaPantalla", fila.TenantNombre]" />
-                                        </span>
-                                    </div>
+                                        </button>
+                                    }
+                                    @if (abiertoLote)
+                                    {
+                                        @foreach (var fila in lote.Filas)
+                                        {
+                                            <div @key="fila.Item.Id" class="@(ClaseFila(fila) + (lote.Colapsable ? " mi-trabajo-fila-en-lote" : ""))" role="button" tabindex="0"
+                                                 aria-label="@($"{fila.Item.Titulo} · {fila.TenantNombre}")"
+                                                 @onclick="() => AbrirDetalle(fila)">
+                                                <span class="mi-trabajo-fila-cuerpo">
+                                                    <span class="mi-trabajo-fila-linea">
+                                                        <Badge Tono="TonoSeveridad(fila.Severidad)" Tamano="TamanoBadge.Pequeno">@TipoItemBandejaUi.Texto(fila.Item)</Badge>
+                                                        <span class="mi-trabajo-fila-titulo">@fila.Item.Titulo</span>
+                                                        <span class="mi-trabajo-fila-sujeto">· @MiTrabajoVista.Sujeto(fila.Item)</span>
+                                                    </span>
+                                                    <span class="mi-trabajo-fila-contexto">@ContextoFila(fila)</span>
+                                                </span>
+                                                <span class="mi-trabajo-fila-derecha" @onclick:stopPropagation="true">
+                                                    @if (fila.Item.Fecha is { } fecha)
+                                                    {
+                                                        <span class="mi-trabajo-fila-fecha">@fecha.ToString(Textos["FormatoDiaMes"], Cultura)</span>
+                                                    }
+                                                    <AccionCrossTenant TenantId="fila.TenantId" Item="fila.Item" Token="_token"
+                                                                       Titulo="@Textos["AbreEnLaPantalla", fila.TenantNombre]" />
+                                                </span>
+                                            </div>
+                                        }
+                                    }
                                 }
 
                                 @if (grupo.ResumenCalendario is { } resumen)

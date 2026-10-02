@@ -24,9 +24,12 @@
     opacity: 0.55;
 }
 
+/* 40 px, la altura del mockup (D-30: medía 45,6 px con el relleno de 14 px y
+   desentonaba junto a los pequeños de 36). Sin relleno vertical: la altura la da el mínimo, y una
+   etiqueta que no cabe crece en vez de desbordar. */
 .boton-medio {
-    padding: 0.875rem 1.5rem; /* 14px 24px */
-    min-height: 44px;
+    padding: 0 1.5rem;
+    min-height: 40px;
 }
 
 .boton-pequeno {
@@ -44,6 +47,10 @@
 */
 @media (max-width: 767px), (pointer: coarse) {
     .boton-pequeno {
+        min-height: 44px;
+    }
+
+    .boton-medio {
         min-height: 44px;
     }
 }

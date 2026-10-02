@@ -55,6 +55,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     private OrdenMiTrabajo _orden = OrdenMiTrabajo.Prioridad;
     private readonly HashSet<string> _abiertos = [];
     private readonly HashSet<Guid> _cerrados = [];
+    private readonly HashSet<string> _lotesAbiertos = [];
     private string? _idAbierto;
     private string? _idEnfocado;
 
@@ -223,12 +224,40 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
             _cerrados.UnionWith(_vista!.Cartera.Select(t => t.TenantId));
     }
 
+    /// <summary>Un tramo se enseña entero si se abrió (con clic, o con j/k al entrar en él) o si hay búsqueda, que debe alcanzar cada gestión.</summary>
+    private bool LoteAbierto(LoteMiTrabajo lote) => !lote.Colapsable
+        || !string.IsNullOrWhiteSpace(_busqueda)
+        || _lotesAbiertos.Contains(lote.Clave);
+
+    /// <summary>j/k no pueden dejar el foco en una fila escondida: abren el tramo al entrar.</summary>
+    private void AbrirLoteDeLaFilaEnfocada()
+    {
+        if (_idEnfocado is null) return;
+        var lote = Grupos
+            .SelectMany(g => MiTrabajoVista.AgruparPorTrabajador(g.Filas))
+            .FirstOrDefault(l => l.Colapsable && l.Filas.Any(f => f.Item.Id == _idEnfocado));
+        if (lote is not null) _lotesAbiertos.Add(lote.Clave);
+    }
+
+    private void AlternarLote(LoteMiTrabajo lote)
+    {
+        if (!_lotesAbiertos.Remove(lote.Clave))
+            _lotesAbiertos.Add(lote.Clave);
+    }
+
+    private static string ResumenLote(LoteMiTrabajo lote)
+    {
+        var titulos = lote.Filas.Select(f => f.Item.Titulo).Distinct().ToList();
+        return string.Join(" · ", titulos.Take(3)) + (titulos.Count > 3 ? " …" : "");
+    }
+
     private void AbrirPliegue(string clave) => _abiertos.Add(clave);
 
     private void VolverAPlegar()
     {
         _abiertos.Clear();
         _cerrados.Clear();
+        _lotesAbiertos.Clear();
     }
 
     private void AbrirDetalle(FilaMiTrabajo fila)
@@ -260,6 +289,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
                 break;
         }
 
+        AbrirLoteDeLaFilaEnfocada();
         StateHasChanged();
         return Task.CompletedTask;
     }

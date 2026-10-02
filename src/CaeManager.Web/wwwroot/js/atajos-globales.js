@@ -8,7 +8,7 @@
 // vigila el emparejamiento leyendo este fichero como texto).
 import { hayDialogoModalAbierto } from './atajos-contexto.js';
 
-const TECLAS_DESTINO = ['c', 'e', 't', 'd', 'a', 'b', 'p', 'i'];
+const TECLAS_DESTINO = ['c', 'e', 't', 'd', 'a', 'b', 'p', 'i', 'v', 'm'];
 const VENTANA_PREFIJO_MS = 900;
 
 export function registrarAtajosGlobales(dotNetRef) {

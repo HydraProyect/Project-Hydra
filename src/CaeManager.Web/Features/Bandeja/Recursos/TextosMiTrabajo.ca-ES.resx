@@ -150,6 +150,9 @@
   <data name="SinCliente" xml:space="preserve">
     <value>Sense client</value>
   </data>
+  <data name="LoteGestiones" xml:space="preserve">
+    <value>{0} gestions</value>
+  </data>
   <data name="Ver" xml:space="preserve">
     <value>Mostra</value>
   </data>

@@ -38,8 +38,12 @@
    tres columnas recuperan ese alto. */
 
 .bandeja-layout {
+    /* Ancho de la lista de hilos (D-26): 360 px por defecto, ajustable con el divisor
+       (variable --bandeja-lista-ancho en <html>, ver panel-redimensionable.js); nunca
+       más del 40 % de la ventana, para no dejar sin sitio a la conversación. */
+    --bandeja-ancho-lista: clamp(260px, var(--bandeja-lista-ancho, 360px), 40vw);
     display: grid;
-    grid-template-columns: 320px minmax(0, 1fr);
+    grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr);
     gap: var(--space-5);
     align-items: start;
     height: calc(100vh - 120px);
@@ -47,7 +51,28 @@
 }
 
 .bandeja-layout:has(.bandeja-cliente) {
-    grid-template-columns: 320px minmax(0, 1fr) 300px;
+    grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr) 300px;
+}
+
+.bandeja-layout {
+    position: relative;
+}
+
+.bandeja-divisor {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--bandeja-ancho-lista);
+    width: var(--space-5);
+    cursor: col-resize;
+    touch-action: none;
+    z-index: 1;
+}
+
+.bandeja-divisor:hover,
+.bandeja-divisor:focus-visible,
+.bandeja-divisor.divisor-arrastrando {
+    background-color: var(--color-primary-200);
 }
 
 .bandeja-columna {
@@ -307,6 +332,7 @@
 }
 
 .bandeja-lista ::deep .bandeja-fila-linea1,
+.bandeja-lista ::deep .bandeja-fila-linea2,
 .bandeja-lista ::deep .bandeja-fila-linea3 {
     display: flex;
     align-items: center;
@@ -330,9 +356,9 @@
 
 .bandeja-lista ::deep .bandeja-fila-remitente {
     font: var(--font-label-md);
+    font-weight: 600;
     color: var(--color-text);
-    flex-shrink: 0;
-    max-width: 45%;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -352,6 +378,7 @@
 .bandeja-lista ::deep .bandeja-fila-asunto {
     font: var(--font-body-md);
     color: var(--color-text);
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -630,16 +657,20 @@ a.bandeja-documento-citado-nombre:hover {
    documentados en vez de uno solo. --- */
 
 @media (max-width: 1439px) {
+    .bandeja-layout {
+        --bandeja-ancho-lista: clamp(260px, var(--bandeja-lista-ancho, 300px), 40vw);
+    }
+
     .bandeja-layout,
     .bandeja-layout:has(.bandeja-cliente) {
-        grid-template-columns: 280px minmax(0, 1fr) 280px;
+        grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr) 280px;
     }
 }
 
 @media (max-width: 1279px) {
     .bandeja-layout,
     .bandeja-layout:has(.bandeja-cliente) {
-        grid-template-columns: 260px minmax(0, 1fr);
+        grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr);
     }
 
     .bandeja-cliente {
@@ -657,5 +688,11 @@ a.bandeja-documento-citado-nombre:hover {
     .bandeja-columna {
         height: auto;
         max-height: 70vh;
+    }
+}
+
+@media (max-width: 1023px) {
+    .bandeja-divisor {
+        display: none;
     }
 }

@@ -1,5 +1,9 @@
 @inherits LayoutComponentBase
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> TextosComunes
 
+<a class="saltar-al-contenido" href="#contenido-principal">@TextosComunes["SaltarAlContenido"]</a>
 <div class="shell">
     <aside class="barra-lateral">
         <div class="marca">
@@ -59,7 +63,7 @@
         <SesionDelCircuito @rendermode="InteractiveServer" />
         <AvisoSoloConsulta />
 
-        <main class="contenido">
+        <main class="contenido" id="contenido-principal" tabindex="-1">
             @* P1-E1: un fallo de la página se queda dentro de <main>; barra lateral y
                cabecera siguen vivas. Cubre el renderizado estático y el prerenderizado;
                una página InteractiveServer es raíz de su propio circuito y este límite no

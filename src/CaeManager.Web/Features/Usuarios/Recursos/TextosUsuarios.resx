@@ -97,7 +97,7 @@
     <value>Guardar</value>
   </data>
   <data name="AsignarEmpresasVolver" xml:space="preserve">
-    <value>Volver</value>
+    <value>Cancelar</value>
   </data>
   <data name="AsignarEmpresasGuardadas" xml:space="preserve">
     <value>Cartera de {0} actualizada.</value>

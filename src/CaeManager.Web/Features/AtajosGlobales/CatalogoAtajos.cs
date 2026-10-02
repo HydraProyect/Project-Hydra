@@ -29,11 +29,14 @@ public static class CatalogoAtajos
     /// recibe — elegir una arbitrariamente sería justo la letra que nadie
     /// adivina. Por eso, de las siete áreas nuevas de HO-006-01 (vehículos,
     /// proyectos, visitas, gestiones, incidencias, calendario,
-    /// comunicaciones), solo dos entran aquí:
+    /// comunicaciones), solo dos entraron entonces; D-28 del recorrido en vivo
+    /// del 2026-10-01 añadió <c>v</c> (visitas, el área de uso diario del Gestor
+    /// CAE; vehículos sigue sin letra) y <c>m</c> (Mi trabajo):
     /// <list type="bullet">
     /// <item><description><c>p</c> → proyectos: inicial libre, sin colisión.</description></item>
     /// <item><description><c>i</c> → incidencias: inicial libre, sin colisión.</description></item>
-    /// <item><description>vehículos/visitas comparten "v" — ninguna de las dos recibe letra.</description></item>
+    /// <item><description>vehículos/visitas comparten "v": la recibe visitas por uso diario; vehículos queda sin letra directa.</description></item>
+    /// <item><description><c>m</c> → Mi trabajo: inicial libre (macros no tiene atajo).</description></item>
     /// <item><description>calendario/comunicaciones comparten "c" con clientes (ya tomada) y entre sí — ninguna recibe letra.</description></item>
     /// <item><description>gestiones no puede usar "g": es el propio prefijo de este mecanismo, no una tecla de destino.</description></item>
     /// </list>
@@ -53,7 +56,9 @@ public static class CatalogoAtajos
         ["a"] = "/centros",
         ["b"] = "/bandeja",
         ["p"] = "/proyectos",
-        ["i"] = "/incidencias"
+        ["i"] = "/incidencias",
+        ["v"] = "/visitas",
+        ["m"] = "/mi-trabajo"
     };
 
     /// <summary>
@@ -76,7 +81,9 @@ public static class CatalogoAtajos
         new("g a", "IrACentros"),
         new("g b", "IrABandeja"),
         new("g p", "IrAProyectos"),
-        new("g i", "IrAIncidencias")
+        new("g i", "IrAIncidencias"),
+        new("g v", "IrAVisitas"),
+        new("g m", "IrAMiTrabajo")
     ];
 
     public static readonly IReadOnlyList<DefinicionAtajo> Acciones =

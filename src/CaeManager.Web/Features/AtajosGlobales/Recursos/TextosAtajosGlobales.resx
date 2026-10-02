@@ -63,6 +63,12 @@
   <data name="IrAIncidencias" xml:space="preserve">
     <value>Ir a Incidencias</value>
   </data>
+  <data name="IrAVisitas" xml:space="preserve">
+    <value>Ir a Visitas</value>
+  </data>
+  <data name="IrAMiTrabajo" xml:space="preserve">
+    <value>Ir a Mi trabajo</value>
+  </data>
   <data name="AccionNuevoAqui" xml:space="preserve">
     <value>Nuevo aquí (en Clientes, Empresas, Centros, Trabajadores o Documentos)</value>
   </data>

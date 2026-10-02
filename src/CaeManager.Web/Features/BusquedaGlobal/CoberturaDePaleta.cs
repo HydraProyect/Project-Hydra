@@ -35,8 +35,9 @@ public static class CoberturaDePaleta
     /// no está limitada a una letra por área: admite varias con la misma
     /// inicial ("Ir a Calendario" e "Ir a Comunicaciones" conviven sin
     /// conflicto), así que las siete entraron aquí aunque solo dos
-    /// (proyectos, incidencias) tengan además atajo directo "g + letra" —
-    /// ver el criterio declarado allí.
+    /// (proyectos, incidencias) tuvieran además atajo directo "g + letra"
+    /// (D-28 del recorrido en vivo del 2026-10-01 añadió "g v", visitas, y "g m",
+    /// Mi trabajo) — ver el criterio declarado allí.
     ///
     /// HO-190-01 (REC-190, DEC-75) añadió "Ir a Mi trabajo" (/bandeja) con
     /// la asimetría exactamente inversa a la de REC-006: esa ruta tiene
