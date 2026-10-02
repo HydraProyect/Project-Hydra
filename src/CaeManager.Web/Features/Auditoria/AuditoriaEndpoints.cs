@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using System.Text.Json;
 using CaeManager.Application.Auditoria.Queries;
@@ -30,7 +31,9 @@ public static class AuditoriaEndpoints
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Auditoría");
 
-            hoja.Cell(1, 1).Value = "Fecha";
+            // La hoja sale de la aplicación y una celda de Excel no lleva zona: se
+            // rotula para que nadie la lea como UTC ni como la hora de su equipo.
+            hoja.Cell(1, 1).Value = "Fecha (hora peninsular)";
             hoja.Cell(1, 2).Value = "Entidad";
             hoja.Cell(1, 3).Value = "Acción";
             hoja.Cell(1, 4).Value = "Usuario";
@@ -62,7 +65,7 @@ public static class AuditoriaEndpoints
                     usuariosPorId[registro.UsuarioId.Value] = nombreUsuario;
                 }
 
-                hoja.Cell(fila, 1).Value = registro.FechaUtc.ToLocalTime();
+                hoja.Cell(fila, 1).Value = registro.FechaUtc.EnHoraPeninsular();
                 hoja.Cell(fila, 2).Value = registro.EntidadTipo;
                 hoja.Cell(fila, 3).Value = registro.Accion;
                 hoja.Cell(fila, 4).Value = nombreUsuario;

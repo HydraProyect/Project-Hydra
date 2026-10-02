@@ -85,7 +85,7 @@
         @if (_expiraEnUtc is not null)
         {
             <p class="descripcion-delegaciones">
-                Expira el @_expiraEnUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm").
+                Expira el @_expiraEnUtc.Value.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm").
             </p>
         }
 

@@ -212,7 +212,7 @@ public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrabl
     }
 
     private static string TextoActualizado(EstadoComercialTenantDto tenant) =>
-        tenant.EstadoComercialActualizadoEnUtc?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—";
+        tenant.EstadoComercialActualizadoEnUtc?.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm") ?? "—";
 
     private async Task CopiarIdAsync(string idSuscripcion)
     {

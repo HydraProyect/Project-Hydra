@@ -7,6 +7,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Plantillas.Components;
+using CaeManager.Domain.Common;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -234,7 +235,7 @@ public class DocumentosGeneradosGen2Tests : BunitContext
         // ni cae en la excepción de Detección/Revisión IA (P9, 2026-09-18). Tercera
         // celda ".dato-generado" (trabajador, empresa, fecha, en ese orden).
         fila.QuerySelectorAll("td.dato-generado").Last().TextContent.Trim()
-            .Should().Be(generado.GeneradoEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm"));
+            .Should().Be(generado.GeneradoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm"));
 
         var enlaces = fila.QuerySelectorAll(".acciones-generado a");
         enlaces.Select(a => a.TextContent.Trim()).Should().Equal(["Ver PDF", "Gestionar"]);

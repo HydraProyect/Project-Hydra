@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf.IO;
@@ -79,7 +80,7 @@ public class EstampadoFirmaEnCampoPdfService : IEstampadoFirmaEnCampoPdfService
         graficos.DrawLine(XPens.Gray, Margen, y, pagina.Width.Point - Margen, y);
         y += 20;
 
-        var fechaLocal = firmadoEnUtc.ToLocalTime();
+        var fechaLocal = firmadoEnUtc.EnHoraPeninsular();
         graficos.DrawString(
             $"Firmado por {firmanteNombre} ({firmanteRol}) el {fechaLocal:dd/MM/yyyy HH:mm}",
             fuenteTexto, XBrushes.Black, new XPoint(Margen, y));

@@ -1,4 +1,5 @@
 using System.Globalization;
+using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.DocumentosIa.Queries;
 using CaeManager.Domain.DocumentosIa;
@@ -180,7 +181,7 @@ public partial class AuditoriaIa : CaeManager.Web.Components.PaginaIntegrableCon
         _ => TonoBadge.Peligro
     };
 
-    private static string FormatearFecha(DateTime utc) => utc.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+    private static string FormatearFecha(DateTime utc) => utc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm");
 
     private static string FormatearCoste(decimal? coste) =>
         coste.HasValue ? $"${coste.Value:F4}" : "—";

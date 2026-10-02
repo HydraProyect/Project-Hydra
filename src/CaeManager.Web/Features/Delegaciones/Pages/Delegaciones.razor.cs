@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Common;
 using CaeManager.Application.Plataforma.Queries.ObtenerAccesosSoporteTalveg;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
@@ -164,7 +165,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private static string TextoVentanaAcceso(AccesoSoporteTalvegDto acceso)
     {
         var fin = acceso.CerradaEnUtc < acceso.ExpiraEnUtc ? acceso.CerradaEnUtc.Value : acceso.ExpiraEnUtc;
-        return $"{acceso.InicioEnUtc.ToLocalTime():dd/MM/yyyy HH:mm} – {fin.ToLocalTime():HH:mm}";
+        return $"{acceso.InicioEnUtc.EnHoraPeninsular():dd/MM/yyyy HH:mm} – {fin.EnHoraPeninsular():HH:mm}";
     }
 
     private string MensajeRevocacion => _delegacionARevocar is not { } aRevocar

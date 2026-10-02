@@ -163,7 +163,7 @@
                     <ChildContent>
                         <RejillaDatos>
                             <DatoRejilla Etiqueta="@Textos["DatoCnae"]" Valor="@(_detalle.Cnae ?? "—")" />
-                            <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
+                            <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
                             <DatoRejilla Etiqueta="@Textos["DatoConvenio"]" Valor="@(_detalle.ConvenioAplicable ?? "—")" Ancho="true" />
                             <DatoRejilla Etiqueta="@Textos["DatoAnexoI"]" Valor="@(_detalle.EsActividadAnexoI ? Textos["Si"] : Textos["No"])" Ancho="true" />
                         </RejillaDatos>

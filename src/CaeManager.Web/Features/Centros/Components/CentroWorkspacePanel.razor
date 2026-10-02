@@ -95,7 +95,7 @@ else
     @if (_ultimaReclamacion is { } reclamacion)
     {
         <p class="workspace-nota-contextual">
-            Última reclamación a este cliente: @reclamacion.FechaEnvioUtc.ToLocalTime().ToString("dd/MM/yyyy")
+            Última reclamación a este cliente: @reclamacion.FechaEnvioUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")
             (@reclamacion.TotalDocumentos documento@(reclamacion.TotalDocumentos == 1 ? "" : "s")).
             @* Al cliente, no al hilo: el deep-link a una conversación concreta
                no existe todavía (Project-Hydra-Negocio/tecnico/05_WORKSPACE_PATTERNS.md § 3.6). *@
@@ -589,7 +589,7 @@ else
                 }
                 @if (_borradorPrioridad.UltimaSolicitudEnviadaEnUtc is { } ultima)
                 {
-                    <p class="workspace-nota-contextual">Ya se pidió prioridad para este centro el @ultima.ToLocalTime().ToString("dd/MM/yyyy HH:mm").</p>
+                    <p class="workspace-nota-contextual">Ya se pidió prioridad para este centro el @ultima.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm").</p>
                 }
                 @if (_mensajeErrorPrioridad is not null)
                 {

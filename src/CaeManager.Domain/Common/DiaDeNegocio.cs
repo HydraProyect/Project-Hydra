@@ -69,10 +69,13 @@ public static class DiaDeNegocio
 
     /// <summary>
     /// Un instante UTC expresado en hora peninsular, para mostrarlo (hora de un
-    /// registro, saludo del día). En vez de <c>ToLocalTime()</c>, que usa la zona
-    /// del servidor (UTC en los contenedores).
+    /// registro, saludo del día). Es la única forma de pintar una fecha u hora al
+    /// usuario —listas, fichas 360, auditoría, notificaciones, exportaciones y el
+    /// PDF de firma—: <c>instanteUtc.EnHoraPeninsular().ToString(...)</c>. Nunca
+    /// <c>ToLocalTime()</c>, que usa la zona del servidor (UTC en los contenedores):
+    /// el trinquete la prohíbe en <c>src/</c> con tolerancia cero.
     /// </summary>
-    public static DateTime EnHoraPeninsular(DateTime instanteUtc)
+    public static DateTime EnHoraPeninsular(this DateTime instanteUtc)
     {
         if (instanteUtc.Kind == DateTimeKind.Local)
             throw new ArgumentException("El instante tiene que estar en UTC, no en la hora local del servidor.", nameof(instanteUtc));

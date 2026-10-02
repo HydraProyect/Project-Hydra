@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.DocumentosIa.Queries;
 using CaeManager.Domain.DocumentosIa;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Domain.Common;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -355,7 +356,7 @@ public class AuditoriaIaPantallaTests : BunitContext
         detalle.QuerySelector(".detalle-auditoria-ia-codigo")!.GetAttribute("title").Should().Be(hash);
         cut.FindComponents<BotonCopiar>().Should().ContainSingle()
             .Which.Instance.Valor.Should().Be(hash, "el componente recibe la huella completa del registro");
-        detalle.TextContent.Should().Contain(decididaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm"));
+        detalle.TextContent.Should().Contain(decididaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm"));
         detalle.QuerySelector("a")!.GetAttribute("href").Should().Be($"/documentos?documentoId={documentoId}");
         Boton(cut, "Cerrar").GetAttribute("aria-expanded").Should().Be("true");
 

@@ -68,7 +68,7 @@
                         <div class="celda-info-preview-subcontrata"><span>@Textos["RotuloTrabajadores"]</span><strong>@_totalTrabajadores</strong></div>
                         <div class="celda-info-preview-subcontrata"><span>@Textos["ColumnaVencidos"]</span><strong>@Fila.Recuentos.TotalVencidas</strong></div>
                         <div class="celda-info-preview-subcontrata"><span>@Textos["RotuloProximosAVencer"]</span><strong>@Fila.Recuentos.TotalProximas</strong></div>
-                        <div class="celda-info-preview-subcontrata"><span>@Textos["RotuloAlta"]</span><strong>@(_detalle.CreadoEnUtc.ToLocalTime().ToString("MM/yyyy", CultureInfo.CurrentCulture))</strong></div>
+                        <div class="celda-info-preview-subcontrata"><span>@Textos["RotuloAlta"]</span><strong>@(_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("MM/yyyy", CultureInfo.CurrentCulture))</strong></div>
                         <div class="celda-info-preview-subcontrata celda-info-preview-subcontrata-ancha"><span>@Textos["RotuloPrestaServicioA"]</span><strong>@TextoPrestaServicioA</strong></div>
                     </div>
                 }

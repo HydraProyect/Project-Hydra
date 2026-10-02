@@ -180,7 +180,7 @@
                 <span class="nombre-vista-rapida-gestion">@vista.TrabajadorNombre</span>
                 <span class="meta-vista-rapida-gestion">
                     <Badge Tono="@TonoEstado(vista.Estado)" Tamano="TamanoBadge.Pequeno">@TextoEstado(vista.Estado)</Badge>
-                    <span>@Textos["VistaRapidaCreadaEl", vista.CreadoEnUtc.ToString("dd/MM/yyyy")]</span>
+                    <span>@Textos["VistaRapidaCreadaEl", vista.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")]</span>
                 </span>
             </div>
             <button type="button" class="boton-cerrar-vista-rapida-gestion" aria-label="@Textos["AriaCerrarVistaRapida"]" @onclick="CerrarVistaRapida"><Icono Nombre="cerrar" /></button>
@@ -190,7 +190,7 @@
             <div class="rejilla-vista-rapida-gestion">
                 <div class="celda-vista-rapida-gestion"><span>@Textos["ColumnaCentro"]</span><strong>@vista.CentroNombre</strong></div>
                 <div class="celda-vista-rapida-gestion"><span>@Textos["ColumnaDocumento"]</span><strong>@vista.TipoDocumentoNombre</strong></div>
-                <div class="celda-vista-rapida-gestion"><span>@Textos["ColumnaCreada"]</span><strong>@vista.CreadoEnUtc.ToString("dd/MM/yyyy")</strong></div>
+                <div class="celda-vista-rapida-gestion"><span>@Textos["ColumnaCreada"]</span><strong>@(vista.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy"))</strong></div>
             </div>
 
             <div class="enlaces-vista-rapida-gestion">

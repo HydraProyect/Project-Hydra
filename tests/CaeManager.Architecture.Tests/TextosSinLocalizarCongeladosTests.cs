@@ -137,7 +137,7 @@ public class TextosSinLocalizarCongeladosTests
         // «Documentación», cabecera de la exportación trabajadores.xlsx (contrato de datos del
         // fichero, igual que el resto de sus columnas, que el detector no ve por no llevar tilde);
         // y falsos positivos del detector de markup: «.ToString("dd/MM/yyyy")» tras
-        // «@gestion.CreadoEnUtc.ToLocalTime()» y los trozos de los ternarios Razor
+        // «@gestion.CreadoEnUtc.EnHoraPeninsular()» y los trozos de los ternarios Razor
         // partidos en varias líneas («@(incidencias == 0», «? Textos["BadgeCompleto"]»… en Trabajador 360,
         // «0 ? Textos["BotonAsignarIgualmente"]» en Trabajadores.razor), cuyo
         // «>» de comparación toma por texto lo que sigue. No se reformatea para esquivar la heurística.

@@ -48,7 +48,7 @@
                     <div class="celda-info-preview-cliente"><span>Gestor CAE</span><strong>@(_nombreEjecutivo ?? "—")</strong></div>
                     <div class="celda-info-preview-cliente"><span>Centros</span><strong>@_resumen.TotalCentros</strong></div>
                     <div class="celda-info-preview-cliente"><span>Trabajadores</span><strong>@_resumen.TotalTrabajadores</strong></div>
-                    <div class="celda-info-preview-cliente"><span>Alta</span><strong>@_resumen.CreadoEnUtc.ToLocalTime().ToString("MM/yyyy")</strong></div>
+                    <div class="celda-info-preview-cliente"><span>Alta</span><strong>@_resumen.CreadoEnUtc.EnHoraPeninsular().ToString("MM/yyyy")</strong></div>
                     <div class="celda-info-preview-cliente"><span>Crítico</span><strong>@(_resumen.EsCritico ? "Sí" : "No")</strong></div>
                 </div>
 

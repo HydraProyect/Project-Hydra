@@ -493,8 +493,9 @@ public class RolesGen2Tests : BunitContext
         var recuento = Pestana(cut, "pendientes").QuerySelector(".badge")!;
         recuento.TextContent.Trim().Should().Be("2");
         recuento.GetAttribute("aria-label").Should().Be("2 pendientes de asignar");
+        // Las altas son instantes UTC (09:12Z y 16:47Z, en verano): se leen en hora peninsular.
         recuento.GetAttribute("title").Should().Be(
-            "2 pendiente(s) de asignar: Aitor Zabala (04/09/2026 09:12); Miren Echeverría (04/09/2026 16:47)");
+            "2 pendiente(s) de asignar: Aitor Zabala (04/09/2026 11:12); Miren Echeverría (04/09/2026 18:47)");
 
         await Pestana(cut, "pendientes").ClickAsync(new MouseEventArgs());
 

@@ -41,7 +41,7 @@
                             {
                                 <tr class="@ClaseFila(clave.Id)">
                                     <td class="claves-api-nombre">@clave.NombreDescriptivo</td><td><code title="Prefijo visible de la clave">@clave.PrefijoVisible…</code></td>
-                                    <td>@clave.CreadaEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</td><td>@(clave.UltimoUsoUtc?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "Nunca")</td>
+                                    <td>@clave.CreadaEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</td><td>@(clave.UltimoUsoUtc?.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm") ?? "Nunca")</td>
                                     <td><Badge Tono="@(clave.EstaActiva ? TonoBadge.Exito : TonoBadge.Neutro)">@(clave.EstaActiva ? "Activa" : "Revocada")</Badge></td>
                                     <td class="claves-api-accion">@if (clave.EstaActiva) { <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo" OnClick="() => PedirRevocacion(clave)" Cargando="@(_procesandoId == clave.Id)">Revocar</Boton> }</td>
                                 </tr>

@@ -158,7 +158,7 @@ else
                             </div>
                         </div>
                         <div class="celda-info-cliente-360"><span>Crítico</span><strong>@(_detalle.EsCritico ? "Sí" : "No")</strong></div>
-                        <div class="celda-info-cliente-360"><span>Alta</span><strong>@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")</strong></div>
+                        <div class="celda-info-cliente-360"><span>Alta</span><strong>@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</strong></div>
                     </div>
 
                     <div class="acciones-cliente-360">

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Common;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
@@ -251,7 +252,7 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
         }
     }
 
-    private static string FormatearFecha(DateTime fechaUtc) => fechaUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+    private static string FormatearFecha(DateTime fechaUtc) => fechaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm");
 
     private static string TextoConexion(ConexionIntegracionListaDto conexion) =>
         $"{conexion.Nombre} ({conexion.BuzonEmail})" + (conexion.ClienteNombre is null ? string.Empty : $" — {conexion.ClienteNombre}");

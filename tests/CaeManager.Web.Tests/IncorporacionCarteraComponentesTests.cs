@@ -211,6 +211,21 @@ public class IncorporacionCarteraComponentesTests : BunitContext
 
     // -------------------------------------------------------------- Bandeja
 
+    /// <summary>
+    /// D-19 (recorrido en staging 2026-10-01): la fecha de la solicitud salía con el
+    /// formato corto de la cultura («22/9/2026 12:00»), distinto del resto de la app.
+    /// Formato único dd/MM/yyyy HH:mm, en hora peninsular (10:00Z en septiembre son las 12:00).
+    /// </summary>
+    [Fact]
+    public void La_fecha_de_la_solicitud_sale_en_hora_peninsular_con_el_formato_unico()
+    {
+        _mediator.Bandeja = BandejaCoordinador(Solicitud("Empresa Norte", "Marta"));
+
+        var pagina = Render<SolicitudesCartera>();
+
+        pagina.FindAll("td").Select(c => c.TextContent.Trim()).Should().Contain("22/09/2026 12:00");
+    }
+
     [Fact]
     public async Task Rechazar_en_la_bandeja_pide_confirmacion_y_cancelar_no_envia_el_Command()
     {

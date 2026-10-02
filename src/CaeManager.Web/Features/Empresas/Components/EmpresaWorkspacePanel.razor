@@ -148,7 +148,7 @@ else
                            el actor no puede ver. Una lista vacía no se cuenta: sin alcance de gestión el
                            handler devuelve vacío a propósito, y «0» sería falso (mismo criterio que #810). *@
                         <CampoInfo Etiqueta="Clientes empresariales con los que trabaja" Valor="@(_clientes is { Count: > 0 } clientesInfo ? clientesInfo.Count.ToString() : null)" />
-                        <CampoInfo Etiqueta="Creada" Valor="@_detalle.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")" />
+                        <CampoInfo Etiqueta="Creada" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
                     </div>
                     <div class="acciones-empresa-360">
                         <SoloConEscritura>

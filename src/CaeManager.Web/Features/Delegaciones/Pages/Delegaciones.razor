@@ -85,7 +85,7 @@
                                 @TituloDe(delegacion.SomosLaConsultora, delegacion.ClienteNombre, delegacion.ConsultoraNombre)
                             </h2>
                             <p class="delegaciones-fecha">
-                                Desde @delegacion.CreadoEnUtc.ToLocalTime().ToString("dd/MM/yyyy")
+                                Desde @delegacion.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")
                             </p>
                         </div>
                         @if (delegacion.EsSoporte && delegacion.AccesoVigente)
@@ -94,7 +94,7 @@
                                 <span>Ventana abierta</span>
                                 @if (delegacion.ExpiraEnUtc is { } expira)
                                 {
-                                    <strong>Hasta @expira.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong>
+                                    <strong>Hasta @expira.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</strong>
                                 }
                             </div>
                         }
@@ -287,7 +287,7 @@
                 @foreach (var registro in _actividad)
                 {
                     <tr>
-                        <td>@registro.OcurridaEnUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                        <td>@registro.OcurridaEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm:ss")</td>
                         <td>@DescribirTipo(registro.Tipo)</td>
                         <td>@registro.Detalle</td>
                     </tr>

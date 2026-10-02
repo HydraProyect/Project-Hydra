@@ -83,7 +83,7 @@
                                 <span class="texto-error">@conexion.UltimoError</span>
                             }
                         </td>
-                        <td>@conexion.FechaConectadaUtc.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                        <td>@conexion.FechaConectadaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</td>
                         <td class="acciones-conexion">
                             @if (conexion.Estado == EstadoConexionIntegracion.ConError)
                             {

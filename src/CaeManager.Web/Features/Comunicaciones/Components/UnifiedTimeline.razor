@@ -234,7 +234,7 @@
         if (transcurrido.TotalHours < 24) return $"hace {(int)transcurrido.TotalHours} h";
         if (transcurrido.TotalDays < 30) return $"hace {(int)transcurrido.TotalDays} d";
 
-        return fechaUtc.ToString("dd/MM/yyyy");
+        return fechaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy");
     }
 
     private static string TicksEstadoEntrega(EstadoEntregaMensaje? estado) => estado switch

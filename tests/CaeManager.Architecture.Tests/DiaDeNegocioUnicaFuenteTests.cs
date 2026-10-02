@@ -18,12 +18,15 @@ namespace CaeManager.Architecture.Tests;
 ///    todos migrados), así que no hay lista de deuda: cualquier uso es rojo.
 /// 2. Que un sitio nuevo dependa de la zona horaria del servidor para mostrar o
 ///    cortar un instante (<c>ToLocalTime()</c>, <c>LocalDateTime</c>,
-///    <c>TimeZoneInfo.Local</c>…) o resuelva Europe/Madrid por su cuenta. Deuda
-///    congelada en <see cref="DeudaZonaDelServidor"/>: casi toda es presentación
-///    de instantes (hora de un registro), no día de negocio, pero en producción
-///    se pinta en UTC.
+///    <c>TimeZoneInfo.Local</c>…) o resuelva Europe/Madrid por su cuenta. Tolerancia
+///    cero: la deuda congelada por #982 (46 <c>ToLocalTime()</c> en 38 ficheros, casi
+///    toda hora de un registro pintada en UTC en producción) se retiró entera; una
+///    hora para el usuario es <c>instanteUtc.EnHoraPeninsular()</c>.
 /// 3. Que el código de producción fije el reloj ambiental de
 ///    <see cref="DiaDeNegocio.FijarRelojEnEsteFlujo"/>, que es solo para tests.
+/// 4. Que un instante UTC (<c>…Utc</c>, <c>UtcNow</c>) se formatee para mostrar
+///    sin pasar por <c>EnHoraPeninsular()</c>. Los usos técnicos justificados
+///    viven en <see cref="InstanteUtcEnCrudoTecnico"/>.
 ///
 /// Mismo mecanismo de ratchet por texto que <see cref="IdentificadoresDeEntidadUuidV7Tests"/>:
 /// una propiedad estática no es una dependencia de tipo, la reflexión no la ve.
@@ -31,52 +34,6 @@ namespace CaeManager.Architecture.Tests;
 public class DiaDeNegocioUnicaFuenteTests
 {
     private const string FuenteUnica = "src/CaeManager.Domain/Common/DiaDeNegocio.cs";
-
-    /// <summary>
-    /// Sitios que dependen de la zona horaria del servidor. Congelados: un sitio
-    /// nuevo convierte con <see cref="DiaDeNegocio.Zona"/> o <see cref="DiaDeNegocio.De(DateTime)"/>.
-    /// </summary>
-    private static readonly Dictionary<string, int> DeudaZonaDelServidor = new()
-    {
-        ["src/CaeManager.Infrastructure/Firmas/EstampadoFirmaEnCampoPdfService.cs"] = 1,
-        ["src/CaeManager.Infrastructure/Firmas/VerificadorFirmaPdfService.cs"] = 1,
-        ["src/CaeManager.Web/Components/Workspace/PestanaHistorial.razor"] = 1,
-        ["src/CaeManager.Web/Features/ApiKeys/Pages/ClavesApi.razor"] = 2,
-        ["src/CaeManager.Web/Features/Auditoria/AuditoriaEndpoints.cs"] = 1,
-        ["src/CaeManager.Web/Features/Auditoria/Pages/AccesosDocumentosSensibles.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Auditoria/Pages/Auditoria.razor"] = 1,
-        ["src/CaeManager.Web/Features/AuditoriaIa/Pages/AuditoriaIa.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor"] = 2,
-        ["src/CaeManager.Web/Features/Clientes/Components/ClientePreviewDrawer.razor"] = 1,
-        ["src/CaeManager.Web/Features/Clientes/Components/ClienteWorkspacePanel.razor"] = 1,
-        ["src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor"] = 1,
-        ["src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor"] = 1,
-        ["src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Comunicaciones/Pages/Buzon.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Configuracion/Components/AutomatizacionesPanel.razor.cs"] = 2,
-        ["src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor"] = 3,
-        ["src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor.cs"] = 2,
-        ["src/CaeManager.Web/Features/Documentos/Components/DocumentoWorkspacePanel.razor"] = 1,
-        ["src/CaeManager.Web/Features/Documentos/Components/FirmaEnCampoTab.razor"] = 1,
-        ["src/CaeManager.Web/Features/Documentos/Components/ReclamacionesTab.razor"] = 1,
-        ["src/CaeManager.Web/Features/Empresas/Components/EmpresaPreviewDrawer.razor"] = 1,
-        ["src/CaeManager.Web/Features/Empresas/Components/EmpresaWorkspacePanel.razor"] = 1,
-        ["src/CaeManager.Web/Features/Empresas/Components/PestanaSelloEmpresa.razor"] = 1,
-        ["src/CaeManager.Web/Features/Empresas/Pages/EmpresaDetalle.razor"] = 1,
-        ["src/CaeManager.Web/Features/Extension/Pages/ConectarExtension.razor"] = 1,
-        ["src/CaeManager.Web/Features/Importacion/Pages/Importacion.razor"] = 1,
-        ["src/CaeManager.Web/Features/IncorporacionCartera/Pages/SolicitudesCartera.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Integraciones/Pages/Conexiones.razor"] = 1,
-        ["src/CaeManager.Web/Features/Plantillas/Components/DocumentosGeneradosPanel.razor"] = 1,
-        ["src/CaeManager.Web/Features/Plataforma/Pages/Plataforma.razor"] = 2,
-        ["src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor"] = 1,
-        ["src/CaeManager.Web/Features/Retencion/Pages/Retencion.razor.cs"] = 1,
-        ["src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataPreviewDrawer.razor"] = 1,
-        ["src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor"] = 1,
-        ["src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor"] = 1,
-        ["src/CaeManager.Web/Features/Usuarios/Pages/MiFirma.razor"] = 1,
-    };
 
     private static readonly Regex PatronDiaDesdeReloj = new(
         @"\bDateTime\s*\.\s*Today\b"
@@ -94,6 +51,33 @@ public class DiaDeNegocioUnicaFuenteTests
 
     private static readonly Regex PatronRelojDeTests = new(@"\bFijarRelojEnEsteFlujo\b", RegexOptions.Compiled);
 
+    /// <summary>
+    /// Un instante UTC (nombre acabado en <c>Utc</c>, o <c>UtcNow</c>) formateado
+    /// tal cual: <c>x.CreadoEnUtc.ToString("dd/MM/yyyy")</c> o
+    /// <c>{x.ExpiraEnUtc:dd/MM HH:mm}</c>. Sin pasar por <c>EnHoraPeninsular()</c>
+    /// pinta la hora UTC, y entre las 22:00 y las 24:00 UTC el día anterior. El
+    /// formato máquina de ida y vuelta (<c>"O"</c>) no es presentación.
+    /// </summary>
+    private static readonly Regex PatronInstanteUtcEnCrudo = new(
+        @"\b(?:\w*Utc|UtcNow)(?:\s*\.\s*Value)?\s*\??\s*\.\s*ToString\s*\(\s*""(?![Oo]"")"
+        + @"|\b(?:\w*Utc|UtcNow)(?:\s*\.\s*Value)?:[dHMyfFgGt]",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// Formateos de un instante UTC que no se enseñan al usuario como hora. Cada
+    /// entrada dice por qué; un uso nuevo de presentación convierte con
+    /// <c>EnHoraPeninsular()</c>.
+    /// </summary>
+    private static readonly Dictionary<string, int> InstanteUtcEnCrudoTecnico = new()
+    {
+        // Fecha de cada mensaje dentro del prompt al modelo de relevancia CAE: contexto para la IA, no pantalla.
+        ["src/CaeManager.Application/Comunicaciones/Deteccion/IRelevanciaCaeService.cs"] = 1,
+        // Nombre de fichero de un adjunto de WhatsApp sin nombre: identificador técnico.
+        ["src/CaeManager.Application/Integraciones/IngestaWebhookWhatsAppService.cs"] = 1,
+        // Nombre del fichero de credenciales de la siembra demo, con sufijo Z: zona explícita.
+        ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 1,
+    };
+
     [Fact]
     public void Ningun_sitio_nuevo_calcula_el_dia_desde_el_reloj_fuera_de_la_fuente_unica()
     {
@@ -107,12 +91,50 @@ public class DiaDeNegocioUnicaFuenteTests
     [Fact]
     public void Ningun_sitio_nuevo_depende_de_la_zona_horaria_del_servidor()
     {
-        var esperado = new Dictionary<string, int>(DeudaZonaDelServidor) { [FuenteUnica] = 1 };
+        var esperado = new Dictionary<string, int> { [FuenteUnica] = 1 };
         var medidos = ContarPorFichero(RaizDelRepositorio(), "src", PatronZonaDelServidor);
 
         Divergencias(esperado, medidos).Should().BeEmpty(
             "los contenedores corren en UTC: convierte con DiaDeNegocio.Zona o DiaDeNegocio.De(instante), y " +
-            "Europe/Madrid solo se resuelve en DiaDeNegocio. Si has retirado un uso, baja su recuento");
+            "Europe/Madrid solo se resuelve en DiaDeNegocio; para mostrar una hora, instanteUtc.EnHoraPeninsular()");
+    }
+
+    [Fact]
+    public void Ningun_instante_utc_se_formatea_para_mostrar_sin_pasar_a_hora_peninsular()
+    {
+        var medidos = ContarPorFichero(RaizDelRepositorio(), "src", PatronInstanteUtcEnCrudo);
+
+        Divergencias(InstanteUtcEnCrudoTecnico, medidos).Should().BeEmpty(
+            "una fecha u hora que ve el usuario es instanteUtc.EnHoraPeninsular().ToString(...); formateado en crudo " +
+            "sale en UTC. Si es un uso técnico (nombre de fichero, formato máquina), justifícalo en la lista");
+    }
+
+    /// <summary>
+    /// Formato único de fecha y hora en pantalla, dd/MM/yyyy HH:mm (decisión del
+    /// 2026-09-29; D-19 del recorrido en staging: convivían «28/9/2026 14:50»,
+    /// «01/10/26» y «01/10/2026»). Ni año de dos cifras ni el formato corto de la
+    /// cultura (<c>"g"</c>/<c>"G"</c>), que cambia con el idioma.
+    /// </summary>
+    private static readonly Regex PatronFormatoNoCanonico = new(
+        @"""dd/MM/yy(?:[\s""])|ToString\s*\(\s*""[gG]""|:[gG]\}|\bToShort(?:Date|Time)String\s*\(",
+        RegexOptions.Compiled);
+
+    [Fact]
+    public void Las_fechas_y_horas_usan_el_formato_unico()
+    {
+        EsCodigoQueCasa("<span>@item.GeneradoEnUtc.EnHoraPeninsular().ToString(\"dd/MM/yy HH:mm\")</span>", PatronFormatoNoCanonico)
+            .Should().BeTrue("control positivo: año de dos cifras");
+        EsCodigoQueCasa("        utc.EnHoraPeninsular().ToString(\"g\", CultureInfo.CurrentCulture);", PatronFormatoNoCanonico)
+            .Should().BeTrue("control positivo: formato corto de la cultura");
+        EsCodigoQueCasa("        var texto = $\"Creada el {solicitud.CreadaEnUtc.EnHoraPeninsular():g}\";", PatronFormatoNoCanonico)
+            .Should().BeTrue("control positivo: formato corto de la cultura en interpolación");
+        EsCodigoQueCasa("        var texto = fecha.ToShortDateString();", PatronFormatoNoCanonico)
+            .Should().BeTrue("control positivo: fecha corta de la cultura");
+        EsCodigoQueCasa("<span>@item.GeneradoEnUtc.EnHoraPeninsular().ToString(\"dd/MM/yyyy HH:mm\")</span>", PatronFormatoNoCanonico)
+            .Should().BeFalse("control negativo: el formato único");
+
+        ContarPorFichero(RaizDelRepositorio(), "src", PatronFormatoNoCanonico).Keys.Should().BeEmpty(
+            "fecha y hora en pantalla: dd/MM/yyyy HH:mm, en hora peninsular");
     }
 
     [Fact]
@@ -160,6 +182,28 @@ public class DiaDeNegocioUnicaFuenteTests
             .Should().BeTrue();
         EsCodigoQueCasa("    var local = TimeZoneInfo.ConvertTimeFromUtc(instante, DiaDeNegocio.Zona);", PatronZonaDelServidor)
             .Should().BeFalse();
+
+        string[] instantesEnCrudo =
+        [
+            "<td>@registro.FechaUtc.ToString(\"dd/MM/yyyy HH:mm\")</td>",
+            "        return fechaUtc.ToString(\"dd/MM/yyyy\");",
+            "<td>@(clave.UltimoUsoUtc?.ToString(\"dd/MM/yyyy\"))</td>",
+            "        var texto = $\"Expira el {_expiraEnUtc.Value:dd/MM/yyyy HH:mm}\";",
+            "        var subtitulo = $\"generado el {DateTime.UtcNow:dd/MM/yyyy HH:mm} UTC\";",
+        ];
+        foreach (var linea in instantesEnCrudo)
+            EsCodigoQueCasa(linea, PatronInstanteUtcEnCrudo).Should().BeTrue(linea);
+
+        string[] instantesConvertidos =
+        [
+            "<td>@registro.FechaUtc.EnHoraPeninsular().ToString(\"dd/MM/yyyy HH:mm\")</td>",
+            "        var texto = $\"Expira el {_expiraEnUtc.Value.EnHoraPeninsular():dd/MM/yyyy HH:mm}\";",
+            "        expiraEnUtc = _expiraEnUtc.Value.ToString(\"O\"),",
+            "        var vence = documento.FechaVencimiento.ToString(\"dd/MM/yyyy\");",
+            "        var hoy = esUtc ? aUtc : bUtc;",
+        ];
+        foreach (var linea in instantesConvertidos)
+            EsCodigoQueCasa(linea, PatronInstanteUtcEnCrudo).Should().BeFalse(linea);
     }
 
     private static List<string> Divergencias(Dictionary<string, int> esperado, Dictionary<string, int> medido) =>

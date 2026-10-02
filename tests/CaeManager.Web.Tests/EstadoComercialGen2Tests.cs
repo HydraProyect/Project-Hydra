@@ -311,7 +311,7 @@ public partial class EstadoComercialGen2Tests : BunitContext
 
         Celda(cut, TenantElorrio, 1).Should().Be("Suspendida");
         Celda(cut, TenantElorrio, 3).Should().Be(
-            new DateTime(2026, 8, 28, 10, 45, 0, DateTimeKind.Utc).ToLocalTime().ToString("dd/MM/yyyy HH:mm"));
+            new DateTime(2026, 8, 28, 10, 45, 0, DateTimeKind.Utc).EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm"));
     }
 
     [Fact]
