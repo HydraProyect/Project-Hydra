@@ -8,7 +8,7 @@ using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas;
-using CaeManager.Application.Reclamaciones.Queries.ObtenerVistaPreviaReclamacion;
+using CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaReclamacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -74,7 +74,7 @@ public class ReclamacionesTabTests : BunitContext
         public Func<ObtenerLoteReclamacionQuery, IReadOnlyList<LoteReclamacionClienteDto>> Lotes { get; set; } = _ => [];
 
         /// <summary>Lo que devuelve la vista previa del reenvío; por defecto, un destinatario, asunto y texto reconocibles.</summary>
-        public Func<ObtenerVistaPreviaReclamacionQuery, Result<ReclamacionPreparada>> Previa { get; set; } =
+        public Func<PrepararVistaPreviaReclamacionCommand, Result<ReclamacionPreparada>> Previa { get; set; } =
             q => Result.Exito(new ReclamacionPreparada(
                 q.TitularId, "Refrielectric SL", q.DocumentoIds, ["contacto@refrielectric.example"],
                 [new DestinatarioAgendaDto(Guid.NewGuid(), "Contacto Refri", "contacto@refrielectric.example", ["RLC"])],
@@ -102,7 +102,7 @@ public class ReclamacionesTabTests : BunitContext
         {
             ObtenerReclamacionesEnviadasQuery q => Historial(q),
             ObtenerLoteReclamacionQuery q => Lotes(q),
-            ObtenerVistaPreviaReclamacionQuery q => Previa(q),
+            PrepararVistaPreviaReclamacionCommand q => Previa(q),
             EnviarReclamacionCommand c => AlEnviar?.Invoke(c) ?? Result.Exito(new EnvioReclamacionResultado(c.DocumentoIds, [])),
             EnviarReclamacionEmpresaCommand c => AlEnviarEmpresa?.Invoke(c) ?? Result.Exito(new EnvioReclamacionResultado(c.DocumentoIds, [])),
             // La usa ModalContactoAgenda ("Añadir contacto"), que ReclamacionesTab monta siempre.
@@ -483,7 +483,7 @@ public class ReclamacionesTabTests : BunitContext
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty();
 
         // La revisión enseña lo que resolvió la vista previa: destinatario, asunto y texto.
-        var consulta = mediador.Enviadas.OfType<ObtenerVistaPreviaReclamacionQuery>().Should().ContainSingle().Subject;
+        var consulta = mediador.Enviadas.OfType<PrepararVistaPreviaReclamacionCommand>().Should().ContainSingle().Subject;
         consulta.DocumentoIds.Should().NotBeEmpty();
         cut.Markup.Should().Contain("contacto@refrielectric.example").And.Contain("Asunto de la vista previa")
             .And.Contain("Texto de la vista previa");
@@ -518,7 +518,7 @@ public class ReclamacionesTabTests : BunitContext
         await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
         await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
 
-        var consulta = mediador.Enviadas.OfType<ObtenerVistaPreviaReclamacionQuery>().Should().ContainSingle().Subject;
+        var consulta = mediador.Enviadas.OfType<PrepararVistaPreviaReclamacionCommand>().Should().ContainSingle().Subject;
         consulta.Ambito.Should().Be(AmbitoAplicacion.Empresa);
         consulta.TitularId.Should().Be(fila.TitularId);
         var envio = mediador.Enviadas.OfType<EnviarReclamacionEmpresaCommand>().Should().ContainSingle().Subject;

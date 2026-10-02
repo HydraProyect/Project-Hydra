@@ -21,7 +21,7 @@
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion
 @using CaeManager.Application.Reclamaciones
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas
-@using CaeManager.Application.Reclamaciones.Queries.ObtenerVistaPreviaReclamacion
+@using CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaReclamacion
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Documentos.Recursos
 @using MediatR
@@ -267,7 +267,7 @@ else
 </Modal>
 
 @* «Reclamar de nuevo» también es un correo externo no deshacible: misma revisión
-   completa, pero con lo que resuelve el propio envío (ObtenerVistaPreviaReclamacionQuery
+   completa, pero con lo que resuelve el propio envío (PrepararVistaPreviaReclamacionCommand
    llama a la misma implementación que el handler de envío). *@
 <Modal Visible="_vistaPreviaReenvio is not null" VisibleChanged="CerrarRevisionReenvio" Titulo="@Textos["RecReenvioTitulo"]"
        Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="_reenviandoId is null">
@@ -562,7 +562,7 @@ else
         try
         {
             var previa = await Mediator.Send(
-                new ObtenerVistaPreviaReclamacionQuery(reclamacion.AmbitoTitular, reclamacion.TitularId, reclamacion.DocumentoIds), token);
+                new PrepararVistaPreviaReclamacionCommand(reclamacion.AmbitoTitular, reclamacion.TitularId, reclamacion.DocumentoIds), token);
 
             if (_desechado)
                 return;

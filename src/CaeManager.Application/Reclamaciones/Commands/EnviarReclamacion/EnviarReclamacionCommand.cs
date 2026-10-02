@@ -86,7 +86,7 @@ public class EnviarReclamacionCommandHandler(
     /// Todo lo que decide QUÉ se envía y A QUIÉN (acceso, ventana, todo o nada,
     /// agenda, asunto y cuerpo), sin enviar. Es la única implementación: el envío
     /// la usa en <see cref="Handle"/> y la vista previa
-    /// (<c>ObtenerVistaPreviaReclamacionQuery</c>) la llama tal cual, de modo que
+    /// (<c>PrepararVistaPreviaReclamacionCommand</c>) la llama tal cual, de modo que
     /// lo que se enseña antes de confirmar y lo que sale no pueden divergir.
     /// </summary>
     public async Task<Result<ReclamacionPreparada>> PrepararAsync(EnviarReclamacionCommand request, CancellationToken cancellationToken)

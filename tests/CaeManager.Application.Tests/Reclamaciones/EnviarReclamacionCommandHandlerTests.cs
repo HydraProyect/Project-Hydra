@@ -3,7 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
-using CaeManager.Application.Reclamaciones.Queries.ObtenerVistaPreviaReclamacion;
+using CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaReclamacion;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Plantillas;
@@ -253,11 +253,11 @@ public class EnviarReclamacionCommandHandlerTests
 
     // ---- Vista previa de «Reclamar de nuevo»: mismo resultado que el envío ----
 
-    private static ObtenerVistaPreviaReclamacionQueryHandler CrearVistaPrevia(Escenario escenario, AlcanceDatosServiceFalso? alcance = null)
+    private static PrepararVistaPreviaReclamacionCommandHandler CrearVistaPrevia(Escenario escenario, AlcanceDatosServiceFalso? alcance = null)
     {
         var alcanceDatos = alcance ?? new AlcanceDatosServiceFalso();
         var e = escenario.Entorno;
-        return new ObtenerVistaPreviaReclamacionQueryHandler(
+        return new PrepararVistaPreviaReclamacionCommandHandler(
             e.CrearHandler(alcanceDatos),
             new EnviarReclamacionEmpresaCommandHandler(e.Empresas, e.Documentos, e.TiposDocumento, alcanceDatos, e.Agenda, e.RegistroEnvio));
     }
@@ -272,7 +272,7 @@ public class EnviarReclamacionCommandHandlerTests
         escenario.Entorno.Agenda.RespuestaResolverAsync = [ana, luis];
 
         var previa = await CrearVistaPrevia(escenario).Handle(
-            new ObtenerVistaPreviaReclamacionQuery(AmbitoAplicacion.Cliente, escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
+            new PrepararVistaPreviaReclamacionCommand(AmbitoAplicacion.Cliente, escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
         previa.EsExitoso.Should().BeTrue();
         escenario.Entorno.RegistroEnvio.VecesLlamado.Should().Be(0, "la vista previa no envía nada");
 
@@ -297,7 +297,7 @@ public class EnviarReclamacionCommandHandlerTests
         escenario.Entorno.Agenda.RespuestaResolverAsync = [Contacto()];
 
         var previa = await CrearVistaPrevia(escenario).Handle(
-            new ObtenerVistaPreviaReclamacionQuery(AmbitoAplicacion.Cliente, escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
+            new PrepararVistaPreviaReclamacionCommand(AmbitoAplicacion.Cliente, escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
         var envio = await escenario.Entorno.CrearHandler().Handle(
             new EnviarReclamacionCommand(escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
 
@@ -311,7 +311,7 @@ public class EnviarReclamacionCommandHandlerTests
     /// </summary>
     [Fact]
     public void La_vista_previa_es_un_comando_para_heredar_la_autorizacion_de_escritura_del_envio() =>
-        typeof(ICommandBase).IsAssignableFrom(typeof(ObtenerVistaPreviaReclamacionQuery)).Should().BeTrue();
+        typeof(ICommandBase).IsAssignableFrom(typeof(PrepararVistaPreviaReclamacionCommand)).Should().BeTrue();
 
     [Fact]
     public async Task La_vista_previa_de_titular_Empresa_resuelve_como_el_envio_de_Empresa()
@@ -327,7 +327,7 @@ public class EnviarReclamacionCommandHandlerTests
         var alcance = new AlcanceDatosServiceFalso();
 
         var previa = await CrearVistaPrevia(escenario, alcance).Handle(
-            new ObtenerVistaPreviaReclamacionQuery(AmbitoAplicacion.Empresa, contraparte.Id, [documento.Id]), CancellationToken.None);
+            new PrepararVistaPreviaReclamacionCommand(AmbitoAplicacion.Empresa, contraparte.Id, [documento.Id]), CancellationToken.None);
         var envio = await new EnviarReclamacionEmpresaCommandHandler(
                 escenario.Entorno.Empresas, escenario.Entorno.Documentos, escenario.Entorno.TiposDocumento, alcance,
                 escenario.Entorno.Agenda, escenario.Entorno.RegistroEnvio)
@@ -350,7 +350,7 @@ public class EnviarReclamacionCommandHandlerTests
         escenario.Entorno.Agenda.RespuestaResolverAsync = [Contacto()];
 
         var previa = await CrearVistaPrevia(escenario, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [])).Handle(
-            new ObtenerVistaPreviaReclamacionQuery(AmbitoAplicacion.Cliente, escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
+            new PrepararVistaPreviaReclamacionCommand(AmbitoAplicacion.Cliente, escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
 
         previa.EsFallido.Should().BeTrue();
         previa.Error.Codigo.Should().Be("Reclamacion.SinAcceso");

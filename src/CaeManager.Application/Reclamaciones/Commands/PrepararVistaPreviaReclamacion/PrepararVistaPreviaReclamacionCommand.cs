@@ -5,7 +5,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
 
-namespace CaeManager.Application.Reclamaciones.Queries.ObtenerVistaPreviaReclamacion;
+namespace CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaReclamacion;
 
 /// <summary>
 /// Vista previa de un envío de reclamación ya compuesto (hoy, «Reclamar de
@@ -25,17 +25,17 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerVistaPreviaReclama
 /// </para>
 /// </summary>
 /// <param name="Ambito">Titular del lote: Cliente (documentos de Trabajador) o Empresa.</param>
-public record ObtenerVistaPreviaReclamacionQuery(
+public record PrepararVistaPreviaReclamacionCommand(
     AmbitoAplicacion Ambito,
     Guid TitularId,
     IReadOnlyList<Guid> DocumentoIds) : ICommand<ReclamacionPreparada>;
 
-public class ObtenerVistaPreviaReclamacionQueryHandler(
+public class PrepararVistaPreviaReclamacionCommandHandler(
     EnviarReclamacionCommandHandler enviarCliente,
     EnviarReclamacionEmpresaCommandHandler enviarEmpresa)
-    : IRequestHandler<ObtenerVistaPreviaReclamacionQuery, Result<ReclamacionPreparada>>
+    : IRequestHandler<PrepararVistaPreviaReclamacionCommand, Result<ReclamacionPreparada>>
 {
-    public Task<Result<ReclamacionPreparada>> Handle(ObtenerVistaPreviaReclamacionQuery request, CancellationToken cancellationToken) =>
+    public Task<Result<ReclamacionPreparada>> Handle(PrepararVistaPreviaReclamacionCommand request, CancellationToken cancellationToken) =>
         request.Ambito == AmbitoAplicacion.Empresa
             ? enviarEmpresa.PrepararAsync(new EnviarReclamacionEmpresaCommand(request.TitularId, request.DocumentoIds), cancellationToken)
             : enviarCliente.PrepararAsync(new EnviarReclamacionCommand(request.TitularId, request.DocumentoIds), cancellationToken);
