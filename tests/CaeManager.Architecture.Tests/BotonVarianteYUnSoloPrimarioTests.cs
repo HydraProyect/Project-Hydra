@@ -30,7 +30,10 @@ namespace CaeManager.Architecture.Tests;
 /// puede sumar); una <c>Variante="Variante"</c> o <c>VarianteConfirmar</c> que llegue por parámetro (su valor
 /// real lo pone el llamador, que sí se cuenta en su fichero); botones con primarios en ramas excluyentes
 /// (<c>@if/else</c>), que cuentan como si convivieran. Esas ramas excluyentes son parte de la lista, no un
-/// agujero: se retiran de ella al revisar cada pantalla.
+/// agujero: se retiran de ella al revisar cada pantalla. Tampoco ve un primario que no pase por
+/// <c>&lt;Boton&gt;</c> (marcado a pelo con <c>class="boton boton-primario"</c>, hoy en
+/// <c>ConfigurarAutenticadorDosFactores</c> y <c>OrdenMenuLateral</c>) ni el que pinte un componente
+/// envoltorio por dentro: cuenta una vez en su fichero, no en cada uso.
 /// </para>
 /// </summary>
 public class BotonVarianteYUnSoloPrimarioTests
@@ -144,7 +147,7 @@ public class BotonVarianteYUnSoloPrimarioTests
         }
 
         // Control positivo: si el recorrido no viera las etiquetas, «ninguna sin variante» valdría por vacío.
-        etiquetas.Should().BeGreaterThan(500, "al escribirlo había 600 <Boton> en 113 ficheros; si baja de golpe, dejó de mirar");
+        etiquetas.Should().BeGreaterThan(550, "al escribirlo había 600 <Boton> en 113 ficheros; si baja de golpe, dejó de mirar");
 
         string.Join(Environment.NewLine, sin.GroupBy(x => x).Select(g => $"{g.Key} ({g.Count()})").OrderBy(x => x)).Should().BeEmpty(
             "cada <Boton> declara Variante (Primario, Secundario, Fantasma o Destructivo); un solo Primario por vista");
@@ -160,7 +163,7 @@ public class BotonVarianteYUnSoloPrimarioTests
         var medido = MedirPrimariosPorSuperficie();
 
         // Control positivo: la medición ve superficies reales y la lista no está vacía por accidente.
-        medido.Values.Sum().Should().BeGreaterThan(80, "hay ≈100 primarios declarados al escribirlo; si baja de golpe, dejó de mirar");
+        medido.Values.Sum().Should().BeGreaterThan(200, "había 277 primarios declarados al escribirlo; si baja de golpe, dejó de mirar");
 
         var problemas = Evaluar(medido, PrimariosPermitidosPorSuperficie);
 
@@ -180,6 +183,19 @@ public class BotonVarianteYUnSoloPrimarioTests
 
         inexistentes.Should().BeEmpty("el fichero se movió o se borró sin actualizar la lista");
         PrimariosPermitidosPorSuperficie.Values.Should().OnlyContain(n => n > 1, "una excepción permite más de uno; con uno o menos sobra");
+    }
+
+    /// <summary>
+    /// La lista solo puede decrecer, y esto lo hace una propiedad y no una convención: pegar una entrada
+    /// nueva, o subir un número, supera estos topes (los de la medición del 2026-10-02) y obliga a editar
+    /// aquí, a la vista de la revisión, la decisión de dar un primario más a una pantalla.
+    /// Al retirar o bajar entradas, bajan también estos dos números.
+    /// </summary>
+    [Fact]
+    public void La_lista_de_excepciones_no_crece()
+    {
+        PrimariosPermitidosPorSuperficie.Count.Should().BeLessThanOrEqualTo(64, "entradas medidas el 2026-10-02");
+        PrimariosPermitidosPorSuperficie.Values.Sum().Should().BeLessThanOrEqualTo(193, "primarios en superficies excepcionales medidos el 2026-10-02");
     }
 
     // -------------------------------------------------------------------------------------------
@@ -205,6 +221,24 @@ public class BotonVarianteYUnSoloPrimarioTests
         resultado.Botones.Should().HaveCount(5, "BotonCopiar no es Boton");
         resultado.Botones.Count(b => !b.DeclaraVariante).Should().Be(1);
         resultado.Botones.Count(b => b.EsPrimario).Should().Be(2, "el condicional con Primario cuenta; el parámetro opaco no");
+    }
+
+    [Fact]
+    public void El_analizador_no_pierde_el_hilo_con_un_mayor_que_en_una_lambda_ni_con_un_literal_de_caracter()
+    {
+        // Si FinDeEtiqueta cerrara en el primer '>' (el de «=>»), el Variante que viene después de la lambda
+        // quedaría fuera de la etiqueta y el botón parecería no declararla.
+        var conLambdaAntes = Analizar("""<Boton OnClick="() => Abrir()" Variante="VarianteBoton.Primario">A</Boton>""");
+        conLambdaAntes.Botones.Should().ContainSingle().Which.DeclaraVariante.Should().BeTrue();
+        conLambdaAntes.Botones.Single().EsPrimario.Should().BeTrue();
+
+        // Un ')' entre comillas simples no puede cerrar la expresión: sin esto, el cuerpo de este botón
+        // absorbería al siguiente y le prestaría su Variante.
+        var conCaracter = Analizar("""
+            <Boton OnClick="() => Pulsar(')')">A</Boton>
+            <Boton Variante="VarianteBoton.Secundario">B</Boton>
+            """);
+        conCaracter.Botones.Select(b => b.DeclaraVariante).Should().Equal(false, true);
     }
 
     [Fact]
@@ -255,7 +289,7 @@ public class BotonVarianteYUnSoloPrimarioTests
         foreach (var (superficie, n) in medido.Where(m => m.Value > 1).OrderBy(m => m.Key, StringComparer.Ordinal))
         {
             if (!permitido.TryGetValue(superficie, out var tope))
-                problemas.Add($"{superficie}: {n} primarios y sin excepción en la lista (entrada: [\"{superficie}\"] = {n},)");
+                problemas.Add($"{superficie}: {n} primarios y sin excepción en la lista; deja uno y baja el resto a Secundario o Fantasma");
             else if (n > tope)
                 problemas.Add($"{superficie}: sube de {tope} a {n} primarios");
             else if (n < tope)
@@ -372,6 +406,13 @@ public class BotonVarianteYUnSoloPrimarioTests
                     if (s[j] == '\\') j++;
                     j++;
                 }
+            }
+            else if (c == '\'' && profundidad > 0)
+            {
+                // Literal de carácter dentro de una expresión ('x', '\n', ')'): su contenido no cuenta para los paréntesis.
+                j++;
+                if (j < s.Length && s[j] == '\\') j++;
+                j++;
             }
 
             j++;
