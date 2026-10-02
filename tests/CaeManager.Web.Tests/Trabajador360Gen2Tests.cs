@@ -1165,6 +1165,27 @@ public class Trabajador360Gen2Tests : BunitContext
             .Which.DocumentoIds.Should().Equal([vencido.DocumentoId!.Value]);
     }
 
+    [Fact]
+    public async Task Reclamar_faltantes_no_ofrece_un_documento_con_vencimiento_mas_alla_de_la_ventana()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        var lejano = new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Formación PRL — 20 h", EstadoDocumento.Proximo,
+            VentanaReclamacion.Limite(DiaDeNegocio.Hoy()).AddDays(1));
+        var dentro = new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Reconocimiento médico", EstadoDocumento.Proximo,
+            VentanaReclamacion.Limite(DiaDeNegocio.Hoy()));
+        mediador.Centros[id] = [Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Proximo, lejano, dentro)];
+        var cut = Renderizar(id);
+
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
+            .ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle()
+            .Which.DocumentoIds.Should().Equal([dentro.DocumentoId!.Value],
+                "el límite es inclusivo y un día más allá el envío lo rechazaría");
+    }
+
     private MediatorFalso ConDosClientesEmpresarialesQueReclamar(Guid id)
     {
         var mediador = ConTrabajador(id);

@@ -580,13 +580,13 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     }
 
     /// <summary>
-    /// Solo cuentan documentos que existen (<c>DocumentoId != null</c>) y no
-    /// están vigentes — un Faltante no tiene fila de Documento que reclamar,
-    /// igual que en <c>ObtenerLoteReclamacionQuery</c>: "reclamar" pide una
-    /// renovación, no puede pedir la creación de algo que nunca existió.
+    /// Solo cuentan documentos que existen (<c>DocumentoId != null</c>), no vigentes y reclamables según
+    /// <see cref="VentanaReclamacion"/> (con FechaVencimiento y dentro de la ventana): un Faltante no tiene fila de
+    /// Documento que reclamar, y un «Sin confirmar» sin fecha no tiene vencimiento que renovar, igual que en
+    /// <c>ObtenerLoteReclamacionQuery</c> y en el envío. «Reclamar» pide una renovación, no la creación de algo
+    /// que nunca existió ni la confirmación de una vigencia sin fecha. No replica el resto de filtros del envío
+    /// (asignación activa, alcance, Centro con gestión CAE): el envío los revalida.
     /// </summary>
-    // «Sin confirmar» sigue siendo reclamable aunque no cuente como incidencia: reclamar pide al
-    // Cliente empresarial una renovación o la confirmación de la vigencia (decisión de D-22: solo cambia el cómputo).
     private async Task ReclamarFaltantesAsync()
     {
         // Solo se ofrece lo que el envío acepta (VentanaReclamacion: con FechaVencimiento y dentro de la

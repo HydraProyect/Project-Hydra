@@ -365,4 +365,22 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         cut.FindAll(".alerta-formulario").Should().BeEmpty("la Empresa ya está elegida");
         _mediador.Enviadas.OfType<CrearCentroCommand>().Should().BeEmpty("elegir la Empresa no guarda por sí solo");
     }
+    [Fact]
+    public async Task El_aviso_de_cliente_sin_elegir_desaparece_al_elegir_el_cliente_pero_el_de_empresa_no_se_borra_al_cambiar_de_cliente()
+    {
+        var cut = await AbrirAltaAsync(Renderizar());
+        await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        cut.Find(".alerta-formulario").TextContent.Trim().Should().Be("Selecciona un cliente.", "barrera: sin Cliente avisa del Cliente");
+
+        await ElegirEnElSelectorAsync(cut, "Busca o crea un cliente…", "Refrielectric S.A.");
+        cut.FindAll(".alerta-formulario").Should().BeEmpty("el Cliente ya está elegido");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        cut.Find(".alerta-formulario").TextContent.Trim().Should().Be("Selecciona una empresa.", "barrera: ahora falta la Empresa");
+
+        await ElegirEnElSelectorAsync(cut, "Busca o crea un cliente…", "Refrielectric S.A.");
+        cut.Find(".alerta-formulario").TextContent.Trim().Should().Be("Selecciona una empresa.",
+            "cambiar de Cliente no rellena la Empresa: su aviso sigue siendo verdad");
+    }
 }

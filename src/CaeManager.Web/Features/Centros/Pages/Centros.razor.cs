@@ -528,7 +528,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private async Task CambiarClienteCreacionAsync(string valor)
     {
         _clienteId = valor;
-        LimpiarAvisoDeSeleccionFaltante();
+        // Solo el aviso del Cliente: si al cambiar de Cliente la Empresa elegida se vacía (más abajo), su aviso sigue siendo verdad.
+        if (_mensajeErrorFormulario == AvisoSeleccionaCliente)
+            _mensajeErrorFormulario = null;
 
         var clienteId = Guid.TryParse(valor, out var id) ? id : (Guid?)null;
         await CargarEmpresasDisponiblesAsync(clienteId);
