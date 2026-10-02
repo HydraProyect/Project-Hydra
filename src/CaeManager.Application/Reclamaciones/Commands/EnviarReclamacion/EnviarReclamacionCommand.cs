@@ -121,7 +121,7 @@ public class EnviarReclamacionCommandHandler(
         // no puede colarse aquí como "reclamable" solo porque llegó en la
         // petición.
         var hoy = DiaDeNegocio.Hoy();
-        var limiteVentana = hoy.AddMonths(3);
+        var limiteVentana = VentanaReclamacion.Limite(hoy);
 
         var filas = await (
             from documento in documentosContext.Documentos

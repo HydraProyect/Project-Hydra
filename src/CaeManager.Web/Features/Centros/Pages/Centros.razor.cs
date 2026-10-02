@@ -528,12 +528,34 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private async Task CambiarClienteCreacionAsync(string valor)
     {
         _clienteId = valor;
+        // Solo el aviso del Cliente: si al cambiar de Cliente la Empresa elegida se vacía (más abajo), su aviso sigue siendo verdad.
+        if (_mensajeErrorFormulario == AvisoSeleccionaCliente)
+            _mensajeErrorFormulario = null;
 
         var clienteId = Guid.TryParse(valor, out var id) ? id : (Guid?)null;
         await CargarEmpresasDisponiblesAsync(clienteId);
 
         if (!_empresasDisponibles.Any(e => e.Id.ToString() == _empresaId))
             _empresaId = string.Empty;
+    }
+
+    private const string AvisoSeleccionaCliente = "Selecciona un cliente.";
+    private const string AvisoSeleccionaEmpresa = "Selecciona una empresa.";
+
+    private void AlElegirEmpresa(string valor)
+    {
+        _empresaId = valor;
+        LimpiarAvisoDeSeleccionFaltante();
+    }
+
+    /// <summary>
+    /// El aviso «Selecciona un cliente/una empresa.» es de un intento anterior de guardar: al rellenar el
+    /// campo deja de ser verdad (misma regla que Trabajadores, #1020). Un error de servidor sigue en pantalla.
+    /// </summary>
+    private void LimpiarAvisoDeSeleccionFaltante()
+    {
+        if (_mensajeErrorFormulario is AvisoSeleccionaCliente or AvisoSeleccionaEmpresa)
+            _mensajeErrorFormulario = null;
     }
 
     private Task CerrarDrawerAsync(bool visible)
@@ -575,6 +597,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     {
         _empresasDisponibles = [.. _empresasDisponibles, new EmpresaSelectorDto(creada.Id, creada.RazonSocial)];
         _empresaId = creada.Id.ToString();
+        LimpiarAvisoDeSeleccionFaltante();
         ToastService.Mostrar("Empresa creada correctamente.", TonoToast.Exito);
         return Task.CompletedTask;
     }
@@ -605,13 +628,13 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
             if (!Guid.TryParse(_clienteId, out var clienteId))
             {
-                _mensajeErrorFormulario = "Selecciona un cliente.";
+                _mensajeErrorFormulario = AvisoSeleccionaCliente;
                 return;
             }
 
             if (!Guid.TryParse(_empresaId, out var empresaId))
             {
-                _mensajeErrorFormulario = "Selecciona una empresa.";
+                _mensajeErrorFormulario = AvisoSeleccionaEmpresa;
                 return;
             }
 

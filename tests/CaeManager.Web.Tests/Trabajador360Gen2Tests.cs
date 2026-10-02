@@ -1,6 +1,8 @@
 using CaeManager.Infrastructure.Identity;
 using AngleSharp.Dom;
 using Bunit;
+using CaeManager.Application.Reclamaciones;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
 using CaeManager.Application.Asignaciones.Commands.ReactivarAsignacion;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
@@ -115,6 +117,7 @@ public class Trabajador360Gen2Tests : BunitContext
             ObtenerDocumentosQuery q => PaginarDocumentos(q),
             DarDeBajaAsignacionesCommand => ResultadoDarDeBajaAsignacion,
             ReactivarAsignacionCommand => ResultadoReactivar,
+            EnviarReclamacionCommand c => Result.Exito(new EnvioReclamacionResultado(c.DocumentoIds, ["cliente@ejemplo.com"])),
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -156,7 +159,13 @@ public class Trabajador360Gen2Tests : BunitContext
 
     private static DocumentoRequeridoDto Documento(string tipo, EstadoDocumento estado, bool existe = true) =>
         new(existe ? Guid.NewGuid() : null, Guid.NewGuid(), tipo, estado,
-            estado == EstadoDocumento.Vigente ? new DateOnly(2027, 5, 3) : null);
+            estado switch
+            {
+                EstadoDocumento.Vigente => new DateOnly(2027, 5, 3),
+                // Con vencimiento dentro de la ventana de reclamación (VentanaReclamacion): Vencido, Urgente, Próximo.
+                EstadoDocumento.Vencido or EstadoDocumento.Urgente or EstadoDocumento.Proximo => DiaDeNegocio.Hoy().AddDays(-10),
+                _ => null
+            });
 
     private static CentroDocumentacionTrabajadorDto Centro(
         string nombre, string clienteEmpresarial, EstadoDocumento peorEstado, params DocumentoRequeridoDto[] documentos) =>
@@ -1108,6 +1117,73 @@ public class Trabajador360Gen2Tests : BunitContext
         cut.FindAll(".modal-contenido").Should().ContainSingle("el test necesita la modal abierta");
 
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "sin tipo elegido no hay nada que perder");
+    }
+
+    /// <summary>
+    /// Alinea la ficha con el envío (EnviarReclamacion rechaza lo que no tiene FechaVencimiento): un
+    /// «Sin confirmar» sin fecha no se ofrece para reclamar y, si es lo único pendiente, se explica por qué.
+    /// </summary>
+    [Fact]
+    public async Task Reclamar_faltantes_no_ofrece_un_sin_confirmar_sin_fecha_y_explica_por_que()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.SinConfirmar,
+                Documento("Reconocimiento médico", EstadoDocumento.SinConfirmar))
+        ];
+        var cut = Renderizar(id);
+
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
+            .ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty("el envío rechazaría un documento sin fecha");
+        Avisos.Mensajes.Select(m => m.Mensaje).Should().ContainSingle()
+            .Which.Should().Contain("«Sin confirmar» no tienen fecha de vencimiento");
+    }
+
+    [Fact]
+    public async Task Reclamar_faltantes_con_un_sin_confirmar_sin_fecha_y_un_vencido_solo_reclama_el_vencido()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        var vencido = Documento("Formación PRL — 20 h", EstadoDocumento.Vencido);
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Vencido,
+                Documento("Reconocimiento médico", EstadoDocumento.SinConfirmar), vencido)
+        ];
+        var cut = Renderizar(id);
+
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
+            .ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle()
+            .Which.DocumentoIds.Should().Equal([vencido.DocumentoId!.Value]);
+    }
+
+    [Fact]
+    public async Task Reclamar_faltantes_no_ofrece_un_documento_con_vencimiento_mas_alla_de_la_ventana()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        var lejano = new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Formación PRL — 20 h", EstadoDocumento.Proximo,
+            VentanaReclamacion.Limite(DiaDeNegocio.Hoy()).AddDays(1));
+        var dentro = new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Reconocimiento médico", EstadoDocumento.Proximo,
+            VentanaReclamacion.Limite(DiaDeNegocio.Hoy()));
+        mediador.Centros[id] = [Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Proximo, lejano, dentro)];
+        var cut = Renderizar(id);
+
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
+            .ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle()
+            .Which.DocumentoIds.Should().Equal([dentro.DocumentoId!.Value],
+                "el límite es inclusivo y un día más allá el envío lo rechazaría");
     }
 
     private MediatorFalso ConDosClientesEmpresarialesQueReclamar(Guid id)

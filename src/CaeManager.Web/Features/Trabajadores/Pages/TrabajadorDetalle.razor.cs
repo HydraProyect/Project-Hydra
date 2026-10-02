@@ -13,6 +13,7 @@ using CaeManager.Application.Asignaciones.Commands.ReactivarAsignacion;
 using CaeManager.Application.Gestiones.Commands.CompletarGestion;
 using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
+using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
@@ -579,18 +580,23 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     }
 
     /// <summary>
-    /// Solo cuentan documentos que existen (<c>DocumentoId != null</c>) y no
-    /// están vigentes — un Faltante no tiene fila de Documento que reclamar,
-    /// igual que en <c>ObtenerLoteReclamacionQuery</c>: "reclamar" pide una
-    /// renovación, no puede pedir la creación de algo que nunca existió.
+    /// Solo cuentan documentos que existen (<c>DocumentoId != null</c>), no vigentes y reclamables según
+    /// <see cref="VentanaReclamacion"/> (con FechaVencimiento y dentro de la ventana): un Faltante no tiene fila de
+    /// Documento que reclamar, y un «Sin confirmar» sin fecha no tiene vencimiento que renovar, igual que en
+    /// <c>ObtenerLoteReclamacionQuery</c> y en el envío. «Reclamar» pide una renovación, no la creación de algo
+    /// que nunca existió ni la confirmación de una vigencia sin fecha. No replica el resto de filtros del envío
+    /// (asignación activa, alcance, Centro con gestión CAE): el envío los revalida.
     /// </summary>
-    // «Sin confirmar» sigue siendo reclamable aunque no cuente como incidencia: reclamar pide al
-    // Cliente empresarial una renovación o la confirmación de la vigencia (decisión de D-22: solo cambia el cómputo).
     private async Task ReclamarFaltantesAsync()
     {
+        // Solo se ofrece lo que el envío acepta (VentanaReclamacion: con FechaVencimiento y dentro de la
+        // ventana). Un «Sin confirmar» sin fecha no tiene vencimiento que renovar: el envío lo rechaza, así
+        // que aquí no se ofrece y, si es lo único pendiente, se explica por qué.
+        var hoy = DiaDeNegocio.Hoy();
         var clientes = _centros
             .SelectMany(c => c.Documentos
-                .Where(d => d.DocumentoId is not null && d.Estado != EstadoDocumento.Vigente)
+                .Where(d => d.DocumentoId is not null && d.Estado != EstadoDocumento.Vigente
+                            && VentanaReclamacion.EsReclamable(d.FechaVencimiento, hoy))
                 .Select(d => (c.ClienteId, c.ClienteRazonSocial, DocumentoId: d.DocumentoId!.Value)))
             .GroupBy(x => (x.ClienteId, x.ClienteRazonSocial))
             .Select(g => new ClienteReclamableDto(g.Key.ClienteId, g.Key.ClienteRazonSocial, g.Select(x => x.DocumentoId).Distinct().ToList()))
@@ -598,7 +604,11 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
         if (clientes.Count == 0)
         {
-            ToastService.Mostrar(Textos["ToastSinPendientesReclamar"], TonoToast.Info);
+            var haySinFechaQueNoSePuedeReclamar = _centros.Any(c => c.Documentos.Any(d =>
+                d.DocumentoId is not null && d.Estado == EstadoDocumento.SinConfirmar && d.FechaVencimiento is null));
+            ToastService.Mostrar(
+                Textos[haySinFechaQueNoSePuedeReclamar ? "ToastSinConfirmarSinFechaNoReclamable" : "ToastSinPendientesReclamar"],
+                TonoToast.Info);
             return;
         }
 

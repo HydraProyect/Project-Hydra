@@ -4,7 +4,9 @@ using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Commands.EliminarCentros;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
+using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Domain.Documentos;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
@@ -273,5 +275,27 @@ public class CentrosListaGen2Tests : BunitContext
         EstadoCentroUi.EsSinDatos(estado, cumplimiento).Should().Be(sinDatos);
         EstadoCentroUi.Texto(estado, cumplimiento).Should().Be(sinDatos ? "Sin datos" : EstadoCentroUi.Texto(estado));
         EstadoCentroUi.Tono(estado, cumplimiento).Should().Be(sinDatos ? TonoBadge.Neutro : EstadoCentroUi.Tono(estado));
+    }
+    /// <summary>
+    /// D-18: la columna de recuentos mide 40 px (cabecera «VENC.» / «PRÓX.»), así que la cifra va sola, como en el
+    /// mockup, y su texto completo («2 documentos vencidos») sale en el <c>title</c> (tooltip) del badge.
+    /// </summary>
+    [Fact]
+    public void Las_cifras_de_recuento_llevan_su_texto_completo_en_el_title()
+    {
+        IncidenciaCentroDto Incidencia(AmbitoCausa ambito) =>
+            new("Formación PRL", ambito, EstadoDocumento.Vencido, Guid.NewGuid(), Guid.NewGuid(), null);
+        var centro = Centro("Centro Logístico Norte") with
+        {
+            Recuentos = new RecuentosCentroDto(
+                [Incidencia(AmbitoCausa.Empresa), Incidencia(AmbitoCausa.Trabajador)],
+                [Incidencia(AmbitoCausa.Trabajador)])
+        };
+
+        var cut = Renderizar(centro);
+
+        var badges = cut.FindAll(".ranura-recuento .badge-solo-recuento");
+        badges.Select(b => b.TextContent.Trim()).Should().Equal("2", "1");
+        badges.Select(b => b.GetAttribute("title")).Should().Equal("2 documentos vencidos", "1 documento próximo a vencer");
     }
 }

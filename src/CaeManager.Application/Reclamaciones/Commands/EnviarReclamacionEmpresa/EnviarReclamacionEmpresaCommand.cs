@@ -99,7 +99,7 @@ public class EnviarReclamacionEmpresaCommandHandler(
         // ámbito Empresa. Sin el filtro de ámbito, un Id de un documento de
         // Cliente de la misma Empresa contraparte entraría en el lote.
         var hoy = DiaDeNegocio.Hoy();
-        var limiteVentana = hoy.AddMonths(3);
+        var limiteVentana = VentanaReclamacion.Limite(hoy);
 
         var filas = await (
             from documento in documentosContext.Documentos
