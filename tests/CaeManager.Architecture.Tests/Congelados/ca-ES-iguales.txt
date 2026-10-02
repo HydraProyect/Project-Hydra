@@ -1113,14 +1113,8 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Vac
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VentanaIncidenciasUno = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VentanaIncidenciasVarios = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VentanaProblemaUrgente = 1
-src/CaeManager.Web/Features/Usuarios/Recursos/TextosUsuarios.resx :: DesactivarCarteraClientes = 1
-src/CaeManager.Web/Features/Usuarios/Recursos/TextosUsuarios.resx :: DesactivarCarteraPasada = 1
 src/CaeManager.Web/Features/Usuarios/Recursos/TextosUsuarios.resx :: DesactivarCarteraUniversal = 1
-src/CaeManager.Web/Features/Usuarios/Recursos/TextosUsuarios.resx :: DesactivarErrorInesperado = 1
 src/CaeManager.Web/Features/Usuarios/Recursos/TextosUsuarios.resx :: DesactivarMensaje = 1
-src/CaeManager.Web/Features/Usuarios/Recursos/TextosUsuarios.resx :: DesactivarNoReasignar = 1
-src/CaeManager.Web/Features/Usuarios/Recursos/TextosUsuarios.resx :: DesactivarPasarCarteraA = 1
-src/CaeManager.Web/Features/Usuarios/Recursos/TextosUsuarios.resx :: DesactivarSinCambios = 1
 src/CaeManager.Web/Features/Usuarios/Recursos/TextosUsuarios.resx :: DesactivarTitulo = 1
 src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: AriaEditarInformacion = 1
 src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: AriaSeleccionarPagina = 1

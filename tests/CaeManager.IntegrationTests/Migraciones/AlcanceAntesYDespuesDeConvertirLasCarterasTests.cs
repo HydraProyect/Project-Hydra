@@ -245,7 +245,10 @@ public class AlcanceAntesYDespuesDeConvertirLasCarterasTests : IAsyncLifetime
         {
             var usuario = new ApplicationUser
             {
-                Id = id, TenantId = _tenant.Id, UserName = $"u-{id:N}@medicion.test", Email = $"u-{id:N}@medicion.test",
+                Id = id,
+                TenantId = _tenant.Id,
+                UserName = $"u-{id:N}@medicion.test",
+                Email = $"u-{id:N}@medicion.test",
                 CoordinadorUsuarioId = coordinador,
             };
             if (desactivado) usuario.Desactivar();
@@ -280,7 +283,10 @@ public class AlcanceAntesYDespuesDeConvertirLasCarterasTests : IAsyncLifetime
 
         contexto.Users.Add(new ApplicationUser
         {
-            Id = _gestorDeOtroTenant, TenantId = _otro.Id, UserName = "otro@medicion.test", Email = "otro@medicion.test",
+            Id = _gestorDeOtroTenant,
+            TenantId = _otro.Id,
+            UserName = "otro@medicion.test",
+            Email = "otro@medicion.test",
         });
         contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
             raiz, _gestorDeOtroTenant, AmbitoAsignacion.DeRelacionCliente(cliente.Id), ahora.AddDays(-30), null, ahora));
