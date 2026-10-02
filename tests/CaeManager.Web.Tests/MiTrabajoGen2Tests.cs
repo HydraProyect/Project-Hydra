@@ -439,7 +439,8 @@ public class MiTrabajoGen2Tests : BunitContext
             rol: CaeManager.Infrastructure.Identity.Roles.CoordinadorCae);
 
         var vacio = cut.Find(".mi-trabajo-cola").TextContent;
-        vacio.Should().Contain("Sin Asignación de Cartera").And.Contain("Dirección CAE").And.NotContain("Coordinador CAE");
+        vacio.Should().Contain("Sin Asignación de Cartera").And.Contain("Gestores CAE de tu equipo").And.NotContain("Pídesela").And.NotContain("Pide a tu");
+        cut.Find(".mi-trabajo-cola a[data-enlace=usuarios]").GetAttribute("href").Should().Be("/usuarios");
     }
 
     [Fact]
@@ -454,7 +455,7 @@ public class MiTrabajoGen2Tests : BunitContext
         cut.FindAll(".mi-trabajo-cartera-fila").Single(f => f.TextContent.Contains("Refrielectric")).Click();
 
         var vacio = cut.Find(".mi-trabajo-cola").TextContent;
-        vacio.Should().Contain("Refrielectric").And.Contain("Dirección CAE").And.NotContain("Coordinador CAE");
+        vacio.Should().Contain("Refrielectric").And.Contain("Gestores CAE de tu equipo").And.NotContain("Pídesela").And.NotContain("Pide a tu");
     }
 
     [Fact]

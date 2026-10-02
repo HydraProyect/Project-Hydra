@@ -154,6 +154,10 @@
                                      ? Textos[_esCoordinadorCae ? "SinCarteraEmpresaDetalleCoordinador" : "SinCarteraEmpresaDetalle", t2.Nombre]
                                      : Textos[_esCoordinadorCae ? "SinCarteraDetalleCoordinador" : "SinCarteraDetalle"])">
                         <Accion>
+                            @if (_esCoordinadorCae)
+                            {
+                                <a class="enlace-ver-todas" data-enlace="usuarios" href="/usuarios">@Textos["EnlaceUsuarios"]</a>
+                            }
                             @if (_puedeAnadirACartera)
                             {
                                 <Boton OnClick="AbrirDialogoCartera">@Textos["AnadirAMiCartera"]</Boton>

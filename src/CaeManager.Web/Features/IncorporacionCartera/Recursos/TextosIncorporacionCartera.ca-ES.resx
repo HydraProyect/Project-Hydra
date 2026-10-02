@@ -229,6 +229,9 @@
     <value>Afegir a la meva cartera</value>
   </data>
   <data name="SinAsignacionDetalleCoordinador" xml:space="preserve">
-    <value>No tens cap Assignació de Cartera vigent en aquesta empresa, així que aquí no hi apareix res: no és que estigui al dia ni que falti donar-ho d'alta. Demana-la a Direcció CAE.</value>
+    <value>No tens cap Assignació de Cartera vigent en aquesta empresa, així que aquí no hi apareix res: no és que estigui al dia ni que falti donar-ho d'alta. El teu abast surt de la cartera dels Gestors CAE del teu equip: assigna empreses a un d'ells des d'Usuaris.</value>
+  </data>
+  <data name="SinAsignacionEnlaceUsuarios" xml:space="preserve">
+    <value>Anar a Usuaris</value>
   </data>
 </root>
