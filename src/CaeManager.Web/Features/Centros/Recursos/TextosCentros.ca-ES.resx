@@ -14,7 +14,7 @@
   </resheader>
   <data name="CabeceraCliente" xml:space="preserve">
     <value>Client empresarial:</value>
-    <comment>Rètol en pantalla del Client empresarial del Centre (contracte Gen2 § 14).</comment>
+    <comment>Rètol en pantalla del Client empresarial del Centre (CONTRATO_TERMINOLOGIA § 3.2; Gen2 § 14 esmenat el 2026-10-02).</comment>
   </data>
   <data name="CabeceraEmpresa" xml:space="preserve">
     <value>Empresa:</value>

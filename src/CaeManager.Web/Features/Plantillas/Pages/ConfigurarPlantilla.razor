@@ -42,7 +42,7 @@
             <CampoSelect Etiqueta="Ámbito" Valor="@_ambitoAplicacion.ToString()" ValorChanged="CambiarAmbitoAsync">
                 <option value="@AmbitoAplicacion.Trabajador">Trabajador</option>
                 <option value="@AmbitoAplicacion.Empresa">Empresa</option>
-                <option value="@AmbitoAplicacion.Cliente">Cliente</option>
+                <option value="@AmbitoAplicacion.Cliente">Cliente empresarial</option>
             </CampoSelect>
 
             <CampoSelect Etiqueta="Tipo de documento" Valor="@(_tipoDocumentoId?.ToString() ?? "")" ValorChanged="CambiarTipoDocumento">
@@ -66,7 +66,7 @@
                 }
             </CampoSelect>
 
-            <CampoSelect Etiqueta="Cliente (opcional)" Valor="@(_clienteId?.ToString() ?? "")" ValorChanged="CambiarCliente">
+            <CampoSelect Etiqueta="Cliente empresarial (opcional)" Valor="@(_clienteId?.ToString() ?? "")" ValorChanged="CambiarCliente">
                 <option value="">Todo el tenant</option>
                 @foreach (var cliente in _clientesDisponibles)
                 {
@@ -320,7 +320,7 @@
                             }
                             else
                             {
-                                <CampoSelect Etiqueta="Cliente" Valor="@(_ownerIdGeneracion?.ToString() ?? "")" ValorChanged="v => _ownerIdGeneracion = Guid.TryParse(v, out var id) ? id : null">
+                                <CampoSelect Etiqueta="Cliente empresarial" Valor="@(_ownerIdGeneracion?.ToString() ?? "")" ValorChanged="v => _ownerIdGeneracion = Guid.TryParse(v, out var id) ? id : null">
                                     <option value="">— Selecciona —</option>
                                     @foreach (var cliente in _clientesDisponibles)
                                     {

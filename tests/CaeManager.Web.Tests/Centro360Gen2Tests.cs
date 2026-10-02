@@ -466,7 +466,8 @@ public class Centro360Gen2Tests : BunitContext
             .And.Contain("Empresa: Ibertec GmbH")
             .And.Contain("21/08–23/08");
         // D-27 (recorrido en vivo 2026-10-01): fuera de Mi trabajo, «Cliente» a secas es ambiguo
-        // (CONTRATO_TERMINOLOGIA § 3.2). La precisión de Gen2 § 14 vale para el carril de Mi trabajo.
+        // (CONTRATO_TERMINOLOGIA § 3.2; Gen2 § 14 enmendado el 2026-10-02): vale para todas las pantallas.
+        entradilla.Should().NotMatchRegex(@"Cliente:", "«Cliente:» a secas es la forma ambigua que § 3.2 prohíbe");
         cut.Markup.Should().Contain("61");
         // El anillo va a la izquierda de la identidad, como en las cuatro páginas 360
         // (decisión del propietario 2026-09-24), no entre las acciones.

@@ -371,7 +371,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         var cut = await AbrirAltaAsync(Renderizar());
         await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
-        cut.Find(".alerta-formulario").TextContent.Trim().Should().Be("Selecciona un cliente.", "barrera: sin Cliente avisa del Cliente");
+        cut.Find(".alerta-formulario").TextContent.Trim().Should().Be("Selecciona un Cliente empresarial.", "barrera: sin Cliente avisa del Cliente");
 
         await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente empresarial…", "Refrielectric S.A.");
         cut.FindAll(".alerta-formulario").Should().BeEmpty("el Cliente ya está elegido");
