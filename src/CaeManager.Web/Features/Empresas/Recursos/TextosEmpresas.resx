@@ -293,7 +293,7 @@
   </data>
   <data name="SeAccedeComo" xml:space="preserve">
     <value>Se accede como</value>
-    <comment>Campo Empresa / Cliente / Proveedor de la credencial.</comment>
+    <comment>Campo Empresa / Cliente empresarial / Proveedor de la credencial.</comment>
   </data>
   <data name="Usuario" xml:space="preserve">
     <value>Usuario</value>
