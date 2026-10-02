@@ -294,12 +294,16 @@ public class DocumentosGen2Tests : BunitContext
     /// (CONTRATO_TERMINOLOGIA § 3.2), no «Cliente» a secas.
     /// </summary>
     [Fact]
-    public void El_filtro_Ambito_rotula_Cliente_empresarial_y_no_Cliente_a_secas()
+    public async Task El_filtro_Ambito_y_su_chip_rotulan_Cliente_empresarial_y_no_Cliente_a_secas()
     {
         var (cut, _) = Renderizar();
 
-        var opciones = cut.Find($"option[value='{nameof(AmbitoAplicacion.Cliente)}']");
-        opciones.TextContent.Trim().Should().Be("Cliente empresarial");
+        cut.Find($"option[value='{nameof(AmbitoAplicacion.Cliente)}']").TextContent.Trim().Should().Be("Cliente empresarial");
+        var selectAmbito = cut.FindAll("select").Single(x => x.QuerySelector($"option[value='{nameof(AmbitoAplicacion.Cliente)}']") is not null);
+        await selectAmbito.ChangeAsync(new ChangeEventArgs { Value = nameof(AmbitoAplicacion.Cliente) });
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ámbito: Cliente empresarial",
+            "el chip del filtro activo no puede devolver «Cliente» a secas"));
     }
 
     /// <summary>
