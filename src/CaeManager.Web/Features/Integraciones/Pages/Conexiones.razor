@@ -186,9 +186,9 @@
     </Pie>
 </Modal>
 
-<Modal Visible="_modalLineaVisible" VisibleChanged="(bool visible) => CerrarModalLinea(visible)"
+<Modal @ref="_modalLinea" Visible="_modalLineaVisible" VisibleChanged="(bool visible) => CerrarModalLinea(visible)"
        Titulo="@(_lineaEnEdicion is null ? "Nueva línea WhatsApp" : "Editar línea WhatsApp")"
-       CerrarAlHacerClicFuera="!_guardandoLinea" Bloqueante="_guardandoLinea">
+       CerrarAlHacerClicFuera="!_guardandoLinea" Bloqueante="_guardandoLinea" HayCambios="() => HayCambiosEnLinea">
     <ChildContent>
         @if (_lineaEnEdicion is null)
         {
@@ -199,8 +199,8 @@
             <CampoTexto Etiqueta="Phone Number ID (Meta)" Valor="@_lineaPhoneNumberId" ValorChanged="v => _lineaPhoneNumberId = v" />
             <CampoTexto Etiqueta="WABA ID (Meta)" Valor="@_lineaWabaId" ValorChanged="v => _lineaWabaId = v" />
 
-            <CampoSelect Etiqueta="Empresa sin rol CAE (opcional)" Valor="@(_lineaClienteId?.ToString() ?? string.Empty)"
-                         ValorChanged="v => _lineaClienteId = Guid.TryParse(v, out var id) ? id : null">
+            <CampoSelect Etiqueta="Empresa sin rol CAE (opcional)" Valor="@(_lineaEmpresaId?.ToString() ?? string.Empty)"
+                         ValorChanged="v => _lineaEmpresaId = Guid.TryParse(v, out var id) ? id : null">
                 <option value="">Organización propia</option>
                 @foreach (var cliente in _clientes)
                 {
@@ -249,7 +249,7 @@
                        Placeholder="¡Hola! Para atenderte mejor, dinos de qué empresa nos escribes y en qué podemos ayudarte." />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoLinea" OnClick="() => CerrarModalLinea()">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoLinea" OnClick="CancelarLineaAsync">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoLinea" OnClick="GuardarLineaAsync">
             @(_lineaEnEdicion is null ? "Crear línea" : "Guardar cambios")
         </Boton>

@@ -55,12 +55,13 @@
     }
 </div>
 
-<Modal Visible="_mostrarFormularioGenerar" VisibleChanged="CerrarFormularioGenerar" Titulo="Generar clave" CerrarAlHacerClicFuera="@(!_generando)">
+<Modal @ref="_modalGenerar" Visible="_mostrarFormularioGenerar" VisibleChanged="CerrarFormularioGenerar" Titulo="Generar clave" CerrarAlHacerClicFuera="@(!_generando)"
+       HayCambios="() => _mostrarFormularioGenerar && !_generando && !string.IsNullOrWhiteSpace(_nombreNuevaClave)">
     <ChildContent>
         <CampoTexto Etiqueta="Nombre" Valor="@_nombreNuevaClave" ValorChanged="CambiarNombreNuevaClave" Placeholder="Integración con el ERP" />
         @if (_errorGenerar is not null) { <p class="aviso-error" role="alert">@_errorGenerar</p> }
     </ChildContent>
-    <Pie><Boton Variante="VarianteBoton.Secundario" Deshabilitado="_generando" OnClick="() => CerrarFormularioGenerar(false)">Cancelar</Boton><Boton Variante="VarianteBoton.Primario" Cargando="_generando" OnClick="GenerarAsync">Generar</Boton></Pie>
+    <Pie><Boton Variante="VarianteBoton.Secundario" Deshabilitado="_generando" OnClick="CancelarGeneracionAsync">Cancelar</Boton><Boton Variante="VarianteBoton.Primario" Cargando="_generando" OnClick="GenerarAsync">Generar</Boton></Pie>
 </Modal>
 
 <Modal Visible="@(_claveGenerada is not null)" VisibleChanged="CerrarClaveGenerada" Titulo="Clave generada" CerrarAlHacerClicFuera="false">
