@@ -77,13 +77,14 @@ internal static class ContrasteCss
             if (valor.Equals("white", StringComparison.OrdinalIgnoreCase)) return "#ffffff";
             if (valor.Equals("black", StringComparison.OrdinalIgnoreCase)) return "#000000";
 
-            var v = Regex.Match(valor, @"^var\(\s*(--[\w-]+)\s*\)$");
+            // var(--x) y var(--x, #fallback): sin declaración del token manda el fallback, como en el navegador.
+            var v = Regex.Match(valor, @"^var\(\s*(--[\w-]+)\s*(?:,\s*(.+?))?\s*\)$");
             if (!v.Success) return null;
 
             var nombre = v.Groups[1].Value;
             if (_temas[tema].TryGetValue(nombre, out var deTema)) return IntentarResolver(deTema, tema, profundidad + 1);
             if (_raiz.TryGetValue(nombre, out var deRaiz)) return IntentarResolver(deRaiz, tema, profundidad + 1);
-            return null;
+            return v.Groups[2].Success ? IntentarResolver(v.Groups[2].Value, tema, profundidad + 1) : null;
         }
 
         /// <summary>
@@ -174,7 +175,8 @@ internal static class ContrasteCss
     {
         var f = Regex.Match(cuerpo, @"(?<![-\w])background(?:-color)?\s*:\s*([^;]+)");
         var c = Regex.Match(cuerpo, @"(?<![-\w])color\s*:\s*([^;]+)");
-        return (f.Success ? f.Groups[1].Value.Trim() : null, c.Success ? c.Groups[1].Value.Trim() : null);
+        static string SinImportant(string v) => Regex.Replace(v.Trim(), @"\s*!important$", string.Empty);
+        return (f.Success ? SinImportant(f.Groups[1].Value) : null, c.Success ? SinImportant(c.Groups[1].Value) : null);
     }
 
     /// <summary>Una regla del CSS con un único selector (las listas separadas por comas se reparten).</summary>
@@ -217,7 +219,7 @@ internal static class ContrasteCss
 
     /// <summary>Un selector sin sus estados (<c>:hover</c>, <c>:active</c>, <c>:focus</c>, <c>:focus-visible</c>, <c>:not(:disabled)</c>).</summary>
     internal static string SinEstados(string selector) =>
-        Regex.Replace(selector, @":not\(:disabled\)|:hover|:active|:focus-visible|:focus", string.Empty);
+        Regex.Replace(selector, @":not\(:disabled\)|:hover|:active|:focus-visible|:focus(?![\w-])", string.Empty);
 
     /// <summary>Contraste WCAG 2.x entre dos colores <c>#rrggbb</c>.</summary>
     internal static double Contraste(string a, string b)

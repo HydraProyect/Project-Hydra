@@ -65,7 +65,7 @@
 }
 
 .revision-stepper-linea-completa {
-    background-color: var(--color-primary-500);
+    background-color: var(--color-primario-fondo);
 }
 
 .revision-stepper-actual .revision-stepper-circulo {

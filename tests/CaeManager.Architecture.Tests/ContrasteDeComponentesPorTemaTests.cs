@@ -43,11 +43,14 @@ namespace CaeManager.Architecture.Tests;
 /// </list>
 ///
 /// <para>
-/// <b>Deuda declarada, no cerrada: el botón destructivo.</b> <c>--color-danger-500</c>
-/// (#ef4444) con letra blanca da 3,76:1 en los DOS temas (también en claro). Arreglarlo
-/// exige otro rojo de fondo, y eso cambia el tema claro: es decisión de producto
-/// (sistema de diseño), no de este incremento. Mientras tanto la lista le fija un
-/// mínimo de 3,7:1 para que no empeore, y el test de deuda falla en cuanto cumpla AA.
+/// <b>Deuda declarada, no cerrada: rellenos de color semántico con letra blanca.</b>
+/// <c>--color-danger-500</c> (#ef4444, botón destructivo, toast de error, banda de error del
+/// framework, contador de avisos) da 3,76:1 con blanco en los DOS temas (también en claro);
+/// <c>--color-success-500</c> (toast de éxito) 2,28:1 y <c>--color-warning-500</c> (toast de
+/// advertencia) 2,15:1. Arreglarlos exige otro color de fondo (o letra oscura), y eso cambia el
+/// tema claro: es decisión de producto (sistema de diseño), no de este incremento. Mientras
+/// tanto cada par lleva un mínimo rebajado a su valor de hoy para que no empeore, y el test de
+/// deuda falla en cuanto cumpla AA.
 /// </para>
 ///
 /// <para>
@@ -81,6 +84,7 @@ public class ContrasteDeComponentesPorTemaTests
     private const string Boton = "Components/DesignSystem/Boton.razor.css";
     private const string Badge = "Components/DesignSystem/Badge.razor.css";
     private const string ListPage = "wwwroot/css/list-page.css";
+    private const string Toast = "Components/DesignSystem/AnfitrionToasts.razor.css";
 
     private static readonly Par[] Pares =
     [
@@ -96,6 +100,15 @@ public class ContrasteDeComponentesPorTemaTests
         new("Botón destructivo, hover (deuda)", Boton, [".boton-destructivo", ".boton-destructivo:not(:disabled):hover"], Minimo: 3.7),
         new("Botón 360", "Components/DesignSystem/Boton360.razor.css", [".boton-360"]),
         new("Botón 360, hover", "Components/DesignSystem/Boton360.razor.css", [".boton-360", ".boton-360:hover"]),
+
+        // ---- Toasts: la letra está en .toast y el fondo en la variante, por eso el barrido no los ve ----
+        new("Toast informativo", Toast, [".toast", ".toast-info"]),
+        // DEUDA (ver resumen): blanco sobre --color-success-500 (#22c55e) = 2,28:1 en los dos temas.
+        new("Toast de éxito (deuda: 2,28:1 en los dos temas)", Toast, [".toast", ".toast-exito"], Minimo: 2.2),
+        // DEUDA: blanco sobre --color-warning-500 (#f59e0b) = 2,15:1 en los dos temas.
+        new("Toast de advertencia (deuda: 2,15:1 en los dos temas)", Toast, [".toast", ".toast-advertencia"], Minimo: 2.1),
+        // DEUDA: blanco sobre --color-danger-500 (#ef4444) = 3,76:1.
+        new("Toast de error (deuda: 3,76:1 en los dos temas)", Toast, [".toast", ".toast-error"], Minimo: 3.7),
 
         // ---- Badges ----
         new("Badge neutro", Badge, [".badge-neutro"]),
@@ -178,7 +191,14 @@ public class ContrasteDeComponentesPorTemaTests
         ("Components/DesignSystem/Boton360.razor.css", @"^\.boton-360$"),
         (Badge, @"^\.badge-[\w-]+$"),
         (ListPage, @"^\.chip-[\w-]+$"),
+        (Toast, @"^\.toast-[\w-]+$"),
     ];
+
+    /// <summary>Variantes de las familias que pintan color pero no llevan letra, con el motivo.</summary>
+    private static readonly Dictionary<(string Fichero, string Selector), string> ExentasDeCobertura = new()
+    {
+        [(Toast, ".toast-progreso")] = "barra de cuenta atrás del toast: relleno sin letra",
+    };
 
     /// <summary>
     /// Reglas del barrido que hoy incumplen AA y no se arreglan aquí, con el mínimo que no
@@ -215,7 +235,8 @@ public class ContrasteDeComponentesPorTemaTests
             fondo.Should().NotBeNull($"{par.Nombre}: sin background propio ni FondoSiFalta no se puede medir el contraste");
             texto.Should().NotBeNull($"{par.Nombre}: sin color propio hereda un color que este test no ve");
 
-            if (fondo!.Contains("color-mix", StringComparison.Ordinal))
+            // Translúcido = el resultado depende de lo que haya detrás (también si viene por un var()).
+            if (tokens.ResolverSobre(fondo!, tema, "#ffffff") != tokens.ResolverSobre(fondo!, tema, "#000000"))
                 par.Detras.Should().NotBeNull($"{par.Nombre}: un fondo translúcido necesita el color que hay detrás (Detras)");
 
             var hexFondo = tokens.ResolverSobre(fondo, tema, par.Detras ?? Papel);
@@ -233,6 +254,31 @@ public class ContrasteDeComponentesPorTemaTests
             "fondo y letra de cada par tienen que leerse (>= 4,5:1) en los dos temas; si salen de tokens que " +
             "no cambian de tema a la vez, usa un par con variante en tokens.css " +
             "(--color-primario-fondo / --color-primario-fondo-hover / --color-primario-texto para el primario)");
+    }
+
+    /// <summary>
+    /// «El tema claro queda idéntico» y la decisión de la coordinadora para oscuro, fijadas: un cambio que
+    /// mantenga el contraste pero mueva estos valores tiene que ser deliberado, no un efecto lateral.
+    /// </summary>
+    [Fact]
+    public void Los_tokens_del_primario_conservan_los_valores_decididos()
+    {
+        var tokens = Tokens.Desde(File.ReadAllText(RutaTokensCss()));
+
+        string R(string token, string tema) => tokens.IntentarResolver($"var({token})", tema)!;
+
+        R("--color-primario-fondo", "claro").Should().Be("#235bc2", "claro no cambia: es el --color-primary-500 de siempre");
+        R("--color-primario-fondo-hover", "claro").Should().Be("#1e4a9e", "claro no cambia: es el --color-primary-600 de siempre");
+        R("--color-primario-texto", "claro").Should().Be("#ffffff");
+        R("--color-exito-solido-texto", "claro").Should().Be("#ffffff");
+        R("--color-primario-fondo", "oscuro").Should().Be("#2f6fdd", "decisión: primary-400, 4,73:1 con blanco");
+        R("--color-primario-fondo-hover", "oscuro").Should().Be("#1e4a9e");
+        R("--color-primario-texto", "oscuro").Should().Be("#ffffff");
+
+        // «Sistema» (sin data-theme) resuelve a :root, no al bloque claro: el valor de :root y el del bloque
+        // claro tienen que decir lo mismo, y ninguno de los dos se puede cambiar sin el otro.
+        Regex.Matches(File.ReadAllText(RutaTokensCss()), @"--color-primario-fondo:\s*var\(--color-primary-500\);")
+            .Should().HaveCount(2, ":root y el bloque claro declaran el mismo fondo del primario");
     }
 
     [Fact]
@@ -272,7 +318,8 @@ public class ContrasteDeComponentesPorTemaTests
                 if (fondo is null && texto is null) continue;
 
                 vistas++;
-                if (!cubiertas.Contains((fichero, baseSel))) sinCubrir.Add($"{fichero}: {baseSel}");
+                if (!cubiertas.Contains((fichero, baseSel)) && !ExentasDeCobertura.ContainsKey((fichero, baseSel)))
+                    sinCubrir.Add($"{fichero}: {baseSel}");
             }
         }
 
@@ -329,6 +376,36 @@ public class ContrasteDeComponentesPorTemaTests
         DeudaConocida.Keys.Where(k => !incumplen.Contains(k)).Should().BeEmpty(
             "una regla de DeudaConocida que ya cumple AA (o desapareció) se retira de la lista para que la " +
             "excepción no quede muda");
+    }
+
+    /// <summary>
+    /// Reglas con fondo y letra declarados que el barrido no sabe resolver (<c>rgba()</c>, degradados, un
+    /// <c>var()</c> sin valor) y por tanto no mide. Medido el 2026-10-02. El tope solo baja: una regla nueva
+    /// con un formato que el instrumento no entiende hace fallar el test en vez de entrar sin medir.
+    /// Las 9 de hoy: dos de la caja del editor (color-mix, medidas en <see cref="Pares"/> sobre el papel), cuatro de
+    /// AccesoLayout (pantalla de acceso de tema fijo, con rgba), una de Importación (rgba sobre el paso actual,
+    /// medida arriba con la letra de superficie) y dos iconos: uno toma el color de una propiedad local de Razor
+    /// (<c>--estado-vacio-acento</c>) y el otro un tinte que no es #rrggbb (<c>--color-system-tint</c>).
+    /// </summary>
+    private const int OmitidasHoy = 9;
+
+    [Fact]
+    public void El_barrido_no_omite_en_silencio_mas_reglas_de_las_que_omite_hoy()
+    {
+        var tokens = Tokens.Desde(File.ReadAllText(RutaTokensCss()));
+        var omitidas = new SortedSet<string>(StringComparer.Ordinal);
+
+        foreach (var fichero in HojasDelArbol())
+        {
+            var rel = Path.GetRelativePath(RaizWeb(), fichero).Replace('\\', '/');
+            foreach (var (clave, ratio) in Evaluar(File.ReadAllText(fichero), rel, tokens, "claro"))
+                if (ratio is null) omitidas.Add(clave);
+        }
+
+        omitidas.Count.Should().BeLessThanOrEqualTo(OmitidasHoy,
+            "el barrido no sabe medir estas reglas (formato de color que no entiende): {0}. Si la regla es nueva, usa " +
+            "#rrggbb o var(); si no se puede, súbela aquí con el motivo. Hoy omite {1}",
+            string.Join("; ", omitidas), omitidas.Count);
     }
 
     // ---- Sensibilidad: el instrumento tiene que ver el defecto del primario ----
@@ -420,7 +497,21 @@ public class ContrasteDeComponentesPorTemaTests
     /// Para cada regla con fondo y letra resolubles (la propia o, si es de estado, completada con la
     /// base del mismo fichero y selector), la clave <c>fichero|selector sin estados</c> y su contraste.
     /// </summary>
-    private static IEnumerable<(string Clave, double Ratio)> Barrer(string css, string fichero, Tokens tokens, string tema)
+    private static IEnumerable<(string Clave, double Ratio)> Barrer(string css, string fichero, Tokens tokens, string tema) =>
+        Evaluar(css, fichero, tokens, tema).Where(m => m.Ratio is not null).Select(m => (m.Clave, m.Ratio!.Value));
+
+    /// <summary>Valores que no son un color concreto: no hay nada que medir, y no cuentan como regla omitida.</summary>
+    private static readonly HashSet<string> SinColorConcreto = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "none", "transparent", "inherit", "initial", "unset", "currentcolor",
+    };
+
+    /// <summary>
+    /// Lo mismo que <see cref="Barrer"/>, pero también devuelve (con <c>Ratio</c> nulo) las reglas que declaran
+    /// fondo y letra y que el instrumento no sabe resolver (<c>rgba()</c>, degradados, un <c>var()</c> sin
+    /// valor...). Son las que el barrido omitiría en silencio.
+    /// </summary>
+    private static IEnumerable<(string Clave, double? Ratio)> Evaluar(string css, string fichero, Tokens tokens, string tema)
     {
         var reglas = Reglas(css).ToList();
 
@@ -443,11 +534,12 @@ public class ContrasteDeComponentesPorTemaTests
             }
 
             if (fondo is null || texto is null) continue;
+            if (SinColorConcreto.Contains(fondo) || SinColorConcreto.Contains(texto)) continue;
             var hexFondo = tokens.IntentarResolver(fondo, tema);
             var hexTexto = tokens.IntentarResolver(texto, tema);
-            if (hexFondo is null || hexTexto is null) continue;
 
-            yield return ($"{fichero}|{clave}", Contraste(hexFondo, hexTexto));
+            yield return ($"{fichero}|{clave}",
+                hexFondo is null || hexTexto is null ? null : Contraste(hexFondo, hexTexto));
         }
     }
 

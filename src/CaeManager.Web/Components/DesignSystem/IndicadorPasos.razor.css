@@ -21,7 +21,7 @@
 }
 
 .indicador-pasos-item.indicador-pasos-completado:not(:last-child)::after {
-    background: var(--color-primary-500);
+    background: var(--color-primario-fondo);
 }
 
 .indicador-pasos-boton {
