@@ -149,7 +149,7 @@ orden_de() { grep -n "^$1" "$LOG" | head -n1 | cut -d: -f1; }
 echo "scripts/gate.sh"
 
 # 1. todo verde, diff que no toca código (una nota)
-tocar NOTAS.md
+tocar NOTAS.txt
 gate "$GATE_REAL"
 aserta "verde: sale con 0" test "$RC" -eq 0
 aserta "verde: línea final GATE: VERDE" contiene "$SALIDA" "GATE: VERDE"
@@ -179,7 +179,7 @@ tocar Directory.Build.props
 gate "$GATE_REAL"
 aserta "web: tocar la configuración de compilación también la ejecuta" grep -q "^test tests/CaeManager.Web.Tests" "$LOG"
 limpiar
-tocar NOTAS.md
+tocar NOTAS.txt
 gate "$GATE_REAL" --web
 aserta "web: --web la fuerza aunque el diff no toque código" grep -q "^test tests/CaeManager.Web.Tests" "$LOG"
 limpiar
@@ -187,7 +187,7 @@ comprometer src/CaeManager.Application/A.cs
 gate "$GATE_REAL"
 aserta "web: un cambio YA COMPROMETIDO (base...HEAD) ejecuta Web.Tests" grep -q "^test tests/CaeManager.Web.Tests" "$LOG"
 reiniciar
-comprometer NOTAS.md
+comprometer NOTAS.txt
 gate "$GATE_REAL"
 aserta "web: una nota ya comprometida no la ejecuta" bash -c "! grep -q '^test tests/CaeManager.Web.Tests' '$LOG'"
 reiniciar
@@ -310,7 +310,7 @@ if [ -f "$HOOK_REAL" ]; then
   FORMATO_ROJO=1 hook "$HOOK_REAL" "$SHA"
   aserta "gancho: con el gate rojo bloquea el push (código distinto de 0)" test "$RC" -ne 0
   aserta "gancho: dice que no empuja" contiene "$SALIDA" "NO se empuja"
-  tocar NOTAS.md
+  tocar NOTAS.txt
   hook "$HOOK_REAL" "$SHA"
   aserta "gancho: con cambios sin comprometer avisa (el gate valida el árbol, no el commit)" contiene "$SALIDA" "AVISO hay cambios sin comprometer"
   aserta "gancho: el aviso no bloquea el push" test "$RC" -eq 0

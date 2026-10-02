@@ -34,7 +34,10 @@ import sys
 from pathlib import Path
 
 NEGOCIO_POR_DEFECTO = os.environ.get("HYDRA_NEGOCIO", r"C:\Users\chris\Project-Hydra-Negocio")
-INFORME_RECORRIDO = "tecnico/docs/ux-audit/RECORRIDO-EN-VIVO-STAGING-2026-10-01.md"
+# Citado con el prefijo del repositorio de negocio, como exige EnlacesADocumentosExistentesTests para un
+# documento que no vive en este repositorio; la ruta real es la que sigue al prefijo, bajo --negocio.
+INFORME_RECORRIDO_CITADO = "Project-Hydra-Negocio/tecnico/docs/ux-audit/RECORRIDO-EN-VIVO-STAGING-2026-10-01.md"
+INFORME_RECORRIDO = INFORME_RECORRIDO_CITADO.split("/", 1)[1]
 REGEX_DEFECTO = re.compile(r"\bD-(\d{2})\b")
 REGEX_CONTINUACION = re.compile(r"(?i)\b(resto|restos|residuos?|2\.?ª parte|segunda parte|continuaci[oó]n|remate)\b")
 
@@ -218,9 +221,16 @@ def metricas_de_pr(slug, args, total_defectos):
     humanos = [p for p in prs if (p.get("author") or {}).get("login", "") not in ("dependabot[bot]", "app/dependabot")
                and (p.get("createdAt") or "") >= args.desde]
     ventana = f"lote #{args.pr_min}..#{args.pr_max} ({len(lote)} PR)"
-    if len(prs) >= args.limite_pr:
-        ventana += (f"; ATENCIÓN: gh devolvió exactamente el tope de --limite-pr ({args.limite_pr}): el lote o la ventana "
-                    "pueden estar recortados, súbelo")
+    # El tope solo recorta algo si la PR más antigua devuelta es MÁS NUEVA que el inicio de lo que se mide.
+    # Con el tope alcanzado pero cubriendo la ventana entera no hay nada que avisar.
+    tope = bool(prs) and len(prs) >= args.limite_pr
+    lote_recortado = tope and min(p["number"] for p in prs) > args.pr_min
+    desde_recortado = tope and min((p.get("createdAt") or "") for p in prs) > args.desde
+    if lote_recortado:
+        ventana += (f"; ATENCIÓN: el tope de --limite-pr ({args.limite_pr}) corta antes del inicio del lote "
+                    f"(la PR más antigua leída es #{min(p['number'] for p in prs)}): súbelo")
+    aviso_desde = (f"; ATENCIÓN: el tope de --limite-pr ({args.limite_pr}) corta después de {args.desde}: la ventana está recortada, súbelo"
+                   if desde_recortado else "")
 
     if not lote:
         for c, n in [("M2", "Defectos que necesitan ≥2 PR"), ("M3", "PR con hallazgo ≥ medio del revisor"),
@@ -278,10 +288,10 @@ def metricas_de_pr(slug, args, total_defectos):
         med_todas = statistics.median([p["changedFiles"] for p in humanos])
         filas.append(fila("M7", "Mediana de ficheros por PR",
                           f"{med_todas:g} (lote {med_lote:g})" if med_lote is not None else f"{med_todas:g} (lote sin datos)", "INSTRUMENTO",
-                          f"{len(humanos)} PR no-Dependabot desde {args.desde}; {ventana}", med_todas))
+                          f"{len(humanos)} PR no-Dependabot desde {args.desde}{aviso_desde}; {ventana}", med_todas))
         tiempos = [minutos(p["createdAt"], p["mergedAt"]) for p in humanos if p.get("mergedAt")]
         tiempos_lote = [minutos(p["createdAt"], p["mergedAt"]) for p in lote if p.get("mergedAt")]
-        det = f"{len(tiempos)} PR no-Dependabot desde {args.desde}: p75 {percentil(tiempos, 75):.0f}, p90 {percentil(tiempos, 90):.0f} min"
+        det = f"{len(tiempos)} PR no-Dependabot desde {args.desde}: p75 {percentil(tiempos, 75):.0f}, p90 {percentil(tiempos, 90):.0f} min{aviso_desde}"
         txt = f"mediana {statistics.median(tiempos):.0f} min"
         if tiempos_lote:
             txt += f" (lote {statistics.median(tiempos_lote):.0f})"

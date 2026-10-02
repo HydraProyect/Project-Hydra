@@ -341,10 +341,21 @@ class ConGhFalso(unittest.TestCase):
         self.assertIn("5 PR no-Dependabot desde 2026-09-12", f["M7"]["detalle"])
 
     def test_el_tope_de_limite_pr_se_avisa_en_vez_de_recortar_en_silencio(self):
-        f, _ = self.valores(limite_pr=7)          # gh devuelve exactamente 7: pudo haber más
+        # gh devuelve exactamente 7 (el tope) y la más antigua es la #5: si el lote empezara en #3, estaría recortado
+        f, _ = self.valores(limite_pr=7, pr_min=3)
         self.assertIn("ATENCIÓN", f["M2"]["detalle"])
-        f, _ = self.valores(limite_pr=100)
+        # con el tope alcanzado pero el lote (#10..#12) bien dentro de lo leído, no hay nada que avisar
+        f, _ = self.valores(limite_pr=7)
         self.assertNotIn("ATENCIÓN", f["M2"]["detalle"])
+        f, _ = self.valores(limite_pr=100, pr_min=3)
+        self.assertNotIn("ATENCIÓN", f["M2"]["detalle"])
+
+    def test_el_tope_que_corta_la_ventana_desde_se_avisa_en_M7_y_M8(self):
+        f, _ = self.valores(limite_pr=7, desde="2026-08-01")      # la más antigua leída es de 2026-09-01
+        self.assertIn("ATENCIÓN", f["M7"]["detalle"])
+        self.assertIn("ATENCIÓN", f["M8"]["detalle"])
+        f, _ = self.valores(limite_pr=7)                            # desde 2026-09-12: cubierto
+        self.assertNotIn("ATENCIÓN", f["M7"]["detalle"])
 
     def test_una_linea_base_de_otra_ventana_avisa_de_que_no_es_comparable(self):
         import contextlib

@@ -59,7 +59,9 @@ mutante "M8 mide al revés (fusión menos creación)"    's/return (b - a).total
 mutante "M10 cuenta ficheros de una sola PR"          's/if n >= 2)/if n >= 1)/'                                      "test_M2_M3_M6_M7_M8_M9_M10"
 mutante "M6 divide por PR en vez de por defecto"      's/toques \/ len(mapa)/toques \/ len(num_con_d)/'              "test_M2_M3_M6_M7_M8_M9_M10"
 mutante "la ventana del lote ignora el máximo"        's/args.pr_min <= p\["number"\] <= args.pr_max\]/args.pr_min <= p["number"]]/' "test_M2_M3_M6_M7_M8_M9_M10"
-mutante "el tope de --limite-pr no se avisa"          's/if len(prs) >= args.limite_pr:/if False:/'                   "test_el_tope_de_limite_pr"
+mutante "el tope de --limite-pr no se avisa"          's/    if lote_recortado:/    if False:/'                          "test_el_tope_de_limite_pr"
+mutante "el tope avisa aunque cubra la ventana"       's/lote_recortado = tope and min(p\["number"\] for p in prs) > args.pr_min/lote_recortado = tope/' "test_el_tope_de_limite_pr"
+mutante "el tope de la ventana --desde no se avisa"   's/desde_recortado = tope and /desde_recortado = False and /'         "test_el_tope_que_corta_la_ventana_desde"
 mutante "M18 da 0 si la lista no tiene el formato"    's/        if not archivos:/        if False:/'                    "test_directorios_existentes_pero_vacios"
 mutante "M9 no reconoce 2ª parte"                    's/|2\\.?ª parte//'                                               "test_M9_continuaciones"
 
