@@ -19,7 +19,9 @@
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion
+@using CaeManager.Application.Reclamaciones
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas
+@using CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaReclamacion
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Documentos.Recursos
 @using MediatR
@@ -97,7 +99,7 @@
                     <span class="columna-accion" role="cell">
                         <SoloConEscritura>
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                   Cargando="_reenviandoId == reclamacion.Id" OnClick="() => _reclamacionAReenviar = reclamacion">
+                                   Cargando="_reenviandoId == reclamacion.Id" OnClick="() => AbrirRevisionReenvioAsync(reclamacion)">
                                 Reclamar de nuevo
                             </Boton>
                         </SoloConEscritura>
@@ -264,9 +266,30 @@ else
     </Pie>
 </Modal>
 
-<DialogoConfirmacion Visible="_reclamacionAReenviar is not null" VisibleChanged="v => { if (!v) _reclamacionAReenviar = null; }"
-                     Titulo="@Textos["RecReenvioTitulo"]" Mensaje="@MensajeReenvio" TextoBotonConfirmar="@Textos["RecConfirmarEnviar"]"
-                     VarianteConfirmar="VarianteBoton.Primario" EnProgreso="_reenviandoId is not null" OnConfirmar="ConfirmarReenvioAsync" />
+@* «Reclamar de nuevo» también es un correo externo no deshacible: misma revisión
+   completa, pero con lo que resuelve el propio envío (PrepararVistaPreviaReclamacionCommand
+   llama a la misma implementación que el handler de envío). *@
+<Modal Visible="_vistaPreviaReenvio is not null" VisibleChanged="CerrarRevisionReenvio" Titulo="@Textos["RecReenvioTitulo"]"
+       Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="_reenviandoId is null">
+    <ChildContent>
+        @if (_vistaPreviaReenvio is { } previa)
+        {
+            <dl class="reclamacion-revision">
+                <dt>@Textos["RecRevisionPara"]</dt>
+                <dd>@string.Join(", ", previa.Destinatarios.Select(d => $"{d.Nombre} <{d.Email}>"))</dd>
+                <dt>@Textos["RecRevisionAsunto"]</dt>
+                <dd>@previa.Asunto</dd>
+                <dt>@Textos["RecRevisionTexto"]</dt>
+                <dd class="reclamacion-revision-cuerpo">@((MarkupString)previa.CuerpoHtml)</dd>
+            </dl>
+            <p class="texto-vacio-seccion">@Textos["RecRevisionAviso", previa.Correos.Count]</p>
+        }
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_reenviandoId is not null" OnClick="() => CerrarRevisionReenvio(false)">@Textos["RecVolver"]</Boton>
+        <Boton Cargando="_reenviandoId is not null" OnClick="ConfirmarReenvioAsync">@Textos["RecConfirmarEnviar"]</Boton>
+    </Pie>
+</Modal>
 
 @* Alta inline: el gestor que ve que falta el destinatario lo crea sin salir
    de la pantalla y la lista se recarga con él ya resuelto. *@
@@ -409,7 +432,7 @@ else
         return CargarHistorialAsync();
     }
 
-    private async Task ReclamarDeNuevoAsync(ReclamacionEnviadaDto reclamacion)
+    private async Task ReclamarDeNuevoAsync(ReclamacionEnviadaDto reclamacion, IReadOnlyList<Guid> contactoIds)
     {
         // La guarda se comprueba AL ENTRAR, no al salir: el botón deshabilitado
         // no basta porque el segundo clic ya viajaba cuando se deshabilitó.
@@ -427,8 +450,8 @@ else
             // buscaría documentos de Trabajador de un Cliente que no existe y
             // fallaría con "ninguno sigue siendo reclamable".
             var resultado = reclamacion.AmbitoTitular == AmbitoAplicacion.Empresa
-                ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(reclamacion.TitularId, reclamacion.DocumentoIds), token)
-                : await Mediator.Send(new EnviarReclamacionCommand(reclamacion.TitularId, reclamacion.DocumentoIds), token);
+                ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(reclamacion.TitularId, reclamacion.DocumentoIds, contactoIds), token)
+                : await Mediator.Send(new EnviarReclamacionCommand(reclamacion.TitularId, reclamacion.DocumentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds), token);
 
             // La pestaña pudo desecharse mientras el comando estaba en vuelo:
             // ni el toast ni la recarga pertenecen a un componente ya retirado.
@@ -526,11 +549,50 @@ else
     private LoteReclamacionClienteDto? _loteEnRevision;
     private ReclamacionEnviadaDto? _reclamacionAReenviar;
 
-    private string MensajeReenvio => _reclamacionAReenviar is null
-        ? string.Empty
-        : Textos["RecReenvioMensaje", _reclamacionAReenviar.TitularRazonSocial,
-            EnviarReclamacionCommandHandler.ConstruirAsunto(_reclamacionAReenviar.TitularRazonSocial),
-            _reclamacionAReenviar.TotalDocumentos].Value;
+    private ReclamacionPreparada? _vistaPreviaReenvio;
+    private bool _cargandoVistaPrevia;
+
+    private async Task AbrirRevisionReenvioAsync(ReclamacionEnviadaDto reclamacion)
+    {
+        if (_cargandoVistaPrevia || _reenviandoId is not null || _desechado)
+            return;
+
+        var token = _ciclo.Token;
+        _cargandoVistaPrevia = true;
+        try
+        {
+            var previa = await Mediator.Send(
+                new PrepararVistaPreviaReclamacionCommand(reclamacion.AmbitoTitular, reclamacion.TitularId, reclamacion.DocumentoIds), token);
+
+            if (_desechado)
+                return;
+
+            // Si el envío fallaría (documentos ya renovados, sin acceso, sin
+            // destinatario) la vista previa falla con el mismo error: se dice
+            // aquí y no se abre una revisión de algo que no saldría.
+            if (previa.EsFallido)
+            {
+                ToastService.MostrarError(previa.Error);
+                return;
+            }
+
+            _reclamacionAReenviar = reclamacion;
+            _vistaPreviaReenvio = previa.Valor;
+        }
+        finally
+        {
+            _cargandoVistaPrevia = false;
+        }
+    }
+
+    private void CerrarRevisionReenvio(bool visible)
+    {
+        if (!visible && _reenviandoId is null)
+        {
+            _vistaPreviaReenvio = null;
+            _reclamacionAReenviar = null;
+        }
+    }
 
     /// <summary>
     /// D-02: el botón deshabilitado dice por qué. Sin documentos marcados o sin
@@ -593,16 +655,23 @@ else
         var reclamacion = _reclamacionAReenviar;
         // Un segundo clic con el envío en vuelo no cierra nada: el diálogo sigue
         // mostrando el progreso hasta que termina el primero.
-        if (reclamacion is null || _reenviandoId is not null)
+        if (reclamacion is null || _vistaPreviaReenvio is null || _reenviandoId is not null)
             return;
+
+        // Se envía a QUIEN enseñó la revisión, no a lo que la agenda resuelva en este
+        // instante: un contacto añadido entre la vista previa y el clic no recibe el
+        // correo sin haberse mostrado, y uno que ya no resuelve hace fallar el envío
+        // entero (ContactosDesactualizados), igual que en «Enviar reclamación».
+        IReadOnlyList<Guid> contactoIds = [.. _vistaPreviaReenvio.Destinatarios.Select(d => d.ContactoId)];
 
         try
         {
-            await ReclamarDeNuevoAsync(reclamacion);
+            await ReclamarDeNuevoAsync(reclamacion, contactoIds);
         }
         finally
         {
             _reclamacionAReenviar = null;
+            _vistaPreviaReenvio = null;
         }
     }
 

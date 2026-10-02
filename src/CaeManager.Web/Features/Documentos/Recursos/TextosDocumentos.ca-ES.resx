@@ -93,9 +93,6 @@
   <data name="RecReenvioTitulo" xml:space="preserve">
     <value>Reclama de nou</value>
   </data>
-  <data name="RecReenvioMensaje" xml:space="preserve">
-    <value>S&apos;enviarà de nou un correu extern a {0} (assumpte «{1}», {2} document(s)). Els destinataris es resolen en aquest moment des de l&apos;agenda; l&apos;enviament no es pot desfer.</value>
-  </data>
   <data name="RecBotonSinContacto" xml:space="preserve">
     <value>No hi ha cap contacte a l&apos;agenda a qui reclamar. Afegeix-ne un amb «Afegeix contacte».</value>
   </data>

@@ -68,19 +68,42 @@ public class EnviarReclamacionCommandHandler(
 {
     public async Task<Result<EnvioReclamacionResultado>> Handle(EnviarReclamacionCommand request, CancellationToken cancellationToken)
     {
+        var preparada = await PrepararAsync(request, cancellationToken);
+        if (preparada.EsFallido)
+            return Result.Fallo<EnvioReclamacionResultado>(preparada.Error);
+
+        var p = preparada.Valor;
+        var envio = await registroEnvio.EnviarYRegistrarAsync(
+            new TitularReclamacion(p.TitularId, p.TitularRazonSocial, AmbitoAplicacion.Cliente),
+            p.DocumentoIds, p.Correos, p.Asunto, p.CuerpoHtml, cancellationToken);
+
+        return envio.EsFallido
+            ? Result.Fallo<EnvioReclamacionResultado>(envio.Error)
+            : Result.Exito(new EnvioReclamacionResultado(p.DocumentoIds, p.Correos));
+    }
+
+    /// <summary>
+    /// Todo lo que decide QUÉ se envía y A QUIÉN (acceso, ventana, todo o nada,
+    /// agenda, asunto y cuerpo), sin enviar. Es la única implementación: el envío
+    /// la usa en <see cref="Handle"/> y la vista previa
+    /// (<c>PrepararVistaPreviaReclamacionCommand</c>) la llama tal cual, de modo que
+    /// lo que se enseña antes de confirmar y lo que sale no pueden divergir.
+    /// </summary>
+    public async Task<Result<ReclamacionPreparada>> PrepararAsync(EnviarReclamacionCommand request, CancellationToken cancellationToken)
+    {
         if (!await alcanceDatos.TieneAccesoTotalAsync(cancellationToken))
         {
             var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
             if (clienteIdsVisibles is null || !clienteIdsVisibles.Contains(request.ClienteId))
-                return Result.Fallo<EnvioReclamacionResultado>(Error.Crear("Reclamacion.SinAcceso", "No tienes acceso a este cliente."));
+                return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.SinAcceso", "No tienes acceso a este cliente."));
         }
 
         var cliente = await empresasContext.Empresas.FirstOrDefaultAsync(c => c.Id == request.ClienteId, cancellationToken);
         if (cliente is null)
-            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear("Reclamacion.ClienteNoEncontrado", "No encontramos este cliente."));
+            return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.ClienteNoEncontrado", "No encontramos este cliente."));
 
         if (request.DocumentoIds.Count == 0)
-            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear("Reclamacion.SinDocumentos", "Selecciona al menos un documento a reclamar."));
+            return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.SinDocumentos", "Selecciona al menos un documento a reclamar."));
 
         var idsSolicitados = request.DocumentoIds.Distinct().ToList();
 
@@ -119,7 +142,7 @@ public class EnviarReclamacionCommandHandler(
 
         if (filas.Count == 0)
         {
-            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
+            return Result.Fallo<ReclamacionPreparada>(Error.Crear(
                 "Reclamacion.SinDocumentosValidos",
                 "Ninguno de los documentos seleccionados sigue siendo reclamable para este cliente — puede que ya se hayan renovado."));
         }
@@ -131,7 +154,7 @@ public class EnviarReclamacionCommandHandler(
         var idsEncontrados = filas.Select(f => f.DocumentoId).ToHashSet();
         if (idsSolicitados.Exists(id => !idsEncontrados.Contains(id)))
         {
-            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
+            return Result.Fallo<ReclamacionPreparada>(Error.Crear(
                 "Reclamacion.DocumentosDesactualizados",
                 "Algunos de los documentos seleccionados ya no son reclamables — puede que se hayan renovado o hayan salido de la ventana de reclamación. Actualiza la vista antes de volver a intentarlo."));
         }
@@ -153,7 +176,7 @@ public class EnviarReclamacionCommandHandler(
             var contactoIdsResueltos = resueltos.Select(d => d.ContactoId).ToHashSet();
             if (seleccionados.Any(id => !contactoIdsResueltos.Contains(id)))
             {
-                return Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
+                return Result.Fallo<ReclamacionPreparada>(Error.Crear(
                     "Reclamacion.ContactosDesactualizados",
                     "Alguno de los contactos seleccionados ya no está en la agenda para esta documentación. Actualiza la vista antes de volver a intentarlo."));
             }
@@ -163,7 +186,7 @@ public class EnviarReclamacionCommandHandler(
 
         if (resueltos.Count == 0)
         {
-            return Result.Fallo<EnvioReclamacionResultado>(Error.Crear(
+            return Result.Fallo<ReclamacionPreparada>(Error.Crear(
                 "Reclamacion.SinDestinatario",
                 "No hay ningún contacto en la agenda al que reclamar esta documentación — añade uno en la ficha del cliente."));
         }
@@ -173,13 +196,9 @@ public class EnviarReclamacionCommandHandler(
         var asunto = ConstruirAsunto(cliente.RazonSocial);
         var cuerpoHtml = ConstruirCuerpoHtml(cliente.RazonSocial, filas.Select(f => (f.TrabajadorNombre, f.TipoDocumentoNombre, f.FechaVencimiento!.Value)));
 
-        var envio = await registroEnvio.EnviarYRegistrarAsync(
-            new TitularReclamacion(request.ClienteId, cliente.RazonSocial, AmbitoAplicacion.Cliente),
-            documentoIds, destinatarios, asunto, cuerpoHtml, cancellationToken);
-
-        return envio.EsFallido
-            ? Result.Fallo<EnvioReclamacionResultado>(envio.Error)
-            : Result.Exito(new EnvioReclamacionResultado(documentoIds, destinatarios));
+        return Result.Exito(new ReclamacionPreparada(
+            request.ClienteId, cliente.RazonSocial, documentoIds, destinatarios,
+            [.. resueltos.GroupBy(d => d.Email).Select(g => g.First())], asunto, cuerpoHtml));
     }
 
     /// <summary>Asunto del correo. Público para que la vista previa de la pestaña Reclamaciones muestre exactamente el que se enviará, sin copiarlo.</summary>

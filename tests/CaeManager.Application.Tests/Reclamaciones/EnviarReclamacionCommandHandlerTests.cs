@@ -1,6 +1,9 @@
 using CaeManager.Domain.Common;
+using CaeManager.Application.Common;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
+using CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaReclamacion;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Plantillas;
@@ -246,5 +249,110 @@ public class EnviarReclamacionCommandHandlerTests
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Reclamacion.SinDestinatario");
         escenario.Entorno.RegistroEnvio.VecesLlamado.Should().Be(0);
+    }
+
+    // ---- Vista previa de «Reclamar de nuevo»: mismo resultado que el envío ----
+
+    private static PrepararVistaPreviaReclamacionCommandHandler CrearVistaPrevia(Escenario escenario, AlcanceDatosServiceFalso? alcance = null)
+    {
+        var alcanceDatos = alcance ?? new AlcanceDatosServiceFalso();
+        var e = escenario.Entorno;
+        return new PrepararVistaPreviaReclamacionCommandHandler(
+            e.CrearHandler(alcanceDatos),
+            new EnviarReclamacionEmpresaCommandHandler(e.Empresas, e.Documentos, e.TiposDocumento, alcanceDatos, e.Agenda, e.RegistroEnvio));
+    }
+
+    [Fact]
+    public async Task La_vista_previa_y_el_envio_resuelven_los_mismos_destinatarios_asunto_y_cuerpo()
+    {
+        var escenario = ConstruirEscenario();
+        var documento = AgregarDocumento(escenario, Hoy.AddDays(10));
+        var ana = Contacto("Ana Ruiz");
+        var luis = new DestinatarioAgendaDto(Guid.NewGuid(), "Luis Gil", "luis@contratista.test", ["RLC"]);
+        escenario.Entorno.Agenda.RespuestaResolverAsync = [ana, luis];
+
+        var previa = await CrearVistaPrevia(escenario).Handle(
+            new PrepararVistaPreviaReclamacionCommand(AmbitoAplicacion.Cliente, escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
+        previa.EsExitoso.Should().BeTrue();
+        escenario.Entorno.RegistroEnvio.VecesLlamado.Should().Be(0, "la vista previa no envía nada");
+
+        var envio = await escenario.Entorno.CrearHandler().Handle(
+            new EnviarReclamacionCommand(escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
+        envio.EsExitoso.Should().BeTrue();
+
+        var registro = escenario.Entorno.RegistroEnvio;
+        previa.Valor.Correos.Should().Equal(registro.UltimosDestinatarios, "a quién se enseña es a quién se envía");
+        previa.Valor.Destinatarios.Select(d => d.Email).Should().Equal(registro.UltimosDestinatarios);
+        previa.Valor.Destinatarios.Select(d => d.Nombre).Should().Equal("Ana Ruiz", "Luis Gil");
+        previa.Valor.DocumentoIds.Should().Equal(registro.UltimosDocumentoIds);
+        previa.Valor.Asunto.Should().Be(registro.UltimoAsunto);
+        previa.Valor.CuerpoHtml.Should().Be(registro.UltimoCuerpoHtml);
+    }
+
+    [Fact]
+    public async Task La_vista_previa_falla_igual_que_el_envio_si_el_documento_ya_no_es_reclamable()
+    {
+        var escenario = ConstruirEscenario();
+        var documento = AgregarDocumento(escenario, Hoy.AddMonths(6));
+        escenario.Entorno.Agenda.RespuestaResolverAsync = [Contacto()];
+
+        var previa = await CrearVistaPrevia(escenario).Handle(
+            new PrepararVistaPreviaReclamacionCommand(AmbitoAplicacion.Cliente, escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
+        var envio = await escenario.Entorno.CrearHandler().Handle(
+            new EnviarReclamacionCommand(escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
+
+        previa.EsFallido.Should().BeTrue();
+        previa.Error.Codigo.Should().Be(envio.Error.Codigo);
+    }
+
+    /// <summary>
+    /// La vista previa pasa por la misma puerta que el envío (rol con escritura,
+    /// sesión privilegiada, puerta comercial): lo garantiza ser un ICommand.
+    /// </summary>
+    [Fact]
+    public void La_vista_previa_es_un_comando_para_heredar_la_autorizacion_de_escritura_del_envio() =>
+        typeof(ICommandBase).IsAssignableFrom(typeof(PrepararVistaPreviaReclamacionCommand)).Should().BeTrue();
+
+    [Fact]
+    public async Task La_vista_previa_de_titular_Empresa_resuelve_como_el_envio_de_Empresa()
+    {
+        var escenario = ConstruirEscenario();
+        var contraparte = new Empresa("Contraparte SL", "B12345674");
+        escenario.Entorno.Empresas.ListaEmpresas.Add(contraparte);
+        var tipoEmpresa = new TipoDocumento("Seguro RC", null, false, 1, AmbitoAplicacion.Empresa);
+        escenario.Entorno.TiposDocumento.ListaTiposDocumento.Add(tipoEmpresa);
+        var documento = Documento.DeEmpresa(contraparte.Id, tipoEmpresa.Id, Hoy.AddYears(-1), VigenciaDocumento.VenceEl(Hoy.AddDays(10)));
+        escenario.Entorno.Documentos.ListaDocumentos.Add(documento);
+        escenario.Entorno.Agenda.RespuestaResolverParaEmpresaAsync = [Contacto("Marta Gil")];
+        var alcance = new AlcanceDatosServiceFalso();
+
+        var previa = await CrearVistaPrevia(escenario, alcance).Handle(
+            new PrepararVistaPreviaReclamacionCommand(AmbitoAplicacion.Empresa, contraparte.Id, [documento.Id]), CancellationToken.None);
+        var envio = await new EnviarReclamacionEmpresaCommandHandler(
+                escenario.Entorno.Empresas, escenario.Entorno.Documentos, escenario.Entorno.TiposDocumento, alcance,
+                escenario.Entorno.Agenda, escenario.Entorno.RegistroEnvio)
+            .Handle(new EnviarReclamacionEmpresaCommand(contraparte.Id, [documento.Id]), CancellationToken.None);
+
+        previa.EsExitoso.Should().BeTrue();
+        envio.EsExitoso.Should().BeTrue();
+        var registro = escenario.Entorno.RegistroEnvio;
+        previa.Valor.Correos.Should().Equal(registro.UltimosDestinatarios);
+        previa.Valor.Asunto.Should().Be(registro.UltimoAsunto);
+        previa.Valor.CuerpoHtml.Should().Be(registro.UltimoCuerpoHtml);
+        registro.UltimoTitular!.Ambito.Should().Be(AmbitoAplicacion.Empresa);
+    }
+
+    [Fact]
+    public async Task La_vista_previa_respeta_la_cartera_del_usuario()
+    {
+        var escenario = ConstruirEscenario();
+        var documento = AgregarDocumento(escenario, Hoy.AddDays(10));
+        escenario.Entorno.Agenda.RespuestaResolverAsync = [Contacto()];
+
+        var previa = await CrearVistaPrevia(escenario, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [])).Handle(
+            new PrepararVistaPreviaReclamacionCommand(AmbitoAplicacion.Cliente, escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
+
+        previa.EsFallido.Should().BeTrue();
+        previa.Error.Codigo.Should().Be("Reclamacion.SinAcceso");
     }
 }
