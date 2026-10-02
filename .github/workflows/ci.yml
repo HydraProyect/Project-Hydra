@@ -1377,6 +1377,13 @@ jobs:
       - name: scripts/metricas-proceso.tests.sh
         run: bash scripts/metricas-proceso.tests.sh
 
+      # Generador de la tabla del vocabulario de pantalla del contrato de terminología (S1): la tabla
+      # sale de Vocabulario.json y de nada más. Cifras exactas sobre un vocabulario sintético, los
+      # ejemplos de cada patrón del real con el motor de Python (los patrones valen en .NET y en
+      # Python) y doce mutantes del propio guion que deben poner en rojo su prueba.
+      - name: scripts/vocabulario-tabla.tests.sh
+        run: bash scripts/vocabulario-tabla.tests.sh
+
       # Guarda de los secretos de CI con clave de proveedor externo (P13/P18,
       # 2026-09-19): la prueba del guion Y el guion contra los workflows reales
       # de este árbol. La segunda línea es la que falla el día que alguien

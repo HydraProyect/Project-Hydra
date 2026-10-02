@@ -1,0 +1,487 @@
+{
+  "version": 1,
+  "fuente": "Fuente única del vocabulario de pantalla de TALVEG (S1 del análisis de causas raíz de 2026-10-02). La aplica el test de arquitectura VocabularioDePantallaTests a los valores de los .resx (es-ES y ca-ES) y al texto visible de los .razor, y de ella scripts/vocabulario-tabla.py genera la tabla del contrato de terminología (Project-Hydra-Negocio/CONTRATO_TERMINOLOGIA.md). No se edita la tabla del contrato: se edita este fichero y se regenera.",
+  "descartarAntesDeCasar": [
+    "\\bhttps?://\\S+",
+    "\\bwww\\.\\S+"
+  ],
+  "canonicos": [
+    {
+      "id": "cliente-empresarial",
+      "forma": "Cliente empresarial",
+      "plural": "Clientes empresariales",
+      "formasCortasPermitidas": [],
+      "significado": "Empresa que ocupa la posición cliente en una Relación Empresarial dirigida. En pantalla es el único rótulo para esa organización: nunca «Cliente» a secas.",
+      "contrato": "§ 3.2",
+      "noConfundirCon": "Cliente comercial TALVEG; Cliente de servicio CAE Outbound o Inbound"
+    },
+    {
+      "id": "usuario-de-cliente-empresarial",
+      "forma": "Usuario de Cliente empresarial",
+      "plural": "Usuarios de Cliente empresarial",
+      "formasCortasPermitidas": [],
+      "significado": "Rótulo en pantalla del rol de autorización Roles.Cliente: usuario externo que ve en solo lectura su propio Cliente empresarial. Es un rol, no una organización.",
+      "contrato": "§ 3.2",
+      "noConfundirCon": "Cliente empresarial (organización)"
+    },
+    {
+      "id": "cliente-comercial-talveg",
+      "forma": "Cliente comercial TALVEG",
+      "plural": "Clientes comerciales TALVEG",
+      "formasCortasPermitidas": [],
+      "significado": "Organización con relación comercial SaaS con TALVEG. No determina de quién es el Tenant beneficiario.",
+      "contrato": "§ 1 y § 3.2",
+      "noConfundirCon": "Pagador TALVEG; Cliente empresarial"
+    },
+    {
+      "id": "pagador-talveg",
+      "forma": "Pagador TALVEG",
+      "plural": "Pagadores TALVEG",
+      "formasCortasPermitidas": [],
+      "significado": "Organización responsable del pago de un Producto Contratado. No es por definición el Tenant propietario.",
+      "contrato": "§ 1 y § 3.2",
+      "noConfundirCon": "Tenant propietario; Cliente comercial TALVEG"
+    },
+    {
+      "id": "tenant-propietario",
+      "forma": "Tenant propietario",
+      "plural": "Tenants propietarios",
+      "formasCortasPermitidas": [],
+      "significado": "Plano de propiedad: de quién son los datos. Nunca se deduce de quién paga, quién opera o quién creó el registro.",
+      "contrato": "§ 1 y § 2",
+      "noConfundirCon": "Pagador TALVEG; Operador CAE; Empresa"
+    },
+    {
+      "id": "tenant-beneficiario",
+      "forma": "Tenant beneficiario",
+      "plural": "Tenants beneficiarios",
+      "formasCortasPermitidas": [],
+      "significado": "Tenant para cuyo espacio de datos está activo el producto. Coincide a menudo, no siempre, con el Tenant propietario.",
+      "contrato": "§ 1 y § 3.2",
+      "noConfundirCon": "Tenant propietario"
+    },
+    {
+      "id": "operador-cae",
+      "forma": "Operador CAE",
+      "plural": "Operadores CAE",
+      "formasCortasPermitidas": [],
+      "significado": "Organización autorizada a operar un ámbito de un Tenant y servicio dados. Indicar interno o externo y, si procede, Outbound o Inbound.",
+      "contrato": "§ 1 y § 3.5",
+      "noConfundirCon": "Gestor CAE (persona)"
+    },
+    {
+      "id": "gestor-cae",
+      "forma": "Gestor CAE",
+      "plural": "Gestores CAE",
+      "formasCortasPermitidas": [
+        "Gestora CAE",
+        "Gestoras CAE"
+      ],
+      "significado": "Persona o usuario que gestiona. Nunca una organización.",
+      "contrato": "§ 1 y § 3.5",
+      "noConfundirCon": "Operador CAE (organización)"
+    },
+    {
+      "id": "mi-trabajo",
+      "forma": "Mi trabajo",
+      "plural": null,
+      "formasCortasPermitidas": [],
+      "significado": "Pantalla de aterrizaje del Gestor CAE tras iniciar sesión. Es el nombre de lo que antes se rotulaba «Bandeja» (D-27 del recorrido en vivo de staging, 2026-10-01).",
+      "contrato": "§ 5 (fila Bandeja) y CONTRATO-MI-TRABAJO-GEN2",
+      "noConfundirCon": "Bandeja de entrada (buzón de correo de Comunicaciones)"
+    },
+    {
+      "id": "bandeja-de-entrada-correo",
+      "forma": "Bandeja de entrada",
+      "plural": "Bandejas de entrada",
+      "formasCortasPermitidas": [
+        "Bandeja unificada"
+      ],
+      "significado": "Buzón de correo de Comunicaciones. Es el sentido legítimo de «bandeja»: no es Mi trabajo y no se sustituye por él.",
+      "contrato": "§ 5 (fila Bandeja)",
+      "noConfundirCon": "Mi trabajo"
+    },
+    {
+      "id": "titular-del-centro",
+      "forma": "titular del Centro",
+      "plural": "titulares de Centro",
+      "formasCortasPermitidas": [],
+      "significado": "Empresa titular del Centro de Trabajo, en la forma corta de pantalla que decidió el propietario y que ya usan Calendario y Visitas. La titularidad es inmutable: cambiar de titular es un Centro nuevo. «Empresa titular del Centro de Trabajo» es la forma completa del contrato y también vale.",
+      "contrato": "§ 3.4 (Empresa titular del Centro de Trabajo) y § 3.8",
+      "noConfundirCon": "Cliente empresarial; Empresa contratista respecto del titular"
+    },
+    {
+      "id": "ambito-efectivo",
+      "forma": "Ámbito efectivo",
+      "plural": "Ámbitos efectivos",
+      "formasCortasPermitidas": [],
+      "significado": "Ámbito de Operación ∩ Ámbito de Cartera + reglas derivadas del rol. Es lo que un usuario puede gestionar de verdad.",
+      "contrato": "§ 3.5",
+      "noConfundirCon": "Ámbito de Operación; Ámbito de Cartera"
+    },
+    {
+      "id": "workspace-operativo-derivado",
+      "forma": "Workspace operativo derivado",
+      "plural": null,
+      "formasCortasPermitidas": [
+        "Context Workspace"
+      ],
+      "significado": "Vista derivada, no entidad: Operador → Tenant propietario → Servicio + ámbito efectivo. «Context Workspace» es otra cosa: el patrón de UI de las fichas de detalle.",
+      "contrato": "§ 3.6",
+      "noConfundirCon": "Tenant; Empresa"
+    },
+    {
+      "id": "talveg",
+      "forma": "TALVEG",
+      "plural": null,
+      "formasCortasPermitidas": [],
+      "significado": "Nombre del producto y de la plataforma. TALVEG no es por defecto un Operador CAE.",
+      "contrato": "§ 3.1",
+      "noConfundirCon": "Operador CAE"
+    }
+  ],
+  "prohibidos": [
+    {
+      "id": "cliente-a-secas",
+      "termino": "Cliente",
+      "patron": "\\bclient(?:es?|s)?\\b(?!\\s+(?:empresarial(?:s|es)?|comercial(?:es)?|de\\s+servicio|de\\s+servei)\\b|\\(s\\)\\s+empresarial)",
+      "ignorarMayusculas": true,
+      "sustitucion": "Cliente empresarial (Clientes empresariales); Usuario de Cliente empresarial si es el rol",
+      "motivo": "«Cliente» tiene siete sentidos (§ 3.2) y la interfaz nombra uno solo: la organización en posición cliente de una Relación Empresarial. Costó tres PR y 239 toques de fichero retirarlo a mano (D-07 y D-27).",
+      "contrato": "§ 3.2",
+      "sentido": "Cualquiera de los siete sentidos de «Cliente». Quedan fuera del patrón «Cliente empresarial», «Cliente comercial TALVEG» y «Cliente de servicio».",
+      "casa": [
+        "Cliente",
+        "Dar de alta un cliente",
+        "Los clientes",
+        "Cliente y Empresa son obligatorios",
+        "Cliente(s) sin cartera",
+        "Client"
+      ],
+      "noCasa": [
+        "Cliente empresarial",
+        "Clientes empresariales",
+        "Usuario de Cliente empresarial",
+        "Cliente(s) empresarial(es)",
+        "Cliente comercial TALVEG",
+        "Cliente de servicio CAE Inbound",
+        "https://portal-del-cliente.com/login",
+        "Client empresarial",
+        "Clients empresarials",
+        "relación con el Cliente empresarial"
+      ]
+    },
+    {
+      "id": "bandeja-como-mi-trabajo",
+      "termino": "Bandeja",
+      "patron": "\\b(?:bandejas?|safat(?:a|es))\\b(?!\\s+(?:de\\s+entrada|d['’]entrada|unificada)\\b)",
+      "ignorarMayusculas": true,
+      "sustitucion": "Mi trabajo",
+      "motivo": "«Bandeja» es el nombre histórico de la pantalla de aterrizaje del Gestor CAE, que hoy se llama Mi trabajo (D-27). El otro sentido, la bandeja de entrada del correo de Comunicaciones, es legítimo y se escribe «Bandeja de entrada».",
+      "contrato": "§ 5 (fila Bandeja)",
+      "sentido": "Mi trabajo. No cubre el buzón de correo («bandeja de entrada», «bandeja unificada»), que es el canónico bandeja-de-entrada-correo.",
+      "casa": [
+        "Bandeja",
+        "Bandeja del gestor",
+        "desde la bandeja",
+        "Bandejas",
+        "Safata",
+        "la safata"
+      ],
+      "noCasa": [
+        "Bandeja de entrada",
+        "la bandeja de entrada del correo",
+        "Bandeja unificada",
+        "Mi trabajo",
+        "Safata d'entrada",
+        "Safata unificada"
+      ]
+    },
+    {
+      "id": "empresa-titular",
+      "termino": "empresa titular",
+      "patron": "\\bempresas?\\s+titular(?:es)?\\b(?!\\s+del\\s+Centro\\b)",
+      "ignorarMayusculas": true,
+      "sustitucion": "titular del Centro",
+      "motivo": "La titularidad es del Centro de Trabajo y es inmutable; «empresa titular» a secas no dice de qué es titular y se lee como un tipo permanente de Empresa, que el modelo prohíbe (la entidad Empresa no lleva ningún rol).",
+      "contrato": "§ 3.3 y § 3.4",
+      "sentido": "Cualquier «empresa titular» sin decir de qué es titular. Queda fuera «Empresa titular del Centro de Trabajo» (la forma completa del contrato, § 3.4).",
+      "casa": [
+        "empresa titular",
+        "Avisada a la empresa titular",
+        "Empresas titulares",
+        "Avisada a la empresa titular del cliente"
+      ],
+      "noCasa": [
+        "titular del Centro",
+        "Notificada al titular del Centro",
+        "Empresa titular del Centro de Trabajo",
+        "La empresa titular del Centro"
+      ]
+    },
+    {
+      "id": "gestor-a-secas",
+      "termino": "gestor",
+      "patron": "\\bgest(?:or|ora|ores|oras|ors)\\b(?!\\s+cae\\b)",
+      "ignorarMayusculas": true,
+      "sustitucion": "Gestor CAE (persona); Operador CAE si es la organización",
+      "motivo": "Operador CAE es la organización y Gestor CAE es la persona: es la distinción de mayor rendimiento del contrato. «Gestor» a secas no dice cuál.",
+      "contrato": "§ 1 y § 3.5",
+      "sentido": null,
+      "casa": [
+        "Gestor",
+        "el gestor lo ve",
+        "Gestoras",
+        "Bandeja del gestor",
+        "Gestors"
+      ],
+      "noCasa": [
+        "Gestor CAE",
+        "Gestores CAE",
+        "Gestora CAE",
+        "gestión",
+        "Gestor CAE del operador"
+      ]
+    },
+    {
+      "id": "operador-a-secas",
+      "termino": "operador",
+      "patron": "\\boperador(?:a|es|as|s)?\\b(?!\\s+cae\\b)",
+      "ignorarMayusculas": true,
+      "sustitucion": "Operador CAE (organización); Gestor CAE si es la persona",
+      "motivo": "«Operador» a secas no dice si es la organización o la persona que la representa, ni si es interno o externo.",
+      "contrato": "§ 1 y § 3.5",
+      "sentido": null,
+      "casa": [
+        "Operador",
+        "para que el operador lo vea",
+        "Operadores externos",
+        "Operadors"
+      ],
+      "noCasa": [
+        "Operador CAE",
+        "Operadores CAE externos",
+        "Operador CAE externo"
+      ]
+    },
+    {
+      "id": "alcance-a-secas",
+      "termino": "alcance",
+      "patron": "\\b(?:alcances?|abast)\\b",
+      "ignorarMayusculas": true,
+      "sustitucion": "Ámbito efectivo (o Ámbito de Operación, Ámbito de Cartera, según cuál)",
+      "motivo": "El contrato prohíbe «alcance» a secas: nombra tres ámbitos distintos y solo uno, el efectivo, es lo que el usuario puede gestionar.",
+      "contrato": "§ 3.5",
+      "sentido": "Ámbito de Operación, de Cartera o efectivo. El sentido «organizaciones visibles en un panel ejecutivo» está sin decidir y queda como deuda congelada, no como excepción.",
+      "casa": [
+        "Alcance",
+        "dentro de tu alcance de gestión",
+        "Tu alcance sale de la cartera",
+        "Abast",
+        "Los alcances"
+      ],
+      "noCasa": [
+        "Ámbito efectivo",
+        "Ámbito de Cartera",
+        "Sin ámbito"
+      ]
+    },
+    {
+      "id": "workspace-a-secas",
+      "termino": "workspace",
+      "patron": "(?<!Context\\s)\\bworkspaces?\\b(?!\\s+operativo\\s+derivado)",
+      "ignorarMayusculas": true,
+      "sustitucion": "Workspace operativo derivado, o Context Workspace si es el patrón de UI de las fichas de detalle",
+      "motivo": "«Workspace» a secas colisiona con el ContextWorkspacePanel de UI: son dos conceptos bajo un nombre.",
+      "contrato": "§ 3.6",
+      "sentido": null,
+      "casa": [
+        "Workspace",
+        "mi workspace",
+        "Workspaces"
+      ],
+      "noCasa": [
+        "Workspace operativo derivado",
+        "Context Workspace",
+        "ContextWorkspacePanel"
+      ]
+    },
+    {
+      "id": "tenant-a-secas",
+      "termino": "Tenant",
+      "patron": "\\btenants?\\b(?!\\s+(?:propietari|beneficiari)(?:[oa]s?|s)?\\b)",
+      "ignorarMayusculas": true,
+      "sustitucion": "Tenant propietario o Tenant beneficiario, según el plano; en pantalla de usuario final, la organización por su nombre",
+      "motivo": "«Tenant» es un término de modelo y, a secas, no dice si es de quién son los datos o para quién está activo el producto. El usuario final no tiene por qué conocer el término.",
+      "contrato": "§ 1 y § 2",
+      "sentido": "Propiedad (Tenant propietario) o beneficio comercial (Tenant beneficiario). Solo los accesos de plataforma, donde lo opera un Actor de Plataforma TALVEG, pueden nombrar «Tenant» sin apellido: ver las excepciones.",
+      "casa": [
+        "Tenant",
+        "Administrador del Tenant",
+        "Todos los Tenants",
+        "el tenant"
+      ],
+      "noCasa": [
+        "Tenant propietario",
+        "Tenant beneficiario",
+        "Tenants propietarios",
+        "Tenant beneficiari"
+      ]
+    },
+    {
+      "id": "hydra-marca-anterior",
+      "termino": "Hydra",
+      "patron": "(?<!Project-)\\bHydra\\b",
+      "ignorarMayusculas": true,
+      "sustitucion": "TALVEG",
+      "motivo": "Nombre anterior del producto. La marca es TALVEG. «Project-Hydra» es el nombre del repositorio y no cuenta.",
+      "contrato": "§ 3.1 y § 5 (fila Hydra)",
+      "sentido": null,
+      "casa": [
+        "Hydra",
+        "Bienvenido a Hydra",
+        "HYDRA",
+        "hydra"
+      ],
+      "noCasa": [
+        "Project-Hydra",
+        "TALVEG"
+      ]
+    },
+    {
+      "id": "cae-manager-marca-anterior",
+      "termino": "CAE Manager",
+      "patron": "\\bCAE[\\s_-]?Manager\\b|\\bCaeManager\\b",
+      "ignorarMayusculas": true,
+      "sustitucion": "TALVEG",
+      "motivo": "Nombre de trabajo anterior del producto (CaeManager sobrevive en los espacios de nombres). La marca es TALVEG.",
+      "contrato": "§ 3.1",
+      "sentido": null,
+      "casa": [
+        "CAE Manager",
+        "CAE-Manager",
+        "CaeManager",
+        "Cae Manager",
+        "CAE_Manager"
+      ],
+      "noCasa": [
+        "TALVEG",
+        "Gestor CAE",
+        "CAE"
+      ]
+    }
+  ],
+  "excepciones": [
+    {
+      "id": "cliente-por-tenant-en-acceso-de-plataforma",
+      "prohibidos": ["cliente-a-secas"],
+      "ficheros": [
+        "src/CaeManager.Application/Plataforma/Commands/AbrirSesionPrivilegiada/AbrirSesionPrivilegiadaCommand.cs",
+        "src/CaeManager.Application/Tenants/Commands/AbrirAccesoSoporte/AbrirAccesoSoporteCommand.cs"
+      ],
+      "claves": ["WithMessage"],
+      "contexto": "acceso de plataforma",
+      "motivo": "Mensaje que ve el Actor de Plataforma TALVEG al pedir una Sesión Privilegiada o un acceso de soporte («datos de este cliente»): ahí «cliente» nombra el Tenant propietario, y el contrato (§ 3.2, «Rótulo en pantalla») lo deja fuera de la regla de «Cliente empresarial»."
+    },
+    {
+      "id": "tenant-en-comandos-de-plataforma",
+      "prohibidos": ["tenant-a-secas"],
+      "ficheros": [
+        "src/CaeManager.Application/Comercial/Commands/ActualizarEstadoComercialTenant/ActualizarEstadoComercialTenantCommand.cs",
+        "src/CaeManager.Application/Comercial/Commands/RegistrarSuscripcionTenant/RegistrarSuscripcionTenantCommand.cs",
+        "src/CaeManager.Application/Plataforma/Commands/ConcederPrivilegio/ConcederPrivilegioCommand.cs"
+      ],
+      "claves": null,
+      "contexto": "acceso de plataforma",
+      "motivo": "Tres comandos que solo ejecuta un Actor de Plataforma TALVEG (plano 3): el estado comercial de un Tenant, el registro de su suscripción y la concesión de privilegios. Sus mensajes de error nombran el Tenant porque es el objeto de ese trabajo («No tienes autorización de plataforma sobre ese tenant»). Un comando nuevo con la misma necesidad se registra aquí, fichero a fichero."
+    },
+    {
+      "id": "plantilla-de-importacion",
+      "prohibidos": [
+        "cliente-a-secas"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion*.resx"
+      ],
+      "claves": [
+        "ReglaHojaCentros"
+      ],
+      "contexto": "plantillas de importación",
+      "motivo": "La regla describe las columnas Cliente y Empresa de la hoja Centros de la plantilla Excel. El rótulo reproduce el nombre de la columna del fichero, que es un formato y no vocabulario de pantalla: el contrato (§ 3.2, «Rótulo en pantalla») deja fuera las hojas y columnas de las plantillas de importación."
+    },
+    {
+      "id": "texto-legal-razor",
+      "prohibidos": [
+        "cliente-a-secas"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Components/Legal/*.razor"
+      ],
+      "claves": null,
+      "contexto": "texto legal",
+      "motivo": "Términos y Condiciones y Política de Privacidad: «Cliente» es la parte contratante, y el contrato de terminología (§ 3.2, «Rótulo en pantalla») la deja fuera de la regla. El resto del vocabulario legacy que contienen estos textos (Tenant, Operador, Workspace, Hydra, CAE Manager) NO está cubierto: es deuda congelada o falla, y su cambio exige revisión legal."
+    },
+    {
+      "id": "texto-legal-consentimiento",
+      "prohibidos": [
+        "cliente-a-secas"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Features/Cumplimiento/Recursos/TextosCumplimiento*.resx"
+      ],
+      "claves": [
+        "TextoConsentimiento"
+      ],
+      "contexto": "texto legal",
+      "motivo": "Texto de consentimiento a los Términos y a la Política de Privacidad: nombra los datos «de sus clientes y trabajadores» como responsabilidad de la organización que los introduce, redacción jurídica que no se cambia sin revisión legal."
+    },
+    {
+      "id": "buzon-de-correo-de-comunicaciones",
+      "prohibidos": [
+        "bandeja-como-mi-trabajo"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Buzon.razor",
+        "src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor",
+        "src/CaeManager.Web/Features/Integraciones/Pages/Conexiones.razor"
+      ],
+      "claves": null,
+      "contexto": "sentido buzón de correo",
+      "motivo": "En estas pantallas «bandeja» es el buzón de correo compartido de Comunicaciones y las conexiones de buzones de Microsoft 365: el sentido legítimo y distinto de Mi trabajo (la antigua «Bandeja» del Gestor CAE, D-27). El canónico de ese sentido es «Bandeja de entrada»; la forma «la bandeja» se tolera solo en estos ficheros, uno a uno, y un fichero nuevo que la diga tiene que registrarse aquí con su motivo."
+    },
+    {
+      "id": "tenant-en-pagina-de-plataforma",
+      "prohibidos": [
+        "tenant-a-secas",
+        "alcance-a-secas"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor"
+      ],
+      "claves": null,
+      "contexto": "acceso de plataforma",
+      "motivo": "Página de Plataforma (/configuracion/comercial, kicker «Plataforma») que exige la capacidad de administración de plataforma con alcance global: la abre un Actor de Plataforma TALVEG (plano 3), cuyo objeto de trabajo son los Tenants como tales. «Alcance global» nombra esa capacidad, no el ámbito de un usuario de negocio."
+    },
+    {
+      "id": "tenant-en-orden-global-del-menu",
+      "prohibidos": [
+        "tenant-a-secas"
+      ],
+      "ficheros": [
+        "src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion*.resx"
+      ],
+      "claves": [
+        "OrdenMenuChipTenants",
+        "OrdenMenuDescripcion",
+        "OrdenMenuDetalleConCambios",
+        "OrdenMenuDialogoTexto",
+        "OrdenMenuGlobalTodos",
+        "OrdenMenuRolAdministrador",
+        "OrdenMenuSinAccesoTexto"
+      ],
+      "contexto": "acceso de plataforma",
+      "motivo": "El orden del menú lateral es un ajuste global de plataforma: lo ven todos los usuarios de todos los Tenants y solo lo cambia un Actor de Plataforma TALVEG con concesión global (OrdenMenuSinAccesoTexto). Habla de Tenants como conjunto porque es el plano de plataforma, no el de un usuario de negocio."
+    }
+  ]
+}

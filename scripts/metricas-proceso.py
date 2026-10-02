@@ -79,6 +79,13 @@ def fila(codigo, nombre, valor, clase, detalle="", numerico=None):
     return {"id": codigo, "metrica": nombre, "valor": valor, "clase": clase, "detalle": detalle, "numerico": numerico}
 
 
+def sin_descartar(descartes, texto):
+    """Lo que Vocabulario.json declara que no es lenguaje de pantalla (una URL) se quita antes de casar."""
+    for d in descartes:
+        texto = d.sub(" ", texto)
+    return texto
+
+
 def no_medida(codigo, nombre, motivo):
     return fila(codigo, nombre, "NO_MEDIDA", "NO_MEDIDA", motivo)
 
@@ -447,25 +454,43 @@ def metricas_de_repo(raiz: Path):
     else:
         filas.append(no_medida("M15", "Locators por texto o posicionales en E2E", "no hay ningún .cs en tests/CaeManager.E2ETests"))
 
-    # M16: «Cliente» a secas en pantalla. S1 (vocabulario ejecutable) no existe; esto es una aproximación.
+    # M16: «Cliente» a secas en pantalla. El patrón sale de Vocabulario.json (S1, fuente única) si existe; si no,
+    # una aproximación local. En ambos casos esta cifra es una estimación: el instrumento que manda es
+    # VocabularioDePantallaTests (que ve los satélites ca-ES y el detector de texto de los .razor).
     patron = re.compile(r"\bClientes?\b(?!\s+(?:empresarial|empresariales|comercial|de servicio|delegante))")
+    nota_m16 = "S1 (vocabulario ejecutable) no está en este árbol: regex local sobre texto de marcado fuera de @code; ni ve texto montado en C#"
+    vocabulario = raiz / "tests" / "CaeManager.Architecture.Tests" / "Vocabulario" / "Vocabulario.json"
+    descartes = []
+    if vocabulario.is_file():
+        try:
+            datos_vocabulario = json.loads(vocabulario.read_text(encoding="utf-8"))
+            descartes = [re.compile(d) for d in datos_vocabulario.get("descartarAntesDeCasar", [])]
+            regla = next(r for r in datos_vocabulario["prohibidos"] if r["id"] == "cliente-a-secas")
+            patron = re.compile(regla["patron"], re.IGNORECASE if regla.get("ignorarMayusculas") else 0)
+            nota_m16 = ("patrón «cliente-a-secas» de Vocabulario.json (S1); sobre texto de marcado fuera de @code, sin satélites ca-ES ni las "
+                        "excepciones por contexto (texto legal, plantillas, accesos de plataforma); el instrumento que manda es VocabularioDePantallaTests")
+        except (ValueError, KeyError, StopIteration, re.error) as e:
+            filas.append(no_medida("M16", "«Cliente» a secas en pantalla", f"Vocabulario.json ilegible o sin «cliente-a-secas»: {e}"))
+            patron = None
     en_resx = 0
-    for p in ficheros(raiz / "src", "*.resx"):
+    for p in (ficheros(raiz / "src", "*.resx") if patron is not None else []):
         if re.search(r"\.[a-z]{2}(-[A-Za-z]{2,4})?\.resx$", p.name):
             continue
         for v in re.findall(r"(?s)<value>(.*?)</value>", p.read_text(encoding="utf-8", errors="replace")):
-            en_resx += len(patron.findall(v))
+            en_resx += len(patron.findall(sin_descartar(descartes, v)))
     en_marcado = 0
-    for _, tx in razor:
+    for _, tx in (razor if patron is not None else []):
         sin_codigo = re.sub(r"(?s)@code\s*\{.*", "", tx)
         sin_codigo = re.sub(r"@\([^)]*\)|@[\w.]+", "", sin_codigo)
         for texto in re.findall(r">([^<>]+)<", sin_codigo):
-            en_marcado += len(patron.findall(texto))
-    if not razor:
+            en_marcado += len(patron.findall(sin_descartar(descartes, texto)))
+    if patron is None:
+        pass  # la fila NO_MEDIDA ya se añadió arriba
+    elif not razor:
         filas.append(no_medida("M16", "«Cliente» a secas en pantalla", sin_razor))
     else:
         filas.append(fila("M16", "«Cliente» a secas en pantalla", f"{en_resx} valores .resx + {en_marcado} en marcado", "ESTIMACION",
-                          "S1 (vocabulario ejecutable) no existe: regex sobre texto de marcado fuera de @code; ni ve texto montado en C#", en_resx + en_marcado))
+                          nota_m16, en_resx + en_marcado))
 
     # M17: trinquete de deuda terminológica (TerminologiaCanonicaTests)
     arq = raiz / "tests" / "CaeManager.Architecture.Tests"
