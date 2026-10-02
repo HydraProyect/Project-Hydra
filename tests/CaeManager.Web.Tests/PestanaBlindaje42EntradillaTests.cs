@@ -46,6 +46,7 @@ public class PestanaBlindaje42EntradillaTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddScoped<IMediator>(_ => new MediatorSinEmpresas());
         Services.AddSingleton(TimeProvider.System);
+        Services.AddLocalization();
         Services.AddScoped<CaeManager.Web.Components.DesignSystem.ToastService>();
 
         var cut = Render<PestanaBlindaje42>(p => p.Add(c => c.EntidadId, Guid.NewGuid()));

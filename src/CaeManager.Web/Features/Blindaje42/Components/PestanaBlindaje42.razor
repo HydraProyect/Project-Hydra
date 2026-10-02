@@ -9,13 +9,13 @@
 @using CaeManager.Application.Blindaje42.Queries.ObtenerBlindajeEmpresasDeCliente
 @using CaeManager.Domain.Blindaje42
 @using MediatR
+@using CaeManager.Web.Features.Clientes.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosClientes> Textos
 @inject IMediator Mediator
 
 @* D-33: «Blindaje 42.1» es nuestro nombre interno; la entradilla dice qué es en el idioma de quien la lee. *@
-<p class="texto-descriptivo" data-testid="blindaje42-entradilla">
-    Certificaciones de la TGSS (art. 42.1 ET) que comprueban que cada Empresa está al corriente de sus cuotas de la
-    Seguridad Social.
-</p>
+<p class="texto-descriptivo" data-testid="blindaje42-entradilla">@Textos["BlindajeEntradilla"]</p>
 
 @if (_cargando)
 {
