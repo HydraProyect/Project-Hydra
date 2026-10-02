@@ -8,7 +8,7 @@ public class ApiKeySecuritySchemeTransformer : IOpenApiDocumentTransformer
 {
     public Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
     {
-        document.Info.Title = "Hydra API v1 (no publicada)";
+        document.Info.Title = "TALVEG API v1 (no publicada)";
         document.Info.Description = "Superficie de solo lectura para integraciones autorizadas. Sin anunciar todavía — ver docs/business/MATURITY_REVIEW.md. Autenticación: cabecera \"Authorization: ApiKey {clave}\".";
 
         document.Components ??= new OpenApiComponents();

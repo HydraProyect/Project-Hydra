@@ -23,7 +23,7 @@ namespace CaeManager.Web.Features.Comunicaciones.Pages;
 /// HTML externo antes de pintarlo (ver el mismo cuidado que
 /// ObtenerConversacionPorIdQuery ya exige), que esta primera versión no
 /// construye; el usuario puede seguir abriendo el mensaje real en Outlook
-/// si necesita el cuerpo completo de un hilo que no está en Hydra todavía.
+/// si necesita el cuerpo completo de un hilo que no está en TALVEG todavía.
 /// </summary>
 public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
