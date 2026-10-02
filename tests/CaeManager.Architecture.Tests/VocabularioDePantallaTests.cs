@@ -220,6 +220,7 @@ public class VocabularioDePantallaTests
                     RuleFor(x => x.A).WithMessage(""Falta el gestor."");
                     var d = Otra.Crear(""Falso.Ajeno"", ""Cliente en otra fábrica no cuenta"");
                     var e = Error.Crear(""Falso.Concat"", ""No encontramos ese Cliente "" + ""empresarial."");
+                    var f = Domain.Common.Error.Crear(""Falso.Cualificado"", ""El operador cualificado no existe"");
                 }
             }";
 
@@ -230,6 +231,7 @@ public class VocabularioDePantallaTests
             ("Falso.NoEncontrado", "cliente-a-secas"),
             ("Falso.Interpolado", "tenant-a-secas"),
             ("WithMessage", "gestor-a-secas"),
+            ("Falso.Cualificado", "operador-a-secas"),
         });
         hallazgos.Should().OnlyContain(h => h.Fichero == ruta);
     }

@@ -247,7 +247,7 @@ internal static class VocabularioDePantalla
     }
 
     private static readonly Regex AtributoConTexto = new(
-        @"(?<![\w\-:@])(?!aria-(?:labelledby|describedby|controls|owns|activedescendant)\b)[\w-]*(?:Placeholder|Etiqueta|Titulo|Texto|Mensaje|Descripcion|Label|Title|Tooltip|Leyenda|Pista|Marcador|Ayuda|Kicker|Subtitulo|Explicacion|Aviso|Cabecera|Rotulo|alt)[\w-]*" +
+        @"(?<![\w\-:@])(?!aria-(?:labelledby|describedby|controls|owns|activedescendant)\b)[\w-]*(?:Placeholder|Etiqueta|Titulo|Texto|valuetext|Mensaje|Descripcion|Description|Label|Title|Tooltip|Leyenda|Pista|Marcador|Ayuda|Kicker|Subtitulo|Explicacion|Aviso|Cabecera|Rotulo|alt)[\w-]*" +
         @"\s*=\s*""(?<v>[^""@]*)""",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
@@ -271,7 +271,8 @@ internal static class VocabularioDePantalla
         {
             var (dueno, nombre) = llamada.Expression switch
             {
-                MemberAccessExpressionSyntax acceso => ((acceso.Expression as IdentifierNameSyntax)?.Identifier.ValueText, acceso.Name.Identifier.ValueText),
+                // «Error.Crear» y también «Domain.Common.Error.Crear»: el dueño es el último identificador de la cadena.
+                MemberAccessExpressionSyntax acceso => (UltimoIdentificador(acceso.Expression), acceso.Name.Identifier.ValueText),
                 _ => ((string?)null, string.Empty),
             };
             var argumentos = llamada.ArgumentList.Arguments;
@@ -291,6 +292,13 @@ internal static class VocabularioDePantalla
             }
         }
     }
+
+    private static string? UltimoIdentificador(ExpressionSyntax e) => e switch
+    {
+        IdentifierNameSyntax identificador => identificador.Identifier.ValueText,
+        MemberAccessExpressionSyntax acceso => acceso.Name.Identifier.ValueText,
+        _ => null,
+    };
 
     private static string LiteralesDe(SyntaxNode expresion) =>
         string.Join(' ', expresion.DescendantTokens()

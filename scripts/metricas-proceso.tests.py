@@ -234,19 +234,21 @@ class Repo(unittest.TestCase):
         self.assertIn("Vocabulario.json", f["detalle"])
 
     def test_M16_aplica_los_descartes_de_Vocabulario_json_antes_de_casar(self):
-        # «descartarAntesDeCasar» quita del texto lo que no es lenguaje de pantalla: aquí «suelto», que sin descarte contaría.
+        # «descartarAntesDeCasar» quita del texto lo que no es lenguaje de pantalla ANTES de casar: sin descarte, el patrón
+        # (\bCliente\b) cuenta 2 en el .resx y 2 en el marcado; con un descarte para cada origen, 1 y 1.
         with tempfile.TemporaryDirectory() as t:
             raiz = Path(t)
             self.arbol(raiz)
-            vocab = {"descartarAntesDeCasar": [r"\bsuelto\b"],
+            vocab = {"descartarAntesDeCasar": [],
                      "prohibidos": [{"id": "cliente-a-secas", "patron": r"\bCliente\b", "ignorarMayusculas": False}]}
             escribir(raiz, "tests/CaeManager.Architecture.Tests/Vocabulario/Vocabulario.json", json.dumps(vocab))
             f = {x["id"]: x for x in mp.metricas_de_repo(raiz)}["M16"]
             self.assertEqual(f["valor"], "2 valores .resx + 2 en marcado")
-            vocab["descartarAntesDeCasar"] = [r"\bCliente suelto\b"]
+            vocab["descartarAntesDeCasar"] = [r"\bCliente suelto\b", r"\bCliente a secas\b"]
             escribir(raiz, "tests/CaeManager.Architecture.Tests/Vocabulario/Vocabulario.json", json.dumps(vocab))
             g = {x["id"]: x for x in mp.metricas_de_repo(raiz)}["M16"]
-        self.assertEqual(g["valor"], "1 valores .resx + 2 en marcado", "el descarte de «Cliente suelto» quita una de las dos apariciones del .resx")
+        self.assertEqual(g["valor"], "1 valores .resx + 1 en marcado",
+                         "el descarte quita una aparición del .resx («Cliente suelto») y otra del marcado («Cliente a secas»)")
 
     def test_M16_con_Vocabulario_json_ilegible_es_NO_MEDIDA_y_no_un_cero(self):
         with tempfile.TemporaryDirectory() as t:
