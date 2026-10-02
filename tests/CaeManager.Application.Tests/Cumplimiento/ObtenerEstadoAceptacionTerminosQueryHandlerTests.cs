@@ -72,8 +72,9 @@ public class ObtenerEstadoAceptacionTerminosQueryHandlerTests
     /// <summary>
     /// Cambio de marca a TALVEG (2026-10-02): el texto de aceptación del gate interpola <c>Marca.Nombre</c> y
     /// las páginas legales nombran el producto y la entidad como TALVEG, así que quien aceptó la versión
-    /// anterior («2026-09-20», con el nombre antiguo) aceptó otro texto y tiene que volver a aceptar. Fija
-    /// la versión vigente: bajarla o dejarla igual tras editar los textos legales deja de ser silencioso.
+    /// anterior («2026-09-20», con el nombre antiguo) aceptó otro texto y tiene que volver a aceptar. El pin
+    /// del valor fija que este cambio subió la versión; no detecta una edición futura de los .razor sin subir
+    /// <c>VersionTerminos</c>, y la siguiente subida legítima obliga a actualizarlo junto con este test.
     /// </summary>
     [Fact]
     public async Task Tras_el_cambio_de_marca_quien_acepto_la_version_anterior_vuelve_a_aceptar()
