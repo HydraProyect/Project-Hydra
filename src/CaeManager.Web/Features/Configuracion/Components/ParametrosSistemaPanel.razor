@@ -24,7 +24,7 @@
 {
     <EstadoVacio Titulo="@Textos["ParametrosErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
         <Accion>
-            <Boton OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -50,7 +50,7 @@ else
                     MensajeError="@ObtenerError(nameof(ActualizarParametroSistemaCommand.UmbralRojoDias))" />
 
         <div class="acciones-formulario">
-            <Boton OnClick="GuardarAsync" Cargando="_guardando">@Textos["BotonGuardarCambios"]</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="GuardarAsync" Cargando="_guardando">@Textos["BotonGuardarCambios"]</Boton>
         </div>
     </Tarjeta>
 
@@ -87,7 +87,7 @@ else
         </label>
 
         <div class="acciones-formulario">
-            <Boton OnClick="GuardarOperativaAsync" Cargando="_guardandoOperativa">@Textos["BotonGuardarCambios"]</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="GuardarOperativaAsync" Cargando="_guardandoOperativa">@Textos["BotonGuardarCambios"]</Boton>
         </div>
     </Tarjeta>
 
@@ -104,7 +104,7 @@ else
         <CampoTexto Etiqueta="@Textos["PresupuestoMensualEtiqueta"]" Type="number" Valor="@_presupuestoMensualIaUsd" ValorChanged="v => _presupuestoMensualIaUsd = v" />
 
         <div class="acciones-formulario">
-            <Boton OnClick="GuardarPresupuestoIaAsync" Cargando="_guardandoPresupuestoIa">@Textos["BotonGuardarCambios"]</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="GuardarPresupuestoIaAsync" Cargando="_guardandoPresupuestoIa">@Textos["BotonGuardarCambios"]</Boton>
         </div>
     </Tarjeta>
 }

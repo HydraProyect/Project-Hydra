@@ -76,7 +76,7 @@
     {
         <EstadoVacio Titulo="No pudimos cargar Mi trabajo" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -89,7 +89,7 @@
         <EstadoVacio NombreIcono="filtro" Titulo="Nada con este filtro"
                      Descripcion="Prueba con otro tipo o vuelve a «Todos» para ver la cola entera.">
             <Accion>
-                <Boton OnClick="QuitarFiltrosAsync">Quitar el filtro</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="QuitarFiltrosAsync">Quitar el filtro</Boton>
             </Accion>
         </EstadoVacio>
     }

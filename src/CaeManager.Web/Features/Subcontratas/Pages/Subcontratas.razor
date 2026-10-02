@@ -40,7 +40,7 @@
             }
             @if (!_alcanceCero && !_sinEmpresaSeleccionada && !_resolviendoEmpresa)
             {
-                <SoloConEscritura><Boton OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
             }
         </Acciones>
     </CabeceraPagina>
@@ -76,7 +76,7 @@
     {
         <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
             <Accion>
-                <Boton OnClick="() => CargarAsync()">@Comunes["Reintentar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="() => CargarAsync()">@Comunes["Reintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -108,7 +108,7 @@
         <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
             <EstadoVacio NombreIcono="subcontratas" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
                 <Accion>
-                    <SoloConEscritura><Boton OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         </VacioSegunAlcance>
@@ -321,7 +321,7 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             @Textos["BotonCancelar"]
         </Boton>
-        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
             @Textos["BotonGuardar"]
         </Boton>
     </Pie>

@@ -67,7 +67,7 @@
         <EstadoVacio NombreIcono="error-circulo" AcentoIcono="var(--color-danger-700)" FondoIcono="var(--color-danger-50)"
                      Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
             <Accion>
-                <Boton OnClick="RecargarAsync">@Textos["BotonReintentar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="RecargarAsync">@Textos["BotonReintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -210,7 +210,7 @@
            a Consulta, así que no se le ofrecen (el menú de la fila ya iba envuelto). *@
         <SoloConEscritura>
             <div class="pie-vista-rapida-gestion">
-                <Boton Cargando="_cambiandoEstado.Contains(vista.Id)" OnClick="() => CambiarEstadoAsync(vista.Id, vista.Estado != EstadoGestion.Completada)">
+                <Boton Variante="VarianteBoton.Primario" Cargando="_cambiandoEstado.Contains(vista.Id)" OnClick="() => CambiarEstadoAsync(vista.Id, vista.Estado != EstadoGestion.Completada)">
                     @(vista.Estado == EstadoGestion.Completada ? Textos["BotonReabrirGestion"] : Textos["AccionMarcarCompletada"])
                 </Boton>
                 <Boton Variante="VarianteBoton.Destructivo" Deshabilitado="_cambiandoEstado.Contains(vista.Id)" OnClick="() => AbrirEliminar(vista.Id)">@Textos["AccionEliminar"]</Boton>

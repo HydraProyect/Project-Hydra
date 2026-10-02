@@ -53,7 +53,7 @@
     @if (_errorCarga)
     {
         <EstadoVacio Titulo="No pudimos cargar la configuración" Descripcion="Intenta nuevamente en unos segundos, o puede que no tengas acceso a este Cliente empresarial.">
-            <Accion><Boton OnClick="CargarAsync">Reintentar</Boton></Accion>
+            <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton></Accion>
         </EstadoVacio>
     }
     else if (_cargando)
@@ -63,7 +63,7 @@
     else if (_configuracion.Count == 0)
     {
         <EstadoVacio Titulo="No hay tipos de documento en el catálogo" Descripcion="El catálogo de tipos de documento está vacío. Se define una sola vez para todo el tenant, en Tipos de documento.">
-            <Accion><Boton Href="/configuracion/tipos">Ir a Tipos de documento</Boton></Accion>
+            <Accion><Boton Variante="VarianteBoton.Primario" Href="/configuracion/tipos">Ir a Tipos de documento</Boton></Accion>
         </EstadoVacio>
     }
     else

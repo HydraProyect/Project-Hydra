@@ -36,7 +36,7 @@
     @if (_errorCarga)
     {
         <EstadoVacio NombreIcono="error-circulo" Titulo="No pudimos cargar los datos" Descripcion="Intenta nuevamente en unos segundos.">
-            <Accion><Boton OnClick="CargarAsync">Reintentar</Boton></Accion>
+            <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton></Accion>
         </EstadoVacio>
     }
     else if (_cargando)
@@ -160,7 +160,7 @@
                                                         </td>
                                                         <td class="col-acciones">
                                                             <span class="acciones-fila">
-                                                                <Boton OnClick="GuardarEdicionAsync" Tamano="TamanoBoton.Pequeno" Cargando="_guardando">Guardar</Boton>
+                                                                <Boton Variante="VarianteBoton.Primario" OnClick="GuardarEdicionAsync" Tamano="TamanoBoton.Pequeno" Cargando="_guardando">Guardar</Boton>
                                                                 <Boton OnClick="CancelarEdicion" Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario">Cancelar</Boton>
                                                             </span>
                                                         </td>
@@ -223,7 +223,7 @@
                                         </div>
                                     </div>
                                     <div class="acciones-formulario">
-                                        <Boton OnClick="CrearTarifaAsync" Cargando="_guardando">Guardar tarifa</Boton>
+                                        <Boton Variante="VarianteBoton.Primario" OnClick="CrearTarifaAsync" Cargando="_guardando">Guardar tarifa</Boton>
                                         <Boton OnClick="() => _mostrarFormularioNueva = false" Variante="VarianteBoton.Secundario">Cancelar</Boton>
                                     </div>
                                 </Tarjeta>
@@ -265,7 +265,7 @@
                                     }
                                 </CampoSelect>
                             </div>
-                            <Boton OnClick="CargarResumenAsync" Cargando="_cargandoResumen">Calcular</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="CargarResumenAsync" Cargando="_cargandoResumen">Calcular</Boton>
                         </div>
 
                         @if (_cargandoResumen)

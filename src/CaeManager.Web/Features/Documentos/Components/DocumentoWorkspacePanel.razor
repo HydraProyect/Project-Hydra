@@ -20,7 +20,7 @@
 else if (_error || _detalle is null)
 {
     <EstadoVacio Titulo="No pudimos cargar el documento" Descripcion="Intenta nuevamente en unos segundos.">
-        <Accion><Boton OnClick="ReintentarAsync">Reintentar</Boton></Accion>
+        <Accion><Boton Variante="VarianteBoton.Primario" OnClick="ReintentarAsync">Reintentar</Boton></Accion>
     </EstadoVacio>
 }
 else
@@ -66,7 +66,7 @@ else
                     </div>
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
-                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar fechas y comentarios (sin sustituir el archivo)</Boton>
+                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar fechas y comentarios (sin sustituir el archivo)</Boton>
                     </div>
                 }
                 else

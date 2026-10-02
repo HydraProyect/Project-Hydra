@@ -182,7 +182,7 @@
             {
                 <EstadoVacio Titulo="No pudimos cargar los documentos" Descripcion="Intenta nuevamente en unos segundos.">
                     <Accion>
-                        <Boton OnClick="RecargarAsync">Reintentar</Boton>
+                        <Boton Variante="VarianteBoton.Primario" OnClick="RecargarAsync">Reintentar</Boton>
                     </Accion>
                 </EstadoVacio>
             }
@@ -292,7 +292,7 @@
                     <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
                         <EstadoVacio NombreIcono="documentos" Titulo="Aún no hay documentos" Descripcion="Sube el primero para empezar a controlar vigencias.">
                             <Accion>
-                                <SoloConEscritura><Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
+                                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
                             </Accion>
                         </EstadoVacio>
                     </VacioSegunAlcance>
@@ -336,7 +336,7 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => CerrarModalGuardarFiltro(false)">Cancelar</Boton>
-        <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
     </Pie>
 </Modal>
 

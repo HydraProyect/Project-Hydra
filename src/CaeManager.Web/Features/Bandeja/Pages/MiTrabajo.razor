@@ -53,7 +53,7 @@
     {
         <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
             <Accion>
-                <Boton OnClick="CargarAsync">@Textos["ReintentarConsulta"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["ReintentarConsulta"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -160,7 +160,7 @@
                             }
                             @if (_puedeAnadirACartera)
                             {
-                                <Boton OnClick="AbrirDialogoCartera">@Textos["AnadirAMiCartera"]</Boton>
+                                <Boton Variante="VarianteBoton.Primario" OnClick="AbrirDialogoCartera">@Textos["AnadirAMiCartera"]</Boton>
                             }
                             @if (TenantFiltrado is not null)
                             {
@@ -189,7 +189,7 @@
                     <EstadoVacio NombreIcono="filtro" Titulo="@Textos["SinResultadosTitulo"]"
                                  Descripcion="@Textos["SinResultadosDetalle"]">
                         <Accion>
-                            <Boton OnClick="QuitarFiltros">@Textos["QuitarFiltros"]</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="QuitarFiltros">@Textos["QuitarFiltros"]</Boton>
                         </Accion>
                     </EstadoVacio>
                 }

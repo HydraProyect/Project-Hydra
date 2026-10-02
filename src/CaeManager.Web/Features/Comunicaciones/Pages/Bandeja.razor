@@ -52,7 +52,7 @@
                llegan a la misma pantalla, cada una con su propio contrato de acceso. *@
             <div class="bandeja-lista-cabecera">
                 <h1 class="bandeja-lista-titulo">Comunicaciones</h1>
-                <SoloConEscritura><Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">Redactar</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">Redactar</Boton></SoloConEscritura>
             </div>
 
             @* Toggle "Clientes | Mi buzón personal" (rediseño acordado, ver
@@ -126,7 +126,7 @@
                     {
                         <EstadoVacio Titulo="No pudimos cargar la bandeja" Descripcion="Intenta nuevamente en unos segundos.">
                             <Accion>
-                                <Boton OnClick="CargarListaAsync">Reintentar</Boton>
+                                <Boton Variante="VarianteBoton.Primario" OnClick="CargarListaAsync">Reintentar</Boton>
                             </Accion>
                         </EstadoVacio>
                     }
@@ -228,7 +228,7 @@
                     {
                         <EstadoVacio Titulo="No pudimos cargar el buzón" Descripcion="Intenta nuevamente en unos segundos.">
                             <Accion>
-                                <Boton OnClick="CargarBuzonPersonalAsync">Reintentar</Boton>
+                                <Boton Variante="VarianteBoton.Primario" OnClick="CargarBuzonPersonalAsync">Reintentar</Boton>
                             </Accion>
                         </EstadoVacio>
                     }
@@ -330,7 +330,7 @@
 
                             @if (_detalle.Estado is EstadoConversacion.Abierta or EstadoConversacion.Pendiente)
                             {
-                                <Boton Tamano="TamanoBoton.Pequeno" Cargando="_cambiandoEstado" OnClick="() => CambiarEstadoAsync(EstadoConversacion.Resuelta)">Resolver</Boton>
+                                <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="_cambiandoEstado" OnClick="() => CambiarEstadoAsync(EstadoConversacion.Resuelta)">Resolver</Boton>
                             }
                             else
                             {
@@ -526,7 +526,7 @@
         </ChildContent>
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_aplicandoDocumento" OnClick="CerrarModalActualizarDocumento">Cancelar</Boton>
-            <Boton Cargando="_aplicandoDocumento" Deshabilitado="_detectandoDocumento" OnClick="AplicarActualizacionDocumentoAsync">Aplicar y registrar</Boton>
+            <Boton Variante="VarianteBoton.Primario" Cargando="_aplicandoDocumento" Deshabilitado="_detectandoDocumento" OnClick="AplicarActualizacionDocumentoAsync">Aplicar y registrar</Boton>
         </Pie>
     </Modal>
 
@@ -563,7 +563,7 @@
         </ChildContent>
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviandoRedaccion" OnClick="() => _redactarVisible = false">Cancelar</Boton>
-            <Boton Cargando="_enviandoRedaccion" OnClick="EnviarMensajeNuevoDesdeRedactarAsync">Enviar</Boton>
+            <Boton Variante="VarianteBoton.Primario" Cargando="_enviandoRedaccion" OnClick="EnviarMensajeNuevoDesdeRedactarAsync">Enviar</Boton>
         </Pie>
     </Drawer>
 
@@ -602,7 +602,7 @@
         </ChildContent>
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerPrioridadVisible = false" Deshabilitado="_enviandoPrioridad">Cancelar</Boton>
-            <Boton OnClick="EnviarPrioridadAsync" Cargando="_enviandoPrioridad" Deshabilitado="_cargandoBorradorPrioridad || _borradorPrioridad is null">Enviar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="EnviarPrioridadAsync" Cargando="_enviandoPrioridad" Deshabilitado="_cargandoBorradorPrioridad || _borradorPrioridad is null">Enviar</Boton>
         </Pie>
     </Drawer>
 </div>

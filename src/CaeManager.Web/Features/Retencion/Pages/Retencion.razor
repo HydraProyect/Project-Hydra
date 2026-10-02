@@ -20,7 +20,7 @@
             histórico, que ya no es dato personal.
         </Descripcion>
         <Acciones>
-            <Boton OnClick="BuscarAsync" Cargando="_buscando" Deshabilitado="!PoliticaActiva">
+            <Boton Variante="VarianteBoton.Primario" OnClick="BuscarAsync" Cargando="_buscando" Deshabilitado="!PoliticaActiva">
                 Buscar datos que hayan cumplido plazo
             </Boton>
         </Acciones>
@@ -93,7 +93,7 @@
     @if (_error)
     {
         <EstadoVacio Titulo="No pudimos cargar las solicitudes" Descripcion="Intenta nuevamente en unos segundos.">
-            <Accion><Boton OnClick="CargarAsync">Reintentar</Boton></Accion>
+            <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton></Accion>
         </EstadoVacio>
     }
     else if (_cargando)
@@ -201,7 +201,7 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesando" OnClick="() => _aProgramar = null">Cancelar</Boton>
-        <Boton Cargando="_procesando" OnClick="ProgramarAsync">Autorizar</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_procesando" OnClick="ProgramarAsync">Autorizar</Boton>
     </Pie>
 </Modal>
 
@@ -220,7 +220,7 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesando" OnClick="() => _aCancelar = null">Volver</Boton>
-        <Boton Cargando="_procesando" OnClick="CancelarAsync">Descartar</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_procesando" OnClick="CancelarAsync">Descartar</Boton>
     </Pie>
 </Modal>
 

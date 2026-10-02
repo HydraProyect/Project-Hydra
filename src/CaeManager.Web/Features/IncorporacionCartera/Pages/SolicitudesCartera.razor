@@ -19,7 +19,7 @@
         <Acciones>
             @if (_bandeja is { EsCoordinadorCae: false })
             {
-                <Boton OnClick="AbrirDialogo">@Textos["BotonSolicitar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="AbrirDialogo">@Textos["BotonSolicitar"]</Boton>
             }
         </Acciones>
     </CabeceraPagina>
@@ -32,7 +32,7 @@
     {
         <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
             <Accion>
-                <Boton OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -70,7 +70,7 @@
                                 <td class="solicitudes-acciones">
                                     @if (solicitud.PuedeResolver)
                                     {
-                                        <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AceptarAsync(solicitud)" Deshabilitado="_enCurso is not null" Cargando="_enCurso == solicitud.Id">@Textos["Aceptar"]</Boton>
+                                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="() => AceptarAsync(solicitud)" Deshabilitado="_enCurso is not null" Cargando="_enCurso == solicitud.Id">@Textos["Aceptar"]</Boton>
                                         <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => PedirRechazar(solicitud)" Deshabilitado="_enCurso is not null">@Textos["Rechazar"]</Boton>
                                     }
                                     else
@@ -127,7 +127,7 @@
     {
         <EstadoVacio Titulo="@Textos["SinPropiasTitulo"]" Descripcion="@Textos["SinPropiasDetalle"]">
             <Accion>
-                <Boton OnClick="AbrirDialogo">@Textos["BotonSolicitar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="AbrirDialogo">@Textos["BotonSolicitar"]</Boton>
             </Accion>
         </EstadoVacio>
     }

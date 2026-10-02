@@ -20,7 +20,7 @@
                     <p class="aviso-solicitudes-pide">@Textos["AvisoPide", solicitud.NombreSolicitante, solicitud.NombreEmpresa]</p>
                     <p class="aviso-solicitudes-mensaje">@solicitud.Mensaje</p>
                     <div class="aviso-solicitudes-acciones">
-                        <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AceptarAsync(solicitud)" Deshabilitado="_enCurso is not null" Cargando="_enCurso == solicitud.Id">@Textos["Aceptar"]</Boton>
+                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="() => AceptarAsync(solicitud)" Deshabilitado="_enCurso is not null" Cargando="_enCurso == solicitud.Id">@Textos["Aceptar"]</Boton>
                         <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => PedirRechazar(solicitud)" Deshabilitado="_enCurso is not null">@Textos["Rechazar"]</Boton>
                     </div>
                 </li>

@@ -73,7 +73,7 @@
             </SoloConEscritura>
             @if (!_alcanceCero)
             {
-                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo Cliente empresarial</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nuevo Cliente empresarial</Boton></SoloConEscritura>
             }
             }
         </Acciones>
@@ -170,7 +170,7 @@
     {
         <EstadoVacio Titulo="No pudimos cargar los Clientes empresariales" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
-                <Boton OnClick="RecargarAsync">Reintentar</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="RecargarAsync">Reintentar</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -329,7 +329,7 @@
             <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
                 <EstadoVacio NombreIcono="clientes" Titulo="Aún no hay Clientes empresariales" Descripcion="Crea el primero para empezar a organizar tus centros de trabajo.">
                     <Accion>
-                        <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo Cliente empresarial</Boton></SoloConEscritura>
+                        <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nuevo Cliente empresarial</Boton></SoloConEscritura>
                         <Boton Variante="VarianteBoton.Secundario" OnClick='() => NavigationManager.NavigateTo("/clientes/alta-guiada")'>
                             Alta guiada (Cliente + Empresa + Centro)
                         </Boton>
@@ -379,7 +379,7 @@
                 Continuar con la empresa
             </Boton>
         }
-        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
             Guardar
         </Boton>
     </Pie>
@@ -431,7 +431,7 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => CerrarModalGuardarFiltro(false)">Cancelar</Boton>
-        <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
     </Pie>
 </Modal>
 

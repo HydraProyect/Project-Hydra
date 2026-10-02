@@ -138,7 +138,7 @@
                     <p class="administracion-global-error-comando" role="alert">@_error</p>
                 }
                 <div class="administracion-global-acciones">
-                    <Boton OnClick="AbrirConfirmacion">Inicializar administración global</Boton>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="AbrirConfirmacion">Inicializar administración global</Boton>
                     <span>Se pide confirmación antes de ejecutar.</span>
                 </div>
             </div>
@@ -213,7 +213,7 @@
                         <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
                     }
                     <input type="hidden" name="sesionPrivilegiadaId" value="@sesion" />
-                    <Boton Type="submit">Cerrar la sesión de soporte</Boton>
+                    <Boton Variante="VarianteBoton.Primario" Type="submit">Cerrar la sesión de soporte</Boton>
                 </form>
             </div>
         </section>
@@ -328,7 +328,7 @@
                OnClick="() => CerrarConfirmacion(false)">
             Cancelar
         </Boton>
-        <Boton Cargando="_ejecutando"
+        <Boton Variante="VarianteBoton.Primario" Cargando="_ejecutando"
                Deshabilitado="!_confirmacionAceptada"
                OnClick="InicializarAsync">
             Sí, inicializar

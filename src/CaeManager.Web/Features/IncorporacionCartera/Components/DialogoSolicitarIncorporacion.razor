@@ -43,7 +43,7 @@
         <Boton Variante="VarianteBoton.Secundario" OnClick="CerrarAsync" Deshabilitado="_enviando">@Textos["Cancelar"]</Boton>
         @if (_candidatos.Count > 0)
         {
-            <Boton OnClick="EnviarAsync" Deshabilitado="!PuedeEnviar" Cargando="_enviando">@Textos["DialogoEnviar"]</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="EnviarAsync" Deshabilitado="!PuedeEnviar" Cargando="_enviando">@Textos["DialogoEnviar"]</Boton>
         }
     </Pie>
 </Modal>

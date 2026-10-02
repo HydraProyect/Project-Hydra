@@ -94,7 +94,7 @@
 
             <div class="acciones-formulario">
                 @* Con el catálogo vacío el botón no tiene nada que vincular. *@
-                <Boton Cargando="_guardandoEmpresa" OnClick="GuardarEmpresaAsync"
+                <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoEmpresa" OnClick="GuardarEmpresaAsync"
                        Deshabilitado="@(_empresaExistente && !_cargandoCatalogoEmpresas && _empresasCatalogo.Count == 0)">
                     @(_empresaExistente ? "Vincular y continuar" : "Guardar y continuar")
                 </Boton>
@@ -166,7 +166,7 @@
                 }
 
                 <div class="acciones-formulario">
-                    <Boton Cargando="_guardandoCliente" OnClick="GuardarClienteAsync"
+                    <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoCliente" OnClick="GuardarClienteAsync"
                            Deshabilitado="@(_clienteExistente && !_cargandoCatalogoClientes && _clientesCatalogo.Count == 0)">
                         @(_clienteExistente ? "Vincular y continuar a Centro" : "Guardar y continuar a Centro")
                     </Boton>
@@ -225,7 +225,7 @@
             <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHasta" ValorChanged="v => _contratoVigenteHasta = v" />
 
             <div class="acciones-formulario">
-                <Boton Cargando="_guardandoCentro" OnClick="GuardarCentroAsync">Guardar centro</Boton>
+                <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoCentro" OnClick="GuardarCentroAsync">Guardar centro</Boton>
                 @if (_centrosCreados == 0)
                 {
                     <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_guardandoCentro" OnClick="VerEmpresaAsync">
@@ -288,7 +288,7 @@
             <CampoTexto Etiqueta="Email" Valor="@_emailTrabajador" ValorChanged="v => _emailTrabajador = v" />
 
             <div class="acciones-formulario">
-                <Boton Cargando="_guardandoTrabajador" OnClick="GuardarTrabajadorAsync">Guardar trabajador</Boton>
+                <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoTrabajador" OnClick="GuardarTrabajadorAsync">Guardar trabajador</Boton>
                 <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="_guardandoTrabajador" OnClick="VerEmpresaAsync">
                     Terminar aquí
                 </Boton>

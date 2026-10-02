@@ -196,13 +196,13 @@
                 </Boton>
                 @if (_paso < 3)
                 {
-                    <Boton Deshabilitado="!TodoLoObligatorioResuelto()" OnClick="() => _paso++">
+                    <Boton Variante="VarianteBoton.Primario" Deshabilitado="!TodoLoObligatorioResuelto()" OnClick="() => _paso++">
                         Continuar
                     </Boton>
                 }
                 else
                 {
-                    <Boton Deshabilitado="!TodoLoObligatorioResuelto()" Cargando="Confirmando" OnClick="() => OnConfirmar.InvokeAsync()">
+                    <Boton Variante="VarianteBoton.Primario" Deshabilitado="!TodoLoObligatorioResuelto()" Cargando="Confirmando" OnClick="() => OnConfirmar.InvokeAsync()">
                         @TextoAccionFinal
                     </Boton>
                 }

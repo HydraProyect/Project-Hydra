@@ -19,7 +19,7 @@
     {
         <EstadoVacio Titulo="No pudimos cargar los roles" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -157,7 +157,7 @@
                                             </CampoSelect>
                                         </td>
                                         <td class="celda-accion">
-                                            <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => PedirConfirmacion(pendiente)"
+                                            <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="() => PedirConfirmacion(pendiente)"
                                                    Cargando="@(_asignandoId == pendiente.Id)"
                                                    aria-label="@($"Asignar rol a {pendiente.NombreCompleto}")">
                                                 Asignar

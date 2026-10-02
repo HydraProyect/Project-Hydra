@@ -87,7 +87,7 @@ else if (_error || _detalle is null)
 {
     <EstadoVacio Titulo="@Textos["ErrorCargaSubcontrataTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
         <Accion>
-            <Boton OnClick="ReintentarAsync">@Comunes["Reintentar"]</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarAsync">@Comunes["Reintentar"]</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -137,7 +137,7 @@ else
                                        TextoVacio="@Textos["VacioEmpresasSelector"]" />
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">@Textos["BotonCancelar"]</Boton>
-                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">@Textos["BotonGuardar"]</Boton>
+                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">@Textos["BotonGuardar"]</Boton>
                     </div>
 
                     <div class="campo">
@@ -304,7 +304,7 @@ else
                 {
                     <EstadoVacio Titulo="@Textos["ErrorCargaTrabajadoresTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
                         <Accion>
-                            <Boton OnClick="ReintentarTrabajadoresAsync">@Comunes["Reintentar"]</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarTrabajadoresAsync">@Comunes["Reintentar"]</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -347,7 +347,7 @@ else
                 {
                     <EstadoVacio Titulo="@Textos["ErrorCargaSupervisionTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
                         <Accion>
-                            <Boton OnClick="ReintentarSupervisionAsync">@Comunes["Reintentar"]</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarSupervisionAsync">@Comunes["Reintentar"]</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -359,7 +359,7 @@ else
                     <div class="acciones-subcontrata-360">
                         @* Registrar y eliminar verificaciones son ICommand denegados a Consulta; el resumen sí es lectura. *@
                         <SoloConEscritura>
-                            <Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRegistrarVerificacionAsync" Deshabilitado="@(_supervision.CentrosSeleccionables.Count == 0)">
+                            <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirRegistrarVerificacionAsync" Deshabilitado="@(_supervision.CentrosSeleccionables.Count == 0)">
                                 @Textos["BotonRegistrarVerificacion"]
                             </Boton>
                         </SoloConEscritura>
@@ -425,7 +425,7 @@ else
                 {
                     <EstadoVacio Titulo="@Textos["ErrorCargaCentrosTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
                         <Accion>
-                            <Boton OnClick="ReintentarCentrosAsync">@Comunes["Reintentar"]</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarCentrosAsync">@Comunes["Reintentar"]</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -519,7 +519,7 @@ else
             <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoVerificacion" OnClick="() => CerrarDrawerVerificacion(false)">
                 @Textos["BotonCancelar"]
             </Boton>
-            <Boton Cargando="_guardandoVerificacion" OnClick="GuardarVerificacionAsync">
+            <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoVerificacion" OnClick="GuardarVerificacionAsync">
                 @Textos["BotonRegistrar"]
             </Boton>
         </Pie>

@@ -95,7 +95,7 @@
                         </label>
                     }
 
-                    <Boton OnClick="GenerarVistaPreviaAsync" Cargando="_generando">@Textos["BotonGenerarVistaPrevia"]</Boton>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="GenerarVistaPreviaAsync" Cargando="_generando">@Textos["BotonGenerarVistaPrevia"]</Boton>
 
                     <div class="acciones-exportar-informe">
                         @if (TienePlan)
@@ -191,7 +191,7 @@
                 <div class="error-generacion-informe" role="alert">
                     <EstadoVacio NombreIcono="error-circulo" Titulo="@Textos["ErrorGeneracionTitulo"]"
                                  Descripcion="@Textos["ErrorGeneracionDescripcion"]">
-                        <Accion><Boton OnClick="GenerarVistaPreviaAsync">@Textos["BotonReintentar"]</Boton></Accion>
+                        <Accion><Boton Variante="VarianteBoton.Primario" OnClick="GenerarVistaPreviaAsync">@Textos["BotonReintentar"]</Boton></Accion>
                     </EstadoVacio>
                 </div>
             }

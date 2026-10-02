@@ -38,7 +38,7 @@
                     <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => OnDescartarSugerenciaVisita.InvokeAsync(sugerencia.Id)">
                         Descartar
                     </Boton>
-                    <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirRevisionVisita(sugerencia)">
+                    <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirRevisionVisita(sugerencia)">
                         Crear visita
                     </Boton>
                 </div>
@@ -58,7 +58,7 @@
                     <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => OnDescartarSugerenciaGestion.InvokeAsync(sugerencia.Id)">
                         Descartar
                     </Boton>
-                    <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirRevisionGestion(sugerencia)">
+                    <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirRevisionGestion(sugerencia)">
                         Generar gestiones
                     </Boton>
                 </div>
@@ -81,7 +81,7 @@
                     <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario" OnClick="() => _vinculacionDescartada = true">
                         Crear conversación nueva
                     </Boton>
-                    <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => OnVincularConversacion.InvokeAsync(vinculacion.ConversacionDestinoId)">
+                    <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="() => OnVincularConversacion.InvokeAsync(vinculacion.ConversacionDestinoId)">
                         Añadir a conversación existente
                     </Boton>
                 </div>

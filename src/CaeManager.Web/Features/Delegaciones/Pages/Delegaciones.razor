@@ -18,11 +18,11 @@
         <Acciones>
             @if (PuedeGestionar)
             {
-                <Boton OnClick="AbrirFormularioNuevaDelegacion">Nueva delegación</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="AbrirFormularioNuevaDelegacion">Nueva delegación</Boton>
             }
             @if (PuedeAutorizarOperador)
             {
-                <Boton OnClick="AbrirAutorizarOperador">@TextosAutorizar["AccionAutorizar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="AbrirAutorizarOperador">@TextosAutorizar["AccionAutorizar"]</Boton>
             }
         </Acciones>
     </CabeceraPagina>
@@ -52,7 +52,7 @@
         <EstadoVacio Titulo="No pudimos cargar las delegaciones"
                      Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -332,7 +332,7 @@
                OnClick="() => CerrarFormularioSoporte(false)">
             Cancelar
         </Boton>
-        <Boton Cargando="@EstaProcesando(_delegacionSoporteAAbrir?.Id)"
+        <Boton Variante="VarianteBoton.Primario" Cargando="@EstaProcesando(_delegacionSoporteAAbrir?.Id)"
                OnClick="AbrirAccesoSoporteAsync">
             Abrir acceso
         </Boton>
@@ -376,7 +376,7 @@
                OnClick="() => CerrarFormularioNueva(false)">
             Cancelar
         </Boton>
-        <Boton Cargando="_creandoDelegacion" OnClick="CrearDelegacionAsync">Crear</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_creandoDelegacion" OnClick="CrearDelegacionAsync">Crear</Boton>
     </Pie>
 </Modal>
 
@@ -425,7 +425,7 @@
                OnClick="() => CerrarAutorizarOperador(false)">
             @TextosAutorizar["Cancelar"]
         </Boton>
-        <Boton Cargando="_autorizandoOperador" OnClick="AutorizarOperadorAsync">@TextosAutorizar["Autorizar"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_autorizandoOperador" OnClick="AutorizarOperadorAsync">@TextosAutorizar["Autorizar"]</Boton>
     </Pie>
 </Modal>
 

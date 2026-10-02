@@ -24,7 +24,7 @@ else if (_error)
 {
     <EstadoVacio Titulo="No pudimos cargar la agenda" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
-            <Boton OnClick="CargarAsync">Reintentar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -33,7 +33,7 @@ else if (_contactos.Count == 0)
     <EstadoVacio NombreIcono="agenda" Titulo="Sin contactos en la agenda"
                  Descripcion="@($"No hay a quién pedirle documentación {TextoDeEsta}. Añade al menos un contacto para poder reclamar.")">
         <Accion>
-            <SoloConEscritura><Boton OnClick="() => AbrirFormulario(null)"><Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto</Boton></SoloConEscritura>
+            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="() => AbrirFormulario(null)"><Icono Nombre="contacto" Tamano="TamanoIcono.Pequeno" /> Añadir contacto</Boton></SoloConEscritura>
         </Accion>
     </EstadoVacio>
 }

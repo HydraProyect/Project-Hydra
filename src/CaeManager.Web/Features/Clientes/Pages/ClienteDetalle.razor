@@ -34,7 +34,7 @@
         <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]"
                      NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
-                <Boton OnClick="ReintentarAsync">@Textos["Reintentar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarAsync">@Textos["Reintentar"]</Boton>
                 <EnlaceProfundoOtraEmpresa />
             </Accion>
         </EstadoVacio>
@@ -123,7 +123,7 @@
                             {
                                 <EstadoVacio Titulo="@Textos["ErrorCentrosTitulo"]" Descripcion="@Textos["ErrorListaDescripcion"]">
                                     <Accion>
-                                        <Boton OnClick="ReintentarCentrosAsync">@Textos["Reintentar"]</Boton>
+                                        <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarCentrosAsync">@Textos["Reintentar"]</Boton>
                                     </Accion>
                                 </EstadoVacio>
                             }
@@ -161,7 +161,7 @@
                             {
                                 <EstadoVacio Titulo="@Textos["ErrorEmpresasTitulo"]" Descripcion="@Textos["ErrorListaDescripcion"]">
                                     <Accion>
-                                        <Boton OnClick="ReintentarEmpresasAsync">@Textos["Reintentar"]</Boton>
+                                        <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarEmpresasAsync">@Textos["Reintentar"]</Boton>
                                     </Accion>
                                 </EstadoVacio>
                             }
@@ -193,7 +193,7 @@
                             {
                                 <EstadoVacio Titulo="@Textos["ErrorSubcontratasTitulo"]" Descripcion="@Textos["ErrorListaDescripcion"]">
                                     <Accion>
-                                        <Boton OnClick="ReintentarSubcontratasAsync">@Textos["Reintentar"]</Boton>
+                                        <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarSubcontratasAsync">@Textos["Reintentar"]</Boton>
                                     </Accion>
                                 </EstadoVacio>
                             }

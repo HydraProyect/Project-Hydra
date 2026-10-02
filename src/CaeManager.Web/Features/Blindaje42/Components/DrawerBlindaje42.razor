@@ -36,7 +36,7 @@
                 {
                     <span class="campo-mensaje-error" role="alert">@_errorSolicitud</span>
                 }
-                <Boton OnClick="RegistrarSolicitudAsync" Cargando="_guardandoSolicitud" Deshabilitado="_guardandoSolicitud">
+                <Boton Variante="VarianteBoton.Primario" OnClick="RegistrarSolicitudAsync" Cargando="_guardandoSolicitud" Deshabilitado="_guardandoSolicitud">
                     Registrar solicitud
                 </Boton>
             </div>
@@ -52,7 +52,7 @@
         {
             <EstadoVacio Titulo="No pudimos cargar el historial" Descripcion="Intenta nuevamente en unos segundos.">
                 <Accion>
-                    <Boton OnClick="CargarAsync">Reintentar</Boton>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
                 </Accion>
             </EstadoVacio>
         }
@@ -114,7 +114,7 @@
                                            OnClick="() => _respondiendoSolicitudId = null" Deshabilitado="_guardandoRespuesta">
                                         Cancelar
                                     </Boton>
-                                    <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => RegistrarRespuestaAsync(solicitud.Id)"
+                                    <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="() => RegistrarRespuestaAsync(solicitud.Id)"
                                            Cargando="_guardandoRespuesta" Deshabilitado="_guardandoRespuesta">
                                         Guardar respuesta
                                     </Boton>

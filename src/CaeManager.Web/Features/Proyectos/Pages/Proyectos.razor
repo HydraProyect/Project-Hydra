@@ -28,7 +28,7 @@
         <Acciones>
             @if (_clienteSeleccionadoId != Guid.Empty && !_cargando && !_errorCarga)
             {
-                <SoloConEscritura><Boton OnClick="AbrirNuevoProyecto">@Textos["BotonNuevoProyecto"]</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirNuevoProyecto">@Textos["BotonNuevoProyecto"]</Boton></SoloConEscritura>
             }
         </Acciones>
     </CabeceraPagina>
@@ -47,7 +47,7 @@
     else if (_errorCarga)
     {
         <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
-            <Accion><Boton OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton></Accion>
+            <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton></Accion>
         </EstadoVacio>
     }
     else if (_cargando)
@@ -112,7 +112,7 @@
         else if (_errorProyectos)
         {
             <EstadoVacio NombreIcono="error-circulo" Titulo="@Textos["ErrorProyectosTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
-                <Accion><Boton OnClick="CargarDatosClienteAsync">@Textos["BotonReintentar"]</Boton></Accion>
+                <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarDatosClienteAsync">@Textos["BotonReintentar"]</Boton></Accion>
             </EstadoVacio>
         }
         else if (_proyectos.Count == 0)
@@ -122,7 +122,7 @@
                aplican en memoria, así que aquí la pantalla SÍ sabe que el
                cliente no tiene ninguno — con filtro o sin él. *@
             <EstadoVacio NombreIcono="proyectos" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
-                <Accion><SoloConEscritura><Boton OnClick="AbrirNuevoProyecto">@Textos["BotonNuevoProyecto"]</Boton></SoloConEscritura></Accion>
+                <Accion><SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirNuevoProyecto">@Textos["BotonNuevoProyecto"]</Boton></SoloConEscritura></Accion>
             </EstadoVacio>
         }
         else if (ProyectosVisibles.Count == 0 && HayFiltrosActivos)
@@ -276,7 +276,7 @@
                                 <CampoTexto Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_editNotas" ValorChanged="v => _editNotas = v" />
                             </div>
                             <div class="acciones-formulario">
-                                <Boton OnClick="GuardarEdicionInfoAsync" Cargando="_guardando">@Textos["BotonGuardar"]</Boton>
+                                <Boton Variante="VarianteBoton.Primario" OnClick="GuardarEdicionInfoAsync" Cargando="_guardando">@Textos["BotonGuardar"]</Boton>
                                 <Boton OnClick="CancelarEdicionInfo" Variante="VarianteBoton.Secundario">@Textos["BotonCancelar"]</Boton>
                             </div>
                         }
@@ -332,7 +332,7 @@
                                 <CampoTexto Etiqueta="@Textos["EtiquetaFechaAlta"]" Type="date" Valor="@_nuevoTecnicoFechaAlta" ValorChanged="v => _nuevoTecnicoFechaAlta = v" />
                             </div>
                             <div class="acciones-formulario">
-                                <Boton OnClick="AsignarTecnicoAsync" Cargando="_guardando">@Textos["BotonAsignar"]</Boton>
+                                <Boton Variante="VarianteBoton.Primario" OnClick="AsignarTecnicoAsync" Cargando="_guardando">@Textos["BotonAsignar"]</Boton>
                                 <Boton OnClick="() => _mostrarFormularioTecnico = false" Variante="VarianteBoton.Secundario">@Textos["BotonCancelar"]</Boton>
                             </div>
                         }
@@ -401,7 +401,7 @@
         <CampoTexto Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_nuevasNotas" ValorChanged="v => _nuevasNotas = v" />
     </ChildContent>
     <Pie>
-        <Boton OnClick="CrearProyectoAsync" Cargando="_guardando">@Textos["BotonCrearProyecto"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" OnClick="CrearProyectoAsync" Cargando="_guardando">@Textos["BotonCrearProyecto"]</Boton>
         <Boton OnClick="() => CerrarDrawerAsync(false)" Variante="VarianteBoton.Secundario">@Textos["BotonCancelar"]</Boton>
     </Pie>
 </Drawer>
@@ -417,7 +417,7 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _mostrarCerrarConfirm = false">@Textos["BotonCancelar"]</Boton>
-        <Boton Cargando="_guardando" OnClick="ConfirmarCerrarAsync">@Textos["AccionCerrarProyecto"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="ConfirmarCerrarAsync">@Textos["AccionCerrarProyecto"]</Boton>
     </Pie>
 </Modal>
 

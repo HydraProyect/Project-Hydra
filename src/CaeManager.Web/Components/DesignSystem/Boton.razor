@@ -23,7 +23,15 @@ else
 
 @code {
     [Parameter] public RenderFragment? ChildContent { get; set; }
-    [Parameter] public VarianteBoton Variante { get; set; } = VarianteBoton.Primario;
+    /// <summary>
+    /// Jerarquía visual del botón. Obligatoria (RZ2012 con -warnaserror, y
+    /// además <c>BotonVarianteYUnSoloPrimarioTests</c>): no hay valor por
+    /// defecto que decida por quien programa. Antes valía Primario sin
+    /// declararlo y 264 etiquetas lo eran sin decidirlo (D-30: dos primarios en
+    /// una misma vista). Regla del propietario (2026-10-02): un solo Primario
+    /// por vista; el resto, Secundario, Fantasma o Destructivo.
+    /// </summary>
+    [Parameter, EditorRequired] public VarianteBoton Variante { get; set; }
     [Parameter] public TamanoBoton Tamano { get; set; } = TamanoBoton.Medio;
     [Parameter] public bool Deshabilitado { get; set; }
     [Parameter] public bool Cargando { get; set; }

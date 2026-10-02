@@ -34,7 +34,7 @@ else if (_error || _detalle is null)
 {
     <EstadoVacio Titulo="@Textos["ErrorCargaTrabajadorTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
         <Accion>
-            <Boton OnClick="CargarCabeceraAsync">@Comunes["Reintentar"]</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarCabeceraAsync">@Comunes["Reintentar"]</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -78,7 +78,7 @@ else
                     </div>
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">@Textos["BotonCancelar"]</Boton>
-                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">@Textos["BotonGuardar"]</Boton>
+                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">@Textos["BotonGuardar"]</Boton>
                     </div>
                 }
                 else
@@ -110,7 +110,7 @@ else
                 {
                     <EstadoVacio Titulo="@Textos["ErrorCargaVehiculosTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
                         <Accion>
-                            <Boton OnClick="CargarVehiculosAsync">@Comunes["Reintentar"]</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="CargarVehiculosAsync">@Comunes["Reintentar"]</Boton>
                         </Accion>
                     </EstadoVacio>
                 }

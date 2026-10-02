@@ -48,7 +48,7 @@
             }
             @if (!_alcanceCero && !_sinEmpresaSeleccionada && !_resolviendoEmpresa)
             {
-                <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoTrabajador"]</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">@Textos["BotonNuevoTrabajador"]</Boton></SoloConEscritura>
             }
         </Acciones>
     </CabeceraPagina>
@@ -168,7 +168,7 @@
         <EstadoVacio NombreIcono="error-circulo" AcentoIcono="var(--color-danger-700)" FondoIcono="var(--color-danger-50)"
                      Titulo="@Textos["ErrorCargaListaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
             <Accion>
-                <Boton OnClick="RecargarAsync">@Comunes["Reintentar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="RecargarAsync">@Comunes["Reintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -265,7 +265,7 @@
             <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
                 <EstadoVacio NombreIcono="trabajadores" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
                     <Accion>
-                        <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoTrabajador"]</Boton></SoloConEscritura>
+                        <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">@Textos["BotonNuevoTrabajador"]</Boton></SoloConEscritura>
                     </Accion>
                 </EstadoVacio>
             </VacioSegunAlcance>
@@ -342,7 +342,7 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="CancelarAltaAsync">
             @Textos["BotonCancelar"]
         </Boton>
-        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
             @Textos["BotonGuardar"]
         </Boton>
     </Pie>
@@ -418,7 +418,7 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_asignandoLote" OnClick="CerrarAsignarCentro">
             @Textos["BotonCancelar"]
         </Boton>
-        <Boton Cargando="_asignandoLote" OnClick="ConfirmarAsignarCentroAsync">
+        <Boton Variante="VarianteBoton.Primario" Cargando="_asignandoLote" OnClick="ConfirmarAsignarCentroAsync">
             @(_documentosFaltantesParaAsignar.Count > 0 ? Textos["BotonAsignarIgualmente"] : Textos["BotonAsignar"])
         </Boton>
     </Pie>
@@ -430,7 +430,7 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="CerrarModalGuardarFiltro">@Textos["BotonCancelar"]</Boton>
-        <Boton Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">@Textos["BotonGuardar"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">@Textos["BotonGuardar"]</Boton>
     </Pie>
 </Modal>
 

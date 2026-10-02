@@ -87,7 +87,7 @@
             {
                 <EstadoVacio Titulo="@Textos["ErrorLoteTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
                     <Accion>
-                        <Boton OnClick="CargarLoteAsync">@Comunes["Reintentar"]</Boton>
+                        <Boton Variante="VarianteBoton.Primario" OnClick="CargarLoteAsync">@Comunes["Reintentar"]</Boton>
                     </Accion>
                 </EstadoVacio>
             }
@@ -122,7 +122,7 @@
                             @* Reclamar envía un mensaje a terceros: nunca de un
                                solo clic. El botón solo abre la confirmación, que
                                dice cuántos documentos y a quién. *@
-                            <SoloConEscritura><Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.TitularId).Count == 0)"
+                            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.TitularId).Count == 0)"
                                    Cargando="enviando" OnClick="() => PedirConfirmacionEnvio(lote)">
                                 @Textos["BotonEnviarReclamacionConCuenta", seleccionados.Count]
                             </Boton></SoloConEscritura>
@@ -255,7 +255,7 @@
     {
         <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
             <Accion>
-                <Boton OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
