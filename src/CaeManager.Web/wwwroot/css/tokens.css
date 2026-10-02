@@ -124,6 +124,30 @@
   --color-avatar-fondo: var(--color-primary-100);
   --color-avatar-texto: var(--color-primary-700);
 
+  /* Selección de texto (::selection, base.css): fondo y letra como PAR. Antes
+     solo se fijaba el fondo (--color-primary-100, #dcebff, sin variante
+     oscura) y la letra la heredaba el elemento: en oscuro eso es #e7eaee sobre
+     #dcebff, 1,2:1 (medido 2026-10-02, seguimiento de #1037). Claro: igual que
+     antes en el fondo (#dcebff); la letra pasa a ser --color-text (13,9:1)
+     en vez de la que tuviera cada elemento. Oscuro: ver el bloque oscuro.
+     Contrato: ContrasteDeSeleccionHoverYLogoPorTemaTests, >= 4,5:1 en ambos. */
+  --color-seleccion-fondo: var(--color-primary-100);
+  --color-seleccion-texto: var(--color-text);
+
+  /* Fondo del elemento activo del menú lateral bajo el puntero
+     (.nav-item.active:hover). Antes era --color-primary-100 con la letra en
+     --color-primary-500: en oscuro #dcebff con #5ca2f4, 2,19:1. Claro: sin
+     cambios (#dcebff, 5,19:1). Oscuro: ver el bloque oscuro. */
+  --color-nav-activo-hover-fondo: var(--color-primary-100);
+
+  /* Fondo detrás del logotipo subido de un Tenant (AvatarTenant,
+     Configuración → Organización). Blanco fijo en los dos temas: el mockup lo
+     pinta #fff y un logo de tinta oscura sobre transparencia se perdería sobre
+     --color-surface en oscuro. Es un valor de marca, no de superficie, por eso
+     NO se redeclara en los bloques de tema (mismo criterio que
+     --color-border-control). Sin texto encima: el logo no lleva letras. */
+  --color-logo-fondo: #ffffff;
+
   /* Tipografía */
   --font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-heading-xl: 700 2.25rem/2.75rem var(--font-family);   /* H1 36/44 */
@@ -260,6 +284,14 @@
      letra el -700 remapeado (#dcebff): 13,86:1 — ver el par en :root. */
   --color-avatar-fondo: var(--color-primary-50);
   --color-avatar-texto: var(--color-primary-700);
+  /* Selección: fondo del azul brillante de la paleta (-300, #5ca2f4) y letra
+     --color-bg (#0e141b): 6,99:1 y visible sobre Surface (#17212c). */
+  --color-seleccion-fondo: var(--color-primary-300);
+  --color-seleccion-texto: var(--color-bg);
+  /* Hover del activo del menú: --color-surface-hover (#202b36) con la letra
+     --color-primary-500 remapeada (#5ca2f4): 5,43:1. El borde sigue siendo el
+     del activo (--color-primary-100), así que sigue leyéndose como activo. */
+  --color-nav-activo-hover-fondo: var(--color-surface-hover);
   /* Único escalón -50 que se quedó sin redefinir aquí (medido 2026-09-18):
      el resto de la familia -50 sí tiene variante oscura, esta no, así que
      seguía pintando #eef5ff (fondo casi blanco) en tema oscuro mientras el
@@ -333,6 +365,9 @@
   --color-primary-50: #eef5ff;
   --color-avatar-fondo: var(--color-primary-100);
   --color-avatar-texto: var(--color-primary-700);
+  --color-seleccion-fondo: var(--color-primary-100);
+  --color-seleccion-texto: var(--color-text);
+  --color-nav-activo-hover-fondo: var(--color-primary-100);
 
   --color-primary-500: #235bc2;
   --color-primary-600: #1e4a9e;

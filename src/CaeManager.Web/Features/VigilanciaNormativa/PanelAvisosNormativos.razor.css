@@ -10,7 +10,10 @@
     height: 56px;
     border-radius: var(--radius-full);
     border: none;
-    background-color: var(--color-neutral-0);
+    /* --color-surface y no --color-neutral-0: en oscuro el icono (primary-500
+       remapeado a #5ca2f4) daba 2,65:1 sobre blanco fijo. En claro es el mismo
+       #fff. */
+    background-color: var(--color-surface);
     color: var(--color-primary-500);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     cursor: pointer;

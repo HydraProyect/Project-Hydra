@@ -128,6 +128,6 @@
 }
 
 .nav-principal ::deep .nav-item.active:hover {
-    background-color: var(--color-primary-100);
+    background-color: var(--color-nav-activo-hover-fondo);
     border-color: var(--color-primary-100);
 }

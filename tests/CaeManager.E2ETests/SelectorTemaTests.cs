@@ -202,4 +202,82 @@ public class SelectorTemaTests(WebAppFixture fixture)
                 "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
         }
     }
+
+    /// <summary>
+    /// Seguimiento de #1037: tres restos de --color-primary-100 sin variante
+    /// oscura. El contrato por token lo fija
+    /// ContrasteDeSeleccionHoverYLogoPorTemaTests; esto mide lo que el navegador
+    /// PINTA con el tema aplicado por tema.js: el texto seleccionado
+    /// (::selection) y el elemento activo del menú lateral bajo el puntero a
+    /// 4,5:1 (WCAG AA), y el token del fondo de los logos resuelto a blanco.
+    /// Las transiciones se anulan para medir el hover ya asentado.
+    /// </summary>
+    [Fact]
+    public async Task La_seleccion_y_el_hover_del_item_activo_se_leen_y_el_fondo_del_logo_es_blanco_en_oscuro_y_en_claro()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(
+            page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.DescartarNotificacionesPendientesAsync(page);
+        await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
+        await page.AddStyleTagAsync(new PageAddStyleTagOptions
+        {
+            Content = "*, *::before, *::after { transition: none !important; }",
+        });
+
+        var selectorTema = page.Locator("select.selector-tema");
+        await Assertions.Expect(selectorTema).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        const string selectorActivo = ".nav-principal a.nav-item.active";
+        var activo = page.Locator(selectorActivo).First;
+        await Assertions.Expect(activo).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+
+        // Mide fondo y letra pintados de un elemento (o de su pseudoelemento ::selection).
+        const string medirContraste = """
+            args => {
+              const el = args.selector ? document.querySelector(args.selector) : document.body;
+              const cs = getComputedStyle(el, args.pseudo);
+              const canal = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+              const lum = css => { const m = css.match(/\d+(\.\d+)?/g).map(Number); return 0.2126 * canal(m[0]) + 0.7152 * canal(m[1]) + 0.0722 * canal(m[2]); };
+              const a = lum(cs.backgroundColor), b = lum(cs.color);
+              return { fondo: cs.backgroundColor, letra: cs.color, ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) };
+            }
+            """;
+
+        try
+        {
+            // Termina en oscuro: así la espera del finally («sistema» ya no es oscuro) es una barrera real.
+            foreach (var tema in new[] { "claro", "oscuro" })
+            {
+                await selectorTema.SelectOptionAsync(tema);
+                await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
+                    "data-theme", tema, new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+
+                var seleccion = await page.EvaluateAsync<System.Text.Json.JsonElement>(
+                    medirContraste, new { selector = (string?)null, pseudo = "::selection" });
+                Assert.True(seleccion.GetProperty("ratio").GetDouble() >= 4.5,
+                    $"Texto seleccionado en tema {tema}: {seleccion.GetProperty("ratio").GetDouble():0.00}:1 " +
+                    $"(fondo {seleccion.GetProperty("fondo")}, letra {seleccion.GetProperty("letra")}); WCAG AA exige 4,5:1");
+
+                await activo.HoverAsync();
+                var hover = await page.EvaluateAsync<System.Text.Json.JsonElement>(
+                    medirContraste, new { selector = selectorActivo, pseudo = (string?)null });
+                Assert.True(hover.GetProperty("ratio").GetDouble() >= 4.5,
+                    $"Item activo bajo el puntero en tema {tema}: {hover.GetProperty("ratio").GetDouble():0.00}:1 " +
+                    $"(fondo {hover.GetProperty("fondo")}, letra {hover.GetProperty("letra")}); WCAG AA exige 4,5:1");
+
+                var fondoLogo = await page.EvaluateAsync<string>(
+                    "() => getComputedStyle(document.documentElement).getPropertyValue('--color-logo-fondo').trim().toLowerCase()");
+                Assert.Equal("#ffffff", fondoLogo);
+            }
+        }
+        finally
+        {
+            // Devuelve la cuenta a su estado inicial: la fixture es compartida por toda "AppCollection".
+            await selectorTema.SelectOptionAsync("sistema");
+            await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
+                "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+        }
+    }
 }

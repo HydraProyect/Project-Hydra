@@ -34,7 +34,8 @@
     object-fit: contain;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    background: var(--color-surface);
+    /* Blanco de marca en los dos temas (mockup #fff), ver tokens.css. */
+    background: var(--color-logo-fondo);
 }
 
 .organizacion-logo-sin-logo {

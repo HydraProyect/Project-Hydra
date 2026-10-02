@@ -56,8 +56,11 @@ button {
   outline-offset: 2px;
 }
 
+/* Fondo y letra como par con variante por tema (tokens.css): el fondo solo
+   dejaba la letra heredada, ilegible en oscuro. */
 ::selection {
-  background-color: var(--color-primary-100);
+  background-color: var(--color-seleccion-fondo);
+  color: var(--color-seleccion-texto);
 }
 
 .contenedor-pagina {
