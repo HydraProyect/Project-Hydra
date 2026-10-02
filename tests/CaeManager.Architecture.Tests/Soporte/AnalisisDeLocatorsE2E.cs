@@ -20,7 +20,11 @@ namespace CaeManager.Architecture.Tests;
 /// <item><c>LocatorPorTexto</c>: selectores CSS de Playwright que buscan por texto
 /// (<c>text=</c>, <c>:has-text(</c>, <c>:text(</c>, <c>:text-is(</c>), que es <c>GetByText</c> por
 /// otro camino. No lo pide el documento: sin él, el trinquete se esquiva con
-/// <c>Locator("button:has-text('X')")</c>.</item>
+/// <c>Locator("button:has-text('X')")</c>. Solo cuenta una cadena pasada como argumento de una
+/// llamada, no una asignada a una variable o a un <c>const</c>.</item>
+/// <item><c>FiltroPorTexto</c>: <c>HasText</c> y <c>HasNotText</c> (<c>Locator.Filter</c> y el
+/// parámetro de <c>Locator</c>), la tercera forma de localizar por texto visible. Tampoco lo pide
+/// el documento y por la misma razón.</item>
 /// </list>
 ///
 /// <para>
@@ -36,6 +40,7 @@ internal static class AnalisisDeLocatorsE2E
     public const string SimboloGetByText = "GetByText";
     public const string SimboloPosicional = "Posicional";
     public const string SimboloPorTexto = "LocatorPorTexto";
+    public const string SimboloFiltroPorTexto = "FiltroPorTexto";
 
     private static readonly Regex SelectorPosicional = new(
         @":nth-[a-z-]+|:first\b|:last\b|:first-[a-z-]+|:last-[a-z-]+|>>\s*nth=",
@@ -68,19 +73,33 @@ internal static class AnalisisDeLocatorsE2E
                     Sumar(cuenta, SimboloPosicional);
                     break;
 
-                case LiteralExpressionSyntax literal when literal.IsKind(SyntaxKind.StringLiteralExpression):
+                case LiteralExpressionSyntax literal
+                    when literal.IsKind(SyntaxKind.StringLiteralExpression) && EsArgumentoDeInvocacion(literal):
                     ContarLiteral(cuenta, literal.Token.ValueText);
                     break;
 
-                case InterpolatedStringExpressionSyntax interpolada:
+                case InterpolatedStringExpressionSyntax interpolada when EsArgumentoDeInvocacion(interpolada):
                     foreach (var parte in interpolada.Contents.OfType<InterpolatedStringTextSyntax>())
                         ContarLiteral(cuenta, parte.TextToken.ValueText);
+                    break;
+
+                case IdentifierNameSyntax { Identifier.ValueText: "HasText" or "HasNotText" }:
+                    Sumar(cuenta, SimboloFiltroPorTexto);
                     break;
             }
         }
 
         return cuenta;
     }
+
+    /// <summary>
+    /// Un selector solo es un selector si se pasa a una llamada (<c>page.Locator("…")</c>,
+    /// <c>ClickAsync("…")</c>): una cadena que se asigna a una variable o a un <c>const</c> no se cuenta
+    /// (un falso positivo con «text=» dentro de una URL o de un mensaje de aserción), a costa de no
+    /// ver un selector que primero se guarda en una variable y luego se pasa.
+    /// </summary>
+    private static bool EsArgumentoDeInvocacion(ExpressionSyntax literal) =>
+        literal.Parent is ArgumentSyntax { Parent: ArgumentListSyntax { Parent: InvocationExpressionSyntax } };
 
     private static void ContarLiteral(Dictionary<string, int> cuenta, string valor)
     {

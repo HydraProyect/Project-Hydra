@@ -12,7 +12,7 @@ namespace CaeManager.Architecture.Tests;
 /// <para>
 /// <b>Qué hace.</b> Congela, por fichero de <c>tests/CaeManager.E2ETests</c>, cuántos localizadores
 /// dependen del texto visible o de la posición (<see cref="AnalisisDeLocatorsE2E"/>). Un E2E nuevo con
-/// <c>GetByText</c>, <c>.First</c>, <c>.Nth(</c> o <c>text=</c> es una línea que falta y pone el test en
+/// <c>GetByText</c>, <c>.First</c>, <c>.Nth(</c>, <c>text=</c> o <c>HasText</c> es una línea que falta y pone el test en
 /// rojo; migrar un E2E a un localizador estable también lo pone, para que la lista baje con el
 /// trabajo. No migra ninguno de los E2E existentes.
 /// </para>
@@ -28,7 +28,7 @@ public class LocatorsDeE2ECongeladosTests
             "(clase C10 del análisis de causas raíz). Localiza por rol y nombre accesible estable, por etiqueta del " +
             "recurso, o —cuando el componente lo emita— por data-testid. Si es inevitable, añade la línea en el mismo " +
             "commit y justifícalo en la PR; si has MIGRADO localizadores, baja o borra su línea. " +
-            "Símbolos: GetByText, Posicional, LocatorPorTexto.");
+            "Símbolos: GetByText, Posicional, LocatorPorTexto, FiltroPorTexto.");
 
         fallo.Should().BeNull();
     }
@@ -60,6 +60,9 @@ public class LocatorsDeE2ECongeladosTests
     [InlineData("await page.Locator(\"button:has-text('Guardar')\").ClickAsync();", AnalisisDeLocatorsE2E.SimboloPorTexto)]
     [InlineData("await page.Locator(\"text=Guardar\").ClickAsync();", AnalisisDeLocatorsE2E.SimboloPorTexto)]
     [InlineData("await page.Locator($\"text={nombre}\").ClickAsync();", AnalisisDeLocatorsE2E.SimboloPorTexto)]
+    [InlineData("await page.ClickAsync(\"text=Guardar\");", AnalisisDeLocatorsE2E.SimboloPorTexto)]
+    [InlineData("await page.Locator(\"tr\").Filter(new() { HasText = \"Fila\" }).ClickAsync();", AnalisisDeLocatorsE2E.SimboloFiltroPorTexto)]
+    [InlineData("await page.Locator(\"tr\", new() { HasNotText = \"Fila\" }).ClickAsync();", AnalisisDeLocatorsE2E.SimboloFiltroPorTexto)]
     public void Cada_forma_fragil_de_localizar_se_detecta(string cuerpo, string simbolo) =>
         Analizar(cuerpo).Should().Equal(new Dictionary<string, int> { [simbolo] = 1 });
 
@@ -74,6 +77,9 @@ public class LocatorsDeE2ECongeladosTests
     [InlineData("await page.Locator(\"[data-text=1]\").ClickAsync();")]
     [InlineData("// await page.GetByText(\"Guardar\").First.ClickAsync();")]
     [InlineData("var s = \"GetByText y .First en una cadena\";")]
+    [InlineData("var url = \"/buscar?text=hola\";")]
+    [InlineData("const string Selector = \"li:first-child\";")]
+    [InlineData("string s; s = \"button:has-text('x')\";")]
     public void Lo_que_no_es_fragil_no_cuenta(string cuerpo) =>
         Analizar(cuerpo).Should().BeEmpty();
 
