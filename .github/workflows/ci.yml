@@ -1365,6 +1365,18 @@ jobs:
       - name: scripts/turno-postgres.tests.sh
         run: bash scripts/turno-postgres.tests.sh
 
+      # Gate local único (S8, 2026-10-02) y gancho pre-push: con un `dotnet` falso y un repositorio
+      # git temporal. Fija que el formato corre con --verify-no-changes, que la compilación lleva
+      # -warnaserror, que 0 pruebas es rojo y que Web solo se omite si el diff no la toca; cada una
+      # con su mutación. No ejecuta .NET real: el gate real corre en la máquina de quien programa.
+      - name: scripts/gate.tests.sh
+        run: bash scripts/gate.tests.sh
+
+      # Métricas de proceso M1..M21 (S15): cifras exactas sobre datos sintéticos, fuente ausente =
+      # NO_MEDIDA (nunca 0) y once mutantes del propio guion que deben poner en rojo su prueba.
+      - name: scripts/metricas-proceso.tests.sh
+        run: bash scripts/metricas-proceso.tests.sh
+
       # Guarda de los secretos de CI con clave de proveedor externo (P13/P18,
       # 2026-09-19): la prueba del guion Y el guion contra los workflows reales
       # de este árbol. La segunda línea es la que falla el día que alguien

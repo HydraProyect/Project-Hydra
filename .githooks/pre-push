@@ -1,0 +1,38 @@
+#!/bin/bash
+# Gancho pre-push versionado (S8 del análisis de causas raíz de 2026-10-02).
+#
+# Antes de empujar una rama ejecuta el gate local RÁPIDO (formato + compilación con -warnaserror +
+# Architecture.Tests): lo que más rojos de CI evita (formato fue 7 de 54 rojos de PR) y lo que cierra los
+# trinquetes por ubicación. La lógica y los flags viven en scripts/gate.sh; este fichero solo lo invoca,
+# para que no haya dos listas de lo que «es el gate».
+#
+# NO está activo por defecto: un gancho versionado no se instala solo. Se activa UNA vez por clon con
+#     git config core.hooksPath .githooks
+# (core.hooksPath es de TODO el repositorio, también de sus worktrees: instalarlo es una decisión del
+# propietario, no de una sesión). Se desactiva con `git config --unset core.hooksPath`.
+#
+# No empuja nada que no deba: borrar una rama remota (git push --delete) no ejecuta el gate.
+set -uo pipefail
+
+# stdin: <ref local> <sha local> <ref remota> <sha remota>, una línea por ref empujada.
+hay_algo_que_empujar=0
+while read -r _ref_local sha_local _ref_remota _sha_remota; do
+  if [ -n "${sha_local:-}" ] && [ "$sha_local" != "0000000000000000000000000000000000000000" ]; then
+    hay_algo_que_empujar=1
+  fi
+done
+
+if [ "$hay_algo_que_empujar" -eq 0 ]; then
+  exit 0
+fi
+
+RAIZ="$(git rev-parse --show-toplevel)" || exit 1
+cd "$RAIZ" || exit 1
+
+echo "pre-push: gate local rápido (scripts/gate.sh --rapido)…"
+bash scripts/gate.sh --rapido
+estado=$?
+if [ "$estado" -ne 0 ]; then
+  echo "pre-push: el gate local salió con $estado; NO se empuja. Arréglalo y vuelve a empujar." >&2
+fi
+exit "$estado"
