@@ -364,7 +364,10 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
         var rolAdministrador = await contexto.Roles.SingleAsync(x => x.Name == Roles.Administrador);
         contexto.Users.Add(new ApplicationUser
         {
-            Id = _administradorInterno, TenantId = _interno.Id, UserName = "admin@conversion.test", Email = "admin@conversion.test",
+            Id = _administradorInterno,
+            TenantId = _interno.Id,
+            UserName = "admin@conversion.test",
+            Email = "admin@conversion.test",
         });
         contexto.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<Guid> { UserId = _administradorInterno, RoleId = rolAdministrador.Id });
         contexto.AsignacionesCartera.Add(Interna(_administradorInterno, 9, ahora.AddDays(-30)));
