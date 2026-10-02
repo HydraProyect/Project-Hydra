@@ -272,7 +272,7 @@
 
         @if (_editandoId is null)
         {
-            <CampoSelect Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_centroId" ValorChanged="v => _centroId = v">
+            <CampoSelect Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_centroId" ValorChanged="AlCambiarCentroAsync">
                 <option value="">@Textos["OpcionSeleccionaCentro"]</option>
                 @foreach (var centro in _centrosDisponibles)
                 {
@@ -293,7 +293,16 @@
         <CampoTexto Etiqueta="@Textos["EtiquetaHoraEntrada"]" Type="time"
                     Valor="@_horaEstimadaAcceso" ValorChanged="v => _horaEstimadaAcceso = v" />
 
-        <SelectorMultiple Etiqueta="@Textos["EtiquetaTrabajadoresQueEntran"]"
+        @if (_avisoCentroSinAsignados)
+        {
+            <div class="alerta-info" role="status">@Textos["AvisoCentroSinTrabajadoresAsignados"]</div>
+        }
+
+        <SelectorMultiple @ref="_selectorTrabajadores"
+                           Relacionados="@_trabajadoresRelacionados"
+                           SoloRelacionados="@_soloRelacionados"
+                           SoloRelacionadosChanged="v => _soloRelacionados = v"
+                           Etiqueta="@Textos["EtiquetaTrabajadoresQueEntran"]"
                            Elementos="@_trabajadoresDisponiblesSelector"
                            Seleccionados="@_trabajadorIdsSeleccionados"
                            OnAlternar="args => AlternarTrabajador(args.Id, args.Marcado)"

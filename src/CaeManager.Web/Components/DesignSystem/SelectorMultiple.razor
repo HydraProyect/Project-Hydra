@@ -4,7 +4,7 @@
     elementos (Clientes/Empresas en los drawers de Empresas/Subcontratas).
     Ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md.
 *@
-<div class="campo">
+<div class="campo" tabindex="-1" @ref="_raiz" role="group" aria-label="@(string.IsNullOrWhiteSpace(Etiqueta) ? null : Etiqueta)">
     @if (!string.IsNullOrWhiteSpace(Etiqueta))
     {
         <label>@Etiqueta</label>
@@ -20,7 +20,7 @@
             <CampoTexto Placeholder="Buscar…" Valor="@_busqueda" ValorChanged="CambiarBusquedaAsync" />
             <label class="campo-checkbox" for="@($"{_idBase}-relacionados")">
                 <input type="checkbox" id="@($"{_idBase}-relacionados")"
-                       checked="@_soloRelacionados"
+                       checked="@SoloRelacionadosEfectivo"
                        @onchange="e => CambiarSoloRelacionados(e.Value is bool marcado && marcado)" />
                 Solo mostrar relacionados
             </label>
@@ -76,13 +76,36 @@
     [Parameter] public EventCallback<(Guid Id, bool Marcado)> OnAlternar { get; set; }
     /// <summary>Error de validación del campo, en línea bajo la lista (mismo estilo que CampoTexto).</summary>
     [Parameter] public string? MensajeError { get; set; }
+    /// <summary>
+    /// Conjunto de «relacionados» distinto de los marcados (p. ej. los Trabajadores asignados al
+    /// Centro de la Visita). <c>null</c> (por defecto) conserva el significado histórico:
+    /// «solo relacionados» = solo los ya marcados. Con conjunto, «solo relacionados» muestra los
+    /// relacionados y, además, los ya marcados, para que una selección no desaparezca de la lista.
+    /// </summary>
+    [Parameter] public IReadOnlySet<Guid>? Relacionados { get; set; }
+    /// <summary>
+    /// Estado de «Solo mostrar relacionados» cuando lo gobierna el padre (enlace bidireccional con
+    /// <see cref="SoloRelacionadosChanged"/>). <c>null</c> (por defecto): el componente lo gestiona solo.
+    /// </summary>
+    [Parameter] public bool? SoloRelacionados { get; set; }
+    [Parameter] public EventCallback<bool> SoloRelacionadosChanged { get; set; }
     [Parameter] public string TextoVacio { get; set; } = "Todavía no hay elementos creados.";
 
     private IReadOnlyList<ElementoSeleccionable> ElementosFiltrados =>
         Elementos
             .Where(e => string.IsNullOrWhiteSpace(_busqueda) || e.Nombre.Contains(_busqueda, StringComparison.OrdinalIgnoreCase))
-            .Where(e => !_soloRelacionados || Seleccionados.Contains(e.Id))
+            .Where(e => !SoloRelacionadosEfectivo || EsRelacionado(e.Id))
             .ToList();
+
+    private ElementReference _raiz;
+
+    private bool SoloRelacionadosEfectivo => SoloRelacionados ?? _soloRelacionados;
+
+    private bool EsRelacionado(Guid id) =>
+        Seleccionados.Contains(id) || (Relacionados is not null && Relacionados.Contains(id));
+
+    /// <summary>Lleva el foco al campo (p. ej. tras un error de validación al guardar).</summary>
+    public async Task EnfocarAsync() => await _raiz.FocusAsync();
 
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(ElementosFiltrados.Count / (double)ItemsPorPagina));
 
@@ -98,10 +121,11 @@
         return Task.CompletedTask;
     }
 
-    private void CambiarSoloRelacionados(bool marcado)
+    private Task CambiarSoloRelacionados(bool marcado)
     {
         _soloRelacionados = marcado;
         _paginaActual = 1;
+        return SoloRelacionadosChanged.InvokeAsync(marcado);
     }
 
     private Task AlternarAsync(Guid id, bool marcado) => OnAlternar.InvokeAsync((id, marcado));
