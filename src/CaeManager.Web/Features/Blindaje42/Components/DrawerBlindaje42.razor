@@ -17,7 +17,8 @@
 @inject TimeProvider Reloj
 
 <Drawer Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@($"Blindaje 42.1 · {EmpresaRazonSocial}")"
-        CerrarAlHacerClicFuera="@(!_guardandoSolicitud && !_guardandoRespuesta)">
+        CerrarAlHacerClicFuera="@(!_guardandoSolicitud && !_guardandoRespuesta)"
+        HayCambios="() => HayCambiosSinGuardar">
     <ChildContent>
         <p class="texto-vacio-seccion">
             Certificación negativa por descubiertos en la TGSS sobre esta empresa (art. 42.1 ET). La TGSS debe
@@ -153,6 +154,8 @@
     private Guid _empresaCargada;
 
     private string _fechaSolicitud = string.Empty;
+    private string _fechaSolicitudInicial = string.Empty;
+    private string _fechaRespuestaInicial = string.Empty;
     private string _observacionesNueva = string.Empty;
     private bool _guardandoSolicitud;
     private string? _errorSolicitud;
@@ -178,14 +181,37 @@
         _visibleAnterior = Visible;
     }
 
+    /// <summary>
+    /// «¿Descartar cambios?» al cerrar el drawer con la X, Escape o el fondo (S3): hay algo escrito que
+    /// se perdería. Las fechas cuentan solo si se apartaron de la que se propuso al abrir (hoy); el
+    /// formulario de respuesta, solo mientras está abierto. Mientras guarda no pregunta: el cierre
+    /// se ignora de todos modos (CerrarAsync).
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        Visible && !_guardandoSolicitud && !_guardandoRespuesta
+        && (!string.IsNullOrWhiteSpace(_observacionesNueva)
+            || _fechaSolicitud != _fechaSolicitudInicial
+            || (RespuestaALaVista
+                && (!string.IsNullOrEmpty(_resultadoRespuesta)
+                    || _evidenciaContenido is not null
+                    || _fechaRespuesta != _fechaRespuestaInicial)));
+
+    /// <summary>
+    /// El formulario de respuesta solo se pinta sobre la solicitud más reciente y sin resultado: si tras
+    /// recargar el historial la que se respondía ya no es la primera, sus campos siguen en memoria pero
+    /// nadie los ve, y no cuentan como cambio.
+    /// </summary>
+    private bool RespuestaALaVista =>
+        _respondiendoSolicitudId is { } id && _historial is { Count: > 0 } historial && historial[0].Id == id && historial[0].Resultado is null;
+
     private void ReiniciarFormularios()
     {
-        _fechaSolicitud = FechaDeHoy.ParaCampoFecha(Reloj);
+        _fechaSolicitud = _fechaSolicitudInicial = FechaDeHoy.ParaCampoFecha(Reloj);
         _observacionesNueva = string.Empty;
         _errorSolicitud = null;
         _respondiendoSolicitudId = null;
         _resultadoRespuesta = string.Empty;
-        _fechaRespuesta = FechaDeHoy.ParaCampoFecha(Reloj);
+        _fechaRespuesta = _fechaRespuestaInicial = FechaDeHoy.ParaCampoFecha(Reloj);
         _evidenciaContenido = null;
         _evidenciaNombreArchivo = null;
         _errorRespuesta = null;
@@ -220,6 +246,7 @@
 
         _errorSolicitud = null;
         _guardandoSolicitud = true;
+        var fechaEnviada = _fechaSolicitud;
 
         try
         {
@@ -234,6 +261,9 @@
 
             Toasts.Mostrar("Solicitud registrada.", TonoToast.Exito);
             _observacionesNueva = string.Empty;
+            // Lo guardado ya no es un cambio pendiente aunque la fecha sea retroactiva: la base pasa a ser la que
+            // se envió (no la que haya en el campo tras el await, que podría ser otra tecleada mientras tanto).
+            _fechaSolicitudInicial = fechaEnviada;
             await CargarAsync();
             await OnCambio.InvokeAsync();
         }
@@ -247,7 +277,7 @@
     {
         _respondiendoSolicitudId = solicitudId;
         _resultadoRespuesta = string.Empty;
-        _fechaRespuesta = FechaDeHoy.ParaCampoFecha(Reloj);
+        _fechaRespuesta = _fechaRespuestaInicial = FechaDeHoy.ParaCampoFecha(Reloj);
         _evidenciaContenido = null;
         _evidenciaNombreArchivo = null;
         _errorRespuesta = null;

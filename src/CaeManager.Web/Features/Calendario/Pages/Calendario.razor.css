@@ -95,8 +95,8 @@
 }
 
 .calendario-dia-hoy {
-    background-color: var(--color-primary-500);
-    color: var(--color-neutral-0);
+    background-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
     font-weight: 700;
 }
 

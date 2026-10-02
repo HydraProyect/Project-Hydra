@@ -1,0 +1,8 @@
+# Valores que se escriben IGUAL en castellano y en catalán y, por tanto, no son castellano sin traducir
+# (nombres propios, cifras, marcas). Una línea por valor, ya normalizado (sin marcadores {…}, espacios
+# colapsados). Lista aparte de la deuda de Congelados/ca-ES-iguales.txt: aquí no se "perdona" una
+# traducción pendiente, se declara que no hay nada que traducir. Cada entrada lleva su motivo en un
+# comentario encima.
+#
+# Vacía el 2026-10-02: de los 41 candidatos a nombre propio revisados a mano ("Corriente AEAT",
+# "Descargar PDF", "Plataforma CAE"…) ninguno lo era; todos son castellano sin traducir.

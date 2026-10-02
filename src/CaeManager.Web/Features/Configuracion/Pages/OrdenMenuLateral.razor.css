@@ -291,9 +291,9 @@
 }
 
 .orden-menu-asa[aria-pressed="true"] {
-    border-color: var(--color-primary-500);
-    background: var(--color-primary-500);
-    color: var(--color-neutral-0);
+    border-color: var(--color-primario-fondo);
+    background: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
 }
 
 .orden-menu-posicion {
@@ -492,8 +492,8 @@
 
 .orden-menu-boton-primario {
     border: 0;
-    background: var(--color-primary-500);
-    color: var(--color-neutral-0);
+    background: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
 }
 
 .orden-menu-boton-texto {

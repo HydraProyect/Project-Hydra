@@ -56,14 +56,14 @@
 }
 
 .boton-primario {
-    background-color: var(--color-primary-500);
-    border-color: var(--color-primary-500);
-    color: var(--color-neutral-0);
+    background-color: var(--color-primario-fondo);
+    border-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
 }
 
 .boton-primario:not(:disabled):hover {
-    background-color: var(--color-primary-600);
-    border-color: var(--color-primary-600);
+    background-color: var(--color-primario-fondo-hover);
+    border-color: var(--color-primario-fondo-hover);
     transform: translateY(-1px);
 }
 

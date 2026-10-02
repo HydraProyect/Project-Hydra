@@ -57,6 +57,16 @@
   400— y estirarlos deformaría una marca registrada. Caja fija de 72x28 (la celda
   del mockup) alineada a la izquierda: con marcas de anchos distintos, una caja
   variable desalinearía los nombres. No se recolorean ni se deforman.
+
+  Fondo: 15 de las 20 marcas son imágenes con transparencia y en 7 de ellas la
+  tinta es mayoritariamente oscura (CTAIMA es 100 % tinta oscura sobre 89 %
+  transparente; medido con Pillow el 2026-10-02): sobre
+  --color-surface en oscuro se pierden. Mismo criterio que el logo de Tenant
+  (#1040): --color-logo-fondo, blanco fijo en los dos temas. El mockup de
+  Inicio no pinta fondo propio (solo se ve en claro, donde la superficie ya es
+  blanca), así que no contradice nada. La caja blanca crece con box-shadow y no
+  con padding para no mover el logo ni la fila: en claro es blanco sobre blanco
+  y la fila queda idéntica.
 */
 .fila-plataforma-logo {
     flex: none;
@@ -64,4 +74,7 @@
     height: 28px;
     object-fit: contain;
     object-position: left center;
+    background: var(--color-logo-fondo);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 0 0 var(--space-1) var(--color-logo-fondo);
 }

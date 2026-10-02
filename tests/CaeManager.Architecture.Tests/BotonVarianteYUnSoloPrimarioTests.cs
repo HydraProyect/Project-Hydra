@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using CaeManager.Architecture.Tests.Soporte;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
@@ -38,8 +39,6 @@ namespace CaeManager.Architecture.Tests;
 /// </summary>
 public class BotonVarianteYUnSoloPrimarioTests
 {
-    private static readonly Regex AperturaBoton = new(@"<Boton(?=[\s>/])", RegexOptions.Compiled);
-    private static readonly Regex AperturaContenedor = new(@"<(Drawer|Modal|DialogoConfirmacion)(?=[\s>/])", RegexOptions.Compiled);
     private static readonly Regex AtributoVariante = new(@"(?:^|\s)Variante\s*=\s*""", RegexOptions.Compiled);
 
     /// <summary>
@@ -175,7 +174,7 @@ public class BotonVarianteYUnSoloPrimarioTests
     [Fact]
     public void Las_superficies_de_la_lista_existen_y_son_realmente_excepciones()
     {
-        var raiz = RaizDelRepositorio();
+        var raiz = MarcadoRazor.RaizDelRepositorio();
         var inexistentes = PrimariosPermitidosPorSuperficie.Keys
             .Select(k => k.Split('#')[0])
             .Where(ruta => !File.Exists(Path.Combine(raiz, ruta)))
@@ -343,122 +342,21 @@ public class BotonVarianteYUnSoloPrimarioTests
     private static Analisis Analizar(string razor)
     {
         var texto = LimpiadorDeComentarios.Quitar(razor, razor: true);
-        var botones = new List<BotonAnalizado>();
-        var contenedores = new List<ContenedorAnalizado>();
 
-        foreach (Match m in AperturaBoton.Matches(texto))
+        var botones = MarcadoRazor.Aperturas(texto, "Boton").Select(a =>
         {
-            var fin = FinDeEtiqueta(texto, m.Index + m.Length);
-            var cuerpo = texto[(m.Index + m.Length)..fin];
-            var declara = AtributoVariante.Match(cuerpo);
-            var valor = declara.Success ? ValorDeComillas(cuerpo, declara.Index + declara.Length) : string.Empty;
-            botones.Add(new BotonAnalizado(m.Index, declara.Success, valor.Contains("VarianteBoton.Primario", StringComparison.Ordinal)));
-        }
+            var declara = AtributoVariante.Match(a.Texto);
+            var valor = declara.Success ? MarcadoRazor.ValorDeComillas(a.Texto, declara.Index + declara.Length) : string.Empty;
+            return new BotonAnalizado(a.Inicio, declara.Success, valor.Contains("VarianteBoton.Primario", StringComparison.Ordinal));
+        }).ToList();
 
-        var ordinales = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (Match m in AperturaContenedor.Matches(texto))
-        {
-            var nombre = m.Groups[1].Value;
-            ordinales[nombre] = ordinales.GetValueOrDefault(nombre) + 1;
-            var finApertura = FinDeEtiqueta(texto, m.Index + m.Length);
-            if (texto[finApertura - 1] == '/') continue;
-
-            contenedores.Add(new ContenedorAnalizado($"{nombre}{ordinales[nombre]}", m.Index, CierreDe(texto, nombre, finApertura + 1)));
-        }
+        var contenedores = MarcadoRazor.Elementos(texto, "Drawer|Modal|DialogoConfirmacion")
+            .Where(e => !e.Autocerrado)
+            .Select(e => new ContenedorAnalizado($"{e.Nombre}{e.Ordinal}", e.Inicio, e.Fin))
+            .ToList();
 
         return new Analisis(botones, contenedores);
     }
 
-    /// <summary>Posición del <c>&gt;</c> que cierra una etiqueta de apertura; respeta comillas y expresiones con paréntesis.</summary>
-    private static int FinDeEtiqueta(string s, int desde)
-    {
-        var j = desde;
-        while (j < s.Length)
-        {
-            if (s[j] == '"')
-                j = FinDeComillas(s, j + 1) + 1;
-            else if (s[j] == '>')
-                return j;
-            else
-                j++;
-        }
-
-        return s.Length - 1;
-    }
-
-    /// <summary>Posición de la comilla que cierra un valor de atributo que empieza en <paramref name="desde"/> (tras la comilla de apertura).</summary>
-    private static int FinDeComillas(string s, int desde)
-    {
-        var j = desde;
-        var profundidad = 0;
-        while (j < s.Length)
-        {
-            var c = s[j];
-            if (profundidad == 0 && c == '"') return j;
-            if (c is '(' or '{' or '[') profundidad++;
-            else if (c is ')' or '}' or ']') profundidad--;
-            else if (c == '"' && profundidad > 0)
-            {
-                // Cadena dentro de una expresión: se salta entera, con sus escapes.
-                j++;
-                while (j < s.Length && s[j] != '"')
-                {
-                    if (s[j] == '\\') j++;
-                    j++;
-                }
-            }
-            else if (c == '\'' && profundidad > 0)
-            {
-                // Literal de carácter dentro de una expresión ('x', '\n', ')'): su contenido no cuenta para los paréntesis.
-                j++;
-                if (j < s.Length && s[j] == '\\') j++;
-                j++;
-            }
-
-            j++;
-        }
-
-        return s.Length - 1;
-    }
-
-    private static string ValorDeComillas(string s, int desde) => s[desde..FinDeComillas(s, desde)];
-
-    /// <summary>Fin del elemento <c>&lt;Nombre&gt;…&lt;/Nombre&gt;</c> que se abrió justo antes de <paramref name="desde"/>, con anidamiento del mismo nombre.</summary>
-    private static int CierreDe(string s, string nombre, int desde)
-    {
-        var patron = new Regex($@"<{nombre}(?=[\s>/])|</{nombre}>");
-        var profundidad = 1;
-        var j = desde;
-        while (profundidad > 0)
-        {
-            var m = patron.Match(s, j);
-            if (!m.Success) return s.Length;
-            if (m.Value.StartsWith("</", StringComparison.Ordinal)) profundidad--;
-            else if (s[FinDeEtiqueta(s, m.Index + m.Length) - 1] != '/') profundidad++;
-            j = m.Index + m.Length;
-        }
-
-        return j;
-    }
-
-    private static IEnumerable<(string Ruta, string Contenido)> LeerRazor()
-    {
-        var raiz = RaizDelRepositorio();
-        var web = Path.Combine(raiz, "src", "CaeManager.Web");
-        var sep = Path.DirectorySeparatorChar;
-
-        return Directory
-            .EnumerateFiles(web, "*.razor", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{sep}obj{sep}", StringComparison.Ordinal) && !f.Contains($"{sep}bin{sep}", StringComparison.Ordinal))
-            .OrderBy(f => f, StringComparer.Ordinal)
-            .Select(f => (Ruta: Path.GetRelativePath(raiz, f).Replace('\\', '/'), Contenido: File.ReadAllText(f)));
-    }
-
-    private static string RaizDelRepositorio()
-    {
-        var dir = AppContext.BaseDirectory;
-        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
-            dir = Path.GetDirectoryName(dir);
-        return dir ?? AppContext.BaseDirectory;
-    }
+    private static IEnumerable<(string Ruta, string Contenido)> LeerRazor() => MarcadoRazor.LeerRazorDeLaWeb();
 }

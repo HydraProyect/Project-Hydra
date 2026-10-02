@@ -108,8 +108,8 @@
 
 .asistente-mensaje-usuario {
     align-self: flex-end;
-    background-color: var(--color-primary-500);
-    color: var(--color-neutral-0);
+    background-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
 }
 
 .asistente-mensaje-asistente {
@@ -196,8 +196,8 @@
 }
 
 .asistente-boton-enviar {
-    background-color: var(--color-primary-500);
-    color: var(--color-neutral-0);
+    background-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
     border: none;
     border-radius: var(--radius-md);
     padding: var(--space-2) var(--space-4);

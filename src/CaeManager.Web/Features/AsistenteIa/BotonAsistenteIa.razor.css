@@ -10,8 +10,8 @@
     height: 56px;
     border-radius: var(--radius-full);
     border: none;
-    background-color: var(--color-primary-500);
-    color: var(--color-neutral-0);
+    background-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     cursor: pointer;
     transition: transform var(--motion-fast) var(--ease-standard),
