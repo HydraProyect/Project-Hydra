@@ -69,6 +69,28 @@ public class ObtenerEstadoAceptacionTerminosQueryHandlerTests
         (await consulta.Handle(new ObtenerEstadoAceptacionTerminosQuery(), CancellationToken.None)).Should().BeFalse();
     }
 
+    /// <summary>
+    /// Cambio de marca a TALVEG (2026-10-02): el texto de aceptación del gate interpola <c>Marca.Nombre</c> y
+    /// las páginas legales nombran el producto y la entidad como TALVEG, así que quien aceptó la versión
+    /// anterior («2026-09-20», con el nombre antiguo) aceptó otro texto y tiene que volver a aceptar. El pin
+    /// del valor fija que este cambio subió la versión; no detecta una edición futura de los .razor sin subir
+    /// <c>VersionTerminos</c>, y la siguiente subida legítima obliga a actualizarlo junto con este test.
+    /// </summary>
+    [Fact]
+    public async Task Tras_el_cambio_de_marca_quien_acepto_la_version_anterior_vuelve_a_aceptar()
+    {
+        const string versionConLaMarcaAntigua = "2026-09-20";
+        VersionTerminos.Actual.Should().Be("2026-10-02");
+
+        var usuarioId = Guid.NewGuid();
+        var repositorio = new AceptacionTerminosRepositorioFalso();
+        repositorio.Agregar(new AceptacionTerminos(usuarioId, versionConLaMarcaAntigua, DateTime.UtcNow));
+        var consulta = new ObtenerEstadoAceptacionTerminosQueryHandler(repositorio, new CurrentUserServiceFalso(usuarioId));
+
+        (await consulta.Handle(new ObtenerEstadoAceptacionTerminosQuery(), CancellationToken.None))
+            .Should().BeTrue("aceptó el texto con el nombre anterior de la marca");
+    }
+
     [Fact]
     public async Task Devuelve_false_sin_usuario_identificado()
     {

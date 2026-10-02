@@ -382,14 +382,19 @@ public class TerminologiaCanonicaTests
     /// (<c>RevisionSugerenciaModal</c>: 3) y el título por defecto de
     /// <c>MarcaProcedencia</c> («Leído por Hydra»: 1) pasan a recursos con el nombre del
     /// producto como argumento (<c>Marca.Nombre</c>), nunca escrito en el recurso. Lo que
-    /// queda en esos dos componentes son comentarios <c>@* ... *@</c>; los textos legales
-    /// (<c>TerminosCondiciones</c>, <c>PoliticaPrivacidad</c>) no se tocan: requieren revisión
-    /// legal.
+    /// queda en esos dos componentes son comentarios <c>@* ... *@</c>.
+    /// </para>
+    /// <para>
+    /// <b><c>Hydra</c> 39 → 10 (cambio de marca en lo legal, 2026-10-02): −29.</b> Los textos legales
+    /// (<c>TerminosCondiciones</c>: 17, <c>PoliticaPrivacidad</c>: 12 apariciones) dejan de decir «Hydra»:
+    /// donde era el producto, y donde era la entidad que presta el servicio, ahora dicen TALVEG (regla del
+    /// 2026-08-14 en Negocio: la entidad es «Talveg», nombre comercial; el producto pasa a llamarse
+    /// también TALVEG). <c>VersionTerminos.Actual</c> subió en el mismo cambio.
     /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
-        ["Hydra"] = 39,
+        ["Hydra"] = 10,
         ["EjecutivoUsuarioId"] = 43,
         // 337 → 340 (2026-09-28, «Asignar empresas» a un Gestor CAE existente): tres usos de
         // identificadores legacy que ya existen y no se renombran aquí —DelegacionesTenant,

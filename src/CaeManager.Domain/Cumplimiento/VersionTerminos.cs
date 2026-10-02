@@ -10,8 +10,16 @@ namespace CaeManager.Domain.Cumplimiento;
 /// Vale también para una corrección de texto que parezca prometer menos: una
 /// redacción nueva sobre transferencias fuera del EEE se trata como cambio
 /// material (decisión del propietario, 2026-09-20).
+///
+/// <para>
+/// Historial: <c>2026-09-20</c> (versión con los textos de transferencias fuera del EEE);
+/// <c>2026-10-02</c> (cambio de marca: el nombre del producto y de la entidad que presta el servicio
+/// pasa a ser TALVEG en los Términos y en la Política de Privacidad, y el texto de aceptación del
+/// gate interpola <c>Marca.Nombre</c>, que ya vale TALVEG; quien aceptó la versión anterior aceptó
+/// otro texto y vuelve a aceptar).
+/// </para>
 /// </summary>
 public static class VersionTerminos
 {
-    public const string Actual = "2026-09-20";
+    public const string Actual = "2026-10-02";
 }

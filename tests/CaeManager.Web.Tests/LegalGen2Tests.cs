@@ -61,6 +61,18 @@ public class LegalGen2Tests : BunitContext
     }
 
     [Fact]
+    public void Las_paginas_legales_renderizadas_nombran_TALVEG_y_no_la_marca_antigua()
+    {
+        // Lo que ve el usuario al renderizar, no solo el fuente: el nombre sale del marcado.
+        foreach (var texto in new[] { Render<TerminosCondiciones>().Markup, Render<PoliticaPrivacidad>().Markup })
+        {
+            texto.Should().Contain("TALVEG");
+            texto.Should().NotContain("CAE Manager");
+            texto.Should().NotContain("Hydra");
+        }
+    }
+
+    [Fact]
     public void Los_datos_legales_pendientes_siguen_senalados_como_pendientes()
     {
         var privacidad = Render<PoliticaPrivacidad>();

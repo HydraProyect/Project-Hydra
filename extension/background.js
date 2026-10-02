@@ -71,7 +71,7 @@ async function avisarDeLaConexion(conectado, expiraEnUtc = null) {
 
 async function conectar(hydraUrl, token, expiraEnUtc) {
   const origen = normalizarOrigen(hydraUrl);
-  if (!origen) return { ok: false, error: "La URL de Hydra no es válida." };
+  if (!origen) return { ok: false, error: "La URL de TALVEG no es válida." };
 
   // Sin chrome.permissions.request: host_permissions ya cubre de forma
   // estática los dos orígenes de TALVEG (ver cabecera del fichero) — no hace
@@ -118,10 +118,10 @@ function leerCodigoConexion(codigo) {
 
 async function conectarManual({ codigo }) {
   const carga = leerCodigoConexion(codigo);
-  if (!carga) return { ok: false, error: "Ese código no es válido. Cópialo entero desde Hydra." };
+  if (!carga) return { ok: false, error: "Ese código no es válido. Cópialo entero desde TALVEG." };
 
   if (new Date(carga.expiraEnUtc) <= new Date())
-    return { ok: false, error: "Ese código ya caducó. Genera otro en Hydra." };
+    return { ok: false, error: "Ese código ya caducó. Genera otro en TALVEG." };
 
   const conexion = await conectar(carga.hydraUrl, carga.token, carga.expiraEnUtc);
   if (!conexion.ok) return conexion;
@@ -148,7 +148,7 @@ async function peticionAutenticada(ruta, opciones = {}) {
     // y sigue interceptando cada clic en un campo de archivo para abrir un
     // panel que ya no puede listar nada.
     await desconectar();
-    return { ok: false, error: "No hay una conexión activa con Hydra. Vuelve a conectar." };
+    return { ok: false, error: "No hay una conexión activa con TALVEG. Vuelve a conectar." };
   }
 
   let respuesta;
@@ -169,7 +169,7 @@ async function peticionAutenticada(ruta, opciones = {}) {
       headers: { ...(opciones.headers ?? {}), Authorization: `Extension ${token}` },
     });
   } catch (error) {
-    return { ok: false, error: `No pudimos contactar con Hydra (${error.message}).` };
+    return { ok: false, error: `No pudimos contactar con TALVEG (${error.message}).` };
   }
 
   if (respuesta.status === 401 || respuesta.type === "opaqueredirect") {
@@ -177,7 +177,7 @@ async function peticionAutenticada(ruta, opciones = {}) {
     // token caducado o revocado no distingue el motivo. Se limpia aquí para
     // que el popup vuelva a pedir conexión en vez de seguir fallando en bucle.
     await desconectar();
-    return { ok: false, error: "Tu conexión con Hydra caducó. Vuelve a conectar." };
+    return { ok: false, error: "Tu conexión con TALVEG caducó. Vuelve a conectar." };
   }
 
   return { ok: true, respuesta };
@@ -188,7 +188,7 @@ async function listarPendientes() {
   if (!resultado.ok) return resultado;
 
   if (!resultado.respuesta.ok)
-    return { ok: false, error: `Hydra respondió ${resultado.respuesta.status}.` };
+    return { ok: false, error: `TALVEG respondió ${resultado.respuesta.status}.` };
 
   return { ok: true, proveedores: await resultado.respuesta.json() };
 }
@@ -214,7 +214,7 @@ function arrayBufferABase64(buffer) {
 async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pestanaQueLoPidio) {
   const descarga = await peticionAutenticada(`/documentos/${documentoId}/archivo`);
   if (!descarga.ok) return descarga;
-  if (!descarga.respuesta.ok) return { ok: false, error: `No pudimos descargar el PDF de Hydra (${descarga.respuesta.status}).` };
+  if (!descarga.respuesta.ok) return { ok: false, error: `No pudimos descargar el PDF de TALVEG (${descarga.respuesta.status}).` };
 
   const base64 = arrayBufferABase64(await descarga.respuesta.arrayBuffer());
 
@@ -266,7 +266,7 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pe
     } catch {
       // Cuerpo no JSON (o vacío) — se usa el mensaje genérico de abajo.
     }
-    return { ok: false, error: detalle ?? `Hydra no aceptó marcarla como subida (${marcado.respuesta.status}).` };
+    return { ok: false, error: detalle ?? `TALVEG no aceptó marcarla como subida (${marcado.respuesta.status}).` };
   }
 
   return { ok: true };
