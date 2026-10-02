@@ -157,13 +157,7 @@ public class ObtenerAlertasQueryHandler(
 
         var combinadas = alertasVigencia
             .Concat(alertasFaltantes)
-            .OrderBy(a => a.Estado switch
-            {
-                EstadoDocumento.Faltante => 0,
-                EstadoDocumento.Vencido => 1,
-                EstadoDocumento.Urgente => 2,
-                _ => 3
-            })
+            .OrderBy(a => SeveridadEstadoDocumento.Rango(a.Estado))
             .ThenBy(a => a.FechaVencimiento)
             .ToList();
 

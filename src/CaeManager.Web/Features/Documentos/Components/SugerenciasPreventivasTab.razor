@@ -150,17 +150,7 @@ else
         public IReadOnlySet<string> Propietarios => Documentos.Select(d => d.PropietarioNombre).ToHashSet();
         public EstadoDocumento PeorEstado => Documentos.Count == 0
             ? EstadoDocumento.Vigente
-            : Documentos.OrderBy(d => OrdenSeveridad(d.Estado)).First().Estado;
-
-        private static int OrdenSeveridad(EstadoDocumento estado) => estado switch
-        {
-            EstadoDocumento.Vencido => 0,
-            EstadoDocumento.Urgente => 1,
-            EstadoDocumento.Proximo => 2,
-            EstadoDocumento.SinConfirmar => 3,
-            EstadoDocumento.Vigente => 4,
-            _ => 5
-        };
+            : Documentos.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)).First().Estado;
     }
 
     private List<VentanaVencimiento> Ventanas { get; } =

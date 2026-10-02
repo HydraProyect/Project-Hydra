@@ -99,13 +99,11 @@ public class EnviarReclamacionEmpresaCommandHandler(
         // ámbito Empresa. Sin el filtro de ámbito, un Id de un documento de
         // Cliente de la misma Empresa contraparte entraría en el lote.
         var hoy = DiaDeNegocio.Hoy();
-        var limiteVentana = VentanaReclamacion.Limite(hoy);
 
         var filas = await (
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Reclamables(hoy)
             where idsSolicitados.Contains(documento.Id)
-            where documento.EmpresaId == request.EmpresaId && documento.FechaVencimiento != null
-            where documento.FechaVencimiento <= limiteVentana
+            where documento.EmpresaId == request.EmpresaId
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             where tipoDocumento.AmbitoAplicacion == AmbitoAplicacion.Empresa
             select new

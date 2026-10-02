@@ -72,14 +72,12 @@ public class ObtenerLoteReclamacionEmpresaQueryHandler(
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
-        var limiteVentana = hoy.AddMonths(3);
 
         var filas = await (
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Reclamables(hoy)
             where documento.EmpresaId != null
             where request.EmpresaId == null || documento.EmpresaId == request.EmpresaId
             where empresaIdsVisibles == null || empresaIdsVisibles.Contains(documento.EmpresaId!.Value)
-            where documento.FechaVencimiento != null && documento.FechaVencimiento <= limiteVentana
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             where tipoDocumento.AmbitoAplicacion == AmbitoAplicacion.Empresa
             where request.TipoDocumentoIds == null || request.TipoDocumentoIds.Contains(tipoDocumento.Id)

@@ -672,26 +672,13 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             : Textos["ResumenPendientesVarios", pendientes, total].Value;
     }
 
-    private static readonly IReadOnlyDictionary<EstadoDocumento, int> SeveridadTrabajador = new Dictionary<EstadoDocumento, int>
-    {
-        [EstadoDocumento.Faltante] = 0,
-        [EstadoDocumento.Vencido] = 1,
-        [EstadoDocumento.Urgente] = 2,
-        [EstadoDocumento.Proximo] = 3,
-        // Vigencia sin anotar: detrás de lo malo conocido, delante de lo
-        // vigente (mismo orden que EstadoDocumentalFiltro.ClaveOrden).
-        [EstadoDocumento.SinConfirmar] = 4,
-        [EstadoDocumento.Vigente] = 5,
-        [EstadoDocumento.SinCaducidad] = 6,
-    };
-
     /// <summary>
     /// Primero quien no está en regla, del peor estado al mejor; dentro del
     /// mismo estado se respeta el orden por apellidos que trae la query
     /// (OrderBy es estable). La query ordena por nombre; el mockup pide esto.
     /// </summary>
     private static IEnumerable<TrabajadorDocumentacionDto> TrabajadoresPorSeveridad(DocumentacionVisitaDto documentacion) =>
-        documentacion.Trabajadores.OrderBy(t => SeveridadTrabajador.GetValueOrDefault(t.Documentacion.PeorEstado, 0));
+        documentacion.Trabajadores.OrderBy(t => SeveridadEstadoDocumento.Rango(t.Documentacion.PeorEstado));
 
     /// <summary>
     /// Cambia la marca desde el pie del detalle. Mismo comando que el
