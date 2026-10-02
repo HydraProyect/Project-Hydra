@@ -424,7 +424,6 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             && _centrosDisponibles.Any(c => c.Id == centroIdCorregido)
             ? centroIdCorregido.ToString()
             : sugerencia.CentroId?.ToString() ?? string.Empty;
-        await RecalcularRelacionadosAsync();
 
         if (DateOnly.TryParse(FechaInicioOverride, out var fechaInicioCorregida))
             _fechaInicio = fechaInicioCorregida.ToString("yyyy-MM-dd");
@@ -438,6 +437,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
         // Lo prellenado desde el correo no lo ha escrito quien mira: no cuenta como cambio.
         FijarInstantaneaFormulario();
+
+        // Después de fijar la línea base: la espera de los asignados no pisa un formulario abierto
+        // entretanto (la respuesta tardía la descarta el contador de _cargaRelacionados).
+        await RecalcularRelacionadosAsync();
     }
 
     /// <summary>Variante de AbrirCrearAsync para "Programar visita" desde Centro 360: mismo drawer, con el Centro ya elegido en el CampoSelect — el Gestor solo pone fechas y trabajadores.</summary>
@@ -446,8 +449,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         if (await PrepararCrearAsync() && _centrosDisponibles.Any(c => c.Id == centroId))
         {
             _centroId = centroId.ToString();
-            await RecalcularRelacionadosAsync();
             FijarInstantaneaFormulario();
+            await RecalcularRelacionadosAsync();
         }
     }
 
@@ -865,7 +868,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         {
             asignados = await Mediator.Send(new ObtenerTrabajadoresAsignadosDeCentroQuery(centroId));
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // Sin la lista de asignados el selector sigue siendo utilizable, solo que sin filtro.
             if (carga == _cargaRelacionados)
@@ -882,7 +885,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         var ofrecidos = _trabajadoresDisponibles.Select(t => t.Id).ToHashSet();
         var relacionados = asignados.Select(a => a.TrabajadorId).Where(ofrecidos.Contains).ToHashSet();
         _trabajadoresRelacionados = relacionados;
-        _avisoCentroSinAsignados = relacionados.Count == 0;
+        // El aviso es solo para un Centro sin asignados; si los tiene pero el selector no ofrece
+        // a ninguno, la lista queda sin filtrar y sin un aviso que sería falso.
+        _avisoCentroSinAsignados = asignados.Count == 0;
         _soloRelacionados = relacionados.Count > 0;
     }
 

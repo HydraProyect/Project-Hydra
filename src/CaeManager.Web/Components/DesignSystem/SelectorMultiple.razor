@@ -4,7 +4,7 @@
     elementos (Clientes/Empresas en los drawers de Empresas/Subcontratas).
     Ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md.
 *@
-<div class="campo" tabindex="-1" @ref="_raiz">
+<div class="campo" tabindex="-1" @ref="_raiz" role="group" aria-label="@(string.IsNullOrWhiteSpace(Etiqueta) ? null : Etiqueta)">
     @if (!string.IsNullOrWhiteSpace(Etiqueta))
     {
         <label>@Etiqueta</label>

@@ -80,6 +80,10 @@ public class VisitasGen2Tests : BunitContext
 
         public Dictionary<Guid, Guid[]> AsignadosPorCentro { get; } = [];
 
+        public Dictionary<Guid, TaskCompletionSource> AsignadosRetenidos { get; } = [];
+
+        public bool FallarAsignados { get; set; }
+
         public List<object> Comandos { get; } = [];
 
         public int ConsultasVisitas { get; private set; }
@@ -196,7 +200,16 @@ public class VisitasGen2Tests : BunitContext
                     return Respuesta<TResponse>(CentrosSelector);
 
                 case ObtenerTrabajadoresAsignadosDeCentroQuery asignados:
-                    return Respuesta<TResponse>((IReadOnlyList<TrabajadorAsignadoDto>)(AsignadosPorCentro.TryGetValue(asignados.CentroId, out var ids) ? ids : []).Select(id => new TrabajadorAsignadoDto(id, "x", "y", Hoy)).ToList());
+                    {
+                        if (FallarAsignados)
+                            throw new InvalidOperationException("fallo simulado");
+
+                        var lista = (IReadOnlyList<TrabajadorAsignadoDto>)(AsignadosPorCentro.TryGetValue(asignados.CentroId, out var ids) ? ids : [])
+                            .Select(id => new TrabajadorAsignadoDto(id, "x", "y", Hoy)).ToList();
+                        if (AsignadosRetenidos.TryGetValue(asignados.CentroId, out var retenido))
+                            return retenido.Task.ContinueWith(_ => (TResponse)(object)lista);
+                        return Respuesta<TResponse>(lista);
+                    }
 
                 case ObtenerTrabajadoresParaSelectorQuery:
                     return Respuesta<TResponse>(TrabajadoresSelector);
@@ -1148,8 +1161,68 @@ public class VisitasGen2Tests : BunitContext
 
         await ElegirCentroAsync(cut, CentroConAsignados);
 
-        cut.Find(".drawer-panel .alerta-info").TextContent.Should().Contain("no tiene trabajadores asignados");
         TrabajadoresListados(cut).Should().HaveCount(3, "solo se ofrecen los trabajadores que ya ofrecía el selector");
+        cut.FindAll(".drawer-panel .alerta-info").Should().BeEmpty("el Centro sí tiene asignados: un aviso de «sin asignados» sería falso");
+        CasillaRelacionados(cut).HasAttribute("checked").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Volver_a_sin_centro_quita_el_filtro_y_el_aviso()
+    {
+        var cut = await AbrirNuevaVisitaAsync(MediatorConCentros());
+        await ElegirCentroAsync(cut, CentroSinAsignados);
+        cut.FindAll(".drawer-panel .alerta-info").Should().ContainSingle("barrera: el aviso estaba");
+
+        await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = "" });
+
+        cut.FindAll(".drawer-panel .alerta-info").Should().BeEmpty();
+        TrabajadoresListados(cut).Should().HaveCount(3);
+        CasillaRelacionados(cut).HasAttribute("checked").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Si_falla_la_consulta_de_asignados_la_lista_sigue_utilizable_sin_filtro()
+    {
+        var mediator = MediatorConCentros();
+        mediator.FallarAsignados = true;
+        var cut = await AbrirNuevaVisitaAsync(mediator);
+
+        await ElegirCentroAsync(cut, CentroConAsignados);
+
+        TrabajadoresListados(cut).Should().HaveCount(3);
+        CasillaRelacionados(cut).HasAttribute("checked").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task La_respuesta_tardia_de_un_centro_anterior_no_pisa_el_filtro_del_centro_actual()
+    {
+        var mediator = MediatorConCentros();
+        var retenido = new TaskCompletionSource();
+        mediator.AsignadosRetenidos[CentroConAsignados] = retenido;
+        var cut = await AbrirNuevaVisitaAsync(mediator);
+
+        var primera = ElegirCentroAsync(cut, CentroConAsignados);
+        await ElegirCentroAsync(cut, CentroOtro);
+        retenido.SetResult();
+        await primera;
+
+        TrabajadoresListados(cut).Should().ContainSingle().Which.Should().Contain("Maite Goikoetxea",
+            "la respuesta tardía del primer Centro no debe sustituir a la del segundo");
+    }
+
+    [Fact]
+    public async Task Un_trabajador_marcado_no_relacionado_sigue_visible_con_el_filtro_activo()
+    {
+        var cut = await AbrirNuevaVisitaAsync(MediatorConCentros());
+        await ElegirCentroAsync(cut, CentroConAsignados);
+        await CasillaRelacionados(cut).ChangeAsync(new ChangeEventArgs { Value = false });
+        var casillaAjena = cut.FindAll(".drawer-panel .lista-seleccion-multiple label")
+            .Single(l => l.TextContent.Contains("Unai Etxeberria")).QuerySelector("input")!;
+        await casillaAjena.ChangeAsync(new ChangeEventArgs { Value = true });
+
+        await CasillaRelacionados(cut).ChangeAsync(new ChangeEventArgs { Value = true });
+
+        TrabajadoresListados(cut).Should().HaveCount(2).And.Contain(t => t.Contains("Unai Etxeberria"));
     }
 
     [Fact]
