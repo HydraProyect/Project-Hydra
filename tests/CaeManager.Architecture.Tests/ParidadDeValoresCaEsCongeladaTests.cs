@@ -29,6 +29,9 @@ namespace CaeManager.Architecture.Tests;
 /// en las dos lenguas. Hoy está vacía —los 41 candidatos revisados a mano el 2026-10-02 («Corriente
 /// AEAT», «Descargar PDF», «Plataforma CAE»…) son castellano sin traducir, no nombres propios—, y
 /// existe para que el primer falso positivo real tenga dónde ir sin entrar en la lista de deuda.
+/// Es una exención <b>global</b> por valor (vale para cualquier clave futura con ese texto), así que
+/// <c>Los_valores_validos_declarados_siguen_usandose</c> exige borrar la que ya ningún par idéntico
+/// necesita.
 /// </para>
 /// </summary>
 public class ParidadDeValoresCaEsCongeladaTests
@@ -47,6 +50,25 @@ public class ParidadDeValoresCaEsCongeladaTests
             "su línea. Formato: 'Recursos/TextosX.resx :: clave = 1'.");
 
         fallo.Should().BeNull();
+    }
+
+    [Fact]
+    public void Los_valores_validos_declarados_siguen_usandose()
+    {
+        var validos = AnalisisDeCatalan.LeerValidos(File.ReadAllText(ListaCongelada.RutaDeLista("ca-ES-iguales-validos")));
+
+        AnalisisDeCatalan.ValidosSinUso(AnalisisDeCatalan.ParesDeSrc(), validos).Should().BeEmpty(
+            "una exención por valor es global: la que ya ningún par idéntico necesita se borra de Congelados/ca-ES-iguales-validos.txt");
+    }
+
+    [Fact]
+    public void Un_valido_que_ningun_par_identico_necesita_se_detecta_como_sin_uso()
+    {
+        var neutral = Resx(("A", "Plataforma Coordinación"), ("B", "Otro texto bastante largo"));
+        var catalan = Resx(("A", "Plataforma Coordinación"), ("B", "Un altre text prou llarg"));
+
+        AnalisisDeCatalan.ValidosSinUso([("r.resx", neutral, catalan)], new HashSet<string> { "Plataforma Coordinación", "Otro texto bastante largo", "Inventado" })
+            .Should().Equal("Inventado", "Otro texto bastante largo");
     }
 
     [Fact]

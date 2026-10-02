@@ -20,8 +20,10 @@ namespace CaeManager.Architecture.Tests;
 /// <item><c>LocatorPorTexto</c>: selectores CSS de Playwright que buscan por texto
 /// (<c>text=</c>, <c>:has-text(</c>, <c>:text(</c>, <c>:text-is(</c>), que es <c>GetByText</c> por
 /// otro camino. No lo pide el documento: sin él, el trinquete se esquiva con
-/// <c>Locator("button:has-text('X')")</c>. Solo cuenta una cadena pasada como argumento de una
-/// llamada, no una asignada a una variable o a un <c>const</c>.</item>
+/// <c>Locator("button:has-text('X')")</c>. Incluye los selectores XPath por texto
+/// (<c>text()</c>, <c>normalize-space(</c>). Solo cuenta una cadena que va dentro de los argumentos
+/// de una llamada —también concatenada, interpolada o entre paréntesis—, no una asignada a una
+/// variable o a un <c>const</c> que luego se pase: esa ceguera está declarada.</item>
 /// <item><c>FiltroPorTexto</c>: <c>HasText</c> y <c>HasNotText</c> (<c>Locator.Filter</c> y el
 /// parámetro de <c>Locator</c>), la tercera forma de localizar por texto visible. Tampoco lo pide
 /// el documento y por la misma razón.</item>
@@ -47,7 +49,7 @@ internal static class AnalisisDeLocatorsE2E
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex SelectorPorTexto = new(
-        @"(?<![\w-])text=|:has-text\(|:text\(|:text-is\(",
+        @"(?<![\w-])text=|:has-text\(|:text\(|:text-is\(|:text-matches\(|\btext\(\)|normalize-space\(",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static Dictionary<string, int> Analizar(string texto)
@@ -99,7 +101,8 @@ internal static class AnalisisDeLocatorsE2E
     /// ver un selector que primero se guarda en una variable y luego se pasa.
     /// </summary>
     private static bool EsArgumentoDeInvocacion(ExpressionSyntax literal) =>
-        literal.Parent is ArgumentSyntax { Parent: ArgumentListSyntax { Parent: InvocationExpressionSyntax } };
+        literal.Ancestors().OfType<ArgumentSyntax>().FirstOrDefault()
+            is { Parent: ArgumentListSyntax { Parent: InvocationExpressionSyntax } };
 
     private static void ContarLiteral(Dictionary<string, int> cuenta, string valor)
     {

@@ -18,9 +18,10 @@ namespace CaeManager.Architecture.Tests;
 /// <item><c>Discriminador-nulo</c>: dónde se decide algo por la nulidad de <c>EsCritico</c> o
 /// <c>NivelServicio</c> (<c>!= null</c>, <c>== null</c>, <c>is null</c>, <c>is not null</c>,
 /// <c>is { }</c>, <c>.HasValue</c>).</item>
-/// <item><c>Fabricas-por-rol</c>: dónde se nombran <c>CrearComoCliente</c>,
-/// <c>CrearComoSubcontrata</c>, <c>ActualizarComoCliente</c> y <c>ActualizarComoSubcontrata</c>
-/// (declaración y llamadas de <c>src</c>).</item>
+/// <item><c>Fabricas-por-rol</c>: dónde se nombra cualquier <c>&lt;Verbo&gt;ComoCliente</c> o
+/// <c>&lt;Verbo&gt;ComoSubcontrata</c> —<c>CrearComo…</c>, <c>ActualizarComo…</c> y
+/// <c>CambiarNivelServicioComoSubcontrata</c>, que fija el rol escribiendo <c>NivelServicio</c>— en
+/// su declaración y en sus llamadas de <c>src</c>.</item>
 /// </list>
 /// Las dos son por ubicación (<see cref="ListaCongelada"/>): un uso nuevo en un fichero nuevo, o más
 /// usos en uno listado, ponen el test en rojo, y menos usos también, para que la lista baje con el
@@ -37,7 +38,10 @@ namespace CaeManager.Architecture.Tests;
 /// </summary>
 public class RolDeEmpresaPorDiscriminadorNoCreceTests
 {
-    private static readonly Regex Fabrica = new(@"^(Crear|Actualizar)Como(Cliente|Subcontrata)$", RegexOptions.Compiled);
+    // «<verbo>ComoCliente» / «<verbo>ComoSubcontrata»: la familia de fábricas y mutadores que fijan el rol
+    // de la Empresa (CrearComo…, ActualizarComo…, CambiarNivelServicioComo…). Anclada por los dos lados:
+    // un nombre que solo contiene la secuencia no cuenta.
+    private static readonly Regex Fabrica = new(@"^[A-Z][A-Za-z0-9]*Como(Cliente|Subcontrata)$", RegexOptions.Compiled);
 
     [Fact]
     public void Las_lecturas_por_discriminador_EsCritico_y_NivelServicio_solo_decrecen()
@@ -86,6 +90,14 @@ public class RolDeEmpresaPorDiscriminadorNoCreceTests
     [InlineData("var b = e.NivelServicio is string nivel;", "NivelServicio")]
     [InlineData("var b = e.EsCritico is { Value: true };", "EsCritico")]
     [InlineData("var b = e.EsCritico.HasValue;", "EsCritico")]
+    [InlineData("var b = !string.IsNullOrEmpty(e.NivelServicio);", "NivelServicio")]
+    [InlineData("var b = !String.IsNullOrWhiteSpace(e.NivelServicio);", "NivelServicio")]
+    [InlineData("var b = IsNullOrEmpty(e.NivelServicio);", "NivelServicio")]
+    [InlineData("var b = e.NivelServicio is null or \"\";", "NivelServicio")]
+    [InlineData("var b = e.NivelServicio is not (null or \"\");", "NivelServicio")]
+    [InlineData("var b = e.EsCritico is true or false;", "EsCritico")]
+    [InlineData("var b = e.NivelServicio == default;", "NivelServicio")]
+    [InlineData("var b = e.EsCritico != default(bool?);", "EsCritico")]
     [InlineData("var b = (e.EsCritico) != null;", "EsCritico")]
     [InlineData("var b = e?.EsCritico != null;", "EsCritico")]
     [InlineData("var b = e.NivelServicio! is null;", "NivelServicio")]
@@ -108,6 +120,10 @@ public class RolDeEmpresaPorDiscriminadorNoCreceTests
     [InlineData("var b = e.Notas != null;")]
     [InlineData("var b = e.NivelServicio == \"critico\";")]
     [InlineData("var x = e.EsCritico;")]
+    [InlineData("var b = e.NivelServicio is \"Supervisada\";")]
+    [InlineData("var b = string.IsNullOrEmpty(e.Notas);")]
+    [InlineData("var b = string.IsNullOrEmpty(e.NivelServicio + \"x\");")]
+    [InlineData("var b = e.EsCritico is true or true;")]
     public void Lo_que_no_decide_el_rol_por_nulidad_no_cuenta(string sentencia)
     {
         var fuente = $"class C {{ void M(dynamic e) {{ {sentencia}\n }} }}";
@@ -144,11 +160,14 @@ public class RolDeEmpresaPorDiscriminadorNoCreceTests
                 // e.EsCritico != null en un comentario de C#
                 bool EsCliente(dynamic e) => e.EsCritico != null;
                 bool EsSub(dynamic e) => e.NivelServicio is not null;
+                bool EsSub2(dynamic e) => !string.IsNullOrEmpty(e.NivelServicio);
+                bool EsCli2(dynamic e) => e.EsCritico is bool;
+                bool NoCuenta(dynamic e) => e.EsCritico == true;
             }
             """;
 
         FuentesDeSrc.AnalizarRazor(fuente).ComparacionesConNull
-            .Should().Equal(new Dictionary<string, int> { ["EsCritico"] = 1, ["NivelServicio"] = 1 });
+            .Should().Equal(new Dictionary<string, int> { ["EsCritico"] = 2, ["NivelServicio"] = 2 });
     }
 
     [Theory]
@@ -156,10 +175,13 @@ public class RolDeEmpresaPorDiscriminadorNoCreceTests
     [InlineData("CrearComoSubcontrata", true)]
     [InlineData("ActualizarComoCliente", true)]
     [InlineData("ActualizarComoSubcontrata", true)]
+    [InlineData("CambiarNivelServicioComoSubcontrata", true)]
     [InlineData("CrearComoClienteDeDemo", false)]
-    [InlineData("OtroCrearComoCliente", false)]
+    [InlineData("ComoCliente", false)]
+    [InlineData("crearComoCliente", false)]
     [InlineData("CrearComoEmpresa", false)]
     [InlineData("CrearEmpresa", false)]
+    [InlineData("ComoClienteEmpresarial", false)]
     public void El_detector_de_fabricas_esta_anclado_no_casa_por_prefijo_ni_por_sufijo(string palabra, bool esperado) =>
         Fabrica.IsMatch(palabra).Should().Be(esperado);
 

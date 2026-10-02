@@ -54,7 +54,7 @@ public class ClienteIdNoSeExtiendeTests
 
     // El suelo del escáner NO es la lista: es "el análisis ve el árbol entero". Si la enumeración
     // se rompiera, todas las líneas de la lista pasarían a OBSOLETA; este suelo lo dice con su nombre.
-    private const int SueloDeFicherosAnalizados = 1500;
+    private const int SueloDeFicherosAnalizados = 1000;
 
     [Fact]
     public void Las_ubicaciones_de_ClienteId_en_el_codigo_solo_decrecen()

@@ -87,6 +87,71 @@ public class ListaCongeladaTests
         ListaCongelada.Leer(texto).Should().Equal(medido);
     }
 
+    // ───────────── Evaluar: el núcleo de Verificar, con lectura y volcado inyectados ─────────────
+
+    private static readonly Dictionary<Ubicacion, int> Medido = new() { [new("a.cs", "X")] = 2 };
+
+    [Fact]
+    public void Evaluar_devuelve_null_solo_si_lo_medido_coincide_con_la_lista_leida()
+    {
+        ListaCongelada.Evaluar("n", "r.txt", Medido, "guia", null, _ => true, _ => "a.cs :: X = 2\n").Should().BeNull();
+
+        var fallo = ListaCongelada.Evaluar("n", "r.txt", Medido, "guia", null, _ => true, _ => "a.cs :: X = 1\n");
+        fallo.Should().NotBeNull().And.Contain("CRECE").And.Contain("a.cs :: X").And.Contain("guia").And.Contain("1 desvíos");
+    }
+
+    [Fact]
+    public void Evaluar_con_la_lista_ausente_es_un_fallo_con_su_nombre_nunca_un_verde()
+    {
+        ListaCongelada.Evaluar("mi-lista", "r.txt", Medido, "guia", null, _ => false, _ => throw new InvalidOperationException("no debe leer"))
+            .Should().Contain("No existe la lista congelada 'mi-lista'");
+    }
+
+    [Fact]
+    public void Evaluar_trunca_el_mensaje_a_cuarenta_desvios_y_dice_cuantos_faltan()
+    {
+        var medido = Enumerable.Range(0, 55).ToDictionary(i => new Ubicacion($"f{i:00}.cs", "X"), _ => 1);
+
+        var fallo = ListaCongelada.Evaluar("n", "r.txt", medido, "guia", null, _ => true, _ => "# vacía\n");
+
+        fallo.Should().Contain("55 desvíos").And.Contain("… y 15 más");
+        fallo!.Split('\n').Count(l => l.TrimStart().StartsWith("NUEVA")).Should().Be(40);
+    }
+
+    [Fact]
+    public void Evaluar_vuelca_la_medida_sin_cambiar_el_veredicto_ni_tocar_la_lista()
+    {
+        var directorio = Path.Combine(Path.GetTempPath(), "volcado-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var lista = "a.cs :: X = 2\n";
+            var leidas = 0;
+
+            var coincide = ListaCongelada.Evaluar("mi-lista", "r.txt", Medido, "g", directorio, _ => true, _ => { leidas++; return lista; });
+            var difiere = ListaCongelada.Evaluar("otra", "r.txt", new Dictionary<Ubicacion, int> { [new("z.cs", "Y")] = 1 }, "g", directorio, _ => true, _ => lista);
+
+            coincide.Should().BeNull("el volcado no cambia el veredicto");
+            difiere.Should().NotBeNull("ni lo suaviza");
+            leidas.Should().Be(1);
+            File.ReadAllText(Path.Combine(directorio, "mi-lista.txt")).Should().Be("a.cs :: X = 2\n");
+            File.ReadAllText(Path.Combine(directorio, "otra.txt")).Should().Be("z.cs :: Y = 1\n");
+        }
+        finally
+        {
+            if (Directory.Exists(directorio))
+                Directory.Delete(directorio, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Evaluar_sin_directorio_de_volcado_no_escribe_nada()
+    {
+        var antes = Directory.Exists("volcado-inexistente");
+        ListaCongelada.Evaluar("n", "r.txt", Medido, "g", "", _ => true, _ => "a.cs :: X = 2\n").Should().BeNull();
+        ListaCongelada.Evaluar("n", "r.txt", Medido, "g", null, _ => true, _ => "a.cs :: X = 2\n").Should().BeNull();
+        Directory.Exists("volcado-inexistente").Should().Be(antes);
+    }
+
     [Fact]
     public void Las_listas_versionadas_se_leen_sin_lineas_mal_formadas_ni_repetidas()
     {

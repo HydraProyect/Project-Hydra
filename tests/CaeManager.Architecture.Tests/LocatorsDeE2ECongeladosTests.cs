@@ -61,6 +61,10 @@ public class LocatorsDeE2ECongeladosTests
     [InlineData("await page.Locator(\"text=Guardar\").ClickAsync();", AnalisisDeLocatorsE2E.SimboloPorTexto)]
     [InlineData("await page.Locator($\"text={nombre}\").ClickAsync();", AnalisisDeLocatorsE2E.SimboloPorTexto)]
     [InlineData("await page.ClickAsync(\"text=Guardar\");", AnalisisDeLocatorsE2E.SimboloPorTexto)]
+    [InlineData("await page.Locator(\"tr:has-text('\" + nombre + \"')\").ClickAsync();", AnalisisDeLocatorsE2E.SimboloPorTexto)]
+    [InlineData("await page.Locator(cond ? \"text=A\" : \"b\").ClickAsync();", AnalisisDeLocatorsE2E.SimboloPorTexto)]
+    [InlineData("await page.Locator(\"xpath=//button[normalize-space()='Guardar']\").ClickAsync();", AnalisisDeLocatorsE2E.SimboloPorTexto)]
+    [InlineData("await page.Locator(\"xpath=//button[text()='Guardar']\").ClickAsync();", AnalisisDeLocatorsE2E.SimboloPorTexto)]
     [InlineData("await page.Locator(\"tr\").Filter(new() { HasText = \"Fila\" }).ClickAsync();", AnalisisDeLocatorsE2E.SimboloFiltroPorTexto)]
     [InlineData("await page.Locator(\"tr\", new() { HasNotText = \"Fila\" }).ClickAsync();", AnalisisDeLocatorsE2E.SimboloFiltroPorTexto)]
     public void Cada_forma_fragil_de_localizar_se_detecta(string cuerpo, string simbolo) =>

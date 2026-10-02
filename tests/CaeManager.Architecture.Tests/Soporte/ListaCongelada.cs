@@ -86,24 +86,39 @@ internal static class ListaCongelada
     /// Lee la lista versionada, vuelca la medida si se pidió y devuelve el mensaje de fallo, o
     /// <c>null</c> si coincide.
     /// </summary>
-    public static string? Verificar(string nombre, IReadOnlyDictionary<Ubicacion, int> medido, string guiaDeCorreccion)
-    {
-        VolcarSiSePide(nombre, medido);
+    public static string? Verificar(string nombre, IReadOnlyDictionary<Ubicacion, int> medido, string guiaDeCorreccion) =>
+        Evaluar(nombre, RutaDeLista(nombre), medido, guiaDeCorreccion,
+            Environment.GetEnvironmentVariable("HYDRA_TRINQUETES_VOLCAR"), File.Exists, File.ReadAllText);
 
-        var ruta = RutaDeLista(nombre);
-        if (!File.Exists(ruta))
+    /// <summary>
+    /// El núcleo de <see cref="Verificar"/>, con la lectura y el volcado inyectados para poder
+    /// probarlo sin escribir en <c>Congelados/</c>: una mecánica común que dejara de devolver el
+    /// mensaje, o que no leyera la lista, daría verde a todos los trinquetes que dependen de ella.
+    /// </summary>
+    internal static string? Evaluar(
+        string nombre,
+        string rutaDeLista,
+        IReadOnlyDictionary<Ubicacion, int> medido,
+        string guiaDeCorreccion,
+        string? directorioDeVolcado,
+        Func<string, bool> existe,
+        Func<string, string> leer)
+    {
+        VolcarSiSePide(nombre, medido, directorioDeVolcado);
+
+        if (!existe(rutaDeLista))
         {
-            return $"No existe la lista congelada '{nombre}' ({ruta}). Genera la medida con " +
+            return $"No existe la lista congelada '{nombre}' ({rutaDeLista}). Genera la medida con " +
                    "HYDRA_TRINQUETES_VOLCAR=<directorio> y revísala antes de añadirla.";
         }
 
-        var desvios = Desvios(medido, Leer(File.ReadAllText(ruta)));
+        var desvios = Desvios(medido, Leer(leer(rutaDeLista)));
         if (desvios.Count == 0)
             return null;
 
         var visibles = desvios.Take(MaximoDeLineasEnElMensaje).ToList();
         var resto = desvios.Count - visibles.Count;
-        return $"La lista congelada '{nombre}' ({ruta}) no coincide con el código ({desvios.Count} desvíos):\n  " +
+        return $"La lista congelada '{nombre}' ({rutaDeLista}) no coincide con el código ({desvios.Count} desvíos):\n  " +
                string.Join("\n  ", visibles) +
                (resto > 0 ? $"\n  … y {resto} más" : string.Empty) +
                $"\n{guiaDeCorreccion}";
@@ -155,9 +170,8 @@ internal static class ListaCongelada
         return sb.ToString();
     }
 
-    private static void VolcarSiSePide(string nombre, IReadOnlyDictionary<Ubicacion, int> medido)
+    private static void VolcarSiSePide(string nombre, IReadOnlyDictionary<Ubicacion, int> medido, string? directorio)
     {
-        var directorio = Environment.GetEnvironmentVariable("HYDRA_TRINQUETES_VOLCAR");
         if (string.IsNullOrWhiteSpace(directorio))
             return;
 

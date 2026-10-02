@@ -50,6 +50,30 @@ internal static class AnalisisDeCatalan
             .Where(l => l.Length > 0 && !l.StartsWith('#'))
             .ToHashSet(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Los valores declarados válidos que ya ningún par idéntico necesita. Una exención por valor es
+    /// global (vale para toda clave futura con ese texto), así que una entrada que dejó de usarse se
+    /// borra, igual que una línea obsoleta de la lista de deuda.
+    /// </summary>
+    public static IReadOnlyList<string> ValidosSinUso(
+        IEnumerable<(string Ruta, string Neutral, string Catalan)> pares,
+        IReadOnlySet<string> validos)
+    {
+        var enUso = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var (_, textoNeutral, textoCatalan) in pares)
+        {
+            var catalan = Valores(textoCatalan);
+            foreach (var (clave, valor) in Valores(textoNeutral))
+            {
+                if (catalan.TryGetValue(clave, out var valorCatalan) && valor.Trim() == valorCatalan.Trim())
+                    enUso.Add(Normalizar(valor));
+            }
+        }
+
+        return validos.Where(v => !enUso.Contains(v)).OrderBy(v => v, StringComparer.Ordinal).ToList();
+    }
+
     public static Dictionary<Ubicacion, int> Medir(
         IEnumerable<(string Ruta, string Neutral, string Catalan)> pares,
         IReadOnlySet<string> validos)

@@ -10,11 +10,15 @@ namespace CaeManager.Architecture.Tests;
 /// Lo que un fichero de <c>src</c> «dice» para un trinquete por ubicación: las palabras que lo
 /// componen según su régimen (identificadores de C#, palabras de un <c>.razor</c> sin
 /// comentarios, palabras de los <c>&lt;value&gt;</c> de un <c>.resx</c> neutral) y cuántas veces
-/// compara <c>EsCritico</c> o <c>NivelServicio</c> con <c>null</c>.
+/// compara <c>EsCritico</c> o <c>NivelServicio</c> con <c>null</c>. Solo en <c>.cs</c>,
+/// <see cref="Literales"/> trae además las palabras de los literales de cadena, que
+/// <see cref="Palabras"/> deja fuera a propósito: un trinquete de vocabulario visible (Bandeja) las
+/// necesita; uno de identificadores (ClienteId) no.
 /// </summary>
 internal sealed record AnalisisDeFichero(
     IReadOnlyDictionary<string, int> Palabras,
-    IReadOnlyDictionary<string, int> ComparacionesConNull);
+    IReadOnlyDictionary<string, int> ComparacionesConNull,
+    IReadOnlyDictionary<string, int>? Literales = null);
 
 /// <summary>
 /// Enumeración y análisis, hecho una sola vez por proceso de test, del código de <c>src</c> que
@@ -122,11 +126,22 @@ internal static class FuentesDeSrc
         var raiz = CSharpSyntaxTree.ParseText(texto).GetRoot();
         var palabras = new Dictionary<string, int>(StringComparer.Ordinal);
         var comparaciones = new Dictionary<string, int>(StringComparer.Ordinal);
+        var literales = new Dictionary<string, int>(StringComparer.Ordinal);
 
         foreach (var token in raiz.DescendantTokens())
         {
             if (token.IsKind(SyntaxKind.IdentifierToken))
+            {
                 Sumar(palabras, token.ValueText);
+            }
+            else if (token.Kind() is SyntaxKind.StringLiteralToken or SyntaxKind.InterpolatedStringTextToken
+                     or SyntaxKind.SingleLineRawStringLiteralToken or SyntaxKind.MultiLineRawStringLiteralToken
+                     or SyntaxKind.Utf8StringLiteralToken or SyntaxKind.Utf8SingleLineRawStringLiteralToken
+                     or SyntaxKind.Utf8MultiLineRawStringLiteralToken)
+            {
+                foreach (Match m in Palabra.Matches(token.ValueText))
+                    Sumar(literales, m.Value);
+            }
         }
 
         foreach (var nodo in raiz.DescendantNodes())
@@ -136,7 +151,7 @@ internal static class FuentesDeSrc
                 Sumar(comparaciones, nombre);
         }
 
-        return new AnalisisDeFichero(palabras, comparaciones);
+        return new AnalisisDeFichero(palabras, comparaciones, literales);
     }
 
     /// <summary>
@@ -144,9 +159,12 @@ internal static class FuentesDeSrc
     /// <c>NivelServicio</c>, devuelve cuál. Formas: <c>x.Nombre != null</c> / <c>== null</c>
     /// (en cualquiera de los dos lados), <c>x.Nombre is null</c>, <c>is not null</c>,
     /// <c>is { }</c>, <c>is not { }</c>, patrones de propiedades o de tipo (<c>is bool b</c>) y
-    /// <c>x.Nombre.HasValue</c>.
-    /// Ciego, a propósito: <c>switch</c> con brazo <c>null</c>, <c>??</c>, y la nulidad leída a
-    /// través de una variable intermedia (<c>var c = e.EsCritico; if (c is null)</c>).
+    /// <c>x.Nombre.HasValue</c>; <c>== default</c>; patrones compuestos (<c>is null or ""</c>,
+    /// <c>is true or false</c>); y <c>string.IsNullOrEmpty/IsNullOrWhiteSpace(x.Nombre)</c>.
+    /// Ciego (declarado, no cubierto por prueba que lo vea): <c>switch</c> con brazo <c>null</c>,
+    /// <c>??</c>, la nulidad leída a través de una variable intermedia
+    /// (<c>var c = e.EsCritico; if (c is null)</c>), <c>string.Equals</c>/<c>ReferenceEquals</c> y
+    /// cualquier llamada que reciba el valor y devuelva si es nulo (un método propio).
     /// </summary>
     private static string? NombreComparadoConNull(SyntaxNode nodo)
     {
@@ -170,17 +188,32 @@ internal static class FuentesDeSrc
             case MemberAccessExpressionSyntax acceso when acceso.Name.Identifier.ValueText == "HasValue":
                 return NombreDeDiscriminador(acceso.Expression);
 
+            // string.IsNullOrEmpty(x.NivelServicio) / IsNullOrWhiteSpace: la misma pregunta para un string?.
+            case InvocationExpressionSyntax llamada
+                when NombreInvocado(llamada.Expression) is "IsNullOrEmpty" or "IsNullOrWhiteSpace"
+                     && llamada.ArgumentList.Arguments.Count == 1:
+                return NombreDeDiscriminador(llamada.ArgumentList.Arguments[0].Expression);
+
             default:
                 return null;
         }
     }
+
+    private static string? NombreInvocado(ExpressionSyntax e) => e switch
+    {
+        MemberAccessExpressionSyntax acceso => acceso.Name.Identifier.ValueText,
+        IdentifierNameSyntax identificador => identificador.Identifier.ValueText,
+        _ => null,
+    };
 
     private static bool EsNulo(ExpressionSyntax e)
     {
         while (e is ParenthesizedExpressionSyntax p)
             e = p.Expression;
 
-        return e.IsKind(SyntaxKind.NullLiteralExpression);
+        // «== default» sobre un anulable es «== null».
+        return e.IsKind(SyntaxKind.NullLiteralExpression) || e.IsKind(SyntaxKind.DefaultLiteralExpression)
+               || e.IsKind(SyntaxKind.DefaultExpression);
     }
 
     /// <summary>
@@ -197,8 +230,16 @@ internal static class FuentesDeSrc
         DeclarationPatternSyntax => true,
         TypePatternSyntax => true,
         ParenthesizedPatternSyntax parentesis => PatronDeNulidad(parentesis.Pattern),
+        // «is null or ""», «is not (null or "")»: basta con que una rama pregunte por la nulidad.
+        // «is true or false» abarca todo valor no nulo de un bool?: es la misma pregunta.
+        BinaryPatternSyntax binario => PatronDeNulidad(binario.Left) || PatronDeNulidad(binario.Right) || EsTrueOFalse(binario),
         _ => false,
     };
+
+    private static bool EsTrueOFalse(BinaryPatternSyntax binario) =>
+        binario.IsKind(SyntaxKind.OrPattern)
+        && binario.DescendantNodes().OfType<ConstantPatternSyntax>().Select(c => c.Expression.Kind()).Distinct()
+            .Count(k => k is SyntaxKind.TrueLiteralExpression or SyntaxKind.FalseLiteralExpression) == 2;
 
     private static string? NombreDeDiscriminador(ExpressionSyntax e)
     {
@@ -221,11 +262,15 @@ internal static class FuentesDeSrc
 
     private static readonly Regex Palabra = new(@"[\p{L}_][\p{L}\p{N}_]*", RegexOptions.Compiled);
 
+    // El equivalente de las formas que el analizador de C# reconoce, sobre texto: un .razor no se parsea
+    // como C#, así que esto es una aproximación y está declarada como tal (sin patrones compuestos
+    // más allá de «is (», sin variables intermedias).
     private static readonly Regex ComparacionEnRazor = new(
-        @"\b(?<n>EsCritico|NivelServicio)\b\s*(?:!=|==)\s*null\b"
-        + @"|\bnull\s*(?:!=|==)\s*(?:[\w.]*\.)?(?<n>EsCritico|NivelServicio)\b"
-        + @"|\b(?<n>EsCritico|NivelServicio)\s+is\s+(?:not\s+)?(?:null\b|\{\s*\})"
-        + @"|\b(?<n>EsCritico|NivelServicio)\.HasValue\b",
+        @"\b(?<n>EsCritico|NivelServicio)\b\s*(?:!=|==)\s*(?:null|default)\b"
+        + @"|\b(?:null|default)\s*(?:!=|==)\s*(?:[\w.]*\.)?(?<n>EsCritico|NivelServicio)\b"
+        + @"|\b(?<n>EsCritico|NivelServicio)\s+is\s+(?:not\s+)?(?:null\b|\{|bool\b|string\b|\()"
+        + @"|\b(?<n>EsCritico|NivelServicio)\.HasValue\b"
+        + @"|IsNullOr(?:Empty|WhiteSpace)\(\s*[\w.?!]*?\b(?<n>EsCritico|NivelServicio)\b\s*\)",
         RegexOptions.Compiled);
 
     public static AnalisisDeFichero AnalizarRazor(string texto)
@@ -269,7 +314,8 @@ internal static class FuentesDeSrc
     /// </summary>
     public static Dictionary<Ubicacion, int> UbicacionesDePalabras(
         IReadOnlyDictionary<string, AnalisisDeFichero> analisis,
-        Func<string, bool> esLegacy)
+        Func<string, bool> esLegacy,
+        bool incluirLiterales = false)
     {
         var resultado = new Dictionary<Ubicacion, int>();
 
@@ -279,6 +325,18 @@ internal static class FuentesDeSrc
             {
                 if (esLegacy(palabra))
                     resultado[new Ubicacion(ruta, palabra)] = n;
+            }
+
+            if (!incluirLiterales || fichero.Literales is null)
+                continue;
+
+            foreach (var (palabra, n) in fichero.Literales)
+            {
+                if (!esLegacy(palabra))
+                    continue;
+
+                var ubicacion = new Ubicacion(ruta, palabra);
+                resultado[ubicacion] = resultado.GetValueOrDefault(ubicacion) + n;
             }
         }
 

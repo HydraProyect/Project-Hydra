@@ -18,9 +18,10 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Qué mide.</b> Cada pareja <c>fichero :: palabra</c> cuya palabra contiene «bandeja» (sin
-/// distinguir mayúsculas, para ver también <c>_bandeja</c> o la ruta <c>/bandeja</c>), con el mismo
-/// régimen que <see cref="ClienteIdNoSeExtiendeTests"/> (identificadores de Roslyn en <c>.cs</c>,
-/// texto sin comentarios en <c>.razor</c>, valores en <c>.resx</c> neutral), más una línea
+/// distinguir mayúsculas, para ver también <c>_bandeja</c> o la ruta <c>/bandeja</c>) en
+/// identificadores de Roslyn y <b>literales de cadena</b> de <c>.cs</c> (a diferencia de
+/// <see cref="ClienteIdNoSeExtiendeTests"/>: es vocabulario visible, y el texto de pantalla también
+/// vive en C#), texto sin comentarios en <c>.razor</c> y valores en <c>.resx</c> neutral, más una línea
 /// <c>(nombre de fichero)</c> por cada fichero de <c>src</c> cuya ruta contiene «bandeja».
 /// </para>
 ///
@@ -64,14 +65,15 @@ public class BandejaLegacyNoSeExtiendeTests
 
         var medido = Medir(analisis);
 
-        medido.Should().Contain(new KeyValuePair<Ubicacion, int>(new("src/A/Bandeja/Cosa.cs", "Bandeja"), 1));
+        medido.Should().Contain(new KeyValuePair<Ubicacion, int>(new("src/A/Bandeja/Cosa.cs", "Bandeja"), 2),
+            "el espacio de nombres (identificador) y el literal de cadena cuentan; el comentario no");
         medido.Should().Contain(new KeyValuePair<Ubicacion, int>(new("src/A/Bandeja/Cosa.cs", "ItemBandejaDto"), 1));
         medido.Should().Contain(new KeyValuePair<Ubicacion, int>(new("src/A/Bandeja/Cosa.cs", "_bandeja"), 1));
         medido.Should().Contain(new KeyValuePair<Ubicacion, int>(new("src/A/Bandeja/Cosa.cs", SimboloNombreDeFichero), 1));
         medido.Should().Contain(new KeyValuePair<Ubicacion, int>(new("src/A/Otra.razor", "bandeja"), 1));
         medido.Should().Contain(new KeyValuePair<Ubicacion, int>(new("src/A/Otra.razor", "Bandeja"), 1), "el texto visible cuenta; el comentario Razor no");
         medido.Keys.Should().NotContain(u => u.Lugar == "src/A/Limpio.cs");
-        medido.Should().HaveCount(6, "el literal y el comentario de C# no cuentan");
+        medido.Should().HaveCount(6);
     }
 
     [Fact]
@@ -89,8 +91,10 @@ public class BandejaLegacyNoSeExtiendeTests
 
     private static Dictionary<Ubicacion, int> Medir(IReadOnlyDictionary<string, AnalisisDeFichero> analisis)
     {
+        // Con literales: «Bandeja» es vocabulario visible, y el texto de pantalla también vive en literales
+        // de C# (notificaciones, paleta de comandos). ClienteId, que es un identificador, no los cuenta.
         var resultado = FuentesDeSrc.UbicacionesDePalabras(analisis,
-            p => p.Contains(Palabra, StringComparison.OrdinalIgnoreCase));
+            p => p.Contains(Palabra, StringComparison.OrdinalIgnoreCase), incluirLiterales: true);
 
         foreach (var ruta in analisis.Keys.Where(r => r.Contains(Palabra, StringComparison.OrdinalIgnoreCase)))
             resultado[new Ubicacion(ruta, SimboloNombreDeFichero)] = 1;
