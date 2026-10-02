@@ -120,6 +120,28 @@ public class VisitasTresEstadosVaciosTests : BunitContext
             "no hay ningún filtro puesto por el usuario al que culpar");
     }
 
+    /// <summary>
+    /// D-30: «+ Nueva visita» de la cabecera es la primaria; la del estado vacío (en los dos
+    /// vacíos que la ofrecen) baja a secundaria para que no haya dos primarias a la vez.
+    /// </summary>
+    [Fact]
+    public void En_los_vacios_la_nueva_visita_de_la_cabecera_es_la_unica_primaria()
+    {
+        var cut = Renderizar();
+
+        // Vacío «sin activas»: «Ver también las finalizadas» y «+ Nueva visita» juntas.
+        cut.FindAll("button.boton-primario").Select(b => b.TextContent.Trim())
+            .Should().Equal("+ Nueva visita");
+        cut.Find(".estado-vacio").QuerySelectorAll("button").Single(b => b.TextContent.Contains("Nueva visita"))
+            .ClassList.Should().Contain("boton-secundario");
+
+        // Vacío inicial (sin ninguna visita, tampoco finalizadas).
+        cut.FindAll("button").First(b => b.TextContent.Contains("Ver también las finalizadas")).Click();
+        cut.Markup.Should().Contain("Todavía no hay visitas programadas");
+        cut.FindAll("button.boton-primario").Select(b => b.TextContent.Trim())
+            .Should().Equal("+ Nueva visita");
+    }
+
     [Fact]
     public void Al_ver_tambien_las_finalizadas_y_seguir_vacio_si_dice_que_no_hay_ninguna()
     {

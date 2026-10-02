@@ -148,10 +148,34 @@ public class AlertasGen2Tests : BunitContext
     /// texto que lo atribuye solo al centro miente en los centros que no han
     /// configurado nada. Y es configuración, no norma: nada de «obligatorio».
     /// </summary>
+    private static void AbrirProcedencia(IRenderedComponent<Features.Alertas.Pages.Alertas> cut) =>
+        cut.FindAll(".seccion-colapsable-cabecera")
+            .Single(b => b.TextContent.Contains("¿De dónde sale esta lista?")).Click();
+
+    /// <summary>
+    /// D-33: la procedencia ocupaba cuatro líneas antes de la primera fila. Plegada por defecto:
+    /// el texto no está en el marcado hasta que se abre, y abrirla lo muestra.
+    /// </summary>
+    [Fact]
+    public void La_procedencia_va_plegada_por_defecto_y_se_abre_a_demanda()
+    {
+        var cut = RenderizarLista();
+
+        var cabecera = cut.FindAll(".seccion-colapsable-cabecera")
+            .Single(b => b.TextContent.Contains("¿De dónde sale esta lista?"));
+        cabecera.GetAttribute("aria-expanded").Should().Be("false");
+        cut.FindAll(".alertas-procedencia").Should().BeEmpty("plegada, la ayuda no empuja la primera fila");
+
+        cabecera.Click();
+
+        cut.FindAll(".alertas-procedencia").Should().ContainSingle();
+    }
+
     [Fact]
     public void La_procedencia_nombra_la_configuracion_del_centro_y_el_valor_general_del_tipo()
     {
         var cut = RenderizarLista();
+        AbrirProcedencia(cut);
 
         var procedencia = cut.Find(".alertas-procedencia").TextContent;
         procedencia.Should().Contain("los que ese centro tiene configurados")
@@ -287,7 +311,7 @@ public class AlertasGen2Tests : BunitContext
     private static async Task<Task> PulsarContinuar(IRenderedComponent<Features.Alertas.Pages.Alertas> cut, AmbitoAplicacion? ambito = null)
     {
         if (cut.FindAll(".selector-lote-documental").Count == 0)
-            await cut.Find(".seccion-colapsable-cabecera").ClickAsync(new MouseEventArgs());
+            await cut.FindAll(".seccion-colapsable-cabecera").Single(b => !b.TextContent.Contains("¿De dónde sale esta lista?")).ClickAsync(new MouseEventArgs());
 
         if (ambito is { } a)
             await cut.Find(".selector-lote-documental select").ChangeAsync(new ChangeEventArgs { Value = a.ToString() });

@@ -11,6 +11,12 @@
 @using MediatR
 @inject IMediator Mediator
 
+@* D-33: «Blindaje 42.1» es nuestro nombre interno; la entradilla dice qué es en el idioma de quien la lee. *@
+<p class="texto-descriptivo" data-testid="blindaje42-entradilla">
+    Certificaciones de la TGSS (art. 42.1 ET) que acreditan que cada Empresa está al corriente de sus cuotas de la
+    Seguridad Social, para no responder de sus deudas como contratante.
+</p>
+
 @if (_cargando)
 {
     <EstadoCargando Filas="3" />

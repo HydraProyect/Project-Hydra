@@ -41,7 +41,7 @@ else if (_cargando)
 else
 {
     <div class="acordeon-asignaciones-cabecera">
-        <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId })">+ Asignar trabajador</Boton>
+        <Boton Variante="@(AsignarEsPrimaria ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId })">+ Asignar trabajador</Boton>
         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_seleccionados.Count == 0" OnClick="AbrirConfirmarBajaLoteAsync">
             Dar de baja seleccionados
         </Boton>

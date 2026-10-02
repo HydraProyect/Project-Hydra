@@ -60,7 +60,9 @@
                 </SoloConEscritura>
                 @if (!_alcanceCero)
                 {
-                    <SoloConEscritura><Boton OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
+                    @* D-30: en Plantillas la primaria es la «+ Nueva plantilla» de la propia pestaña (mockup
+                       Plantillas); «+ Nuevo documento» baja a secundaria para que no haya dos a la vez. *@
+                    <SoloConEscritura><Boton Variante="@(_pestanaActiva == "plantillas" ? VarianteBoton.Secundario : VarianteBoton.Primario)" OnClick="() => _drawerGestion.AbrirCrearAsync()">+ Nuevo documento</Boton></SoloConEscritura>
                 }
             }
         </Acciones>

@@ -42,10 +42,14 @@
        Se dice «se pide», no «obligatorio»: la regla es de configuración, no
        afirma ninguna norma. "En cada carga" es literal: la query recalcula en
        vivo, no lee de una tabla sincronizada. *@
-    <p class="alertas-procedencia">
-        <span class="alertas-procedencia-punto" aria-hidden="true"></span>
-        @Textos["ProcedenciaLista"]
-    </p>
+    @* D-33: la procedencia ocupaba cuatro líneas antes de la primera fila; plegada por defecto
+       (SeccionColapsable no recuerda su estado y no hay otro patrón de recuerdo en la aplicación). *@
+    <SeccionColapsable Titulo="@Textos["ProcedenciaTitulo"]" ExpandidaPorDefecto="false">
+        <p class="alertas-procedencia">
+            <span class="alertas-procedencia-punto" aria-hidden="true"></span>
+            @Textos["ProcedenciaLista"]
+        </p>
+    </SeccionColapsable>
 
     @* DEC-4: /alertas no es una segunda cola de "qué hacer ahora" (A-02) —
        esa es /bandeja. Hasta esta noche, "Bandeja priorizada" mostraba aquí

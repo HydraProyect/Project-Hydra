@@ -168,6 +168,38 @@ public class ReclamacionesTabTests : BunitContext
         return cut;
     }
 
+    // ------------------------------------------------- D-30: subvistas como pestañas
+
+    /// <summary>
+    /// «Enviadas» (subvista) y «+ Nueva reclamación» eran dos botones primarios o secundarios
+    /// idénticos entre sí. Son subvistas, no acciones: van como pestañas, y ninguna es un botón
+    /// de acción.
+    /// </summary>
+    [Fact]
+    public async Task Las_subvistas_son_pestanas_y_no_botones_de_accion()
+    {
+        var (cut, _) = Renderizar();
+
+        var pestanas = cut.FindAll("[role=tab]");
+        pestanas.Select(t => t.TextContent.Trim()).Should().Equal("Enviadas", "+ Nueva reclamación");
+        pestanas[0].GetAttribute("aria-selected").Should().Be("true");
+        cut.FindAll("button.boton").Where(b => b.TextContent.Trim() is "Enviadas" or "+ Nueva reclamación")
+            .Should().BeEmpty("una subvista no es un botón de acción");
+
+        await pestanas[1].ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=tab]")[1].GetAttribute("aria-selected").Should().Be("true");
+    }
+
+    [Fact]
+    public void Un_rol_de_solo_lectura_solo_ve_la_subvista_Enviadas()
+    {
+        this.ConRolDeEscritura(CaeManager.Infrastructure.Identity.Roles.Consulta);
+        var (cut, _) = Renderizar();
+
+        cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()).Should().Equal("Enviadas");
+    }
+
     // ------------------------------------------------- fallo de entrega del correo
 
     /// <summary>
