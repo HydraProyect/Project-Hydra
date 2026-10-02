@@ -65,9 +65,9 @@ public class LogoPlataformaTests : BunitContext
     public void Una_plataforma_sin_logo_se_pinta_igual_solo_con_su_nombre()
     {
         var cut = Render<FilaPlataforma>(p => p.Add(c => c.Plataforma,
-            new PendientePorPlataformaDto(Guid.NewGuid(), "Valora", 3, 0, "valora")));
+            new PendientePorPlataformaDto(Guid.NewGuid(), "Arch", 3, 0, "arch")));
 
-        cut.Markup.Should().Contain("Valora");
+        cut.Markup.Should().Contain("Arch");
         cut.FindAll("img").Should().BeEmpty("no hay marca para este proveedor, y eso es lo habitual");
     }
 
@@ -117,12 +117,13 @@ public class LogoPlataformaTests : BunitContext
 
     /// <summary>
     /// Proveedores del catálogo sin marca oficial localizable el 2026-10-02: el
-    /// dominio de Valora redirige hoy a otra marca, el de Arch está en venta, el
-    /// de Opground no resuelve y Norprevención solo tiene el logotipo del grupo
-    /// matriz. Con este test, un proveedor nuevo del catálogo obliga a decidir:
-    /// añadir su marca o anotarlo aquí.
+    /// dominio de Arch está en venta, el de Opground no resuelve y Norprevención
+    /// solo tiene el logotipo del grupo matriz. (Valora ya no figura aquí: pasó a
+    /// ser Avanta Prevención y tiene su marca oficial, ver el test siguiente.)
+    /// Con este test, un proveedor nuevo del catálogo obliga a decidir: añadir su
+    /// marca o anotarlo aquí.
     /// </summary>
-    private static readonly string[] SinLogoDocumentado = ["valora", "arch", "opground", "norprevencion"];
+    private static readonly string[] SinLogoDocumentado = ["arch", "opground", "norprevencion"];
 
     [Fact]
     public void Todo_proveedor_del_catalogo_tiene_logo_o_esta_documentado_sin_el()
@@ -137,6 +138,56 @@ public class LogoPlataformaTests : BunitContext
         sinDecidir.Should().BeEmpty("cada proveedor del catálogo o tiene marca o está documentado como sin ella");
         SinLogoDocumentado.Should().OnlyContain(c => semilla.Contains(c) && LogoPlataforma.Ruta(c) == null,
             "la lista de excepciones no puede quedarse con slugs que ya no existen o que ya tienen marca");
+    }
+
+    /// <summary>
+    /// Valora Prevención pasó a ser Avanta Prevención. El <c>Codigo</c> «valora» es el identificador
+    /// estable y no cambia: la marca se engancha a ese slug, no al nombre visible.
+    /// </summary>
+    [Fact]
+    public void El_slug_valora_pinta_el_logotipo_de_Avanta_Prevencion()
+    {
+        LogoPlataforma.Ruta("valora").Should().Be("/img/plataformas/avanta.png");
+
+        var cut = Render<FilaPlataforma>(p => p.Add(c => c.Plataforma,
+            new PendientePorPlataformaDto(Guid.NewGuid(), "Avanta Prevención", 3, 0, "valora")));
+
+        cut.Find("img.fila-plataforma-logo").GetAttribute("src").Should().Be("/img/plataformas/avanta.png");
+        cut.Markup.Should().Contain("Avanta Prevención");
+    }
+
+    /// <summary>
+    /// El nombre del catálogo es el visible: ninguna fila de la semilla puede seguir llamándose «Valora»,
+    /// y el slug sigue siendo «valora». Lee la semilla como texto (como los demás tests de este fichero).
+    /// </summary>
+    [Fact]
+    public void La_semilla_llama_Avanta_Prevencion_al_proveedor_de_slug_valora()
+    {
+        var ruta = Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Infrastructure",
+            "Persistence", "Seed", "ProveedorPlataformaCaeSeedData.cs");
+        File.Exists(ruta).Should().BeTrue();
+
+        var fila = File.ReadAllLines(ruta).Single(l => l.Contains("\"valora\"", StringComparison.Ordinal));
+        fila.Should().Contain("\"Avanta Prevención\"").And.Contain("avantaprevencion.com");
+        fila.Should().NotContain("\"Valora\"");
+    }
+
+    /// <summary>
+    /// Regla de #1019 para las marcas nuevas: como mucho 288×112 px (cabecera IHDR del PNG, sin
+    /// decodificarlo). Los ficheros anteriores a esa regla no se miden aquí.
+    /// </summary>
+    [Fact]
+    public void El_logo_de_Avanta_respeta_el_maximo_de_288_por_112()
+    {
+        var fisica = Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "wwwroot", "img", "plataformas", "avanta.png");
+        var cabecera = File.ReadAllBytes(fisica).Take(24).ToArray();
+
+        cabecera.Take(8).Should().Equal(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A);
+        var ancho = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(cabecera.AsSpan(16, 4));
+        var alto = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(cabecera.AsSpan(20, 4));
+
+        ancho.Should().BeInRange(1, 288);
+        alto.Should().BeInRange(1, 112);
     }
 
     /// <summary>La UI pinta como mucho 72×28 px: un fichero grande solo añade peso a la página de Inicio.</summary>

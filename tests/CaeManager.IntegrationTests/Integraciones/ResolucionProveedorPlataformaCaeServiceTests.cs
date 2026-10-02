@@ -54,10 +54,10 @@ public class ResolucionProveedorPlataformaCaeServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task La_migracion_siembra_los_23_proveedores_y_27_dominios_del_catalogo()
+    public async Task La_migracion_siembra_los_23_proveedores_y_28_dominios_del_catalogo()
     {
         (await _dbContext.ProveedoresPlataformaCae.CountAsync()).Should().Be(23);
-        (await _dbContext.DominiosProveedorPlataformaCae.CountAsync()).Should().Be(27);
+        (await _dbContext.DominiosProveedorPlataformaCae.CountAsync()).Should().Be(28);
     }
 
     [Fact]

@@ -32,7 +32,11 @@ public static class ProveedorPlataformaCaeSeedData
         (new Guid("6000000A-0000-0000-0000-000000000007"), "previntegral", "Previntegral", null, true, ["previntegral.com"]),
         (new Guid("6000000A-0000-0000-0000-000000000008"), "norprevencion", "Norprevención", "Vithas", true, ["vithas.es"]),
         (new Guid("6000000A-0000-0000-0000-000000000009"), "ergasia", "Ergasia", null, true, ["ergasia.es"]),
-        (new Guid("6000000B-0000-0000-0000-000000000001"), "valora", "Valora", null, true, ["valoraprevencion.es"]),
+        // Valora Prevención pasó a ser Avanta Prevención (Grupo Avanta); el slug no cambia nunca
+        // (identificador estable). valoraprevencion.es redirige hoy a avantaprevencion.com, pero se
+        // conserva en el índice 0 —su Id de dominio derivado ya está sembrado— para que una URL de
+        // acceso guardada con el dominio antiguo siga resolviendo el proveedor.
+        (new Guid("6000000B-0000-0000-0000-000000000001"), "valora", "Avanta Prevención", null, true, ["valoraprevencion.es", "avantaprevencion.com"]),
         (new Guid("6000000B-0000-0000-0000-000000000002"), "playcae", "PlayCAE", null, true, ["playcae.com"]),
         (new Guid("6000000B-0000-0000-0000-000000000003"), "docuprl", "DocuPRL", null, true, []),
         (new Guid("6000000B-0000-0000-0000-000000000004"), "arch", "Arch", null, false, ["archbus.com"]),
