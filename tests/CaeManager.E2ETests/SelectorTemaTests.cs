@@ -137,4 +137,67 @@ public class SelectorTemaTests(WebAppFixture fixture)
         await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
             "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
     }
+
+    /// <summary>
+    /// Defecto de staging del 2026-10-02: en tema oscuro el avatar de un Tenant
+    /// beneficiario sin logo (barra lateral y cabecera) salía como un cuadrado
+    /// liso, porque fondo y letra resolvían al mismo color (--color-primary-100
+    /// de fondo, --color-primary-700 remapeado a --color-primary-100 de letra).
+    /// El contrato por token lo fija ContrasteDeAvataresPorTemaTests; esto mide
+    /// el color que el navegador PINTA de verdad, con el tema aplicado por
+    /// tema.js, y exige las iniciales a 4,5:1 (WCAG AA) en oscuro y en claro.
+    /// </summary>
+    [Fact]
+    public async Task Las_iniciales_del_avatar_del_selector_de_empresa_se_leen_en_oscuro_y_en_claro()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(
+            page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.DescartarNotificacionesPendientesAsync(page);
+        await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
+
+        // Este usuario alcanza varios Tenants beneficiarios: el selector de la barra lateral se pinta.
+        var avatar = Ayudas.DisparadorSelectorTenant(page).Locator(".avatar-tenant");
+        await Assertions.Expect(avatar).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        // El control mide iniciales, no un logo: si el Tenant de demo tuviera logo no habría letras que leer.
+        await Assertions.Expect(avatar).Not.ToBeEmptyAsync(new LocatorAssertionsToBeEmptyOptions { Timeout = 5_000 });
+
+        var selectorTema = page.Locator("select.selector-tema");
+        await Assertions.Expect(selectorTema).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+
+        const string medirContraste = """
+            el => {
+              const cs = getComputedStyle(el);
+              const canal = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+              const lum = css => { const m = css.match(/\d+(\.\d+)?/g).map(Number); return 0.2126 * canal(m[0]) + 0.7152 * canal(m[1]) + 0.0722 * canal(m[2]); };
+              const a = lum(cs.backgroundColor), b = lum(cs.color);
+              return { fondo: cs.backgroundColor, letra: cs.color, ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) };
+            }
+            """;
+
+        try
+        {
+            foreach (var tema in new[] { "oscuro", "claro" })
+            {
+                await selectorTema.SelectOptionAsync(tema);
+                await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
+                    "data-theme", tema, new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+
+                var medida = await avatar.EvaluateAsync<System.Text.Json.JsonElement>(medirContraste);
+                var ratio = medida.GetProperty("ratio").GetDouble();
+                Assert.True(ratio >= 4.5,
+                    $"Iniciales del avatar en tema {tema}: {ratio:0.00}:1 (fondo {medida.GetProperty("fondo")}, " +
+                    $"letra {medida.GetProperty("letra")}); WCAG AA exige 4,5:1");
+            }
+        }
+        finally
+        {
+            // Devuelve la cuenta a su estado inicial: la fixture es compartida por toda "AppCollection".
+            await selectorTema.SelectOptionAsync("sistema");
+            await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
+                "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+        }
+    }
 }

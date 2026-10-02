@@ -114,6 +114,16 @@
      claro y 3.64:1 en oscuro contra el fondo más restrictivo (DDL-063). */
   --color-border-control: var(--color-neutral-500);
 
+  /* Avatar de iniciales (AvatarTenant): fondo y letras como PAR, porque el par
+     tiene que cambiar de tema junto. Antes el avatar pintaba --color-primary-100
+     de fondo y --color-primary-700 de letra: en oscuro el 700 se remapea a
+     #dcebff pero el 100 no se redefine, así que fondo y letra salían del mismo
+     color (1,00:1, medido 2026-10-02 en staging: cuadrado liso sin iniciales).
+     Claro: 8,97:1. Oscuro: 13,86:1 (ver el bloque oscuro). El contrato lo fija
+     ContrasteDeAvataresPorTemaTests: >= 4,5:1 en los dos temas. */
+  --color-avatar-fondo: var(--color-primary-100);
+  --color-avatar-texto: var(--color-primary-700);
+
   /* Tipografía */
   --font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-heading-xl: 700 2.25rem/2.75rem var(--font-family);   /* H1 36/44 */
@@ -246,6 +256,10 @@
   --color-warning-50: #3a2405;
   --color-danger-50: #3a0a0a;
   --color-secondary-50: #1d2733;
+  /* Avatar de iniciales: en oscuro el fondo es el -50 oscuro (#0e1d39) y la
+     letra el -700 remapeado (#dcebff): 13,86:1 — ver el par en :root. */
+  --color-avatar-fondo: var(--color-primary-50);
+  --color-avatar-texto: var(--color-primary-700);
   /* Único escalón -50 que se quedó sin redefinir aquí (medido 2026-09-18):
      el resto de la familia -50 sí tiene variante oscura, esta no, así que
      seguía pintando #eef5ff (fondo casi blanco) en tema oscuro mientras el
@@ -317,6 +331,8 @@
   --color-danger-50: #fef2f2;
   --color-secondary-50: #f1f4f7;
   --color-primary-50: #eef5ff;
+  --color-avatar-fondo: var(--color-primary-100);
+  --color-avatar-texto: var(--color-primary-700);
 
   --color-primary-500: #235bc2;
   --color-primary-600: #1e4a9e;

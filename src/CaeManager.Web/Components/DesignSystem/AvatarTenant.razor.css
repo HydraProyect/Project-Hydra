@@ -7,8 +7,11 @@
     height: 36px;
     overflow: hidden;
     border-radius: var(--radius-md);
-    background: var(--color-primary-100);
-    color: var(--color-primary-700);
+    /* Par de tokens propio con variante por tema (tokens.css). No usar
+       --color-primary-100 + --color-primary-700 aquí: en oscuro el 700 se
+       remapea a claro y el 100 no, y las iniciales se pierden (1,00:1). */
+    background: var(--color-avatar-fondo);
+    color: var(--color-avatar-texto);
     font: var(--font-label-md);
     font-weight: 700;
     letter-spacing: 0.02em;
