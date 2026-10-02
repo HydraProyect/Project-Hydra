@@ -33,7 +33,7 @@ else if (_error || _documento is null)
 {
     <EstadoVacio Titulo="No pudimos cargar la firma en campo" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
-            <Boton OnClick="CargarAsync">Reintentar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -156,7 +156,7 @@ else
 
     <div class="workspace-acciones-edicion">
         <Boton Variante="VarianteBoton.Secundario" OnClick="RepetirAsync" Deshabilitado="@(_firmando || _usarFirmaGuardada)">Repetir firma</Boton>
-        <Boton OnClick="FirmarAsync" Cargando="_firmando" Deshabilitado="@(!PuedeFirmarAhora() || _firmando)">Firmar</Boton>
+        <Boton Variante="VarianteBoton.Primario" OnClick="FirmarAsync" Cargando="_firmando" Deshabilitado="@(!PuedeFirmarAhora() || _firmando)">Firmar</Boton>
     </div>
     </SoloConEscritura>
 }

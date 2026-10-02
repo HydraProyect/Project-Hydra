@@ -117,7 +117,7 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _visible = false">
             Cancelar
         </Boton>
-        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
             @(_documentosFaltantes.Count > 0 ? "Asignar igualmente" : "Guardar")
         </Boton>
     </Pie>

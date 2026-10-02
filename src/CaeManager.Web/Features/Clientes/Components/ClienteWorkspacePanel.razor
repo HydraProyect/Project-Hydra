@@ -98,7 +98,7 @@ else if (_error || _detalle is null)
 {
     <EstadoVacio Titulo="No pudimos cargar el Cliente empresarial" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
-            <Boton OnClick="ReintentarAsync">Reintentar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -140,7 +140,7 @@ else
                     </label>
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoIdentidad" OnClick="CancelarEdicionIdentidad">Cancelar</Boton>
-                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoIdentidad" OnClick="GuardarIdentidadAsync">Guardar</Boton>
+                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoIdentidad" OnClick="GuardarIdentidadAsync">Guardar</Boton>
                     </div>
                 }
                 else
@@ -176,7 +176,7 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar las empresas" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="ReintentarEmpresasAsync">Reintentar</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarEmpresasAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -204,7 +204,7 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar las subcontratas" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="ReintentarSubcontratasAsync">Reintentar</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarSubcontratasAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -232,7 +232,7 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar los centros" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="ReintentarCentrosAsync">Reintentar</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarCentrosAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -281,7 +281,7 @@ else
                 <CampoTextarea Etiqueta="Nota interna" Valor="@_notaEditada" ValorChanged="v => _notaEditada = v" Filas="4"
                                Placeholder="Solo la ve tu equipo. No se envía al Cliente empresarial." />
                 <div class="acciones-cliente-360">
-                    <Boton Cargando="_guardandoNota" OnClick="GuardarNotaAsync">Guardar nota</Boton>
+                    <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoNota" OnClick="GuardarNotaAsync">Guardar nota</Boton>
                     <span class="recuentos-cliente-360">Solo visible para tu equipo.</span>
                 </div>
                 break;

@@ -59,7 +59,7 @@
                 </MenuAcciones>
                 @if (!_alcanceCero)
                 {
-                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>
                 }
             }
         </Acciones>
@@ -129,7 +129,7 @@
     {
         <EstadoVacio Titulo="No pudimos cargar los centros" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
-                <Boton OnClick="() => CargarAsync()">Reintentar</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="() => CargarAsync()">Reintentar</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -159,7 +159,7 @@
         <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
             <EstadoVacio NombreIcono="centros" Titulo="Aún no hay centros" Descripcion="Crea el primero para empezar a asignar trabajadores.">
                 <Accion>
-                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         </VacioSegunAlcance>
@@ -446,7 +446,7 @@
         <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearOtroAsync">
             Añadir otro centro
         </Boton>
-        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
             Guardar
         </Boton>
     </Pie>

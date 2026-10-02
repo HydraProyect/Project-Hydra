@@ -87,7 +87,7 @@
                             <td class="columna-accion">
                                 @if (tenant.StripeSubscriptionId is null)
                                 {
-                                    <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirVincular(tenant)">Vincular suscripción</Boton>
+                                    <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirVincular(tenant)">Vincular suscripción</Boton>
                                 }
                                 else
                                 {
@@ -142,7 +142,7 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_vinculando" OnClick="() => CerrarFormularioVincular(false)">Cancelar</Boton>
-        <Boton Cargando="_vinculando" OnClick="PedirConfirmacionVincular">Vincular</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_vinculando" OnClick="PedirConfirmacionVincular">Vincular</Boton>
     </Pie>
 </Modal>
 

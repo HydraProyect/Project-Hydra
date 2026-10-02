@@ -83,7 +83,7 @@
                 }
             </div>
 
-            <Boton OnClick="CrearPlantillaAsync" Deshabilitado="@(!PuedeCrear)">
+            <Boton Variante="VarianteBoton.Primario" OnClick="CrearPlantillaAsync" Deshabilitado="@(!PuedeCrear)">
                 @(_creando ? "Creando…" : "Crear y configurar campos")
             </Boton>
         </div>
@@ -98,7 +98,7 @@
             <EstadoVacio NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)"
                          Titulo="No pudimos cargar esta plantilla" Descripcion="Intenta nuevamente en unos segundos.">
                 <Accion>
-                    <Boton OnClick="ReintentarAsync">Reintentar</Boton>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarAsync">Reintentar</Boton>
                 </Accion>
             </EstadoVacio>
         </div>
@@ -256,7 +256,7 @@
                                     <Boton OnClick="GuardarDesdeBotonAsync" Variante="VarianteBoton.Secundario" Deshabilitado="@(_guardando || _confirmando)">
                                         @(_guardando ? "Guardando…" : "Guardar cambios")
                                     </Boton>
-                                    <Boton OnClick="PedirConfirmar" Deshabilitado="@(_confirmando || _guardando || _elementos.Count == 0)">
+                                    <Boton Variante="VarianteBoton.Primario" OnClick="PedirConfirmar" Deshabilitado="@(_confirmando || _guardando || _elementos.Count == 0)">
                                         @(_confirmando ? "Confirmando…" : "Confirmar plantilla")
                                     </Boton>
                                 </div>
@@ -357,7 +357,7 @@
                             @if (_ambitoAplicacion == AmbitoAplicacion.Trabajador && _modoLote)
                             {
                                 <div>
-                                    <Boton OnClick="GenerarLoteAsync" Deshabilitado="@(!PuedeGenerarLote)">
+                                    <Boton Variante="VarianteBoton.Primario" OnClick="GenerarLoteAsync" Deshabilitado="@(!PuedeGenerarLote)">
                                         @(_procesandoLote ? $"Generando… ({TotalProcesadosLote}/{_itemsLote.Count})" : "Generar lote")
                                     </Boton>
                                 </div>
@@ -396,7 +396,7 @@
                             else
                             {
                                 <div>
-                                    <Boton OnClick="GenerarDocumentoAsync" Deshabilitado="@(!PuedeGenerar)">
+                                    <Boton Variante="VarianteBoton.Primario" OnClick="GenerarDocumentoAsync" Deshabilitado="@(!PuedeGenerar)">
                                         @(_generando ? "Generando…" : "Generar documento")
                                     </Boton>
                                 </div>
@@ -470,7 +470,7 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_confirmando" OnClick="() => CerrarDialogoConfirmar(false)">Cancelar</Boton>
-        <Boton Cargando="_confirmando" OnClick="ConfirmarAsync">Sí, confirmar</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_confirmando" OnClick="ConfirmarAsync">Sí, confirmar</Boton>
     </Pie>
 </Modal>
 </LimiteDeErrores>

@@ -44,7 +44,7 @@
     {
         <EstadoVacio Titulo="No pudimos cargar las reclamaciones enviadas" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
-                <Boton OnClick="CargarHistorialAsync">Reintentar</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarHistorialAsync">Reintentar</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -117,7 +117,7 @@ else if (_error)
 {
     <EstadoVacio Titulo="No pudimos cargar las reclamaciones" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
-            <Boton OnClick="CargarAsync">Reintentar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -134,7 +134,7 @@ else
 
         <Tarjeta @key="lote.ClienteId" Titulo="@lote.RazonSocialCliente" Class="tarjeta-reclamacion">
             <AccionesHeader>
-                <SoloConEscritura><Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.ClienteId).Count == 0)"
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.ClienteId).Count == 0)"
                        Cargando="enviando" OnClick="() => AbrirRevision(lote)"
                        title="@TituloBotonEnviar(lote, seleccionados.Count)">
                     Enviar reclamación (@seleccionados.Count)
@@ -252,7 +252,7 @@ else
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviandoClienteId is not null" OnClick="() => CerrarRevision(false)">@Textos["RecVolver"]</Boton>
-        <Boton Cargando="_enviandoClienteId is not null" OnClick="ConfirmarEnvioAsync">@Textos["RecConfirmarEnviar"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_enviandoClienteId is not null" OnClick="ConfirmarEnvioAsync">@Textos["RecConfirmarEnviar"]</Boton>
     </Pie>
 </Modal>
 
@@ -277,7 +277,7 @@ else
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_reenviandoId is not null" OnClick="() => CerrarRevisionReenvio(false)">@Textos["RecVolver"]</Boton>
-        <Boton Cargando="_reenviandoId is not null" OnClick="ConfirmarReenvioAsync">@Textos["RecConfirmarEnviar"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_reenviandoId is not null" OnClick="ConfirmarReenvioAsync">@Textos["RecConfirmarEnviar"]</Boton>
     </Pie>
 </Modal>
 

@@ -58,7 +58,7 @@ else if (_error || _detalle is null)
 {
     <EstadoVacio Titulo="No pudimos cargar el centro" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
-            <Boton OnClick="CargarCabeceraAsync">Reintentar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarCabeceraAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -128,7 +128,7 @@ else
                     </div>
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
-                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar</Boton>
+                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar</Boton>
                     </div>
                 }
                 else
@@ -179,7 +179,7 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar la documentación requerida" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="CargarDocumentacionAsync">Reintentar</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="CargarDocumentacionAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -244,7 +244,7 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar los trabajadores" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="CargarTrabajadoresAsync">Reintentar</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="CargarTrabajadoresAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -276,7 +276,7 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar los vehículos" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="CargarVehiculosAsync">Reintentar</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="CargarVehiculosAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -330,7 +330,7 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar la plataforma" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="CargarPlataformaAsync">Reintentar</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="CargarPlataformaAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -473,7 +473,7 @@ else
         </ChildContent>
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerDocVisible = false" Deshabilitado="_guardandoDocumentacion">Cancelar</Boton>
-            <Boton OnClick="GuardarDocumentacionAsync" Cargando="_guardandoDocumentacion" Deshabilitado="_subiendoArchivoEdicion">Guardar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="GuardarDocumentacionAsync" Cargando="_guardandoDocumentacion" Deshabilitado="_subiendoArchivoEdicion">Guardar</Boton>
         </Pie>
     </Drawer>
 
@@ -565,7 +565,7 @@ else
         </ChildContent>
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerCanalVisible = false" Deshabilitado="_guardandoCanal">Cancelar</Boton>
-            <Boton OnClick="GuardarCanalAsync" Cargando="_guardandoCanal">Guardar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="GuardarCanalAsync" Cargando="_guardandoCanal">Guardar</Boton>
         </Pie>
     </Drawer>
 
@@ -603,7 +603,7 @@ else
         </ChildContent>
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerPrioridadVisible = false" Deshabilitado="_enviandoPrioridad">Cancelar</Boton>
-            <Boton OnClick="EnviarPrioridadAsync" Cargando="_enviandoPrioridad" Deshabilitado="_cargandoBorradorPrioridad || _borradorPrioridad is null">Enviar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="EnviarPrioridadAsync" Cargando="_enviandoPrioridad" Deshabilitado="_cargandoBorradorPrioridad || _borradorPrioridad is null">Enviar</Boton>
         </Pie>
     </Drawer>
 
@@ -679,7 +679,7 @@ else
         </ChildContent>
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerReclamacionCentroVisible = false" Deshabilitado="_enviandoReclamacionCentro">Cancelar</Boton>
-            <Boton OnClick="EnviarReclamacionCentroAsync" Cargando="_enviandoReclamacionCentro"
+            <Boton Variante="VarianteBoton.Primario" OnClick="EnviarReclamacionCentroAsync" Cargando="_enviandoReclamacionCentro"
                    Deshabilitado="_loteReclamacionCentro is null || _contactosReclamacionCentro.Count == 0">Enviar</Boton>
         </Pie>
     </Drawer>

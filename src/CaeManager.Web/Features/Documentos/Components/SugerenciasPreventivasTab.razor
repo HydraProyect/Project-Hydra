@@ -36,7 +36,7 @@ else if (_errorVentanas)
 {
     <EstadoVacio Titulo="No pudimos cargar los próximos vencimientos" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
-            <Boton OnClick="CargarVentanasAsync">Reintentar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarVentanasAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -110,7 +110,7 @@ else if (_error)
 {
     <EstadoVacio Titulo="No pudimos cargar las sugerencias" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
-            <Boton OnClick="CargarAsync">Reintentar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }

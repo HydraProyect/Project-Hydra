@@ -57,7 +57,7 @@
 
                 <Tarjeta @key="lote.TitularId" Titulo="@lote.TitularNombre" Class="tarjeta-reclamacion">
                     <AccionesHeader>
-                        <Boton Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || contactos.Count == 0 || _enviando)"
+                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || contactos.Count == 0 || _enviando)"
                                Cargando="enviandoEste" OnClick="() => EnviarAsync(lote)">
                             Enviar (@seleccionados.Count)
                         </Boton>

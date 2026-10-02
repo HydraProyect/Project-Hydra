@@ -68,7 +68,7 @@
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _aliasSugerido = null" Deshabilitado="_asignandoAliasSugerido">
                                 Descartar
                             </Boton>
-                            <Boton Tamano="TamanoBoton.Pequeno" OnClick="AceptarAliasSugeridoAsync" Cargando="_asignandoAliasSugerido">
+                            <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="AceptarAliasSugeridoAsync" Cargando="_asignandoAliasSugerido">
                                 Añadir como alias
                             </Boton>
                         </div>
@@ -199,7 +199,7 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             Cancelar
         </Boton>
-        <Boton Deshabilitado="_subiendoArchivo" Cargando="_guardando" OnClick="GuardarAsync">
+        <Boton Variante="VarianteBoton.Primario" Deshabilitado="_subiendoArchivo" Cargando="_guardando" OnClick="GuardarAsync">
             Guardar
         </Boton>
     </Pie>

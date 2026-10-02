@@ -140,7 +140,7 @@
         <EstadoVacio Titulo="No pudimos cargar las detecciones" Descripcion="Intenta nuevamente en unos segundos, o puede que no tengas acceso a esta empresa."
                      NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
-                <Boton OnClick="ReintentarAsync">Reintentar</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarAsync">Reintentar</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -207,7 +207,7 @@
                                                        OnClick="() => PedirDescarte(deteccion)">
                                                     Descartar
                                                 </Boton>
-                                                <Boton Tamano="TamanoBoton.Pequeno"
+                                                <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
                                                        Deshabilitado="@(_procesandoId is not null)"
                                                        Cargando="@(_procesandoId == deteccion.Id && !_descartando)"
                                                        OnClick="() => DarDeAltaAsync(deteccion)">

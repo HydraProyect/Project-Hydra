@@ -23,7 +23,7 @@
             <Boton Variante="VarianteBoton.Secundario" OnClick="() => DescartarAsync(actual)">@Textos["BotonOmitir"]</Boton>
             @if (!string.IsNullOrWhiteSpace(actual.UrlAccion))
             {
-                <Boton OnClick="() => GestionarAsync(actual)">@(actual.TextoAccion ?? Textos["AccionPorDefecto"])</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="() => GestionarAsync(actual)">@(actual.TextoAccion ?? Textos["AccionPorDefecto"])</Boton>
             }
         </Pie>
     </Modal>

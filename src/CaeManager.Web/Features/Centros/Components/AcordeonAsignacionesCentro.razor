@@ -30,7 +30,7 @@
 {
     <EstadoVacio Titulo="No pudimos cargar las asignaciones" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
-            <Boton OnClick="CargarAsync">Reintentar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -154,7 +154,7 @@ else
             {
                 <div class="fila-documento-requerido" @key="trabajador.TrabajadorId">
                     <span class="fila-documento-requerido-nombre">@trabajador.TrabajadorNombre</span>
-                    <Boton Tamano="TamanoBoton.Pequeno" Cargando="_asignandoDesdeVisita.Contains(trabajador.TrabajadorId)"
+                    <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="_asignandoDesdeVisita.Contains(trabajador.TrabajadorId)"
                            OnClick="() => AsignarDesdeVisitaAsync(trabajador)">
                         Asignar
                     </Boton>

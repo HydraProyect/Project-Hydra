@@ -46,7 +46,7 @@
 <div class="contenedor-pagina">
     <CabeceraPagina Kicker="@Textos["Kicker"]" Titulo="@Textos["TituloPagina"]">
         <Acciones>
-            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
+            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
@@ -71,7 +71,7 @@
     {
         <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
             <Accion>
-                <Boton OnClick="RecargarAsync">@Comunes["Reintentar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="RecargarAsync">@Comunes["Reintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -319,7 +319,7 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             @Textos["BotonCancelar"]
         </Boton>
-        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
             @Textos["BotonGuardar"]
         </Boton>
     </Pie>
@@ -474,7 +474,7 @@
             {
                 <EstadoVacio Titulo="@Textos["ErrorDocumentacionTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
                     <Accion>
-                        <Boton OnClick="ReintentarDocumentacionAsync">@Comunes["Reintentar"]</Boton>
+                        <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarDocumentacionAsync">@Comunes["Reintentar"]</Boton>
                     </Accion>
                 </EstadoVacio>
             }
@@ -561,7 +561,7 @@
                 @(string.IsNullOrWhiteSpace(_detalle.MotivoCancelacion) ? Textos["DetalleCancelada"].Value : Textos["DetalleCanceladaMotivo", _detalle.MotivoCancelacion].Value)
             </span>
             <SoloConEscritura>
-                <Boton OnClick="() => AbrirReactivar(_detalle.Id, _detalle.CentroNombre)">@Textos["AccionReactivar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="() => AbrirReactivar(_detalle.Id, _detalle.CentroNombre)">@Textos["AccionReactivar"]</Boton>
             </SoloConEscritura>
             <Boton Variante="VarianteBoton.Secundario" OnClick="() => _detalleVisible = false">@Textos["BotonCerrar"]</Boton>
         }
@@ -573,7 +573,7 @@
                Consulta: no se le ofrecen, y el pie no queda vacío, le queda Cerrar. *@
             <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionPie">
                 <Authorized>
-                    <Boton Cargando="_marcandoNotificadoDetalle" OnClick="AlternarNotificadoDesdeDetalleAsync">
+                    <Boton Variante="VarianteBoton.Primario" Cargando="_marcandoNotificadoDetalle" OnClick="AlternarNotificadoDesdeDetalleAsync">
                         @(_detalle.NotificadoCliente ? Textos["BotonQuitarMarcaNotificada"].Value : Textos["BotonMarcarNotificada"].Value)
                     </Boton>
                     <Boton Variante="VarianteBoton.Secundario" OnClick="EditarDesdeDetalleAsync">@Textos["AccionEditar"]</Boton>

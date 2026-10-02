@@ -36,7 +36,7 @@ else if (_error || _detalle is null)
 {
     <EstadoVacio Titulo="No pudimos cargar la empresa" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
-            <Boton OnClick="CargarCabeceraAsync">Reintentar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarCabeceraAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -94,7 +94,7 @@ else
                                        TextoVacio="Todavía no hay Clientes empresariales creados." />
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
-                        <Boton Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar</Boton>
+                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar</Boton>
                     </div>
 
                     <div class="campo">
@@ -167,7 +167,7 @@ else
                 {
                     <EstadoVacio Titulo="No pudimos cargar los Clientes empresariales" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
-                            <Boton OnClick="CargarClientesAsync">Reintentar</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="CargarClientesAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }

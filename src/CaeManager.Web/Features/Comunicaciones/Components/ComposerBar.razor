@@ -28,7 +28,7 @@
             <CampoTexto Etiqueta="Correo del contacto" Placeholder="cliente@empresa.com" Valor="@EmailFallback" ValorChanged="v => EmailFallbackChanged.InvokeAsync(v)" />
             <CampoTextarea Valor="@Texto" ValorChanged="v => TextoChanged.InvokeAsync(v)" Filas="3" Placeholder="Escribe tu mensaje…" />
             <div class="composer-acciones">
-                <Boton Cargando="Enviando" Deshabilitado="@(string.IsNullOrWhiteSpace(Texto) || string.IsNullOrWhiteSpace(EmailFallback))"
+                <Boton Variante="VarianteBoton.Primario" Cargando="Enviando" Deshabilitado="@(string.IsNullOrWhiteSpace(Texto) || string.IsNullOrWhiteSpace(EmailFallback))"
                        OnClick="() => OnEnviarFallbackCorreo.InvokeAsync()">
                     Continuar por correo
                 </Boton>
@@ -48,7 +48,7 @@
                       disabled="@Enviando" value="@Texto"
                       @oninput="e => TextoChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"
                       @onkeydown="ManejarTeclaAsync"></textarea>
-            <Boton Cargando="Enviando" Deshabilitado="@string.IsNullOrWhiteSpace(Texto)" OnClick="() => OnEnviar.InvokeAsync()" class="composer-boton-enviar-circular" aria-label="@TextosAccesibles["BotonEnviarMensaje"]">
+            <Boton Variante="VarianteBoton.Primario" Cargando="Enviando" Deshabilitado="@string.IsNullOrWhiteSpace(Texto)" OnClick="() => OnEnviar.InvokeAsync()" class="composer-boton-enviar-circular" aria-label="@TextosAccesibles["BotonEnviarMensaje"]">
                 <Icono Nombre="enviar" Tamano="TamanoIcono.Pequeno" />
             </Boton>
         </div>
@@ -116,7 +116,7 @@
                     <Icono Nombre="adjunto" Tamano="TamanoIcono.Pequeno" /> Adjuntar
                     <InputFile OnChange="e => OnArchivosSeleccionados.InvokeAsync(e)" multiple />
                 </label>
-                <Boton Cargando="Enviando" Deshabilitado="@(string.IsNullOrWhiteSpace(Texto) || ErrorAdjuntos is not null)" OnClick="() => OnEnviar.InvokeAsync()">
+                <Boton Variante="VarianteBoton.Primario" Cargando="Enviando" Deshabilitado="@(string.IsNullOrWhiteSpace(Texto) || ErrorAdjuntos is not null)" OnClick="() => OnEnviar.InvokeAsync()">
                     Enviar
                 </Boton>
             </div>

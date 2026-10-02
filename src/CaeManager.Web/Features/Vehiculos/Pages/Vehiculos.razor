@@ -36,7 +36,7 @@
         <h1 class="titulo-pagina">@Textos["TituloPagina"]</h1>
         @if (!_alcanceCero && !_sinEmpresaSeleccionada && !_resolviendoEmpresa)
         {
-            <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevoVehiculo"]</Boton></SoloConEscritura>
+            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">@Textos["BotonNuevoVehiculo"]</Boton></SoloConEscritura>
         }
     </div>
 
@@ -83,7 +83,7 @@
     {
         <EstadoVacio Titulo="@Textos["ErrorCargaListaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
             <Accion>
-                <Boton OnClick="RecargarAsync">@Textos["BotonReintentar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="RecargarAsync">@Textos["BotonReintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -227,7 +227,7 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             @Textos["BotonCancelar"]
         </Boton>
-        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
             @Textos["BotonGuardar"]
         </Boton>
     </Pie>

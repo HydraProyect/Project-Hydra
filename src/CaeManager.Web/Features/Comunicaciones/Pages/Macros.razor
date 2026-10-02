@@ -31,7 +31,7 @@
         </Descripcion>
         <Acciones>
             <a class="enlace-volver-bandeja" href="/comunicaciones">Volver a la bandeja</a>
-            <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva macro</Boton></SoloConEscritura>
+            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nueva macro</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
@@ -59,7 +59,7 @@
         <EstadoVacio NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)"
                      Titulo="No pudimos cargar las macros" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -85,7 +85,7 @@
         <EstadoVacio NombreIcono="vacio" Titulo="Ni macros genéricas ni de este Cliente empresarial"
                      Descripcion="Este Cliente empresarial no tiene plantillas propias, y tampoco hay ninguna genérica que aplicarle.">
             <Accion>
-                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva macro</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nueva macro</Boton></SoloConEscritura>
             </Accion>
         </EstadoVacio>
     }
@@ -98,7 +98,7 @@
         <EstadoVacio Titulo="No hay macros genéricas"
                      Descripcion="Crea la primera plantilla de respuesta, o elige un Cliente empresarial arriba para ver las suyas.">
             <Accion>
-                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva macro</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nueva macro</Boton></SoloConEscritura>
             </Accion>
         </EstadoVacio>
     }
@@ -182,7 +182,7 @@
                     Tus cambios no se han guardado. Copia tu contenido si quieres conservarlo y carga la versión actual.
                 </span>
                 <div class="macros-conflicto-acciones">
-                    <Boton Tamano="TamanoBoton.Pequeno" Cargando="_recargandoVersion" OnClick="CargarVersionActualAsync">
+                    <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="_recargandoVersion" OnClick="CargarVersionActualAsync">
                         Cargar la versión actual
                     </Boton>
                     <span class="macros-conflicto-copiar">
@@ -226,7 +226,7 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">
             Cancelar
         </Boton>
-        <Boton Cargando="_guardando" Deshabilitado="_conflicto" OnClick="GuardarAsync">
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" Deshabilitado="_conflicto" OnClick="GuardarAsync">
             Guardar
         </Boton>
     </Pie>

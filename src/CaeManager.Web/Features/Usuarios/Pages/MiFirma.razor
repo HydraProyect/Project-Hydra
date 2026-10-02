@@ -83,7 +83,7 @@
 
                         <div class="mi-firma-acciones">
                             <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarLienzoAsync" Deshabilitado="_guardando">Borrar</Boton>
-                            <Boton OnClick="GuardarDibujadaAsync" Cargando="_guardando" Deshabilitado="@(!_trazoIniciado || _guardando)">
+                            <Boton Variante="VarianteBoton.Primario" OnClick="GuardarDibujadaAsync" Cargando="_guardando" Deshabilitado="@(!_trazoIniciado || _guardando)">
                                 @(_guardando ? "Guardando…" : "Guardar como mi firma")
                             </Boton>
                             @if (!_trazoIniciado)

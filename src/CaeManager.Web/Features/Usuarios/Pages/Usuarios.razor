@@ -21,7 +21,7 @@
         <Acciones>
             @if (!_modoEquipo)
             {
-                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nuevo usuario</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nuevo usuario</Boton></SoloConEscritura>
             }
         </Acciones>
     </CabeceraPagina>
@@ -55,7 +55,7 @@
     {
         <EstadoVacio Titulo="No pudimos cargar los usuarios" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -377,7 +377,7 @@
            instante decidiría con un resultado que todavía no ha llegado.
            Cargando ya impide el doble clic en el cliente; GuardarAsync lo
            impide además en el servidor, que es donde cuenta. *@
-        <Boton OnClick="GuardarAsync" Cargando="_guardando" Deshabilitado="_buscandoCliente">Guardar</Boton>
+        <Boton Variante="VarianteBoton.Primario" OnClick="GuardarAsync" Cargando="_guardando" Deshabilitado="_buscandoCliente">Guardar</Boton>
     </Pie>
 </Drawer>
 
@@ -410,7 +410,7 @@
     </ChildContent>
     <Pie>
         <BotonCopiar Valor="@(_enlaceActivacion ?? string.Empty)" Etiqueta="el enlace de activación" />
-        <Boton OnClick="() => _enlaceActivacion = null">Hecho</Boton>
+        <Boton Variante="VarianteBoton.Primario" OnClick="() => _enlaceActivacion = null">Hecho</Boton>
     </Pie>
 </Modal>
 

@@ -21,7 +21,7 @@
             <a class="enlace-exportar" href="/comunicaciones">Volver a Comunicaciones</a>
             @if (_conexionSeleccionadaId is not null)
             {
-                <SoloConEscritura><Boton Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactar">Redactar</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactar">Redactar</Boton></SoloConEscritura>
             }
         </Acciones>
     </CabeceraPagina>
@@ -44,7 +44,7 @@
     {
         <EstadoVacio Titulo="Sin buzones conectados" Descripcion="Conecta un buzón de Microsoft 365 en Conexiones de integración para poder navegarlo aquí.">
             <Accion>
-                <Boton Href="/integraciones">Ir a Conexiones</Boton>
+                <Boton Variante="VarianteBoton.Primario" Href="/integraciones">Ir a Conexiones</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -112,7 +112,7 @@
                 {
                     <EstadoVacio Titulo="No pudimos cargar el historial" Descripcion="@_errorMensajes">
                         <Accion>
-                            <Boton OnClick="CargarMensajesAsync">Reintentar</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="CargarMensajesAsync">Reintentar</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -194,7 +194,7 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviandoRedaccion" OnClick="() => _redactarVisible = false">Cancelar</Boton>
-        <Boton Cargando="_enviandoRedaccion" OnClick="EnviarMensajeNuevoAsync">Enviar</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_enviandoRedaccion" OnClick="EnviarMensajeNuevoAsync">Enviar</Boton>
     </Pie>
 </Drawer>
 

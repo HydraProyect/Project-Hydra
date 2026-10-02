@@ -36,7 +36,7 @@ else if (_error)
 {
     <EstadoVacio Titulo="No pudimos cargar el estado por plataforma" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
-            <Boton OnClick="CargarAsync">Reintentar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -238,7 +238,7 @@ else
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_confirmandoVigencia" OnClick="() => _vigenciaVisible = false">Cancelar</Boton>
-        <Boton Cargando="_confirmandoVigencia" OnClick="ConfirmarAceptadoAsync">@(_soloVigencia ? "Guardar vigencia" : "Marcar aceptado")</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_confirmandoVigencia" OnClick="ConfirmarAceptadoAsync">@(_soloVigencia ? "Guardar vigencia" : "Marcar aceptado")</Boton>
     </Pie>
 </Modal>
 
@@ -255,7 +255,7 @@ else
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_rechazando" OnClick="() => _rechazoVisible = false">Cancelar</Boton>
-        <Boton Cargando="_rechazando" OnClick="ConfirmarRechazoAsync">Marcar rechazado</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_rechazando" OnClick="ConfirmarRechazoAsync">Marcar rechazado</Boton>
     </Pie>
 </Modal>
 

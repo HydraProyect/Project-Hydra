@@ -27,7 +27,7 @@
     {
         <EstadoVacio Titulo="No pudimos cargar este centro" Descripcion="Puede que ya no exista o que no tengas acceso.">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
                 <EnlaceProfundoOtraEmpresa />
             </Accion>
         </EstadoVacio>
@@ -122,7 +122,7 @@
             </JuntoAlTitulo>
             <Acciones>
                 <span class="centro360-acciones">
-                <Boton OnClick="ProgramarVisita">Programar visita</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="ProgramarVisita">Programar visita</Boton>
                 @*
                     El resto de acciones, en el menú «⋯» del mockup. «Reclamar
                     documentación» remite al panel a propósito (ver doc de la

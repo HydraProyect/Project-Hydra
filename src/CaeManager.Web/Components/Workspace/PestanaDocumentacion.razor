@@ -24,7 +24,7 @@
 {
     <SoloConEscritura>
         <div class="workspace-acciones-documentacion">
-            <Boton Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerGestion!.AbrirCrearParaVehiculoAsync(PropietarioId)">@Comunes["SubirDocumento"]</Boton>
+            <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerGestion!.AbrirCrearParaVehiculoAsync(PropietarioId)">@Comunes["SubirDocumento"]</Boton>
         </div>
     </SoloConEscritura>
     <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="CargarAsync" />
@@ -38,7 +38,7 @@ else if (_error)
 {
     <EstadoVacio Titulo="No pudimos cargar la documentación" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
-            <Boton OnClick="CargarAsync">Reintentar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }

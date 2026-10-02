@@ -124,7 +124,7 @@
                     }
                 </div>
                 <div class="acciones-formulario acciones-derecha">
-                    <Boton OnClick="ContinuarAAnalizar">@Textos["BotonContinuarConPlantilla", Textos[PlantillaActual.ClaveNombreCorto].Value]</Boton>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="ContinuarAAnalizar">@Textos["BotonContinuarConPlantilla", Textos[PlantillaActual.ClaveNombreCorto].Value]</Boton>
                 </div>
             </div>
 
@@ -339,7 +339,7 @@
                 {
                     <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(1)">@Textos["BotonCambiarPlantilla"]</Boton>
                 }
-                <Boton Deshabilitado="!TienePlan" OnClick="ContinuarARevisarPlan">@Textos["BotonVerPlan"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" Deshabilitado="!TienePlan" OnClick="ContinuarARevisarPlan">@Textos["BotonVerPlan"]</Boton>
             </div>
         </div>
     }
@@ -476,7 +476,7 @@
 
             <div class="acciones-formulario acciones-entre">
                 <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(2)">@Textos["BotonVolverArchivo"]</Boton>
-                <Boton OnClick="ContinuarAConfirmar">@Textos["BotonContinuarConfirmar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="ContinuarAConfirmar">@Textos["BotonContinuarConfirmar"]</Boton>
             </div>
         </div>
     }
@@ -523,7 +523,7 @@
 
             <div class="acciones-formulario acciones-entre">
                 <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(3)">@Textos["BotonRevisarElPlan"]</Boton>
-                <Boton Deshabilitado="!_confirmado" Cargando="_importando" OnClick="SolicitarImportacion">@Textos["BotonImportarAhora"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" Deshabilitado="!_confirmado" Cargando="_importando" OnClick="SolicitarImportacion">@Textos["BotonImportarAhora"]</Boton>
             </div>
         </div>
     }
@@ -586,7 +586,7 @@
                 }
 
                 <div class="acciones-formulario">
-                    <Boton OnClick="EmpezarDeNuevo">@Textos["BotonNuevaImportacion"]</Boton>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="EmpezarDeNuevo">@Textos["BotonNuevaImportacion"]</Boton>
                     @* Salida del mockup: el propio motivo del handler dice
                        «créalo manualmente en Clientes» sin llevar a ninguna
                        parte. /clientes?accion=crear abre el alta de Cliente

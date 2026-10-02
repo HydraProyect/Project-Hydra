@@ -44,7 +44,7 @@
     <EstadoVacio Titulo="No pudimos cargar los documentos generados" Descripcion="Intenta nuevamente en unos segundos."
                  NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
         <Accion>
-            <Boton OnClick="CargarAsync">Reintentar</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
 }
@@ -72,7 +72,7 @@ else if (_documentosGenerados.Count == 0)
 {
     <EstadoVacio NombreIcono="vacio" Titulo="Todavía no se ha generado ningún documento" Descripcion="Genera uno individual o en lote desde una plantilla confirmada.">
         <Accion>
-            <Boton Href="/plantillas">Ir al catálogo de plantillas</Boton>
+            <Boton Variante="VarianteBoton.Primario" Href="/plantillas">Ir al catálogo de plantillas</Boton>
         </Accion>
     </EstadoVacio>
 }

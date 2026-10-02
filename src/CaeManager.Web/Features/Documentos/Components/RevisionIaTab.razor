@@ -22,7 +22,7 @@
             Titulo="No pudimos cargar las revisiones"
             Descripcion="Intenta nuevamente en unos segundos. Ninguna revisión se ha resuelto.">
             <Accion>
-                <Boton OnClick="CargarAsync">Reintentar</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -184,6 +184,7 @@
                             }
                             <div class="revision-ia-acciones-detalle">
                                 <Boton
+                                    Variante="VarianteBoton.Primario"
                                     Deshabilitado="@(seleccionada.FechaEmisionDetectada is null)"
                                     Cargando="@(_procesandoId == seleccionada.Id)"
                                     OnClick="() => AceptarDeteccionAsync(seleccionada.Id)">
@@ -221,7 +222,7 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_operacionEnCurso" OnClick="CerrarCorreccionManual">Cancelar</Boton>
-        <Boton Cargando="@(_procesandoId == _revisionIdSeleccionada)" OnClick="CorregirSeleccionadaAsync">Guardar y cerrar el aviso</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="@(_procesandoId == _revisionIdSeleccionada)" OnClick="CorregirSeleccionadaAsync">Guardar y cerrar el aviso</Boton>
     </Pie>
 </Drawer>
 <DialogoConfirmacion

@@ -47,7 +47,7 @@
             }
             @if (!_alcanceCero && !_sinEmpresaSeleccionada && !_resolviendoEmpresa)
             {
-                <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva empresa</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nueva empresa</Boton></SoloConEscritura>
             }
         </Acciones>
     </CabeceraPagina>
@@ -102,7 +102,7 @@
     {
         <EstadoVacio Titulo="No pudimos cargar las empresas" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
-                <Boton OnClick="() => CargarAsync()">Reintentar</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="() => CargarAsync()">Reintentar</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -134,7 +134,7 @@
         <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
             <EstadoVacio NombreIcono="empresas" Titulo="Aún no hay empresas" Descripcion="Crea la primera para poder dar de alta trabajadores.">
                 <Accion>
-                    <SoloConEscritura><Boton OnClick="AbrirCrear">+ Nueva empresa</Boton></SoloConEscritura>
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nueva empresa</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         </VacioSegunAlcance>
@@ -364,7 +364,7 @@
         <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearCentroAsync">
             Continuar con el centro
         </Boton>
-        <Boton Cargando="_guardando" OnClick="GuardarAsync">
+        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
             Guardar
         </Boton>
     </Pie>

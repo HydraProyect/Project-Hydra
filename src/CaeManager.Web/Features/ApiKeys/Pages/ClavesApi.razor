@@ -26,7 +26,7 @@
             </CampoSelect>
             @if (_delegacionSeleccionadaId is not null)
             {
-                <div class="claves-api-acciones"><Boton OnClick="AbrirGeneracion">Generar clave</Boton></div>
+                <div class="claves-api-acciones"><Boton Variante="VarianteBoton.Primario" OnClick="AbrirGeneracion">Generar clave</Boton></div>
                 @if (_cargandoClaves) { <EstadoCargando Filas="3" /> }
                 else if (_claves.Count == 0) { <EstadoVacio Titulo="Sin claves emitidas" Descripcion="Esta organización todavía no tiene ninguna clave de la API pública." /> }
                 else
@@ -60,14 +60,14 @@
         <CampoTexto Etiqueta="Nombre" Valor="@_nombreNuevaClave" ValorChanged="CambiarNombreNuevaClave" Placeholder="Integración con el ERP" />
         @if (_errorGenerar is not null) { <p class="aviso-error" role="alert">@_errorGenerar</p> }
     </ChildContent>
-    <Pie><Boton Variante="VarianteBoton.Secundario" Deshabilitado="_generando" OnClick="() => CerrarFormularioGenerar(false)">Cancelar</Boton><Boton Cargando="_generando" OnClick="GenerarAsync">Generar</Boton></Pie>
+    <Pie><Boton Variante="VarianteBoton.Secundario" Deshabilitado="_generando" OnClick="() => CerrarFormularioGenerar(false)">Cancelar</Boton><Boton Variante="VarianteBoton.Primario" Cargando="_generando" OnClick="GenerarAsync">Generar</Boton></Pie>
 </Modal>
 
 <Modal Visible="@(_claveGenerada is not null)" VisibleChanged="CerrarClaveGenerada" Titulo="Clave generada" CerrarAlHacerClicFuera="false">
     <ChildContent>
         @if (_claveGenerada is not null) { <p class="aviso-revocacion" role="alert">Copia esta clave ahora: no se puede volver a mostrar. Si se pierde, hay que revocarla y generar otra.</p><div class="clave-generada"><span>Clave</span><code>@_claveGenerada</code></div> }
     </ChildContent>
-    <Pie><BotonCopiar Valor="@(_claveGenerada ?? string.Empty)" Etiqueta="la clave API" /><Boton OnClick="() => CerrarClaveGenerada(false)">Ya la copié</Boton></Pie>
+    <Pie><BotonCopiar Valor="@(_claveGenerada ?? string.Empty)" Etiqueta="la clave API" /><Boton Variante="VarianteBoton.Primario" OnClick="() => CerrarClaveGenerada(false)">Ya la copié</Boton></Pie>
 </Modal>
 
 <DialogoConfirmacion Visible="@(_claveARevocar is not null)" VisibleChanged="CerrarRevocacion" Titulo="Revocar la clave" Mensaje="@MensajeRevocacion" TextoBotonConfirmar="Revocar" EnProgreso="_revocando" OnConfirmar="RevocarAsync" />

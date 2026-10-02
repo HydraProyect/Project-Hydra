@@ -11,7 +11,7 @@
                 @TextosAutorizar["NotaEnlacePlataforma"]
             </p>
         </div>
-        <Boton OnClick="AbrirNuevoOperador">Nuevo Operador CAE externo</Boton>
+        <Boton Variante="VarianteBoton.Primario" OnClick="AbrirNuevoOperador">Nuevo Operador CAE externo</Boton>
     </div>
 
     @if (_error)
@@ -80,7 +80,7 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enCurso" OnClick="() => CerrarModal(false)">Cancelar</Boton>
-        <Boton Cargando="_enCurso" OnClick="ConfirmarAsync">Crear</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_enCurso" OnClick="ConfirmarAsync">Crear</Boton>
     </Pie>
 </Modal>
 

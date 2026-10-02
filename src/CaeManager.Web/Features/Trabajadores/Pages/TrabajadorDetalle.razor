@@ -26,7 +26,7 @@
     {
         <EstadoVacio Titulo="@Textos["DetalleErrorTitulo"]" Descripcion="@Textos["DetalleErrorDescripcion"]">
             <Accion>
-                <Boton OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
                 <EnlaceProfundoOtraEmpresa />
             </Accion>
         </EstadoVacio>
@@ -89,7 +89,7 @@
             </Descripcion>
             <Acciones>
                 <span class="trabajador360-acciones">
-                    <SoloConEscritura><Boton OnClick="SubirDocumentoAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
                     <MenuAcciones>
                         <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditar"]</ItemMenuAccion></SoloConEscritura>
                         <SoloConEscritura><ItemMenuAccion OnClick="ReclamarFaltantesAsync">@Textos["AccionReclamarFaltantes"]</ItemMenuAccion></SoloConEscritura>
@@ -351,7 +351,7 @@
                         <EstadoVacio Titulo="@Textos["DocumentacionErrorTitulo"]" Descripcion="@Textos["DocumentacionErrorDescripcion"]"
                                      NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
                             <Accion>
-                                <Boton OnClick="CargarDocumentosAsync">@Comunes["Reintentar"]</Boton>
+                                <Boton Variante="VarianteBoton.Primario" OnClick="CargarDocumentosAsync">@Comunes["Reintentar"]</Boton>
                             </Accion>
                         </EstadoVacio>
                     }
@@ -361,7 +361,7 @@
                         @if (_documentos.Count == 0)
                         {
                             <p class="texto-vacio-seccion">@Textos["SinDocumentos"]</p>
-                            <SoloConEscritura><Boton OnClick="SubirDocumentoAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
+                            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
                         }
                         else
                         {
@@ -503,7 +503,7 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_creandoGestion" OnClick="() => _crearGestionVisible = false">@Textos["BotonCancelar"]</Boton>
-        <Boton Cargando="_creandoGestion" Deshabilitado="string.IsNullOrEmpty(_tipoDocumentoParaGestion)" OnClick="ConfirmarCrearGestionAsync">@Textos["BotonCrear"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_creandoGestion" Deshabilitado="string.IsNullOrEmpty(_tipoDocumentoParaGestion)" OnClick="ConfirmarCrearGestionAsync">@Textos["BotonCrear"]</Boton>
     </Pie>
 </Modal>
 
@@ -542,7 +542,7 @@
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_reclamandoFaltantes" OnClick="() => _reclamarFaltantesVisible = false">@Textos["BotonCancelar"]</Boton>
-        <Boton Cargando="_reclamandoFaltantes" Deshabilitado="_clientesSeleccionadosReclamar.Count == 0" OnClick="ConfirmarReclamarFaltantesAsync">@Textos["BotonReclamar"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_reclamandoFaltantes" Deshabilitado="_clientesSeleccionadosReclamar.Count == 0" OnClick="ConfirmarReclamarFaltantesAsync">@Textos["BotonReclamar"]</Boton>
     </Pie>
 </Modal>
 

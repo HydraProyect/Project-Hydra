@@ -51,7 +51,7 @@
                 {
                     <EstadoVacio Titulo="@Textos["ErrorCargaSubcontrataTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
                         <Accion>
-                            <Boton OnClick="ReintentarAsync">@Comunes["Reintentar"]</Boton>
+                            <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarAsync">@Comunes["Reintentar"]</Boton>
                         </Accion>
                     </EstadoVacio>
                 }
@@ -105,7 +105,7 @@
         </div>
 
         <div class="pie-preview-subcontrata">
-            <Boton OnClick='() => Operar("informacion")'>@Textos["BotonOperar"]</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick='() => Operar("informacion")'>@Textos["BotonOperar"]</Boton>
             <span class="nota-pie-preview-subcontrata">@Textos["NotaAbreSubcontrata360"]</span>
         </div>
     </aside>

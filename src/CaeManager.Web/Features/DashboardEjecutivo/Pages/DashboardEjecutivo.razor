@@ -56,7 +56,7 @@
         <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]"
                      NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
-                <Boton OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -89,7 +89,7 @@
                     }
                 </div>
                 <div class="acciones-personalizar">
-                    <Boton OnClick="GuardarSeleccionAsync" Cargando="_guardando">@Textos["BotonGuardarKpis"]</Boton>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="GuardarSeleccionAsync" Cargando="_guardando">@Textos["BotonGuardarKpis"]</Boton>
                     @if (HayCambiosSinGuardar)
                     {
                         <Badge Tono="TonoBadge.Advertencia" class="aviso-sin-guardar">@Textos["AvisoCambiosPendientes"]</Badge>

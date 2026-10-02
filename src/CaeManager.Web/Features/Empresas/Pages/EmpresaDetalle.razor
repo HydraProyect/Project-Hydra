@@ -28,7 +28,7 @@
         <EstadoVacio Titulo="@Textos["ErrorTitulo"]" Descripcion="@Textos["ErrorDescripcion"]"
                      NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
-                <Boton OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
                 <EnlaceProfundoOtraEmpresa />
             </Accion>
         </EstadoVacio>
@@ -116,7 +116,7 @@
             </Descripcion>
             <Acciones>
                 <span class="empresa360-acciones">
-                    <Boton Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
+                    <Boton Variante="VarianteBoton.Primario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
                     @* El único ítem del menú es de escritura: sin escritura no hay menú. *@
                     <SoloConEscritura>
                         <MenuAcciones>
@@ -280,7 +280,7 @@
             {
                 <EstadoVacio Titulo="@Textos["ErrorTrabajadores"]" Descripcion="@Textos["ErrorSeccionDescripcion"]">
                     <Accion>
-                        <Boton OnClick="CargarTrabajadoresAsync">@Textos["Reintentar"]</Boton>
+                        <Boton Variante="VarianteBoton.Primario" OnClick="CargarTrabajadoresAsync">@Textos["Reintentar"]</Boton>
                     </Accion>
                 </EstadoVacio>
             }
@@ -363,7 +363,7 @@
             {
                 <EstadoVacio Titulo="@Textos["ErrorClientes"]" Descripcion="@Textos["ErrorSeccionDescripcion"]">
                     <Accion>
-                        <Boton OnClick="CargarClientesAsync">@Textos["Reintentar"]</Boton>
+                        <Boton Variante="VarianteBoton.Primario" OnClick="CargarClientesAsync">@Textos["Reintentar"]</Boton>
                     </Accion>
                 </EstadoVacio>
             }

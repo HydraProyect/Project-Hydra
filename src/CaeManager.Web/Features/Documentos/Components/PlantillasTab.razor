@@ -31,7 +31,7 @@
 {
     <div class="cabecera-pagina">
         <p class="texto-descriptivo">@TextoDescripcion</p>
-        <SoloConEscritura><Boton OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton></SoloConEscritura>
+        <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick='() => Navigation.NavigateTo("/plantillas/nueva")'>+ Nueva plantilla</Boton></SoloConEscritura>
     </div>
 }
 
@@ -42,7 +42,7 @@
         {
             <EstadoVacio Titulo="No pudimos cargar las plantillas" Descripcion="Intenta nuevamente en unos segundos.">
                 <Accion>
-                    <Boton OnClick="CargarAsync">Reintentar</Boton>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
                 </Accion>
             </EstadoVacio>
         }
@@ -151,7 +151,7 @@
         </div>
     </ChildContent>
     <Pie>
-        <Boton OnClick="SubirNuevaVersionAsync" Deshabilitado="@(!PuedeSubirNuevaVersion)">
+        <Boton Variante="VarianteBoton.Primario" OnClick="SubirNuevaVersionAsync" Deshabilitado="@(!PuedeSubirNuevaVersion)">
             @(_subiendoNuevaVersion ? "Subiendo…" : "Subir y configurar")
         </Boton>
     </Pie>
