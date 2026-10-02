@@ -127,7 +127,7 @@
   /* Selección de texto (::selection, base.css): fondo y letra como PAR. Antes
      solo se fijaba el fondo (--color-primary-100, #dcebff, sin variante
      oscura) y la letra la heredaba el elemento: en oscuro eso es #e7eaee sobre
-     #dcebff, 1,2:1 (medido 2026-10-02, seguimiento de #1037). Claro: igual que
+     #dcebff, 1,00:1 (calculado 2026-10-02, seguimiento de #1037). Claro: igual que
      antes en el fondo (#dcebff); la letra pasa a ser --color-text (13,9:1)
      en vez de la que tuviera cada elemento. Oscuro: ver el bloque oscuro.
      Contrato: ContrasteDeSeleccionHoverYLogoPorTemaTests, >= 4,5:1 en ambos. */

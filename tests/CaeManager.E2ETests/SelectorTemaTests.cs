@@ -261,6 +261,9 @@ public class SelectorTemaTests(WebAppFixture fixture)
                     $"(fondo {seleccion.GetProperty("fondo")}, letra {seleccion.GetProperty("letra")}); WCAG AA exige 4,5:1");
 
                 await activo.HoverAsync();
+                // Sin esto, un overlay que se comiera el puntero mediría la base .active (que pasa AA) y no el hover.
+                Assert.True(await activo.EvaluateAsync<bool>("el => el.matches(':hover')"),
+                    "el puntero no quedó sobre el item activo: se estaría midiendo el estado base");
                 var hover = await page.EvaluateAsync<System.Text.Json.JsonElement>(
                     medirContraste, new { selector = selectorActivo, pseudo = (string?)null });
                 Assert.True(hover.GetProperty("ratio").GetDouble() >= 4.5,

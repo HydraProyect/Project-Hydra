@@ -12,7 +12,7 @@ namespace CaeManager.Architecture.Tests;
 /// <list type="bullet">
 /// <item><b>Selección.</b> <c>::selection</c> solo fijaba el fondo
 /// (<c>--color-primary-100</c>) y dejaba la letra al elemento: en oscuro,
-/// #e7eaee sobre #dcebff (~1,2:1).</item>
+/// #e7eaee sobre #dcebff (1,00:1, texto ilegible).</item>
 /// <item><b>Menú lateral.</b> <c>.nav-item.active:hover</c> pintaba
 /// <c>--color-primary-100</c> de fondo con la letra en <c>--color-primary-500</c>,
 /// que en oscuro se remapea a #5ca2f4: 2,19:1.</item>
