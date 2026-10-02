@@ -76,6 +76,14 @@ public partial class UsuariosGen2Tests
         cut.FindAll("[role=dialog]").Should().BeEmpty("sin marcas cambiadas, la salida cierra directamente");
         cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
 
+        // Marcar y volver a desmarcar deja las marcas como estaban: tampoco es un cambio.
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
+        cut.WaitForAssertion(() => CasillasAsignarEmpresas(cut).Should().HaveCount(2));
+        await CasillasAsignarEmpresas(cut)[0].ChangeAsync(new() { Value = true });
+        await CasillasAsignarEmpresas(cut)[0].ChangeAsync(new() { Value = false });
+        await cut.PulsarCancelarDelPieAsync("[role=dialog] .modal-pie");
+        cut.FindAll("[role=dialog]").Should().BeEmpty("marcar y desmarcar no deja nada que perder");
+
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
         cut.WaitForAssertion(() => CasillasAsignarEmpresas(cut).Should().HaveCount(2));
         await CasillasAsignarEmpresas(cut)[0].ChangeAsync(new() { Value = true });

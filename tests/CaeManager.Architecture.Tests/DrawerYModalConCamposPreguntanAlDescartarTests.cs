@@ -104,8 +104,9 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         // Diálogos de confirmación con una elección opcional (decisión de la coordinadora, 2026-10-03, por analogía con los de
         // Visitas): «Volver» es la salida de la confirmación y descarta la elección a propósito; la X sí pregunta.
         ["src/CaeManager.Web/Features/Retencion/Pages/Retencion.razor#Modal2:Volver"] =
-            "Confirmación «Descartar la propuesta» con un Motivo: la acción es confirmar y «Volver» deja la propuesta como estaba. " +
-            "Excepción declarada por la coordinadora (2026-10-03), como los diálogos de confirmación de Visitas.",
+            "Confirmación «Descartar la propuesta»: la acción es confirmar y «Volver» deja la propuesta como estaba. OJO: a diferencia de " +
+            "los diálogos de Visitas, aquí el Motivo es obligatorio y HayCambios es real, así que la X pregunta y «Volver» tira el motivo " +
+            "escrito sin aviso. Excepción declarada por la coordinadora (2026-10-03); revisable si se prefiere que pregunte.",
         ["src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor#Modal2:@TextosUsuarios[\"DesactivarVolver\"]"] =
             "Confirmación «Desactivar usuario» con un Gestor CAE de destino opcional para la cartera: la acción es confirmar y «Volver» " +
             "descarta la elección a propósito (el destino por defecto es «no reasignar»). Excepción por analogía con Retención y Visitas; " +
@@ -226,6 +227,8 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
                 <Pie><Boton Variante="VarianteBoton.Fantasma" OnClick="() => _vM = false">Volver</Boton><Boton Variante="VarianteBoton.Primario" OnClick="G">Guardar</Boton></Pie></Drawer>
             <Drawer @ref="_n" HayCambios="() => X" Visible="v"><ChildContent><CampoTexto Etiqueta="n" />
                 <SelectorLote OnCerrar="() => CerrarAsync(false)" /></ChildContent></Drawer>
+            <Drawer @ref="_o" HayCambios="() => X" Visible="v"><ChildContent><CampoTexto Etiqueta="n" />
+                <SelectorLote OnCancelar="() => _o?.SolicitarCierreAsync() ?? Task.CompletedTask" OnCerrar="() => CerrarAsync(false)" /></ChildContent></Drawer>
             """;
 
         var codigo = """
@@ -255,11 +258,12 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         medidos["x.razor#Drawer7"].SalidasSinGuardian.Should().Equal("Cancelar"); // una variante condicional no exime al botón
         medidos["x.razor#Drawer8"].SalidasSinGuardian.Should().Equal("Volver"); // el rótulo no importa: es el secundario del pie
         medidos["x.razor#Drawer9"].SalidasSinGuardian.Should().Equal("OnCerrar de <SelectorLote>"); // OnCerrar es el mismo gesto que OnCancelar
+        medidos["x.razor#Drawer10"].SalidasSinGuardian.Should().Equal("OnCerrar de <SelectorLote>"); // cada atributo de salida se mide por separado
 
         Evaluar(medidos.Values.ToList(), new Dictionary<string, string>())
             .Where(p => p.Contains("SolicitarCierreAsync", StringComparison.Ordinal))
             .Select(p => p.Split(':')[0])
-            .Should().BeEquivalentTo("x.razor#Drawer1", "x.razor#Modal2", "x.razor#Drawer4", "x.razor#Modal5", "x.razor#Drawer5", "x.razor#Drawer7", "x.razor#Drawer8", "x.razor#Drawer9");
+            .Should().BeEquivalentTo("x.razor#Drawer1", "x.razor#Modal2", "x.razor#Drawer4", "x.razor#Modal5", "x.razor#Drawer5", "x.razor#Drawer7", "x.razor#Drawer8", "x.razor#Drawer9", "x.razor#Drawer10");
 
         // La lista de salidas declaradas absuelve la salida con su clave exacta y se queja cuando ya no hace falta.
         var permitidas = new Dictionary<string, string> { ["x.razor#Drawer8:Volver"] = "motivo" };
@@ -401,18 +405,22 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
 
         // El «Cancelar» que vive en un componente hijo (SelectorLoteDocumental) llega al padre por OnCancelar: el padre lo cablea al
         // guardián del contenedor en vez de cerrar directo. Sin la restricción del <Pie>: el hijo pinta su propio pie.
-        foreach (var hijo in MarcadoRazor.Aperturas(texto, @"[A-Z]\w*").Where(a => AtributoOnCancelar.IsMatch(a.Texto)))
+        foreach (var hijo in MarcadoRazor.Aperturas(texto, @"[A-Z]\w*"))
         {
-            if (UsaElGuardianDeCierre(hijo.Texto, codigo, AtributoOnCancelar)) continue;
-            var dueno = contenedores
-                .Where(c => c.Inicio < hijo.Inicio && hijo.Inicio < c.Fin)
-                .OrderByDescending(c => c.Inicio)
-                .FirstOrDefault();
-            if (dueno is null) continue;
-            var clave = $"{ruta}#{dueno.Nombre}{dueno.Ordinal}";
-            if (!cancelaresPorContenedor.TryGetValue(clave, out var lista))
-                cancelaresPorContenedor[clave] = lista = [];
-            lista.Add($"{AtributoOnCancelar.Match(hijo.Texto).Groups[1].Value} de <{hijo.Nombre}>");
+            // Cada atributo de salida por separado: un hijo con OnCancelar bien cableado y un OnCerrar directo no se absuelve.
+            foreach (var (nombre, atributo) in AtributosDeSalidaDeUnHijo)
+            {
+                if (!atributo.IsMatch(hijo.Texto) || UsaElGuardianDeCierre(hijo.Texto, codigo, atributo)) continue;
+                var dueno = contenedores
+                    .Where(c => c.Inicio < hijo.Inicio && hijo.Inicio < c.Fin)
+                    .OrderByDescending(c => c.Inicio)
+                    .FirstOrDefault();
+                if (dueno is null) continue;
+                var clave = $"{ruta}#{dueno.Nombre}{dueno.Ordinal}";
+                if (!cancelaresPorContenedor.TryGetValue(clave, out var lista))
+                    cancelaresPorContenedor[clave] = lista = [];
+                lista.Add($"{nombre} de <{hijo.Nombre}>");
+            }
         }
 
         return contenedores.Select(c =>
@@ -427,7 +435,11 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     private static readonly Regex AtributoOnClick = new(@"(?:^|\s)OnClick\s*=\s*""", RegexOptions.Compiled);
 
     // OnCancelar y OnCerrar son el mismo gesto (un hijo que pinta su propio botón de salida y avisa al padre).
-    private static readonly Regex AtributoOnCancelar = new(@"(?:^|\s)(OnCancelar|OnCerrar)\s*=\s*""", RegexOptions.Compiled);
+    private static readonly (string Nombre, Regex Atributo)[] AtributosDeSalidaDeUnHijo =
+    [
+        ("OnCancelar", new Regex(@"(?:^|\s)OnCancelar\s*=\s*""", RegexOptions.Compiled)),
+        ("OnCerrar", new Regex(@"(?:^|\s)OnCerrar\s*=\s*""", RegexOptions.Compiled)),
+    ];
 
     private static string TextoVisible(string cuerpo) =>
         Regex.Replace(Regex.Replace(cuerpo, @"<[^>]*>", " "), @"\s+", " ").Trim();
