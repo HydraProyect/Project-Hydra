@@ -35,7 +35,10 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// <b>Límite declarado.</b> Solo entiende colores hexadecimales y
+/// <b>Límite declarado.</b> Lee la primera regla cuyo selector es exactamente el de la
+/// lista: un override por estado o contexto (<c>:hover</c>, <c>[aria-selected] .avatar-tenant</c>)
+/// que cambie <c>color</c> o <c>background</c> no se mide (medido el 2026-10-02: no existe
+/// ninguno). Solo entiende colores hexadecimales y
 /// <c>var()</c>; un <c>color-mix()</c>, <c>oklch()</c> o literal <c>rgb()</c>
 /// en un avatar hace fallar el test con un mensaje explícito en vez de pasarlo
 /// en falso. Y la lista de avatares es explícita: un avatar nuevo cuya clase

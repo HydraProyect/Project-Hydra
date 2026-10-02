@@ -179,13 +179,15 @@ public class SelectorTemaTests(WebAppFixture fixture)
 
         try
         {
-            foreach (var tema in new[] { "oscuro", "claro" })
+            // Termina en oscuro: así la espera del finally («sistema» ya no es oscuro) es una barrera real.
+            foreach (var tema in new[] { "claro", "oscuro" })
             {
                 await selectorTema.SelectOptionAsync(tema);
                 await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
                     "data-theme", tema, new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
 
                 var medida = await avatar.EvaluateAsync<System.Text.Json.JsonElement>(medirContraste);
+                Assert.NotEqual("rgba(0, 0, 0, 0)", medida.GetProperty("fondo").GetString());
                 var ratio = medida.GetProperty("ratio").GetDouble();
                 Assert.True(ratio >= 4.5,
                     $"Iniciales del avatar en tema {tema}: {ratio:0.00}:1 (fondo {medida.GetProperty("fondo")}, " +
