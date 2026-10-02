@@ -148,6 +148,41 @@
      --color-border-control). Sin texto encima: el logo no lleva letras. */
   --color-logo-fondo: #ffffff;
 
+  /* Botón primario y sus copias (Boton, Account, Reconnect, Asistente IA,
+     chips activos, día de hoy del calendario, saltar al contenido...): fondo,
+     fondo bajo el puntero y letra como TERNA, porque tienen que cambiar de
+     tema juntos. Antes el fondo era --color-primary-500 (remapeado a #5ca2f4
+     en oscuro) con letra blanca fija: 2,65:1; y el hover --color-primary-600
+     (remapeado a #bdd9ff) con la misma letra: 1,44:1 (medido 2026-10-02,
+     seguimiento de #1037 y #1040). Claro: sin cambios (#235bc2 6,27:1; hover
+     #1e4a9e 8,31:1). Oscuro: ver el bloque oscuro. Contrato:
+     ContrasteDeComponentesPorTemaTests, >= 4,5:1 en reposo y en hover. */
+  --color-primario-fondo: var(--color-primary-500);
+  --color-primario-fondo-hover: var(--color-primary-600);
+  --color-primario-texto: var(--color-neutral-0);
+
+  /* Letra sobre un relleno sólido de --color-success-700 (círculo del paso
+     completado de la revisión de sugerencia). El relleno se aclara en oscuro
+     (#4ade80) y la letra era #fff fija: 1,74:1. Claro: sin cambios (#fff sobre
+     #15803d, 5,02:1). Oscuro: ver el bloque oscuro (10,6:1). */
+  --color-exito-solido-texto: var(--color-neutral-0);
+
+  /* Cajas del editor de plantillas (ConfigurarPlantilla) sobre la página del
+     PDF. La página es papel: #fff fijo en los dos temas (.editor-plantilla-pagina),
+     así que lo que se pinta encima tiene que leerse sobre blanco también en
+     oscuro. Antes la caja usaba --color-surface al 55 % y --color-text-muted:
+     en oscuro, #8592a3 sobre un gris medio (~1,1:1). Valores de papel, no de
+     superficie, por eso NO se redeclaran en los bloques de tema (mismo
+     criterio que --color-logo-fondo). Son los de claro, con la caja idéntica. */
+  --color-papel-caja-fondo: color-mix(in srgb, #ffffff 55%, transparent);
+  --color-papel-caja-texto: #5f6e84;
+  --color-papel-caja-borde: #738196;
+  --color-papel-caja-firma-fondo: color-mix(in srgb, #f1f5f7 70%, transparent);
+  --color-papel-caja-realce: #235bc2;
+  --color-papel-caja-seleccionada-fondo: color-mix(in srgb, #eef5ff 70%, transparent);
+  --color-papel-caja-seleccionada-texto: #163a7d;
+  --color-papel-caja-obligatorio: #991b1b;
+
   /* Tipografía */
   --font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-heading-xl: 700 2.25rem/2.75rem var(--font-family);   /* H1 36/44 */
@@ -292,6 +327,14 @@
      --color-primary-500 remapeada (#5ca2f4): 5,43:1. El borde sigue siendo el
      del activo (--color-primary-100), así que sigue leyéndose como activo. */
   --color-nav-activo-hover-fondo: var(--color-surface-hover);
+  /* Botón primario: fondo --color-primary-400 (#2f6fdd), el escalón de la paleta
+     que sigue cumpliendo AA con letra blanca: 4,73:1. El hover baja a
+     #1e4a9e (el --color-primary-600 de :root, que aquí está remapeado a
+     claro y por eso no se puede referenciar): 8,31:1. */
+  --color-primario-fondo: var(--color-primary-400);
+  --color-primario-fondo-hover: #1e4a9e;
+  /* Relleno success-700 en oscuro = #4ade80: letra del fondo de página (#0e141b). */
+  --color-exito-solido-texto: var(--color-bg);
   /* Único escalón -50 que se quedó sin redefinir aquí (medido 2026-09-18):
      el resto de la familia -50 sí tiene variante oscura, esta no, así que
      seguía pintando #eef5ff (fondo casi blanco) en tema oscuro mientras el
@@ -368,6 +411,9 @@
   --color-seleccion-fondo: var(--color-primary-100);
   --color-seleccion-texto: var(--color-text);
   --color-nav-activo-hover-fondo: var(--color-primary-100);
+  --color-primario-fondo: var(--color-primary-500);
+  --color-primario-fondo-hover: var(--color-primary-600);
+  --color-exito-solido-texto: var(--color-neutral-0);
 
   --color-primary-500: #235bc2;
   --color-primary-600: #1e4a9e;

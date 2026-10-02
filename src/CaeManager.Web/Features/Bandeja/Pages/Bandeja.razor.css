@@ -62,9 +62,9 @@
 }
 
 .bandeja-chip-activo {
-    background: var(--color-primary-500);
-    border-color: var(--color-primary-500);
-    color: var(--color-neutral-0);
+    background: var(--color-primario-fondo);
+    border-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
 }
 
 /* Resumen de lo visible + recordatorio de atajos, la línea que el mockup

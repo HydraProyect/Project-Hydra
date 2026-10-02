@@ -37,7 +37,9 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Límite declarado.</b> Mide las reglas de la lista, no todo el árbol: otro
-/// par fondo/letra con el mismo patrón no entra solo. Lee la primera regla cuyo
+/// par fondo/letra con el mismo patrón no entra solo aquí (sí lo caza el barrido de
+/// <see cref="ContrasteDeComponentesPorTemaTests"/>, para las reglas que declaran
+/// fondo y letra a la vez; un fondo de logo, sin letra, solo se mide aquí). Lee la primera regla cuyo
 /// selector es exactamente el indicado; un override por estado o contexto no
 /// listado no se mide. Solo entiende <c>#rrggbb</c> y <c>var()</c>. Y el fondo
 /// de logo se mide por resolución del token, no contra el color pintado: el
@@ -65,6 +67,10 @@ public class ContrasteDeSeleccionHoverYLogoPorTemaTests
         new("Logo en AvatarTenant", "Components/DesignSystem/AvatarTenant.razor.css", [".avatar-tenant-logo"]),
         new("Logo de la organización", "Features/Configuracion/Pages/OrganizacionLogo.razor.css",
             [".organizacion-logo-imagen"]),
+        // 15 de las 20 marcas de plataforma CAE son imágenes con transparencia y en 7 la tinta es
+        // mayoritariamente oscura (CTAIMA, 100 %): sobre --color-surface en oscuro se pierden.
+        new("Logo de plataforma CAE en Inicio", "Features/Dashboard/Components/FilaPlataforma.razor.css",
+            [".fila-plataforma-logo"]),
     ];
 
     [Theory]
