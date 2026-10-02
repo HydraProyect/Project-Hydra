@@ -47,7 +47,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     private ModoAsignacionLinea _lineaModo = ModoAsignacionLinea.GestorFijo;
     private Guid? _lineaComercialId;
     private readonly HashSet<Guid> _lineaMiembros = [];
-    private Guid? _lineaClienteId;
+    private Guid? _lineaEmpresaId;
     private string _lineaMensajeAutoTriage = string.Empty;
     private long _generacionOperacionLinea;
 
@@ -64,7 +64,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     private object?[] ValoresDeLaLinea() =>
     [
         _lineaNombre, _lineaNumero, _lineaPhoneNumberId, _lineaWabaId, _lineaToken, _lineaModo,
-        _lineaComercialId, _lineaMiembros, _lineaClienteId, _lineaMensajeAutoTriage,
+        _lineaComercialId, _lineaMiembros, _lineaEmpresaId, _lineaMensajeAutoTriage,
     ];
 
     private ConexionIntegracionListaDto? _conexionADesconectar;
@@ -189,7 +189,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         _lineaModo = ModoAsignacionLinea.GestorFijo;
         _lineaComercialId = null;
         _lineaMiembros.Clear();
-        _lineaClienteId = null;
+        _lineaEmpresaId = null;
         _lineaMensajeAutoTriage = string.Empty;
         _modalLineaVisible = true;
         _instantaneaLinea.Fijar(ValoresDeLaLinea());
@@ -239,7 +239,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
             var resultadoError = lineaEnEdicion is null
                 ? (await Mediator.Send(new CrearLineaWhatsAppCommand(
                     _lineaNombre, _lineaNumero, _lineaPhoneNumberId, _lineaWabaId, _lineaToken, _lineaModo,
-                    _lineaComercialId, _lineaMiembros.ToList(), _lineaClienteId, mensajeAutoTriage)))
+                    _lineaComercialId, _lineaMiembros.ToList(), _lineaEmpresaId, mensajeAutoTriage)))
                     is { EsFallido: true } fallosAlta ? fallosAlta.Error : null
                 : (await Mediator.Send(new ActualizarLineaWhatsAppCommand(
                     lineaEnEdicion.LineaId, lineaEnEdicion.Version,
