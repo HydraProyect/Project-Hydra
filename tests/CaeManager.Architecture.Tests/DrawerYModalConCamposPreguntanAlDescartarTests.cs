@@ -36,15 +36,16 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// <b>«Cancelar» cierra como la X (D-05, 2026-10-02).</b> Si el contenedor pasa un <c>HayCambios</c> real, el botón
-/// «Cancelar» o «Descartar» de su <c>&lt;Pie&gt;</c> (no el primario ni el destructivo, que son la acción del diálogo; no uno del cuerpo,
-/// que repliega un subformulario) llama a <c>SolicitarCierreAsync</c> del propio Drawer o Modal, en su <c>OnClick</c> o en un
-/// manejador del <c>.razor</c>/<c>.razor.cs</c> a un solo salto. NO ve: un «Cancelar» con otro rótulo («Volver», «Cerrar»), un
-/// manejador que delega en otro manejador, ni que la referencia (<c>@ref</c>) apunte al contenedor correcto. Un «Cancelar» que
-/// vive en un componente hijo llega al padre por <c>OnCancelar</c> (<c>SelectorLoteDocumental</c>): todo <c>OnCancelar=</c> de un
-/// componente dentro de un contenedor con <c>HayCambios</c> debe usar <c>SolicitarCierreAsync</c> (sin la restricción del
-/// <c>&lt;Pie&gt;</c>; si un día hay un hijo cuyo <c>OnCancelar</c> solo repliega una fila, tendrá que cambiar de nombre o este
-/// analizador de criterio). NO ve otros nombres de parámetro para el mismo gesto (<c>OnCerrar</c>, <c>AlCancelar</c>).
+/// <b>La salida del pie cierra como la X (D-05, 2026-10-02; ampliada el 2026-10-03).</b> Si el contenedor pasa un <c>HayCambios</c>
+/// real, todo botón secundario de su <c>&lt;Pie&gt;</c> (cualquier variante que no sea la primaria ni la destructiva, que son la acción
+/// del diálogo; sea cual sea su rótulo: «Cancelar», «Descartar», «Volver»…; no uno del cuerpo, que repliega un subformulario) llama a
+/// <c>SolicitarCierreAsync</c> del propio Drawer o Modal, en su <c>OnClick</c> o en un manejador del <c>.razor</c>/<c>.razor.cs</c> a un
+/// solo salto, o se declara en <c>SalidasDelPieSinGuardian</c> con su motivo (una acción secundaria que no cierra, o una confirmación
+/// cuya salida descarta a propósito). Un botón de salida que vive en un componente hijo llega al padre por <c>OnCancelar</c> u
+/// <c>OnCerrar</c> (el mismo gesto; hoy solo <c>SelectorLoteDocumental</c>): todo atributo así de un componente dentro de un
+/// contenedor con <c>HayCambios</c> debe usar <c>SolicitarCierreAsync</c> (sin la restricción del <c>&lt;Pie&gt;</c>). NO ve: un
+/// manejador que delega en otro manejador, un parámetro con otro nombre (<c>AlCancelar</c>), ni que la referencia (<c>@ref</c>)
+/// apunte al contenedor correcto.
 /// </para>
 /// </summary>
 public class DrawerYModalConCamposPreguntanAlDescartarTests
@@ -84,6 +85,34 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor#DialogoConfirmacion3"] = MotivoOpcionalDeConfirmacion,
     };
 
+    /// <summary>
+    /// Botones secundarios del <c>&lt;Pie&gt;</c> de un contenedor con <c>HayCambios</c> real que NO pasan por
+    /// <c>SolicitarCierreAsync</c>, con el motivo. Clave: la del contenedor (ruta + <c>#Modal1</c>…) + <c>:</c> + el rótulo tal cual
+    /// está en el marcado. Son salidas que cierran a propósito sin preguntar, o botones que no cierran (una acción secundaria). Solo
+    /// se añade con una razón escrita; el resto de secundarios del pie pasa por el guardián.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, string> SalidasDelPieSinGuardian = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        // Acciones secundarias que no cierran sin más: guardan y siguen (no son una salida que tire lo escrito).
+        ["src/CaeManager.Web/Features/Centros/Pages/Centros.razor#Drawer1:Añadir otro centro"] =
+            "Acción, no salida: guarda el centro y deja el formulario abierto para el siguiente; lo escrito se conserva en el centro creado.",
+        ["src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor#Drawer1:Continuar con la empresa"] =
+            "Acción, no salida: guarda el Cliente empresarial y continúa con el alta de su Empresa; lo escrito ya está guardado.",
+        ["src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor#Drawer1:Continuar con el centro"] =
+            "Acción, no salida: guarda la Empresa y continúa con el alta de su Centro; lo escrito ya está guardado.",
+
+        // Diálogos de confirmación con una elección opcional (decisión de la coordinadora, 2026-10-03, por analogía con los de
+        // Visitas): «Volver» es la salida de la confirmación y descarta la elección a propósito; la X sí pregunta.
+        ["src/CaeManager.Web/Features/Retencion/Pages/Retencion.razor#Modal2:Volver"] =
+            "Confirmación «Descartar la propuesta»: la acción es confirmar y «Volver» deja la propuesta como estaba. OJO: a diferencia de " +
+            "los diálogos de Visitas, aquí el Motivo es obligatorio y HayCambios es real, así que la X pregunta y «Volver» tira el motivo " +
+            "escrito sin aviso. Excepción declarada por la coordinadora (2026-10-03); revisable si se prefiere que pregunte.",
+        ["src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor#Modal2:@TextosUsuarios[\"DesactivarVolver\"]"] =
+            "Confirmación «Desactivar usuario» con un Gestor CAE de destino opcional para la cartera: la acción es confirmar y «Volver» " +
+            "descarta la elección a propósito (el destino por defecto es «no reasignar»). Excepción por analogía con Retención y Visitas; " +
+            "pendiente de confirmar por la coordinadora.",
+    };
+
     private const string MotivoOpcionalDeConfirmacion =
         "Diálogo de confirmación con un «Motivo (opcional)» de una línea o dos: la acción es confirmar, el texto es un añadido " +
         "voluntario y se pierde a propósito con «Volver». Excepción abierta a decisión de producto (¿proteger el motivo?).";
@@ -99,7 +128,7 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         medidos.Count(c => c.Campos > 0).Should().BeGreaterThan(40, "había 56 contenedores con campos al escribirlo; si baja de golpe, dejó de mirar");
         medidos.Count(c => c.TieneGuardian).Should().BeGreaterThan(35, "había ≥ 50 con HayCambios al escribirlo; si baja de golpe, dejó de ver el atributo");
 
-        var problemas = Evaluar(medidos, ContenedoresSinGuardian);
+        var problemas = Evaluar(medidos, ContenedoresSinGuardian, SalidasDelPieSinGuardian);
 
         string.Join(Environment.NewLine, problemas).Should().BeEmpty(
             "un Drawer o Modal con campos pasa HayCambios (con InstantaneaFormulario, p. ej.): cerrarlo con la X, Escape o el fondo " +
@@ -112,7 +141,8 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         var raiz = MarcadoRazor.RaizDelRepositorio();
 
         ContenedoresSinGuardian.Should().OnlyContain(kv => kv.Value.Length >= 40, "cada excepción lleva su razón escrita");
-        ContenedoresSinGuardian.Keys
+        SalidasDelPieSinGuardian.Should().OnlyContain(kv => kv.Value.Length >= 40, "cada salida declarada lleva su razón escrita");
+        ContenedoresSinGuardian.Keys.Concat(SalidasDelPieSinGuardian.Keys)
             .Select(k => k.Split('#')[0])
             .Where(ruta => !File.Exists(Path.Combine(raiz, ruta)))
             .Should().BeEmpty("el fichero se movió o se borró sin actualizar la lista");
@@ -193,6 +223,12 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
                 <SelectorLote OnCancelar="() => _k?.SolicitarCierreAsync() ?? Task.CompletedTask" /></ChildContent></Drawer>
             <Drawer @ref="_l" HayCambios="() => X" Visible="v"><ChildContent><CampoTexto Etiqueta="n" /></ChildContent>
                 <Pie><Boton Variante="@(esPrimaria ? VarianteBoton.Primario : VarianteBoton.Secundario)" OnClick="() => _vL = false">Cancelar</Boton></Pie></Drawer>
+            <Drawer @ref="_m" HayCambios="() => X" Visible="v"><ChildContent><CampoTexto Etiqueta="n" /></ChildContent>
+                <Pie><Boton Variante="VarianteBoton.Fantasma" OnClick="() => _vM = false">Volver</Boton><Boton Variante="VarianteBoton.Primario" OnClick="G">Guardar</Boton></Pie></Drawer>
+            <Drawer @ref="_n" HayCambios="() => X" Visible="v"><ChildContent><CampoTexto Etiqueta="n" />
+                <SelectorLote OnCerrar="() => CerrarAsync(false)" /></ChildContent></Drawer>
+            <Drawer @ref="_o" HayCambios="() => X" Visible="v"><ChildContent><CampoTexto Etiqueta="n" />
+                <SelectorLote OnCancelar="() => _o?.SolicitarCierreAsync() ?? Task.CompletedTask" OnCerrar="() => CerrarAsync(false)" /></ChildContent></Drawer>
             """;
 
         var codigo = """
@@ -208,23 +244,33 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
 
         var medidos = Medir("x.razor", razor, codigo).ToDictionary(c => c.Clave);
 
-        medidos["x.razor#Drawer1"].CancelarSinGuardian.Should().Equal("Cancelar");
-        medidos["x.razor#Drawer2"].CancelarSinGuardian.Should().BeEmpty("la lambda llama a SolicitarCierreAsync del contenedor");
-        medidos["x.razor#Modal1"].CancelarSinGuardian.Should().BeEmpty("el manejador del .razor.cs llama a SolicitarCierreAsync, aunque su cuerpo lleve llaves de un patrón «is { }»");
-        medidos["x.razor#Modal2"].CancelarSinGuardian.Should().Equal("Cancelar");
-        medidos["x.razor#Modal3"].CancelarSinGuardian.Should().BeEmpty("el Cancelar del cuerpo repliega un subformulario y el Descartar primario es la acción del diálogo");
-        medidos["x.razor#Modal4"].CancelarSinGuardian.Should().Equal("Cancelar");
-        medidos["x.razor#Drawer3"].CancelarSinGuardian.Should().BeEmpty("un « => » en un atributo anterior no esconde el OnClick, y el manejador de bloque llama al guardián");
-        medidos["x.razor#Drawer4"].CancelarSinGuardian.Should().Equal("Cancelar");
-        medidos["x.razor#Modal5"].CancelarSinGuardian.Should().Equal(["@TextosAutorizar[\"Cancelar\"]"], "el rótulo con otro localizador (TextosAutorizar) también es un Cancelar");
-        medidos["x.razor#Drawer5"].CancelarSinGuardian.Should().Equal("OnCancelar de <SelectorLote>");
-        medidos["x.razor#Drawer6"].CancelarSinGuardian.Should().BeEmpty("el OnCancelar del hijo está cableado al guardián");
-        medidos["x.razor#Drawer7"].CancelarSinGuardian.Should().Equal("Cancelar"); // una variante condicional no exime al botón
+        medidos["x.razor#Drawer1"].SalidasSinGuardian.Should().Equal("Cancelar");
+        medidos["x.razor#Drawer2"].SalidasSinGuardian.Should().BeEmpty("la lambda llama a SolicitarCierreAsync del contenedor");
+        medidos["x.razor#Modal1"].SalidasSinGuardian.Should().BeEmpty("el manejador del .razor.cs llama a SolicitarCierreAsync, aunque su cuerpo lleve llaves de un patrón «is { }»");
+        medidos["x.razor#Modal2"].SalidasSinGuardian.Should().Equal("Cancelar");
+        medidos["x.razor#Modal3"].SalidasSinGuardian.Should().BeEmpty("el Cancelar del cuerpo repliega un subformulario y el Descartar primario es la acción del diálogo");
+        medidos["x.razor#Modal4"].SalidasSinGuardian.Should().Equal("Cancelar");
+        medidos["x.razor#Drawer3"].SalidasSinGuardian.Should().BeEmpty("un « => » en un atributo anterior no esconde el OnClick, y el manejador de bloque llama al guardián");
+        medidos["x.razor#Drawer4"].SalidasSinGuardian.Should().Equal("Cancelar");
+        medidos["x.razor#Modal5"].SalidasSinGuardian.Should().Equal(["@TextosAutorizar[\"Cancelar\"]"], "el rótulo con otro localizador (TextosAutorizar) también es un Cancelar");
+        medidos["x.razor#Drawer5"].SalidasSinGuardian.Should().Equal("OnCancelar de <SelectorLote>");
+        medidos["x.razor#Drawer6"].SalidasSinGuardian.Should().BeEmpty("el OnCancelar del hijo está cableado al guardián");
+        medidos["x.razor#Drawer7"].SalidasSinGuardian.Should().Equal("Cancelar"); // una variante condicional no exime al botón
+        medidos["x.razor#Drawer8"].SalidasSinGuardian.Should().Equal("Volver"); // el rótulo no importa: es el secundario del pie
+        medidos["x.razor#Drawer9"].SalidasSinGuardian.Should().Equal("OnCerrar de <SelectorLote>"); // OnCerrar es el mismo gesto que OnCancelar
+        medidos["x.razor#Drawer10"].SalidasSinGuardian.Should().Equal("OnCerrar de <SelectorLote>"); // cada atributo de salida se mide por separado
 
         Evaluar(medidos.Values.ToList(), new Dictionary<string, string>())
             .Where(p => p.Contains("SolicitarCierreAsync", StringComparison.Ordinal))
             .Select(p => p.Split(':')[0])
-            .Should().BeEquivalentTo("x.razor#Drawer1", "x.razor#Modal2", "x.razor#Drawer4", "x.razor#Modal5", "x.razor#Drawer5", "x.razor#Drawer7");
+            .Should().BeEquivalentTo("x.razor#Drawer1", "x.razor#Modal2", "x.razor#Drawer4", "x.razor#Modal5", "x.razor#Drawer5", "x.razor#Drawer7", "x.razor#Drawer8", "x.razor#Drawer9", "x.razor#Drawer10");
+
+        // La lista de salidas declaradas absuelve la salida con su clave exacta y se queja cuando ya no hace falta.
+        var permitidas = new Dictionary<string, string> { ["x.razor#Drawer8:Volver"] = "motivo" };
+        Evaluar(medidos.Values.ToList(), new Dictionary<string, string>(), permitidas)
+            .Should().NotContain(p => p.StartsWith("x.razor#Drawer8:", StringComparison.Ordinal));
+        Evaluar(medidos.Values.ToList(), new Dictionary<string, string>(), new Dictionary<string, string> { ["x.razor#Drawer2:Volver"] = "motivo" })
+            .Should().ContainSingle(p => p.StartsWith("x.razor#Drawer2:Volver", StringComparison.Ordinal) && p.Contains("retírala"));
     }
 
     [Fact]
@@ -263,11 +309,15 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     // Medición
     // -------------------------------------------------------------------------------------------
 
-    /// <param name="CancelarSinGuardian">Rótulos de los «Cancelar»/«Descartar» del cuerpo del contenedor cuyo <c>OnClick</c> no llega a <c>SolicitarCierreAsync</c> (D-05).</param>
-    private sealed record Medido(string Clave, int Campos, bool TieneGuardian, bool Exento, IReadOnlyList<string>? CancelarSinGuardian = null);
+    /// <param name="SalidasSinGuardian">Rótulos de los «Cancelar»/«Descartar» del cuerpo del contenedor cuyo <c>OnClick</c> no llega a <c>SolicitarCierreAsync</c> (D-05).</param>
+    private sealed record Medido(string Clave, int Campos, bool TieneGuardian, bool Exento, IReadOnlyList<string>? SalidasSinGuardian = null);
 
-    private static List<string> Evaluar(IReadOnlyCollection<Medido> medidos, IReadOnlyDictionary<string, string> excepciones)
+    private static List<string> Evaluar(
+        IReadOnlyCollection<Medido> medidos,
+        IReadOnlyDictionary<string, string> excepciones,
+        IReadOnlyDictionary<string, string>? salidasPermitidas = null)
     {
+        salidasPermitidas ??= new Dictionary<string, string>();
         var problemas = new List<string>();
 
         foreach (var c in medidos.Where(c => c.Campos > 0 && !c.TieneGuardian && !c.Exento).OrderBy(c => c.Clave, StringComparer.Ordinal))
@@ -276,13 +326,23 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
                 problemas.Add($"{c.Clave}: {c.Campos} campo(s) y ningún HayCambios (ni Bloqueante fijo, ni excepción justificada)");
         }
 
-        // D-05: si el contenedor pregunta al cerrar con la X, su «Cancelar» pregunta igual. Solo cuenta donde hay guardián real:
-        // sin él no hay nada que preguntar, y los que no lo tienen ya los vigila el bloque anterior.
+        // D-05: si el contenedor pregunta al cerrar con la X, la salida de su pie pregunta igual, se llame «Cancelar», «Volver» o
+        // como sea. Solo cuenta donde hay guardián real: sin él no hay nada que preguntar, y los que no lo tienen ya los vigila el
+        // bloque anterior. Una salida que cierra a propósito sin preguntar se declara en SalidasDelPieSinGuardian, con su motivo.
+        var presentes = new HashSet<string>(StringComparer.Ordinal);
         foreach (var c in medidos.Where(c => c.TieneGuardian && !c.Exento).OrderBy(c => c.Clave, StringComparer.Ordinal))
         {
-            foreach (var boton in c.CancelarSinGuardian ?? [])
-                problemas.Add($"{c.Clave}: el botón «{boton}» cierra sin pasar por SolicitarCierreAsync del contenedor (D-05: «Cancelar» pregunta «¿Descartar cambios?» igual que la X)");
+            foreach (var boton in c.SalidasSinGuardian ?? [])
+            {
+                var clave = $"{c.Clave}:{boton}";
+                presentes.Add(clave);
+                if (!salidasPermitidas.ContainsKey(clave))
+                    problemas.Add($"{clave}: el botón secundario del pie «{boton}» no pasa por SolicitarCierreAsync del contenedor (D-05: la salida pregunta «¿Descartar cambios?» igual que la X; si cierra a propósito sin preguntar, decláralo en SalidasDelPieSinGuardian con su motivo)");
+            }
         }
+
+        foreach (var clave in salidasPermitidas.Keys.Where(k => !presentes.Contains(k)).OrderBy(k => k, StringComparer.Ordinal))
+            problemas.Add($"{clave}: la salida declarada ya no hace falta (ya pasa por el guardián, el contenedor ya no pregunta o el botón se movió); retírala de SalidasDelPieSinGuardian");
 
         foreach (var clave in excepciones.Keys.OrderBy(k => k, StringComparer.Ordinal))
         {
@@ -328,7 +388,7 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         // Solo los del pie del contenedor (<Pie>): el «Cancelar» de un subformulario dentro del cuerpo (una respuesta, una fila
         // en edición) repliega esa parte, no cierra el Drawer o Modal.
         var pies = MarcadoRazor.Elementos(texto, "Pie").Where(e => !e.Autocerrado).ToList();
-        foreach (var boton in MarcadoRazor.Elementos(texto, "Boton|button").Where(b => !b.Autocerrado && EsBotonDeCancelar(b)))
+        foreach (var boton in MarcadoRazor.Elementos(texto, "Boton|button").Where(b => !b.Autocerrado && EsSalidaDelPie(b)))
         {
             if (UsaElGuardianDeCierre(boton.Apertura, codigo)) continue;
             var dueno = contenedores
@@ -345,18 +405,22 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
 
         // El «Cancelar» que vive en un componente hijo (SelectorLoteDocumental) llega al padre por OnCancelar: el padre lo cablea al
         // guardián del contenedor en vez de cerrar directo. Sin la restricción del <Pie>: el hijo pinta su propio pie.
-        foreach (var hijo in MarcadoRazor.Aperturas(texto, @"[A-Z]\w*").Where(a => AtributoOnCancelar.IsMatch(a.Texto)))
+        foreach (var hijo in MarcadoRazor.Aperturas(texto, @"[A-Z]\w*"))
         {
-            if (UsaElGuardianDeCierre(hijo.Texto, codigo, AtributoOnCancelar)) continue;
-            var dueno = contenedores
-                .Where(c => c.Inicio < hijo.Inicio && hijo.Inicio < c.Fin)
-                .OrderByDescending(c => c.Inicio)
-                .FirstOrDefault();
-            if (dueno is null) continue;
-            var clave = $"{ruta}#{dueno.Nombre}{dueno.Ordinal}";
-            if (!cancelaresPorContenedor.TryGetValue(clave, out var lista))
-                cancelaresPorContenedor[clave] = lista = [];
-            lista.Add($"OnCancelar de <{hijo.Nombre}>");
+            // Cada atributo de salida por separado: un hijo con OnCancelar bien cableado y un OnCerrar directo no se absuelve.
+            foreach (var (nombre, atributo) in AtributosDeSalidaDeUnHijo)
+            {
+                if (!atributo.IsMatch(hijo.Texto) || UsaElGuardianDeCierre(hijo.Texto, codigo, atributo)) continue;
+                var dueno = contenedores
+                    .Where(c => c.Inicio < hijo.Inicio && hijo.Inicio < c.Fin)
+                    .OrderByDescending(c => c.Inicio)
+                    .FirstOrDefault();
+                if (dueno is null) continue;
+                var clave = $"{ruta}#{dueno.Nombre}{dueno.Ordinal}";
+                if (!cancelaresPorContenedor.TryGetValue(clave, out var lista))
+                    cancelaresPorContenedor[clave] = lista = [];
+                lista.Add($"{nombre} de <{hijo.Nombre}>");
+            }
         }
 
         return contenedores.Select(c =>
@@ -368,14 +432,14 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         }).ToList();
     }
 
-    // «Cancelar» o «Descartar» (y «Descartar cambios»), tal cual o como @Textos["…Cancelar…"]. Un botón con otro rótulo («Volver»,
-    // «Cerrar») no es de este contrato: ese lo decide el diálogo, no el formulario.
-    private static readonly Regex RotuloDeCancelar = new(
-        @"^(?:Cancelar|Descartar(?:\s+cambios)?|@\w*Textos\w*\[""[^""]*Cancelar[^""]*""\])$", RegexOptions.Compiled);
-
     private static readonly Regex AtributoOnClick = new(@"(?:^|\s)OnClick\s*=\s*""", RegexOptions.Compiled);
 
-    private static readonly Regex AtributoOnCancelar = new(@"(?:^|\s)OnCancelar\s*=\s*""", RegexOptions.Compiled);
+    // OnCancelar y OnCerrar son el mismo gesto (un hijo que pinta su propio botón de salida y avisa al padre).
+    private static readonly (string Nombre, Regex Atributo)[] AtributosDeSalidaDeUnHijo =
+    [
+        ("OnCancelar", new Regex(@"(?:^|\s)OnCancelar\s*=\s*""", RegexOptions.Compiled)),
+        ("OnCerrar", new Regex(@"(?:^|\s)OnCerrar\s*=\s*""", RegexOptions.Compiled)),
+    ];
 
     private static string TextoVisible(string cuerpo) =>
         Regex.Replace(Regex.Replace(cuerpo, @"<[^>]*>", " "), @"\s+", " ").Trim();
@@ -384,8 +448,7 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     // la retención programada) es la acción del diálogo, no su salida.
     private static readonly Regex VarianteDeAccion = new(@"Variante\s*=\s*""@?\(?\s*VarianteBoton\.(?:Primario|Destructivo)\s*\)?""", RegexOptions.Compiled);
 
-    private static bool EsBotonDeCancelar(MarcadoRazor.Elemento boton) =>
-        RotuloDeCancelar.IsMatch(TextoVisible(boton.Cuerpo)) && !VarianteDeAccion.IsMatch(boton.Apertura);
+    private static bool EsSalidaDelPie(MarcadoRazor.Elemento boton) => !VarianteDeAccion.IsMatch(boton.Apertura);
 
     /// <summary>
     /// El <c>OnClick</c> llama a <c>SolicitarCierreAsync</c> del contenedor, directamente (lambda) o a través de un manejador del
