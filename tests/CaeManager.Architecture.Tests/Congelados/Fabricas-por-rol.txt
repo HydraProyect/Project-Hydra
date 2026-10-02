@@ -1,0 +1,16 @@
+src/CaeManager.Application/Clientes/Commands/CrearCliente/CrearClienteCommand.cs :: CrearComoCliente = 1
+src/CaeManager.Application/Clientes/Commands/EditarCliente/EditarClienteCommand.cs :: ActualizarComoCliente = 1
+src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs :: ActualizarComoCliente = 2
+src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs :: CrearComoCliente = 1
+src/CaeManager.Application/Subcontratas/Commands/CrearSubcontrata/CrearSubcontrataCommand.cs :: CrearComoSubcontrata = 1
+src/CaeManager.Application/Subcontratas/Commands/EditarSubcontrata/EditarSubcontrataCommand.cs :: ActualizarComoSubcontrata = 1
+src/CaeManager.Domain/Empresas/Empresa.cs :: ActualizarComoCliente = 1
+src/CaeManager.Domain/Empresas/Empresa.cs :: ActualizarComoSubcontrata = 1
+src/CaeManager.Domain/Empresas/Empresa.cs :: CrearComoCliente = 1
+src/CaeManager.Domain/Empresas/Empresa.cs :: CrearComoSubcontrata = 1
+src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs :: CrearComoCliente = 1
+src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs :: CrearComoSubcontrata = 1
+src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs :: CrearComoCliente = 1
+src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs :: CrearComoSubcontrata = 1
+src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: CrearComoCliente = 1
+src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: CrearComoSubcontrata = 1
