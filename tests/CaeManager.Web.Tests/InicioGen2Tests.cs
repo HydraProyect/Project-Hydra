@@ -382,7 +382,8 @@ public class InicioGen2Tests : BunitContext
     {
         var delCoordinador = Renderizar(SinCarteraAqui(carteraEnOtroTenant: false), rol: Roles.CoordinadorCae);
         var texto = delCoordinador.Find(".estado-vacio p").TextContent;
-        texto.Should().Contain("Dirección CAE").And.NotContain("Coordinador CAE");
+        texto.Should().Contain("Gestores CAE de tu equipo").And.NotContain("Pide a tu");
+        delCoordinador.Find(".estado-vacio a[data-enlace=usuarios]").GetAttribute("href").Should().Be("/usuarios");
         delCoordinador.Dispose();
     }
 
@@ -392,6 +393,7 @@ public class InicioGen2Tests : BunitContext
         var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: false), rol: Roles.GestorCae);
 
         cut.Find(".estado-vacio p").TextContent.Should().Contain("Pide a tu Coordinador CAE");
+        cut.FindAll(".estado-vacio a[data-enlace=usuarios]").Should().BeEmpty("el Gestor CAE no asigna cartera");
     }
 
     /// <summary>

@@ -105,7 +105,8 @@ public class VacioSegunAlcanceTests : BunitContext
             .AddCascadingValue(Estado(CaeManager.Infrastructure.Identity.Roles.CoordinadorCae)));
 
         var texto = cut.Find("[data-estado=sin-asignacion-cartera]").TextContent;
-        texto.Should().Contain("Sin Asignación de Cartera").And.Contain("Dirección CAE").And.NotContain("Coordinador CAE");
+        texto.Should().Contain("Sin Asignación de Cartera").And.Contain("Gestores CAE de tu equipo").And.NotContain("Pídesela").And.NotContain("Pide a tu");
+        cut.Find("[data-estado=sin-asignacion-cartera] a[data-enlace=usuarios]").GetAttribute("href").Should().Be("/usuarios");
     }
 
     [Fact]
@@ -118,6 +119,7 @@ public class VacioSegunAlcanceTests : BunitContext
             .AddCascadingValue(Estado(CaeManager.Infrastructure.Identity.Roles.GestorCae)));
 
         cut.Find("[data-estado=sin-asignacion-cartera]").TextContent.Should().Contain("Pídesela a tu Coordinador CAE");
+        cut.FindAll("[data-estado=sin-asignacion-cartera] a[data-enlace=usuarios]").Should().BeEmpty("el Gestor CAE no asigna cartera");
     }
 
     [Fact]

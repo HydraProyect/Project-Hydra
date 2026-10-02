@@ -11,7 +11,7 @@ namespace CaeManager.Web.Features.IncorporacionCartera.Components;
 /// <summary>
 /// Estado vacío de alcance cero: quien mira no tiene ninguna Asignación de
 /// Cartera vigente en el Tenant propietario, así que la pantalla no tiene nada
-/// que enseñarle. Dice eso y a quién pedirla (el Coordinador CAE), en vez de
+/// que enseñarle. Dice eso y a quién pedirla (el Coordinador CAE; al propio Coordinador CAE, que asigne empresas a su equipo desde Usuarios), en vez de
 /// un vacío positivo («al día», «sin pendientes») o de invitar a crear lo que
 /// quizá ya existe fuera de su alcance (P0-9a, FS-03 a FS-06). Alcance cero
 /// es un estado correcto, no un error.
@@ -36,7 +36,7 @@ public partial class AvisoSinAsignacionCartera : ComponentBase
 
     /// <summary>
     /// D-15: el texto por defecto remite a «tu Coordinador CAE», que es justo quien lo lee si es Coordinador CAE.
-    /// Solo cambia el destinatario del texto; no concede ni quita nada (la autorización no se toca).
+    /// Cambia el texto y añade un enlace a Usuarios; no concede ni quita nada (la autorización no se toca).
     /// Opcional: sin estado de autenticación en cascada se queda el texto general.
     /// </summary>
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }

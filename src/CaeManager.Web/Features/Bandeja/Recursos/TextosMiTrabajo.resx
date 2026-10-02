@@ -115,7 +115,7 @@
     <value>No tienes ninguna Asignación de Cartera vigente que te dé alcance sobre una empresa, así que aquí no hay nada que vigilar. Pídesela a tu Coordinador CAE.</value>
   </data>
   <data name="SinCarteraDetalleCoordinador" xml:space="preserve">
-    <value>No tienes ninguna Asignación de Cartera vigente que te dé alcance sobre una empresa, así que aquí no hay nada que vigilar. Pídesela a Dirección CAE.</value>
+    <value>No tienes ninguna Asignación de Cartera vigente que te dé alcance sobre una empresa, así que aquí no hay nada que vigilar. Tu alcance sale de la cartera de los Gestores CAE de tu equipo: asigna empresas a uno de ellos desde Usuarios.</value>
   </data>
   <data name="SinCarteraEmpresa" xml:space="preserve">
     <value>{0}, sin Asignación de Cartera</value>
@@ -124,7 +124,10 @@
     <value>No tienes ninguna Asignación de Cartera vigente en {0}, así que aquí no hay nada que vigilar. Pídesela a tu Coordinador CAE.</value>
   </data>
   <data name="SinCarteraEmpresaDetalleCoordinador" xml:space="preserve">
-    <value>No tienes ninguna Asignación de Cartera vigente en {0}, así que aquí no hay nada que vigilar. Pídesela a Dirección CAE.</value>
+    <value>No tienes ninguna Asignación de Cartera vigente en {0}, así que aquí no hay nada que vigilar. Tu alcance sale de la cartera de los Gestores CAE de tu equipo: asigna empresas a uno de ellos desde Usuarios.</value>
+  </data>
+  <data name="EnlaceUsuarios" xml:space="preserve">
+    <value>Ir a Usuarios</value>
   </data>
   <data name="SinAsignacionCartera" xml:space="preserve">
     <value>Sin Asignación de Cartera</value>

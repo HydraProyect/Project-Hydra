@@ -6,6 +6,10 @@
                  Titulo="@(Titulo ?? Textos["SinAsignacionTitulo"])"
                  Descripcion="@(Descripcion ?? Textos[_esCoordinador ? "SinAsignacionDetalleCoordinador" : "SinAsignacionDetalle"])">
         <Accion>
+            @if (_esCoordinador)
+            {
+                <a class="enlace-ver-todas" data-enlace="usuarios" href="/usuarios">@Textos["SinAsignacionEnlaceUsuarios"]</a>
+            }
             @if (_puedeAnadirACartera)
             {
                 <Boton OnClick="() => _dialogoVisible = true">@Textos["SinAsignacionAnadir"]</Boton>
