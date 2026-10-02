@@ -151,8 +151,8 @@
                     <EstadoVacio NombreIcono="cartera"
                                  Titulo="@(TenantFiltrado is { } t ? Textos["SinCarteraEmpresa", t.Nombre] : Textos["SinCarteraTitulo"])"
                                  Descripcion="@(TenantFiltrado is { } t2
-                                     ? Textos["SinCarteraEmpresaDetalle", t2.Nombre]
-                                     : Textos["SinCarteraDetalle"])">
+                                     ? Textos[_esCoordinadorCae ? "SinCarteraEmpresaDetalleCoordinador" : "SinCarteraEmpresaDetalle", t2.Nombre]
+                                     : Textos[_esCoordinadorCae ? "SinCarteraDetalleCoordinador" : "SinCarteraDetalle"])">
                         <Accion>
                             @if (_puedeAnadirACartera)
                             {

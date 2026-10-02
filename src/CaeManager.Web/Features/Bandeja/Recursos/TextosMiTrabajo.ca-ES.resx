@@ -114,11 +114,17 @@
   <data name="SinCarteraDetalle" xml:space="preserve">
     <value>No tens cap Assignació de Cartera vigent que et doni abast sobre una empresa, així que aquí no hi ha res a vigilar. Demana-la al teu Coordinador CAE.</value>
   </data>
+  <data name="SinCarteraDetalleCoordinador" xml:space="preserve">
+    <value>No tens cap Assignació de Cartera vigent que et doni abast sobre una empresa, així que aquí no hi ha res a vigilar. Demana-la a Direcció CAE.</value>
+  </data>
   <data name="SinCarteraEmpresa" xml:space="preserve">
     <value>{0}, sense Assignació de Cartera</value>
   </data>
   <data name="SinCarteraEmpresaDetalle" xml:space="preserve">
     <value>No tens cap Assignació de Cartera vigent a {0}, així que aquí no hi ha res a vigilar. Demana-la al teu Coordinador CAE.</value>
+  </data>
+  <data name="SinCarteraEmpresaDetalleCoordinador" xml:space="preserve">
+    <value>No tens cap Assignació de Cartera vigent a {0}, així que aquí no hi ha res a vigilar. Demana-la a Direcció CAE.</value>
   </data>
   <data name="SinAsignacionCartera" xml:space="preserve">
     <value>Sense Assignació de Cartera</value>

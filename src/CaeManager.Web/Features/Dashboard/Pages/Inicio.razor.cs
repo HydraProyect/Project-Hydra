@@ -60,6 +60,9 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
 
     private KpisDashboardDto? _kpis;
 
+    /// <summary>D-15: el aviso de alcance cero no remite al Coordinador CAE a «tu Coordinador CAE» (es él).</summary>
+    private bool _esCoordinadorCae;
+
     /// <summary>
     /// El Context Workspace activo no tiene cartera del usuario, pero algún otro
     /// Tenant propietario autorizado sí. Solo se calcula cuando Inicio iba a
@@ -278,6 +281,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         {
             var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             var mostrarRequiereAtencion = !estadoAutenticacion.User.IsInRole(Roles.Cliente);
+            _esCoordinadorCae = estadoAutenticacion.User.IsInRole(Roles.CoordinadorCae);
             var perfilVocabulario = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery(), token);
 
             var kpis = await Mediator.Send(new ObtenerKpisDashboardQuery(), token);
