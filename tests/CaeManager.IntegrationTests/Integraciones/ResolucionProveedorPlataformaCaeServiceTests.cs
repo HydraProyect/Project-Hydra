@@ -54,10 +54,10 @@ public class ResolucionProveedorPlataformaCaeServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task La_migracion_siembra_los_23_proveedores_y_27_dominios_del_catalogo()
+    public async Task La_migracion_siembra_los_23_proveedores_y_28_dominios_del_catalogo()
     {
         (await _dbContext.ProveedoresPlataformaCae.CountAsync()).Should().Be(23);
-        (await _dbContext.DominiosProveedorPlataformaCae.CountAsync()).Should().Be(27);
+        (await _dbContext.DominiosProveedorPlataformaCae.CountAsync()).Should().Be(28);
     }
 
     [Fact]
@@ -89,6 +89,20 @@ public class ResolucionProveedorPlataformaCaeServiceTests : IAsyncLifetime
         var resultado = await servicio.ResolverPorUrlAsync("https://cliente123.ergasia.es/acceso");
 
         resultado.Should().ContainSingle().Which.Nombre.Should().Be("Ergasia");
+    }
+
+    [Theory]
+    [InlineData("https://portal.avantaprevencion.com/acceso")]
+    [InlineData("https://cliente123.valoraprevencion.es/acceso")]
+    public async Task Avanta_Prevencion_resuelve_por_su_dominio_nuevo_y_por_el_antiguo_de_Valora(string url)
+    {
+        // Valora Prevención es hoy Avanta Prevención: una URL de acceso guardada con el dominio antiguo
+        // (que redirige) debe seguir resolviendo el mismo proveedor, el del slug estable «valora».
+        var servicio = _servicios.GetRequiredService<IResolucionProveedorPlataformaCaeService>();
+
+        var resultado = await servicio.ResolverPorUrlAsync(url);
+
+        resultado.Should().ContainSingle().Which.Nombre.Should().Be("Avanta Prevención");
     }
 
     [Fact]

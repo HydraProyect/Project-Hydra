@@ -11,10 +11,10 @@ namespace CaeManager.Web.Features.Dashboard;
 /// </para>
 ///
 /// <para>
-/// <b>El catálogo tiene 23 proveedores y aquí hay 19 marcas.</b> Las cuatro
-/// restantes (Valora, Arch, Opground y Norprevención) no tienen una marca
-/// oficial localizable —dominio redirigido a otra marca, en venta o inactivo,
-/// o logotipo solo del grupo matriz—, así que devolver
+/// <b>El catálogo tiene 23 proveedores y aquí hay 20 marcas.</b> Las tres
+/// restantes (Arch, Opground y Norprevención) no tienen una marca
+/// oficial localizable —dominio en venta o inactivo, o logotipo solo del
+/// grupo matriz—, así que devolver
 /// <see langword="null"/> sigue siendo una respuesta de primera clase: la fila
 /// se pinta igual, solo con el nombre. Añadir una marca es añadir una entrada y
 /// su fichero; no hay nada más que tocar. La procedencia de cada fichero está
@@ -53,6 +53,9 @@ public static class LogoPlataforma
         ["ergasia"] = "ergasia.png",
         ["playcae"] = "playcae.png",
         ["docuprl"] = "docuprl.png",
+        // Valora Prevención es hoy Avanta Prevención (Grupo Avanta): el slug estable no cambia,
+        // el nombre visible y la marca sí.
+        ["valora"] = "avanta.png",
     };
 
     /// <summary>
