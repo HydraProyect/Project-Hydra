@@ -461,7 +461,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             : WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
     }
 
-    /// <summary>«Ver ficha 360» del «⋯»: la página /centros/{id}.</summary>
+    /// <summary>«Abrir ficha 360» del «⋯»: la página /centros/{id}.</summary>
     private void AbrirFichaCentro(Guid id) => NavigationManager.NavigateTo($"/centros/{id}");
 
     private string EtiquetaFiltroBusqueda => Textos["ChipBusqueda", _busqueda].Value;

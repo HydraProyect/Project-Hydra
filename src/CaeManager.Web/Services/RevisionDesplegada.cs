@@ -38,7 +38,7 @@ public static class RevisionDesplegada
         var revision = Leer(valorCrudo);
         return app.Use((contexto, siguiente) =>
         {
-            if (contexto.Request.Path.Equals("/salud", StringComparison.OrdinalIgnoreCase))
+            if (contexto.Request.Path.StartsWithSegments("/salud", StringComparison.OrdinalIgnoreCase))
             {
                 contexto.Response.OnStarting(() =>
                 {

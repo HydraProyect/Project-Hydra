@@ -1048,13 +1048,14 @@ app.UseAntiforgery();
 // de UseRevalidacionClienteActivo).
 app.UseRevalidacionClienteActivo();
 
+// D-11: /salud añade la revisión desplegada en una cabecera, sin tocar su cuerpo ni su código.
+app.UseRevisionEnSalud(Environment.GetEnvironmentVariable(CaeManager.Web.Services.RevisionDesplegada.Variable));
+
 // Los archivos estáticos (JS/CSS) no son sensibles y nunca deben exigir
 // sesión iniciada — dejarlos detrás de la FallbackPolicy generaba una
 // carrera real: en una navegación fresca, blazor.web.js y nuestros propios
 // módulos JS a veces se pedían antes de que la cookie de auth completara su
 // ida y vuelta, y un import() dinámico fallido no se reintenta solo.
-// D-11: /salud añade la revisión desplegada en una cabecera, sin tocar su cuerpo ni su código.
-app.UseRevisionEnSalud(Environment.GetEnvironmentVariable(CaeManager.Web.Services.RevisionDesplegada.Variable));
 app.MapStaticAssets().AllowAnonymous();
 app.MapHealthChecks("/salud").AllowAnonymous();
 app.MapIdentityEndpoints();

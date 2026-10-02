@@ -136,7 +136,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     /// <summary>Escribe en el selector de Cliente algo que no existe y pulsa su «+ Crear «…»».</summary>
     private static async Task CrearClienteDesdeElSelectorAsync(IRenderedComponent<Centros> cut, string texto)
     {
-        await cut.Find("input[placeholder='Busca o crea un Cliente empresarial…']").InputAsync(new ChangeEventArgs { Value = texto });
+        await cut.Find("input[placeholder='Busca o crea un cliente…']").InputAsync(new ChangeEventArgs { Value = texto });
         await cut.Find("li.selector-entidad-opcion-crear").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "Nuevo cliente"));
     }
@@ -191,7 +191,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         // Cliente y Empresa elegidos a mano (no traídos por la URL): quedan puestos para el
         // siguiente centro, y la instantánea tiene que tomarse otra vez con ellos.
         var cut = await AbrirAltaAsync(Renderizar());
-        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente empresarial…", "Refrielectric S.A.");
+        await ElegirEnElSelectorAsync(cut, "Busca o crea un cliente…", "Refrielectric S.A.");
         await ElegirEnElSelectorAsync(cut, "Busca o crea una empresa…", "Montajes Ebro S.L.");
         await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
 
@@ -268,7 +268,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     public async Task Lo_escrito_en_el_modal_de_crear_Empresa_pregunta_una_vez_y_lo_traido_del_selector_no()
     {
         var cut = await AbrirAltaAsync(Renderizar());
-        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente empresarial…", "Refrielectric S.A.");
+        await ElegirEnElSelectorAsync(cut, "Busca o crea un cliente…", "Refrielectric S.A.");
         await cut.Find("input[placeholder='Busca o crea una empresa…']").InputAsync(new ChangeEventArgs { Value = "Aceros Ebro" });
         await cut.Find("li.selector-entidad-opcion-crear").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "Nueva empresa"));
@@ -353,7 +353,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     public async Task El_aviso_de_empresa_sin_elegir_desaparece_al_elegir_la_empresa()
     {
         var cut = await AbrirAltaAsync(Renderizar());
-        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente empresarial…", "Refrielectric S.A.");
+        await ElegirEnElSelectorAsync(cut, "Busca o crea un cliente…", "Refrielectric S.A.");
         await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
 
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
@@ -373,13 +373,13 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
         cut.Find(".alerta-formulario").TextContent.Trim().Should().Be("Selecciona un cliente.", "barrera: sin Cliente avisa del Cliente");
 
-        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente empresarial…", "Refrielectric S.A.");
+        await ElegirEnElSelectorAsync(cut, "Busca o crea un cliente…", "Refrielectric S.A.");
         cut.FindAll(".alerta-formulario").Should().BeEmpty("el Cliente ya está elegido");
 
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
         cut.Find(".alerta-formulario").TextContent.Trim().Should().Be("Selecciona una empresa.", "barrera: ahora falta la Empresa");
 
-        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente empresarial…", "Refrielectric S.A.");
+        await ElegirEnElSelectorAsync(cut, "Busca o crea un cliente…", "Refrielectric S.A.");
         cut.Find(".alerta-formulario").TextContent.Trim().Should().Be("Selecciona una empresa.",
             "cambiar de Cliente no rellena la Empresa: su aviso sigue siendo verdad");
     }

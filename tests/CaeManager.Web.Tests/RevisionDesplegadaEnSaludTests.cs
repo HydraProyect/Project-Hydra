@@ -43,6 +43,21 @@ public class RevisionDesplegadaEnSaludTests
         contexto.Response.Headers[RevisionDesplegada.Cabecera].ToString().Should().Be(Sha);
     }
 
+    [Fact]
+    public async Task Salud_con_barra_final_tambien_lleva_la_cabecera()
+    {
+        var (contexto, respuesta) = Contexto("/salud/");
+
+        await Pipeline(() => { })(contexto);
+        await respuesta.DispararOnStartingAsync();
+
+        contexto.Response.Headers[RevisionDesplegada.Cabecera].ToString().Should().Be(Sha);
+    }
+
+    [Fact]
+    public void El_nombre_de_marca_por_defecto_es_TALVEG() =>
+        CaeManager.Application.Common.Marca.PorDefecto.Should().Be("TALVEG", "D-10: el título de pestaña y los correos no pueden volver al nombre anterior");
+
     [Theory]
     [InlineData("/")]
     [InlineData("/saludable")]

@@ -160,7 +160,7 @@ public class Cliente360PaginaTests : BunitContext
 
         var cabecera = cut.Find(".cabecera-pagina");
         cabecera.QuerySelector("h1")!.TextContent.Trim().Should().Be("Refrielectric S.A.");
-        cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Cliente empresarial",
+        cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Cliente",
             "en pantalla el Cliente empresarial se rotula «Cliente» (contrato Gen2 § 14)");
         cabecera.QuerySelector(".cliente360-meta")!.TextContent.Should()
             .Contain("CIF A-48.220.917").And.Contain("3 centros · 42 trabajadores");

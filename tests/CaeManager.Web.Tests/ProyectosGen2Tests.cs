@@ -224,7 +224,7 @@ public class ProyectosGen2Tests : BunitContext
     }
 
     private static IElement SelectorDeCliente(IRenderedComponent<Proyectos> cut) =>
-        cut.FindAll("select").Single(s => s.TextContent.Contains("Selecciona un Cliente empresarial"));
+        cut.FindAll("select").Single(s => s.TextContent.Contains("Selecciona un cliente"));
 
     /// <summary>Sin <c>await</c> a propósito: la tarea termina cuando termina el manejador, respuestas retenidas incluidas.</summary>
     private static Task ElegirCliente(IRenderedComponent<Proyectos> cut, Guid clienteId) =>
@@ -348,7 +348,7 @@ public class ProyectosGen2Tests : BunitContext
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Elige un Cliente empresarial para ver sus proyectos");
+        cut.Markup.Should().Contain("Elige un cliente para ver sus proyectos");
         cut.Markup.Should().NotContain("+ Nuevo proyecto",
             "un proyecto cuelga siempre de un cliente: sin cliente no hay a quién colgarlo");
         _mediator.Enviados.OfType<ObtenerProyectosQuery>().Should().BeEmpty();

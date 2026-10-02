@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="CabeceraCliente" xml:space="preserve">
-    <value>Cliente empresarial:</value>
+    <value>Cliente:</value>
     <comment>Rótulo en pantalla del Cliente empresarial del Centro (contrato Gen2 § 14: Cliente empresarial se rotula «Cliente»).</comment>
   </data>
   <data name="CabeceraEmpresa" xml:space="preserve">
