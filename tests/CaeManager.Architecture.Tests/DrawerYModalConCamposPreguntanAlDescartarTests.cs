@@ -40,7 +40,11 @@ namespace CaeManager.Architecture.Tests;
 /// «Cancelar» o «Descartar» de su <c>&lt;Pie&gt;</c> (no el primario ni el destructivo, que son la acción del diálogo; no uno del cuerpo,
 /// que repliega un subformulario) llama a <c>SolicitarCierreAsync</c> del propio Drawer o Modal, en su <c>OnClick</c> o en un
 /// manejador del <c>.razor</c>/<c>.razor.cs</c> a un solo salto. NO ve: un «Cancelar» con otro rótulo («Volver», «Cerrar»), un
-/// manejador que delega en otro manejador, ni que la referencia (<c>@ref</c>) apunte al contenedor correcto.
+/// manejador que delega en otro manejador, ni que la referencia (<c>@ref</c>) apunte al contenedor correcto. Un «Cancelar» que
+/// vive en un componente hijo llega al padre por <c>OnCancelar</c> (<c>SelectorLoteDocumental</c>): todo <c>OnCancelar=</c> de un
+/// componente dentro de un contenedor con <c>HayCambios</c> debe usar <c>SolicitarCierreAsync</c> (sin la restricción del
+/// <c>&lt;Pie&gt;</c>; si un día hay un hijo cuyo <c>OnCancelar</c> solo repliega una fila, tendrá que cambiar de nombre o este
+/// analizador de criterio). NO ve otros nombres de parámetro para el mismo gesto (<c>OnCerrar</c>, <c>AlCancelar</c>).
 /// </para>
 /// </summary>
 public class DrawerYModalConCamposPreguntanAlDescartarTests
@@ -378,7 +382,7 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
 
     // El botón que cierra sin hacer nada nunca es el primario ni el destructivo: un «Descartar» primario (Retencion.razor, «Descartar»
     // la retención programada) es la acción del diálogo, no su salida.
-    private static readonly Regex VarianteDeAccion = new(@"Variante\s*=\s*""VarianteBoton\.(?:Primario|Destructivo)""", RegexOptions.Compiled);
+    private static readonly Regex VarianteDeAccion = new(@"Variante\s*=\s*""@?\(?\s*VarianteBoton\.(?:Primario|Destructivo)\s*\)?""", RegexOptions.Compiled);
 
     private static bool EsBotonDeCancelar(MarcadoRazor.Elemento boton) =>
         RotuloDeCancelar.IsMatch(TextoVisible(boton.Cuerpo)) && !VarianteDeAccion.IsMatch(boton.Apertura);

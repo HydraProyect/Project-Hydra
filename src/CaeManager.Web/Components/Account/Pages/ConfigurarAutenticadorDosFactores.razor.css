@@ -212,6 +212,7 @@
 .boton.boton-2fa {
     white-space: normal;
     text-align: center;
+    padding-block: var(--space-2);
 }
 
 @media (max-width: 1024px) {
