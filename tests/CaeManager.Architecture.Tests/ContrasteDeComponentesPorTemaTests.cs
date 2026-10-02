@@ -235,8 +235,7 @@ public class ContrasteDeComponentesPorTemaTests
             fondo.Should().NotBeNull($"{par.Nombre}: sin background propio ni FondoSiFalta no se puede medir el contraste");
             texto.Should().NotBeNull($"{par.Nombre}: sin color propio hereda un color que este test no ve");
 
-            // Translúcido = el resultado depende de lo que haya detrás (también si viene por un var()).
-            if (tokens.ResolverSobre(fondo!, tema, "#ffffff") != tokens.ResolverSobre(fondo!, tema, "#000000"))
+            if (EsTranslucido(tokens, fondo!, tema))
                 par.Detras.Should().NotBeNull($"{par.Nombre}: un fondo translúcido necesita el color que hay detrás (Detras)");
 
             var hexFondo = tokens.ResolverSobre(fondo, tema, par.Detras ?? Papel);
@@ -275,10 +274,67 @@ public class ContrasteDeComponentesPorTemaTests
         R("--color-primario-fondo-hover", "oscuro").Should().Be("#1e4a9e");
         R("--color-primario-texto", "oscuro").Should().Be("#ffffff");
 
-        // «Sistema» (sin data-theme) resuelve a :root, no al bloque claro: el valor de :root y el del bloque
-        // claro tienen que decir lo mismo, y ninguno de los dos se puede cambiar sin el otro.
-        Regex.Matches(File.ReadAllText(RutaTokensCss()), @"--color-primario-fondo:\s*var\(--color-primary-500\);")
-            .Should().HaveCount(2, ":root y el bloque claro declaran el mismo fondo del primario");
+        // «Sistema» (sin data-theme) resuelve a :root, no al bloque claro: se mide quitando los bloques de tema.
+        var soloRaiz = Tokens.Desde(Regex.Replace(File.ReadAllText(RutaTokensCss()),
+            @":root\[data-theme='\w+'\]\s*\{[^}]*\}", string.Empty));
+        string Raiz(string token) => soloRaiz.IntentarResolver($"var({token})", "claro")!;
+
+        Raiz("--color-primario-fondo").Should().Be("#235bc2", ":root («sistema») tiene que decir lo mismo que el bloque claro");
+        Raiz("--color-primario-fondo-hover").Should().Be("#1e4a9e");
+        Raiz("--color-primario-texto").Should().Be("#ffffff");
+        Raiz("--color-exito-solido-texto").Should().Be("#ffffff");
+    }
+
+    /// <param name="Relleno">Regla cuyo <c>background</c> es el relleno que tiene que distinguirse (sin letra).</param>
+    /// <param name="Contra">Regla del mismo fichero cuyo <c>background</c> es lo que hay detrás, o un <c>var()</c>.</param>
+    private sealed record ParGrafico(string Nombre, string Fichero, string Relleno, string Contra);
+
+    /// <summary>
+    /// Rellenos sin letra, que WCAG 1.4.11 exige a 3:1 contra lo que tienen detrás: no entran en <see cref="Pares"/>
+    /// (miden letra) ni en el barrido (exige fondo y letra en la misma regla). Dos defectos que vio la revisión del
+    /// seguimiento de #1037/#1040: el bolo blanco del interruptor de Visitas sobre su pista (#5ca2f4 en oscuro) y los
+    /// conectores de paso, que se quedaban en el azul claro mientras el círculo pasaba al primario con variante.
+    /// </summary>
+    private static readonly ParGrafico[] ParesGraficos =
+    [
+        new("Bolo del interruptor de Visitas sobre su pista", "Features/Visitas/Pages/Visitas.razor.css",
+            ".visitas-interruptor:checked::before", ".visitas-interruptor:checked"),
+        new("Conector de paso completado", "Components/DesignSystem/IndicadorPasos.razor.css",
+            ".indicador-pasos-item.indicador-pasos-completado:not(:last-child)::after", "var(--color-surface)"),
+        new("Línea completada de la revisión de sugerencia",
+            "Features/Comunicaciones/Components/RevisionSugerenciaModal.razor.css",
+            ".revision-stepper-linea-completa", "var(--color-surface)"),
+    ];
+
+    [Theory]
+    [InlineData("oscuro")]
+    [InlineData("claro")]
+    public void Los_rellenos_graficos_se_distinguen_de_lo_que_tienen_detras_a_3_a_1(string tema)
+    {
+        var tokens = Tokens.Desde(File.ReadAllText(RutaTokensCss()));
+        var fallos = new List<string>();
+
+        foreach (var par in ParesGraficos)
+        {
+            var css = Leer(par.Fichero);
+            var (relleno, _) = ColoresDeLaRegla(css, [par.Relleno]);
+            relleno.Should().NotBeNull($"{par.Nombre}: la regla no declara background");
+            var contra = par.Contra.StartsWith("var(", StringComparison.Ordinal)
+                ? par.Contra
+                : ColoresDeLaRegla(css, [par.Contra]).Fondo;
+            contra.Should().NotBeNull($"{par.Nombre}: lo que hay detrás no declara background");
+
+            var hexRelleno = tokens.IntentarResolver(relleno!, tema);
+            var hexContra = tokens.IntentarResolver(contra!, tema);
+            hexRelleno.Should().NotBeNull($"{par.Nombre}: formato no soportado '{relleno}'");
+            hexContra.Should().NotBeNull($"{par.Nombre}: formato no soportado '{contra}'");
+
+            var ratio = Contraste(hexRelleno!, hexContra!);
+            if (ratio < 3.0) fallos.Add($"{par.Nombre} ({par.Fichero}): {ratio:0.00}:1 en {tema} [{relleno} / {contra}]");
+        }
+
+        string.Join("\n", fallos).Should().BeEmpty(
+            "un relleno gráfico (bolo, conector, pista) tiene que distinguirse >= 3:1 de lo que tiene detrás en los dos temas");
     }
 
     [Fact]
@@ -307,6 +363,7 @@ public class ContrasteDeComponentesPorTemaTests
             .ToHashSet();
 
         var sinCubrir = new List<string>();
+        var exentasConLetra = new List<string>();
         var vistas = 0;
         foreach (var (fichero, patron) in Familias)
         {
@@ -318,12 +375,16 @@ public class ContrasteDeComponentesPorTemaTests
                 if (fondo is null && texto is null) continue;
 
                 vistas++;
-                if (!cubiertas.Contains((fichero, baseSel)) && !ExentasDeCobertura.ContainsKey((fichero, baseSel)))
+                var exenta = ExentasDeCobertura.ContainsKey((fichero, baseSel));
+                if (exenta && texto is not null) exentasConLetra.Add($"{fichero}: {baseSel}");
+                if (!cubiertas.Contains((fichero, baseSel)) && !exenta)
                     sinCubrir.Add($"{fichero}: {baseSel}");
             }
         }
 
         vistas.Should().BeGreaterThan(10, "sin variantes localizadas este test estaría en verde por no mirar nada");
+        exentasConLetra.Distinct().Should().BeEmpty(
+            "una variante exenta porque no lleva letra ha ganado una: quítala de ExentasDeCobertura y añádela a Pares");
         sinCubrir.Distinct().Should().BeEmpty(
             "una variante nueva de botón, badge o chip hay que añadirla a Pares (reposo y hover) para que se mida en " +
             "los dos temas");
@@ -381,7 +442,9 @@ public class ContrasteDeComponentesPorTemaTests
     /// <summary>
     /// Reglas con fondo y letra declarados que el barrido no sabe resolver (<c>rgba()</c>, degradados, un
     /// <c>var()</c> sin valor) y por tanto no mide. Medido el 2026-10-02. El tope solo baja: una regla nueva
-    /// con un formato que el instrumento no entiende hace fallar el test en vez de entrar sin medir.
+    /// con un formato que el instrumento no entiende hace fallar el test en vez de entrar sin medir, y una
+    /// que se arregla obliga a bajar la constante (la igualdad es estricta, para que el hueco liberado no lo
+    /// ocupe otra regla sin medir). Se cuenta la unión de los dos temas.
     /// Las 9 de hoy: dos de la caja del editor (color-mix, medidas en <see cref="Pares"/> sobre el papel), cuatro de
     /// AccesoLayout (pantalla de acceso de tema fijo, con rgba), una de Importación (rgba sobre el paso actual,
     /// medida arriba con la letra de superficie) y dos iconos: uno toma el color de una propiedad local de Razor
@@ -398,13 +461,14 @@ public class ContrasteDeComponentesPorTemaTests
         foreach (var fichero in HojasDelArbol())
         {
             var rel = Path.GetRelativePath(RaizWeb(), fichero).Replace('\\', '/');
-            foreach (var (clave, ratio) in Evaluar(File.ReadAllText(fichero), rel, tokens, "claro"))
-                if (ratio is null) omitidas.Add(clave);
+            foreach (var tema in new[] { "oscuro", "claro" })
+                foreach (var (clave, ratio) in Evaluar(File.ReadAllText(fichero), rel, tokens, tema))
+                    if (ratio is null) omitidas.Add(clave);
         }
 
-        omitidas.Count.Should().BeLessThanOrEqualTo(OmitidasHoy,
+        omitidas.Count.Should().Be(OmitidasHoy,
             "el barrido no sabe medir estas reglas (formato de color que no entiende): {0}. Si la regla es nueva, usa " +
-            "#rrggbb o var(); si no se puede, súbela aquí con el motivo. Hoy omite {1}",
+            "#rrggbb o var(); si no se puede, súbela aquí con el motivo. Si bajó, baja la constante. Hoy omite {1}",
             string.Join("; ", omitidas), omitidas.Count);
     }
 
@@ -489,9 +553,63 @@ public class ContrasteDeComponentesPorTemaTests
         reglas.Select(r => r.Selector).Should().Equal(".a", ".b:hover", ".c:not(:disabled):hover");
         SinEstados(".c:not(:disabled):hover").Should().Be(".c");
         SinEstados("#components-reconnect-modal button:active").Should().Be("#components-reconnect-modal button");
+        SinEstados(".fila:focus-within").Should().Be(".fila", ":focus-within es un estado, no se queda como «-within»");
+        SinEstados(".fila:focus").Should().Be(".fila");
+    }
+
+    [Fact]
+    public void Un_estado_focus_within_se_completa_con_la_letra_de_la_base()
+    {
+        var tokens = Tokens.Desde(TokensDelDefecto);
+        const string css = """
+            .fila { background: var(--color-primary-400); color: var(--color-neutral-0); }
+            .fila:focus-within { background: var(--color-primary-600); }
+            """;
+
+        var medidas = Barrer(css, "x.css", tokens, "oscuro").ToList();
+
+        medidas.Should().HaveCount(2, "la base y el estado con foco dentro");
+        medidas.Min(m => m.Ratio).Should().BeLessThan(1.5, "el estado con foco dentro se mide con la letra de la base");
+    }
+
+    [Fact]
+    public void El_instrumento_entiende_important_y_el_fallback_de_var_y_los_cuenta_si_no_puede()
+    {
+        var tokens = Tokens.Desde(TokensDelDefecto);
+
+        ColoresDelCuerpo("background: #000 !important; color: var(--color-neutral-0) !important;")
+            .Should().Be(("#000", "var(--color-neutral-0)"), "el !important no forma parte del valor");
+        tokens.IntentarResolver("var(--no-existe, #123456)", "claro").Should().Be("#123456", "sin el token manda el fallback");
+        tokens.IntentarResolver("var(--color-neutral-0, #123456)", "claro").Should().Be("#ffffff", "con el token declarado, el fallback no se usa");
+        tokens.IntentarResolver("var(--no-existe)", "claro").Should().BeNull();
+
+        var omitida = Evaluar(".x { background: rgba(0,0,0,.5); color: #fff; }", "x.css", tokens, "claro").Single();
+        omitida.Ratio.Should().BeNull("una regla con un formato que no entiende se cuenta como omitida, no desaparece");
+    }
+
+    [Fact]
+    public void La_guarda_de_fondo_translucido_ve_el_color_mix_que_llega_por_un_token()
+    {
+        var tokens = Tokens.Desde("""
+            :root {
+              --papel-fondo: color-mix(in srgb, #ffffff 55%, transparent);
+              --solido: #336699;
+            }
+            :root[data-theme='oscuro'] { --x: #000000; }
+            :root[data-theme='claro'] { --x: #000000; }
+            """);
+
+        EsTranslucido(tokens, "var(--papel-fondo)", "claro").Should().BeTrue("el color-mix llega por un var()");
+        EsTranslucido(tokens, "var(--no-existe, color-mix(in srgb, #ffffff 55%, transparent))", "claro")
+            .Should().BeTrue("el fallback también puede ser translúcido");
+        EsTranslucido(tokens, "var(--solido)", "claro").Should().BeFalse("control negativo: un fondo opaco no necesita Detras");
     }
 
     // ---- Instrumento ----
+
+    /// <summary>Translúcido = el color final depende de lo que haya detrás (también si el valor llega por un var()).</summary>
+    private static bool EsTranslucido(Tokens tokens, string fondo, string tema) =>
+        tokens.ResolverSobre(fondo, tema, "#ffffff") != tokens.ResolverSobre(fondo, tema, "#000000");
 
     /// <summary>
     /// Para cada regla con fondo y letra resolubles (la propia o, si es de estado, completada con la

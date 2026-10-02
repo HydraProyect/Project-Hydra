@@ -101,12 +101,12 @@ internal static class ContrasteCss
             if (!mezcla.Success)
             {
                 // El valor de un token puede ser, a su vez, un color-mix(): se sigue la cadena de var().
-                var v = Regex.Match(valor, @"^var\(\s*(--[\w-]+)\s*\)$");
+                var v = Regex.Match(valor, @"^var\(\s*(--[\w-]+)\s*(?:,\s*(.+?))?\s*\)$");
                 if (!v.Success) return IntentarResolver(valor, tema);
                 var nombre = v.Groups[1].Value;
                 if (_temas[tema].TryGetValue(nombre, out var deTema)) return ResolverSobre(deTema, tema, detras);
                 if (_raiz.TryGetValue(nombre, out var deRaiz)) return ResolverSobre(deRaiz, tema, detras);
-                return null;
+                return v.Groups[2].Success ? ResolverSobre(v.Groups[2].Value, tema, detras) : null;
             }
 
             var color = IntentarResolver(mezcla.Groups[1].Value, tema);
@@ -217,9 +217,9 @@ internal static class ContrasteCss
         }
     }
 
-    /// <summary>Un selector sin sus estados (<c>:hover</c>, <c>:active</c>, <c>:focus</c>, <c>:focus-visible</c>, <c>:not(:disabled)</c>).</summary>
+    /// <summary>Un selector sin sus estados (<c>:hover</c>, <c>:active</c>, <c>:focus</c>, <c>:focus-visible</c>, <c>:focus-within</c>, <c>:not(:disabled)</c>).</summary>
     internal static string SinEstados(string selector) =>
-        Regex.Replace(selector, @":not\(:disabled\)|:hover|:active|:focus-visible|:focus(?![\w-])", string.Empty);
+        Regex.Replace(selector, @":not\(:disabled\)|:hover|:active|:focus-visible|:focus-within|:focus(?![\w-])", string.Empty);
 
     /// <summary>Contraste WCAG 2.x entre dos colores <c>#rrggbb</c>.</summary>
     internal static double Contraste(string a, string b)
