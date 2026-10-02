@@ -179,9 +179,9 @@
 
 .bandeja-toggle-activo,
 .bandeja-toggle-activo:hover {
-    border-color: var(--color-primary-500);
-    background-color: var(--color-primary-500);
-    color: var(--color-neutral-0);
+    border-color: var(--color-primario-fondo);
+    background-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
 }
 
 .bandeja-filtros-avanzados summary {

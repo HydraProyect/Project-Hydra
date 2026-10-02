@@ -93,9 +93,9 @@
 
 #components-reconnect-modal button {
     border: var(--border-default);
-    background-color: var(--color-primary-500);
-    border-color: var(--color-primary-500);
-    color: var(--color-neutral-0);
+    background-color: var(--color-primario-fondo);
+    border-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
     font: var(--font-label-md);
     padding: var(--space-2) var(--space-6);
     min-height: 44px;
@@ -105,13 +105,13 @@
 }
 
     #components-reconnect-modal button:hover {
-        background-color: var(--color-primary-600);
-        border-color: var(--color-primary-600);
+        background-color: var(--color-primario-fondo-hover);
+        border-color: var(--color-primario-fondo-hover);
     }
 
     #components-reconnect-modal button:active {
-        background-color: var(--color-primary-500);
-        border-color: var(--color-primary-500);
+        background-color: var(--color-primario-fondo);
+        border-color: var(--color-primario-fondo);
     }
 
 /*

@@ -69,15 +69,15 @@
 }
 
 .revision-stepper-actual .revision-stepper-circulo {
-    border-color: var(--color-primary-500);
-    background-color: var(--color-primary-500);
-    color: #fff;
+    border-color: var(--color-primario-fondo);
+    background-color: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
 }
 
 .revision-stepper-completado .revision-stepper-circulo {
     border-color: var(--color-success-700);
     background-color: var(--color-success-700);
-    color: #fff;
+    color: var(--color-exito-solido-texto);
 }
 
 /* --- Banners --- */
