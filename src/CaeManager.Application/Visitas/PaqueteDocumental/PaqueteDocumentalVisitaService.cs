@@ -27,7 +27,7 @@ public class PaqueteDocumentalVisitaService(
     // Remitente distinto del de ResponderConversacionCommand
     // (equipo-cae@buzon-simulado.local) a propósito — este mensaje no lo
     // escribió ninguna persona, y el hilo debe dejarlo claro.
-    private const string RemitenteAutomaticoEmail = "hydra-automatico@sistema.local";
+    private const string RemitenteAutomaticoEmail = "talveg-automatico@sistema.local";
 
     private record DocumentoCandidatoDto(
         Guid Id, Guid? TrabajadorId, Guid TipoDocumentoId, string ArchivoUrl, DateOnly FechaEmision,

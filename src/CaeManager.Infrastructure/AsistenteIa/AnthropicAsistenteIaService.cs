@@ -85,7 +85,7 @@ public class AnthropicAsistenteIaService(
 
         Mantén siempre un tono profesional y técnico.
 
-        Restricción adicional de esta plataforma (Etapa 1, ver ROADMAP.md § Iniciativa de IA): no tienes acceso a ningún dato real de Project Hydra (Clientes, Empresas, Trabajadores, Documentos) — si te preguntan sobre un caso concreto de un cliente o trabajador específico, acláralo y responde solo con la información normativa general que pueda ayudar a resolverlo.
+        Restricción adicional de esta plataforma (Etapa 1, ver ROADMAP.md § Iniciativa de IA): no tienes acceso a ningún dato real de TALVEG (Clientes, Empresas, Trabajadores, Documentos) — si te preguntan sobre un caso concreto de un cliente o trabajador específico, acláralo y responde solo con la información normativa general que pueda ayudar a resolverlo.
         """;
 
     public async Task<Result<string>> PreguntarAsync(IReadOnlyList<MensajeChatDto> historial, CancellationToken cancellationToken)

@@ -391,10 +391,21 @@ public class TerminologiaCanonicaTests
     /// 2026-08-14 en Negocio: la entidad es «Talveg», nombre comercial; el producto pasa a llamarse
     /// también TALVEG). <c>VersionTerminos.Actual</c> subió en el mismo cambio.
     /// </para>
+    /// <para>
+    /// <b><c>Hydra</c> 10 → 3 (remate del cambio de marca, 2026-10-02): −7.</b> Los comentarios de
+    /// <c>VentanaContexto</c> (1), <c>MarcaProcedencia</c> (3), <c>RevisionSugerenciaModal</c> (2) y
+    /// <c>AccionCenter</c> (1) dicen TALVEG donde decían el nombre antiguo. Ninguno era texto visible: el
+    /// trinquete cuenta cualquier aparición en un <c>.razor</c>, comentarios incluidos. Quedan fuera,
+    /// deliberadamente, el nombre histórico de un tablero de iconos citado en <c>Icono.razor</c>
+    /// (1; es un nombre propio de un artefacto externo que no se ha renombrado) y los dos
+    /// identificadores <c>TenantHydraId</c> (que no son marca visible). Lo que el trinquete no ve —un
+    /// literal de cadena en <c>.cs</c>, como el título de la API o el prompt del asistente— lo vigila
+    /// <see cref="La_marca_antigua_no_aparece_en_literales_de_cadena_de_codigo"/>, con base cero.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
-        ["Hydra"] = 10,
+        ["Hydra"] = 3,
         ["EjecutivoUsuarioId"] = 43,
         // 337 → 340 (2026-09-28, «Asignar empresas» a un Gestor CAE existente): tres usos de
         // identificadores legacy que ya existen y no se renombran aquí —DelegacionesTenant,
@@ -706,6 +717,112 @@ public class TerminologiaCanonicaTests
         fuera.Should().NotBeEmpty("hoy hay satélites ca-ES en src/; si no sale ninguno, el control no mira");
         fuera.Should().OnlyContain(a => dentro.Contains(ResxSatelite.Match(a).Groups["base"].Value + ".resx"),
             "un .resx excluido solo puede ser un satélite con su neutral contado");
+    }
+
+    /// <summary>
+    /// La marca antigua, sin distinguir mayúsculas, al comienzo de una palabra: no cuenta
+    /// <c>Project-Hydra</c> (el nombre del repositorio) ni la que va dentro de un identificador
+    /// (<c>TenantHydraId</c>); sí cuenta <c>Hydra API</c>, <c>HYDRA</c>, <c>hydra-automatico</c> o
+    /// <c>HydraCAE</c>, que un lector humano ve como la marca.
+    /// </summary>
+    private static readonly Regex MarcaAntiguaEnLiteral =
+        new(@"(?<![\w-])hydra", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// Literales técnicos que llevan el prefijo antiguo y NO son marca visible: son protocolo ya
+    /// emitido o consumido y renombrarlos es un cambio funcional con su propio incremento —el
+    /// prefijo de las claves de API ya generadas, el tipo de claim de la sesión de origen y el tipo
+    /// del mensaje entre la página y la extensión del navegador—. Se quitan del literal antes de
+    /// buscar la marca; cualquier otro texto con «hydra» sigue contando.
+    /// </summary>
+    private static readonly string[] LiteralesTecnicosConPrefijoAntiguo =
+    [
+        "hydra_",
+        "hydra:rol_sesion_origen",
+        "hydra.conectarExtension.v1",
+    ];
+
+    /// <summary>
+    /// Cuenta las apariciones de <paramref name="regex"/> dentro de literales de cadena de un
+    /// fuente C# (normales, textuales, crudos —el prompt del asistente es uno— e interpolados),
+    /// después de quitar <paramref name="literalesTecnicos"/>. Complementa a
+    /// <see cref="ContarIdentificadoresEnCodigoCSharp"/>, que por contrato no mira literales: ahí se
+    /// escapaban el título de la API («Hydra API v1»), el prompt del asistente y el remitente del
+    /// paquete documental, que sí llegan a un lector humano o a un modelo.
+    /// </summary>
+    private static int ContarEnLiteralesDeCadena(string textoFuente, Regex regex, string[] literalesTecnicos) =>
+        CSharpSyntaxTree.ParseText(textoFuente).GetRoot().DescendantTokens()
+            .Where(t => t.Kind() is SyntaxKind.StringLiteralToken
+                or SyntaxKind.SingleLineRawStringLiteralToken
+                or SyntaxKind.MultiLineRawStringLiteralToken
+                or SyntaxKind.InterpolatedStringTextToken
+                or SyntaxKind.Utf8StringLiteralToken
+                or SyntaxKind.Utf8SingleLineRawStringLiteralToken
+                or SyntaxKind.Utf8MultiLineRawStringLiteralToken)
+            .Sum(t => regex.Matches(literalesTecnicos.Aggregate(
+                t.Text, (texto, tecnico) => texto.Replace(tecnico, "", StringComparison.OrdinalIgnoreCase))).Count);
+
+    /// <summary>
+    /// El cambio de marca a TALVEG (2026-10-02) cerró los textos que ve el usuario; esto cierra los que
+    /// el trinquete de deuda no podía ver: ningún literal de cadena del código de <c>src/</c> dice la
+    /// marca antigua (con las tres excepciones técnicas de <see cref="LiteralesTecnicosConPrefijoAntiguo"/>).
+    /// Base cero, no congelada: un literal nuevo con «Hydra» es un defecto, no deuda. Solo mira
+    /// <c>.cs</c>: lo que hay en <c>.razor</c> ya lo cuenta el trinquete de deuda, y los ficheros
+    /// fuera de <c>src/</c> (extensión, <c>deploy/</c>, <c>tools/</c>) no entran aquí.
+    /// </summary>
+    [Fact]
+    public void La_marca_antigua_no_aparece_en_literales_de_cadena_de_codigo()
+    {
+        var conMarca = ArchivosDeCodigo()
+            .Where(a => a.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            .Select(a => (archivo: a, apariciones: ContarEnLiteralesDeCadena(
+                File.ReadAllText(a), MarcaAntiguaEnLiteral, LiteralesTecnicosConPrefijoAntiguo)))
+            .Where(par => par.apariciones > 0)
+            .Select(par => $"  {par.apariciones,4}  {Path.GetRelativePath(RaizDelRepositorio(), par.archivo)}")
+            .ToList();
+
+        conMarca.Should().BeEmpty(
+            "la marca es TALVEG (§ 5 del contrato de terminología): un literal de cadena con «Hydra» " +
+            "—título de la API, prompt del asistente, remitente, mensaje— llega a quien lo lee. Ficheros:\n" +
+            string.Join("\n", conMarca));
+    }
+
+    /// <summary>
+    /// Control positivo del detector de literales: ve la marca en un literal normal, en mayúsculas,
+    /// pegada a otra palabra, como remitente, en uno crudo multilínea y en un interpolado; no ve un
+    /// identificador, <c>Project-Hydra</c>, un comentario, <c>TenantHydraId</c> dentro de un literal
+    /// ni los tres literales técnicos permitidos. Sin él, la prueba de arriba pasaría igual si el
+    /// detector dejara de ver literales.
+    /// </summary>
+    [Fact]
+    public void El_detector_de_marca_en_literales_ve_literales_y_solo_literales()
+    {
+        const string fuente = """"
+            namespace N;
+            // Hydra en un comentario no cuenta
+            class Hydra { }
+            class C
+            {
+                string A() => "Hydra API v1";
+                string B() => """
+                    datos reales de Project Hydra
+                    """;
+                string D(int x) => $"{x} en Hydra";
+                string E() => "Project-Hydra-Negocio";
+                string F() => "falta AzureAd:TenantHydraId";
+                string G() => "HYDRA API";
+                string H() => "HydraCAE";
+                string I() => "hydra-automatico@sistema.local";
+                string J() => "hydra_";
+                string K() => "hydra:rol_sesion_origen";
+                string L() => "hydra.conectarExtension.v1";
+            }
+            """";
+
+        ContarEnLiteralesDeCadena(fuente, MarcaAntiguaEnLiteral, LiteralesTecnicosConPrefijoAntiguo).Should().Be(6,
+            "cuentan el literal normal, el crudo multilínea («Project Hydra», con espacio), el " +
+            "interpolado, «HYDRA API», «HydraCAE» y el remitente; no el comentario, la clase, " +
+            "Project-Hydra, TenantHydraId ni los tres literales técnicos permitidos");
     }
 
     /// <summary>
