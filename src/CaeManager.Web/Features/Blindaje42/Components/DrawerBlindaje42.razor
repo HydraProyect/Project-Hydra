@@ -184,10 +184,11 @@
     /// <summary>
     /// «¿Descartar cambios?» al cerrar el drawer con la X, Escape o el fondo (S3): hay algo escrito que
     /// se perdería. Las fechas cuentan solo si se apartaron de la que se propuso al abrir (hoy); el
-    /// formulario de respuesta, solo mientras está abierto.
+    /// formulario de respuesta, solo mientras está abierto. Mientras guarda no pregunta: el cierre
+    /// se ignora de todos modos (CerrarAsync).
     /// </summary>
     private bool HayCambiosSinGuardar =>
-        Visible
+        Visible && !_guardandoSolicitud && !_guardandoRespuesta
         && (!string.IsNullOrWhiteSpace(_observacionesNueva)
             || _fechaSolicitud != _fechaSolicitudInicial
             || (_respondiendoSolicitudId is not null
@@ -251,6 +252,10 @@
 
             Toasts.Mostrar("Solicitud registrada.", TonoToast.Exito);
             _observacionesNueva = string.Empty;
+            // Lo guardado ya no es un cambio pendiente (la fecha puede ser retroactiva), y la solicitud nueva
+            // pasa a ser la más reciente: el formulario de respuesta de la anterior deja de pintarse.
+            _fechaSolicitudInicial = _fechaSolicitud;
+            _respondiendoSolicitudId = null;
             await CargarAsync();
             await OnCambio.InvokeAsync();
         }

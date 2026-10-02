@@ -356,4 +356,22 @@ public class ClavesApiGen2Tests : BunitContext
         await cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs());
         cut.FindAll(".modal-contenido").Should().BeEmpty("el borrador descartado no vuelve al reabrir: no hay nada que preguntar");
     }
+
+    /// <summary>«Cancelar» cierra como la X (D-05): con el nombre escrito pregunta, no lo tira en silencio.</summary>
+    [Fact]
+    public async Task Cancelar_en_Generar_clave_con_el_nombre_escrito_pregunta_antes_de_descartar()
+    {
+        Services.AddLocalization();
+        var (cut, mediator) = Renderizar();
+        await Seleccionar(cut, mediator.DelegacionId);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
+        var campo = cut.FindComponent<CampoTexto>();
+        await cut.InvokeAsync(() => campo.Instance.ValorChanged.InvokeAsync("Integración con el ERP"));
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("h2").Any(h => h.TextContent.Trim() == "¿Descartar cambios?").Should().BeTrue();
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".modal-contenido").Should().ContainSingle("«Seguir editando» conserva el modal y el nombre");
+    }
 }

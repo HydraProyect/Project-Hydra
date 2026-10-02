@@ -54,7 +54,12 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     // «¿Descartar cambios?» al cerrar el modal con la X, Escape o el fondo (S3): instantánea al abrirlo.
     private readonly InstantaneaFormulario _instantaneaLinea = new();
 
-    private bool HayCambiosEnLinea => _modalLineaVisible && _instantaneaLinea.Difiere(ValoresDeLaLinea());
+    private bool HayCambiosEnLinea => _modalLineaVisible && !_guardandoLinea && _instantaneaLinea.Difiere(ValoresDeLaLinea());
+
+    private Modal? _modalLinea;
+
+    // «Cancelar» cierra como la X: con cambios pregunta antes de descartarlos (D-05).
+    private Task CancelarLineaAsync() => _modalLinea is { } modal ? modal.SolicitarCierreAsync() : CerrarModalLinea();
 
     private object?[] ValoresDeLaLinea() =>
     [

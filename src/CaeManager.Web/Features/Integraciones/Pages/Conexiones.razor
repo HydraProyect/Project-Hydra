@@ -186,7 +186,7 @@
     </Pie>
 </Modal>
 
-<Modal Visible="_modalLineaVisible" VisibleChanged="(bool visible) => CerrarModalLinea(visible)"
+<Modal @ref="_modalLinea" Visible="_modalLineaVisible" VisibleChanged="(bool visible) => CerrarModalLinea(visible)"
        Titulo="@(_lineaEnEdicion is null ? "Nueva línea WhatsApp" : "Editar línea WhatsApp")"
        CerrarAlHacerClicFuera="!_guardandoLinea" Bloqueante="_guardandoLinea" HayCambios="() => HayCambiosEnLinea">
     <ChildContent>
@@ -249,7 +249,7 @@
                        Placeholder="¡Hola! Para atenderte mejor, dinos de qué empresa nos escribes y en qué podemos ayudarte." />
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoLinea" OnClick="() => CerrarModalLinea()">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoLinea" OnClick="CancelarLineaAsync">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoLinea" OnClick="GuardarLineaAsync">
             @(_lineaEnEdicion is null ? "Crear línea" : "Guardar cambios")
         </Boton>

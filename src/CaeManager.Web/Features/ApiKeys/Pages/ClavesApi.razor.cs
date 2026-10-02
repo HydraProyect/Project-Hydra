@@ -81,6 +81,9 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
 
     private void AbrirGeneracion() { if (!_generando) { _errorGenerar = null; _mostrarFormularioGenerar = true; } }
     private void CambiarNombreNuevaClave(string valor) { _nombreNuevaClave = valor; _errorGenerar = null; }
+    private Modal? _modalGenerar;
+    // «Cancelar» cierra como la X: con el nombre escrito pregunta antes de descartarlo (D-05).
+    private Task CancelarGeneracionAsync() { if (_modalGenerar is { } modal) return modal.SolicitarCierreAsync(); CerrarFormularioGenerar(false); return Task.CompletedTask; }
     private void CerrarFormularioGenerar(bool visible) { if (!visible && !_generando) { _mostrarFormularioGenerar = false; _nombreNuevaClave = string.Empty; _errorGenerar = null; } }
     private void CerrarClaveGenerada(bool visible) { if (!visible) _claveGenerada = null; }
     private void PedirRevocacion(ClaveApiDto clave) { if (!_revocando) _claveARevocar = clave; }

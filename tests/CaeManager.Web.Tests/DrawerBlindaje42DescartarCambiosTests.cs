@@ -1,6 +1,8 @@
 using Bunit;
+using CaeManager.Application.Blindaje42.Commands.SolicitarCertificacionTgss;
 using CaeManager.Application.Blindaje42.Queries.ObtenerHistorialCertificacionesTgss;
 using CaeManager.Domain.Blindaje42;
+using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Blindaje42.Components;
@@ -8,6 +10,7 @@ using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 
 namespace CaeManager.Web.Tests;
 
@@ -45,6 +48,7 @@ public class DrawerBlindaje42DescartarCambiosTests : BunitContext
             Task.FromResult((TResponse)(request switch
             {
                 ObtenerHistorialCertificacionesTgssQuery => (object)historial,
+                SolicitarCertificacionTgssCommand => Result.Exito(Guid.NewGuid()),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
             }));
 
@@ -116,19 +120,26 @@ public class DrawerBlindaje42DescartarCambiosTests : BunitContext
         Preguntando(cut).Should().BeTrue("la fecha propuesta era hoy; otra fecha es algo que alguien escribió");
     }
 
-    /// <summary>Abrir el formulario de respuesta sin tocar nada no es un cambio; elegir un resultado sí.</summary>
+    private async Task AbrirRespuestaAsync(IRenderedComponent<DrawerBlindaje42> cut) =>
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Registrar respuesta").ClickAsync(new MouseEventArgs());
+
+    /// <summary>Abrir el formulario de respuesta sin tocar nada no es un cambio.</summary>
     [Fact]
-    public async Task El_formulario_de_respuesta_abierto_solo_cuenta_cuando_se_toca()
+    public async Task El_formulario_de_respuesta_recien_abierto_no_pregunta()
     {
         var cut = Renderizar();
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Registrar respuesta").ClickAsync(new MouseEventArgs());
+        await AbrirRespuestaAsync(cut);
 
         await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
-        _visible.Should().BeFalse("abrir el formulario sin escribir nada no pregunta");
 
-        _visible = true;
-        cut = Renderizar();
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Registrar respuesta").ClickAsync(new MouseEventArgs());
+        _visible.Should().BeFalse("abrir el formulario sin escribir nada no pregunta");
+    }
+
+    [Fact]
+    public async Task Con_un_resultado_elegido_la_X_pregunta()
+    {
+        var cut = Renderizar();
+        await AbrirRespuestaAsync(cut);
         var resultado = cut.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta == "Resultado");
         await cut.InvokeAsync(() => resultado.Instance.ValorChanged.InvokeAsync(nameof(ResultadoCertificacionTgss.SinDescubiertos)));
 
@@ -136,5 +147,50 @@ public class DrawerBlindaje42DescartarCambiosTests : BunitContext
 
         Preguntando(cut).Should().BeTrue("con un resultado elegido hay algo que se perdería");
         _visible.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Con_otra_fecha_de_respuesta_la_X_pregunta()
+    {
+        var cut = Renderizar();
+        await AbrirRespuestaAsync(cut);
+        var fecha = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de respuesta");
+        await cut.InvokeAsync(() => fecha.Instance.ValorChanged.InvokeAsync("2026-01-15"));
+
+        await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+
+        Preguntando(cut).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Con_un_justificante_cargado_la_X_pregunta()
+    {
+        var cut = Renderizar();
+        await AbrirRespuestaAsync(cut);
+        // El justificante llega por ZonaSoltarArchivo (InputFile), que bUnit no ejerce bien: se fija el estado que deja.
+        typeof(DrawerBlindaje42).GetField("_evidenciaContenido", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(cut.Instance, new byte[] { 1, 2, 3 });
+
+        await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+
+        Preguntando(cut).Should().BeTrue("un archivo cargado y sin registrar se perdería");
+    }
+
+    /// <summary>
+    /// Lo guardado ya no es un cambio pendiente: registrar una solicitud con una fecha retroactiva y cerrar
+    /// después no pregunta (la fecha no vuelve a «hoy» al guardar).
+    /// </summary>
+    [Fact]
+    public async Task Tras_registrar_una_solicitud_con_fecha_retroactiva_la_X_cierra_sin_preguntar()
+    {
+        var cut = Renderizar();
+        var fecha = cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Fecha de la nueva solicitud");
+        await cut.InvokeAsync(() => fecha.Instance.ValorChanged.InvokeAsync("2026-09-20"));
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Registrar solicitud").ClickAsync(new MouseEventArgs());
+
+        await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+
+        Preguntando(cut).Should().BeFalse("la solicitud ya se guardó: no hay nada pendiente");
+        _visible.Should().BeFalse();
     }
 }

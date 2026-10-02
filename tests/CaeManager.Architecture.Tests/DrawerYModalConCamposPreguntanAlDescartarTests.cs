@@ -10,7 +10,8 @@ namespace CaeManager.Architecture.Tests;
 /// decisión del propietario del 2026-09-26). El componente lo hace solo si el formulario le pasa
 /// <c>HayCambios</c>, y hasta hoy eso era opcional: un Drawer o Modal con campos que no lo pasaba tiraba lo
 /// escrito sin preguntar (D-05, D-20; M13 del análisis de causas raíz). Este test lo vuelve obligatorio:
-/// <b>todo <c>&lt;Drawer&gt;</c> o <c>&lt;Modal&gt;</c> cuyo cuerpo contiene campos pasa <c>HayCambios</c></b>,
+/// <b>todo <c>&lt;Drawer&gt;</c> o <c>&lt;Modal&gt;</c> (y <c>&lt;DialogoConfirmacion&gt;</c>, que monta un Modal) cuyo cuerpo
+/// contiene campos pasa <c>HayCambios</c></b>,
 /// salvo que no se pueda descartar (<c>Bloqueante</c> fijo, sin X, sin Escape ni cierre por fondo) o esté en
 /// <see cref="ContenedoresSinGuardian"/> con su motivo.
 ///
@@ -36,7 +37,7 @@ namespace CaeManager.Architecture.Tests;
 /// </summary>
 public class DrawerYModalConCamposPreguntanAlDescartarTests
 {
-    private const string Contenedores = "Drawer|Modal";
+    private const string Contenedores = "Drawer|Modal|DialogoConfirmacion";
 
     private const string Campos =
         "CampoTexto|CampoSelect|CampoTextarea|CampoBuscarSelect|SelectorEntidad|SelectorMultiple|ZonaSoltarArchivo|" +
@@ -48,7 +49,9 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     // Bloqueante="_guardando" (dinámico) no vale: fuera de ese instante, el contenedor se puede cerrar.
     private static readonly Regex BloqueanteFijo = new(@"(?:^|\s)Bloqueante(?:\s*=\s*""(?:true|True)"")?(?=[\s/>])", RegexOptions.Compiled);
 
-    private static readonly Regex GuardianQueNuncaPregunta = new(@"^\s*(?:\(\s*\)\s*=>\s*)?false\s*$", RegexOptions.Compiled);
+    // Guardianes que nunca preguntan, sin espacios y sin la arroba de Razor: «false», «() => false», «(() => false)» y
+    // «() => { return false; }». No intenta ser exhaustivo (una función que olvide un campo es del bUnit de cada formulario).
+    private static readonly string[] GuardianesInertes = ["false", "()=>false", "(()=>false)", "()=>{returnfalse;}"];
 
     /// <summary>
     /// Drawer o Modal con campos que no pasa <c>HayCambios</c>, con el motivo. Clave: ruta desde la raíz del
@@ -60,7 +63,18 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         ["src/CaeManager.Web/Features/Plataforma/Pages/Plataforma.razor#Modal1"] =
             "Confirmación del acto fundacional: su única «entrada» es una casilla de «Entiendo…» que habilita el botón. " +
             "No hay dato que se pierda al cerrar; cerrar y volver a abrir es gratis.",
+
+        // Los tres diálogos de confirmación de Visitas (cancelar, reactivar, cancelar en lote) llevan un «Motivo
+        // (opcional)»: es el cuerpo de una confirmación, no un formulario; «Volver» y la X lo descartan a propósito.
+        // Si se decide proteger el motivo, DialogoConfirmacion necesita un HayCambios que pase a su Modal.
+        ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor#DialogoConfirmacion1"] = MotivoOpcionalDeConfirmacion,
+        ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor#DialogoConfirmacion2"] = MotivoOpcionalDeConfirmacion,
+        ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor#DialogoConfirmacion3"] = MotivoOpcionalDeConfirmacion,
     };
+
+    private const string MotivoOpcionalDeConfirmacion =
+        "Diálogo de confirmación con un «Motivo (opcional)» de una línea o dos: la acción es confirmar, el texto es un añadido " +
+        "voluntario y se pierde a propósito con «Volver». Excepción abierta a decisión de producto (¿proteger el motivo?).";
 
     // -------------------------------------------------------------------------------------------
 
@@ -112,6 +126,9 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
             <Drawer Titulo="F" HayCambios="() => false"><CampoTexto Etiqueta="z" /></Drawer>
             <Drawer Titulo="G"><input type="hidden" value="1" /></Drawer>
             <Drawer Titulo="H"><SelectorClienteActivo /></Drawer>
+            <Drawer Titulo="I" HayCambios="@(() => false)"><CampoTexto Etiqueta="z" /></Drawer>
+            <Drawer Titulo="J" HayCambios="() => { return false; }"><CampoTexto Etiqueta="z" /></Drawer>
+            <DialogoConfirmacion Titulo="K"><CampoTextarea Etiqueta="Motivo" /></DialogoConfirmacion>
             """;
 
         var medidos = Medir("x.razor", razor).ToDictionary(c => c.Clave);
@@ -127,7 +144,8 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
 
         Evaluar(medidos.Values.ToList(), new Dictionary<string, string>())
             .Select(p => p.Split(':')[0])
-            .Should().BeEquivalentTo("x.razor#Modal1", "x.razor#Modal4", "x.razor#Drawer2");
+            .Should().BeEquivalentTo(
+                "x.razor#Modal1", "x.razor#Modal4", "x.razor#Drawer2", "x.razor#Drawer5", "x.razor#Drawer6", "x.razor#DialogoConfirmacion1");
     }
 
     [Fact]
@@ -223,6 +241,8 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     private static bool GuardianReal(string apertura)
     {
         var m = AtributoHayCambios.Match(apertura);
-        return m.Success && !GuardianQueNuncaPregunta.IsMatch(MarcadoRazor.ValorDeComillas(apertura, m.Index + m.Length));
+        if (!m.Success) return false;
+        var valor = Regex.Replace(MarcadoRazor.ValorDeComillas(apertura, m.Index + m.Length), @"\s+", string.Empty).TrimStart('@');
+        return !GuardianesInertes.Contains(valor);
     }
 }
