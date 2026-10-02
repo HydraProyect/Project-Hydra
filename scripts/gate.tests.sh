@@ -51,6 +51,29 @@ case "$orden" in
       echo "tests/CaeManager.IntegrationTests/Boot.cs(43,6): warning CA2255: El atributo 'ModuleInitializer' solo esta pensado para ..."
       exit 2
     fi
+    if [ "${FORMATO_ADVERTENCIA_NUEVA:-0}" = "1" ] && [[ " $* " == *" --verify-no-changes "* ]]; then
+      echo "tests/CaeManager.IntegrationTests/Boot.cs(43,6): warning CA2255: El atributo 'ModuleInitializer' solo esta pensado para ..."
+      echo "src/CaeManager.Application/Nuevo.cs(7,1): warning IDE0005: Using innecesario"
+      exit 2
+    fi
+    if [ "${FORMATO_EXCEPCION:-0}" = "1" ] && [[ " $* " == *" --verify-no-changes "* ]]; then
+      echo "Unhandled exception: System.OutOfMemoryException"
+      exit "${FORMATO_CODIGO:-1}"
+    fi
+    if [ "${FORMATO_RC2_SIN_SALIDA:-0}" = "1" ] && [[ " $* " == *" --verify-no-changes "* ]]; then
+      exit 2
+    fi
+    if [ "${FORMATO_CODIGO_1_CON_CA2255:-0}" = "1" ] && [[ " $* " == *" --verify-no-changes "* ]]; then
+      echo "tests/CaeManager.IntegrationTests/Boot.cs(43,6): warning CA2255: El atributo 'ModuleInitializer' solo esta pensado para ..."
+      exit 1
+    fi
+    exit 0 ;;
+  tool) exit 0 ;;
+  ef)
+    if [ "${MIGRACION_PENDIENTE:-0}" = "1" ]; then
+      echo "Changes have been made to the model since the last migration. Add a new migration."
+      exit 1
+    fi
     exit 0 ;;
   build)
     if [ "${WARNING_EN_BUILD:-0}" = "1" ] && [[ " $* " == *" -warnaserror "* ]]; then
@@ -67,6 +90,12 @@ case "$orden" in
       echo "  [FAIL] Una.Prueba"
       echo "Con error! - Con error: 1, Superado: $((n - 1)), Omitido: 0, Total: $n"
       exit 1
+    fi
+    if [ "${RESUMEN_DOBLE:-0}" = "1" ]; then
+      # dos TFM o dos ensamblados: el primero corre 10 pruebas y el segundo ninguna
+      echo "Correctas! - Con error: 0, Superado: 10, Omitido: 0, Total: 10"
+      echo "Correctas! - Con error: 0, Superado: 0, Omitido: 0, Total: 0"
+      exit 0
     fi
     echo "Correctas! - Con error: 0, Superado: $n, Omitido: 0, Total: $n"
     exit 0 ;;
@@ -110,12 +139,16 @@ gate() {
 }
 tocar() { ( cd "$REPO" && echo "x$RANDOM" >>"$1" ); }
 limpiar() { ( cd "$REPO" && git checkout -q -- . && git clean -fdq ); }
+# comprometer: deja un cambio YA COMPROMETIDO en la rama (el camino «base...HEAD» de diff_toca_codigo);
+# reiniciar vuelve la rama al commit base.
+comprometer() { ( cd "$REPO" && echo "c$RANDOM" >>"$1" && git add -A && git commit -q -m "cambio $1" ); }
+reiniciar() { ( cd "$REPO" && git reset -q --hard "$(git rev-parse refs/remotes/origin/main)" && git clean -fdq ); }
 orden_de() { grep -n "^$1" "$LOG" | head -n1 | cut -d: -f1; }
 
 echo "scripts/gate.sh"
 
-# 1. todo verde, diff que no toca Web
-tocar src/CaeManager.Application/A.cs
+# 1. todo verde, diff que no toca código (una nota)
+tocar NOTAS.md
 gate "$GATE_REAL"
 aserta "verde: sale con 0" test "$RC" -eq 0
 aserta "verde: línea final GATE: VERDE" contiene "$SALIDA" "GATE: VERDE"
@@ -123,23 +156,45 @@ aserta "verde: formato lleva --verify-no-changes" grep -q "^format .*--verify-no
 aserta "verde: la compilación lleva -warnaserror" grep -q "^build .*-warnaserror" "$LOG"
 aserta "verde: el formato corre ANTES de la compilación" test "$(orden_de format)" -lt "$(orden_de build)"
 aserta "verde: corren arquitectura, dominio y aplicación" bash -c "grep -c '^test ' '$LOG' | grep -qx 3"
+aserta "verde: corre el job de migraciones pendientes" grep -q "^ef migrations has-pending-model-changes" "$LOG"
 aserta "verde: Web se omite y se dice" contiene "$SALIDA" "GATE: web OMITIDA"
 limpiar
 
-# 2. Web se ejecuta si el diff la toca
+# 2. Web se ejecuta si el diff toca CUALQUIER código de src/, sus tests o la configuración de compilación
+tocar src/CaeManager.Application/A.cs
+gate "$GATE_REAL"
+aserta "web: un cambio solo en Application también ejecuta Web.Tests (Web depende de ella)" grep -q "^test tests/CaeManager.Web.Tests" "$LOG"
+aserta "web: ya no se imprime la omisión" no_contiene "$SALIDA" "GATE: web OMITIDA"
+limpiar
 tocar src/CaeManager.Web/W.razor
 gate "$GATE_REAL"
 aserta "web: con el diff tocando Web, Web.Tests corre" grep -q "^test tests/CaeManager.Web.Tests" "$LOG"
-aserta "web: ya no se imprime la omisión" no_contiene "$SALIDA" "GATE: web OMITIDA"
 limpiar
 tocar tests/CaeManager.Web.Tests/W.cs
 gate "$GATE_REAL"
 aserta "web: tocar solo sus tests también la ejecuta" grep -q "^test tests/CaeManager.Web.Tests" "$LOG"
 limpiar
-tocar src/CaeManager.Application/A.cs
-gate "$GATE_REAL" --web
-aserta "web: --web la fuerza" grep -q "^test tests/CaeManager.Web.Tests" "$LOG"
+tocar Directory.Build.props
+gate "$GATE_REAL"
+aserta "web: tocar la configuración de compilación también la ejecuta" grep -q "^test tests/CaeManager.Web.Tests" "$LOG"
 limpiar
+tocar NOTAS.md
+gate "$GATE_REAL" --web
+aserta "web: --web la fuerza aunque el diff no toque código" grep -q "^test tests/CaeManager.Web.Tests" "$LOG"
+limpiar
+comprometer src/CaeManager.Application/A.cs
+gate "$GATE_REAL"
+aserta "web: un cambio YA COMPROMETIDO (base...HEAD) ejecuta Web.Tests" grep -q "^test tests/CaeManager.Web.Tests" "$LOG"
+reiniciar
+comprometer NOTAS.md
+gate "$GATE_REAL"
+aserta "web: una nota ya comprometida no la ejecuta" bash -c "! grep -q '^test tests/CaeManager.Web.Tests' '$LOG'"
+reiniciar
+
+# 2b. migraciones pendientes
+MIGRACION_PENDIENTE=1 gate "$GATE_REAL"
+aserta "migraciones: un modelo cambiado sin migración pone el gate en rojo" test "$RC" -ne 0
+aserta "migraciones: la etapa se llama migraciones y dice qué falta" bash -c "grep -q 'GATE: migraciones ROJO' <<<\"\$1\" && grep -q 'Add a new migration' <<<\"\$1\"" _ "$SALIDA"
 
 # 3. formato rojo: nombra el fichero y corta antes del build
 FORMATO_ROJO=1 gate "$GATE_REAL"
@@ -155,6 +210,21 @@ aserta "format solo con advertencias: el gate no se pone rojo" test "$RC" -eq 0
 aserta "format solo con advertencias: lo dice (AVISO) y nombra el warning" bash -c "grep -q 'GATE: AVISO formato' <<<\"\$1\" && grep -q 'CA2255' <<<\"\$1\"" _ "$SALIDA"
 aserta "format solo con advertencias: la compilación sigue corriendo" grep -q "^build " "$LOG"
 
+# 3c. la tolerancia es ESTRECHA: otro código, una advertencia nueva o una salida vacía son rojo
+FORMATO_EXCEPCION=1 FORMATO_CODIGO=1 gate "$GATE_REAL"
+aserta "format con código 1 y sin líneas de error: rojo (puede ser un fallo del propio dotnet format)" test "$RC" -ne 0
+aserta "format con código 1: lo dice" contiene "$SALIDA" "puede ser un fallo del propio dotnet format"
+FORMATO_EXCEPCION=1 FORMATO_CODIGO=137 gate "$GATE_REAL"
+aserta "format con código 137 (OOM): rojo" test "$RC" -ne 0
+FORMATO_ADVERTENCIA_NUEVA=1 gate "$GATE_REAL"
+aserta "format con código 2 y una advertencia que no es CA2255: rojo" test "$RC" -ne 0
+FORMATO_RC2_SIN_SALIDA=1 gate "$GATE_REAL"
+aserta "format con código 2 y salida vacía: rojo" test "$RC" -ne 0
+FORMATO_CODIGO_1_CON_CA2255=1 gate "$GATE_REAL"
+aserta "format con código 1 aunque solo haya CA2255: rojo (la tolerancia es solo para el código 2)" test "$RC" -ne 0
+GATE_ADVERTENCIAS_TOLERADAS="CA2255|IDE0005" FORMATO_ADVERTENCIA_NUEVA=1 gate "$GATE_REAL"
+aserta "format: ampliar la lista de advertencias toleradas es explícito y se respeta" test "$RC" -eq 0
+
 # 4. un warning es un fallo (-warnaserror)
 WARNING_EN_BUILD=1 gate "$GATE_REAL"
 aserta "warning: sale distinto de 0" test "$RC" -ne 0
@@ -169,6 +239,11 @@ SIN_RESUMEN=1 gate "$GATE_REAL"
 aserta "sin resumen: sale distinto de 0" test "$RC" -ne 0
 aserta "sin resumen: dice que no sabe cuántas corrieron" contiene "$SALIDA" "no puedo saber cuántas corrieron"
 
+# 5b. el total suma todos los resúmenes (dos ensamblados o TFM)
+RESUMEN_DOBLE=1 gate "$GATE_REAL"
+aserta "total: suma 10 + 0 = 10 pruebas, no solo el último resumen" bash -c "grep -q 'arquitectura OK .* — 10 pruebas' <<<\"\$1\"" _ "$SALIDA"
+aserta "total: con un resumen de 10 y otro de 0 el gate no se pone rojo" test "$RC" -eq 0
+
 # 6. un test rojo
 TESTS_ROJOS="CaeManager.Domain.Tests" gate "$GATE_REAL"
 aserta "test rojo: sale distinto de 0" test "$RC" -ne 0
@@ -179,6 +254,13 @@ gate "$GATE_REAL" --rapido
 aserta "rapido: sale con 0" test "$RC" -eq 0
 aserta "rapido: solo corre arquitectura" bash -c "grep -c '^test ' '$LOG' | grep -qx 1"
 aserta "rapido: no ejecuta dominio" bash -c "! grep -q 'Domain.Tests' '$LOG'"
+
+# 7b. --rapido no se combina con --web ni --integracion (sería un verde sin la etapa pedida)
+gate "$GATE_REAL" --rapido --web
+aserta "rapido+web: uso incorrecto, código 2" test "$RC" -eq 2
+gate "$GATE_REAL" --rapido --integracion
+aserta "rapido+integracion: uso incorrecto, código 2" test "$RC" -eq 2
+aserta "rapido+integracion: no ejecuta nada" bash -c "test ! -s '$LOG'"
 
 # 8. --todo lista todas las rojas
 FORMATO_ROJO=1 WARNING_EN_BUILD=1 gate "$GATE_REAL" --todo
@@ -219,6 +301,11 @@ if [ -f "$HOOK_REAL" ]; then
   FORMATO_ROJO=1 hook "$HOOK_REAL" "$SHA"
   aserta "gancho: con el gate rojo bloquea el push (código distinto de 0)" test "$RC" -ne 0
   aserta "gancho: dice que no empuja" contiene "$SALIDA" "NO se empuja"
+  tocar NOTAS.md
+  hook "$HOOK_REAL" "$SHA"
+  aserta "gancho: con cambios sin comprometer avisa (el gate valida el árbol, no el commit)" contiene "$SALIDA" "AVISO hay cambios sin comprometer"
+  aserta "gancho: el aviso no bloquea el push" test "$RC" -eq 0
+  limpiar
   hook "$HOOK_REAL" "$CERO"
   aserta "gancho: borrar una rama remota no ejecuta el gate" bash -c "test ! -s '$LOG'"
   aserta "gancho: borrar una rama remota sale con 0" test "$RC" -eq 0
@@ -239,13 +326,9 @@ if mutar "quitar --verify-no-changes" 's/ --verify-no-changes//'; then
   FORMATO_ROJO=1 gate "$TMP_ROOT/mutado.sh"
   aserta "mutación sin --verify-no-changes: el gate mutado da VERDE con un fichero mal formateado (la prueba lo detectaría)" test "$RC" -eq 0
 fi
-if mutar "format: no tolerar las advertencias" 's/if \[ "\$rc" -ne 0 \] \&\& ! grep -Eq .: error . "\$log"; then/if false; then/'; then
+if mutar "format: no tolerar las advertencias" 's/if \[ "\$rc" -eq 2 \]/if false/'; then
   FORMATO_SOLO_AVISOS=1 gate "$TMP_ROOT/mutado.sh"
   aserta "mutación que no tolera advertencias: el gate mutado da ROJO con solo advertencias (la prueba lo detectaría)" test "$RC" -ne 0
-fi
-if mutar "format: tolerar cualquier salida" 's/! grep -Eq .: error . "\$log"/true/'; then
-  FORMATO_ROJO=1 gate "$TMP_ROOT/mutado.sh"
-  aserta "mutación que tolera cualquier fallo de formato: el gate mutado da VERDE con un fichero mal formateado (la prueba lo detectaría)" test "$RC" -eq 0
 fi
 if mutar "quitar -warnaserror" 's/ -warnaserror//'; then
   WARNING_EN_BUILD=1 gate "$TMP_ROOT/mutado.sh"
@@ -255,7 +338,25 @@ if mutar "quitar el control de 0 pruebas" 's/elif \[ "\$total" -eq 0 \]; then/el
   PRUEBAS_ARQUITECTURA=0 gate "$TMP_ROOT/mutado.sh"
   aserta "mutación sin control de 0 pruebas: el gate mutado da VERDE con 0 pruebas (la prueba lo detectaría)" test "$RC" -eq 0
 fi
-if mutar "web siempre omitida" 's/if \[ "\$FORZAR_WEB" -eq 1 \] || diff_toca_web; then/if false; then/'; then
+if mutar "web ignora los cambios comprometidos" 's/git diff --name-only --no-renames "\$BASE"...HEAD; //'; then
+  comprometer src/CaeManager.Application/A.cs
+  gate "$TMP_ROOT/mutado.sh"
+  aserta "mutación sin el diff comprometido: el gate mutado omite Web con un cambio ya comprometido (la prueba lo detectaría)" bash -c "! grep -q '^test tests/CaeManager.Web.Tests' '$LOG'"
+  reiniciar
+fi
+if mutar "el total solo cuenta el último resumen" 's/s += \$1/s = $1/'; then
+  RESUMEN_DOBLE=1 gate "$TMP_ROOT/mutado.sh"
+  aserta "mutación del total (último resumen): el gate mutado da ROJO con 10+0 pruebas (la prueba lo detectaría)" test "$RC" -ne 0
+fi
+if mutar "format: tolerar cualquier código" 's/\[ "\$rc" -eq 2 \] \&\& //'; then
+  FORMATO_CODIGO_1_CON_CA2255=1 gate "$TMP_ROOT/mutado.sh"
+  aserta "mutación que tolera cualquier código: el gate mutado da VERDE con código 1 y solo CA2255 (la prueba lo detectaría)" test "$RC" -eq 0
+fi
+if mutar "format: tolerar cualquier advertencia" 's/ \&\& ! grep -E .: warning . "\$log" [|] grep -Evq "warning (\$toleradas)\[: \]"//'; then
+  FORMATO_ADVERTENCIA_NUEVA=1 gate "$TMP_ROOT/mutado.sh"
+  aserta "mutación que tolera toda advertencia: el gate mutado da VERDE con IDE0005 (la prueba lo detectaría)" test "$RC" -eq 0
+fi
+if mutar "web siempre omitida" 's/if \[ "\$FORZAR_WEB" -eq 1 \] || diff_toca_codigo; then/if false; then/'; then
   tocar src/CaeManager.Web/W.razor
   gate "$TMP_ROOT/mutado.sh"
   aserta "mutación Web siempre omitida: el gate mutado no ejecuta Web aunque el diff la toque (la prueba lo detectaría)" bash -c "! grep -q '^test tests/CaeManager.Web.Tests' '$LOG'"

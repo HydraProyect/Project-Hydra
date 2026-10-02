@@ -29,6 +29,12 @@ fi
 RAIZ="$(git rev-parse --show-toplevel)" || exit 1
 cd "$RAIZ" || exit 1
 
+# El gate valida el ÁRBOL DE TRABAJO, no el commit que se empuja: con cambios sin comprometer puede dar
+# verde para un commit que no los incluye. Se avisa; no se bloquea (un push de otra rama o de etiquetas es legítimo).
+if [ -n "$(git status --porcelain)" ]; then
+  echo "pre-push: AVISO hay cambios sin comprometer; el gate valida el árbol de trabajo, no lo que se empuja" >&2
+fi
+
 echo "pre-push: gate local rápido (scripts/gate.sh --rapido)…"
 bash scripts/gate.sh --rapido
 estado=$?

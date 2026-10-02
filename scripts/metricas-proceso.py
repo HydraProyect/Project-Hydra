@@ -27,6 +27,7 @@ import datetime as dt
 import json
 import os
 import re
+import shlex
 import statistics
 import subprocess
 import sys
@@ -47,9 +48,9 @@ class GhNoDisponible(Exception):
 def gh_json(args: list[str]):
     """Ejecuta `gh <args>` y devuelve el JSON parseado. Lanza GhNoDisponible si falla: nunca devuelve
     una lista vacía por un error (un resultado vacío no es una ausencia, § 3)."""
-    exe = os.environ.get("METRICAS_GH", "gh")
+    exe = [t.strip('"') for t in shlex.split(os.environ.get("METRICAS_GH", "gh"), posix=(os.name != "nt"))]
     try:
-        proc = subprocess.run([exe, *args], capture_output=True, text=True, encoding="utf-8", timeout=300)
+        proc = subprocess.run([*exe, *args], capture_output=True, text=True, encoding="utf-8", timeout=300)
     except (OSError, subprocess.TimeoutExpired) as e:
         raise GhNoDisponible(f"no pude ejecutar gh: {e}") from e
     if proc.returncode != 0:
@@ -164,7 +165,7 @@ def calcular_m2(prs, total_defectos):
 # NEGARLA. Contarlas como hallazgo daba un 95 % de PR con hallazgo ≥ medio frente al 77 % medido a mano.
 NEGACION_DE_GRAVEDAD = re.compile(
     r"(?i)\b(?:sin|ning[uú]n[oa]?|cero|0|no hay|no se hallaron)\s+(?:hallazgos?\s+)?(?:altos?|altas?|medios?|medias?|graves?)"
-    r"(?:\s*(?:,|y|ni|o)\s*(?:hallazgos?\s+)?(?:altos?|altas?|medios?|medias?|graves?))*")
+    r"(?:\s*(?:,|/|y|ni|o)\s*(?:hallazgos?\s+)?(?:altos?|altas?|medios?|medias?|graves?))*")
 
 
 def calcular_m3(prs):
@@ -214,6 +215,9 @@ def metricas_de_pr(slug, args, total_defectos):
     humanos = [p for p in prs if (p.get("author") or {}).get("login", "") not in ("dependabot[bot]", "app/dependabot")
                and (p.get("createdAt") or "") >= args.desde]
     ventana = f"lote #{args.pr_min}..#{args.pr_max} ({len(lote)} PR)"
+    if len(prs) >= args.limite_pr:
+        ventana += (f"; ATENCIÓN: gh devolvió exactamente el tope de --limite-pr ({args.limite_pr}): el lote o la ventana "
+                    "pueden estar recortados, súbelo")
 
     if not lote:
         for c, n in [("M2", "Defectos que necesitan ≥2 PR"), ("M3", "PR con hallazgo ≥ medio del revisor"),
@@ -222,8 +226,9 @@ def metricas_de_pr(slug, args, total_defectos):
             filas.append(no_medida(c, n, f"no hay PR fusionadas en la ventana {args.pr_min}..{args.pr_max} dentro de las últimas {args.limite_pr}"))
     else:
         mult, denom, lista, distintos = calcular_m2(lote, total_defectos)
+        nota_denominador = "" if total_defectos else "; DENOMINADOR = defectos distintos citados (sin el informe del recorrido no hay total)"
         filas.append(fila("M2", "Defectos que necesitan ≥2 PR", f"{mult} de {denom}", "ESTIMACION",
-                          f"{ventana}; D-NN en título + primera sección; {distintos} defectos distintos citados; con ≥2: {', '.join(lista) or '—'}", mult))
+                          f"{ventana}; D-NN en título + primera sección; {distintos} defectos distintos citados; con ≥2: {', '.join(lista) or '—'}{nota_denominador}", mult))
 
         con_sec, medios, altos = calcular_m3(lote)
         if con_sec == 0:
@@ -321,7 +326,8 @@ def metricas_de_ci(args, ramas_lote):
     txt += f"; merge_group {mg_f}/{mg_n}" + (f" ({100 * mg_f / mg_n:.1f} %)" if mg_n else "")
     if lote[1]:
         txt += f"; lote: {lote[0]} rojos en {lote[1]} runs de {lote[2]} ramas"
-    f4 = fila("M4", "Rojos de CI por PR", txt, "INSTRUMENTO", ventana + "; no ve rojos locales previos al push",
+    f4 = fila("M4", "Rojos de CI por PR", txt, "INSTRUMENTO",
+              ventana + "; no ve rojos locales previos al push ni un rojo seguido de un re-run verde (gh da la conclusión final)",
               round(100 * ramas[0] / ramas[1], 1) if ramas[1] else None)
     pu_f, pu_n = por_evento.get("push", (0, 0))
     runs_main = [r for r in runs if r["event"] == "push" and r["headBranch"] == "main"]
@@ -394,25 +400,31 @@ def metricas_de_repo(raiz: Path):
         filas.append(fila("M12", "Deshabilitados sin motivo", f"{sin_motivo} de {len(deshab)}", "ESTIMACION",
                           "cota superior: un texto explicativo contiguo no cuenta como motivo", sin_motivo))
 
-    con_dm = [(p, tx) for p, tx in razor if re.search(r"<(Drawer|Modal)\b", tx)]
-    sin_guardian = [p for p, tx in con_dm if CAMPOS.search(tx) and not re.search(r"\b(HayCambios|SinCambios)\b", tx)]
-    con_campos = [p for p, tx in con_dm if CAMPOS.search(tx)]
-    filas.append(fila("M13", "Drawer/Modal con campos y sin guardián", f"{len(sin_guardian)} de {len(con_campos)}", "ESTIMACION",
-                      "a nivel de fichero: los campos de un componente hijo no se ven", len(sin_guardian)))
+    sin_razor = "no encontré ningún .razor bajo src/ (¿--raiz equivocada?)"
+    if not razor:
+        filas.append(no_medida("M13", "Drawer/Modal con campos y sin guardián", sin_razor))
+        filas.append(no_medida("M14", 'role="alert" artesanal', sin_razor))
+    else:
+        con_dm = [(p, tx) for p, tx in razor if re.search(r"<(Drawer|Modal)\b", tx)]
+        sin_guardian = [p for p, tx in con_dm if CAMPOS.search(tx) and not re.search(r"\b(HayCambios|SinCambios)\b", tx)]
+        con_campos = [p for p, tx in con_dm if CAMPOS.search(tx)]
+        filas.append(fila("M13", "Drawer/Modal con campos y sin guardián", f"{len(sin_guardian)} de {len(con_campos)}", "ESTIMACION",
+                          "a nivel de fichero: los campos de un componente hijo no se ven", len(sin_guardian)))
 
-    alertas_ficheros = 0
-    alertas = 0
-    for _, tx in razor:
-        n = len(re.findall(r'role\s*=\s*"alert"', tx))
-        if n:
-            alertas_ficheros += 1
-            alertas += n
-    filas.append(fila("M14", 'role="alert" artesanal', f"{alertas_ficheros} ficheros / {alertas}", "ESTIMACION",
-                      "cuenta marcado, no comportamiento; incluye el componente compartido si existe", alertas))
+        alertas_ficheros = 0
+        alertas = 0
+        for _, tx in razor:
+            n = len(re.findall(r'role\s*=\s*"alert"', tx))
+            if n:
+                alertas_ficheros += 1
+                alertas += n
+        filas.append(fila("M14", 'role="alert" artesanal', f"{alertas_ficheros} ficheros / {alertas}", "ESTIMACION",
+                          "cuenta marcado, no comportamiento; incluye el componente compartido si existe", alertas))
 
     e2e = raiz / "tests" / "CaeManager.E2ETests"
-    if e2e.exists():
-        textos = [p.read_text(encoding="utf-8", errors="replace") for p in e2e.rglob("*.cs") if "obj" not in p.parts and "bin" not in p.parts]
+    textos = ([p.read_text(encoding="utf-8", errors="replace") for p in e2e.rglob("*.cs") if "obj" not in p.parts and "bin" not in p.parts]
+              if e2e.exists() else [])
+    if textos:
         porte = sum(len(re.findall(r"\bGetByText\(", t)) for t in textos)
         posic = sum(len(re.findall(r"\.(?:First|Last)\b(?!\s*[(<])|\.Nth\(", t)) for t in textos)
         testid = sum(len(re.findall(r"\bGetByTestId\(", t)) for t in textos)
@@ -420,7 +432,7 @@ def metricas_de_repo(raiz: Path):
                           "ESTIMACION", "grep sobre el texto (comentarios incluidos); el trinquete LocatorsDeE2ECongeladosTests cuenta con Roslyn y es el que manda",
                           porte + posic))
     else:
-        filas.append(no_medida("M15", "Locators por texto o posicionales en E2E", "no existe tests/CaeManager.E2ETests"))
+        filas.append(no_medida("M15", "Locators por texto o posicionales en E2E", "no hay ningún .cs en tests/CaeManager.E2ETests"))
 
     # M16: «Cliente» a secas en pantalla. S1 (vocabulario ejecutable) no existe; esto es una aproximación.
     patron = re.compile(r"\bClientes?\b(?!\s+(?:empresarial|empresariales|comercial|de servicio|delegante))")
@@ -436,8 +448,11 @@ def metricas_de_repo(raiz: Path):
         sin_codigo = re.sub(r"@\([^)]*\)|@[\w.]+", "", sin_codigo)
         for texto in re.findall(r">([^<>]+)<", sin_codigo):
             en_marcado += len(patron.findall(texto))
-    filas.append(fila("M16", "«Cliente» a secas en pantalla", f"{en_resx} valores .resx + {en_marcado} en marcado", "ESTIMACION",
-                      "S1 (vocabulario ejecutable) no existe: regex sobre texto de marcado fuera de @code; ni ve texto montado en C#", en_resx + en_marcado))
+    if not razor:
+        filas.append(no_medida("M16", "«Cliente» a secas en pantalla", sin_razor))
+    else:
+        filas.append(fila("M16", "«Cliente» a secas en pantalla", f"{en_resx} valores .resx + {en_marcado} en marcado", "ESTIMACION",
+                          "S1 (vocabulario ejecutable) no existe: regex sobre texto de marcado fuera de @code; ni ve texto montado en C#", en_resx + en_marcado))
 
     # M17: trinquete de deuda terminológica (TerminologiaCanonicaTests)
     arq = raiz / "tests" / "CaeManager.Architecture.Tests"
@@ -465,8 +480,12 @@ def metricas_de_repo(raiz: Path):
             if m:
                 archivos.add(m.group(1))
                 total += int(m.group(3))
-        filas.append(fila("M18", "ClienteId (lista congelada por ubicación)", f"{total} apariciones / {len(archivos)} ficheros",
-                          "INSTRUMENTO", "suma de Congelados/ClienteId-ubicaciones.txt (identificadores .cs, texto .razor sin comentarios, valores .resx)", total))
+        if not archivos:
+            filas.append(no_medida("M18", "ClienteId (lista congelada por ubicación)",
+                                   "la lista existe pero ninguna línea casa con «lugar :: símbolo = n» (¿cambió el formato?)"))
+        else:
+            filas.append(fila("M18", "ClienteId (lista congelada por ubicación)", f"{total} apariciones / {len(archivos)} ficheros",
+                              "INSTRUMENTO", "suma de Congelados/ClienteId-ubicaciones.txt (identificadores .cs, texto .razor sin comentarios, valores .resx)", total))
     else:
         filas.append(no_medida("M18", "ClienteId (lista congelada por ubicación)", "no existe la lista (el trinquete aún no está en esta rama)"))
 
@@ -486,13 +505,13 @@ def metricas_de_repo(raiz: Path):
     filas.append(no_medida("M20", "Puntaje de mutación sobre el diff", "no existe (S5, Stryker, no implementado)"))
 
     # M21: cobertura de salvaguardas
-    if arq.exists():
-        fich = [p for p in arq.rglob("*.cs") if "obj" not in p.parts and "bin" not in p.parts]
+    fich = [p for p in arq.rglob("*.cs") if "obj" not in p.parts and "bin" not in p.parts] if arq.exists() else []
+    if fich:
         attrs = sum(len(re.findall(r"^\s*\[(?:Fact|Theory)\b", p.read_text(encoding="utf-8", errors="replace"), re.M)) for p in fich)
         filas.append(fila("M21", "Cobertura de salvaguardas", f"{len(fich)} ficheros / {attrs} métodos [Fact]/[Theory]", "INSTRUMENTO",
                           "ficheros .cs y atributos de tests/CaeManager.Architecture.Tests (un Theory cuenta 1, no sus casos)", attrs))
     else:
-        filas.append(no_medida("M21", "Cobertura de salvaguardas", "no existe tests/CaeManager.Architecture.Tests"))
+        filas.append(no_medida("M21", "Cobertura de salvaguardas", "no hay ningún .cs en tests/CaeManager.Architecture.Tests"))
     return filas
 
 
@@ -572,6 +591,10 @@ def main(argv=None):
     if a.comparar:
         base = json.loads(Path(a.comparar).read_text(encoding="utf-8"))
         filas = comparar(filas, base)
+        if base.get("ventana_lote") and base["ventana_lote"] != [a.pr_min, a.pr_max]:
+            # Las métricas del lote (M2, M3, M6, M9, M10) no son comparables si la ventana cambió.
+            print(f"AVISO: la línea base se midió sobre el lote #{base['ventana_lote'][0]}..#{base['ventana_lote'][1]} y esta ejecución "
+                  f"sobre #{a.pr_min}..#{a.pr_max}: las métricas del lote no son comparables.", file=sys.stderr)
 
     sha = git(raiz, "rev-parse", "HEAD")[:8]
     ahora = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")

@@ -49,6 +49,18 @@ mutante "M11 ignora los paréntesis dentro de la etiqueta" 's/elif c in "({\[":/
 mutante "M15 cuenta el First de LINQ"                's/(?!\\s\*\[(<\])//'                                             "test_M15_locators_e2e"
 mutante "gh que falla devuelve datos vacíos"         's/raise GhNoDisponible(f"gh {/return [] if True else (f"gh {/'  "test_gh_que_falla_es_NO_MEDIDA"
 mutante "M16 cuenta Cliente empresarial"             's/(?!\\s+(?:empresarial|empresariales|comercial|de servicio|delegante))//' "test_M16_cliente_a_secas"
+mutante "M3 la negación no admite la barra («sin ALTA/MEDIA»)" 's/(?:,|\/|y|ni|o)/(?:,|y|ni|o)/'  "test_M3_la_negacion_admite_la_barra"
+mutante "M5 cuenta cualquier rama, no solo main"      's/r\["headBranch"\] == "main"/True/'                           "test_M5_cuenta_los_rojos"
+mutante "M5 cuenta cualquier evento, no solo push"    's/r\["event"\] == "push" and r\["headBranch"\]/r["headBranch"]/' "test_M5_cuenta_los_rojos"
+mutante "M7 usa la media en vez de la mediana"        's/med_todas = statistics.median(\[p\["changedFiles"\] for p in humanos\])/med_todas = statistics.mean([p["changedFiles"] for p in humanos])/' "test_M2_M3_M6_M7_M8_M9_M10"
+mutante "M7 incluye a Dependabot"                     's/not in ("dependabot\[bot\]", "app\/dependabot")/not in ()/'  "test_M2_M3_M6_M7_M8_M9_M10"
+mutante "M7 ignora la ventana --desde"                's/ >= args.desde\]/ >= ""]/'                                   "test_M2_M3_M6_M7_M8_M9_M10"
+mutante "M8 mide al revés (fusión menos creación)"    's/return (b - a).total_seconds() \/ 60/return (a - b).total_seconds() \/ 60/' "test_minutos"
+mutante "M10 cuenta ficheros de una sola PR"          's/if n >= 2)/if n >= 1)/'                                      "test_M2_M3_M6_M7_M8_M9_M10"
+mutante "M6 divide por PR en vez de por defecto"      's/toques \/ len(mapa)/toques \/ len(num_con_d)/'              "test_M2_M3_M6_M7_M8_M9_M10"
+mutante "la ventana del lote ignora el máximo"        's/args.pr_min <= p\["number"\] <= args.pr_max\]/args.pr_min <= p["number"]]/' "test_M2_M3_M6_M7_M8_M9_M10"
+mutante "el tope de --limite-pr no se avisa"          's/if len(prs) >= args.limite_pr:/if False:/'                   "test_el_tope_de_limite_pr"
+mutante "M18 da 0 si la lista no tiene el formato"    's/        if not archivos:/        if False:/'                    "test_directorios_existentes_pero_vacios"
 mutante "M9 no reconoce 2ª parte"                    's/|2\\.?ª parte//'                                               "test_M9_continuaciones"
 
 echo

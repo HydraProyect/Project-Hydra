@@ -14,19 +14,28 @@
 #   arquitectura   dotnet test tests/CaeManager.Architecture.Tests                  (CI: ídem)
 #   dominio        dotnet test tests/CaeManager.Domain.Tests                        (CI: ídem)
 #   aplicacion     dotnet test tests/CaeManager.Application.Tests                   (CI: ídem)
-#   web            dotnet test tests/CaeManager.Web.Tests — SOLO si el diff toca Web o sus tests,
-#                  o con --web (CI: job de bUnit)
+#   migraciones    dotnet tool restore + dotnet ef migrations has-pending-model-changes (CI: job
+#                  «Detectar migraciones EF olvidadas»); solo fuera de --rapido
+#   web            dotnet test tests/CaeManager.Web.Tests (CI: job de bUnit). Web.Tests referencia Web y
+#                  esta arrastra Application, Infrastructure y Domain: un cambio en cualquier parte de src/
+#                  puede romperlos, así que solo se OMITE si el diff no toca src/, ni los tests de Web, ni
+#                  la configuración de compilación (Directory.Build.props, *.csproj, packages.lock.json,
+#                  CaeManager.slnx). --web la fuerza siempre.
 #   integracion    solo con --integracion; envuelta en scripts/turno-postgres.sh (clúster compartido)
 #
 # MODOS:
-#   (sin flag)       todas las etapas salvo integracion; web solo si el diff la toca.
+#   (sin flag)       todas las etapas salvo integracion; web salvo que el diff no toque código (ver arriba).
 #   --rapido         formato + compilacion + arquitectura (la parte que más rojos de CI evita; es la que
 #                    corre el gancho pre-push).
-#   --web            fuerza la etapa web.   --integracion  añade la etapa integracion.
+#   --web            fuerza la etapa web.   --integracion  añade la etapa integracion. Ninguna de las dos
+#                    se combina con --rapido (que no las ejecuta): sería un verde sin la etapa pedida, y
+#                    sale con código 2.
 #   --todo           no corta en la primera etapa roja: las ejecuta todas y lista las rojas.
 #
-# LO QUE ESTE GATE NO CUBRE (declarado, no por inercia): E2E (Playwright), gitleaks, licencias NuGet,
-# Trivy, k6, los tests de los guiones de despliegue y la cola de fusión. Un verde aquí NO sustituye a CI
+# LO QUE ESTE GATE NO CUBRE (declarado, no por inercia): E2E (Playwright), los bloques de integración
+# (salvo --integracion), la cobertura por capas y sus umbrales ratchet, el build de la imagen Docker,
+# paquetes vulnerables, licencias NuGet, gitleaks, Trivy, k6, los tests de los guiones de despliegue, los
+# arneses de la extensión y la cola de fusión. Un verde aquí NO sustituye a CI
 # (§ 17 del protocolo): es el mismo instrumento solo en las etapas que enumera arriba.
 #
 # CONTROL «cuántos tests corrieron» (§ 3): una etapa de tests que termina en 0 con 0 pruebas, o cuya salida
@@ -59,24 +68,29 @@ for arg in "$@"; do
   esac
 done
 
+if [ "$RAPIDO" -eq 1 ] && { [ "$FORZAR_WEB" -eq 1 ] || [ "$INTEGRACION" -eq 1 ]; }; then
+  echo "GATE: --rapido no ejecuta las etapas web ni integracion; no lo combines con --web ni --integracion (sería un verde sin la etapa pedida)" >&2
+  exit 2
+fi
+
 LOGS="$(mktemp -d)"
 trap 'rm -rf "$LOGS"' EXIT
 INICIO=$SECONDS
 FALLIDAS=()
 EJECUTADAS=0
 
-# Ficheros que toca el trabajo: lo comprometido desde la base MÁS lo que aún no está comprometido.
-# Si la base no existe (clon sin `git fetch`), se dice y se asume que sí toca Web: fallar hacia más
-# pruebas, nunca hacia menos.
-diff_toca_web() {
+# Ficheros que toca el trabajo: lo comprometido desde la base MÁS lo que aún no está comprometido, con
+# --no-renames para que mover un fichero cuente su origen Y su destino. Si la base no existe (clon sin
+# `git fetch`), se dice y se asume que sí toca código: fallar hacia más pruebas, nunca hacia menos.
+diff_toca_codigo() {
   local cambios
   if git rev-parse --verify --quiet "$BASE" >/dev/null; then
-    cambios="$(git diff --name-only "$BASE"...HEAD; git diff --name-only HEAD; git ls-files --others --exclude-standard)"
+    cambios="$(git diff --name-only --no-renames "$BASE"...HEAD; git diff --name-only --no-renames HEAD; git ls-files --others --exclude-standard)"
   else
-    echo "GATE: AVISO la base '$BASE' no existe (¿falta git fetch?); se asume que el diff toca Web" >&2
+    echo "GATE: AVISO la base '$BASE' no existe (¿falta git fetch?); se asume que el diff toca código" >&2
     return 0
   fi
-  grep -Eq '^(src/CaeManager\.Web/|tests/CaeManager\.Web\.Tests/)' <<<"$cambios"
+  grep -Eq '^(src/|tests/CaeManager\.Web\.Tests/|Directory\.Build\.props$|CaeManager\.slnx$|.*\.csproj$|.*packages\.lock\.json$)' <<<"$cambios"
 }
 
 # Una etapa de compilación o de formato: éxito = código 0.
@@ -125,7 +139,11 @@ informar() {
   FALLIDAS+=("$nombre")
   echo "GATE: $nombre ROJO (${seg}s)${motivo:+ — $motivo}"
   # Lo que nombra el fallo: errores de formato/compilación y pruebas rojas, acotado.
-  grep -E ' error |: error |\[FAIL\]|Failed |Con error|error CS|error MSB|WHITESPACE|CHARSET|FINALNEWLINE|IMPORTS' "$log" | head -n 25 | sed 's/^/    /'
+  local nombrado
+  nombrado="$(grep -E ' error |: error |\[FAIL\]|Failed |Con error|error CS|error MSB|WHITESPACE|CHARSET|FINALNEWLINE|IMPORTS' "$log" | head -n 25)"
+  # Si ninguna línea nombra el fallo (p. ej. `dotnet ef` imprime una frase sin «error»), se enseña el final del log.
+  [ -z "$nombrado" ] && nombrado="$(tail -n 8 "$log")"
+  sed 's/^/    /' <<<"$nombrado"
   echo "    (salida completa: $log; se borra al salir — relanza la etapa a mano si la necesitas)"
   if [ "$TODO" -eq 0 ]; then
     final
@@ -153,25 +171,39 @@ if [ "$LOCKS_ANTES" != "$LOCKS_DESPUES" ]; then
   echo "GATE: AVISO el restore modificó packages.lock.json; revisa 'git status' antes de comprometer"
 fi
 
+# Lo que hace el job «Detectar migraciones EF olvidadas»: falla si el modelo cambió sin migración.
+migraciones_pendientes() {
+  "$DOTNET" tool restore \
+    && "$DOTNET" ef migrations has-pending-model-changes \
+         --project src/CaeManager.Migrations.PostgreSQL --startup-project src/CaeManager.Web
+}
+
 # `dotnet format --verify-no-changes` sale con 2 también cuando solo hay ADVERTENCIAS de analizador y
-# ningún fichero que reformatear (medido el 2026-10-02 en Windows con el SDK 10.0.302: CA2255 de
-# tests/CaeManager.IntegrationTests/BootstrapDeClusterEnTests.cs, presente en un origin/main limpio; el
+# ningún fichero que reformatear (medido el 2026-10-02 en Windows con el SDK 10.0.302: la advertencia CA2255
+# de tests/CaeManager.IntegrationTests/BootstrapDeClusterEnTests.cs, presente en un origin/main limpio; el
 # subcomando `whitespace` y el `style` salen con 0 y solo `analyzers` con 2; en CI, sobre Linux, ese mismo
-# comando pasa). Un gate que sale rojo SIEMPRE enseña a ignorarlo, así que la etapa distingue: un fallo de
-# formato es una línea `<fichero>(l,c): error <REGLA>: …`; si el código es distinto de 0 pero no hay
-# ninguna, se avisa y no cuenta como rojo. La prueba de este guion fija las dos mitades: sin líneas
-# `error` es verde con aviso; con ellas, rojo que nombra el fichero. HYPOTHESIS: la diferencia con CI
-# viene de la versión del SDK/analizadores; si CI empezara a salir con 2 por lo mismo, esto no lo oculta.
+# comando pasa). Un gate que sale rojo SIEMPRE enseña a ignorarlo, así que se tolera ESA situación y solo
+# esa: código EXACTAMENTE 2, ninguna línea `<fichero>(l,c): error <REGLA>: …`, al menos una advertencia y
+# todas las advertencias de la lista GATE_ADVERTENCIAS_TOLERADAS (por defecto CA2255). Cualquier otra cosa
+# es rojo: otro código (1, 137…: puede ser un fallo del propio dotnet format), una advertencia que CI sí
+# podría tratar como fijable (IDE…, CA… nuevos) o una salida vacía. HYPOTHESIS: la diferencia con CI viene
+# de la versión del SDK/analizadores; si CI empezara a salir con 2 por lo mismo, esto no lo oculta.
 etapa_formato() {
-  local log="$LOGS/formato.log" t0=$SECONDS rc
+  local log="$LOGS/formato.log" t0=$SECONDS rc motivo=""
+  local toleradas="${GATE_ADVERTENCIAS_TOLERADAS:-CA2255}"
   "$DOTNET" format "$SLN" --no-restore --verify-no-changes >"$log" 2>&1
   rc=$?
-  if [ "$rc" -ne 0 ] && ! grep -Eq ': error ' "$log"; then
-    echo "GATE: AVISO formato: dotnet format salió con $rc sin ninguna línea de error de formato (solo advertencias de analizador); no cuenta como rojo"
-    grep -E 'warning ' "$log" | head -n 3 | sed 's/^/    /'
-    rc=0
+  if [ "$rc" -ne 0 ]; then
+    if [ "$rc" -eq 2 ] && ! grep -Eq ': error ' "$log" \
+       && grep -Eq ': warning ' "$log" && ! grep -E ': warning ' "$log" | grep -Evq "warning ($toleradas)[: ]"; then
+      echo "GATE: AVISO formato: dotnet format salió con 2 sin ninguna línea de error de formato y solo con advertencias conocidas ($toleradas); no cuenta como rojo"
+      grep -E ': warning ' "$log" | head -n 3 | sed 's/^/    /'
+      rc=0
+    elif ! grep -Eq ': error ' "$log"; then
+      motivo="salió con $rc sin ninguna línea de error de formato ni solo advertencias conocidas: puede ser un fallo del propio dotnet format o una advertencia nueva"
+    fi
   fi
-  informar formato "$rc" "$log" "" $((SECONDS - t0))
+  informar formato "$rc" "$log" "$motivo" $((SECONDS - t0))
 }
 
 etapa_formato
@@ -182,10 +214,12 @@ if [ "$RAPIDO" -eq 0 ]; then
   etapa_tests dominio "$DOTNET" test tests/CaeManager.Domain.Tests --no-build -v q
   etapa_tests aplicacion "$DOTNET" test tests/CaeManager.Application.Tests --no-build -v q
 
-  if [ "$FORZAR_WEB" -eq 1 ] || diff_toca_web; then
+  etapa_simple migraciones migraciones_pendientes
+
+  if [ "$FORZAR_WEB" -eq 1 ] || diff_toca_codigo; then
     etapa_tests web "$DOTNET" test tests/CaeManager.Web.Tests --no-build -v q
   else
-    echo "GATE: web OMITIDA — el diff no toca src/CaeManager.Web ni tests/CaeManager.Web.Tests (usa --web para forzarla)"
+    echo "GATE: web OMITIDA — el diff no toca src/, ni los tests de Web, ni la configuración de compilación (usa --web para forzarla)"
   fi
 
   if [ "$INTEGRACION" -eq 1 ]; then

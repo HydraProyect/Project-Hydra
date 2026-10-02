@@ -8,6 +8,7 @@ lo que no debe (una mención fuera de la primera sección, un comentario Razor, 
 Se ejecuta con scripts/metricas-proceso.tests.sh, que además lo lanza contra copias MUTADAS del guion
 y exige que fallen.  METRICAS_SCRIPT apunta al guion bajo prueba (por defecto, el de al lado).
 """
+import datetime as dt
 import importlib.util
 import json
 import os
@@ -106,6 +107,10 @@ class M2M3M9(unittest.TestCase):
         ]
         # #1 medio (no alto); #2 y #3 ninguno; #4 alto (la negación solo cubre su frase)
         self.assertEqual(mp.calcular_m3(prs), (4, 2, 1))
+
+    def test_M3_la_negacion_admite_la_barra_como_separador(self):
+        prs = [pr(1, "a", "## Revisión Codex\nSin ALTA/MEDIA; solo bajos.")]
+        self.assertEqual(mp.calcular_m3(prs), (1, 0, 0))
 
     def test_M3_la_seccion_termina_en_el_siguiente_encabezado(self):
         prs = [pr(1, "a", "## Revisión Codex\nsin hallazgos\n## Huecos\nhallazgo alto en otra sección")]
@@ -224,11 +229,141 @@ class Repo(unittest.TestCase):
         self.assertEqual(f["M21"]["valor"], "2 ficheros / 2 métodos [Fact]/[Theory]")
         self.assertEqual(f["M20"]["clase"], "NO_MEDIDA")
 
+    def test_directorios_existentes_pero_vacios_dan_NO_MEDIDA_no_cero(self):
+        with tempfile.TemporaryDirectory() as t:
+            raiz = Path(t)
+            (raiz / "src").mkdir()
+            (raiz / "tests" / "CaeManager.E2ETests").mkdir(parents=True)
+            (raiz / "tests" / "CaeManager.Architecture.Tests").mkdir(parents=True)
+            escribir(raiz, "tests/CaeManager.Architecture.Tests/Congelados/ClienteId-ubicaciones.txt", "basura sin el formato esperado\n")
+            f = {x["id"]: x for x in mp.metricas_de_repo(raiz)}
+        for m in ("M11", "M12", "M13", "M14", "M15", "M16", "M18", "M21"):
+            self.assertEqual(f[m]["clase"], "NO_MEDIDA", m)
+            self.assertEqual(f[m]["valor"], "NO_MEDIDA", m)
+
     def test_sin_arbol_las_filas_son_NO_MEDIDA_no_cero(self):
         with tempfile.TemporaryDirectory() as t:
             f = {x["id"]: x for x in mp.metricas_de_repo(Path(t))}
         for m in ("M11", "M12", "M15", "M17", "M18", "M19", "M21"):
             self.assertEqual(f[m]["clase"], "NO_MEDIDA", m)
+
+
+STUB_GH = '''
+import json, os, sys
+d = os.environ["METRICAS_FIXTURES"]
+a = sys.argv[1:]
+def sirve(nombre):
+    print(open(os.path.join(d, nombre), encoding="utf-8").read())
+    sys.exit(0)
+if a[:2] == ["pr", "list"]:
+    sirve("pr_list.json")
+if a[:2] == ["run", "list"]:
+    sirve("run_list.json")
+if a[:2] == ["repo", "view"]:
+    sirve("repo.json")
+if a[:1] == ["api"] and "/pulls/" in a[1] and a[1].endswith("/files"):
+    sirve("files_" + a[1].split("/pulls/")[1].split("/")[0] + ".json")
+sys.stderr.write("stub gh: no reconocido: " + " ".join(a))
+sys.exit(1)
+'''
+
+
+class ConGhFalso(unittest.TestCase):
+    """metricas_de_pr y metricas_de_ci con un `gh` falso de resultado conocido: M2, M5, M6, M7, M8, M9, M10."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name)
+        (self.dir / "stub_gh.py").write_text(STUB_GH, encoding="utf-8")
+        os.environ["METRICAS_GH"] = f'"{sys.executable}" "{self.dir / "stub_gh.py"}"'
+        os.environ["METRICAS_FIXTURES"] = str(self.dir)
+
+    def tearDown(self):
+        os.environ.pop("METRICAS_GH", None)
+        os.environ.pop("METRICAS_FIXTURES", None)
+        self._tmp.cleanup()
+
+    def sirve(self, nombre, datos):
+        (self.dir / nombre).write_text(json.dumps(datos), encoding="utf-8")
+
+    def args(self, **kw):
+        class A:
+            pr_min = 10
+            pr_max = 12
+            desde = "2026-09-12"
+            limite_pr = 100
+            limite_runs = 100
+        for k, v in kw.items():
+            setattr(A, k, v)
+        return A
+
+    def prs(self):
+        def p(n, titulo, cuerpo, creado, minutos_hasta_fusion, ficheros, autor="humano"):
+            c = dt.datetime.fromisoformat(creado.replace("Z", "+00:00"))
+            f = (c + dt.timedelta(minutes=minutos_hasta_fusion)).isoformat().replace("+00:00", "Z")
+            return {"number": n, "title": titulo, "body": cuerpo, "createdAt": creado, "mergedAt": f,
+                    "changedFiles": ficheros, "headRefName": f"r{n}", "author": {"login": autor}}
+        return [
+            p(5, "viejo", "", "2026-09-01T00:00:00Z", 10, 50),                     # antes de --desde
+            p(8, "bump", "", "2026-09-20T00:00:00Z", 10, 2, autor="dependabot[bot]"),
+            p(9, "fuera del lote", "", "2026-09-20T00:00:00Z", 30, 5),
+            p(10, "fix D-01", "## Defectos\nD-01\n## Revisión Codex\nSin hallazgos altos/medios.", "2026-10-01T00:00:00Z", 60, 3),
+            p(11, "fix D-01 resto", "## Defectos\nD-01\n## Revisión Codex\nMedio 1 corregido.", "2026-10-01T00:00:00Z", 30, 5),
+            p(12, "feat D-02", "## Defectos\nD-02\n## Revisión Codex\nAlta: fuga.", "2026-10-01T00:00:00Z", 120, 10),
+            p(13, "fuera del lote por arriba, resto D-01", "## Defectos\nD-01\n", "2026-10-01T00:00:00Z", 10, 4),
+        ]
+
+    def preparar(self):
+        self.sirve("repo.json", {"nameWithOwner": "o/r"})
+        self.sirve("pr_list.json", self.prs())
+        self.sirve("files_10.json", [{"filename": f} for f in "abc"])
+        self.sirve("files_11.json", [{"filename": f} for f in "bdefg"])
+        self.sirve("files_12.json", [{"filename": f} for f in "ahijklmnop"])
+
+    def valores(self, **kw):
+        self.preparar()
+        filas, lote = mp.metricas_de_pr("o/r", self.args(**kw), 33)
+        return {f["id"]: f for f in filas}, lote
+
+    def test_M2_M3_M6_M7_M8_M9_M10_con_cifras_conocidas(self):
+        f, lote = self.valores()
+        self.assertEqual([p["number"] for p in lote], [10, 11, 12])
+        self.assertEqual(f["M2"]["valor"], "1 de 33")                      # D-01 está en #10 y #11
+        self.assertEqual(f["M3"]["valor"], "2 de 3 (67 %); altos 1")       # #10 «sin hallazgos altos/medios» no cuenta
+        self.assertEqual(f["M6"]["valor"], "9.0 toques (8.0 únicos)")      # (3+5+10)/2 defectos; 16 únicos/2
+        self.assertEqual(f["M7"]["valor"], "5 (lote 5)")                   # medianas de [5,3,5,10,4] y [3,5,10]
+        self.assertEqual(f["M8"]["valor"], "mediana 30 min (lote 60)")     # [30,60,30,120,10] y [60,30,120]
+        self.assertEqual(f["M9"]["valor"], "1 de 3 (33 %)")                # solo #11 dice «resto»
+        self.assertEqual(f["M10"]["valor"], "2 de 16 (12 %)")              # a y b se repiten; 16 ficheros distintos
+
+    def test_M7_M8_excluyen_dependabot_y_lo_anterior_a_desde(self):
+        f, _ = self.valores()
+        self.assertIn("5 PR no-Dependabot desde 2026-09-12", f["M7"]["detalle"])
+
+    def test_el_tope_de_limite_pr_se_avisa_en_vez_de_recortar_en_silencio(self):
+        f, _ = self.valores(limite_pr=7)          # gh devuelve exactamente 7: pudo haber más
+        self.assertIn("ATENCIÓN", f["M2"]["detalle"])
+        f, _ = self.valores(limite_pr=100)
+        self.assertNotIn("ATENCIÓN", f["M2"]["detalle"])
+
+    def test_sin_PR_en_la_ventana_es_NO_MEDIDA_no_cero(self):
+        f, lote = self.valores(pr_min=900, pr_max=910)
+        self.assertEqual(lote, [])
+        for m in ("M2", "M3", "M6", "M9", "M10"):
+            self.assertEqual(f[m]["clase"], "NO_MEDIDA", m)
+
+    def test_M5_cuenta_los_rojos_de_push_a_main_y_solo_ellos(self):
+        def run(i, ev, rama, conc):
+            return {"databaseId": i, "event": ev, "headBranch": rama, "conclusion": conc, "createdAt": "2026-10-01T00:00:00Z"}
+        self.sirve("run_list.json", [run(1, "push", "main", "success"), run(2, "push", "main", "failure"), run(3, "push", "main", "success"),
+                                     run(4, "push", "otra", "failure"), run(5, "pull_request", "main", "failure")])
+        filas = {f["id"]: f for f in mp.metricas_de_ci(self.args(), set())}
+        self.assertEqual(filas["M5"]["valor"], "1 de 3 (33.3 %)")
+        self.assertIn("re-run", filas["M4"]["detalle"])
+
+    def test_M5_sin_pushes_a_main_es_NO_MEDIDA(self):
+        self.sirve("run_list.json", [{"databaseId": 1, "event": "pull_request", "headBranch": "x", "conclusion": "success", "createdAt": "2026-10-01T00:00:00Z"}])
+        self.assertEqual({f["id"]: f for f in mp.metricas_de_ci(self.args(), set())}["M5"]["clase"], "NO_MEDIDA")
 
 
 class Util(unittest.TestCase):
