@@ -45,7 +45,7 @@ public class ReglasDeNegocioSinCopiasTests
     /// <c>Limite(hoy)</c> con su propia comparación.
     /// </summary>
     private static readonly Regex PatronVentanaCopiada = new(
-        @"\bAddMonths\s*\(\s*\+?3\s*\)|\blimiteVentana\b|\bVentanaReclamacion\s*\.\s*Limite\s*\(",
+        @"\bAddMonths\s*\(\s*\+?3\s*\)|\blimiteVentana\b|\bVentanaReclamacion\s*\.\s*(?:Limite\s*\(|Meses\b)",
         RegexOptions.Compiled);
 
     /// <summary>Usos de esas formas que no son la ventana de reclamación.</summary>
@@ -113,10 +113,13 @@ public class ReglasDeNegocioSinCopiasTests
 
     /// <summary>
     /// Reimplementaciones del criterio «lo malo conocido, luego lo desconocido, luego lo bueno» que no son una tabla
-    /// de números y el patrón no puede ver. Declaradas a mano para que la lista sea completa; el motivo de cada una
-    /// es que el estado se DERIVA de una agregación en SQL (la peor fecha más «hay algún sin confirmar»), no se ordena:
-    /// <c>CalculoEstadoDocumentalService.PeorEstado</c> (Application/Documentos), ligado a
-    /// <c>CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests</c> para un documento por propietario.
+    /// de números y el patrón no puede ver. Lista NO exhaustiva (un patrón de texto no enumera lo que no ve): recoge
+    /// la que se conoce. <c>CalculoEstadoDocumentalService.PeorEstado</c> (Application/Documentos) DERIVA el estado de
+    /// una agregación en SQL (la peor fecha más «hay algún sin confirmar»), no lo ordena, y la ata a la calculadora
+    /// <c>CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests</c> para un documento por propietario. Hay además dos
+    /// particiones «vencidos primero» escritas como booleano (<c>OrderByDescending(r =&gt; r.Documentos.Any(d =&gt;
+    /// d.Estado == Vencido))</c> en <c>ObtenerLoteReclamacionQuery</c> y <c>ObtenerLoteReclamacionEmpresaQuery</c>):
+    /// separan un solo estado del resto, no ordenan por gravedad.
     /// </summary>
     private static readonly string[] OrdenesQueElPatronNoVe =
     [
@@ -176,6 +179,7 @@ public class ReglasDeNegocioSinCopiasTests
             "        var limite = fecha.AddMonths(+3);",
             "            where documento.FechaVencimiento <= VentanaReclamacion.Limite(hoy)",
             "        var limite = VentanaReclamacion.Limite(hoy);",
+            "        var limite = hoy.AddMonths(VentanaReclamacion.Meses);",
         ];
         foreach (var linea in ventana)
             EsCodigoQueCasa(linea, PatronVentanaCopiada).Should().BeTrue(linea);
