@@ -111,6 +111,13 @@ public class EnviarReclamacionCommandHandler(
         // inferior): un DocumentoId que la vista previa nunca habría ofrecido
         // no puede colarse aquí como "reclamable" solo porque llegó en la
         // petición.
+        // Mismo alcance que ObtenerLoteReclamacionQuery (lo que no se ofrece no se envía):
+        // un Id de documento de un Trabajador o de un Centro fuera del alcance visible
+        // no es reclamable aunque se conozca su GUID, y falla con el mismo error que un
+        // documento ya renovado, sin revelar que existe. null = rol sin restricción.
+        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+
         var hoy = DiaDeNegocio.Hoy();
         var limiteVentana = hoy.AddMonths(3);
 
@@ -119,10 +126,12 @@ public class EnviarReclamacionCommandHandler(
             where idsSolicitados.Contains(documento.Id)
             where documento.TrabajadorId != null && documento.FechaVencimiento != null
             where documento.FechaVencimiento <= limiteVentana
+            where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             join asignacion in asignacionesContext.Asignaciones on trabajador.Id equals asignacion.TrabajadorId
             where asignacion.FechaBaja == null
+            where centroIdsVisibles == null || centroIdsVisibles.Contains(asignacion.CentroId)
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
             where centro.ClienteId == request.ClienteId
             // P1-X2: un Centro sin gestión CAE no exige documentación, así que

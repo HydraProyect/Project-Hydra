@@ -342,6 +342,76 @@ public class EnviarReclamacionCommandHandlerTests
         registro.UltimoTitular!.Ambito.Should().Be(AmbitoAplicacion.Empresa);
     }
 
+    // ---- Alcance de trabajadores y centros visibles (igual que ObtenerLoteReclamacionQuery) ----
+
+    [Fact]
+    public async Task Documento_de_un_trabajador_fuera_del_alcance_no_es_reclamable_y_no_revela_que_existe()
+    {
+        var escenario = ConstruirEscenario();
+        var documento = AgregarDocumento(escenario, Hoy.AddDays(10));
+        escenario.Entorno.Agenda.RespuestaResolverAsync = [Contacto()];
+        var alcance = new AlcanceDatosServiceFalso(trabajadorIdsVisibles: [Guid.NewGuid()]);
+
+        var resultado = await escenario.Entorno.CrearHandler(alcance).Handle(
+            new EnviarReclamacionCommand(escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
+        var inexistente = await escenario.Entorno.CrearHandler().Handle(
+            new EnviarReclamacionCommand(escenario.Cliente.Id, [Guid.NewGuid()]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Reclamacion.SinDocumentosValidos");
+        resultado.Error.Codigo.Should().Be(inexistente.Error.Codigo, "no se distingue «no existe» de «fuera de tu alcance»");
+        resultado.Error.Mensaje.Should().Be(inexistente.Error.Mensaje);
+        escenario.Entorno.RegistroEnvio.VecesLlamado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Documento_en_un_centro_fuera_del_alcance_no_es_reclamable()
+    {
+        var escenario = ConstruirEscenario();
+        var documento = AgregarDocumento(escenario, Hoy.AddDays(10));
+        escenario.Entorno.Agenda.RespuestaResolverAsync = [Contacto()];
+        var alcance = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, clienteIdsVisibles: [escenario.Cliente.Id], centroIdsVisibles: [Guid.NewGuid()]);
+
+        var resultado = await escenario.Entorno.CrearHandler(alcance).Handle(
+            new EnviarReclamacionCommand(escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Reclamacion.SinDocumentosValidos");
+        escenario.Entorno.RegistroEnvio.VecesLlamado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Con_el_trabajador_y_el_centro_en_el_alcance_el_envio_legitimo_sigue_funcionando()
+    {
+        var escenario = ConstruirEscenario();
+        var documento = AgregarDocumento(escenario, Hoy.AddDays(10));
+        escenario.Entorno.Agenda.RespuestaResolverAsync = [Contacto()];
+        var alcance = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, clienteIdsVisibles: [escenario.Cliente.Id],
+            trabajadorIdsVisibles: [escenario.Trabajador.Id], centroIdsVisibles: [escenario.Centro.Id]);
+
+        var resultado = await escenario.Entorno.CrearHandler(alcance).Handle(
+            new EnviarReclamacionCommand(escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        escenario.Entorno.RegistroEnvio.VecesLlamado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task La_vista_previa_tampoco_resuelve_un_documento_fuera_del_alcance_de_trabajadores()
+    {
+        var escenario = ConstruirEscenario();
+        var documento = AgregarDocumento(escenario, Hoy.AddDays(10));
+        escenario.Entorno.Agenda.RespuestaResolverAsync = [Contacto()];
+
+        var previa = await CrearVistaPrevia(escenario, new AlcanceDatosServiceFalso(trabajadorIdsVisibles: [Guid.NewGuid()])).Handle(
+            new PrepararVistaPreviaReclamacionCommand(AmbitoAplicacion.Cliente, escenario.Cliente.Id, [documento.Id]), CancellationToken.None);
+
+        previa.EsFallido.Should().BeTrue();
+        previa.Error.Codigo.Should().Be("Reclamacion.SinDocumentosValidos");
+    }
+
     [Fact]
     public async Task La_vista_previa_respeta_la_cartera_del_usuario()
     {
