@@ -1,6 +1,51 @@
-# Deuda de vocabulario de pantalla congelada por ubicación (S1). Una línea por 'fichero :: [término]' (razor) o 'fichero :: clave [término]' (resx).
+# Deuda de vocabulario de pantalla congelada por ubicación (S1). Una línea por 'fichero :: [término]' (razor), 'fichero :: clave [término]' (resx)
+# o 'fichero :: código de error [término]' (mensajes de Error.Crear y WithMessage de Application).
 # Cada línea es un texto visible que dice un término que Vocabulario.json prohíbe a secas. Solo baja: al retirar un texto, borra o baja su línea.
 # Una excepción legítima (plantilla, texto legal, acceso de plataforma, nombre propio) NO va aquí: va en Vocabulario.json con su motivo.
+src/CaeManager.Application/AsistenteIa/Candidatos/ComprobarInstruccionIaCarteraQuery.cs :: (código dinámico) [tenant-a-secas] = 2
+src/CaeManager.Application/AsistenteIa/Queries/PreguntarAlAsistente/PreguntarAlAsistenteQuery.cs :: AsistenteIa.SinInstruccion [tenant-a-secas] = 1
+src/CaeManager.Application/AsistenteIa/Queries/ProponerPlan/ProponerPlanAsistenteQuery.cs :: AsistenteIa.SinInstruccion [tenant-a-secas] = 1
+src/CaeManager.Application/AsistenteIa/Queries/ProponerPlan/ProponerPlanAsistenteQuery.cs :: AsistenteIa.TenantFueraDeCartera [tenant-a-secas] = 1
+src/CaeManager.Application/Common/AutorizacionEscrituraBehavior.cs :: Autorizacion.AprovisionamientoFueraDelTenantObjetivo [tenant-a-secas] = 1
+src/CaeManager.Application/Common/AutorizacionEscrituraBehavior.cs :: Autorizacion.RestablecimientoFueraDelTenantObjetivo [tenant-a-secas] = 1
+src/CaeManager.Application/Configuracion/Commands/ActualizarEstadoAutomatizacion/ActualizarEstadoAutomatizacionCommand.cs :: Automatizacion.NoConmutable [tenant-a-secas] = 1
+src/CaeManager.Application/Cumplimiento/Commands/RegistrarInstruccionTratamientoIaTenantPropietario/RegistrarInstruccionTratamientoIaTenantPropietarioCommand.cs :: InstruccionTratamientoIa.SinAutoridad [tenant-a-secas] = 1
+src/CaeManager.Application/Cumplimiento/Commands/RegistrarInstruccionTratamientoIaTenantPropietario/RegistrarInstruccionTratamientoIaTenantPropietarioCommand.cs :: InstruccionTratamientoIa.YaVigente [tenant-a-secas] = 1
+src/CaeManager.Application/Cumplimiento/Commands/RegistrarInstruccionTratamientoIaTenantPropietario/RegistrarInstruccionTratamientoIaTenantPropietarioCommand.cs :: Tenant.NoEncontrado [tenant-a-secas] = 1
+src/CaeManager.Application/Cumplimiento/Commands/RegistrarInstruccionTratamientoIaTenantPropietario/RegistrarInstruccionTratamientoIaTenantPropietarioCommand.cs :: WithMessage [tenant-a-secas] = 2
+src/CaeManager.Application/Cumplimiento/Commands/RevocarInstruccionTratamientoIaTenantPropietario/RevocarInstruccionTratamientoIaTenantPropietarioCommand.cs :: InstruccionTratamientoIa.NoEncontrada [tenant-a-secas] = 1
+src/CaeManager.Application/Cumplimiento/Commands/RevocarInstruccionTratamientoIaTenantPropietario/RevocarInstruccionTratamientoIaTenantPropietarioCommand.cs :: InstruccionTratamientoIa.SinAutoridad [tenant-a-secas] = 1
+src/CaeManager.Application/Cumplimiento/Queries/ObtenerHistoricoInstruccionTratamientoIaTenantPropietario/ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQuery.cs :: InstruccionTratamientoIa.SinAutoridad [tenant-a-secas] = 1
+src/CaeManager.Application/Integraciones/Commands/ActualizarLineaWhatsApp/ActualizarLineaWhatsAppCommand.cs :: Integraciones.WhatsApp.UsuarioNoVisible [gestor-a-secas] = 1
+src/CaeManager.Application/Integraciones/Commands/ActualizarLineaWhatsApp/ActualizarLineaWhatsAppCommand.cs :: WithMessage [gestor-a-secas] = 2
+src/CaeManager.Application/Integraciones/Commands/ConectarBuzonMicrosoft365/ConectarBuzonMicrosoft365Command.cs :: Integraciones.Microsoft365.GestorNoVisible [gestor-a-secas] = 1
+src/CaeManager.Application/Integraciones/Commands/ConectarBuzonMicrosoft365/ConectarBuzonMicrosoft365Command.cs :: Integraciones.Microsoft365.TenantNoResuelto [tenant-a-secas] = 1
+src/CaeManager.Application/Integraciones/Commands/ConectarBuzonMicrosoft365/ConectarBuzonMicrosoft365Command.cs :: WithMessage [gestor-a-secas] = 1
+src/CaeManager.Application/Integraciones/Commands/CrearLineaWhatsApp/CrearLineaWhatsAppCommand.cs :: Integraciones.WhatsApp.UsuarioNoVisible [gestor-a-secas] = 1
+src/CaeManager.Application/Integraciones/Commands/CrearLineaWhatsApp/CrearLineaWhatsAppCommand.cs :: WithMessage [gestor-a-secas] = 2
+src/CaeManager.Application/Integraciones/Commands/ReactivarConexion/ReactivarConexionCommand.cs :: Integraciones.Microsoft365.TenantNoResuelto [tenant-a-secas] = 1
+src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs :: AsignacionOperadorDelegado.NoAutorizado [cliente-a-secas] = 2
+src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs :: AsignacionOperadorDelegado.NoAutorizado [operador-a-secas] = 2
+src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs :: WithMessage [operador-a-secas] = 2
+src/CaeManager.Application/Tenants/Commands/CrearClienteDelegante/CrearClienteDeleganteCommand.cs :: ClienteDelegante.NombreDuplicado [tenant-a-secas] = 1
+src/CaeManager.Application/Tenants/Commands/CrearClienteDelegante/CrearClienteDeleganteCommand.cs :: ClienteDelegante.SinPermiso [cliente-a-secas] = 1
+src/CaeManager.Application/Tenants/Commands/CrearClienteDelegante/CrearClienteDeleganteCommand.cs :: WithMessage [cliente-a-secas] = 1
+src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs :: DelegacionTenant.ClienteNoEncontrado [cliente-a-secas] = 1
+src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs :: DelegacionTenant.NoAutorizado [cliente-a-secas] = 1
+src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs :: DelegacionTenant.YaActiva [cliente-a-secas] = 1
+src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs :: WithMessage [cliente-a-secas] = 1
+src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs :: WithMessage [tenant-a-secas] = 1
+src/CaeManager.Application/Tenants/Commands/CrearOperadorCaeExterno/CrearOperadorCaeExternoCommand.cs :: OperadorCaeExterno.NombreDuplicado [tenant-a-secas] = 1
+src/CaeManager.Application/Tenants/Commands/CrearTenantPropietarioDeOperadorCaeExterno/CrearTenantPropietarioDeOperadorCaeExternoCommand.cs :: TenantPropietarioDeOperador.NombreDuplicado [tenant-a-secas] = 1
+src/CaeManager.Application/Tenants/Commands/RevocarAsignacionOperadorDelegado/RevocarAsignacionOperadorDelegadoCommand.cs :: WithMessage [operador-a-secas] = 1
+src/CaeManager.Application/Usuarios/Commands/RestablecerSegundoFactor/AutorizacionRestablecerSegundoFactor.cs :: SegundoFactor.FueraDelTenantObjetivo [tenant-a-secas] = 1
+src/CaeManager.Application/Usuarios/Commands/RestablecerSegundoFactor/AutorizacionRestablecerSegundoFactor.cs :: SegundoFactor.NoEsAdministradorUnico [tenant-a-secas] = 1
+src/CaeManager.Application/Usuarios/Commands/RestablecerSegundoFactor/AutorizacionRestablecerSegundoFactor.cs :: SegundoFactor.SesionSinCapacidad [tenant-a-secas] = 1
+src/CaeManager.Web/Components/Legal/PoliticaPrivacidad.razor :: [tenant-a-secas] = 6
+src/CaeManager.Web/Components/Legal/PoliticaPrivacidad.razor :: [workspace-a-secas] = 1
+src/CaeManager.Web/Components/Legal/TerminosCondiciones.razor :: [operador-a-secas] = 2
+src/CaeManager.Web/Components/Legal/TerminosCondiciones.razor :: [tenant-a-secas] = 2
+src/CaeManager.Web/Components/Legal/TerminosCondiciones.razor :: [workspace-a-secas] = 2
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.ca-ES.resx :: LoteVacioDetalle [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: LoteVacioDetalle [alcance-a-secas] = 1
 src/CaeManager.Web/Features/AsistenteIa/Recursos/TextosAsistenteIa.ca-ES.resx :: Campo_tenant [tenant-a-secas] = 1
@@ -16,6 +61,9 @@ src/CaeManager.Web/Features/AsistenteIa/Recursos/TextosAsistenteIa.resx :: Plan_
 src/CaeManager.Web/Features/AsistenteIa/Recursos/TextosAsistenteIa.resx :: Plan_SinTenant [tenant-a-secas] = 1
 src/CaeManager.Web/Features/AsistenteIa/Recursos/TextosAsistenteIa.resx :: Plan_TextoNombraOtroTenant [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Auditoria/Pages/AccesosDocumentosSensibles.razor :: [alcance-a-secas] = 1
+src/CaeManager.Web/Features/Bandeja/Recursos/TextosMiTrabajo.ca-ES.resx :: SinCarteraDetalle [alcance-a-secas] = 1
+src/CaeManager.Web/Features/Bandeja/Recursos/TextosMiTrabajo.ca-ES.resx :: SinCarteraDetalleCoordinador [alcance-a-secas] = 2
+src/CaeManager.Web/Features/Bandeja/Recursos/TextosMiTrabajo.ca-ES.resx :: SinCarteraEmpresaDetalleCoordinador [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Bandeja/Recursos/TextosMiTrabajo.resx :: SinCarteraDetalle [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Bandeja/Recursos/TextosMiTrabajo.resx :: SinCarteraDetalleCoordinador [alcance-a-secas] = 2
 src/CaeManager.Web/Features/Bandeja/Recursos/TextosMiTrabajo.resx :: SinCarteraEmpresaDetalleCoordinador [alcance-a-secas] = 1
@@ -55,8 +103,11 @@ src/CaeManager.Web/Features/Documentos/Recursos/TextosDocumentos.resx :: Confirm
 src/CaeManager.Web/Features/Empresas/Components/EmpresaWorkspacePanel.razor :: [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor :: [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor :: [tenant-a-secas] = 1
+src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.ca-ES.resx :: VacioClientesDescripcion [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.resx :: VacioClientesDescripcion [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Facturacion/Pages/Facturacion.razor :: [alcance-a-secas] = 1
+src/CaeManager.Web/Features/Importacion/Pages/Importacion.razor :: [cliente-a-secas] = 1
+src/CaeManager.Web/Features/IncorporacionCartera/Recursos/TextosIncorporacionCartera.ca-ES.resx :: SinAsignacionDetalleCoordinador [alcance-a-secas] = 1
 src/CaeManager.Web/Features/IncorporacionCartera/Recursos/TextosIncorporacionCartera.resx :: SinAsignacionDetalleCoordinador [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor :: [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.ca-ES.resx :: RotuloCampoEmpresa [cliente-a-secas] = 1

@@ -1,6 +1,9 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace CaeManager.Architecture.Tests;
 
@@ -49,6 +52,7 @@ internal sealed record ExcepcionDeVocabulario(
 internal sealed record VocabularioJson(
     int Version,
     string Fuente,
+    IReadOnlyList<string>? DescartarAntesDeCasar,
     IReadOnlyList<TerminoCanonico> Canonicos,
     IReadOnlyList<TerminoProhibido> Prohibidos,
     IReadOnlyList<ExcepcionDeVocabulario> Excepciones);
@@ -75,17 +79,23 @@ internal sealed record HallazgoDeVocabulario(
 /// de terminología no se escribe: la genera <c>scripts/vocabulario-tabla.py</c> desde ese mismo fichero.
 ///
 /// <para>
-/// <b>Qué ve.</b> El valor de cada <c>&lt;data&gt;&lt;value&gt;</c> de todo <c>.resx</c> de <c>src</c>, y,
-/// de cada <c>.razor</c>, el texto de interfaz que está escrito a mano en el marcado (el mismo detector
-/// que <c>TextosSinLocalizarCongeladosTests</c>: texto entre etiquetas, atributos de texto conocidos y
-/// literales C# que parecen lenguaje natural).
+/// <b>Qué ve.</b> Tres orígenes. (1) El valor de cada <c>&lt;data&gt;&lt;value&gt;</c> de todo <c>.resx</c> de
+/// <c>src</c>, neutral y satélites es/ca. (2) De cada <c>.razor</c>, el texto de interfaz escrito a mano en el
+/// marcado: el mismo detector que <c>TextosSinLocalizarCongeladosTests</c> (texto entre etiquetas, atributos de
+/// una lista cerrada y literales C# que parecen lenguaje natural) más los atributos cuyo NOMBRE dice que llevan
+/// texto (<c>PlaceholderBuscador</c>…). (3) De <c>src/CaeManager.Application</c>, los mensajes de
+/// <c>Error.Crear(codigo, mensaje)</c> y de <c>.WithMessage(mensaje)</c>, que acaban en pantalla.
 /// </para>
 ///
 /// <para>
-/// <b>Qué no ve, declarado.</b> Texto que llega de datos (catálogos sembrados, mensajes de
-/// <c>Result</c> de Application, excepciones), literales de <c>.cs</c> (incluido Application), texto
-/// montado en JavaScript o por concatenación, y una palabra suelta en minúscula dentro de un literal C#
-/// del <c>.razor</c> que el detector de lenguaje natural no reconoce como tal.
+/// <b>Qué no ve, declarado.</b> Texto que llega de datos (catálogos sembrados), mensajes que Application o Domain
+/// montan fuera de esas dos llamadas (<c>Result.Fallo</c> con un literal suelto, excepciones), literales de
+/// <c>.cs</c> de Web y de Infrastructure, texto montado en JavaScript, un atributo cuyo valor lleva una expresión
+/// Razor (<c>@…</c>) y el texto del bloque <c>@code</c> que el detector de lenguaje natural no reconoce. Los
+/// textos de un mismo <c>.razor</c> se cuentan por cadena distinta: retirar un «Tenant» y añadir otro con una
+/// frase diferente deja el recuento igual (límite heredado del detector). Las <b>URL</b> se descartan antes de
+/// casar (<c>descartarAntesDeCasar</c>), y los patrones de <c>Vocabulario.json</c> solo conocen castellano y
+/// catalán.
 /// </para>
 /// </summary>
 internal static class VocabularioDePantalla
@@ -108,6 +118,18 @@ internal static class VocabularioDePantalla
 
     public static Regex Compilar(TerminoProhibido t) =>
         new(t.Patron, RegexOptions.CultureInvariant | (t.IgnorarMayusculas ? RegexOptions.IgnoreCase : RegexOptions.None));
+
+    /// <summary>
+    /// Patrones de lo que NO es lenguaje de pantalla aunque viva en un texto (una URL de ejemplo con
+    /// <c>portal-del-cliente.com</c>): se sustituyen por un espacio antes de casar. Es mejor descartar el
+    /// objeto que no es texto que abrir un hueco en el patrón del término, que dejaría pasar compuestos reales
+    /// como «empresa-cliente».
+    /// </summary>
+    public static List<Regex> Descartes(VocabularioJson vocabulario) =>
+        (vocabulario.DescartarAntesDeCasar ?? []).Select(p => new Regex(p, RegexOptions.CultureInvariant)).ToList();
+
+    public static string Descartar(IEnumerable<Regex> descartes, string texto) =>
+        descartes.Aggregate(texto, (t, d) => d.Replace(t, " "));
 
     /// <summary>Convierte un comodín de ruta (<c>*</c>, <c>**</c>) en regex anclada.</summary>
     public static Regex ComodinARegex(string comodin)
@@ -144,13 +166,15 @@ internal static class VocabularioDePantalla
         IEnumerable<(string Fichero, string? Clave, string Texto)> textos)
     {
         var reglas = vocabulario.Prohibidos.Select(p => (p.Id, Regex: Compilar(p))).ToList();
+        var descartes = Descartes(vocabulario);
         var excepciones = vocabulario.Excepciones
             .Select(e => (Excepcion: e, Ficheros: e.Ficheros.Select(ComodinARegex).ToList()))
             .ToList();
         var resultado = new List<HallazgoDeVocabulario>();
 
-        foreach (var (fichero, clave, texto) in textos)
+        foreach (var (fichero, clave, textoCrudo) in textos)
         {
+            var texto = Descartar(descartes, textoCrudo);
             foreach (var (id, regex) in reglas)
             {
                 foreach (Match m in regex.Matches(texto))
@@ -193,7 +217,83 @@ internal static class VocabularioDePantalla
         ArchivosDeSrc("*.razor").SelectMany(a => TextosDeRazor(FuentesDeSrc.Relativa(a), File.ReadAllText(a)));
 
     public static IEnumerable<(string Fichero, string? Clave, string Texto)> TextosDeRazor(string ruta, string contenido) =>
-        DetectorTextosSinLocalizar.MedirRazor(contenido).Textos().Select(t => (ruta, (string?)null, t));
+        DetectorTextosSinLocalizar.MedirRazor(contenido).Textos()
+            .Concat(AtributosDeTexto(contenido))
+            .Distinct(StringComparer.Ordinal)
+            .Select(t => (ruta, (string?)null, t));
+
+    /// <summary>
+    /// Atributos del marcado cuyo NOMBRE dice que llevan texto para el usuario (<c>PlaceholderBuscador</c>,
+    /// <c>EtiquetaCampo</c>, <c>aria-label</c>…), por contener una de esas palabras. El detector de texto sin
+    /// localizar solo conoce una lista cerrada de nombres; un componente nuevo con otro nombre se le escaparía.
+    /// Se queda con los valores sin expresiones Razor (<c>@…</c>) y ve solo el marcado, no el bloque
+    /// <c>@code</c>.
+    /// </summary>
+    private static IEnumerable<string> AtributosDeTexto(string contenido)
+    {
+        var limpio = LimpiadorDeComentarios.Quitar(contenido.Replace("\r\n", "\n"), razor: true);
+        var codigo = limpio.IndexOf("@code", StringComparison.Ordinal);
+        var marcado = codigo >= 0 ? limpio[..codigo] : limpio;
+
+        foreach (Match m in AtributoConTexto.Matches(marcado))
+        {
+            var valor = m.Groups["v"].Value.Trim();
+            if (valor.Length > 0)
+                yield return valor;
+        }
+    }
+
+    private static readonly Regex AtributoConTexto = new(
+        @"(?<![\w\-:@])[\w-]*(?:Placeholder|Etiqueta|Titulo|Texto|Mensaje|Descripcion|Label|Title|Tooltip|Leyenda|Pista|Marcador|Ayuda|Kicker|Subtitulo|Explicacion|Aviso|Cabecera|Rotulo|alt)[\w-]*" +
+        @"\s*=\s*""(?<v>[^""@]*)""",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Los mensajes de error y de validación que Application escribe a mano y que el usuario acaba viendo:
+    /// el segundo argumento de <c>Error.Crear(codigo, mensaje)</c> (la «clave» es el código) y el argumento de
+    /// <c>.WithMessage(mensaje)</c> (clave <c>WithMessage</c>). Son todos los literales de cadena del argumento,
+    /// también los trozos de una interpolación o de una concatenación.
+    /// </summary>
+    public static IEnumerable<(string Fichero, string? Clave, string Texto)> TextosDeApplication() =>
+        ArchivosDeSrc("*.cs")
+            .Where(a => FuentesDeSrc.Relativa(a).StartsWith("src/CaeManager.Application/", StringComparison.Ordinal))
+            .AsParallel().AsOrdered()
+            .SelectMany(a => TextosDeApplication(FuentesDeSrc.Relativa(a), File.ReadAllText(a)))
+            .ToList();
+
+    public static IEnumerable<(string Fichero, string? Clave, string Texto)> TextosDeApplication(string ruta, string contenido)
+    {
+        var raiz = CSharpSyntaxTree.ParseText(contenido).GetRoot();
+
+        foreach (var llamada in raiz.DescendantNodes().OfType<InvocationExpressionSyntax>())
+        {
+            var (dueno, nombre) = llamada.Expression switch
+            {
+                MemberAccessExpressionSyntax acceso => ((acceso.Expression as IdentifierNameSyntax)?.Identifier.ValueText, acceso.Name.Identifier.ValueText),
+                _ => ((string?)null, string.Empty),
+            };
+            var argumentos = llamada.ArgumentList.Arguments;
+
+            if (dueno == "Error" && nombre == "Crear" && argumentos.Count >= 2)
+            {
+                var codigo = argumentos[0].Expression is LiteralExpressionSyntax l ? l.Token.ValueText : "(código dinámico)";
+                foreach (var texto in LiteralesDe(argumentos[1].Expression))
+                    yield return (ruta, codigo, texto);
+            }
+            else if (nombre == "WithMessage" && argumentos.Count >= 1)
+            {
+                foreach (var texto in LiteralesDe(argumentos[0].Expression))
+                    yield return (ruta, "WithMessage", texto);
+            }
+        }
+    }
+
+    private static IEnumerable<string> LiteralesDe(SyntaxNode expresion) =>
+        expresion.DescendantTokens()
+            .Where(t => t.Kind() is SyntaxKind.StringLiteralToken or SyntaxKind.InterpolatedStringTextToken
+                or SyntaxKind.SingleLineRawStringLiteralToken or SyntaxKind.MultiLineRawStringLiteralToken)
+            .Select(t => t.ValueText)
+            .Where(t => !string.IsNullOrWhiteSpace(t));
 
     /// <summary>Cuenta las apariciones por ubicación, sin las cubiertas por una excepción.</summary>
     public static Dictionary<Ubicacion, int> DeudaMedida(IEnumerable<HallazgoDeVocabulario> hallazgos)

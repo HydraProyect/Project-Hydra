@@ -3,7 +3,7 @@
 
 La fuente es tests/CaeManager.Architecture.Tests/Vocabulario/Vocabulario.json: la misma que aplica el test
 de arquitectura VocabularioDePantallaTests a los .resx y .razor. Este guion produce, a partir de ella, el
-bloque de tablas que CONTRATO_TERMINOLOGIA.md (repositorio de negocio) incluye entre las marcas
+bloque de tablas que Project-Hydra-Negocio/CONTRATO_TERMINOLOGIA.md incluye entre las marcas
 
     <!-- generado: no editar -->
     ...
@@ -13,8 +13,8 @@ de modo que el contrato y el código no pueden contradecirse: no hay dos copias 
 
 Uso:
     python3 scripts/vocabulario-tabla.py generar                       # el bloque, por la salida estándar
-    python3 scripts/vocabulario-tabla.py aplicar  <contrato.md>        # reescribe SOLO lo que hay entre las marcas
-    python3 scripts/vocabulario-tabla.py verificar <contrato.md>       # sale con 1 si el bloque del contrato no coincide
+    python3 scripts/vocabulario-tabla.py aplicar  <documento>        # reescribe SOLO lo que hay entre las marcas
+    python3 scripts/vocabulario-tabla.py verificar <documento>       # sale con 1 si el bloque del contrato no coincide
     python3 scripts/vocabulario-tabla.py ejemplos                      # comprueba los ejemplos de cada patrón con `re`
     (opcional, antes del subcomando: --json <ruta>  para otro Vocabulario.json)
 
@@ -64,7 +64,7 @@ def celda(texto) -> str:
 
 
 def lista(valores) -> str:
-    return celda(", ".join(valores)) if valores else "—"
+    return _Cruda(celda(", ".join(valores))) if valores else "—"
 
 
 def fila(*celdas) -> str:
@@ -83,7 +83,8 @@ def generar(datos: dict) -> str:
     salida = [
         f"Generado desde `{RUTA_EN_REPO}` (versión {datos['version']}) por `scripts/vocabulario-tabla.py`. "
         "No se edita a mano: se edita ese fichero y se regenera. El test de arquitectura `VocabularioDePantallaTests` "
-        "aplica estas mismas reglas a los valores de los `.resx` (es-ES y ca-ES) y al texto visible de los `.razor`.",
+        "aplica estas mismas reglas a los valores de los `.resx` (es-ES y ca-ES), al texto visible de los `.razor` y a los "
+        "mensajes de `Error.Crear` y `.WithMessage` de Application.",
         "",
         "**Términos canónicos de pantalla**",
         "",
@@ -178,6 +179,13 @@ def leer_sin_normalizar(ruta: Path) -> str:
         raise EntradaIncorrecta(f"no existe {ruta}")
 
 
+def descartar(datos: dict, texto: str) -> str:
+    """Lo que no es lenguaje de pantalla (una URL de ejemplo) se descarta antes de casar, como hace el test de arquitectura."""
+    for patron in datos.get("descartarAntesDeCasar", []):
+        texto = re.sub(patron, " ", texto)
+    return texto
+
+
 def comprobar_ejemplos(datos: dict) -> list[str]:
     fallos = []
     for p in datos["prohibidos"]:
@@ -191,10 +199,10 @@ def comprobar_ejemplos(datos: dict) -> list[str]:
         if not p.get("noCasa"):
             fallos.append(f"{p['id']}: sin ejemplos legítimos que no deba cazar")
         for ejemplo in p.get("casa", []):
-            if not regex.search(ejemplo):
+            if not regex.search(descartar(datos, ejemplo)):
                 fallos.append(f"{p['id']}: debía cazar «{ejemplo}» y no lo caza")
         for ejemplo in p.get("noCasa", []):
-            if regex.search(ejemplo):
+            if regex.search(descartar(datos, ejemplo)):
                 fallos.append(f"{p['id']}: no debía cazar «{ejemplo}» y lo caza")
     return fallos
 

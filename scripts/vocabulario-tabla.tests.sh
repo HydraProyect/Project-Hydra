@@ -53,7 +53,9 @@ mutante "los ejemplos que deben cazar no se comprueban"   's/for ejemplo in p.ge
 mutante "las marcas no se exigen únicas"                  's/    if texto.count(MARCA_INICIO) != 1 or texto.count(MARCA_FIN) != 1:/    if False:/' "test_las_marcas_ausentes"
 mutante "la tabla omite las excepciones"                  's/    if datos\["excepciones"\]:/    if False:/'                          "test_la_tabla_sintetica"
 mutante "la tabla de canónicos omite el plural"           's/c.get("plural"), lista(/None, lista(/'                                 "test_la_tabla_sintetica"
-mutante "el patrón se compila sin ignorar mayúsculas"     's/re.IGNORECASE if p.get("ignorarMayusculas") else 0/0/'                 "test_los_ejemplos_detectan"
+mutante "lista() se escapa dos veces"                     's/return _Cruda(celda(", ".join(valores))) if valores else/return celda(", ".join(valores)) if valores else/' "test_la_barra_vertical"
+mutante "los ejemplos no descartan las URL antes de casar" 's/    for patron in datos.get("descartarAntesDeCasar", \[\]):/    for patron in []:/'  "test_los_ejemplos_detectan"
+mutante "el patrón se compila sin ignorar mayúsculas"    's/re.IGNORECASE if p.get("ignorarMayusculas") else 0/0/'                 "test_los_ejemplos_detectan"
 
 echo
 [ "$FALLOS" -eq 0 ] && echo "OK: 0 fallos" || echo "FALLOS: $FALLOS"

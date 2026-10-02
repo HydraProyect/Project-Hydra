@@ -26,14 +26,15 @@ spec.loader.exec_module(vt)
 
 SINTETICO = {
     "version": 7,
+    "descartarAntesDeCasar": [r"https?://\S+"],
     "canonicos": [
-        {"id": "a", "forma": "Alfa beta", "plural": "Alfas beta", "formasCortasPermitidas": ["Alfa"], "significado": "El alfa | con barra",
+        {"id": "a", "forma": "Alfa beta", "plural": "Alfas beta", "formasCortasPermitidas": ["Alfa", "A|B"], "significado": "El alfa | con barra",
          "contrato": "§ 1", "noConfundirCon": "Gamma"},
         {"id": "b", "forma": "Delta", "plural": None, "formasCortasPermitidas": [], "significado": "Otro", "contrato": "§ 2", "noConfundirCon": None},
     ],
     "prohibidos": [
         {"id": "x-a-secas", "termino": "Xi", "patron": r"\bxi\b(?!\s+omicron)", "ignorarMayusculas": True, "sustitucion": "Xi omicron",
-         "motivo": "Porque sí", "contrato": "§ 3", "sentido": None, "casa": ["Xi"], "noCasa": ["Xi omicron"]},
+         "motivo": "Porque sí", "contrato": "§ 3", "sentido": None, "casa": ["Xi"], "noCasa": ["Xi omicron", "http://xi.example/x"]},
     ],
     "excepciones": [
         {"id": "e1", "prohibidos": ["x-a-secas"], "ficheros": ["src/A/*.resx"], "claves": ["K1", "K2"], "contexto": "plantilla",
@@ -67,7 +68,7 @@ class PruebasDeLaTabla(unittest.TestCase):
         # 1 cabecera + 2 canónicos; 1 cabecera + 1 prohibido; 1 cabecera + 1 excepción.
         self.assertEqual(len(filas), 3 + 2 + 2)
         self.assertIn("versión 7", t)
-        self.assertIn("| **Alfa beta** | Alfas beta | Alfa |", t)
+        self.assertIn("| **Alfa beta** | Alfas beta | Alfa, A\\|B |", t)
         self.assertIn("| **Delta** | — | — |", t, "plural ausente y sin formas cortas se rotulan «—», no se dejan vacíos")
         self.assertIn("| «Xi» | Xi omicron | Porque sí | — | § 3 |", t)
         self.assertIn("`e1`", t)
@@ -78,6 +79,7 @@ class PruebasDeLaTabla(unittest.TestCase):
         t = vt.generar(SINTETICO)
         linea = next(l for l in t.splitlines() if "Alfa beta" in l and l.startswith("| **"))
         self.assertIn("El alfa \\| con barra", linea)
+        self.assertNotIn("\\\\|", linea, "una barra ya escapada no se vuelve a escapar (lista() y fila() no deben duplicar el escapado)")
         # Tras quitar las barras escapadas, quedan exactamente 7 separadores (6 celdas).
         self.assertEqual(linea.replace("\\|", "").count("|"), 7)
 
@@ -91,7 +93,7 @@ class PruebasDeLaTabla(unittest.TestCase):
         self.assertIn("Ninguna.", vt.generar(sin_excepciones))
 
     def test_aplicar_solo_toca_lo_que_hay_entre_las_marcas_y_conserva_el_crlf(self):
-        doc = escribir(self.dir, "c.md", CONTRATO)
+        doc = escribir(self.dir, "c.txt", CONTRATO)
         self.assertTrue(vt.aplicar(doc, SINTETICO))
         nuevo = doc.read_bytes().decode("utf-8")
         self.assertTrue(nuevo.startswith("# Contrato\r\nantes de las marcas\r\n<!-- generado: no editar -->"))
@@ -101,19 +103,19 @@ class PruebasDeLaTabla(unittest.TestCase):
         self.assertIn("Alfa beta", nuevo)
 
     def test_aplicar_es_idempotente(self):
-        doc = escribir(self.dir, "c.md", CONTRATO)
+        doc = escribir(self.dir, "c.txt", CONTRATO)
         vt.aplicar(doc, SINTETICO)
         antes = doc.read_bytes()
         self.assertFalse(vt.aplicar(doc, SINTETICO), "una segunda aplicación no cambia nada")
         self.assertEqual(doc.read_bytes(), antes)
 
     def test_aplicar_respeta_un_documento_con_lf(self):
-        doc = escribir(self.dir, "c.md", CONTRATO.replace("\r\n", "\n"))
+        doc = escribir(self.dir, "c.txt", CONTRATO.replace("\r\n", "\n"))
         vt.aplicar(doc, SINTETICO)
         self.assertNotIn(b"\r", doc.read_bytes())
 
     def test_verificar_ok_tras_aplicar_y_rojo_si_se_toca_la_tabla_a_mano(self):
-        doc = escribir(self.dir, "c.md", CONTRATO)
+        doc = escribir(self.dir, "c.txt", CONTRATO)
         vt.aplicar(doc, SINTETICO)
         self.assertEqual(vt.verificar(doc, SINTETICO), [])
         doc.write_bytes(doc.read_bytes().replace(b"Alfas beta", b"Alfas BETA"))
@@ -122,7 +124,7 @@ class PruebasDeLaTabla(unittest.TestCase):
         self.assertTrue(any("BETA" in l for l in d))
 
     def test_verificar_rojo_si_cambia_el_json_y_el_contrato_no(self):
-        doc = escribir(self.dir, "c.md", CONTRATO)
+        doc = escribir(self.dir, "c.txt", CONTRATO)
         vt.aplicar(doc, SINTETICO)
         otro = copy.deepcopy(SINTETICO)
         otro["prohibidos"][0]["sustitucion"] = "Otra cosa"
@@ -130,7 +132,7 @@ class PruebasDeLaTabla(unittest.TestCase):
 
     def test_las_marcas_ausentes_o_repetidas_son_entrada_incorrecta(self):
         for texto in ("sin marcas\n", CONTRATO + CONTRATO, "<!-- /generado -->\n<!-- generado: no editar -->\n"):
-            doc = escribir(self.dir, "m.md", texto)
+            doc = escribir(self.dir, "m.txt", texto)
             with self.assertRaises(vt.EntradaIncorrecta):
                 vt.aplicar(doc, SINTETICO)
             with self.assertRaises(vt.EntradaIncorrecta):
@@ -151,6 +153,10 @@ class PruebasDeLaTabla(unittest.TestCase):
         ciego = copy.deepcopy(SINTETICO)
         ciego["prohibidos"][0]["patron"] = r"\bnunca\b"
         self.assertTrue(any("debía cazar" in f for f in vt.comprobar_ejemplos(ciego)))
+        sin_descarte = copy.deepcopy(SINTETICO)
+        sin_descarte["descartarAntesDeCasar"] = []
+        self.assertTrue(any("http://xi.example" in f for f in vt.comprobar_ejemplos(sin_descarte)),
+                        "el ejemplo con URL solo es legítimo porque la URL se descarta antes de casar")
         ancho = copy.deepcopy(SINTETICO)
         ancho["prohibidos"][0]["patron"] = r"\bxi\b"
         self.assertTrue(any("no debía cazar" in f for f in vt.comprobar_ejemplos(ancho)))

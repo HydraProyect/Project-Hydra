@@ -457,8 +457,8 @@ def metricas_de_repo(raiz: Path):
         try:
             regla = next(r for r in json.loads(vocabulario.read_text(encoding="utf-8"))["prohibidos"] if r["id"] == "cliente-a-secas")
             patron = re.compile(regla["patron"], re.IGNORECASE if regla.get("ignorarMayusculas") else 0)
-            nota_m16 = ("patrón «cliente-a-secas» de Vocabulario.json (S1); sobre texto de marcado fuera de @code, sin satélites ca-ES; "
-                        "el instrumento que manda es VocabularioDePantallaTests")
+            nota_m16 = ("patrón «cliente-a-secas» de Vocabulario.json (S1); sobre texto de marcado fuera de @code, sin satélites ca-ES ni las "
+                        "excepciones por contexto (texto legal, plantillas, accesos de plataforma); el instrumento que manda es VocabularioDePantallaTests")
         except (ValueError, KeyError, StopIteration, re.error) as e:
             filas.append(no_medida("M16", "«Cliente» a secas en pantalla", f"Vocabulario.json ilegible o sin «cliente-a-secas»: {e}"))
             patron = None
