@@ -12,8 +12,10 @@ namespace CaeManager.Application.Reclamaciones;
 /// Dos formas de la misma regla, porque una consulta EF no puede llamar a un método propio dentro de la
 /// expresión: <see cref="EsReclamable"/> sobre valores en memoria y <see cref="Reclamables"/> sobre una consulta
 /// (se traduce a SQL). Las dos se mantienen iguales con una prueba de tabla
-/// (<c>CoherenciaVentanaReclamacionTests</c>) y el ratchet <c>ReglasDeNegocioSinCopiasTests</c> prohíbe repetir
-/// el literal de meses o la comparación de la fecha de vencimiento fuera de este fichero.
+/// (<c>CoherenciaDeLaVentanaDeReclamacionEntreSuperficiesTests</c>) y el ratchet
+/// <c>ReglasDeNegocioSinCopiasTests</c> prohíbe, fuera de este fichero, el literal de 3 meses, la variable
+/// <c>limiteVentana</c> y el uso directo de <see cref="Limite"/> (quien necesite la condición usa
+/// <see cref="Reclamables"/> o <see cref="EsReclamable"/>).
 /// </para>
 /// </summary>
 public static class VentanaReclamacion

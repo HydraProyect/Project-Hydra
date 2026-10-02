@@ -52,6 +52,16 @@ namespace CaeManager.IntegrationTests.Coherencia;
 /// de la tabla. Escenario: umbral ámbar 30 días, umbral rojo 15, un día de negocio fijo por la hora
 /// real; una fila por caso límite.
 /// </para>
+///
+/// <para>
+/// <b>Lo que esta tabla NO cubre, a propósito, porque hoy las superficies difieren y la regla buena es una
+/// decisión del propietario</b> (medido el 2026-10-03, ver el informe de S4): (1) el histórico de un mismo tipo
+/// —un documento vencido y su renovación vigente—: Trabajador 360 y el cumplimiento del Centro eligen la
+/// renovación (<c>PreferenciaDocumentoPorTipo</c>) mientras Alertas, la lista de Trabajadores y las causas del
+/// Centro siguen diciendo «Vencido»; (2) el porcentaje de cumplimiento con «No caduca»: el Centro lo cuenta como
+/// al día y como requerido, Trabajador 360 lo omite y la tasa del Dashboard lo deja fuera del denominador. Esta
+/// tabla no los fija para no consagrar una de las dos lecturas.
+/// </para>
 /// </summary>
 public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
 {

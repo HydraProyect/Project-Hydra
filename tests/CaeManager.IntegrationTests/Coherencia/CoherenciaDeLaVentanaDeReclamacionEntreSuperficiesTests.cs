@@ -58,6 +58,9 @@ public class CoherenciaDeLaVentanaDeReclamacionEntreSuperficiesTests : IAsyncLif
     public async Task InitializeAsync()
     {
         var limite = VentanaReclamacion.Limite(_hoy);
+        // Control: las fechas de la tabla cuelgan del límite de la regla; este control fija el valor de la regla
+        // (3 meses, VentanaReclamacionTests lo fija con fechas absolutas) para que la tabla no sea circular.
+        limite.Should().Be(_hoy.AddMonths(3), "la ventana de reclamación es de 3 meses");
         _casos =
         [
             new("Vencido hace un año (sin limite inferior)", true, VigenciaDocumento.VenceEl(_hoy.AddYears(-1))),

@@ -39,15 +39,22 @@ public class ReglasDeNegocioSinCopiasTests
 
     private const string PuntoUnicoDeLaVentana = "src/CaeManager.Application/Reclamaciones/VentanaReclamacion.cs";
 
+    /// <summary>
+    /// El literal de 3 meses, la variable local que lo copiaba y el uso del límite fuera del punto único: quien
+    /// necesite la condición sobre un Documento usa <c>Reclamables(hoy)</c> o <c>EsReclamable(fecha, hoy)</c>, no
+    /// <c>Limite(hoy)</c> con su propia comparación.
+    /// </summary>
     private static readonly Regex PatronVentanaCopiada = new(
-        @"\bAddMonths\s*\(\s*3\s*\)|\blimiteVentana\b",
+        @"\bAddMonths\s*\(\s*\+?3\s*\)|\blimiteVentana\b|\bVentanaReclamacion\s*\.\s*Limite\s*\(",
         RegexOptions.Compiled);
 
-    /// <summary>Usos de la forma <c>limiteVentana</c> o <c>AddMonths(3)</c> que no son la ventana de reclamación.</summary>
+    /// <summary>Usos de esas formas que no son la ventana de reclamación.</summary>
     private static readonly Dictionary<string, int> VentanaNoEsLaDeReclamacion = new()
     {
-        // Siembra de datos de demostración: «ventana» de 90 días para repartir vencimientos de prueba. No es
-        // ninguna regla de producto y no lee ParametroSistema.
+        // Siembra de DATOS DE DEMOSTRACIÓN (SembrarReclamacionesAsync): elige documentos «a punto de entrar en
+        // ventana» con una aproximación propia de 90 días (hoy, hoy + 90) para dejar reclamaciones de ejemplo. No lee
+        // ParametroSistema ni afecta a lo que una superficie ofrece o acepta; la detecta el nombre de la variable, no
+        // el significado (si se renombra, deja de verse). Declarada como excepción a conciencia.
         ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
     };
 
@@ -68,31 +75,53 @@ public class ReglasDeNegocioSinCopiasTests
     // ---------- 2. Orden de gravedad ----------
 
     /// <summary>
-    /// Un orden de gravedad escrito a mano: la entrada de un <c>switch</c> o de un diccionario que da un número a
-    /// <c>Faltante</c> o a <c>Vencido</c>.
+    /// Un orden de gravedad escrito a mano: la entrada de un <c>switch</c>, de un diccionario o de un inicializador
+    /// que da un número a un estado documental, un <c>case X: return n</c>, o una partición ternaria
+    /// <c>Estado == X ? 0 : 1</c>. No ve una reimplementación sin números (un árbol de decisiones): esas se
+    /// enumeran a mano en <see cref="OrdenesQueElPatronNoVe"/>.
     /// </summary>
     private static readonly Regex PatronOrdenDeGravedadCopiado = new(
-        @"\bEstadoDocumento\s*\.\s*(?:Faltante|Vencido)\s*=>\s*\d"
-        + @"|\[\s*EstadoDocumento\s*\.\s*(?:Faltante|Vencido)\s*\]\s*=\s*\d",
+        @"\bEstadoDocumento\s*\.\s*(?:Faltante|Vencido|Urgente|Proximo|SinConfirmar|Vigente|SinCaducidad)\s*=>\s*\d"
+        + @"|\[\s*EstadoDocumento\s*\.\s*\w+\s*\]\s*=\s*\d"
+        + @"|\{\s*EstadoDocumento\s*\.\s*\w+\s*,\s*\d+\s*\}"
+        + @"|\bcase\s+EstadoDocumento\s*\.\s*\w+\s*:\s*return\s+\d"
+        + @"|\bEstado\s*==\s*EstadoDocumento\s*\.\s*(?:Faltante|Vencido|Urgente|Proximo)\s*\?\s*\d+\s*:",
         RegexOptions.Compiled);
 
     private static readonly Dictionary<string, int> OrdenDeGravedadDeOtraPregunta = new()
     {
-        // El punto único: el rango de gravedad de cada estado (Faltante => 0, Vencido => 1).
-        ["src/CaeManager.Domain/Documentos/SeveridadEstadoDocumento.cs"] = 2,
+        // El punto único: el rango de gravedad de cada estado (siete entradas, una por valor del enum).
+        ["src/CaeManager.Domain/Documentos/SeveridadEstadoDocumento.cs"] = 7,
         // Ordena PROPIETARIOS (Trabajador, Empresa, Vehículo) por su peor estado: ahí Faltante no existe y «sin
         // documentos» va al final. Otra pregunta, otro orden.
-        ["src/CaeManager.Application/Documentos/EstadoDocumentalFiltro.cs"] = 1,
+        ["src/CaeManager.Application/Documentos/EstadoDocumentalFiltro.cs"] = 6,
         // Prioridad de un Cliente según sus Alertas, con la conversión inversa de número a estado; solo existen los
         // estados que una Alerta emite.
-        ["src/CaeManager.Application/Clientes/Queries/ObtenerClientes/ObtenerClientesQuery.cs"] = 2,
+        ["src/CaeManager.Application/Clientes/Queries/ObtenerClientes/ObtenerClientesQuery.cs"] = 4,
         // Informe de vigencia (PDF/Excel): Vigente y SinCaducidad empatan y se ordenan por fecha; con el rango común
         // SinCaducidad pasaría detrás de todo lo vigente y cambiaría el orden del informe.
-        ["src/CaeManager.Application/Reportes/Queries/GenerarInformeVigenciaQuery.cs"] = 1,
-        // Orden de los BLOQUES de la pantalla Alertas: Vencido antes que Faltante, por el mockup (Gen 2). La consulta
-        // ObtenerAlertasQuery, en cambio, ordena Faltante primero y usa el rango común.
-        ["src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor.cs"] = 2,
+        ["src/CaeManager.Application/Reportes/Queries/GenerarInformeVigenciaQuery.cs"] = 4,
+        // Desglose del Dashboard: no ordena por gravedad, parte en dos (vencidos primero, urgentes después) los dos
+        // únicos estados que enseña.
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerDesgloseDashboardQuery.cs"] = 1,
+        // Orden de los BLOQUES de la pantalla Alertas: Vencido antes que Faltante, por el mockup (Gen 2); también
+        // decide la insignia «peor motivo» de cada grupo por tipo, así que ahí la pantalla puede decir «Vencido»
+        // mientras la consulta (ObtenerAlertasQuery, que usa el rango común) pone Faltante primero. Divergencia de
+        // presentación heredada del mockup, declarada en el informe de S4 como decisión pendiente del propietario.
+        ["src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor.cs"] = 4,
     };
+
+    /// <summary>
+    /// Reimplementaciones del criterio «lo malo conocido, luego lo desconocido, luego lo bueno» que no son una tabla
+    /// de números y el patrón no puede ver. Declaradas a mano para que la lista sea completa; el motivo de cada una
+    /// es que el estado se DERIVA de una agregación en SQL (la peor fecha más «hay algún sin confirmar»), no se ordena:
+    /// <c>CalculoEstadoDocumentalService.PeorEstado</c> (Application/Documentos), ligado a
+    /// <c>CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests</c> para un documento por propietario.
+    /// </summary>
+    private static readonly string[] OrdenesQueElPatronNoVe =
+    [
+        "src/CaeManager.Application/Documentos/CalculoEstadoDocumentalService.cs",
+    ];
 
     [Fact]
     public void El_orden_de_gravedad_de_un_estado_documental_no_se_copia_fuera_de_su_punto_unico()
@@ -144,13 +173,17 @@ public class ReglasDeNegocioSinCopiasTests
             "        var limiteVentana = hoy.AddMonths(3);",
             "            where documento.FechaVencimiento <= limiteVentana",
             "        var limite = fecha.AddMonths( 3 );",
+            "        var limite = fecha.AddMonths(+3);",
+            "            where documento.FechaVencimiento <= VentanaReclamacion.Limite(hoy)",
+            "        var limite = VentanaReclamacion.Limite(hoy);",
         ];
         foreach (var linea in ventana)
             EsCodigoQueCasa(linea, PatronVentanaCopiada).Should().BeTrue(linea);
 
         string[] noVentana =
         [
-            "        var limite = VentanaReclamacion.Limite(hoy);",
+            "        var filas = documentosContext.Documentos.Reclamables(hoy);",
+            "        var esReclamable = VentanaReclamacion.EsReclamable(fecha, hoy);",
             "        var siguiente = primerDia.AddMonths(1);",
             "        var anterior = inicioMes.AddMonths(-3);",
             "        // antes: hoy.AddMonths(3)",
@@ -164,6 +197,10 @@ public class ReglasDeNegocioSinCopiasTests
             "                EstadoDocumento.Faltante => 0,",
             "        [EstadoDocumento.Vencido] = 1,",
             "                EstadoDocumento.Vencido => 0,",
+            "                EstadoDocumento.Proximo => 2,",
+            "        { EstadoDocumento.Vencido, 0 },",
+            "            case EstadoDocumento.Urgente: return 1;",
+            "            .OrderBy(d => d.Estado == EstadoDocumento.Vencido ? 0 : 1)",
         ];
         foreach (var linea in orden)
             EsCodigoQueCasa(linea, PatronOrdenDeGravedadCopiado).Should().BeTrue(linea);
@@ -171,8 +208,10 @@ public class ReglasDeNegocioSinCopiasTests
         string[] noOrden =
         [
             "        var rango = SeveridadEstadoDocumento.Rango(estado);",
-            "        EstadoDocumento.Proximo => 3,",
             "                EstadoDocumento.Vencido => TipoItemBandeja.Vencido,",
+            "        EstadoDocumento.Proximo => EstadoIndicadorBase.ProximoAVencer,",
+            "        // EstadoDocumento.Proximo => 3,",
+            "            .Where(a => a.Estado == EstadoDocumento.Vencido && a.DocumentoId is not null)",
             "        .Where(a => a.Estado is EstadoDocumento.Vencido or EstadoDocumento.Faltante)",
         ];
         foreach (var linea in noOrden)
@@ -206,7 +245,8 @@ public class ReglasDeNegocioSinCopiasTests
 
         foreach (var ruta in VentanaNoEsLaDeReclamacion.Keys
                      .Concat(OrdenDeGravedadDeOtraPregunta.Keys)
-                     .Concat(UmbralesDeVigenciaReimplementadosEnSql.Keys))
+                     .Concat(UmbralesDeVigenciaReimplementadosEnSql.Keys)
+                     .Concat(OrdenesQueElPatronNoVe))
         {
             File.Exists(Path.Combine(raiz, ruta.Replace('/', Path.DirectorySeparatorChar)))
                 .Should().BeTrue($"{ruta} está en una lista de excepciones: si se movió o se borró, la lista engaña");
