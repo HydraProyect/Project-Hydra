@@ -117,14 +117,19 @@ public class MiTrabajoGen2Tests : BunitContext
 
     private IRenderedComponent<MiTrabajoPagina> Renderizar(
         Func<MiTrabajoAgregadoDto>? respuesta = null,
-        Func<Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>>>? candidatos = null)
+        Func<Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>>>? candidatos = null,
+        string? rol = null)
     {
         _mediador = new MediadorFijo(respuesta ?? Cartera, candidatos ?? SinPermiso);
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
         Services.AddSingleton<ToastService>();
         Services.AddLocalization();
-        return Render<MiTrabajoPagina>();
+        if (rol is null) return Render<MiTrabajoPagina>();
+        var estado = Task.FromResult(new Microsoft.AspNetCore.Components.Authorization.AuthenticationState(
+            new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+                [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, rol)], "prueba"))));
+        return Render<MiTrabajoPagina>(p => p.AddCascadingValue(estado));
     }
 
     private static IElement FilaDe(IRenderedComponent<MiTrabajoPagina> cut, string titulo) =>
@@ -423,6 +428,42 @@ public class MiTrabajoGen2Tests : BunitContext
         cut.Find(".mi-trabajo-titular").TextContent.Should().Be("Nada que vigilar todavía");
         cut.FindAll(".mi-trabajo-cartera-sub").Select(e => e.TextContent)
             .Should().Contain("Sin Asignación de Cartera").And.NotContain("Sin trabajo pendiente");
+    }
+
+    // D-15 (residuo): al propio Coordinador CAE no se le dice «pídesela a tu Coordinador CAE»,
+    // ni en la cartera entera ni con una Empresa filtrada.
+    [Fact]
+    public void Al_Coordinador_CAE_sin_alcance_no_se_le_remite_a_su_propio_rol()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto([Tenant(TenantOrigen, "ArcoSPA", esOrigen: true, [])]),
+            rol: CaeManager.Infrastructure.Identity.Roles.CoordinadorCae);
+
+        var vacio = cut.Find(".mi-trabajo-cola").TextContent;
+        vacio.Should().Contain("Sin Asignación de Cartera").And.Contain("Dirección CAE").And.NotContain("Coordinador CAE");
+    }
+
+    [Fact]
+    public void Al_Coordinador_CAE_con_una_Empresa_filtrada_sin_alcance_tampoco_se_le_remite_a_su_propio_rol()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+        [
+            Tenant(TenantOrigen, "ArcoSPA", esOrigen: true, []),
+            Tenant(TenantRefri, "Refrielectric", false, [], alcanceCero: true),
+        ]), rol: CaeManager.Infrastructure.Identity.Roles.CoordinadorCae);
+
+        cut.FindAll(".mi-trabajo-cartera-fila").Single(f => f.TextContent.Contains("Refrielectric")).Click();
+
+        var vacio = cut.Find(".mi-trabajo-cola").TextContent;
+        vacio.Should().Contain("Refrielectric").And.Contain("Dirección CAE").And.NotContain("Coordinador CAE");
+    }
+
+    [Fact]
+    public void Al_Gestor_CAE_sin_alcance_se_le_sigue_remitiendo_a_su_Coordinador_CAE()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto([Tenant(TenantOrigen, "ArcoSPA", esOrigen: true, [])]),
+            rol: CaeManager.Infrastructure.Identity.Roles.GestorCae);
+
+        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("Pídesela a tu Coordinador CAE");
     }
 
     [Fact]

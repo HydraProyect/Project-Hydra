@@ -376,6 +376,24 @@ public class InicioGen2Tests : BunitContext
         mediador.PeticionesVision.Should().Be(1, "se miró de verdad si había cartera en otro Tenant");
     }
 
+    // D-15 (residuo): al propio Coordinador CAE no se le dice «pide a tu Coordinador CAE».
+    [Fact]
+    public void Sin_cartera_al_Coordinador_CAE_no_se_le_remite_a_su_propio_rol_y_al_Gestor_CAE_si()
+    {
+        var delCoordinador = Renderizar(SinCarteraAqui(carteraEnOtroTenant: false), rol: Roles.CoordinadorCae);
+        var texto = delCoordinador.Find(".estado-vacio p").TextContent;
+        texto.Should().Contain("Dirección CAE").And.NotContain("Coordinador CAE");
+        delCoordinador.Dispose();
+    }
+
+    [Fact]
+    public void Sin_cartera_al_Gestor_CAE_se_le_sigue_remitiendo_a_su_Coordinador_CAE()
+    {
+        var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: false), rol: Roles.GestorCae);
+
+        cut.Find(".estado-vacio p").TextContent.Should().Contain("Pide a tu Coordinador CAE");
+    }
+
     /// <summary>
     /// En un Context Workspace elegido con el selector no se redirige: el usuario
     /// acaba de pedir ver este Tenant, y el selector vuelve a la página en la que

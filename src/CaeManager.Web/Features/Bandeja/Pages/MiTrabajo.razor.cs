@@ -4,7 +4,9 @@ using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Bandeja.Recursos;
 using MediatR;
+using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Forms;
 
 namespace CaeManager.Web.Features.Bandeja.Pages;
@@ -22,6 +24,15 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
     [Inject] private ILogger<MiTrabajo> Logger { get; set; } = default!;
+
+    /// <summary>
+    /// D-15: «Pídesela a tu Coordinador CAE» se lo decía al propio Coordinador CAE. Solo cambia el
+    /// destinatario del texto (Dirección CAE); no concede ni quita nada. Opcional: sin estado de
+    /// autenticación en cascada se queda el texto general.
+    /// </summary>
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    private bool _esCoordinadorCae;
 
     private MiTrabajoVista? _vista;
     private AntiforgeryRequestToken? _token;
@@ -108,6 +119,8 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     protected override async Task OnInitializedAsync()
     {
         _token = AntiforgeryStateProvider.GetAntiforgeryToken();
+        if (EstadoAutenticacion is not null)
+            _esCoordinadorCae = (await EstadoAutenticacion).User.IsInRole(Roles.CoordinadorCae);
         // En serie, no en paralelo: las dos Queries comparten el ámbito del circuito.
         await CargarAsync();
         await CargarCandidatosCarteraAsync();

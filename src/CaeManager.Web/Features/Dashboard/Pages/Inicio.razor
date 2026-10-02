@@ -66,7 +66,7 @@
     {
         @* Con la salida que ofrece Mi trabajo: «Añadir a mi cartera» si hay
            Empresas que pedir (P0-9a, FS-06). *@
-        <AvisoSinAsignacionCartera Titulo="@Textos["SinCarteraTitulo"]" Descripcion="@Textos["SinCarteraDescripcion"]" />
+        <AvisoSinAsignacionCartera Titulo="@Textos["SinCarteraTitulo"]" Descripcion="@Textos[_esCoordinadorCae ? "SinCarteraDescripcionCoordinador" : "SinCarteraDescripcion"]" />
     }
     else if (SinNingunDatoEnEsteContexto)
     {
