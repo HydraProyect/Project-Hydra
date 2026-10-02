@@ -28,9 +28,16 @@ namespace CaeManager.Architecture.Tests;
 /// <para>
 /// <b>Qué NO decide.</b> «Bandeja» no es siempre deuda: en Comunicaciones puede designar el buzón
 /// de correo (la bandeja de entrada), un sentido legítimo y distinto de la antigua pantalla de
-/// aterrizaje. El trinquete no separa los dos sentidos —hacerlo es una decisión de vocabulario
-/// (S1, <c>Vocabulario.json</c>)—: congela ambos y avisa. Quien necesite el sentido «buzón» en
-/// código nuevo, lo añade a la lista con su motivo en la PR.
+/// aterrizaje. Este trinquete, que mide identificadores, no separa los dos sentidos: congela ambos y
+/// avisa. Quien necesite el sentido «buzón» en código nuevo, lo añade a la lista con su motivo en la PR.
+/// </para>
+///
+/// <para>
+/// <b>Dónde sí se separan.</b> En el texto que ve el usuario los separa el vocabulario de pantalla
+/// (<c>Vocabulario/Vocabulario.json</c>, S1): «Bandeja» a secas es Mi trabajo y está prohibida
+/// (<c>bandeja-como-mi-trabajo</c>); el buzón de correo se escribe «Bandeja de entrada» y, dentro de
+/// Comunicaciones, la excepción por contexto <c>buzon-de-correo-de-comunicaciones</c> tolera «la
+/// bandeja». Lo aplica <see cref="VocabularioDePantallaTests"/>.
 /// </para>
 /// </summary>
 public class BandejaLegacyNoSeExtiendeTests
