@@ -121,13 +121,11 @@ public class EnviarReclamacionCommandHandler(
         // no puede colarse aquí como "reclamable" solo porque llegó en la
         // petición.
         var hoy = DiaDeNegocio.Hoy();
-        var limiteVentana = VentanaReclamacion.Limite(hoy);
 
         var filas = await (
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Reclamables(hoy)
             where idsSolicitados.Contains(documento.Id)
-            where documento.TrabajadorId != null && documento.FechaVencimiento != null
-            where documento.FechaVencimiento <= limiteVentana
+            where documento.TrabajadorId != null
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id

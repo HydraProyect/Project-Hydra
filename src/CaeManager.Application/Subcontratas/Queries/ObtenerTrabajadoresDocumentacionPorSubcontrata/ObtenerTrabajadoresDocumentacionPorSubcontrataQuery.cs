@@ -47,18 +47,6 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
     IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTrabajadoresDocumentacionPorSubcontrataQuery, IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>>
 {
-    private static readonly IReadOnlyDictionary<EstadoDocumento, int> OrdenSeveridad = new Dictionary<EstadoDocumento, int>
-    {
-        [EstadoDocumento.Faltante] = 0,
-        [EstadoDocumento.Vencido] = 1,
-        [EstadoDocumento.Urgente] = 2,
-        [EstadoDocumento.Proximo] = 3,
-        // Sin vigencia confirmada: detrás de lo malo conocido y delante de lo
-        // vigente (mismo orden que EstadoDocumentalFiltro.ClaveOrden).
-        [EstadoDocumento.SinConfirmar] = 4,
-        [EstadoDocumento.Vigente] = 5
-    };
-
     public async Task<IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>> Handle(
         ObtenerTrabajadoresDocumentacionPorSubcontrataQuery request, CancellationToken cancellationToken)
     {
@@ -177,7 +165,7 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
                 items.Add(new DocumentoRequeridoDto(null, tipoId, nombrePorTipo[tipoId], EstadoDocumento.Faltante, null));
             }
 
-            var ordenados = items.OrderBy(i => OrdenSeveridad[i.Estado]).ThenBy(i => i.TipoDocumentoNombre).ToList();
+            var ordenados = items.OrderBy(i => SeveridadEstadoDocumento.Rango(i.Estado)).ThenBy(i => i.TipoDocumentoNombre).ToList();
             var peorEstado = ordenados.Count > 0 ? ordenados[0].Estado : EstadoDocumento.Vigente;
 
             resultado.Add(new TrabajadorDocumentacionSubcontrataDto(

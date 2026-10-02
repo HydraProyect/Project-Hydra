@@ -64,18 +64,6 @@ public class ObtenerDocumentacionVisitaQueryHandler(
     /// </param>
     private record TipoDocumentoAplicableDto(Guid Id, string Nombre, bool Requerido);
 
-    private static readonly IReadOnlyDictionary<EstadoDocumento, int> OrdenSeveridad = new Dictionary<EstadoDocumento, int>
-    {
-        [EstadoDocumento.Faltante] = 0,
-        [EstadoDocumento.Vencido] = 1,
-        [EstadoDocumento.Urgente] = 2,
-        [EstadoDocumento.Proximo] = 3,
-        // Sin vigencia confirmada: detrás de lo malo conocido y delante de lo
-        // vigente (mismo orden que EstadoDocumentalFiltro.ClaveOrden).
-        [EstadoDocumento.SinConfirmar] = 4,
-        [EstadoDocumento.Vigente] = 5
-    };
-
     public async Task<DocumentacionVisitaDto?> Handle(ObtenerDocumentacionVisitaQuery request, CancellationToken cancellationToken)
     {
         var visita = await visitasContext.Visitas
@@ -184,7 +172,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
             items.Add(new DocumentoVisitaItemDto(null, trabajadorId, tipo.Id, tipo.Nombre, EstadoDocumento.Faltante, null, null));
         }
 
-        var ordenados = items.OrderBy(i => OrdenSeveridad[i.Estado]).ThenBy(i => i.TipoDocumentoNombre).ToList();
+        var ordenados = items.OrderBy(i => SeveridadEstadoDocumento.Rango(i.Estado)).ThenBy(i => i.TipoDocumentoNombre).ToList();
         var peorEstado = ordenados.Count > 0 ? ordenados[0].Estado : EstadoDocumento.Vigente;
 
         return new SeccionDocumentacionDto(peorEstado, ordenados);

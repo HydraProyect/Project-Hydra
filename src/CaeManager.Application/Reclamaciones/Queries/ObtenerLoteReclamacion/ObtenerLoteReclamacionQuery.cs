@@ -103,14 +103,12 @@ public class ObtenerLoteReclamacionQueryHandler(
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
-        var limiteVentana = hoy.AddMonths(3);
 
         var filas = await (
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Reclamables(hoy)
             where documento.TrabajadorId != null
             where request.TrabajadorId == null || documento.TrabajadorId == request.TrabajadorId
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
-            where documento.FechaVencimiento != null && documento.FechaVencimiento <= limiteVentana
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             join asignacion in asignacionesContext.Asignaciones on trabajador.Id equals asignacion.TrabajadorId
@@ -162,8 +160,8 @@ public class ObtenerLoteReclamacionQueryHandler(
             })
             .ToDictionaryAsync(x => x.ClienteId, x => x, cancellationToken);
 
-        // Sin filtrar por Estado: el filtro SQL de arriba (FechaVencimiento
-        // <= limiteVentana) ya acota la ventana de 1 a 3 meses que pidió el
+        // Sin filtrar por Estado: el filtro SQL de arriba (VentanaReclamacion.Reclamables)
+        // ya acota la ventana de 1 a 3 meses que pidió el
         // usuario. Filtrar además por Proximo/Urgente/Vencido reintroduciría
         // el umbral corto de Alertas (30/15 días por defecto) y dejaría
         // fuera justo los documentos a 2-3 meses que esta ventana existe

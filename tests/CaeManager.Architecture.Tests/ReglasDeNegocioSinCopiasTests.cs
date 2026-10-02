@@ -1,0 +1,269 @@
+using System.Text.RegularExpressions;
+using FluentAssertions;
+
+namespace CaeManager.Architecture.Tests;
+
+/// <summary>
+/// S4 (coherencia entre superficies): impide reintroducir la copia de las reglas de negocio que ya viven en un
+/// punto único. La misma regla calculada distinto en dos pantallas causó D-13, D-17, D-22 y los defectos de la
+/// ventana de reclamación (#1026, #1028). Cada regla inventariada tiene aquí su patrón, su punto único y la
+/// lista de ubicaciones que todavía la repiten, CADA UNA con su motivo; una ubicación nueva es rojo.
+///
+/// <para>
+/// Es la mitad barata de la garantía: impide una copia nueva. La otra mitad, que las superficies existentes den
+/// el mismo resultado para la misma entrada, la prueban las tablas de
+/// <c>CaeManager.IntegrationTests/Coherencia</c> (estado de vigencia y ventana de reclamación) y
+/// <c>CoherenciaDeLaSeveridadDelEstadoTests</c> (Domain.Tests). Mismo mecanismo de ratchet por texto que
+/// <see cref="DiaDeNegocioUnicaFuenteTests"/>: una expresión no es una dependencia de tipo, la reflexión no la ve.
+/// </para>
+///
+/// <para>
+/// Reglas vigiladas:
+/// <list type="number">
+/// <item><b>Ventana de reclamación</b> — punto único <c>VentanaReclamacion</c> (Application/Reclamaciones). Cero
+/// copias del literal de 3 meses ni de su variable local <c>limiteVentana</c>.</item>
+/// <item><b>Orden de gravedad de un estado documental</b> — punto único <c>SeveridadEstadoDocumento.Rango</c>
+/// (Domain). Un orden nuevo escrito a mano (<c>Faltante =&gt; 0</c>, <c>[Vencido] = 1</c>…) es rojo salvo en las
+/// excepciones declaradas, que responden a otra pregunta.</item>
+/// <item><b>Umbrales de vigencia en SQL</b> — punto único <c>CalculadoraEstadoDocumento.Calcular</c> (Domain). EF
+/// no puede llamar a la calculadora dentro de una consulta, así que unas pocas consultas reimplementan
+/// <c>hoy + umbral</c> para filtrar o acotar en PostgreSQL: están enumeradas y cada una la ata a la calculadora la
+/// tabla de <c>CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests</c>. Una consulta nueva que lo necesite se añade
+/// aquí a conciencia, con su motivo, y a esa tabla.</item>
+/// </list>
+/// </para>
+/// </summary>
+public class ReglasDeNegocioSinCopiasTests
+{
+    // ---------- 1. Ventana de reclamación ----------
+
+    private const string PuntoUnicoDeLaVentana = "src/CaeManager.Application/Reclamaciones/VentanaReclamacion.cs";
+
+    private static readonly Regex PatronVentanaCopiada = new(
+        @"\bAddMonths\s*\(\s*3\s*\)|\blimiteVentana\b",
+        RegexOptions.Compiled);
+
+    /// <summary>Usos de la forma <c>limiteVentana</c> o <c>AddMonths(3)</c> que no son la ventana de reclamación.</summary>
+    private static readonly Dictionary<string, int> VentanaNoEsLaDeReclamacion = new()
+    {
+        // Siembra de datos de demostración: «ventana» de 90 días para repartir vencimientos de prueba. No es
+        // ninguna regla de producto y no lee ParametroSistema.
+        ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
+    };
+
+    [Fact]
+    public void La_ventana_de_reclamacion_no_se_copia_fuera_de_su_punto_unico()
+    {
+        var medidos = ContarPorFichero(PatronVentanaCopiada);
+
+        medidos.ContainsKey(PuntoUnicoDeLaVentana).Should().BeFalse(
+            "el punto único ni siquiera repite el literal: define Meses y deriva el resto de él");
+
+        Divergencias(VentanaNoEsLaDeReclamacion, medidos).Should().BeEmpty(
+            "el límite de lo reclamable es VentanaReclamacion.Limite(hoy) y la condición sobre un Documento es " +
+            "documentos.Reclamables(hoy) o VentanaReclamacion.EsReclamable(fecha, hoy); copiar el literal de 3 meses " +
+            "fue lo que hizo que el envío rechazara lo que la ficha ofrecía (#1026, #1028)");
+    }
+
+    // ---------- 2. Orden de gravedad ----------
+
+    /// <summary>
+    /// Un orden de gravedad escrito a mano: la entrada de un <c>switch</c> o de un diccionario que da un número a
+    /// <c>Faltante</c> o a <c>Vencido</c>.
+    /// </summary>
+    private static readonly Regex PatronOrdenDeGravedadCopiado = new(
+        @"\bEstadoDocumento\s*\.\s*(?:Faltante|Vencido)\s*=>\s*\d"
+        + @"|\[\s*EstadoDocumento\s*\.\s*(?:Faltante|Vencido)\s*\]\s*=\s*\d",
+        RegexOptions.Compiled);
+
+    private static readonly Dictionary<string, int> OrdenDeGravedadDeOtraPregunta = new()
+    {
+        // El punto único: el rango de gravedad de cada estado (Faltante => 0, Vencido => 1).
+        ["src/CaeManager.Domain/Documentos/SeveridadEstadoDocumento.cs"] = 2,
+        // Ordena PROPIETARIOS (Trabajador, Empresa, Vehículo) por su peor estado: ahí Faltante no existe y «sin
+        // documentos» va al final. Otra pregunta, otro orden.
+        ["src/CaeManager.Application/Documentos/EstadoDocumentalFiltro.cs"] = 1,
+        // Prioridad de un Cliente según sus Alertas, con la conversión inversa de número a estado; solo existen los
+        // estados que una Alerta emite.
+        ["src/CaeManager.Application/Clientes/Queries/ObtenerClientes/ObtenerClientesQuery.cs"] = 2,
+        // Informe de vigencia (PDF/Excel): Vigente y SinCaducidad empatan y se ordenan por fecha; con el rango común
+        // SinCaducidad pasaría detrás de todo lo vigente y cambiaría el orden del informe.
+        ["src/CaeManager.Application/Reportes/Queries/GenerarInformeVigenciaQuery.cs"] = 1,
+        // Orden de los BLOQUES de la pantalla Alertas: Vencido antes que Faltante, por el mockup (Gen 2). La consulta
+        // ObtenerAlertasQuery, en cambio, ordena Faltante primero y usa el rango común.
+        ["src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor.cs"] = 2,
+    };
+
+    [Fact]
+    public void El_orden_de_gravedad_de_un_estado_documental_no_se_copia_fuera_de_su_punto_unico()
+    {
+        var medidos = ContarPorFichero(PatronOrdenDeGravedadCopiado);
+
+        Divergencias(OrdenDeGravedadDeOtraPregunta, medidos).Should().BeEmpty(
+            "lo peor primero es SeveridadEstadoDocumento.Rango(estado); un orden nuevo escrito a mano puede divergir " +
+            "del resto sin que nada lo avise. Si responde a otra pregunta, declara la excepción en esta lista");
+    }
+
+    // ---------- 3. Umbrales de vigencia en SQL ----------
+
+    private static readonly Regex PatronUmbralDeVigenciaEnSql = new(
+        @"\bAddDays\s*\(\s*[A-Za-z_.]*[Uu]mbral(?:Rojo|Ambar)(?:Dias)?\s*\)",
+        RegexOptions.Compiled);
+
+    private static readonly Dictionary<string, int> UmbralesDeVigenciaReimplementadosEnSql = new()
+    {
+        // Prefiltros de cota superior: nada más allá del umbral ámbar puede ser distinto de Vigente, así que se
+        // queda en PostgreSQL. La clasificación la sigue haciendo CalculadoraEstadoDocumento.
+        ["src/CaeManager.Application/Alertas/Queries/ObtenerAlertas/ObtenerAlertasQuery.cs"] = 1,
+        ["src/CaeManager.Application/Centros/CalculoEstadoCentroService.cs"] = 1,
+        // Filtros y orden por estado que clasifican EN SQL (limiteRojo y limiteAmbar): la calculadora no cabe en
+        // una expresión de EF. Atados a CalculadoraEstadoDocumento por CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests.
+        ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs"] = 2,
+        ["src/CaeManager.Application/Empresas/Queries/ObtenerEmpresas/ObtenerEmpresasQuery.cs"] = 2,
+        ["src/CaeManager.Application/Trabajadores/Queries/ObtenerTrabajadores/ObtenerTrabajadoresQuery.cs"] = 2,
+        ["src/CaeManager.Application/Vehiculos/Queries/ObtenerVehiculos/ObtenerVehiculosQuery.cs"] = 2,
+    };
+
+    [Fact]
+    public void Los_umbrales_de_vigencia_no_se_reimplementan_en_sql_sin_declararlo()
+    {
+        var medidos = ContarPorFichero(PatronUmbralDeVigenciaEnSql);
+
+        Divergencias(UmbralesDeVigenciaReimplementadosEnSql, medidos).Should().BeEmpty(
+            "el estado de un documento es CalculadoraEstadoDocumento.Calcular; si una consulta necesita clasificar en " +
+            "SQL, se declara aquí con su motivo y se añade a la tabla de CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests");
+    }
+
+    // ---------- Instrumento ----------
+
+    [Fact]
+    public void Los_patrones_reconocen_las_formas_que_vigilan_e_ignoran_comentarios()
+    {
+        string[] ventana =
+        [
+            "        var limiteVentana = hoy.AddMonths(3);",
+            "            where documento.FechaVencimiento <= limiteVentana",
+            "        var limite = fecha.AddMonths( 3 );",
+        ];
+        foreach (var linea in ventana)
+            EsCodigoQueCasa(linea, PatronVentanaCopiada).Should().BeTrue(linea);
+
+        string[] noVentana =
+        [
+            "        var limite = VentanaReclamacion.Limite(hoy);",
+            "        var siguiente = primerDia.AddMonths(1);",
+            "        var anterior = inicioMes.AddMonths(-3);",
+            "        // antes: hoy.AddMonths(3)",
+            "        /// <c>limiteVentana</c> era la copia",
+        ];
+        foreach (var linea in noVentana)
+            EsCodigoQueCasa(linea, PatronVentanaCopiada).Should().BeFalse(linea);
+
+        string[] orden =
+        [
+            "                EstadoDocumento.Faltante => 0,",
+            "        [EstadoDocumento.Vencido] = 1,",
+            "                EstadoDocumento.Vencido => 0,",
+        ];
+        foreach (var linea in orden)
+            EsCodigoQueCasa(linea, PatronOrdenDeGravedadCopiado).Should().BeTrue(linea);
+
+        string[] noOrden =
+        [
+            "        var rango = SeveridadEstadoDocumento.Rango(estado);",
+            "        EstadoDocumento.Proximo => 3,",
+            "                EstadoDocumento.Vencido => TipoItemBandeja.Vencido,",
+            "        .Where(a => a.Estado is EstadoDocumento.Vencido or EstadoDocumento.Faltante)",
+        ];
+        foreach (var linea in noOrden)
+            EsCodigoQueCasa(linea, PatronOrdenDeGravedadCopiado).Should().BeFalse(linea);
+
+        string[] umbrales =
+        [
+            "            var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);",
+            "        var fechaLimiteCausa = hoy.AddDays(umbralAmbarDias);",
+            "        var limite = hoy.AddDays(parametros.UmbralAmbarDias);",
+        ];
+        foreach (var linea in umbrales)
+            EsCodigoQueCasa(linea, PatronUmbralDeVigenciaEnSql).Should().BeTrue(linea);
+
+        string[] noUmbrales =
+        [
+            "        var limite = hoy.AddDays(30);",
+            "        var limiteAvisoVisita = hoy.AddDays(parametros.HorasAvisoVisita / 24);",
+            "        // hoy.AddDays(parametros.UmbralRojoDias)",
+        ];
+        foreach (var linea in noUmbrales)
+            EsCodigoQueCasa(linea, PatronUmbralDeVigenciaEnSql).Should().BeFalse(linea);
+    }
+
+    [Fact]
+    public void Cada_punto_unico_y_cada_excepcion_declarada_existe_y_la_lista_mide_lo_que_dice()
+    {
+        var raiz = RaizDelRepositorio();
+
+        File.Exists(Path.Combine(raiz, PuntoUnicoDeLaVentana)).Should().BeTrue("el punto único de la ventana tiene que existir");
+
+        foreach (var ruta in VentanaNoEsLaDeReclamacion.Keys
+                     .Concat(OrdenDeGravedadDeOtraPregunta.Keys)
+                     .Concat(UmbralesDeVigenciaReimplementadosEnSql.Keys))
+        {
+            File.Exists(Path.Combine(raiz, ruta.Replace('/', Path.DirectorySeparatorChar)))
+                .Should().BeTrue($"{ruta} está en una lista de excepciones: si se movió o se borró, la lista engaña");
+        }
+    }
+
+    private static List<string> Divergencias(Dictionary<string, int> esperado, Dictionary<string, int> medido) =>
+        esperado.Keys.Union(medido.Keys)
+            .Select(ruta => (Ruta: ruta, Esperado: esperado.GetValueOrDefault(ruta), Medido: medido.GetValueOrDefault(ruta)))
+            .Where(x => x.Esperado != x.Medido)
+            .OrderBy(x => x.Ruta, StringComparer.Ordinal)
+            .Select(x => $"{x.Ruta}: esperado {x.Esperado}, medido {x.Medido}")
+            .ToList();
+
+    private static bool EsCodigoQueCasa(string linea, Regex patron)
+    {
+        var contenido = linea.TrimStart();
+        if (contenido.StartsWith("//", StringComparison.Ordinal)
+            || contenido.StartsWith("*", StringComparison.Ordinal)
+            || contenido.StartsWith("/*", StringComparison.Ordinal)
+            || contenido.StartsWith("@*", StringComparison.Ordinal)
+            || contenido.StartsWith("///", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return patron.IsMatch(linea);
+    }
+
+    private static Dictionary<string, int> ContarPorFichero(Regex patron)
+    {
+        var raiz = RaizDelRepositorio();
+        var directorio = Path.Combine(raiz, "src");
+        Directory.Exists(directorio).Should().BeTrue("si src cambia de sitio, este ratchet deja de vigilar nada");
+
+        var ficheros = new[] { "*.cs", "*.razor" }
+            .SelectMany(ext => Directory.EnumerateFiles(directorio, ext, SearchOption.AllDirectories))
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
+                        && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+            .ToList();
+        ficheros.Should().NotBeEmpty("src tiene que contener código que vigilar");
+
+        return ficheros
+            .Select(f => (Ruta: Path.GetRelativePath(raiz, f).Replace(Path.DirectorySeparatorChar, '/'),
+                          Cuenta: File.ReadLines(f).Where(l => EsCodigoQueCasa(l, patron)).Sum(l => patron.Matches(l).Count)))
+            .Where(x => x.Cuenta > 0)
+            .ToDictionary(x => x.Ruta, x => x.Cuenta);
+    }
+
+    private static string RaizDelRepositorio()
+    {
+        var actual = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (actual is not null && !File.Exists(Path.Combine(actual.FullName, "CaeManager.slnx")))
+            actual = actual.Parent;
+
+        actual.Should().NotBeNull("los tests tienen que correr dentro del repositorio");
+        return actual!.FullName;
+    }
+}

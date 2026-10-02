@@ -50,18 +50,6 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 /// </summary>
 public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
-    private static readonly IReadOnlyDictionary<EstadoDocumento, int> OrdenSeveridad = new Dictionary<EstadoDocumento, int>
-    {
-        [EstadoDocumento.Faltante] = 0,
-        [EstadoDocumento.Vencido] = 1,
-        [EstadoDocumento.Urgente] = 2,
-        [EstadoDocumento.Proximo] = 3,
-        // Sin vigencia confirmada: detrás de lo malo conocido y delante de lo
-        // vigente (mismo orden que EstadoDocumentalFiltro.ClaveOrden).
-        [EstadoDocumento.SinConfirmar] = 4,
-        [EstadoDocumento.Vigente] = 5
-    };
-
     [Parameter] public Guid TrabajadorId { get; set; }
 
     [Inject] private IMediator Mediator { get; set; } = default!;
@@ -216,7 +204,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private int? Cumplimiento => TotalRequeridos == 0 ? null : (int)Math.Round(TotalAlDia * 100.0 / TotalRequeridos);
 
     private CentroDocumentacionTrabajadorDto? CentroMasUrgente =>
-        _centros.Count == 0 ? null : _centros.MinBy(c => OrdenSeveridad[c.PeorEstado]);
+        _centros.Count == 0 ? null : _centros.MinBy(c => SeveridadEstadoDocumento.Rango(c.PeorEstado));
 
     private EstadoDocumento? PeorEstadoGlobal => CentroMasUrgente?.PeorEstado;
 
@@ -426,7 +414,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     /// <summary>Lo peor primero y, a igualdad, lo que antes caduca.</summary>
     private IReadOnlyList<DocumentoListaDto> DocumentosOrdenados =>
-        _documentos.OrderBy(d => OrdenSeveridad.GetValueOrDefault(d.Estado, OrdenSeveridad.Count))
+        _documentos.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado))
             .ThenBy(d => d.FechaVencimiento ?? DateOnly.MaxValue)
             .ThenBy(d => d.TipoDocumentoNombre, StringComparer.CurrentCulture)
             .ToList();
