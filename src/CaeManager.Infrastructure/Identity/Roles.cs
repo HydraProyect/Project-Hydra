@@ -4,8 +4,9 @@ namespace CaeManager.Infrastructure.Identity;
 /// Roles del sistema, jerarquía de mayor a menor alcance: Administrador y
 /// DireccionCae ven todo el negocio; CoordinadorCae ve la cartera de los
 /// GestorCae que tiene asignados (ver AsignarCoordinadorCommand, futuro);
-/// GestorCae ve solo sus propios Clientes (creados o asignados — ver
-/// Cliente.EjecutivoUsuarioId); Consulta ve todo en solo lectura; Cliente
+/// GestorCae ve el Tenant entero en el que tiene una Asignación de Cartera
+/// (siempre el Tenant entero: D-7, 2026-10-02; Empresa.EjecutivoUsuarioId es solo
+/// la referencia de un Cliente empresarial y no concede alcance); Consulta ve todo en solo lectura; Cliente
 /// ve únicamente su propio Cliente (ApplicationUser.ClienteId) en solo
 /// lectura. El código de cada constante es el nombre real guardado en
 /// AspNetRoles — estable aunque el nombre visible cambie (ver

@@ -15,7 +15,8 @@ namespace CaeManager.E2ETests;
 [Collection("AppCollection")]
 public partial class AlcanceRolesTests(WebAppFixture fixture)
 {
-    // La cuarentena de GestorCae_ve_solo_su_cartera_acotada y
+    // La cuarentena de GestorCae_ve_solo_su_cartera_acotada (hoy
+    // GestorCae_con_cartera_del_Tenant_entero_ve_todos_los_Clientes…) y
     // Consulta_ve_todo_pero_no_puede_crear_un_cliente (Fase 69: "cuelgue
     // intermitente sin causa identificada") se levantó al encontrar la causa
     // raíz: el rate limiting de /cuenta/* devolvía 429 al POST de login
@@ -84,9 +85,8 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     // recorte en vez de vaciar. Cuarentena levantada el 2026-08-28.
     //
     // Comprobado por mutación, no solo por verde: quitando el filtro de
-    // alcance de ObtenerClientesQuery, GestorCae_ve_solo_su_cartera_acotada
-    // pasa de 3 a 9 y el test del administrador delegado se pone en rojo.
-    // Los dos observan la propiedad, no la rozan.
+    // alcance de ObtenerClientesQuery el test del administrador delegado se
+    // pone en rojo (pasa de alcance cero a ver la cartera entera).
     [Fact]
     public async Task El_rol_de_la_delegacion_acota_al_administrador_dentro_del_workspace_delegado()
     {
@@ -138,15 +138,15 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     }
 
     /// <summary>
-    /// GestorCae solo ve su propia cartera (Cliente.EjecutivoUsuarioId) — el
-    /// primer usuario de prueba de este rol tiene exactamente 3 de los 9
-    /// clientes sembrados (ver DatosPruebaSeeder, "cartera de prueba": todos
-    /// los clientes repartidos entre 3 gestores round-robin). Se comprueba el
-    /// reparto exacto porque la siembra es determinista — no es un número
-    /// arbitrario.
+    /// La cartera de un GestorCae es el Tenant entero (D-7, 2026-10-02): con su Asignación de Cartera
+    /// vigente ve todos los Clientes empresariales del Tenant, no solo aquellos de los que es la
+    /// referencia (<c>Empresa.EjecutivoUsuarioId</c>). El primer usuario de prueba de este rol es la
+    /// referencia de 3 de los 9 Clientes sembrados (ver DatosPruebaSeeder: reparto round-robin entre 3
+    /// gestores), y aun así ve los 9: la siembra le concede la cartera del Tenant entero de forma
+    /// explícita (CarterasDeSiembra). Antes de D-7 este test fijaba que veía exactamente 3.
     /// </summary>
     [Fact]
-    public async Task GestorCae_ve_solo_su_cartera_acotada()
+    public async Task GestorCae_con_cartera_del_Tenant_entero_ve_todos_los_Clientes_y_no_solo_aquellos_de_los_que_es_la_referencia()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -158,7 +158,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
 
         var total = ExtraerTotalElementos(await contador.InnerTextAsync());
-        Assert.Equal(3, total);
+        Assert.Equal(9, total);
     }
 
     [Fact]

@@ -30,31 +30,14 @@ public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<Asignacio
         // Sin índice propio por AsignacionOperacionId: la FK compuesta hacia la
         // operación ya crea uno que lo lleva de primera columna.
 
-        // Restricción de TRANSICIÓN, no invariante de dominio.
+        // Restricción de TRANSICIÓN, no invariante de dominio. Residuo del reparto por Cliente empresarial,
+        // retirado con D-7 (2026-10-02): ningún productor escribe ya una cartera por Cliente empresarial y
+        // la migración ConvierteCarterasPorClienteATenantEntero cerró las que existían. El índice sigue
+        // porque una instancia anterior al despliegue todavía podría escribir una; se retira, junto a la
+        // lectura de ese ámbito, cuando ya no pueda haber instancias antiguas.
         //
-        // Reproduce el comportamiento actual "0..1 gestor por cliente", que hoy
-        // impone la propia forma de Cliente.EjecutivoUsuarioId (un Guid, no una
-        // lista). El modelo aprobado SÍ admite varios gestores sobre el mismo
-        // cliente repartidos por ámbitos más finos (por centro, por trabajador),
-        // así que este índice se retira cuando se habiliten esas dimensiones.
-        // Nadie debe leerlo como "TALVEG nunca permite dos gestores por cliente".
-        //
-        // Prerequisito de su retirada: la proyección Cliente.EjecutivoUsuarioId
-        // deja de estar bien definida con varios gestores (¿cuál de ellos es "el
-        // ejecutivo"?), y la leen el enrutado de WhatsApp, las detecciones de
-        // plantilla y el KPI de cartera sin asignar. Hay que redefinir o retirar
-        // esa proyección y sus lectores ANTES de quitar este índice.
-        //
-        // GLOBAL por propietario-cliente, no por operación (auditoría Módulo 5,
-        // hallazgo crítico 3/9): antes incluía AsignacionOperacionId, así que una
-        // cartera interna y una externa vigentes sobre el mismo cliente convivían
-        // sin chocar. Dos reasignaciones concurrentes hacia operaciones distintas
-        // podían dejar así dos operadores con acceso simultáneo al mismo cliente,
-        // creyendo cada una haber reemplazado al responsable. La migración previa
-        // (AcotarResponsableClienteAGlobalVigente) cierra cualquier duplicado
-        // heredado antes de crear este índice. ReasignarCarteraClienteAsync
-        // traduce el 23505 resultante a un conflicto de concurrencia legible,
-        // igual que ExpiracionAsignacionesHostedService.GuardarODejarComoEstabaAsync.
+        // GLOBAL por propietario-cliente, no por operación (auditoría Módulo 5, hallazgo crítico 3/9):
+        // como mucho una cartera vigente por Cliente empresarial y Tenant propietario.
         builder.HasIndex(
                 a => new { a.PropietarioTenantId, a.AmbitoRelacionClienteId },
                 "IX_AsignacionesCartera_ResponsableRelacionVigente")

@@ -14,9 +14,10 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Operaciones;
 
 /// <summary>
-/// El backfill de F1: traslada el reparto que hoy vive en
-/// <c>DelegacionTenant</c> y <c>Cliente.EjecutivoUsuarioId</c> a las tablas de
-/// asignación, sin romper nada de lo anterior.
+/// El backfill de F1: traslada el reparto que vive en <c>DelegacionTenant</c> a
+/// las tablas de asignación, sin romper nada de lo anterior. Desde D-7
+/// (2026-10-02) ya no deriva carteras de <c>Empresa.EjecutivoUsuarioId</c>: la
+/// referencia de un Cliente empresarial no concede alcance.
 ///
 /// Lo que se fija aquí no es solo que copie, sino sus tres reglas duras: es
 /// <b>reconciliador</b> (no solo insert-if-missing), <b>no migra el soporte</b>
@@ -111,18 +112,17 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
 
         var carteras = await contexto.AsignacionesCartera.ToListAsync();
 
-        // El operador delegado tiene rol de cartera (GestorCae) y no es
-        // ejecutivo de ningún cliente, así que NO recibe cartera: darle una
-        // universal le entregaría todos los clientes del tenant delegado, más
-        // de lo que tiene hoy. Sus carteras nacerán cliente a cliente.
+        // El operador delegado tiene rol de cartera (GestorCae), así que NO
+        // recibe cartera del backfill: darle una universal le entregaría todo
+        // el tenant delegado sin que nadie lo decidiera. Su cartera nace de un
+        // acto explícito (D-7).
         carteras.Should().NotContain(c => c.UsuarioId == _operadorDelegado);
 
-        // La del ejecutivo interno: sobre la raíz de su tenant y acotada al
-        // cliente concreto, que es lo que EjecutivoUsuarioId significaba.
-        var interna = carteras.Single(c => c.UsuarioId == _gestorInterno);
-        interna.AmbitoRelacionClienteId.Should().Be(_clienteConEjecutivoId);
-        interna.Rol.Should().BeNull();
-        operaciones.Single(o => o.Id == interna.AsignacionOperacionId).EsRaiz.Should().BeTrue();
+        // La referencia (Empresa.EjecutivoUsuarioId) de _clienteConEjecutivoId
+        // es _gestorInterno, y no le concede nada: antes el backfill le abría
+        // una cartera por Cliente empresarial sobre la raíz de su tenant.
+        carteras.Should().NotContain(c => c.UsuarioId == _gestorInterno,
+            "ser la referencia de un Cliente empresarial no concede cartera (D-7)");
     }
 
     [Fact]
@@ -146,15 +146,18 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
         (await contexto.AsignacionesCartera.CountAsync(c => c.Estado == EstadoAsignacion.Cerrada)).Should().Be(0);
     }
 
+    /// <summary>
+    /// D-7: cambiar o quitar la referencia de un Cliente empresarial por la vía que sea no abre ni cierra
+    /// ninguna Asignación de Cartera. Antes el backfill reconciliaba en cada arranque las carteras por
+    /// Cliente empresarial contra <c>Empresa.EjecutivoUsuarioId</c>.
+    /// </summary>
     [Fact]
-    public async Task Reconcilia_un_cambio_de_ejecutivo_ocurrido_fuera_de_la_doble_escritura()
+    public async Task Cambiar_o_quitar_la_referencia_de_un_Cliente_no_crea_ni_cierra_ninguna_cartera()
     {
         await EjecutarBackfillAsync();
+        await using var antes = CrearContexto(_clienteDelegante);
+        var carterasAntes = await antes.AsignacionesCartera.Select(c => new { c.Id, c.Estado }).ToListAsync();
 
-        // Simula la ventana real entre el backfill y la activación de la doble
-        // escritura, con despliegue rolling: alguien reasigna el cliente por la
-        // vía antigua y las tablas nuevas se quedan atrás. Un seeder que solo
-        // insertara dejaría esa diferencia congelada para siempre.
         var nuevoGestor = Guid.NewGuid();
         await using (var contextoCambio = CrearContexto(_clienteDelegante))
         {
@@ -172,37 +175,19 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
 
         await EjecutarBackfillAsync();
 
-        await using var contexto = CrearContexto(_clienteDelegante);
-        var carterasDelCliente = await contexto.AsignacionesCartera
-            .Where(c => c.AmbitoRelacionClienteId == _clienteConEjecutivoId)
-            .ToListAsync();
-
-        // Append-only: la anterior se cierra, no se edita.
-        carterasDelCliente.Should().HaveCount(2);
-        carterasDelCliente.Single(c => c.UsuarioId == _gestorInterno).Estado.Should().Be(EstadoAsignacion.Cerrada);
-        carterasDelCliente.Single(c => c.UsuarioId == nuevoGestor).Estado.Should().Be(EstadoAsignacion.Vigente);
-    }
-
-    [Fact]
-    public async Task Cierra_la_cartera_de_un_cliente_al_que_le_quitaron_el_ejecutivo()
-    {
-        await EjecutarBackfillAsync();
-
-        await using (var contextoCambio = CrearContexto(_clienteDelegante))
+        await using (var contextoQuitar = CrearContexto(_clienteDelegante))
         {
-            var cliente = await contextoCambio.Empresas.FirstAsync(c => c.Id == _clienteConEjecutivoId);
-            cliente.AsignarEjecutivo(null);
-            await contextoCambio.SaveChangesAsync();
+            (await contextoQuitar.Empresas.FirstAsync(c => c.Id == _clienteConEjecutivoId)).AsignarEjecutivo(null);
+            await contextoQuitar.SaveChangesAsync();
         }
 
         await EjecutarBackfillAsync();
 
         await using var contexto = CrearContexto(_clienteDelegante);
-        var carteras = await contexto.AsignacionesCartera
-            .Where(c => c.AmbitoRelacionClienteId == _clienteConEjecutivoId)
-            .ToListAsync();
-
-        carteras.Should().OnlyContain(c => c.Estado == EstadoAsignacion.Cerrada);
+        (await contexto.AsignacionesCartera.Select(c => new { c.Id, c.Estado }).ToListAsync())
+            .Should().BeEquivalentTo(carterasAntes, "la referencia no concede ni retira alcance");
+        (await contexto.AsignacionesCartera.AnyAsync(c => c.UsuarioId == nuevoGestor)).Should().BeFalse();
+        (await contexto.AsignacionesCartera.AnyAsync(c => c.AmbitoRelacionClienteId != null)).Should().BeFalse();
     }
 
     [Fact]
@@ -227,15 +212,13 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
         await using var contexto = CrearContexto(_clienteDelegante);
         var externa = await contexto.AsignacionesOperacion.FirstAsync(o => !o.EsRaiz);
 
-        // El gestor interno no recibe cartera externa: su acceso sigue
-        // gobernado por su cartera interna, que sí se migró.
+        // El gestor interno no recibe cartera externa, ni ninguna otra: ser la
+        // referencia de un Cliente empresarial no concede cartera (D-7).
         (await contexto.AsignacionesCartera
                 .AnyAsync(c => c.AsignacionOperacionId == externa.Id && c.UsuarioId == _gestorInterno))
             .Should().BeFalse();
 
-        (await contexto.AsignacionesCartera
-                .AnyAsync(c => c.UsuarioId == _gestorInterno && c.AmbitoRelacionClienteId == _clienteConEjecutivoId))
-            .Should().BeTrue();
+        (await contexto.AsignacionesCartera.AnyAsync(c => c.UsuarioId == _gestorInterno)).Should().BeFalse();
     }
 
     [Fact]

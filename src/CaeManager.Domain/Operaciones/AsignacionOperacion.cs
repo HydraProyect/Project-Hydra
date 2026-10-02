@@ -14,9 +14,9 @@ namespace CaeManager.Domain.Operaciones;
 ///
 /// Generaliza a la vez los dos mecanismos que hoy están separados y que no
 /// sabían expresar ámbito: <c>DelegacionTenant</c> de propósito Comercial (una
-/// operación externa de ámbito universal) y <c>Cliente.EjecutivoUsuarioId</c>
-/// (una cartera sobre la operación raíz). Durante F1 ambos siguen vivos como
-/// proyección de compatibilidad.
+/// operación externa de ámbito universal) y la gestión interna (la operación raíz).
+/// <c>Empresa.EjecutivoUsuarioId</c> ya no es fuente de cartera (D-7, 2026-10-02).
+/// <c>DelegacionTenant</c> sigue viva durante F1 como proyección de compatibilidad.
 /// </summary>
 public class AsignacionOperacion : AsignacionResponsabilidad
 {

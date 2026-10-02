@@ -11,7 +11,7 @@ namespace CaeManager.Application.Tests.Operaciones;
 /// </summary>
 public class AsignacionesOperativasWriterFalso : IAsignacionesOperativasWriter
 {
-    public List<(Guid ClienteId, Guid? EjecutivoId)> CarterasReasignadas { get; } = [];
+    public List<(Guid Propietario, Guid Gestor)> CarterasTenantEnteroAseguradas { get; } = [];
     public List<Guid> RaicesAseguradas { get; } = [];
     public List<(Guid Propietario, Guid Operador)> OperacionesAbiertas { get; } = [];
     public List<(Guid Propietario, Guid Operador, MotivoCierreAsignacion Motivo)> OperacionesCerradas { get; } = [];
@@ -19,10 +19,10 @@ public class AsignacionesOperativasWriterFalso : IAsignacionesOperativasWriter
     public List<(Guid Propietario, Guid Operador, Guid Usuario, MotivoCierreAsignacion Motivo)> CarterasCerradas { get; } = [];
     public List<Guid> DelegacionesConCarterasReabiertas { get; } = [];
 
-    public Task ReasignarCarteraClienteAsync(
-        Guid clienteId, Guid? nuevoEjecutivoUsuarioId, CancellationToken cancellationToken = default)
+    public Task AsegurarCarteraTenantEnteroAsync(
+        Guid propietarioTenantId, Guid gestorUsuarioId, CancellationToken cancellationToken = default)
     {
-        CarterasReasignadas.Add((clienteId, nuevoEjecutivoUsuarioId));
+        CarterasTenantEnteroAseguradas.Add((propietarioTenantId, gestorUsuarioId));
         return Task.CompletedTask;
     }
 

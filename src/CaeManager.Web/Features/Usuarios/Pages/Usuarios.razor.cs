@@ -7,7 +7,6 @@ using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
 using CaeManager.Application.Usuarios.Commands.CrearUsuario;
-using CaeManager.Application.Usuarios.Commands.DesactivarGestorCaeConCartera;
 using CaeManager.Application.Usuarios.Commands.EditarUsuario;
 using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
 using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
@@ -942,14 +941,12 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     /// <summary>
     /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de alta y
-    /// edición de Usuario comparado con cómo se abrió (con la ficha ya cargada), o un
-    /// Gestor CAE de destino ya elegido en la desactivación con traspaso de cartera. Lo
+    /// edición de Usuario comparado con cómo se abrió (con la ficha ya cargada). Lo
     /// leen AvisoCambiosSinGuardar, el Drawer y el Modal; cerrados (también tras guardar
     /// o desactivar) nunca hay nada que perder.
     /// </summary>
     private bool HayCambiosSinGuardar =>
-        (_drawerVisible && _instantanea.Difiere(ValoresFormulario()))
-        || (_usuarioADesactivar is not null && !string.IsNullOrEmpty(_gestorDestinoCartera));
+        _drawerVisible && _instantanea.Difiere(ValoresFormulario());
 
     private object?[] ValoresFormulario() =>
         [_email, _nombreCompleto, _rol, _permisoConsultarAccesoDocumentosSensibles, _coordinadorUsuarioId, _clienteCif,
@@ -961,7 +958,6 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     {
         await CerrarDrawerAsync(false);
         _usuarioADesactivar = null;
-        _gestorDestinoCartera = string.Empty;
     }
 
     private Task CerrarDrawerAsync(bool visible)
@@ -1462,20 +1458,17 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         }
     }
 
-    // --- FS-25: desactivar con confirmación y, si procede, pasar la cartera ---
+    // --- FS-25: desactivar con confirmación ---
 
     private UsuarioListaDto? _usuarioADesactivar;
     private CarteraDeUsuario? _carteraADesactivar;
-    private IReadOnlyList<Guid> _clientesADesactivar = [];
-    private IReadOnlyList<ApplicationUser> _gestoresDestino = [];
-    private string _gestorDestinoCartera = string.Empty;
     private bool _desactivando;
 
     /// <summary>
-    /// Abre la confirmación de desactivar. A un Gestor CAE se le lee la cartera
-    /// en el momento (no la de la última carga de la lista) y, si tiene Clientes
-    /// empresariales concretos, se ofrecen como destino los demás Gestores CAE
-    /// activos. Una cartera universal no se reparte cliente a cliente: se dice.
+    /// Abre la confirmación de desactivar. A un Gestor CAE se le lee la cartera en el momento (no
+    /// la de la última carga de la lista): si es el Tenant entero (cartera universal, la única que
+    /// existe desde D-7), el diálogo dice que la conserva su Coordinador CAE. No hay traspaso de
+    /// cartera: la cartera no se reparte Cliente empresarial a Cliente empresarial.
     /// </summary>
     private async Task PedirDesactivacionAsync(UsuarioListaDto usuarioLista)
     {
@@ -1486,29 +1479,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         }
 
         _carteraADesactivar = null;
-        _clientesADesactivar = [];
-        _gestoresDestino = [];
-        _gestorDestinoCartera = string.Empty;
 
         if (usuarioLista.Rol == Roles.GestorCae && !usuarioLista.EsOperadorDelegado)
         {
-            var token = _ciclo.Token;
             try
             {
-                var carteras = await ObtenerCarterasVigentesAsync(token);
+                var carteras = await ObtenerCarterasVigentesAsync(_ciclo.Token);
                 if (carteras.TryGetValue(usuarioLista.Id, out var cartera))
-                {
                     _carteraADesactivar = cartera;
-                    if (!cartera.EsUniversal && cartera.ClienteIds.Count > 0)
-                    {
-                        _clientesADesactivar = cartera.ClienteIds.Distinct().ToList();
-                        var ahora = DateTimeOffset.UtcNow;
-                        _gestoresDestino = (await ObtenerVisiblesEnRolAsync(Roles.GestorCae, token))
-                            .Where(g => g.Id != usuarioLista.Id && !g.EstaDesactivada(ahora))
-                            .OrderBy(g => g.NombreCompleto, StringComparer.CurrentCulture)
-                            .ToList();
-                    }
-                }
             }
             catch (OperationCanceledException)
             {
@@ -1520,12 +1498,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     }
 
     /// <summary>
-    /// Con destino elegido, pasa la cartera y desactiva en un solo Command atómico
-    /// (<see cref="DesactivarGestorCaeConCarteraCommand"/>): o se hace todo o no se hace
-    /// nada, y la regla del destino la impone Application. Se envía la cartera que se
-    /// mostró; si el servidor ve otra —un Cliente empresarial asignado mientras el
-    /// diálogo estaba abierto—, no se toca nada y se vuelve a preguntar con la nueva.
-    /// Sin destino, se desactiva sin más y la cartera la hereda su Coordinador CAE.
+    /// Desactiva la cuenta. La cartera sigue abierta y la hereda su Coordinador CAE (decisión del
+    /// 2026-09-24).
     /// </summary>
     private async Task ConfirmarDesactivacionAsync()
     {
@@ -1535,48 +1509,6 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _desactivando = true;
         try
         {
-            if (Guid.TryParse(_gestorDestinoCartera, out var destino) && _clientesADesactivar.Count > 0)
-            {
-                Result resultado;
-                try
-                {
-                    resultado = await Mediator.Send(
-                        new DesactivarGestorCaeConCarteraCommand(usuario.Id, destino, _clientesADesactivar), _ciclo.Token);
-                }
-                catch (Exception excepcion) when (excepcion is not OperationCanceledException)
-                {
-                    Logger.LogError(excepcion, "Fallo al pasar la cartera del Gestor CAE {UsuarioId} a {Destino} y desactivarlo.", usuario.Id, destino);
-                    ToastService.Mostrar(TextosUsuarios["DesactivarErrorInesperado"], TonoToast.Error);
-                    _usuarioADesactivar = null;
-                    await CargarAsync();
-                    return;
-                }
-
-                if (resultado.EsFallido)
-                {
-                    ToastService.Mostrar(
-                        resultado.Error.Codigo == DesactivarGestorCaeConCarteraCommandHandler.CarteraCambiada.Codigo
-                            ? resultado.Error.Mensaje
-                            : TextosUsuarios["DesactivarSinCambios", resultado.Error.Mensaje],
-                        TonoToast.Advertencia);
-
-                    _usuarioADesactivar = null;
-                    await CargarAsync();
-
-                    // La cartera cambió: se vuelve a preguntar con la que hay ahora.
-                    if (resultado.Error.Codigo == DesactivarGestorCaeConCarteraCommandHandler.CarteraCambiada.Codigo)
-                        await PedirDesactivacionAsync(usuario);
-                    return;
-                }
-
-                ToastService.Mostrar(
-                    TextosUsuarios["DesactivarCarteraPasada", _clientesADesactivar.Count, _gestoresDestino.FirstOrDefault(g => g.Id == destino)?.NombreCompleto ?? string.Empty],
-                    TonoToast.Exito);
-                _usuarioADesactivar = null;
-                await CargarAsync();
-                return;
-            }
-
             _usuarioADesactivar = null;
             await CambiarActivacionAsync(usuario);
         }

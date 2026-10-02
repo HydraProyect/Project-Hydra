@@ -227,7 +227,11 @@ public static class EscenariosDireccionDemoSeeder
                     await dbContext.SaveChangesAsync(cancellationToken);
                 }
 
-                await writer.ReasignarCarteraClienteAsync(clienteId.Value, gestor.Id, cancellationToken);
+                // La referencia (Empresa.EjecutivoUsuarioId, puesta por el constructor) no concede
+                // alcance: la cartera de cada Gestor CAE del equipo es el Tenant propietario entero,
+                // y se concede aquí de forma explícita (D-7, 2026-10-02; P5: ambos Gestores CAE ven
+                // el Tenant entero).
+                await writer.AsegurarCarteraTenantEnteroAsync(tenantPropietarioId, gestor.Id, cancellationToken);
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
         }

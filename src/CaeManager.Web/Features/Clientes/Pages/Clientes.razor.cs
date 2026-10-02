@@ -248,8 +248,8 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// <para>
     /// El campo nuevo se llama <c>GestorCaeId</c> y no como la columna
     /// (<c>EjecutivoUsuarioId</c>, deuda terminológica congelada por
-    /// TerminologiaCanonicaTests): nombra a la persona, el Gestor CAE con
-    /// Asignación de Cartera sobre el Cliente empresarial. Al ser una clave
+    /// TerminologiaCanonicaTests): nombra a la persona, el Gestor CAE de
+    /// referencia del Cliente empresarial (no concede alcance). Al ser una clave
     /// nueva del JSON guardado, no hay filtros antiguos que la lleven.
     /// </para>
     /// </summary>

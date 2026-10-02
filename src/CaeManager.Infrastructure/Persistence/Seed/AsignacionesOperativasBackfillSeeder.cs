@@ -8,15 +8,16 @@ using Microsoft.Extensions.Logging;
 namespace CaeManager.Infrastructure.Persistence.Seed;
 
 /// <summary>
-/// Traslada el reparto de responsabilidad operativa que hoy vive disperso en
-/// <c>DelegacionTenant</c> y <c>Cliente.EjecutivoUsuarioId</c> a las tablas de
-/// asignación (F1 del plan de migración).
+/// Traslada el reparto de responsabilidad operativa que vive en
+/// <c>DelegacionTenant</c> a las tablas de asignación (F1 del plan de migración).
+/// Ya no deriva carteras de <c>Empresa.EjecutivoUsuarioId</c>: el reparto por Cliente
+/// empresarial está retirado (D-7, 2026-10-02) y esa columna es una referencia.
 ///
 /// <b>Idempotente y reconciliador</b>, no solo "insertar si falta". Durante F1
 /// los mecanismos antiguos siguen siendo los autoritativos y se escriben en
 /// paralelo, pero entre el backfill y la activación de la doble escritura hay
 /// una ventana real —despliegue rolling, varias instancias— en la que un
-/// ejecutivo puede cambiar. Un seeder que solo insertara dejaría esa diferencia
+/// operador delegado puede cambiar. Un seeder que solo insertara dejaría esa diferencia
 /// congelada para siempre; este cierra lo que ya no corresponde y abre lo que
 /// falta, en cada arranque, hasta que la doble escritura quede establecida.
 ///
@@ -92,10 +93,9 @@ public static class AsignacionesOperativasBackfillSeeder
         // --- 1. La operación raíz de cada tenant ---
         //
         // Para TODOS los tenants, no solo los activos: la raíz es el ancla de
-        // las carteras internas, y un tenant suspendido con clientes que tienen
-        // ejecutivo asignado necesita tenerla o el paso 4 no encontraría dónde
-        // colgarlas. Crearla no concede nada por sí sola — sin cartera no hay
-        // acceso.
+        // las carteras internas, y un tenant suspendido necesita tenerla para
+        // que, al reactivarse, haya dónde colgar una cartera interna. Crearla no
+        // concede nada por sí sola — sin cartera no hay acceso.
         foreach (var tenant in tenants)
         {
             var raiz = operaciones.FirstOrDefault(o =>
@@ -241,12 +241,14 @@ public static class AsignacionesOperativasBackfillSeeder
             }
 
             // Solo los roles de alcance total reciben cartera universal. Un rol
-            // de cartera (GestorCae, CoordinadorCae) ve hoy exactamente los
-            // clientes de los que es ejecutivo; darle una universal le
-            // entregaría de golpe el tenant delegado entero —todas sus ramas
-            // operativas, ver AlcanceDatosService—: un
-            // ensanchamiento de alcance que F1 no debe introducir. Sus carteras
-            // salen del paso 4, cliente a cliente.
+            // de cartera (GestorCae, CoordinadorCae) no la recibe de este
+            // reconciliador: darle una universal le entregaría de golpe el tenant
+            // delegado entero —todas sus ramas operativas, ver AlcanceDatosService—
+            // sin que nadie lo decidiera. Su cartera (siempre el Tenant entero, D-7)
+            // nace de un acto explícito: ver CatalogoIncorporacionCartera y
+            // IAsignacionesOperativasWriter.AsegurarCarteraTenantEnteroAsync. El
+            // reparto por Cliente empresarial a partir de Empresa.EjecutivoUsuarioId
+            // se retiró: la referencia no concede alcance.
             if (!RolesDelegables.Contains(operador.Rol))
             {
                 incidencias.Add(
@@ -268,138 +270,6 @@ public static class AsignacionesOperativasBackfillSeeder
             var nueva = AsignacionCartera.Externa(
                 operacion, operador.UsuarioId, operador.Rol, AmbitoAsignacion.Universal,
                 operador.CreadoEnUtc, vigenciaHasta: null, ahora);
-
-            dbContext.AsignacionesCartera.Add(nueva);
-            carteras.Add(nueva);
-            creadas++;
-        }
-
-        // --- 4. Los ejecutivos de cliente, como carteras por relación ---
-        //
-        // IgnoreQueryFilters porque el backfill recorre todos los tenants a la
-        // vez y arranca sin sesión: es la única lectura del sistema que
-        // legítimamente cruza la frontera, y solo para escribir el reparto que
-        // ya existe. Se excluyen los clientes eliminados: una cartera vigente
-        // sobre algo invisible ocuparía su índice único para siempre.
-        //
-        // F3b — lee Empresas (EsCritico != null identifica a un ex-Cliente),
-        // no la tabla legacy Clientes: desde la congelación, un Cliente nuevo
-        // solo existe en Empresas, y F3a ya copió ahí el EjecutivoUsuarioId de
-        // todo Cliente preexistente — Empresas es la fuente completa para las
-        // dos generaciones, la legacy dejaría invisibles a los posteriores al
-        // corte.
-        var clientes = await dbContext.Empresas
-            .IgnoreQueryFilters()
-            .Where(c => c.EsCritico != null && !c.EstaEliminado)
-            .Select(c => new { c.Id, c.TenantId, c.EjecutivoUsuarioId })
-            .ToListAsync(cancellationToken);
-
-        foreach (var cliente in clientes)
-        {
-            var vigentes = carteras
-                .Where(c => c.AmbitoRelacionClienteId == cliente.Id
-                            && c.PropietarioTenantId == cliente.TenantId
-                            && c.Estado == EstadoAsignacion.Vigente)
-                .ToList();
-
-            // Sin ejecutivo: cerrar lo que hubiera. Es la mitad reconciliadora
-            // — un cliente al que le quitaron el gestor no puede quedarse con
-            // la cartera abierta.
-            if (cliente.EjecutivoUsuarioId is not { } ejecutivoId)
-            {
-                foreach (var sobrante in vigentes)
-                {
-                    sobrante.Cerrar(MotivoCierreAsignacion.Reorganizada, ahora);
-                    cerradas++;
-                }
-                continue;
-            }
-
-            if (vigentes.Any(c => c.UsuarioId == ejecutivoId))
-            {
-                // Ya está, pero puede haber otras de un ejecutivo anterior si la
-                // reasignación ocurrió fuera de la doble escritura.
-                foreach (var sobrante in vigentes.Where(c => c.UsuarioId != ejecutivoId))
-                {
-                    sobrante.Cerrar(MotivoCierreAsignacion.Reorganizada, ahora);
-                    cerradas++;
-                }
-                continue;
-            }
-
-            if (!tenantPorUsuario.TryGetValue(ejecutivoId, out var tenantDelEjecutivo))
-            {
-                incidencias.Add(
-                    $"Cliente {cliente.Id}: su ejecutivo {ejecutivoId} no existe como usuario. Cartera no migrada.");
-                continue;
-            }
-
-            AsignacionCartera? nueva;
-
-            if (tenantDelEjecutivo == cliente.TenantId)
-            {
-                var raiz = operaciones.FirstOrDefault(o =>
-                    o.EsRaiz && o.PropietarioTenantId == cliente.TenantId
-                    && o.Servicio == ServicioCae.Outbound && o.Estado == EstadoAsignacion.Vigente);
-
-                if (raiz is null)
-                {
-                    incidencias.Add($"Cliente {cliente.Id}: no hay operación raíz vigente en su tenant. Cartera no migrada.");
-                    continue;
-                }
-
-                nueva = AsignacionCartera.Interna(
-                    raiz, ejecutivoId, AmbitoAsignacion.DeRelacionCliente(cliente.Id),
-                    raiz.VigenciaDesde, vigenciaHasta: null, ahora);
-            }
-            else
-            {
-                // El ejecutivo pertenece a otro tenant: es un operador delegado.
-                // Su cartera cuelga de la operación EXTERNA de su tenant, no de
-                // la raíz — colgarla de la raíz rompería la cadena "el usuario
-                // pertenece al tenant operador", y dejarla sin rol le devolvería
-                // el rol que tiene en SU tenant, que es justo el fallo que el
-                // rol efectivo por delegación corrigió en su día.
-                var externa = operaciones.FirstOrDefault(o =>
-                    !o.EsRaiz
-                    && o.PropietarioTenantId == cliente.TenantId
-                    && o.OperadorTenantId == tenantDelEjecutivo
-                    && o.Servicio == ServicioCae.Outbound
-                    && o.Estado == EstadoAsignacion.Vigente);
-
-                if (externa is null)
-                {
-                    incidencias.Add(
-                        $"Cliente {cliente.Id}: su ejecutivo {ejecutivoId} pertenece al tenant {tenantDelEjecutivo}, " +
-                        "que no tiene delegación comercial activa sobre este tenant. Cartera no migrada.");
-                    continue;
-                }
-
-                var rol = operadoresDelegados
-                    .FirstOrDefault(a => a.UsuarioId == ejecutivoId
-                                         && delegacionesComerciales.Any(d => d.Id == a.DelegacionTenantId
-                                                                             && d.TenantClienteId == cliente.TenantId
-                                                                             && d.TenantConsultoraId == tenantDelEjecutivo))
-                    ?.Rol ?? Roles.GestorCae;
-
-                if (!RolesDelegables.Contains(rol))
-                {
-                    incidencias.Add(
-                        $"Cliente {cliente.Id}: su ejecutivo {ejecutivoId} tiene el rol delegado {rol}, " +
-                        "que no se delega (solo Coordinador CAE, Gestor CAE o Consulta). Cartera no migrada.");
-                    continue;
-                }
-
-                nueva = AsignacionCartera.Externa(
-                    externa, ejecutivoId, rol, AmbitoAsignacion.DeRelacionCliente(cliente.Id),
-                    externa.VigenciaDesde, vigenciaHasta: null, ahora);
-            }
-
-            foreach (var sobrante in vigentes)
-            {
-                sobrante.Cerrar(MotivoCierreAsignacion.Reorganizada, ahora);
-                cerradas++;
-            }
 
             dbContext.AsignacionesCartera.Add(nueva);
             carteras.Add(nueva);

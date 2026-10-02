@@ -318,6 +318,11 @@ public static class DelegacionDemoSeeder
             for (var i = 0; i < clientes.Count; i++)
                 clientes[i].AsignarEjecutivo(gestores[i % gestores.Count].Id);
             await dbContext.SaveChangesAsync(cancellationToken);
+
+            // La referencia no concede alcance (D-7, 2026-10-02): la cartera de cada Gestor CAE es
+            // el Tenant entero, y se concede de forma explícita.
+            await CarterasDeSiembra.AsegurarTenantEnteroAsync(
+                dbContext, gestores[0].TenantId, gestores.Select(g => g.Id), cancellationToken);
         }
 
         var clientePrueba = await CrearAsync(Roles.Cliente, 1, "Cliente");
@@ -656,12 +661,16 @@ public static class DelegacionDemoSeeder
             await userManager.AddToRoleAsync(gestor, Roles.GestorCae);
             await AceptacionTerminosSeedHelper.AceptarParaUsuarioDeSemillaAsync(dbContext, gestor.Id, cancellationToken);
 
-            // Toda la cartera del demo 2 a su único gestor — sin ejecutivo
-            // asignado, un GestorCae no vería ningún dato (IAlcanceDatosService).
+            // Toda la cartera del demo 2 a su único gestor — sin Asignación de Cartera, un
+            // GestorCae no vería ningún dato (IAlcanceDatosService). La referencia
+            // (EjecutivoUsuarioId) no concede alcance (D-7, 2026-10-02): la cartera del Tenant
+            // entero se concede de forma explícita.
             var clientes = await dbContext.Empresas.Where(e => e.EsCritico != null).ToListAsync(cancellationToken);
             foreach (var cliente in clientes)
                 cliente.AsignarEjecutivo(gestor.Id);
             await dbContext.SaveChangesAsync(cancellationToken);
+
+            await CarterasDeSiembra.AsegurarTenantEnteroAsync(dbContext, tenantId, [gestor.Id], cancellationToken);
         }
         else
         {

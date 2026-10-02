@@ -102,12 +102,6 @@ public static class GestorCaeCarteraMultiTenantSeeder
     public static readonly IReadOnlyList<string> NombresTenants =
         [NombreTenantOperador, .. Ramas.Select(r => r.NombreTenant)];
 
-    /// <summary>Cliente empresarial del primer Tenant beneficiario sin Asignación de Cartera de nadie.</summary>
-    private static readonly RamaE2E FueraDeCarteraEnTenantA = new(
-        Ramas[0].NombreTenant, EnCartera: false,
-        "Pescados Vilches S.L.", "Frío Industrial Lugo S.L.", "Taller Vilches Lugo", "GCM-A2", "Aitana", "Vilches Roca", 3,
-        EmpleadorEsSubcontrata: true);
-
     public static void RechazarEnProduccion(IConfiguration configuration, IHostEnvironment entorno)
     {
         if (!EstaActiva(configuration))
@@ -165,12 +159,9 @@ public static class GestorCaeCarteraMultiTenantSeeder
                 var clienteId = await SembrarClienteAsync(dbContext, rama, rama.EnCartera ? gestor.Id : null, hoy, cancellationToken);
                 if (rama.EnCartera)
                 {
-                    await writer.ReasignarCarteraClienteAsync(clienteId, gestor.Id, cancellationToken);
+                    await writer.AsegurarCarteraTenantEnteroAsync(tenantBeneficiarioId, gestor.Id, cancellationToken);
                     await dbContext.SaveChangesAsync(cancellationToken);
                 }
-
-                if (rama == Ramas[0])
-                    await SembrarClienteAsync(dbContext, FueraDeCarteraEnTenantA, ejecutivoId: null, hoy, cancellationToken);
             }
 
             logger.LogInformation(

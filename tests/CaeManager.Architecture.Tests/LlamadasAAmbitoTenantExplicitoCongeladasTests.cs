@@ -310,6 +310,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.BootstrapOSiembra,
                 "2 llamadas — tenant.Id de un tenant que el propio seeder acaba de crear, y " +
                 "TenantSeedData.IdPorDefecto en SembrarInstruccionTratamientoIaTenantPrincipalAsync (HO-035-02, REC-035)"),
+        ["src/CaeManager.Infrastructure/Persistence/Seed/CarterasDeSiembra.cs"] =
+            new(Categoria.BootstrapOSiembra, "tenantId que recibe de la siembra que la llama (el Tenant propietario que ese seeder acaba de crear o localizar), para conceder a sus Gestores CAE sembrados la cartera del Tenant entero por el escritor de asignaciones (D-7)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "12 llamadas — todas sobre Ids de tenants de demo que el propio seeder crea o localiza (3 de ellas, desde P1-M1, para buscar por correo cuentas de esos Tenants bajo la RLS de AspNetUsers)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] =

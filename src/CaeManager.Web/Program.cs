@@ -948,8 +948,9 @@ using (var scope = app.Services.CreateScope())
         await DelegacionesSoporteSeeder.SeedAsync(dbContext, app.Configuration, logger);
 
         // Después de todo lo anterior: traslada el reparto de responsabilidad
-        // operativa (delegaciones comerciales y ejecutivos de cliente) a las tablas
-        // de asignación, incluyendo los tenants que se acaben de sembrar. Es
+        // operativa (delegaciones comerciales) a las tablas de asignación,
+        // incluyendo los tenants que se acaben de sembrar. Ya no deriva carteras
+        // de Empresa.EjecutivoUsuarioId (D-7: la referencia no concede alcance). Es
         // idempotente y reconciliador, así que se ejecuta en cada arranque hasta
         // que la doble escritura quede establecida (F1 del plan de migración).
         await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);

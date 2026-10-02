@@ -6,9 +6,12 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 
 /// <summary>
-/// Reasigna el Gestor CAE dueño de un Cliente (Cliente.EjecutivoUsuarioId) —
-/// solo para roles por encima de Gestor CAE (ver Roles.cs). Dispara los dos
-/// avisos pedidos por el usuario: cambio de cartera a los Gestores
+/// Reasigna el Gestor CAE de referencia de un Cliente empresarial
+/// (<c>Empresa.EjecutivoUsuarioId</c>) —solo para roles por encima de Gestor CAE
+/// (ver Roles.cs)—. <b>Es una referencia, no una cartera</b> (D-7, 2026-10-02): no abre
+/// ni cierra ninguna Asignación de Cartera ni cambia lo que nadie alcanza; la cartera de un
+/// Gestor CAE es siempre el Tenant entero. Dispara los dos
+/// avisos pedidos por el usuario: cambio de referencia a los Gestores
 /// afectados, y — si el Cliente tiene algún TipoDocumento con lectura IA
 /// desactivada — un aviso aparte al nuevo Gestor con enlace a la pantalla
 /// de configuración, porque la configuración de IA se conserva tal cual al
@@ -46,7 +49,7 @@ public class ReasignarEjecutivoClienteCommandHandler(
     {
         var rol = await currentUserService.ObtenerRolEfectivoAsync();
         if (rol is null || !RolesPermitidos.Contains(rol))
-            return Result.Fallo(Error.Crear("Cliente.SinPermisoReasignar", "Tu rol no puede reasignar la cartera de un Cliente empresarial."));
+            return Result.Fallo(Error.Crear("Cliente.SinPermisoReasignar", "Tu rol no puede cambiar el Gestor CAE de referencia de un Cliente empresarial."));
 
         try
         {
@@ -66,14 +69,13 @@ public class ReasignarEjecutivoClienteCommandHandler(
         }
         catch (DbUpdateException)
         {
-            // El DbContext del circuito conserva la Empresa modificada, las
-            // notificaciones y las carteras añadidas: sin descartarlas, el
+            // El DbContext del circuito conserva la Empresa modificada y las
+            // notificaciones añadidas: sin descartarlas, el
             // siguiente Command del mismo circuito las guardaría por su cuenta.
             descarteCambios.DescartarCambiosPendientes();
 
-            // El índice único global de responsable vigente (auditoría Módulo 5,
-            // hallazgo crítico 3/9) puede chocar si otra reasignación concurrente
-            // sobre este mismo cliente terminó primero — la traducción evita un
+            // Otra reasignación concurrente sobre este mismo Cliente empresarial terminó
+            // primero (token de concurrencia de la Empresa) — la traducción evita un
             // error de base de datos sin explicación en pantalla.
             return Result.Fallo(ConflictoDeReasignacion);
         }

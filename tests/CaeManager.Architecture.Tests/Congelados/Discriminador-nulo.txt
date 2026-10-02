@@ -18,9 +18,7 @@ src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: NivelServic
 src/CaeManager.Infrastructure/Importacion/ClosedXmlImportacionParser.cs :: EsCritico = 1
 src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaClientesService.cs :: EsCritico = 1
 src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaCombinadaService.cs :: EsCritico = 1
-src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: EsCritico = 1
 src/CaeManager.Infrastructure/Persistence/Repositories/RelacionEmpresarialRepository.cs :: EsCritico = 1
-src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs :: EsCritico = 1
 src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs :: EsCritico = 1
 src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs :: NivelServicio = 1
 src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs :: EsCritico = 2

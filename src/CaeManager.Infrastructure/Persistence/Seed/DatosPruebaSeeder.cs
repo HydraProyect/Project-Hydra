@@ -1543,11 +1543,11 @@ public static class DatosPruebaSeeder
         // --- Cartera de prueba: sin esto, los usuarios de prueba de los
         // roles con alcance acotado (GestorCae/CoordinadorCae/Cliente) no
         // verían ningún dato — ver IAlcanceDatosService (Fase 31). Los tres
-        // GestorCae de prueba reportan al primer CoordinadorCae y se
-        // reparten TODOS los clientes round-robin (con 9 clientes, 3 cada
-        // uno — AlcanceRolesTests depende de este reparto exacto); cada
-        // usuario Cliente de prueba queda vinculado a un Cliente real
-        // distinto.
+        // GestorCae de prueba reportan al primer CoordinadorCae, tienen la
+        // cartera del Tenant entero (D-7) y se reparten TODOS los clientes
+        // round-robin como Gestor CAE de referencia (con 9 clientes, 3 cada
+        // uno); cada usuario Cliente de prueba queda vinculado a un Cliente
+        // real distinto.
         var clientes = await dbContext.Empresas.Where(e => e.EsCritico != null).OrderBy(c => c.CreadoEnUtc).ToListAsync(cancellationToken);
         var coordinadorPrincipal = usuariosPorRol[Roles.CoordinadorCae].FirstOrDefault();
         var gestoresPrueba = usuariosPorRol[Roles.GestorCae];
@@ -1563,8 +1563,14 @@ public static class DatosPruebaSeeder
 
         if (gestoresPrueba.Count > 0)
         {
+            // La referencia (Empresa.EjecutivoUsuarioId) sigue repartida round-robin, pero no
+            // concede alcance (D-7, 2026-10-02): la cartera de cada Gestor CAE de prueba es el
+            // Tenant entero y se concede aparte, de forma explícita.
             for (var i = 0; i < clientes.Count; i++)
                 clientes[i].AsignarEjecutivo(gestoresPrueba[i % gestoresPrueba.Count].Id);
+
+            await CarterasDeSiembra.AsegurarTenantEnteroAsync(
+                dbContext, gestoresPrueba[0].TenantId, gestoresPrueba.Select(g => g.Id), cancellationToken);
         }
 
         var clientesPrueba = usuariosPorRol[Roles.Cliente];

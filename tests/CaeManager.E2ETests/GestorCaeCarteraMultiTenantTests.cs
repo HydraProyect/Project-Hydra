@@ -15,8 +15,8 @@ namespace CaeManager.E2ETests;
 /// la cartera no aparece en ningún sitio ni se abre por enlace directo. Ese Tenant no
 /// lleva tampoco AsignacionOperadorDelegado del Gestor CAE: con ella, la vía heredada de
 /// /cuenta/cliente-activo lo autorizaría sin cartera (alcance cero), y esa regla la fija
-/// el selector de Tenant, no este recorrido. La frontera de cartera dentro de un Tenant
-/// operado la cubre el Cliente empresarial sin cartera del primer Tenant beneficiario.
+/// el selector de Tenant, no este recorrido. La cartera es siempre el Tenant entero (D-7,
+/// 2026-10-02): no hay frontera de cartera dentro de un Tenant operado, solo entre Tenants.
 ///
 /// <para>
 /// Los nombres de abajo duplican los de la siembra a propósito: este proyecto no
@@ -34,12 +34,10 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
     private const string TrabajadorA = "Castany Olmo";
     private const string TrabajadorB = "Ledesma Pardo";
-    private const string TrabajadorFueraDeCarteraEnA = "Vilches Roca";
     private const string NombreCompletoTrabajadorB = "Bruno Ledesma Pardo";
 
     private const string CentroA = "Nave Albatros Gijón";
     private const string CentroB = "Planta Boreal Burgos";
-    private const string CentroFueraDeCarteraEnA = "Taller Vilches Lugo";
     private const string CentroFueraDeCartera = "Mina Cierzo Teruel";
 
     private const string BadgeRechazada = "Rechazada por plataforma";
@@ -208,7 +206,6 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         var tenantA = await IdTenantAsync(TenantBeneficiarioA);
         var tenantFuera = await IdTenantAsync(TenantFueraDeCartera);
         var centroA = await IdCentroAsync(CentroA);
-        var centroFueraEnA = await IdCentroAsync(CentroFueraDeCarteraEnA);
         var centroFuera = await IdCentroAsync(CentroFueraDeCartera);
 
         await using var contexto = await fixture.Browser.NewContextAsync();
@@ -231,14 +228,9 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Expect(cartera.Filter(new() { HasText = TenantFueraDeCartera })).ToHaveCountAsync(0);
         await Expect(page.Locator("div[role=button][aria-label$='· " + TenantFueraDeCartera + "']")).ToHaveCountAsync(0);
 
-        // Dentro del Tenant beneficiario A, el Cliente empresarial sin Asignación de
-        // Cartera tampoco llega a la cola. El mismo filtro, con un Trabajador de la
-        // cartera, sí encuentra filas: el filtro no es lo que las esconde.
+        // La cola filtrada por un Trabajador de la cartera encuentra filas: control positivo del filtro.
         await FiltrarColaAsync(page, TrabajadorA);
         await Expect(FilaMiTrabajo(page, TenantBeneficiarioA, BadgeRechazada)).ToBeVisibleAsync();
-        await FiltrarColaAsync(page, TrabajadorFueraDeCarteraEnA);
-        await Expect(page.GetByText("Sin resultados para este filtro", new() { Exact = true })).ToBeVisibleAsync();
-        await Expect(page.Locator(".mi-trabajo-grupos div[role=button]")).ToHaveCountAsync(0);
 
         // Enlace directo con A activo: su Centro de cartera se abre (control positivo del
         // instrumento); el del Tenant de fuera da EstadoVacio, sin su nombre en pantalla.
@@ -249,11 +241,6 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros/{centroFuera}");
         await Expect(page.GetByText("No pudimos cargar este centro", new() { Exact = true })).ToBeVisibleAsync();
         await Expect(page.GetByText(CentroFueraDeCartera)).ToHaveCountAsync(0);
-
-        // Y el Centro del Cliente empresarial sin cartera, dentro del propio Tenant activo.
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros/{centroFueraEnA}");
-        await Expect(page.GetByText("No pudimos cargar este centro", new() { Exact = true })).ToBeVisibleAsync();
-        await Expect(page.GetByText(CentroFueraDeCarteraEnA)).ToHaveCountAsync(0);
 
         // Activar el Tenant de fuera por el mismo endpoint que usa la cola: el servidor
         // no lo aplica y la organización activa sigue siendo A.

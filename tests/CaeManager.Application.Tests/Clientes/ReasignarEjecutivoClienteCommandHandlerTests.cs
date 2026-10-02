@@ -26,11 +26,10 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         AlcanceDatosServiceFalso? alcanceDatos = null,
         DirectorioDestinosCarteraFalso? directorio = null,
         DescarteCambiosPendientesFalso? descarte = null,
-        AsignacionesOperativasWriterFalso? writer = null,
         BloqueoCarteraUsuarioFalso? bloqueo = null,
         TransaccionDeComandoFalsa? transaccion = null) =>
         CrearHandlerCon(new CurrentUserServiceFalso(ActorId, rol), clienteRepositorio, configuracionIaRepositorio,
-            notificacionRepositorio, unitOfWork, alcanceDatos, directorio, descarte, writer, bloqueo, transaccion);
+            notificacionRepositorio, unitOfWork, alcanceDatos, directorio, descarte, bloqueo, transaccion);
 
     private static ReasignarEjecutivoClienteCommandHandler CrearHandlerCon(
         CurrentUserServiceFalso usuario,
@@ -41,11 +40,10 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         AlcanceDatosServiceFalso? alcanceDatos,
         DirectorioDestinosCarteraFalso? directorio,
         DescarteCambiosPendientesFalso? descarte,
-        AsignacionesOperativasWriterFalso? writer,
         BloqueoCarteraUsuarioFalso? bloqueo,
         TransaccionDeComandoFalsa? transaccion) =>
         new(Reasignador(usuario, clienteRepositorio, configuracionIaRepositorio, notificacionRepositorio,
-                alcanceDatos, directorio, writer, bloqueo),
+                alcanceDatos, directorio, bloqueo),
             unitOfWork, usuario, descarte ?? new DescarteCambiosPendientesFalso(), transaccion ?? new TransaccionDeComandoFalsa());
 
     internal static ReasignadorCarteraCliente Reasignador(
@@ -55,11 +53,10 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         NotificacionUsuarioRepositorioFalso? notificacionRepositorio = null,
         AlcanceDatosServiceFalso? alcanceDatos = null,
         DirectorioDestinosCarteraFalso? directorio = null,
-        AsignacionesOperativasWriterFalso? writer = null,
         BloqueoCarteraUsuarioFalso? bloqueo = null) =>
         new(clienteRepositorio, configuracionIaRepositorio ?? new ConfiguracionIaDocumentoClienteRepositorioFalso(),
             notificacionRepositorio ?? new NotificacionUsuarioRepositorioFalso(), usuario,
-            alcanceDatos ?? new AlcanceDatosServiceFalso(), writer ?? new AsignacionesOperativasWriterFalso(),
+            alcanceDatos ?? new AlcanceDatosServiceFalso(),
             directorio ?? new DirectorioDestinosCarteraFalso(new DestinoCartera(true, "GestorCae", ActorId, false)),
             bloqueo ?? new BloqueoCarteraUsuarioFalso());
 
@@ -83,8 +80,8 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         cliente.EjecutivoUsuarioId.Should().Be(gestorNuevoId);
         unitOfWork.VecesGuardado.Should().Be(1);
 
-        notificacionRepositorio.Notificaciones.Should().Contain(n => n.UsuarioDestinatarioId == gestorAnteriorId && n.Mensaje.Contains("quitado"));
-        notificacionRepositorio.Notificaciones.Should().Contain(n => n.UsuarioDestinatarioId == gestorNuevoId && n.Mensaje.Contains("asignado"));
+        notificacionRepositorio.Notificaciones.Should().Contain(n => n.UsuarioDestinatarioId == gestorAnteriorId && n.Mensaje.Contains("Ya no eres"));
+        notificacionRepositorio.Notificaciones.Should().Contain(n => n.UsuarioDestinatarioId == gestorNuevoId && n.Mensaje.Contains("Eres ahora"));
     }
 
     [Fact]
@@ -250,11 +247,10 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         clienteRepositorio.Agregar(cliente);
         var notificacionRepositorio = new NotificacionUsuarioRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
-        var writer = new AsignacionesOperativasWriterFalso();
         var directorio = new DirectorioDestinosCarteraFalso(destino);
         var handler = CrearHandler(
             clienteRepositorio, new ConfiguracionIaDocumentoClienteRepositorioFalso(), notificacionRepositorio, unitOfWork,
-            rolActor, directorio: directorio, writer: writer);
+            rolActor, directorio: directorio);
         var destinoId = Guid.NewGuid();
 
         var resultado = await handler.Handle(new ReasignarEjecutivoClienteCommand(cliente.Id, destinoId), CancellationToken.None);
@@ -264,7 +260,6 @@ public class ReasignarEjecutivoClienteCommandHandlerTests
         directorio.Consultados.Should().Equal(destinoId);
         cliente.EjecutivoUsuarioId.Should().Be(gestorAnteriorId, "el cliente no cambia de manos");
         notificacionRepositorio.Notificaciones.Should().BeEmpty();
-        writer.CarterasReasignadas.Should().BeEmpty();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
 
@@ -364,26 +359,11 @@ public class DirectorioDestinosCarteraFalso(DestinoCartera? destino) : IDirector
     /// <summary>Registro compartido con <see cref="BloqueoCarteraUsuarioFalso"/> para comprobar el orden.</summary>
     public List<string>? Eventos { get; init; }
 
-    /// <summary>
-    /// Lo que devuelve cada lectura de cartera, en orden; la última se repite. Permite
-    /// simular un Cliente empresarial que llega entre dos lecturas.
-    /// </summary>
-    public Queue<CarteraVigente> Carteras { get; } = new();
-
-    private CarteraVigente _ultimaCartera = CarteraVigente.Vacia;
-
     public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default)
     {
         Consultados.Add(usuarioId);
         Eventos?.Add("leer-destino");
         return Task.FromResult(destino);
-    }
-
-    public Task<CarteraVigente> ObtenerCarteraVigenteAsync(Guid usuarioId, CancellationToken cancellationToken = default)
-    {
-        Eventos?.Add("leer-cartera");
-        if (Carteras.TryDequeue(out var siguiente)) _ultimaCartera = siguiente;
-        return Task.FromResult(_ultimaCartera);
     }
 }
 

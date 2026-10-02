@@ -7,7 +7,7 @@ namespace CaeManager.Domain.Notificaciones;
 /// que lo descarta — a diferencia de un Toast (ToastService, efímero), este
 /// sobrevive a recargas de página y a cerrar/reabrir sesión. Dos usos hoy,
 /// ambos disparados al reasignar Cliente.EjecutivoUsuarioId (ver
-/// ReasignarEjecutivoClienteCommand): aviso de cambio de cartera, y aviso de
+/// ReasignarEjecutivoClienteCommand): aviso de cambio de Gestor CAE de referencia, y aviso de
 /// que un Cliente recién asignado tiene algún TipoDocumento con lectura IA
 /// desactivada (con UrlAccion apuntando a la pantalla de configuración).
 /// </summary>

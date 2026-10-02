@@ -39,7 +39,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
     /// <c>Writer</c> se añadió tras comprobar que su ausencia no era teórica:
     /// <c>IAsignacionesOperativasWriter</c> es la persistencia de la feature
     /// <c>Operaciones</c> y <b>ocho</b> handlers de <c>Clientes</c> y
-    /// <c>Tenants</c> ya dependían de ella. Eran referencias cruzadas reales,
+    /// <c>Tenants</c> dependían de ella (hoy, los de <c>Tenants</c>). Eran referencias cruzadas reales,
     /// sin entrada en la lista blanca y sin que el ratchet las viera, solo
     /// porque el nombre no terminaba en <c>Repository</c> ni en
     /// <c>QueryContext</c>.
@@ -652,12 +652,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // escritor y no un repositorio: es una operación de mantenimiento de la
         // proyección, no la persistencia de un agregado ajeno.
         //
-        // Se retiran cuando se retire la proyección EjecutivoUsuarioId. Hasta
-        // entonces, ocho entradas explícitas valen más que un patrón que no las
-        // veía: durante meses fueron referencias cruzadas reales, sin lista y
-        // sin ratchet, porque el nombre no acababa en Repository ni QueryContext.
-        ("Clientes.CrearClienteCommandHandler", "IAsignacionesOperativasWriter"),
-        ("Clientes.ReasignarEjecutivoClienteCommandHandler", "IAsignacionesOperativasWriter"),
+        // Entradas explícitas, porque valen más que un patrón que no las veía: durante
+        // meses fueron referencias cruzadas reales, sin lista y sin ratchet, porque el
+        // nombre no acababa en Repository ni QueryContext. CrearCliente y
+        // ReasignarEjecutivoCliente salieron de la lista con D-7 (2026-10-02): la
+        // referencia EjecutivoUsuarioId ya no escribe carteras.
         ("Tenants.CrearAsignacionOperadorDelegadoCommandHandler", "IAsignacionesOperativasWriter"),
         ("Tenants.CrearClienteDeleganteCommandHandler", "IAsignacionesOperativasWriter"),
         ("Tenants.CrearDelegacionTenantCommandHandler", "IAsignacionesOperativasWriter"),
