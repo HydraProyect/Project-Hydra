@@ -189,7 +189,8 @@ public class BotonVarianteYUnSoloPrimarioTests
         PrimarioAPelo("""<a class="boton-primario boton-continuar" href="x">Seguir</a>""").Should().Equal("boton-primario");
         PrimarioAPelo("""<button class="orden-menu-boton orden-menu-boton-primario">Guardar</button>""").Should().Equal("orden-menu-boton-primario");
         PrimarioAPelo("""<button class="boton @(esPrimario ? "boton-primario" : "boton-secundario")">X</button>""").Should().Equal("boton-primario");
-        PrimarioAPelo("""<Boton Variante="VarianteBoton.Primario" class="boton-2fa">X</Boton>""").Should().BeEmpty("es el componente");
+        PrimarioAPelo("""<Boton Variante="VarianteBoton.Primario" class="boton-2fa">X</Boton>""").Should().BeEmpty("es el componente, con su clase de colocación");
+        PrimarioAPelo("""<Boton Variante="VarianteBoton.Secundario" class="boton-primario">X</Boton>""").Should().Equal("boton-primario"); // la clase de primario no se cuela por el class de un componente
         PrimarioAPelo("""<button class="boton-primarioso">X</button>""").Should().BeEmpty("otro token que lo contiene");
         PrimarioAPelo("""<button class="boton-secundario">X</button>""").Should().BeEmpty();
     }
@@ -198,7 +199,7 @@ public class BotonVarianteYUnSoloPrimarioTests
     private static List<string> PrimarioAPelo(string razor)
     {
         var resultado = new List<string>();
-        foreach (var etiqueta in MarcadoRazor.Aperturas(razor, "[a-z][a-z0-9]*"))
+        foreach (var etiqueta in MarcadoRazor.Aperturas(razor, @"[A-Za-z][A-Za-z0-9]*"))
         {
             var m = AtributoClase.Match(etiqueta.Texto);
             if (!m.Success) continue;

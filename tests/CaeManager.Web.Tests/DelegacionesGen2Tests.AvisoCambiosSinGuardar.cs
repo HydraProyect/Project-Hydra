@@ -122,6 +122,28 @@ public partial class DelegacionesGen2Tests
         cut.FindAll("[role=dialog]").Should().BeEmpty();
     }
 
+    /// <summary>D-05 (hallazgo de la revisión puente): «Cancelar» del modal «Autorizar un Operador CAE externo» cierra como la X.</summary>
+    [Fact]
+    public async Task Cancelar_autorizar_un_Operador_con_la_busqueda_escrita_pregunta_y_sin_tocar_cierra()
+    {
+        var arcoSpa = new OperadorCaeExternoAutorizableDto(Guid.NewGuid(), "ArcoSPA");
+        ComoAdministradorDelTenantPropietario(q => q.OperadorId == arcoSpa.TenantId ? arcoSpa : null);
+        var (cut, _, _) = Renderizar(esAdministradorPlataforma: false);
+        await BotonConTexto(cut, "Autorizar un Operador CAE externo").ClickAsync(new MouseEventArgs());
+        await BotonConTexto(cut, "Cancelar").ClickAsync(new MouseEventArgs());
+        cut.FindAll("[role=dialog]").Should().BeEmpty("sin nada escrito, Cancelar cierra directamente");
+        PreguntaDescartar(cut).Should().BeFalse();
+
+        await BotonConTexto(cut, "Autorizar un Operador CAE externo").ClickAsync(new MouseEventArgs());
+        await EscribirEnElModalAsync(cut, "Arco");
+        await BotonConTexto(cut, "Cancelar").ClickAsync(new MouseEventArgs());
+
+        PreguntaDescartar(cut).Should().BeTrue("con la búsqueda escrita, Cancelar pregunta como la X");
+        cut.FindAll("[role=dialog]").Should().NotBeEmpty("hasta que se confirme, el modal sigue abierto");
+        await BotonConTexto(cut, "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Aviso_el_Operador_CAE_que_trae_el_enlace_no_es_un_cambio_y_buscar_otro_si()
     {

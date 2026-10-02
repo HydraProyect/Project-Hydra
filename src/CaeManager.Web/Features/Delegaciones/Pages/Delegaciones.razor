@@ -380,7 +380,7 @@
     </Pie>
 </Modal>
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarAutorizarOperador"
+<Modal @ref="_modalAutorizar" HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarAutorizarOperador"
        VisibleChanged="v => CerrarAutorizarOperador(v)"
        Titulo="@TextosAutorizar["AccionAutorizar"]"
        CerrarAlHacerClicFuera="!_autorizandoOperador">
@@ -422,7 +422,7 @@
     <Pie>
         <Boton Variante="VarianteBoton.Secundario"
                Deshabilitado="_autorizandoOperador"
-               OnClick="() => CerrarAutorizarOperador(false)">
+               OnClick="() => _modalAutorizar?.SolicitarCierreAsync() ?? Task.CompletedTask">
             @TextosAutorizar["Cancelar"]
         </Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_autorizandoOperador" OnClick="AutorizarOperadorAsync">@TextosAutorizar["Autorizar"]</Boton>

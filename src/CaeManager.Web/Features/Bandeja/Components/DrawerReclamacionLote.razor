@@ -21,12 +21,12 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 
-<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Reclamar en lote" CerrarAlHacerClicFuera="@(!_enviando)">
+<Drawer @ref="_drawer" HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Reclamar en lote" CerrarAlHacerClicFuera="@(!_enviando)">
     <ChildContent>
         @if (_paso == Paso.Seleccion)
         {
             <SelectorLoteDocumental @ref="_selector" AmbitosDisponibles="AmbitosDisponibles" AmbitoInicial="AmbitoInicial" EntidadIdInicial="EntidadIdInicial"
-                                    OnConfirmar="ResolverAsync" OnCancelar="() => CerrarAsync(false)"
+                                    OnConfirmar="ResolverAsync" OnCancelar="() => _drawer?.SolicitarCierreAsync() ?? Task.CompletedTask"
                                     OnFiltroCambiado="AlCambiarFiltro" />
         }
         else if (_paso == Paso.Cargando)
@@ -129,6 +129,7 @@
 <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => CerrarAsync(false)" />
 
 @code {
+    private Drawer? _drawer;
     private enum Paso { Seleccion, Cargando, SinResultados, Revision }
 
     private Paso _paso = Paso.Seleccion;

@@ -207,6 +207,13 @@
     margin-top: var(--space-6);
 }
 
+/* Boton no parte la etiqueta (nowrap) y recorta el desborde: «Activar autenticación en dos pasos» a 320 px de ancho se cortaría. Con
+   la especificidad de .boton + esta clase, la etiqueta pasa a línea y el botón crece en alto (su altura es un mínimo). */
+.boton.boton-2fa {
+    white-space: normal;
+    text-align: center;
+}
+
 @media (max-width: 1024px) {
     .dos-factores-alta { grid-template-columns: 1fr; }
     .tarjeta-qr { max-width: 280px; }

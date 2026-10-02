@@ -181,6 +181,14 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
                 <Pie><Boton Variante="VarianteBoton.Secundario" Deshabilitado="() => a" OnClick="CancelarGAsync">Cancelar</Boton></Pie></Drawer>
             <Drawer @ref="_h" HayCambios="() => X" Visible="v"><ChildContent><CampoTexto Etiqueta="n" /></ChildContent>
                 <Pie><Boton Variante="VarianteBoton.Secundario" OnClick="() => CancelarHAsync()">Cancelar</Boton></Pie></Drawer>
+            <Modal @ref="_i" HayCambios="() => X" Visible="v"><ChildContent><CampoTexto Etiqueta="n" /></ChildContent>
+                <Pie><Boton Variante="VarianteBoton.Secundario" OnClick="() => _vI = false">@TextosAutorizar["Cancelar"]</Boton></Pie></Modal>
+            <Drawer @ref="_j" HayCambios="() => X" Visible="v"><ChildContent><CampoTexto Etiqueta="n" />
+                <SelectorLote OnCancelar="() => CerrarAsync(false)" /></ChildContent></Drawer>
+            <Drawer @ref="_k" HayCambios="() => X" Visible="v"><ChildContent><CampoTexto Etiqueta="n" />
+                <SelectorLote OnCancelar="() => _k?.SolicitarCierreAsync() ?? Task.CompletedTask" /></ChildContent></Drawer>
+            <Drawer @ref="_l" HayCambios="() => X" Visible="v"><ChildContent><CampoTexto Etiqueta="n" /></ChildContent>
+                <Pie><Boton Variante="@(esPrimaria ? VarianteBoton.Primario : VarianteBoton.Secundario)" OnClick="() => _vL = false">Cancelar</Boton></Pie></Drawer>
             """;
 
         var codigo = """
@@ -204,11 +212,15 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         medidos["x.razor#Modal4"].CancelarSinGuardian.Should().Equal("Cancelar");
         medidos["x.razor#Drawer3"].CancelarSinGuardian.Should().BeEmpty("un « => » en un atributo anterior no esconde el OnClick, y el manejador de bloque llama al guardián");
         medidos["x.razor#Drawer4"].CancelarSinGuardian.Should().Equal("Cancelar");
+        medidos["x.razor#Modal5"].CancelarSinGuardian.Should().Equal(["@TextosAutorizar[\"Cancelar\"]"], "el rótulo con otro localizador (TextosAutorizar) también es un Cancelar");
+        medidos["x.razor#Drawer5"].CancelarSinGuardian.Should().Equal("OnCancelar de <SelectorLote>");
+        medidos["x.razor#Drawer6"].CancelarSinGuardian.Should().BeEmpty("el OnCancelar del hijo está cableado al guardián");
+        medidos["x.razor#Drawer7"].CancelarSinGuardian.Should().Equal("Cancelar"); // una variante condicional no exime al botón
 
         Evaluar(medidos.Values.ToList(), new Dictionary<string, string>())
             .Where(p => p.Contains("SolicitarCierreAsync", StringComparison.Ordinal))
             .Select(p => p.Split(':')[0])
-            .Should().BeEquivalentTo("x.razor#Drawer1", "x.razor#Modal2", "x.razor#Drawer4");
+            .Should().BeEquivalentTo("x.razor#Drawer1", "x.razor#Modal2", "x.razor#Drawer4", "x.razor#Modal5", "x.razor#Drawer5", "x.razor#Drawer7");
     }
 
     [Fact]
@@ -327,6 +339,22 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
             lista.Add(TextoVisible(boton.Cuerpo));
         }
 
+        // El «Cancelar» que vive en un componente hijo (SelectorLoteDocumental) llega al padre por OnCancelar: el padre lo cablea al
+        // guardián del contenedor en vez de cerrar directo. Sin la restricción del <Pie>: el hijo pinta su propio pie.
+        foreach (var hijo in MarcadoRazor.Aperturas(texto, @"[A-Z]\w*").Where(a => AtributoOnCancelar.IsMatch(a.Texto)))
+        {
+            if (UsaElGuardianDeCierre(hijo.Texto, codigo, AtributoOnCancelar)) continue;
+            var dueno = contenedores
+                .Where(c => c.Inicio < hijo.Inicio && hijo.Inicio < c.Fin)
+                .OrderByDescending(c => c.Inicio)
+                .FirstOrDefault();
+            if (dueno is null) continue;
+            var clave = $"{ruta}#{dueno.Nombre}{dueno.Ordinal}";
+            if (!cancelaresPorContenedor.TryGetValue(clave, out var lista))
+                cancelaresPorContenedor[clave] = lista = [];
+            lista.Add($"OnCancelar de <{hijo.Nombre}>");
+        }
+
         return contenedores.Select(c =>
         {
             var clave = $"{ruta}#{c.Nombre}{c.Ordinal}";
@@ -339,16 +367,18 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     // «Cancelar» o «Descartar» (y «Descartar cambios»), tal cual o como @Textos["…Cancelar…"]. Un botón con otro rótulo («Volver»,
     // «Cerrar») no es de este contrato: ese lo decide el diálogo, no el formulario.
     private static readonly Regex RotuloDeCancelar = new(
-        @"^(?:Cancelar|Descartar(?:\s+cambios)?|@Textos\[""[^""]*Cancelar[^""]*""\])$", RegexOptions.Compiled);
+        @"^(?:Cancelar|Descartar(?:\s+cambios)?|@\w*Textos\w*\[""[^""]*Cancelar[^""]*""\])$", RegexOptions.Compiled);
 
     private static readonly Regex AtributoOnClick = new(@"(?:^|\s)OnClick\s*=\s*""", RegexOptions.Compiled);
+
+    private static readonly Regex AtributoOnCancelar = new(@"(?:^|\s)OnCancelar\s*=\s*""", RegexOptions.Compiled);
 
     private static string TextoVisible(string cuerpo) =>
         Regex.Replace(Regex.Replace(cuerpo, @"<[^>]*>", " "), @"\s+", " ").Trim();
 
     // El botón que cierra sin hacer nada nunca es el primario ni el destructivo: un «Descartar» primario (Retencion.razor, «Descartar»
     // la retención programada) es la acción del diálogo, no su salida.
-    private static readonly Regex VarianteDeAccion = new(@"Variante\s*=\s*""[^""]*(?:Primario|Destructivo)""", RegexOptions.Compiled);
+    private static readonly Regex VarianteDeAccion = new(@"Variante\s*=\s*""VarianteBoton\.(?:Primario|Destructivo)""", RegexOptions.Compiled);
 
     private static bool EsBotonDeCancelar(MarcadoRazor.Elemento boton) =>
         RotuloDeCancelar.IsMatch(TextoVisible(boton.Cuerpo)) && !VarianteDeAccion.IsMatch(boton.Apertura);
@@ -358,9 +388,9 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     /// mismo componente (<c>.razor</c> o <c>.razor.cs</c>) cuyo cuerpo lo llama. Un solo salto: el manejador que delega en otro
     /// manejador no cuenta (que el guardián se vea en el manejador del botón es parte del contrato).
     /// </summary>
-    private static bool UsaElGuardianDeCierre(string apertura, string codigo)
+    private static bool UsaElGuardianDeCierre(string apertura, string codigo, Regex? atributo = null)
     {
-        var m = AtributoOnClick.Match(apertura);
+        var m = (atributo ?? AtributoOnClick).Match(apertura);
         if (!m.Success) return false;
         var valor = MarcadoRazor.ValorDeComillas(apertura, m.Index + m.Length);
         if (valor.Contains("SolicitarCierreAsync", StringComparison.Ordinal)) return true;
