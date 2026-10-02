@@ -89,7 +89,7 @@ public class ResolucionProveedorPlataformaCaeService(IProveedoresPlataformaCaeQu
     /// <summary>
     /// Coincidencia exacta o por sufijo de subdominio: "cliente123.ergasia.es"
     /// coincide con el dominio sembrado "ergasia.es" (match por sufijo,
-    /// Ergasia/Valora/PlayCAE lo necesitan — subdominios propios de cada
+    /// Ergasia/Avanta Prevención (slug «valora»)/PlayCAE lo necesitan — subdominios propios de cada
     /// cliente), pero "notergasia.es" no (el punto delimitador evita falsos
     /// positivos por coincidencia de sufijo de cadena sin ser subdominio real).
     /// </summary>

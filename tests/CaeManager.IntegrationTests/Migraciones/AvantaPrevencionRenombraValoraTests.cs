@@ -23,17 +23,30 @@ namespace CaeManager.IntegrationTests.Migraciones;
 /// </summary>
 public class AvantaPrevencionRenombraValoraTests : IAsyncLifetime
 {
-    private const string MigracionAnterior = "20260928144429_LogoTenant";
     private const string MigracionDelCambio = "20261002152423_AvantaPrevencionRenombraValora";
     private static readonly Guid IdValora = new("6000000b-0000-0000-0000-000000000001");
 
     private readonly string _cadena = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
+    /// <summary>La migración inmediatamente anterior a la del cambio: así la constante no caduca cuando entre otra posterior.</summary>
+    private string MigracionAnterior
+    {
+        get
+        {
+            using var contexto = NuevoContexto();
+            var migraciones = contexto.Database.GetMigrations().ToList();
+            var indice = migraciones.IndexOf(MigracionDelCambio);
+            indice.Should().BeGreaterThan(0, "la migración del cambio existe en el ensamblado y no es la línea base");
+            return migraciones[indice - 1];
+        }
+    }
+
     public async Task InitializeAsync()
     {
         await BaseDatosPostgresDePruebas.MigrarAsync(_cadena);
 
-        // Se deshace solo la migración del cambio: la base queda como estaba en staging y producción antes.
+        // Se deshace hasta la migración anterior a la del cambio: la base queda como estaba en staging y
+        // producción antes de desplegarlo.
         await using var contexto = NuevoContexto();
         await contexto.GetService<IMigrator>().MigrateAsync(MigracionAnterior);
     }
