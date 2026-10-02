@@ -63,6 +63,7 @@ mutante "el tope de --limite-pr no se avisa"          's/    if lote_recortado:/
 mutante "el tope avisa aunque cubra la ventana"       's/lote_recortado = tope and min(p\["number"\] for p in prs) > args.pr_min/lote_recortado = tope/' "test_el_tope_de_limite_pr"
 mutante "el tope de la ventana --desde no se avisa"   's/desde_recortado = tope and /desde_recortado = False and /'         "test_el_tope_que_corta_la_ventana_desde"
 mutante "M18 da 0 si la lista no tiene el formato"    's/        if not archivos:/        if False:/'                    "test_directorios_existentes_pero_vacios"
+mutante "--comparar no tolera el BOM de PowerShell"    's/encoding="utf-8-sig"/encoding="utf-8"/'                    "test_comparar_lee_una_linea_base_con_BOM"
 mutante "M9 no reconoce 2ª parte"                    's/|2\\.?ª parte//'                                               "test_M9_continuaciones"
 
 echo

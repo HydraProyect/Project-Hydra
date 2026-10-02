@@ -602,7 +602,8 @@ def main(argv=None):
     filas.sort(key=lambda f: int(f["id"][1:]))
     base = None
     if a.comparar:
-        base = json.loads(Path(a.comparar).read_text(encoding="utf-8"))
+        # utf-8-sig: el `>` de PowerShell 5.1 escribe el JSON con BOM.
+        base = json.loads(Path(a.comparar).read_text(encoding="utf-8-sig"))
         filas = comparar(filas, base)
         if base.get("ventana_lote") and base["ventana_lote"] != [a.pr_min, a.pr_max]:
             # Las métricas del lote (M2, M3, M6, M9, M10) no son comparables si la ventana cambió.

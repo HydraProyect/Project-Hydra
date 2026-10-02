@@ -357,6 +357,18 @@ class ConGhFalso(unittest.TestCase):
         f, _ = self.valores(limite_pr=7)                            # desde 2026-09-12: cubierto
         self.assertNotIn("ATENCIÓN", f["M7"]["detalle"])
 
+    def test_comparar_lee_una_linea_base_con_BOM_de_PowerShell(self):
+        import contextlib
+        import io
+        with tempfile.TemporaryDirectory() as t:
+            raiz = Path(t)
+            Repo().arbol(raiz)
+            base = raiz / "base.json"
+            base.write_bytes(b"\xef\xbb\xbf" + json.dumps({"ventana_lote": [1015, 1036], "metricas": []}).encode("utf-8"))
+            with contextlib.redirect_stdout(io.StringIO()):
+                rc = mp.main(["--solo", "repo", "--raiz", str(raiz), "--negocio", str(raiz / "no"), "--comparar", str(base)])
+        self.assertEqual(rc, 0)
+
     def test_una_linea_base_de_otra_ventana_avisa_de_que_no_es_comparable(self):
         import contextlib
         import io
