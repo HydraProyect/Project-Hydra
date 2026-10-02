@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Hydra CAE — Subida asistida",
+  "name": "TALVEG — Subida asistida",
   "version": "0.4.0",
-  "description": "Sube documentos de Hydra directamente a las plataformas CAE externas, sin descargarlos antes a tu disco.",
+  "description": "Sube documentos de TALVEG directamente a las plataformas CAE externas, sin descargarlos antes a tu disco.",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
