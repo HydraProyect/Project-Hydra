@@ -432,7 +432,7 @@ else
         return CargarHistorialAsync();
     }
 
-    private async Task ReclamarDeNuevoAsync(ReclamacionEnviadaDto reclamacion)
+    private async Task ReclamarDeNuevoAsync(ReclamacionEnviadaDto reclamacion, IReadOnlyList<Guid> contactoIds)
     {
         // La guarda se comprueba AL ENTRAR, no al salir: el botón deshabilitado
         // no basta porque el segundo clic ya viajaba cuando se deshabilitó.
@@ -450,8 +450,8 @@ else
             // buscaría documentos de Trabajador de un Cliente que no existe y
             // fallaría con "ninguno sigue siendo reclamable".
             var resultado = reclamacion.AmbitoTitular == AmbitoAplicacion.Empresa
-                ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(reclamacion.TitularId, reclamacion.DocumentoIds), token)
-                : await Mediator.Send(new EnviarReclamacionCommand(reclamacion.TitularId, reclamacion.DocumentoIds), token);
+                ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(reclamacion.TitularId, reclamacion.DocumentoIds, contactoIds), token)
+                : await Mediator.Send(new EnviarReclamacionCommand(reclamacion.TitularId, reclamacion.DocumentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds), token);
 
             // La pestaña pudo desecharse mientras el comando estaba en vuelo:
             // ni el toast ni la recarga pertenecen a un componente ya retirado.
@@ -655,12 +655,18 @@ else
         var reclamacion = _reclamacionAReenviar;
         // Un segundo clic con el envío en vuelo no cierra nada: el diálogo sigue
         // mostrando el progreso hasta que termina el primero.
-        if (reclamacion is null || _reenviandoId is not null)
+        if (reclamacion is null || _vistaPreviaReenvio is null || _reenviandoId is not null)
             return;
+
+        // Se envía a QUIEN enseñó la revisión, no a lo que la agenda resuelva en este
+        // instante: un contacto añadido entre la vista previa y el clic no recibe el
+        // correo sin haberse mostrado, y uno que ya no resuelve hace fallar el envío
+        // entero (ContactosDesactualizados), igual que en «Enviar reclamación».
+        IReadOnlyList<Guid> contactoIds = [.. _vistaPreviaReenvio.Destinatarios.Select(d => d.ContactoId)];
 
         try
         {
-            await ReclamarDeNuevoAsync(reclamacion);
+            await ReclamarDeNuevoAsync(reclamacion, contactoIds);
         }
         finally
         {

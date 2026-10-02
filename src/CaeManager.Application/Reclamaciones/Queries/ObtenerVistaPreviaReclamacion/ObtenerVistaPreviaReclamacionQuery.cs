@@ -15,12 +15,20 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerVistaPreviaReclama
 /// ventana de reclamables, mismo todo o nada y misma resolución de agenda.
 /// Un envío que fallaría (documentos ya renovados, sin acceso, sin
 /// destinatario) falla también aquí, con el mismo error.
+///
+/// <para>
+/// Implementa <see cref="ICommand{TRespuesta}"/> aunque no escriba, a propósito:
+/// así pasa por la misma puerta que el envío (rol con escritura, sesión
+/// privilegiada, puerta comercial) y por el mismo alcance sin memoizar, y quien
+/// no puede enviar tampoco ve a quién se enviaría ni el texto con nombres de
+/// trabajadores. Una consulta pura se saltaría esos behaviors.
+/// </para>
 /// </summary>
 /// <param name="Ambito">Titular del lote: Cliente (documentos de Trabajador) o Empresa.</param>
 public record ObtenerVistaPreviaReclamacionQuery(
     AmbitoAplicacion Ambito,
     Guid TitularId,
-    IReadOnlyList<Guid> DocumentoIds) : IRequest<Result<ReclamacionPreparada>>;
+    IReadOnlyList<Guid> DocumentoIds) : ICommand<ReclamacionPreparada>;
 
 public class ObtenerVistaPreviaReclamacionQueryHandler(
     EnviarReclamacionCommandHandler enviarCliente,

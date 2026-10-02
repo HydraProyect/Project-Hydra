@@ -1,4 +1,5 @@
 using CaeManager.Domain.Common;
+using CaeManager.Application.Common;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
@@ -302,6 +303,43 @@ public class EnviarReclamacionCommandHandlerTests
 
         previa.EsFallido.Should().BeTrue();
         previa.Error.Codigo.Should().Be(envio.Error.Codigo);
+    }
+
+    /// <summary>
+    /// La vista previa pasa por la misma puerta que el envío (rol con escritura,
+    /// sesión privilegiada, puerta comercial): lo garantiza ser un ICommand.
+    /// </summary>
+    [Fact]
+    public void La_vista_previa_es_un_comando_para_heredar_la_autorizacion_de_escritura_del_envio() =>
+        typeof(ICommandBase).IsAssignableFrom(typeof(ObtenerVistaPreviaReclamacionQuery)).Should().BeTrue();
+
+    [Fact]
+    public async Task La_vista_previa_de_titular_Empresa_resuelve_como_el_envio_de_Empresa()
+    {
+        var escenario = ConstruirEscenario();
+        var contraparte = new Empresa("Contraparte SL", "B12345674");
+        escenario.Entorno.Empresas.ListaEmpresas.Add(contraparte);
+        var tipoEmpresa = new TipoDocumento("Seguro RC", null, false, 1, AmbitoAplicacion.Empresa);
+        escenario.Entorno.TiposDocumento.ListaTiposDocumento.Add(tipoEmpresa);
+        var documento = Documento.DeEmpresa(contraparte.Id, tipoEmpresa.Id, Hoy.AddYears(-1), VigenciaDocumento.VenceEl(Hoy.AddDays(10)));
+        escenario.Entorno.Documentos.ListaDocumentos.Add(documento);
+        escenario.Entorno.Agenda.RespuestaResolverParaEmpresaAsync = [Contacto("Marta Gil")];
+        var alcance = new AlcanceDatosServiceFalso();
+
+        var previa = await CrearVistaPrevia(escenario, alcance).Handle(
+            new ObtenerVistaPreviaReclamacionQuery(AmbitoAplicacion.Empresa, contraparte.Id, [documento.Id]), CancellationToken.None);
+        var envio = await new EnviarReclamacionEmpresaCommandHandler(
+                escenario.Entorno.Empresas, escenario.Entorno.Documentos, escenario.Entorno.TiposDocumento, alcance,
+                escenario.Entorno.Agenda, escenario.Entorno.RegistroEnvio)
+            .Handle(new EnviarReclamacionEmpresaCommand(contraparte.Id, [documento.Id]), CancellationToken.None);
+
+        previa.EsExitoso.Should().BeTrue();
+        envio.EsExitoso.Should().BeTrue();
+        var registro = escenario.Entorno.RegistroEnvio;
+        previa.Valor.Correos.Should().Equal(registro.UltimosDestinatarios);
+        previa.Valor.Asunto.Should().Be(registro.UltimoAsunto);
+        previa.Valor.CuerpoHtml.Should().Be(registro.UltimoCuerpoHtml);
+        registro.UltimoTitular!.Ambito.Should().Be(AmbitoAplicacion.Empresa);
     }
 
     [Fact]

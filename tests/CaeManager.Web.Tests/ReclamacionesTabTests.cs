@@ -489,7 +489,41 @@ public class ReclamacionesTabTests : BunitContext
             .And.Contain("Texto de la vista previa");
 
         await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
-        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle();
+        var envio = mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle().Subject;
+        envio.ContactoIdsSeleccionados.Should().NotBeNullOrEmpty("se envía a quien enseñó la revisión, no a lo que la agenda resuelva después");
+    }
+
+    /// <summary>«Volver» en la revisión del reenvío cierra sin enviar.</summary>
+    [Fact]
+    public async Task Volver_en_la_revision_del_reenvio_cierra_sin_enviar()
+    {
+        var mediador = ConHistorial(ReclamacionEnviada());
+        var (cut, _) = Renderizar(mediador);
+
+        await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Volver").ClickAsync(new MouseEventArgs());
+
+        cut.Markup.Should().NotContain("Confirmar y enviar");
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty();
+    }
+
+    /// <summary>Una reclamación de titular Empresa pide la vista previa de Empresa y se envía por el comando de Empresa, con los contactos mostrados.</summary>
+    [Fact]
+    public async Task Reclamar_de_nuevo_de_titular_Empresa_usa_el_ambito_Empresa_en_la_vista_previa_y_en_el_envio()
+    {
+        var fila = ReclamacionEnviada("Contraparte SL") with { AmbitoTitular = AmbitoAplicacion.Empresa };
+        var mediador = ConHistorial(fila);
+        var (cut, _) = Renderizar(mediador);
+
+        await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+
+        var consulta = mediador.Enviadas.OfType<ObtenerVistaPreviaReclamacionQuery>().Should().ContainSingle().Subject;
+        consulta.Ambito.Should().Be(AmbitoAplicacion.Empresa);
+        consulta.TitularId.Should().Be(fila.TitularId);
+        var envio = mediador.Enviadas.OfType<EnviarReclamacionEmpresaCommand>().Should().ContainSingle().Subject;
+        envio.ContactoIdsSeleccionados.Should().NotBeNullOrEmpty();
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().BeEmpty();
     }
 
     /// <summary>Si la vista previa falla (el envío fallaría igual), se avisa y no se abre ninguna revisión ni se envía.</summary>
