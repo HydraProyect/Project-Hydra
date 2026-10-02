@@ -118,7 +118,7 @@ else
                         <div class="alerta-formulario" role="alert">@_mensajeErrorInformacion</div>
                     }
                     <div class="workspace-grupo-campos">
-                        <CampoInfo Etiqueta="Cliente" Valor="@_detalle.ClienteRazonSocial" />
+                        <CampoInfo Etiqueta="Cliente empresarial" Valor="@_detalle.ClienteRazonSocial" />
                         <CampoInfo Etiqueta="Empresa" Valor="@_detalle.EmpresaRazonSocial" />
                         <CampoTexto Etiqueta="Nombre" Valor="@_nombreInfo" ValorChanged="v => _nombreInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarCentroCommand.Nombre))" />
                         <CampoTexto Etiqueta="Código de centro" Valor="@_codigoCentroInfo" ValorChanged="v => _codigoCentroInfo = v" />
@@ -134,7 +134,7 @@ else
                 else
                 {
                     <div class="workspace-grupo-campos">
-                        <CampoInfo Etiqueta="Cliente" Valor="@_detalle.ClienteRazonSocial" />
+                        <CampoInfo Etiqueta="Cliente empresarial" Valor="@_detalle.ClienteRazonSocial" />
                         <CampoInfo Etiqueta="Empresa" Valor="@_detalle.EmpresaRazonSocial" />
                         <CampoInfo Etiqueta="Código de centro" Valor="@_detalle.CodigoCentro" />
                         <CampoInfo Etiqueta="Dirección" Valor="@_detalle.Direccion" />

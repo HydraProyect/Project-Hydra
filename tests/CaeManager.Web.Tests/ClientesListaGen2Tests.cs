@@ -547,7 +547,7 @@ public class ClientesListaGen2Tests : BunitContext
 
         var cabecera = cut.Find("header.cabecera-pagina");
         cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Negocio");
-        cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be("Clientes");
+        cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be("Clientes empresariales");
 
         // Pieza 1 del patrón de lista: Exportar (enlace), «Más» y UNA primaria.
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;

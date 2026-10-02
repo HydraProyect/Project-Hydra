@@ -408,7 +408,7 @@
         @if (_padresFijadosPorCadena)
         {
             <div class="campo">
-                <label>Cliente</label>
+                <label>Cliente empresarial</label>
                 <span>@_clienteNombreSoloLectura</span>
             </div>
             <div class="campo">
@@ -417,16 +417,16 @@
             </div>
 
             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="DesvincularPadresFijadosAsync">
-                Cambiar cliente/empresa
+                Cambiar Cliente empresarial/empresa
             </Boton>
         }
         else
         {
-            <SelectorEntidad Etiqueta="Cliente" Placeholder="Busca o crea un cliente…" Valor="@_clienteId"
+            <SelectorEntidad Etiqueta="Cliente empresarial" Placeholder="Busca o crea un Cliente empresarial…" Valor="@_clienteId"
                               ValorChanged="CambiarClienteCreacionAsync" Opciones="ClientesComoOpciones"
                               PermiteCrear="true" OnCrearSolicitado="AbrirCrearClienteInline" />
 
-            <SelectorEntidad Etiqueta="Empresa" Placeholder="@(string.IsNullOrEmpty(_clienteId) ? "Elige primero un cliente…" : "Busca o crea una empresa…")"
+            <SelectorEntidad Etiqueta="Empresa" Placeholder="@(string.IsNullOrEmpty(_clienteId) ? "Elige primero un Cliente empresarial…" : "Busca o crea una empresa…")"
                               Valor="@_empresaId" ValorChanged="AlElegirEmpresa" Opciones="EmpresasComoOpciones"
                               Deshabilitado="@(string.IsNullOrEmpty(_clienteId))"
                               PermiteCrear="true" OnCrearSolicitado="AbrirCrearEmpresaInline" />

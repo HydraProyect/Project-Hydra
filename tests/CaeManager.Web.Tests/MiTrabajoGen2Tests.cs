@@ -339,6 +339,17 @@ public class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
+    public void El_orden_por_Cliente_empresarial_se_rotula_completo_y_no_Cliente_a_secas()
+    {
+        var cut = Renderizar();
+
+        var botones = cut.Find("[role=group][aria-label=Ordenar]").QuerySelectorAll("button").Select(b => b.TextContent.Trim());
+
+        botones.Should().Contain("Cliente empresarial", "CONTRATO_TERMINOLOGIA § 3.2; Gen2 § 14 enmendado el 2026-10-02")
+            .And.NotContain("Cliente");
+    }
+
+    [Fact]
     public void Abrir_una_fila_pinta_el_detalle_con_Tenant_y_Cliente_empresarial_separados_y_rotulados_segun_el_contrato()
     {
         var cut = Renderizar();
@@ -346,9 +357,9 @@ public class MiTrabajoGen2Tests : BunitContext
         FilaDe(cut, "Rechazado por la plataforma").Click();
 
         // Contrato § 14: en pantalla el Tenant propietario es «Empresa» y el
-        // Cliente empresarial es «Cliente»; nunca comparten rótulo.
+        // Cliente empresarial es «Cliente empresarial»; nunca comparten rótulo.
         var detalle = cut.Find(".mi-trabajo-detalle");
-        detalle.QuerySelectorAll("dt").Select(d => d.TextContent).Should().Equal("Empresa", "Cliente", "Plataforma CAE");
+        detalle.QuerySelectorAll("dt").Select(d => d.TextContent).Should().Equal("Empresa", "Cliente empresarial", "Plataforma CAE");
         detalle.QuerySelectorAll("dd").Select(d => d.TextContent).Should().Equal("Laboratorios Dexter", "Cervezas Duff Ibérica", "Nalanda");
         Formulario(detalle).Tenant.Should().Be(TenantDexter.ToString());
     }

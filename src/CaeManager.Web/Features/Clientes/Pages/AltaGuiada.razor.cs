@@ -50,8 +50,8 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 /// </summary>
 public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
 {
-    // Texto visible del asistente (contrato Gen2 § 14): el Cliente empresarial
-    // se rotula «Cliente»/«Clientes» y sale de TextosClientes; las claves de
+    // Texto visible del asistente (Gen2 § 14 enmendado el 2026-10-02): el Cliente empresarial
+    // se rotula «Cliente empresarial»/«Clientes empresariales» y sale de TextosClientes; las claves de
     // paso ("cliente"…) y los nombres de código conservan el término canónico.
     private IReadOnlyList<PasoDefinicion>? _pasos;
 

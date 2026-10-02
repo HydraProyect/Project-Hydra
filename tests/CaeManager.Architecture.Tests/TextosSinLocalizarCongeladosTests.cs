@@ -71,7 +71,8 @@ public class TextosSinLocalizarCongeladosTests
         // de NavMenu.razor a literales de CatalogoMenuLateral.cs, y la heurística no ve un literal
         // de una sola palabra («Dashboard», «Empresas»…). Siguen sin localizar; su migración a
         // .resx es un incremento pendiente, no algo que esta cifra certifique.
-        ["Components/Layout"] = 76,
+        // 76 → 77 el 2026-10-02 (D-07/D-27) SIN migrar: el rótulo del menú «Clientes» pasó a «Clientes empresariales» (CONTRATO_TERMINOLOGIA § 3.2); una palabra era invisible a la heurística, dos no.
+        ["Components/Layout"] = 77,
         ["Components/Legal"] = 163,
         ["Components/Pages"] = 18,
         ["Components/Workspace"] = 58,
