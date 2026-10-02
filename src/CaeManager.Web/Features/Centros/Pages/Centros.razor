@@ -266,7 +266,8 @@
                                     <VentanaContexto Etiqueta="@DescribirRecuento(centro.Recuentos.Vencidas, "vencido")"
                                                      Titulo="@($"{centro.Recuentos.TotalVencidas} {(centro.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
                                         <Disparador>
-                                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento"
+                                                   title="@($"{centro.Recuentos.TotalVencidas} {(centro.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
                                                 @centro.Recuentos.TotalVencidas
                                             </Badge>
                                         </Disparador>
@@ -282,7 +283,8 @@
                                     <VentanaContexto Etiqueta="@DescribirRecuento(centro.Recuentos.Proximas, "próximo a vencer")"
                                                      Titulo="@($"{centro.Recuentos.TotalProximas} {(centro.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
                                         <Disparador>
-                                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento">
+                                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento"
+                                                   title="@($"{centro.Recuentos.TotalProximas} {(centro.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
                                                 @centro.Recuentos.TotalProximas
                                             </Badge>
                                         </Disparador>
@@ -425,7 +427,7 @@
                               PermiteCrear="true" OnCrearSolicitado="AbrirCrearClienteInline" />
 
             <SelectorEntidad Etiqueta="Empresa" Placeholder="@(string.IsNullOrEmpty(_clienteId) ? "Elige primero un cliente…" : "Busca o crea una empresa…")"
-                              Valor="@_empresaId" ValorChanged="v => _empresaId = v" Opciones="EmpresasComoOpciones"
+                              Valor="@_empresaId" ValorChanged="AlElegirEmpresa" Opciones="EmpresasComoOpciones"
                               Deshabilitado="@(string.IsNullOrEmpty(_clienteId))"
                               PermiteCrear="true" OnCrearSolicitado="AbrirCrearEmpresaInline" />
         }
@@ -458,16 +460,19 @@
 
 <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
 
-<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true">
-    <AccionesExtra>
-        @* Item 4 del backlog Centro 360 — funcionalidad nueva sin contrato previo,
-           mismo patrón que "Asignar a centro…" de /trabajadores (Fase B). *@
-        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(_seleccionados)">
-            Asignar a centros seleccionados…
-        </Boton>
-    </AccionesExtra>
-</BarraAccionesLote>
+@* Baja y asignación masiva son escrituras: un rol de solo lectura (Consulta) puede marcar filas pero no ve la barra. *@
+<SoloConEscritura>
+    <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true">
+        <AccionesExtra>
+            @* Item 4 del backlog Centro 360 — funcionalidad nueva sin contrato previo,
+               mismo patrón que "Asignar a centro…" de /trabajadores (Fase B). *@
+            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(_seleccionados)">
+                Asignar a centros seleccionados…
+            </Boton>
+        </AccionesExtra>
+    </BarraAccionesLote>
+</SoloConEscritura>
 
 <DrawerAsignacionMasiva @ref="_drawerAsignacion" OnGuardado="ManejarAsignacionMasivaGuardadaAsync" />
 

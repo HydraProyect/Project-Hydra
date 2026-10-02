@@ -13,6 +13,7 @@ using CaeManager.Application.Asignaciones.Commands.ReactivarAsignacion;
 using CaeManager.Application.Gestiones.Commands.CompletarGestion;
 using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
+using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
@@ -588,9 +589,14 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     // Cliente empresarial una renovación o la confirmación de la vigencia (decisión de D-22: solo cambia el cómputo).
     private async Task ReclamarFaltantesAsync()
     {
+        // Solo se ofrece lo que el envío acepta (VentanaReclamacion: con FechaVencimiento y dentro de la
+        // ventana). Un «Sin confirmar» sin fecha no tiene vencimiento que renovar: el envío lo rechaza, así
+        // que aquí no se ofrece y, si es lo único pendiente, se explica por qué.
+        var hoy = DiaDeNegocio.Hoy();
         var clientes = _centros
             .SelectMany(c => c.Documentos
-                .Where(d => d.DocumentoId is not null && d.Estado != EstadoDocumento.Vigente)
+                .Where(d => d.DocumentoId is not null && d.Estado != EstadoDocumento.Vigente
+                            && VentanaReclamacion.EsReclamable(d.FechaVencimiento, hoy))
                 .Select(d => (c.ClienteId, c.ClienteRazonSocial, DocumentoId: d.DocumentoId!.Value)))
             .GroupBy(x => (x.ClienteId, x.ClienteRazonSocial))
             .Select(g => new ClienteReclamableDto(g.Key.ClienteId, g.Key.ClienteRazonSocial, g.Select(x => x.DocumentoId).Distinct().ToList()))
@@ -598,7 +604,11 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
         if (clientes.Count == 0)
         {
-            ToastService.Mostrar(Textos["ToastSinPendientesReclamar"], TonoToast.Info);
+            var haySinFechaQueNoSePuedeReclamar = _centros.Any(c => c.Documentos.Any(d =>
+                d.DocumentoId is not null && d.Estado == EstadoDocumento.SinConfirmar && d.FechaVencimiento is null));
+            ToastService.Mostrar(
+                Textos[haySinFechaQueNoSePuedeReclamar ? "ToastSinConfirmarSinFechaNoReclamable" : "ToastSinPendientesReclamar"],
+                TonoToast.Info);
             return;
         }
 

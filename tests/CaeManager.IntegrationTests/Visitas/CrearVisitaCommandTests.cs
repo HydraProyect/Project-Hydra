@@ -143,6 +143,76 @@ public class CrearVisitaCommandTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Una_sugerencia_cuyo_mensaje_no_se_encuentra_crea_una_visita_de_origen_Correo()
+    {
+        // MensajeId no tiene clave foránea: el mensaje puede haberse retirado. Sin canal que leer manda el
+        // valor por defecto de una sugerencia, Correo (nunca Manual: la Visita sí nació de una sugerencia).
+        var origen = await CrearVisitaDesdeSugerenciaAsync(
+            (contexto, _) => Task.FromResult(Guid.NewGuid()));
+
+        origen.Should().Be(OrigenVisita.Correo);
+    }
+
+    [Fact]
+    public async Task Una_conversacion_de_WhatsApp_con_un_mensaje_de_correo_crea_una_visita_de_origen_Correo()
+    {
+        // Hilo mixto (Conversacion.AbsorberMensajesDe): la conversación es de WhatsApp, pero la sugerencia
+        // nació de un mensaje de correo. Manda el canal del MENSAJE, no el de la conversación.
+        var origen = await CrearVisitaDesdeSugerenciaAsync(async (contexto, _) =>
+        {
+            var conversacion = Conversacion.CrearWhatsApp("+34600000001", Guid.NewGuid(), clienteId: null, ejecutivoId: null);
+            contexto.Conversaciones.Add(conversacion);
+            await contexto.SaveChangesAsync();
+            conversacion.Canal.Should().Be(CanalConversacion.WhatsApp, "control: el hilo es de WhatsApp");
+
+            var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Necesitamos una visita mañana");
+            await contexto.SaveChangesAsync();
+            return mensaje.Id;
+        });
+
+        origen.Should().Be(OrigenVisita.Correo);
+    }
+
+    /// <summary>Alta de Visita desde una sugerencia cuyo mensaje fabrica <paramref name="crearMensaje"/>; devuelve el origen guardado.</summary>
+    private async Task<OrigenVisita> CrearVisitaDesdeSugerenciaAsync(
+        Func<CaeManagerDbContext, Centro, Task<Guid>> crearMensaje)
+    {
+        await using var contexto = CrearContexto();
+
+        var cliente = Empresa.CrearComoCliente("Cliente Origen Visita S.L.", "B10380194", false, null, null);
+        var empresa = new Empresa("Empresa Origen Visita S.L.", "B10380186");
+        contexto.Empresas.Add(cliente);
+        contexto.Empresas.Add(empresa);
+        await contexto.SaveChangesAsync();
+
+        var centro = new Centro(cliente.Id, empresa.Id, "Centro Origen Visita");
+        var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "García", "12345678Z");
+        contexto.Centros.Add(centro);
+        contexto.Trabajadores.Add(trabajador);
+        await contexto.SaveChangesAsync();
+
+        var mensajeId = await crearMensaje(contexto, centro);
+        var sugerencia = new SugerenciaVisitaCorreo(mensajeId, centro.Id, DiaDeNegocio.Hoy().AddDays(1), null, "Pide visita mañana", 90, 90, 90);
+        contexto.SugerenciasVisitaCorreo.Add(sugerencia);
+        await contexto.SaveChangesAsync();
+
+        var handler = new CrearVisitaCommandHandler(
+            new VisitaRepository(contexto), new VisitaTrabajadorRepository(contexto),
+            contexto, contexto,
+            new SugerenciaVisitaCorreoRepository(contexto), contexto,
+            new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), new PublicadorDeMentira(), contexto,
+            NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());
+
+        var resultado = await handler.Handle(new CrearVisitaCommand(
+            centro.Id, DiaDeNegocio.Hoy().AddDays(1), DiaDeNegocio.Hoy().AddDays(1),
+            [trabajador.Id], Notas: null, SugerenciaVisitaCorreoId: sugerencia.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeFalse();
+        await using var lectura = CrearContexto();
+        return (await lectura.Visitas.SingleAsync(v => v.Id == resultado.Valor)).Origen;
+    }
+
+    [Fact]
     public async Task No_publica_nada_cuando_la_visita_se_crea_sin_sugerencia()
     {
         await using var contexto = CrearContexto();

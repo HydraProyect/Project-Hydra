@@ -582,6 +582,9 @@
   <data name="ToastBajaDeshecha" xml:space="preserve">
     <value>Baja deshecha: la asignación vuelve a estar activa.</value>
   </data>
+  <data name="ToastSinConfirmarSinFechaNoReclamable" xml:space="preserve">
+    <value>Los documentos «Sin confirmar» no tienen fecha de vencimiento, así que no hay nada que reclamar. Confirma su vigencia en el documento.</value>
+  </data>
   <data name="ToastSinPendientesReclamar" xml:space="preserve">
     <value>No hay documentos pendientes que reclamar.</value>
   </data>

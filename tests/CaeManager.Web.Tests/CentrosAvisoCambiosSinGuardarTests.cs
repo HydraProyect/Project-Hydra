@@ -345,4 +345,24 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
         PreguntasDeSalida(cut).Should().Be(1);
     }
+    /// <summary>
+    /// «Selecciona una empresa.» es el aviso de un intento de guardar sin Empresa: al elegirla deja de ser verdad
+    /// y no puede quedarse en pantalla (misma regla que Trabajadores, #1020).
+    /// </summary>
+    [Fact]
+    public async Task El_aviso_de_empresa_sin_elegir_desaparece_al_elegir_la_empresa()
+    {
+        var cut = await AbrirAltaAsync(Renderizar());
+        await ElegirEnElSelectorAsync(cut, "Busca o crea un cliente…", "Refrielectric S.A.");
+        await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        cut.Find(".alerta-formulario").TextContent.Trim().Should().Be("Selecciona una empresa.",
+            "barrera: el aviso aparece al guardar sin Empresa");
+
+        await ElegirEnElSelectorAsync(cut, "Busca o crea una empresa…", "Montajes Ebro S.L.");
+
+        cut.FindAll(".alerta-formulario").Should().BeEmpty("la Empresa ya está elegida");
+        _mediador.Enviadas.OfType<CrearCentroCommand>().Should().BeEmpty("elegir la Empresa no guarda por sí solo");
+    }
 }

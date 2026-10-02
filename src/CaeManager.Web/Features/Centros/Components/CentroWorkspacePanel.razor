@@ -68,7 +68,7 @@ else
         <h2 class="workspace-titulo-entidad">@_detalle.Nombre</h2>
         @if (_estadoCentro is not null)
         {
-            <Badge Tono="EstadoCentroUi.Tono(_estadoCentro.Estado)">@EstadoCentroUi.Texto(_estadoCentro.Estado)</Badge>
+            <Badge Tono="EstadoCentroUi.Tono(_estadoCentro.Estado, _estadoCentro.CumplimientoPorcentaje)">@EstadoCentroUi.Texto(_estadoCentro.Estado, _estadoCentro.CumplimientoPorcentaje)</Badge>
         }
         @if (PestanaActiva == "informacion" && !_editandoInformacion)
         {
