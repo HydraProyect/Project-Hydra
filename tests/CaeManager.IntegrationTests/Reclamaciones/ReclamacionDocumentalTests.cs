@@ -50,6 +50,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     private readonly Guid _tenant = Guid.NewGuid();
     private Guid _clienteId;
     private Guid _trabajadorId;
+    private Guid _centroId;
     private Guid _tipoDocumentoId;
 
     public async Task InitializeAsync()
@@ -81,6 +82,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
 
         _clienteId = cliente.Id;
         _trabajadorId = trabajador.Id;
+        _centroId = centro.Id;
         _tipoDocumentoId = tipo.Id;
     }
 
@@ -554,6 +556,8 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
             .Should().Be("Reclamacion.SinDocumentosValidos", "el centro de la asignación no está en su alcance");
         (await EnviarConAlcanceAsync(new AlcanceDatosServiceFalso(clienteIds: [_clienteId], trabajadorIds: [_trabajadorId])))
             .Should().Be("Reclamacion.SinDestinatario", "con el trabajador en el alcance el documento sí es reclamable y se llega a la agenda");
+        (await EnviarConAlcanceAsync(new AlcanceDatosServiceFalso(clienteIds: [_clienteId], centroIds: [_centroId])))
+            .Should().Be("Reclamacion.SinDestinatario", "con el centro en el alcance (lista no vacía traducida a SQL) el documento es reclamable");
         (await EnviarConAlcanceAsync(new AlcanceDatosServiceFalso()))
             .Should().Be("Reclamacion.SinDestinatario", "alcance universal: sin restricción");
     }
