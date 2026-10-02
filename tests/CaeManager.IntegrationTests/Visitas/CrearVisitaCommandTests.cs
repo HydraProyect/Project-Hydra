@@ -92,6 +92,57 @@ public class CrearVisitaCommandTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Una_sugerencia_detectada_por_WhatsApp_crea_una_visita_de_origen_WhatsApp()
+    {
+        await using var contexto = CrearContexto();
+
+        var cliente = Empresa.CrearComoCliente("Cliente Visita WhatsApp S.L.", "B10380194", false, null, null);
+        var empresa = new Empresa("Empresa Visita Guiada S.L.", "B10380186");
+        contexto.Empresas.Add(cliente);
+        contexto.Empresas.Add(empresa);
+        await contexto.SaveChangesAsync();
+
+        var centro = new Centro(cliente.Id, empresa.Id, "Centro Visita Guiada");
+        var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "García", "12345678Z");
+        contexto.Centros.Add(centro);
+        contexto.Trabajadores.Add(trabajador);
+        await contexto.SaveChangesAsync();
+
+        var conversacion = new Conversacion("Solicitud de visita");
+        contexto.Conversaciones.Add(conversacion);
+        await contexto.SaveChangesAsync();
+
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34600000000", "Necesitamos una visita mañana");
+        await contexto.SaveChangesAsync();
+
+        var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, centro.Id, DiaDeNegocio.Hoy().AddDays(1), null, "Pide visita mañana", 90, 90, 90);
+        contexto.SugerenciasVisitaCorreo.Add(sugerencia);
+        await contexto.SaveChangesAsync();
+
+        var publicador = new PublicadorDeMentira();
+        var handler = new CrearVisitaCommandHandler(
+            new VisitaRepository(contexto), new VisitaTrabajadorRepository(contexto),
+            contexto, contexto,
+            new SugerenciaVisitaCorreoRepository(contexto), contexto,
+            new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), publicador, contexto,
+            NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());
+
+        var comando = new CrearVisitaCommand(
+            centro.Id, DiaDeNegocio.Hoy().AddDays(1), DiaDeNegocio.Hoy().AddDays(1),
+            [trabajador.Id], Notas: null, SugerenciaVisitaCorreoId: sugerencia.Id);
+
+        var resultado = await handler.Handle(comando, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeFalse();
+        publicador.Publicados.Should().ContainSingle()
+            .Which.Should().BeOfType<VisitaCreadaEvent>()
+            .Which.Should().BeEquivalentTo(new VisitaCreadaEvent(conversacion.Id, resultado.Valor));
+        await using var lectura = CrearContexto();
+        (await lectura.Visitas.SingleAsync(v => v.Id == resultado.Valor)).Origen.Should().Be(OrigenVisita.WhatsApp,
+            "el origen sale del canal del mensaje de la sugerencia, no de que exista una");
+    }
+
+    [Fact]
     public async Task No_publica_nada_cuando_la_visita_se_crea_sin_sugerencia()
     {
         await using var contexto = CrearContexto();

@@ -1,3 +1,4 @@
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Visitas;
 using FluentAssertions;
 using Xunit;
@@ -9,11 +10,15 @@ public class VisitaTests
     private static readonly Guid CentroIdValido = Guid.NewGuid();
 
     [Theory]
-    [InlineData(false, OrigenVisita.Manual)]
-    [InlineData(true, OrigenVisita.Correo)]
-    public void El_origen_al_crear_distingue_la_alta_a_mano_de_la_sugerencia_de_correo(bool desdeSugerencia, OrigenVisita esperado)
+    [InlineData(false, null, OrigenVisita.Manual)]
+    [InlineData(false, CanalConversacion.WhatsApp, OrigenVisita.Manual)]
+    [InlineData(true, null, OrigenVisita.Correo)]
+    [InlineData(true, CanalConversacion.Correo, OrigenVisita.Correo)]
+    [InlineData(true, CanalConversacion.WhatsApp, OrigenVisita.WhatsApp)]
+    public void El_origen_al_crear_sale_del_canal_del_mensaje_de_la_sugerencia(
+        bool desdeSugerencia, CanalConversacion? canal, OrigenVisita esperado)
     {
-        Visita.OrigenAlCrear(desdeSugerencia).Should().Be(esperado);
+        Visita.OrigenAlCrear(desdeSugerencia, canal).Should().Be(esperado);
     }
 
     [Fact]

@@ -93,11 +93,16 @@ public class Visita : EntidadBase
     }
 
     /// <summary>
-    /// Origen de una Visita que se crea por el comando de alta: con sugerencia detectada en un
-    /// correo hereda el origen del correo; sin ella la ha dado de alta una persona a mano.
+    /// Origen de una Visita que se crea por el comando de alta. Con sugerencia, el del canal del
+    /// mensaje del que nació (WhatsApp si fue por WhatsApp; Correo en cualquier otro caso, también
+    /// si el mensaje ya no se encuentra); sin sugerencia la ha dado de alta una persona a mano.
     /// </summary>
-    public static OrigenVisita OrigenAlCrear(bool desdeSugerencia) =>
-        desdeSugerencia ? OrigenVisita.Correo : OrigenVisita.Manual;
+    /// <param name="desdeSugerencia">El alta viene de una sugerencia detectada en una conversación.</param>
+    /// <param name="canalDelMensaje">Canal del mensaje de la sugerencia, si se pudo leer.</param>
+    public static OrigenVisita OrigenAlCrear(bool desdeSugerencia, CaeManager.Domain.Comunicaciones.CanalConversacion? canalDelMensaje = null) =>
+        !desdeSugerencia
+            ? OrigenVisita.Manual
+            : canalDelMensaje == CaeManager.Domain.Comunicaciones.CanalConversacion.WhatsApp ? OrigenVisita.WhatsApp : OrigenVisita.Correo;
 
     public Visita(Guid centroId, DateOnly fechaInicio, DateOnly fechaFin, string? notas, OrigenVisita origen = OrigenVisita.Plataforma, TimeOnly? horaEstimadaAcceso = null)
     {
