@@ -188,7 +188,7 @@
 
 <Modal Visible="_modalLineaVisible" VisibleChanged="(bool visible) => CerrarModalLinea(visible)"
        Titulo="@(_lineaEnEdicion is null ? "Nueva línea WhatsApp" : "Editar línea WhatsApp")"
-       CerrarAlHacerClicFuera="!_guardandoLinea" Bloqueante="_guardandoLinea">
+       CerrarAlHacerClicFuera="!_guardandoLinea" Bloqueante="_guardandoLinea" HayCambios="() => HayCambiosEnLinea">
     <ChildContent>
         @if (_lineaEnEdicion is null)
         {

@@ -324,4 +324,36 @@ public class ClavesApiGen2Tests : BunitContext
 
         NombresEnfocados(cut).Should().BeEmpty();
     }
+
+    // ---------------------------------------------------------------- S3: ¿Descartar cambios?
+
+    /// <summary>
+    /// S3: el modal «Generar clave» tiene un campo (el nombre); cerrarlo con la X con el nombre escrito
+    /// pregunta antes de tirarlo, y «Descartar cambios» vacía el nombre para que reabrirlo no arrastre
+    /// el borrador.
+    /// </summary>
+    [Fact]
+    public async Task Cerrar_Generar_clave_con_el_nombre_escrito_pregunta_y_descartar_lo_vacia()
+    {
+        Services.AddLocalization();
+        var (cut, mediator) = Renderizar();
+        await Seleccionar(cut, mediator.DelegacionId);
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
+        await cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".modal-contenido").Should().BeEmpty("sin nombre escrito no se pregunta: cierra");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
+        var campo = cut.FindComponent<CampoTexto>();
+        await cut.InvokeAsync(() => campo.Instance.ValorChanged.InvokeAsync("Integración con el ERP"));
+        await cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("h2").Any(h => h.TextContent.Trim() == "¿Descartar cambios?").Should().BeTrue("con el nombre escrito, la X pregunta");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".modal-contenido").Should().BeEmpty("«Descartar cambios» cierra");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
+        await cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".modal-contenido").Should().BeEmpty("el borrador descartado no vuelve al reabrir: no hay nada que preguntar");
+    }
 }

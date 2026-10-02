@@ -17,7 +17,8 @@
 @inject TimeProvider Reloj
 
 <Drawer Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@($"Blindaje 42.1 · {EmpresaRazonSocial}")"
-        CerrarAlHacerClicFuera="@(!_guardandoSolicitud && !_guardandoRespuesta)">
+        CerrarAlHacerClicFuera="@(!_guardandoSolicitud && !_guardandoRespuesta)"
+        HayCambios="() => HayCambiosSinGuardar">
     <ChildContent>
         <p class="texto-vacio-seccion">
             Certificación negativa por descubiertos en la TGSS sobre esta empresa (art. 42.1 ET). La TGSS debe
@@ -153,6 +154,8 @@
     private Guid _empresaCargada;
 
     private string _fechaSolicitud = string.Empty;
+    private string _fechaSolicitudInicial = string.Empty;
+    private string _fechaRespuestaInicial = string.Empty;
     private string _observacionesNueva = string.Empty;
     private bool _guardandoSolicitud;
     private string? _errorSolicitud;
@@ -178,14 +181,28 @@
         _visibleAnterior = Visible;
     }
 
+    /// <summary>
+    /// «¿Descartar cambios?» al cerrar el drawer con la X, Escape o el fondo (S3): hay algo escrito que
+    /// se perdería. Las fechas cuentan solo si se apartaron de la que se propuso al abrir (hoy); el
+    /// formulario de respuesta, solo mientras está abierto.
+    /// </summary>
+    private bool HayCambiosSinGuardar =>
+        Visible
+        && (!string.IsNullOrWhiteSpace(_observacionesNueva)
+            || _fechaSolicitud != _fechaSolicitudInicial
+            || (_respondiendoSolicitudId is not null
+                && (!string.IsNullOrEmpty(_resultadoRespuesta)
+                    || _evidenciaContenido is not null
+                    || _fechaRespuesta != _fechaRespuestaInicial)));
+
     private void ReiniciarFormularios()
     {
-        _fechaSolicitud = FechaDeHoy.ParaCampoFecha(Reloj);
+        _fechaSolicitud = _fechaSolicitudInicial = FechaDeHoy.ParaCampoFecha(Reloj);
         _observacionesNueva = string.Empty;
         _errorSolicitud = null;
         _respondiendoSolicitudId = null;
         _resultadoRespuesta = string.Empty;
-        _fechaRespuesta = FechaDeHoy.ParaCampoFecha(Reloj);
+        _fechaRespuesta = _fechaRespuestaInicial = FechaDeHoy.ParaCampoFecha(Reloj);
         _evidenciaContenido = null;
         _evidenciaNombreArchivo = null;
         _errorRespuesta = null;
@@ -247,7 +264,7 @@
     {
         _respondiendoSolicitudId = solicitudId;
         _resultadoRespuesta = string.Empty;
-        _fechaRespuesta = FechaDeHoy.ParaCampoFecha(Reloj);
+        _fechaRespuesta = _fechaRespuestaInicial = FechaDeHoy.ParaCampoFecha(Reloj);
         _evidenciaContenido = null;
         _evidenciaNombreArchivo = null;
         _errorRespuesta = null;

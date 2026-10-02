@@ -55,7 +55,8 @@
     }
 </div>
 
-<Modal Visible="_mostrarFormularioGenerar" VisibleChanged="CerrarFormularioGenerar" Titulo="Generar clave" CerrarAlHacerClicFuera="@(!_generando)">
+<Modal Visible="_mostrarFormularioGenerar" VisibleChanged="CerrarFormularioGenerar" Titulo="Generar clave" CerrarAlHacerClicFuera="@(!_generando)"
+       HayCambios="() => _mostrarFormularioGenerar && !string.IsNullOrWhiteSpace(_nombreNuevaClave)">
     <ChildContent>
         <CampoTexto Etiqueta="Nombre" Valor="@_nombreNuevaClave" ValorChanged="CambiarNombreNuevaClave" Placeholder="Integración con el ERP" />
         @if (_errorGenerar is not null) { <p class="aviso-error" role="alert">@_errorGenerar</p> }

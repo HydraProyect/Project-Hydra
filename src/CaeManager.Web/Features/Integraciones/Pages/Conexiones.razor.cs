@@ -51,6 +51,17 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     private string _lineaMensajeAutoTriage = string.Empty;
     private long _generacionOperacionLinea;
 
+    // «¿Descartar cambios?» al cerrar el modal con la X, Escape o el fondo (S3): instantánea al abrirlo.
+    private readonly InstantaneaFormulario _instantaneaLinea = new();
+
+    private bool HayCambiosEnLinea => _modalLineaVisible && _instantaneaLinea.Difiere(ValoresDeLaLinea());
+
+    private object?[] ValoresDeLaLinea() =>
+    [
+        _lineaNombre, _lineaNumero, _lineaPhoneNumberId, _lineaWabaId, _lineaToken, _lineaModo,
+        _lineaComercialId, _lineaMiembros, _lineaClienteId, _lineaMensajeAutoTriage,
+    ];
+
     private ConexionIntegracionListaDto? _conexionADesconectar;
     private bool _desconectando;
     private long _generacionDesconexion;
@@ -176,6 +187,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         _lineaClienteId = null;
         _lineaMensajeAutoTriage = string.Empty;
         _modalLineaVisible = true;
+        _instantaneaLinea.Fijar(ValoresDeLaLinea());
     }
 
     private void AbrirEdicionLinea(LineaWhatsAppListaDto linea)
@@ -189,6 +201,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         foreach (var miembro in linea.MiembrosPool) _lineaMiembros.Add(miembro);
         _lineaMensajeAutoTriage = linea.MensajeAutoTriage ?? string.Empty;
         _modalLineaVisible = true;
+        _instantaneaLinea.Fijar(ValoresDeLaLinea());
     }
 
     private Task CerrarModalLinea() => CerrarModalLinea(false);

@@ -418,4 +418,64 @@ public class ConexionesGen2Tests : BunitContext
         cut.FindAll(".modal-contenido").Should().BeEmpty("ninguna de las dos teclas abre ningún diálogo");
         mediador.ComandosDesconexion.Should().Be(0);
     }
+
+    // ------------------------------------------------------------------ S3: ¿Descartar cambios?
+
+    private static bool Preguntando(IRenderedComponent<Conexiones> cut) =>
+        cut.FindAll("h2").Any(h => h.TextContent.Trim() == "¿Descartar cambios?");
+
+    private async Task EscribirNombreDeLineaAsync(IRenderedComponent<Conexiones> cut, string nombre)
+    {
+        var campo = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre");
+        await cut.InvokeAsync(() => campo.Instance.ValorChanged.InvokeAsync(nombre));
+    }
+
+    /// <summary>
+    /// S3: el modal de la línea de WhatsApp es un formulario de diez campos; cerrarlo con la X con algo
+    /// escrito pregunta antes de tirarlo, y sin nada escrito cierra directamente.
+    /// </summary>
+    [Fact]
+    public async Task Cerrar_el_modal_de_linea_con_cambios_pregunta_y_sin_cambios_cierra_directamente()
+    {
+        Services.AddLocalization();
+        var cut = Renderizar();
+        await cut.InvokeAsync(() => Invocar(cut.Instance, "AbrirAltaLinea"));
+        cut.Render();
+
+        await cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".modal-contenido").Should().BeEmpty("sin nada escrito no se pregunta: cierra");
+
+        await cut.InvokeAsync(() => Invocar(cut.Instance, "AbrirAltaLinea"));
+        cut.Render();
+        await EscribirNombreDeLineaAsync(cut, "Línea comercial Madrid");
+        await cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs());
+
+        Preguntando(cut).Should().BeTrue("con un nombre escrito, la X pregunta");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new MouseEventArgs());
+        Preguntando(cut).Should().BeFalse();
+        cut.FindAll(".modal-contenido").Should().ContainSingle("«Seguir editando» deja el formulario abierto");
+
+        await cut.FindAll(".modal-cerrar").Last().ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".modal-contenido").Should().BeEmpty("«Descartar cambios» cierra");
+    }
+
+    /// <summary>La instantánea se toma al abrir: reabrir tras descartar vuelve a empezar sin heredar el aviso.</summary>
+    [Fact]
+    public async Task Tras_descartar_el_modal_de_linea_reabierto_no_arrastra_el_aviso()
+    {
+        Services.AddLocalization();
+        var cut = Renderizar();
+        await cut.InvokeAsync(() => Invocar(cut.Instance, "AbrirAltaLinea"));
+        cut.Render();
+        await EscribirNombreDeLineaAsync(cut, "Borrador");
+        await cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+
+        await cut.InvokeAsync(() => Invocar(cut.Instance, "AbrirAltaLinea"));
+        cut.Render();
+        await cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".modal-contenido").Should().BeEmpty("el formulario reabierto parte limpio: nada que descartar");
+    }
 }
