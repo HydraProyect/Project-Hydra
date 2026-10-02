@@ -54,16 +54,16 @@
     grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr) 300px;
 }
 
-.bandeja-filtros {
+.bandeja-layout {
     position: relative;
 }
 
 .bandeja-divisor {
     position: absolute;
     top: 0;
-    right: 0;
     bottom: 0;
-    width: 8px;
+    left: var(--bandeja-ancho-lista);
+    width: var(--space-5);
     cursor: col-resize;
     touch-action: none;
     z-index: 1;
@@ -657,6 +657,10 @@ a.bandeja-documento-citado-nombre:hover {
    documentados en vez de uno solo. --- */
 
 @media (max-width: 1439px) {
+    .bandeja-layout {
+        --bandeja-ancho-lista: clamp(260px, var(--bandeja-lista-ancho, 300px), 40vw);
+    }
+
     .bandeja-layout,
     .bandeja-layout:has(.bandeja-cliente) {
         grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr) 280px;

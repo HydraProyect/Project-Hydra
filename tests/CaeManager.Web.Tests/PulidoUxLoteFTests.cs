@@ -26,10 +26,10 @@ public class PulidoUxLoteFTests
 
         var medio = Regex.Match(css, @"(?m)^\.boton-medio\s*\{(?<c>[^}]*)\}");
         medio.Success.Should().BeTrue();
-        medio.Groups["c"].Value.Should().MatchRegex(@"height\s*:\s*40px").And.NotContain("14px").And.NotContain("0.875rem");
+        medio.Groups["c"].Value.Should().MatchRegex(@"min-height\s*:\s*40px").And.NotContain("14px").And.NotContain("0.875rem");
 
         var tactil = Regex.Match(css, @"@media \(max-width: 767px\), \(pointer: coarse\)\s*\{(?<c>.*?)\n\}", RegexOptions.Singleline);
-        tactil.Groups["c"].Value.Should().MatchRegex(@"\.boton-medio\s*\{[^}]*height\s*:\s*44px", "el objetivo táctil de WCAG 2.5.5 sigue en 44 px");
+        tactil.Groups["c"].Value.Should().MatchRegex(@"\.boton-medio\s*\{[^}]*min-height\s*:\s*44px", "el objetivo táctil de WCAG 2.5.5 sigue en 44 px");
     }
 
     [Fact]

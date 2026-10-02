@@ -25,11 +25,10 @@
 }
 
 /* 40 px, la altura del mockup (D-30: medía 45,6 px con el relleno de 14 px y
-   desentonaba junto a los pequeños de 36). La altura se fija, no solo el mínimo,
-   para que todos los primarios de cabecera midan lo mismo. */
+   desentonaba junto a los pequeños de 36). Sin relleno vertical: la altura la da el mínimo, y una
+   etiqueta que no cabe crece en vez de desbordar. */
 .boton-medio {
     padding: 0 1.5rem;
-    height: 40px;
     min-height: 40px;
 }
 
@@ -52,7 +51,6 @@
     }
 
     .boton-medio {
-        height: 44px;
         min-height: 44px;
     }
 }

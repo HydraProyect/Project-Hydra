@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="EtiquetaBuscador" xml:space="preserve">
-    <value>Buscar tipo de documento</value>
+    <value>Buscar tipo</value>
   </data>
   <data name="MarcadorBuscador" xml:space="preserve">
     <value>Escribe parte del nombre…</value>

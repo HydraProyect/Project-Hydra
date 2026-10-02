@@ -252,14 +252,15 @@
                     }
                 </div>
             }
-
-            @* D-26: divisor arrastrable (y con flechas) del ancho de esta columna;
-               lo gestiona wwwroot/js/panel-redimensionable.js, sin interop. *@
-            <div class="bandeja-divisor" role="separator" aria-orientation="vertical" tabindex="0"
-                 aria-label="@TextosLista["AjustarAnchoLista"]"
-                 aria-valuemin="260" aria-valuemax="560"
-                 data-redimensionable="--bandeja-lista-ancho" data-min="260" data-max="560"></div>
         </aside>
+
+        @* D-26: divisor arrastrable (y con flechas) del ancho de la columna anterior; vive en el
+           hueco entre columnas (absoluto, no es una celda de la rejilla) para no tapar la barra de
+           desplazamiento de la lista. Lo gestiona wwwroot/js/panel-redimensionable.js, sin interop. *@
+        <div class="bandeja-divisor" role="separator" aria-orientation="vertical" tabindex="0"
+             aria-label="@TextosLista["AjustarAnchoLista"]"
+             aria-valuemin="260" aria-valuemax="560" aria-valuenow="360"
+             data-redimensionable="--bandeja-lista-ancho" data-min="260" data-max="560"></div>
 
         <section class="bandeja-columna bandeja-centro">
             @if (_conversacionSeleccionadaId is null)

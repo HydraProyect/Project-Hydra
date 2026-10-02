@@ -211,11 +211,20 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
             _cerrados.UnionWith(_vista!.Cartera.Select(t => t.TenantId));
     }
 
-    /// <summary>Un tramo se enseña entero si se abrió, si hay búsqueda (debe alcanzar cada gestión) o si el detalle o el foco están dentro.</summary>
+    /// <summary>Un tramo se enseña entero si se abrió (con clic, o con j/k al entrar en él) o si hay búsqueda, que debe alcanzar cada gestión.</summary>
     private bool LoteAbierto(LoteMiTrabajo lote) => !lote.Colapsable
         || !string.IsNullOrWhiteSpace(_busqueda)
-        || _lotesAbiertos.Contains(lote.Clave)
-        || lote.Filas.Any(f => f.Item.Id == _idAbierto || f.Item.Id == _idEnfocado);
+        || _lotesAbiertos.Contains(lote.Clave);
+
+    /// <summary>j/k no pueden dejar el foco en una fila escondida: abren el tramo al entrar.</summary>
+    private void AbrirLoteDeLaFilaEnfocada()
+    {
+        if (_idEnfocado is null) return;
+        var lote = Grupos
+            .SelectMany(g => MiTrabajoVista.AgruparPorTrabajador(g.Filas))
+            .FirstOrDefault(l => l.Colapsable && l.Filas.Any(f => f.Item.Id == _idEnfocado));
+        if (lote is not null) _lotesAbiertos.Add(lote.Clave);
+    }
 
     private void AlternarLote(LoteMiTrabajo lote)
     {
@@ -267,6 +276,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
                 break;
         }
 
+        AbrirLoteDeLaFilaEnfocada();
         StateHasChanged();
         return Task.CompletedTask;
     }

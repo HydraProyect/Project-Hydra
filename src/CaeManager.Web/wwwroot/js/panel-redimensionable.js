@@ -19,7 +19,7 @@
     });
 
     const anchoActual = (divisor) => {
-        const panel = divisor.parentElement;
+        const panel = divisor.previousElementSibling;
         return panel ? Math.round(panel.getBoundingClientRect().width) : 320;
     };
 

@@ -396,7 +396,7 @@ public class ComunicacionesGen2Tests : BunitContext
         fila.QuerySelector(".bandeja-fila-linea2 .bandeja-fila-asunto")!.TextContent.Trim().Should().Be("Documentación pendiente");
         fila.QuerySelector(".bandeja-fila-separador").Should().BeNull("remitente y asunto ya no comparten línea");
 
-        var divisor = cut.Find(".bandeja-filtros [role=separator][data-redimensionable]");
+        var divisor = cut.Find(".bandeja-layout > [role=separator][data-redimensionable]");
         divisor.GetAttribute("data-redimensionable").Should().Be("--bandeja-lista-ancho");
         divisor.GetAttribute("tabindex").Should().Be("0", "el ancho también se ajusta con el teclado");
     }

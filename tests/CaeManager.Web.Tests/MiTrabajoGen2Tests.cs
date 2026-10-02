@@ -678,4 +678,40 @@ public class MiTrabajoGen2Tests : BunitContext
         cut.FindAll(".mi-trabajo-lote").Should().BeEmpty();
         TitulosVisibles(cut).Should().HaveCount(4);
     }
+
+    [Fact]
+    public void Dos_tramos_con_la_misma_clave_base_no_comparten_clave_ni_estado_de_apertura()
+    {
+        var trabajador = Guid.NewGuid();
+        var ajeno = Guid.NewGuid();
+        ItemBandejaDto P(string id, Guid quien) => Item(id, TipoItemBandeja.PlataformaPendiente, $"Doc {id}", "Cliente X", trabajadorId: quien, proveedor: "CTAIMA") with { Subtitulo = "Mismo centro" };
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+        [
+            Tenant(TenantRefri, "Refrielectric", esOrigen: false,
+                [P("a1", trabajador), P("a2", trabajador), P("a3", trabajador), P("b1", ajeno), P("a4", trabajador), P("a5", trabajador), P("a6", trabajador)]),
+        ]));
+
+        var lotes = cut.FindAll(".mi-trabajo-lote");
+        lotes.Should().HaveCount(2);
+
+        lotes[0].Click();
+
+        cut.FindAll(".mi-trabajo-lote")[0].GetAttribute("aria-expanded").Should().Be("true");
+        cut.FindAll(".mi-trabajo-lote")[1].GetAttribute("aria-expanded").Should().Be("false", "abrir uno no abre el otro");
+    }
+
+    [Fact]
+    public async Task J_sobre_un_lote_plegado_abre_el_lote_y_enfoca_su_primera_fila()
+    {
+        var cut = Renderizar(() => CarteraConDiezPendientesPorTrabajador(Guid.NewGuid()));
+        var manejar = typeof(MiTrabajoPagina).GetMethod("ManejarAtajoAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+
+        // La primera fila en pantalla es el Vencido (Bloqueo); la segunda ya cae dentro del lote.
+        await cut.InvokeAsync(() => (Task)manejar.Invoke(cut.Instance, ["j"])!);
+        cut.Find(".mi-trabajo-lote").GetAttribute("aria-expanded").Should().Be("false");
+        await cut.InvokeAsync(() => (Task)manejar.Invoke(cut.Instance, ["j"])!);
+
+        cut.Find(".mi-trabajo-lote").GetAttribute("aria-expanded").Should().Be("true");
+        cut.FindAll(".mi-trabajo-fila-enfocada").Should().ContainSingle();
+    }
 }
