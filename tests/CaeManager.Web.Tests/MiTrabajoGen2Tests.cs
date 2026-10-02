@@ -465,6 +465,7 @@ public class MiTrabajoGen2Tests : BunitContext
             rol: CaeManager.Infrastructure.Identity.Roles.GestorCae);
 
         cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("Pídesela a tu Coordinador CAE");
+        cut.FindAll(".mi-trabajo-cola a[data-enlace=usuarios]").Should().BeEmpty("el Gestor CAE no asigna cartera");
     }
 
     [Fact]

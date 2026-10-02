@@ -26,8 +26,8 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     [Inject] private ILogger<MiTrabajo> Logger { get; set; } = default!;
 
     /// <summary>
-    /// D-15: «Pídesela a tu Coordinador CAE» se lo decía al propio Coordinador CAE. Solo cambia el
-    /// destinatario del texto (Dirección CAE); no concede ni quita nada. Opcional: sin estado de
+    /// D-15: «Pídesela a tu Coordinador CAE» se lo decía al propio Coordinador CAE. Ahora le dice que su alcance
+    /// sale de la cartera de los Gestores CAE de su equipo y le enlaza a Usuarios; no concede ni quita nada. Opcional: sin estado de
     /// autenticación en cascada se queda el texto general.
     /// </summary>
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }

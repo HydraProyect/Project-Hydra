@@ -393,6 +393,7 @@ public class InicioGen2Tests : BunitContext
         var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: false), rol: Roles.GestorCae);
 
         cut.Find(".estado-vacio p").TextContent.Should().Contain("Pide a tu Coordinador CAE");
+        cut.FindAll(".estado-vacio a[data-enlace=usuarios]").Should().BeEmpty("el Gestor CAE no asigna cartera");
     }
 
     /// <summary>
