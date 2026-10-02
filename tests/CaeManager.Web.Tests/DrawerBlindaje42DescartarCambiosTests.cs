@@ -34,23 +34,43 @@ public class DrawerBlindaje42DescartarCambiosTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddSingleton(TimeProvider.System);
         this.ConRolDeEscritura(Roles.GestorCae);
-        Services.AddScoped<IMediator>(_ => new MediadorDeHistorial(
+        _mediador = new MediadorDeHistorial(
         [
             new SolicitudCertificacionTgssDto(
                 _solicitudPendiente, new DateOnly(2026, 9, 1), new DateOnly(2026, 10, 1), null, null,
                 EstadoBlindaje42.PendienteRespuesta, null, false, null),
-        ]));
+        ]);
+        Services.AddScoped<IMediator>(_ => _mediador);
     }
 
-    private sealed class MediadorDeHistorial(IReadOnlyList<SolicitudCertificacionTgssDto> historial) : IMediator
+    private readonly MediadorDeHistorial _mediador;
+
+    private sealed class MediadorDeHistorial(List<SolicitudCertificacionTgssDto> historial) : IMediator
     {
+        /// <summary>Si la solicitud que se registra queda la primera del historial (la más reciente) o la última (una retroactiva).</summary>
+        public bool LaNuevaEsLaMasReciente { get; set; } = true;
+
+        /// <summary>Si no es nulo, registrar una solicitud espera a que se complete: hay un guardado en curso.</summary>
+        public TaskCompletionSource? SolicitudPendiente { get; set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            Task.FromResult((TResponse)(request switch
+            request switch
             {
-                ObtenerHistorialCertificacionesTgssQuery => (object)historial,
-                SolicitarCertificacionTgssCommand => Result.Exito(Guid.NewGuid()),
+                ObtenerHistorialCertificacionesTgssQuery => Task.FromResult((TResponse)(object)historial.ToList()),
+                SolicitarCertificacionTgssCommand => RegistrarAsync<TResponse>(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
-            }));
+            };
+
+        private async Task<TResponse> RegistrarAsync<TResponse>()
+        {
+            if (SolicitudPendiente is not null) await SolicitudPendiente.Task;
+            var nueva = new SolicitudCertificacionTgssDto(
+                Guid.NewGuid(), new DateOnly(2026, 9, 20), new DateOnly(2026, 10, 20), null, null,
+                EstadoBlindaje42.PendienteRespuesta, null, false, null);
+            if (LaNuevaEsLaMasReciente) historial.Insert(0, nueva);
+            else historial.Add(nueva);
+            return (TResponse)(object)Result.Exito(nueva.Id);
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             Task.CompletedTask;
@@ -192,5 +212,76 @@ public class DrawerBlindaje42DescartarCambiosTests : BunitContext
 
         Preguntando(cut).Should().BeFalse("la solicitud ya se guardó: no hay nada pendiente");
         _visible.Should().BeFalse();
+    }
+
+    // ------------------------------------------------ formulario de respuesta y solicitudes nuevas
+
+    private async Task EscribirResultadoAsync(IRenderedComponent<DrawerBlindaje42> cut)
+    {
+        var resultado = cut.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta == "Resultado");
+        await cut.InvokeAsync(() => resultado.Instance.ValorChanged.InvokeAsync(nameof(ResultadoCertificacionTgss.SinDescubiertos)));
+    }
+
+    /// <summary>
+    /// Si registrar una solicitud nueva y más reciente hace que el formulario de respuesta deje de pintarse,
+    /// sus campos (aún en memoria) no son un cambio que preguntar: nadie los ve.
+    /// </summary>
+    [Fact]
+    public async Task Un_formulario_de_respuesta_que_dejo_de_pintarse_no_cuenta_como_cambio()
+    {
+        _mediador.LaNuevaEsLaMasReciente = true;
+        var cut = Renderizar();
+        await AbrirRespuestaAsync(cut);
+        await EscribirResultadoAsync(cut);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Registrar solicitud").ClickAsync(new MouseEventArgs());
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Guardar respuesta", "control positivo: el formulario ya no se pinta");
+
+        await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+
+        Preguntando(cut).Should().BeFalse();
+        _visible.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Una solicitud retroactiva no desplaza a la pendiente (el historial va por fecha): su formulario de
+    /// respuesta sigue a la vista, y lo escrito en él sí cuenta.
+    /// </summary>
+    [Fact]
+    public async Task Registrar_una_solicitud_retroactiva_no_borra_la_respuesta_en_curso()
+    {
+        _mediador.LaNuevaEsLaMasReciente = false;
+        var cut = Renderizar();
+        await AbrirRespuestaAsync(cut);
+        await EscribirResultadoAsync(cut);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Registrar solicitud").ClickAsync(new MouseEventArgs());
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Guardar respuesta", "el formulario de respuesta sigue a la vista");
+
+        await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+
+        Preguntando(cut).Should().BeTrue("el resultado elegido sigue sin guardar");
+    }
+
+    /// <summary>Mientras un guardado está en curso el cierre se ignora; preguntar «¿Descartar cambios?» y luego no cerrar sería peor.</summary>
+    [Fact]
+    public async Task Con_un_guardado_en_curso_la_X_no_pregunta()
+    {
+        _mediador.SolicitudPendiente = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cut = Renderizar();
+        var observaciones = cut.FindComponent<CampoTextarea>();
+        await cut.InvokeAsync(() => observaciones.Instance.ValorChanged.InvokeAsync("Observación"));
+        var guardado = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Registrar solicitud").ClickAsync(new MouseEventArgs());
+
+        try
+        {
+            await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+
+            Preguntando(cut).Should().BeFalse("con el guardado en curso no se pregunta");
+            _visible.Should().BeTrue("el cierre se ignora mientras guarda");
+        }
+        finally
+        {
+            _mediador.SolicitudPendiente.TrySetResult();
+            await guardado.WaitAsync(TimeSpan.FromSeconds(10));
+        }
     }
 }

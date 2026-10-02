@@ -191,10 +191,18 @@
         Visible && !_guardandoSolicitud && !_guardandoRespuesta
         && (!string.IsNullOrWhiteSpace(_observacionesNueva)
             || _fechaSolicitud != _fechaSolicitudInicial
-            || (_respondiendoSolicitudId is not null
+            || (RespuestaALaVista
                 && (!string.IsNullOrEmpty(_resultadoRespuesta)
                     || _evidenciaContenido is not null
                     || _fechaRespuesta != _fechaRespuestaInicial)));
+
+    /// <summary>
+    /// El formulario de respuesta solo se pinta sobre la solicitud más reciente y sin resultado: si tras
+    /// recargar el historial la que se respondía ya no es la primera, sus campos siguen en memoria pero
+    /// nadie los ve, y no cuentan como cambio.
+    /// </summary>
+    private bool RespuestaALaVista =>
+        _respondiendoSolicitudId is { } id && _historial is { Count: > 0 } historial && historial[0].Id == id && historial[0].Resultado is null;
 
     private void ReiniciarFormularios()
     {
@@ -238,6 +246,7 @@
 
         _errorSolicitud = null;
         _guardandoSolicitud = true;
+        var fechaEnviada = _fechaSolicitud;
 
         try
         {
@@ -252,10 +261,9 @@
 
             Toasts.Mostrar("Solicitud registrada.", TonoToast.Exito);
             _observacionesNueva = string.Empty;
-            // Lo guardado ya no es un cambio pendiente (la fecha puede ser retroactiva), y la solicitud nueva
-            // pasa a ser la más reciente: el formulario de respuesta de la anterior deja de pintarse.
-            _fechaSolicitudInicial = _fechaSolicitud;
-            _respondiendoSolicitudId = null;
+            // Lo guardado ya no es un cambio pendiente aunque la fecha sea retroactiva: la base pasa a ser la que
+            // se envió (no la que haya en el campo tras el await, que podría ser otra tecleada mientras tanto).
+            _fechaSolicitudInicial = fechaEnviada;
             await CargarAsync();
             await OnCambio.InvokeAsync();
         }

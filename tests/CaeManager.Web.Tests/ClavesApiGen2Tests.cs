@@ -373,5 +373,34 @@ public class ClavesApiGen2Tests : BunitContext
         cut.FindAll("h2").Any(h => h.TextContent.Trim() == "¿Descartar cambios?").Should().BeTrue();
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new MouseEventArgs());
         cut.FindAll(".modal-contenido").Should().ContainSingle("«Seguir editando» conserva el modal y el nombre");
+        cut.FindComponent<CampoTexto>().Instance.Valor.Should().Be("Integración con el ERP", "«Seguir editando» conserva el nombre");
+    }
+
+    /// <summary>Con la generación en curso el cierre se ignora; preguntar «¿Descartar cambios?» y luego no cerrar sería peor.</summary>
+    [Fact]
+    public async Task Con_la_generacion_en_curso_la_X_no_pregunta()
+    {
+        Services.AddLocalization();
+        var (cut, mediator) = Renderizar();
+        var espera = new TaskCompletionSource();
+        mediator.EsperasGeneracion.Enqueue(espera);
+        await Seleccionar(cut, mediator.DelegacionId);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
+        var campo = cut.FindComponent<CampoTexto>();
+        await cut.InvokeAsync(() => campo.Instance.ValorChanged.InvokeAsync("Integración con el ERP"));
+        var generacion = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
+
+        try
+        {
+            mediator.Enviadas.OfType<GenerarClaveApiCommand>().Should().ContainSingle("control positivo: la generación está en curso");
+            await cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs());
+
+            cut.FindAll("h2").Any(h => h.TextContent.Trim() == "¿Descartar cambios?").Should().BeFalse("con la generación en curso no se pregunta");
+        }
+        finally
+        {
+            espera.TrySetResult();
+            await generacion.WaitAsync(TimeSpan.FromSeconds(10));
+        }
     }
 }
