@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="EtiquetaBuscador" xml:space="preserve">
+    <value>Cerca un tipus de document</value>
+  </data>
+  <data name="MarcadorBuscador" xml:space="preserve">
+    <value>Escriu una part del nom…</value>
+  </data>
+  <data name="EtiquetaTipo" xml:space="preserve">
+    <value>Tipus de document</value>
+  </data>
+  <data name="OpcionVacia" xml:space="preserve">
+    <value>Selecciona un tipus de document…</value>
+  </data>
+  <data name="GrupoSiempre" xml:space="preserve">
+    <value>Es demanen sempre</value>
+  </data>
+  <data name="GrupoCondicional" xml:space="preserve">
+    <value>Segons activitat o situació</value>
+  </data>
+  <data name="GrupoOtros" xml:space="preserve">
+    <value>Altres</value>
+  </data>
+  <data name="SinCoincidencias" xml:space="preserve">
+    <value>Cap tipus coincideix amb «{0}».</value>
+  </data>
+</root>

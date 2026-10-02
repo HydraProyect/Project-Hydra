@@ -141,6 +141,9 @@
   <data name="SinCliente" xml:space="preserve">
     <value>Sin cliente</value>
   </data>
+  <data name="LoteGestiones" xml:space="preserve">
+    <value>{0} gestiones</value>
+  </data>
   <data name="Ver" xml:space="preserve">
     <value>Ver</value>
   </data>

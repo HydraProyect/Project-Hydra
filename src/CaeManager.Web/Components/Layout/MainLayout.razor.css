@@ -1,3 +1,26 @@
+/* D-28: primer destino del Tab; invisible hasta recibir el foco. */
+.saltar-al-contenido {
+    position: absolute;
+    top: var(--space-2);
+    left: var(--space-2);
+    z-index: 1000;
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    background-color: var(--color-primary-500);
+    color: var(--color-neutral-0);
+    font: var(--font-label-md);
+    text-decoration: none;
+    transform: translateY(-200%);
+}
+
+.saltar-al-contenido:focus {
+    transform: translateY(0);
+}
+
+.contenido:focus {
+    outline: none;
+}
+
 .shell {
     display: flex;
     min-height: 100vh;

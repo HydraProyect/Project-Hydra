@@ -14,17 +14,16 @@
         </span>
     </span>
     <div class="bandeja-fila-contenido">
-        @* «Cliente | Asunto» (banco visual, Iteración 2, ratificado): identifica
-           de un vistazo QUIÉN es antes que QUÉ dice, que es lo primero que
-           importa al triar una bandeja. En Triage (sin cliente asignado
-           todavía) cae al remitente — es la única identidad que hay. *@
+        @* Dos líneas (D-26): el Cliente empresarial —o el remitente, en Triage,
+           que es la única identidad que hay— en negrita con la fecha, y debajo el
+           asunto entero en su propia línea. «Cliente | Asunto» en una sola línea
+           truncaba los dos en la columna de la lista. *@
         <div class="bandeja-fila-linea1">
-            <span class="bandeja-fila-titulo">
-                <span class="bandeja-fila-remitente">@(Conversacion.ClienteRazonSocial ?? Conversacion.RemitentePrincipal)</span>
-                <span class="bandeja-fila-separador">|</span>
-                <span class="bandeja-fila-asunto">@Conversacion.Asunto</span>
-            </span>
+            <span class="bandeja-fila-remitente" title="@(Conversacion.ClienteRazonSocial ?? Conversacion.RemitentePrincipal)">@(Conversacion.ClienteRazonSocial ?? Conversacion.RemitentePrincipal)</span>
             <span class="bandeja-fila-fecha">@FormatearFechaRelativa(Conversacion.FechaUltimoMensajeUtc)</span>
+        </div>
+        <div class="bandeja-fila-linea2">
+            <span class="bandeja-fila-asunto" title="@Conversacion.Asunto">@Conversacion.Asunto</span>
         </div>
         <div class="bandeja-fila-linea3">
             <Badge Tono="TonoBadgeDeEstado(Conversacion.Estado)" Tamano="TamanoBadge.Pequeno">@Conversacion.Estado</Badge>

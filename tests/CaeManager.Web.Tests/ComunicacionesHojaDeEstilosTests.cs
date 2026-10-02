@@ -35,6 +35,16 @@ public class ComunicacionesHojaDeEstilosTests
     }
 
     [Fact]
+    public void La_columna_de_la_lista_toma_su_ancho_de_la_variable_del_divisor_en_todos_los_cortes()
+    {
+        var css = Leer(Bandeja);
+        Regla(css, @"\.bandeja-layout").Should().MatchRegex(@"--bandeja-ancho-lista\s*:\s*clamp\([^)]*--bandeja-lista-ancho");
+        Regex.Matches(css, @"grid-template-columns\s*:\s*(?!1fr)[^;]*").Select(m => m.Value).Where(v => v.Contains("minmax"))
+            .Should().OnlyContain(v => v.Contains("var(--bandeja-ancho-lista)") || v.StartsWith("grid-template-columns: auto"),
+                "una columna de ancho fijo en algún corte deja al divisor sin efecto");
+    }
+
+    [Fact]
     public void El_documento_citado_apila_nombre_y_meta_y_deja_envolver_el_nombre()
     {
         var css = Leer(Bandeja);

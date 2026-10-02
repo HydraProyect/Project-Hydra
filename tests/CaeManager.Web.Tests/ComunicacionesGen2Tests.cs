@@ -384,6 +384,23 @@ public class ComunicacionesGen2Tests : BunitContext
             "plegado el grupo desaparecen sus filas, no las del otro");
     }
 
+    [Fact]
+    public void La_fila_pone_el_remitente_y_el_asunto_en_lineas_propias_y_la_lista_trae_su_divisor()
+    {
+        var escenario = new Escenario();
+        escenario.Conversaciones.Add(Conversacion("Documentación pendiente", ClienteRefrielectric));
+        var (cut, _) = Renderizar(escenario);
+
+        var fila = cut.Find(".bandeja-fila");
+        fila.QuerySelector(".bandeja-fila-linea1 .bandeja-fila-remitente")!.TextContent.Trim().Should().Be("Refrielectric S.A.");
+        fila.QuerySelector(".bandeja-fila-linea2 .bandeja-fila-asunto")!.TextContent.Trim().Should().Be("Documentación pendiente");
+        fila.QuerySelector(".bandeja-fila-separador").Should().BeNull("remitente y asunto ya no comparten línea");
+
+        var divisor = cut.Find(".bandeja-filtros [role=separator][data-redimensionable]");
+        divisor.GetAttribute("data-redimensionable").Should().Be("--bandeja-lista-ancho");
+        divisor.GetAttribute("tabindex").Should().Be("0", "el ancho también se ajusta con el teclado");
+    }
+
     // ---------------------------------------------------------------- vacíos y filtros
 
     [Fact]

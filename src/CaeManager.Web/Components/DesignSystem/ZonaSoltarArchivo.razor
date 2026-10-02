@@ -23,7 +23,7 @@
             <p class="zona-soltar-archivo-formatos">@FormatosTexto</p>
         }
     </label>
-    <InputFile id="@_inputId" @ref="_inputFileRef" OnChange="OnChange" multiple="@Multiple" accept="@Accept" disabled="@Cargando" class="zona-soltar-archivo-input" />
+    <InputFile id="@_inputId" @ref="_inputFileRef" OnChange="OnChange" multiple="@Multiple" accept="@Accept" disabled="@Cargando" class="zona-soltar-archivo-input" aria-label="@Titulo" />
 </div>
 
 @if (Cargando)

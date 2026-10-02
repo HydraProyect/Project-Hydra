@@ -70,7 +70,7 @@ else
     </div>
 
     @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
-    <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones de la empresa">
+    <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones de la empresa" Envolver="true">
         @switch (PestanaActiva)
         {
             case "informacion":

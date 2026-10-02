@@ -97,7 +97,7 @@
     <value>Desar</value>
   </data>
   <data name="AsignarEmpresasVolver" xml:space="preserve">
-    <value>Tornar</value>
+    <value>Cancel·la</value>
   </data>
   <data name="AsignarEmpresasGuardadas" xml:space="preserve">
     <value>Cartera de {0} actualitzada.</value>

@@ -72,6 +72,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
 
         var usuarios = CrearUsuarios(_almacen);
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        Services.AddLocalization();
         Services.AddSingleton(_circuito);
         Services.AddSingleton(new PuertaAccesoDatos());
         Services.AddSingleton(usuarios);

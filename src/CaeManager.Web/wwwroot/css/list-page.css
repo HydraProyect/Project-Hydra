@@ -235,6 +235,11 @@
     padding: var(--space-3);
 }
 
+.lista-seleccion-multiple.lista-seleccion-multiple-natural {
+    max-height: none;
+    overflow-y: visible;
+}
+
 .glosario-tipo-documento {
     background-color: var(--color-surface-hover);
     border: var(--border-default);

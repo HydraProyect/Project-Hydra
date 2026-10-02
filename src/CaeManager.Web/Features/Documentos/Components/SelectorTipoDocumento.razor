@@ -1,0 +1,73 @@
+@*
+    Selector del tipo de documento con búsqueda y agrupado (D-31 del recorrido en
+    vivo del 2026-10-01): un <select> plano de ~45 tipos obligaba a recorrerlos
+    todos. El filtro de texto acota las opciones (por nombre y alias) y los grupos
+    dicen cuánto pesa cada tipo: lo que se pide siempre, lo que depende de la
+    actividad y el resto. El tipo ya elegido se conserva aunque el filtro lo deje
+    fuera, para que escribir en el buscador no vacíe la selección.
+*@
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosSelectorTipoDocumento> Textos
+
+@if (Tipos.Count > UmbralBuscador)
+{
+    <CampoTexto Etiqueta="@Textos["EtiquetaBuscador"]" Placeholder="@Textos["MarcadorBuscador"]" Valor="@_filtro"
+                ValorChanged="v => _filtro = v" />
+}
+<CampoSelect Etiqueta="@Textos["EtiquetaTipo"]" Valor="@Valor" ValorChanged="ValorChanged">
+    <option value="">@Textos["OpcionVacia"]</option>
+    @foreach (var grupo in Grupos)
+    {
+        <optgroup label="@grupo.Rotulo">
+            @foreach (var tipo in grupo.Tipos)
+            {
+                <option value="@tipo.Id">@tipo.Nombre</option>
+            }
+        </optgroup>
+    }
+</CampoSelect>
+@if (SinCoincidencias)
+{
+    <p class="texto-vacio-seccion" role="status">@Textos["SinCoincidencias", _filtro]</p>
+}
+
+@code {
+    /// <summary>Con pocos tipos el buscador sobra: se enseña a partir de este número.</summary>
+    internal const int UmbralBuscador = 8;
+
+    private string _filtro = string.Empty;
+
+    [Parameter, EditorRequired] public IReadOnlyList<TipoDocumentoListaDto> Tipos { get; set; } = [];
+    [Parameter] public string Valor { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValorChanged { get; set; }
+
+    internal sealed record GrupoTipos(string Rotulo, IReadOnlyList<TipoDocumentoListaDto> Tipos);
+
+    private bool SinCoincidencias => !string.IsNullOrWhiteSpace(_filtro) && Grupos.Count == 0;
+
+    private IReadOnlyList<GrupoTipos> Grupos => Agrupar(Tipos, _filtro, Valor, clave => Textos[clave]);
+
+    /// <summary>Filtra por nombre o alias (sin distinguir mayúsculas) y agrupa por <see cref="RequisitoDocumental"/>; el tipo elegido nunca se filtra.</summary>
+    internal static IReadOnlyList<GrupoTipos> Agrupar(IReadOnlyList<TipoDocumentoListaDto> tipos, string filtro, string elegido,
+        Func<string, string> texto)
+    {
+        var buscado = filtro?.Trim() ?? string.Empty;
+        var visibles = tipos.Where(t => buscado.Length == 0
+            || t.Id.ToString() == elegido
+            || t.Nombre.Contains(buscado, StringComparison.CurrentCultureIgnoreCase)
+            || t.Aliases.Any(a => a.Contains(buscado, StringComparison.CurrentCultureIgnoreCase)));
+
+        return new (RequisitoDocumental Requisito, string Rotulo)[]
+            {
+                (RequisitoDocumental.Si, texto("GrupoSiempre")),
+                (RequisitoDocumental.Condicional, texto("GrupoCondicional")),
+                (RequisitoDocumental.No, texto("GrupoOtros")),
+            }
+            .Select(g => new GrupoTipos(g.Rotulo, visibles.Where(t => t.Requerido == g.Requisito).OrderBy(t => t.Orden).ThenBy(t => t.Nombre).ToList()))
+            .Where(g => g.Tipos.Count > 0)
+            .ToList();
+    }
+}

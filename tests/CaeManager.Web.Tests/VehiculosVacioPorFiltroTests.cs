@@ -152,6 +152,18 @@ public class VehiculosVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("Ningún vehículo con estos filtros");
     }
 
+    /// <summary>D-30: un solo botón primario por vista; el del estado vacío no compite con el de la cabecera.</summary>
+    [Fact]
+    public void El_estado_vacio_no_trae_un_segundo_boton_primario()
+    {
+        var cut = Renderizar();
+
+        var botones = cut.FindAll("button").Where(b => b.TextContent.Contains("Nuevo vehículo")).ToList();
+        botones.Should().HaveCount(2, "control positivo: cabecera y estado vacío");
+        botones.Count(b => b.ClassList.Contains("boton-primario")).Should().Be(1);
+        cut.Find(".estado-vacio button").ClassList.Should().Contain("boton-secundario");
+    }
+
     /// <summary>
     /// El filtrado es de servidor: la consulta devuelve el total YA filtrado,
     /// así que la pantalla no sabe cuántos vehículos hay sin filtro. La barrera

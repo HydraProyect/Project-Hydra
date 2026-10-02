@@ -44,6 +44,7 @@ public class MainLayoutMarcaTests : BunitContext
 
         var usuarios = CrearUsuariosSinAlmacen();
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        Services.AddLocalization();
         Services.AddSingleton(new EstadoDelCircuito());
         Services.AddSingleton(new PuertaAccesoDatos());
         Services.AddSingleton(usuarios);

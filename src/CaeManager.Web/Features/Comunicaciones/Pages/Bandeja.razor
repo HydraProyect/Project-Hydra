@@ -18,6 +18,9 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using MediatR
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosListaConversaciones> TextosLista
 @inject IMediator Mediator
 @inject ToastService ToastService
 
@@ -249,6 +252,13 @@
                     }
                 </div>
             }
+
+            @* D-26: divisor arrastrable (y con flechas) del ancho de esta columna;
+               lo gestiona wwwroot/js/panel-redimensionable.js, sin interop. *@
+            <div class="bandeja-divisor" role="separator" aria-orientation="vertical" tabindex="0"
+                 aria-label="@TextosLista["AjustarAnchoLista"]"
+                 aria-valuemin="260" aria-valuemax="560"
+                 data-redimensionable="--bandeja-lista-ancho" data-min="260" data-max="560"></div>
         </aside>
 
         <section class="bandeja-columna bandeja-centro">

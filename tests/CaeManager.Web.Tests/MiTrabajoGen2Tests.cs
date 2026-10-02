@@ -608,4 +608,74 @@ public class MiTrabajoGen2Tests : BunitContext
             (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture) = (anterior, anteriorUi);
         }
     }
+
+    private static MiTrabajoAgregadoDto CarteraConDiezPendientesPorTrabajador(Guid trabajador, int cuantos = 10) => new(
+    [
+        Tenant(TenantRefri, "Refrielectric", esOrigen: false,
+            Enumerable.Range(1, cuantos)
+                .Select(n => Item($"p{n}", TipoItemBandeja.PlataformaPendiente, $"Documento {n}", "Transportes Planet Express",
+                    trabajadorId: trabajador, proveedor: "CTAIMA") with { Subtitulo = "Zoidberg Juan" })
+                .Append(Item("o9", TipoItemBandeja.Vencido, "Reconocimiento médico", "Transportes Planet Express"))
+                .ToList()),
+    ]);
+
+    [Fact]
+    public void Las_gestiones_de_un_mismo_trabajador_se_agrupan_en_una_fila_y_el_total_no_cambia()
+    {
+        var trabajador = Guid.NewGuid();
+        var cut = Renderizar(() => CarteraConDiezPendientesPorTrabajador(trabajador));
+
+        cut.FindAll(".mi-trabajo-lote").Should().ContainSingle().Which.TextContent.Should().Contain("10 gestiones").And.Contain("Zoidberg Juan");
+        TitulosVisibles(cut).Should().Equal("Reconocimiento médico");
+        cut.Find(".mi-trabajo-grupo-total").TextContent.Should().Be("11");
+    }
+
+    [Fact]
+    public void Abrir_el_lote_devuelve_cada_fila_con_su_accion_y_plegarlo_la_esconde()
+    {
+        var cut = Renderizar(() => CarteraConDiezPendientesPorTrabajador(Guid.NewGuid()));
+
+        cut.Find(".mi-trabajo-lote").Click();
+
+        TitulosVisibles(cut).Should().HaveCount(11);
+        cut.FindAll(".mi-trabajo-fila-en-lote form[data-accion-cross-tenant]").Should().HaveCount(10);
+        cut.Find(".mi-trabajo-lote").GetAttribute("aria-expanded").Should().Be("true");
+
+        cut.Find(".mi-trabajo-lote").Click();
+
+        TitulosVisibles(cut).Should().Equal("Reconocimiento médico");
+    }
+
+    [Fact]
+    public void Una_busqueda_abre_los_lotes_para_alcanzar_cada_gestion()
+    {
+        var cut = Renderizar(() => CarteraConDiezPendientesPorTrabajador(Guid.NewGuid()));
+
+        cut.Find("input.mi-trabajo-filtro").Input("Zoidberg");
+
+        TitulosVisibles(cut).Should().HaveCount(10);
+    }
+
+    [Fact]
+    public void Menos_de_tres_gestiones_del_trabajador_no_se_agrupan()
+    {
+        var cut = Renderizar(() => CarteraConDiezPendientesPorTrabajador(Guid.NewGuid(), cuantos: 2));
+
+        cut.FindAll(".mi-trabajo-lote").Should().BeEmpty();
+        TitulosVisibles(cut).Should().HaveCount(3);
+    }
+
+    [Fact]
+    public void Un_bloqueo_nunca_se_pliega_en_un_lote()
+    {
+        var trabajador = Guid.NewGuid();
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+        [
+            Tenant(TenantRefri, "Refrielectric", esOrigen: false,
+                Enumerable.Range(1, 4).Select(n => Item($"b{n}", TipoItemBandeja.Vencido, $"Vencido {n}", "Cliente X", trabajadorId: trabajador)).ToList()),
+        ]));
+
+        cut.FindAll(".mi-trabajo-lote").Should().BeEmpty();
+        TitulosVisibles(cut).Should().HaveCount(4);
+    }
 }

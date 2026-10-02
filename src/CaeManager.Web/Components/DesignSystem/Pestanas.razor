@@ -6,7 +6,7 @@
     Context Workspace — reutilizable en cualquier pantalla con secciones.
 *@
 <div class="pestanas">
-    <div class="pestanas-lista" role="tablist" aria-label="@EtiquetaGrupo">
+    <div class="@("pestanas-lista" + (Envolver ? " pestanas-lista-envuelta" : ""))" role="tablist" aria-label="@EtiquetaGrupo">
         @for (var i = 0; i < Definiciones.Count; i++)
         {
             var indice = i;
@@ -61,6 +61,13 @@
     [Parameter, EditorRequired] public string PestanaActiva { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
     [Parameter] public string EtiquetaGrupo { get; set; } = "Secciones";
+
+    /// <summary>
+    /// Las pestañas pasan a una segunda fila en vez de desbordar con barra de desplazamiento
+    /// horizontal (D-31: las seis del drawer de Empresa cortaban «Agenda»). Para contenedores
+    /// estrechos con pocas pestañas; por defecto, una sola fila con desplazamiento.
+    /// </summary>
+    [Parameter] public bool Envolver { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
     /// <summary>Las pestañas que contienen a estas, si las hay: su ámbito encadena este.</summary>
