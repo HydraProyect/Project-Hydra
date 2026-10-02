@@ -49,21 +49,21 @@ public class TextosSinLocalizarCongeladosTests
         ["ApiKeys"] = 45,
         ["Auditoria"] = 73,
         ["AuditoriaIa"] = 50,
-        ["Bandeja"] = 108, // 107 → 108 el 2026-10-02 (resto D-07/D-27) SIN migrar: «Cliente empresarial» y «Clientes empresariales» (SelectorLoteDocumental) pasan a mayúscula inicial como manda CONTRATO_TERMINOLOGIA § 3.2 y la heurística los empieza a ver.
+        ["Bandeja"] = 108, // 107 → 108 el 2026-10-02 (resto D-07/D-27) SIN migrar: «Clientes empresariales» (SelectorLoteDocumental) pasa a mayúscula inicial como manda CONTRATO_TERMINOLOGIA § 3.2 y la heurística lo empieza a ver.
         ["Blindaje42"] = 46,
         ["BusquedaGlobal"] = 70,
         // 312 → 313 el 2026-09-25 (P1-X2): la rama «No requiere gestión CAE» de
         // EstadoCentroUi.Texto. Es un switch estático sin localizar entero; migrar
         // solo la rama nueva lo dejaría a medias. Los demás textos de P1-X2 van a
         // TextosCentros.resx. Baja cuando se migre EstadoCentroUi completo.
-        ["Centros"] = 311, // 310 → 311 el 2026-10-02 (resto D-07/D-27) SIN migrar: «Busca o crea un Cliente empresarial…» y «Cambiar Cliente empresarial/empresa» pasan a mayúscula inicial. 309 → 310 (D-17) y siguientes: 309 → 310 (D-17): «Sin datos» de EstadoCentroUi.Texto, static switch sin localizar entero (precedente P1-X2). 313 → 310 el 2026-09-29: lote 3, textos nuevos y varios de la cabecera/menú de fila a TextosCentros.resx. 310 → 309: «Más» y «Exportar asignaciones».
+        ["Centros"] = 311, // 310 → 311 el 2026-10-02 (resto D-07/D-27) SIN migrar: la cabecera «Cliente» de CentrosEndpoints (Excel de exportación) pasa a «Cliente empresarial», texto que ya contaba como rótulo de Centros.razor; el detector suma por categoría (literal C# y markup), no por texto distinto. 309 → 310 (D-17): «Sin datos» de EstadoCentroUi.Texto, static switch sin localizar entero (precedente P1-X2). 313 → 310 el 2026-09-29: lote 3, textos nuevos y varios de la cabecera/menú de fila a TextosCentros.resx. 310 → 309: «Más» y «Exportar asignaciones».
         // 256 → 250 el 2026-09-28 (piloto del patrón de lista) SIN migrar a .resx: la pantalla dejó de
         // pintar rótulos con el nombre del filtro dentro de la opción («Estado: todos», «Gestor CAE: todos»),
         // los textos de «Limpiar todo» / «Guardar filtro» / «Filtros guardados…» pasaron a BarraFiltros
         // (que los localiza en TextosComunes) y desaparecieron «Vista rápida», «Operar →» y «Ejecutivo».
         // Entran «Todos», «Criticidad», «Más», «Ver ficha 360» y «Búsqueda: \"». Recuento por diferencia
         // con un port del detector (no ejecutado en .NET): la CI confirma la cifra o la corrige.
-        ["Clientes"] = 248, // 249 → 248 el 2026-10-02 (resto D-07/D-27): sin migrar nada, un texto contado pasa a otra forma. 250→249 (D-29): 250→249 (D-29): «Ver ficha 360» pasó a «Abrir ficha 360», que ya contaba en esta superficie (ClientePreviewDrawer). No se ha migrado nada a .resx.
+        ["Clientes"] = 248, // 249 → 248 el 2026-10-02 (resto D-07/D-27) SIN migrar: formas antiguas («Cliente creado correctamente.», «Cliente crítico», «Editar cliente»…) se funden con las nuevas con «Cliente empresarial». 250→249 (D-29): «Ver ficha 360» pasó a «Abrir ficha 360», que ya contaba en esta superficie (ClientePreviewDrawer). No se ha migrado nada a .resx.
         ["Comercial"] = 61,
         ["Components/Account"] = 93,
         ["Components/DesignSystem"] = 51,
@@ -76,7 +76,7 @@ public class TextosSinLocalizarCongeladosTests
         ["Components/Legal"] = 163,
         ["Components/Pages"] = 18,
         ["Components/Workspace"] = 58,
-        ["Comunicaciones"] = 311, // 310 → 311 el 2026-10-02 (resto D-07/D-27) SIN migrar: los rótulos de Cliente empresarial de la Bandeja y Macros (antes «Cliente» de una palabra, invisible a la heurística) pasan a dos palabras.
+        ["Comunicaciones"] = 312, // 310 → 312 el 2026-10-02 (resto D-07/D-27) SIN migrar: «este Cliente empresarial» (Macros) y «mismo Cliente empresarial» (AccionCenter) pasan a llevar mayúscula en medio de la frase y el detector los empieza a ver; se funden además las formas «Cliente» y «Cliente (opcional)».
         // Migrada a TextosConfiguracion: el 1 restante es un falso positivo del
         // detector, la cabecera «@for (var indice = 0; indice < Grupos.Count; …)»
         // de Configuracion.razor, que el '<' de la comparación hace pasar por texto.

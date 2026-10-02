@@ -185,7 +185,7 @@ public class ReportesGen2Tests : BunitContext
 
         private string Alcance(Guid? clienteId, Guid? centroId) =>
             centroId is { } c ? $"Solo centro: {Centros.Values.SelectMany(l => l).Single(x => x.Id == c).Nombre}"
-            : clienteId is { } id ? $"{Clientes.Single(x => x.Id == id).RazonSocial} · todo el cliente"
+            : clienteId is { } id ? $"{Clientes.Single(x => x.Id == id).RazonSocial} · todo el Cliente empresarial"
             : "Toda la cartera (sin filtrar por Cliente empresarial)";
 
         private Result Registrar(RegistrarHistorialInformeCommand c)
@@ -344,7 +344,7 @@ public class ReportesGen2Tests : BunitContext
         mediador.Enviados.OfType<GenerarInformeVigenciaQuery>().Single()
             .Should().Be(new GenerarInformeVigenciaQuery(ClienteA, null, false));
         cut.FindAll(".metadato-hoja-informe").Select(Texto).Last()
-            .Should().Be($"Abarca: {NombreA} · todo el cliente · solo vencidos y urgentes · 2 documentos");
+            .Should().Be($"Abarca: {NombreA} · todo el Cliente empresarial · solo vencidos y urgentes · 2 documentos");
         Descargas(cut).Should().Contain($"/reportes/vigencia.pdf?clienteId={ClienteA}&incluirVigentes=false");
     }
 
@@ -738,12 +738,12 @@ public class ReportesGen2Tests : BunitContext
 
         await Generar(cut);
         cut.FindAll(".metadato-hoja-informe").Select(Texto).Last()
-            .Should().Be($"Abarca: {NombreB} · todo el cliente · incluye los vigentes · 1 documento");
+            .Should().Be($"Abarca: {NombreB} · todo el Cliente empresarial · incluye los vigentes · 1 documento");
 
         await ElegirInforme(cut, "Asignaciones activas");
         await Generar(cut);
         cut.FindAll(".metadato-hoja-informe").Select(Texto).Last()
-            .Should().Be($"Abarca: {NombreB} · todo el cliente · 1 asignación activa");
+            .Should().Be($"Abarca: {NombreB} · todo el Cliente empresarial · 1 asignación activa");
     }
 
     /// <summary>

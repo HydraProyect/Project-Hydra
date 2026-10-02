@@ -134,7 +134,7 @@ public class PlantillaCombinadaAlineacionAnalisisEjecucionTests : IAsyncLifetime
         var plan = await AnalizarAsync(libro);
 
         plan.Centros.Should().BeEmpty("una Subcontrata homónima no es un Cliente empresarial");
-        plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Centros" && o.Motivo.Contains("No se encontró el cliente"));
+        plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Centros" && o.Motivo.Contains("No se encontró el Cliente empresarial"));
 
         // El plan que el análisis nunca produciría, ejecutado igualmente: la
         // escritura tiene que aplicar el mismo criterio por su cuenta. Los
@@ -152,7 +152,7 @@ public class PlantillaCombinadaAlineacionAnalisisEjecucionTests : IAsyncLifetime
         var resultado = await EjecutarAsync(planForzado);
 
         resultado.CentrosCreados.Should().Be(0);
-        resultado.Omitidos.Should().ContainSingle(o => o.Motivo.Contains("No se encontró el cliente"));
+        resultado.Omitidos.Should().ContainSingle(o => o.Motivo.Contains("No se encontró el Cliente empresarial"));
 
         await using var verificacion = CrearContexto();
         (await verificacion.Centros.CountAsync(c => c.Nombre == NombreCentro)).Should().Be(0);

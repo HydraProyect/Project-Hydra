@@ -136,7 +136,7 @@ public class PlantillaClientesAlineacionAnalisisEjecucionTests : IAsyncLifetime
 
         plan.ClientesCentros.Should().BeEmpty("una Empresa homónima que no es Cliente empresarial no cuenta como 'el cliente ya existe'");
         var omitido = plan.Omitidos.Should().ContainSingle().Subject;
-        omitido.Motivo.Should().Contain("Este cliente no existe todavía");
+        omitido.Motivo.Should().Contain("Este Cliente empresarial no existe todavía");
 
         await using var contexto = CrearContexto();
         var resultado = (await ConstruirHandler(contexto).Handle(new EjecutarImportacionCommand(plan), CancellationToken.None)).Valor;

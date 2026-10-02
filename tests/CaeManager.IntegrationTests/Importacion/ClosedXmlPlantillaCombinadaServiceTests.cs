@@ -199,7 +199,7 @@ public class ClosedXmlPlantillaCombinadaServiceTests
 
         plan.Centros.Should().BeEmpty();
         var omitido = plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Centros").Subject;
-        omitido.Motivo.Should().Contain("No se encontró el cliente");
+        omitido.Motivo.Should().Contain("No se encontró el Cliente empresarial");
     }
 
     private static void EscribirClienteValido(XLWorkbook libro, int fila, string razonSocial)

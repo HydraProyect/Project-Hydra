@@ -549,7 +549,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     }
 
     /// <summary>
-    /// El aviso «Selecciona un cliente/una empresa.» es de un intento anterior de guardar: al rellenar el
+    /// El aviso «Selecciona un Cliente empresarial.» (o «Selecciona una empresa.») es de un intento anterior de guardar: al rellenar el
     /// campo deja de ser verdad (misma regla que Trabajadores, #1020). Un error de servidor sigue en pantalla.
     /// </summary>
     private void LimpiarAvisoDeSeleccionFaltante()
@@ -564,7 +564,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         return Task.CompletedTask;
     }
 
-    /// <summary>"Cambiar cliente/empresa" en un Centro llegado ya fijado por una cadena (Fase A2) — vuelve a los selectores editables con el catálogo completo.</summary>
+    /// <summary>"Cambiar Cliente empresarial/empresa" en un Centro llegado ya fijado por una cadena (Fase A2) — vuelve a los selectores editables con el catálogo completo.</summary>
     private async Task DesvincularPadresFijadosAsync()
     {
         _padresFijadosPorCadena = false;

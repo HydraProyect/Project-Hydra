@@ -559,7 +559,7 @@
     <value>Renovar abans de</value>
   </data>
   <data name="DelClienteEmpresarial" xml:space="preserve">
-    <value>del client empresarial {0}</value>
+    <value>del Client empresarial {0}</value>
   </data>
   <data name="Kicker" xml:space="preserve">
     <value>Treballador</value>

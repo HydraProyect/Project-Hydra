@@ -82,7 +82,7 @@
     <value>Gestionarà sencera cada empresa que marquis. En desmarcar-ne una, en perd l'accés.</value>
   </data>
   <data name="AsignarEmpresasParcial" xml:space="preserve">
-    <value>ja té part dels seus clients; no s'amplia des d'aquí</value>
+    <value>ja té part dels seus Clients empresarials; no s'amplia des d'aquí</value>
   </data>
   <data name="AsignarEmpresasCargando" xml:space="preserve">
     <value>Carregant empreses…</value>

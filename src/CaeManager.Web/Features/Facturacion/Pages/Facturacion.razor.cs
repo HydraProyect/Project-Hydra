@@ -155,7 +155,7 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
         _cargandoResumen = false;
 
         // Invalida lo que siguiera en vuelo para el cliente anterior, también
-        // cuando se vuelve a «— Selecciona un cliente —».
+        // cuando se vuelve a «— Selecciona un Cliente empresarial —».
         _solicitudTarifas++;
         _solicitudEstimado++;
         _solicitudResumen++;
