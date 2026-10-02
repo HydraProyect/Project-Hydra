@@ -115,10 +115,10 @@
     <value>Acciones</value>
   </data>
   <data name="AccionDetalles" xml:space="preserve">
-    <value>Detalles</value>
+    <value>Vista rápida</value>
   </data>
   <data name="AccionAbrirTrabajador360" xml:space="preserve">
-    <value>Abrir Trabajador 360</value>
+    <value>Abrir ficha 360</value>
   </data>
   <data name="AccionEliminar" xml:space="preserve">
     <value>Eliminar</value>

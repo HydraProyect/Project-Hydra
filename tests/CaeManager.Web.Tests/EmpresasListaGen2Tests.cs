@@ -461,17 +461,17 @@ public class EmpresasListaGen2Tests : BunitContext
         workspace.FrameActual.Should().BeNull("punto de partida: ningún panel abierto");
 
         // Mismo menú que la lista Clientes: «Vista rápida» abre el panel y
-        // «Abrir Empresa 360» navega a la página. «Detalles» (el drawer) ya no existe.
+        // «Abrir ficha 360» navega a la página. «Detalles» (el drawer) ya no existe.
         cut.Find(".menu-acciones-disparador").Click();
         cut.FindAll(".menu-acciones-item").Select(b => b.TextContent.Trim())
-            .Should().Contain(["Vista rápida", "Abrir Empresa 360"]).And.NotContain("Detalles");
+            .Should().Contain(["Vista rápida", "Abrir ficha 360"]).And.NotContain("Detalles");
         await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Vista rápida").ClickAsync(new MouseEventArgs());
 
         workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, empresa.Id, "Refrielectric S.A.", "informacion"));
 
         var navegacion = Services.GetRequiredService<NavigationManager>();
         cut.Find(".menu-acciones-disparador").Click();
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Abrir Empresa 360").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Abrir ficha 360").ClickAsync(new MouseEventArgs());
         new Uri(navegacion.Uri).AbsolutePath.Should().Be($"/empresas/{empresa.Id}");
     }
 

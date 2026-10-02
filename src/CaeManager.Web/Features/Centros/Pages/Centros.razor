@@ -339,7 +339,7 @@
                             </span>
                         </span>
                         @* Pieza 5: la última columna es siempre el menú «⋯» (MenuAcciones). Antes era el enlace
-                           suelto «Detalles». Orden del contrato: «Ver ficha 360» primero. «Eliminar centro» (baja lógica con «Deshacer»,
+                           suelto «Detalles». Orden del contrato: «Abrir ficha 360» primero. «Eliminar centro» (baja lógica con «Deshacer»,
                            D-16) está aquí y en lote, activando «Selección múltiple». *@
                         <div class="tarjeta-fila-acordeon-acciones">
                             <MenuAcciones EtiquetaAccesible="@Textos["MenuFilaEtiqueta", centro.Nombre]">
@@ -350,7 +350,7 @@
                                     @Textos["MenuVistaPrevia"]
                                 </ItemMenuAccion>
                                 <SoloConEscritura>
-                                    <ItemMenuAccion OnClick="() => PedirEliminarCentro(centro)">@Textos["MenuEliminarCentro"]</ItemMenuAccion>
+                                    <ItemMenuAccion Destructivo="true" OnClick="() => PedirEliminarCentro(centro)">@Textos["MenuEliminarCentro"]</ItemMenuAccion>
                                 </SoloConEscritura>
                             </MenuAcciones>
                         </div>

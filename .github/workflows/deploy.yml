@@ -478,6 +478,7 @@ jobs:
           set -euo pipefail
           MIGRACIONES_EF="$(bash deploy/listar-migraciones-ef.sh .)"
           docker build \
+            --build-arg "REVISION=$SHA_DESPLEGADO" \
             --label "org.opencontainers.image.revision=$SHA_DESPLEGADO" \
             --label "es.talveg.despliegue=caemanager" \
             --label "es.talveg.migraciones-ef=$MIGRACIONES_EF" \

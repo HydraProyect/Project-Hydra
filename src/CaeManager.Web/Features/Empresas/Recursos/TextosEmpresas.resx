@@ -336,7 +336,7 @@
     <comment>Ítem del menú de fila de la lista Empresas: abre el panel de 520 px. Mismo rótulo que la lista Clientes.</comment>
   </data>
   <data name="AbrirEmpresa360" xml:space="preserve">
-    <value>Abrir Empresa 360</value>
+    <value>Abrir ficha 360</value>
     <comment>Ítem del menú de fila de la lista Empresas: navega a la página /empresas/{id}.</comment>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">

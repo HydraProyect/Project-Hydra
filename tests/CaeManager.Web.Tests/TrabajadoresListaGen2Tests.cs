@@ -1087,7 +1087,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var ana = Trabajador("Ana", "Moreno");
         var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso"), ana } });
 
-        await PulsarEnElMenuDeLaFila(cut, 1, "Abrir Trabajador 360");
+        await PulsarEnElMenuDeLaFila(cut, 1, "Abrir ficha 360");
 
         Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith($"/trabajadores/{ana.Dto.Id}");
     }

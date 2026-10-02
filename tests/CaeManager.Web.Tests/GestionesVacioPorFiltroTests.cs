@@ -15,7 +15,7 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// Gestiones tiene que distinguir <b>«sin gestiones»</b> de <b>«ninguna con
 /// estos filtros»</b>. Aquí el texto sin filtrar es además una explicación de
-/// cómo se generan —«se generan desde la Bandeja cuando se detecta la
+/// cómo se generan —«se generan desde Mi trabajo cuando se detecta la
 /// actualización de un documento…»—, así que leído con «Completadas» puesto
 /// hace creer que el mecanismo no funciona, cuando el cero solo dice que
 /// ninguna se ha completado todavía.
@@ -86,7 +86,7 @@ public class GestionesVacioPorFiltroTests : BunitContext
 
         cut.Markup.Should().Contain("Ninguna gestión con estos filtros");
         cut.Markup.Should().Contain("Quitar los filtros");
-        cut.Markup.Should().NotContain("Las gestiones se generan desde la Bandeja",
+        cut.Markup.Should().NotContain("Las gestiones se generan desde Mi trabajo",
             "explicar cómo se generan a quien acaba de filtrar por «Completadas» sugiere que no se generan");
     }
 
@@ -105,7 +105,7 @@ public class GestionesVacioPorFiltroTests : BunitContext
         var cut = Renderizar();
 
         cut.Markup.Should().Contain("Sin gestiones");
-        cut.Markup.Should().Contain("Las gestiones se generan desde la Bandeja");
+        cut.Markup.Should().Contain("Las gestiones se generan desde Mi trabajo");
         cut.Markup.Should().NotContain("Ninguna gestión con estos filtros");
     }
 

@@ -88,7 +88,7 @@
     <value>Els centres es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
   </data>
   <data name="MenuVistaPrevia" xml:space="preserve">
-    <value>Vista prèvia</value>
+    <value>Vista ràpida</value>
   </data>
   <data name="CabeceraMas" xml:space="preserve">
     <value>Més</value>
@@ -97,7 +97,7 @@
     <value>Exportar assignacions</value>
   </data>
   <data name="MenuVerFicha360" xml:space="preserve">
-    <value>Veure fitxa 360</value>
+    <value>Obre fitxa 360</value>
   </data>
   <data name="MenuFilaEtiqueta" xml:space="preserve">
     <value>Accions de {0}</value>

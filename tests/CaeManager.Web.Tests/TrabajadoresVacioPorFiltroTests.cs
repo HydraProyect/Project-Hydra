@@ -193,8 +193,8 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         // comprobación siguiente sería verde vacío.
         cut.Find(".menu-acciones-disparador").Click();
 
-        cut.Markup.Should().Contain("Abrir Trabajador 360");
-        cut.Markup.Should().Contain("Detalles", "el destino nuevo se suma, no sustituye a la vista previa");
+        cut.Markup.Should().Contain("Abrir ficha 360");
+        cut.Markup.Should().Contain("Vista rápida", "el destino nuevo se suma, no sustituye a la vista previa");
     }
 
     // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera

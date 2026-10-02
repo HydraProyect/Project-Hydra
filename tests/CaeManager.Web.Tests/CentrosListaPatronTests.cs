@@ -412,7 +412,7 @@ public class CentrosListaPatronTests : BunitContext
         var items = cut.FindAll(".menu-acciones-item").Select(i => i.TextContent.Trim()).ToList();
         // D-16: «Eliminar centro» (solo con escritura) cierra el menú; el mockup no lo dibuja, pero sin él un
         // Centro creado no tenía baja por fila.
-        items.Should().Equal("Ver ficha 360", "Vista previa", "Eliminar centro");
+        items.Should().Equal("Abrir ficha 360", "Vista rápida", "Eliminar centro");
     }
 
     [Fact]
@@ -422,7 +422,7 @@ public class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConCentros(centro));
 
         await cut.Find(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Ver ficha 360").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Abrir ficha 360").ClickAsync(new MouseEventArgs());
 
         Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith($"/centros/{centro.Id}");
     }
@@ -449,7 +449,7 @@ public class CentrosListaPatronTests : BunitContext
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
 
         await cut.Find(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Vista previa").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Vista rápida").ClickAsync(new MouseEventArgs());
 
         workspace.EstaAbierto.Should().BeTrue();
     }

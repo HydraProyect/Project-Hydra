@@ -256,7 +256,7 @@
     <value>Vista ràpida</value>
   </data>
   <data name="AbrirEmpresa360" xml:space="preserve">
-    <value>Obre Empresa 360</value>
+    <value>Obre fitxa 360</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
     <value>{0} empresa(s) restaurada(s).</value>
