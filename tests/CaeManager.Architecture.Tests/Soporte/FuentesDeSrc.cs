@@ -143,7 +143,8 @@ internal static class FuentesDeSrc
     /// Si <paramref name="nodo"/> decide algo por la nulidad de <c>EsCritico</c> o
     /// <c>NivelServicio</c>, devuelve cuál. Formas: <c>x.Nombre != null</c> / <c>== null</c>
     /// (en cualquiera de los dos lados), <c>x.Nombre is null</c>, <c>is not null</c>,
-    /// <c>is { }</c>, <c>is not { }</c> y <c>x.Nombre.HasValue</c>.
+    /// <c>is { }</c>, <c>is not { }</c>, patrones de propiedades o de tipo (<c>is bool b</c>) y
+    /// <c>x.Nombre.HasValue</c>.
     /// Ciego, a propósito: <c>switch</c> con brazo <c>null</c>, <c>??</c>, y la nulidad leída a
     /// través de una variable intermedia (<c>var c = e.EsCritico; if (c is null)</c>).
     /// </summary>
@@ -151,6 +152,10 @@ internal static class FuentesDeSrc
     {
         switch (nodo)
         {
+            // «x is bool» (sin designación) lo parsea Roslyn como expresión binaria de tipo, no como patrón.
+            case BinaryExpressionSyntax prueba when prueba.IsKind(SyntaxKind.IsExpression):
+                return NombreDeDiscriminador(prueba.Left);
+
             case BinaryExpressionSyntax binaria
                 when binaria.IsKind(SyntaxKind.EqualsExpression) || binaria.IsKind(SyntaxKind.NotEqualsExpression):
                 if (EsNulo(binaria.Right))
@@ -178,12 +183,19 @@ internal static class FuentesDeSrc
         return e.IsKind(SyntaxKind.NullLiteralExpression);
     }
 
+    /// <summary>
+    /// Un patrón que solo se cumple (o solo falla) según la nulidad: <c>null</c>, <c>not null</c>,
+    /// <c>{ }</c>, un patrón de propiedades (<c>{ Value: true }</c>) y un patrón de tipo
+    /// (<c>is bool</c>, <c>is bool b</c>), que son la misma pregunta con otra forma. Una constante
+    /// (<c>is true</c>) no: pregunta por el valor, no por la presencia.
+    /// </summary>
     private static bool PatronDeNulidad(PatternSyntax patron) => patron switch
     {
         ConstantPatternSyntax constante => EsNulo(constante.Expression),
         UnaryPatternSyntax negado when negado.IsKind(SyntaxKind.NotPattern) => PatronDeNulidad(negado.Pattern),
-        RecursivePatternSyntax { Type: null, PositionalPatternClause: null, Designation: null } recursivo =>
-            recursivo.PropertyPatternClause is { Subpatterns.Count: 0 },
+        RecursivePatternSyntax => true,
+        DeclarationPatternSyntax => true,
+        TypePatternSyntax => true,
         ParenthesizedPatternSyntax parentesis => PatronDeNulidad(parentesis.Pattern),
         _ => false,
     };
