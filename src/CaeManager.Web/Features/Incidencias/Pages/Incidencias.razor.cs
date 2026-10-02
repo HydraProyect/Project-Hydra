@@ -22,6 +22,7 @@ namespace CaeManager.Web.Features.Incidencias.Pages;
 
 public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
 {
+    private Drawer? _drawerIncidencia;
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
     // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.

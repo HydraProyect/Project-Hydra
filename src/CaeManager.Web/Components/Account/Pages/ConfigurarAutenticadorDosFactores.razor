@@ -76,7 +76,7 @@
             @* Carga completa, no navegación mejorada: el menú y los gates de rol
                dependen de una claims transformation que solo se recalcula en una
                petición nueva (mismo motivo que el forceLoad de VerificarAsync). *@
-            <a class="boton-primario boton-continuar" href="@RutaDeVuelta" data-enhance-nav="false">@Textos["CodigosContinuar"]</a>
+            <Boton Variante="VarianteBoton.Primario" Href="@RutaDeVuelta" class="boton-2fa boton-continuar" data-enhance-nav="false">@Textos["CodigosContinuar"]</Boton>
         </section>
     }
     else if (_dosFactoresActivo)
@@ -86,7 +86,7 @@
             <p class="texto-2fa-secundario">Tu aplicación autenticadora te pedirá un código cuando sea necesario.</p>
             @if (HayVueltaAFicha)
             {
-                <a class="boton-primario boton-continuar" href="@RutaDeVuelta" data-enhance-nav="false">@Textos["VolverALaFicha"]</a>
+                <Boton Variante="VarianteBoton.Primario" Href="@RutaDeVuelta" class="boton-2fa boton-continuar" data-enhance-nav="false">@Textos["VolverALaFicha"]</Boton>
             }
         </div>
 
@@ -99,7 +99,7 @@
             }
             <p class="texto-2fa-secundario">@Textos["CodigosRegenerarAyuda"]</p>
             <EditForm Model="Regenerar" method="post" OnSubmit="RegenerarCodigosAsync" FormName="regenerar-codigos">
-                <button type="submit" class="boton-primario">@Textos["CodigosRegenerar"]</button>
+                <Boton Variante="VarianteBoton.Primario" Type="submit" class="boton-2fa">@Textos["CodigosRegenerar"]</Boton>
             </EditForm>
         </section>
     }
@@ -154,7 +154,7 @@
                         <span id="codigo-ayuda" class="ayuda-codigo">Se aceptan espacios y guiones: se limpian antes de verificar.</span>
                         <ValidationMessage For="() => Entrada.Codigo" />
 
-                        <button type="submit" class="boton-primario">Activar autenticación en dos pasos</button>
+                        <Boton Variante="VarianteBoton.Primario" Type="submit" class="boton-2fa">Activar autenticación en dos pasos</Boton>
                     </EditForm>
                 </section>
             </div>

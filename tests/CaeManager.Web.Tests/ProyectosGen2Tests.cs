@@ -1042,6 +1042,20 @@ public class ProyectosGen2Tests : BunitContext
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "la fecha de inicio de hoy viene puesta: no es un cambio");
     }
 
+    /// <summary>D-05: «Cancelar» del alta de Proyecto cierra como la X.</summary>
+    [Fact]
+    public async Task Cancelar_el_nuevo_proyecto_con_nombre_pregunta_y_sin_tocar_cierra()
+    {
+        var cut = await AbrirNuevoProyectoAsync();
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nuevo proyecto").ClickAsync(new MouseEventArgs());
+        await EscribirNombreDelProyectoAsync(cut, "Montaje cámaras 2026");
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
     [Fact]
     public async Task Aviso_nuevo_proyecto_con_nombre_escrito_pregunta_al_salir()
     {

@@ -127,11 +127,7 @@ public class ContrasteDeComponentesPorTemaTests
         new("Enlace sobre superficie", "wwwroot/css/base.css", ["a"], FondoSiFalta: "var(--color-surface)"),
         new("Enlace sobre el fondo de página", "wwwroot/css/base.css", ["a"], FondoSiFalta: "var(--color-bg)"),
 
-        // ---- Copias del botón primario (mismo patrón, hoja propia) ----
-        new("Primario de 2FA (Account)", "Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor.css",
-            [".boton-primario"]),
-        new("Primario de 2FA (Account), hover", "Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor.css",
-            [".boton-primario", ".boton-primario:hover"]),
+        // ---- Otros botones con hoja propia (las copias del primario se retiraron: ya usan <Boton>) ----
         new("Cerrar sesión de Pendiente de rol", "Components/Account/Pages/PendienteDeRol.razor.css",
             [".pendiente-rol-cerrar-sesion"]),
         new("Cerrar sesión de Pendiente de rol, hover", "Components/Account/Pages/PendienteDeRol.razor.css",
@@ -159,8 +155,6 @@ public class ContrasteDeComponentesPorTemaTests
             [".bandeja-toggle-activo:hover"]),
         new("Asa pulsada del orden del menú", "Features/Configuracion/Pages/OrdenMenuLateral.razor.css",
             [".orden-menu-asa[aria-pressed=\"true\"]"]),
-        new("Primario del orden del menú", "Features/Configuracion/Pages/OrdenMenuLateral.razor.css",
-            [".orden-menu-boton-primario"]),
         new("Conectar Microsoft", "Features/Integraciones/Pages/Conexiones.razor.css", [".enlace-conectar-microsoft"]),
         new("Conectar Microsoft, hover", "Features/Integraciones/Pages/Conexiones.razor.css",
             [".enlace-conectar-microsoft", ".enlace-conectar-microsoft:hover"]),

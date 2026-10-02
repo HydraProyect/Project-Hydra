@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using CaeManager.Architecture.Tests.Soporte;
 using FluentAssertions;
 
 namespace CaeManager.Architecture.Tests;
@@ -27,8 +28,16 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
 
     private static readonly Regex PatronUsoDelAviso = new(@"<AvisoCambiosSinGuardar\b", RegexOptions.Compiled);
 
-    /// <summary>Un Drawer o un Modal que recibe HayCambios: cerrarlo con la X, Escape o el fondo pregunta.</summary>
-    private static readonly Regex PatronContenedorQuePregunta = new(@"<(Drawer|Modal)\b[^>]*\bHayCambios=", RegexOptions.Compiled);
+    private static readonly Regex AtributoHayCambios = new(@"(?:^|\s)HayCambios\s*=\s*""", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Un Drawer o un Modal que recibe HayCambios: cerrarlo con la X, Escape o el fondo pregunta. Se lee la etiqueta de apertura
+    /// con <see cref="MarcadoRazor"/> y no con un regex de «hasta el primer &gt;»: un atributo anterior con una lambda
+    /// (<c>VisibleChanged="v =&gt; …"</c>) lleva un &gt; dentro de las comillas y cortaba la etiqueta antes de llegar a HayCambios.
+    /// </summary>
+    private static bool ContenedorQuePregunta(string razor) =>
+        MarcadoRazor.Aperturas(LimpiadorDeComentarios.Quitar(razor, razor: true), "Drawer|Modal")
+            .Any(a => AtributoHayCambios.IsMatch(a.Texto));
 
     /// <summary>
     /// Formularios con el aviso puesto. Solo crece: un formulario nuevo con estado que se
@@ -132,7 +141,7 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
 
         var sinPregunta = ContenedoresQuePreguntanAlCerrar
             .Where(ruta => !File.Exists(Path.Combine(raiz, ruta))
-                || !PatronContenedorQuePregunta.IsMatch(File.ReadAllText(Path.Combine(raiz, ruta))))
+                || !ContenedorQuePregunta(File.ReadAllText(Path.Combine(raiz, ruta))))
             .ToList();
 
         sinPregunta.Should().BeEmpty(
@@ -185,11 +194,22 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
         PatronUsoDelAviso.IsMatch("<AvisoCambiosSinGuardar HayCambios=\"() => HayCambiosSinGuardar\" />").Should().BeTrue();
         PatronUsoDelAviso.IsMatch("<AvisoCambiosSinGuardarOtro />").Should().BeFalse();
 
-        PatronContenedorQuePregunta.IsMatch("<Drawer HayCambios=\"() => HayCambiosSinGuardar\" Visible=\"_drawerVisible\">").Should().BeTrue();
-        PatronContenedorQuePregunta.IsMatch("<Modal Visible=\"_v\" HayCambios=\"() => X\">").Should().BeTrue();
-        PatronContenedorQuePregunta.IsMatch("<Drawer Visible=\"_drawerVisible\">").Should().BeFalse();
-        PatronContenedorQuePregunta.IsMatch("<AvisoCambiosSinGuardar HayCambios=\"X\" />").Should().BeFalse(
+        ContenedorQuePregunta("<Drawer HayCambios=\"() => HayCambiosSinGuardar\" Visible=\"_drawerVisible\">").Should().BeTrue();
+        ContenedorQuePregunta("<Modal Visible=\"_v\" HayCambios=\"() => X\">").Should().BeTrue();
+        ContenedorQuePregunta("<Drawer Visible=\"_drawerVisible\">").Should().BeFalse();
+        ContenedorQuePregunta("<AvisoCambiosSinGuardar HayCambios=\"X\" />").Should().BeFalse(
             "el aviso de navegación no es el Drawer ni el Modal");
+
+        // Un atributo anterior con «=>» (lleva un '>' dentro de las comillas): el regex antiguo cortaba la etiqueta ahí y no veía HayCambios.
+        ContenedorQuePregunta("<Modal Visible=\"_v\" VisibleChanged=\"v => _v = v\" HayCambios=\"() => X\" Titulo=\"T\">").Should().BeTrue(
+            "HayCambios viene después de una lambda con =>");
+        ContenedorQuePregunta("<Drawer Titulo=\"@(a ? \"x\" : \"y\")\" CerrarAlHacerClicFuera=\"@(!_g && n > 0)\" HayCambios=\"() => X\">").Should().BeTrue(
+            "HayCambios viene después de comillas anidadas y de un > de comparación");
+        ContenedorQuePregunta("<Modal VisibleChanged=\"v => _v = v\" Titulo=\"T\"><CampoTexto HayCambios=\"x\" /></Modal>").Should().BeFalse(
+            "el HayCambios de un hijo no es el del contenedor");
+        ContenedorQuePregunta("<Modal VisibleChanged=\"v => _v = v\" Titulo=\"T\"><p>HayCambios=\"x\"</p></Modal>").Should().BeFalse(
+            "texto del cuerpo, no un atributo de la apertura");
+        ContenedorQuePregunta("@* <Drawer HayCambios=\"() => X\"> *@ <Drawer Visible=\"v\">").Should().BeFalse("un comentario de Razor no cuenta");
     }
 
     /// <summary>Guarda: el componente existe y el recorrido ve el árbol real; si no, las reglas de arriba pasarían en vacío.</summary>

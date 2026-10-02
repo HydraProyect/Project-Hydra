@@ -9,6 +9,7 @@ namespace CaeManager.Web.Features.Documentos.Components;
 
 public partial class RevisionIaTab : ComponentBase, IDisposable
 {
+    private Drawer? _drawerCorreccion;
     private const int UmbralConfianzaLote = 95;
 
     private IReadOnlyList<RevisionIaDocumentoDto> _revisiones = [];

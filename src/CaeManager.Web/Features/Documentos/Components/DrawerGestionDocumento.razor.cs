@@ -25,6 +25,7 @@ namespace CaeManager.Web.Features.Documentos.Components;
 
 public partial class DrawerGestionDocumento : ComponentBase
 {
+    private Drawer? _drawer;
     private const int MaximoArchivosPorSubida = 20;
 
     /// <summary>Se dispara tras crear o renovar con éxito — el host decide qué recargar (rejilla, acordeón…).</summary>

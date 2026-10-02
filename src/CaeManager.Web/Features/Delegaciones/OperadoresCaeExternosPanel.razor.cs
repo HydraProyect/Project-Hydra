@@ -12,6 +12,7 @@ namespace CaeManager.Web.Features.Delegaciones;
 
 public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
 {
+    private Modal? _modalContenedor;
     private enum ModalActivo { Ninguno, Operador, TenantPropietario }
 
     [Inject] private IMediator Mediator { get; set; } = default!;

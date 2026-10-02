@@ -106,6 +106,25 @@ public class DialogoSolicitarIncorporacionAvisoCambiosSinGuardarTests : BunitCon
         Navegacion.Uri.Should().EndWith(AvisoCambiosSinGuardarPrueba.DestinoFuera);
     }
 
+    /// <summary>D-05: «Cancelar» cierra como la X (aquí el padre no repinta: el cierre se ve en VisibleChanged).</summary>
+    [Fact]
+    public async Task Cancelar_con_el_mensaje_escrito_pregunta_y_sin_escribir_cierra()
+    {
+        var cut = Renderizar();
+        await cut.PulsarCancelarDelPieAsync(".modal-pie");
+        _visibleNotificado.Should().BeFalse("sin nada escrito, Cancelar cierra directamente");
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+
+        _visibleNotificado = null;
+        await EscribirMensajeAsync(cut, "Llevo su coordinación desde enero.");
+        await cut.PulsarCancelarDelPieAsync(".modal-pie");
+
+        _visibleNotificado.Should().BeNull("con el mensaje escrito, Cancelar pregunta antes de cerrar");
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        _visibleNotificado.Should().BeFalse("descartar cierra el diálogo");
+    }
+
     [Fact]
     public async Task Enviada_la_solicitud_salir_no_pregunta()
     {

@@ -50,6 +50,8 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 /// </summary>
 public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
+    private Modal? _modalReclamarFaltantes;
+    private Modal? _modalCrearGestion;
     private static readonly IReadOnlyDictionary<EstadoDocumento, int> OrdenSeveridad = new Dictionary<EstadoDocumento, int>
     {
         [EstadoDocumento.Faltante] = 0,

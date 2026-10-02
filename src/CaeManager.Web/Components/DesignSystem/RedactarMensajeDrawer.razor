@@ -16,7 +16,7 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 
-<Drawer HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviando">
+<Drawer @ref="_drawer" HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviando">
     <ChildContent>
         @if (_error is not null)
         {
@@ -44,7 +44,7 @@
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviando" OnClick="() => CerrarAsync(false)">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviando" OnClick="CancelarAsync">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_enviando" OnClick="EnviarAsync">Enviar</Boton>
     </Pie>
 </Drawer>
@@ -117,6 +117,11 @@
     private object?[] ValoresFormulario() => [_conexionId, _destinatarios, _asunto, _cuerpo];
 
     private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
+
+    private Drawer? _drawer;
+
+    /// <summary>«Cancelar» cierra como la X (D-05): con algo escrito pregunta «¿Descartar cambios?».</summary>
+    private Task CancelarAsync() => _drawer is { } drawer ? drawer.SolicitarCierreAsync() : CerrarAsync(false);
 
     private Task CerrarAsync(bool visible)
     {

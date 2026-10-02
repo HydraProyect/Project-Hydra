@@ -56,7 +56,7 @@
     }
 </section>
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_modal is not ModalActivo.Ninguno"
+<Modal @ref="_modalContenedor" HayCambios="() => HayCambiosSinGuardar" Visible="_modal is not ModalActivo.Ninguno"
        VisibleChanged="v => CerrarModal(v)"
        Titulo="@TituloModal"
        CerrarAlHacerClicFuera="!_enCurso">
@@ -79,7 +79,7 @@
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enCurso" OnClick="() => CerrarModal(false)">Cancelar</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enCurso" OnClick="() => _modalContenedor?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_enCurso" OnClick="ConfirmarAsync">Crear</Boton>
     </Pie>
 </Modal>

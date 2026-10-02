@@ -490,7 +490,7 @@
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_crearGestionVisible" VisibleChanged="v => _crearGestionVisible = v" Titulo="@Textos["ModalCrearGestionTitulo"]" CerrarAlHacerClicFuera="!_creandoGestion">
+<Modal @ref="_modalCrearGestion" HayCambios="() => HayCambiosSinGuardar" Visible="_crearGestionVisible" VisibleChanged="v => _crearGestionVisible = v" Titulo="@Textos["ModalCrearGestionTitulo"]" CerrarAlHacerClicFuera="!_creandoGestion">
     <ChildContent>
         <p class="workspace-nota-contextual">@Textos["NotaCrearGestion"]</p>
         <CampoSelect Etiqueta="@Textos["EtiquetaTipoDocumento"]" Valor="@_tipoDocumentoParaGestion" ValorChanged="v => _tipoDocumentoParaGestion = v">
@@ -502,7 +502,7 @@
         </CampoSelect>
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_creandoGestion" OnClick="() => _crearGestionVisible = false">@Textos["BotonCancelar"]</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_creandoGestion" OnClick="() => _modalCrearGestion?.SolicitarCierreAsync() ?? Task.CompletedTask">@Textos["BotonCancelar"]</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_creandoGestion" Deshabilitado="string.IsNullOrEmpty(_tipoDocumentoParaGestion)" OnClick="ConfirmarCrearGestionAsync">@Textos["BotonCrear"]</Boton>
     </Pie>
 </Modal>
@@ -520,7 +520,7 @@
     EnProgreso="_asignacionABajar is { } enCurso && _dandoDeBajaAsignacion.Contains(enCurso)"
     OnConfirmar="ConfirmarBajaAsignacionAsync" />
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_reclamarFaltantesVisible" VisibleChanged="v => _reclamarFaltantesVisible = v"
+<Modal @ref="_modalReclamarFaltantes" HayCambios="() => HayCambiosSinGuardar" Visible="_reclamarFaltantesVisible" VisibleChanged="v => _reclamarFaltantesVisible = v"
        Titulo="@Textos["ModalReclamarTitulo"]" CerrarAlHacerClicFuera="!_reclamandoFaltantes">
     <ChildContent>
         <p class="workspace-nota-contextual">
@@ -541,7 +541,7 @@
         </fieldset>
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_reclamandoFaltantes" OnClick="() => _reclamarFaltantesVisible = false">@Textos["BotonCancelar"]</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_reclamandoFaltantes" OnClick="() => _modalReclamarFaltantes?.SolicitarCierreAsync() ?? Task.CompletedTask">@Textos["BotonCancelar"]</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_reclamandoFaltantes" Deshabilitado="_clientesSeleccionadosReclamar.Count == 0" OnClick="ConfirmarReclamarFaltantesAsync">@Textos["BotonReclamar"]</Boton>
     </Pie>
 </Modal>

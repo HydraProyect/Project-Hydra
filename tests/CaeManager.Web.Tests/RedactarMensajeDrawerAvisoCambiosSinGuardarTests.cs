@@ -74,11 +74,12 @@ public class RedactarMensajeDrawerAvisoCambiosSinGuardarTests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private (IRenderedComponent<RedactarMensajeDrawer> Cut, NavigationManager Navegacion) Renderizar(Action? alEnviar = null)
+    private (IRenderedComponent<RedactarMensajeDrawer> Cut, NavigationManager Navegacion) Renderizar(Action? alEnviar = null, Action<bool>? visibleChanged = null)
     {
         var navegacion = Services.GetRequiredService<NavigationManager>();
         var cut = Render<RedactarMensajeDrawer>(p => p
             .Add(x => x.Visible, true)
+            .Add(x => x.VisibleChanged, v => visibleChanged?.Invoke(v))
             .Add(x => x.AsuntoInicial, "Informe de cumplimiento")
             .Add(x => x.CuerpoInicial, "Adjunto el informe del mes.")
             .Add(x => x.OnEnviado, () => alEnviar?.Invoke()));
@@ -124,6 +125,35 @@ public class RedactarMensajeDrawerAvisoCambiosSinGuardarTests : BunitContext
 
         nav.Uri.Should().EndWith("/reportes", "lo escrito ya se envió: la navegación del llamador no pregunta");
         cut.FindAll(".modal-pie button").Should().NotContain(b => b.TextContent.Trim() == "Salir y descartar");
+    }
+
+    /// <summary>«Cancelar» cierra como la X (D-05): con el mensaje a medias pregunta «¿Descartar cambios?» y no lo tira en silencio.</summary>
+    [Fact]
+    public async Task Cancelar_con_el_mensaje_a_medias_pregunta_antes_de_cerrar()
+    {
+        var cierres = new List<bool>();
+        var (cut, _) = Renderizar(visibleChanged: v => cierres.Add(v));
+        await EscribirDestinatarioAsync(cut);
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cierres.Should().BeEmpty("con algo escrito, Cancelar pregunta antes de cerrar");
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cierres.Should().Equal(false);
+    }
+
+    [Fact]
+    public async Task Cancelar_sin_cambios_cierra_directamente()
+    {
+        var cierres = new List<bool>();
+        var (cut, _) = Renderizar(visibleChanged: v => cierres.Add(v));
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cierres.Should().Equal(false);
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
     }
 
     /// <summary>

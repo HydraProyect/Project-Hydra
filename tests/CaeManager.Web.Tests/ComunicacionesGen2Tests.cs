@@ -883,6 +883,72 @@ public class ComunicacionesGen2Tests : BunitContext
         await cut.SalirYComprobarQuePreguntaAsync(navegacion);
     }
 
+    // ---- D-05: «Cancelar» de los tres formularios de la Bandeja cierra como la X
+
+    private static Task PulsarCancelarEnAsync(IRenderedComponent<Bandeja> cut, string pie) =>
+        cut.FindAll(pie + " button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+    private static bool PreguntaDescartar(IRenderedComponent<Bandeja> cut) =>
+        cut.FindAll("h2").Any(h => h.TextContent.Trim() == "¿Descartar cambios?");
+
+    [Fact]
+    public async Task Cancelar_Redactar_con_el_mensaje_a_medias_pregunta_y_sin_escribir_cierra()
+    {
+        var (cut, _) = await RenderizarConversacionAbiertaAsync();
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar").ClickAsync(new MouseEventArgs());
+        await PulsarCancelarEnAsync(cut, ".drawer-pie");
+        cut.FindAll(".drawer-panel").Should().BeEmpty("sin cambios, Cancelar cierra directamente");
+        PreguntaDescartar(cut).Should().BeFalse();
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-panel input.campo-input")[0].InputAsync(new ChangeEventArgs { Value = "contacto@example.invalid" });
+        await PulsarCancelarEnAsync(cut, ".drawer-pie");
+
+        PreguntaDescartar(cut).Should().BeTrue("con el mensaje a medias, Cancelar pregunta como la X");
+        cut.FindAll(".drawer-panel").Should().ContainSingle();
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Cancelar_Pedir_prioridad_con_el_borrador_editado_pregunta_y_sin_tocar_cierra()
+    {
+        var (cut, _) = await RenderizarConversacionAbiertaAsync();
+        await cut.FindAll(".composer-correo select")[1].ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte"));
+        await PulsarCancelarEnAsync(cut, ".drawer-pie");
+        cut.FindAll(".drawer-panel").Should().BeEmpty("el borrador propuesto sin tocar no es un cambio: Cancelar cierra");
+        PreguntaDescartar(cut).Should().BeFalse();
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte"));
+        await cut.FindAll(".drawer-panel textarea").Single().InputAsync(new ChangeEventArgs { Value = "Otro texto." });
+        await PulsarCancelarEnAsync(cut, ".drawer-pie");
+
+        PreguntaDescartar(cut).Should().BeTrue("con el borrador editado, Cancelar pregunta como la X");
+        cut.FindAll(".drawer-panel").Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Cancelar_Actualizar_documento_con_lo_corregido_pregunta_y_sin_tocar_cierra()
+    {
+        var (cut, _) = await RenderizarConversacionAbiertaAsync();
+        await cut.Find(".timeline-adjunto-actualizar-documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle());
+        await PulsarCancelarEnAsync(cut, ".modal-pie");
+        cut.FindAll(".modal-actualizar-documento-formulario").Should().BeEmpty("lo que rellenó la detección no es un cambio: Cancelar cierra");
+        PreguntaDescartar(cut).Should().BeFalse();
+
+        await cut.Find(".timeline-adjunto-actualizar-documento").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle());
+        await cut.Find(".modal-actualizar-documento-formulario textarea").InputAsync(new ChangeEventArgs { Value = "Renovado en septiembre." });
+        await PulsarCancelarEnAsync(cut, ".modal-pie");
+
+        PreguntaDescartar(cut).Should().BeTrue("con lo corregido sin guardar, Cancelar pregunta como la X");
+        cut.FindAll(".modal-actualizar-documento-formulario").Should().ContainSingle();
+    }
+
     /// <summary>Dos conversaciones de Refrielectric, con la primera abierta.</summary>
     private async Task<(IRenderedComponent<Bandeja> Cut, NavigationManager Navegacion, MediadorControlado Mediador, ConversacionListaDto Otra)>
         RenderizarDosConversacionesAsync()

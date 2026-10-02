@@ -24,6 +24,7 @@ namespace CaeManager.Web.Features.Centros.Components;
 
 public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 {
+    private Modal? _modalBajaLote;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosCentros> Textos { get; set; } = default!;
 

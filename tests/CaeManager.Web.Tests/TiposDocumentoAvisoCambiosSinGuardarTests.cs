@@ -101,6 +101,21 @@ public class TiposDocumentoAvisoCambiosSinGuardarTests : BunitContext
         cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre").Find("input")
             .InputAsync(new ChangeEventArgs { Value = nombre });
 
+    /// <summary>D-05: «Cancelar» cierra como la X.</summary>
+    [Fact]
+    public async Task Cancelar_el_alta_a_medias_pregunta_y_sin_tocar_cierra()
+    {
+        var cut = Renderizar();
+        await AbrirAltaAsync(cut);
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
+
+        await AbrirAltaAsync(cut);
+        await EscribirNombreAsync(cut, "Carné de carretillero");
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
     [Fact]
     public async Task Salir_con_el_alta_a_medias_pregunta()
     {

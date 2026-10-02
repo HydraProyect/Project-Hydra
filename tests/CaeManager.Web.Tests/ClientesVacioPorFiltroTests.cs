@@ -421,6 +421,9 @@ public class ClientesVacioPorFiltroTests : BunitContext
         await cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Nombre").Find("input")
             .InputAsync(new ChangeEventArgs { Value = "Críticos" });
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        // D-05: «Cancelar» cierra como la X, así que con el nombre escrito pregunta; descartarlo es lo que vacía el modal.
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
 
         await cut.InvokeAsync(() => navegacion.NavigateTo("clientes?accion=guardar-filtro"));
         cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Etiqueta == "Nombre"));

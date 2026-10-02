@@ -472,6 +472,22 @@ public class MacrosGen2Tests : BunitContext
         await cut.SalirYComprobarQuePreguntaAsync(Services.GetRequiredService<NavigationManager>());
     }
 
+    /// <summary>D-05: «Cancelar» cierra como la X.</summary>
+    [Fact]
+    public async Task Cancelar_la_macro_a_medias_pregunta_y_sin_tocar_cierra()
+    {
+        Services.AddLocalization();
+        var (cut, _) = Renderizar(new Escenario());
+        await AbrirNuevaMacro(cut);
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
+
+        await AbrirNuevaMacro(cut);
+        await RellenarFormulario(cut, "Acuse de recibo", "Recibido, lo revisamos.");
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
     [Fact]
     public async Task El_cliente_que_preselecciona_el_filtro_no_es_un_cambio()
     {

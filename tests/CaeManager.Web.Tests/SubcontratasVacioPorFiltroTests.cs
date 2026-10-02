@@ -222,6 +222,22 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }
 
+    /// <summary>D-05: «Cancelar» del alta de Subcontrata cierra como la X.</summary>
+    [Fact]
+    public async Task Cancelar_el_alta_a_medias_pregunta_y_sin_tocar_cierra()
+    {
+        var cut = Renderizar();
+        await cut.FindAll("button").First(b => b.TextContent.Contains("Nueva subcontrata")).ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
+
+        await cut.FindAll("button").First(b => b.TextContent.Contains("Nueva subcontrata")).ClickAsync(new MouseEventArgs());
+        await cut.FindComponents<CampoTexto>().Last().Find("input").InputAsync(new ChangeEventArgs { Value = "B12345678" });
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
     /// <summary>P1-E2b: salir con el alta de Subcontrata a medias pregunta; abrirla y salir sin tocar nada, no.</summary>
     [Fact]
     public async Task Salir_con_el_alta_a_medias_pregunta_y_sin_tocar_nada_no()
