@@ -1010,7 +1010,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private string EtiquetaFiltroBusqueda => Textos["ChipBusqueda", _busqueda].Value;
 
     private string EtiquetaFiltroAmbito =>
-        Textos["ChipAmbito", _ambitoFiltro == nameof(AmbitoAplicacion.Cliente) ? "Cliente empresarial" : _ambitoFiltro].Value;
+        Textos["ChipAmbito", _ambitoFiltro == nameof(AmbitoAplicacion.Cliente) ? Textos["ChipAmbitoCliente"].Value : _ambitoFiltro].Value;
 
     private string EtiquetaFiltroEstado =>
         Textos["ChipEstado", Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado) ? EstadoDocumentoUi.Texto(estado) : "—"].Value;
