@@ -30,13 +30,15 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 /// recarga y revalida server-side (no basta con que la UI solo ofrezca Ids
 /// válidos, ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md) con el MISMO
 /// criterio de "reclamable" que ObtenerLoteReclamacionQuery (incluida la
-/// ventana de 3 meses) — un Id que ya no cumple esos criterios (p. ej. el
+/// ventana de 3 meses y el alcance de Trabajadores y Centros visibles del
+/// usuario: un Id fuera de su alcance falla como "no reclamable", igual que uno
+/// inexistente) — un Id que ya no cumple esos criterios (p. ej. el
 /// documento se renovó, o un contacto salió de la agenda, entre que se abrió
 /// la vista previa y se pulsó Enviar) hace fallar el envío ENTERO en vez de
 /// mandar una parte sin avisar (revisión 2026-09-11): es correo real a
-/// terceros, y en este flujo manual la discrepancia típica es una carrera
-/// corta, no un intento malicioso — forzar refrescar la vista previa y
-/// reintentar es más seguro que un envío parcial silencioso.
+/// terceros. La discrepancia típica en este flujo manual es una carrera
+/// corta; un Id ajeno al alcance, en cambio, se rechaza sin más, por eso se
+/// revalida contra el alcance real y no contra lo que la UI ofreció.
 /// </summary>
 /// <param name="CentroId">
 /// Acota la resolución de destinatarios a la agenda de ese Centro antes de caer
@@ -107,6 +109,13 @@ public class EnviarReclamacionCommandHandler(
 
         var idsSolicitados = request.DocumentoIds.Distinct().ToList();
 
+        // Mismo alcance que ObtenerLoteReclamacionQuery (lo que no se ofrece no se envía):
+        // un Id de documento de un Trabajador o de un Centro fuera del alcance visible
+        // no es reclamable aunque se conozca su GUID, y falla con el mismo error que un
+        // documento ya renovado, sin revelar que existe. null = rol sin restricción.
+        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+
         // Misma ventana que ObtenerLoteReclamacionQuery (3 meses, sin límite
         // inferior): un DocumentoId que la vista previa nunca habría ofrecido
         // no puede colarse aquí como "reclamable" solo porque llegó en la
@@ -119,10 +128,12 @@ public class EnviarReclamacionCommandHandler(
             where idsSolicitados.Contains(documento.Id)
             where documento.TrabajadorId != null && documento.FechaVencimiento != null
             where documento.FechaVencimiento <= limiteVentana
+            where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             join asignacion in asignacionesContext.Asignaciones on trabajador.Id equals asignacion.TrabajadorId
             where asignacion.FechaBaja == null
+            where centroIdsVisibles == null || centroIdsVisibles.Contains(asignacion.CentroId)
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
             where centro.ClienteId == request.ClienteId
             // P1-X2: un Centro sin gestión CAE no exige documentación, así que

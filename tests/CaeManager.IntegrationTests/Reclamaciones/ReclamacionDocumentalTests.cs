@@ -50,6 +50,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     private readonly Guid _tenant = Guid.NewGuid();
     private Guid _clienteId;
     private Guid _trabajadorId;
+    private Guid _centroId;
     private Guid _tipoDocumentoId;
 
     public async Task InitializeAsync()
@@ -81,6 +82,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
 
         _clienteId = cliente.Id;
         _trabajadorId = trabajador.Id;
+        _centroId = centro.Id;
         _tipoDocumentoId = tipo.Id;
     }
 
@@ -516,6 +518,48 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Reclamacion.SinDestinatario");
+    }
+
+    /// <summary>
+    /// Alcance de trabajadores y centros visibles en el envío (el mismo que la
+    /// vista previa del lote): contra Postgres real, para que la traducción SQL
+    /// de los filtros también quede probada. Un DocumentoId conocido pero fuera
+    /// del alcance falla como «no reclamable» (sin revelar que existe); con el
+    /// trabajador en el alcance el envío pasa ese filtro y llega a la agenda.
+    /// </summary>
+    [Fact]
+    public async Task Un_documento_fuera_del_alcance_de_trabajadores_o_centros_no_es_reclamable_pero_dentro_si_llega_a_la_agenda()
+    {
+        Guid documentoId;
+        await using (var contexto = CrearContexto())
+        {
+            var documento = Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoId,
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1)));
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+            documentoId = documento.Id;
+        }
+
+        async Task<string> EnviarConAlcanceAsync(AlcanceDatosServiceFalso alcance)
+        {
+            await using var contexto = CrearContexto();
+            var handler = CrearCommandHandler(contexto, new EmailServiceFalso(), new MediatorFalso(Guid.NewGuid()), alcance);
+            var resultado = await handler.Handle(new EnviarReclamacionCommand(_clienteId, [documentoId]), CancellationToken.None);
+            resultado.EsFallido.Should().BeTrue("no hay contactos sembrados: lo que importa es DÓNDE falla");
+            return resultado.Error.Codigo;
+        }
+
+        (await EnviarConAlcanceAsync(new AlcanceDatosServiceFalso(clienteIds: [_clienteId], trabajadorIds: [Guid.NewGuid()])))
+            .Should().Be("Reclamacion.SinDocumentosValidos", "el trabajador del documento no está en su alcance");
+        (await EnviarConAlcanceAsync(new AlcanceDatosServiceFalso(clienteIds: [_clienteId], centroIds: [])))
+            .Should().Be("Reclamacion.SinDocumentosValidos", "el centro de la asignación no está en su alcance");
+        (await EnviarConAlcanceAsync(new AlcanceDatosServiceFalso(clienteIds: [_clienteId], trabajadorIds: [_trabajadorId])))
+            .Should().Be("Reclamacion.SinDestinatario", "con el trabajador en el alcance el documento sí es reclamable y se llega a la agenda");
+        (await EnviarConAlcanceAsync(new AlcanceDatosServiceFalso(clienteIds: [_clienteId], centroIds: [_centroId])))
+            .Should().Be("Reclamacion.SinDestinatario", "con el centro en el alcance (lista no vacía traducida a SQL) el documento es reclamable");
+        (await EnviarConAlcanceAsync(new AlcanceDatosServiceFalso()))
+            .Should().Be("Reclamacion.SinDestinatario", "alcance universal: sin restricción");
     }
 
     /// <summary>
