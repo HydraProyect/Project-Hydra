@@ -83,15 +83,18 @@ internal sealed record HallazgoDeVocabulario(
 /// <c>src</c>, neutral y satélites es/ca. (2) De cada <c>.razor</c>, el texto de interfaz escrito a mano en el
 /// marcado: el mismo detector que <c>TextosSinLocalizarCongeladosTests</c> (texto entre etiquetas, atributos de
 /// una lista cerrada y literales C# que parecen lenguaje natural) más los atributos cuyo NOMBRE dice que llevan
-/// texto (<c>PlaceholderBuscador</c>…). (3) De <c>src/CaeManager.Application</c>, los mensajes de
-/// <c>Error.Crear(codigo, mensaje)</c> y de <c>.WithMessage(mensaje)</c>, que acaban en pantalla.
+/// texto (<c>PlaceholderBuscador</c>…). (3) De todo el <c>.cs</c> de <c>src</c> (Application, Infrastructure, Web),
+/// los mensajes de <c>Error.Crear(codigo, mensaje)</c> y de <c>.WithMessage(mensaje)</c>, que acaban en pantalla.
 /// </para>
 ///
 /// <para>
-/// <b>Qué no ve, declarado.</b> Texto que llega de datos (catálogos sembrados), mensajes que Application o Domain
-/// montan fuera de esas dos llamadas (<c>Result.Fallo</c> con un literal suelto, excepciones), literales de
-/// <c>.cs</c> de Web y de Infrastructure, texto montado en JavaScript, un atributo cuyo valor lleva una expresión
-/// Razor (<c>@…</c>) y el texto del bloque <c>@code</c> que el detector de lenguaje natural no reconoce. Los
+/// <b>Qué no ve, declarado.</b> Texto que llega de datos (catálogos sembrados); mensajes que el código monta
+/// fuera de esas dos llamadas: un envoltorio privado que recibe el literal y llama a <c>Error.Crear(codigo,
+/// mensaje)</c> (<c>Fallo("X.Y", "…")</c>), una constante de Domain, una excepción, <c>Result.Fallo</c> con un
+/// literal suelto; otros literales <c>.cs</c> de Web e Infrastructure; texto montado en JavaScript; un atributo
+/// cuyo valor lleva una expresión Razor (<c>@…</c>); el texto del bloque <c>@code</c> que el detector de lenguaje
+/// natural no reconoce. Los literales de un mismo argumento (concatenación, interpolación) se unen con un espacio
+/// antes de casar. Los
 /// textos de un mismo <c>.razor</c> se cuentan por cadena distinta: retirar un «Tenant» y añadir otro con una
 /// frase diferente deja el recuento igual (límite heredado del detector). Las <b>URL</b> se descartan antes de
 /// casar (<c>descartarAntesDeCasar</c>), y los patrones de <c>Vocabulario.json</c> solo conocen castellano y
@@ -227,7 +230,7 @@ internal static class VocabularioDePantalla
     /// <c>EtiquetaCampo</c>, <c>aria-label</c>…), por contener una de esas palabras. El detector de texto sin
     /// localizar solo conoce una lista cerrada de nombres; un componente nuevo con otro nombre se le escaparía.
     /// Se queda con los valores sin expresiones Razor (<c>@…</c>) y ve solo el marcado, no el bloque
-    /// <c>@code</c>.
+    /// <c>@code</c>. Quedan fuera las referencias a un <c>id</c> (<c>aria-labelledby</c>…), que no son texto.
     /// </summary>
     private static IEnumerable<string> AtributosDeTexto(string contenido)
     {
@@ -244,24 +247,23 @@ internal static class VocabularioDePantalla
     }
 
     private static readonly Regex AtributoConTexto = new(
-        @"(?<![\w\-:@])[\w-]*(?:Placeholder|Etiqueta|Titulo|Texto|Mensaje|Descripcion|Label|Title|Tooltip|Leyenda|Pista|Marcador|Ayuda|Kicker|Subtitulo|Explicacion|Aviso|Cabecera|Rotulo|alt)[\w-]*" +
+        @"(?<![\w\-:@])(?!aria-(?:labelledby|describedby|controls|owns|activedescendant)\b)[\w-]*(?:Placeholder|Etiqueta|Titulo|Texto|Mensaje|Descripcion|Label|Title|Tooltip|Leyenda|Pista|Marcador|Ayuda|Kicker|Subtitulo|Explicacion|Aviso|Cabecera|Rotulo|alt)[\w-]*" +
         @"\s*=\s*""(?<v>[^""@]*)""",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     /// <summary>
-    /// Los mensajes de error y de validación que Application escribe a mano y que el usuario acaba viendo:
-    /// el segundo argumento de <c>Error.Crear(codigo, mensaje)</c> (la «clave» es el código) y el argumento de
-    /// <c>.WithMessage(mensaje)</c> (clave <c>WithMessage</c>). Son todos los literales de cadena del argumento,
-    /// también los trozos de una interpolación o de una concatenación.
+    /// Los mensajes de error y de validación que el código de <c>src</c> escribe a mano y que el usuario acaba
+    /// viendo: el segundo argumento de <c>Error.Crear(codigo, mensaje)</c> (la «clave» es el código) y el argumento
+    /// de <c>.WithMessage(mensaje)</c> (clave <c>WithMessage</c>). Un texto por argumento: los literales de cadena
+    /// del argumento, también los trozos de una interpolación o de una concatenación, unidos con un espacio.
     /// </summary>
-    public static IEnumerable<(string Fichero, string? Clave, string Texto)> TextosDeApplication() =>
+    public static IEnumerable<(string Fichero, string? Clave, string Texto)> TextosDeMensajes() =>
         ArchivosDeSrc("*.cs")
-            .Where(a => FuentesDeSrc.Relativa(a).StartsWith("src/CaeManager.Application/", StringComparison.Ordinal))
             .AsParallel().AsOrdered()
-            .SelectMany(a => TextosDeApplication(FuentesDeSrc.Relativa(a), File.ReadAllText(a)))
+            .SelectMany(a => TextosDeMensajes(FuentesDeSrc.Relativa(a), File.ReadAllText(a)))
             .ToList();
 
-    public static IEnumerable<(string Fichero, string? Clave, string Texto)> TextosDeApplication(string ruta, string contenido)
+    public static IEnumerable<(string Fichero, string? Clave, string Texto)> TextosDeMensajes(string ruta, string contenido)
     {
         var raiz = CSharpSyntaxTree.ParseText(contenido).GetRoot();
 
@@ -277,23 +279,25 @@ internal static class VocabularioDePantalla
             if (dueno == "Error" && nombre == "Crear" && argumentos.Count >= 2)
             {
                 var codigo = argumentos[0].Expression is LiteralExpressionSyntax l ? l.Token.ValueText : "(código dinámico)";
-                foreach (var texto in LiteralesDe(argumentos[1].Expression))
+                var texto = LiteralesDe(argumentos[1].Expression);
+                if (texto.Length > 0)
                     yield return (ruta, codigo, texto);
             }
             else if (nombre == "WithMessage" && argumentos.Count >= 1)
             {
-                foreach (var texto in LiteralesDe(argumentos[0].Expression))
+                var texto = LiteralesDe(argumentos[0].Expression);
+                if (texto.Length > 0)
                     yield return (ruta, "WithMessage", texto);
             }
         }
     }
 
-    private static IEnumerable<string> LiteralesDe(SyntaxNode expresion) =>
-        expresion.DescendantTokens()
+    private static string LiteralesDe(SyntaxNode expresion) =>
+        string.Join(' ', expresion.DescendantTokens()
             .Where(t => t.Kind() is SyntaxKind.StringLiteralToken or SyntaxKind.InterpolatedStringTextToken
                 or SyntaxKind.SingleLineRawStringLiteralToken or SyntaxKind.MultiLineRawStringLiteralToken)
             .Select(t => t.ValueText)
-            .Where(t => !string.IsNullOrWhiteSpace(t));
+            .Where(t => !string.IsNullOrWhiteSpace(t)));
 
     /// <summary>Cuenta las apariciones por ubicación, sin las cubiertas por una excepción.</summary>
     public static Dictionary<Ubicacion, int> DeudaMedida(IEnumerable<HallazgoDeVocabulario> hallazgos)

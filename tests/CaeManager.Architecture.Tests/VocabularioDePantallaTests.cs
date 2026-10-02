@@ -41,11 +41,11 @@ public class VocabularioDePantallaTests
     private static readonly Lazy<List<(string Fichero, string? Clave, string Texto)>> Razor =
         new(() => VocabularioDePantalla.TextosDeRazor().ToList());
 
-    private static readonly Lazy<List<(string Fichero, string? Clave, string Texto)>> Application =
-        new(() => VocabularioDePantalla.TextosDeApplication().ToList());
+    private static readonly Lazy<List<(string Fichero, string? Clave, string Texto)>> Mensajes =
+        new(() => VocabularioDePantalla.TextosDeMensajes().ToList());
 
     private static List<HallazgoDeVocabulario> HallazgosReales() =>
-        VocabularioDePantalla.Escanear(Vocabulario.Value, Resx.Value.Concat(Razor.Value).Concat(Application.Value));
+        VocabularioDePantalla.Escanear(Vocabulario.Value, Resx.Value.Concat(Razor.Value).Concat(Mensajes.Value));
 
     // ───────────────────────── el trinquete real ─────────────────────────
 
@@ -85,8 +85,8 @@ public class VocabularioDePantallaTests
         Resx.Value.Select(t => t.Fichero).Distinct().Should().Contain(f => f.EndsWith(".ca-ES.resx", StringComparison.Ordinal),
             "los satélites ca-ES cuentan: son lo que lee un usuario con la interfaz en catalán");
         Razor.Value.Count.Should().BeGreaterThan(500, "el escáner de .razor debe ver el texto de marcado escrito a mano");
-        Application.Value.Count.Should().BeGreaterThan(500, "el escáner de Application debe ver los mensajes de Error.Crear y WithMessage");
-        Application.Value.Select(t => t.Clave).Should().Contain(c => c != null && c.Contains('.'), "la clave de un mensaje de Application es el código del error");
+        Mensajes.Value.Count.Should().BeGreaterThan(500, "el escáner de mensajes debe ver los de Error.Crear y WithMessage de src");
+        Mensajes.Value.Select(t => t.Clave).Should().Contain(c => c != null && c.Contains('.'), "la clave de un mensaje de Application es el código del error");
     }
 
     [Fact]
@@ -219,10 +219,11 @@ public class VocabularioDePantallaTests
                     var c = Error.Crear(""Falso.Interpolado"", $""El tenant {x} no existe"");
                     RuleFor(x => x.A).WithMessage(""Falta el gestor."");
                     var d = Otra.Crear(""Falso.Ajeno"", ""Cliente en otra fábrica no cuenta"");
+                    var e = Error.Crear(""Falso.Concat"", ""No encontramos ese Cliente "" + ""empresarial."");
                 }
             }";
 
-        var hallazgos = VocabularioDePantalla.Escanear(Vocabulario.Value, VocabularioDePantalla.TextosDeApplication(ruta, codigo));
+        var hallazgos = VocabularioDePantalla.Escanear(Vocabulario.Value, VocabularioDePantalla.TextosDeMensajes(ruta, codigo));
 
         hallazgos.Select(h => (h.Clave, h.IdProhibido)).Should().BeEquivalentTo(new[]
         {
@@ -240,12 +241,12 @@ public class VocabularioDePantallaTests
         const string marcado =
             "<Buscador PlaceholderBuscador=\"Buscar por Cliente\" EtiquetaCampoNuevo=\"Operador\" />" +
             "<input placeholder=\"https://portal-del-cliente.com/login\" />" +
-            "<p>relación empresa-cliente</p>";
+            "<section aria-labelledby=\"columnas-plantilla-clientes-titulo\"><p>relación empresa-cliente</p></section>";
 
         var hallazgos = VocabularioDePantalla.Escanear(Vocabulario.Value, VocabularioDePantalla.TextosDeRazor(ruta, marcado));
 
         hallazgos.Select(h => h.IdProhibido).Should().BeEquivalentTo(new[] { "cliente-a-secas", "operador-a-secas", "cliente-a-secas" },
-            "el atributo PlaceholderBuscador no está en la lista del detector y se ve igualmente; la URL no cuenta; el compuesto «empresa-cliente» sí");
+            "el atributo PlaceholderBuscador no está en la lista del detector y se ve igualmente; la URL no cuenta; el compuesto «empresa-cliente» sí; aria-labelledby es una referencia a un id y no cuenta");
     }
 
     [Fact]

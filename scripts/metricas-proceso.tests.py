@@ -233,6 +233,21 @@ class Repo(unittest.TestCase):
         self.assertEqual(f["valor"], "1 valores .resx + 0 en marcado")
         self.assertIn("Vocabulario.json", f["detalle"])
 
+    def test_M16_aplica_los_descartes_de_Vocabulario_json_antes_de_casar(self):
+        # «descartarAntesDeCasar» quita del texto lo que no es lenguaje de pantalla: aquí «suelto», que sin descarte contaría.
+        with tempfile.TemporaryDirectory() as t:
+            raiz = Path(t)
+            self.arbol(raiz)
+            vocab = {"descartarAntesDeCasar": [r"\bsuelto\b"],
+                     "prohibidos": [{"id": "cliente-a-secas", "patron": r"\bCliente\b", "ignorarMayusculas": False}]}
+            escribir(raiz, "tests/CaeManager.Architecture.Tests/Vocabulario/Vocabulario.json", json.dumps(vocab))
+            f = {x["id"]: x for x in mp.metricas_de_repo(raiz)}["M16"]
+            self.assertEqual(f["valor"], "2 valores .resx + 2 en marcado")
+            vocab["descartarAntesDeCasar"] = [r"\bCliente suelto\b"]
+            escribir(raiz, "tests/CaeManager.Architecture.Tests/Vocabulario/Vocabulario.json", json.dumps(vocab))
+            g = {x["id"]: x for x in mp.metricas_de_repo(raiz)}["M16"]
+        self.assertEqual(g["valor"], "1 valores .resx + 2 en marcado", "el descarte de «Cliente suelto» quita una de las dos apariciones del .resx")
+
     def test_M16_con_Vocabulario_json_ilegible_es_NO_MEDIDA_y_no_un_cero(self):
         with tempfile.TemporaryDirectory() as t:
             raiz = Path(t)

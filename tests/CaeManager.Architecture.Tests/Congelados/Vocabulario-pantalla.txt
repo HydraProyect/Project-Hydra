@@ -41,6 +41,7 @@ src/CaeManager.Application/Tenants/Commands/RevocarAsignacionOperadorDelegado/Re
 src/CaeManager.Application/Usuarios/Commands/RestablecerSegundoFactor/AutorizacionRestablecerSegundoFactor.cs :: SegundoFactor.FueraDelTenantObjetivo [tenant-a-secas] = 1
 src/CaeManager.Application/Usuarios/Commands/RestablecerSegundoFactor/AutorizacionRestablecerSegundoFactor.cs :: SegundoFactor.NoEsAdministradorUnico [tenant-a-secas] = 1
 src/CaeManager.Application/Usuarios/Commands/RestablecerSegundoFactor/AutorizacionRestablecerSegundoFactor.cs :: SegundoFactor.SesionSinCapacidad [tenant-a-secas] = 1
+src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs :: SegundoFactor.RestablecimientoPorSoporteDenegado [tenant-a-secas] = 1
 src/CaeManager.Web/Components/Legal/PoliticaPrivacidad.razor :: [tenant-a-secas] = 6
 src/CaeManager.Web/Components/Legal/PoliticaPrivacidad.razor :: [workspace-a-secas] = 1
 src/CaeManager.Web/Components/Legal/TerminosCondiciones.razor :: [operador-a-secas] = 2
@@ -106,7 +107,6 @@ src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor :: [tenant-a-secas] = 
 src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.ca-ES.resx :: VacioClientesDescripcion [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.resx :: VacioClientesDescripcion [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Facturacion/Pages/Facturacion.razor :: [alcance-a-secas] = 1
-src/CaeManager.Web/Features/Importacion/Pages/Importacion.razor :: [cliente-a-secas] = 1
 src/CaeManager.Web/Features/IncorporacionCartera/Recursos/TextosIncorporacionCartera.ca-ES.resx :: SinAsignacionDetalleCoordinador [alcance-a-secas] = 1
 src/CaeManager.Web/Features/IncorporacionCartera/Recursos/TextosIncorporacionCartera.resx :: SinAsignacionDetalleCoordinador [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor :: [tenant-a-secas] = 1

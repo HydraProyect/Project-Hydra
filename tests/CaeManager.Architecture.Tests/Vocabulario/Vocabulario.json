@@ -387,12 +387,13 @@
       "id": "tenant-en-comandos-de-plataforma",
       "prohibidos": ["tenant-a-secas"],
       "ficheros": [
-        "src/CaeManager.Application/Comercial/Commands/**",
-        "src/CaeManager.Application/Plataforma/Commands/**"
+        "src/CaeManager.Application/Comercial/Commands/ActualizarEstadoComercialTenant/ActualizarEstadoComercialTenantCommand.cs",
+        "src/CaeManager.Application/Comercial/Commands/RegistrarSuscripcionTenant/RegistrarSuscripcionTenantCommand.cs",
+        "src/CaeManager.Application/Plataforma/Commands/ConcederPrivilegio/ConcederPrivilegioCommand.cs"
       ],
       "claves": null,
       "contexto": "acceso de plataforma",
-      "motivo": "Comandos que solo ejecuta un Actor de Plataforma TALVEG (plano 3): el estado comercial de un Tenant, la concesión de privilegios. Sus mensajes de error nombran el Tenant porque es el objeto de ese trabajo («No tienes autorización de plataforma sobre ese tenant»)."
+      "motivo": "Tres comandos que solo ejecuta un Actor de Plataforma TALVEG (plano 3): el estado comercial de un Tenant, el registro de su suscripción y la concesión de privilegios. Sus mensajes de error nombran el Tenant porque es el objeto de ese trabajo («No tienes autorización de plataforma sobre ese tenant»). Un comando nuevo con la misma necesidad se registra aquí, fichero a fichero."
     },
     {
       "id": "plantilla-de-importacion",

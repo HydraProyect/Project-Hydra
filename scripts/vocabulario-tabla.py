@@ -84,7 +84,7 @@ def generar(datos: dict) -> str:
         f"Generado desde `{RUTA_EN_REPO}` (versión {datos['version']}) por `scripts/vocabulario-tabla.py`. "
         "No se edita a mano: se edita ese fichero y se regenera. El test de arquitectura `VocabularioDePantallaTests` "
         "aplica estas mismas reglas a los valores de los `.resx` (es-ES y ca-ES), al texto visible de los `.razor` y a los "
-        "mensajes de `Error.Crear` y `.WithMessage` de Application.",
+        "mensajes de `Error.Crear` y `.WithMessage` del código de `src` (Application, Infrastructure y Web).",
         "",
         "**Términos canónicos de pantalla**",
         "",
