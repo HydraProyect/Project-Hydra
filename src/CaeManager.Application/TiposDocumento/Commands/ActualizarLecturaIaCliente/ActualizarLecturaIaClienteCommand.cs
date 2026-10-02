@@ -21,13 +21,13 @@ public class ActualizarLecturaIaClienteCommandHandler(
         {
             var clienteIdsVisibles = await alcanceDatosService.ObtenerClienteIdsVisiblesAsync(cancellationToken);
             if (clienteIdsVisibles is null || !clienteIdsVisibles.Contains(request.ClienteId))
-                return Result.Fallo(Error.Crear("LecturaIa.SinAcceso", "No tienes acceso a este cliente."));
+                return Result.Fallo(Error.Crear("LecturaIa.SinAcceso", "No tienes acceso a este Cliente empresarial."));
         }
         else if (!await empresasContext.Empresas.AnyAsync(c => c.Id == request.ClienteId, cancellationToken))
         {
             // Con acceso total (Administrador) el chequeo de arriba no corre —
             // verificación de Ids ajenos, ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
-            return Result.Fallo(Error.Crear("LecturaIa.ClienteNoEncontrado", "No encontramos este cliente."));
+            return Result.Fallo(Error.Crear("LecturaIa.ClienteNoEncontrado", "No encontramos este Cliente empresarial."));
         }
 
         if (!await tiposDocumentoContext.TiposDocumento.AnyAsync(t => t.Id == request.TipoDocumentoId, cancellationToken))

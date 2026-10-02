@@ -73,7 +73,7 @@
     <value>Tria un Client empresarial per veure els seus projectes</value>
   </data>
   <data name="SinClienteDescripcion" xml:space="preserve">
-    <value>Cada proyecto de obra o instalación pertenece a un centro de un cliente concreto.</value>
+    <value>Cada proyecto de obra o instalación pertenece a un centro de un Cliente empresarial concreto.</value>
   </data>
   <data name="ErrorProyectosTitulo" xml:space="preserve">
     <value>No pudimos cargar los proyectos</value>
@@ -82,22 +82,22 @@
     <value>Sin proyectos</value>
   </data>
   <data name="VacioDescripcion" xml:space="preserve">
-    <value>Este cliente todavía no tiene ningún proyecto de obra o instalación.</value>
+    <value>Este Cliente empresarial todavía no tiene ningún proyecto de obra o instalación.</value>
   </data>
   <data name="VacioFiltroTitulo" xml:space="preserve">
     <value>Ningún proyecto con este filtro</value>
   </data>
   <data name="VacioFiltroDescripcion" xml:space="preserve">
-    <value>Este cliente sí tiene proyectos, pero ninguno coincide con la búsqueda ni con el estado seleccionado.</value>
+    <value>Este Cliente empresarial sí tiene proyectos, pero ninguno coincide con la búsqueda ni con el estado seleccionado.</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
     <value>Quitar los filtros</value>
   </data>
   <data name="ConteoConFiltro" xml:space="preserve">
-    <value>{0} de {1} proyecto(s) de este cliente</value>
+    <value>{0} de {1} proyecto(s) de este Cliente empresarial</value>
   </data>
   <data name="ConteoSinFiltro" xml:space="preserve">
-    <value>{0} proyecto(s) de este cliente</value>
+    <value>{0} proyecto(s) de este Cliente empresarial</value>
   </data>
   <data name="EtiquetaNombre" xml:space="preserve">
     <value>Nombre</value>

@@ -19,7 +19,7 @@ public class CrearTarifaClienteCommandValidator : AbstractValidator<CrearTarifaC
 {
     public CrearTarifaClienteCommandValidator()
     {
-        RuleFor(c => c.ClienteId).NotEmpty().WithMessage("El cliente es obligatorio.");
+        RuleFor(c => c.ClienteId).NotEmpty().WithMessage("El Cliente empresarial es obligatorio.");
         RuleFor(c => c.PrecioUnitario)
             .GreaterThanOrEqualTo(0).WithMessage("El precio no puede ser negativo.");
         RuleFor(c => c.MonedaIso)
@@ -40,12 +40,12 @@ public class CrearTarifaClienteCommandHandler(
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         // TarifaCliente.ClienteId ya apunta a Empresas (F3).
         if (!await empresasContext.Empresas.AnyAsync(e => e.Id == request.ClienteId, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("TarifaCliente.ClienteNoEncontrado", "No encontramos este cliente."));
+            return Result.Fallo<Guid>(Error.Crear("TarifaCliente.ClienteNoEncontrado", "No encontramos este Cliente empresarial."));
 
         if (await repositorio.ExisteParaConceptoAsync(request.ClienteId, request.Concepto, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "TarifaCliente.ConceptoDuplicado",
-                "Ya existe una tarifa para este concepto en el cliente seleccionado."));
+                "Ya existe una tarifa para este concepto en el Cliente empresarial seleccionado."));
 
         var tarifa = TarifaCliente.Crear(request.ClienteId, request.Concepto, request.PrecioUnitario, request.MonedaIso);
         repositorio.Agregar(tarifa);

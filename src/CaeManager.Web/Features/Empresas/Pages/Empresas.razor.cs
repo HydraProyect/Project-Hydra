@@ -466,7 +466,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             : $"Peor estado de vigencia entre sus documentos: {EstadoDocumentoUi.Texto(estado.Value)}";
 
     private static string TituloClientes(int cantidad) =>
-        cantidad == 1 ? "Presta servicio a 1 cliente empresarial" : $"Presta servicio a {cantidad} clientes empresariales";
+        cantidad == 1 ? "Presta servicio a 1 Cliente empresarial" : $"Presta servicio a {cantidad} Clientes empresariales";
 
     private async Task AbrirCrear()
     {

@@ -56,7 +56,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
 
         // --- Preparación: Cliente → Empresa → Trabajador reales, mismo patrón que FlujoCriticoTests ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByText("+ Nuevo cliente").First.ClickAsync();
+        await page.GetByText("+ Nuevo Cliente empresarial").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_101));
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();

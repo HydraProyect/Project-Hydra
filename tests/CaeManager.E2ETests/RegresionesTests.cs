@@ -27,10 +27,10 @@ public class RegresionesTests(WebAppFixture fixture)
 
         // .First: desde que el tenant del Administrador (Consultora, ver
         // ADR-004 § 5.1) no tiene datos operativos propios, la lista de
-        // Clientes arranca vacía y el botón "+ Nuevo cliente" aparece dos
+        // Clientes arranca vacía y el botón "+ Nuevo Cliente empresarial" aparece dos
         // veces — en la cabecera y en el EstadoVacio — ambos abren el mismo
         // drawer, así que cualquiera de los dos sirve para este test.
-        await page.GetByText("+ Nuevo cliente").First.ClickAsync();
+        await page.GetByText("+ Nuevo Cliente empresarial").First.ClickAsync();
 
         var panel = page.Locator(".drawer-panel");
         var superposicion = page.Locator(".drawer-superposicion");

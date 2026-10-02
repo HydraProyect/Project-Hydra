@@ -211,7 +211,7 @@
                         }
                         <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                 aria-expanded="@(expandido ? "true" : "false")"
-                                aria-label="@($"{(expandido ? "Ocultar" : "Ver")} los clientes empresariales de {empresa.RazonSocial}")"
+                                aria-label="@($"{(expandido ? "Ocultar" : "Ver")} los Clientes empresariales de {empresa.RazonSocial}")"
                                 @onclick="() => AlternarExpansionAsync(empresa.Id)">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
@@ -305,7 +305,7 @@
                             {
                                 @* ObtenerClientesDeEmpresaQuery devuelve vacío también sin alcance de gestión:
                                    el texto es cierto en los dos casos y no revela cuál (#810). *@
-                                <p class="texto-vacio-seccion">Esta empresa no presta servicio a clientes empresariales, o no están dentro de tu alcance de gestión.</p>
+                                <p class="texto-vacio-seccion">Esta empresa no presta servicio a Clientes empresariales, o no están dentro de tu alcance de gestión.</p>
                             }
                             else
                             {
@@ -351,11 +351,11 @@
             <input type="checkbox" @bind="_esActividadAnexoI" /> Actividad del Anexo I del RSP
         </label>
 
-        <SelectorMultiple Etiqueta="Clientes con los que trabaja"
+        <SelectorMultiple Etiqueta="Clientes empresariales con los que trabaja"
                            Elementos="@_clientesDisponiblesSelector"
                            Seleccionados="@_clienteIdsSeleccionados"
                            OnAlternar="args => AlternarCliente(args.Id, args.Marcado)"
-                           TextoVacio="Todavía no hay clientes creados." />
+                           TextoVacio="Todavía no hay Clientes empresariales creados." />
     </ChildContent>
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => CerrarDrawerAsync(false)">

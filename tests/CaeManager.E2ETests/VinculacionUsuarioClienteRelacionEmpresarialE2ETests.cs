@@ -43,7 +43,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
 
         // --- Cliente real (creado hoy: solo existe como Empresa, nunca en la tabla legacy Clientes) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByText("+ Nuevo cliente").First.ClickAsync();
+        await page.GetByText("+ Nuevo Cliente empresarial").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_001));
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
@@ -51,7 +51,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
 
         // --- Un segundo Cliente, ajeno — control negativo ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByText("+ Nuevo cliente").First.ClickAsync();
+        await page.GetByText("+ Nuevo Cliente empresarial").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialOtroCliente);
         await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_004));
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
@@ -62,7 +62,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await page.GetByText("+ Nueva empresa").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresaPropia);
         await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_002));
-        await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes con los que trabaja", razonSocialCliente);
+        await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes empresariales con los que trabaja", razonSocialCliente);
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
@@ -71,7 +71,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await page.GetByText("+ Nueva empresa").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresaAjena);
         await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_005));
-        await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes con los que trabaja", razonSocialOtroCliente);
+        await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes empresariales con los que trabaja", razonSocialOtroCliente);
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
@@ -80,7 +80,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await page.GetByText("+ Nueva subcontrata").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialSubcontrata);
         await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_003));
-        await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes que la contrataron", razonSocialCliente);
+        await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes empresariales que la contrataron", razonSocialCliente);
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
@@ -217,7 +217,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
 
     /// <summary>
     /// Algunos drawers (Subcontratas.razor) tienen DOS SelectorMultiple a la
-    /// vez ("Clientes que la contrataron" + "Empresas a las que presta
+    /// vez ("Clientes empresariales que la contrataron" + "Empresas a las que presta
     /// servicio") — y el catálogo de Empresas es global a propósito (ver
     /// ObtenerEmpresasParaSelectorQuery), así que un Cliente recién creado
     /// (que también es una fila de Empresas) puede aparecer como opción en

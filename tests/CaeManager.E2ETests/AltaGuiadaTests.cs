@@ -125,7 +125,7 @@ public class AltaGuiadaTests(WebAppFixture fixture)
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        await page.GetByPlaceholder("Buscar centro, cliente o empresa…").FillAsync(nombreCentro);
+        await page.GetByPlaceholder("Buscar centro, Cliente empresarial o empresa…").FillAsync(nombreCentro);
         await page.GetByText(nombreCentro).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
     }
 

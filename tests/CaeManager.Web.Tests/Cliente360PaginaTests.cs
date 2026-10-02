@@ -377,7 +377,7 @@ public class Cliente360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("2 centros de este cliente empresarial, del peor estado al mejor.");
+        cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("2 centros de este Cliente empresarial, del peor estado al mejor.");
         var filas = cut.FindAll("li.fila-relacion");
         filas.Select(f => f.QuerySelector("a.fila-relacion-nombre")!.GetAttribute("href"))
             .Should().Equal([$"/centros/{bloqueado.Id}", $"/centros/{vigente.Id}"], "el orden es el de la consulta: peor primero");
@@ -462,7 +462,7 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id);
 
         cut.Find(".estado-vacio").TextContent.Should()
-            .Contain("No pudimos cargar este cliente empresarial").And.Contain("Puede que ya no exista o que no tengas acceso.");
+            .Contain("No pudimos cargar este Cliente empresarial").And.Contain("Puede que ya no exista o que no tengas acceso.");
         cut.FindAll(".cabecera-pagina").Should().BeEmpty();
         // Del cliente pide solo su ficha; la lista de empresas autorizadas es del aviso de enlace profundo (§ 4.5).
         mediador.Enviadas.Where(e => e is not CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados.ObtenerClientesAutorizadosQuery)
@@ -488,7 +488,7 @@ public class Cliente360PaginaTests : BunitContext
         cut.Find(".cliente360-nota-pie").TextContent.Should().Be("Solo visible para tu equipo.");
 
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar cliente empresarial").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar Cliente empresarial").ClickAsync(new MouseEventArgs());
         workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Cliente, id, "Refrielectric S.A.", "informacion"));
 
         var editar = cut.FindAll("button").Where(b => b.TextContent.Trim() == "Editar →").ToList();

@@ -358,13 +358,13 @@ public class EmpresasListaGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } });
         var chevron = cut.Find(".boton-expandir-fila");
-        chevron.GetAttribute("aria-label").Should().Be("Ver los clientes empresariales de Refrielectric S.A.");
+        chevron.GetAttribute("aria-label").Should().Be("Ver los Clientes empresariales de Refrielectric S.A.");
         chevron.GetAttribute("aria-expanded").Should().Be("false");
 
         await chevron.ClickAsync(new MouseEventArgs());
 
         var abierto = cut.Find(".boton-expandir-fila");
-        abierto.GetAttribute("aria-label").Should().Be("Ocultar los clientes empresariales de Refrielectric S.A.");
+        abierto.GetAttribute("aria-label").Should().Be("Ocultar los Clientes empresariales de Refrielectric S.A.");
         abierto.GetAttribute("aria-expanded").Should().Be("true");
     }
 
@@ -516,7 +516,7 @@ public class EmpresasListaGen2Tests : BunitContext
         await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Trim() == "Expandir todos").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.FindAll(".titulo-clientes-empresa").Select(t => t.TextContent.Trim())
-            .Should().Equal(["Presta servicio a 1 cliente empresarial", "Presta servicio a 2 clientes empresariales"]));
+            .Should().Equal(["Presta servicio a 1 Cliente empresarial", "Presta servicio a 2 Clientes empresariales"]));
         var contenidoRefrielectric = cut.FindAll(".tarjeta-fila-acordeon-contenido")[1];
         contenidoRefrielectric.TextContent.Should().Contain("Grupo Arbeko").And.Contain("Petronor Servicios");
     }
@@ -535,7 +535,7 @@ public class EmpresasListaGen2Tests : BunitContext
         await cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
 
         cut.Find(".tarjeta-fila-acordeon-contenido").TextContent.Trim()
-            .Should().Be("Esta empresa no presta servicio a clientes empresariales, o no están dentro de tu alcance de gestión.");
+            .Should().Be("Esta empresa no presta servicio a Clientes empresariales, o no están dentro de tu alcance de gestión.");
         cut.FindAll(".titulo-clientes-empresa").Should().BeEmpty();
     }
 
@@ -561,7 +561,7 @@ public class EmpresasListaGen2Tests : BunitContext
         mediador.ClientesDe[empresa.Id] = [ClienteEmpresarial("Grupo Arbeko", "A-95.117.220")];
         await cut.Find(".tarjeta-fila-acordeon-contenido button").ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => cut.Find(".titulo-clientes-empresa").TextContent.Trim().Should().Be("Presta servicio a 1 cliente empresarial"));
+        cut.WaitForAssertion(() => cut.Find(".titulo-clientes-empresa").TextContent.Trim().Should().Be("Presta servicio a 1 Cliente empresarial"));
         cut.FindAll(".tarjeta-fila-acordeon-contenido [role=alert]").Should().BeEmpty();
     }
 
@@ -602,7 +602,7 @@ public class EmpresasListaGen2Tests : BunitContext
 
         ConsultasDeClientes(mediador).Should().Be(consultasAntes + 1,
             "la respuesta vieja era de antes de recargar la lista: no puede servir de caché a la fila");
-        cut.WaitForAssertion(() => cut.Find(".titulo-clientes-empresa").TextContent.Trim().Should().Be("Presta servicio a 1 cliente empresarial"));
+        cut.WaitForAssertion(() => cut.Find(".titulo-clientes-empresa").TextContent.Trim().Should().Be("Presta servicio a 1 Cliente empresarial"));
     }
 
     // ------------------------------------------------------------- Carreras

@@ -1032,7 +1032,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 return;
             }
 
-            ToastService.Mostrar("Conversación asignada al cliente.", TonoToast.Exito);
+            ToastService.Mostrar("Conversación asignada al Cliente empresarial.", TonoToast.Exito);
             await CargarDetalleAsync();
             await CargarListaAsync();
         }

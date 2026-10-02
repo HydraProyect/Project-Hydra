@@ -214,7 +214,7 @@ public class EjecutarImportacionCommandHandler(
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     "Centros_Plataformas", 0, fila.Nombre,
-                    "Este cliente no existe todavía. Ahora requiere un CIF, que esta plantilla no recoge — créalo manualmente en Clientes."));
+                    "Este Cliente empresarial no existe todavía. Ahora requiere un CIF, que esta plantilla no recoge — créalo manualmente en Clientes empresariales."));
                 continue;
             }
 

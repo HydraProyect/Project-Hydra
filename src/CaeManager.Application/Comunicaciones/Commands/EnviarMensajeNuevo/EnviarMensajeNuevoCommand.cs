@@ -51,7 +51,7 @@ public class EnviarMensajeNuevoCommandValidator : AbstractValidator<EnviarMensaj
             .WithMessage("Los adjuntos no pueden superar 3 MB en total.");
         RuleFor(c => c)
             .Must(c => c.ClienteId is null || c.EmpresaId is null)
-            .WithMessage("Un hilo se ancla a un Cliente o a una Empresa, nunca a los dos.");
+            .WithMessage("Un hilo se ancla a un Cliente empresarial o a una Empresa, nunca a los dos.");
     }
 }
 
@@ -91,7 +91,7 @@ public class EnviarMensajeNuevoCommandHandler(
         // Conversacion prohíbe.
         var clienteId = request.EmpresaId is null ? request.ClienteId ?? conexion.ClienteId : null;
         if (clienteId is not null && !await alcanceDatos.ClienteVisibleAsync(clienteId.Value, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
+            return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial."));
 
         // Mismo criterio que el Cliente: quien redacta no puede abrir un hilo
         // anclado a una Empresa que no tiene en cartera.

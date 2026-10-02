@@ -128,7 +128,7 @@ public partial class BuscadorGlobal
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<(string Titulo, string Ruta)>> AccionesContextualesPorPantalla =
         new Dictionary<string, IReadOnlyList<(string, string)>>
         {
-            ["clientes"] = [("Nuevo cliente empresarial", "/clientes?accion=crear"), ("Exportar a Excel", "/clientes/exportar.xlsx"), ("Guardar filtro actual", MarcadorGuardarFiltro)],
+            ["clientes"] = [("Nuevo Cliente empresarial", "/clientes?accion=crear"), ("Exportar a Excel", "/clientes/exportar.xlsx"), ("Guardar filtro actual", MarcadorGuardarFiltro)],
             ["empresas"] = [("Nueva empresa", "/empresas?accion=crear"), ("Exportar a Excel", "/empresas/exportar.xlsx")],
             ["subcontratas"] = [("Nueva subcontrata", "/subcontratas?accion=crear"), ("Exportar a Excel", "/subcontratas/exportar.xlsx")],
             ["centros"] = [("Nuevo centro", "/centros?accion=crear"), ("Exportar a Excel", "/centros/exportar.xlsx")],
@@ -139,8 +139,8 @@ public partial class BuscadorGlobal
     /// <summary>Grupo "Acciones" del palette — verbos que crean algo, nunca navegación pura.</summary>
     private static readonly IReadOnlyList<(string Nombre, string Ruta)> AccionesFijas =
     [
-        ("Crear cliente empresarial", "/clientes?accion=crear"),
-        ("Alta guiada de cliente empresarial", "/clientes/alta-guiada"),
+        ("Crear Cliente empresarial", "/clientes?accion=crear"),
+        ("Alta guiada de Cliente empresarial", "/clientes/alta-guiada"),
         ("Crear documento", "/documentos?accion=crear"),
     ];
 

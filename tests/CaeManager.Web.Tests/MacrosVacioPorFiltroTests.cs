@@ -124,7 +124,7 @@ public class MacrosVacioPorFiltroTests : BunitContext
         var cut = Renderizar(Macro("Reclamación de TC2", ClienteDePrueba.Id));
 
         cut.Markup.Should().Contain("No hay macros genéricas");
-        cut.Markup.Should().Contain("elige un cliente arriba para ver las suyas");
+        cut.Markup.Should().Contain("elige un Cliente empresarial arriba para ver las suyas");
         cut.Markup.Should().NotContain("Aún no hay macros",
             "hay una macro en el tenant; lo que no hay es ninguna genérica");
     }
@@ -150,7 +150,7 @@ public class MacrosVacioPorFiltroTests : BunitContext
 
         FiltrarPorCliente(cut);
 
-        cut.Markup.Should().Contain("Ni macros genéricas ni de este cliente");
+        cut.Markup.Should().Contain("Ni macros genéricas ni de este Cliente empresarial");
         cut.Markup.Should().NotContain("No hay macros genéricas",
             "con cliente elegido, el vacío dice algo más fuerte: tampoco tiene propias");
     }
@@ -167,7 +167,7 @@ public class MacrosVacioPorFiltroTests : BunitContext
 
         FiltrarPorCliente(cut);
 
-        cut.Markup.Should().Contain("Ni macros genéricas ni de este cliente", "es la barrera de este caso");
+        cut.Markup.Should().Contain("Ni macros genéricas ni de este Cliente empresarial", "es la barrera de este caso");
         cut.Find(".estado-vacio button").TextContent.Should().Contain("Nueva macro");
         cut.Markup.Should().NotContain("Quitar el filtro");
         cut.Markup.Should().NotContain("Quitar los filtros");
@@ -180,7 +180,7 @@ public class MacrosVacioPorFiltroTests : BunitContext
 
         cut.Markup.Should().Contain("No hay macros genéricas");
         cut.Find(".estado-vacio button").TextContent.Should().Contain("Nueva macro");
-        cut.Markup.Should().NotContain("Ni macros genéricas ni de este cliente");
+        cut.Markup.Should().NotContain("Ni macros genéricas ni de este Cliente empresarial");
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public class MacrosVacioPorFiltroTests : BunitContext
         var cut = Renderizar(Macro("Saludo estándar"));
 
         cut.Markup.Should().NotContain("No hay macros genéricas");
-        cut.Markup.Should().NotContain("Ni macros genéricas ni de este cliente");
+        cut.Markup.Should().NotContain("Ni macros genéricas ni de este Cliente empresarial");
         cut.Find("table.tabla-datos").TextContent.Should().Contain("Saludo estándar");
     }
 }

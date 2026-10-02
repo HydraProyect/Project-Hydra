@@ -284,7 +284,7 @@
     private static string DescribirDesglose(DesgloseCoincidenciaDto desglose)
     {
         var partes = new List<string>();
-        if (desglose.MismoCliente > 0) partes.Add("mismo cliente");
+        if (desglose.MismoCliente > 0) partes.Add("mismo Cliente empresarial");
         if (desglose.VentanaTemporal > 0) partes.Add("actividad reciente");
         if (desglose.MismoTrabajador > 0) partes.Add("mismo trabajador");
         if (desglose.MismoCentro > 0) partes.Add("mismo centro");

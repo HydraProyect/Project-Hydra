@@ -104,7 +104,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialTests : IAsyncLifetime
 
             // El vínculo que F4.2a corrige: ApplicationUser.ClienteId = Empresa.Id
             // (nunca un Id de la tabla legacy Clientes, que ni siquiera tiene
-            // fila para este cliente).
+            // fila para este Cliente empresarial).
             contexto.Users.Add(new ApplicationUser
             {
                 Id = usuarioId,

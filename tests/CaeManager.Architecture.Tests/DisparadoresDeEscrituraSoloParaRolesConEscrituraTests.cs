@@ -7,7 +7,7 @@ namespace CaeManager.Architecture.Tests;
 /// Un botón de crear que se ve habilitado y falla al pulsarlo con «Tu rol no
 /// permite crear, editar ni eliminar datos» es una pantalla que miente. Se midió
 /// en la demo a dirección: una Dirección CAE operando un Tenant propietario como
-/// Consulta delegada veía «+ Nueva empresa», «+ Nuevo cliente», «Redactar» y
+/// Consulta delegada veía «+ Nueva empresa», «+ Nuevo Cliente empresarial», «Redactar» y
 /// «Resolver» activos. Los disparadores de escritura se envuelven en
 /// <c>SoloConEscritura</c>, que los pinta solo para los roles de
 /// <c>Roles.ConEscrituraCsv</c>.
@@ -63,7 +63,7 @@ public class DisparadoresDeEscrituraSoloParaRolesConEscrituraTests
         // El instrumento probado contra sí mismo, con fuente inventada: uno suelto,
         // uno envuelto en la misma línea y uno envuelto en varias.
         const string fuente =
-            "<Boton OnClick=\"A\">+ Nuevo cliente</Boton>\n" +
+            "<Boton OnClick=\"A\">+ Nuevo Cliente empresarial</Boton>\n" +
             "<SoloConEscritura><Boton OnClick=\"B\">+ Nueva empresa</Boton></SoloConEscritura>\n" +
             "<SoloConEscritura>\n" +
             "   @if (x)\n" +
@@ -85,7 +85,7 @@ public class DisparadoresDeEscrituraSoloParaRolesConEscrituraTests
 
         sitios.Should().Be(6);
         sinEnvolver.Should().BeEquivalentTo(
-            "fuente-falsa.razor:1 <Boton OnClick=\"A\">+ Nuevo cliente</Boton>",
+            "fuente-falsa.razor:1 <Boton OnClick=\"A\">+ Nuevo Cliente empresarial</Boton>",
             "fuente-falsa.razor:9 <Boton OnClick=\"D\">Redactar</Boton>",
             "fuente-falsa.razor:10 <Boton OnClick=\"E\" Tamano=\"P\"> Añadir contacto </Boton>");
     }

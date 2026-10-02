@@ -44,7 +44,7 @@ public class ActualizarPerfilDocumentoOficialGlobalCommandHandler(
         {
             return Result.Fallo(Error.Crear(
                 "PerfilDocumentoOficial.AmbitoIncorrecto",
-                "El perfil de documento oficial solo aplica a tipos de documento de Empresa o Cliente."));
+                "El perfil de documento oficial solo aplica a tipos de documento de Empresa o Cliente empresarial."));
         }
 
         tipoDocumento.EstablecerPerfilDocumentoOficial(request.Perfil);

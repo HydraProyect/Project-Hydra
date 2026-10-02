@@ -36,7 +36,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
 
         // --- Preparación: Cliente → Empresa → Trabajador → Documento a 10 días (Urgente) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByText("+ Nuevo cliente").First.ClickAsync();
+        await page.GetByText("+ Nuevo Cliente empresarial").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_996_601));
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();

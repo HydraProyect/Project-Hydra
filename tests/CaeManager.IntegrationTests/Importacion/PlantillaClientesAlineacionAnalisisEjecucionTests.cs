@@ -17,7 +17,7 @@ namespace CaeManager.IntegrationTests.Importacion;
 
 /// <summary>
 /// Reproduce contra PostgreSQL real (entidades + <c>DbContext</c>, no SQL a
-/// mano) los dos defectos medidos en la Plantilla de Clientes:
+/// mano) los dos defectos medidos en la Plantilla de Clientes empresariales:
 ///
 /// 1. El análisis (<see cref="ClosedXmlPlantillaClientesService.AnalizarAsync"/>)
 /// prometía altas («N se crearán») que la escritura
@@ -82,7 +82,7 @@ public class PlantillaClientesAlineacionAnalisisEjecucionTests : IAsyncLifetime
     /// El defecto reportado, extremo a extremo: antes de este fix, una fila con
     /// Cliente y Centro nuevos entraba en <c>ClientesCentros</c> con
     /// <c>YaExisteCliente</c>/<c>YaExisteCentro</c> en <c>false</c> —la pantalla
-    /// la pintaba en verde como "Crear cliente"/"Crear centro" y el contador
+    /// la pintaba en verde como "Crear Cliente empresarial"/"Crear centro" y el contador
     /// «N se crearán» la contaba dos veces— y solo al confirmar
     /// <see cref="EjecutarImportacionCommandHandler"/> la omitía. El análisis y
     /// la ejecución tienen que coincidir: la fila se omite EN EL ANÁLISIS, con

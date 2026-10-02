@@ -49,21 +49,21 @@ public class TextosSinLocalizarCongeladosTests
         ["ApiKeys"] = 45,
         ["Auditoria"] = 73,
         ["AuditoriaIa"] = 50,
-        ["Bandeja"] = 107,
+        ["Bandeja"] = 108, // 107 → 108 el 2026-10-02 (resto D-07/D-27) SIN migrar: «Cliente empresarial» y «Clientes empresariales» (SelectorLoteDocumental) pasan a mayúscula inicial como manda CONTRATO_TERMINOLOGIA § 3.2 y la heurística los empieza a ver.
         ["Blindaje42"] = 46,
         ["BusquedaGlobal"] = 70,
         // 312 → 313 el 2026-09-25 (P1-X2): la rama «No requiere gestión CAE» de
         // EstadoCentroUi.Texto. Es un switch estático sin localizar entero; migrar
         // solo la rama nueva lo dejaría a medias. Los demás textos de P1-X2 van a
         // TextosCentros.resx. Baja cuando se migre EstadoCentroUi completo.
-        ["Centros"] = 310, // 309 → 310 (D-17): «Sin datos» de EstadoCentroUi.Texto, static switch sin localizar entero (precedente P1-X2). 313 → 310 el 2026-09-29: lote 3, textos nuevos y varios de la cabecera/menú de fila a TextosCentros.resx. 310 → 309: «Más» y «Exportar asignaciones».
+        ["Centros"] = 311, // 310 → 311 el 2026-10-02 (resto D-07/D-27) SIN migrar: «Busca o crea un Cliente empresarial…» y «Cambiar Cliente empresarial/empresa» pasan a mayúscula inicial. 309 → 310 (D-17) y siguientes: 309 → 310 (D-17): «Sin datos» de EstadoCentroUi.Texto, static switch sin localizar entero (precedente P1-X2). 313 → 310 el 2026-09-29: lote 3, textos nuevos y varios de la cabecera/menú de fila a TextosCentros.resx. 310 → 309: «Más» y «Exportar asignaciones».
         // 256 → 250 el 2026-09-28 (piloto del patrón de lista) SIN migrar a .resx: la pantalla dejó de
         // pintar rótulos con el nombre del filtro dentro de la opción («Estado: todos», «Gestor CAE: todos»),
         // los textos de «Limpiar todo» / «Guardar filtro» / «Filtros guardados…» pasaron a BarraFiltros
         // (que los localiza en TextosComunes) y desaparecieron «Vista rápida», «Operar →» y «Ejecutivo».
         // Entran «Todos», «Criticidad», «Más», «Ver ficha 360» y «Búsqueda: \"». Recuento por diferencia
         // con un port del detector (no ejecutado en .NET): la CI confirma la cifra o la corrige.
-        ["Clientes"] = 249, // 250→249 (D-29): «Ver ficha 360» pasó a «Abrir ficha 360», que ya contaba en esta superficie (ClientePreviewDrawer). No se ha migrado nada a .resx.
+        ["Clientes"] = 248, // 249 → 248 el 2026-10-02 (resto D-07/D-27): sin migrar nada, un texto contado pasa a otra forma. 250→249 (D-29): 250→249 (D-29): «Ver ficha 360» pasó a «Abrir ficha 360», que ya contaba en esta superficie (ClientePreviewDrawer). No se ha migrado nada a .resx.
         ["Comercial"] = 61,
         ["Components/Account"] = 93,
         ["Components/DesignSystem"] = 51,
@@ -76,7 +76,7 @@ public class TextosSinLocalizarCongeladosTests
         ["Components/Legal"] = 163,
         ["Components/Pages"] = 18,
         ["Components/Workspace"] = 58,
-        ["Comunicaciones"] = 310,
+        ["Comunicaciones"] = 311, // 310 → 311 el 2026-10-02 (resto D-07/D-27) SIN migrar: los rótulos de Cliente empresarial de la Bandeja y Macros (antes «Cliente» de una palabra, invisible a la heurística) pasan a dos palabras.
         // Migrada a TextosConfiguracion: el 1 restante es un falso positivo del
         // detector, la cabecera «@for (var indice = 0; indice < Grupos.Count; …)»
         // de Configuracion.razor, que el '<' de la comparación hace pasar por texto.
@@ -144,7 +144,7 @@ public class TextosSinLocalizarCongeladosTests
         // «>» de comparación toma por texto lo que sigue. No se reformatea para esquivar la heurística.
         ["Trabajadores"] = 12,
         // 147 → 146 el 2026-09-26 (P1-E2b): el toast de reenvío de activación fallido va a TextosUsuarios.resx.
-        ["Usuarios"] = 146,
+        ["Usuarios"] = 147, // 146 → 147 el 2026-10-02 (resto D-07/D-27) SIN migrar: «1 Cliente empresarial» (recuento de la cartera) antes «1 cliente».
         // 112 → 10 el 2026-09-23: Visitas.razor(.cs) migrados a TextosVisitas.resx. Los 10
         // que quedan son las etiquetas estáticas de NivelUrgenciaVisitaUi y AntelacionVisitaUi,
         // que también pintan Dashboard (Inicio) y DashboardEjecutivo: migrarlas cambia la firma

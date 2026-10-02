@@ -415,7 +415,7 @@ public class TiposDocumentoGen2Tests : BunitContext
         Celdas("Formación en PRL")[3].Should().Be("12 meses");
         Texto(Fila(cut, "Relación nominal de trabajadores").QuerySelector(".alias-tipo")!).Should().Be("RNT, TC2");
 
-        Celdas("Ficha técnica del vehículo")[5].Should().Be("Requisito de cliente");
+        Celdas("Ficha técnica del vehículo")[5].Should().Be("Requisito de Cliente empresarial");
         Celdas("Relación nominal de trabajadores")[5].Should().Be("Práctica del sector");
         Celdas("Formación en PRL")[5].Should().Be("Si aplica");
         Celdas("Protocolo de acceso")[5].Should().Be("Opcional");

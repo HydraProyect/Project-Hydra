@@ -151,7 +151,7 @@ public partial class Macros : CaeManager.Web.Components.PaginaIntegrableConfigur
 
     private string NombreClienteCargado =>
         Guid.TryParse(_clienteFiltroCargado, out var id)
-            ? _clientesSelector.FirstOrDefault(c => c.Id == id)?.RazonSocial ?? "este cliente"
+            ? _clientesSelector.FirstOrDefault(c => c.Id == id)?.RazonSocial ?? "este Cliente empresarial"
             : string.Empty;
 
     /// <summary>
@@ -161,7 +161,7 @@ public partial class Macros : CaeManager.Web.Components.PaginaIntegrableConfigur
     /// sociales acaban a menudo en «S.L.» y salía «S.L..».
     /// </summary>
     private string ResumenFiltro => string.IsNullOrEmpty(_clienteFiltroCargado)
-        ? $"{Contar(TotalGenericas, "macro genérica", "macros genéricas")}. Elige un cliente para ver también las suyas."
+        ? $"{Contar(TotalGenericas, "macro genérica", "macros genéricas")}. Elige un Cliente empresarial para ver también las suyas."
         : $"{Contar(TotalGenericas, "genérica", "genéricas")} + {TotalDelCliente} de {NombreClienteCargado}";
 
     private string DesgloseFiltro
@@ -381,7 +381,7 @@ public partial class Macros : CaeManager.Web.Components.PaginaIntegrableConfigur
             if (actual is null)
             {
                 _mensajeErrorFormulario =
-                    "Esta macro ya no está donde la abriste: puede que la hayan eliminado o asignado a otro cliente. Cierra el formulario y búscala en la lista.";
+                    "Esta macro ya no está donde la abriste: puede que la hayan eliminado o asignado a otro Cliente empresarial. Cierra el formulario y búscala en la lista.";
                 return;
             }
 

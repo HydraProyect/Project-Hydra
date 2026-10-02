@@ -96,7 +96,7 @@ public partial class Empresa360Gen2Tests : BunitContext
         m.Clientes[id] = [new(Guid.NewGuid(), "Refrielectric S.A.", "A-01"), new(Guid.NewGuid(), "Ibertec S.A.", "A-02")];
         var cut = Renderizar(id, "clientes");
         cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes empresariales")).TextContent.Should().Contain("(2)");
-        cut.Markup.Should().Contain("2 clientes empresariales");
+        cut.Markup.Should().Contain("2 Clientes empresariales");
     }
 
     [Fact]
@@ -107,11 +107,11 @@ public partial class Empresa360Gen2Tests : BunitContext
         m.Clientes[id] = [new(Guid.NewGuid(), "Refrielectric S.A.", "A-01")];
         var cut = Renderizar(id, "clientes");
 
-        cut.FindAll(".recuentos-empresa-360").Should().ContainSingle("la pestaña de clientes empresariales está activa")
-            .Which.TextContent.Trim().Should().Be("1 cliente empresarial");
+        cut.FindAll(".recuentos-empresa-360").Should().ContainSingle("la pestaña de Clientes empresariales está activa")
+            .Which.TextContent.Trim().Should().Be("1 Cliente empresarial");
 
         cut.Render(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, "informacion"));
-        cut.FindAll(".recuentos-empresa-360").Should().BeEmpty("el recuento de clientes empresariales no pertenece a las demás pestañas");
+        cut.FindAll(".recuentos-empresa-360").Should().BeEmpty("el recuento de Clientes empresariales no pertenece a las demás pestañas");
     }
 
     private static string ValorInfo(IRenderedComponent<EmpresaWorkspacePanel> cut, string etiqueta) =>
@@ -162,7 +162,7 @@ public partial class Empresa360Gen2Tests : BunitContext
         cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes empresariales")).TextContent.Should().NotContain("(");
         cut.FindAll(".recuentos-empresa-360").Should().BeEmpty();
         cut.Markup.Should().NotContain("todavía no tiene ningún Cliente empresarial")
-            .And.Contain("Sin clientes empresariales que puedas consultar")
+            .And.Contain("Sin Clientes empresariales que puedas consultar")
             .And.Contain("o no están dentro de tu alcance de gestión");
     }
 
@@ -467,7 +467,7 @@ public partial class Empresa360Gen2Tests : BunitContext
         var cut = Renderizar(id);
         cut.FindAll(".estado-vacio").Should().ContainSingle("un fallo de carga se presenta como fallo, no como datos vacíos")
             .Which.TextContent.Should().Contain("No pudimos cargar la empresa");
-        cut.Markup.Should().NotContain("0%", "un fallo no equivale a cumplimiento cero").And.NotContain("Sin clientes empresariales", "un resumen fallido no es una lista vacía");
+        cut.Markup.Should().NotContain("0%", "un fallo no equivale a cumplimiento cero").And.NotContain("Sin Clientes empresariales", "un resumen fallido no es una lista vacía");
     }
     /// <summary>
     /// El caso anterior no observa `_error`: el panel pinta el estado con

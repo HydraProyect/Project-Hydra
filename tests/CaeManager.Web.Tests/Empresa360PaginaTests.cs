@@ -218,7 +218,7 @@ public class Empresa360PaginaTests : BunitContext
         cut.Find(".cabecera-pagina-kicker").TextContent.Trim().Should().Be("Empresa");
         cut.Find("h1").TextContent.Trim().Should().Be("Ibertec GmbH");
         var entradilla = cut.Find(".cabecera-pagina-descripcion").TextContent;
-        entradilla.Should().Contain("CIF B-48.220.917").And.Contain("2 clientes").And.Contain("25 trabajadores");
+        entradilla.Should().Contain("CIF B-48.220.917").And.Contain("2 Clientes empresariales").And.Contain("25 trabajadores");
         cut.Find("[role=img]").GetAttribute("aria-label").Should().StartWith("72% de cumplimiento");
         // El anillo va a la izquierda de la identidad, no entre las acciones (mockup).
         cut.Find(".cabecera-pagina-inicio [role=img]").Should().NotBeNull();
@@ -407,7 +407,7 @@ public class Empresa360PaginaTests : BunitContext
         var cut = Renderizar();
 
         cut.FindAll("[role=tab]").Select(t => t.ChildNodes.OfType<IText>().First(n => !string.IsNullOrWhiteSpace(n.Data)).Data.Trim())
-            .Should().Equal(["Trabajadores", "Clientes", "Documentación", "Agenda", "Sello", "Historial"]);
+            .Should().Equal(["Trabajadores", "Clientes empresariales", "Documentación", "Agenda", "Sello", "Historial"]);
         Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true");
         Pestana(cut, "Trabajadores").TextContent.Should().Contain("25");
         Pestana(cut, "Clientes").TextContent.Should().Contain("2");
@@ -554,12 +554,12 @@ public class Empresa360PaginaTests : BunitContext
         // Barrera: la entradilla ya tiene los trabajadores; si no, la ausencia sería verde vacío.
         var entradilla = cut.Find(".cabecera-pagina-descripcion").TextContent;
         entradilla.Should().Contain("25 trabajadores");
-        entradilla.Should().NotContain("2 clientes",
+        entradilla.Should().NotContain("2 Clientes empresariales",
             "EmpresaDetalleDto trae dos ClienteIds, pero ninguno está en el alcance del actor");
         entradilla.Should().NotContain("0 clientes", "una lista vacía puede ser falta de alcance, no una cartera vacía");
         // Sin recuento de clientes, entre el CIF y los trabajadores queda un solo separador.
         entradilla.Count(c => c == '·').Should().Be(1, $"la entradilla es «{entradilla.Trim()}»");
-        Pestana(cut, "Clientes").TextContent.Trim().Should().Be("Clientes", "sin recuento que no se pueda afirmar");
+        Pestana(cut, "Clientes").TextContent.Trim().Should().Be("Clientes empresariales", "sin recuento que no se pueda afirmar");
     }
 
     [Fact]
@@ -572,7 +572,7 @@ public class Empresa360PaginaTests : BunitContext
 
         await Pestana(cut, "Clientes").ClickAsync(new MouseEventArgs());
 
-        cut.Markup.Should().Contain("Sin clientes que puedas consultar")
+        cut.Markup.Should().Contain("Sin Clientes empresariales que puedas consultar")
             .And.Contain("o no están dentro de tu alcance de gestión");
         cut.Markup.Should().NotContain("todavía no tiene ningún cliente");
     }

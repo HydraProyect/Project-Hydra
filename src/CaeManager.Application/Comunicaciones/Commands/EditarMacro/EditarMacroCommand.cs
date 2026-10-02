@@ -42,7 +42,7 @@ public class EditarMacroCommandHandler(
         {
             var cliente = await empresaRepositorio.ObtenerPorIdAsync(request.ClienteId.Value, cancellationToken);
             if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
-                return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este cliente."));
+                return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial."));
         }
 
         macro.Actualizar(request.Titulo, request.CuerpoHtml, request.ClienteId);

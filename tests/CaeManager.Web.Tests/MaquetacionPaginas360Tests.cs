@@ -204,7 +204,7 @@ public class MaquetacionPaginas360Tests : BunitContext
     {
         var abiertos = 0;
         var cut = Render<ListaRelaciones>(p => p
-            .Add(l => l.Etiqueta, "Centros de este cliente")
+            .Add(l => l.Etiqueta, "Centros de este Cliente empresarial")
             .AddChildContent<FilaRelacion>(f => f
                 .Add(x => x.Nombre, "Planta Barakaldo")
                 .Add(x => x.Href, "/centros/5")
@@ -213,7 +213,7 @@ public class MaquetacionPaginas360Tests : BunitContext
                 .Add(x => x.Derecha, (RenderFragment)(b => b.AddMarkupContent(0, "<span id='estado'>Bloqueado</span>")))
                 .Add(x => x.OnAbrir360, () => abiertos++)));
 
-        cut.Find("ul.lista-relaciones").GetAttribute("aria-label").Should().Be("Centros de este cliente");
+        cut.Find("ul.lista-relaciones").GetAttribute("aria-label").Should().Be("Centros de este Cliente empresarial");
         var fila = cut.Find("ul.lista-relaciones > li.fila-relacion");
 
         var nombre = fila.QuerySelector("a.fila-relacion-nombre")!;

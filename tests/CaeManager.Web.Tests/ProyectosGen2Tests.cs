@@ -360,7 +360,7 @@ public class ProyectosGen2Tests : BunitContext
         var cut = await RenderizarConClienteAsync();
 
         cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin proyectos");
-        cut.Markup.Should().Contain("Este cliente todavía no tiene ningún proyecto de obra o instalación.");
+        cut.Markup.Should().Contain("Este Cliente empresarial todavía no tiene ningún proyecto de obra o instalación.");
         cut.Markup.Should().NotContain("Ningún proyecto con este filtro");
     }
 
@@ -400,7 +400,7 @@ public class ProyectosGen2Tests : BunitContext
 
         var nombres = cut.FindAll("tbody .nombre-proyecto").Select(b => b.TextContent.Trim()).ToList();
         nombres.Should().Equal(ProyectoCerrado.Nombre);
-        cut.Find(".conteo-proyectos").TextContent.Trim().Should().Be("1 de 2 proyecto(s) de este cliente");
+        cut.Find(".conteo-proyectos").TextContent.Trim().Should().Be("1 de 2 proyecto(s) de este Cliente empresarial");
     }
 
     [Fact]

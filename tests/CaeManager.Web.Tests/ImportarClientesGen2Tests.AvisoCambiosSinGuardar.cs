@@ -19,7 +19,7 @@ public partial class ImportarClientesGen2Tests
         var escenario = new Escenario();
         escenario.Plan<AnalizarPlantillaClientesQuery>("levante", [Fila("Instalaciones Vidal S.L.")]);
         var (cut, _) = Renderizar(escenario);
-        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
         await Subir(cut, "clientes-levante.xlsx", "levante");
         cut.WaitForAssertion(() => Campo<object?>(cut.Instance, "_planSimple").Should().NotBeNull());
 
@@ -30,7 +30,7 @@ public partial class ImportarClientesGen2Tests
     public async Task Salir_sin_archivo_analizado_no_pregunta()
     {
         var (cut, _) = Renderizar(new Escenario());
-        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
 
         await cut.SalirYComprobarQueNoPreguntaAsync(Services.GetRequiredService<NavigationManager>(), "sin archivo no hay nada que perder");
     }

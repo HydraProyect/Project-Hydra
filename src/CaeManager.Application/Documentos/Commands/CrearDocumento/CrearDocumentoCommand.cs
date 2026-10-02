@@ -44,7 +44,7 @@ public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCo
     {
         RuleFor(c => c)
             .Must(c => new[] { c.TrabajadorId, c.ClienteId, c.EmpresaId, c.VehiculoId, c.ProyectoId }.Count(id => id is not null) == 1)
-            .WithMessage("Selecciona un trabajador, un cliente, una empresa, un vehículo o un proyecto (exactamente uno).");
+            .WithMessage("Selecciona un trabajador, un Cliente empresarial, una empresa, un vehículo o un proyecto (exactamente uno).");
 
         RuleFor(c => c.TipoDocumentoId).NotEmpty().WithMessage("Selecciona un tipo de documento.");
         RuleFor(c => c.FechaEmision)
@@ -213,7 +213,7 @@ public class CrearDocumentoCommandHandler(
         ambito switch
         {
             AmbitoAplicacion.Trabajador => "No encontramos este trabajador.",
-            AmbitoAplicacion.Cliente => "No encontramos este cliente.",
+            AmbitoAplicacion.Cliente => "No encontramos este Cliente empresarial.",
             AmbitoAplicacion.Vehiculo => "No encontramos este vehículo.",
             AmbitoAplicacion.Proyecto => "No encontramos este proyecto.",
             _ => "No encontramos esta empresa."

@@ -96,7 +96,7 @@
 }
 else if (_error || _detalle is null)
 {
-    <EstadoVacio Titulo="No pudimos cargar el cliente empresarial" Descripcion="Intenta nuevamente en unos segundos.">
+    <EstadoVacio Titulo="No pudimos cargar el Cliente empresarial" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
             <Boton OnClick="ReintentarAsync">Reintentar</Boton>
         </Accion>
@@ -123,7 +123,7 @@ else
     </div>
 
     @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
-    <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del cliente empresarial">
+    <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del Cliente empresarial">
         @switch (PestanaActiva)
         {
             case "informacion":
@@ -182,7 +182,7 @@ else
                 }
                 else if (_empresas is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin empresas" Descripcion="Este cliente empresarial todavía no tiene ninguna Empresa contratada con relación viva." />
+                    <EstadoVacio Titulo="Sin empresas" Descripcion="Este Cliente empresarial todavía no tiene ninguna Empresa contratada con relación viva." />
                 }
                 else if (_empresas is not null)
                 {
@@ -210,7 +210,7 @@ else
                 }
                 else if (_subcontratas is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin subcontratas" Descripcion="Este cliente empresarial todavía no tiene ninguna Subcontrata declarada." />
+                    <EstadoVacio Titulo="Sin subcontratas" Descripcion="Este Cliente empresarial todavía no tiene ninguna Subcontrata declarada." />
                 }
                 else if (_subcontratas is not null)
                 {
@@ -238,7 +238,7 @@ else
                 }
                 else if (_centros is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin centros" Descripcion="Este cliente empresarial todavía no tiene ningún Centro." />
+                    <EstadoVacio Titulo="Sin centros" Descripcion="Este Cliente empresarial todavía no tiene ningún Centro." />
                 }
                 else if (_centros is not null)
                 {
@@ -279,7 +279,7 @@ else
                     <div class="alerta-formulario" role="alert">@_mensajeErrorNota</div>
                 }
                 <CampoTextarea Etiqueta="Nota interna" Valor="@_notaEditada" ValorChanged="v => _notaEditada = v" Filas="4"
-                               Placeholder="Solo la ve tu equipo. No se envía al cliente empresarial." />
+                               Placeholder="Solo la ve tu equipo. No se envía al Cliente empresarial." />
                 <div class="acciones-cliente-360">
                     <Boton Cargando="_guardandoNota" OnClick="GuardarNotaAsync">Guardar nota</Boton>
                     <span class="recuentos-cliente-360">Solo visible para tu equipo.</span>

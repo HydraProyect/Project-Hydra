@@ -173,7 +173,7 @@ public class ClosedXmlPlantillaCombinadaServiceTests
     }
 
     /// <summary>
-    /// Mismo defecto que en la Plantilla de Clientes y en la importación CAE
+    /// Mismo defecto que en la Plantilla de Clientes empresariales y en la importación CAE
     /// completa: la hoja "Centros" resuelve su columna "Cliente" contra
     /// CUALQUIER Empresa existente por nombre, pero la escritura
     /// (EjecutarImportacionCombinadaCommandHandler) solo indexa
