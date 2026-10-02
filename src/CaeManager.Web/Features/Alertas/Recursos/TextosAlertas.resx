@@ -21,6 +21,9 @@
   <data name="DescripcionPagina" xml:space="preserve">
     <value>La documentación de tus trabajadores que hay que reclamar o subir — incluida la que todavía no es urgente — para que puedas anticiparte antes del vencimiento en vez de esperar a que se vuelva crítica.</value>
   </data>
+  <data name="ProcedenciaTitulo" xml:space="preserve">
+    <value>¿De dónde sale esta lista?</value>
+  </data>
   <data name="ProcedenciaLista" xml:space="preserve">
     <value>Lista calculada en cada carga a partir del vencimiento de cada documento y de los documentos que se piden en cada centro: los que ese centro tiene configurados o, si el centro no dice nada de un tipo, los tipos de documento que se piden siempre. Nadie la escribe a mano.</value>
   </data>

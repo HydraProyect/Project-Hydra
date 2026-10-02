@@ -231,4 +231,31 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
         new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath
             .Should().Be($"/centros/{centroId}", "el botón que se cuenta como camino navega de verdad a la ficha");
     }
+
+    /// <summary>
+    /// D-30: «+ Asignar trabajador» repetida en cada centro expandido de la lista competía con la
+    /// primaria de la cabecera. En la lista baja a secundaria; en Centro 360 (valor por defecto del
+    /// acordeón, mockup «Centro 360 TALVEG») sigue siendo primaria.
+    /// </summary>
+    [Fact]
+    public async Task Asignar_trabajador_es_secundaria_en_la_fila_expandida_y_primaria_por_defecto()
+    {
+        var centro = Centro("Centro Logístico Norte");
+        RegistrarServicios(new MediatorPorTipo { Centros = [centro], Trabajadores = Trabajadores(Escenario.TodosAlDia) });
+        Services.GetRequiredService<NavigationManager>().NavigateTo("centros");
+        var lista = Render<Centros>();
+        await lista.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
+        lista.WaitForAssertion(() => lista.Find(".tarjeta-fila-acordeon-contenido").TextContent.Should().Contain("Todos al día"));
+
+        var enLista = lista.Find(".tarjeta-fila-acordeon-contenido").QuerySelectorAll("button")
+            .Single(b => b.TextContent.Trim() == "+ Asignar trabajador");
+        enLista.ClassList.Should().Contain("boton-secundario").And.NotContain("boton-primario");
+
+        var ficha = Render<AcordeonAsignacionesCentro>(p => p
+            .Add(a => a.CentroId, centro.Id)
+            .Add(a => a.CentroNombre, centro.Nombre));
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("+ Asignar trabajador"));
+        ficha.FindAll("button").Single(b => b.TextContent.Trim() == "+ Asignar trabajador")
+            .ClassList.Should().Contain("boton-primario", "en Centro 360 es la primaria del cuerpo, como en el mockup");
+    }
 }

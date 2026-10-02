@@ -105,6 +105,9 @@
   <data name="PestanaBlindaje" xml:space="preserve">
     <value>Blindatge 42.1</value>
   </data>
+  <data name="BlindajeEntradilla" xml:space="preserve">
+    <value>Certificacions de la TGSS (art. 42.1 ET) que comproven que cada Empresa està al corrent de les seves quotes de la Seguretat Social.</value>
+  </data>
   <data name="PestanaDocumentacion" xml:space="preserve">
     <value>Documentació</value>
   </data>

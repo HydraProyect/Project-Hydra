@@ -88,6 +88,14 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     [Parameter] public bool MostrarEnlacesCentro360 { get; set; } = true;
 
     /// <summary>
+    /// D-30: «+ Asignar trabajador» es la primaria del cuerpo de Centro 360 (mockup «Centro 360
+    /// TALVEG»). Dentro de la fila expandida de /centros el mockup de la lista no la tiene, y
+    /// repetida en cada centro expandido (×6) competía con la primaria de la cabecera: allí baja a
+    /// secundaria.
+    /// </summary>
+    [Parameter] public bool AsignarEsPrimaria { get; set; } = true;
+
+    /// <summary>
     /// Búsqueda por nombre gobernada por el consumidor — la barra de trabajo de
     /// Centro 360 («Centro 360 TALVEG.dc.html», <c>data-workbar</c>), que la
     /// pinta arriba y la conserva en la URL. <c>null</c> significa que nadie la

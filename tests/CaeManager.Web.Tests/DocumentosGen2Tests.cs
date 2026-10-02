@@ -346,6 +346,37 @@ public class DocumentosGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// D-30: en la pestaña Plantillas había dos primarias a la vez («+ Nuevo documento» de la
+    /// cabecera y «+ Nueva plantilla» de la pestaña). La primaria de Plantillas es la suya (mockup
+    /// «Plantillas TALVEG»); «+ Nuevo documento» baja a secundaria, y en el resto de pestañas sigue
+    /// siendo la primaria.
+    /// </summary>
+    [Fact]
+    public void En_Plantillas_la_primaria_es_Nueva_plantilla_y_Nuevo_documento_baja_a_secundaria()
+    {
+        var (cut, _) = Renderizar(url: "documentos?pestana=plantillas");
+
+        Pestana(cut, "Plantillas").GetAttribute("aria-selected").Should().Be("true", "barrera: la pestaña activa es la que se mide");
+        var nuevoDocumento = cut.Find(".cabecera-pagina .acciones-cabecera").QuerySelectorAll("button")
+            .Single(b => b.TextContent.Trim() == "+ Nuevo documento");
+        nuevoDocumento.ClassList.Should().Contain("boton-secundario").And.NotContain("boton-primario");
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Nueva plantilla")
+            .ClassList.Should().Contain("boton-primario");
+        cut.FindAll("button.boton-primario").Should().ContainSingle(b => b.TextContent.Trim() == "+ Nueva plantilla",
+            "una sola primaria visible por vista");
+    }
+
+    [Fact]
+    public void Fuera_de_Plantillas_Nuevo_documento_sigue_siendo_la_primaria()
+    {
+        var (cut, _) = Renderizar();
+
+        cut.Find(".cabecera-pagina .acciones-cabecera").QuerySelectorAll("button")
+            .Single(b => b.TextContent.Trim() == "+ Nuevo documento")
+            .ClassList.Should().Contain("boton-primario");
+    }
+
+    /// <summary>
     /// El mockup pone una píldora con el recuento en la pestaña. El número sale
     /// del total que ya devuelve la consulta —con su filtrado aplicado—, no de
     /// un recuento inventado.

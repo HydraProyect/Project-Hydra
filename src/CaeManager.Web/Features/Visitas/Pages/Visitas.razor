@@ -243,7 +243,7 @@
                          Descripcion="@Textos["VacioActivasDescripcion"]">
                 <Accion>
                     <Boton Variante="VarianteBoton.Secundario" OnClick="VerTambienFinalizadasAsync">@Textos["BotonVerFinalizadas"]</Boton>
-                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="AbrirCrearAsync">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         }
@@ -251,7 +251,7 @@
         {
             <EstadoVacio Titulo="@Textos["VacioInicialTitulo"]" Descripcion="@Textos["VacioInicialDescripcion"]">
                 <Accion>
-                    <SoloConEscritura><Boton OnClick="AbrirCrearAsync">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" OnClick="AbrirCrearAsync">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
                 </Accion>
             </EstadoVacio>
         }

@@ -91,7 +91,7 @@ public class TextosSinLocalizarCongeladosTests
         // esta entrada se retira.
         ["DashboardEjecutivo"] = 1,
         ["Delegaciones"] = 97,
-        ["Documentos"] = 455, // 459 → 458 el 2026-09-26: borrado en lote de Documentos.razor a TextosDocumentos.resx (FS-09). 458 → 455 el 2026-09-29: lote 3, chips, «Más» y textos del 4a a TextosDocumentos.resx.
+        ["Documentos"] = 454, // 455 → 454 el 2026-10-02: «Enviadas» y «+ Nueva reclamación» pasan de marcado a la lista de pestañas de ReclamacionesTab (D-30; sigue sin localizar, solo cambia de lugar). 459 → 458 el 2026-09-26: borrado en lote de Documentos.razor a TextosDocumentos.resx (FS-09). 458 → 455 el 2026-09-29: lote 3, chips, «Más» y textos del 4a a TextosDocumentos.resx.
         ["Empresas"] = 198,
         ["Extension"] = 29,
         ["Facturacion"] = 96,

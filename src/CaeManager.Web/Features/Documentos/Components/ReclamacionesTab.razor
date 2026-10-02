@@ -1,7 +1,7 @@
 @*
     Pestaña "Reclamaciones" de /documentos (Parte XVI PROMPT 03: "seguimiento",
     tabla de lotes YA ENVIADOS). Por defecto muestra ese historial
-    (ObtenerReclamacionesEnviadasQuery); "+ Nueva reclamación" revela la
+    (ObtenerReclamacionesEnviadasQuery); la subvista "+ Nueva reclamación" (pestaña) revela la
     vista de COMPONER/ENVIAR que ya existía aquí (MVP1, decisión del usuario
     2026-08-08: agrupa por Cliente los Documentos de sus Trabajadores que
     vencen en los próximos 3 meses o ya vencieron, para reclamarlos en un
@@ -31,20 +31,9 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationState
 
-<div class="acordeon-asignaciones-cabecera">
-    <Boton Variante="@(_vista == "historial" ? VarianteBoton.Secundario : VarianteBoton.Fantasma)" Tamano="TamanoBoton.Pequeno"
-           OnClick='() => CambiarVistaAsync("historial")' aria-pressed="@(_vista == "historial" ? "true" : "false")">
-        Enviadas
-    </Boton>
-    <SoloConEscritura>
-        <Boton Variante="@(_vista == "componer" ? VarianteBoton.Secundario : VarianteBoton.Fantasma)" Tamano="TamanoBoton.Pequeno"
-               OnClick='() => CambiarVistaAsync("componer")' aria-pressed="@(_vista == "componer" ? "true" : "false")">
-            + Nueva reclamación
-        </Boton>
-    </SoloConEscritura>
-</div>
-
+<Pestanas Definiciones="Subvistas" PestanaActiva="@_vista" PestanaActivaChanged="CambiarVistaAsync" EtiquetaGrupo="Reclamaciones">
 @if (_vista == "historial")
 {
     @if (_cargandoHistorial)
@@ -61,7 +50,7 @@
     }
     else if (_historial.Count == 0)
     {
-        <EstadoVacio Titulo="Todavía no se ha enviado ninguna reclamación" Descripcion='Los lotes que envíes desde "+ Nueva reclamación" aparecerán aquí.' />
+        <EstadoVacio Titulo="Todavía no se ha enviado ninguna reclamación" Descripcion='Los lotes que envíes desde la pestaña "+ Nueva reclamación" aparecerán aquí.' />
     }
     else
     {
@@ -238,6 +227,7 @@ else
         </Tarjeta>
     }
 }
+</Pestanas>
 
 @* Revisión previa al envío (D-01): un correo externo no se puede deshacer, así
    que antes de mandarlo se enseñan destinatarios, asunto y texto exactos (el
@@ -299,6 +289,16 @@ else
 
 @code {
     private string _vista = "historial";
+    private bool _puedeEscribir;
+
+    /// <summary>
+    /// D-30: «Enviadas» (subvista) y «+ Nueva reclamación» (subvista de redactar, no una acción que
+    /// ejecuta nada) eran dos botones idénticos entre sí; ahora son pestañas. La de redactar solo
+    /// existe si el rol puede escribir (misma lista que SoloConEscritura).
+    /// </summary>
+    private IReadOnlyList<PestanaDefinicion> Subvistas => _puedeEscribir
+        ? [new("historial", "Enviadas"), new("componer", "+ Nueva reclamación")]
+        : [new("historial", "Enviadas")];
     private bool _cargandoHistorial = true;
     private bool _errorHistorial;
     private IReadOnlyList<ReclamacionEnviadaDto> _historial = [];
@@ -364,7 +364,14 @@ else
     /// <summary>La respuesta de los lotes es de la pregunta vigente y la pestaña sigue viva.</summary>
     private bool EsVigenteLotes(int carga) => !_desechado && carga == _cargaLotesVigente;
 
-    protected override Task OnInitializedAsync() => CargarHistorialAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        var usuario = (await AuthenticationState.GetAuthenticationStateAsync()).User;
+        _puedeEscribir = CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(usuario.IsInRole);
+        await CargarHistorialAsync();
+    }
 
     /// <summary>La vista de componer/enviar carga sus lotes (recorre todos los clientes del tenant) solo la primera vez que se entra a ella, no en cada carga de la pestaña.</summary>
     private async Task CambiarVistaAsync(string vista)
