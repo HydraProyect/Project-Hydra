@@ -187,8 +187,9 @@ public partial class UsuariosGen2Tests
 
     /// <summary>
     /// «Volver», la X, Escape y el clic en el fondo cierran el diálogo de desactivar sin «¿Descartar cambios?» y sin tocar
-    /// la cuenta. Se ejerce cada salida por separado: una mutación que haga preguntar a una sola (p. ej. un HayCambios
-    /// que devuelva siempre true) la deja en rojo.
+    /// la cuenta. Se ejerce cada salida por separado: un HayCambios que devuelva siempre true deja en rojo la X, Escape y el
+    /// fondo (medido); «Volver» no pasa por SolicitarCierreAsync, y que lo haga cuando haya un campo lo exige el analizador de
+    /// arquitectura. Es una prueba de propiedad (hoy no hay nada que perder), no de regresión.
     /// </summary>
     [Theory]
     [InlineData("Volver")]

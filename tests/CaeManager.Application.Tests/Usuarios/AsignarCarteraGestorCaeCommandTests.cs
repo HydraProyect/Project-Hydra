@@ -327,6 +327,8 @@ public class AsignarCarteraGestorCaeCommandTests
         var resultado = await e.Handler().Handle(Asignar(Beneficiario1), default);
 
         resultado.Error.Should().Be(AsignarCarteraGestorCaeCommandHandler.YaTieneCartera);
+        // El mensaje visible describe el modelo vigente (D-7): sin «en parte» ni reparto por Cliente empresarial.
+        resultado.Error.Mensaje.Should().Contain("por otra vía").And.NotContainAny("en parte", "reparto", "ampliar");
         e.Transaccion.Deshechas.Should().Be(1);
     }
 
