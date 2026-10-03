@@ -788,6 +788,42 @@ public class ReportesGen2Tests : BunitContext
         Celdas(fila)[3].Should().Be("—");
     }
 
+    /// <summary>
+    /// La hoja es la vista previa del archivo: para cada estado sin fecha, la celda «Vence» de la hoja y la columna
+    /// «Vencimiento» del PDF que se genera con las mismas filas dicen lo mismo (la fecha, «Sin caducidad», «Sin confirmar» o «—»).
+    /// </summary>
+    [Fact]
+    public async Task La_celda_Vence_de_la_hoja_coincide_con_la_columna_Vencimiento_del_PDF_en_cada_estado_sin_fecha()
+    {
+        var escenario = new Escenario();
+        escenario.Documentos.Clear();
+        FilaReporteDocumentoDto[] filas =
+        [
+            Documento("Ana Con Fecha", "Reconocimiento médico", new DateOnly(2027, 3, 1), EstadoDocumento.Vigente),
+            Documento("Bea Sin Confirmar", "Reconocimiento médico", null, EstadoDocumento.SinConfirmar),
+            Documento("Carlos Sin Caducidad", "Reconocimiento médico", null, EstadoDocumento.SinCaducidad),
+            Documento("Dora Falta", "Reconocimiento médico", null, EstadoDocumento.Faltante)
+        ];
+        foreach (var fila in filas)
+            escenario.Documentos.Add(new(ClienteB, CentroB1, fila));
+        var (cut, _) = Renderizar(escenario, $"reportes?clienteId={ClienteB}");
+
+        await Generar(cut);
+
+        var hoja = FilasHoja(cut).ToDictionary(f => Celdas(f)[0], f => Celdas(f)[3]);
+        var pdf = LectorInformeVigenciaExportado.FilasDelPdf(new InformeVigenciaDto("x", filas))
+            .ToDictionary(f => f[1], f => f[4]);
+
+        hoja.Should().Equal(new Dictionary<string, string>
+        {
+            ["Ana Con Fecha"] = "01/03/2027",
+            ["Bea Sin Confirmar"] = "Sin confirmar",
+            ["Carlos Sin Caducidad"] = "Sin caducidad",
+            ["Dora Falta"] = "—"
+        });
+        pdf.Should().Equal(hoja, "lo que se ve y lo que se descarga tienen que decir lo mismo");
+    }
+
     // ---------------------------------------------------------------- historial
 
     [Fact]

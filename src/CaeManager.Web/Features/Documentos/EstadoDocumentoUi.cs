@@ -54,12 +54,17 @@ public static class EstadoDocumentoUi
     /// propietario del 2026-10-01). Cualquier otro estado sin fecha (un hueco, un rechazo) no tiene vigencia que
     /// rotular: «—».
     /// </summary>
-    public static string TextoSinFechaDeVencimiento(EstadoDocumento? estado) => estado switch
-    {
-        EstadoDocumento.SinCaducidad => Texto(EstadoDocumento.SinCaducidad),
-        EstadoDocumento.SinConfirmar => Texto(EstadoDocumento.SinConfirmar),
-        _ => "—"
-    };
+    public static string TextoSinFechaDeVencimiento(EstadoDocumento? estado) =>
+        RotulaSinFechaDeVencimiento(estado) ? Texto(estado!.Value) : "—";
+
+    /// <summary>
+    /// Si un documento sin fecha de vencimiento lleva rótulo propio en su celda de vigencia («Sin caducidad» o
+    /// «Sin confirmar») en vez de «—». Es la única definición de qué estados sin fecha llevan rótulo en la celda de vigencia: la usan
+    /// <see cref="TextoSinFechaDeVencimiento"/> y, para decidir si la celda de Excel lleva texto o queda vacía,
+    /// la exportación de Reportes.
+    /// </summary>
+    public static bool RotulaSinFechaDeVencimiento(EstadoDocumento? estado) =>
+        estado is EstadoDocumento.SinCaducidad or EstadoDocumento.SinConfirmar;
 
     /// <summary>
     /// Aviso ámbar de una celda de vigencia «Sin confirmar» (cuenta como al día, con aviso; decisión del propietario del

@@ -245,7 +245,7 @@
                                                     <td>@fila.EmpresaRazonSocial</td>
                                                     <td>@fila.TipoDocumentoNombre</td>
                                                     <td class="celda-vence-informe">
-                                                        <TextoFechaCopiable Fecha="fila.FechaVencimiento">@(fila.FechaVencimiento?.ToString("dd/MM/yyyy") ?? EstadoDocumentoUi.TextoSinFechaDeVencimiento(fila.Estado))</TextoFechaCopiable>
+                                                        <TextoFechaCopiable Fecha="fila.FechaVencimiento">@CaeManager.Web.Reportes.ConstructorInformeArchivos.TextoVencimiento(fila)</TextoFechaCopiable>
                                                     </td>
                                                     <td><Badge Tono="EstadoDocumentoUi.Tono(fila.Estado)">@EstadoDocumentoUi.Texto(fila.Estado)</Badge></td>
                                                 </tr>
