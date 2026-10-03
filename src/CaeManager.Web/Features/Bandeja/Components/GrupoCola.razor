@@ -55,6 +55,8 @@
     @if (_expandida)
     {
         <div class="grupo-cola-contenido" id="@_panelId">
+            @* Las filas de todos los Trabajadores y Empresas del grupo son hermanas (los bucles no abren elemento): una sola fuente de claves. *@
+            @{ var claves = new ClavesDeHermanos(); }
             @foreach (var empresa in GruposAnidados)
             {
                 @if (AgruparPorEmpresa && empresa.EmpresaNombre is not null)
@@ -80,7 +82,7 @@
                         }
                         else
                         {
-                            <PanelResolverItem @key="item.Id" Item="@(item with { Titulo = TituloBajoTrabajador(item) })" Enfocado="@(item.Id == IdEnfocado)" OnReclamar="OnReclamar" />
+                            <PanelResolverItem @key="claves.De(item.Id)" Item="@(item with { Titulo = TituloBajoTrabajador(item) })" Enfocado="@(item.Id == IdEnfocado)" OnReclamar="OnReclamar" />
                         }
                     }
                 }

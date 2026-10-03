@@ -120,9 +120,10 @@ else if (_sugerencias.Count == 0)
 }
 else
 {
+    var claves = new ClavesDeHermanos();
     @foreach (var sugerencia in _sugerencias)
     {
-        <Tarjeta @key="new { sugerencia.CentroId, sugerencia.TipoDocumentoId }" Titulo="@($"{sugerencia.CentroNombre} — {sugerencia.TipoDocumentoNombre}")">
+        <Tarjeta @key="claves.De((sugerencia.CentroId, sugerencia.TipoDocumentoId))" Titulo="@($"{sugerencia.CentroNombre} — {sugerencia.TipoDocumentoNombre}")">
             <ChildContent>
                 <p class="texto-vacio-seccion">
                     @sugerencia.Trabajadores.Count técnicos con Asignación activa a este centro no tienen este documento.

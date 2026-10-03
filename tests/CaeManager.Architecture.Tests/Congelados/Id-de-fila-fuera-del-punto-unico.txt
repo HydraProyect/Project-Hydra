@@ -1,0 +1,4 @@
+# new ItemBandejaDto(...) de src cuyo Id NO sale de IdDeFilaDeCola (ClavesDeListaUnicasPorConstruccionTests, continuación de #1064).
+# Solo baja. Medida: 'ruta :: ItemBandejaDto con Id fuera de IdDeFilaDeCola = n'.
+#   - TipoItemBandejaUi.Tono(TipoItemBandeja): ítem vacío que solo sirve para calcular un tono; no entra en ninguna lista ni es @key.
+src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: ItemBandejaDto con Id fuera de IdDeFilaDeCola = 1

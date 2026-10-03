@@ -196,9 +196,10 @@
                 else
                 {
                     <div class="mi-trabajo-grupos">
+                        @{ var clavesGrupos = new ClavesDeHermanos(); }
                         @foreach (var grupo in Grupos)
                         {
-                            <div class="mi-trabajo-grupo" @key="grupo.Clave">
+                            <div class="mi-trabajo-grupo" @key="clavesGrupos.De(grupo.Clave)">
                                 @if (grupo.TenantId is { } tenantId)
                                 {
                                     <button type="button" class="mi-trabajo-grupo-cabecera mi-trabajo-grupo-cabecera-tenant" aria-expanded="@(grupo.Plegado ? "false" : "true")"
@@ -220,7 +221,11 @@
                                     </div>
                                 }
 
-                                @{ string? clienteAnterior = null; var primera = true; }
+                                @* Los lotes y sus filas son hermanos bajo este mismo grupo: una sola fuente de claves para todos (numera las
+                                   repeticiones: ningún Id repetido mata el circuito). Mezcla Tenants en el modo por severidad y el Id de la fila no
+                                   lleva Tenant (ItemBandejaDto no lo tiene): va en la identidad para que la clave de una fila no dependa del orden
+                                   en que otro Tenant repita su Id. *@
+                                @{ string? clienteAnterior = null; var primera = true; var claves = new ClavesDeHermanos(); }
                                 @foreach (var lote in MiTrabajoVista.AgruparPorTrabajador(grupo.Filas))
                                 {
                                     var abiertoLote = LoteAbierto(lote);
@@ -234,7 +239,7 @@
                                     primera = false;
                                     @if (lote.Colapsable)
                                     {
-                                        <button type="button" @key="@("lote-" + lote.Clave)" class="mi-trabajo-lote" aria-expanded="@(abiertoLote ? "true" : "false")"
+                                        <button type="button" @key="claves.De(lote.Clave)" class="mi-trabajo-lote" aria-expanded="@(abiertoLote ? "true" : "false")"
                                                 @onclick="() => AlternarLote(lote)">
                                             <span class="@("mi-trabajo-chevron" + (abiertoLote ? "" : " mi-trabajo-chevron-plegado"))"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
                                             <Badge Tono="TonoSeveridad(cabeza.Severidad)" Tamano="TamanoBadge.Pequeno">@TipoItemBandejaUi.Texto(cabeza.Item)</Badge>
@@ -250,7 +255,7 @@
                                     {
                                         @foreach (var fila in lote.Filas)
                                         {
-                                            <div @key="fila.Item.Id" class="@(ClaseFila(fila) + (lote.Colapsable ? " mi-trabajo-fila-en-lote" : ""))" role="button" tabindex="0"
+                                            <div @key="claves.De((fila.TenantId, fila.Item.Id))" class="@(ClaseFila(fila) + (lote.Colapsable ? " mi-trabajo-fila-en-lote" : ""))" role="button" tabindex="0"
                                                  aria-label="@($"{fila.Item.Titulo} · {fila.TenantNombre}")"
                                                  @onclick="() => AbrirDetalle(fila)">
                                                 <span class="mi-trabajo-fila-cuerpo">

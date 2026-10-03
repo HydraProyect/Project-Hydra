@@ -76,9 +76,7 @@ public record AlertaDto(
     /// compartían Id (claves duplicadas: el renderizador de Blazor lanza «Attempting to return
     /// wrong pooled instance» y el circuito muere, medido en la landing del Coordinador CAE).
     /// </summary>
-    public string IdDeFila(string prefijo) => DocumentoId is { } documentoId
-        ? $"{prefijo}-{documentoId}"
-        : $"{prefijo}-{TrabajadorId}-{TipoDocumentoId}-{CentroId?.ToString() ?? "sin-centro"}";
+    public string IdDeFila(string prefijo) => IdDeFilaDeCola.Alerta(prefijo, DocumentoId, TrabajadorId, TipoDocumentoId, CentroId);
 }
 
 public class ObtenerAlertasQueryHandler(
