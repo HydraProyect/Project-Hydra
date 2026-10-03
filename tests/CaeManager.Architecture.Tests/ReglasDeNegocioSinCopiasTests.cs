@@ -35,6 +35,9 @@ namespace CaeManager.Architecture.Tests;
 /// escrito a mano (<c>Vigente or SinCaducidad</c>…) o un <c>Count(… == Vigente)</c> es rojo salvo en las excepciones
 /// declaradas, que responden a otra pregunta (incidencia, estado de un propietario, idoneidad estricta para una
 /// visita).</item>
+/// <item><b>Bloqueo de acceso por documento bloqueante</b> — punto único <c>ReglaBloqueoDeAcceso</c> (Domain). Los
+/// lectores de la fila bloqueante del Centro están enumerados con su motivo y la comparación «sin fecha o fecha &gt;= hoy»
+/// no puede reaparecer en una consulta; la tabla es <c>CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests</c>.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -224,11 +227,98 @@ public class ReglasDeNegocioSinCopiasTests
             "Sin confirmar). Si responde a otra pregunta, declara la excepción en esta lista con su motivo");
     }
 
+    // ---------- 5. Bloqueo de acceso por documento bloqueante ----------
+
+    private const string PuntoUnicoDelBloqueoDeAcceso = "src/CaeManager.Domain/Documentos/ReglaBloqueoDeAcceso.cs";
+
+    /// <summary>
+    /// Quién LEE la fila bloqueante del Centro (<c>TipoDocumentoCentro.BloqueaAcceso</c>) para decidir algo, por los
+    /// nombres con que hoy se le llama en esas lecturas (<c>tc</c> y <c>fila</c>). La regla —ausente o vencido bloquea
+    /// igual, sujeto Trabajador o Empresa, Empresa en todos los Centros del Tenant— es de
+    /// <c>ReglaBloqueoDeAcceso</c> y de <c>CalculoBloqueoDeAccesoDeTrabajadores</c>; un lector nuevo que decida por su
+    /// cuenta es rojo hasta que se declare aquí y se ate a la tabla de
+    /// <c>CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests</c>. Patrón por nombre: no ve una lectura con otro nombre de
+    /// variable (limitación de este mecanismo, igual que el de las demás reglas).
+    /// </summary>
+    private static readonly Regex PatronLecturaDeLaFilaBloqueante = new(
+        @"\b(?:tc|fila)\s*\.\s*BloqueaAcceso\b", RegexOptions.Compiled);
+
+    private static readonly Dictionary<string, int> LecturasDeLaFilaBloqueante = new()
+    {
+        // La consulta que aplica la regla única (R1, R2) y alimenta Mi trabajo.
+        ["src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionBloqueantePendiente/ObtenerDocumentacionBloqueantePendienteQuery.cs"] = 1,
+        // El semáforo del Centro: solo pone Bloqueado la ausencia TOTAL de un tipo de Trabajador, no el vencido ni el
+        // requisito de Empresa. Divergencia declarada: qué debe enseñar el Centro (R3) es una decisión pendiente.
+        ["src/CaeManager.Application/Centros/CalculoEstadoCentroService.cs"] = 1,
+    };
+
+    /// <summary>
+    /// La comparación «sin fecha O fecha &gt;= hoy» escrita en una consulta o en una pantalla: es la regla de validez
+    /// del bloqueo copiada (la tuvo la consulta de Mi trabajo hasta que pasó a <c>ReglaBloqueoDeAcceso.ValidoHoy</c>).
+    /// </summary>
+    private static readonly Regex PatronValidezDeBloqueoCopiada = new(
+        @"\bFechaVencimiento\s*(?:==\s*null|is\s+null|is\s+not\s*\{\s*\}\s*\w+)\s*\|\|", RegexOptions.Compiled);
+
+    [Fact]
+    public void La_regla_de_bloqueo_de_acceso_no_se_decide_fuera_de_sus_lectores_declarados()
+    {
+        Divergencias(LecturasDeLaFilaBloqueante, ContarPorFichero(PatronLecturaDeLaFilaBloqueante)).Should().BeEmpty(
+            "quien lee TipoDocumentoCentro.BloqueaAcceso para decidir un bloqueo tiene que usar ReglaBloqueoDeAcceso; si es " +
+            "un lector nuevo, se declara aquí con su motivo y se añade a la tabla de CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests");
+    }
+
+    [Fact]
+    public void La_validez_de_un_documento_para_bloquear_no_se_copia_fuera_de_su_punto_unico()
+    {
+        var medidos = ContarPorFichero(PatronValidezDeBloqueoCopiada);
+
+        medidos.Should().BeEmpty(
+            "«sin fecha o fecha >= hoy» es ReglaBloqueoDeAcceso.ValidoHoy(vigencia, hoy); EF no puede llamarla en una consulta, " +
+            "así que se trae el estado y la fecha de vigencia y se evalúa en memoria, no se copia la comparación");
+    }
+
     // ---------- Instrumento ----------
 
     [Fact]
     public void Los_patrones_reconocen_las_formas_que_vigilan_e_ignoran_comentarios()
     {
+        string[] lecturas =
+        [
+            "            where tc.Incluido && tc.BloqueaAcceso",
+            "                var bloquea = filasPorPar.TryGetValue((tipo.Id, centro), out var fila) && fila.BloqueaAcceso;",
+            "            .Where(tc => tc . BloqueaAcceso)",
+        ];
+        foreach (var linea in lecturas)
+            EsCodigoQueCasa(linea, PatronLecturaDeLaFilaBloqueante).Should().BeTrue(linea);
+
+        string[] noLecturas =
+        [
+            "                request.PeriodicidadEspecialMeses, request.BloqueaAcceso, request.ArchivoUrl",
+            "                    BloqueaAcceso: fila?.BloqueaAcceso ?? false,",
+            "        /// <see cref=\"TipoDocumentoCentro.BloqueaAcceso\"/>",
+            "        // tc.BloqueaAcceso",
+        ];
+        foreach (var linea in noLecturas)
+            EsCodigoQueCasa(linea, PatronLecturaDeLaFilaBloqueante).Should().BeFalse(linea);
+
+        string[] validezCopiada =
+        [
+            "                && (d.FechaVencimiento == null || d.FechaVencimiento >= DiaDeNegocio.Hoy()))",
+            "            .Where(d => d.FechaVencimiento is null || d.FechaVencimiento >= hoy)",
+            "        vigencia.FechaVencimiento is not { } fecha || fecha >= hoy;",
+        ];
+        foreach (var linea in validezCopiada)
+            EsCodigoQueCasa(linea, PatronValidezDeBloqueoCopiada).Should().BeTrue(linea);
+
+        string[] noValidezCopiada =
+        [
+            "            where documento.FechaVencimiento != null && documento.FechaVencimiento <= fechaLimiteCausa",
+            "        CalculadoraEstadoDocumento.Calcular(vigencia, hoy, umbralAmbarDias: 0, umbralRojoDias: 0) != EstadoDocumento.Vencido;",
+            "        // d.FechaVencimiento == null || d.FechaVencimiento >= hoy",
+        ];
+        foreach (var linea in noValidezCopiada)
+            EsCodigoQueCasa(linea, PatronValidezDeBloqueoCopiada).Should().BeFalse(linea);
+
         string[] ventana =
         [
             "        var limiteVentana = hoy.AddMonths(3);",
@@ -333,8 +423,10 @@ public class ReglasDeNegocioSinCopiasTests
         var raiz = RaizDelRepositorio();
 
         File.Exists(Path.Combine(raiz, PuntoUnicoDeLaVentana)).Should().BeTrue("el punto único de la ventana tiene que existir");
+        File.Exists(Path.Combine(raiz, PuntoUnicoDelBloqueoDeAcceso)).Should().BeTrue("el punto único del bloqueo de acceso tiene que existir");
 
-        foreach (var ruta in VentanaNoEsLaDeReclamacion.Keys
+        foreach (var ruta in LecturasDeLaFilaBloqueante.Keys
+                     .Concat(VentanaNoEsLaDeReclamacion.Keys)
                      .Concat(OrdenDeGravedadDeOtraPregunta.Keys)
                      .Concat(UmbralesDeVigenciaReimplementadosEnSql.Keys)
                      .Concat(ConjuntoAlDiaDeOtraPregunta.Keys)

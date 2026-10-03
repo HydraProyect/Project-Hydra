@@ -27,7 +27,6 @@ namespace CaeManager.Web.Features.Comunicaciones.Pages;
 /// </summary>
 public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
-    private Drawer? _drawerRedactar;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Buzon> Logger { get; set; } = default!;
 
@@ -319,8 +318,8 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
 
     /// <summary>
     /// P1-E2b: único punto de verdad de «hay cambios» en la página: el mensaje que se está
-    /// redactando (adjuntos incluidos) comparado con cómo se abrió. Lo leen el Drawer (X,
-    /// Escape, fondo) y AvisoCambiosSinGuardar (salir de la página).
+    /// redactando (adjuntos incluidos) comparado con cómo se abrió. Lo lee DrawerFormulario:
+    /// la X, Escape, el fondo, «Cancelar» y salir de la página.
     /// </summary>
     private bool HayCambiosSinGuardar => _redactarVisible && _instantanea.Difiere(ValoresFormulario());
 

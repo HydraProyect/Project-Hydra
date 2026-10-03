@@ -178,65 +178,54 @@
     }
 </div>
 
-<Drawer @ref="_drawerIncidencia" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? Textos["DrawerTituloNueva"].Value : Textos["DrawerTituloEditar"].Value)" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
-    <ChildContent>
-        @if (_mensajeErrorFormulario is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
-        }
-
-        @if (_editandoId is null)
-        {
-            <CampoSelect Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_centroId" ValorChanged="v => _centroId = v">
-                <option value="">@Textos["OpcionSeleccionaCentro"]</option>
-                @foreach (var centro in _centrosDisponibles)
-                {
-                    <option value="@centro.Id">@centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)</option>
-                }
-            </CampoSelect>
-        }
-        else
-        {
-            @* El Centro solo se elige al crear: EditarIncidenciaCommand no lo lleva. *@
-            <div class="campo">
-                <label>@Textos["EtiquetaCentro"]</label>
-                <p class="texto-vacio-seccion">@_centroNombreEnEdicion</p>
-            </div>
-        }
-
-        <CampoSelect Etiqueta="@Textos["EtiquetaTrabajadorOpcional"]" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
-            <option value="">@Textos["OpcionNingunTrabajador"]</option>
-            @foreach (var trabajador in EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles))
+<DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync"
+                 Titulo="@(_editandoId is null ? Textos["DrawerTituloNueva"].Value : Textos["DrawerTituloEditar"].Value)"
+                 HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
+                 HayErroresDeCampo="@(_erroresCampo.Count > 0)" OnGuardar="GuardarAsync"
+                 TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    @if (_editandoId is null)
+    {
+        <CampoSelect Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_centroId" ValorChanged="v => _centroId = v">
+            <option value="">@Textos["OpcionSeleccionaCentro"]</option>
+            @foreach (var centro in _centrosDisponibles)
             {
-                <option value="@trabajador.Id">@trabajador.Texto</option>
+                <option value="@centro.Id">@centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)</option>
             }
         </CampoSelect>
-
-        <div class="campos-en-par">
-            <CampoSelect Etiqueta="@Textos["EtiquetaTipo"]" Valor="@_tipo" ValorChanged="v => _tipo = v">
-                <option value="@nameof(TipoIncidencia.Accidente)">@Textos["TipoAccidente"]</option>
-                <option value="@nameof(TipoIncidencia.Incumplimiento)">@Textos["TipoIncumplimiento"]</option>
-            </CampoSelect>
-
-            <CampoSelect Etiqueta="@Textos["EtiquetaGravedad"]" Valor="@_gravedad" ValorChanged="v => _gravedad = v">
-                <option value="@nameof(GravedadIncidencia.Leve)">@Textos["GravedadLeve"]</option>
-                <option value="@nameof(GravedadIncidencia.Grave)">@Textos["GravedadGrave"]</option>
-                <option value="@nameof(GravedadIncidencia.MuyGrave)">@Textos["GravedadMuyGrave"]</option>
-            </CampoSelect>
+    }
+    else
+    {
+        @* El Centro solo se elige al crear: EditarIncidenciaCommand no lo lleva. *@
+        <div class="campo">
+            <label>@Textos["EtiquetaCentro"]</label>
+            <p class="texto-vacio-seccion">@_centroNombreEnEdicion</p>
         </div>
+    }
 
-        <CampoTexto Etiqueta="@Textos["EtiquetaFechaOcurrencia"]" Type="date" Valor="@_fechaOcurrencia" ValorChanged="v => _fechaOcurrencia = v" />
-        <CampoTextarea Etiqueta="@Textos["EtiquetaDescripcion"]" Placeholder="@Textos["PlaceholderDescripcion"]" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="4" MensajeError="@ObtenerError(nameof(CrearIncidenciaCommand.Descripcion))" />
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawerIncidencia?.SolicitarCierreAsync() ?? Task.CompletedTask">
-            @Textos["BotonCancelar"]
-        </Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
-            @Textos["BotonGuardar"]
-        </Boton>
-    </Pie>
-</Drawer>
+    <CampoSelect Etiqueta="@Textos["EtiquetaTrabajadorOpcional"]" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
+        <option value="">@Textos["OpcionNingunTrabajador"]</option>
+        @foreach (var trabajador in EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles))
+        {
+            <option value="@trabajador.Id">@trabajador.Texto</option>
+        }
+    </CampoSelect>
+
+    <div class="campos-en-par">
+        <CampoSelect Etiqueta="@Textos["EtiquetaTipo"]" Valor="@_tipo" ValorChanged="v => _tipo = v">
+            <option value="@nameof(TipoIncidencia.Accidente)">@Textos["TipoAccidente"]</option>
+            <option value="@nameof(TipoIncidencia.Incumplimiento)">@Textos["TipoIncumplimiento"]</option>
+        </CampoSelect>
+
+        <CampoSelect Etiqueta="@Textos["EtiquetaGravedad"]" Valor="@_gravedad" ValorChanged="v => _gravedad = v">
+            <option value="@nameof(GravedadIncidencia.Leve)">@Textos["GravedadLeve"]</option>
+            <option value="@nameof(GravedadIncidencia.Grave)">@Textos["GravedadGrave"]</option>
+            <option value="@nameof(GravedadIncidencia.MuyGrave)">@Textos["GravedadMuyGrave"]</option>
+        </CampoSelect>
+    </div>
+
+    <CampoTexto Etiqueta="@Textos["EtiquetaFechaOcurrencia"]" Type="date" Valor="@_fechaOcurrencia" ValorChanged="v => _fechaOcurrencia = v" />
+    <CampoTextarea Etiqueta="@Textos["EtiquetaDescripcion"]" Placeholder="@Textos["PlaceholderDescripcion"]" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="4" MensajeError="@ObtenerError(nameof(CrearIncidenciaCommand.Descripcion))" />
+</DrawerFormulario>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
@@ -262,5 +251,4 @@
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormularioDescartando" />
 </LimiteDeErrores>
