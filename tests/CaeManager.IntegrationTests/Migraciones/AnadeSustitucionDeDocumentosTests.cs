@@ -175,7 +175,9 @@ public class AnadeSustitucionDeDocumentosTests : IAsyncLifetime
         var error = await IntentarEscribirAsync(
             _tenant, c => c.Database.ExecuteSqlRawAsync("DELETE FROM \"Documentos\" WHERE \"Id\" = {0}", nuevo));
 
-        error.SqlState.Should().Be("23503", "Restrict: el sustituido no puede quedar apuntando a un sustituto inexistente");
+        // ON DELETE RESTRICT informa 23001 (restrict_violation) o 23503 (foreign_key_violation) según la versión de
+        // PostgreSQL (medido: el clúster local da 23503 y el de CI 23001); lo que no cambia es la restricción.
+        error.SqlState.Should().BeOneOf(["23001", "23503"], "Restrict: el sustituido no puede quedar apuntando a un sustituto inexistente");
         error.ConstraintName.Should().Be(ForaneaSustituto);
     }
 
