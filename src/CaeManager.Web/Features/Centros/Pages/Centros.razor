@@ -399,13 +399,12 @@
     }
 </div>
 
-<Drawer @ref="_drawerNuevoCentro" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="Nuevo centro" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="Nuevo centro"
+                  HayCambios="() => HayCambiosCentro" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
+                  HayErroresDeCampo="_erroresCampo.Count > 0" OnGuardar="GuardarAsync"
+                  AlDescartarPorNavegacion="CerrarFormulariosDescartando"
+                  TextoGuardar="Guardar" TextoCancelar="Cancelar">
     <ChildContent>
-        @if (_mensajeErrorFormulario is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
-        }
-
         @if (_padresFijadosPorCadena)
         {
             <div class="campo">
@@ -439,27 +438,24 @@
         <CampoTexto Etiqueta="Contacto" Valor="@_contacto" ValorChanged="v => _contacto = v" />
         <CampoTexto Etiqueta="Contrato vigente hasta" Type="date" Valor="@_contratoVigenteHasta" ValorChanged="v => _contratoVigenteHasta = v" />
     </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawerNuevoCentro?.SolicitarCierreAsync() ?? Task.CompletedTask">
-            Cancelar
-        </Boton>
+    <PieExtra>
         <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearOtroAsync">
             Añadir otro centro
         </Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
-            Guardar
-        </Boton>
-    </Pie>
-</Drawer>
+    </PieExtra>
+    <Dialogos>
+        <FormularioRapidoCliente @ref="_formularioRapidoCliente" Visible="_formularioRapidoClienteVisible" VisibleChanged="v => _formularioRapidoClienteVisible = v"
+                                  NombreInicial="@_nombreParaCrearCliente" OnCreado="ManejarClienteCreadoAsync" OnCambio="AlCambiarFormularioRapido" />
 
-<FormularioRapidoCliente @ref="_formularioRapidoCliente" Visible="_formularioRapidoClienteVisible" VisibleChanged="v => _formularioRapidoClienteVisible = v"
-                          NombreInicial="@_nombreParaCrearCliente" OnCreado="ManejarClienteCreadoAsync" OnCambio="AlCambiarFormularioRapido" />
+        <FormularioRapidoEmpresa @ref="_formularioRapidoEmpresa" Visible="_formularioRapidoEmpresaVisible" VisibleChanged="v => _formularioRapidoEmpresaVisible = v"
+                                  NombreInicial="@_nombreParaCrearEmpresa" ClienteIdParaVincular="@ClienteIdParaFormularioRapido"
+                                  OnCreado="ManejarEmpresaCreadaAsync" OnCambio="AlCambiarFormularioRapido" />
+    </Dialogos>
+</DrawerFormulario>
 
-<FormularioRapidoEmpresa @ref="_formularioRapidoEmpresa" Visible="_formularioRapidoEmpresaVisible" VisibleChanged="v => _formularioRapidoEmpresaVisible = v"
-                          NombreInicial="@_nombreParaCrearEmpresa" ClienteIdParaVincular="@ClienteIdParaFormularioRapido"
-                          OnCreado="ManejarEmpresaCreadaAsync" OnCambio="AlCambiarFormularioRapido" />
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
+@* Los modales rápidos de Cliente empresarial y Empresa se abren desde el drawer y no montan aviso propio: este cubre lo escrito
+   en ellos. Con el del kit (el del drawer) se coordinan (S12, lote 2b): salir con cambios en los dos pregunta una sola vez. *@
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosFormulariosRapidos" AlDescartar="CerrarFormulariosDescartando" />
 
 @* Baja y asignación masiva son escrituras: un rol de solo lectura (Consulta) puede marcar filas pero no ve la barra. *@
 <SoloConEscritura>

@@ -21,7 +21,6 @@ namespace CaeManager.Web.Features.Empresas.Pages;
 
 public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
-    private Drawer? _drawerEmpresa;
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
@@ -489,8 +488,10 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     /// <summary>
     /// P1-E2b: único punto de verdad de «hay cambios» en el drawer de alta de Empresa. Lo
-    /// lee AvisoCambiosSinGuardar para detener la salida de la página; con el drawer
-    /// cerrado (también tras guardar) nunca hay nada que perder.
+    /// lee el DrawerFormulario (X, Escape, «Cancelar» y salir de la página); con el drawer
+    /// cerrado (también tras guardar) nunca hay nada que perder. Se lee en vivo, con
+    /// <c>_drawerVisible</c> dentro: «Continuar con el centro» navega en el mismo manejador que
+    /// cierra el drawer, antes de que el kit reciba el Visible nuevo.
     /// </summary>
     private bool HayCambiosSinGuardar => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
 

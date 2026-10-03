@@ -335,13 +335,12 @@
     }
 </div>
 
-<Drawer @ref="_drawerEmpresa" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="Nueva empresa" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="Nueva empresa"
+                 HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
+                 HayErroresDeCampo="@(_erroresCampo.Count > 0)" OnGuardar="GuardarAsync"
+                 AlDescartarPorNavegacion="CerrarDrawerDescartando"
+                 TextoGuardar="Guardar" TextoCancelar="Cancelar">
     <ChildContent>
-        @if (_mensajeErrorFormulario is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
-        }
-
         <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" OnBlur="ValidarRazonSocialAsync" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.RazonSocial))" />
         <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cif" ValorChanged="v => _cif = v" OnBlur="ValidarCifAsync" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.Cif))" />
         <CampoTexto Etiqueta="CNAE" Placeholder="p. ej. 4321" Valor="@_cnae" ValorChanged="v => _cnae = v" OnBlur="ValidarCnaeAsync" MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.Cnae))" />
@@ -357,20 +356,12 @@
                            OnAlternar="args => AlternarCliente(args.Id, args.Marcado)"
                            TextoVacio="Todavía no hay Clientes empresariales creados." />
     </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawerEmpresa?.SolicitarCierreAsync() ?? Task.CompletedTask">
-            Cancelar
-        </Boton>
+    <PieExtra>
         <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearCentroAsync">
             Continuar con el centro
         </Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
-            Guardar
-        </Boton>
-    </Pie>
-</Drawer>
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarDrawerDescartando" />
+    </PieExtra>
+</DrawerFormulario>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"

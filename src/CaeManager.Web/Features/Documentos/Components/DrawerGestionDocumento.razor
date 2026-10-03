@@ -31,13 +31,12 @@
 @inject IConversorWordPdfService ConversorWordPdf
 @inject ILogger<DrawerGestionDocumento> Logger
 
-<Drawer @ref="_drawer" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo documento" : "Renovar documento")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo documento" : "Renovar documento")"
+                  HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
+                  HayErroresDeCampo="_erroresCampo.Count > 0" OnGuardar="GuardarAsync"
+                  MotivoGuardarDeshabilitado="@(_subiendoArchivo ? TextosDrawerGestionDocumento.Texto("GuardarEsperaSubida") : null)"
+                  TextoGuardar="Guardar" TextoCancelar="Cancelar">
     <ChildContent>
-        @if (_mensajeErrorFormulario is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
-        }
-
         @if (_editandoId is null)
         {
             <CampoSelect Etiqueta="¿A quién pertenece?" Valor="@_ambitoAplicacion" ValorChanged="CambiarAmbitoAsync">
@@ -195,36 +194,22 @@
 
         <CampoTextarea Etiqueta="Comentarios" Valor="@_comentarios" ValorChanged="v => _comentarios = v" Filas="3" />
     </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawer?.SolicitarCierreAsync() ?? Task.CompletedTask">
-            Cancelar
-        </Boton>
-        <Boton Variante="VarianteBoton.Primario" Deshabilitado="_subiendoArchivo" Cargando="_guardando" OnClick="GuardarAsync">
-            Guardar
-        </Boton>
-    </Pie>
-</Drawer>
+    <Dialogos>
+        <DialogoConfirmacion
+            Visible="_confirmarVigenciaAnteriorVisible"
+            VisibleChanged="v => _confirmarVigenciaAnteriorVisible = v"
+            Titulo="La nueva fecha de emisión es anterior a la actual"
+            Mensaje="El documento que estás subiendo tiene una vigencia anterior a la del que ya estaba registrado — comprueba que sea el archivo correcto antes de continuar."
+            TextoBotonConfirmar="Continuar de todas formas"
+            EnProgreso="_procesandoConfirmacionVigencia"
+            OnConfirmar="ConfirmarGuardarConVigenciaAnteriorAsync" />
 
-<DialogoConfirmacion
-    Visible="_confirmarVigenciaAnteriorVisible"
-    VisibleChanged="v => _confirmarVigenciaAnteriorVisible = v"
-    Titulo="La nueva fecha de emisión es anterior a la actual"
-    Mensaje="El documento que estás subiendo tiene una vigencia anterior a la del que ya estaba registrado — comprueba que sea el archivo correcto antes de continuar."
-    TextoBotonConfirmar="Continuar de todas formas"
-    EnProgreso="_procesandoConfirmacionVigencia"
-    OnConfirmar="ConfirmarGuardarConVigenciaAnteriorAsync" />
-
-<DialogoConfirmacion
-    Visible="_confirmarTipoSospechosoVisible"
-    VisibleChanged="v => _confirmarTipoSospechosoVisible = v"
-    Titulo="Este documento no parece coincidir"
-    Mensaje="@($"Detectamos que este archivo es un \"{_tipoSospechosoDetectadoNombre}\", pero estás subiéndolo como \"{_tipoSospechosoSeleccionadoNombre}\". ¿Seguro que quieres continuar?")"
-    TextoBotonConfirmar="Sí, continuar"
-    OnConfirmar="() => _confirmarTipoSospechosoVisible = false" />
-
-@* Salir de la página que aloja el drawer con el formulario a medias pregunta antes; si
-   se confirma, el drawer se cierra como con la X (y el archivo ya subido que nadie adoptó
-   se borra), porque una navegación que no desmonta la página lo dejaría abierto.
-   Va al final del marcado: con el mismo z-index que los demás diálogos, el último
-   del DOM queda encima y la pregunta nunca se esconde detrás de otro. *@
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => CerrarDrawerAsync(false)" />
+        <DialogoConfirmacion
+            Visible="_confirmarTipoSospechosoVisible"
+            VisibleChanged="v => _confirmarTipoSospechosoVisible = v"
+            Titulo="Este documento no parece coincidir"
+            Mensaje="@($"Detectamos que este archivo es un \"{_tipoSospechosoDetectadoNombre}\", pero estás subiéndolo como \"{_tipoSospechosoSeleccionadoNombre}\". ¿Seguro que quieres continuar?")"
+            TextoBotonConfirmar="Sí, continuar"
+            OnConfirmar="() => _confirmarTipoSospechosoVisible = false" />
+    </Dialogos>
+</DrawerFormulario>
