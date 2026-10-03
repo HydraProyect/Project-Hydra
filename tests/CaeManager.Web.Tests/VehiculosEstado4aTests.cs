@@ -5,9 +5,11 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Vehiculos.Pages;
@@ -69,6 +71,7 @@ public class VehiculosEstado4aTests : BunitContext
             return (TResponse)(request switch
             {
                 ObtenerClientesAutorizadosQuery => (object)(IReadOnlyList<ClienteAutorizadoDto>)Autorizados.ToList(),
+                ObtenerPerfilVocabularioActualQuery => PerfilVocabularioTenant.Consultora,
                 ObtenerEmpresasParaSelectorQuery => new[] { new EmpresaSelectorDto(Guid.NewGuid(), "Montajes Ebro S.L.") },
                 ObtenerSubcontratasParaSelectorQuery => Array.Empty<SubcontrataSelectorDto>(),
                 ObtenerVehiculosQuery q => new ResultadoPaginado<VehiculoListaDto>([], 0, q.Pagina, q.TamanoPagina),
@@ -327,5 +330,27 @@ public class VehiculosEstado4aTests : BunitContext
 
         // El componente está retirado y no hay DOM que mirar: se lee el estado que la URL habría fijado.
         Busqueda(pagina).Should().BeEmpty("una página retirada no atiende los parámetros de la URL");
+    }
+
+    /// <summary>
+    /// S12 (lote 2a): el alta usa el kit DrawerFormulario, que pregunta al «Cancelar» como la X (D-05); la salida por navegación la fijan las pruebas de aviso de la pantalla.
+    /// Esta prueba fija que la pantalla le pasa su «hay cambios» y su estado: sin cambios cierra, con el nombre escrito pregunta.
+    /// </summary>
+    [Fact]
+    public async Task El_alta_pregunta_al_cancelar_con_datos_escritos_y_sin_cambios_cierra()
+    {
+        var cut = Renderizar(ConCartera(origenGestionado: true));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("+ Nuevo vehículo"));
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nuevo vehículo").ClickAsync(new());
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nuevo vehículo").ClickAsync(new());
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+        await cut.Find(".drawer-cuerpo input.campo-input").InputAsync(new ChangeEventArgs { Value = "Furgoneta de obra" });
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
     }
 }
