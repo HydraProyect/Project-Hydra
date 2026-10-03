@@ -21,10 +21,13 @@
     HayErroresDeCampo), HayCambios (normalmente InstantaneaFormulario) y el comando que guarda.
 
     Los diálogos que el formulario abre van en Dialogos (siempre debajo del aviso de salida).
-    No cubre: el diálogo de confirmación como cuerpo, los formularios en Modal ni a página completa, ni los de varias secciones
+    No cubre: el diálogo de confirmación como cuerpo, los formularios en Modal (ModalFormulario) ni a página completa, ni los de varias secciones
     o pasos (esos son página). Una acción secundaria que no cierra («Añadir otro…») va en PieExtra.
 *@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
 @inject IJSRuntime JS
+@inject IStringLocalizer<TextosComunes> Comunes
 
 <Drawer @ref="_drawer" Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" HayCambios="HayCambios"
         CerrarAlHacerClicFuera="@(!Guardando && string.IsNullOrWhiteSpace(MensajeError) && !HayErroresDeCampo)"
@@ -107,7 +110,7 @@
 
     [Parameter] public int FilasCargando { get; set; } = 3;
 
-    /// <summary>Title de «Guardar» mientras <see cref="Cargando"/>. Sin valor: «Cargando…», como el aria-label del esqueleto.</summary>
+    /// <summary>Title de «Guardar» mientras <see cref="Cargando"/>. Sin valor: «Cargando…» localizado (TextosComunes), como el aria-label del esqueleto.</summary>
     [Parameter] public string? MotivoCargando { get; set; }
 
     /// <summary>
@@ -144,7 +147,7 @@
     /// de la pantalla. Nulo = habilitado.
     /// </summary>
     private string? MotivoEfectivo =>
-        Cargando ? (string.IsNullOrWhiteSpace(MotivoCargando) ? "Cargando…" : MotivoCargando) : MotivoGuardarDeshabilitado;
+        Cargando ? (string.IsNullOrWhiteSpace(MotivoCargando) ? Comunes["Cargando"].Value : MotivoCargando) : MotivoGuardarDeshabilitado;
 
     private bool TieneMotivoDeshabilitado => !string.IsNullOrWhiteSpace(MotivoEfectivo);
 

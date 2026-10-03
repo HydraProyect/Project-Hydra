@@ -1,0 +1,238 @@
+@*
+    Kit de formulario en Modal (S12, lote 3a): cabecera, cuerpo, aviso, pie y guardián en un solo sitio. Es el hermano de
+    DrawerFormulario sobre Modal, con las mismas garantías y el mismo guardián (AvisoCambiosSinGuardar).
+
+    Un formulario corto (uno a tres campos: «Guardar filtro», un motivo, una fecha) en un Modal es este componente más sus campos.
+    Lo que una pantalla ya no escribe, y por tanto no puede escribir mal:
+      - el guardián: HayCambios es obligatorio (EditorRequired; con -warnaserror su falta es un error de compilación, RZ2012).
+        La X, Escape, el fondo y «Cancelar» preguntan «¿Descartar cambios?» y salir por la aplicación, también
+        (AvisoCambiosSinGuardar va dentro; D-05, D-20);
+      - «Cancelar»: es siempre el secundario del pie y sale por SolicitarCierreAsync, como la X (D-05). Un Modal Bloqueante no
+        tiene salida, y por tanto tampoco «Cancelar»;
+      - «Guardar»: es el único primario, con el estado Guardando (spinner, sin doble clic; D-30). Solo se puede deshabilitar
+        dando el motivo (MotivoGuardarDeshabilitado, que sale como title): un botón mudo no se puede escribir (D-02, D-06);
+      - el aviso del formulario: fuera del cuerpo desplazable, siempre a la vista (D-20): MensajeError (error del formulario
+        entero) y Aviso (una nota fija que la pantalla quiere ver siempre, p. ej. «afecta a 12 trabajadores»). Tras un «Guardar»
+        que deja errores por campo el foco va al primero (D-20);
+      - no cerrar con un clic fuera ni con Escape mientras se guarda o hay un error visible;
+      - el cuerpo que aún no está listo (Cargando, SinContenido): como en DrawerFormulario, «Guardar» queda deshabilitado con su
+        motivo;
+      - una pregunta por navegación (T10): el aviso de navegación del kit se coordina con el de la página, si lo hay.
+    Lo que sigue siendo de cada pantalla: sus campos y su validación, su estado (Guardando, MensajeError, HayErroresDeCampo),
+    HayCambios y el comando que guarda.
+
+    Los diálogos que el formulario abre van en Dialogos (siempre debajo del aviso de salida).
+    No cubre: el diálogo de confirmación (DialogoConfirmacion: una pregunta con un botón de confirmar, a menudo destructivo), el
+    modal de solo lectura, el de varios pasos ni el que tiene más de un primario. Un formulario con más de tres o cuatro campos
+    o con secciones es Drawer (DrawerFormulario) o página.
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IJSRuntime JS
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<Modal @ref="_modal" Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" HayCambios="HayCambios"
+       Ancho="Ancho" Bloqueante="Bloqueante"
+       CerrarAlHacerClicFuera="@(!Guardando && string.IsNullOrWhiteSpace(MensajeError) && !HayErroresDeCampo)"
+       Aviso="@(TieneAviso ? AvisoRender : null)">
+    <ChildContent>
+        <div class="formulario-modal-contenido" @ref="_contenido">
+            @if (Cargando)
+            {
+                <EstadoCargando Filas="FilasCargando" />
+            }
+            else if (SinContenido is not null)
+            {
+                @SinContenido
+            }
+            else
+            {
+                @ChildContent
+            }
+        </div>
+    </ChildContent>
+    <Pie>
+        @if (!Bloqueante)
+        {
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="Guardando" OnClick="CancelarAsync">
+                @TextoCancelar
+            </Boton>
+        }
+        @if (PieExtra is not null)
+        {
+            @* Mientras se guarda, las acciones extra se deshabilitan solas (fieldset): la pantalla no puede olvidarlo. *@
+            <fieldset class="formulario-modal-pie-extra" disabled="@Guardando">@PieExtra</fieldset>
+        }
+        <Boton Variante="VarianteBoton.Primario" Cargando="Guardando" Deshabilitado="TieneMotivoDeshabilitado"
+               title="@MotivoEfectivo" OnClick="GuardarAsync">
+            @TextoGuardar
+        </Boton>
+    </Pie>
+</Modal>
+
+@* Los diálogos que el formulario abre van ANTES del aviso de navegación: con el mismo z-index el último del DOM queda encima, y un
+   aviso pintado antes dejaría la pregunta de salida detrás de ellos. *@
+@Dialogos
+
+<AvisoCambiosSinGuardar HayCambios="() => Visible && HayCambios()" AlDescartar="DescartarPorNavegacionAsync" />
+
+@code {
+    private Modal? _modal;
+    private ElementReference _contenido;
+    private bool _enfocarTrasGuardar;
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Obligatorio: si el formulario tiene algo que se perdería al cerrar o salir. Una instantánea de los campos al abrir
+    /// (<see cref="InstantaneaFormulario"/>) es lo habitual; con un solo campo, «no está vacío» basta.
+    /// </summary>
+    [Parameter, EditorRequired] public Func<bool> HayCambios { get; set; } = () => false;
+
+    /// <summary>Ancho del modal (Mediano, 520 px, por defecto; Pequeno para uno o dos campos).</summary>
+    [Parameter] public AnchoModal Ancho { get; set; } = AnchoModal.Mediano;
+
+    /// <summary>
+    /// Sin X, sin Escape, sin clic fuera y sin «Cancelar»: solo se sale guardando (<see cref="VisibleChanged"/> desde la pantalla).
+    /// Para una condición de bloqueo real, no para evitar perder cambios.
+    /// </summary>
+    [Parameter] public bool Bloqueante { get; set; }
+
+    /// <summary>Se está guardando: «Cancelar» se deshabilita, «Guardar» muestra el spinner y no se cierra por fuera.</summary>
+    [Parameter] public bool Guardando { get; set; }
+
+    /// <summary>Error del formulario entero (servidor, regla de negocio): se ve fuera del cuerpo desplazable.</summary>
+    [Parameter] public string? MensajeError { get; set; }
+
+    /// <summary>
+    /// Nota fija del formulario (no es un error), entre la cabecera y el cuerpo y fuera de su desplazamiento. Se pinta bajo
+    /// <see cref="MensajeError"/> si coinciden.
+    /// </summary>
+    [Parameter] public RenderFragment? Aviso { get; set; }
+
+    /// <summary>Hay errores por campo (los pintan los propios campos): bloquea el cierre por fuera y recibe el foco tras guardar.</summary>
+    [Parameter] public bool HayErroresDeCampo { get; set; }
+
+    /// <summary>
+    /// Deshabilita «Guardar» y dice por qué (title del botón). Un «Guardar» deshabilitado sin motivo no existe: D-02 y D-06 eran
+    /// un primario mudo. Vacío o nulo, «Guardar» está habilitado.
+    /// </summary>
+    [Parameter] public string? MotivoGuardarDeshabilitado { get; set; }
+
+    /// <summary>
+    /// El cuerpo todavía no está listo porque los datos que necesita viajan: se pinta <see cref="FilasCargando"/> de esqueleto en
+    /// lugar de <see cref="ChildContent"/> y «Guardar» queda deshabilitado con <see cref="MotivoCargando"/>.
+    /// </summary>
+    [Parameter] public bool Cargando { get; set; }
+
+    [Parameter] public int FilasCargando { get; set; } = 2;
+
+    /// <summary>Title de «Guardar» mientras <see cref="Cargando"/>. Sin valor: «Cargando…» localizado, como el aria-label del esqueleto.</summary>
+    [Parameter] public string? MotivoCargando { get; set; }
+
+    /// <summary>
+    /// Estado vacío o de error en lugar del cuerpo. «Guardar» queda deshabilitado y <see cref="MotivoGuardarDeshabilitado"/> pasa a ser
+    /// obligatorio: el kit lo rechaza al pintarlo (InvalidOperationException) en vez de dejar un primario mudo.
+    /// </summary>
+    [Parameter] public RenderFragment? SinContenido { get; set; }
+
+    [Parameter, EditorRequired] public string TextoGuardar { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string TextoCancelar { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnGuardar { get; set; }
+
+    /// <summary>Acciones secundarias que no cierran, entre «Cancelar» y «Guardar». Se deshabilitan solas mientras <see cref="Guardando"/>.</summary>
+    [Parameter] public RenderFragment? PieExtra { get; set; }
+
+    /// <summary>Diálogos que abre el formulario: se pintan después del modal y antes del aviso de navegación.</summary>
+    [Parameter] public RenderFragment? Dialogos { get; set; }
+
+    /// <summary>Tras «Salir y descartar» del aviso de navegación, además de cerrar el modal.</summary>
+    [Parameter] public EventCallback AlDescartarPorNavegacion { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string? MotivoEfectivo =>
+        Cargando ? (string.IsNullOrWhiteSpace(MotivoCargando) ? Comunes["Cargando"].Value : MotivoCargando) : MotivoGuardarDeshabilitado;
+
+    private bool TieneMotivoDeshabilitado => !string.IsNullOrWhiteSpace(MotivoEfectivo);
+
+    private bool TieneAviso => !string.IsNullOrWhiteSpace(MensajeError) || Aviso is not null;
+
+    private bool _guardandoPrevio;
+
+    protected override void OnParametersSet()
+    {
+        if (!Cargando && SinContenido is not null && string.IsNullOrWhiteSpace(MotivoGuardarDeshabilitado))
+            throw new InvalidOperationException(
+                "ModalFormulario con SinContenido exige MotivoGuardarDeshabilitado: «Guardar» queda deshabilitado y un botón mudo no existe (D-02, D-06).");
+
+        if (_guardandoPrevio && !Guardando)
+            _enfocarTrasGuardar = true;
+        _guardandoPrevio = Guardando;
+    }
+
+    private RenderFragment AvisoRender => builder =>
+    {
+        if (!string.IsNullOrWhiteSpace(MensajeError))
+        {
+            builder.OpenComponent<AvisoFormulario>(0);
+            builder.AddAttribute(1, nameof(AvisoFormulario.Mensaje), MensajeError);
+            builder.CloseComponent();
+        }
+
+        if (Aviso is not null)
+            builder.AddContent(2, Aviso);
+    };
+
+    private Task CancelarAsync() => _modal is { } modal ? modal.SolicitarCierreAsync() : VisibleChanged.InvokeAsync(false);
+
+    private bool _guardadoEnCurso;
+
+    private async Task GuardarAsync()
+    {
+        // Guarda de doble clic en el kit, igual que DrawerFormulario.
+        if (_guardadoEnCurso || Guardando) return;
+        _guardadoEnCurso = true;
+        try
+        {
+            await OnGuardar.InvokeAsync();
+        }
+        finally
+        {
+            _guardadoEnCurso = false;
+        }
+
+        _enfocarTrasGuardar = true;
+        StateHasChanged();
+    }
+
+    private async Task DescartarPorNavegacionAsync()
+    {
+        await VisibleChanged.InvokeAsync(false);
+        await AlDescartarPorNavegacion.InvokeAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_enfocarTrasGuardar) return;
+        _enfocarTrasGuardar = false;
+
+        if (!Visible || !HayErroresDeCampo) return;
+
+        try
+        {
+            var modulo = await JS.InvokeAsync<IJSObjectReference>("import", "./js/formulario-foco.js");
+            if (modulo is null) return;
+
+            await using (modulo)
+            {
+                await modulo.InvokeVoidAsync("enfocarPrimerError", _contenido);
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+}

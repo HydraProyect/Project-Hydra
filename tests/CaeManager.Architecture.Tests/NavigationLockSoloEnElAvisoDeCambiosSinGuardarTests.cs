@@ -46,6 +46,7 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     private static readonly string[] FormulariosProtegidos =
     [
         "src/CaeManager.Web/Components/DesignSystem/DrawerFormulario.razor",
+        "src/CaeManager.Web/Components/DesignSystem/ModalFormulario.razor",
         "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
         "src/CaeManager.Web/Features/Bandeja/Components/DrawerReclamacionLote.razor",
         "src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor",
@@ -54,7 +55,6 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
         "src/CaeManager.Web/Features/Centros/Pages/Centros.razor",
         "src/CaeManager.Web/Features/Clientes/Components/ClienteWorkspacePanel.razor",
         "src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor",
-        "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
         "src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor",
         "src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor",
         "src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor",
@@ -90,13 +90,13 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     private static readonly string[] ContenedoresQuePreguntanAlCerrar =
     [
         "src/CaeManager.Web/Components/DesignSystem/DrawerFormulario.razor",
+        "src/CaeManager.Web/Components/DesignSystem/ModalFormulario.razor",
         "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
         "src/CaeManager.Web/Features/Bandeja/Components/DrawerReclamacionLote.razor",
         "src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor",
         "src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor",
         "src/CaeManager.Web/Features/Centros/Components/DrawerAsignacionMasiva.razor",
         "src/CaeManager.Web/Features/Clientes/Components/FormularioRapidoCliente.razor",
-        "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
         "src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor",
         "src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor",
         "src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor",

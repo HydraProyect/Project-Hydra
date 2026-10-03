@@ -1,6 +1,7 @@
 using Bunit;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
@@ -20,6 +21,8 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class EstadoCargandoTests : BunitContext
 {
+    public EstadoCargandoTests() => Services.AddLocalization();
+
     [Fact]
     public void El_esqueleto_sale_como_region_ocupada_con_su_clase_de_retardo()
     {

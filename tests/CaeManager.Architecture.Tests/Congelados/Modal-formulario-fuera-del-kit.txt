@@ -1,0 +1,24 @@
+# Modales con campos (formularios de creación o edición) que aún no usan el kit ModalFormulario (S12, lote 3a, 2026-10-03).
+# Solo baja: migrar una pantalla al kit baja o borra su línea; un Modal con campos nuevo no se añade aquí, usa el kit.
+# Medida: 'ruta :: Modal = n' con n Modales que contienen campos (FormulariosEnModalUsanElKitTests).
+src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor :: Modal = 1
+src/CaeManager.Web/Features/ApiKeys/Pages/ClavesApi.razor :: Modal = 1
+src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor :: Modal = 1
+src/CaeManager.Web/Features/Clientes/Components/FormularioRapidoCliente.razor :: Modal = 1
+src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor :: Modal = 1
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: Modal = 1
+src/CaeManager.Web/Features/Cumplimiento/AceptacionTerminosGate.razor :: Modal = 1
+src/CaeManager.Web/Features/Delegaciones/OperadoresCaeExternosPanel.razor :: Modal = 1
+src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor :: Modal = 3
+src/CaeManager.Web/Features/Documentos/Components/PlantillasTab.razor :: Modal = 1
+src/CaeManager.Web/Features/Documentos/Components/PlataformaTab.razor :: Modal = 2
+src/CaeManager.Web/Features/Documentos/Pages/Documentos.razor :: Modal = 1
+src/CaeManager.Web/Features/Empresas/Components/FormularioRapidoEmpresa.razor :: Modal = 1
+src/CaeManager.Web/Features/IncorporacionCartera/Components/DialogoSolicitarIncorporacion.razor :: Modal = 1
+src/CaeManager.Web/Features/Integraciones/Pages/Conexiones.razor :: Modal = 1
+src/CaeManager.Web/Features/Plataforma/Pages/Plataforma.razor :: Modal = 1
+src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor :: Modal = 1
+src/CaeManager.Web/Features/Retencion/Pages/Retencion.razor :: Modal = 2
+src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor :: Modal = 2
+src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor :: Modal = 2
+src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor :: Modal = 1
