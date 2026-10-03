@@ -71,8 +71,7 @@ public class Documento : EntidadBase
     {
         get
         {
-            var propietarios = new[] { TrabajadorId, ClienteId, EmpresaId, VehiculoId, ProyectoId };
-            if (propietarios.Count(id => id is not null) != 1)
+            if (Propietarios.Count(id => id is not null) != 1)
                 throw new InvalidOperationException(
                     "Documento sin exactamente un propietario entre Trabajador, Cliente, Empresa, Vehículo y " +
                     "Proyecto: viola CK_Documentos_PropietarioXor. Esto no puede ocurrir para un documento " +
@@ -86,6 +85,9 @@ public class Documento : EntidadBase
                 : AmbitoAplicacion.Empresa;
         }
     }
+
+    /// <summary>Las cinco anclas de propietario, en un orden fijo: <see cref="Ambito"/> las cuenta y <see cref="SustituirPor"/> las compara.</summary>
+    private Guid?[] Propietarios => [TrabajadorId, ClienteId, EmpresaId, VehiculoId, ProyectoId];
 
     private Documento()
     {
@@ -125,7 +127,7 @@ public class Documento : EntidadBase
         VehiculoId = vehiculoId;
         ProyectoId = proyectoId;
         TipoDocumentoId = tipoDocumentoId;
-        Renovar(fechaEmision, vigencia);
+        CorregirVigencia(fechaEmision, vigencia);
         ArchivoUrl = archivoUrl;
         Comentarios = comentarios;
     }
@@ -201,14 +203,15 @@ public class Documento : EntidadBase
     }
 
     /// <summary>
-    /// Actualiza fecha de emisión y vigencia — p. ej. cuando el trabajador
-    /// presenta la renovación de un documento vencido. La vigencia la decide el
-    /// llamador (Application): la calcula con CalculadoraEstadoDocumento cuando
-    /// el TipoDocumento tiene vencimiento automático, o la confirma el Gestor
-    /// CAE a mano. Una renovación sin vigencia confirmada queda
+    /// Corrige la fecha de emisión y la vigencia <b>de este mismo registro</b>: la corrección de un dato mal
+    /// leído (revisión de la IA, edición del Gestor CAE), no una renovación. Renovar un documento es subir
+    /// uno nuevo que lo sustituye (<see cref="SustituirPor"/>): el anterior pasa al historial con su archivo y
+    /// sus fechas intactos, y este método no puede hacerlo porque pisa las del propio registro. La vigencia la
+    /// decide el llamador (Application): la calcula con CalculadoraEstadoDocumento cuando el TipoDocumento
+    /// tiene vencimiento automático, o la confirma el Gestor CAE a mano. Una vigencia sin confirmar queda
     /// <see cref="VigenciaDocumento.SinConfirmar"/>, nunca «no caduca».
     /// </summary>
-    public void Renovar(DateOnly fechaEmision, VigenciaDocumento vigencia)
+    public void CorregirVigencia(DateOnly fechaEmision, VigenciaDocumento vigencia)
     {
         if (fechaEmision > DiaDeNegocio.Hoy())
             throw new ArgumentException("La fecha de emisión no puede ser futura.", nameof(fechaEmision));
@@ -218,6 +221,83 @@ public class Documento : EntidadBase
         FechaEmision = fechaEmision;
         EstadoVigencia = vigencia.Estado;
         FechaVencimiento = vigencia.FechaVencimiento;
+    }
+
+    /// <summary>
+    /// Id del documento que sustituyó a este, o null si sigue operativo. Se persiste con
+    /// <see cref="SustituidoEnUtc"/> y <see cref="MotivoSustitucion"/>: las tres columnas son nulas a la vez o
+    /// ninguna lo es (<c>CK_Documentos_SustitucionCoherente</c>), y la FK compuesta con el Tenant impide que
+    /// apunte a un documento de otro Tenant propietario.
+    /// </summary>
+    public Guid? SustituidoPorDocumentoId { get; private set; }
+
+    /// <summary>Cuándo se sustituyó, o null si sigue operativo.</summary>
+    public DateTime? SustituidoEnUtc { get; private set; }
+
+    /// <summary>Por qué se sustituyó (auditoría), o null si sigue operativo.</summary>
+    public MotivoSustitucionDocumento? MotivoSustitucion { get; private set; }
+
+    /// <summary>
+    /// Historial: otro documento lo sustituyó y ya no cuenta. Es irreversible. Para filtrar en una consulta
+    /// se usa <see cref="DocumentoOperativo"/>, que además excluye los eliminados.
+    /// </summary>
+    public bool EstaSustituido => SustituidoEnUtc is not null;
+
+    /// <summary>
+    /// Este documento pasa al historial porque <paramref name="nuevo"/> ocupa su lugar. <b>Nunca borra</b>:
+    /// el sustituido conserva su archivo, sus fechas, su identidad y sus acreditaciones, y deja de contar
+    /// (<see cref="DocumentoOperativo"/>). La sustitución no puede deshacerse y el Id del sustituto es otro
+    /// distinto del del sustituido: ningún camino reutiliza un Id (decisiones D5 y D8, 2026-10-03).
+    ///
+    /// <para>
+    /// Invariantes (todas lanzan, ninguna se corrige en silencio): un documento no se sustituye a sí mismo; no
+    /// se sustituye dos veces (el sustituto no puede quedar a su vez sustituido, y así tampoco hay ciclos); el
+    /// sustituto y el sustituido tienen el mismo titular (los cinco propietarios), el mismo Tipo de documento y,
+    /// cuando los dos ya tienen Tenant propietario sellado, el mismo Tenant; ninguno de los dos está eliminado.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Qué no decide</b>: cuál de los dos es más reciente. Subir un documento anterior al que está en uso
+    /// (D5) se expresa sustituyendo <i>el nuevo</i> por el que ya estaba: el más antiguo nace en el historial y
+    /// nunca pasa a efectivo por subirlo. Tampoco decide el destinatario (PR 6 del diseño, aún sin columna).
+    /// </para>
+    ///
+    /// <para>
+    /// El Tenant solo se compara cuando los dos lo tienen: un documento recién creado aún no lo tiene —lo sella
+    /// el interceptor al guardar—, y la barrera para ese caso es la FK compuesta
+    /// <c>(TenantId, SustituidoPorDocumentoId)</c> hacia <c>(TenantId, Id)</c>, probada en PostgreSQL.
+    /// </para>
+    /// </summary>
+    public void SustituirPor(Documento nuevo, MotivoSustitucionDocumento motivo, DateTime ahoraUtc)
+    {
+        ArgumentNullException.ThrowIfNull(nuevo);
+
+        if (ReferenceEquals(nuevo, this) || nuevo.Id == Id)
+            throw new ArgumentException("Un documento no puede sustituirse a sí mismo.", nameof(nuevo));
+        if (!Enum.IsDefined(motivo))
+            throw new ArgumentOutOfRangeException(nameof(motivo), motivo, "Motivo de sustitución desconocido.");
+        if (ahoraUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("El instante de la sustitución debe estar en UTC.", nameof(ahoraUtc));
+
+        if (EstaSustituido)
+            throw new InvalidOperationException(
+                "El documento ya está sustituido: la sustitución es irreversible y no se repite.");
+        if (nuevo.EstaSustituido)
+            throw new InvalidOperationException(
+                "El documento que sustituiría ya está sustituido: no puede ocupar el lugar de otro.");
+        if (EstaEliminado || nuevo.EstaEliminado)
+            throw new InvalidOperationException("Un documento eliminado no sustituye ni es sustituido.");
+
+        if (TipoDocumentoId != nuevo.TipoDocumentoId)
+            throw new ArgumentException("El sustituto debe ser del mismo Tipo de documento.", nameof(nuevo));
+        if (!Propietarios.SequenceEqual(nuevo.Propietarios))
+            throw new ArgumentException("El sustituto debe tener el mismo titular.", nameof(nuevo));
+        if (TenantId != Guid.Empty && nuevo.TenantId != Guid.Empty && TenantId != nuevo.TenantId)
+            throw new ArgumentException("El sustituto debe ser del mismo Tenant propietario.", nameof(nuevo));
+
+        SustituidoPorDocumentoId = nuevo.Id;
+        SustituidoEnUtc = ahoraUtc;
+        MotivoSustitucion = motivo;
     }
 
     public void AdjuntarArchivo(string archivoUrl)

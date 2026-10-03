@@ -38,6 +38,8 @@ namespace CaeManager.Architecture.Tests;
 /// <item><b>Bloqueo de acceso por documento bloqueante</b> — punto único <c>ReglaBloqueoDeAcceso</c> (Domain). Los
 /// lectores de la fila bloqueante del Centro están enumerados con su motivo y la comparación «sin fecha o fecha &gt;= hoy»
 /// no puede reaparecer en una consulta; la tabla es <c>CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests</c>.</item>
+/// <item><b>Qué documentos están en uso</b> — punto único <c>DocumentoOperativo.Expresion</c> (Domain): no eliminado y no
+/// sustituido. Comparar <c>SustituidoEnUtc</c> o <c>SustituidoPorDocumentoId</c> con null a mano es rojo.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -277,7 +279,65 @@ public class ReglasDeNegocioSinCopiasTests
             "así que se trae el estado y la fecha de vigencia y se evalúa en memoria, no se copia la comparación");
     }
 
+    // ---------- 6. Qué documentos están en uso (operativos) ----------
+
+    private const string PuntoUnicoDelDocumentoOperativo = "src/CaeManager.Domain/Documentos/DocumentoOperativo.cs";
+
+    /// <summary>
+    /// La condición «este documento no está sustituido» escrita a mano (<c>SustituidoEnUtc == null</c>,
+    /// <c>!= null</c>, <c>is null</c>, <c>is not null</c>). Quien recorre documentos sin un requisito delante filtra con
+    /// <c>DocumentoOperativo.Expresion</c> (o <c>DocumentoOperativo.Es</c> en memoria): un filtro escrito a mano se
+    /// olvida de la mitad «no eliminado» y es la copia que el diseño del documento efectivo (2026-10-03, § 2.4) prohíbe.
+    /// </summary>
+    private static readonly Regex PatronSustitucionComparadaAMano = new(
+        @"\bSustituidoEnUtc\s*(?:==|!=|is\s+(?:not\s+)?null\b)|\bSustituidoPorDocumentoId\s*(?:==|!=|is\s+(?:not\s+)?null\b)",
+        RegexOptions.Compiled);
+
+    private static readonly Dictionary<string, int> ComparacionesDeSustitucionDeclaradas = new()
+    {
+        // El punto único: la expresión operativa.
+        [PuntoUnicoDelDocumentoOperativo] = 1,
+        // El agregado deriva su propio EstaSustituido de la columna: es la propiedad de dominio, no una consulta.
+        ["src/CaeManager.Domain/Documentos/Documento.cs"] = 1,
+    };
+
+    [Fact]
+    public void La_condicion_de_documento_operativo_no_se_escribe_a_mano_fuera_de_su_punto_unico()
+    {
+        Divergencias(ComparacionesDeSustitucionDeclaradas, ContarPorFichero(PatronSustitucionComparadaAMano)).Should().BeEmpty(
+            "«documento operativo» (no eliminado y no sustituido) es DocumentoOperativo.Expresion; comparar SustituidoEnUtc a " +
+            "mano en una consulta olvida los eliminados cuando se apaga el filtro global y reparte la regla por las superficies");
+    }
+
     // ---------- Instrumento ----------
+
+    [Fact]
+    public void El_patron_de_la_condicion_operativa_reconoce_sus_formas_e_ignora_las_ajenas()
+    {
+        string[] copiadas =
+        [
+            "            .Where(d => d.SustituidoEnUtc == null)",
+            "        where documento.SustituidoEnUtc != null",
+            "        d.SustituidoEnUtc is null && d.EmpresaId == empresaId",
+            "        => SustituidoEnUtc is not null;",
+            "            .Where(d => d.SustituidoPorDocumentoId == null)",
+            "        if (documento.SustituidoPorDocumentoId is not null) continue;",
+        ];
+        foreach (var linea in copiadas)
+            EsCodigoQueCasa(linea, PatronSustitucionComparadaAMano).Should().BeTrue(linea);
+
+        string[] ajenas =
+        [
+            "        SustituidoEnUtc = ahoraUtc;",
+            "        SustituidoPorDocumentoId = nuevo.Id;",
+            "            .Where(DocumentoOperativo.Expresion)",
+            "        // d.SustituidoEnUtc == null",
+            "        /// <see cref=\"SustituidoEnUtc\"/> es null si sigue operativo",
+            "        var antes = documento.FechaVencimiento == null;",
+        ];
+        foreach (var linea in ajenas)
+            EsCodigoQueCasa(linea, PatronSustitucionComparadaAMano).Should().BeFalse(linea);
+    }
 
     [Fact]
     public void Los_patrones_reconocen_las_formas_que_vigilan_e_ignoran_comentarios()
@@ -424,8 +484,10 @@ public class ReglasDeNegocioSinCopiasTests
 
         File.Exists(Path.Combine(raiz, PuntoUnicoDeLaVentana)).Should().BeTrue("el punto único de la ventana tiene que existir");
         File.Exists(Path.Combine(raiz, PuntoUnicoDelBloqueoDeAcceso)).Should().BeTrue("el punto único del bloqueo de acceso tiene que existir");
+        File.Exists(Path.Combine(raiz, PuntoUnicoDelDocumentoOperativo)).Should().BeTrue("el punto único del documento operativo tiene que existir");
 
         foreach (var ruta in LecturasDeLaFilaBloqueante.Keys
+                     .Concat(ComparacionesDeSustitucionDeclaradas.Keys)
                      .Concat(VentanaNoEsLaDeReclamacion.Keys)
                      .Concat(OrdenDeGravedadDeOtraPregunta.Keys)
                      .Concat(UmbralesDeVigenciaReimplementadosEnSql.Keys)

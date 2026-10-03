@@ -141,11 +141,11 @@ public class DiaDeNegocioTests
         using var _ = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(MediaHoraTrasLaMedianocheDeMadridEnVerano));
         var documento = Documento.DeEmpresa(Guid.NewGuid(), Guid.NewGuid(), HoyEnMadrid.AddDays(-30), VigenciaDocumento.NoCaduca);
 
-        var renovar = () => documento.Renovar(HoyEnMadrid, VigenciaDocumento.NoCaduca);
-        renovar.Should().NotThrow();
+        var corregir = () => documento.CorregirVigencia(HoyEnMadrid, VigenciaDocumento.NoCaduca);
+        corregir.Should().NotThrow();
 
-        var renovarManana = () => documento.Renovar(HoyEnMadrid.AddDays(1), VigenciaDocumento.NoCaduca);
-        renovarManana.Should().Throw<ArgumentException>().WithMessage("*futura*");
+        var corregirManana = () => documento.CorregirVigencia(HoyEnMadrid.AddDays(1), VigenciaDocumento.NoCaduca);
+        corregirManana.Should().Throw<ArgumentException>().WithMessage("*futura*");
     }
 
     [Fact]

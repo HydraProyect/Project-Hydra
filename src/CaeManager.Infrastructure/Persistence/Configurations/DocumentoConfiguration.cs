@@ -37,6 +37,16 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
                 "CK_Documentos_EstadoVigenciaCoherente",
                 "(\"EstadoVigencia\" = 2 AND \"FechaVencimiento\" IS NOT NULL) OR " +
                 "(\"EstadoVigencia\" IN (0, 1) AND \"FechaVencimiento\" IS NULL)");
+            // Sustitución (documento efectivo, PR 1): las tres columnas se informan juntas o ninguna, el
+            // motivo es uno de los tres valores del enum (ordinales congelados) y un documento no se
+            // sustituye a sí mismo. El mismo Tenant propietario lo impone la FK compuesta de más abajo.
+            t.HasCheckConstraint(
+                "CK_Documentos_SustitucionCoherente",
+                "num_nonnulls(\"SustituidoPorDocumentoId\", \"SustituidoEnUtc\", \"MotivoSustitucion\") IN (0, 3) AND " +
+                "(\"MotivoSustitucion\" IS NULL OR \"MotivoSustitucion\" IN (1, 2, 3))");
+            t.HasCheckConstraint(
+                "CK_Documentos_NoSeSustituyeASiMismo",
+                "\"SustituidoPorDocumentoId\" IS DISTINCT FROM \"Id\"");
         });
         builder.HasKey(d => d.Id);
 
@@ -45,6 +55,8 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
         // leer, no una tercera columna.
         builder.Property(d => d.EstadoVigencia).HasConversion<int>();
         builder.Ignore(d => d.Vigencia);
+
+        builder.Property(d => d.MotivoSustitucion).HasConversion<int?>();
 
         builder.Property(d => d.ArchivoUrl).HasMaxLength(Documento.LongitudMaximaArchivoUrl);
         builder.Property(d => d.Comentarios).HasMaxLength(Documento.LongitudMaximaComentarios);
@@ -108,6 +120,15 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
         builder.HasOne<TipoDocumento>().WithMany()
             .HasForeignKey(d => new { d.TenantId, d.TipoDocumentoId })
             .HasPrincipalKey(t => new { t.TenantId, t.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Sustitución: el documento que ocupa el lugar de este. FK compuesta con el Tenant sobre la propia tabla
+        // (mismo patrón que las demás): un documento no puede apuntar a un sustituto de otro Tenant propietario
+        // ni a un Id que no existe, y Restrict impide borrar el sustituto dejando al sustituido huérfano. Con
+        // SustituidoPorDocumentoId nulo (MATCH SIMPLE) la FK no se comprueba.
+        builder.HasOne<Documento>().WithMany()
+            .HasForeignKey(d => new { d.TenantId, d.SustituidoPorDocumentoId })
+            .HasPrincipalKey(d => new { d.TenantId, d.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         // Prerequisito de la FK que AcreditacionDocumentoPlataforma declara hacia Documento.

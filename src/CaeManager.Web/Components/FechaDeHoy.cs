@@ -8,7 +8,7 @@ namespace CaeManager.Web.Components;
 ///
 /// Es el día de negocio de <see cref="DiaDeNegocio"/> (Europe/Madrid), el mismo con
 /// el que el dominio y los validadores juzgan que una fecha «no puede ser futura»
-/// (<c>Documento.Renovar</c>, <c>SolicitudCertificacionTgss</c>,
+/// (<c>Documento.CorregirVigencia</c>, <c>SolicitudCertificacionTgss</c>,
 /// <c>Crear/RenovarDocumentoCommandValidator</c>). Proponer y juzgar tienen que usar
 /// el mismo día: si el formulario propusiera un día posterior al del juez, el
 /// guardado fallaría sin que el usuario tocara la fecha.

@@ -84,7 +84,7 @@ public class RenovarDocumentoCommandHandler(
         var vigencia = CalculadoraEstadoDocumento.ResolverVigencia(
             tipoDocumento.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
             request.FechaEmision, request.FechaVencimientoManual, request.NoCaduca);
-        documento.Renovar(request.FechaEmision, vigencia);
+        documento.CorregirVigencia(request.FechaEmision, vigencia);
 
         if (!string.IsNullOrWhiteSpace(request.ArchivoUrl))
         {
