@@ -94,7 +94,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
             .ToListAsync(cancellationToken))
             .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
 
-        var documentosDelTrabajador = await documentosContext.Documentos
+        var documentosDelTrabajador = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId == request.TrabajadorId)
             .Select(d => new { d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
             .ToListAsync(cancellationToken);

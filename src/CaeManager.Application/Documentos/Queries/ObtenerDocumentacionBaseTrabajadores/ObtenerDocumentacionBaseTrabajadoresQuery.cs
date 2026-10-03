@@ -3,6 +3,7 @@ using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos.DocumentacionBase;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -49,7 +50,7 @@ public class ObtenerDocumentacionBaseTrabajadoresQueryHandler(
             .ToDictionary(t => t.Id, t => t.Nombre);
 
         var tipoIds = tiposBasicos.Keys.ToList();
-        var filas = await documentosContext.Documentos
+        var filas = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null && pedidos.Contains(d.TrabajadorId.Value) && tipoIds.Contains(d.TipoDocumentoId))
             .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
             .ToListAsync(cancellationToken);

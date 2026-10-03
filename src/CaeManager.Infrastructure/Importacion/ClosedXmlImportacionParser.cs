@@ -7,6 +7,7 @@ using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Importacion;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Trabajadores;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
@@ -110,7 +111,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
         // EjecutarImportacionCommand vuelve a comprobar esto de forma autoritativa
         // en el momento de escribir, por si el estado cambió entre analizar y confirmar.
         var documentosExistentes = (await (
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Operativos()
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new { trabajador.Dni, tipoDocumento.Nombre })

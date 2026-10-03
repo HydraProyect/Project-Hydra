@@ -87,6 +87,35 @@ public class PaqueteDocumentalVisitaServiceTests
     }
 
     [Fact]
+    public async Task Un_documento_sustituido_es_historial_y_no_viaja_aunque_sea_vigente_y_de_emision_mas_reciente()
+    {
+        // D5 (2026-10-03): subir un documento anterior al que ya estaba en uso lo deja nacer sustituido. Aquí el sustituido
+        // es vigente y el de emisión más reciente: sin el filtro de operativos ganaría la elección y viajaría él.
+        var enUso = DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-100), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(200)), contenido: "en-uso");
+        var historial = DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-5), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(400)), contenido: "sustituido");
+        historial.SustituirPor(enUso, MotivoSustitucionDocumento.SubidaNueva, DateTime.UtcNow);
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("en-uso");
+    }
+
+    [Fact]
+    public async Task Un_documento_sustituido_vigente_no_viaja_si_el_operativo_esta_vencido()
+    {
+        // El operativo (vencido) no viaja y el sustituido (vigente en fecha) tampoco: no hay nada vigente en uso.
+        var vencido = DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-10), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(-1)), contenido: "operativo-vencido");
+        var otroTipo = DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-400), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(200)), contenido: "otro-tipo");
+        var anterior = DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-300), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(200)), contenido: "sustituido-vigente");
+        anterior.SustituirPor(vencido, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("otro-tipo");
+        otroTipo.EstaSustituido.Should().BeFalse("control: el documento del otro tipo sigue operativo");
+    }
+
+    [Fact]
     public async Task Un_documento_que_vence_hoy_todavia_es_vigente_y_uno_que_vencio_ayer_no()
     {
         // Frontera exacta de «Vencido» (FechaVencimiento < hoy): un mutante <= dejaría fuera el de hoy.

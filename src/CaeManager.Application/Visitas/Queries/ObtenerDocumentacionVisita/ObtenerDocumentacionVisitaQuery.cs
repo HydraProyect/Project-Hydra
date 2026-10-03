@@ -123,7 +123,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
             .ToList();
 
         var seccionEmpresa = await ConstruirSeccionAsync(
-            documentosContext.Documentos.Where(d => d.EmpresaId == centro.EmpresaId),
+            documentosContext.Documentos.Operativos().Where(d => d.EmpresaId == centro.EmpresaId),
             tiposEmpresa, trabajadorId: null, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, cancellationToken);
 
         var trabajadores = await ConstruirTrabajadoresAsync(
@@ -204,7 +204,7 @@ public class ObtenerDocumentacionVisitaQueryHandler(
         foreach (var trabajador in trabajadores)
         {
             var seccion = await ConstruirSeccionAsync(
-                documentosContext.Documentos.Where(d => d.TrabajadorId == trabajador.Id),
+                documentosContext.Documentos.Operativos().Where(d => d.TrabajadorId == trabajador.Id),
                 tiposTrabajador, trabajador.Id, hoy, umbralAmbarDias, umbralRojoDias, cancellationToken);
 
             resultado.Add(new TrabajadorDocumentacionDto(trabajador.Id, trabajador.Nombre, trabajador.EmpleadorNombre, seccion));

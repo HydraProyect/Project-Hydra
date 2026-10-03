@@ -140,7 +140,7 @@ public class EvaluacionDeAccesoPorCentroService(
 
         if (tiposDeTrabajadorIds.Count > 0)
         {
-            var delTrabajador = await documentosContext.Documentos
+            var delTrabajador = await documentosContext.Documentos.Operativos()
                 .Where(d => d.TrabajadorId != null
                     && trabajadorIds.Contains(d.TrabajadorId!.Value)
                     && tiposDeTrabajadorIds.Contains(d.TipoDocumentoId))
@@ -153,7 +153,7 @@ public class EvaluacionDeAccesoPorCentroService(
 
         if (tiposDeEmpresaIds.Count > 0 && empresaIds.Count > 0)
         {
-            var delaEmpresa = await documentosContext.Documentos
+            var delaEmpresa = await documentosContext.Documentos.Operativos()
                 .Where(d => d.EmpresaId != null
                     && empresaIds.Contains(d.EmpresaId!.Value)
                     && tiposDeEmpresaIds.Contains(d.TipoDocumentoId))

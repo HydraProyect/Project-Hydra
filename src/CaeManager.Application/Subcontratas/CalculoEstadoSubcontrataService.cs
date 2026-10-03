@@ -164,7 +164,7 @@ public class CalculoEstadoSubcontrataService(
         if (tipoIdsRequeridosGlobal.Count == 0)
             return (fraccionPorSubcontrata, causasPorSubcontrata);
 
-        var documentosExistentes = await documentosContext.Documentos
+        var documentosExistentes = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsRequeridosGlobal.Contains(d.TipoDocumentoId))

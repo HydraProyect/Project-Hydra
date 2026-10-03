@@ -193,7 +193,7 @@ public class CalculoEstadoCentroService(
             join canal in centrosContext.CanalesGestionDocumental
                 on acreditacion.CanalGestionDocumentalId equals canal.Id
             where centroIds.Contains(canal.CentroId)
-            join documento in documentosContext.Documentos
+            join documento in documentosContext.Documentos.Operativos()
                 on acreditacion.DocumentoId equals documento.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento
                 on documento.TipoDocumentoId equals tipoDocumento.Id
@@ -261,7 +261,7 @@ public class CalculoEstadoCentroService(
             join canal in centrosContext.CanalesGestionDocumental
                 on acreditacion.CanalGestionDocumentalId equals canal.Id
             where centroIds.Contains(canal.CentroId)
-            join documento in documentosContext.Documentos
+            join documento in documentosContext.Documentos.Operativos()
                 on acreditacion.DocumentoId equals documento.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento
                 on documento.TipoDocumentoId equals tipoDocumento.Id
@@ -350,7 +350,7 @@ public class CalculoEstadoCentroService(
         var empresaIds = centroIdsPorEmpresa.Keys.ToList();
 
         var documentosEmpresa = await (
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Operativos()
             where documento.EmpresaId != null && empresaIds.Contains(documento.EmpresaId!.Value)
             // Solo documentos con fecha (VenceEnFecha, por CK_Documentos_EstadoVigenciaCoherente).
             // Ni «no caduca» ni «sin confirmar» son causa de color: lo sin confirmar resta
@@ -416,7 +416,7 @@ public class CalculoEstadoCentroService(
         // descartarlo aquí (mismo límite que ObtenerAlertasQuery; P1-D1).
         var fechaLimiteCausa = hoy.AddDays(umbralAmbarDias);
         var documentosTrabajador = (await (
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Operativos()
             where documento.TrabajadorId != null && trabajadorIds.Contains(documento.TrabajadorId!.Value)
             // Solo con fecha: mismo criterio que en AgregarCausasDeEmpresaAsync.
             where documento.FechaVencimiento != null && documento.FechaVencimiento <= fechaLimiteCausa
@@ -458,7 +458,7 @@ public class CalculoEstadoCentroService(
             .ToListAsync(cancellationToken))
             .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
 
-        var parejasConDocumento = (await documentosContext.Documentos
+        var parejasConDocumento = (await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsCandidatos.Contains(d.TipoDocumentoId))
@@ -548,7 +548,7 @@ public class CalculoEstadoCentroService(
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
 
-        var documentosExistentes = await documentosContext.Documentos
+        var documentosExistentes = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsCandidatos.Contains(d.TipoDocumentoId))

@@ -35,6 +35,7 @@ public static class VentanaReclamacion
     public static IQueryable<Documento> Reclamables(this IQueryable<Documento> documentos, DateOnly hoy)
     {
         var limite = Limite(hoy);
-        return documentos.Where(d => d.FechaVencimiento != null && d.FechaVencimiento <= limite);
+        // Solo lo operativo: reclamar la renovación de un documento ya sustituido pediría lo que ya se renovó.
+        return documentos.Operativos().Where(d => d.FechaVencimiento != null && d.FechaVencimiento <= limite);
     }
 }

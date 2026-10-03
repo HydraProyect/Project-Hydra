@@ -88,7 +88,7 @@ public class GenerarInformeVigenciaQueryHandler(
                 select a.TrabajadorId;
 
         var consultaBase =
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Operativos()
             where documento.TrabajadorId != null
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id

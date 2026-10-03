@@ -288,7 +288,7 @@ public class AltaAcreditacionesPlataformaService(
             .Select(e => e!.Value)
             .ToArray();
 
-        return (await documentosContext.Documentos
+        return (await documentosContext.Documentos.Operativos()
                 .Where(d => (d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value))
                     || (d.EmpresaId != null && empresaIds.Contains(d.EmpresaId.Value)))
                 .Select(d => new { d.Id, d.TipoDocumentoId, d.TrabajadorId, d.EmpresaId })

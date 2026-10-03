@@ -138,7 +138,7 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
 
         var documentosPorTrabajador = tipoIdsRequeridosGlobal.Count == 0
             ? new Dictionary<Guid, List<(Guid Id, Guid TipoDocumentoId, EstadoVigenciaDocumento EstadoVigencia, DateOnly? FechaVencimiento, DateOnly FechaEmision)>>()
-            : (await documentosContext.Documentos
+            : (await documentosContext.Documentos.Operativos()
                 .Where(d => d.TrabajadorId != null
                     && trabajadorIds.Contains(d.TrabajadorId!.Value)
                     && tipoIdsRequeridosGlobal.Contains(d.TipoDocumentoId))

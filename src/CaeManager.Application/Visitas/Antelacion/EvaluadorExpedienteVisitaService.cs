@@ -176,7 +176,7 @@ public class EvaluadorExpedienteVisitaService(
             .Select(t => t.Id)
             .ToList();
 
-        var documentosEmpresa = await documentosContext.Documentos
+        var documentosEmpresa = await documentosContext.Documentos.Operativos()
             .Where(d => d.EmpresaId == empresaId)
             .Select(d => new { d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken);
@@ -193,7 +193,7 @@ public class EvaluadorExpedienteVisitaService(
         // completo — es una visita a medio dar de alta.
         if (trabajadorIds.Count == 0) return false;
 
-        var documentosTrabajadores = await documentosContext.Documentos
+        var documentosTrabajadores = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId!.Value))
             .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken);

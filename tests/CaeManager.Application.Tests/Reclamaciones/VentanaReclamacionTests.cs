@@ -41,6 +41,21 @@ public class VentanaReclamacionTests
     }
 
     [Fact]
+    public void Un_documento_sustituido_no_es_reclamable_aunque_este_vencido_y_su_sustituto_si_lo_es_si_vence_pronto()
+    {
+        // Reclamar la renovación de un documento que ya se renovó pide lo que ya está hecho (D5, 2026-10-03).
+        var trabajador = Guid.NewGuid();
+        var tipo = Guid.NewGuid();
+        var viejo = Documento.DeTrabajador(trabajador, tipo, Hoy.AddYears(-5), VigenciaDocumento.VenceEl(Hoy.AddDays(-30)));
+        var nuevo = Documento.DeTrabajador(trabajador, tipo, Hoy.AddDays(-20), VigenciaDocumento.VenceEl(Hoy.AddDays(10)));
+        viejo.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+
+        var reclamables = new[] { viejo, nuevo }.AsQueryable().Reclamables(Hoy).ToList();
+
+        reclamables.Should().ContainSingle().Which.Should().BeSameAs(nuevo);
+    }
+
+    [Fact]
     public void El_limite_es_hoy_mas_los_meses_de_la_constante()
     {
         VentanaReclamacion.Meses.Should().Be(3);

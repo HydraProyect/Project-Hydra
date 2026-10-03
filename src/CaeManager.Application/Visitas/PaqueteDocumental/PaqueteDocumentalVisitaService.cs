@@ -95,7 +95,7 @@ public class PaqueteDocumentalVisitaService(
             .Select(vt => vt.TrabajadorId)
             .ToListAsync(cancellationToken);
 
-        var candidatos = await documentosContext.Documentos
+        var candidatos = await documentosContext.Documentos.Operativos()
             .Where(d => d.ArchivoUrl != null && (d.EmpresaId == centro.EmpresaId || (d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value))))
             .Select(d => new DocumentoCandidatoDto(d.Id, d.TrabajadorId, d.TipoDocumentoId, d.ArchivoUrl!, d.FechaEmision, d.EstadoVigencia, d.FechaVencimiento, d.CreadoEnUtc))
             .ToListAsync(cancellationToken);

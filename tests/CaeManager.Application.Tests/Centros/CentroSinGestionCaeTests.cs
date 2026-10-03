@@ -231,9 +231,13 @@ public class CentroSinGestionCaeTests
         var canalConGestion = CanalGestionDocumental.DePlataforma(_conGestion.Id, "Portal Norte", proveedor.Id, null, null, null);
         var canalSinGestion = CanalGestionDocumental.DePlataforma(_sinGestion.Id, "Portal Sur", proveedor.Id, null, null, null);
         _centros.ListaCanalesGestionDocumental.AddRange([canalConGestion, canalSinGestion]);
-        _documentos.ListaAcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(Guid.NewGuid(), canalConGestion.Id));
-        _documentos.ListaAcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(Guid.NewGuid(), canalSinGestion.Id));
-        _documentos.ListaAcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(Guid.NewGuid(), canalSinGestion.Id));
+        // Cada acreditación es de un documento operativo (las de un documento sustituido son historial y no cuentan).
+        foreach (var canal in new[] { canalConGestion, canalSinGestion, canalSinGestion })
+        {
+            var documento = Documento.DeEmpresa(Guid.NewGuid(), Guid.NewGuid(), Hoy.AddDays(-30), VigenciaDocumento.NoCaduca);
+            _documentos.ListaDocumentos.Add(documento);
+            _documentos.ListaAcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(documento.Id, canal.Id));
+        }
         var proveedores = new ProveedoresPlataformaCaeQueryContextFalso();
         proveedores.ListaProveedores.Add(proveedor);
 
