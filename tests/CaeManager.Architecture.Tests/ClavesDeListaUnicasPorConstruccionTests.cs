@@ -257,14 +257,20 @@ public class ClavesDeListaUnicasPorConstruccionTests
     internal static bool PanelResolverItemSinKeyAPelo(string aperturaDelElemento) =>
         Keys(aperturaDelElemento).All(k => Clasificar(k) == ClaseDeKey.PuntoUnico);
 
-    private static readonly Regex UsoDeFuente = new(@"\b(claves\w*)\.De\(", RegexOptions.Compiled);
+    private static readonly Regex UsoDeFuente = new(@"\b(\w*[cC]laves\w*)\.De\(", RegexOptions.Compiled);
 
     /// <summary>Nombres de fuente de claves que el marcado usa (<c>claves.De(…)</c>) sin declararlos allí como <c>claves = new ClavesDeHermanos()</c>.</summary>
-    internal static IReadOnlyList<string> FuentesSinDeclarar(string textoSinComentarios) => UsoDeFuente.Matches(textoSinComentarios)
-        .Select(m => m.Groups[1].Value)
-        .Distinct()
-        .Where(nombre => !Regex.IsMatch(textoSinComentarios, $@"\b{nombre}\s*=\s*new\s+ClavesDeHermanos\s*\(\s*\)"))
-        .ToList();
+    /// La declaración debe estar ANTES del bloque <c>@code</c>: un campo (o una asignación en <c>OnInitialized</c>) acumularía repeticiones entre pintados.
+    internal static IReadOnlyList<string> FuentesSinDeclarar(string textoSinComentarios)
+    {
+        var finDelMarcado = textoSinComentarios.IndexOf("@code", StringComparison.Ordinal);
+        var marcado = finDelMarcado < 0 ? textoSinComentarios : textoSinComentarios[..finDelMarcado];
+        return UsoDeFuente.Matches(textoSinComentarios)
+            .Select(m => m.Groups[1].Value)
+            .Distinct()
+            .Where(nombre => !Regex.IsMatch(marcado, $@"\b{nombre}\s*=\s*new\s+ClavesDeHermanos\s*\(\s*\)"))
+            .ToList();
+    }
 
     [Fact]
     public void Toda_fuente_de_claves_se_crea_en_el_propio_marcado()
@@ -291,6 +297,8 @@ public class ClavesDeListaUnicasPorConstruccionTests
         FuentesSinDeclarar("var claves = new ClavesDeHermanos();\n<li @key=\"claves.De(a)\"><li @key=\"clavesGrupos.De(a)\">").Should().Equal("clavesGrupos");
         FuentesSinDeclarar("<li @key=\"claves.De(a)\">").Should().Equal("claves");
         FuentesSinDeclarar("<li @key=\"a.Id\">").Should().BeEmpty();
+        FuentesSinDeclarar("<li @key=\"claves.De(a)\">\n@code { private readonly ClavesDeHermanos claves = new ClavesDeHermanos(); }").Should().Equal("claves");
+        FuentesSinDeclarar("<li @key=\"_claves.De(a)\">\n@code { private ClavesDeHermanos _claves = new ClavesDeHermanos(); }").Should().Equal("_claves");
     }
 
     [Fact]
