@@ -30,7 +30,7 @@ namespace CaeManager.IntegrationTests.Migraciones;
 /// </summary>
 public class AnadeSustitucionDeDocumentosTests : IAsyncLifetime
 {
-    private const string MigracionDelCambio = "20261003192624_AnadeSustitucionDeDocumentos";
+    private const string MigracionDelCambio = "20261003204008_AnadeSustitucionDeDocumentos";
 
     private const string CheckCoherente = "CK_Documentos_SustitucionCoherente";
     private const string CheckNoASiMismo = "CK_Documentos_NoSeSustituyeASiMismo";

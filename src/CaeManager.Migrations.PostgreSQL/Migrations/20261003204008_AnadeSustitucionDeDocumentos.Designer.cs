@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261003192624_AnadeSustitucionDeDocumentos")]
+    [Migration("20261003204008_AnadeSustitucionDeDocumentos")]
     partial class AnadeSustitucionDeDocumentos
     {
         /// <inheritdoc />
@@ -3827,6 +3827,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("TipoDocumentoId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("ToleranciaDias")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CentroId");
@@ -3836,7 +3839,39 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "TipoDocumentoId", "CentroId")
                         .IsUnique();
 
-                    b.ToTable("TiposDocumentoCentros", (string)null);
+                    b.ToTable("TiposDocumentoCentros", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TiposDocumentoCentros_ToleranciaDias", "\"ToleranciaDias\" IS NULL OR (\"ToleranciaDias\" >= 0 AND \"ToleranciaDias\" <= 365)");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.ToleranciaDocumentoClienteEmpresarial", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClienteEmpresarialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TipoDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ToleranciaDias")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ClienteEmpresarialId", "TipoDocumentoId")
+                        .IsUnique();
+
+                    b.ToTable("ToleranciasDocumentoClienteEmpresarial", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ToleranciasDocumentoClienteEmpresarial_ToleranciaDias", "\"ToleranciaDias\" >= 0 AND \"ToleranciaDias\" <= 365");
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.VerificacionDocumentoOficial", b =>
