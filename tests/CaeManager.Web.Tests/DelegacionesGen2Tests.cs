@@ -72,6 +72,9 @@ public partial class DelegacionesGen2Tests : BunitContext
         public Func<BuscarOperadorCaeExternoAutorizableQuery, OperadorCaeExternoAutorizableDto?> Buscar { get; set; } = _ => null;
         public Result<Guid> ResultadoAutorizacion { get; set; } = Result.Exito(Guid.NewGuid());
 
+        /// <summary>Lo que responde «Nueva delegación» (<see cref="CrearClienteDeleganteCommand"/>); por defecto, éxito.</summary>
+        public Result<Guid> ResultadoCreacion { get; set; } = Result.Exito(Guid.NewGuid());
+
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add((request, cancellationToken));
@@ -87,7 +90,7 @@ public partial class DelegacionesGen2Tests : BunitContext
                 ObtenerActividadSoporteQuery => Array.Empty<ActividadSoporteDto>(),
                 DesactivarDelegacionTenantCommand => Result.Exito(),
                 RevocarAsignacionOperadorDelegadoCommand => Result.Exito(),
-                CrearClienteDeleganteCommand => Result.Exito(Guid.NewGuid()),
+                CrearClienteDeleganteCommand => ResultadoCreacion,
                 ObtenerOperadoresCaeExternosQuery => Operadores,
                 CrearOperadorCaeExternoCommand => Result.Exito(Guid.NewGuid()),
                 CrearTenantPropietarioDeOperadorCaeExternoCommand => Result.Exito(Guid.NewGuid()),

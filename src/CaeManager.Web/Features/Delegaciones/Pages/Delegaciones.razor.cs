@@ -28,9 +28,6 @@ namespace CaeManager.Web.Features.Delegaciones.Pages;
 
 public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
-    private Modal? _modalAutorizar;
-    private Modal? _modalAlta;
-    private Modal? _modalSoporte;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosAutorizarOperadorCaeExterno> TextosAutorizar { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosAccesosSoporteTalveg> TextosAccesos { get; set; } = default!;
@@ -328,17 +325,16 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private readonly InstantaneaFormulario _instantaneaOperador = new();
 
     /// <summary>
-    /// P1-E2b: único punto de verdad de «hay cambios» en la página, para sus tres modales:
-    /// el acceso de Soporte TALVEG (motivo, horas y permisos) y la autorización de un
-    /// Operador CAE externo (búsqueda y selección), cada uno comparado con cómo se abrió,
-    /// o un nombre ya escrito en la nueva delegación. Lo leen AvisoCambiosSinGuardar y los
-    /// Modal; cerrados (también tras guardar) nunca hay nada que perder. Solo el aviso: no
-    /// toca la apertura del acceso ni su autorización.
+    /// P1-E2b: «hay cambios» de cada uno de los tres ModalFormulario de la página (el guardián de su kit): el acceso de
+    /// Soporte TALVEG (motivo, horas y permisos) y la autorización de un Operador CAE externo (búsqueda y selección),
+    /// cada uno comparado con cómo se abrió, o un nombre ya escrito en la nueva delegación. Cerrados (también tras
+    /// guardar) nunca hay nada que perder. Solo el aviso: no toca la apertura del acceso ni su autorización.
     /// </summary>
-    private bool HayCambiosSinGuardar =>
-        (_delegacionSoporteAAbrir is not null && _instantaneaSoporte.Difiere(ValoresSoporte()))
-        || !string.IsNullOrWhiteSpace(_nombreClienteNuevo)
-        || (_mostrarAutorizarOperador && _instantaneaOperador.Difiere(ValoresOperador()));
+    private bool HayCambiosSoporte => _delegacionSoporteAAbrir is not null && _instantaneaSoporte.Difiere(ValoresSoporte());
+
+    private bool HayCambiosNueva => !string.IsNullOrWhiteSpace(_nombreClienteNuevo);
+
+    private bool HayCambiosOperador => _mostrarAutorizarOperador && _instantaneaOperador.Difiere(ValoresOperador());
 
     private object?[] ValoresSoporte() => [_motivoSoporte, _horasSoporte, _rolSoporte];
 
@@ -346,16 +342,11 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 
     private void FijarInstantaneaOperador() => _instantaneaOperador.Fijar(ValoresOperador());
 
-    private void CerrarFormulariosDescartando()
-    {
-        _delegacionSoporteAAbrir = null;
-        OcultarFormularioNueva();
-        _mostrarAutorizarOperador = false;
-        _versionBusquedaOperador++;
-        // Si la salida descartada vuelve a esta misma página con ?autorizar=, esa
-        // sugerencia tiene que volver a atenderse.
-        _sugerenciaVista = null;
-    }
+    /// <summary>
+    /// «Salir y descartar» del aviso de navegación del modal de autorizar: el kit ya lo cierra (CerrarAutorizarOperador). Si la salida
+    /// descartada vuelve a esta misma página con ?autorizar=, esa sugerencia tiene que volver a atenderse.
+    /// </summary>
+    private void AlDescartarAutorizarPorNavegacion() => _sugerenciaVista = null;
 
     private void CerrarAutorizarOperador(bool visible)
     {

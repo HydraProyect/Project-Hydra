@@ -212,75 +212,64 @@ else
     </div>
 }
 
-<Modal @ref="_modalVigencia" HayCambios="() => HayCambiosSinGuardar" Visible="_vigenciaVisible" VisibleChanged="v => _vigenciaVisible = v" Titulo="@(_soloVigencia ? "Anotar vigencia" : "Marcar como aceptado")" CerrarAlHacerClicFuera="!_confirmandoVigencia">
-    <ChildContent>
-        @if (_idsVigenciaEnBloque.Count > 1)
+@* Los dos formularios de la pestaña son ModalFormulario, cada uno con su guardián, su estado de «guardando» y su aviso (el error del servidor sale
+   en el aviso fijo, fuera del cuerpo; los errores de campo los pintan los campos). Salir con la vigencia o el rechazo a medias pregunta antes:
+   cada kit trae su aviso de navegación, que va después de su modal y queda encima. *@
+<ModalFormulario Visible="_vigenciaVisible" VisibleChanged="v => _vigenciaVisible = v" Titulo="@(_soloVigencia ? "Anotar vigencia" : "Marcar como aceptado")"
+                 HayCambios="() => HayCambiosVigencia" Guardando="_confirmandoVigencia" MensajeError="@_errorServidorVigencia"
+                 HayErroresDeCampo="@(_errorVigencia is not null)" OnGuardar="ConfirmarAceptadoAsync"
+                 TextoGuardar="@(_soloVigencia ? "Guardar vigencia" : "Marcar aceptado")" TextoCancelar="Cancelar">
+    @if (_idsVigenciaEnBloque.Count > 1)
+    {
+        <p>@Textos["PlatBloqueAviso", _idsVigenciaEnBloque.Count]</p>
+    }
+    @* Se pregunta aquí, y no en una pantalla aparte, porque este es el
+       momento en que el Gestor CAE lo sabe: acaba de mirar la plataforma.
+       "Todavía no lo sé" es una respuesta válida y se guarda como tal: lo
+       que no puede pasar es que se confunda con "no caduca", porque
+       entonces el semáforo del Centro daría verde sin saberlo nadie. *@
+    <CampoSelect Etiqueta="¿Hasta cuándo vale en esta plataforma?" Valor="@_estadoVigencia"
+                 ValorChanged="v => { _estadoVigencia = v; _errorServidorVigencia = null; _errorVigencia = null; }">
+        <option value="@nameof(EstadoVigenciaEnPlataforma.VenceEnFecha)">Vence en una fecha</option>
+        <option value="@nameof(EstadoVigenciaEnPlataforma.NoVenceAqui)">Aquí no caduca</option>
+        <option value="@nameof(EstadoVigenciaEnPlataforma.SinConfirmar)">Todavía no lo sé</option>
+    </CampoSelect>
+
+    @if (_estadoVigencia == nameof(EstadoVigenciaEnPlataforma.VenceEnFecha))
+    {
+        <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVigencia"
+                    ValorChanged="v => { _fechaVigencia = v; _errorServidorVigencia = null; _errorVigencia = null; }" MensajeError="@_errorVigencia" />
+    }
+</ModalFormulario>
+
+<ModalFormulario Visible="_rechazoVisible" VisibleChanged="v => _rechazoVisible = v" Titulo="Marcar como rechazado"
+                 HayCambios="() => HayCambiosRechazo" Guardando="_rechazando" MensajeError="@_errorServidorRechazo"
+                 HayErroresDeCampo="@(_errorMotivo is not null)" OnGuardar="ConfirmarRechazoAsync"
+                 TextoGuardar="Marcar rechazado" TextoCancelar="Cancelar">
+    <CampoSelect Etiqueta="Causa del rechazo" Valor="@_causaRechazo" ValorChanged="v => { _causaRechazo = v; _errorServidorRechazo = null; }">
+        @foreach (var causa in Enum.GetValues<CausaRechazoAcreditacion>())
         {
-            <p>@Textos["PlatBloqueAviso", _idsVigenciaEnBloque.Count]</p>
+            <option value="@causa">@CausaRechazoAcreditacionUi.Texto(causa)</option>
         }
-        @* Se pregunta aquí, y no en una pantalla aparte, porque este es el
-           momento en que el Gestor CAE lo sabe: acaba de mirar la plataforma.
-           "Todavía no lo sé" es una respuesta válida y se guarda como tal: lo
-           que no puede pasar es que se confunda con "no caduca", porque
-           entonces el semáforo del Centro daría verde sin saberlo nadie. *@
-        <CampoSelect Etiqueta="¿Hasta cuándo vale en esta plataforma?" Valor="@_estadoVigencia"
-                     ValorChanged="v => _estadoVigencia = v">
-            <option value="@nameof(EstadoVigenciaEnPlataforma.VenceEnFecha)">Vence en una fecha</option>
-            <option value="@nameof(EstadoVigenciaEnPlataforma.NoVenceAqui)">Aquí no caduca</option>
-            <option value="@nameof(EstadoVigenciaEnPlataforma.SinConfirmar)">Todavía no lo sé</option>
-        </CampoSelect>
-
-        @if (_estadoVigencia == nameof(EstadoVigenciaEnPlataforma.VenceEnFecha))
-        {
-            <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVigencia"
-                        ValorChanged="v => _fechaVigencia = v" MensajeError="@_errorVigencia" />
-        }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_confirmandoVigencia" OnClick="() => _modalVigencia?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_confirmandoVigencia" OnClick="ConfirmarAceptadoAsync">@(_soloVigencia ? "Guardar vigencia" : "Marcar aceptado")</Boton>
-    </Pie>
-</Modal>
-
-<Modal @ref="_modalRechazo" HayCambios="() => HayCambiosSinGuardar" Visible="_rechazoVisible" VisibleChanged="v => _rechazoVisible = v" Titulo="Marcar como rechazado" CerrarAlHacerClicFuera="!_rechazando">
-    <ChildContent>
-        <CampoSelect Etiqueta="Causa del rechazo" Valor="@_causaRechazo" ValorChanged="v => _causaRechazo = v">
-            @foreach (var causa in Enum.GetValues<CausaRechazoAcreditacion>())
-            {
-                <option value="@causa">@CausaRechazoAcreditacionUi.Texto(causa)</option>
-            }
-        </CampoSelect>
-        <CampoTextarea Etiqueta="Detalle" Valor="@_motivoRechazo" ValorChanged="v => _motivoRechazo = v"
-                        Placeholder="Texto literal del portal, si lo hay" Filas="3" MensajeError="@_errorMotivo" />
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_rechazando" OnClick="() => _modalRechazo?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_rechazando" OnClick="ConfirmarRechazoAsync">Marcar rechazado</Boton>
-    </Pie>
-</Modal>
-
-@* P1-E2: salir con la vigencia o el rechazo a medias pregunta antes; confirmar la salida
-   cierra los dos modales. Va después de ellos para quedar encima (mismo z-index). *@
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarModalesDeEdicion" />
+    </CampoSelect>
+    <CampoTextarea Etiqueta="Detalle" Valor="@_motivoRechazo" ValorChanged="v => { _motivoRechazo = v; _errorServidorRechazo = null; _errorMotivo = null; }"
+                   Placeholder="Texto literal del portal, si lo hay" Filas="3" MensajeError="@_errorMotivo" />
+</ModalFormulario>
 
 @code {
-    private Modal? _modalRechazo;
-    private Modal? _modalVigencia;
     /// <summary>
-    /// P1-E2: único punto de verdad de «hay cambios» en esta pestaña: lo tecleado en el
-    /// modal de vigencia (la fecha) o en el de rechazo (el detalle), o su confirmación en
-    /// curso. La causa del rechazo y el estado de la vigencia vienen preseleccionados y
+    /// P1-E2: «hay cambios» de cada modal de la pestaña (el guardián de su kit): lo tecleado en el de vigencia (la fecha) o en el de
+    /// rechazo (el detalle), o su confirmación en curso. La causa del rechazo y el estado de la vigencia vienen preseleccionados y
     /// elegir otro valor sin escribir nada no se pierde de forma que cueste recuperarlo.
     /// </summary>
-    private bool HayCambiosSinGuardar =>
-        (_vigenciaVisible && (_confirmandoVigencia || !string.IsNullOrWhiteSpace(_fechaVigencia)))
-        || (_rechazoVisible && (_rechazando || !string.IsNullOrWhiteSpace(_motivoRechazo)));
+    private bool HayCambiosVigencia => _vigenciaVisible && (_confirmandoVigencia || !string.IsNullOrWhiteSpace(_fechaVigencia));
 
-    private void CerrarModalesDeEdicion()
-    {
-        _vigenciaVisible = false;
-        _rechazoVisible = false;
-    }
+    private bool HayCambiosRechazo => _rechazoVisible && (_rechazando || !string.IsNullOrWhiteSpace(_motivoRechazo));
+
+    /// <summary>Error del servidor al anotar la vigencia o al rechazar: aviso fijo del modal (D-20), no un toast que desaparece.</summary>
+    private string? _errorServidorVigencia;
+
+    private string? _errorServidorRechazo;
 
     /// <summary>
     /// La acreditación a la que lleva el enlace (<c>/documentos?pestana=plataforma&amp;acreditacionId=</c>,
@@ -490,6 +479,7 @@ else
         _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
         _fechaVigencia = string.Empty;
         _errorVigencia = null;
+        _errorServidorVigencia = null;
         _vigenciaVisible = true;
     }
 
@@ -515,6 +505,7 @@ else
     private async Task ConfirmarAceptadoAsync()
     {
         _errorVigencia = null;
+        _errorServidorVigencia = null;
 
         var vigencia = VigenciaElegida();
         if (vigencia is null)
@@ -556,13 +547,16 @@ else
 
                 var total = _idsVigenciaEnBloque.Count;
 
+                // Si ninguna se anotó, el modal sigue abierto con la fecha tecleada para poder reintentar y el
+                // motivo sale en su aviso fijo; si alguna sí, se cierra, se recarga y el primer fallo va en un aviso.
+                if (anotadas == 0)
+                {
+                    _errorServidorVigencia = primerFallo?.Mensaje;
+                    return;
+                }
+
                 if (primerFallo is not null)
                     ToastService.MostrarError(primerFallo);
-
-                // Si ninguna se anotó, el modal sigue abierto con la fecha tecleada
-                // para poder reintentar; si alguna sí, se cierra y se recarga.
-                if (anotadas == 0)
-                    return;
 
                 _idsVigenciaEnBloque = [];
                 _vigenciaVisible = false;
@@ -586,7 +580,7 @@ else
 
         if (resultado.EsFallido)
         {
-            ToastService.MostrarError(resultado.Error);
+            _errorServidorVigencia = resultado.Error.Mensaje;
             return;
         }
 
@@ -629,6 +623,7 @@ else
         _causaRechazo = nameof(CausaRechazoAcreditacion.Ilegible);
         _motivoRechazo = string.Empty;
         _errorMotivo = null;
+        _errorServidorRechazo = null;
         _rechazoVisible = true;
     }
 
@@ -642,6 +637,7 @@ else
 
         _rechazando = true;
         _errorMotivo = null;
+        _errorServidorRechazo = null;
 
         try
         {
@@ -650,7 +646,7 @@ else
 
             if (resultado.EsFallido)
             {
-                ToastService.MostrarError(resultado.Error);
+                _errorServidorRechazo = resultado.Error.Mensaje;
                 return;
             }
 

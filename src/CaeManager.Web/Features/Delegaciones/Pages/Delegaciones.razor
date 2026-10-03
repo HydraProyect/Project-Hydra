@@ -297,47 +297,32 @@
     }
 </Drawer>
 
-<Modal @ref="_modalSoporte" HayCambios="() => HayCambiosSinGuardar" Visible="_delegacionSoporteAAbrir is not null"
-       VisibleChanged="v => CerrarFormularioSoporte(v)"
-       Titulo="Abrir acceso de soporte"
-       CerrarAlHacerClicFuera="!EstaProcesando(_delegacionSoporteAAbrir?.Id)">
-    <ChildContent>
-        @if (_delegacionSoporteAAbrir is not null)
-        {
-            <p>El acceso a <strong>@_delegacionSoporteAAbrir.ClienteNombre</strong> queda registrado en su actividad.</p>
-            <CampoTexto Etiqueta="Motivo"
-                        Valor="@_motivoSoporte"
-                        ValorChanged="v => _motivoSoporte = v"
-                        Placeholder="Incidencia o petición que justifica la entrada" />
-            <CampoTexto Etiqueta="Horas de acceso (máximo 4)"
-                        Type="number"
-                        Valor="@_horasSoporte"
-                        ValorChanged="v => _horasSoporte = v" />
-            <CampoSelect Etiqueta="Permisos"
-                         Valor="@_rolSoporte"
-                         ValorChanged="v => _rolSoporte = v">
-                <option value="Consulta">Solo lectura</option>
-                <option value="GestorCae">Acceso con modificación</option>
-                <option value="CoordinadorCae">Acceso con modificación avanzado</option>
-            </CampoSelect>
-            @if (_errorSoporte is not null)
-            {
-                <p class="delegaciones-error" role="alert">@_errorSoporte</p>
-            }
-        }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario"
-               Deshabilitado="@EstaProcesando(_delegacionSoporteAAbrir?.Id)"
-               OnClick="() => _modalSoporte?.SolicitarCierreAsync() ?? Task.CompletedTask">
-            Cancelar
-        </Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="@EstaProcesando(_delegacionSoporteAAbrir?.Id)"
-               OnClick="AbrirAccesoSoporteAsync">
-            Abrir acceso
-        </Boton>
-    </Pie>
-</Modal>
+@* Los tres formularios de la página son ModalFormulario: guardián propio, «Cancelar» como la X, primario único con su estado, aviso del
+   formulario (el error del servidor o de validación, fuera del cuerpo desplazable) y aviso de navegación vienen del kit. *@
+<ModalFormulario Visible="_delegacionSoporteAAbrir is not null" VisibleChanged="v => CerrarFormularioSoporte(v)"
+                 Titulo="Abrir acceso de soporte" HayCambios="() => HayCambiosSoporte"
+                 Guardando="@EstaProcesando(_delegacionSoporteAAbrir?.Id)" MensajeError="@_errorSoporte"
+                 OnGuardar="AbrirAccesoSoporteAsync" TextoGuardar="Abrir acceso" TextoCancelar="Cancelar">
+    @if (_delegacionSoporteAAbrir is not null)
+    {
+        <p>El acceso a <strong>@_delegacionSoporteAAbrir.ClienteNombre</strong> queda registrado en su actividad.</p>
+        <CampoTexto Etiqueta="Motivo"
+                    Valor="@_motivoSoporte"
+                    ValorChanged="v => { _motivoSoporte = v; _errorSoporte = null; }"
+                    Placeholder="Incidencia o petición que justifica la entrada" />
+        <CampoTexto Etiqueta="Horas de acceso (máximo 4)"
+                    Type="number"
+                    Valor="@_horasSoporte"
+                    ValorChanged="v => { _horasSoporte = v; _errorSoporte = null; }" />
+        <CampoSelect Etiqueta="Permisos"
+                     Valor="@_rolSoporte"
+                     ValorChanged="v => { _rolSoporte = v; _errorSoporte = null; }">
+            <option value="Consulta">Solo lectura</option>
+            <option value="GestorCae">Acceso con modificación</option>
+            <option value="CoordinadorCae">Acceso con modificación avanzado</option>
+        </CampoSelect>
+    }
+</ModalFormulario>
 
 <DialogoConfirmacion Visible="@(_delegacionARevocar is not null)"
                      VisibleChanged="CerrarRevocacion"
@@ -355,79 +340,50 @@
                      EnProgreso="@EstaProcesando(_operadorARetirar?.Operador.AsignacionId)"
                      OnConfirmar="RetirarOperadorAsync" />
 
-<Modal @ref="_modalAlta" HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarNuevaDelegacion"
-       VisibleChanged="v => CerrarFormularioNueva(v)"
-       Titulo="Nueva delegación"
-       CerrarAlHacerClicFuera="!_creandoDelegacion">
-    <ChildContent>
-        <p>Se creará una organización nueva y quedará delegada a la tuya de inmediato.</p>
-        <CampoTexto Etiqueta="Nombre de la organización"
-                    Valor="@_nombreClienteNuevo"
-                    ValorChanged="v => _nombreClienteNuevo = v"
-                    Placeholder="Constructora Ejemplo S.L." />
-        @if (_errorNuevaDelegacion is not null)
-        {
-            <p class="delegaciones-error" role="alert">@_errorNuevaDelegacion</p>
-        }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario"
-               Deshabilitado="_creandoDelegacion"
-               OnClick="() => _modalAlta?.SolicitarCierreAsync() ?? Task.CompletedTask">
-            Cancelar
-        </Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_creandoDelegacion" OnClick="CrearDelegacionAsync">Crear</Boton>
-    </Pie>
-</Modal>
+<ModalFormulario Visible="_mostrarNuevaDelegacion" VisibleChanged="v => CerrarFormularioNueva(v)"
+                 Titulo="Nueva delegación" HayCambios="() => HayCambiosNueva"
+                 Guardando="_creandoDelegacion" MensajeError="@_errorNuevaDelegacion"
+                 OnGuardar="CrearDelegacionAsync" TextoGuardar="Crear" TextoCancelar="Cancelar">
+    <p>Se creará una organización nueva y quedará delegada a la tuya de inmediato.</p>
+    <CampoTexto Etiqueta="Nombre de la organización"
+                Valor="@_nombreClienteNuevo"
+                ValorChanged="v => { _nombreClienteNuevo = v; _errorNuevaDelegacion = null; }"
+                Placeholder="Constructora Ejemplo S.L." />
+</ModalFormulario>
 
-<Modal @ref="_modalAutorizar" HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarAutorizarOperador"
-       VisibleChanged="v => CerrarAutorizarOperador(v)"
-       Titulo="@TextosAutorizar["AccionAutorizar"]"
-       CerrarAlHacerClicFuera="!_autorizandoOperador">
-    <ChildContent>
-        @if (_operadorSugerido)
-        {
-            <p class="delegaciones-sugerencia">@TextosAutorizar["Sugerencia"]</p>
-        }
-        <CampoTexto Etiqueta="@TextosAutorizar["EtiquetaOperador"]"
-                    Valor="@_busquedaOperador"
-                    ValorChanged="BuscarOperadorAsync"
-                    Placeholder="@TextosAutorizar["MarcadorBusqueda"]" />
-        @if (_operadorCandidato is { } candidato)
-        {
-            <div class="delegaciones-candidatos" role="listbox" aria-label="@TextosAutorizar["ListaCandidatos"]">
-                <button type="button"
-                        role="option"
-                        aria-selected="@(_operadorSeleccionado ? "true" : "false")"
-                        class="delegaciones-candidato @(_operadorSeleccionado ? "delegaciones-candidato-seleccionado" : null)"
-                        @onclick="SeleccionarOperador">
-                    <span>@candidato.Nombre</span>
-                    @if (_operadorSeleccionado)
-                    {
-                        <span aria-hidden="true">✓</span>
-                    }
-                </button>
-            </div>
-        }
-        else if (_busquedaSinResultado)
-        {
-            <p class="delegaciones-nota-modal">@TextosAutorizar["SinResultado", _busquedaOperador.Trim()]</p>
-        }
-        <p class="delegaciones-nota-modal">@TextosAutorizar["NotaPropiedad"]</p>
-        @if (_errorAutorizarOperador is not null)
-        {
-            <p class="delegaciones-error" role="alert">@_errorAutorizarOperador</p>
-        }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario"
-               Deshabilitado="_autorizandoOperador"
-               OnClick="() => _modalAutorizar?.SolicitarCierreAsync() ?? Task.CompletedTask">
-            @TextosAutorizar["Cancelar"]
-        </Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_autorizandoOperador" OnClick="AutorizarOperadorAsync">@TextosAutorizar["Autorizar"]</Boton>
-    </Pie>
-</Modal>
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
+<ModalFormulario Visible="_mostrarAutorizarOperador" VisibleChanged="v => CerrarAutorizarOperador(v)"
+                 Titulo="@TextosAutorizar["AccionAutorizar"]" HayCambios="() => HayCambiosOperador"
+                 Guardando="_autorizandoOperador" MensajeError="@_errorAutorizarOperador"
+                 OnGuardar="AutorizarOperadorAsync" AlDescartarPorNavegacion="AlDescartarAutorizarPorNavegacion"
+                 TextoGuardar="@TextosAutorizar["Autorizar"]" TextoCancelar="@TextosAutorizar["Cancelar"]">
+    @if (_operadorSugerido)
+    {
+        <p class="delegaciones-sugerencia">@TextosAutorizar["Sugerencia"]</p>
+    }
+    <CampoTexto Etiqueta="@TextosAutorizar["EtiquetaOperador"]"
+                Valor="@_busquedaOperador"
+                ValorChanged="BuscarOperadorAsync"
+                Placeholder="@TextosAutorizar["MarcadorBusqueda"]" />
+    @if (_operadorCandidato is { } candidato)
+    {
+        <div class="delegaciones-candidatos" role="listbox" aria-label="@TextosAutorizar["ListaCandidatos"]">
+            <button type="button"
+                    role="option"
+                    aria-selected="@(_operadorSeleccionado ? "true" : "false")"
+                    class="delegaciones-candidato @(_operadorSeleccionado ? "delegaciones-candidato-seleccionado" : null)"
+                    @onclick="SeleccionarOperador">
+                <span>@candidato.Nombre</span>
+                @if (_operadorSeleccionado)
+                {
+                    <span aria-hidden="true">✓</span>
+                }
+            </button>
+        </div>
+    }
+    else if (_busquedaSinResultado)
+    {
+        <p class="delegaciones-nota-modal">@TextosAutorizar["SinResultado", _busquedaOperador.Trim()]</p>
+    }
+    <p class="delegaciones-nota-modal">@TextosAutorizar["NotaPropiedad"]</p>
+</ModalFormulario>
 </LimiteDeErrores>
