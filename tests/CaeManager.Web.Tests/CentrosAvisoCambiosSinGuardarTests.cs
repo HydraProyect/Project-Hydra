@@ -167,6 +167,19 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     }
 
     [Fact]
+    public async Task Escribir_solo_en_el_drawer_activa_el_aviso_del_navegador_y_abrirlo_sin_tocar_no()
+    {
+        // Con el kit hay dos avisos montados (el del drawer y el de la página, que solo cubre los modales rápidos): el del
+        // navegador al recargar tiene que seguir saliendo por el del drawer.
+        var cut = await AbrirAltaAsync(Renderizar());
+        ElNavegadorAvisaAlRecargar(cut).Should().BeFalse("abrir el formulario no es escribir en él");
+
+        await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
+
+        ElNavegadorAvisaAlRecargar(cut).Should().BeTrue("lo escrito en el drawer se pierde al recargar la pestaña");
+    }
+
+    [Fact]
     public async Task Abrir_el_alta_sin_tocar_nada_no_pregunta()
     {
         var cut = await AbrirAltaAsync(Renderizar());
