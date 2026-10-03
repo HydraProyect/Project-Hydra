@@ -86,6 +86,31 @@ public static class CumplimientoDocumental
     public static bool EsConforme(EstadoDocumento estado) => estado is
         EstadoDocumento.SinCaducidad or EstadoDocumento.Vigente or EstadoDocumento.Proximo or EstadoDocumento.Urgente;
 
+    /// <summary>
+    /// El numerador para un par concreto, con su contexto: el ÚNICO sitio que decide si un par exigido está al día en un
+    /// porcentaje de un contexto (<see cref="De"/> y <see cref="PorContexto"/> pasan por aquí). Hoy depende solo del
+    /// estado. Aquí es donde entra, cuando exista su dato, el periodo de tolerancia del Cliente empresarial (con override
+    /// por Centro; decisión 2026-10-03: un vencido dentro de la tolerancia cuenta como al día): el par ya trae
+    /// <see cref="ParDocumentalExigido.ClienteEmpresarialId"/> y <see cref="ParDocumentalExigido.CentroId"/>, y bastará
+    /// añadirle la fecha de vencimiento y la tolerancia resuelta. Nada fuera de este método debe decidir «al día» para un
+    /// par (los recuentos por estado de los KPI no tienen fecha ni Centro y siguen usando <see cref="EsConforme(EstadoDocumento)"/>).
+    /// </summary>
+    public static bool EsConforme(ParDocumentalExigido par) => EsConforme(par.Estado);
+
+    /// <summary>Fracción de un conjunto de pares exigidos: todos entran en el denominador, solo los conformes (<see cref="EsConforme(ParDocumentalExigido)"/>) en el numerador.</summary>
+    public static FraccionCumplimiento Evaluar(IEnumerable<ParDocumentalExigido> pares)
+    {
+        var alDia = 0;
+        var requeridos = 0;
+        foreach (var par in pares)
+        {
+            requeridos++;
+            if (EsConforme(par)) alDia++;
+        }
+
+        return new FraccionCumplimiento(alDia, requeridos);
+    }
+
     /// <summary>Fracción de un conjunto de pares requeridos: todos entran en el denominador, solo los conformes en el numerador.</summary>
     public static FraccionCumplimiento Evaluar(IEnumerable<EstadoDocumento> estados)
     {
@@ -114,16 +139,16 @@ public static class CumplimientoDocumental
         return new FraccionCumplimiento(alDia, requeridos);
     }
 
-    /// <summary>Fracción de un contexto: los pares exigidos que le pertenecen, medidos con <see cref="Evaluar(IEnumerable{EstadoDocumento})"/>.</summary>
+    /// <summary>Fracción de un contexto: los pares exigidos que le pertenecen, medidos con <see cref="Evaluar(IEnumerable{ParDocumentalExigido})"/>.</summary>
     public static FraccionCumplimiento De(ContextoCumplimiento contexto, Guid id, IEnumerable<ParDocumentalExigido> pares) =>
-        Evaluar(pares.Where(p => Pertenece(contexto, id, p)).Select(p => p.Estado));
+        Evaluar(pares.Where(p => Pertenece(contexto, id, p)));
 
     /// <summary>La fracción de cada contexto presente en los pares. Un contexto sin ningún par exigido no aparece.</summary>
     public static Dictionary<Guid, FraccionCumplimiento> PorContexto(ContextoCumplimiento contexto, IEnumerable<ParDocumentalExigido> pares) =>
         pares
             .Where(p => Clave(contexto, p) is not null)
             .GroupBy(p => Clave(contexto, p)!.Value)
-            .ToDictionary(g => g.Key, g => Evaluar(g.Select(p => p.Estado)));
+            .ToDictionary(g => g.Key, g => Evaluar(g));
 
     private static bool Pertenece(ContextoCumplimiento contexto, Guid id, ParDocumentalExigido par) => Clave(contexto, par) == id;
 
