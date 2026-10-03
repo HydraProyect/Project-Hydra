@@ -78,7 +78,7 @@ public class AplicarDeteccionIaDocumentoCommandHandler(
             tipoDocumento.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
             fechaEmision, revision.FechaVencimientoDetectada, noCaducaConfirmado: false);
 
-        documento.Renovar(fechaEmision, vigencia);
+        documento.CorregirVigencia(fechaEmision, vigencia);
         revision.Resolver();
         aprobacionRepositorio.Agregar(AprobacionDocumento.CrearManual(revision.DocumentoId, revision.ConfianzaGeneral, usuarioId.Value));
 

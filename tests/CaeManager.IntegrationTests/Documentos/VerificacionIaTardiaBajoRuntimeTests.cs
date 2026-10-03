@@ -279,7 +279,7 @@ public class VerificacionIaTardiaBajoRuntimeTests
         await using var scope = arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         var documento = await contexto.Documentos.SingleAsync(d => d.Id == documentoId);
-        documento.Renovar(Emision, VigenciaDocumento.NoCaduca);
+        documento.CorregirVigencia(Emision, VigenciaDocumento.NoCaduca);
         documento.AdjuntarArchivo("renovado.pdf");
         await contexto.SaveChangesAsync();
     }
