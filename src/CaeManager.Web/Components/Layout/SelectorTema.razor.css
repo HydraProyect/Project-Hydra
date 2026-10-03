@@ -5,17 +5,149 @@
     color: var(--color-text-muted);
 }
 
-.selector-tema {
+.selector-tema-etiqueta {
     font: var(--font-body-md);
-    color: var(--color-text);
-    background-color: var(--color-surface);
+    color: var(--color-text-muted);
+    min-width: 3.5ch;
+}
+
+/* El cielo y la noche son una ilustración: no cambian con el tema de la app
+   (el interruptor es el mismo en claro y en oscuro), así que sus colores van
+   como variables locales y no como tokens. Lo que SÍ sigue al tema es el
+   borde (--border-control), que da a la pista el contraste de componente de
+   interfaz (WCAG 1.4.11) contra la superficie en ambos temas. */
+.selector-tema {
+    --st-ancho: 72px;
+    --st-alto: 34px;
+    --st-margen: 3px;
+    --st-cielo-alto: #8fc4f0;
+    --st-cielo-bajo: #cfe6f8;
+    --st-noche-alto: #0f1824;
+    --st-noche-bajo: #233449;
+    --st-sol: #f7c23a;
+    --st-luna: #dfe5ee;
+    --st-nube: #ffffff;
+    --st-crater: #b8c1cf;
+
+    position: relative;
+    box-sizing: border-box;
+    width: var(--st-ancho);
+    height: var(--st-alto);
+    padding: 0;
     border: var(--border-control);
-    border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-3);
+    border-radius: 999px;
+    background: linear-gradient(var(--st-cielo-alto), var(--st-cielo-bajo));
+    overflow: hidden;
     cursor: pointer;
+}
+
+.selector-tema::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(var(--st-noche-alto), var(--st-noche-bajo));
+    opacity: 0;
+    transition: opacity 0.5s;
+}
+
+.selector-tema[aria-checked="true"]::before {
+    opacity: 1;
 }
 
 .selector-tema:focus-visible {
     outline: var(--border-focus);
-    outline-offset: 1px;
+    outline-offset: 2px;
+}
+
+.selector-tema-pulgar {
+    position: absolute;
+    top: var(--st-margen);
+    left: var(--st-margen);
+    width: calc(var(--st-alto) - var(--st-margen) * 2 - 2px);
+    height: calc(var(--st-alto) - var(--st-margen) * 2 - 2px);
+    border-radius: 50%;
+    background: var(--st-sol);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+    overflow: hidden;
+    z-index: 3;
+    transition: left 0.45s cubic-bezier(0.5, 0.1, 0.2, 1.15), background 0.4s;
+}
+
+.selector-tema[aria-checked="true"] .selector-tema-pulgar {
+    left: calc(var(--st-ancho) - var(--st-alto) + var(--st-margen));
+    background: var(--st-luna);
+}
+
+.selector-tema:hover .selector-tema-pulgar {
+    filter: brightness(1.06);
+}
+
+.crater {
+    position: absolute;
+    border-radius: 50%;
+    background: var(--st-crater);
+    opacity: 0;
+    transition: opacity 0.3s 0.15s;
+}
+
+.selector-tema[aria-checked="true"] .crater {
+    opacity: 1;
+}
+
+.crater-1 { left: 14px; top: 6px; width: 7px; height: 7px; }
+.crater-2 { left: 8px; top: 16px; width: 5px; height: 5px; }
+.crater-3 { left: 18px; top: 19px; width: 4px; height: 4px; }
+
+.selector-tema-decoracion {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+}
+
+.nube {
+    position: absolute;
+    border-radius: 999px;
+    background: var(--st-nube);
+    opacity: 0.95;
+    transition: transform 0.45s, opacity 0.4s;
+}
+
+.selector-tema[aria-checked="true"] .nube {
+    transform: translateY(24px);
+    opacity: 0;
+}
+
+.nube-1 { left: 12px; bottom: -6px; width: 26px; height: 12px; }
+.nube-2 { left: 30px; bottom: -4px; width: 22px; height: 11px; }
+.nube-3 { left: 46px; bottom: -5px; width: 20px; height: 10px; }
+
+.estrella {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: #ffffff;
+    opacity: 0;
+    transform: scale(0.3);
+    transition: opacity 0.4s 0.1s, transform 0.4s 0.1s;
+}
+
+.selector-tema[aria-checked="true"] .estrella {
+    opacity: 0.9;
+    transform: scale(1);
+}
+
+.estrella-1 { left: 12px; top: 9px; }
+.estrella-2 { left: 24px; top: 21px; }
+.estrella-3 { left: 32px; top: 8px; width: 3px; height: 3px; }
+.estrella-4 { left: 42px; top: 19px; }
+
+@media (prefers-reduced-motion: reduce) {
+    .selector-tema::before,
+    .selector-tema-pulgar,
+    .crater,
+    .nube,
+    .estrella {
+        transition: none;
+    }
 }

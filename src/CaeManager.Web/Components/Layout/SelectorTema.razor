@@ -8,16 +8,27 @@
 <LimiteDeErrores Islote="this">
 @if (_temaActual is not null)
 {
-    @* Un <select> no admite hijos que no sean <option>, así que el icono va
-       fuera, en una envoltura. El aria-label sigue en el propio select: el
-       icono es decorativo (aria-hidden lo pone <Icono>) y no debe leerse. *@
+    @* Interruptor de dos estados (claro/oscuro). El estado claro es la AUSENCIA
+       de preferencia —sin data-theme ni cookie—, no una elección explícita:
+       ver AlternarTemaAsync. El icono de la izquierda es decorativo (<Icono>
+       pone aria-hidden); el nombre accesible y el estado van en el propio
+       interruptor: role="switch" + aria-checked. Las nubes, estrellas y
+       cráteres son decoración pura (aria-hidden), pintada con CSS. *@
     <span class="selector-tema-envoltura">
         <Icono Nombre="tema" Tamano="TamanoIcono.Pequeno" />
-        <select class="selector-tema" value="@_temaActual" @onchange="CambiarTemaAsync" aria-label="Tema">
-            <option value="sistema">Tema del sistema</option>
-            <option value="claro">Claro</option>
-            <option value="oscuro">Oscuro</option>
-        </select>
+        <button type="button" class="selector-tema" role="switch"
+                aria-checked="@(EsOscuro ? "true" : "false")" aria-label="Tema oscuro"
+                @onclick="AlternarTemaAsync">
+            <span class="selector-tema-decoracion" aria-hidden="true">
+                <span class="nube nube-1"></span><span class="nube nube-2"></span><span class="nube nube-3"></span>
+                <span class="estrella estrella-1"></span><span class="estrella estrella-2"></span>
+                <span class="estrella estrella-3"></span><span class="estrella estrella-4"></span>
+            </span>
+            <span class="selector-tema-pulgar" aria-hidden="true">
+                <span class="crater crater-1"></span><span class="crater crater-2"></span><span class="crater crater-3"></span>
+            </span>
+        </button>
+        <span class="selector-tema-etiqueta" aria-hidden="true">@(EsOscuro ? "Oscuro" : "Claro")</span>
     </span>
 }
 </LimiteDeErrores>

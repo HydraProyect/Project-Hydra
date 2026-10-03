@@ -38,10 +38,10 @@ public class SelectorTemaPrerenderTests(WebAppFixture fixture)
         // Elegir "oscuro" desde el circuito ya conectado: esto es lo que deja
         // la cookie de tema.js, y lo que este test comprueba que el servidor
         // usa en la SIGUIENTE petición, sin haber tocado JS para leerla.
-        var selectorTema = page.Locator("select.selector-tema");
+        var selectorTema = page.GetByRole(AriaRole.Switch, new() { Name = "Tema oscuro" });
         await Assertions.Expect(selectorTema).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        await selectorTema.SelectOptionAsync("oscuro");
+        await Ayudas.ElegirTemaOscuroAsync(selectorTema, true);
         await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
             "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
 
@@ -57,7 +57,7 @@ public class SelectorTemaPrerenderTests(WebAppFixture fixture)
         {
             // Devuelve la cuenta a su estado inicial: la fixture es
             // compartida por toda "AppCollection".
-            await selectorTema.SelectOptionAsync("sistema");
+            await Ayudas.ElegirTemaOscuroAsync(selectorTema, false);
             await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
                 "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
         }
@@ -79,15 +79,15 @@ public class SelectorTemaPrerenderTests(WebAppFixture fixture)
         await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
 
-        var selectorTema = page.Locator("select.selector-tema");
+        var selectorTema = page.GetByRole(AriaRole.Switch, new() { Name = "Tema oscuro" });
         await Assertions.Expect(selectorTema).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         // Línea base explícita: fuerza "oscuro" y luego "sistema", para que
         // la ausencia de data-theme no sea casualidad de un cierre anterior.
-        await selectorTema.SelectOptionAsync("oscuro");
+        await Ayudas.ElegirTemaOscuroAsync(selectorTema, true);
         await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
             "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
-        await selectorTema.SelectOptionAsync("sistema");
+        await Ayudas.ElegirTemaOscuroAsync(selectorTema, false);
         await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
             "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
 

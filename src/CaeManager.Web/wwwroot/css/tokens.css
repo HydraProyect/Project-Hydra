@@ -281,11 +281,11 @@
 */
 
 /*
-  Selector de tema manual (ver SelectorTema.razor): se aplica cuando el
-  usuario elige explícitamente Claro u Oscuro en vez de "Sistema" — que,
-  desde que se desactivó el @media (prefers-color-scheme: dark) de arriba,
-  siempre resuelve en claro (los valores de :root de la cabecera del
-  archivo). El bloque de Oscuro conserva los mismos valores que tenía el
+  Interruptor de tema (ver SelectorTema.razor): oscuro se aplica cuando el
+  usuario lo enciende; apagado es la ausencia de preferencia ("sistema" en
+  la cuenta), que —desde que se desactivó el @media (prefers-color-scheme:
+  dark) de arriba— siempre resuelve en claro (los valores de :root de la
+  cabecera del archivo). El bloque de Oscuro conserva los mismos valores que tenía el
   @media desactivado, listos para cuando se retome el auto-seguimiento del
   sistema operativo tras el rediseño del modo oscuro.
 */
