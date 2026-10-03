@@ -550,4 +550,85 @@ public class RetencionTests : BunitContext
 
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
     }
+
+    // ---------------------------------------------------------------- D-05: «Volver» y la X de «Descartar la propuesta» preguntan con Motivo escrito
+
+    private const string TextoDelMotivo = "Política interna de 10 años";
+
+    private async Task<(IRenderedComponent<RetencionPage> Cut, MediatorRegistrador Mediator)> AbrirDescartarConMotivoAsync(string motivo)
+    {
+        var (cut, mediator) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
+        await BotonConTexto(cut, "Descartar").ClickAsync(new MouseEventArgs());
+        if (motivo.Length > 0)
+            await cut.Find("[role=dialog] input").InputAsync(new ChangeEventArgs { Value = motivo });
+        return (cut, mediator);
+    }
+
+    private static bool PreguntaDescartar(IRenderedComponent<RetencionPage> cut) =>
+        cut.FindAll("h2").Any(h => h.TextContent.Trim() == "¿Descartar cambios?");
+
+    /// <summary>
+    /// D-05 (decisión de Chris, 2026-09-29: toda pérdida de edición pregunta): con el Motivo escrito, «Volver» ya no tira el texto
+    /// sin aviso. «Seguir editando» conserva el Motivo (el comando que sale después lo lleva).
+    /// </summary>
+    [Fact]
+    public async Task Volver_con_motivo_escrito_pregunta_y_seguir_editando_lo_conserva()
+    {
+        var (cut, mediator) = await AbrirDescartarConMotivoAsync(TextoDelMotivo);
+
+        await BotonDelDialogo(cut, "Volver").ClickAsync(new MouseEventArgs());
+
+        PreguntaDescartar(cut).Should().BeTrue("«Volver» con el Motivo escrito pregunta como la X");
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+        PreguntaDescartar(cut).Should().BeFalse();
+        cut.FindAll("[role=dialog]").Should().NotBeEmpty("«Seguir editando» deja el diálogo abierto");
+        await BotonDelDialogo(cut, "Descartar").ClickAsync(new MouseEventArgs());
+        mediator.Enviados.OfType<CancelarPurgaCommand>().Should().ContainSingle(
+            "«Seguir editando» conserva el Motivo: lo que viaja en el comando es lo que se había escrito")
+            .Which.Motivo.Should().Be(TextoDelMotivo);
+    }
+
+    [Fact]
+    public async Task La_X_con_motivo_escrito_pregunta_y_seguir_editando_lo_conserva()
+    {
+        var (cut, mediator) = await AbrirDescartarConMotivoAsync(TextoDelMotivo);
+
+        await cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs());
+
+        PreguntaDescartar(cut).Should().BeTrue();
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+        await BotonDelDialogo(cut, "Descartar").ClickAsync(new MouseEventArgs());
+        mediator.Enviados.OfType<CancelarPurgaCommand>().Should().ContainSingle().Which.Motivo.Should().Be(TextoDelMotivo);
+    }
+
+    [Fact]
+    public async Task Descartar_cambios_en_la_pregunta_de_Volver_cierra_sin_enviar_nada()
+    {
+        var (cut, mediator) = await AbrirDescartarConMotivoAsync(TextoDelMotivo);
+
+        await BotonDelDialogo(cut, "Volver").ClickAsync(new MouseEventArgs());
+        await cut.PulsarEnElAvisoAsync("Descartar cambios");
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty("al descartar se cierra");
+        mediator.Enviados.OfType<CancelarPurgaCommand>().Should().BeEmpty("volver no descarta la propuesta");
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "tras descartar los cambios no queda nada que perder");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Volver_y_la_X_sin_motivo_escrito_cierran_sin_preguntar(string motivo)
+    {
+        var (cut, _) = await AbrirDescartarConMotivoAsync(motivo);
+        await BotonDelDialogo(cut, "Volver").ClickAsync(new MouseEventArgs());
+        PreguntaDescartar(cut).Should().BeFalse("sin Motivo no hay nada que perder");
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+
+        await BotonConTexto(cut, "Descartar").ClickAsync(new MouseEventArgs());
+        if (motivo.Length > 0)
+            await cut.Find("[role=dialog] input").InputAsync(new ChangeEventArgs { Value = motivo });
+        await cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs());
+        PreguntaDescartar(cut).Should().BeFalse();
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+    }
 }
