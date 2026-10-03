@@ -57,8 +57,8 @@ public class AsignarCarteraGestorCaeCommandHandler(
         "Alguna de las empresas a retirar ya no está entera en la cartera de este Gestor CAE. Revisa la lista y vuelve a guardar.");
 
     /// <summary>
-    /// El Gestor CAE ya tiene esa empresa: entera (cambió mientras decidías) o solo una parte de sus
-    /// Clientes empresariales. Ampliar de parcial a entera no lo hace este Command: el writer no
+    /// El Gestor CAE ya tiene esa empresa: entera (cambió mientras decidías) o por otra vía (otra
+    /// cartera vigente, por ejemplo de otro rol). Este Command no la sustituye: el writer no
     /// ensancha en silencio el alcance que otro decidió (ver <c>ICatalogoIncorporacionCartera</c>).
     /// </summary>
     public static readonly Error YaTieneCartera = Error.Crear(

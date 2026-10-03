@@ -20,8 +20,10 @@ namespace CaeManager.Domain.Operaciones;
 ///
 /// <b>Alcance hoy</b>: solo se emite <see cref="Universal"/>. El ámbito por
 /// Cliente empresarial (<see cref="DeRelacionCliente"/>) lo retiró D-7
-/// (2026-10-02) como reparto de la Asignación de Cartera: ningún productor lo
-/// crea ya, y los datos que existían se convirtieron al Tenant entero (migración
+/// (2026-10-02) como reparto de la Asignación de Cartera: el dominio y la base de
+/// datos lo rechazan en una cartera no cerrada (<c>AsignacionCartera</c>, CHECK
+/// <c>CK_AsignacionesCartera_TenantEnteroSalvoCerrada</c>) y los datos que
+/// existían se convirtieron al Tenant entero (migración
 /// <c>ConvierteCarterasPorClienteATenantEntero</c>). Una Asignación de Operación
 /// acotada a un Cliente empresarial sigue siendo representable. Las otras tres
 /// dimensiones existen como
@@ -45,7 +47,10 @@ public readonly record struct AmbitoAsignacion(
     /// </summary>
     public static AmbitoAsignacion Universal => new();
 
-    /// <summary>El ámbito de F1: la cartera de un cliente concreto.</summary>
+    /// <summary>
+    /// El ámbito de un Cliente empresarial concreto. Solo lo admite una Asignación de Operación: una
+    /// Asignación de Cartera no cerrada lo rechaza (D-7).
+    /// </summary>
     public static AmbitoAsignacion DeRelacionCliente(Guid relacionClienteId)
     {
         if (relacionClienteId == Guid.Empty)

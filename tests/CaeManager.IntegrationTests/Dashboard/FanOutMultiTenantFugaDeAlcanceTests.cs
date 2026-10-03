@@ -81,18 +81,16 @@ public class FanOutMultiTenantFugaDeAlcanceTests : IAsyncLifetime
             _clienteDentroCartera = clienteDentro.Id;
             _clienteFueraCartera = clienteFuera.Id;
 
-            // La Consultora opera Outbound completo sobre el Delegante (ámbito
-            // universal de la OPERACIÓN, el caso habitual de una delegación
-            // comercial completa), pero la CARTERA del usuario dentro de esa
-            // operación está acotada a un único Cliente — el escenario exacto
-            // del enunciado del defecto.
+            // La Consultora opera Outbound sobre un único Cliente del Delegante (operación ACOTADA a él: la
+            // cartera es siempre el Tenant entero, D-7, y lo acotado vive en la operación) y la cartera del
+            // usuario cuelga de ella — el escenario del enunciado del defecto: alcance de un solo Cliente.
             var operacion = AsignacionOperacion.Externa(
                 _tenantDelegante, _tenantConsultora, ServicioCae.Outbound,
-                AmbitoAsignacion.Universal, ahora, null, ahora);
+                AmbitoAsignacion.DeRelacionCliente(_clienteDentroCartera), ahora, null, ahora);
             contexto.AsignacionesOperacion.Add(operacion);
             contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacion, _usuario, Roles.GestorCae,
-                AmbitoAsignacion.DeRelacionCliente(_clienteDentroCartera), ahora, null, ahora));
+                AmbitoAsignacion.Universal, ahora, null, ahora));
             await contexto.SaveChangesAsync();
         }
 

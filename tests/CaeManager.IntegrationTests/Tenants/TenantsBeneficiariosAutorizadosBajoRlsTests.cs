@@ -70,7 +70,6 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     private readonly Guid _gestorUnico = Guid.NewGuid();
     private readonly Guid _gestorConOrigen = Guid.NewGuid();
     private readonly Guid _consultaUnico = Guid.NewGuid();
-    private readonly Guid _consultaUniversalGestorParcial = Guid.NewGuid();
     private readonly Guid _administradorSinCartera = Guid.NewGuid();
     private CaeManagerDbContext _propietario = null!;
     private readonly List<IAsyncDisposable> _desechables = [];
@@ -199,19 +198,6 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 await _propietario.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionA),
                 _consultaUnico, Roles.Consulta, AmbitoAsignacion.Universal, ayer, null, ahora));
-            // Universal Consulta + parcial GestorCae en el MISMO Tenant: el rol efectivo es el de la
-            // universal (Consulta), así que tampoco hay defecto (revisión Codex, pasada 1).
-            var operacionDeA = await _propietario.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionA);
-            var clienteDeA = await _propietario.Empresas.SingleAsync(e => e.RazonSocial == "Cliente empresarial de A");
-            // La parcial se crea PRIMERO: el Id (v7) la ordenaría antes, así que solo la precedencia
-            // «universal primero» hace que gane la Consulta.
-            _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
-                operacionDeA, _consultaUniversalGestorParcial, Roles.GestorCae,
-                AmbitoAsignacion.DeRelacionCliente(clienteDeA.Id), ayer, null, ahora));
-            await _propietario.SaveChangesAsync();
-            await Task.Delay(20); // Ids v7: milisegundos distintos, la parcial queda con el Id menor.
-            _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
-                operacionDeA, _consultaUniversalGestorParcial, Roles.Consulta, AmbitoAsignacion.Universal, ayer, null, ahora));
             await _propietario.SaveChangesAsync();
         }
         // Además, una operación INTERNA no raíz (propietario = operador = origen)
@@ -231,7 +217,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
                 _origen, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDelOrigen.Id), ayer, null, ahora);
             _propietario.AsignacionesOperacion.Add(interna);
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Interna(
-                interna, _gestorConOrigen, AmbitoAsignacion.DeRelacionCliente(clienteDelOrigen.Id), ayer, null, ahora));
+                interna, _gestorConOrigen, AmbitoAsignacion.Universal, ayer, null, ahora));
             await _propietario.SaveChangesAsync();
         }
         using (AmbitoTenantExplicito.Establecer(_a))
@@ -523,22 +509,22 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Decision_7_quater_cartera_universal_Consulta_y_parcial_GestorCae_el_rol_es_el_de_la_universal_sin_defecto()
+    public async Task Decision_7_quater_cartera_Consulta_el_rol_efectivo_es_Consulta_sin_defecto()
     {
         // El rol efectivo (fan-out) sale de la misma función que la marca de la lista.
-        var lista = await ListaAsync(_consultaUniversalGestorParcial);
-        lista.Single(c => !c.EsOrigen).EsCarteraGestorCae.Should().BeFalse("manda la cartera universal (Consulta)");
+        var lista = await ListaAsync(_consultaUnico);
+        lista.Single(c => !c.EsOrigen).EsCarteraGestorCae.Should().BeFalse("manda la cartera del usuario (Consulta)");
         ClientesAutorizados.TenantPorDefecto(lista).Should().BeNull();
         ClientesAutorizados.SelectorVisible(lista, ClientesAutorizados.Activo(lista, _a)).Should().BeTrue(
             "dentro del Tenant externo el selector es su control para volver");
 
-        await using var runtime = CrearRuntime(_consultaUniversalGestorParcial, tenantDeLaPeticion: _origen);
-        var usuario = CrearCurrentUserService(runtime, _consultaUniversalGestorParcial);
+        await using var runtime = CrearRuntime(_consultaUnico, tenantDeLaPeticion: _origen);
+        var usuario = CrearCurrentUserService(runtime, _consultaUnico);
         using (AmbitoTenantExplicito.Establecer(_a))
             (await usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.Consulta);
 
-        var httpContext = PeticionDePagina(_consultaUniversalGestorParcial, "/trabajadores", "");
-        (await FijarPorDefectoAsync(httpContext, _consultaUniversalGestorParcial)).Should().BeNull();
+        var httpContext = PeticionDePagina(_consultaUnico, "/trabajadores", "");
+        (await FijarPorDefectoAsync(httpContext, _consultaUnico)).Should().BeNull();
     }
 
     [Fact]

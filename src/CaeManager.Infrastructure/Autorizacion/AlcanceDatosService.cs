@@ -218,8 +218,8 @@ public class AlcanceDatosService(
             // alta de contenido CAE no vería las Empresas/Centros/Trabajadores
             // ya creados en la misma operación para deduplicar contra ellos.
             //
-            // Las dos acaban igual: sin acceso total, y con el reparto por
-            // cliente saliendo de la rama de rol, que sin rol devuelve lista
+            // Las dos acaban igual: sin acceso total, y con el alcance por
+            // cartera saliendo de la rama de rol, que sin rol devuelve lista
             // vacía. Fallo cerrado.
             //
             // Y solo DENTRO del tenant que la sesión abrió: sesion.Capacidad es
@@ -428,6 +428,10 @@ public class AlcanceDatosService(
             .Where(c => usuarioIds.Contains(c.UsuarioId)
                         && c.PropietarioTenantId == propietarioTenantId
                         && c.Estado == EstadoAsignacion.Vigente
+                        // Defensa en profundidad (D-7): el CHECK de la base de datos impide una cartera no cerrada
+                        // por Cliente empresarial; si alguna existiera, no concede nada (nunca el ámbito de su
+                        // operación, que sería más ancho que lo que decía la fila).
+                        && c.AmbitoRelacionClienteId == null
                         && c.VigenciaDesde <= ahora
                         && (c.VigenciaHasta == null || ahora < c.VigenciaHasta))
             .Join(dbContext.AsignacionesOperacion.Where(o =>
@@ -437,7 +441,6 @@ public class AlcanceDatosService(
                     && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)),
                 c => c.AsignacionOperacionId, o => o.Id, (c, o) => new
                 {
-                    Cartera = c.AmbitoRelacionClienteId,
                     Operacion = o.AmbitoRelacionClienteId,
                     DimensionDiferida = c.AmbitoCentroId != null || c.AmbitoTrabajadorId != null || c.AmbitoProyectoId != null
                                         || o.AmbitoCentroId != null || o.AmbitoTrabajadorId != null || o.AmbitoProyectoId != null
@@ -446,16 +449,17 @@ public class AlcanceDatosService(
             .ToListAsync(cancellationToken);
 
         // Ámbito efectivo = intersección del de la cartera con el de la operación que la ampara
-        // (AsignacionCartera, ADR-011 § 2.7). Una cartera universal bajo una operación acotada a un
-        // Cliente empresarial da solo ese Cliente, nunca el Tenant entero; dos Clientes distintos no
-        // se cortan y no dan nada. Una dimensión que F1 no sabe resolver (centro, trabajador,
-        // proyecto) falla cerrado: no concede nada.
+        // (AsignacionCartera, ADR-011 § 2.7). La cartera es siempre el Tenant entero en la dimensión de Cliente
+        // empresarial: una cartera no cerrada no puede repartirse por Cliente empresarial, lo impide el CHECK
+        // CK_AsignacionesCartera_TenantEnteroSalvoCerrada (D-7) y la consulta lo repite. Por eso el ámbito
+        // efectivo es el de la operación: bajo una operación acotada a un Cliente empresarial da solo ese Cliente, nunca el
+        // Tenant entero. Una dimensión que F1 no sabe resolver (centro, trabajador, proyecto) falla
+        // cerrado: no concede nada.
         var efectivas = new List<Guid?>();
         foreach (var fila in carteras)
         {
             if (fila.DimensionDiferida) continue;
-            if (fila.Cartera is null) efectivas.Add(fila.Operacion);
-            else if (fila.Operacion is null || fila.Operacion == fila.Cartera) efectivas.Add(fila.Cartera);
+            efectivas.Add(fila.Operacion);
         }
 
         if (efectivas.Count == 0) return AlcanceCartera.Ninguno;

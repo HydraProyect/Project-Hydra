@@ -9,8 +9,8 @@ namespace CaeManager.Application.Tests.Tenants;
 /// <summary>
 /// El rol efectivo por la vía de Operación tiene UNA definición
 /// (<see cref="TenantsBeneficiariosAutorizados.RolPorOperacionAsync"/>), compartida por
-/// <c>CurrentUserService</c> y por el Tenant por defecto de la decisión 7 quater: con una
-/// cartera universal Consulta y otra parcial GestorCae en el mismo Tenant manda la universal.
+/// <c>CurrentUserService</c> y por el Tenant por defecto de la decisión 7 quater. Toda cartera es el
+/// Tenant entero (D-7), así que el rol sale de la cartera del usuario bajo la operación elegida.
 /// </summary>
 public class RolPorOperacionTests
 {
@@ -50,13 +50,9 @@ public class RolPorOperacionTests
     }
 
     [Fact]
-    public async Task Con_universal_Consulta_y_parcial_GestorCae_el_rol_es_el_de_la_universal()
+    public async Task Con_una_unica_cartera_Consulta_el_rol_es_Consulta()
     {
-        var rol = await RolAsync(
-            ("GestorCae", AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid())),
-            ("Consulta", AmbitoAsignacion.Universal));
-
-        rol.Should().Be("Consulta");
+        (await RolAsync(("Consulta", AmbitoAsignacion.Universal))).Should().Be("Consulta");
     }
 
     [Fact]

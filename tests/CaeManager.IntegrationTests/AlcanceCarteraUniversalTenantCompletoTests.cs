@@ -308,28 +308,11 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task La_lente_de_demo_de_un_Gestor_con_cartera_por_Cliente_sigue_estrechando_a_ese_Cliente()
-    {
-        var e = await SembrarAsync(_tenant, "A");
-        var gestor = Guid.NewGuid();
-        await OtorgarCarteraAsync(_tenant, gestor, AmbitoAsignacion.DeRelacionCliente(e.Cliente));
-
-        var a = await MedirAsync(Guid.NewGuid(), "Administrador", _tenant, gestorDeLente: gestor);
-
-        a.AccesoTotal.Should().BeFalse();
-        a.Clientes.Should().Equal([e.Cliente]);
-        a.Centros.Should().Contain(e.CentroDelCliente).And.NotContain(e.CentroSinClienteEmpresarial,
-            "una cartera por Cliente empresarial (reparto que retira el incremento 2) no gana el Tenant entero");
-        a.Subcontratas.Should().NotContain(e.Subcontrata);
-        a.Trabajadores.Should().Contain(e.TrabajadorPropio).And.NotContain(e.TrabajadorDeSubcontrata);
-    }
-
-    [Fact]
     public async Task Una_cartera_universal_bajo_una_operacion_acotada_a_un_Cliente_empresarial_solo_da_ese_Cliente()
     {
         var e = await SembrarAsync(_tenant, "A");
         var gestor = Guid.NewGuid();
-        await OtorgarCarteraBajoOperacionAcotadaAsync(_tenant, gestor, operacionSobre: e.Cliente, AmbitoAsignacion.Universal);
+        await OtorgarCarteraBajoOperacionAcotadaAsync(_tenant, gestor, operacionSobre: e.Cliente);
 
         var a = await MedirAsync(gestor, "GestorCae", _tenant);
 
@@ -343,30 +326,18 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         a.Vehiculos.Should().NotContain(e.VehiculoDeSubcontrata);
     }
 
-    [Fact]
-    public async Task Una_cartera_de_otro_Cliente_bajo_una_operacion_acotada_no_da_nada()
-    {
-        var e = await SembrarAsync(_tenant, "A");
-        var gestor = Guid.NewGuid();
-        await OtorgarCarteraBajoOperacionAcotadaAsync(_tenant, gestor, operacionSobre: e.Cliente,
-            AmbitoAsignacion.DeRelacionCliente(e.Propia));
-
-        NoDebeAlcanzarNada(await MedirAsync(gestor, "GestorCae", _tenant));
-    }
-
     /// <summary>
     /// Una operación interna acotada a un Cliente empresarial (AsignacionOperacion.Interna) con una
     /// cartera colgada de ella. Hoy ningún productor la crea, pero el dominio la admite.
     /// </summary>
-    private async Task OtorgarCarteraBajoOperacionAcotadaAsync(Guid tenant, Guid usuarioId, Guid operacionSobre,
-        AmbitoAsignacion ambitoCartera)
+    private async Task OtorgarCarteraBajoOperacionAcotadaAsync(Guid tenant, Guid usuarioId, Guid operacionSobre)
     {
         await using var contexto = CrearContexto(tenant);
         var ahora = DateTime.UtcNow;
         var acotada = AsignacionOperacion.Interna(tenant, ServicioCae.Outbound,
             AmbitoAsignacion.DeRelacionCliente(operacionSobre), ahora.AddDays(-2), vigenciaHasta: null, ahora);
         contexto.AsignacionesOperacion.Add(acotada);
-        contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(acotada, usuarioId, ambitoCartera, ahora.AddDays(-1), null, ahora));
+        contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(acotada, usuarioId, AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
         await contexto.SaveChangesAsync();
     }
 
