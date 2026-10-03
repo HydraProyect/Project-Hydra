@@ -170,12 +170,12 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
         var trabajadorIdsImplicados = trabajadoresPorVisita.Select(t => t.TrabajadorId).Distinct().ToList();
         var empresaIdsImplicadas = pagina.Select(p => p.EmpresaId).Distinct().ToList();
 
-        var vencimientosTrabajadores = await documentosContext.Documentos
+        var vencimientosTrabajadores = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null && trabajadorIdsImplicados.Contains(d.TrabajadorId!.Value))
             .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken);
 
-        var vencimientosEmpresas = await documentosContext.Documentos
+        var vencimientosEmpresas = await documentosContext.Documentos.Operativos()
             .Where(d => d.EmpresaId != null && empresaIdsImplicadas.Contains(d.EmpresaId!.Value))
             .Select(d => new { EmpresaId = d.EmpresaId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
             .ToListAsync(cancellationToken);

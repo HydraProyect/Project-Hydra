@@ -291,7 +291,7 @@ public class EjecutarImportacionCommandHandler(
             }
         }
 
-        var documentosExistentes = await documentosContext.Documentos
+        var documentosExistentes = await documentosContext.Documentos.Operativos()
             .Select(d => new { d.TrabajadorId, d.TipoDocumentoId })
             .ToListAsync(cancellationToken);
         var clavesDocumentosExistentes = documentosExistentes

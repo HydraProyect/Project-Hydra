@@ -58,7 +58,8 @@ namespace CaeManager.IntegrationTests.Coherencia;
 /// decisión del propietario</b> (medido el 2026-10-03, ver el informe de S4): el histórico de un mismo tipo
 /// —un documento vencido y su renovación vigente—: Trabajador 360 y el cumplimiento del Centro eligen la
 /// renovación (<c>PreferenciaDocumentoPorTipo</c>) mientras Alertas, la lista de Trabajadores y las causas del
-/// Centro siguen diciendo «Vencido». Esta tabla no lo fija para no consagrar una de las dos lecturas. Los
+/// Centro siguen diciendo «Vencido». Esta tabla no lo fija para no consagrar una de las dos lecturas
+/// (el histórico <i>sin</i> sustitución explícita; el <i>sustituido</i> sí se fija, filas «E2»: es historial y no cuenta). Los
 /// porcentajes de cumplimiento (qué cuenta como al día, de quién se miden) los fija
 /// <see cref="CoherenciaDelCumplimientoEntreSuperficiesTests"/>; aquí el Centro solo comprueba que el panel y la
 /// lista dan la misma fracción.
@@ -78,11 +79,23 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
     private List<Caso> _casos = [];
 
     /// <summary>Una fila de la tabla: la vigencia de entrada y el estado que TODAS las superficies deben dar.</summary>
-    private sealed class Caso(string nombre, EstadoDocumento esperado, Func<DateOnly, VigenciaDocumento> vigencia)
+    private sealed class Caso(
+        string nombre, EstadoDocumento esperado, Func<DateOnly, VigenciaDocumento> vigencia,
+        Func<DateOnly, VigenciaDocumento>? vigenciaDelSustituido = null)
     {
         public string Nombre { get; } = nombre;
         public EstadoDocumento Esperado { get; } = esperado;
         public Func<DateOnly, VigenciaDocumento> Vigencia { get; } = vigencia;
+
+        /// <summary>
+        /// Si no es null, el caso tiene además un documento ANTERIOR del mismo tipo y titular con esta vigencia, ya
+        /// sustituido por el documento del caso: es historial (D5) y ninguna superficie debe contarlo. El estado esperado
+        /// es el del documento operativo, nunca el del sustituido.
+        /// </summary>
+        public Func<DateOnly, VigenciaDocumento>? VigenciaDelSustituido { get; } = vigenciaDelSustituido;
+        public Guid SustituidoTrabajadorId { get; set; }
+        public Guid SustituidoEmpresaId { get; set; }
+        public Guid SustituidoVehiculoId { get; set; }
         public Guid TrabajadorId { get; set; }
         public string TrabajadorNombreCompleto => $"Caso {Nombre}";
         public Guid EmpresaId { get; set; }
@@ -160,9 +173,19 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
             new("Vigente justo tras el ambar", EstadoDocumento.Vigente, hoy => VigenciaDocumento.VenceEl(hoy.AddDays(UmbralAmbarDias + 1))),
             new("No caduca", EstadoDocumento.SinCaducidad, _ => VigenciaDocumento.NoCaduca),
             new("Sin confirmar", EstadoDocumento.SinConfirmar, _ => VigenciaDocumento.SinConfirmar),
+
+            // E2 (diseño del documento efectivo, 2026-10-03): el viejo venció hace 10 días y se renovó con uno que vence a
+            // 300; el viejo está sustituido. Antes de filtrar los operativos, Alertas, la lista de Trabajadores, las causas
+            // del Centro, el calendario, el informe y los KPI lo contaban como «Vencido» junto a la renovación vigente.
+            new("E2 renovado: el viejo vencido esta sustituido", EstadoDocumento.Vigente,
+                hoy => VigenciaDocumento.VenceEl(hoy.AddDays(300)), hoy => VigenciaDocumento.VenceEl(hoy.AddDays(-10))),
+            // E2 inverso: el sustituido sigue «válido» en fecha pero ya no está en uso; manda el operativo, que está vencido.
+            // Si un lector olvida el filtro, un documento histórico lo daría por al día.
+            new("E2 inverso: el viejo vigente esta sustituido por uno vencido", EstadoDocumento.Vencido,
+                hoy => VigenciaDocumento.VenceEl(hoy.AddDays(-1)), hoy => VigenciaDocumento.VenceEl(hoy.AddDays(200))),
         ];
 
-        var dnis = new[] { "77189989B", "12345678Z", "00000000T", "00000001R", "00000002W", "00000003A", "00000004G", "00000005M" };
+        var dnis = new[] { "77189989B", "12345678Z", "00000000T", "00000001R", "00000002W", "00000003A", "00000004G", "00000005M", "00000006Y", "00000007F" };
         for (var i = 0; i < _casos.Count; i++)
         {
             var caso = _casos[i];
@@ -183,7 +206,33 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
             var docEmpresa = Documento.DeEmpresa(empresa.Id, tipoEmpresa.Id, emision, vigencia);
             var docVehiculo = Documento.DeVehiculo(vehiculo.Id, tipoVehiculo.Id, emision, vigencia);
             contexto.Documentos.AddRange(docTrabajador, docEmpresa, docVehiculo);
+
+            // El documento anterior (si el caso lo tiene): se guarda primero como cualquier otro y después se sustituye,
+            // que es el orden real (el Tenant propietario se sella al guardar).
+            Documento? viejoTrabajador = null, viejoEmpresa = null, viejoVehiculo = null;
+            if (caso.VigenciaDelSustituido is { } vigenciaDelViejo)
+            {
+                var antes = vigenciaDelViejo(_hoy);
+                var emisionVieja = _hoy.AddDays(-800);
+                viejoTrabajador = Documento.DeTrabajador(trabajador.Id, tipoTrabajador.Id, emisionVieja, antes);
+                viejoEmpresa = Documento.DeEmpresa(empresa.Id, tipoEmpresa.Id, emisionVieja, antes);
+                viejoVehiculo = Documento.DeVehiculo(vehiculo.Id, tipoVehiculo.Id, emisionVieja, antes);
+                contexto.Documentos.AddRange(viejoTrabajador, viejoEmpresa, viejoVehiculo);
+            }
+
             await contexto.SaveChangesAsync();
+
+            if (viejoTrabajador is not null && viejoEmpresa is not null && viejoVehiculo is not null)
+            {
+                var ahora = DateTime.UtcNow;
+                viejoTrabajador.SustituirPor(docTrabajador, MotivoSustitucionDocumento.Renovacion, ahora);
+                viejoEmpresa.SustituirPor(docEmpresa, MotivoSustitucionDocumento.Renovacion, ahora);
+                viejoVehiculo.SustituirPor(docVehiculo, MotivoSustitucionDocumento.Renovacion, ahora);
+                await contexto.SaveChangesAsync();
+                caso.SustituidoTrabajadorId = viejoTrabajador.Id;
+                caso.SustituidoEmpresaId = viejoEmpresa.Id;
+                caso.SustituidoVehiculoId = viejoVehiculo.Id;
+            }
 
             caso.TrabajadorId = trabajador.Id;
             caso.EmpresaId = empresa.Id;
@@ -408,6 +457,29 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
             var enAlertas = alertas.Any(a => a.TrabajadorId == caso.TrabajadorId && a.Estado != EstadoDocumento.Faltante);
             if (en360 != caso.EsIncidenciaEsperada || enCentro != caso.EsIncidenciaEsperada || enAlertas != caso.EsIncidenciaEsperada)
                 fallos.Add($"Incidencia · {caso.Nombre}: esperado {caso.EsIncidenciaEsperada}, Trabajador 360 {en360}, Centro {enCentro}, Alertas {enAlertas}");
+        }
+
+        // 13. Historial: un documento sustituido no sale en ninguna superficie por documento (Trabajador 360, informe de
+        //     vigencia, calendario, Alertas). Es la prueba directa de la propiedad: los estados de arriba ya dan lo esperado
+        //     por el documento operativo; esto exige además que el sustituido no aparezca ni siquiera como fila aparte. La
+        //     lista de Documentos NO está aquí a propósito: sigue mostrando el historial hasta la PR 9 («Incluir historial»).
+        var sustituidos = _casos.Where(x => x.VigenciaDelSustituido is not null).ToList();
+        sustituidos.Should().NotBeEmpty("control del instrumento: la tabla tiene que contener casos con un documento sustituido");
+        foreach (var caso in sustituidos)
+        {
+            var en360 = (await documentacionPorCentro.Handle(
+                    new ObtenerDocumentacionPorCentroDeTrabajadorQuery(caso.TrabajadorId), CancellationToken.None))
+                .SelectMany(x => x.Documentos).Select(d => d.DocumentoId).ToList();
+            if (en360.Contains(caso.SustituidoTrabajadorId))
+                fallos.Add($"Trabajador 360 · {caso.Nombre}: enseña el documento sustituido");
+            if (en360.Count(id => id == caso.DocumentoTrabajadorId) != 1)
+                fallos.Add($"Trabajador 360 · {caso.Nombre}: el operativo debe salir exactamente una vez");
+            if (filasInforme.ContainsKey(caso.SustituidoTrabajadorId))
+                fallos.Add($"Informe de vigencia · {caso.Nombre}: cuenta el documento sustituido");
+            if (enCalendario.ContainsKey(caso.SustituidoTrabajadorId))
+                fallos.Add($"Calendario de vencimientos · {caso.Nombre}: enseña el documento sustituido");
+            if (alertas.Any(a => a.DocumentoId == caso.SustituidoTrabajadorId))
+                fallos.Add($"Alertas · {caso.Nombre}: alerta sobre el documento sustituido");
         }
 
         fallos.Should().BeEmpty(

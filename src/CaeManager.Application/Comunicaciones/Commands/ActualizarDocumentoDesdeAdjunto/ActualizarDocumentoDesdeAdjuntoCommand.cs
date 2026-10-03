@@ -102,7 +102,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         // aquí no hay fila seleccionada de antemano — así que el propio
         // Command decide crear-o-renovar buscando un Documento existente del
         // mismo propietario y tipo, ninguna regla de unicidad existía antes.
-        var documentoExistenteId = await documentosContext.Documentos
+        var documentoExistenteId = await documentosContext.Documentos.Operativos()
             .Where(d => d.TipoDocumentoId == request.TipoDocumentoId)
             .Where(d => (request.TrabajadorId != null && d.TrabajadorId == request.TrabajadorId)
                 || (request.EmpresaId != null && d.EmpresaId == request.EmpresaId))

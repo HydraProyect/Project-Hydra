@@ -65,7 +65,7 @@ public class DocumentosFaltantesService(
 
         var trabajadorIds = parejas.Select(p => p.TrabajadorId).Distinct().ToList();
 
-        var documentosExistentes = await documentosContext.Documentos
+        var documentosExistentes = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsCandidatos.Contains(d.TipoDocumentoId))

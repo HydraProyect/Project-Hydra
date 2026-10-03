@@ -229,6 +229,14 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "R1 · PSS vencido y su renovacion vigente", emision,
             [VigenciaDocumento.VenceEl(_hoy.AddDays(-30)), VigenciaDocumento.VenceEl(_hoy.AddDays(335))], (_centroA1, null));
 
+        // E2 (documento efectivo): el documento SUSTITUIDO es historial y no cuenta para el bloqueo. Si el anterior estaba
+        // «válido hoy» pero está sustituido por uno vencido, el Trabajador está bloqueado (un lector que no filtrara los
+        // operativos lo daría por al día gracias al histórico); si el anterior estaba vencido y la renovación vale, no.
+        await AnadirTrabajadorConPssSustituidoAsync(c, empresaBase.Id, "E2 · PSS vigente sustituido por uno vencido ayer", emision,
+            VigenciaDocumento.VenceEl(_hoy.AddDays(200)), VigenciaDocumento.VenceEl(_hoy.AddDays(-1)), (_centroA1, vencido));
+        await AnadirTrabajadorConPssSustituidoAsync(c, empresaBase.Id, "E2 · PSS vencido hace 30 dias sustituido por su renovacion vigente", emision,
+            VigenciaDocumento.VenceEl(_hoy.AddDays(-30)), VigenciaDocumento.VenceEl(_hoy.AddDays(335)), (_centroA1, null));
+
         // Vigencia por Centro: el Centro 5 exige renovar el PSS cada 12 meses desde la emision; el Centro 1 vale el
         // vencimiento del propio documento.
         await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Vigencia · PSS emitido hace 400 dias que vence en 200: vale en A1, vencido en A5 (12 meses)",
@@ -311,6 +319,32 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
             c.Asignaciones.Add(new Asignacion(trabajador.Id, centro, _hoy.AddDays(-400)));
         foreach (var vigencia in vigencias)
             c.Documentos.Add(Documento.DeTrabajador(trabajador.Id, _tipoPss, emision, vigencia));
+        await c.SaveChangesAsync();
+
+        var caso = new Caso(nombre, "Trabajador") { TrabajadorId = trabajador.Id };
+        foreach (var (centro, esperado) in porCentro)
+            caso.PorCentro[centro] = esperado;
+        _casos.Add(caso);
+    }
+
+    /// <summary>
+    /// Un Trabajador con DOS documentos del PSS: el anterior (<paramref name="anterior"/>) ya sustituido por el operativo
+    /// (<paramref name="operativo"/>). Se guardan primero y se sustituye después, como en la aplicación.
+    /// </summary>
+    private async Task AnadirTrabajadorConPssSustituidoAsync(
+        CaeManagerDbContext c, Guid empresaId, string nombre, DateOnly emision, VigenciaDocumento anterior, VigenciaDocumento operativo,
+        params (Guid Centro, Esperado? Esperado)[] porCentro)
+    {
+        var trabajador = Trabajador.DeEmpresa(empresaId, "Caso", nombre, Dni());
+        c.Trabajadores.Add(trabajador);
+        await c.SaveChangesAsync();
+        foreach (var (centro, _) in porCentro)
+            c.Asignaciones.Add(new Asignacion(trabajador.Id, centro, _hoy.AddDays(-400)));
+        var viejo = Documento.DeTrabajador(trabajador.Id, _tipoPss, emision.AddDays(-400), anterior);
+        var nuevo = Documento.DeTrabajador(trabajador.Id, _tipoPss, emision, operativo);
+        c.Documentos.AddRange(viejo, nuevo);
+        await c.SaveChangesAsync();
+        viejo.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
         await c.SaveChangesAsync();
 
         var caso = new Caso(nombre, "Trabajador") { TrabajadorId = trabajador.Id };

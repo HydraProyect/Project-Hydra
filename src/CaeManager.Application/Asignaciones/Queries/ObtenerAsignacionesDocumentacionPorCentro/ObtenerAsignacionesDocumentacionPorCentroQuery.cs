@@ -131,7 +131,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
         var tipoIdsRequeridos = tiposRequeridosPorCentro.Select(t => t.Id).ToHashSet();
         var trabajadorIds = asignaciones.Select(a => a.TrabajadorId).Distinct().ToList();
 
-        var documentosExistentes = await documentosContext.Documentos
+        var documentosExistentes = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsRequeridos.Contains(d.TipoDocumentoId))

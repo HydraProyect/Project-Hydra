@@ -49,16 +49,16 @@ public class CalculoEstadoDocumentalService(
 
         var consulta = ambito switch
         {
-            AmbitoAplicacion.Trabajador => documentosContext.Documentos
+            AmbitoAplicacion.Trabajador => documentosContext.Documentos.Operativos()
                 .Where(d => d.TrabajadorId != null && ids.Contains(d.TrabajadorId!.Value))
                 .Select(d => new { PropietarioId = d.TrabajadorId!.Value, d.EstadoVigencia, d.FechaVencimiento }),
-            AmbitoAplicacion.Empresa => documentosContext.Documentos
+            AmbitoAplicacion.Empresa => documentosContext.Documentos.Operativos()
                 .Where(d => d.EmpresaId != null && ids.Contains(d.EmpresaId!.Value))
                 .Select(d => new { PropietarioId = d.EmpresaId!.Value, d.EstadoVigencia, d.FechaVencimiento }),
-            AmbitoAplicacion.Vehiculo => documentosContext.Documentos
+            AmbitoAplicacion.Vehiculo => documentosContext.Documentos.Operativos()
                 .Where(d => d.VehiculoId != null && ids.Contains(d.VehiculoId!.Value))
                 .Select(d => new { PropietarioId = d.VehiculoId!.Value, d.EstadoVigencia, d.FechaVencimiento }),
-            AmbitoAplicacion.Cliente => documentosContext.Documentos
+            AmbitoAplicacion.Cliente => documentosContext.Documentos.Operativos()
                 .Where(d => d.ClienteId != null && ids.Contains(d.ClienteId!.Value))
                 .Select(d => new { PropietarioId = d.ClienteId!.Value, d.EstadoVigencia, d.FechaVencimiento }),
             _ => throw new ArgumentOutOfRangeException(

@@ -35,4 +35,14 @@ public static class DocumentoOperativo
         ArgumentNullException.ThrowIfNull(documento);
         return Compilada(documento);
     }
+
+    /// <summary>
+    /// Solo los documentos operativos de una consulta: <c>documentosContext.Documentos.Operativos()</c>. Es
+    /// <c>Where(Expresion)</c> con nombre, para que la fuente de documentos de un lector diga a primera vista
+    /// que el historial no cuenta. Todo lector que decide estado, alertas, bloqueo, faltantes o cifras la usa;
+    /// <c>ReglasDeNegocioSinCopiasTests</c> inventaría los lectores de <c>.Documentos</c> y exige esto o una
+    /// excepción declarada con su motivo.
+    /// </summary>
+    public static IQueryable<Documento> Operativos(this IQueryable<Documento> documentos) =>
+        documentos.Where(Expresion);
 }

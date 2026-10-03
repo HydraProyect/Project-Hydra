@@ -39,7 +39,7 @@ public class ObtenerVencimientosMesQueryHandler(IConfiguracionQueryContext confi
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
 
         var filas = await (
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Operativos()
             where documento.TrabajadorId != null
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id

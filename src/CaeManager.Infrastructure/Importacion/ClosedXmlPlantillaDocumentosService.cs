@@ -1,4 +1,5 @@
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.TiposDocumento;
@@ -68,7 +69,7 @@ public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documen
             await tiposDocumentoContext.TiposDocumento.Select(t => t.Nombre).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
 
         var documentosExistentes = (await (
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Operativos()
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId equals trabajador.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new { trabajador.Dni, tipoDocumento.Nombre })

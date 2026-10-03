@@ -97,12 +97,12 @@ public class ObtenerVehiculosQueryHandler(
                     x.vehiculo.Modelo,
                     x.vehiculo.NumeroPlaca,
                     x.EmpleadorNombre,
-                    PeorFecha = documentosContext.Documentos
+                    PeorFecha = documentosContext.Documentos.Operativos()
                         .Where(d => d.VehiculoId == x.vehiculo.Id)
                         .Min(d => (DateOnly?)d.FechaVencimiento),
                     // MIN ignora las fechas nulas, que son a la vez «no caduca» y «sin
                     // confirmar»: lo sin confirmar se cuenta aparte para no perderlo.
-                    HaySinConfirmar = documentosContext.Documentos
+                    HaySinConfirmar = documentosContext.Documentos.Operativos()
                         .Any(d => d.VehiculoId == x.vehiculo.Id && d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
                 };
 

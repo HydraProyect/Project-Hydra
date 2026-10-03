@@ -134,7 +134,7 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         var limiteAvisoVisita = hoyParaVisitas.AddDays(parametros.HorasAvisoVisita / 24);
         var visitasUrgentes = await visitasQuery.CountAsync(v => v.FechaInicio <= limiteAvisoVisita, cancellationToken);
 
-        var documentosQuery = documentosContext.Documentos.Where(d => d.TrabajadorId != null);
+        var documentosQuery = documentosContext.Documentos.Operativos().Where(d => d.TrabajadorId != null);
         if (trabajadorIdsVisibles is not null) documentosQuery = documentosQuery.Where(d => trabajadorIdsVisibles.Contains(d.TrabajadorId!.Value));
 
         // Agregado en PostgreSQL: una fila por par distinto (EstadoVigencia,

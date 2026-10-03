@@ -40,6 +40,9 @@ namespace CaeManager.Architecture.Tests;
 /// no puede reaparecer en una consulta; la tabla es <c>CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests</c>.</item>
 /// <item><b>Qué documentos están en uso</b> — punto único <c>DocumentoOperativo.Expresion</c> (Domain): no eliminado y no
 /// sustituido. Comparar <c>SustituidoEnUtc</c> o <c>SustituidoPorDocumentoId</c> con null a mano es rojo.</item>
+/// <item><b>Lectores de Documentos solo sobre operativos</b> — <c>documentosContext.Documentos.Operativos()</c>. Todo
+/// lector que no lo aplica (listados con historial, auditoría, purga, resolución por Id, actividad) está inventariado con
+/// su motivo; uno nuevo es rojo.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -336,7 +339,113 @@ public class ReglasDeNegocioSinCopiasTests
             "sitio (o a null) permitiría que un documento sustituido volviera a ser operativo (D5)");
     }
 
+    // ---------- 7. Lectores de Documentos: solo operativos, o excepción con motivo ----------
+
+    /// <summary>
+    /// Un lector de la fuente <c>Documentos</c> (<c>IDocumentosQueryContext</c>, parámetro <c>documentosContext</c> o
+    /// <c>dbContext</c>) que NO filtra los operativos en la misma línea: ni <c>.Operativos()</c>, ni
+    /// <c>.Where(DocumentoOperativo.Expresion)</c>, ni <c>.Reclamables(hoy)</c> (que lo aplica por dentro). Un documento
+    /// sustituido es historial (D5): no cuenta para estado, alertas, bloqueo, faltantes, paquete ni cifras. Cada lector
+    /// que lo ignora a propósito está en <see cref="LectoresDeDocumentosSinFiltroOperativo"/> con su motivo; uno nuevo
+    /// es rojo hasta que filtre o se declare a conciencia.
+    /// </summary>
+    private static readonly Regex PatronLectorDeDocumentosSinFiltroOperativo = new(
+        @"\b(?:documentosContext|dbContext)\s*\.\s*Documentos\b(?!\s*\.\s*(?:Operativos\s*\(|Reclamables\s*\(|Where\s*\(\s*DocumentoOperativo\s*\.\s*Expresion))",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// Escritura, siembra y repositorio por Id: el DbContext como almacén, no como lector de estado. No entran en el
+    /// inventario porque no deciden nada de lo que ve el Gestor CAE.
+    /// </summary>
+    private const string PersistenciaFueraDelInventario = "src/CaeManager.Infrastructure/Persistence/";
+
+    private static readonly Dictionary<string, int> LectoresDeDocumentosSinFiltroOperativo = new()
+    {
+        // --- El historial se ve a propósito (PR 9 del diseño: «Incluir historial»). Hasta entonces los listados no
+        //     filtran; hoy ninguna ruta de la aplicación sustituye (PR 4/5), así que no hay historial que mostrar. ---
+        ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs"] = 5,
+        ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs"] = 2,
+        ["src/CaeManager.Application/BusquedaGlobal/Queries/BuscarGlobal/BuscarGlobalQuery.cs"] = 5,
+
+        // --- Búsqueda por Id de un documento que ya se nombró (el historial referencia a documentos que pudieron
+        //     sustituirse: el dato referenciado se resuelve aunque sea historial). ---
+        ["src/CaeManager.Application/Comunicaciones/Queries/ObtenerConversacionPorId/ObtenerConversacionPorIdQuery.cs"] = 2,
+        ["src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeService.cs"] = 1,
+        ["src/CaeManager.Application/Documentos/Queries/ObtenerAcreditacionesPorProveedor/ObtenerAcreditacionesPorProveedorQuery.cs"] = 1,
+        ["src/CaeManager.Application/Visitas/Antelacion/EvaluadorExpedienteVisitaService.cs"] = 1,
+        ["src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs"] = 1,
+
+        // --- Auditoría: quién accedió a qué documento, sea o no operativo hoy. ---
+        ["src/CaeManager.Application/Auditoria/Queries/ObtenerAccesosDocumentosSensiblesQuery.cs"] = 1,
+        ["src/CaeManager.Application/Auditoria/Queries/ObtenerAuditoriaQuery.cs"] = 1,
+        ["src/CaeManager.Application/Auditoria/RegistroAccesoDocumentoSensibleService.cs"] = 1,
+
+        // --- Verificación y revisión de IA: el análisis tardío de un histórico se registra sin mutarlo (PR 4). ---
+        ["src/CaeManager.Application/Documentos/Verificacion/VerificacionIaDocumentoService.cs"] = 1,
+        ["src/CaeManager.Application/Documentos/ValidacionOficial/ValidacionDocumentoOficialService.cs"] = 1,
+        ["src/CaeManager.Application/Documentos/Commands/ResolverRevisionIaDocumento/ResolverRevisionIaDocumentoCommand.cs"] = 1,
+        ["src/CaeManager.Application/Documentos/Queries/ObtenerRevisionesIaPendientes/ObtenerRevisionesIaPendientesQuery.cs"] = 1,
+        ["src/CaeManager.Application/Trabajadores/Deteccion/DeteccionTrabajadoresService.cs"] = 1,
+
+        // --- Retención y purga: el RGPD alcanza al historial tanto como a lo operativo. ---
+        ["src/CaeManager.Application/Retencion/DeteccionPurgaService.cs"] = 1,
+        ["src/CaeManager.Application/Retencion/EjecucionPurgaService.cs"] = 1,
+
+        // --- Actividad, no estado: cuentan documentos SUBIDOS en un periodo (producción y facturación), y una versión
+        //     sustituida se subió igual. ---
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerCatalogoKpisQuery.cs"] = 2,
+        ["src/CaeManager.Application/Facturacion/Queries/ObtenerResumenFacturacion/ObtenerResumenFacturacionQuery.cs"] = 2,
+
+        // --- Estadística de aprobación por revisor: pasaron por su mano aunque luego se sustituyeran. ---
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerEstadisticasAprobacionDocumentoQuery.cs"] = 1,
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerPulsoEquipoQuery.cs"] = 1,
+    };
+
+    [Fact]
+    public void Todo_lector_de_documentos_filtra_los_operativos_o_declara_por_que_no()
+    {
+        var medido = ContarPorFichero(PatronLectorDeDocumentosSinFiltroOperativo)
+            .Where(x => !x.Key.StartsWith(PersistenciaFueraDelInventario, StringComparison.Ordinal))
+            .ToDictionary(x => x.Key, x => x.Value);
+
+        Divergencias(LectoresDeDocumentosSinFiltroOperativo, medido).Should().BeEmpty(
+            "un lector de Documentos decide estado, alertas, bloqueo, faltantes, paquete o cifras sobre los operativos: " +
+            "`.Operativos()` (o `.Where(DocumentoOperativo.Expresion)`). Si el lector ignora a propósito el historial " +
+            "(auditoría, purga, resolución por Id, actividad), se declara aquí con su motivo");
+    }
+
     // ---------- Instrumento ----------
+
+    [Fact]
+    public void El_patron_de_lector_sin_filtro_operativo_reconoce_los_sin_filtro_e_ignora_los_filtrados()
+    {
+        string[] sinFiltro =
+        [
+            "        var existentes = await documentosContext.Documentos",
+            "            from documento in documentosContext.Documentos",
+            "        var x = documentosContext.Documentos.Where(d => d.EmpresaId == id);",
+            "        var y = await dbContext.Documentos.FirstOrDefaultAsync(d => d.Id == id);",
+            "            join documento in dbContext.Documentos on a.DocumentoId equals documento.Id",
+            "            .Join(documentosContext.Documentos, rd => rd.DocumentoId, d => d.Id,",
+            "        var z = documentosContext . Documentos",
+        ];
+        foreach (var linea in sinFiltro)
+            EsCodigoQueCasa(linea, PatronLectorDeDocumentosSinFiltroOperativo).Should().BeTrue(linea);
+
+        string[] filtrados =
+        [
+            "        var x = await documentosContext.Documentos.Operativos()",
+            "            from documento in documentosContext.Documentos.Operativos()",
+            "        var y = documentosContext.Documentos.Where(DocumentoOperativo.Expresion)",
+            "            from documento in documentosContext.Documentos.Reclamables(hoy)",
+            "        // documentosContext.Documentos sin filtro",
+            "        /// <c>documentosContext.Documentos</c>",
+            "        var n = lote.Documentos.Count;",
+            "        var m = request.Documentos.Count;",
+        ];
+        foreach (var linea in filtrados)
+            EsCodigoQueCasa(linea, PatronLectorDeDocumentosSinFiltroOperativo).Should().BeFalse(linea);
+    }
 
     [Fact]
     public void El_patron_de_la_condicion_operativa_reconoce_sus_formas_e_ignora_las_ajenas()
@@ -542,9 +651,12 @@ public class ReglasDeNegocioSinCopiasTests
         File.Exists(Path.Combine(raiz, PuntoUnicoDeLaVentana)).Should().BeTrue("el punto único de la ventana tiene que existir");
         File.Exists(Path.Combine(raiz, PuntoUnicoDelBloqueoDeAcceso)).Should().BeTrue("el punto único del bloqueo de acceso tiene que existir");
         File.Exists(Path.Combine(raiz, PuntoUnicoDelDocumentoOperativo)).Should().BeTrue("el punto único del documento operativo tiene que existir");
+        Directory.Exists(Path.Combine(raiz, PersistenciaFueraDelInventario.TrimEnd('/').Replace('/', Path.DirectorySeparatorChar)))
+            .Should().BeTrue("la carpeta que el inventario de lectores deja fuera tiene que existir: si se movió, deja de excluir lo que decía");
 
         foreach (var ruta in LecturasDeLaFilaBloqueante.Keys
                      .Concat(ComparacionesDeSustitucionDeclaradas.Keys)
+                     .Concat(LectoresDeDocumentosSinFiltroOperativo.Keys)
                      .Concat(VentanaNoEsLaDeReclamacion.Keys)
                      .Concat(OrdenDeGravedadDeOtraPregunta.Keys)
                      .Concat(UmbralesDeVigenciaReimplementadosEnSql.Keys)

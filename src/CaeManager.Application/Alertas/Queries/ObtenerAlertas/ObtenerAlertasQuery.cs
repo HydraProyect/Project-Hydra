@@ -126,7 +126,7 @@ public class ObtenerAlertasQueryHandler(
         var fechaLimiteAlerta = hoy.AddDays(parametros.UmbralAmbarDias);
 
         var vigenciaFilas = await (
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Operativos()
             where documento.TrabajadorId != null
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id

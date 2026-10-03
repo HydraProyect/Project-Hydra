@@ -142,12 +142,12 @@ public class ObtenerTrabajadoresQueryHandler(
                     x.trabajador.Apellidos,
                     x.trabajador.Dni,
                     x.EmpleadorNombre,
-                    PeorFecha = documentosContext.Documentos
+                    PeorFecha = documentosContext.Documentos.Operativos()
                         .Where(d => d.TrabajadorId == x.trabajador.Id)
                         .Min(d => (DateOnly?)d.FechaVencimiento),
                     // MIN ignora las fechas nulas, que son a la vez «no caduca» y «sin
                     // confirmar»: lo sin confirmar se cuenta aparte para no perderlo.
-                    HaySinConfirmar = documentosContext.Documentos
+                    HaySinConfirmar = documentosContext.Documentos.Operativos()
                         .Any(d => d.TrabajadorId == x.trabajador.Id && d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
                 };
 

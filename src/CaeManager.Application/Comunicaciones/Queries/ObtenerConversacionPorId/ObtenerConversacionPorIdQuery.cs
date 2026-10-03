@@ -373,7 +373,7 @@ public class ObtenerConversacionPorIdQueryHandler(
 
         var documentoIdsDelPropietario = trabajadorIds.Count == 0 && empresaIds.Count == 0
             ? []
-            : await documentosContext.Documentos
+            : await documentosContext.Documentos.Operativos()
                 .Where(d => (d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value))
                     || (d.EmpresaId != null && empresaIds.Contains(d.EmpresaId.Value)))
                 .Where(d => !documentoIdsConfirmados.Contains(d.Id))
