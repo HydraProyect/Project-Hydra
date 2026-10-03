@@ -93,14 +93,6 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     /// </summary>
     private static readonly IReadOnlyDictionary<string, string> SalidasDelPieSinGuardian = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        // Acciones secundarias que no cierran sin más: guardan y siguen (no son una salida que tire lo escrito).
-        ["src/CaeManager.Web/Features/Centros/Pages/Centros.razor#Drawer1:Añadir otro centro"] =
-            "Acción, no salida: guarda el centro y deja el formulario abierto para el siguiente; lo escrito se conserva en el centro creado.",
-        ["src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor#Drawer1:Continuar con la empresa"] =
-            "Acción, no salida: guarda el Cliente empresarial y continúa con el alta de su Empresa; lo escrito ya está guardado.",
-        ["src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor#Drawer1:Continuar con el centro"] =
-            "Acción, no salida: guarda la Empresa y continúa con el alta de su Centro; lo escrito ya está guardado.",
-
         // Regla de Chris (2026-09-29): toda pérdida de edición pregunta. «Descartar la propuesta» de Retención salió de esta lista (2026-10-03)
         // porque su Motivo es obligatorio. «Desactivar usuario» se mantiene (decisión de la coordinadora, 2026-10-03): su Gestor CAE de
         // destino es una elección opcional y el valor por defecto es «no reasignar».

@@ -15,4 +15,7 @@
   <data name="TrabajadorPreseleccionadoNoEncontrado" xml:space="preserve">
     <value>No encontramos este trabajador entre los que puedes gestionar. Elige a quién pertenece el documento.</value>
   </data>
+  <data name="GuardarEsperaSubida" xml:space="preserve">
+    <value>Espera a que termine la subida del archivo.</value>
+  </data>
 </root>

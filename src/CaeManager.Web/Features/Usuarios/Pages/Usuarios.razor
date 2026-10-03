@@ -236,13 +236,16 @@
     }
 </div>
 
-<Drawer @ref="_drawerUsuario" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo usuario" : "Editar usuario")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
+@* «Guardar» queda deshabilitado mientras viaja la comprobación del CIF: guardar en ese instante decidiría con un resultado que
+   todavía no ha llegado. El kit ya impide el doble clic en el cliente; GuardarAsync lo impide además en el servidor, que es
+   donde cuenta. *@
+<DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync"
+                 Titulo="@(_editandoId is null ? "Nuevo usuario" : "Editar usuario")"
+                 HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
+                 MotivoGuardarDeshabilitado="@(_buscandoCliente ? TextosUsuarios["GuardarComprobandoCif"].Value : null)"
+                 OnGuardar="GuardarAsync" AlDescartarPorNavegacion="CerrarFormulariosDescartandoAsync"
+                 TextoGuardar="Guardar" TextoCancelar="Cancelar">
     <ChildContent>
-        @if (_mensajeErrorFormulario is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
-        }
-
         <CampoTexto Etiqueta="Correo" Type="email" Placeholder="@("nombre@empresa.es")" Valor="@_email" ValorChanged="v => _email = v" Deshabilitado="@(_editandoId is not null)" />
         @if (_editandoId is not null)
         {
@@ -370,18 +373,9 @@
                 <p class="texto-ayuda-campo">Se comprueba contra el catálogo de Empresas al dejar de escribir.</p>
             }
         }
+    
     </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerUsuario?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
-        @* Deshabilitado mientras viaja la comprobación del CIF: guardar en ese
-           instante decidiría con un resultado que todavía no ha llegado.
-           Cargando ya impide el doble clic en el cliente; GuardarAsync lo
-           impide además en el servidor, que es donde cuenta. *@
-        <Boton Variante="VarianteBoton.Primario" OnClick="GuardarAsync" Cargando="_guardando" Deshabilitado="_buscandoCliente">Guardar</Boton>
-    </Pie>
-</Drawer>
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartandoAsync" />
+</DrawerFormulario>
 
 @* El mismo enlace que se acaba de enviar por correo, para poder entregarlo por
    otra vía si no llega. No es una credencial equivalente a la contraseña que

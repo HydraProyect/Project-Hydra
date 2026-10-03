@@ -1,6 +1,7 @@
 using CaeManager.Domain.Common;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
+using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor;
@@ -258,7 +259,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                 TrabajadorNombre: a.TrabajadorNombre)));
 
         items.AddRange(revisiones.Select(r => new ItemBandejaDto(
-            Id: $"revision-{r.Id}",
+            Id: IdDeFilaDeCola.Revision(r.Id),
             Tipo: TipoItemBandeja.RevisionIa,
             Titulo: r.TipoDocumentoNombre,
             Subtitulo: $"{r.PropietarioNombre} — {r.Motivo}",
@@ -279,7 +280,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             TrabajadorNombre: r.TrabajadorId is not null ? r.PropietarioNombre : null)));
 
         items.AddRange(requisitos.Select(rq => new ItemBandejaDto(
-            Id: $"requisito-{rq.CentroId}-{rq.TrabajadorId}-{rq.TipoDocumentoId}",
+            Id: IdDeFilaDeCola.Requisito(rq.CentroId, rq.TrabajadorId, rq.TipoDocumentoId),
             Tipo: TipoItemBandeja.RequisitoPendiente,
             // Un requisito de Empresa bloquea al Trabajador por un documento que NO es suyo: el título lo dice
             // (R2), para que nadie le pida al Trabajador lo que tiene que aportar su Empresa.
@@ -302,7 +303,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
         items.AddRange(visitasUrgentes
             .Where(v => v.NivelUrgencia is NivelUrgenciaVisita.Urgente or NivelUrgenciaVisita.Critica)
             .Select(v => new ItemBandejaDto(
-                Id: $"visita-{v.Id}",
+                Id: IdDeFilaDeCola.Visita(v.Id),
                 Tipo: TipoItemBandeja.VisitaUrgente,
                 Titulo: $"Visita {(v.NivelUrgencia == NivelUrgenciaVisita.Critica ? "crítica" : "urgente")}",
                 Subtitulo: $"{v.CentroNombre} — {v.ClienteRazonSocial}",
@@ -324,7 +325,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                 s.FechaInicioSugerida.Value, s.FechaInicioSugerida.Value, hoy, horasAvisoVisita, horasCriticasVisita)
                 is not NivelUrgenciaVisita.Normal)
             .Select(s => new ItemBandejaDto(
-                Id: $"sugerencia-visita-{s.Id}",
+                Id: IdDeFilaDeCola.SugerenciaVisita(s.Id),
                 Tipo: TipoItemBandeja.SugerenciaVisitaUrgente,
                 Titulo: $"Visita sorpresa detectada ({(s.Canal == Domain.Comunicaciones.CanalConversacion.WhatsApp ? "WhatsApp" : "correo")})",
                 Subtitulo: s.CentroNombre is null ? s.Resumen : $"{s.CentroNombre} — {s.Resumen}",
@@ -340,7 +341,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                 ClienteNombre: s.ClienteNombre)));
 
         items.AddRange(detecciones.Select(d => new ItemBandejaDto(
-            Id: $"deteccion-{d.Id}",
+            Id: IdDeFilaDeCola.Deteccion(d.Id),
             Tipo: TipoItemBandeja.DeteccionPendiente,
             Titulo: d.Tipo == TipoDeteccion.Nuevo ? "Alta detectada" : "Baja detectada",
             Subtitulo: $"{d.EmpresaRazonSocial} — {d.NombreCompleto}",
@@ -368,7 +369,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                 .Select(d => (proveedor, cliente, d))));
 
         items.AddRange(plataformas.Select(x => new ItemBandejaDto(
-            Id: $"plataforma-{x.d.AcreditacionId}",
+            Id: IdDeFilaDeCola.Plataforma(x.d.AcreditacionId),
             Tipo: x.d.Estado == EstadoAcreditacion.Rechazada ? TipoItemBandeja.PlataformaRechazada : TipoItemBandeja.PlataformaPendiente,
             Titulo: x.d.TipoDocumentoNombre,
             Subtitulo: x.d.Estado == EstadoAcreditacion.Rechazada && !string.IsNullOrWhiteSpace(x.d.UltimoMotivoRechazo)

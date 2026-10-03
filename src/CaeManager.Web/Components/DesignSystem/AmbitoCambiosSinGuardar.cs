@@ -74,11 +74,20 @@ public sealed class AmbitoCambiosSinGuardar
     /// </summary>
     public async Task<bool> ConfirmarAbandonoAsync()
     {
-        foreach (var aviso in _avisos.ToList())
-        {
-            if (!await aviso.ConfirmarAbandonoAsync())
-                return false;
-        }
+        // Una pregunta por ámbito, no una por aviso (S12, lote 2b): pregunta el primero con cambios y, si se descarta, los demás
+        // con cambios descartan lo suyo sin volver a preguntar. Antes cada aviso con cambios preguntaba por separado y un drawer
+        // con kit dentro de una página con aviso propio hacía contestar dos veces.
+        var conCambios = _avisos.ToList().Where(a => a.TieneCambios).ToList();
+        if (conCambios.Count == 0)
+            return true;
+
+        if (!await conCambios[0].ConfirmarAbandonoAsync())
+            return false;
+
+        // Sin volver a filtrar por TieneCambios: el descarte del primero puede limpiar lo que mira otro aviso (cerrar el drawer
+        // apaga el HayCambios del kit) y ese otro dejaría de correr su AlDescartar.
+        foreach (var otro in conCambios.Skip(1))
+            await otro.DescartarSinPreguntarAsync();
 
         return true;
     }

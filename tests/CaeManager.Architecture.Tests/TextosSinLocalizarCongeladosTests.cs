@@ -66,7 +66,7 @@ public class TextosSinLocalizarCongeladosTests
         ["Clientes"] = 248, // 249 → 248 el 2026-10-02 (resto D-07/D-27) SIN migrar: formas antiguas («Cliente creado correctamente.», «Cliente crítico», «Editar cliente»…) se funden con las nuevas con «Cliente empresarial». 250→249 (D-29): «Ver ficha 360» pasó a «Abrir ficha 360», que ya contaba en esta superficie (ClientePreviewDrawer). No se ha migrado nada a .resx.
         ["Comercial"] = 61,
         ["Components/Account"] = 93,
-        ["Components/DesignSystem"] = 49, // 51 → 49 el 2026-10-03 (S12, lote 2a) SIN migrar: «Cancelar» y «Enviar» de RedactarMensajeDrawer pasan a TextoCancelar/TextoGuardar de DrawerFormulario, atributos que este detector no ve (punto ciego conocido; ampliarlo sube Comunicaciones en 2 por la forma de deduplicar).
+        ["Components/DesignSystem"] = 51, // 51 → 49 el 2026-10-03 (S12, lote 2a) SIN migrar: «Cancelar» y «Enviar» de RedactarMensajeDrawer pasaron a TextoCancelar/TextoGuardar de DrawerFormulario, atributos que el detector no veía. 49 → 51 el mismo día (S12, lote 2b): el detector ya ve esos atributos del kit (AtributoDeKit), así que vuelve la cifra real; la deuda no es nueva, es la que el punto ciego ocultaba.
         // 92 → 77 el 2026-09-23 SIN migrar nada: los rótulos del menú lateral pasaron del marcado
         // de NavMenu.razor a literales de CatalogoMenuLateral.cs, y la heurística no ve un literal
         // de una sola palabra («Dashboard», «Empresas»…). Siguen sin localizar; su migración a
@@ -193,6 +193,9 @@ public class TextosSinLocalizarCongeladosTests
 
     [Theory]
     [InlineData("<Boton Etiqueta=\"Guardar cambios\" />", "Guardar cambios")]
+    [InlineData("<DrawerFormulario TextoGuardar=\"Guardar usuario\" />", "Guardar usuario")]
+    [InlineData("<DrawerFormulario TextoCancelar=\"Volver atrás\" />", "Volver atrás")]
+    [InlineData("<DrawerFormulario MotivoGuardarDeshabilitado=\"Falta el motivo\" />", "Falta el motivo")]
     [InlineData("<input placeholder=\"Buscar por nombre\" />", "Buscar por nombre")]
     [InlineData("<button aria-label=\"Cerrar panel\"></button>", "Cerrar panel")]
     [InlineData("<p>Sin resultados</p>", "Sin resultados")]
@@ -287,6 +290,16 @@ internal static class DetectorTextosSinLocalizar
         @"Marcador|Explicacion|FormatosTexto|Leyenda|Pista|Seccion|ErrorAdjuntos|ErrorConfirmar|Label|Title|" +
         @"Placeholder|Text|Tooltip|HelperText|aria-label|aria-description|title|placeholder|alt|label)" +
         @"\s*=\s*""(?<v>[^""@]*[" + Letra + @"]{2}[^""@]*)""",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// Textos que el kit DrawerFormulario pinta como texto de un botón o como su title (S12). Cuentan como MARKUP, no como atributo:
+    /// son el mismo «Guardar»/«Cancelar» que antes se escribía entre las etiquetas del botón, y así se deduplican con él. Sin esta
+    /// regla, pasar el texto del markup a TextoGuardar="…" bajaba la cifra de la pantalla sin localizar nada (blind spot medido al migrar
+    /// Usuarios: 147 → 145 sin tocar un .resx).
+    /// </summary>
+    private static readonly Regex AtributoDeKit = new(
+        @"(?<![\w\-:@])(?:TextoGuardar|TextoCancelar|MotivoGuardarDeshabilitado|MotivoCargando)\s*=\s*""(?<v>[^""@]*[" + Letra + @"]{2}[^""@]*)""",
         RegexOptions.Compiled);
 
     private static readonly Regex TextoRazor = new(
@@ -404,6 +417,9 @@ internal static class DetectorTextosSinLocalizar
 
         foreach (Match m in AtributoRazor.Matches(markup))
             textos.Atributos.Add(m.Groups["v"].Value.Trim());
+
+        foreach (Match m in AtributoDeKit.Matches(markup))
+            textos.Markup.Add(m.Groups["v"].Value.Trim());
 
         foreach (Match m in TextoRazor.Matches(markup))
         {

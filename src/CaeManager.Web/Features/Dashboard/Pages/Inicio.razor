@@ -126,9 +126,10 @@
                                    ExpandidaPorDefecto="@(i == 0 && TipoItemBandejaUi.BloqueaAccesoDeVerdad(bandeja.Grupos[i]))"
                                    Compacto="true" AgruparPorEmpresa="AgruparPorEmpresa" />
                     }
+                    @{ var claves = new ClavesDeHermanos(); }
                     @foreach (var item in bandeja.SinGrupo)
                     {
-                        <PanelResolverItem @key="item.Id" Item="item" />
+                        <PanelResolverItem @key="claves.De(item.Id)" Item="item" />
                     }
                 </div>
                 @* El mockup deja la salida a la cola completa siempre visible, no solo

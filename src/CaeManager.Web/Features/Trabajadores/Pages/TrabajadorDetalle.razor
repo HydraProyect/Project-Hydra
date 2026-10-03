@@ -401,9 +401,10 @@
                                     <span role="columnheader">@Textos["ColumnaFechaDocumento"]</span>
                                     <span role="columnheader">@Textos["ColumnaRenovarAntes"]</span>
                                 </div>
+                                @{ var claves = new ClavesDeHermanos(); }
                                 @foreach (var exigencia in exigencias)
                                 {
-                                    <div class="fila-documento-requerido" role="row" @key="(exigencia.CentroId, exigencia.Documento.TipoDocumentoId)">
+                                    <div class="fila-documento-requerido" role="row" @key="claves.De((exigencia.CentroId, exigencia.Documento.TipoDocumentoId))">
                                         <span class="celda-documento-nombre" role="cell">@exigencia.Documento.TipoDocumentoNombre</span>
                                         <span role="cell" class="trabajador360-exigencia-centro">
                                             <a href="@($"/centros/{exigencia.CentroId}")">@exigencia.CentroNombre</a>

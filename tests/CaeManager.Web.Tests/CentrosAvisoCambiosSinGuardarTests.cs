@@ -167,6 +167,19 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     }
 
     [Fact]
+    public async Task Escribir_solo_en_el_drawer_activa_el_aviso_del_navegador_y_abrirlo_sin_tocar_no()
+    {
+        // Con el kit hay dos avisos montados (el del drawer y el de la página, que solo cubre los modales rápidos): el del
+        // navegador al recargar tiene que seguir saliendo por el del drawer.
+        var cut = await AbrirAltaAsync(Renderizar());
+        ElNavegadorAvisaAlRecargar(cut).Should().BeFalse("abrir el formulario no es escribir en él");
+
+        await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
+
+        ElNavegadorAvisaAlRecargar(cut).Should().BeTrue("lo escrito en el drawer se pierde al recargar la pestaña");
+    }
+
+    [Fact]
     public async Task Abrir_el_alta_sin_tocar_nada_no_pregunta()
     {
         var cut = await AbrirAltaAsync(Renderizar());
@@ -293,6 +306,24 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Valor == "B50123456",
             "lo descartado no reaparece al abrir otra vez el modal");
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "el modal vuelve a abrirse limpio");
+    }
+
+    [Fact]
+    public async Task Salir_descartando_el_drawer_cierra_tambien_el_modal_rapido_aunque_este_no_tenga_cambios()
+    {
+        // El drawer lleva el aviso del kit y el modal rápido, sin nada escrito, no activa el de la página: quien descarta el
+        // alta cierra todo lo que ella abrió (la salida a la propia página no desmonta nada).
+        var cut = await AbrirAltaAsync(Renderizar());
+        await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
+        await CrearClienteDesdeElSelectorAsync(cut, "Hierros Aragón");
+
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("centros?q=zaragoza"));
+        PreguntasDeSalida(cut).Should().Be(1);
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo Cliente empresarial",
+            "el modal que abrió el alta no sobrevive a su descarte");
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
     }
 
     [Fact]

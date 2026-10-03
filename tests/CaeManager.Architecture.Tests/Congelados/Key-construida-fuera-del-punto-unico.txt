@@ -1,0 +1,23 @@
+# @key construidas de los .razor de la Web que NO pasan por ClavesDeHermanos.De(...) (ClavesDeListaUnicasPorConstruccionTests, continuación de #1064).
+# Solo baja: migrar una al punto único (`@key="claves.De(identidad)"`) baja o borra su línea; una @key construida nueva en un bucle no se añade aquí.
+# Medida: 'ruta :: expresión = n'. Clasificación de cada una (revisada a mano al congelar, 2026-10-03):
+#   - Reinicio de UN hijo (sin hermanos con clave: la clave solo fuerza recrear el elemento/componente). No compiten con nadie:
+#       CampoTexto._generacionValor, Proyectos._versionSelectorCliente, DocumentoWorkspacePanel.titular, ContextWorkspace (tipo, entidad)
+#       y las dos GeneracionDe(...) de TiposDocumento (un select/checkbox por celda).
+#   - Clave de agrupación o lista fija, única por construcción en su productor: Alertas grupo.Clave y Inicio GrupoId (GroupBy),
+#       OrdenMenuLateral Fila.Clave ($"{Tipo}:{GrupoId}:{Id}", Id de fila de configuración), ventana.Etiqueta (4 ventanas constantes),
+#       indicador.Tipo (enum, un indicador por tipo), item.ClaveLocal (Guid.NewGuid() por elemento).
+# Migrar cualquiera es seguro y barato; no se hizo en bloque para no tocar pantallas de otras líneas vivas.
+src/CaeManager.Web/Components/DesignSystem/CampoTexto.razor :: _generacionValor = 1
+src/CaeManager.Web/Components/Workspace/ContextWorkspace.razor :: (frame.Tipo, frame.EntidadId) = 1
+src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor :: grupo.Clave = 1
+src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor :: enlace.Fila.Clave = 1
+src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor :: grupo.Cabecera.Fila.Clave = 1
+src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor :: bandeja.Grupos[i].GrupoId = 1
+src/CaeManager.Web/Features/Documentos/Components/DocumentoWorkspacePanel.razor :: titular = 1
+src/CaeManager.Web/Features/Documentos/Components/SugerenciasPreventivasTab.razor :: ventana.Etiqueta = 1
+src/CaeManager.Web/Features/Documentos/Pages/SubidaMasiva.razor :: item.ClaveLocal = 1
+src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor :: _versionSelectorCliente = 1
+src/CaeManager.Web/Features/TiposDocumento/Pages/TiposDocumento.razor :: GeneracionDe(clave) = 1
+src/CaeManager.Web/Features/TiposDocumento/Pages/TiposDocumento.razor :: GeneracionDe(claveOficial) = 1
+src/CaeManager.Web/Features/Trabajadores/Components/PanelDocumentacionBase.razor :: indicador.Tipo = 2

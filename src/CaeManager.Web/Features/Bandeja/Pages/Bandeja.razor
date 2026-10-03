@@ -116,9 +116,10 @@
             {
                 <GrupoCola @key="grupo.GrupoId" Grupo="grupo" ExpandidaPorDefecto="true" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="@_idEnfocado" OnReclamar="AbrirReclamacionDeItemAsync" PaginarPorGrupo="true" MarcarBloqueo="true" />
             }
+            @{ var claves = new ClavesDeHermanos(); }
             @foreach (var item in _bandeja!.SinGrupo.Where(i => CoincideFiltro(i, _tipoFiltro)))
             {
-                <PanelResolverItem @key="item.Id" Item="item" Enfocado="@(item.Id == _idEnfocado)" OnReclamar="AbrirReclamacionDeItemAsync" />
+                <PanelResolverItem @key="claves.De(item.Id)" Item="item" Enfocado="@(item.Id == _idEnfocado)" OnReclamar="AbrirReclamacionDeItemAsync" />
             }
         </div>
     }

@@ -23,7 +23,6 @@ namespace CaeManager.Web.Features.Centros.Pages;
 
 public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 {
-    private Drawer? _drawerNuevoCentro;
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
@@ -119,15 +118,20 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private readonly InstantaneaFormulario _instantanea = new();
 
     /// <summary>
-    /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de alta de
-    /// Centro comparado con cómo se abrió (con lo que trajo la URL ya puesto), o algo
-    /// escrito en el modal de crear Cliente o Empresa abierto encima. Los modales rápidos
-    /// no montan su propio aviso: se suman a este, y así salir con cambios en los dos
-    /// pregunta una sola vez.
+    /// El drawer de alta de Centro comparado con cómo se abrió (con lo que trajo la URL ya
+    /// puesto). Lo lee el kit DrawerFormulario (S12, lote 2b): su aviso y el de la página
+    /// se coordinan, así que salir con cambios en el drawer y en un modal rápido pregunta
+    /// una sola vez (P1-E2b). Lee _drawerVisible en vivo: el kit recibe el Visible nuevo
+    /// un render después.
     /// </summary>
-    private bool HayCambiosSinGuardar =>
-        (_drawerVisible && _instantanea.Difiere(ValoresFormulario()))
-        || (_formularioRapidoClienteVisible && _formularioRapidoCliente?.HayCambiosSinGuardar == true)
+    private bool HayCambiosCentro => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+
+    /// <summary>
+    /// Algo escrito en el modal de crear Cliente o Empresa abierto encima del drawer. Los
+    /// modales rápidos no montan su propio aviso: los cubre el de la página.
+    /// </summary>
+    private bool HayCambiosFormulariosRapidos =>
+        (_formularioRapidoClienteVisible && _formularioRapidoCliente?.HayCambiosSinGuardar == true)
         || (_formularioRapidoEmpresaVisible && _formularioRapidoEmpresa?.HayCambiosSinGuardar == true);
 
     private const int IndiceClienteEnValores = 0;
