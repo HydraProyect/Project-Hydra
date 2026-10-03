@@ -40,7 +40,7 @@ public record ObtenerTrabajadoresDocumentacionPorSubcontrataQuery(Guid Subcontra
 /// </param>
 /// <param name="Cumplimiento">
 /// Los tipos que exige algún Centro donde el Trabajador tiene una Asignación activa, uno por tipo y con el documento
-/// preferido, medidos por <see cref="CumplimientoDocumental"/>: la porción de este Trabajador del % de la Subcontrata
+/// efectivo, medidos por <see cref="CumplimientoDocumental"/>: la porción de este Trabajador del % de la Subcontrata
 /// (el mismo universo que <c>CalculoEstadoSubcontrataService</c>).
 /// </param>
 public record TrabajadorDocumentacionSubcontrataDto(
@@ -179,7 +179,7 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
             var ordenados = items.OrderBy(i => SeveridadEstadoDocumento.Rango(i.Estado)).ThenBy(i => i.TipoDocumentoNombre).ToList();
             var peorEstado = ordenados.Count > 0 ? ordenados[0].Estado : EstadoDocumento.Vigente;
 
-            // Un documento por tipo exigido (el preferido), igual que el % de la Subcontrata.
+            // Un documento por tipo exigido (el efectivo), igual que el % de la Subcontrata.
             var preferidosPorTipo = DocumentoEfectivo.UnoPorClave(
                 documentosDelTrabajador, d => d.TipoDocumentoId, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
             var cumplimiento = CumplimientoDocumental.Evaluar(tiposRequeridosPorTrabajador[trabajador.Id].Select(tipoId =>

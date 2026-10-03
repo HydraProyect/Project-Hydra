@@ -61,7 +61,7 @@ public record DocumentoParaDocumentacionBase(
     EstadoVigenciaDocumento EstadoVigencia,
     DateOnly? FechaVencimiento,
     DateOnly FechaEmision,
-    DateTime CreadoEnUtc = default);
+    DateTime CreadoEnUtc);
 
 public static class DocumentacionBaseTrabajador
 {

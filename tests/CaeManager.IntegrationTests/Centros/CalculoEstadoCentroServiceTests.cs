@@ -504,6 +504,34 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
         cumplimiento[_centroId].AlDia.Should().Be(1, "manda la renovación vigente, no la copia vencida");
     }
 
+    /// <summary>
+    /// El orden único (<c>DocumentoEfectivo</c>) llega al servicio con todos sus campos: entre dos copias válidas hoy del
+    /// mismo tipo manda la de emisión más reciente aunque tenga la vigencia sin confirmar (no conforme, decisión
+    /// 2026-10-03), no la que vence más tarde ni la «confirmada». Sin <c>CreadoEnUtc</c> o <c>FechaEmision</c> en la
+    /// proyección el resultado cambia.
+    /// </summary>
+    [Fact]
+    public async Task Entre_dos_validas_hoy_del_mismo_tipo_manda_la_de_emision_mas_reciente()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoObligatorioId, hoy.AddDays(-200), VigenciaDocumento.VenceEl(hoy.AddDays(300))));
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoObligatorioId, hoy.AddDays(-5), VigenciaDocumento.SinConfirmar));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var servicio = new CalculoEstadoCentroService(lectura, lectura, lectura, lectura, lectura, lectura);
+
+        var cumplimiento = await servicio.CalcularCumplimientoAsync([_centroId], CancellationToken.None);
+
+        cumplimiento[_centroId].Requeridos.Should().Be(1);
+        cumplimiento[_centroId].AlDia.Should().Be(0, "la copia de emisión más reciente es la efectiva y su vigencia está sin confirmar");
+    }
+
     /// <summary>Acreditación del documento vigente del Trabajador contra un canal de plataforma del Centro indicado.</summary>
     private async Task SembrarAcreditacionEnAsync(
         Guid centroId, Guid trabajadorId, Action<AcreditacionDocumentoPlataforma> configurar, Guid? tipoDocumentoId = null)

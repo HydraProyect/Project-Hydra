@@ -216,7 +216,8 @@ public class PaqueteDocumentalVisitaService(
 
         foreach (var grupo in candidatos.GroupBy(d => (d.TrabajadorId, d.TipoDocumentoId)))
         {
-            // El documento efectivo del grupo es el primero (DocumentoEfectivo, el mismo orden que el estado y el
+            // El documento efectivo del grupo (entre los que tienen archivo: un documento sin archivo no se puede enviar,
+            // así que si el efectivo de las pantallas no lo tiene, viaja el siguiente) es el primero (DocumentoEfectivo, el mismo orden que el estado y el
             // cumplimiento) y solo viaja si es vigente: los vencidos nunca se envían. Los válidos van antes que los
             // vencidos, así que las copias vigentes son el prefijo del orden: el efectivo y, detrás, las de reserva por si
             // su archivo no se puede abrir.

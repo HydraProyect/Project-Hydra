@@ -437,14 +437,14 @@ public class ReglasDeNegocioSinCopiasTests
     /// </summary>
     private static readonly Regex PatronEleccionDeDocumentoEfectivoCopiada = new(
         @"\b(?:OrderBy|ThenBy)(?:Descending)?\s*\([^;]*\bSinConfirmar\b"
-        + @"|\b(?:OrderByDescending|ThenByDescending|MaxBy)\s*\(\s*\w+\s*=>\s*\w+\s*\.\s*FechaEmision\b"
-        + @"|\b(?:OrderByDescending|ThenByDescending|MaxBy)\s*\(\s*\w+\s*=>\s*\w+\s*\.\s*FechaVencimiento\s*\?\?",
+        + @"|\b(?:OrderByDescending|ThenByDescending|MaxBy)\s*\([^;]*\b[Ff]echaEmision\b"
+        + @"|\b(?:OrderByDescending|ThenByDescending|MaxBy)\s*\([^;]*\b[Ff]echaVencimiento\b[^;]*\?\?",
         RegexOptions.Compiled);
 
     private static readonly Dictionary<string, int> EleccionesDeDocumentoDeOtraPregunta = new()
     {
-        // El punto único: «sin confirmar» como desempate del orden (una línea).
-        ["src/CaeManager.Application/Documentos/DocumentoEfectivo.cs"] = 1,
+        // El punto único: la emisión más reciente y «sin confirmar» como desempates del orden (dos líneas).
+        ["src/CaeManager.Application/Documentos/DocumentoEfectivo.cs"] = 2,
         // Orden de la LISTA de Documentos por la columna que elige el usuario (emisión, dos líneas): no elige a quién
         // representa a un tipo, presenta filas.
         ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs"] = 2,
@@ -468,6 +468,9 @@ public class ReglasDeNegocioSinCopiasTests
             "            .OrderBy(d => d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 1 : 0)",
             "            .OrderByDescending(d => d.FechaEmision)",
             "            .ThenByDescending(x => x.FechaEmision).First()",
+            "            .ThenByDescending(fechaEmision)",
+            "            .ThenByDescending(d => d.Documento.FechaEmision)",
+            "            .ThenByDescending(d => fechaVencimiento(d) ?? DateOnly.MaxValue)",
             "        var uno = grupo.MaxBy(d => d.FechaEmision);",
             "            .OrderByDescending(d => d.FechaVencimiento ?? DateOnly.MaxValue)",
             "            .ThenByDescending(d => d.FechaVencimiento ?? DateOnly.MinValue)",
@@ -480,7 +483,6 @@ public class ReglasDeNegocioSinCopiasTests
             "            .OrderBy(d => d.FechaVencimiento ?? DateOnly.MaxValue)",
             "            .ThenBy(a => a.FechaVencimiento)",
             "            .OrderByDescending(c => c.CreadoEnUtc)",
-            "            .ThenByDescending(fechaEmision)",
             "                : d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 1 : 2)",
             "            // .OrderByDescending(d => d.FechaEmision)",
             "            .OrderByDescending(v => v.FechaVerificacion)",

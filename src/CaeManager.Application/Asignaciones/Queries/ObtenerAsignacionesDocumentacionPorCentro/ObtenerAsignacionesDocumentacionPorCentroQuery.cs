@@ -55,7 +55,7 @@ public record DocumentoRequeridoDto(
 /// </param>
 /// <param name="Cumplimiento">
 /// Los pares exigidos de este Trabajador en este Centro medidos por <see cref="CumplimientoDocumental"/> (un documento
-/// por tipo, el preferido): la porción de este Trabajador del % del Centro. <see cref="FraccionCumplimiento.SinRequisitos"/>
+/// por tipo, el efectivo): la porción de este Trabajador del % del Centro. <see cref="FraccionCumplimiento.SinRequisitos"/>
 /// si el Centro no exige nada.
 /// </param>
 public record TrabajadorAsignacionDocumentacionDto(
