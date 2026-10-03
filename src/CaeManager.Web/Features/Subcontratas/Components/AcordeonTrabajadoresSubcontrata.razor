@@ -62,7 +62,7 @@ else
                             @trabajador.TrabajadorNombre
                         </button>
                         <span class="fila-trabajador-fraccion">
-                            @(trabajador.Documentos.Count > 0 ? $"{DocumentosAlDia(trabajador)}/{trabajador.Documentos.Count}" : "—")
+                            @(trabajador.Cumplimiento.Requeridos > 0 ? $"{trabajador.Cumplimiento.AlDia}/{trabajador.Cumplimiento.Requeridos}" : "—")
                         </span>
                         <span class="tarjeta-fila-acordeon-indicadores">
                             <span class="ranura-recuento">
@@ -276,9 +276,6 @@ else
 
     private static List<DocumentoRequeridoDto> DocumentosUrgentes(TrabajadorDocumentacionSubcontrataDto trabajador) =>
         trabajador.Documentos.Where(d => d.Estado == EstadoDocumento.Urgente).ToList();
-
-    private static int DocumentosAlDia(TrabajadorDocumentacionSubcontrataDto trabajador) =>
-        trabajador.Documentos.Count(d => d.Estado is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad);
 
     private static bool RequiereIntervencion(DocumentoRequeridoDto documento) =>
         documento.Estado is not EstadoDocumento.Vigente;

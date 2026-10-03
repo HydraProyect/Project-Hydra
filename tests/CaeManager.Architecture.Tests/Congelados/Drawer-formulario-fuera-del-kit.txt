@@ -14,7 +14,4 @@ src/CaeManager.Web/Features/Documentos/Components/RevisionIaTab.razor :: Drawer 
 src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor :: Drawer = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor :: Drawer = 1
 src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor :: Drawer = 1
-src/CaeManager.Web/Features/Subcontratas/Pages/Subcontratas.razor :: Drawer = 1
 src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor :: Drawer = 1
-src/CaeManager.Web/Features/Vehiculos/Pages/Vehiculos.razor :: Drawer = 1
-src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor :: Drawer = 1

@@ -377,9 +377,10 @@ public class DashboardEjecutivoGen2Tests : BunitContext
     {
         var cut = Renderizar(new Escenario()).Cut;
 
-        // 98 vigentes de 110 con vigencia = 89%; la media simple de 90 y 80 sería 85.
+        // Al día (vigentes + próximos + urgentes: siguen siendo válidos hoy) = 98 + 10 = 108 de 110 documentos = 98 %;
+        // la media simple de 90 y 80 sería 85.
         TilePorEtiqueta(cut, "Tasa de cumplimiento documental").Should().Be(
-            ("Tasa de cumplimiento documental", "89%", "Ponderada por el volumen de documentos de cada organización", "tarjeta-metrica-advertencia"));
+            ("Tasa de cumplimiento documental", "98%", "Ponderada por el volumen de documentos de cada organización", "tarjeta-metrica-exito"));
 
         // (80×400 + 40×100) / 500 = 72; la media simple sería 60.
         TilePorEtiqueta(cut, "% de cumplimiento documental (trabajadores)").Valor.Should().Be("72%");

@@ -285,49 +285,35 @@
     }
 </div>
 
-<Drawer @ref="_drawerSubcontrata" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["TituloDrawerNueva"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
-    <ChildContent>
-        @if (_mensajeErrorFormulario is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
-        }
+<DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["TituloDrawerNueva"]"
+                 HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
+                 HayErroresDeCampo="@(_erroresCampo.Count > 0)" OnGuardar="GuardarAsync"
+                 TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <CampoTexto Etiqueta="@Textos["RotuloRazonSocial"]" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" OnBlur="ValidarRazonSocialAsync" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.RazonSocial))" />
+    <CampoTexto Etiqueta="@Textos["RotuloIdentificacionFiscal"]" Placeholder="@Textos["PlaceholderIdentificacionFiscal"]" Valor="@_cif" ValorChanged="v => _cif = v" OnBlur="ValidarCifAsync" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.Cif))" />
 
-        <CampoTexto Etiqueta="@Textos["RotuloRazonSocial"]" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" OnBlur="ValidarRazonSocialAsync" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.RazonSocial))" />
-        <CampoTexto Etiqueta="@Textos["RotuloIdentificacionFiscal"]" Placeholder="@Textos["PlaceholderIdentificacionFiscal"]" Valor="@_cif" ValorChanged="v => _cif = v" OnBlur="ValidarCifAsync" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.Cif))" />
+    <SelectorMultiple Etiqueta="@Textos["EtiquetaClientesQueLaContrataron"]"
+                       Elementos="@_clientesDisponiblesSelector"
+                       Seleccionados="@_clienteIdsSeleccionados"
+                       OnAlternar="args => AlternarCliente(args.Id, args.Marcado)"
+                       TextoVacio="@Textos["VacioClientesSelector"]" />
 
-        <SelectorMultiple Etiqueta="@Textos["EtiquetaClientesQueLaContrataron"]"
-                           Elementos="@_clientesDisponiblesSelector"
-                           Seleccionados="@_clienteIdsSeleccionados"
-                           OnAlternar="args => AlternarCliente(args.Id, args.Marcado)"
-                           TextoVacio="@Textos["VacioClientesSelector"]" />
-
-        @if (_resolverEmpresaEnSilencio)
-        {
-            @* DDL-076: perfil Cliente Directo con una única Empresa — sin
-               selector, pedirle que confirme que él es él en una lista de
-               un solo elemento no aporta nada. *@
-            <CampoInfo Etiqueta="@Textos["EtiquetaEmpresaPrestaServicio"]" Valor="@_empresasDisponibles[0].RazonSocial" />
-        }
-        else
-        {
-            <SelectorMultiple Etiqueta="@Textos["EtiquetaEmpresasPrestaServicio"]"
-                               Elementos="@_empresasDisponiblesSelector"
-                               Seleccionados="@_empresaIdsSeleccionados"
-                               OnAlternar="args => AlternarEmpresa(args.Id, args.Marcado)"
-                               TextoVacio="@Textos["VacioEmpresasSelector"]" />
-        }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawerSubcontrata?.SolicitarCierreAsync() ?? Task.CompletedTask">
-            @Textos["BotonCancelar"]
-        </Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
-            @Textos["BotonGuardar"]
-        </Boton>
-    </Pie>
-</Drawer>
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => { _drawerVisible = false; }" />
+    @if (_resolverEmpresaEnSilencio)
+    {
+        @* DDL-076: perfil Cliente Directo con una única Empresa — sin
+           selector, pedirle que confirme que él es él en una lista de
+           un solo elemento no aporta nada. *@
+        <CampoInfo Etiqueta="@Textos["EtiquetaEmpresaPrestaServicio"]" Valor="@_empresasDisponibles[0].RazonSocial" />
+    }
+    else
+    {
+        <SelectorMultiple Etiqueta="@Textos["EtiquetaEmpresasPrestaServicio"]"
+                           Elementos="@_empresasDisponiblesSelector"
+                           Seleccionados="@_empresaIdsSeleccionados"
+                           OnAlternar="args => AlternarEmpresa(args.Id, args.Marcado)"
+                           TextoVacio="@Textos["VacioEmpresasSelector"]" />
+    }
+</DrawerFormulario>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"

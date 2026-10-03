@@ -206,41 +206,32 @@ public class ObtenerEmpresasQueryHandler(
     }
 
     /// <summary>
-    /// Mismo cálculo que <c>ObtenerCumplimientoEmpresaQuery</c> (Empresa →
-    /// Trabajadores → Asignaciones activas → Centro, suma AlDia/Requeridos,
-    /// no media de porcentajes) pero para N Empresas de una sola vez: una
-    /// consulta de actividad y una llamada a
-    /// <see cref="ICalculoEstadoCentroService.CalcularCumplimientoAsync"/>
-    /// sobre la unión de Centros, en vez de repetir ambas por fila.
+    /// Mismo cálculo que <c>ObtenerCumplimientoEmpresaQuery</c> pero para N Empresas de una sola vez: una consulta de
+    /// actividad (los Centros donde trabajan sus Trabajadores) y una llamada a
+    /// <see cref="ICalculoEstadoCentroService.ObtenerParesExigidosAsync"/> sobre la unión de Centros, en vez de repetir
+    /// ambas por fila. Es el contexto <see cref="ContextoCumplimiento.Empresa"/>: solo cuentan los pares de los
+    /// Trabajadores de la Empresa, no los de otras Empresas que comparten Centro con ella.
     /// </summary>
     private async Task<Dictionary<Guid, int?>> CalcularCumplimientoPorEmpresaAsync(
         IReadOnlyList<Guid> empresaIds, CancellationToken cancellationToken)
     {
         if (empresaIds.Count == 0) return new Dictionary<Guid, int?>();
 
-        var centrosPorEmpresa = await (
+        var centroIds = await (
             from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             where trabajador.EmpresaId != null && empresaIds.Contains(trabajador.EmpresaId.Value)
-            select new { EmpresaId = trabajador.EmpresaId!.Value, asignacion.CentroId })
+            select asignacion.CentroId)
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        var centroIds = centrosPorEmpresa.Select(x => x.CentroId).Distinct().ToList();
-        var fracciones = centroIds.Count == 0
-            ? new Dictionary<Guid, FraccionCumplimiento>()
-            : await calculoEstadoCentro.CalcularCumplimientoAsync(centroIds, cancellationToken);
+        var pares = centroIds.Count == 0
+            ? []
+            : await calculoEstadoCentro.ObtenerParesExigidosAsync(centroIds, cancellationToken);
+        var porEmpresa = CumplimientoDocumental.PorContexto(ContextoCumplimiento.Empresa, pares);
 
-        return centrosPorEmpresa
-            .GroupBy(x => x.EmpresaId)
-            .ToDictionary(g => g.Key, g =>
-            {
-                var deLaEmpresa = g.Select(x => fracciones.GetValueOrDefault(x.CentroId, new FraccionCumplimiento(0, 0))).ToList();
-                var alDia = deLaEmpresa.Sum(f => f.AlDia);
-                var requeridos = deLaEmpresa.Sum(f => f.Requeridos);
-                return requeridos == 0 ? (int?)null : (int)Math.Round(alDia * 100.0 / requeridos);
-            });
+        return empresaIds.Distinct().ToDictionary(id => id, id => porEmpresa.GetValueOrDefault(id)?.Porcentaje);
     }
 
     /// <summary>

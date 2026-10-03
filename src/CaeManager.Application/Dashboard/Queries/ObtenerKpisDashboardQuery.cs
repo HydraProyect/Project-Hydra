@@ -23,11 +23,13 @@ public record KpisDashboardDto(
     int DocumentosVigentes,
     int VisitasProgramadas,
     /// <summary>
-    /// Solo documental: vigentes sobre todos los Documentos de Trabajador con
-    /// fecha de vencimiento. NO es un veredicto de cumplimiento — no ve los
-    /// Centros de Trabajo bloqueados (<see cref="CentrosBloqueados"/>), y sin
-    /// ningún documento con fecha vale 100 porque no hay nada que contar
-    /// (<see cref="SinDatos"/>, <see cref="SinCarteraAsignada"/>).
+    /// Solo documental: los Documentos de Trabajador al día según
+    /// <see cref="CumplimientoDocumental"/> (Vigente, Próximo, Urgente y Sin caducidad) sobre todos los
+    /// Documentos de Trabajador, histórico incluido (<see cref="Fraccion"/>). NO es un veredicto de cumplimiento — no
+    /// ve los Centros de Trabajo bloqueados (<see cref="CentrosBloqueados"/>), y sin ningún documento vale 100 porque
+    /// no hay nada que contar (<see cref="SinDatos"/>, <see cref="SinCarteraAsignada"/>). Su universo (todos los
+    /// documentos, no los pares que exigen los Centros) no es ninguno de los cuatro contextos de
+    /// <see cref="ContextoCumplimiento"/>: queda pendiente de decisión del propietario.
     /// </summary>
     int TasaCumplimientoDocumental,
     int VisitasUrgentes = 0,
@@ -49,7 +51,26 @@ public record KpisDashboardDto(
     /// alcance: el 100 de <see cref="TasaCumplimientoDocumental"/> es «nada que
     /// medir», nunca «al día», y no se presenta como organización en verde.
     /// </summary>
-    bool SinDatos = false);
+    bool SinDatos = false,
+    /// <summary>Documentos de Trabajador sin vigencia confirmada: cuentan en el denominador de la tasa y no en el numerador.</summary>
+    int DocumentosSinConfirmar = 0,
+    /// <summary>Documentos de Trabajador confirmados como que no caducan: cuentan en el numerador y en el denominador de la tasa.</summary>
+    int DocumentosSinCaducidad = 0)
+{
+    /// <summary>La fracción de la tasa, por la única definición de <see cref="CumplimientoDocumental"/>.</summary>
+    public FraccionCumplimiento Fraccion => FraccionDe(
+        DocumentosVigentes, DocumentosProximos, DocumentosUrgentes, DocumentosVencidos, DocumentosSinConfirmar, DocumentosSinCaducidad);
+
+    /// <summary>La misma fracción desde los recuentos por estado: el Dashboard Ejecutivo la usa con los recuentos sumados de varios Tenants.</summary>
+    public static FraccionCumplimiento FraccionDe(
+        int vigentes, int proximos, int urgentes, int vencidos, int sinConfirmar, int sinCaducidad) =>
+        CumplimientoDocumental.Evaluar(
+        [
+            (EstadoDocumento.Vigente, vigentes), (EstadoDocumento.Proximo, proximos),
+            (EstadoDocumento.Urgente, urgentes), (EstadoDocumento.Vencido, vencidos),
+            (EstadoDocumento.SinConfirmar, sinConfirmar), (EstadoDocumento.SinCaducidad, sinCaducidad)
+        ]);
+}
 
 /// <summary>
 /// Los seis KPI del Dashboard (ver Project-Hydra-Negocio/tecnico/DATABASE.md, hoja "Dashboard" del Excel
@@ -138,12 +159,12 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         var proximos = documentosPorEstado.GetValueOrDefault(EstadoDocumento.Proximo);
         var urgentes = documentosPorEstado.GetValueOrDefault(EstadoDocumento.Urgente);
         var vencidos = documentosPorEstado.GetValueOrDefault(EstadoDocumento.Vencido);
-        // Un documento sin vigencia confirmada no está al día: entra en el
-        // denominador y no en el numerador, igual que en el cumplimiento del
-        // Centro (CalculoEstadoCentroService). Solo «no caduca» queda fuera.
         var sinConfirmar = documentosPorEstado.GetValueOrDefault(EstadoDocumento.SinConfirmar);
-        var totalConVigencia = vigentes + proximos + urgentes + vencidos + sinConfirmar;
-        var tasa = totalConVigencia == 0 ? 100 : vigentes * 100 / totalConVigencia;
+        var sinCaducidad = documentosPorEstado.GetValueOrDefault(EstadoDocumento.SinCaducidad);
+
+        // Qué cuenta como al día lo decide CumplimientoDocumental (Próximo y Urgente sí; Sin confirmar no, y entra en
+        // el denominador; Sin caducidad en los dos lados). Esta tasa no tiene fórmula propia.
+        var fraccion = KpisDashboardDto.FraccionDe(vigentes, proximos, urgentes, vencidos, sinConfirmar, sinCaducidad);
 
         return new KpisDashboardDto(
             TrabajadoresActivos: trabajadoresActivos,
@@ -153,11 +174,13 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             DocumentosProximos: proximos,
             DocumentosVigentes: vigentes,
             VisitasProgramadas: visitasProgramadas,
-            TasaCumplimientoDocumental: tasa,
+            TasaCumplimientoDocumental: fraccion.Porcentaje ?? 100,
             VisitasUrgentes: visitasUrgentes,
             SinCarteraAsignada: sinCarteraAsignada,
             TrabajadoresNuevosEsteMes: trabajadoresNuevosEsteMes,
             CentrosBloqueados: centrosBloqueados,
-            SinDatos: centros == 0 && totalConVigencia == 0);
+            SinDatos: centros == 0 && fraccion.Requeridos == 0,
+            DocumentosSinConfirmar: sinConfirmar,
+            DocumentosSinCaducidad: sinCaducidad);
     }
 }

@@ -28,7 +28,6 @@ namespace CaeManager.Web.Features.Visitas.Pages;
 
 public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 {
-    private Drawer? _drawerVisita;
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
     // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
@@ -799,8 +798,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// P1-E2: único punto de verdad de «hay cambios» en el drawer de alta y edición de
-    /// Visita. Lo lee AvisoCambiosSinGuardar para detener la salida de la página; con el
-    /// drawer cerrado (también tras guardar) nunca hay nada que perder.
+    /// Visita. Lo lee DrawerFormulario, que lleva dentro el guardián de cerrar y de salir de la
+    /// página; con el drawer cerrado (también tras guardar) nunca hay nada que perder.
     /// </summary>
     private bool HayCambiosSinGuardar =>
         _drawerVisible && _instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir;

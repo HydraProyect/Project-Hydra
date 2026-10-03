@@ -337,10 +337,6 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         }
     }
 
-    /// <summary>"7/9" junto al nombre (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.5) — se deriva de los mismos <c>Documentos</c> ya cargados, sin consulta nueva.</summary>
-    private static int DocumentosAlDia(TrabajadorAsignacionDocumentacionDto trabajador) =>
-        trabajador.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente);
-
     /// <summary>Lista realmente pintada — recortada a incidencias en la vista previa de /centros, completa en Centro 360.</summary>
     private IReadOnlyList<TrabajadorAsignacionDocumentacionDto> TrabajadoresAMostrar =>
         SoloIncidencias ? _trabajadores.Where(t => t.PeorEstado != EstadoDocumento.Vigente).ToList() : _trabajadores;
@@ -449,9 +445,12 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         get
         {
             var documentos = _trabajadores.SelectMany(t => t.Documentos).ToList();
+            // «Exigidos» y «al día» salen de CumplimientoDocumental (la porción de cada Trabajador del % del Centro): el
+            // listado de documentos no trae los «Sin caducidad» y puede repetir un tipo (vencido y renovación).
+            var cumplimiento = FraccionCumplimiento.Sumar(_trabajadores.Select(t => t.Cumplimiento));
             return (
-                documentos.Count,
-                documentos.Count(d => d.Estado is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad),
+                cumplimiento.Requeridos,
+                cumplimiento.AlDia,
                 documentos.Count(d => d.Estado == EstadoDocumento.Vencido),
                 documentos.Count(d => d.Estado == EstadoDocumento.Faltante));
         }

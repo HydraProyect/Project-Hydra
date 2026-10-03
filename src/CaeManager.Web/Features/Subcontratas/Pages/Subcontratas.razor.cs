@@ -25,7 +25,6 @@ namespace CaeManager.Web.Features.Subcontratas.Pages;
 
 public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
-    private Drawer? _drawerSubcontrata;
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
@@ -323,8 +322,8 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
     /// <summary>
     /// P1-E2b: único punto de verdad de «hay cambios» en el drawer de alta de Subcontrata. Lo lee
-    /// AvisoCambiosSinGuardar para detener la salida de la página; cerrado (también tras
-    /// guardar) nunca hay nada que perder.
+    /// DrawerFormulario, que lleva dentro el guardián de cerrar y de salir de la página; cerrado
+    /// (también tras guardar) nunca hay nada que perder.
     /// </summary>
     private bool HayCambiosSinGuardar => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
 

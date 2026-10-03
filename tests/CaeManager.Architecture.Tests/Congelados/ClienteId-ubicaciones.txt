@@ -17,6 +17,7 @@ src/CaeManager.Application/Blindaje42/Queries/ObtenerHistorialCertificacionesTgs
 src/CaeManager.Application/BusquedaGlobal/Queries/BuscarGlobal/BuscarGlobalQuery.cs :: ClienteId = 4
 src/CaeManager.Application/BusquedaGlobal/Queries/BuscarGlobal/BuscarGlobalQuery.cs :: ObtenerClienteIdsVisiblesAsync = 2
 src/CaeManager.Application/BusquedaGlobal/Queries/BuscarGlobal/BuscarGlobalQuery.cs :: clienteIdsVisibles = 10
+src/CaeManager.Application/Centros/CalculoEstadoCentroService.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/Commands/CrearCentro/CrearCentroCommand.cs :: ClienteId = 6
 src/CaeManager.Application/Centros/Commands/EditarCentro/EditarCentroCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/Commands/RestaurarCentro/RestaurarCentroCommand.cs :: ClienteId = 1

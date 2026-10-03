@@ -12,7 +12,7 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
 
     private static CatalogoKpisValoresDto Valores(
         int trabajadoresActivos = 0, int centros = 0, int visitas = 0,
-        int vigentes = 0, int proximos = 0, int urgentes = 0, int vencidos = 0,
+        int vigentes = 0, int proximos = 0, int urgentes = 0, int vencidos = 0, int sinConfirmar = 0, int sinCaducidad = 0,
         double? porcentajeCumplimientoDocumental = null, int totalRequeridosCumplimiento = 0,
         IReadOnlyList<CentroCumplimientoDto>? centrosConMenorCumplimiento = null,
         int incidenciasAbiertas = 0, IReadOnlyList<GravedadIncidenciaConteoDto>? incidenciasPorGravedad = null,
@@ -20,8 +20,9 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
         double? confianzaMediaIa = null, decimal costeIaMes = 0m, double? tiempoMedioMsIa = null, int totalAuditoriasIaMes = 0,
         decimal facturacionEstimada = 0m, KpisBpoDto? bpo = null, decimal? presupuestoMensualIaUsd = null) =>
         new(
-            Documental: new KpisDashboardDto(trabajadoresActivos, centros, vencidos, urgentes, proximos, vigentes, visitas, 0),
-            TotalDocumentosConVigencia: vigentes + proximos + urgentes + vencidos,
+            Documental: new KpisDashboardDto(trabajadoresActivos, centros, vencidos, urgentes, proximos, vigentes, visitas, 0,
+                DocumentosSinConfirmar: sinConfirmar, DocumentosSinCaducidad: sinCaducidad),
+            TotalDocumentosConVigencia: vigentes + proximos + urgentes + vencidos + sinConfirmar + sinCaducidad,
             PorcentajeCumplimientoDocumental: porcentajeCumplimientoDocumental,
             TotalRequeridosCumplimiento: totalRequeridosCumplimiento,
             CentrosConMenorCumplimiento: centrosConMenorCumplimiento ?? [],
@@ -76,6 +77,53 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
 
         resultado.TasaCumplimiento.Should().Be(9);
         resultado.TasaCumplimiento.Should().NotBe(45);
+    }
+
+    // La tasa fusionada usa la definición única de CumplimientoDocumental (decisiones del propietario, 2026-10-03):
+    // cada prueba fija un eje que antes divergía entre Inicio, el Dashboard Ejecutivo y Visión de cartera.
+
+    [Fact]
+    public void Proximo_y_urgente_cuentan_como_al_dia_en_la_tasa_fusionada()
+    {
+        var porTenant = new List<(ClienteAutorizadoDto, CatalogoKpisValoresDto)>
+        {
+            (Cliente("A"), Valores(vigentes: 4, proximos: 3, urgentes: 1, vencidos: 2)),
+            (Cliente("B"), Valores(vigentes: 0, proximos: 1, urgentes: 1, vencidos: 0)),
+        };
+
+        // Al día: 4+3+1 y 0+1+1 = 10 de 12. Con la fórmula anterior (solo vigentes) sería 4 de 12 = 33.
+        ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant).TasaCumplimiento.Should().Be(83);
+    }
+
+    [Fact]
+    public void Sin_confirmar_entra_en_el_denominador_y_no_en_el_numerador_de_la_tasa_fusionada()
+    {
+        var porTenant = new List<(ClienteAutorizadoDto, CatalogoKpisValoresDto)>
+        {
+            (Cliente("A"), Valores(vigentes: 6, sinConfirmar: 2)),
+            (Cliente("B"), Valores(vigentes: 2, sinConfirmar: 0)),
+        };
+
+        // 8 al día de 10. Con «Sin confirmar» fuera del denominador (como antes en el Dashboard Ejecutivo) sería 100.
+        ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant).TasaCumplimiento.Should().Be(80);
+    }
+
+    [Fact]
+    public void Sin_caducidad_cuenta_como_al_dia_y_como_requerido_en_la_tasa_fusionada()
+    {
+        var porTenant = new List<(ClienteAutorizadoDto, CatalogoKpisValoresDto)>
+        {
+            (Cliente("A"), Valores(vigentes: 1, vencidos: 1, sinCaducidad: 2)),
+        };
+
+        // 3 al día de 4 = 75. Fuera de los dos lados (como antes) sería 1 de 2 = 50.
+        ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant).TasaCumplimiento.Should().Be(75);
+    }
+
+    [Fact]
+    public void Sin_ningun_documento_la_tasa_fusionada_vale_cien_por_convencion_de_nada_que_medir()
+    {
+        ObtenerDashboardEjecutivoQueryHandler.Fusionar([(Cliente("A"), Valores())]).TasaCumplimiento.Should().Be(100);
     }
 
     [Fact]

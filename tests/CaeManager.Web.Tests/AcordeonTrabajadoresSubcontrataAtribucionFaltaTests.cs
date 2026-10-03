@@ -97,7 +97,8 @@ public class AcordeonTrabajadoresSubcontrataAtribucionFaltaTests : BunitContext
     {
         var trabajador = new TrabajadorDocumentacionSubcontrataDto(
             Guid.NewGuid(), "Ruiz Peña, Ana", "12345678A", EstadoDocumento.Faltante,
-            [new DocumentoRequeridoDto(null, Guid.NewGuid(), "Reconocimiento médico", EstadoDocumento.Faltante, null)]);
+            [new DocumentoRequeridoDto(null, Guid.NewGuid(), "Reconocimiento médico", EstadoDocumento.Faltante, null)],
+            new FraccionCumplimiento(0, 1));
 
         RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
 
@@ -129,7 +130,8 @@ public class AcordeonTrabajadoresSubcontrataAtribucionFaltaTests : BunitContext
         this.ConRolDeEscritura(Roles.Consulta);
         var trabajador = new TrabajadorDocumentacionSubcontrataDto(
             Guid.NewGuid(), "Ruiz Peña, Ana", "12345678A", EstadoDocumento.Faltante,
-            [new DocumentoRequeridoDto(null, Guid.NewGuid(), "Reconocimiento médico", EstadoDocumento.Faltante, null)]);
+            [new DocumentoRequeridoDto(null, Guid.NewGuid(), "Reconocimiento médico", EstadoDocumento.Faltante, null)],
+            new FraccionCumplimiento(0, 1));
         RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
 
         var cut = Render<AcordeonTrabajadoresSubcontrata>(p => p.Add(a => a.SubcontrataId, Guid.NewGuid()));

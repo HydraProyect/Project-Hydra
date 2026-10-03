@@ -462,10 +462,6 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         return (carteraEnOtro, activoEsOrigen);
     }
 
-    /// <summary>Base real de "N de M vigentes" (mockup Inicio TALVEG) — la misma suma que ya usa ObtenerKpisDashboardQuery para la tasa de cumplimiento, no una cifra nueva.</summary>
-    private int TotalDocumentosConVigencia => _kpis is null ? 0
-        : _kpis.DocumentosVencidos + _kpis.DocumentosUrgentes + _kpis.DocumentosProximos + _kpis.DocumentosVigentes;
-
     private int DocumentosFueraDeVigencia => _kpis is null ? 0
         : _kpis.DocumentosVencidos + _kpis.DocumentosUrgentes + _kpis.DocumentosProximos;
 

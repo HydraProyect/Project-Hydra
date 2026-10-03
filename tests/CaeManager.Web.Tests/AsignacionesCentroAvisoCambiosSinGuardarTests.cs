@@ -54,7 +54,7 @@ public class AsignacionesCentroAvisoCambiosSinGuardarTests : BunitContext
                 ObtenerAsignacionesDocumentacionPorCentroQuery => (IReadOnlyList<TrabajadorAsignacionDocumentacionDto>)
                 [
                     new TrabajadorAsignacionDocumentacionDto(Guid.NewGuid(), TrabajadorId, "Ruiz Peña, Ana",
-                        new DateOnly(2026, 1, 15), EstadoDocumento.Vigente, [])
+                        new DateOnly(2026, 1, 15), EstadoDocumento.Vigente, [], FraccionCumplimiento.SinRequisitos)
                 ],
                 ObtenerTrabajadoresParaSelectorQuery => new[] { TrabajadorSelectorFalso.Crear(TrabajadorId, "Bea Alonso Ruiz") },
                 ObtenerCentrosParaSelectorQuery => new[] { new CentroSelectorDto(CentroId, "Planta Zaragoza", "Refrielectric S.A.", "Montajes Ebro S.L.") },

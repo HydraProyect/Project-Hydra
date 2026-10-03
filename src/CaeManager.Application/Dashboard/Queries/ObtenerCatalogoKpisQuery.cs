@@ -82,8 +82,7 @@ public class ObtenerCatalogoKpisQueryHandler(
     public async Task<CatalogoKpisValoresDto> Handle(ObtenerCatalogoKpisQuery request, CancellationToken cancellationToken)
     {
         var documental = await mediator.Send(new ObtenerKpisDashboardQuery(), cancellationToken);
-        var totalConVigencia = documental.DocumentosVigentes + documental.DocumentosProximos
-            + documental.DocumentosUrgentes + documental.DocumentosVencidos;
+        var totalConVigencia = documental.Fraccion.Requeridos;
 
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
 

@@ -90,7 +90,8 @@ public class AcordeonAsignacionesCentroVigenciaSinConfirmarTests : BunitContext
     {
         var trabajador = new TrabajadorAsignacionDocumentacionDto(
             Guid.NewGuid(), Guid.NewGuid(), "Ruiz Peña, Ana", new DateOnly(2026, 1, 15), estado,
-            [new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Reconocimiento médico", estado, fecha)]);
+            [new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Reconocimiento médico", estado, fecha)],
+            CumplimientoDocumental.Evaluar([estado]));
 
         RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
 
