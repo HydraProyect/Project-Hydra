@@ -1237,7 +1237,7 @@ public class VisitasGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// S12 (lote 2a): el alta usa el kit DrawerFormulario, que pregunta al «Cancelar» como la X (D-05) y al salir de la página.
+    /// S12 (lote 2a): el alta usa el kit DrawerFormulario, que pregunta al «Cancelar» como la X (D-05); la salida por navegación la fijan las pruebas de aviso de la pantalla.
     /// Esta prueba fija que la pantalla le pasa su «hay cambios» y su estado: sin cambios cierra, con las notas escritas pregunta.
     /// </summary>
     [Fact]
