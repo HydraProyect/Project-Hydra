@@ -306,7 +306,7 @@ src/CaeManager.Domain/Telemetria/RegistroTiempoGestion.cs :: clienteId = 2
 src/CaeManager.Domain/Tenants/DelegacionTenant.cs :: TenantClienteId = 2
 src/CaeManager.Domain/Tenants/DelegacionTenant.cs :: tenantClienteId = 8
 src/CaeManager.Domain/Tenants/IDelegacionTenantRepository.cs :: tenantClienteId = 1
-src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: AmbitoRelacionClienteId = 1
+src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: AmbitoRelacionClienteId = 2
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ClienteId = 7
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ClienteIds = 4
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ObtenerClienteIdsParaRolClienteAsync = 2
@@ -314,7 +314,7 @@ src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ObtenerClie
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: _clienteIds = 5
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteId = 2
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteIds = 20
-src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: AmbitoRelacionClienteId = 1
+src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: AmbitoRelacionClienteId = 2
 src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: ClienteIds = 2
 src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Identity/ApplicationUser.cs :: ClienteId = 1

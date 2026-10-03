@@ -41,8 +41,8 @@ public class ObtenerCarteraDeGestorCaeQueryHandler(
         var asignables = await catalogo.ObtenerAsignablesAsync(ctx.OperadorTenantId, cancellationToken);
         var enCartera = await catalogo.ObtenerCarteraUniversalAsync(ctx.OperadorTenantId, ctx.GestorUsuarioId, cancellationToken);
         // Los candidatos son los asignables que este Gestor CAE no tiene de ninguna forma: los que
-        // sí están en su cartera solo en parte (reparto por Cliente empresarial) no se pueden
-        // ampliar a enteros desde aquí, y ofrecerlos haría fallar siempre el guardado.
+        // sí tiene por otra vía (otra cartera vigente, por ejemplo de otro rol, o la fila heredada de
+        // Operador Delegado) no se pueden incorporar desde aquí, y ofrecerlos haría fallar siempre el guardado.
         var candidatosIds = (await catalogo.ObtenerCandidatosAsync(ctx.OperadorTenantId, ctx.GestorUsuarioId, cancellationToken))
             .Select(c => c.PropietarioTenantId).ToHashSet();
         var enCarteraIds = enCartera.Select(e => e.PropietarioTenantId).ToHashSet();

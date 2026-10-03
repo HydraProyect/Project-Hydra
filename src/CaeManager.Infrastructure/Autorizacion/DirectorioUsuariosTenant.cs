@@ -514,6 +514,9 @@ public class DirectorioUsuariosTenant(
                 from cartera in identidad.AsignacionesCartera
                 where cartera.PropietarioTenantId == propietarioTenantId
                       && cartera.Estado == EstadoAsignacion.Vigente
+                      // Defensa en profundidad (D-7): ver AlcanceDatosService; una cartera no cerrada por Cliente
+                      // empresarial no concede nada.
+                      && cartera.AmbitoRelacionClienteId == null
                       && cartera.VigenciaDesde <= ahora
                       && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
                 join operacion in identidad.AsignacionesOperacion

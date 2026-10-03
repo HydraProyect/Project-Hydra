@@ -127,9 +127,9 @@ public static class TenantsBeneficiariosAutorizados
     /// <summary>
     /// UNA sola definición del rol efectivo por la vía de Operación, para la
     /// operación ya elegida (<see cref="OperacionQueAutorizaAsync"/> o la del token):
-    /// el par (operación, usuario) NO es único, así que entre las carteras vigentes
-    /// con rol delegable manda la de menor Id (todas son universales: el reparto por
-    /// Cliente empresarial está retirado, D-7). Lo usan
+    /// el par (operación, usuario) NO es único (los índices solo garantizan una universal
+    /// vigente), así que entre las carteras vigentes con rol delegable manda la de menor
+    /// Id: determinista. Lo usan
     /// <c>CurrentUserService</c> (rol efectivo) y <c>ObtenerClientesAutorizadosQuery</c>
     /// (Tenant por defecto, decisión 7 quater): ambos deben coincidir siempre.
     /// </summary>

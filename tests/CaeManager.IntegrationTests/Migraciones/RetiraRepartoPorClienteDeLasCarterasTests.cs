@@ -1,6 +1,10 @@
-﻿using CaeManager.Domain.Empresas;
+﻿using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
@@ -140,6 +144,79 @@ public class RetiraRepartoPorClienteDeLasCarterasTests : IAsyncLifetime
             "control positivo: el instrumento ve un índice que sí tiene que existir; el único de la cartera universal sigue");
         (await ExisteRestriccion(contexto, Restriccion)).Should().BeTrue();
     }
+
+    // ── Defensa en profundidad de los lectores ─────────────────────────────
+
+    /// <summary>
+    /// Si una cartera no cerrada por Cliente empresarial burlara el CHECK (aquí se quita a propósito de la base de
+    /// pruebas), los lectores de alcance no le dan el ámbito de su operación —que bajo una operación universal sería
+    /// el Tenant entero, más ancho que lo que decía la fila—: no concede nada. Es la segunda barrera; la primera es el
+    /// CHECK, probado arriba.
+    /// </summary>
+    [Fact]
+    public async Task Una_cartera_por_Cliente_no_cerrada_que_burlara_el_CHECK_no_concede_alcance_en_los_lectores()
+    {
+        var ahora = DateTime.UtcNow;
+        Guid cliente, otroCliente;
+        await using (var contexto = NuevoContexto(_tenant.Id))
+        {
+            var a = Empresa.CrearComoCliente("Cliente A de la defensa", DatosPruebaSeeder.GenerarCifValido(8_600_001), false, null, null);
+            var b = Empresa.CrearComoCliente("Cliente B de la defensa", DatosPruebaSeeder.GenerarCifValido(8_600_002), false, null, null);
+            contexto.Empresas.AddRange(a, b);
+            await contexto.SaveChangesAsync();
+            cliente = a.Id;
+            otroCliente = b.Id;
+        }
+
+        var repartida = Guid.NewGuid();
+        var universal = Guid.NewGuid();
+        await using (var contexto = NuevoContexto(_tenant.Id))
+        {
+            await contexto.Database.ExecuteSqlRawAsync(
+                $"ALTER TABLE \"AsignacionesCartera\" DROP CONSTRAINT \"{Restriccion}\"");
+
+            contexto.Users.AddRange(CrearUsuario(repartida, "repartida"), CrearUsuario(universal, "universal"));
+            var raiz = AsignacionOperacion.Raiz(_tenant.Id, ServicioCae.Outbound, ahora.AddDays(-2), ahora);
+            contexto.AsignacionesOperacion.Add(raiz);
+            contexto.AsignacionesCartera.AddRange(
+                CarteraLegadaPorCliente.Interna(raiz, repartida, cliente, ahora.AddDays(-1), null, ahora),
+                AsignacionCartera.Interna(raiz, universal, AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = NuevoContexto(_tenant.Id);
+        var clientesRepartida = await AlcanceDe(lectura, repartida).ObtenerClienteIdsVisiblesAsync();
+        var clientesUniversal = await AlcanceDe(lectura, universal).ObtenerClienteIdsVisiblesAsync();
+
+        clientesUniversal.Should().BeEquivalentTo([cliente, otroCliente],
+            "control positivo: el instrumento ve el Tenant entero de la cartera universal bajo la misma raíz");
+        clientesRepartida.Should().BeEmpty("la cartera repartida por Cliente que burló el CHECK no concede nada, ni el Tenant entero de la raíz");
+
+        var directorio = new DirectorioUsuariosTenant(
+            null!, null!, new TenantActualAmbiental { TenantId = _tenant.Id }, new PuertaAccesoDatos(), lectura);
+        var carteras = await directorio.ObtenerCarterasVigentesAsync();
+        carteras.Should().ContainKey(universal, "control positivo del directorio");
+        carteras[universal].EsUniversal.Should().BeTrue();
+        carteras.Should().NotContainKey(repartida, "ausencia significa alcance cero");
+    }
+
+    private AlcanceDatosService AlcanceDe(CaeManagerDbContext contexto, Guid usuario) =>
+        new(contexto, new CurrentUserServiceFalso(usuario, Roles.GestorCae, tenantOrigenId: _tenant.Id),
+            new TenantActualAmbiental { TenantId = _tenant.Id }, new SesionPrivilegiadaAusente());
+
+    private ApplicationUser CrearUsuario(Guid id, string alias) => new()
+    {
+        Id = id,
+        TenantId = _tenant.Id,
+        UserName = $"{alias}@caemanager.local",
+        NormalizedUserName = $"{alias}@CAEMANAGER.LOCAL".ToUpperInvariant(),
+        Email = $"{alias}@caemanager.local",
+        NormalizedEmail = $"{alias}@CAEMANAGER.LOCAL".ToUpperInvariant(),
+        NombreCompleto = alias,
+        EmailConfirmed = true,
+        SecurityStamp = Guid.NewGuid().ToString(),
+        ConcurrencyStamp = Guid.NewGuid().ToString()
+    };
 
     // ── La migración sobre datos ───────────────────────────────────────────
 
