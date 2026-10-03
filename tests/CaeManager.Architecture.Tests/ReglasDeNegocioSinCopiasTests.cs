@@ -182,9 +182,8 @@ public class ReglasDeNegocioSinCopiasTests
     /// (<c>estado &gt;= x</c>) ni uno repartido en varias líneas: lista NO exhaustiva.
     /// </summary>
     private static readonly Regex PatronConjuntoAlDiaCopiado = new(
-        @"\bEstadoDocumento\s*\.\s*Vigente\s+or\s+EstadoDocumento\s*\.\s*SinCaducidad\b"
-        + @"|\bEstadoDocumento\s*\.\s*SinCaducidad\s+or\s+EstadoDocumento\s*\.\s*Vigente\b"
-        + @"|\bEstadoDocumento\s*\.\s*Vigente\s*\|\|[^;]*\bEstadoDocumento\s*\.\s*SinCaducidad\b"
+        @"\bEstadoDocumento\s*\.\s*Vigente\b[^;]*?(?:\bor\b|\|\|)[^;]*?\bEstadoDocumento\s*\.\s*SinCaducidad\b"
+        + @"|\bEstadoDocumento\s*\.\s*SinCaducidad\b[^;]*?(?:\bor\b|\|\|)[^;]*?\bEstadoDocumento\s*\.\s*Vigente\b"
         + @"|\.\s*(?:Count|Sum)\s*\([^;]*\bEstado\w*\s*==\s*EstadoDocumento\s*\.\s*Vigente\b",
         RegexOptions.Compiled);
 
@@ -309,6 +308,8 @@ public class ReglasDeNegocioSinCopiasTests
             "        => e == EstadoDocumento.Vigente || e == EstadoDocumento.SinCaducidad;",
             "        var alDia = documentos.Count(d => d.Estado == EstadoDocumento.Vigente);",
             "        var n = filas.Sum(f => f.Estado == EstadoDocumento.Vigente ? 1 : 0);",
+            "        e is EstadoDocumento.Vigente or EstadoDocumento.Proximo or EstadoDocumento.Urgente or EstadoDocumento.SinCaducidad;",
+            "        e is EstadoDocumento.SinCaducidad or EstadoDocumento.Proximo or EstadoDocumento.Vigente;",
         ];
         foreach (var linea in alDia)
             EsCodigoQueCasa(linea, PatronConjuntoAlDiaCopiado).Should().BeTrue(linea);
@@ -320,6 +321,7 @@ public class ReglasDeNegocioSinCopiasTests
             "        var alDia = CumplimientoDocumental.Evaluar(estados);",
             "        // EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad",
             "        var vencidos = documentos.Count(d => d.Estado == EstadoDocumento.Vencido);",
+            "        e is EstadoDocumento.Vigente or EstadoDocumento.Proximo;",
         ];
         foreach (var linea in noAlDia)
             EsCodigoQueCasa(linea, PatronConjuntoAlDiaCopiado).Should().BeFalse(linea);

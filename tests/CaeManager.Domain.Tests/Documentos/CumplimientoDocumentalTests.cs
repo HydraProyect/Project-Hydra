@@ -217,7 +217,8 @@ public class CumplimientoDocumentalTests
         porContexto.Values.Sum(f => f.Requeridos).Should().Be(conClave,
             "cada par pertenece a un único Centro, Trabajador, Cliente empresarial y, si la tiene, Empresa");
         porContexto.Values.Sum(f => f.AlDia).Should().Be(
-            Pares.Where(p => contexto != ContextoCumplimiento.Empresa || p.EmpresaId is not null).Count(p => CumplimientoDocumental.EsConforme(p.Estado)));
+            Pares.Where(p => contexto != ContextoCumplimiento.Empresa || p.EmpresaId is not null).Count(p => p.Estado is EstadoDocumento.Vigente or EstadoDocumento.Proximo or EstadoDocumento.Urgente or EstadoDocumento.SinCaducidad),
+            "oráculo escrito a mano (la decisión del 2026-10-03), no derivado de la función bajo prueba");
     }
 
     [Fact]

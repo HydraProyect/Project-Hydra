@@ -135,10 +135,14 @@ public class ConsultasKpiAcotadasBajoRlsTests : IAsyncLifetime
         kpis.DocumentosProximos.Should().Be(referencia.GetValueOrDefault(EstadoDocumento.Proximo)).And.Be(1);
         kpis.DocumentosVigentes.Should().Be(referencia.GetValueOrDefault(EstadoDocumento.Vigente)).And.Be(5);
 
-        // Denominador: todo menos «no caduca»; el SinConfirmar resta.
-        var totalConVigencia = referencia.Where(p => p.Key != EstadoDocumento.SinCaducidad).Sum(p => p.Value);
-        totalConVigencia.Should().Be(9, "control de la siembra: 1+1+1+5 con fecha, 1 sin confirmar, el «no caduca» fuera");
-        kpis.TasaCumplimientoDocumental.Should().Be(referencia.GetValueOrDefault(EstadoDocumento.Vigente) * 100 / totalConVigencia);
+        // Decisión del propietario (2026-10-03): el porcentaje cuenta TODO lo requerido. Al día = Vigente, Próximo,
+        // Urgente y «No caduca»; el Sin confirmar entra en el denominador como no conforme.
+        var requeridos = referencia.Sum(p => p.Value);
+        requeridos.Should().Be(10, "control de la siembra: 1 vencido + 1 urgente + 1 próximo + 5 vigentes + 1 sin confirmar + 1 «no caduca»");
+        var alDia = referencia.GetValueOrDefault(EstadoDocumento.Vigente) + referencia.GetValueOrDefault(EstadoDocumento.Proximo)
+            + referencia.GetValueOrDefault(EstadoDocumento.Urgente) + referencia.GetValueOrDefault(EstadoDocumento.SinCaducidad);
+        alDia.Should().Be(8);
+        kpis.TasaCumplimientoDocumental.Should().Be(80, "8 de 10; mismo cálculo que CumplimientoDocumental, no una fórmula propia de Inicio");
         kpis.SinDatos.Should().BeFalse();
     }
 
