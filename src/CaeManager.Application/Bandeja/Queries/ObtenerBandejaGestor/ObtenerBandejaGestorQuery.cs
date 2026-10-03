@@ -287,7 +287,11 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
         items.AddRange(requisitos.Select(rq => new ItemBandejaDto(
             Id: $"requisito-{rq.CentroId}-{rq.TrabajadorId}-{rq.TipoDocumentoId}",
             Tipo: TipoItemBandeja.RequisitoPendiente,
-            Titulo: $"{rq.TipoDocumentoNombre} — {rq.TrabajadorNombre}",
+            // Un requisito de Empresa bloquea al Trabajador por un documento que NO es suyo: el título lo dice
+            // (R2), para que nadie le pida al Trabajador lo que tiene que aportar su Empresa.
+            Titulo: rq.Ambito == AmbitoAplicacion.Empresa
+                ? $"{rq.TipoDocumentoNombre} (Empresa {rq.EmpresaNombre ?? "sin nombre"}) — {rq.TrabajadorNombre}"
+                : $"{rq.TipoDocumentoNombre} — {rq.TrabajadorNombre}",
             Subtitulo: rq.CentroNombre,
             Fecha: null,
             TrabajadorId: rq.TrabajadorId,

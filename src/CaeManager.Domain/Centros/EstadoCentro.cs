@@ -20,9 +20,13 @@ public enum EstadoCentro
     Faltante = 4,
 
     /// <summary>
-    /// Al menos un RequisitoDocumental de este Centro con BloqueaAcceso=true
-    /// sigue sin Cumplido. Es el peor caso posible: aunque toda la
-    /// documentación esté Vigente, el acceso al Centro sigue bloqueado.
+    /// Hoy lo causa un Trabajador asignado al que le falta por completo un Tipo
+    /// marcado con <c>TipoDocumentoCentro.BloqueaAcceso</c>, o una acreditación de
+    /// la plataforma vencida o rechazada. Es el peor caso posible. OJO: la regla
+    /// de acceso (<see cref="Documentos.ReglaBloqueoDeAcceso"/>: ausente o vencido,
+    /// del Trabajador o de su Empresa, bloquean a PERSONAS, no al Centro) no está
+    /// aplicada entera aquí; qué debe enseñar el Centro con Trabajadores o Empresas
+    /// bloqueados es una decisión de producto pendiente.
     /// </summary>
     Bloqueado = 5,
 
