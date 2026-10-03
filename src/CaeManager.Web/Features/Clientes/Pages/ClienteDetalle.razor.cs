@@ -97,7 +97,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     /// <summary>
     /// Los bloqueos de acceso de los Trabajadores en los Centros de ESTE Cliente empresarial (regla única por Centro,
-    /// <c>IEvaluacionDeAccesoPorCentroService</c>). «Bloqueado» es un estado del Trabajador: el Cliente dice cuántos hay y dónde.
+    /// <c>IEvaluacionDeAccesoPorCentroService</c>). «Bloqueado» es un estado del Trabajador: el Cliente empresarial dice cuántos hay y dónde.
     /// </summary>
     private IReadOnlyList<DocumentacionBloqueantePendienteDto> _bloqueos = [];
     private bool _cargandoCentros;
@@ -199,6 +199,33 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     {
         _drawerToleranciasVisible = true;
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// La tolerancia cambia justo lo que la regla de acceso dice de cada Trabajador: tras guardarla se vuelven a leer los
+    /// bloqueos para que la cabecera no siga contando los de antes. Informativo: si falla, se queda lo que había.
+    /// </summary>
+    private async Task RefrescarBloqueosAsync()
+    {
+        if (_detalle is not { } detalle) return;
+        var generacion = _generacion;
+        try
+        {
+            var bloqueos = await LeerBloqueosDelClienteAsync(detalle.Id);
+            if (generacion != _generacion) return;
+            _bloqueos = bloqueos;
+        }
+        catch (Exception)
+        {
+            // Sin lectura nueva, la cabecera conserva el último recuento.
+        }
+    }
+
+    /// <summary>Los bloqueos visibles, quedándose con los de los Centros de este Cliente empresarial.</summary>
+    private async Task<List<DocumentacionBloqueantePendienteDto>> LeerBloqueosDelClienteAsync(Guid id)
+    {
+        var bloqueos = await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(), _cancelacion);
+        return bloqueos.Where(b => b.ClienteId == id).ToList();
     }
 
     private void ReiniciarParaNuevoCliente()
@@ -319,9 +346,9 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             // Informativo, como el resto de indicadores: si falla, la cabecera no los pinta (no tumba la pestaña).
             try
             {
-                var bloqueos = await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(), _cancelacion);
+                var bloqueos = await LeerBloqueosDelClienteAsync(id);
                 if (carga != _cargaCentros) return;
-                _bloqueos = bloqueos.Where(b => b.ClienteId == id).ToList();
+                _bloqueos = bloqueos;
             }
             catch (Exception)
             {

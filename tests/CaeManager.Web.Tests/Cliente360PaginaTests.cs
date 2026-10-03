@@ -8,6 +8,9 @@ using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Common;
+using CaeManager.Application.TiposDocumento.Commands.EstablecerToleranciaClienteEmpresarial;
+using CaeManager.Application.TiposDocumento.Queries.ObtenerToleranciasClienteEmpresarial;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
@@ -70,6 +73,9 @@ public class Cliente360PaginaTests : BunitContext
         public List<DocumentacionBloqueantePendienteDto> Bloqueos { get; } = [];
         public List<object> Enviadas { get; } = [];
 
+        /// <summary>Lo que ocurre en el servidor al guardar una tolerancia (p. ej. que los bloqueos cambien).</summary>
+        public Action? AlGuardarTolerancia { get; set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
@@ -87,9 +93,18 @@ public class Cliente360PaginaTests : BunitContext
             ObtenerEmpresasDeClienteQuery q when EmpresasPorCliente.TryGetValue(q.ClienteId, out var propias) => propias,
             ObtenerEmpresasDeClienteQuery => Empresas,
             ObtenerSubcontratasDeClienteQuery => Subcontratas,
-            ObtenerDocumentacionBloqueantePendienteQuery => (IReadOnlyList<DocumentacionBloqueantePendienteDto>)Bloqueos,
+            ObtenerDocumentacionBloqueantePendienteQuery => (IReadOnlyList<DocumentacionBloqueantePendienteDto>)Bloqueos.ToList(),
+            ObtenerToleranciasClienteEmpresarialQuery => (IReadOnlyList<ToleranciaTipoDocumentoDto>)
+                [new ToleranciaTipoDocumentoDto(Guid.NewGuid(), "Formación PRL", AmbitoAplicacion.Trabajador, 0)],
+            EstablecerToleranciaClienteEmpresarialCommand => GuardarTolerancia(),
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
+
+        private Result GuardarTolerancia()
+        {
+            AlGuardarTolerancia?.Invoke();
+            return Result.Exito();
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             Task.CompletedTask;
@@ -272,6 +287,29 @@ public class Cliente360PaginaTests : BunitContext
         Textos(cut.FindAll(".cliente360-indicadores .ventana-contexto")[0].QuerySelectorAll(".ventana-linea")).Should().BeEquivalentTo([
             "Juan Pérez · Almacén Getafe", "Juan Pérez · Oficinas Bilbao", "Marco Vila · Almacén Getafe"]);
         cut.Markup.Should().NotContain("Bloqueo de la plataforma CAE", "ningún Centro está bloqueado por la plataforma");
+    }
+
+    /// <summary>
+    /// La tolerancia cambia el resultado de la regla de acceso: tras guardarla, la cabecera vuelve a leer los bloqueos y deja de
+    /// contar al Trabajador que la nueva tolerancia ya admite (sin recargar la página).
+    /// </summary>
+    [Fact]
+    public async Task Guardar_una_tolerancia_refresca_el_indicador_de_Trabajadores_bloqueados()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.Add(Centro("Almacén Getafe", EstadoCentro.Faltante, vencidas: 1));
+        mediador.Bloqueos.Add(Bloqueo(id, "Almacén Getafe", Guid.NewGuid(), "Juan Pérez"));
+        mediador.AlGuardarTolerancia = mediador.Bloqueos.Clear;
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        Textos(cut.FindAll(".cliente360-indicador-boton")).Should().Contain("1 trabajador bloqueado");
+
+        await cut.InvokeAsync(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Configurar tolerancias").Click());
+        cut.WaitForAssertion(() => cut.FindAll("select").Should().NotBeEmpty());
+        cut.FindAll("select")[0].Change("30");
+        await cut.InvokeAsync(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").Click());
+
+        cut.WaitForAssertion(() => Textos(cut.FindAll(".cliente360-indicador-boton")).Should().NotContain("1 trabajador bloqueado"));
     }
 
     [Fact]

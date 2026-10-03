@@ -303,5 +303,5 @@
         </CuerpoConLateral>
     }
 </div>
-<DrawerToleranciasClienteEmpresarial @bind-Visible="_drawerToleranciasVisible" ClienteEmpresarialId="ClienteId" />
+<DrawerToleranciasClienteEmpresarial @bind-Visible="_drawerToleranciasVisible" ClienteEmpresarialId="ClienteId" OnGuardado="RefrescarBloqueosAsync" />
 </LimiteDeErrores>

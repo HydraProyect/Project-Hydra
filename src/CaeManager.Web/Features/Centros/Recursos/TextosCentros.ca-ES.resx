@@ -214,7 +214,7 @@
     <value>ja no val</value>
   </data>
   <data name="BloqueoSituacionFinTolerancia" xml:space="preserve">
-    <value>va vèncer el {0} i la tolerància de {1} dies ha acabat</value>
+    <value>va vèncer el {0} i la tolerància ({1} d) ha acabat</value>
   </data>
   <data name="BloqueoTipoDeEmpresa" xml:space="preserve">
     <value>{0} (de l'Empresa)</value>
