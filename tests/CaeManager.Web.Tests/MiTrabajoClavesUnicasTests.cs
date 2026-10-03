@@ -89,16 +89,9 @@ public class MiTrabajoClavesUnicasTests : BunitContext
         ]);
     }
 
-    [Fact]
-    public async Task Un_Trabajador_en_dos_Centros_sin_el_mismo_documento_pinta_sus_dos_filas_y_el_circuito_sigue_vivo()
+    /// <summary>Pinta Mi trabajo con la cola dada y espera a que la página termine de inicializarse (consultas asíncronas, como el circuito).</summary>
+    private async Task<IRenderedComponent<MiTrabajoPagina>> PintarAsentadoAsync(MiTrabajoAgregadoDto cola, int filasEsperadas)
     {
-        var trabajador = Guid.NewGuid();
-        var tipo = Guid.NewGuid();
-        var cola = ColaDe(
-        [
-            Faltante(trabajador, tipo, Guid.NewGuid(), "Centro Norte"),
-            Faltante(trabajador, tipo, Guid.NewGuid(), "Centro Sur"),
-        ]);
         var mediador = new MediadorAsincrono(cola);
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
@@ -109,16 +102,68 @@ public class MiTrabajoClavesUnicasTests : BunitContext
                 [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, CaeManager.Infrastructure.Identity.Roles.CoordinadorCae)], "prueba"))));
 
         var cut = Render<MiTrabajoPagina>(p => p.AddCascadingValue(estado));
-        cut.WaitForAssertion(() => cut.FindAll(".mi-trabajo-fila").Count.Should().Be(2), TimeSpan.FromSeconds(5));
+        cut.WaitForAssertion(() => cut.FindAll(".mi-trabajo-fila").Count.Should().Be(filasEsperadas), TimeSpan.FromSeconds(5));
 
         // Asentar: la página termina su inicialización (segunda consulta y último repintado) antes de
         // repintar desde la prueba; dos pasadas por el despachador del renderizador vacían su cola.
         await mediador.CandidatosEntregados.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await cut.InvokeAsync(() => { });
         await cut.InvokeAsync(() => { });
+        return cut;
+    }
+
+    [Fact]
+    public async Task Un_Trabajador_en_dos_Centros_sin_el_mismo_documento_pinta_sus_dos_filas_y_el_circuito_sigue_vivo()
+    {
+        var trabajador = Guid.NewGuid();
+        var tipo = Guid.NewGuid();
+        var cola = ColaDe(
+        [
+            Faltante(trabajador, tipo, Guid.NewGuid(), "Centro Norte"),
+            Faltante(trabajador, tipo, Guid.NewGuid(), "Centro Sur"),
+        ]);
+
+        var cut = await PintarAsentadoAsync(cola, filasEsperadas: 2);
 
         // Un repintado más: es el diff contra el árbol anterior el que se rompía con claves repetidas.
         cut.Render();
         cut.FindAll(".mi-trabajo-fila").Should().HaveCount(2);
+    }
+
+    private static ItemBandejaDto FilaConId(string id, string titulo) => new(
+        Id: id, Tipo: TipoItemBandeja.Faltante, Titulo: titulo, Subtitulo: "Ana García — Centro",
+        Fecha: null, TrabajadorId: Guid.NewGuid(), CentroId: Guid.NewGuid(), DocumentoId: null,
+        TipoDocumentoId: Guid.NewGuid(), RequisitoId: null);
+
+    private static MiTrabajoTenantDto TenantConFilas(Guid tenantId, string nombre, params ItemBandejaDto[] items) => new(
+        tenantId, nombre, false, ObtenerBandejaAgrupadaQueryHandler.Agrupar(items), [], [],
+        new ResumenMiTrabajoTenantDto(tenantId, nombre, false, items.Length, items.Length, 0, 0, 0), false);
+
+    /// <summary>
+    /// Salvaguarda que no depende del modelo: aunque un productor emita el mismo Id de fila dos veces en un Tenant, y el mismo Id
+    /// en dos Tenants (el Id no lleva Tenant y «Agrupar por severidad» los mezcla en un mismo grupo), la página pinta TODAS las
+    /// filas con claves distintas y sobrevive al repintado, en las dos agrupaciones.
+    /// </summary>
+    [Fact]
+    public async Task Ids_de_fila_repetidos_dentro_de_un_Tenant_y_entre_Tenants_no_producen_claves_repetidas_en_ninguna_agrupacion()
+    {
+        var segundoTenant = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002");
+        var cola = new MiTrabajoAgregadoDto(
+        [
+            TenantConFilas(TenantBeneficiario, "Refrielectric", FilaConId("alerta-igual", "Apto médico"), FilaConId("alerta-igual", "Apto médico")),
+            TenantConFilas(segundoTenant, "Laboratorios Dexter", FilaConId("alerta-igual", "Apto médico")),
+        ]);
+
+        var cut = await PintarAsentadoAsync(cola, filasEsperadas: 3);
+
+        ClavesDeRender.Duplicadas(this, cut).Should().BeEmpty("agrupado por Empresa");
+        ClavesDeRender.ClavesObservadas(this, cut).Should().BeGreaterThanOrEqualTo(3 + 2, "tres filas más los dos grupos de Tenant: el detector observa claves");
+        cut.Render();
+
+        cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent == "Severidad").Click();
+        cut.FindAll(".mi-trabajo-fila").Should().HaveCount(3);
+        ClavesDeRender.Duplicadas(this, cut).Should().BeEmpty("agrupado por severidad: un solo grupo con filas de los dos Tenants");
+        cut.Render();
+        cut.FindAll(".mi-trabajo-fila").Should().HaveCount(3);
     }
 }
