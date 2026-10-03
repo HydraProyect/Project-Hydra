@@ -221,15 +221,19 @@ public class EsquemaAsignacionesOperativasTests : IAsyncLifetime
                 Email = "gestor@propio"
             });
 
-            var raizPropia = AsignacionOperacion.Raiz(_tenant, ServicioCae.Outbound, ahora, ahora);
-            var raizAjena = AsignacionOperacion.Raiz(_otroTenant, ServicioCae.Outbound, ahora, ahora);
-            contexto.AsignacionesOperacion.Add(raizPropia);
-            contexto.AsignacionesOperacion.Add(raizAjena);
+            // La cartera es siempre el Tenant entero (D-7): el alcance de un solo Cliente empresarial lo
+            // acota la operación, y la cartera es universal bajo ella.
+            var acotadaPropia = AsignacionOperacion.Interna(
+                _tenant, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(_clienteId), ahora, null, ahora);
+            var acotadaAjena = AsignacionOperacion.Interna(
+                _otroTenant, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(_clienteDeOtroTenantId), ahora, null, ahora);
+            contexto.AsignacionesOperacion.Add(acotadaPropia);
+            contexto.AsignacionesOperacion.Add(acotadaAjena);
 
             contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
-                raizPropia, gestorId, AmbitoAsignacion.DeRelacionCliente(_clienteId), ahora, null, ahora));
+                acotadaPropia, gestorId, AmbitoAsignacion.Universal, ahora, null, ahora));
             contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
-                raizAjena, gestorId, AmbitoAsignacion.DeRelacionCliente(_clienteDeOtroTenantId), ahora, null, ahora));
+                acotadaAjena, gestorId, AmbitoAsignacion.Universal, ahora, null, ahora));
 
             await contexto.SaveChangesAsync();
         }
@@ -267,7 +271,7 @@ public class EsquemaAsignacionesOperativasTests : IAsyncLifetime
             contexto.AsignacionesOperacion.Add(externa);
             contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 externa, gestorId, Roles.GestorCae,
-                AmbitoAsignacion.DeRelacionCliente(_clienteId), ahora, null, ahora));
+                AmbitoAsignacion.Universal, ahora, null, ahora));
             await contexto.SaveChangesAsync();
 
             // Se cierra la operación dejando la cartera abierta a propósito:

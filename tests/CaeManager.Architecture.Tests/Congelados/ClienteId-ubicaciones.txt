@@ -238,7 +238,6 @@ src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActivi
 src/CaeManager.Application/Tenants/Queries/ObtenerClientesAutorizados/ObtenerClientesAutorizadosQuery.cs :: TenantClienteId = 1
 src/CaeManager.Application/Tenants/Queries/ObtenerDelegaciones/ObtenerDelegacionesQuery.cs :: TenantClienteId = 5
 src/CaeManager.Application/Tenants/Queries/ObtenerOperadoresCaeExternos/ObtenerOperadoresCaeExternosQuery.cs :: TenantClienteId = 1
-src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs :: AmbitoRelacionClienteId = 1
 src/CaeManager.Application/Tenants/TenantsBeneficiariosAutorizados.cs :: TenantClienteId = 1
 src/CaeManager.Application/TiposDocumento/Commands/ActualizarLecturaIaCliente/ActualizarLecturaIaClienteCommand.cs :: ClienteId = 5
 src/CaeManager.Application/TiposDocumento/Commands/ActualizarLecturaIaCliente/ActualizarLecturaIaClienteCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
@@ -286,6 +285,7 @@ src/CaeManager.Domain/Integraciones/SolicitudConexionMicrosoft365.cs :: ClienteI
 src/CaeManager.Domain/Integraciones/SolicitudConexionMicrosoft365.cs :: clienteId = 2
 src/CaeManager.Domain/Operaciones/AmbitoAsignacion.cs :: RelacionClienteId = 4
 src/CaeManager.Domain/Operaciones/AmbitoAsignacion.cs :: relacionClienteId = 4
+src/CaeManager.Domain/Operaciones/AsignacionCartera.cs :: RelacionClienteId = 1
 src/CaeManager.Domain/Operaciones/AsignacionResponsabilidad.cs :: AmbitoRelacionClienteId = 3
 src/CaeManager.Domain/Operaciones/AsignacionResponsabilidad.cs :: RelacionClienteId = 1
 src/CaeManager.Domain/Plantillas/PlantillaDocumento.cs :: ClienteId = 2
@@ -306,7 +306,7 @@ src/CaeManager.Domain/Telemetria/RegistroTiempoGestion.cs :: clienteId = 2
 src/CaeManager.Domain/Tenants/DelegacionTenant.cs :: TenantClienteId = 2
 src/CaeManager.Domain/Tenants/DelegacionTenant.cs :: tenantClienteId = 8
 src/CaeManager.Domain/Tenants/IDelegacionTenantRepository.cs :: tenantClienteId = 1
-src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: AmbitoRelacionClienteId = 2
+src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: AmbitoRelacionClienteId = 1
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ClienteId = 7
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ClienteIds = 4
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ObtenerClienteIdsParaRolClienteAsync = 2
@@ -314,7 +314,7 @@ src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ObtenerClie
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: _clienteIds = 5
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteId = 2
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteIds = 20
-src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: AmbitoRelacionClienteId = 2
+src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: AmbitoRelacionClienteId = 1
 src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: ClienteIds = 2
 src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Identity/ApplicationUser.cs :: ClienteId = 1
@@ -325,7 +325,7 @@ src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: Amb
 src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: TenantClienteId = 2
 src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: AmbitoRelacionClienteId = 2
 src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: TenantClienteId = 5
-src/CaeManager.Infrastructure/Persistence/Configurations/AsignacionCarteraConfiguration.cs :: AmbitoRelacionClienteId = 4
+src/CaeManager.Infrastructure/Persistence/Configurations/AsignacionCarteraConfiguration.cs :: AmbitoRelacionClienteId = 3
 src/CaeManager.Infrastructure/Persistence/Configurations/AsignacionOperacionConfiguration.cs :: AmbitoRelacionClienteId = 6
 src/CaeManager.Infrastructure/Persistence/Configurations/CentroConfiguration.cs :: ClienteId = 3
 src/CaeManager.Infrastructure/Persistence/Configurations/ConexionIntegracionConfiguration.cs :: ClienteId = 1

@@ -200,6 +200,50 @@ public class AsignacionResponsabilidadTests
         crear.Should().Throw<ArgumentException>();
     }
 
+    // ---------- D-7: la cartera de un Gestor CAE es siempre el Tenant entero ----------
+
+    [Fact]
+    public void Una_cartera_externa_no_se_reparte_por_Cliente_empresarial()
+    {
+        var operacion = AsignacionOperacion.Externa(
+            Propietario, Operador, ServicioCae.Outbound, AmbitoAsignacion.Universal, Ahora.AddDays(-1), null, Ahora);
+
+        var crear = () => AsignacionCartera.Externa(
+            operacion, Guid.NewGuid(), "GestorCae", AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()),
+            Ahora.AddDays(-1), null, Ahora);
+
+        crear.Should().Throw<ArgumentException>().WithParameterName("ambito");
+    }
+
+    [Fact]
+    public void Una_cartera_interna_no_se_reparte_por_Cliente_empresarial()
+    {
+        var raiz = AsignacionOperacion.Raiz(Propietario, ServicioCae.Outbound, Ahora.AddDays(-1), Ahora);
+
+        var crear = () => AsignacionCartera.Interna(
+            raiz, Guid.NewGuid(), AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()), Ahora.AddDays(-1), null, Ahora);
+
+        crear.Should().Throw<ArgumentException>().WithParameterName("ambito");
+    }
+
+    [Fact]
+    public void Lo_acotado_a_un_Cliente_empresarial_vive_en_la_operacion_y_la_cartera_es_universal_bajo_ella()
+    {
+        // Control positivo: el rechazo es de la CARTERA, no del ámbito en general. La operación acotada sigue
+        // siendo representable y una cartera universal cuelga de ella.
+        var clienteId = Guid.NewGuid();
+        var acotada = AsignacionOperacion.Externa(
+            Propietario, Operador, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteId),
+            Ahora.AddDays(-1), null, Ahora);
+
+        var cartera = AsignacionCartera.Externa(
+            acotada, Guid.NewGuid(), "GestorCae", AmbitoAsignacion.Universal, Ahora.AddDays(-1), null, Ahora);
+
+        acotada.AmbitoRelacionClienteId.Should().Be(clienteId);
+        cartera.AmbitoRelacionClienteId.Should().BeNull();
+        cartera.Ambito.EsUniversal.Should().BeTrue();
+    }
+
     [Fact]
     public void El_ambito_distingue_lo_universal_de_lo_acotado_y_marca_las_dimensiones_diferidas()
     {

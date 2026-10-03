@@ -69,6 +69,7 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
     private Guid _origen;
     private Guid _beneficiario;
     private Guid _operacion;
+    private Guid _operacionDeCliente;
 
     public async Task InitializeAsync()
     {
@@ -138,15 +139,21 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
             _propietario.AsignacionesOperacion.Add(operacion);
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacion, _gestorUniversal, Roles.GestorCae, AmbitoAsignacion.Universal, ayer, null, ahora));
+            // El Gestor CAE «de Cliente»: su cartera es el Tenant entero (D-7) bajo una Asignación de Operación
+            // ACOTADA a ese Cliente empresarial, así que su ámbito efectivo es solo ese Cliente.
+            var operacionDeCliente = AsignacionOperacion.Externa(
+                _beneficiario, _origen, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(cliente.Id), ayer, null, ahora);
+            _propietario.AsignacionesOperacion.Add(operacionDeCliente);
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
-                operacion, _gestorDeCliente, Roles.GestorCae, AmbitoAsignacion.DeRelacionCliente(cliente.Id), ayer, null, ahora));
+                operacionDeCliente, _gestorDeCliente, Roles.GestorCae, AmbitoAsignacion.Universal, ayer, null, ahora));
             // Coordinador CAE con su propia cartera de rol Coordinador (el rol efectivo sale de ella) y
-            // un Gestor CAE a su cargo, el de la cartera acotada al Cliente empresarial: el alcance
+            // un Gestor CAE a su cargo, el de la operación acotada al Cliente empresarial: el alcance
             // de datos del Coordinador es el de su equipo, no el Tenant entero.
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacion, _coordinador, Roles.CoordinadorCae, AmbitoAsignacion.Universal, ayer, null, ahora));
             await _propietario.SaveChangesAsync();
             _operacion = operacion.Id;
+            _operacionDeCliente = operacionDeCliente.Id;
         }
 
         using (AmbitoTenantExplicito.Establecer(_origen))
@@ -233,7 +240,7 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
         // Inicio llega con el Tenant beneficiario como Tenant de la petición; la Visión, con el de origen.
         var tenantDeLaPeticion = new TenantActualDeLaPeticion(seleccionado ? _beneficiario : _origen);
         IClienteActivoSeleccionado seleccion = seleccionado
-            ? new ClienteActivoSeleccionadoFijo(_beneficiario, _operacion)
+            ? new ClienteActivoSeleccionadoFijo(_beneficiario, usuario == _gestorDeCliente ? _operacionDeCliente : _operacion)
             : new SinClienteActivo();
         var runtime = CrearRuntime(usuario, tenantDeLaPeticion);
         _desechables.Add(runtime);

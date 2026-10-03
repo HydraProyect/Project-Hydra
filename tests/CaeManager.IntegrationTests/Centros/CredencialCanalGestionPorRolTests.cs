@@ -91,7 +91,7 @@ public class CredencialCanalGestionPorRolTests : IAsyncLifetime
         // encuentra el canal y no a la regla de roles. El Gestor CAE es un rol
         // de cartera: sin Asignación de Cartera sobre el Cliente empresarial
         // del Centro, su alcance de gestión es vacío y también recibiría null.
-        var gestor = await OtorgarCarteraAsync(_clienteId);
+        var gestor = await OtorgarCarteraAsync();
         var resultado = await ObtenerAsync(gestor, "GestorCae", _tenant);
         resultado.Should().NotBeNull();
         resultado!.Contrasena.Should().Be("secreto-repro");
@@ -112,7 +112,7 @@ public class CredencialCanalGestionPorRolTests : IAsyncLifetime
         (await ObtenerAsync(Guid.NewGuid(), "Consulta", Guid.NewGuid())).Should().BeNull();
     }
 
-    private async Task<Guid> OtorgarCarteraAsync(Guid clienteId)
+    private async Task<Guid> OtorgarCarteraAsync()
     {
         await using var contexto = CrearContexto(_tenant);
         var usuarioId = Guid.NewGuid();
@@ -121,7 +121,7 @@ public class CredencialCanalGestionPorRolTests : IAsyncLifetime
         var raiz = AsignacionOperacion.Raiz(_tenant, ServicioCae.Outbound, ahora, ahora);
         contexto.AsignacionesOperacion.Add(raiz);
         contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
-            raiz, usuarioId, AmbitoAsignacion.DeRelacionCliente(clienteId), ahora, null, ahora));
+            raiz, usuarioId, AmbitoAsignacion.Universal, ahora, null, ahora));
 
         await contexto.SaveChangesAsync();
         return usuarioId;
@@ -155,7 +155,7 @@ public class CredencialCanalGestionPorRolTests : IAsyncLifetime
     [Fact]
     public async Task La_lectura_del_Gestor_CAE_queda_en_la_auditoria_sin_el_secreto()
     {
-        var gestor = await OtorgarCarteraAsync(_clienteId);
+        var gestor = await OtorgarCarteraAsync();
 
         (await ObtenerAsync(gestor, "GestorCae", _tenant)).Should().NotBeNull();
 
@@ -174,7 +174,7 @@ public class CredencialCanalGestionPorRolTests : IAsyncLifetime
     [Fact]
     public async Task La_lectura_desde_una_operacion_delegada_registra_la_via_y_su_amparo()
     {
-        var gestor = await OtorgarCarteraAsync(_clienteId);
+        var gestor = await OtorgarCarteraAsync();
         var asignacionOperacionId = Guid.NewGuid();
         var actor = new ActorAuditoria(gestor, null, TipoViaAcceso.OperacionDelegada, asignacionOperacionId);
 

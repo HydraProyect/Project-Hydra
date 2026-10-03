@@ -268,8 +268,8 @@ public class ExpiracionAsignacionesHostedService(
     /// parciales de "un responsable vigente por ámbito" — todos terminan en
     /// "Vigente" por convención en este esquema (ver la migración
     /// AgregarAsignacionesOperativas: IX_AsignacionesOperacion_RaizVigente,
-    /// _ResponsableRelacionVigente, _DelegacionTotalVigente y sus equivalentes
-    /// en AsignacionesCartera) — deshace el cambio en memoria y deja la
+    /// _ResponsableRelacionVigente, _DelegacionTotalVigente y, en AsignacionesCartera,
+    /// IX_AsignacionesCartera_UsuarioUniversalVigente) — deshace el cambio en memoria y deja la
     /// asignación Programada. Es la traducción del error de base de datos a
     /// una decisión de negocio legible: "esta no puede activarse todavía
     /// porque hay otra respondiendo del mismo ámbito".

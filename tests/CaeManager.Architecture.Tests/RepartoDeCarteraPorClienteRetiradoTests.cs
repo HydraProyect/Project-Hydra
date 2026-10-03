@@ -47,6 +47,32 @@ public class RepartoDeCarteraPorClienteRetiradoTests
             "empresarial. Control positivo incluido: la definición tiene que aparecer, o el escaneo no mira");
     }
 
+    /// <summary>
+    /// Desde la contracción (incremento 3) el dominio y el CHECK <c>CK_AsignacionesCartera_TenantEnteroSalvoCerrada</c>
+    /// impiden una cartera no cerrada por Cliente empresarial. Fabricar una en una prueba solo es legítimo para
+    /// ejercitar la migración de datos o el rechazo de la base (<c>CarteraLegadaPorCliente</c>); en cualquier otra
+    /// prueba, acotar el alcance a un Cliente empresarial se hace acotando la Asignación de Operación.
+    /// </summary>
+    [Fact]
+    public void Solo_las_pruebas_de_migracion_fabrican_una_cartera_por_Cliente_empresarial()
+    {
+        var raiz = RaizDelRepositorio();
+        var carpetaPermitida = "tests/CaeManager.IntegrationTests/Migraciones/";
+
+        var usos = Directory.EnumerateFiles(Path.Combine(raiz, "tests"), "*.cs", SearchOption.AllDirectories)
+            .Where(a => !a.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
+                        && !a.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+            .Where(a => ContieneIdentificador(a, "CarteraLegadaPorCliente"))
+            .Select(a => Rel(raiz, a))
+            .ToList();
+
+        usos.Should().NotBeEmpty("control positivo: la pruebas de migración sí la usan y el instrumento las ve");
+        usos.Should().OnlyContain(u => u.StartsWith(carpetaPermitida, StringComparison.Ordinal),
+            "una cartera por Cliente empresarial ya no es un estado válido: solo las pruebas de la migración de datos y del " +
+            "CHECK la fabrican, saltándose la guarda de dominio. Cualquier otra prueba acota la Asignación de Operación " +
+            "(AsignacionOperacion.Interna/Externa con AmbitoAsignacion.DeRelacionCliente) y cuelga de ella una cartera universal");
+    }
+
     [Fact]
     public void Nadie_construye_un_AmbitoAsignacion_a_mano_fuera_de_su_definicion()
     {

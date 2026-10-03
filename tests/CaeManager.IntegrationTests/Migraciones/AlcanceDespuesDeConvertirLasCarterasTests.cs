@@ -1,4 +1,4 @@
-using CaeManager.Application.Plataforma;
+﻿using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
@@ -19,24 +19,29 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Migraciones;
 
 /// <summary>
-/// D-7 (2026-10-02): <b>nadie pierde ni gana alcance indebidamente</b> al convertir las carteras por Cliente
-/// empresarial en carteras del Tenant entero. Se mide el <see cref="AlcanceDatosService"/> real, contra
-/// PostgreSQL real, <b>antes</b> y <b>después</b> de aplicar <c>ConvierteCarterasPorClienteATenantEntero</c>
-/// sobre los mismos datos, para cada rol que interviene:
+/// D-7 (2026-10-02): <b>el alcance que queda tras convertir las carteras por Cliente empresarial en carteras
+/// del Tenant entero</b>. Se mide el <see cref="AlcanceDatosService"/> real, contra PostgreSQL real, sobre
+/// datos sembrados con el esquema ANTERIOR a <c>ConvierteCarterasPorClienteATenantEntero</c> (el estado de
+/// staging y producción antes de desplegarla) y migrados hacia delante, para cada rol que interviene:
 /// <list type="bullet">
-/// <item><b>Gestor CAE</b> con cartera por Cliente empresarial: de unos pocos Clientes a todo el Tenant (es
-/// la decisión del propietario, el efecto buscado); con la cartera caducada, sin cartera o con la de otro
-/// Tenant: sin cambios, sigue en alcance cero.</item>
+/// <item><b>Gestor CAE</b> con cartera por Cliente empresarial vigente: pasa a todo el Tenant (la decisión del
+/// propietario, el efecto buscado); con la cartera caducada, sin cartera o con la de otro Tenant: alcance cero,
+/// no gana nada.</item>
 /// <item><b>Coordinador CAE</b>: lo hereda de su equipo, también de un Gestor CAE desactivado (decisión C,
-/// 2026-09-24); si su equipo no tenía cartera, sigue en cero.</item>
-/// <item><b>Dirección CAE</b>, <b>Administrador</b> y <b>Consulta</b>: alcance total antes y después; ninguna
-/// cartera se lo da ni se lo quita.</item>
+/// 2026-09-24); si su equipo no tenía cartera, alcance cero.</item>
+/// <item><b>Dirección CAE</b>, <b>Administrador</b> y <b>Consulta</b>: alcance total; ninguna cartera se lo da ni
+/// se lo quita.</item>
 /// </list>
-/// La regla que se comprueba para cada uno es la misma: <c>después ⊇ antes</c> (nadie pierde) y que lo que se
-/// gana es exactamente el Tenant entero y solo para quien lo tenía por una cartera por Cliente empresarial
-/// (nadie gana de más).
+/// <para>
+/// <b>Qué ya no se mide</b>: la comparación «antes ⊆ después» con el lector antiguo. Con la contracción de D-7
+/// (incremento 3) el lector ya no interpreta una cartera por Cliente empresarial —el dominio y el CHECK
+/// <c>CK_AsignacionesCartera_TenantEnteroSalvoCerrada</c> la hacen irrepresentable—, así que el «antes» solo
+/// podía medirse con código retirado. Esa comparación se hizo y se midió en producción al desplegar el
+/// incremento 2; lo que sigue vigente, y se comprueba aquí, es el resultado: quién gana el Tenant entero y
+/// quién no gana nada.
+/// </para>
 /// </summary>
-public class AlcanceAntesYDespuesDeConvertirLasCarterasTests : IAsyncLifetime
+public class AlcanceDespuesDeConvertirLasCarterasTests : IAsyncLifetime
 {
     private const string MigracionDelCambio = "20261002185604_ConvierteCarterasPorClienteATenantEntero";
 
@@ -98,14 +103,12 @@ public class AlcanceAntesYDespuesDeConvertirLasCarterasTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Nadie_pierde_ni_gana_alcance_indebidamente_al_convertir_las_carteras_por_Cliente_empresarial()
+    public async Task Tras_convertir_las_carteras_por_Cliente_empresarial_gana_el_Tenant_entero_solo_quien_debe()
     {
-        var antes = await MedirTodosAsync();
-
-        // Control positivo del estado previo: el reparto por Cliente empresarial limita de verdad.
-        antes[_gestorConUnCliente].Clientes.Should().Equal([_clientes[0]]);
-        antes[_gestorConOtroCliente].Clientes.Should().Equal([_clientes[1]]);
-        antes[_coordinadorConEquipo].Clientes.Should().BeEquivalentTo([_clientes[0], _clientes[1]]);
+        // Control de que el arnés sembró de verdad el estado previo: carteras por Cliente empresarial no cerradas.
+        await using (var contexto = NuevoContexto(null))
+            (await contexto.AsignacionesCartera.CountAsync(c => c.AmbitoRelacionClienteId != null && c.Estado != EstadoAsignacion.Cerrada))
+                .Should().BeGreaterThan(0, "el estado previo tiene carteras repartidas por Cliente empresarial");
 
         await using (var contexto = NuevoContexto(null))
             await contexto.GetService<IMigrator>().MigrateAsync();
@@ -114,14 +117,6 @@ public class AlcanceAntesYDespuesDeConvertirLasCarterasTests : IAsyncLifetime
         var tenantEntero = _clientes;
 
         using var _ = new FluentAssertions.Execution.AssertionScope();
-
-        // Nadie pierde: lo que veía antes lo sigue viendo.
-        foreach (var (usuario, antesDe) in antes)
-        {
-            if (antesDe.Clientes is null) { despues[usuario].Clientes.Should().BeNull($"{Nombre(usuario)}: alcance total antes y después"); continue; }
-            antesDe.Clientes.Should().BeSubsetOf(despues[usuario].Clientes!, $"{Nombre(usuario)} no pierde Clientes empresariales");
-            antesDe.Centros!.Should().BeSubsetOf(despues[usuario].Centros!, $"{Nombre(usuario)} no pierde Centros");
-        }
 
         // Quién gana el Tenant entero: Gestores CAE con cartera por Cliente empresarial vigente, y los Coordinadores CAE
         // de esos Gestores CAE (incluido un Gestor CAE desactivado: decisión C del 2026-09-24).
@@ -135,19 +130,20 @@ public class AlcanceAntesYDespuesDeConvertirLasCarterasTests : IAsyncLifetime
         // Quién NO gana nada: sin cartera, con la cartera caducada, equipo sin cartera, otro Tenant.
         foreach (var sinCambios in new[] { _gestorSinCartera, _gestorCaducado, _coordinadorSinCartera, _gestorDeOtroTenant })
         {
-            despues[sinCambios].Should().BeEquivalentTo(antes[sinCambios], $"{Nombre(sinCambios)} no tenía cartera por Cliente empresarial vigente: no gana nada");
-            despues[sinCambios].Clientes.Should().BeEmpty();
+            despues[sinCambios].Clientes.Should().BeEmpty($"{Nombre(sinCambios)} no tenía cartera por Cliente empresarial vigente: no gana nada");
+            despues[sinCambios].Centros.Should().BeEmpty();
+            despues[sinCambios].AccesoTotal.Should().BeFalse();
         }
 
         // Quien ya tenía el Tenant entero lo conserva, y no más.
-        despues[_gestorYaUniversal].Should().BeEquivalentTo(antes[_gestorYaUniversal]);
         despues[_gestorYaUniversal].Clientes.Should().BeEquivalentTo(tenantEntero);
+        despues[_gestorYaUniversal].Centros.Should().BeEquivalentTo(_centros);
 
         // Roles de alcance total: ni la cartera ni su conversión les dan ni les quitan nada.
         foreach (var total in new[] { _direccion, _administrador, _consulta })
         {
             despues[total].AccesoTotal.Should().BeTrue($"{Nombre(total)} sigue con alcance total");
-            despues[total].Should().BeEquivalentTo(antes[total]);
+            despues[total].Clientes.Should().BeNull($"{Nombre(total)}: alcance total, sin lista");
         }
 
         // Nadie cruza de Tenant: el Gestor CAE del otro Tenant ve el suyo, y lo que se midió en _tenant no incluye el ajeno.
@@ -256,8 +252,7 @@ public class AlcanceAntesYDespuesDeConvertirLasCarterasTests : IAsyncLifetime
         }
 
         AsignacionCartera PorCliente(Guid usuario, int cliente, DateTime? hasta = null, DateTime? desde = null) =>
-            AsignacionCartera.Interna(
-                raiz, usuario, AmbitoAsignacion.DeRelacionCliente(_clientes[cliente]), desde ?? ahora.AddDays(-30), hasta, ahora);
+            CarteraLegadaPorCliente.Interna(raiz, usuario, _clientes[cliente], desde ?? ahora.AddDays(-30), hasta, ahora);
 
         contexto.AsignacionesCartera.AddRange(
             PorCliente(_gestorConUnCliente, 0),
@@ -288,8 +283,8 @@ public class AlcanceAntesYDespuesDeConvertirLasCarterasTests : IAsyncLifetime
             UserName = "otro@medicion.test",
             Email = "otro@medicion.test",
         });
-        contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
-            raiz, _gestorDeOtroTenant, AmbitoAsignacion.DeRelacionCliente(cliente.Id), ahora.AddDays(-30), null, ahora));
+        contexto.AsignacionesCartera.Add(CarteraLegadaPorCliente.Interna(
+            raiz, _gestorDeOtroTenant, cliente.Id, ahora.AddDays(-30), null, ahora));
         await contexto.SaveChangesAsync();
     }
 

@@ -94,7 +94,7 @@ public class InstruccionIaCarteraBajoRlsTests : IAsyncLifetime
                 tenant, _tenantOrigen, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora, null, ahora);
             _propietario.AsignacionesOperacion.Add(operacion);
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
-                operacion, _usuario, Roles.GestorCae, AmbitoAsignacion.DeRelacionCliente(cliente.Id), ahora, null, ahora));
+                operacion, _usuario, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora));
             await _propietario.SaveChangesAsync();
         }
 

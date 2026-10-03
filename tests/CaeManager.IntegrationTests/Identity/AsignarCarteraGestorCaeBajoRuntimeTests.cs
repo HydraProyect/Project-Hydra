@@ -294,10 +294,10 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Retirar_conserva_la_fila_heredada_si_le_queda_un_reparto_por_Cliente_empresarial_en_ese_Tenant()
+    public async Task Retirar_conserva_la_fila_heredada_si_le_queda_otra_cartera_vigente_de_otro_rol_en_ese_Tenant()
     {
         await SembrarCarteraPorSolicitudAceptadaAsync(_gestor, _beneficiarioA);
-        await SembrarCarteraDeClienteAsync(_gestor, _beneficiarioA);
+        await SembrarOtraCarteraDeOtroRolAsync(_gestor, _beneficiarioA);
 
         var resultado = await Ejecutar(_administrador, Roles.Administrador, _operador.Id,
             new AsignarCarteraGestorCaeCommand(_gestor, null, [_beneficiarioA.Id]));
@@ -306,7 +306,7 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
         await using var propietario = ContextoPropietario(_operador.Id);
         var vigentes = await propietario.AsignacionesCartera.AsNoTracking()
             .Where(c => c.UsuarioId == _gestor && c.Estado == EstadoAsignacion.Vigente).ToListAsync();
-        vigentes.Should().ContainSingle().Which.AmbitoRelacionClienteId.Should().NotBeNull("el reparto por Cliente empresarial no se toca");
+        vigentes.Should().ContainSingle().Which.Rol.Should().Be(Roles.Consulta, "la cartera de otro rol no se toca");
         (await propietario.AsignacionesOperadorDelegado.CountAsync(a => a.UsuarioId == _gestor)).Should().Be(1,
             "sin su fila heredada el Tenant dejaría de aparecerle");
     }
@@ -420,8 +420,12 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
         return solicitud.Id;
     }
 
-    /// <summary>Un reparto por Cliente empresarial concreto del Tenant beneficiario.</summary>
-    private async Task SembrarCarteraDeClienteAsync(Guid gestor, Tenant beneficiario)
+    /// <summary>
+    /// Otra cartera vigente del mismo usuario en el Tenant beneficiario, de rol Consulta, bajo una segunda
+    /// Asignación de Operación (acotada a un Cliente empresarial: la universal vigente es única por servicio).
+    /// El retirar del rol Gestor CAE no la toca.
+    /// </summary>
+    private async Task SembrarOtraCarteraDeOtroRolAsync(Guid gestor, Tenant beneficiario)
     {
         Guid empresaId;
         await using (var enBeneficiario = ContextoPropietario(beneficiario.Id))
@@ -434,9 +438,12 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
 
         await using var contexto = ContextoPropietario(beneficiario.Id);
         var ahora = DateTime.UtcNow;
-        var operacion = await contexto.AsignacionesOperacion.SingleAsync(o => o.PropietarioTenantId == beneficiario.Id && !o.EsRaiz);
+        var primera = await contexto.AsignacionesOperacion.SingleAsync(o => o.PropietarioTenantId == beneficiario.Id && !o.EsRaiz);
+        var acotada = AsignacionOperacion.Externa(
+            beneficiario.Id, primera.OperadorTenantId, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(empresaId), ahora, null, ahora);
+        contexto.AsignacionesOperacion.Add(acotada);
         contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
-            operacion, gestor, Roles.GestorCae, AmbitoAsignacion.DeRelacionCliente(empresaId), ahora, null, ahora));
+            acotada, gestor, Roles.Consulta, AmbitoAsignacion.Universal, ahora, null, ahora));
         await contexto.SaveChangesAsync();
     }
 
