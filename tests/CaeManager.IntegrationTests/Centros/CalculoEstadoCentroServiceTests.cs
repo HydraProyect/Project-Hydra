@@ -478,9 +478,9 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     /// plantilla insertan sin mirar si ya hay otro del mismo tipo — la
     /// renovación típica deja el vencido y añade el nuevo. Antes, el
     /// <c>ToDictionary</c> por par lanzaba ArgumentException y tumbaba el
-    /// cumplimiento del Centro entero. Ahora manda el mismo documento que
-    /// elige el paquete de acreditación (<c>PreferenciaDocumentoPorTipo</c>):
-    /// el no vencido antes que el vencido.
+    /// cumplimiento del Centro entero. Ahora manda el documento que elige
+    /// <c>PreferenciaDocumentoPorTipo</c> para representar al tipo: el no
+    /// vencido antes que el vencido.
     /// </summary>
     [Fact]
     public async Task Con_el_vencido_y_su_renovacion_del_mismo_tipo_cuenta_al_dia_por_el_vigente()

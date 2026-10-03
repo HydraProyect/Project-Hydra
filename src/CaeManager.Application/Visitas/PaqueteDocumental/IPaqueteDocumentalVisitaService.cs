@@ -14,7 +14,7 @@ namespace CaeManager.Application.Visitas.PaqueteDocumental;
 ///
 /// <para>
 /// El zip sale hacia el Cliente empresarial, así que solo lleva documentos
-/// <b>vigentes</b> y <b>uno por titular y tipo</b> (el de mayor vigencia): ni vencidos
+/// <b>vigentes</b> y <b>uno por titular y tipo</b> (el de emisión más reciente): ni vencidos
 /// ni copias repetidas. Un tipo del que solo hay copias vencidas no se envía y
 /// queda registrado en el log. Detalle en <c>PaqueteDocumentalVisitaService</c>.
 /// </para>

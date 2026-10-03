@@ -9,8 +9,10 @@ namespace CaeManager.Domain.Documentos;
 /// Los tres valores son explícitos <b>a propósito</b>. Antes, una
 /// <c>FechaVencimiento</c> nula significaba a la vez «este documento no
 /// caduca» y «nadie ha anotado cuándo caduca», y las dos salían como vigencia
-/// infinita: un documento sin fecha anotada desplazaba del paquete de
-/// acreditación a otro con vigencia comprobada. «No lo sé» no es «no caduca».
+/// infinita: un documento sin fecha anotada ganaba por «vigencia máxima» a otro
+/// con vigencia comprobada. «No lo sé» no es «no caduca»: no se ordena como
+/// vigencia infinita (en el paquete de acreditación ya no se ordena por vigencia,
+/// sino por emisión).
 /// </para>
 ///
 /// <para>

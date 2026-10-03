@@ -21,11 +21,10 @@ using Xunit;
 namespace CaeManager.Application.Tests.Visitas;
 
 /// <summary>
-/// Regla del propietario (2026-09-20) para el zip que sale hacia el Cliente
-/// empresarial: «se envían todos los documentos vigentes, y uno de cada uno. Si hay
-/// cinco reconocimientos médicos o cinco EPIs vigentes por algún error, solo se
-/// tiene que mandar el más actual y el de mayor vigencia. No se envía todos los
-/// documentos vencidos ni nada de eso.»
+/// Regla del propietario (2026-09-20, precisada el 2026-10-01) para el zip que sale hacia el
+/// Cliente empresarial: se envían los documentos vigentes, uno por titular y tipo, y de las
+/// copias vigentes de un tipo la de FechaEmision más reciente (aunque otra venza más tarde);
+/// nunca los vencidos. «Sin confirmar» y «No caduca» son vigentes y entran.
 ///
 /// Antes de este cambio el servicio filtraba solo por «tiene archivo», así que
 /// viajaban los vencidos y todas las copias repetidas (el colisionador de nombres
@@ -112,30 +111,52 @@ public class PaqueteDocumentalVisitaServiceTests
     }
 
     [Fact]
-    public async Task Entre_varias_copias_vigentes_del_mismo_tipo_envia_solo_la_de_mayor_vigencia()
+    public async Task Entre_varias_copias_vigentes_del_mismo_tipo_envia_solo_la_de_emision_mas_reciente_aunque_venza_antes()
     {
-        // Cinco reconocimientos vigentes «por algún error»: la de mayor vigencia gana aunque NO sea la de emisión más reciente.
+        // Decisión del propietario (2026-10-01): cinco reconocimientos vigentes «por algún error»;
+        // viaja el de FechaEmision más reciente aunque otro venza mucho más tarde.
         DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-50), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(100)), contenido: "v100");
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-40), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(200)), contenido: "v200-la-mayor");
-        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-10), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(150)), contenido: "v150-mas-reciente");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-40), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(400)), contenido: "v400-vence-la-ultima");
+        DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-10), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(20)), contenido: "emision-mas-reciente-vence-antes");
         DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-60), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(50)), contenido: "v50");
         DocumentoDeTrabajador(_ana, _reconocimiento, emision: Hoy.AddDays(-70), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(60)), contenido: "v60");
 
         await GenerarAsync();
 
-        LeerZip().Should().ContainSingle().Which.Value.Should().Be("v200-la-mayor");
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("emision-mas-reciente-vence-antes");
     }
 
     [Fact]
-    public async Task A_igual_vigencia_gana_la_emision_mas_reciente()
+    public async Task A_igual_emision_gana_la_que_vence_mas_tarde()
     {
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-90), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(100)), contenido: "emision-antigua");
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-5), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(100)), contenido: "emision-reciente");
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-45), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(100)), contenido: "emision-media");
+        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-5), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(100)), contenido: "vence-antes");
+        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-5), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(300)), contenido: "vence-despues");
+        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-45), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(900)), contenido: "emision-antigua");
 
         await GenerarAsync();
 
-        LeerZip().Should().ContainSingle().Which.Value.Should().Be("emision-reciente");
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("vence-despues");
+    }
+
+    [Fact]
+    public async Task La_eleccion_no_depende_del_orden_en_que_devuelve_las_filas_la_base()
+    {
+        // Mismo titular, tipo, emisión y vencimiento: solo el desempate final (alta, luego Id) decide, y
+        // debe dar la misma copia con el conjunto en cualquier orden.
+        var copias = Enumerable.Range(0, 4)
+            .Select(i => DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-5), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), $"copia-{i}"))
+            .ToList();
+
+        var elegida = LeerZip((await ConstruirAsync())!.Contenido).Single().Value;
+
+        foreach (var orden in new[] { copias.AsEnumerable().Reverse().ToList(), [copias[2], copias[0], copias[3], copias[1]] })
+        {
+            _documentos.ListaDocumentos.Clear();
+            _documentos.ListaDocumentos.AddRange(orden);
+
+            LeerZip((await ConstruirAsync())!.Contenido).Single().Value
+                .Should().Be(elegida, "con el mismo conjunto de copias siempre viaja la misma");
+        }
     }
 
     [Fact]
@@ -175,41 +196,67 @@ public class PaqueteDocumentalVisitaServiceTests
     }
 
     [Fact]
-    public async Task No_caduca_confirmado_cuenta_como_vigencia_maxima_frente_a_una_copia_con_fecha()
+    public async Task No_caduca_confirmado_ya_no_gana_por_vigencia_maxima_a_una_copia_de_emision_mas_reciente()
     {
-        DocumentoDeTrabajador(_ana, _formacion, emision: Hoy.AddDays(-10), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(500)), contenido: "con-fecha");
-        DocumentoDeTrabajador(_ana, _formacion, emision: Hoy.AddDays(-900), vigencia: VigenciaDocumento.NoCaduca, contenido: "sin-caducidad");
+        // Antes «No caduca» contaba como vigencia máxima y ganaba aunque fuera la más antigua.
+        DocumentoDeTrabajador(_ana, _formacion, emision: Hoy.AddDays(-10), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(500)), contenido: "con-fecha-reciente");
+        DocumentoDeTrabajador(_ana, _formacion, emision: Hoy.AddDays(-900), vigencia: VigenciaDocumento.NoCaduca, contenido: "sin-caducidad-antigua");
 
         await GenerarAsync();
 
-        LeerZip().Should().ContainSingle().Which.Value.Should().Be("sin-caducidad");
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("con-fecha-reciente");
+    }
+
+    [Fact]
+    public async Task No_caduca_confirmado_de_emision_mas_reciente_gana_a_una_copia_con_fecha()
+    {
+        DocumentoDeTrabajador(_ana, _formacion, emision: Hoy.AddDays(-900), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(500)), contenido: "con-fecha-antigua");
+        DocumentoDeTrabajador(_ana, _formacion, emision: Hoy.AddDays(-10), vigencia: VigenciaDocumento.NoCaduca, contenido: "sin-caducidad-reciente");
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("sin-caducidad-reciente");
     }
 
     // --- Vigencia sin confirmar (FechaVencimiento sin anotar) ---
     //
-    // Antes, «sin fecha» valía DateOnly.MaxValue en el orden: una copia a la que
-    // nadie había anotado el vencimiento ganaba a otra con vigencia comprobada.
-    // Sin confirmar no es «no caduca»: nunca desplaza a una copia confirmada.
+    // Sin confirmar no es vencido: es vigente y entra (decisión 2026-10-01) y compite por su
+    // fecha de emisión como cualquier otra copia. Solo a igual emisión una copia confirmada
+    // la precede. Cambio respecto al contrato anterior (que anteponía siempre la confirmada).
 
     [Fact]
-    public async Task Una_copia_sin_vigencia_confirmada_no_desplaza_a_una_con_vigencia_comprobada()
+    public async Task Una_copia_sin_vigencia_confirmada_de_emision_mas_reciente_gana_a_una_confirmada_y_queda_registrado()
     {
-        // La sin confirmar es la de emisión más reciente: ni por eso gana.
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-300), VigenciaDocumento.VenceEl(Hoy.AddDays(65)), "vigencia-comprobada");
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-1), VigenciaDocumento.SinConfirmar, "sin-confirmar");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-300), VigenciaDocumento.VenceEl(Hoy.AddDays(65)), "vigencia-comprobada-antigua");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-1), VigenciaDocumento.SinConfirmar, "sin-confirmar-reciente");
 
         await GenerarAsync();
 
-        LeerZip().Should().ContainSingle().Which.Value.Should().Be("vigencia-comprobada");
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("sin-confirmar-reciente");
+        _logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Warning
+            && e.Mensaje.Contains("sin vigencia confirmada") && e.Mensaje.Contains(_reconocimiento.Id.ToString()));
+    }
+
+    [Fact]
+    public async Task Una_copia_sin_vigencia_confirmada_de_emision_mas_antigua_pierde_frente_a_una_confirmada()
+    {
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-300), VigenciaDocumento.SinConfirmar, "sin-confirmar-antigua");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-20), VigenciaDocumento.VenceEl(Hoy.AddDays(65)), "vigencia-comprobada-reciente");
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("vigencia-comprobada-reciente");
         _logger.Entradas.Should().NotContain(e => e.Mensaje.Contains("sin vigencia confirmada"),
             "se envió una copia confirmada: no hay nada sin confirmar que avisar");
     }
 
     [Fact]
-    public async Task Una_copia_sin_vigencia_confirmada_no_desplaza_a_una_confirmada_como_que_no_caduca()
+    public async Task A_igual_emision_una_copia_confirmada_precede_a_una_sin_confirmar()
     {
-        DocumentoDeTrabajador(_ana, _formacion, Hoy.AddDays(-900), VigenciaDocumento.NoCaduca, "no-caduca");
-        DocumentoDeTrabajador(_ana, _formacion, Hoy.AddDays(-1), VigenciaDocumento.SinConfirmar, "sin-confirmar");
+        // La confirmada se siembra PRIMERO: sin el paso «confirmada antes», el desempate por alta (la
+        // más tardía gana) daría la sin confirmar, así que el test no puede pasar por casualidad.
+        DocumentoDeTrabajador(_ana, _formacion, Hoy.AddDays(-30), VigenciaDocumento.NoCaduca, "no-caduca");
+        DocumentoDeTrabajador(_ana, _formacion, Hoy.AddDays(-30), VigenciaDocumento.SinConfirmar, "sin-confirmar");
 
         await GenerarAsync();
 
@@ -289,14 +336,42 @@ public class PaqueteDocumentalVisitaServiceTests
     [Fact]
     public async Task Si_el_archivo_de_la_mejor_copia_no_se_puede_abrir_envia_la_siguiente_vigente()
     {
-        // Storage inconsistente: la de mayor vigencia apunta a un objeto que ya no existe.
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(400)), "irrelevante", archivoInexistente: true);
+        // Storage inconsistente: la de emisión más reciente apunta a un objeto que ya no existe, y la reserva
+        // sigue el mismo orden (emisión), no el de vigencia: la de -90 vence mucho más tarde y NO es la elegida.
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "irrelevante", archivoInexistente: true);
         DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-30), VigenciaDocumento.VenceEl(Hoy.AddDays(200)), "copia-de-reserva");
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-90), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "otra-copia");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-90), VigenciaDocumento.VenceEl(Hoy.AddDays(900)), "otra-copia");
 
         await GenerarAsync();
 
         LeerZip().Should().ContainSingle("sigue siendo uno por titular y tipo").Which.Value.Should().Be("copia-de-reserva");
+    }
+
+    [Fact]
+    public async Task El_aviso_de_sin_confirmar_refleja_lo_que_viajo_si_la_elegida_no_se_pudo_abrir()
+    {
+        // La sin confirmar es la de emisión más reciente pero su archivo no existe: viaja la confirmada,
+        // y el log no puede decir que se envió algo sin confirmar.
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-5), VigenciaDocumento.SinConfirmar, "irrelevante", archivoInexistente: true);
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-50), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "confirmada-de-reserva");
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("confirmada-de-reserva");
+        _logger.Entradas.Should().NotContain(e => e.Mensaje.Contains("sin vigencia confirmada"));
+    }
+
+    [Fact]
+    public async Task El_aviso_de_sin_confirmar_consta_si_la_copia_de_reserva_que_viaja_esta_sin_confirmar()
+    {
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-5), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "irrelevante", archivoInexistente: true);
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-50), VigenciaDocumento.SinConfirmar, "sin-confirmar-de-reserva");
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("sin-confirmar-de-reserva");
+        _logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Warning
+            && e.Mensaje.Contains("sin vigencia confirmada") && e.Mensaje.Contains(_reconocimiento.Id.ToString()));
     }
 
     [Fact]

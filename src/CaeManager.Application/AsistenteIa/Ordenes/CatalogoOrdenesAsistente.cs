@@ -265,7 +265,7 @@ public static class CatalogoOrdenesAsistente
                     Cuando: "El Centro se gestiona por correo y ya se sabe a quién se le escribe.",
                     QueSeHace:
                         "No se da de alta a nadie: se manda por correo la documentación vigente, " +
-                        "una copia de cada tipo, la más reciente y de mayor vigencia. Se repite en " +
+                        "una copia de cada tipo, la de emisión más reciente. Se repite en " +
                         "cada Visita, porque el Centro no guarda un estado nuestro.",
                     Ejecucion: [new PasoDeEjecucion(typeof(CrearVisitaCommand))],
                     MacroSugerida: "",
