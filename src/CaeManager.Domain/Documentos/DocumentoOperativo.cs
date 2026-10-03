@@ -42,6 +42,12 @@ public static class DocumentoOperativo
     /// que el historial no cuenta. Todo lector que decide estado, alertas, bloqueo, faltantes o cifras la usa;
     /// <c>ReglasDeNegocioSinCopiasTests</c> inventaría los lectores de <c>.Documentos</c> y exige esto o una
     /// excepción declarada con su motivo.
+    /// <para>
+    /// Solo en la cadena principal de una consulta. Dentro de una subconsulta correlacionada (una proyección que
+    /// consulta <c>Documentos</c> por cada fila: <c>PeorFecha</c> de las listas) EF no traduce la extensión —lanza
+    /// «LINQ expression could not be translated»—: allí se escribe <c>.Where(DocumentoOperativo.Expresion)</c>, que es
+    /// lo mismo y que el ratchet también acepta.
+    /// </para>
     /// </summary>
     public static IQueryable<Documento> Operativos(this IQueryable<Documento> documentos) =>
         documentos.Where(Expresion);

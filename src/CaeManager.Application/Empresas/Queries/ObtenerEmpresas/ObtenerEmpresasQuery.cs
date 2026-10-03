@@ -95,12 +95,12 @@ public class ObtenerEmpresasQueryHandler(
                     e.RazonSocial,
                     e.Cif,
                     e.CreadoEnUtc,
-                    PeorFecha = documentosContext.Documentos.Operativos()
+                    PeorFecha = documentosContext.Documentos.Where(DocumentoOperativo.Expresion)
                         .Where(d => d.EmpresaId == e.Id)
                         .Min(d => (DateOnly?)d.FechaVencimiento),
                     // MIN ignora las fechas nulas, que son a la vez «no caduca» y «sin
                     // confirmar»: lo sin confirmar se cuenta aparte para no perderlo.
-                    HaySinConfirmar = documentosContext.Documentos.Operativos()
+                    HaySinConfirmar = documentosContext.Documentos.Where(DocumentoOperativo.Expresion)
                         .Any(d => d.EmpresaId == e.Id && d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
                 };
 

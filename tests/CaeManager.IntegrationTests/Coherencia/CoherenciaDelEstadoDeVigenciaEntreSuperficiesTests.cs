@@ -175,10 +175,10 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
             new("Sin confirmar", EstadoDocumento.SinConfirmar, _ => VigenciaDocumento.SinConfirmar),
 
             // E2 (diseño del documento efectivo, 2026-10-03): el viejo venció hace 10 días y se renovó con uno que vence a
-            // 300; el viejo está sustituido. Antes de filtrar los operativos, Alertas, la lista de Trabajadores, las causas
+            // 45 (dentro del calendario); el viejo está sustituido. Antes de filtrar los operativos, Alertas, la lista de Trabajadores, las causas
             // del Centro, el calendario, el informe y los KPI lo contaban como «Vencido» junto a la renovación vigente.
             new("E2 renovado: el viejo vencido esta sustituido", EstadoDocumento.Vigente,
-                hoy => VigenciaDocumento.VenceEl(hoy.AddDays(300)), hoy => VigenciaDocumento.VenceEl(hoy.AddDays(-10))),
+                hoy => VigenciaDocumento.VenceEl(hoy.AddDays(45)), hoy => VigenciaDocumento.VenceEl(hoy.AddDays(-10))),
             // E2 inverso: el sustituido sigue «válido» en fecha (vence a 20 días: Próximo) pero ya no está en uso; manda el operativo (vencido).
             // Si un lector olvida el filtro, Alertas y las causas del Centro darían dos filas y el histórico contaría como al día.
             new("E2 inverso: el viejo proximo esta sustituido por uno vencido", EstadoDocumento.Vencido,
