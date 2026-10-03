@@ -5,7 +5,7 @@ using Xunit;
 namespace CaeManager.Domain.Tests.Documentos;
 
 /// <summary>
-/// La regla única de bloqueo de acceso (decisión del propietario, 2026-10-03): un documento bloqueante AUSENTE o
+/// La regla única de bloqueo de acceso (decisión del propietario del producto, 2026-10-03): un documento bloqueante AUSENTE o
 /// VENCIDO bloquea por igual; Próximo y Urgente (válidos hoy), «No caduca» y «Sin confirmar» no bloquean. Cada fila
 /// es una entrada de la tabla; el día de negocio es fijo para que el límite (vence hoy) sea exacto.
 /// </summary>
@@ -51,7 +51,7 @@ public class ReglaBloqueoDeAccesoTests
 
         situacion.Should().Be(SituacionDeRequisitoBloqueante.Vencido);
         ReglaBloqueoDeAcceso.Bloquea(situacion).Should().BeTrue(
-            "un vencido y un ausente bloquean de igual manera (decision del propietario, 2026-10-03)");
+            "un vencido y un ausente bloquean de igual manera (decision del propietario del producto, 2026-10-03)");
     }
 
     [Fact]

@@ -20,7 +20,7 @@ namespace CaeManager.IntegrationTests.Coherencia;
 
 /// <summary>
 /// Bloqueo de acceso por documento bloqueante, dirigido por tabla y contra PostgreSQL con RLS real (el rol
-/// <c>cae_app_runtime</c> de producción). Decisión del propietario, 2026-10-03:
+/// <c>cae_app_runtime</c> de producción). Decisión del propietario del producto, 2026-10-03:
 /// <list type="number">
 /// <item><b>R1</b> — un documento bloqueante de Trabajador ausente o vencido bloquea a ese Trabajador; Próximo,
 /// Urgente (válidos hoy), «No caduca» y «Sin confirmar» no.</item>
@@ -44,6 +44,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     private readonly Guid _tenantA = Guid.NewGuid();
     private readonly Guid _tenantB = Guid.NewGuid();
     private readonly Guid _tenantC = Guid.NewGuid();
+    private readonly Guid _tenantD = Guid.NewGuid();
     private readonly DateOnly _hoy = DiaDeNegocio.Hoy();
     private readonly Guid _usuario = Guid.NewGuid();
     private static int _contadorDni = 10_000_000;
@@ -81,6 +82,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         await SembrarTenantAAsync();
         await SembrarTenantBAsync();
         await SembrarTenantCAsync();
+        await SembrarTenantDAsync();
     }
 
     public async Task DisposeAsync()
@@ -158,7 +160,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         await c.SaveChangesAsync();
 
         var trabajador = new Esperado(AmbitoAplicacion.Trabajador, SituacionDeRequisitoBloqueante.Ausente, true);
-        var trabajadorVencido = new Esperado(AmbitoAplicacion.Trabajador, SituacionDeRequisitoBloqueante.Vencido, true);
+        var trabajadorVencido = new Esperado(AmbitoAplicacion.Trabajador, SituacionDeRequisitoBloqueante.Vencido, false);
         var empresaAusente = new Esperado(AmbitoAplicacion.Empresa, SituacionDeRequisitoBloqueante.Ausente, false);
         var empresaVencida = new Esperado(AmbitoAplicacion.Empresa, SituacionDeRequisitoBloqueante.Vencido, false);
 
@@ -315,6 +317,42 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         _trabajadorC = trabajador.Id;
     }
 
+    private Guid _trabajadorD, _centroDSinGestion;
+
+    /// <summary>
+    /// Tenant D: el certificado de Empresa esta marcado como bloqueante SOLO en un Centro sin gestion CAE. Ese Centro
+    /// no exige nada, asi que su marca no declara requisito: el Trabajador (sin certificado en su Empresa) asignado a
+    /// otro Centro de D, con gestion CAE, no debe quedar bloqueado por ella.
+    /// </summary>
+    private async Task SembrarTenantDAsync()
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantD);
+        var c = _propietario;
+
+        var cliente = Empresa.CrearComoCliente("Cliente empresarial D", "B12345674", false, null, null);
+        var contratista = new Empresa("Contratista D S.L.");
+        c.Empresas.AddRange(cliente, contratista);
+        await c.SaveChangesAsync();
+
+        var centroConGestion = new Centro(cliente.Id, contratista.Id, "Centro D1");
+        var centroSinGestion = new Centro(cliente.Id, contratista.Id, "Centro D2 sin gestion CAE");
+        centroSinGestion.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        var certificado = new TipoDocumento("Certificado de la Seguridad Social", null, false, 1, AmbitoAplicacion.Empresa);
+        c.Centros.AddRange(centroConGestion, centroSinGestion);
+        c.TiposDocumento.Add(certificado);
+        await c.SaveChangesAsync();
+        c.TiposDocumentoCentros.Add(new TipoDocumentoCentro(certificado.Id, centroSinGestion.Id, incluido: true, bloqueaAcceso: true));
+
+        var trabajador = Trabajador.DeEmpresa(contratista.Id, "Trabajador", "De D", Dni());
+        c.Trabajadores.Add(trabajador);
+        await c.SaveChangesAsync();
+        c.Asignaciones.Add(new Asignacion(trabajador.Id, centroConGestion.Id, _hoy.AddDays(-400)));
+        await c.SaveChangesAsync();
+
+        _centroDSinGestion = centroSinGestion.Id;
+        _trabajadorD = trabajador.Id;
+    }
+
     // ---------- Lectura bajo RLS ----------
 
     private CaeManagerDbContext Runtime(Guid tenant)
@@ -364,29 +402,31 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
 
         // Superficie 1: la consulta de Mi trabajo, exactamente lo que dice la tabla.
         foreach (var caso in _casos)
-        foreach (var (centro, esperado) in caso.PorCentro)
         {
-            var filas = pendientes.Where(p => p.TrabajadorId == caso.TrabajadorId && p.CentroId == centro).ToList();
-            if (esperado is null)
+            foreach (var (centro, esperado) in caso.PorCentro)
             {
-                if (filas.Count != 0)
-                    fallos.Add($"{caso.Nombre} · Centro {Nombre(centro)}: no debia estar bloqueado y aparece {Describir(filas)}");
-                continue;
+                var filas = pendientes.Where(p => p.TrabajadorId == caso.TrabajadorId && p.CentroId == centro).ToList();
+                if (esperado is null)
+                {
+                    if (filas.Count != 0)
+                        fallos.Add($"{caso.Nombre} · Centro {Nombre(centro)}: no debia estar bloqueado y aparece {Describir(filas)}");
+                    continue;
+                }
+
+                if (filas.Count != 1)
+                {
+                    fallos.Add($"{caso.Nombre} · Centro {Nombre(centro)}: esperada 1 fila, observadas {filas.Count} {Describir(filas)}");
+                    continue;
+                }
+
+                var fila = filas[0];
+                if (fila.Ambito != esperado.Ambito || fila.Situacion != esperado.Situacion || fila.EsAltaNueva != esperado.EsAltaNueva)
+                    fallos.Add($"{caso.Nombre} · Centro {Nombre(centro)}: esperado {esperado}, observado {Describir([fila])}");
+
+                var tipoEsperado = esperado.Ambito == AmbitoAplicacion.Trabajador ? _tipoPss : _tipoCertificado;
+                if (fila.TipoDocumentoId != tipoEsperado)
+                    fallos.Add($"{caso.Nombre} · Centro {Nombre(centro)}: el requisito no es el del ambito {esperado.Ambito}");
             }
-
-            if (filas.Count != 1)
-            {
-                fallos.Add($"{caso.Nombre} · Centro {Nombre(centro)}: esperada 1 fila, observadas {filas.Count} {Describir(filas)}");
-                continue;
-            }
-
-            var fila = filas[0];
-            if (fila.Ambito != esperado.Ambito || fila.Situacion != esperado.Situacion || fila.EsAltaNueva != esperado.EsAltaNueva)
-                fallos.Add($"{caso.Nombre} · Centro {Nombre(centro)}: esperado {esperado}, observado {Describir([fila])}");
-
-            var tipoEsperado = esperado.Ambito == AmbitoAplicacion.Trabajador ? _tipoPss : _tipoCertificado;
-            if (fila.TipoDocumentoId != tipoEsperado)
-                fallos.Add($"{caso.Nombre} · Centro {Nombre(centro)}: el requisito no es el del ambito {esperado.Ambito}");
         }
 
         // Nada fuera de la tabla: ninguna fila de un Trabajador que la tabla no conozca ni de un tipo sin sujeto (Cliente).
@@ -424,7 +464,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     [Fact]
     public async Task R2_un_requisito_de_Empresa_marcado_en_un_Centro_no_visible_bloquea_igual_en_los_Centros_visibles()
     {
-        // El tipo esta marcado SOLO en el Centro A1; un Gestor que ve solo el A2 tiene que ver bloqueados a los
+        // El tipo esta marcado SOLO en el Centro A1; un Gestor CAE que ve solo el A2 tiene que ver bloqueados a los
         // Trabajadores de la Empresa sin certificado. El alcance limita lo que se devuelve, no si el requisito existe.
         var pendientes = await MiTrabajo(Runtime(_tenantA), new AlcanceDatosServiceFalso(centroIds: [_centroA2]));
 
@@ -458,6 +498,16 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         deA.Should().NotContain(p => p.TrabajadorId == _trabajadorB || p.TrabajadorId == _trabajadorC);
         deA.Should().NotContain(p => p.CentroId == _centroB || p.CentroId == _centroC);
         deA.Should().NotBeEmpty("control: A si tiene bloqueos propios");
+    }
+
+    [Fact]
+    public async Task Un_tipo_de_Empresa_marcado_solo_en_un_Centro_sin_gestion_CAE_no_declara_requisito()
+    {
+        // La marca de un Centro sin gestion CAE no cuenta (ese Centro no exige nada): no se extiende a los demas Centros.
+        (await MiTrabajo(Runtime(_tenantD))).Should().BeEmpty(
+            "el unico Centro que marca el certificado como bloqueante no tiene gestion CAE");
+        _trabajadorD.Should().NotBe(Guid.Empty, "control: el Trabajador existe y esta asignado");
+        _centroDSinGestion.Should().NotBe(Guid.Empty);
     }
 
     private string Nombre(Guid centro) =>

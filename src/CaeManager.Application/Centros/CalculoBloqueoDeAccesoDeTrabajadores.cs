@@ -18,8 +18,8 @@ public readonly record struct DocumentoParaBloqueo(
 /// <param name="Ambito">Quién es el sujeto del requisito: el propio Trabajador o su Empresa (R2).</param>
 /// <param name="EmpresaId">La Empresa dueña del requisito cuando <paramref name="Ambito"/> es Empresa; si no, <c>null</c>.</param>
 /// <param name="EsAltaNueva">
-/// Solo en requisitos de Trabajador: no tiene NINGÚN documento válido hoy de los tipos bloqueantes del Centro
-/// (nunca llegó a completar el alta). Un requisito de Empresa nunca es «alta nueva»: el Trabajador está
+/// Solo en requisitos de Trabajador: no tiene NINGÚN documento, ni siquiera vencido, de los tipos bloqueantes
+/// del Centro (nunca llegó a completar el alta). Un requisito de Empresa nunca es «alta nueva»: el Trabajador está
 /// bloqueado por su Empresa, no por no haber terminado su propia alta.
 /// </param>
 public record BloqueoDeAccesoDeTrabajador(
@@ -64,7 +64,9 @@ public static class CalculoBloqueoDeAccesoDeTrabajadores
                     tipoId => tipoId,
                     tipoId => ReglaBloqueoDeAcceso.Evaluar(vigenciasDeTrabajador[(asignacion.TrabajadorId, tipoId)], hoy));
 
-                var esAltaNueva = situaciones.Values.All(ReglaBloqueoDeAcceso.Bloquea);
+                // «Alta nueva» = ningún requisito de este Centro tiene siquiera un documento (todos ausentes).
+                // Que a alguien se le haya vencido un documento no es un alta sin terminar: es un bloqueo.
+                var esAltaNueva = situaciones.Values.All(s => s == SituacionDeRequisitoBloqueante.Ausente);
 
                 foreach (var (tipoId, situacion) in situaciones)
                 {

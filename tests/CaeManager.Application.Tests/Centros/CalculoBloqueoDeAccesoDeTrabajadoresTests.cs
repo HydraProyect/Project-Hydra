@@ -6,7 +6,7 @@ using Xunit;
 namespace CaeManager.Application.Tests.Centros;
 
 /// <summary>
-/// R1, R2 y R3 de la decisión del propietario (2026-10-03) sobre la función pura que las aplica, sin base de datos:
+/// R1, R2 y R3 de la decisión del propietario del producto (2026-10-03) sobre la función pura que las aplica, sin base de datos:
 /// quién queda bloqueado, en qué Centros y por qué requisito. El aislamiento entre Tenants y la carga real de datos
 /// los prueba <c>CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests</c> (Integración, Postgres con RLS).
 /// </summary>
@@ -55,7 +55,7 @@ public class CalculoBloqueoDeAccesoDeTrabajadoresTests
         bloqueo.CentroId.Should().Be(CentroA);
         bloqueo.Ambito.Should().Be(AmbitoAplicacion.Trabajador);
         bloqueo.Situacion.Should().Be(SituacionDeRequisitoBloqueante.Ausente);
-        bloqueo.EsAltaNueva.Should().BeTrue("no tiene ningun documento bloqueante valido: alta sin completar");
+        bloqueo.EsAltaNueva.Should().BeTrue("no tiene ningun documento de los bloqueantes: alta sin completar");
     }
 
     [Fact]
@@ -67,7 +67,20 @@ public class CalculoBloqueoDeAccesoDeTrabajadoresTests
 
         var bloqueo = bloqueos.Should().ContainSingle().Subject;
         bloqueo.Situacion.Should().Be(SituacionDeRequisitoBloqueante.Vencido);
-        bloqueo.EsAltaNueva.Should().BeTrue("un vencido deja de ser valido: ningun bloqueante vale hoy");
+        bloqueo.EsAltaNueva.Should().BeFalse("tuvo el documento y se le vencio: es un bloqueo, no un alta sin completar");
+    }
+
+    [Fact]
+    public void R1_con_un_bloqueante_vencido_y_otro_ausente_ninguno_es_alta_nueva()
+    {
+        var bloqueos = Calcular(
+            [new(CentroA, Ana, EmpresaX)], TiposDeTrabajador((CentroA, [TipoPss, TipoApto])), TiposDeEmpresa(),
+            DeTrabajador(Ana, TipoPss, VigenciaDocumento.VenceEl(Hoy.AddDays(-1))));
+
+        bloqueos.Should().HaveCount(2);
+        bloqueos.Should().OnlyContain(b => !b.EsAltaNueva, "tuvo documentos: el alta no es nueva, esta bloqueado");
+        bloqueos.Select(b => b.Situacion).Should().BeEquivalentTo(
+            [SituacionDeRequisitoBloqueante.Vencido, SituacionDeRequisitoBloqueante.Ausente]);
     }
 
     [Theory]

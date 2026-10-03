@@ -26,11 +26,11 @@ public record ObtenerDocumentacionBloqueantePendienteQuery : IRequest<IReadOnlyL
 /// <param name="ClienteId">Cliente del Centro — alimenta la agrupación "por situación" del rediseño de Inicio (hallazgo P-03 de la auditoría de producto 2026-08-16). El Centro ya es exacto aquí, así que no hace falta ningún criterio de desambiguación.</param>
 /// <param name="EmpresaId">Empresa del Trabajador (<c>Trabajador.EmpresaId</c>) — sub-agrupación Empresa→Trabajador de "Requiere atención" en vocabulario Consultora (GrupoCola). En una fila de ámbito Empresa es la Empresa dueña del requisito, sea cual sea la columna que la guarde.</param>
 /// <param name="EsAltaNueva">
-/// True cuando el Trabajador no tiene NINGÚN documento válido hoy de los tipos
+/// True cuando el Trabajador no tiene NINGÚN documento (ni siquiera vencido) de los tipos
 /// de Trabajador que bloquean acceso en este Centro — nunca llegó a completar el alta, no
 /// es que se le haya caducado uno. Señal sin umbral (decisión de producto
 /// 2026-08-16): no depende de FechaAlta/CreadoEnUtc, solo de si ya hay algo
-/// válido o no. Distingue "sigue de alta" (visita tradicional, algo ya
+/// o no. Distingue "sigue de alta" (visita tradicional, algo ya
 /// vigente) de "nunca llegó a entrar" (alta nueva) para dar un tratamiento de
 /// UI distinto — ver TipoItemBandejaUi. Nunca es true en una fila de ámbito Empresa.
 /// </param>

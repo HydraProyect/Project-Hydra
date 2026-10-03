@@ -18,7 +18,7 @@ public enum SituacionDeRequisitoBloqueante
 
 /// <summary>
 /// <b>Punto único</b> de la regla «un documento bloqueante ausente o vencido bloquea el acceso»
-/// (decisión del propietario, 2026-10-03). Ninguna superficie decide por su cuenta si un documento
+/// (decisión del propietario del producto, 2026-10-03). Ninguna superficie decide por su cuenta si un documento
 /// bloqueante «cuenta»: llaman aquí.
 ///
 /// <list type="number">
@@ -36,7 +36,7 @@ public enum SituacionDeRequisitoBloqueante
 /// «Válido hoy» es <b>no vencido</b>: un documento con fecha de vencimiento anterior a hoy no vale; uno que
 /// vence hoy, o más adelante (Próximo o Urgente), vale. «Sin confirmar» y «No caduca» no tienen fecha y por
 /// tanto no están vencidos: no bloquean. Eso es lo que ya hacía Mi trabajo y no se decidió cambiarlo para el
-/// bloqueo (el propietario fijó «Sin confirmar» solo para paneles e incidencias, no para el acceso).
+/// bloqueo (el propietario del producto fijó «Sin confirmar» solo para paneles e incidencias, no para el acceso).
 /// </para>
 ///
 /// <para>
@@ -50,7 +50,7 @@ public static class ReglaBloqueoDeAcceso
 {
     /// <summary>¿Vale este documento hoy para cumplir un requisito bloqueante? Todo lo que no está vencido.</summary>
     public static bool ValidoHoy(VigenciaDocumento vigencia, DateOnly hoy) =>
-        vigencia.FechaVencimiento is not { } fecha || fecha >= hoy;
+        CalculadoraEstadoDocumento.Calcular(vigencia, hoy, umbralAmbarDias: 0, umbralRojoDias: 0) != EstadoDocumento.Vencido;
 
     /// <summary>
     /// Situación del requisito dados TODOS los Documentos de ese tipo que tiene el sujeto (puede haber un
