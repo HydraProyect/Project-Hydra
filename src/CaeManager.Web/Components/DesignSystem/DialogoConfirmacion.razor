@@ -2,7 +2,7 @@
     Patrón estándar de confirmación destructiva (ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, "Eliminar").
     Nunca usar confirm() del navegador — siempre este diálogo.
 *@
-<Modal Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" CerrarAlHacerClicFuera="!EnProgreso">
+<Modal @ref="_modal" HayCambios="HayCambios" Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" CerrarAlHacerClicFuera="!EnProgreso">
     <ChildContent>
         <p>@Mensaje</p>
         @ChildContent
@@ -42,7 +42,20 @@
     /// <summary>Variante del botón de confirmar: destructiva por defecto; una acción que deshace (reactivar) no lo es.</summary>
     [Parameter] public VarianteBoton VarianteConfirmar { get; set; } = VarianteBoton.Destructivo;
 
-    private Task CancelarAsync() => VisibleChanged.InvokeAsync(false);
+    /// <summary>
+    /// Si el contenido que la pantalla monta bajo el mensaje (<see cref="ChildContent"/>) tiene algo escrito que se
+    /// perdería al cerrar, p. ej. el «Motivo (opcional)» de cancelar una Visita. La X, Escape, el fondo y el botón de
+    /// salida (<see cref="TextoBotonDescartar"/>) preguntan «¿Descartar cambios?» mientras devuelva cierto; «Seguir
+    /// editando» conserva lo escrito. Sin él (<c>null</c>) el diálogo es el de siempre: no hay dato que perder.
+    /// Regla de Chris (2026-09-29): toda pérdida de edición pregunta.
+    /// </summary>
+    [Parameter] public Func<bool>? HayCambios { get; set; }
+
+    private Modal? _modal;
+
+    // El botón de salida cierra «como la X» (D-05): con cambios pregunta, sin ellos cierra. No llama a VisibleChanged
+    // directamente porque eso se saltaría la pregunta.
+    private Task CancelarAsync() => _modal is { } modal ? modal.SolicitarCierreAsync() : VisibleChanged.InvokeAsync(false);
 
     // Guarda de reentrada. Los botones se desactivan con EnProgreso, pero ese valor
     // lo pone el padre y solo llega aquí cuando el padre vuelve a pintar; hasta

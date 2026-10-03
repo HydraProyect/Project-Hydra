@@ -804,6 +804,27 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private bool HayCambiosSinGuardar =>
         _drawerVisible && _instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir;
 
+    /// <summary>
+    /// Regla de Chris (2026-09-29, toda pérdida de edición pregunta): un diálogo de confirmación (cancelar, reactivar, cancelar
+    /// en lote) con un «Motivo (opcional)» escrito pregunta antes de descartarlo. Solo cuenta con el diálogo abierto (cerrado,
+    /// también tras confirmar, el texto que quede en el campo ya no se puede perder) y un motivo en blanco no es nada escrito.
+    /// </summary>
+    private static bool HayMotivoSinConfirmar(bool dialogoAbierto, string motivo) =>
+        dialogoAbierto && !string.IsNullOrWhiteSpace(motivo);
+
+    /// <summary>Lo lee <c>AvisoCambiosSinGuardar</c> al salir de la pantalla con algún diálogo de motivo a medias.</summary>
+    private bool HayMotivoEnAlgunDialogo() =>
+        HayMotivoSinConfirmar(_confirmarCancelarVisible, _motivoCancelacion)
+        || HayMotivoSinConfirmar(_confirmarReactivarVisible, _motivoReactivacion)
+        || HayMotivoSinConfirmar(_confirmarCancelarLoteVisible, _motivoCancelacion);
+
+    private void CerrarDialogosDescartando()
+    {
+        _confirmarCancelarVisible = false;
+        _confirmarReactivarVisible = false;
+        _confirmarCancelarLoteVisible = false;
+    }
+
     private string InstantaneaFormulario() => string.Join('\u001f',
         _centroId, _fechaInicio, _fechaFin, _horaEstimadaAcceso,
         string.Join(',', _trabajadorIdsSeleccionados.Order()),

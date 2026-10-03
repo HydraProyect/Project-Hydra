@@ -7,6 +7,7 @@ using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentr
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
+using CaeManager.Application.Visitas.Commands.CancelarVisitas;
 using CaeManager.Application.Visitas.Commands.ReactivarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
@@ -186,6 +187,18 @@ public class VisitasGen2Tests : BunitContext
                         var i = Visitas.FindIndex(v => v.Id == cancelar.Id);
                         Visitas[i] = Visitas[i] with { EstaCancelada = true, MotivoCancelacion = cancelar.Motivo };
                         return Respuesta<TResponse>(Result.Exito());
+                    }
+
+                case CancelarVisitasCommand lote:
+                    {
+                        Comandos.Add(lote);
+                        foreach (var id in lote.Ids)
+                        {
+                            var i = Visitas.FindIndex(v => v.Id == id);
+                            Visitas[i] = Visitas[i] with { EstaCancelada = true, MotivoCancelacion = lote.Motivo };
+                        }
+
+                        return Respuesta<TResponse>(Result.Exito(new ResultadoCancelacionLoteDto(lote.Ids.Count, [], lote.Ids)));
                     }
 
                 case ReactivarVisitaCommand reactivar:
@@ -1256,5 +1269,181 @@ public class VisitasGen2Tests : BunitContext
         await cut.PulsarCancelarDelPieAsync(".drawer-pie");
 
         await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
+    // ---------------------------------------------------------------- Diálogos con «Motivo (opcional)»: regla de Chris (2026-09-29, toda pérdida de edición pregunta)
+
+    private const string TextoDelMotivo = "Obra aplazada por lluvia";
+    private const string Cancelar = "cancelar";
+    private const string Reactivar = "reactivar";
+    private const string Lote = "lote";
+
+    /// <summary>Abre uno de los tres diálogos de confirmación con motivo (cancelar, reactivar, cancelar en lote) y escribe el motivo, si hay.</summary>
+    private async Task<(IRenderedComponent<Visitas> Cut, MediatorVisitas Mediator)> AbrirDialogoConMotivoAsync(string cual, string motivo)
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var mediator = new MediatorVisitas();
+        var visita = Visita("Planta Zaragoza") with { EstaCancelada = cual == Reactivar };
+        mediator.Visitas.Add(visita);
+        var cut = Renderizar(mediator);
+
+        switch (cual)
+        {
+            case Cancelar:
+                await ItemDeMenu(cut, "Planta Zaragoza", "Cancelar visita").ClickAsync(new MouseEventArgs());
+                break;
+            case Reactivar:
+                await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
+                    .ChangeAsync(new ChangeEventArgs { Value = false });
+                await ItemDeMenu(cut, "Planta Zaragoza", "Reactivar").ClickAsync(new MouseEventArgs());
+                break;
+            default:
+                await cut.FindAll("button").First(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+                await Fila(cut, "Planta Zaragoza").QuerySelector("input[type=checkbox]:not(.visitas-interruptor)")!
+                    .ChangeAsync(new ChangeEventArgs { Value = true });
+                await cut.FindAll(".barra-acciones-lote button").First(b => b.TextContent.Trim() == "Cancelar seleccionadas")
+                    .ClickAsync(new MouseEventArgs());
+                break;
+        }
+
+        cut.FindAll("[role=dialog] textarea").Should().ContainSingle("el diálogo de confirmación está abierto con su motivo");
+        if (motivo.Length > 0)
+            await cut.Find("[role=dialog] textarea").InputAsync(new ChangeEventArgs { Value = motivo });
+        return (cut, mediator);
+    }
+
+    private static string BotonConfirmar(string cual) => cual switch
+    {
+        Cancelar => "Cancelar visita",
+        Reactivar => "Reactivar",
+        _ => "Cancelar seleccionadas",
+    };
+
+    private static string? MotivoEnviado(MediatorVisitas mediator, string cual) => cual switch
+    {
+        Cancelar => mediator.Comandos.OfType<CancelarVisitaCommand>().Single().Motivo,
+        Reactivar => mediator.Comandos.OfType<ReactivarVisitaCommand>().Single().Motivo,
+        _ => mediator.Comandos.OfType<CancelarVisitasCommand>().Single().Motivo,
+    };
+
+    private static IElement Salida(IRenderedComponent<Visitas> cut, string salida) => salida == "X"
+        ? cut.Find(".modal-cerrar")
+        : cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Volver");
+
+    private static bool PreguntaDescartar(IRenderedComponent<Visitas> cut) =>
+        cut.FindAll("h2").Any(h => h.TextContent.Trim() == "¿Descartar cambios?");
+
+    [Theory]
+    [InlineData(Cancelar, "Volver")]
+    [InlineData(Cancelar, "X")]
+    [InlineData(Reactivar, "Volver")]
+    [InlineData(Reactivar, "X")]
+    [InlineData(Lote, "Volver")]
+    [InlineData(Lote, "X")]
+    public async Task Volver_o_la_X_con_motivo_escrito_pregunta_y_seguir_editando_lo_conserva(string cual, string salida)
+    {
+        var (cut, mediator) = await AbrirDialogoConMotivoAsync(cual, TextoDelMotivo);
+
+        await Salida(cut, salida).ClickAsync(new MouseEventArgs());
+
+        PreguntaDescartar(cut).Should().BeTrue($"«{salida}» con el motivo escrito pregunta antes de tirarlo");
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+
+        PreguntaDescartar(cut).Should().BeFalse();
+        cut.FindComponents<CampoTextarea>().Should().Contain(c => c.Instance.Valor == TextoDelMotivo, "«Seguir editando» conserva lo escrito");
+        mediator.Comandos.Should().BeEmpty("salir no confirma nada");
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == BotonConfirmar(cual)).ClickAsync(new MouseEventArgs());
+        MotivoEnviado(mediator, cual).Should().Be(TextoDelMotivo, "el motivo que viaja en el comando es el que no se descartó");
+    }
+
+    [Theory]
+    [InlineData(Cancelar, "Volver")]
+    [InlineData(Cancelar, "X")]
+    [InlineData(Reactivar, "Volver")]
+    [InlineData(Reactivar, "X")]
+    [InlineData(Lote, "Volver")]
+    [InlineData(Lote, "X")]
+    public async Task Descartar_cambios_cierra_el_dialogo_sin_enviar_nada(string cual, string salida)
+    {
+        var (cut, mediator) = await AbrirDialogoConMotivoAsync(cual, TextoDelMotivo);
+
+        await Salida(cut, salida).ClickAsync(new MouseEventArgs());
+        await cut.PulsarEnElAvisoAsync("Descartar cambios");
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty("al descartar se cierra");
+        mediator.Comandos.Should().BeEmpty("volver no cancela ni reactiva nada");
+    }
+
+    [Theory]
+    [InlineData(Cancelar, "Volver", "")]
+    [InlineData(Cancelar, "X", "")]
+    [InlineData(Cancelar, "Volver", "   ")]
+    [InlineData(Reactivar, "Volver", "")]
+    [InlineData(Reactivar, "X", "")]
+    [InlineData(Reactivar, "X", "   ")]
+    [InlineData(Lote, "Volver", "")]
+    [InlineData(Lote, "X", "")]
+    [InlineData(Lote, "Volver", "   ")]
+    public async Task Volver_o_la_X_sin_motivo_escrito_cierran_sin_preguntar(string cual, string salida, string motivo)
+    {
+        var (cut, mediator) = await AbrirDialogoConMotivoAsync(cual, motivo);
+
+        await Salida(cut, salida).ClickAsync(new MouseEventArgs());
+
+        PreguntaDescartar(cut).Should().BeFalse("sin nada escrito no hay nada que perder");
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        mediator.Comandos.Should().BeEmpty();
+    }
+
+    /// <summary>Salir de la pantalla con el motivo a medias pregunta; sin motivo, o con el diálogo ya cerrado, no.</summary>
+    [Theory]
+    [InlineData(Cancelar)]
+    [InlineData(Reactivar)]
+    [InlineData(Lote)]
+    public async Task Salir_de_la_pantalla_con_el_motivo_a_medias_pregunta_y_sin_el_no(string cual)
+    {
+        var (cut, _) = await AbrirDialogoConMotivoAsync(cual, TextoDelMotivo);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var origen = navegacion.Uri;
+
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+        navegacion.Uri.Should().Be(origen);
+        cut.FindComponents<CampoTextarea>().Should().Contain(c => c.Instance.Valor == TextoDelMotivo, "«Seguir editando» no toca lo escrito");
+
+        await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+        navegacion.Uri.Should().EndWith(AvisoCambiosSinGuardarPrueba.DestinoFuera);
+    }
+
+    [Theory]
+    [InlineData(Cancelar)]
+    [InlineData(Reactivar)]
+    [InlineData(Lote)]
+    public async Task Salir_de_la_pantalla_con_el_dialogo_sin_motivo_no_pregunta(string cual)
+    {
+        var (cut, _) = await AbrirDialogoConMotivoAsync(cual, string.Empty);
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Services.GetRequiredService<NavigationManager>(), "sin motivo no hay nada que perder");
+    }
+
+    /// <summary>
+    /// Tras confirmar, el diálogo se cierra y el texto que queda en el campo (el motivo no se limpia hasta volver a abrirlo) ya no es
+    /// «cambios sin guardar»: salir no pregunta.
+    /// </summary>
+    [Theory]
+    [InlineData(Cancelar)]
+    [InlineData(Reactivar)]
+    [InlineData(Lote)]
+    public async Task Tras_confirmar_con_motivo_salir_de_la_pantalla_no_pregunta(string cual)
+    {
+        var (cut, mediator) = await AbrirDialogoConMotivoAsync(cual, TextoDelMotivo);
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == BotonConfirmar(cual)).ClickAsync(new MouseEventArgs());
+
+        MotivoEnviado(mediator, cual).Should().Be(TextoDelMotivo);
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog]").Should().BeEmpty());
+        await cut.SalirYComprobarQueNoPreguntaAsync(Services.GetRequiredService<NavigationManager>(), "el diálogo ya se cerró al confirmar");
     }
 }
