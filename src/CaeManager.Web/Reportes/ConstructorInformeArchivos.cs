@@ -14,6 +14,14 @@ namespace CaeManager.Web.Reportes;
 /// </summary>
 public static class ConstructorInformeArchivos
 {
+    /// <summary>
+    /// Texto de la columna «Vencimiento» de una fila del informe de vigencia: la fecha, o, sin fecha, el rótulo de
+    /// <see cref="EstadoDocumentoUi.TextoSinFechaDeVencimiento"/> («Sin caducidad» / «Sin confirmar» / «—»). Lo usan
+    /// la hoja de la vista previa (Reportes.razor) y el PDF, para que lo que se ve y lo que se descarga digan lo mismo.
+    /// </summary>
+    public static string TextoVencimiento(FilaReporteDocumentoDto fila) =>
+        fila.FechaVencimiento?.ToString("dd/MM/yyyy") ?? EstadoDocumentoUi.TextoSinFechaDeVencimiento(fila.Estado);
+
     public static byte[] ExcelVigencia(InformeVigenciaDto informe)
     {
         using var libro = new XLWorkbook();
@@ -30,8 +38,12 @@ public static class ConstructorInformeArchivos
             hoja.Cell(fila, 2).Value = documento.TrabajadorNombre;
             hoja.Cell(fila, 3).Value = documento.EmpresaRazonSocial;
             hoja.Cell(fila, 4).Value = documento.TipoDocumentoNombre;
+            // Con fecha, una fecha real de Excel (ordenable y filtrable); sin ella, el rótulo solo en «Sin caducidad» y
+            // «Sin confirmar»; en cualquier otro estado sin fecha, la celda vacía como siempre.
             if (documento.FechaVencimiento is not null)
                 hoja.Cell(fila, 5).Value = documento.FechaVencimiento.Value.ToDateTime(TimeOnly.MinValue);
+            else if (EstadoDocumentoUi.RotulaSinFechaDeVencimiento(documento.Estado))
+                hoja.Cell(fila, 5).Value = EstadoDocumentoUi.TextoSinFechaDeVencimiento(documento.Estado);
             fila++;
         }
 
@@ -48,7 +60,7 @@ public static class ConstructorInformeArchivos
         var filas = informe.Filas.Select(f => new[]
         {
             EstadoDocumentoUi.Texto(f.Estado), f.TrabajadorNombre, f.EmpresaRazonSocial,
-            f.TipoDocumentoNombre, f.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—"
+            f.TipoDocumentoNombre, TextoVencimiento(f)
         }).ToList();
 
         return GeneradorPdfInforme.Generar(titulo, subtitulo, ["Estado", "Trabajador", "Empresa", "Tipo de documento", "Vencimiento"], [55, 130, 120, 130, 80], filas);
