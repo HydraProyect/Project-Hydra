@@ -109,7 +109,7 @@
     <value>Se ejecutará en el Tenant beneficiario {0}</value>
   </data>
   <data name="Plan_SinTenant" xml:space="preserve">
-    <value>Sin Tenant destino</value>
+    <value>Sin organización de destino</value>
   </data>
   <data name="Plan_SinTenantAria" xml:space="preserve">
     <value>Todavía no hay un Tenant beneficiario en el que se ejecute el plan</value>
@@ -121,16 +121,16 @@
     <value>Elige en qué Tenant beneficiario se ejecuta</value>
   </data>
   <data name="Plan_Destino_Mezcla" xml:space="preserve">
-    <value>Este plan mezcla datos de dos Tenants: no se puede confirmar</value>
+    <value>Este plan mezcla datos de dos organizaciones: no se puede confirmar</value>
   </data>
   <data name="Plan_Destino_Discrepancia" xml:space="preserve">
-    <value>El Tenant elegido no es el de los datos: no se puede confirmar</value>
+    <value>La organización elegida no es la de los datos: no se puede confirmar</value>
   </data>
   <data name="Plan_Destino_SinCartera" xml:space="preserve">
-    <value>No hay ningún Tenant en tu Asignación de Cartera</value>
+    <value>No hay ninguna organización en tu Asignación de Cartera</value>
   </data>
   <data name="Plan_TextoNombraOtroTenant" xml:space="preserve">
-    <value>Tu texto nombra el Tenant {0}. El plan sigue en el elegido.</value>
+    <value>Tu texto nombra a {0}. El plan sigue en la organización elegida.</value>
   </data>
   <data name="Plan_CambiarA" xml:space="preserve">
     <value>Cambiar a {0}</value>
@@ -208,7 +208,7 @@
     <value>Consulta de estado</value>
   </data>
   <data name="Campo_tenant" xml:space="preserve">
-    <value>Tenant</value>
+    <value>Organización</value>
   </data>
   <data name="Campo_trabajador" xml:space="preserve">
     <value>Trabajador</value>

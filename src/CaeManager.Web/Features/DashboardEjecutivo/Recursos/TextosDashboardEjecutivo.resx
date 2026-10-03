@@ -82,7 +82,7 @@
     <value>El negocio en el periodo</value>
   </data>
   <data name="VentanaAlcanceTitulo" xml:space="preserve">
-    <value>Alcance</value>
+    <value>Organizaciones</value>
   </data>
   <data name="AlertaPresupuestoIaInicio" xml:space="preserve">
     <value>Presupuesto de IA superado este período en:</value>
@@ -115,7 +115,7 @@
     <value>Del {0} al {1}</value>
   </data>
   <data name="DetalleAlcanceOrganizaciones" xml:space="preserve">
-    <value>{0} en el alcance: la tuya más las que os han delegado su gestión CAE. Los KPI de esta sección suman las {1}.</value>
+    <value>{0} en este panel: la tuya más las que os han delegado su gestión CAE. Los KPI de esta sección suman las {1}.</value>
   </data>
   <data name="AvisoOrganizacionActivaUnica" xml:space="preserve">
     <value>Solo la organización activa: esta consulta no recorre las demás.</value>
@@ -283,16 +283,16 @@
     <value>Coste de IA</value>
   </data>
   <data name="DetalleCosteIaDentro" xml:space="preserve">
-    <value>{0:F2} € de coste estimado de IA documental (OCR más extracción) en el periodo consultado, sumando las {1} del alcance.</value>
+    <value>{0:F2} € de coste estimado de IA documental (OCR más extracción) en el periodo consultado, sumando las {1} de este panel.</value>
   </data>
   <data name="DetalleCosteIaExcedido" xml:space="preserve">
-    <value>{0:F2} € de coste estimado de IA documental (OCR más extracción) en el periodo consultado, sumando las {1} del alcance; {2} por encima de su presupuesto.</value>
+    <value>{0:F2} € de coste estimado de IA documental (OCR más extracción) en el periodo consultado, sumando las {1} de este panel; {2} por encima de su presupuesto.</value>
   </data>
   <data name="PulsoEtiquetaFacturacion" xml:space="preserve">
     <value>Facturación estimada</value>
   </data>
   <data name="DetalleFacturacionPeriodo" xml:space="preserve">
-    <value>{0:F2} € de facturación estimada del periodo consultado, sumando solo los Clientes empresariales con tarifas configuradas de las {1} del alcance.</value>
+    <value>{0:F2} € de facturación estimada del periodo consultado, sumando solo los Clientes empresariales con tarifas configuradas de las {1} de este panel.</value>
   </data>
   <data name="EnlaceVerFacturas" xml:space="preserve">
     <value>Ver facturación →</value>

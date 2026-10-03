@@ -49,7 +49,7 @@ public class ObtenerHistoricoInstruccionTratamientoIaTenantPropietarioQueryHandl
         if (!await autorizacion.PuedeSobreTenantAsync(usuarioId.Value, request.TenantPropietarioId, cancellationToken))
             return Result.Fallo<IReadOnlyList<InstruccionTratamientoIaTenantPropietarioDto>>(Error.Crear(
                 "InstruccionTratamientoIa.SinAutoridad",
-                "No tienes capacidad de administración de plataforma sobre ese tenant."));
+                "No tienes capacidad de administración de plataforma sobre esa organización."));
 
         // Misma razón que en Registrar/Revocar: la tabla lleva RLS + filtro
         // global por TenantId, así que la lectura cruzada exige el ámbito

@@ -907,7 +907,7 @@ public class DocumentosGen2Tests : BunitContext
         await SeleccionarFilas(cut, 2);
         await AbrirConfirmacionDeLote(cut);
         cut.Find("[role=dialog]").TextContent.Should().Contain(
-            "Podrás deshacer la eliminación desde el aviso que aparecerá; después, solo un Administrador del Tenant puede recuperarlos desde Auditoría.");
+            "Podrás deshacer la eliminación desde el aviso que aparecerá; después, solo un Administrador de tu organización puede recuperarlos desde Auditoría.");
         await ConfirmarDialogo(cut);
 
         var aviso = Toasts().Single(t => t.TextoAccion == "Deshacer");

@@ -109,7 +109,7 @@
     <value>S'executarà al Tenant beneficiari {0}</value>
   </data>
   <data name="Plan_SinTenant" xml:space="preserve">
-    <value>Sense Tenant destí</value>
+    <value>Sense organització de destí</value>
   </data>
   <data name="Plan_SinTenantAria" xml:space="preserve">
     <value>Encara no hi ha cap Tenant beneficiari on s'executi el pla</value>
@@ -121,16 +121,16 @@
     <value>Tria en quin Tenant beneficiari s'executa</value>
   </data>
   <data name="Plan_Destino_Mezcla" xml:space="preserve">
-    <value>Aquest pla barreja dades de dos Tenants: no es pot confirmar</value>
+    <value>Aquest pla barreja dades de dues organitzacions: no es pot confirmar</value>
   </data>
   <data name="Plan_Destino_Discrepancia" xml:space="preserve">
-    <value>El Tenant triat no és el de les dades: no es pot confirmar</value>
+    <value>L'organització triada no és la de les dades: no es pot confirmar</value>
   </data>
   <data name="Plan_Destino_SinCartera" xml:space="preserve">
-    <value>No hi ha cap Tenant a la teva Assignació de Cartera</value>
+    <value>No hi ha cap organització a la teva Assignació de Cartera</value>
   </data>
   <data name="Plan_TextoNombraOtroTenant" xml:space="preserve">
-    <value>El teu text nomena el Tenant {0}. El pla continua al triat.</value>
+    <value>El teu text nomena {0}. El pla continua a l'organització triada.</value>
   </data>
   <data name="Plan_CambiarA" xml:space="preserve">
     <value>Canviar a {0}</value>
@@ -208,7 +208,7 @@
     <value>Consulta d'estat</value>
   </data>
   <data name="Campo_tenant" xml:space="preserve">
-    <value>Tenant</value>
+    <value>Organització</value>
   </data>
   <data name="Campo_trabajador" xml:space="preserve">
     <value>Treballador</value>

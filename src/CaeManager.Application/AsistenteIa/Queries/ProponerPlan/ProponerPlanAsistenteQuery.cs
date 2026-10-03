@@ -96,7 +96,7 @@ public class ProponerPlanAsistenteQueryHandler(
             || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantPantalla, cancellationToken))
             return Result.Fallo<PlanPropuestoDto>(Error.Crear(
                 "AsistenteIa.SinInstruccion",
-                "Este tenant todavía no tiene una instrucción de tratamiento con IA vigente — el asistente no puede procesar tu mensaje."));
+                "Esta organización todavía no tiene una instrucción de tratamiento con IA vigente — el asistente no puede procesar tu mensaje."));
 
         var cartera = await mediator.Send(new ComprobarInstruccionIaCarteraQuery(), cancellationToken);
         if (cartera.ErrorSiFalta() is { } sinInstruccion)
@@ -136,7 +136,7 @@ public class ProponerPlanAsistenteQueryHandler(
         if (request.TenantElegido is { } elegido && candidatos.Tenants.All(t => t.TenantId != elegido))
             return Result.Fallo<PlanPropuestoDto>(Error.Crear(
                 "AsistenteIa.TenantFueraDeCartera",
-                "El Tenant elegido no es de tu cartera."));
+                "La organización elegida no es de tu cartera."));
 
         IReadOnlyList<SeleccionCandidatoDto> elegidos = [];
         if (candidatos.Tenants.Count > 0)

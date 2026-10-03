@@ -38,11 +38,11 @@ public class RegistrarInstruccionTratamientoIaTenantPropietarioCommandValidator
         RuleFor(c => c.TenantPropietarioId).NotEmpty();
 
         RuleFor(c => c.VersionDpaAceptada)
-            .NotEmpty().WithMessage("Indica qué versión del DPA aceptó este tenant.")
+            .NotEmpty().WithMessage("Indica qué versión del DPA aceptó esta organización.")
             .MaximumLength(InstruccionTratamientoIaTenantPropietario.LongitudMaximaVersion);
 
         RuleFor(c => c.VersionAnexoSubencargadosAceptada)
-            .NotEmpty().WithMessage("Indica qué versión del Anexo II de subencargados aceptó este tenant.")
+            .NotEmpty().WithMessage("Indica qué versión del Anexo II de subencargados aceptó esta organización.")
             .MaximumLength(InstruccionTratamientoIaTenantPropietario.LongitudMaximaVersion);
     }
 }
@@ -65,16 +65,21 @@ public class RegistrarInstruccionTratamientoIaTenantPropietarioCommandHandler(
         if (!await autorizacion.PuedeSobreTenantAsync(usuarioId.Value, request.TenantPropietarioId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "InstruccionTratamientoIa.SinAutoridad",
-                "No tienes capacidad de administración de plataforma sobre ese tenant."));
+                "No tienes capacidad de administración de plataforma sobre esa organización."));
 
         // No se distingue "no existe" de "es el tenant de plataforma" en el
         // mensaje: TALVEG no se instruye a sí misma tratamiento de datos de
         // terceros, y ninguna de las dos respuestas debe revelar cuál de las
         // dos ocurrió.
-        var tenantValido = await dbContext.Tenants
-            .AnyAsync(t => t.Id == request.TenantPropietarioId && !t.EsPlataforma, cancellationToken);
-        if (!tenantValido)
-            return Result.Fallo<Guid>(Error.Crear("Tenant.NoEncontrado", "No encontramos ese tenant."));
+        // El nombre se lee aquí, tras confirmar la autoridad sobre este Tenant propietario: quien llega
+        // puede ver su nombre, y solo el mensaje de «ya vigente» lo dice. Los mensajes de denegación y de
+        // «no encontrado» no lo llevan (no deben revelar qué Ids existen).
+        var nombreTenant = await dbContext.Tenants
+            .Where(t => t.Id == request.TenantPropietarioId && !t.EsPlataforma)
+            .Select(t => t.Nombre)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (nombreTenant is null)
+            return Result.Fallo<Guid>(Error.Crear("Tenant.NoEncontrado", "No encontramos esa organización."));
 
         // La fila pertenece al Tenant propietario elegido, no al tenant de
         // origen del administrador que la registra — sin este ámbito
@@ -98,7 +103,7 @@ public class RegistrarInstruccionTratamientoIaTenantPropietarioCommandHandler(
             if (await repositorio.ObtenerVigenteAsync(request.TenantPropietarioId, cancellationToken) is not null)
                 return Result.Fallo<Guid>(Error.Crear(
                     "InstruccionTratamientoIa.YaVigente",
-                    "Este tenant ya tiene una instrucción vigente. Revócala antes de registrar una nueva versión."));
+                    $"«{nombreTenant}» ya tiene una instrucción vigente. Revócala antes de registrar una nueva versión."));
 
             var instruccion = new Domain.Cumplimiento.InstruccionTratamientoIaTenantPropietario(
                 request.VersionDpaAceptada,
