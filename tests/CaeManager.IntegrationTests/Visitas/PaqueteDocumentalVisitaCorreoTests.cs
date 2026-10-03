@@ -208,10 +208,11 @@ public class PaqueteDocumentalVisitaCorreoTests
             new VisitaTrabajador(visitaFuera.Id, ana.Id));
 
         var ahora = DateTime.UtcNow;
-        var raiz = AsignacionOperacion.Raiz(_tenantA, ServicioCae.Outbound, ahora, ahora);
-        contexto.AsignacionesOperacion.Add(raiz);
+        // La cartera es siempre el Tenant entero (D-7): el alcance de un solo Cliente empresarial se acota en la operación.
+        var acotada = AsignacionOperacion.Interna(_tenantA, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDentro.Id), ahora, null, ahora);
+        contexto.AsignacionesOperacion.Add(acotada);
         contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
-            raiz, _gestora, AmbitoAsignacion.DeRelacionCliente(clienteDentro.Id), ahora, null, ahora));
+            acotada, _gestora, AmbitoAsignacion.Universal, ahora, null, ahora));
         await contexto.SaveChangesAsync();
 
         (_visitaDentro, _visitaFuera, _visitaSinCanal) = (visitaDentro.Id, visitaFuera.Id, visitaSinCanal.Id);

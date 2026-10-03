@@ -190,12 +190,13 @@ public class AlcanceMemoizadoPorTenantEnFanOutTests : IAsyncLifetime
         }
 
         // --- Asignaciones de Cartera del mismo Gestor CAE, una por Tenant ---
-        // Alfa: operación externa (la Consultora opera Alfa), cartera ACOTADA
-        // a ClienteA1 — el Gestor CAE solo debería ver ese Cliente en Alfa.
+        // Alfa: operación externa ACOTADA a ClienteA1 (la Consultora opera ese Cliente en Alfa) y cartera
+        // universal bajo ella — el Gestor CAE solo debería ver ese Cliente en Alfa (la cartera es siempre el
+        // Tenant entero, D-7: lo acotado vive en la operación).
         var operacionAlfa = AsignacionOperacion.Externa(
-            _tenantAlfa, _tenantConsultora, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora);
+            _tenantAlfa, _tenantConsultora, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(_clienteA1), desde, null, ahora);
         var carteraAlfa = AsignacionCartera.Externa(
-            operacionAlfa, _usuarioGestor, Roles.GestorCae, AmbitoAsignacion.DeRelacionCliente(_clienteA1), desde, null, ahora);
+            operacionAlfa, _usuarioGestor, Roles.GestorCae, AmbitoAsignacion.Universal, desde, null, ahora);
 
         // Beta: misma forma, cartera UNIVERSAL — el Gestor CAE ve los dos
         // Clientes de Beta.

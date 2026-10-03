@@ -20,10 +20,15 @@ namespace CaeManager.Application.Documentos;
 /// <item>El de emisión más reciente.</item>
 /// </list>
 /// Así, si hay uno vigente, gana el vigente más reciente; si solo hay vencidos,
-/// gana el más reciente, y el estado que se muestra sigue siendo Vencido. Es el
-/// mismo orden con el que el paquete de acreditación de la Visita elige qué
-/// copia envía (<c>PaqueteDocumentalVisitaService.SeleccionarDocumentos</c>),
-/// que además descarta los vencidos porque nunca los envía.
+/// gana el más reciente, y el estado que se muestra sigue siendo Vencido.
+/// </para>
+///
+/// <para>
+/// Esta regla decide qué copia representa al tipo en el estado y el cumplimiento. NO es la
+/// del paquete de acreditación de la Visita, que elige entre las copias vigentes la de
+/// emisión más reciente aunque otra venza más tarde
+/// (<see cref="Visitas.PaqueteDocumental.PreferenciaCopiaDelPaquete"/>); el paquete solo
+/// reutiliza de aquí la definición de «vencido» (<see cref="EstaVencido"/>).
 /// </para>
 /// </summary>
 public static class PreferenciaDocumentoPorTipo

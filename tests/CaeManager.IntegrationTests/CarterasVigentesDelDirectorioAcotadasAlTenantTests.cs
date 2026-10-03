@@ -97,11 +97,18 @@ public class CarterasVigentesDelDirectorioAcotadasAlTenantTests : IAsyncLifetime
         // que da igual con qué contexto se escriban.
         await using (var contexto = CrearContexto(_tenantMirado))
         {
+            // La cartera es siempre el Tenant entero (D-7): el alcance de un solo Cliente empresarial lo
+            // acota la Asignación de Operación, y la cartera es universal bajo ella.
             var operacionSobreElMirado = AsignacionOperacion.Externa(
-                _tenantMirado, _tenantOperador, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora);
+                _tenantMirado, _tenantOperador, ServicioCae.Outbound,
+                AmbitoAsignacion.DeRelacionCliente(clienteMirado), desde, null, ahora);
             var operacionSobreElAjeno = AsignacionOperacion.Externa(
-                _tenantAjeno, _tenantOperador, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora);
-            var operacionInterna = AsignacionOperacion.Raiz(_tenantMirado, ServicioCae.Outbound, desde, ahora);
+                _tenantAjeno, _tenantOperador, ServicioCae.Outbound,
+                AmbitoAsignacion.DeRelacionCliente(clienteAjeno), desde, null, ahora);
+            var operacionInterna = AsignacionOperacion.Interna(
+                _tenantMirado, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clientePropio), desde, null, ahora);
+            var operacionInternaCerrada = AsignacionOperacion.Interna(
+                _tenantMirado, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDeCarteraCerrada), desde, null, ahora);
             // Propietario correcto, operador que NO es el tenant de origen del
             // usuario al que se le va a colgar la cartera: la "cartera mal
             // formada" contra la que existe la segunda mitad del filtro.
@@ -116,33 +123,32 @@ public class CarterasVigentesDelDirectorioAcotadasAlTenantTests : IAsyncLifetime
                 _tenantMirado, _tenantOtroOperador, ServicioCae.Outbound,
                 AmbitoAsignacion.DeRelacionCliente(clienteDePosicionAjena), desde, null, ahora);
             contexto.AsignacionesOperacion.AddRange(
-                operacionSobreElMirado, operacionSobreElAjeno, operacionInterna, operacionDeOtroOperador);
+                operacionSobreElMirado, operacionSobreElAjeno, operacionInterna, operacionInternaCerrada,
+                operacionDeOtroOperador);
             await contexto.SaveChangesAsync();
 
             var carteraCerrada = AsignacionCartera.Interna(
-                operacionInterna, gestorPropio, AmbitoAsignacion.DeRelacionCliente(clienteDeCarteraCerrada),
-                desde, null, ahora);
+                operacionInternaCerrada, gestorPropio, AmbitoAsignacion.Universal, desde, null, ahora);
             carteraCerrada.Cerrar(MotivoCierreAsignacion.Revocada, ahora);
 
             contexto.AsignacionesCartera.AddRange(
                 // La que sí cuenta para el usuario de la consultora.
                 AsignacionCartera.Externa(
                     operacionSobreElMirado, gestorDeLaConsultora, "GestorCae",
-                    AmbitoAsignacion.DeRelacionCliente(clienteMirado), desde, null, ahora),
+                    AmbitoAsignacion.Universal, desde, null, ahora),
                 // La misma persona, mismo servicio, OTRO propietario: no es
                 // asunto de quien mira /usuarios en el tenant mirado.
                 AsignacionCartera.Externa(
                     operacionSobreElAjeno, gestorDeLaConsultora, "GestorCae",
-                    AmbitoAsignacion.DeRelacionCliente(clienteAjeno), desde, null, ahora),
+                    AmbitoAsignacion.Universal, desde, null, ahora),
                 // Gestión interna, el camino normal de una cuenta de la casa.
                 AsignacionCartera.Interna(
-                    operacionInterna, gestorPropio, AmbitoAsignacion.DeRelacionCliente(clientePropio),
-                    desde, null, ahora),
+                    operacionInterna, gestorPropio, AmbitoAsignacion.Universal, desde, null, ahora),
                 // Mismo propietario, pero bajo una operación que opera OTRA
                 // consultora: el usuario no ocupa esa posición.
                 AsignacionCartera.Externa(
                     operacionDeOtroOperador, gestorDeLaConsultora, "GestorCae",
-                    AmbitoAsignacion.DeRelacionCliente(clienteDePosicionAjena), desde, null, ahora),
+                    AmbitoAsignacion.Universal, desde, null, ahora),
                 carteraCerrada);
             await contexto.SaveChangesAsync();
         }
@@ -203,8 +209,7 @@ public class CarterasVigentesDelDirectorioAcotadasAlTenantTests : IAsyncLifetime
     /// El ámbito que se pinta es el efectivo, como el de AlcanceDatosService:
     /// la intersección de la cartera con su operación. Una cartera universal
     /// bajo una operación acotada a un Cliente empresarial es ese Cliente, no
-    /// "Toda la operación"; una cartera de otro Cliente bajo esa operación no
-    /// concede nada y el usuario no aparece.
+    /// "Toda la operación".
     /// </summary>
     [Fact]
     public async Task Una_cartera_bajo_una_operacion_acotada_se_pinta_con_su_ambito_efectivo()
@@ -212,26 +217,21 @@ public class CarterasVigentesDelDirectorioAcotadasAlTenantTests : IAsyncLifetime
         var ahora = DateTime.UtcNow;
         var desde = ahora.AddDays(-1);
         var gestorUniversal = Guid.NewGuid();
-        var gestorDeOtroCliente = Guid.NewGuid();
         Guid clienteDeLaOperacion;
 
         await using (var contexto = CrearContexto(_tenantMirado))
         {
             var cliente = Empresa.CrearComoCliente("Cliente Acotado S.A.", "B12345674", false, null, null);
-            var otro = Empresa.CrearComoCliente("Otro Cliente S.A.", "B10380186", false, null, null);
-            contexto.Empresas.AddRange(cliente, otro);
-            contexto.Users.AddRange(
-                CrearUsuario(gestorUniversal, _tenantMirado, "gestor.universal"),
-                CrearUsuario(gestorDeOtroCliente, _tenantMirado, "gestor.otro"));
+            contexto.Empresas.Add(cliente);
+            contexto.Users.Add(CrearUsuario(gestorUniversal, _tenantMirado, "gestor.universal"));
             await contexto.SaveChangesAsync();
             clienteDeLaOperacion = cliente.Id;
 
             var acotada = AsignacionOperacion.Interna(
                 _tenantMirado, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(cliente.Id), desde, null, ahora);
             contexto.AsignacionesOperacion.Add(acotada);
-            contexto.AsignacionesCartera.AddRange(
-                AsignacionCartera.Interna(acotada, gestorUniversal, AmbitoAsignacion.Universal, desde, null, ahora),
-                AsignacionCartera.Interna(acotada, gestorDeOtroCliente, AmbitoAsignacion.DeRelacionCliente(otro.Id), desde, null, ahora));
+            contexto.AsignacionesCartera.Add(
+                AsignacionCartera.Interna(acotada, gestorUniversal, AmbitoAsignacion.Universal, desde, null, ahora));
             await contexto.SaveChangesAsync();
         }
 
@@ -240,7 +240,6 @@ public class CarterasVigentesDelDirectorioAcotadasAlTenantTests : IAsyncLifetime
 
         carteras[gestorUniversal].EsUniversal.Should().BeFalse("una operación acotada nunca es toda la operación del Tenant");
         carteras[gestorUniversal].ClienteIds.Should().Equal([clienteDeLaOperacion]);
-        carteras.Should().NotContainKey(gestorDeOtroCliente, "dos Clientes distintos no se cortan: alcance cero");
     }
 
     /// <summary>

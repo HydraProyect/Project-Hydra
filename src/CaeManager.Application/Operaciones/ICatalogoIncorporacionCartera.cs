@@ -107,8 +107,7 @@ public interface ICatalogoIncorporacionCartera
     /// (las del Operador CAE indicado, con rol Gestor CAE), marca como revocadas —por
     /// <paramref name="actorUsuarioId"/>— las solicitudes de incorporación aceptadas que las
     /// crearon y borra la fila heredada de Operador Delegado <b>solo si no le queda otra
-    /// cartera vigente</b> sobre el mismo Tenant (un reparto por Cliente empresarial
-    /// conservaría su visibilidad). Sin guardar. Devuelve <c>false</c> sin tocar nada si no
+    /// cartera vigente</b> sobre el mismo Tenant (por ejemplo, una de otro rol). Sin guardar. Devuelve <c>false</c> sin tocar nada si no
     /// tenía ese Tenant entero en su cartera. Como
     /// <see cref="IncorporarAsync(Guid, Guid, Guid, Guid, CancellationToken)"/>, exige el
     /// Tenant propietario como Tenant activo (<c>AmbitoTenantExplicito</c>).

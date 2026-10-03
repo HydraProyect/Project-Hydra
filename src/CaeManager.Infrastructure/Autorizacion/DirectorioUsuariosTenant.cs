@@ -514,6 +514,9 @@ public class DirectorioUsuariosTenant(
                 from cartera in identidad.AsignacionesCartera
                 where cartera.PropietarioTenantId == propietarioTenantId
                       && cartera.Estado == EstadoAsignacion.Vigente
+                      // Defensa en profundidad (D-7): ver AlcanceDatosService; una cartera no cerrada por Cliente
+                      // empresarial no concede nada.
+                      && cartera.AmbitoRelacionClienteId == null
                       && cartera.VigenciaDesde <= ahora
                       && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
                 join operacion in identidad.AsignacionesOperacion
@@ -526,7 +529,6 @@ public class DirectorioUsuariosTenant(
                 select new
                 {
                     cartera.UsuarioId,
-                    Cartera = cartera.AmbitoRelacionClienteId,
                     Operacion = operacion.AmbitoRelacionClienteId,
                     DimensionDiferida = cartera.AmbitoCentroId != null || cartera.AmbitoTrabajadorId != null
                                         || cartera.AmbitoProyectoId != null || operacion.AmbitoCentroId != null
@@ -535,19 +537,12 @@ public class DirectorioUsuariosTenant(
                 .Distinct()
                 .ToListAsync(cancellationToken);
 
-            // Mismo ámbito efectivo que AlcanceDatosService: la intersección de
-            // la cartera con su operación. Una cartera universal bajo una
-            // operación acotada a un Cliente empresarial no se pinta como toda
-            // la operación; una dimensión diferida no concede nada.
+            // Mismo ámbito efectivo que AlcanceDatosService: la cartera es siempre el Tenant entero (D-7), así que
+            // el ámbito efectivo es el de su operación. Una cartera universal bajo una operación acotada a un
+            // Cliente empresarial no se pinta como toda la operación; una dimensión diferida no concede nada.
             var efectivos = ambitos
                 .Where(a => !a.DimensionDiferida)
-                .Select(a => new
-                {
-                    a.UsuarioId,
-                    Concede = a.Cartera is null || a.Operacion is null || a.Operacion == a.Cartera,
-                    Ambito = a.Cartera ?? a.Operacion
-                })
-                .Where(a => a.Concede);
+                .Select(a => new { a.UsuarioId, Ambito = a.Operacion });
 
             return efectivos
                 .GroupBy(a => a.UsuarioId)

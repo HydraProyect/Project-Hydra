@@ -22,12 +22,11 @@ namespace CaeManager.IntegrationTests.Migraciones;
 ///
 /// <para>
 /// Lo que se prueba es el contrato de la conversión sobre una base que <b>ya tiene</b> carteras por
-/// Cliente empresarial —el estado previo se construye con las entidades de dominio, que todavía las
-/// admiten, y se migra hacia delante—: quién gana la universal, quién no, qué se cierra y con qué
+/// Cliente empresarial —el estado previo se construye sobre el esquema anterior a la contracción con
+/// <see cref="CarteraLegadaPorCliente"/>, porque el dominio ya no admite una cartera por Cliente empresarial—: quién gana la universal, quién no, qué se cierra y con qué
 /// motivo, que la conversión nunca alarga una caducidad ni concede un rol de Propiedad ni convierte
 /// bajo una operación acotada, que no toca lo que no es por Cliente empresarial, y que es idempotente.
-/// El criterio «nadie pierde ni gana alcance indebidamente» se comprueba aquí contra las filas y,
-/// sobre el servicio de alcance, en <c>AlcanceTrasRetirarElRepartoPorClienteTests</c>.
+/// El resultado sobre el servicio de alcance se comprueba en <c>AlcanceDespuesDeConvertirLasCarterasTests</c>.
 /// </para>
 /// </summary>
 public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
@@ -347,7 +346,7 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         AsignacionCartera Interna(Guid usuario, int cliente, DateTime desde, DateTime? hasta = null) =>
-            AsignacionCartera.Interna(raiz, usuario, AmbitoAsignacion.DeRelacionCliente(clientes[cliente].Id), desde, hasta, ahora);
+            CarteraLegadaPorCliente.Interna(raiz, usuario, clientes[cliente].Id, desde, hasta, ahora);
 
         contexto.AsignacionesCartera.AddRange(
             Interna(_dosClientes, 0, ahora.AddDays(-30)),
@@ -396,8 +395,7 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         AsignacionCartera Externa(AsignacionOperacion operacion, Guid usuario, string rol, int cliente) =>
-            AsignacionCartera.Externa(
-                operacion, usuario, rol, AmbitoAsignacion.DeRelacionCliente(clientes[cliente].Id), ahora.AddDays(-30), null, ahora);
+            CarteraLegadaPorCliente.Externa(operacion, usuario, rol, clientes[cliente].Id, ahora.AddDays(-30), null, ahora);
 
         contexto.AsignacionesCartera.AddRange(
             Externa(externa, _gestorExterno, Roles.GestorCae, 0),

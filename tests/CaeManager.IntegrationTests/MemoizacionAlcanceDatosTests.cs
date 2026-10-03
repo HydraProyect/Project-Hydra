@@ -103,10 +103,11 @@ public class MemoizacionAlcanceDatosTests : IAsyncLifetime
         cliente.AsignarEjecutivo(usuarioId);
 
         var ahora = DateTime.UtcNow;
-        var raiz = AsignacionOperacion.Raiz(_tenant, ServicioCae.Outbound, ahora, ahora);
-        contextoAsignacion.AsignacionesOperacion.Add(raiz);
+        // La cartera es siempre el Tenant entero (D-7): el alcance de un solo Cliente empresarial se acota en la operación.
+        var acotada = AsignacionOperacion.Interna(_tenant, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(_clienteId), ahora, null, ahora);
+        contextoAsignacion.AsignacionesOperacion.Add(acotada);
         contextoAsignacion.AsignacionesCartera.Add(AsignacionCartera.Interna(
-            raiz, usuarioId, AmbitoAsignacion.DeRelacionCliente(_clienteId), ahora, null, ahora));
+            acotada, usuarioId, AmbitoAsignacion.Universal, ahora, null, ahora));
 
         await contextoAsignacion.SaveChangesAsync();
 

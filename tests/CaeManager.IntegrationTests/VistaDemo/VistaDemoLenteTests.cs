@@ -108,24 +108,31 @@ public class VistaDemoLenteTests : IAsyncLifetime
         // Carteras (Operador CAE externo Outbound sobre cada Tenant propietario). G1: 1A y 2; G2: 1B y 3.
         var ahora = DateTime.UtcNow;
         var desde = ahora.AddDays(-2);
-        AsignacionOperacion Operacion(Guid propietario, Guid operadorTenant) =>
-            AsignacionOperacion.Externa(propietario, operadorTenant, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora);
-        AsignacionCartera Cartera(AsignacionOperacion op, Guid usuario, Empresa cliente, DateTime? vigenciaDesde = null) =>
-            AsignacionCartera.Externa(op, usuario, Roles.GestorCae, AmbitoAsignacion.DeRelacionCliente(cliente.Id), vigenciaDesde ?? desde, null, ahora);
+        // La cartera es siempre el Tenant entero (D-7): el alcance de un solo Cliente empresarial se acota en
+        // la Asignación de Operación (una por Cliente, ya que dos delegaciones totales no conviven), y la
+        // cartera es universal bajo ella.
+        AsignacionOperacion Operacion(Guid propietario, Guid operadorTenant, Empresa? soloCliente = null) =>
+            AsignacionOperacion.Externa(propietario, operadorTenant, ServicioCae.Outbound,
+                soloCliente is null ? AmbitoAsignacion.Universal : AmbitoAsignacion.DeRelacionCliente(soloCliente.Id), desde, null, ahora);
+        AsignacionCartera Cartera(AsignacionOperacion op, Guid usuario, DateTime? vigenciaDesde = null) =>
+            AsignacionCartera.Externa(op, usuario, Roles.GestorCae, AmbitoAsignacion.Universal, vigenciaDesde ?? desde, null, ahora);
 
-        var op1 = Operacion(_p1, _operador);
-        var op2 = Operacion(_p2, _operador);
-        var op3 = Operacion(_p3, _operador);
-        var opAjena = Operacion(_tenantReal, _otroOperador);
-        var opRealPropia = Operacion(_tenantReal2, _operador);
-        contexto.AsignacionesOperacion.AddRange(op1, op2, op3, opAjena, opRealPropia);
+        var op1a = Operacion(_p1, _operador, _c1a);
+        var op1b = Operacion(_p1, _operador, _c1b);
+        var op1c = Operacion(_p1, _operador, c1c);
+        var op1d = Operacion(_p1, _operador, c1d);
+        var op2 = Operacion(_p2, _operador, _c2);
+        var op3 = Operacion(_p3, _operador, _c3);
+        var opAjena = Operacion(_tenantReal, _otroOperador, cReal);
+        var opRealPropia = Operacion(_tenantReal2, _operador, cReal2);
+        contexto.AsignacionesOperacion.AddRange(op1a, op1b, op1c, op1d, op2, op3, opAjena, opRealPropia);
         contexto.AsignacionesCartera.AddRange(
-            Cartera(op1, _g1, _c1a), Cartera(op2, _g1, _c2),
-            Cartera(op1, _g2, _c1b), Cartera(op3, _g2, _c3),
-            Cartera(op1, _usuarioCliente, c1c),
-            Cartera(opAjena, _gDeOtroOperador, cReal),
-            Cartera(opRealPropia, _gSoloTenantReal, cReal2),
-            Cartera(op1, _gCarteraFutura, c1d, vigenciaDesde: ahora.AddDays(1)));
+            Cartera(op1a, _g1), Cartera(op2, _g1),
+            Cartera(op1b, _g2), Cartera(op3, _g2),
+            Cartera(op1c, _usuarioCliente),
+            Cartera(opAjena, _gDeOtroOperador),
+            Cartera(opRealPropia, _gSoloTenantReal),
+            Cartera(op1d, _gCarteraFutura, vigenciaDesde: ahora.AddDays(1)));
 
         // Lista multi-Tenant real de la cuenta de demo (vía heredada): los tres Tenants propietarios.
         foreach (var propietario in new[] { _p1, _p2, _p3 })

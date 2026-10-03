@@ -75,6 +75,15 @@ public class AsignacionCartera : AsignacionResponsabilidad
             throw new ArgumentException("La cartera debe tener un usuario.", nameof(usuarioId));
         if (operacion.Estado == EstadoAsignacion.Cerrada)
             throw new ArgumentException("No se puede colgar una cartera de una operación cerrada.", nameof(operacion));
+        // Invariante de D-7 (2026-10-02): la cartera de un Gestor CAE es siempre el Tenant entero. Una
+        // cartera NO cerrada nunca se reparte por Cliente empresarial. Lo repite la base de datos con el
+        // CHECK CK_AsignacionesCartera_TenantEnteroSalvoCerrada (una cartera por Cliente empresarial
+        // solo puede existir ya como historia cerrada, que EF rehidrata sin pasar por este constructor).
+        // Lo acotado vive en la Asignación de Operación, no en la cartera.
+        if (ambito.RelacionClienteId is not null)
+            throw new ArgumentException(
+                "La cartera de un Gestor CAE es siempre el Tenant entero: no se reparte por Cliente empresarial " +
+                "(D-7). Para acotar el alcance se acota la Asignación de Operación.", nameof(ambito));
 
         AsignacionOperacionId = operacion.Id;
         // Denormalizados desde la operación, no desde el llamante: la FK

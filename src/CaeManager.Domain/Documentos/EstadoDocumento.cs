@@ -41,12 +41,18 @@ public enum EstadoDocumento
 
     /// <summary>
     /// El Documento existe pero nadie ha confirmado hasta cuándo vale
-    /// (<see cref="EstadoVigenciaDocumento.SinConfirmar"/>). No es vigente ni
-    /// vencido: es no saberlo, y no puede ganar a una copia con vigencia
-    /// comprobada. Qué cuenta como «al día» depende de la pregunta: en los
-    /// paneles y las incidencias es al día con aviso (decisión 2026-10-01); en
-    /// un porcentaje de cumplimiento es no conforme y entra en el denominador
-    /// (decisión 2026-10-03, <see cref="CumplimientoDocumental"/>).
+    /// (<see cref="EstadoVigenciaDocumento.SinConfirmar"/>). No es vencido: es no
+    /// saberlo. Según la superficie (decisiones del propietario):
+    /// <list type="bullet">
+    /// <item>Paneles e incidencias (Documentación base, Trabajador 360): cuenta como
+    /// «al día con aviso» visible (2026-10-01).</item>
+    /// <item>Porcentajes de cumplimiento: entra en el denominador como no conforme y
+    /// baja el porcentaje (2026-10-03).</item>
+    /// <item>Elección de la copia que representa al tipo en el estado y el cumplimiento
+    /// (<c>PreferenciaDocumentoPorTipo</c>): no gana a una copia con vigencia comprobada.</item>
+    /// <item>Paquete de acreditación: es vigente y entra, compitiendo por su fecha de
+    /// emisión como cualquier otra copia (2026-10-01).</item>
+    /// </list>
     /// </summary>
     SinConfirmar = 6
 }

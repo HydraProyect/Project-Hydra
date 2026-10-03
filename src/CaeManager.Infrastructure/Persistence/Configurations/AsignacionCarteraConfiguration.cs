@@ -12,7 +12,6 @@ public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<Asignacio
 {
     public void Configure(EntityTypeBuilder<AsignacionCartera> builder)
     {
-        builder.ToTable("AsignacionesCartera");
         builder.HasKey(a => a.Id);
 
         builder.Property(a => a.AsignacionOperacionId).IsRequired();
@@ -30,24 +29,15 @@ public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<Asignacio
         // Sin índice propio por AsignacionOperacionId: la FK compuesta hacia la
         // operación ya crea uno que lo lleva de primera columna.
 
-        // Restricción de TRANSICIÓN, no invariante de dominio. Residuo del reparto por Cliente empresarial,
-        // retirado con D-7 (2026-10-02): ningún productor escribe ya una cartera por Cliente empresarial y
-        // la migración ConvierteCarterasPorClienteATenantEntero cerró las que existían. El índice sigue
-        // porque una instancia anterior al despliegue todavía podría escribir una; se retira, junto a la
-        // lectura de ese ámbito, cuando ya no pueda haber instancias antiguas.
-        //
-        // GLOBAL por propietario-cliente, no por operación (auditoría Módulo 5, hallazgo crítico 3/9):
-        // como mucho una cartera vigente por Cliente empresarial y Tenant propietario.
-        builder.HasIndex(
-                a => new { a.PropietarioTenantId, a.AmbitoRelacionClienteId },
-                "IX_AsignacionesCartera_ResponsableRelacionVigente")
-            .IsUnique()
-            .HasFilter(
-                $"\"{nameof(AsignacionCartera.Estado)}\" = 'Vigente' " +
-                $"AND \"{nameof(AsignacionCartera.AmbitoRelacionClienteId)}\" IS NOT NULL " +
-                $"AND \"{nameof(AsignacionCartera.AmbitoCentroId)}\" IS NULL " +
-                $"AND \"{nameof(AsignacionCartera.AmbitoTrabajadorId)}\" IS NULL " +
-                $"AND \"{nameof(AsignacionCartera.AmbitoProyectoId)}\" IS NULL");
+        // La cartera de un Gestor CAE es siempre el Tenant entero (D-7, 2026-10-02): una cartera no cerrada no
+        // puede repartirse por Cliente empresarial. El CHECK es el backstop físico de la guarda de dominio
+        // (AsignacionCartera) y sustituye al índice único transitorio ResponsableRelacionVigente, que existía
+        // solo mientras el reparto era posible. Las carteras CERRADAS conservan su ámbito: es el histórico del
+        // modo retirado (la migración ConvierteCarterasPorClienteATenantEntero las cerró con motivo Reorganizada).
+        builder.ToTable("AsignacionesCartera", t => t.HasCheckConstraint(
+            "CK_AsignacionesCartera_TenantEnteroSalvoCerrada",
+            $"\"{nameof(AsignacionCartera.AmbitoRelacionClienteId)}\" IS NULL " +
+            $"OR \"{nameof(AsignacionCartera.Estado)}\" = 'Cerrada'"));
 
         // Un usuario no puede tener dos carteras universales vigentes sobre la
         // misma operación — es el invariante que hoy impone el índice único

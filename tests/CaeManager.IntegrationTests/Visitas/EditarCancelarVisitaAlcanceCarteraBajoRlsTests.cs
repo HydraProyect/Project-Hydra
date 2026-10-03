@@ -107,10 +107,11 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
                 new VisitaTrabajador(visitaFuera.Id, trabajadorFuera.Id));
 
             var ahora = DateTime.UtcNow;
-            var raiz = AsignacionOperacion.Raiz(_tenant, ServicioCae.Outbound, ahora, ahora);
-            _propietario.AsignacionesOperacion.Add(raiz);
+            // La cartera es siempre el Tenant entero (D-7): el alcance de un solo Cliente empresarial se acota en la operación.
+            var acotada = AsignacionOperacion.Interna(_tenant, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDentro.Id), ahora, null, ahora);
+            _propietario.AsignacionesOperacion.Add(acotada);
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Interna(
-                raiz, _gestor, AmbitoAsignacion.DeRelacionCliente(clienteDentro.Id), ahora, null, ahora));
+                acotada, _gestor, AmbitoAsignacion.Universal, ahora, null, ahora));
             await _propietario.SaveChangesAsync();
 
             (_clienteDentro, _visitaDentro, _visitaFuera) = (clienteDentro.Id, visitaDentro.Id, visitaFuera.Id);
