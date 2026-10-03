@@ -24,16 +24,9 @@ src/CaeManager.Application/Integraciones/Commands/ConectarBuzonMicrosoft365/Cone
 src/CaeManager.Application/Integraciones/Commands/CrearLineaWhatsApp/CrearLineaWhatsAppCommand.cs :: Integraciones.WhatsApp.UsuarioNoVisible [gestor-a-secas] = 1
 src/CaeManager.Application/Integraciones/Commands/CrearLineaWhatsApp/CrearLineaWhatsAppCommand.cs :: WithMessage [gestor-a-secas] = 2
 src/CaeManager.Application/Integraciones/Commands/ReactivarConexion/ReactivarConexionCommand.cs :: Integraciones.Microsoft365.TenantNoResuelto [tenant-a-secas] = 1
-src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs :: AsignacionOperadorDelegado.NoAutorizado [cliente-a-secas] = 2
 src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs :: AsignacionOperadorDelegado.NoAutorizado [operador-a-secas] = 2
 src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs :: WithMessage [operador-a-secas] = 2
 src/CaeManager.Application/Tenants/Commands/CrearClienteDelegante/CrearClienteDeleganteCommand.cs :: ClienteDelegante.NombreDuplicado [tenant-a-secas] = 1
-src/CaeManager.Application/Tenants/Commands/CrearClienteDelegante/CrearClienteDeleganteCommand.cs :: ClienteDelegante.SinPermiso [cliente-a-secas] = 1
-src/CaeManager.Application/Tenants/Commands/CrearClienteDelegante/CrearClienteDeleganteCommand.cs :: WithMessage [cliente-a-secas] = 1
-src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs :: DelegacionTenant.ClienteNoEncontrado [cliente-a-secas] = 1
-src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs :: DelegacionTenant.NoAutorizado [cliente-a-secas] = 1
-src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs :: DelegacionTenant.YaActiva [cliente-a-secas] = 1
-src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs :: WithMessage [cliente-a-secas] = 1
 src/CaeManager.Application/Tenants/Commands/CrearDelegacionTenant/CrearDelegacionTenantCommand.cs :: WithMessage [tenant-a-secas] = 1
 src/CaeManager.Application/Tenants/Commands/CrearOperadorCaeExterno/CrearOperadorCaeExternoCommand.cs :: OperadorCaeExterno.NombreDuplicado [tenant-a-secas] = 1
 src/CaeManager.Application/Tenants/Commands/CrearTenantPropietarioDeOperadorCaeExterno/CrearTenantPropietarioDeOperadorCaeExternoCommand.cs :: TenantPropietarioDeOperador.NombreDuplicado [tenant-a-secas] = 1

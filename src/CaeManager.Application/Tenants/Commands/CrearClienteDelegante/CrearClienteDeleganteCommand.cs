@@ -45,7 +45,7 @@ public class CrearClienteDeleganteCommandValidator : AbstractValidator<CrearClie
     public CrearClienteDeleganteCommandValidator()
     {
         RuleFor(c => c.NombreTenantCliente)
-            .NotEmpty().WithMessage("El nombre del Cliente Delegante es obligatorio.")
+            .NotEmpty().WithMessage("El nombre de la organización es obligatorio.")
             .MaximumLength(Tenant.LongitudMaximaNombre);
     }
 }
@@ -99,7 +99,8 @@ public class CrearClienteDeleganteCommandHandler(
 
         if (!await autorizacion.PuedeGlobalmenteAsync(usuarioId.Value, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
-                "ClienteDelegante.SinPermiso", "Solo la administración de plataforma puede dar de alta un Cliente Delegante."));
+                "ClienteDelegante.SinPermiso",
+                $"Solo la administración de plataforma puede dar de alta la organización «{request.NombreTenantCliente}»."));
 
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
         if (tenantOrigenId is null)

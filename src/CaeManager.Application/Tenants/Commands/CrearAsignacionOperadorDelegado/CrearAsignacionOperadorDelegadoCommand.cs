@@ -72,7 +72,7 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
                 usuarioId.Value, delegacion.TenantClienteId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "AsignacionOperadorDelegado.NoAutorizado",
-                "Solo un administrador del Cliente Delegante puede autorizar a un operador sobre sus datos."));
+                "Solo un administrador de la organización que delega puede autorizar a un operador sobre sus datos."));
 
         // Cuarto sitio del mismo hallazgo de Codex sobre el incremento 1b (ver
         // ReactivarDelegacionTenantCommand y AutorizarOperadorCaeExternoQueries):
@@ -90,7 +90,7 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
         if (esPlataforma)
             return Result.Fallo<Guid>(Error.Crear(
                 "AsignacionOperadorDelegado.NoAutorizado",
-                "Solo un administrador del Cliente Delegante puede autorizar a un operador sobre sus datos."));
+                "Solo un administrador de la organización que delega puede autorizar a un operador sobre sus datos."));
 
         if (!delegacion.Activa)
             return Result.Fallo<Guid>(Error.Crear("AsignacionOperadorDelegado.DelegacionInactiva", "Esta delegación está desactivada."));
