@@ -106,7 +106,26 @@ public class ObtenerBandejaGestorQueryHandlerTests
     }
 
     [Fact]
-    public void Todas_las_filas_de_la_fusion_tienen_Id_distinto_aunque_compartan_Trabajador_y_Tipo()
+    public void IdDeFila_distingue_por_Centro_las_alertas_sin_documento_y_usa_el_documento_cuando_lo_hay()
+    {
+        var trabajador = Guid.NewGuid();
+        var tipo = Guid.NewGuid();
+        var centroA = Guid.NewGuid();
+        var documento = Guid.NewGuid();
+        AlertaDto Alerta(Guid? doc, Guid? centro) => new(
+            DocumentoId: doc, TrabajadorId: trabajador, TrabajadorNombre: "Ana García",
+            TipoDocumentoId: tipo, TipoDocumentoNombre: "Apto médico", FechaVencimiento: null,
+            Estado: doc is null ? EstadoDocumento.Faltante : EstadoDocumento.Proximo, ArchivoUrl: null,
+            CentroNombre: "Centro", CentroId: centro);
+
+        Alerta(null, centroA).IdDeFila("alerta").Should().Be($"alerta-{trabajador}-{tipo}-{centroA}");
+        Alerta(null, null).IdDeFila("alerta").Should().Be($"alerta-{trabajador}-{tipo}-sin-centro");
+        Alerta(null, centroA).IdDeFila("alerta").Should().NotBe(Alerta(null, Guid.NewGuid()).IdDeFila("alerta"));
+        Alerta(documento, centroA).IdDeFila("proximo").Should().Be($"proximo-{documento}");
+    }
+
+    [Fact]
+    public void Las_filas_de_alertas_y_requisitos_de_la_fusion_tienen_Id_distinto_aunque_compartan_Trabajador_y_Tipo()
     {
         var trabajador = Guid.NewGuid();
         var tipo = Guid.NewGuid();
