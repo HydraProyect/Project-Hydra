@@ -392,7 +392,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
     public static List<ItemBandejaDto> MapearProximos(IReadOnlyList<AlertaDto> alertas) => alertas
         .Where(a => a.Estado == EstadoDocumento.Proximo)
         .Select(a => new ItemBandejaDto(
-            Id: $"proximo-{a.DocumentoId?.ToString() ?? $"{a.TrabajadorId}-{a.TipoDocumentoId}"}",
+            Id: a.IdDeFila("proximo"),
             Tipo: TipoItemBandeja.VencimientoProximo,
             Titulo: a.TipoDocumentoNombre,
             Subtitulo: a.CentroNombre is null ? a.TrabajadorNombre : $"{a.TrabajadorNombre} — {a.CentroNombre}",
