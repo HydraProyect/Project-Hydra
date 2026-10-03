@@ -84,6 +84,22 @@ public sealed class PlataformaTabVigenciaEnBloqueTests : BunitContext
     }
 
     [Fact]
+    public async Task El_error_de_la_fecha_vacia_se_va_al_cambiar_la_fecha_o_el_estado_y_no_deja_el_modal_sin_Escape()
+    {
+        var cut = Render<PlataformaTab>();
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Seleccionar sin vigencia").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Contains("Anotar vigencia (2)")).ClickAsync(new MouseEventArgs());
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar vigencia").ClickAsync(new MouseEventArgs());
+        var campo = () => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de vencimiento");
+        campo().Instance.MensajeError.Should().NotBeNullOrWhiteSpace("control positivo: la fecha vacía se rechaza en el campo");
+        _mediador.Recibidas.OfType<ConfirmarVigenciaAcreditacionCommand>().Should().BeEmpty();
+
+        await cut.InvokeAsync(() => campo().Instance.ValorChanged.InvokeAsync("2027-03-01"));
+        campo().Instance.MensajeError.Should().BeNull("el error era del intento anterior; si no, el kit sigue bloqueando Escape y el clic fuera");
+    }
+
+    [Fact]
     public async Task Cancelar_con_la_fecha_escrita_pregunta_y_sin_ella_cierra()
     {
         var cut = Render<PlataformaTab>();

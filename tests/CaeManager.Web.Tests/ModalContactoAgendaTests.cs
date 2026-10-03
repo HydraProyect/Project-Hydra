@@ -97,11 +97,21 @@ public sealed class ModalContactoAgendaTests : BunitContext
         Services.GetRequiredService<ToastService>().Mensajes.Should().BeEmpty("el motivo ya no es un toast que desaparece");
         _visible.Should().BeTrue("un rechazo no cierra el modal");
 
+        await Escribir(cut, "Teléfono (WhatsApp)", "+34 600 00 00 00");
+        Alertas(cut).Should().BeEmpty("corregir cualquier campo, no solo el nombre, retira el motivo del intento anterior y devuelve el clic fuera y Escape");
+
+        await Pulsar(cut, "Guardar");
+        Alertas(cut).Should().Equal("Ya existe un contacto con ese email.");
+
+        await cut.FindAll("input[type=checkbox]")[1].ChangeAsync(new ChangeEventArgs { Value = true });
+        Alertas(cut).Should().BeEmpty("una casilla también cuenta");
+
+        await Pulsar(cut, "Guardar");
         await Escribir(cut, "Nombre", "Nuria Salas Ortiz");
         _mediador.FallaGuardarCon = null;
         await Pulsar(cut, "Guardar");
 
-        _mediador.Enviadas.OfType<GuardarContactoAgendaCommand>().Should().HaveCount(2);
+        _mediador.Enviadas.OfType<GuardarContactoAgendaCommand>().Should().HaveCount(4);
         _visible.Should().BeFalse("guardado correctamente cierra");
     }
 

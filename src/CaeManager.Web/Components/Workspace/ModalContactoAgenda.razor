@@ -25,25 +25,25 @@
                  OnGuardar="GuardarAsync" TextoGuardar="Guardar" TextoCancelar="Cancelar">
     <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="AlCambiarNombre" MensajeError="@_errorNombre" />
     <CampoTexto Etiqueta="Email" Type="email" Valor="@_email" ValorChanged="AlCambiarEmail" MensajeError="@_errorEmail" />
-    <CampoTexto Etiqueta="Teléfono (WhatsApp)" Type="tel" Valor="@_telefono" ValorChanged="v => _telefono = v"
+    <CampoTexto Etiqueta="Teléfono (WhatsApp)" Type="tel" Valor="@_telefono" ValorChanged="v => { _telefono = v; _errorGuardar = null; }"
                 Placeholder="+34 600 00 00 00" />
-    <CampoTexto Etiqueta="Cargo" Valor="@_cargo" ValorChanged="v => _cargo = v"
+    <CampoTexto Etiqueta="Cargo" Valor="@_cargo" ValorChanged="v => { _cargo = v; _errorGuardar = null; }"
                 Placeholder="Finanzas, PRL, Vigilancia de la Salud…" />
-    <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => _notas = v" />
+    <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => { _notas = v; _errorGuardar = null; }" />
 
     <label class="campo-checkbox" for="@($"{_idBase}-predeterminado")">
         <input type="checkbox" id="@($"{_idBase}-predeterminado")" checked="@_esPredeterminado"
-               @onchange="e => _esPredeterminado = e.Value is bool m && m" />
+               @onchange="e => { _esPredeterminado = e.Value is bool m && m; _errorGuardar = null; }" />
         Contacto predeterminado — recibe lo que no tenga destinatario propio
     </label>
     <label class="campo-checkbox" for="@($"{_idBase}-programacion")">
         <input type="checkbox" id="@($"{_idBase}-programacion")" checked="@_recibeProgramacionVisitas"
-               @onchange="e => _recibeProgramacionVisitas = e.Value is bool m && m" />
+               @onchange="e => { _recibeProgramacionVisitas = e.Value is bool m && m; _errorGuardar = null; }" />
         Recibe la programación de visitas
     </label>
     <label class="campo-checkbox" for="@($"{_idBase}-facturacion")">
         <input type="checkbox" id="@($"{_idBase}-facturacion")" checked="@_recibeFacturacion"
-               @onchange="e => _recibeFacturacion = e.Value is bool m && m" />
+               @onchange="e => { _recibeFacturacion = e.Value is bool m && m; _errorGuardar = null; }" />
         Recibe la facturación
     </label>
 
@@ -99,12 +99,14 @@
     private void AlCambiarNombre(string valor)
     {
         _nombre = valor;
+        _errorGuardar = null;
         if (!string.IsNullOrWhiteSpace(valor)) _errorNombre = null;
     }
 
     private void AlCambiarEmail(string valor)
     {
         _email = valor;
+        _errorGuardar = null;
         if (!string.IsNullOrWhiteSpace(valor)) _errorEmail = null;
     }
     private bool _visibleAnterior;
@@ -192,12 +194,14 @@
 
     private void AlternarTipoDocumento((Guid Id, bool Marcado) cambio)
     {
+        _errorGuardar = null;
         if (cambio.Marcado) _tiposSeleccionados.Add(cambio.Id);
         else _tiposSeleccionados.Remove(cambio.Id);
     }
 
     private void AlternarRol(RolContacto rol, bool marcado)
     {
+        _errorGuardar = null;
         if (marcado) _roles.Add(rol);
         else _roles.Remove(rol);
     }

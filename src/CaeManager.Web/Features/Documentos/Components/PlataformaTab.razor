@@ -229,7 +229,7 @@ else
        que no puede pasar es que se confunda con "no caduca", porque
        entonces el semáforo del Centro daría verde sin saberlo nadie. *@
     <CampoSelect Etiqueta="¿Hasta cuándo vale en esta plataforma?" Valor="@_estadoVigencia"
-                 ValorChanged="v => { _estadoVigencia = v; _errorServidorVigencia = null; }">
+                 ValorChanged="v => { _estadoVigencia = v; _errorServidorVigencia = null; _errorVigencia = null; }">
         <option value="@nameof(EstadoVigenciaEnPlataforma.VenceEnFecha)">Vence en una fecha</option>
         <option value="@nameof(EstadoVigenciaEnPlataforma.NoVenceAqui)">Aquí no caduca</option>
         <option value="@nameof(EstadoVigenciaEnPlataforma.SinConfirmar)">Todavía no lo sé</option>
@@ -238,7 +238,7 @@ else
     @if (_estadoVigencia == nameof(EstadoVigenciaEnPlataforma.VenceEnFecha))
     {
         <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVigencia"
-                    ValorChanged="v => { _fechaVigencia = v; _errorServidorVigencia = null; }" MensajeError="@_errorVigencia" />
+                    ValorChanged="v => { _fechaVigencia = v; _errorServidorVigencia = null; _errorVigencia = null; }" MensajeError="@_errorVigencia" />
     }
 </ModalFormulario>
 
@@ -252,7 +252,7 @@ else
             <option value="@causa">@CausaRechazoAcreditacionUi.Texto(causa)</option>
         }
     </CampoSelect>
-    <CampoTextarea Etiqueta="Detalle" Valor="@_motivoRechazo" ValorChanged="v => { _motivoRechazo = v; _errorServidorRechazo = null; }"
+    <CampoTextarea Etiqueta="Detalle" Valor="@_motivoRechazo" ValorChanged="v => { _motivoRechazo = v; _errorServidorRechazo = null; _errorMotivo = null; }"
                    Placeholder="Texto literal del portal, si lo hay" Filas="3" MensajeError="@_errorMotivo" />
 </ModalFormulario>
 
