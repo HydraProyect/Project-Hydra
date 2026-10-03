@@ -11,7 +11,12 @@
         dando el motivo (MotivoGuardarDeshabilitado, que sale como title): un botón mudo no se puede escribir (D-02, D-06);
       - el aviso del formulario: AvisoFormulario fuera del cuerpo desplazable, siempre a la vista (D-20), y tras un
         «Guardar» que deja errores por campo el foco va al primero (D-20);
-      - no cerrar con un clic fuera ni con Escape mientras se guarda o hay un error visible.
+      - no cerrar con un clic fuera ni con Escape mientras se guarda o hay un error visible;
+      - el cuerpo que aún no está listo (v2, T7): Cargando pinta el esqueleto y SinContenido el estado vacío o de error EN LUGAR
+        de los campos, y «Guardar» queda deshabilitado con su motivo mientras tanto: un primario habilitado sobre un cuerpo
+        que no cargó (guardar un borrador nulo) no se puede escribir;
+      - una pregunta por navegación (v2, T10): el aviso de navegación del kit se coordina con el de la página, si lo hay
+        (AvisoCambiosSinGuardar): quien edita contesta una vez, haya uno o dos NavigationLock montados.
     Lo que sigue siendo de cada pantalla: sus campos y su validación, su estado (Guardando, MensajeError,
     HayErroresDeCampo), HayCambios (normalmente InstantaneaFormulario) y el comando que guarda.
 
@@ -25,7 +30,18 @@
         Aviso="@(string.IsNullOrWhiteSpace(MensajeError) ? null : AvisoRender)">
     <ChildContent>
         <div class="formulario-drawer-contenido" @ref="_contenido">
-            @ChildContent
+            @if (Cargando)
+            {
+                <EstadoCargando Filas="FilasCargando" />
+            }
+            else if (SinContenido is not null)
+            {
+                @SinContenido
+            }
+            else
+            {
+                @ChildContent
+            }
         </div>
     </ChildContent>
     <Pie>
@@ -38,7 +54,7 @@
             <fieldset class="formulario-drawer-pie-extra" disabled="@Guardando">@PieExtra</fieldset>
         }
         <Boton Variante="VarianteBoton.Primario" Cargando="Guardando" Deshabilitado="TieneMotivoDeshabilitado"
-               title="@MotivoGuardarDeshabilitado" OnClick="GuardarAsync">
+               title="@MotivoEfectivo" OnClick="GuardarAsync">
             @TextoGuardar
         </Boton>
     </Pie>
@@ -76,6 +92,26 @@
     /// </summary>
     [Parameter] public string? MotivoGuardarDeshabilitado { get; set; }
 
+    /// <summary>
+    /// El cuerpo todavía no está listo porque los datos que necesita viajan (el borrador de un envío, el lote que se va a
+    /// reclamar): se pinta <see cref="FilasCargando"/> de esqueleto en lugar de <see cref="ChildContent"/> y «Guardar» queda
+    /// deshabilitado con <see cref="MotivoCargando"/>. «Cancelar» y la X siguen funcionando.
+    /// </summary>
+    [Parameter] public bool Cargando { get; set; }
+
+    [Parameter] public int FilasCargando { get; set; } = 3;
+
+    /// <summary>Title de «Guardar» mientras <see cref="Cargando"/>. Sin valor: «Cargando…», como el aria-label del esqueleto.</summary>
+    [Parameter] public string? MotivoCargando { get; set; }
+
+    /// <summary>
+    /// Estado vacío o de error en lugar del cuerpo (la carga falló, no hay a quién enviar): lo pinta la pantalla con
+    /// <c>EstadoVacio</c> (con su «Reintentar», si cabe). «Guardar» queda deshabilitado y <see cref="MotivoGuardarDeshabilitado"/>
+    /// pasa a ser obligatorio: un primario sin nada que guardar y sin decir por qué es el primario mudo de D-02 y D-06, y el kit
+    /// lo rechaza al pintarlo (InvalidOperationException) en vez de dejarlo salir.
+    /// </summary>
+    [Parameter] public RenderFragment? SinContenido { get; set; }
+
     [Parameter, EditorRequired] public string TextoGuardar { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string TextoCancelar { get; set; } = string.Empty;
     [Parameter] public EventCallback OnGuardar { get; set; }
@@ -91,12 +127,23 @@
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    private bool TieneMotivoDeshabilitado => !string.IsNullOrWhiteSpace(MotivoGuardarDeshabilitado);
+    /// <summary>
+    /// Por qué «Guardar» no se puede pulsar: primero el cuerpo que no está listo (carga, sin contenido), después el motivo propio
+    /// de la pantalla. Nulo = habilitado.
+    /// </summary>
+    private string? MotivoEfectivo =>
+        Cargando ? (string.IsNullOrWhiteSpace(MotivoCargando) ? "Cargando…" : MotivoCargando) : MotivoGuardarDeshabilitado;
+
+    private bool TieneMotivoDeshabilitado => !string.IsNullOrWhiteSpace(MotivoEfectivo);
 
     private bool _guardandoPrevio;
 
     protected override void OnParametersSet()
     {
+        if (!Cargando && SinContenido is not null && string.IsNullOrWhiteSpace(MotivoGuardarDeshabilitado))
+            throw new InvalidOperationException(
+                "DrawerFormulario con SinContenido exige MotivoGuardarDeshabilitado: «Guardar» queda deshabilitado y un botón mudo no existe (D-02, D-06).");
+
         // Un ciclo de guardado de la pantalla (también el de una acción de PieExtra, que no pasa por OnGuardar) que termina con
         // errores de campo lleva el foco al primero.
         if (_guardandoPrevio && !Guardando)

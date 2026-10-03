@@ -341,13 +341,13 @@
     }
 </div>
 
-<Drawer @ref="_drawerCliente" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo Cliente empresarial" : "Editar Cliente empresarial")" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync"
+                 Titulo="@(_editandoId is null ? "Nuevo Cliente empresarial" : "Editar Cliente empresarial")"
+                 HayCambios="() => HayCambiosCliente" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
+                 HayErroresDeCampo="@(_erroresCampo.Count > 0)" OnGuardar="GuardarAsync"
+                 AlDescartarPorNavegacion="CerrarClienteDescartando"
+                 TextoGuardar="Guardar" TextoCancelar="Cancelar">
     <ChildContent>
-        @if (_mensajeErrorFormulario is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
-        }
-
         <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" OnBlur="ValidarRazonSocialAsync" MensajeError="@ObtenerError(nameof(CrearClienteCommand.RazonSocial))" />
         <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cif" ValorChanged="v => _cif = v" OnBlur="ValidarCifAsync" MensajeError="@ObtenerError(nameof(CrearClienteCommand.Cif))" />
 
@@ -368,22 +368,17 @@
             </CampoSelect>
             <p class="texto-vacio-seccion">Al cambiarlo, se avisa al Gestor CAE anterior y al nuevo. Es el Gestor CAE de referencia del Cliente empresarial: no cambia lo que cada uno puede ver.</p>
         }
+    
     </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawerCliente?.SolicitarCierreAsync() ?? Task.CompletedTask">
-            Cancelar
-        </Boton>
+    <PieExtra>
         @if (_editandoId is null)
         {
             <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearEmpresaAsync">
                 Continuar con la empresa
             </Boton>
         }
-        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
-            Guardar
-        </Boton>
-    </Pie>
-</Drawer>
+    </PieExtra>
+</DrawerFormulario>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"
@@ -425,7 +420,7 @@
     EnProgreso="_eliminandoFiltroGuardado"
     OnConfirmar="ConfirmarEliminarFiltroGuardadoAsync" />
 
-<Modal @ref="_modalGuardarFiltro" HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarGuardarFiltro" VisibleChanged="CerrarModalGuardarFiltro" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
+<Modal @ref="_modalGuardarFiltro" HayCambios="() => HayCambiosFiltro" Visible="_mostrarGuardarFiltro" VisibleChanged="CerrarModalGuardarFiltro" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
     <ChildContent>
         <CampoTexto Etiqueta="Nombre" Valor="@_nombreFiltroNuevo" ValorChanged="v => _nombreFiltroNuevo = v" Placeholder="Críticos sin CIF verificado" />
     </ChildContent>
@@ -435,6 +430,7 @@
     </Pie>
 </Modal>
 
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
+@* El Drawer lleva su propio guardián (DrawerFormulario); este cubre solo el modal de guardar filtro, que aún no tiene kit. *@
+<AvisoCambiosSinGuardar HayCambios="() => HayCambiosFiltro" AlDescartar="CerrarFiltroDescartando" />
 </LimiteDeErrores>
 

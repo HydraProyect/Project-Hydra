@@ -71,7 +71,6 @@ public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
 public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
     private Modal? _modalAsignarEmpresas;
-    private Drawer? _drawerUsuario;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
@@ -943,7 +942,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// <summary>
     /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de alta y
     /// edición de Usuario comparado con cómo se abrió (con la ficha ya cargada). Lo
-    /// leen AvisoCambiosSinGuardar, el Drawer y el Modal; cerrados (también tras guardar
+    /// leen el DrawerFormulario (que lleva su aviso de navegación) y el Modal de desactivar; cerrados (también tras guardar
     /// o desactivar) nunca hay nada que perder.
     /// </summary>
     private bool HayCambiosSinGuardar =>

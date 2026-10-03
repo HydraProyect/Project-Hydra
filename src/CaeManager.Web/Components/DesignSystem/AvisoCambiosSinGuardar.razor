@@ -2,6 +2,7 @@
 @using CaeManager.Web.Components.Workspace
 @inject NavigationManager Navegacion
 @implements IDisposable
+@using System.Runtime.CompilerServices
 
 @*
     Aviso de cambios sin guardar (P1-E2): el único sitio de la aplicación que monta un
@@ -29,6 +30,17 @@
     registra también en el ámbito de la ficha (cascada con nombre): abrir otra ficha, volver,
     el breadcrumb o cerrar el panel tampoco navegan antes de desmontarlo, y el
     ContextWorkspaceService pregunta igual antes de cambiar la pila.
+
+    Una navegación, una pregunta (S12, lote 2b). Un formulario con kit (DrawerFormulario) lleva su propio aviso y una
+    pantalla puede llevar además el suyo de página (cubre varios formularios, un modal, una edición en línea). El
+    NavigationManager deja de invocar los demás NavigationLock en cuanto uno detiene la navegación (medido), así que la
+    primera pregunta sale una sola vez; el defecto estaba en la segunda vuelta: «Salir y descartar» repite la navegación y
+    el otro aviso, que nunca llegó a verla, volvía a preguntar si el AlDescartar del primero no limpiaba también lo que su
+    HayCambios mira. Ahora el aviso que detiene la navegación conoce a todos los avisos montados del circuito (registro por
+    NavigationManager) y al detenerla anota cuáles más tienen cambios y la habrían detenido: «Salir y descartar» corre el
+    AlDescartar de todos ellos y deja pasar la navegación en todos; «Seguir editando» no descarta a ninguno. Lo mismo al
+    cambiar de pestaña o de ficha: AmbitoCambiosSinGuardar pregunta una vez por ámbito, no una por aviso. Da igual quién
+    pregunte y en qué orden se montaron: AvisoCambiosSinGuardarUnaPreguntaTests lo fija.
 
     Solo funciona en componentes interactivos: en una página estática (las de cuenta y
     2FA) no hay circuito que reciba el evento de navegación.
@@ -83,19 +95,46 @@
     private bool _salidaConfirmada;
     private TaskCompletionSource<bool>? _abandonoPendiente;
 
+    /// <summary>
+    /// Los avisos montados en un circuito (la clave es su NavigationManager, uno por circuito: no se mezclan entre usuarios y el
+    /// registro no retiene un circuito cerrado). Solo lo lee quien detiene una navegación, para saber qué otros avisos con
+    /// cambios la habrían detenido.
+    /// </summary>
+    private static readonly ConditionalWeakTable<NavigationManager, List<AvisoCambiosSinGuardar>> Montados = new();
+
+    /// <summary>Avisos con cambios que se adhirieron a la pregunta de ESTE aviso (solo tiene contenido mientras pregunta).</summary>
+    private readonly List<AvisoCambiosSinGuardar> _adheridos = [];
+
     protected override void OnInitialized()
     {
+        var montados = Montados.GetOrCreateValue(Navegacion);
+        lock (montados)
+            montados.Add(this);
         Ambito?.Registrar(this);
         AmbitoFicha?.Registrar(this);
     }
 
     public void Dispose()
     {
+        if (Montados.TryGetValue(Navegacion, out var montados))
+        {
+            lock (montados)
+                montados.Remove(this);
+        }
+
         Ambito?.Retirar(this);
         AmbitoFicha?.Retirar(this);
         // Desmontado mientras preguntaba: quien espera no se queda colgado.
         _abandonoPendiente?.TrySetResult(true);
     }
+
+    internal bool TieneCambios => HayCambios();
+
+    /// <summary>
+    /// El ámbito ya preguntó una vez por todos los avisos de la zona y el líder descartó: este aviso descarta lo suyo sin volver a
+    /// preguntar (una pregunta por ámbito, S12 lote 2b).
+    /// </summary>
+    internal Task DescartarSinPreguntarAsync() => AlDescartar.InvokeAsync();
 
     /// <summary>
     /// Lo llama el <see cref="AmbitoCambiosSinGuardar"/> antes de desmontar la zona: sin
@@ -124,10 +163,30 @@
             return Task.CompletedTask;
         }
 
+        if (!DebeDetener(contexto))
+            return Task.CompletedTask;
+
+        // Los otros avisos montados con cambios que también la habrían detenido (el NavigationManager ya no los invoca: este la
+        // detiene primero): se adhieren a esta pregunta en vez de volver a preguntar en la segunda vuelta.
+        _adheridos.Clear();
+        _adheridos.AddRange(OtrosQueTambienLaDetendrian(contexto));
+
+        contexto.PreventNavigation();
+        _destinoPendiente = contexto.TargetLocation;
+        _preguntando = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// ¿Este aviso detiene la navegación? Sin efectos: lo decide el aviso que la detiene y también los que se adhieren a su pregunta.
+    /// </summary>
+    private bool DebeDetener(LocationChangingContext contexto)
+    {
         // Cambiar de ficha en el Context Workspace ya confirmado (o sin nada que perder) escribe
         // ?ctx= con la ficha nueva mientras esta todavía está montada: no es otra salida.
         if (AmbitoFicha?.EnAbandonoAutorizado == true)
-            return Task.CompletedTask;
+            return false;
 
         // Cambiar de pestaña en el Context Workspace escribe ?ctx= con la pestaña nueva de la
         // misma ficha. Un formulario fuera de las pestañas (sin ámbito) no se desmonta con
@@ -137,22 +196,35 @@
         if ((Ambito is null || Ambito.EnAbandonoAutorizado)
             && ContextWorkspace.EsSoloCambioDePestana(
                 Navegacion.ToAbsoluteUri(Navegacion.Uri), Navegacion.ToAbsoluteUri(contexto.TargetLocation)))
-            return Task.CompletedTask;
+            return false;
 
-        if (!HayCambios())
-            return Task.CompletedTask;
+        return HayCambios();
+    }
 
-        contexto.PreventNavigation();
-        _destinoPendiente = contexto.TargetLocation;
-        _preguntando = true;
-        StateHasChanged();
-        return Task.CompletedTask;
+    private IEnumerable<AvisoCambiosSinGuardar> OtrosQueTambienLaDetendrian(LocationChangingContext contexto)
+    {
+        if (!Montados.TryGetValue(Navegacion, out var montados))
+            return [];
+
+        lock (montados)
+            return montados.Where(a => !ReferenceEquals(a, this) && !a._salidaConfirmada && !a._preguntando && a.DebeDetener(contexto)).ToList();
+    }
+
+    /// <summary>
+    /// El aviso que preguntó descartó: este descarta lo suyo y deja pasar la navegación confirmada (una sola vez, como el que
+    /// preguntó) sin volver a preguntar aunque su AlDescartar no limpie del todo lo que HayCambios mira.
+    /// </summary>
+    private async Task DescartarAdheridoAsync()
+    {
+        await AlDescartar.InvokeAsync();
+        _salidaConfirmada = true;
     }
 
     private void SeguirEditando()
     {
         _preguntando = false;
         _destinoPendiente = null;
+        _adheridos.Clear();
         _abandonoPendiente?.TrySetResult(false);
         _abandonoPendiente = null;
     }
@@ -172,7 +244,11 @@
             return;
 
         _destinoPendiente = null;
+        var adheridos = _adheridos.ToList();
+        _adheridos.Clear();
         await AlDescartar.InvokeAsync();
+        foreach (var adherido in adheridos)
+            await adherido.DescartarAdheridoAsync();
         _salidaConfirmada = true;
         Navegacion.NavigateTo(destino);
     }

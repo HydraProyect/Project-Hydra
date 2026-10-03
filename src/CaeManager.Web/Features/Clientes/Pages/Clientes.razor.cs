@@ -32,7 +32,6 @@ public record GestorCaeSelectorDto(Guid Id, string NombreCompleto, string Email)
 public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     private Modal? _modalGuardarFiltro;
-    private Drawer? _drawerCliente;
     /// <summary>
     /// Se cancela al salir de la página: la resolución de la empresa activa que siga en vuelo deja de trabajar
     /// para nadie y su respuesta tardía no repinta un componente ya retirado.
@@ -673,27 +672,32 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     private readonly InstantaneaFormulario _instantanea = new();
 
     /// <summary>
-    /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de alta y
-    /// edición de Cliente comparado con cómo se abrió, o un nombre ya escrito en el modal
-    /// de guardar filtro. Lo lee AvisoCambiosSinGuardar para detener la salida de la
-    /// página; cerrados (también tras guardar) nunca hay nada que perder.
+    /// P1-E2b: único punto de verdad de «hay cambios» en el drawer de alta y edición de Cliente empresarial, comparado con
+    /// cómo se abrió. Lo leen el DrawerFormulario (X, Escape, «Cancelar» y salir de la página); cerrado (también tras
+    /// guardar) nunca hay nada que perder. Se lee en vivo: la navegación de «Continuar con la empresa» sale en el mismo
+    /// manejador que cierra el drawer, antes de que el kit reciba el Visible nuevo.
     /// </summary>
-    private bool HayCambiosSinGuardar =>
-        (_drawerVisible && _instantanea.Difiere(ValoresFormulario()))
-        || (_mostrarGuardarFiltro && !string.IsNullOrWhiteSpace(_nombreFiltroNuevo));
+    private bool HayCambiosCliente => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+
+    /// <summary>El nombre ya escrito en el modal de guardar filtro: lo leen el Modal y el aviso de la página.</summary>
+    private bool HayCambiosFiltro => _mostrarGuardarFiltro && !string.IsNullOrWhiteSpace(_nombreFiltroNuevo);
 
     private object?[] ValoresFormulario() => [_razonSocial, _cif, _esCritico, _notas, _ejecutivoUsuarioId];
 
     private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
 
-    private void CerrarFormulariosDescartando()
+    private void CerrarClienteDescartando()
     {
         _drawerVisible = false;
-        _mostrarGuardarFiltro = false;
-        _nombreFiltroNuevo = string.Empty;
         // Si la salida descartada vuelve a esta misma página con ?accion= (el atajo
         // «n»), esa acción tiene que volver a atenderse.
         _accionAtendida = null;
+    }
+
+    private void CerrarFiltroDescartando()
+    {
+        _mostrarGuardarFiltro = false;
+        _nombreFiltroNuevo = string.Empty;
     }
 
     private Task CerrarDrawerAsync(bool visible)

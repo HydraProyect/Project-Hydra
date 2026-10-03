@@ -348,4 +348,88 @@ public class DrawerFormularioTests : BunitContext
 
         cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Cancelar", "Añadir otro", "Guardar");
     }
+
+    // ---- v2 (S12, lote 2b), T7: el cuerpo que aún no está listo.
+
+    private static RenderFragment FragmentoVacio(string titulo) => b =>
+    {
+        b.OpenComponent<EstadoVacio>(0);
+        b.AddComponentParameter(1, nameof(CaeManager.Web.Components.DesignSystem.EstadoVacio.Titulo), titulo);
+        b.CloseComponent();
+    };
+
+    [Fact]
+    public void Cargando_pinta_el_esqueleto_en_lugar_de_los_campos_y_deshabilita_Guardar_con_motivo()
+    {
+        var cut = Renderizar(p => p.Add(x => x.Cargando, true).Add(x => x.FilasCargando, 4));
+
+        cut.FindAll(".drawer-cuerpo input").Should().BeEmpty("los campos no se pintan sobre datos que no han llegado");
+        cut.FindAll(".drawer-cuerpo .esqueleto-fila").Should().HaveCount(4);
+        var guardar = cut.Find(".drawer-pie .boton-primario");
+        guardar.HasAttribute("disabled").Should().BeTrue("un primario habilitado sobre un cuerpo que no cargó guardaría un borrador nulo");
+        guardar.GetAttribute("title").Should().Be("Cargando…", "un «Guardar» deshabilitado sin motivo no existe (D-02, D-06)");
+    }
+
+    [Fact]
+    public async Task Cargando_deja_Cancelar_y_la_X_funcionando()
+    {
+        var cut = Renderizar(p => p.Add(x => x.Cargando, true));
+
+        await cut.Find(".drawer-pie .boton-secundario").ClickAsync(new MouseEventArgs());
+
+        _visible.Should().BeFalse("quien abre un drawer que tarda debe poder salir");
+    }
+
+    [Fact]
+    public void Cargando_usa_el_motivo_de_la_pantalla_si_lo_da()
+    {
+        var cut = Renderizar(p => p.Add(x => x.Cargando, true).Add(x => x.MotivoCargando, "Preparando el borrador…"));
+
+        cut.Find(".drawer-pie .boton-primario").GetAttribute("title").Should().Be("Preparando el borrador…");
+    }
+
+    [Fact]
+    public void Al_terminar_de_cargar_vuelven_los_campos_y_Guardar_se_habilita()
+    {
+        var cut = Renderizar(p => p.Add(x => x.Cargando, true));
+
+        cut.Render(p => p.Add(x => x.Cargando, false));
+
+        cut.FindAll(".drawer-cuerpo input").Should().HaveCount(2);
+        cut.Find(".drawer-pie .boton-primario").HasAttribute("disabled").Should().BeFalse();
+        cut.FindAll(".drawer-cuerpo .esqueleto-fila").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void SinContenido_sustituye_los_campos_y_deshabilita_Guardar_con_el_motivo_de_la_pantalla()
+    {
+        var cut = Renderizar(p => p
+            .Add(x => x.SinContenido, FragmentoVacio("No pudimos cargar el borrador"))
+            .Add(x => x.MotivoGuardarDeshabilitado, "No hay nada que enviar"));
+
+        cut.FindAll(".drawer-cuerpo input").Should().BeEmpty();
+        cut.Find(".drawer-cuerpo h3").TextContent.Trim().Should().Be("No pudimos cargar el borrador");
+        var guardar = cut.Find(".drawer-pie .boton-primario");
+        guardar.HasAttribute("disabled").Should().BeTrue();
+        guardar.GetAttribute("title").Should().Be("No hay nada que enviar");
+    }
+
+    [Fact]
+    public void SinContenido_sin_motivo_para_Guardar_no_se_pinta()
+    {
+        var accion = () => Renderizar(p => p.Add(x => x.SinContenido, FragmentoVacio("Vacío")));
+
+        accion.Should().Throw<InvalidOperationException>().WithMessage("*MotivoGuardarDeshabilitado*",
+            "un primario mudo no puede salir: el kit lo rechaza al pintarlo (D-02, D-06)");
+    }
+
+    [Fact]
+    public void Cargando_gana_a_SinContenido_y_no_exige_motivo_propio()
+    {
+        var cut = Renderizar(p => p.Add(x => x.Cargando, true).Add(x => x.SinContenido, FragmentoVacio("Vacío")));
+
+        cut.FindAll(".drawer-cuerpo .esqueleto-fila").Should().NotBeEmpty();
+        cut.FindAll(".drawer-cuerpo h3").Should().BeEmpty();
+        cut.Find(".drawer-pie .boton-primario").GetAttribute("title").Should().Be("Cargando…");
+    }
 }

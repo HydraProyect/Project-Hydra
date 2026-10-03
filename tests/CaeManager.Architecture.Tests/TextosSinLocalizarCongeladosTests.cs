@@ -193,6 +193,9 @@ public class TextosSinLocalizarCongeladosTests
 
     [Theory]
     [InlineData("<Boton Etiqueta=\"Guardar cambios\" />", "Guardar cambios")]
+    [InlineData("<DrawerFormulario TextoGuardar=\"Guardar usuario\" />", "Guardar usuario")]
+    [InlineData("<DrawerFormulario TextoCancelar=\"Volver atrás\" />", "Volver atrás")]
+    [InlineData("<DrawerFormulario MotivoGuardarDeshabilitado=\"Falta el motivo\" />", "Falta el motivo")]
     [InlineData("<input placeholder=\"Buscar por nombre\" />", "Buscar por nombre")]
     [InlineData("<button aria-label=\"Cerrar panel\"></button>", "Cerrar panel")]
     [InlineData("<p>Sin resultados</p>", "Sin resultados")]
@@ -287,6 +290,16 @@ internal static class DetectorTextosSinLocalizar
         @"Marcador|Explicacion|FormatosTexto|Leyenda|Pista|Seccion|ErrorAdjuntos|ErrorConfirmar|Label|Title|" +
         @"Placeholder|Text|Tooltip|HelperText|aria-label|aria-description|title|placeholder|alt|label)" +
         @"\s*=\s*""(?<v>[^""@]*[" + Letra + @"]{2}[^""@]*)""",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// Textos que el kit DrawerFormulario pinta como texto de un botón o como su title (S12). Cuentan como MARKUP, no como atributo:
+    /// son el mismo «Guardar»/«Cancelar» que antes se escribía entre las etiquetas del botón, y así se deduplican con él. Sin esta
+    /// regla, pasar el texto del markup a TextoGuardar="…" bajaba la cifra de la pantalla sin localizar nada (blind spot medido al migrar
+    /// Usuarios: 147 → 145 sin tocar un .resx).
+    /// </summary>
+    private static readonly Regex AtributoDeKit = new(
+        @"(?<![\w\-:@])(?:TextoGuardar|TextoCancelar|MotivoGuardarDeshabilitado|MotivoCargando)\s*=\s*""(?<v>[^""@]*[" + Letra + @"]{2}[^""@]*)""",
         RegexOptions.Compiled);
 
     private static readonly Regex TextoRazor = new(
@@ -404,6 +417,9 @@ internal static class DetectorTextosSinLocalizar
 
         foreach (Match m in AtributoRazor.Matches(markup))
             textos.Atributos.Add(m.Groups["v"].Value.Trim());
+
+        foreach (Match m in AtributoDeKit.Matches(markup))
+            textos.Markup.Add(m.Groups["v"].Value.Trim());
 
         foreach (Match m in TextoRazor.Matches(markup))
         {

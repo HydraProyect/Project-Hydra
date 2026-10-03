@@ -90,4 +90,7 @@
   <data name="CarteraAltaErrorCarga" xml:space="preserve">
     <value>No hem pogut carregar les empreses per a la seva cartera. Pots desar sense cap i assignar-les-hi després.</value>
   </data>
+  <data name="GuardarComprobandoCif" xml:space="preserve">
+    <value>Comprovant la identificació fiscal de l'empresa…</value>
+  </data>
 </root>
