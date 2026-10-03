@@ -258,72 +258,61 @@
     }
 </div>
 
-<Drawer @ref="_drawerVisita" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? Textos["DrawerTituloNueva"].Value : Textos["DrawerTituloEditar"].Value)" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && !_guardando)">
-    <ChildContent>
-        @if (_mensajeErrorFormulario is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
-        }
+<DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync"
+                 Titulo="@(_editandoId is null ? Textos["DrawerTituloNueva"].Value : Textos["DrawerTituloEditar"].Value)"
+                 HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
+                 HayErroresDeCampo="@(_erroresCampo.Count > 0)" OnGuardar="GuardarAsync"
+                 TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    @if (_sugerenciaVisitaResumen is not null)
+    {
+        <div class="alerta-info">@Textos["AvisoPrellenado", _sugerenciaVisitaResumen]</div>
+    }
 
-        @if (_sugerenciaVisitaResumen is not null)
-        {
-            <div class="alerta-info">@Textos["AvisoPrellenado", _sugerenciaVisitaResumen]</div>
-        }
+    @if (_editandoId is null)
+    {
+        <CampoSelect Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_centroId" ValorChanged="AlCambiarCentroAsync">
+            <option value="">@Textos["OpcionSeleccionaCentro"]</option>
+            @foreach (var centro in _centrosDisponibles)
+            {
+                <option value="@centro.Id">@centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)</option>
+            }
+        </CampoSelect>
+    }
+    else
+    {
+        <div class="campo">
+            <label>@Textos["EtiquetaCentro"]</label>
+            <p class="texto-vacio-seccion">@_centroNombreEnEdicion</p>
+        </div>
+    }
 
-        @if (_editandoId is null)
-        {
-            <CampoSelect Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_centroId" ValorChanged="AlCambiarCentroAsync">
-                <option value="">@Textos["OpcionSeleccionaCentro"]</option>
-                @foreach (var centro in _centrosDisponibles)
-                {
-                    <option value="@centro.Id">@centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)</option>
-                }
-            </CampoSelect>
-        }
-        else
-        {
-            <div class="campo">
-                <label>@Textos["EtiquetaCentro"]</label>
-                <p class="texto-vacio-seccion">@_centroNombreEnEdicion</p>
-            </div>
-        }
+    <CampoTexto Etiqueta="@Textos["EtiquetaFechaInicio"]" Type="date" Valor="@_fechaInicio" ValorChanged="v => _fechaInicio = v" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaFechaFin"]" Type="date" Valor="@_fechaFin" ValorChanged="v => _fechaFin = v" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaHoraEntrada"]" Type="time"
+                Valor="@_horaEstimadaAcceso" ValorChanged="v => _horaEstimadaAcceso = v" />
 
-        <CampoTexto Etiqueta="@Textos["EtiquetaFechaInicio"]" Type="date" Valor="@_fechaInicio" ValorChanged="v => _fechaInicio = v" />
-        <CampoTexto Etiqueta="@Textos["EtiquetaFechaFin"]" Type="date" Valor="@_fechaFin" ValorChanged="v => _fechaFin = v" />
-        <CampoTexto Etiqueta="@Textos["EtiquetaHoraEntrada"]" Type="time"
-                    Valor="@_horaEstimadaAcceso" ValorChanged="v => _horaEstimadaAcceso = v" />
+    @if (_avisoCentroSinAsignados)
+    {
+        <div class="alerta-info" role="status">@Textos["AvisoCentroSinTrabajadoresAsignados"]</div>
+    }
 
-        @if (_avisoCentroSinAsignados)
-        {
-            <div class="alerta-info" role="status">@Textos["AvisoCentroSinTrabajadoresAsignados"]</div>
-        }
+    <SelectorMultiple @ref="_selectorTrabajadores"
+                       Relacionados="@_trabajadoresRelacionados"
+                       SoloRelacionados="@_soloRelacionados"
+                       SoloRelacionadosChanged="v => _soloRelacionados = v"
+                       Etiqueta="@Textos["EtiquetaTrabajadoresQueEntran"]"
+                       Elementos="@_trabajadoresDisponiblesSelector"
+                       Seleccionados="@_trabajadorIdsSeleccionados"
+                       OnAlternar="args => AlternarTrabajador(args.Id, args.Marcado)"
+                       TextoVacio="@Textos["SelectorTrabajadoresVacio"]"
+                       MensajeError="@_errorTrabajadores" />
 
-        <SelectorMultiple @ref="_selectorTrabajadores"
-                           Relacionados="@_trabajadoresRelacionados"
-                           SoloRelacionados="@_soloRelacionados"
-                           SoloRelacionadosChanged="v => _soloRelacionados = v"
-                           Etiqueta="@Textos["EtiquetaTrabajadoresQueEntran"]"
-                           Elementos="@_trabajadoresDisponiblesSelector"
-                           Seleccionados="@_trabajadorIdsSeleccionados"
-                           OnAlternar="args => AlternarTrabajador(args.Id, args.Marcado)"
-                           TextoVacio="@Textos["SelectorTrabajadoresVacio"]"
-                           MensajeError="@_errorTrabajadores" />
+    <label class="campo-checkbox">
+        <input type="checkbox" @bind="_notificadoCliente" /> @Textos["CasillaNotificadaTitularCentro"]
+    </label>
 
-        <label class="campo-checkbox">
-            <input type="checkbox" @bind="_notificadoCliente" /> @Textos["CasillaNotificadaTitularCentro"]
-        </label>
-
-        <CampoTextarea Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_notas" ValorChanged="v => _notas = v" Filas="3" />
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawerVisita?.SolicitarCierreAsync() ?? Task.CompletedTask">
-            @Textos["BotonCancelar"]
-        </Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
-            @Textos["BotonGuardar"]
-        </Boton>
-    </Pie>
-</Drawer>
+    <CampoTextarea Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_notas" ValorChanged="v => _notas = v" Filas="3" />
+</DrawerFormulario>
 
 <Drawer Visible="_detalleVisible" VisibleChanged="v => _detalleVisible = v" Titulo="@Textos["DetalleTitulo"]">
     <ChildContent>
@@ -637,9 +626,4 @@
     <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v" Filas="2" />
 </DialogoConfirmacion>
 
-@* Confirmar la salida cierra el drawer: una navegación que no desmonta la página (otros
-   filtros en la URL) lo dejaría abierto con lo ya descartado.
-   Va al final del marcado: con el mismo z-index que los demás diálogos, el último
-   del DOM queda encima y la pregunta nunca se esconde detrás de otro. *@
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => CerrarDrawerAsync(false)" />
 </LimiteDeErrores>

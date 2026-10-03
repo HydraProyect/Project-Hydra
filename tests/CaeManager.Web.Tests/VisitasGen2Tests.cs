@@ -1235,4 +1235,26 @@ public class VisitasGen2Tests : BunitContext
         var foco = JSInterop.VerifyFocusAsyncInvoke();
         foco.Arguments[0].Should().BeOfType<ElementReference>().Which.Id.Should().NotBeNullOrEmpty();
     }
+
+    /// <summary>
+    /// S12 (lote 2a): el alta usa el kit DrawerFormulario, que pregunta al «Cancelar» como la X (D-05) y al salir de la página.
+    /// Esta prueba fija que la pantalla le pasa su «hay cambios» y su estado: sin cambios cierra, con las notas escritas pregunta.
+    /// </summary>
+    [Fact]
+    public async Task El_alta_pregunta_al_cancelar_con_datos_escritos_y_sin_cambios_cierra()
+    {
+        var cut = Renderizar(new MediatorVisitas());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("+ Nueva visita"));
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nueva visita").ClickAsync(new());
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
+
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nueva visita").ClickAsync(new());
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+        await cut.Find(".drawer-cuerpo textarea").InputAsync(new ChangeEventArgs { Value = "Entrada por el muelle norte" });
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
 }

@@ -117,7 +117,7 @@ public class BotonVarianteYUnSoloPrimarioTests
         ["src/CaeManager.Web/Features/Vehiculos/Components/VehiculoWorkspacePanel.razor"] = 2,
         ["src/CaeManager.Web/Features/Vehiculos/Pages/Vehiculos.razor"] = 2,
         ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor"] = 2,
-        ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor#Drawer2"] = 3,
+        ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor#Drawer1"] = 3,
     };
 
     // -------------------------------------------------------------------------------------------
