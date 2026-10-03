@@ -17,7 +17,7 @@ namespace CaeManager.Domain.Documentos;
 /// lote): <see cref="PeriodicidadEspecial"/> (override de la vigencia del Tipo solo
 /// para este Centro, null = no vence) y <see cref="BloqueaAcceso"/> (el Tipo es un
 /// requisito bloqueante: su falta o su vencimiento impide el acceso; la regla única, sus
-/// sujetos —el Trabajador o su Empresa— y su alcance están en <see cref="ReglaBloqueoDeAcceso"/>
+/// sujetos —el Trabajador o su Empresa— y a quiénes alcanza están en <see cref="ReglaBloqueoDeAcceso"/>
 /// y la consume Mi trabajo vía ObtenerDocumentacionBloqueantePendienteQuery. El semáforo del
 /// Centro no aplica todavía esa regla entera: solo lo pone en Bloqueado la ausencia total
 /// del Tipo para un Trabajador asignado (CalculoEstadoCentroService), no el vencimiento ni

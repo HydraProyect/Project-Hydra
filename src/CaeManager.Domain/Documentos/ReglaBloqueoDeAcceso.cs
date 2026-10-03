@@ -29,7 +29,10 @@ public enum SituacionDeRequisitoBloqueante
 /// personal esté completa. El modelo es egocéntrico por Tenant: nunca se cruza de un Tenant a otro.</item>
 /// <item><b>El Centro no es el sujeto.</b> Un documento bloqueante de Trabajador o de Empresa bloquea a
 /// personas, no convierte al Centro en «bloqueado». Qué debe enseñar el Centro cuando tiene Trabajadores o
-/// Empresas bloqueados es una decisión de producto pendiente: esta regla no la toma.</item>
+/// Empresas bloqueados es una decisión de producto pendiente: esta regla no la toma. Hoy el semáforo del Centro
+/// (<c>CalculoEstadoCentroService</c>) no lo pone en Bloqueado por esto, pero la Bandeja y Mi trabajo SÍ derivan
+/// «bloquea el centro» de cada fila pendiente que no es un alta nueva (<c>EsAltaNueva == false</c>: un requisito
+/// vencido o uno de Empresa) y la cuentan por Centro: esa divergencia es la decisión pendiente.</item>
 /// </list>
 ///
 /// <para>

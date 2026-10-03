@@ -29,7 +29,7 @@ public record BloqueoDeAccesoDeTrabajador(
 /// <summary>
 /// Aplica <see cref="ReglaBloqueoDeAcceso"/> a un conjunto de Asignaciones: qué Trabajadores están bloqueados
 /// en qué Centros y por qué requisito. Función pura (sin base de datos) para que la regla se pruebe sola y las
-/// superficies que necesiten la respuesta la pidan aquí, no la recalculen. La carga de datos y el alcance
+/// superficies que necesiten la respuesta la pidan aquí, no la recalculen. La carga de datos y el alcance de cartera
 /// (Centros visibles, sin gestión CAE) son de quien la llama; el aislamiento entre Tenants lo da RLS al cargar.
 /// </summary>
 public static class CalculoBloqueoDeAccesoDeTrabajadores

@@ -504,10 +504,15 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     public async Task Un_tipo_de_Empresa_marcado_solo_en_un_Centro_sin_gestion_CAE_no_declara_requisito()
     {
         // La marca de un Centro sin gestion CAE no cuenta (ese Centro no exige nada): no se extiende a los demas Centros.
-        (await MiTrabajo(Runtime(_tenantD))).Should().BeEmpty(
+        var comoD = Runtime(_tenantD);
+
+        // Controles positivos bajo RLS: la marca existe y el Trabajador esta asignado a un Centro con gestion CAE. Sin
+        // ellos, «vacio» pasaria tambien si la siembra no fuera visible.
+        (await comoD.TiposDocumentoCentros.CountAsync(x => x.CentroId == _centroDSinGestion && x.Incluido && x.BloqueaAcceso)).Should().Be(1);
+        (await comoD.Asignaciones.CountAsync(a => a.TrabajadorId == _trabajadorD && a.FechaBaja == null)).Should().Be(1);
+
+        (await MiTrabajo(comoD)).Should().BeEmpty(
             "el unico Centro que marca el certificado como bloqueante no tiene gestion CAE");
-        _trabajadorD.Should().NotBe(Guid.Empty, "control: el Trabajador existe y esta asignado");
-        _centroDSinGestion.Should().NotBe(Guid.Empty);
     }
 
     private string Nombre(Guid centro) =>

@@ -199,7 +199,7 @@ public class ReglasDeNegocioSinCopiasTests
     /// del bloqueo copiada (la tuvo la consulta de Mi trabajo hasta que pasó a <c>ReglaBloqueoDeAcceso.ValidoHoy</c>).
     /// </summary>
     private static readonly Regex PatronValidezDeBloqueoCopiada = new(
-        @"\bFechaVencimiento\s*(?:==\s*null|is\s+null)\s*\|\|", RegexOptions.Compiled);
+        @"\bFechaVencimiento\s*(?:==\s*null|is\s+null|is\s+not\s*\{\s*\}\s*\w+)\s*\|\|", RegexOptions.Compiled);
 
     [Fact]
     public void La_regla_de_bloqueo_de_acceso_no_se_decide_fuera_de_sus_lectores_declarados()
@@ -247,6 +247,7 @@ public class ReglasDeNegocioSinCopiasTests
         [
             "                && (d.FechaVencimiento == null || d.FechaVencimiento >= DiaDeNegocio.Hoy()))",
             "            .Where(d => d.FechaVencimiento is null || d.FechaVencimiento >= hoy)",
+            "        vigencia.FechaVencimiento is not { } fecha || fecha >= hoy;",
         ];
         foreach (var linea in validezCopiada)
             EsCodigoQueCasa(linea, PatronValidezDeBloqueoCopiada).Should().BeTrue(linea);
@@ -254,7 +255,7 @@ public class ReglasDeNegocioSinCopiasTests
         string[] noValidezCopiada =
         [
             "            where documento.FechaVencimiento != null && documento.FechaVencimiento <= fechaLimiteCausa",
-            "        vigencia.FechaVencimiento is not { } fecha || fecha >= hoy;",
+            "        CalculadoraEstadoDocumento.Calcular(vigencia, hoy, umbralAmbarDias: 0, umbralRojoDias: 0) != EstadoDocumento.Vencido;",
             "        // d.FechaVencimiento == null || d.FechaVencimiento >= hoy",
         ];
         foreach (var linea in noValidezCopiada)

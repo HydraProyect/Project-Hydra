@@ -14,7 +14,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueanteP
 /// <summary>
 /// Mi trabajo: los Trabajadores con Asignación activa a un Centro que hoy NO pueden entrar porque les falta,
 /// o tienen vencido, un documento bloqueante (<c>TipoDocumentoCentro.BloqueaAcceso</c>). La regla es única y vive en
-/// <see cref="ReglaBloqueoDeAcceso"/> (decisión del propietario, 2026-10-03): un bloqueante ausente y uno vencido
+/// <see cref="ReglaBloqueoDeAcceso"/> (decisión del propietario del producto, 2026-10-03): un bloqueante ausente y uno vencido
 /// bloquean igual; el sujeto es el Trabajador (documento de Trabajador) o su Empresa (documento de Empresa, que
 /// bloquea a TODOS los Trabajadores de la Empresa en TODOS los Centros del Tenant). Una fila por Trabajador y Centro
 /// bloqueados. El Centro no es el sujeto del bloqueo; qué enseña el Centro con Trabajadores bloqueados es una decisión
