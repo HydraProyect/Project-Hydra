@@ -188,6 +188,23 @@ public class ReglaBloqueoDeAccesoTests
         resultado.EnToleranciaHasta.Should().BeNull("hay un documento valido sin necesidad de tolerancia");
     }
 
+    [Fact]
+    public void Una_fecha_centinela_o_una_periodicidad_desmesurada_no_lanzan_y_valen_para_siempre()
+    {
+        // Esta funcion corre en memoria sobre todos los documentos del Tenant: una fila rara no puede tirar Mi trabajo.
+        var centinela = new DocumentoParaAcceso(VigenciaDocumento.VenceEl(DateOnly.MaxValue), Hoy.AddYears(-1));
+        var emisionTardia = new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy), DateOnly.MaxValue);
+        var normal = new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy), Hoy.AddYears(-1));
+
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(centinela, Cond(toleranciaDias: 15), Hoy).Should().BeTrue();
+        ReglaBloqueoDeAcceso.ValidoParaAccederHasta(centinela, Cond(toleranciaDias: 365)).Should().Be(DateOnly.MaxValue);
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(normal, Cond(periodicidadMeses: int.MaxValue), Hoy).Should().BeTrue();
+        ReglaBloqueoDeAcceso.VencimientoEfectivo(normal, int.MaxValue).Should().Be(DateOnly.MaxValue);
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(emisionTardia, Cond(periodicidadMeses: 12, toleranciaDias: 15), Hoy).Should().BeTrue();
+        ReglaBloqueoDeAcceso.Evaluar([centinela, emisionTardia], Cond(periodicidadMeses: 12, toleranciaDias: 365), Hoy).Situacion
+            .Should().Be(SituacionDeRequisitoBloqueante.Cumplido);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(15)]

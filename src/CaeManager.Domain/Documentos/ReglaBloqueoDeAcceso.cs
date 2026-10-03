@@ -108,14 +108,35 @@ public static class ReglaBloqueoDeAcceso
             return null;
 
         if (periodicidadEspecialMeses is { } meses)
-            return documento.FechaEmision.AddMonths(meses);
+            return SumarMeses(documento.FechaEmision, meses);
 
         return documento.Vigencia.FechaVencimiento;
     }
 
     /// <summary>Último día en que el documento vale para acceder a este Centro; <c>null</c> si no vence.</summary>
     public static DateOnly? ValidoParaAccederHasta(DocumentoParaAcceso documento, CondicionesDeAccesoDelCentro condiciones) =>
-        VencimientoEfectivo(documento, condiciones.PeriodicidadEspecialMeses)?.AddDays(condiciones.ToleranciaDias);
+        VencimientoEfectivo(documento, condiciones.PeriodicidadEspecialMeses) is { } vencimiento
+            ? SumarDias(vencimiento, condiciones.ToleranciaDias)
+            : null;
+
+    /// <summary>
+    /// Suma meses sin lanzar nunca: una periodicidad desmesurada (el Centro la guarda sin cota superior) satura en
+    /// <see cref="DateOnly.MaxValue"/>. Esta función corre en memoria sobre TODOS los documentos de un Tenant para pintar Mi trabajo, la
+    /// Bandeja e Inicio: una sola fila rara no puede dejar sin carga esas pantallas a todos los usuarios.
+    /// </summary>
+    private static DateOnly SumarMeses(DateOnly fecha, int meses)
+    {
+        var destino = (long)fecha.Year * 12 + (fecha.Month - 1) + meses;
+        if (destino > 9999L * 12 + 11)
+            return DateOnly.MaxValue;
+        if (destino < 0)
+            return DateOnly.MinValue;
+        return fecha.AddMonths(meses);
+    }
+
+    /// <summary>Suma días saturando en <see cref="DateOnly.MaxValue"/> (un vencimiento centinela «9999-12-31» no puede lanzar).</summary>
+    private static DateOnly SumarDias(DateOnly fecha, int dias) =>
+        dias > DateOnly.MaxValue.DayNumber - fecha.DayNumber ? DateOnly.MaxValue : fecha.AddDays(dias);
 
     /// <summary>¿Vale este documento hoy para acceder a este Centro? Vencimiento efectivo + tolerancia &gt;= hoy.</summary>
     public static bool ValidoParaAcceder(DocumentoParaAcceso documento, CondicionesDeAccesoDelCentro condiciones, DateOnly hoy) =>

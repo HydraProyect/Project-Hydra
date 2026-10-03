@@ -2,6 +2,7 @@ using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -49,6 +50,11 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     private const int ToleranciaA2 = 15;
     private const int ToleranciaA4 = 30;
 
+    // Otros dos Clientes empresariales del mismo Tenant: el A2 fija un defecto distinto (5) y el A3 no fija ninguno (0). Sus
+    // Centros (A6 y A7) heredan cada uno el suyo; si el servicio tomara la tolerancia de otro Cliente empresarial, fallaria.
+    private const int ToleranciaA6 = 5;
+    private const int ToleranciaA7 = 0;
+
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenantA = Guid.NewGuid();
     private readonly Guid _tenantB = Guid.NewGuid();
@@ -61,7 +67,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     private CaeManagerDbContext _propietario = null!;
     private readonly List<CaeManagerDbContext> _contextosRuntime = [];
 
-    private Guid _clienteA, _centroA1, _centroA2, _centroA3SinGestion, _centroA4, _centroA5;
+    private Guid _clienteA, _centroA1, _centroA2, _centroA3SinGestion, _centroA4, _centroA5, _centroA6, _centroA7;
     private Guid _tipoPss, _tipoCertificado;
     private readonly List<Caso> _casos = [];
 
@@ -121,6 +127,10 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
 
         var cliente = Empresa.CrearComoCliente("Cliente empresarial A", "B12345674", false, null, null);
         var contratista = new Empresa("Contratista A S.L.");
+        var cliente2 = Empresa.CrearComoCliente("Cliente empresarial A2", "B23456783", false, null, null);
+        var cliente3 = Empresa.CrearComoCliente("Cliente empresarial A3", "B34567891", false, null, null);
+        var empVencida5 = new Empresa("Empresa con certificado vencido hace 5 dias");
+        var empVencida6 = new Empresa("Empresa con certificado vencido hace 6 dias");
         var empresaBase = new Empresa("Empresa base A");
         var empAusente = new Empresa("Empresa sin certificado");
         var empVencida1 = new Empresa("Empresa con certificado vencido hace 1 dia");
@@ -134,6 +144,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         var empVigente = new Empresa("Empresa con certificado vigente");
         var subAusente = new Empresa("Subcontratista sin certificado");
         var subVigente = new Empresa("Subcontratista con certificado");
+        c.Empresas.AddRange(cliente2, cliente3, empVencida5, empVencida6);
         c.Empresas.AddRange(cliente, contratista, empresaBase, empAusente, empVencida1, empVencida15, empVencida16,
             empVencida30, empVencida31, empVenceHoy, empNoCaduca, empSinConfirmar, empVigente, subAusente, subVigente);
         await c.SaveChangesAsync();
@@ -144,7 +155,9 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         centro3.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
         var centro4 = new Centro(cliente.Id, contratista.Id, "Centro A4");
         var centro5 = new Centro(cliente.Id, contratista.Id, "Centro A5");
-        c.Centros.AddRange(centro1, centro2, centro3, centro4, centro5);
+        var centro6 = new Centro(cliente2.Id, contratista.Id, "Centro A6 (Cliente empresarial A2)");
+        var centro7 = new Centro(cliente3.Id, contratista.Id, "Centro A7 (Cliente empresarial A3)");
+        c.Centros.AddRange(centro1, centro2, centro3, centro4, centro5, centro6, centro7);
 
         var pss = new TipoDocumento("PSS firmado", null, false, 1, AmbitoAplicacion.Trabajador);
         var certificado = new TipoDocumento("Certificado de la Seguridad Social", null, false, 2, AmbitoAplicacion.Empresa);
@@ -164,8 +177,11 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
             new TipoDocumentoCentro(certificado.Id, centro2.Id, incluido: true, bloqueaAcceso: true, toleranciaDias: ToleranciaA2),
             new TipoDocumentoCentro(certificado.Id, centro3.Id, incluido: true, bloqueaAcceso: true, toleranciaDias: ToleranciaA2),
             new TipoDocumentoCentro(certificado.Id, centro4.Id, incluido: true, bloqueaAcceso: true),
+            new TipoDocumentoCentro(certificado.Id, centro6.Id, incluido: true, bloqueaAcceso: true),
+            new TipoDocumentoCentro(certificado.Id, centro7.Id, incluido: true, bloqueaAcceso: true),
             new TipoDocumentoCentro(deCliente.Id, centro1.Id, incluido: true, bloqueaAcceso: true));
         c.ToleranciasDocumentoClienteEmpresarial.Add(new ToleranciaDocumentoClienteEmpresarial(cliente.Id, certificado.Id, ToleranciaA4));
+        c.ToleranciasDocumentoClienteEmpresarial.Add(new ToleranciaDocumentoClienteEmpresarial(cliente2.Id, certificado.Id, ToleranciaA6));
         await c.SaveChangesAsync();
 
         _clienteA = cliente.Id;
@@ -174,6 +190,8 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         _centroA3SinGestion = centro3.Id;
         _centroA4 = centro4.Id;
         _centroA5 = centro5.Id;
+        _centroA6 = centro6.Id;
+        _centroA7 = centro7.Id;
         _tipoPss = pss.Id;
         _tipoCertificado = certificado.Id;
 
@@ -186,6 +204,8 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         c.Documentos.Add(Documento.DeEmpresa(empVencida16.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(-16))));
         c.Documentos.Add(Documento.DeEmpresa(empVencida30.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(-30))));
         c.Documentos.Add(Documento.DeEmpresa(empVencida31.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(-31))));
+        c.Documentos.Add(Documento.DeEmpresa(empVencida5.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(-5))));
+        c.Documentos.Add(Documento.DeEmpresa(empVencida6.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(-6))));
         c.Documentos.Add(Documento.DeEmpresa(empVenceHoy.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy)));
         c.Documentos.Add(Documento.DeEmpresa(empNoCaduca.Id, certificado.Id, emision, VigenciaDocumento.NoCaduca));
         c.Documentos.Add(Documento.DeEmpresa(empSinConfirmar.Id, certificado.Id, emision, VigenciaDocumento.SinConfirmar));
@@ -241,6 +261,13 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         await AnadirR2Async(c, "R2 · Trabajador de un subcontratista sin el certificado", subAusente.Id, true,
             EmpresaAusente(ToleranciaA1), EmpresaAusente(ToleranciaA2), EmpresaAusente(ToleranciaA4));
         await AnadirR2Async(c, "R2 · Trabajador de un subcontratista con el certificado", subVigente.Id, true, null, null, null);
+
+        // Cada Centro hereda el defecto de SU Cliente empresarial: A4 (Cliente A, 30), A6 (Cliente A2, 5) y A7 (Cliente A3, sin
+        // defecto: 0). Un certificado vencido hace 5 dias vale en A4 y A6 y no en A7; hace 6, solo en A4.
+        await AnadirHerenciaAsync(c, "Herencia · certificado de Empresa vencido hace 5 dias", empVencida5.Id,
+            null, EmpresaVencida(ToleranciaA7));
+        await AnadirHerenciaAsync(c, "Herencia · certificado de Empresa vencido hace 6 dias", empVencida6.Id,
+            EmpresaVencida(ToleranciaA6), EmpresaVencida(ToleranciaA7));
 
         // Control: el requisito de Trabajador es de SU Centro. En el Centro 2 el PSS no es bloqueante y nadie tiene
         // que aparecer por no tenerlo.
@@ -314,6 +341,24 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         caso.PorCentro[_centroA2] = enA2;
         caso.PorCentro[_centroA3SinGestion] = null; // un Centro sin gestion CAE no exige nada, tampoco por R2
         caso.PorCentro[_centroA4] = enA4;
+        _casos.Add(caso);
+    }
+
+    private async Task AnadirHerenciaAsync(CaeManagerDbContext c, string nombre, Guid empresaId, Esperado? enA6, Esperado? enA7)
+    {
+        var trabajador = Trabajador.DeEmpresa(empresaId, "Caso", nombre, Dni());
+        c.Trabajadores.Add(trabajador);
+        await c.SaveChangesAsync();
+
+        var emision = _hoy.AddDays(-400);
+        foreach (var centro in new[] { _centroA4, _centroA6, _centroA7 })
+            c.Asignaciones.Add(new Asignacion(trabajador.Id, centro, emision));
+        await c.SaveChangesAsync();
+
+        var caso = new Caso(nombre, "Empresa") { TrabajadorId = trabajador.Id };
+        caso.PorCentro[_centroA4] = null; // 30 dias de su Cliente empresarial: vale
+        caso.PorCentro[_centroA6] = enA6;
+        caso.PorCentro[_centroA7] = enA7;
         _casos.Add(caso);
     }
 
@@ -459,10 +504,11 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     [Fact]
     public async Task La_tolerancia_del_Cliente_empresarial_es_del_Tenant_propietario_y_RLS_la_aisla()
     {
-        // La tabla nueva tiene RLS por Tenant: cada Tenant ve solo su fila, aunque se salten los filtros de EF.
+        // La tabla nueva tiene RLS por Tenant: cada Tenant ve solo sus filas, aunque se salten los filtros de EF.
         var delA = await Runtime(_tenantA).ToleranciasDocumentoClienteEmpresarial.IgnoreQueryFilters()
             .Select(t => new { t.ClienteEmpresarialId, t.ToleranciaDias }).ToListAsync();
-        delA.Should().ContainSingle().Which.Should().Be(new { ClienteEmpresarialId = _clienteA, ToleranciaDias = ToleranciaA4 });
+        delA.Should().HaveCount(2).And.Contain(new { ClienteEmpresarialId = _clienteA, ToleranciaDias = ToleranciaA4 });
+        delA.Select(t => t.ToleranciaDias).Should().BeEquivalentTo([ToleranciaA4, ToleranciaA6]);
 
         var delB = await Runtime(_tenantB).ToleranciasDocumentoClienteEmpresarial.IgnoreQueryFilters()
             .Select(t => new { t.ClienteEmpresarialId, t.ToleranciaDias }).ToListAsync();
@@ -581,6 +627,30 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task La_pantalla_de_requisitos_del_Centro_ensena_la_tolerancia_propia_y_la_heredada_de_su_Cliente_empresarial()
+    {
+        // Lo que el Gestor CAE ve al editar: la personalizada del Centro (null = hereda) y la que heredaria del Cliente
+        // empresarial TITULAR DE ESE CENTRO. Cada Centro lee la de su Cliente empresarial, no la de otro.
+        var comoA = Runtime(_tenantA);
+
+        async Task<DocumentacionRequeridaCentroDto> Fila(Guid centro) =>
+            (await new ObtenerDocumentacionRequeridaDeCentroQueryHandler(comoA, comoA, new AlcanceDatosServiceFalso())
+                .Handle(new ObtenerDocumentacionRequeridaDeCentroQuery(centro), CancellationToken.None))!
+                .Single(d => d.TipoDocumentoId == _tipoCertificado);
+
+        var a1 = await Fila(_centroA1);
+        (a1.ToleranciaDias, a1.ToleranciaHeredadaDias).Should().Be((ToleranciaA1, ToleranciaA4));
+        var a2 = await Fila(_centroA2);
+        (a2.ToleranciaDias, a2.ToleranciaHeredadaDias).Should().Be((ToleranciaA2, ToleranciaA4));
+        var a4 = await Fila(_centroA4);
+        (a4.ToleranciaDias, a4.ToleranciaHeredadaDias).Should().Be(((int?)null, ToleranciaA4));
+        var a6 = await Fila(_centroA6);
+        (a6.ToleranciaDias, a6.ToleranciaHeredadaDias).Should().Be(((int?)null, ToleranciaA6));
+        var a7 = await Fila(_centroA7);
+        (a7.ToleranciaDias, a7.ToleranciaHeredadaDias).Should().Be(((int?)null, ToleranciaA7));
+    }
+
+    [Fact]
     public async Task Aislamiento_cada_Tenant_ve_solo_lo_suyo_y_un_requisito_de_otro_Tenant_no_bloquea_a_nadie()
     {
         // B: su Trabajador esta bloqueado por el certificado de su Empresa y solo B lo ve; rige la tolerancia de SU
@@ -621,7 +691,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
 
     private string Nombre(Guid centro) =>
         centro == _centroA1 ? "A1" : centro == _centroA2 ? "A2" : centro == _centroA3SinGestion ? "A3 (sin gestion CAE)"
-        : centro == _centroA4 ? "A4" : centro == _centroA5 ? "A5" : centro.ToString();
+        : centro == _centroA4 ? "A4" : centro == _centroA5 ? "A5" : centro == _centroA6 ? "A6" : centro == _centroA7 ? "A7" : centro.ToString();
 
     private static string Describir(IEnumerable<DocumentacionBloqueantePendienteDto> filas) =>
         "[" + string.Join("; ", filas.Select(f => $"{f.Ambito}/{f.Situacion}/tolerancia={f.ToleranciaDias}")) + "]";
