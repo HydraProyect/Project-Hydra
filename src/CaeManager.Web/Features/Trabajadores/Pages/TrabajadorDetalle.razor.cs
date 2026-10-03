@@ -186,13 +186,6 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     private static bool TieneIncidencias(CentroDocumentacionTrabajadorDto centro) => centro.Documentos.Any(EsIncidencia);
 
-    /// <summary>
-    /// Documentos vigentes: lo que cuenta el porcentaje de cumplimiento, que (como en Centro 360 y en la lista,
-    /// CalculadoraEstadoCentro) deja fuera «Sin confirmar». La regla «sin confirmar = al día con aviso» solo
-    /// gobierna las incidencias y el panel Documentación base; cambiar el porcentaje es decisión pendiente del propietario.
-    /// </summary>
-    private static int Vigentes(CentroDocumentacionTrabajadorDto centro) => centro.Documentos.Count(d => d.Estado == EstadoDocumento.Vigente);
-
     private static int SinConfirmar(CentroDocumentacionTrabajadorDto centro) =>
         centro.Documentos.Count(d => d.Estado == EstadoDocumento.SinConfirmar);
 
@@ -203,9 +196,12 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         new[] { new BreadcrumbElemento(Textos["MigaTrabajadores"]), new BreadcrumbElemento(NombreCompleto ?? "…") };
 
-    private int TotalRequeridos => _centros.Sum(c => c.Documentos.Count);
-    private int TotalAlDia => _centros.Sum(Vigentes);
-    private int? Cumplimiento => TotalRequeridos == 0 ? null : (int)Math.Round(TotalAlDia * 100.0 / TotalRequeridos);
+    /// <summary>
+    /// % del Trabajador (contexto <see cref="ContextoCumplimiento.Trabajador"/>): la suma de las fracciones de cada Centro,
+    /// que ya mide <see cref="CumplimientoDocumental"/> (el listado de documentos no incluye «Sin caducidad», así que no
+    /// sirve para contar). No tiene fórmula propia.
+    /// </summary>
+    private int? Cumplimiento => FraccionCumplimiento.Sumar(_centros.Select(c => c.Cumplimiento)).Porcentaje;
 
     private CentroDocumentacionTrabajadorDto? CentroMasUrgente =>
         _centros.Count == 0 ? null : _centros.MinBy(c => SeveridadEstadoDocumento.Rango(c.PeorEstado));

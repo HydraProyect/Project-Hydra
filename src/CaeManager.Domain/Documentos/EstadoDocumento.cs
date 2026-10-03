@@ -42,8 +42,11 @@ public enum EstadoDocumento
     /// <summary>
     /// El Documento existe pero nadie ha confirmado hasta cuándo vale
     /// (<see cref="EstadoVigenciaDocumento.SinConfirmar"/>). No es vigente ni
-    /// vencido: es no saberlo, y no puede contar como «en regla» ni ganar a una
-    /// copia con vigencia comprobada.
+    /// vencido: es no saberlo, y no puede ganar a una copia con vigencia
+    /// comprobada. Qué cuenta como «al día» depende de la pregunta: en los
+    /// paneles y las incidencias es al día con aviso (decisión 2026-10-01); en
+    /// un porcentaje de cumplimiento es no conforme y entra en el denominador
+    /// (decisión 2026-10-03, <see cref="CumplimientoDocumental"/>).
     /// </summary>
     SinConfirmar = 6
 }

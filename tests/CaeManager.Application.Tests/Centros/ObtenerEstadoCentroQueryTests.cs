@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerEstadoCentro;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Documentos;
 using FluentAssertions;
 using Xunit;
 
@@ -37,6 +38,9 @@ public class ObtenerEstadoCentroQueryTests
                 : new Dictionary<Guid, FraccionCumplimiento> { [CentroId] = fraccion };
             return Task.FromResult(resultado);
         }
+
+        public Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosAsync(
+            IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     [Theory]
