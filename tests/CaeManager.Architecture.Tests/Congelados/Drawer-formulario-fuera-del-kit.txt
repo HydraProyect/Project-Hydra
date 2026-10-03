@@ -5,10 +5,8 @@ src/CaeManager.Web/Features/Bandeja/Components/DrawerReclamacionLote.razor :: Dr
 src/CaeManager.Web/Features/Blindaje42/Components/DrawerBlindaje42.razor :: Drawer = 1
 src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor :: Drawer = 4
 src/CaeManager.Web/Features/Centros/Components/DrawerAsignacionMasiva.razor :: Drawer = 1
-src/CaeManager.Web/Features/Centros/Pages/Centros.razor :: Drawer = 1
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: Drawer = 2
 src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor :: Drawer = 1
-src/CaeManager.Web/Features/Documentos/Components/DrawerGestionDocumento.razor :: Drawer = 1
 src/CaeManager.Web/Features/Documentos/Components/RevisionIaTab.razor :: Drawer = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor :: Drawer = 1
 src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor :: Drawer = 1

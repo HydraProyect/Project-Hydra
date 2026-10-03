@@ -59,7 +59,7 @@ public class FormulariosEnDrawerUsanElKitTests
         var medido = MedirFueraDelKit(MarcadoRazor.LeerRazorDeLaWeb());
 
         // Control positivo: si el recorrido no viera Drawers con campos, «ninguno nuevo» valdría por vacío.
-        medido.Values.Sum().Should().BeGreaterThan(15, "había 22 Drawers con campos en 18 ficheros tras el lote 2b (25 en 21 tras Trabajadores, 26 en 22 antes); si baja de golpe sin migrar nada, dejó de mirar");
+        medido.Values.Sum().Should().BeGreaterThan(10, "había 13 Drawers con campos en 9 ficheros tras el lote 2b con DrawerGestionDocumento y Centros (22 en 18 sin él; 25 en 21 tras Trabajadores, 26 en 22 antes); si baja de golpe sin migrar nada, dejó de mirar");
 
         ListaCongelada.Verificar(Lista, medido, Guia).Should().BeNull();
     }

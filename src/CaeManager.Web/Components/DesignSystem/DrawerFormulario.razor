@@ -20,7 +20,8 @@
     Lo que sigue siendo de cada pantalla: sus campos y su validación, su estado (Guardando, MensajeError,
     HayErroresDeCampo), HayCambios (normalmente InstantaneaFormulario) y el comando que guarda.
 
-    No cubre: el diálogo de confirmación, los formularios en Modal ni a página completa, ni los de varias secciones
+    Los diálogos que el formulario abre van en Dialogos (siempre debajo del aviso de salida).
+    No cubre: el diálogo de confirmación como cuerpo, los formularios en Modal ni a página completa, ni los de varias secciones
     o pasos (esos son página). Una acción secundaria que no cierra («Añadir otro…») va en PieExtra.
 *@
 @inject IJSRuntime JS
@@ -59,6 +60,11 @@
         </Boton>
     </Pie>
 </Drawer>
+
+@* Los diálogos que el formulario abre (confirmaciones de «vigencia anterior», «sospechoso»…) van ANTES del aviso de navegación:
+   con el mismo z-index el último del DOM queda encima, y un aviso pintado antes dejaría la pregunta de salida detrás de ellos,
+   bloqueando sin ofrecer sus botones. *@
+@Dialogos
 
 <AvisoCambiosSinGuardar HayCambios="() => Visible && HayCambios()" AlDescartar="DescartarPorNavegacionAsync" />
 
@@ -121,6 +127,12 @@
     /// mientras <see cref="Guardando"/>; el spinner de la acción en curso sigue siendo cosa de la pantalla (Cargando del Boton).
     /// </summary>
     [Parameter] public RenderFragment? PieExtra { get; set; }
+
+    /// <summary>
+    /// Diálogos que abre el formulario (<c>DialogoConfirmacion</c>, un <c>Modal</c> auxiliar): se pintan después del drawer y
+    /// antes del aviso de navegación, para que la pregunta de salida quede siempre encima de ellos (v2, T10).
+    /// </summary>
+    [Parameter] public RenderFragment? Dialogos { get; set; }
 
     /// <summary>Tras «Salir y descartar» del aviso de navegación, además de cerrar el drawer.</summary>
     [Parameter] public EventCallback AlDescartarPorNavegacion { get; set; }

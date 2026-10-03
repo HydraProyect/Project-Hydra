@@ -256,6 +256,23 @@ public class DrawerFormularioTests : BunitContext
     }
 
     [Fact]
+    public async Task La_pregunta_de_salida_queda_encima_de_los_dialogos_que_abre_el_formulario()
+    {
+        // Mismo z-index: el último del DOM queda encima. Un aviso pintado antes de los diálogos deja la pregunta detrás de ellos y
+        // la salida se bloquea sin sus botones (DrawerGestionDocumento, «vigencia anterior»).
+        _hayCambios = true;
+        var cut = Renderizar(p => p.Add(x => x.Dialogos, (RenderFragment)(b =>
+            b.AddMarkupContent(0, "<div class=\"modal-contenido\"><h2>Vigencia anterior</h2></div>"))));
+        var navegacion = Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/trabajadores"));
+
+        var dialogos = cut.FindAll(".modal-contenido");
+        dialogos.Should().HaveCount(2, "el diálogo del formulario y la pregunta de salida conviven");
+        dialogos.Last().TextContent.Should().Contain("¿Salir sin guardar?", "la pregunta tiene que ser la última del DOM para quedar encima");
+    }
+
+    [Fact]
     public async Task Un_render_ajeno_al_guardado_con_errores_de_campo_visibles_no_roba_el_foco()
     {
         _erroresDeCampo = true;
