@@ -290,15 +290,21 @@ public class ReglasDeNegocioSinCopiasTests
     /// olvida de la mitad «no eliminado» y es la copia que el diseño del documento efectivo (2026-10-03, § 2.4) prohíbe.
     /// </summary>
     private static readonly Regex PatronSustitucionComparadaAMano = new(
-        @"\bSustituidoEnUtc\s*(?:==|!=|is\s+(?:not\s+)?null\b)|\bSustituidoPorDocumentoId\s*(?:==|!=|is\s+(?:not\s+)?null\b)",
+        @"\b(?:SustituidoEnUtc|SustituidoPorDocumentoId)\s*(?:==|!=|is\s+(?:not\s+)?null\b|\.\s*HasValue\b)"
+        // El mismo filtro en SQL crudo o en una cadena: "SustituidoEnUtc" IS [NOT] NULL.
+        + @"|\\?""SustituidoEnUtc\\?""\s+IS\s+(?:NOT\s+)?NULL\b"
+        // La propiedad derivada del agregado usada desde fuera: EF no la traduce (falla en ejecución) y en memoria
+        // la pregunta se hace con DocumentoOperativo.Es, que además descarta los eliminados.
+        + @"|\b\w+\s*\.\s*EstaSustituido\b",
         RegexOptions.Compiled);
 
     private static readonly Dictionary<string, int> ComparacionesDeSustitucionDeclaradas = new()
     {
         // El punto único: la expresión operativa.
         [PuntoUnicoDelDocumentoOperativo] = 1,
-        // El agregado deriva su propio EstaSustituido de la columna: es la propiedad de dominio, no una consulta.
-        ["src/CaeManager.Domain/Documentos/Documento.cs"] = 1,
+        // El agregado deriva su propio EstaSustituido de la columna (1) y comprueba el del sustituto con
+        // `nuevo.EstaSustituido` dentro de SustituirPor (1): son la propiedad de dominio, no una consulta.
+        ["src/CaeManager.Domain/Documentos/Documento.cs"] = 2,
     };
 
     [Fact]
@@ -307,6 +313,25 @@ public class ReglasDeNegocioSinCopiasTests
         Divergencias(ComparacionesDeSustitucionDeclaradas, ContarPorFichero(PatronSustitucionComparadaAMano)).Should().BeEmpty(
             "«documento operativo» (no eliminado y no sustituido) es DocumentoOperativo.Expresion; comparar SustituidoEnUtc a " +
             "mano en una consulta olvida los eliminados cuando se apaga el filtro global y reparte la regla por las superficies");
+    }
+
+    /// <summary>
+    /// Una ESCRITURA de las columnas de sustitución (<c>SustituidoEnUtc = …</c>). Los setters son privados, así que solo
+    /// el agregado puede escribirlas: la sustitución nace en <c>Documento.SustituirPor</c> (tres asignaciones, una por
+    /// columna) y nada la deshace (D5: el sustituido no vuelve a ser operativo). Un método nuevo del agregado que las
+    /// reasigne —por ejemplo para ponerlas a null— sube la cuenta y es rojo hasta que se declare a conciencia.
+    /// </summary>
+    private static readonly Regex PatronEscrituraDeLaSustitucion = new(
+        @"\b(?:SustituidoEnUtc|SustituidoPorDocumentoId|MotivoSustitucion)\s*=(?![=>])",
+        RegexOptions.Compiled);
+
+    [Fact]
+    public void La_sustitucion_de_un_documento_solo_se_escribe_en_SustituirPor()
+    {
+        Divergencias(new Dictionary<string, int> { ["src/CaeManager.Domain/Documentos/Documento.cs"] = 3 },
+                ContarPorFichero(PatronEscrituraDeLaSustitucion)).Should().BeEmpty(
+            "las tres columnas de sustitución se asignan una sola vez, dentro de Documento.SustituirPor; reasignarlas en otro " +
+            "sitio (o a null) permitiría que un documento sustituido volviera a ser operativo (D5)");
     }
 
     // ---------- Instrumento ----------
@@ -322,12 +347,21 @@ public class ReglasDeNegocioSinCopiasTests
             "        => SustituidoEnUtc is not null;",
             "            .Where(d => d.SustituidoPorDocumentoId == null)",
             "        if (documento.SustituidoPorDocumentoId is not null) continue;",
+            "            .Where(d => d.SustituidoEnUtc.HasValue)",
+            "            \"SELECT * FROM \\\"Documentos\\\" WHERE \\\"SustituidoEnUtc\\\" IS NULL\"",
+            "            \"... \\\"SustituidoEnUtc\\\" IS NOT NULL\"",
+            "            .Where(d => !d.EstaSustituido)",
+            "        var historia = documentos.Where(documento => documento.EstaSustituido);",
         ];
         foreach (var linea in copiadas)
             EsCodigoQueCasa(linea, PatronSustitucionComparadaAMano).Should().BeTrue(linea);
 
         string[] ajenas =
         [
+            "                \"num_nonnulls(\\\"SustituidoPorDocumentoId\\\", \\\"SustituidoEnUtc\\\", \\\"MotivoSustitucion\\\") IN (0, 3) AND \" +",
+            "                \"\\\"SustituidoPorDocumentoId\\\" IS DISTINCT FROM \\\"Id\\\"\");",
+            "    public bool EstaSustituido => false;",
+            "        if (EstaSustituido)",
             "        SustituidoEnUtc = ahoraUtc;",
             "        SustituidoPorDocumentoId = nuevo.Id;",
             "            .Where(DocumentoOperativo.Expresion)",
@@ -337,6 +371,27 @@ public class ReglasDeNegocioSinCopiasTests
         ];
         foreach (var linea in ajenas)
             EsCodigoQueCasa(linea, PatronSustitucionComparadaAMano).Should().BeFalse(linea);
+
+        string[] escrituras =
+        [
+            "        SustituidoEnUtc = ahoraUtc;",
+            "        SustituidoEnUtc = null;",
+            "        SustituidoPorDocumentoId = nuevo.Id;",
+            "        MotivoSustitucion = null;",
+        ];
+        foreach (var linea in escrituras)
+            EsCodigoQueCasa(linea, PatronEscrituraDeLaSustitucion).Should().BeTrue(linea);
+
+        string[] noEscrituras =
+        [
+            "    public DateTime? SustituidoEnUtc { get; private set; }",
+            "        d => !d.EstaEliminado && d.SustituidoEnUtc == null;",
+            "    public bool EstaSustituido => SustituidoEnUtc is not null;",
+            "        // SustituidoEnUtc = null;",
+            "            .Where(d => d.MotivoSustitucion == MotivoSustitucionDocumento.Renovacion)",
+        ];
+        foreach (var linea in noEscrituras)
+            EsCodigoQueCasa(linea, PatronEscrituraDeLaSustitucion).Should().BeFalse(linea);
     }
 
     [Fact]

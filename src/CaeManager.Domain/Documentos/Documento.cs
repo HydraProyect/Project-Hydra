@@ -205,8 +205,11 @@ public class Documento : EntidadBase
     /// <summary>
     /// Corrige la fecha de emisión y la vigencia <b>de este mismo registro</b>: la corrección de un dato mal
     /// leído (revisión de la IA, edición del Gestor CAE), no una renovación. Renovar un documento es subir
-    /// uno nuevo que lo sustituye (<see cref="SustituirPor"/>): el anterior pasa al historial con su archivo y
-    /// sus fechas intactos, y este método no puede hacerlo porque pisa las del propio registro. La vigencia la
+    /// uno nuevo que lo sustituye (<see cref="SustituirPor"/>): el anterior pasa al historial, y este método no
+    /// puede hacerlo porque pisa las fechas del propio registro. Hasta que el comando de renovar cree un
+    /// registro nuevo (PR 4 del diseño del documento efectivo), <c>RenovarDocumentoCommand</c> sigue usando este
+    /// método. Este método no rechaza un documento ya sustituido: si el historial es además inmutable frente a
+    /// correcciones es una decisión pendiente del PR 4, no una garantía de hoy. La vigencia la
     /// decide el llamador (Application): la calcula con CalculadoraEstadoDocumento cuando el TipoDocumento
     /// tiene vencimiento automático, o la confirma el Gestor CAE a mano. Una vigencia sin confirmar queda
     /// <see cref="VigenciaDocumento.SinConfirmar"/>, nunca «no caduca».
@@ -245,8 +248,8 @@ public class Documento : EntidadBase
 
     /// <summary>
     /// Este documento pasa al historial porque <paramref name="nuevo"/> ocupa su lugar. <b>Nunca borra</b>:
-    /// el sustituido conserva su archivo, sus fechas, su identidad y sus acreditaciones, y deja de contar
-    /// (<see cref="DocumentoOperativo"/>). La sustitución no puede deshacerse y el Id del sustituto es otro
+    /// esta operación no toca el archivo, las fechas, la identidad ni las acreditaciones del sustituido, que
+    /// deja de contar (<see cref="DocumentoOperativo"/>). La sustitución no puede deshacerse y el Id del sustituto es otro
     /// distinto del del sustituido: ningún camino reutiliza un Id (decisiones D5 y D8, 2026-10-03).
     ///
     /// <para>

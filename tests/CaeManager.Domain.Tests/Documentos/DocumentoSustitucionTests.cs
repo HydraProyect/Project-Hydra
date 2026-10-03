@@ -273,6 +273,18 @@ public class DocumentoSustitucionTests
         anterior.Invoking(a => a.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, Ahora)).Should().NotThrow();
     }
 
+    [Fact]
+    public void Un_sustituido_sin_Tenant_sellado_acepta_un_sustituto_ya_sellado()
+    {
+        // Simétrico del anterior: el sustituido aún sin sellar y el sustituto ya sellado también se aceptan.
+        var trabajador = Guid.NewGuid();
+        var anterior = DeTrabajador(trabajador);
+        var nuevo = DeTrabajador(trabajador);
+        SellarTenant(nuevo, Guid.NewGuid());
+
+        anterior.Invoking(a => a.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, Ahora)).Should().NotThrow();
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -324,6 +336,8 @@ public class DocumentoSustitucionTests
 
         anterior.MarcarComoEliminado(Guid.NewGuid());
         anterior.Restaurar();
+        // CorregirVigencia no rechaza hoy un sustituido (si el historial es inmutable lo decide el PR 4); lo que se
+        // afirma aquí es solo que corregirlo no lo devuelve a operativo.
         anterior.CorregirVigencia(Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(2)));
 
         anterior.EstaSustituido.Should().BeTrue();

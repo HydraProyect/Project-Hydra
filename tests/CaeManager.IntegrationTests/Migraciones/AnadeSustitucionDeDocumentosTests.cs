@@ -221,6 +221,41 @@ public class AnadeSustitucionDeDocumentosTests : IAsyncLifetime
         operativosSinFiltros.Should().Equal([idNuevo]);
     }
 
+    [Fact]
+    public async Task Sustituir_con_un_documento_recien_creado_se_guarda_en_una_sola_operacion_y_el_Tenant_lo_sella_el_interceptor()
+    {
+        // La ruta que usará el comando de renovar (PR 4): el sustituto aún no está guardado ni tiene Tenant sellado
+        // cuando se llama a SustituirPor; la FK compuesta con el Tenant se comprueba al guardar los dos a la vez.
+        var (empresa, tipo) = await SembrarTitularYTipoAsync(_tenant);
+        Guid idAnterior;
+        await using (var contexto = NuevoContexto(_tenant.Id))
+        {
+            var anterior = Documento.DeEmpresa(empresa, tipo, new DateOnly(2025, 1, 1), VigenciaDocumento.NoCaduca);
+            contexto.Documentos.Add(anterior);
+            await contexto.SaveChangesAsync();
+            idAnterior = anterior.Id;
+        }
+
+        Guid idNuevo;
+        await using (var contexto = NuevoContexto(_tenant.Id))
+        {
+            var anterior = await contexto.Documentos.SingleAsync(d => d.Id == idAnterior);
+            var nuevo = Documento.DeEmpresa(empresa, tipo, new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
+            contexto.Documentos.Add(nuevo);
+            anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+            nuevo.TenantId.Should().BeEmpty("control: todavía no lo ha sellado el interceptor");
+
+            await contexto.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync();
+            nuevo.TenantId.Should().Be(_tenant.Id);
+            idNuevo = nuevo.Id;
+        }
+
+        await using var lectura = NuevoContexto(_tenant.Id);
+        (await lectura.Documentos.SingleAsync(d => d.Id == idAnterior)).SustituidoPorDocumentoId.Should().Be(idNuevo);
+        (await lectura.Documentos.Where(DocumentoOperativo.Expresion).Select(d => d.Id).ToListAsync())
+            .Should().Equal([idNuevo]);
+    }
+
     // ── La migración sobre datos, RLS y Down ───────────────────────────────
 
     [Fact]
