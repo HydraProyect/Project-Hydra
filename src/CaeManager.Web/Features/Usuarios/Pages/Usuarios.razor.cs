@@ -942,8 +942,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// <summary>
     /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de alta y
     /// edición de Usuario comparado con cómo se abrió (con la ficha ya cargada). Lo
-    /// leen el DrawerFormulario (que lleva su aviso de navegación) y el Modal de desactivar; cerrados (también tras guardar
-    /// o desactivar) nunca hay nada que perder.
+    /// lee el DrawerFormulario (que lleva su aviso de navegación); cerrado (también tras guardar)
+    /// nunca hay nada que perder. El diálogo de desactivar no lo lee: no tiene ninguna elección que perder.
     /// </summary>
     private bool HayCambiosSinGuardar =>
         _drawerVisible && _instantanea.Difiere(ValoresFormulario());

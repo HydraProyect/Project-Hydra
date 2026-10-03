@@ -412,8 +412,12 @@
    primer clic y dejaba la cartera del Gestor CAE sin decir nada. Ahora se confirma
    y, si es un Gestor CAE con la cartera del Tenant entero, se dice que sigue abierta y
    la conserva su Coordinador CAE (decisión del 2026-09-24). No hay traspaso: la cartera
-   ya no se reparte por Cliente empresarial (D-7, 2026-10-02). *@
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="@(_usuarioADesactivar is not null)"
+   ya no se reparte por Cliente empresarial (D-7, 2026-10-02), así que el diálogo no tiene ningún
+   campo ni elección que perder: «Volver», la X y Escape cierran sin preguntar. Regla de Chris
+   (2026-10-03): si algún día vuelve a haber una elección (p. ej. un Gestor CAE de destino), el
+   Modal pasa HayCambios y el pie llama a SolicitarCierreAsync; DrawerYModalConCamposPreguntanAlDescartarTests
+   lo exige en cuanto aparezca un campo. *@
+<Modal Visible="@(_usuarioADesactivar is not null)"
        VisibleChanged="@(v => { if (!v && !_desactivando) _usuarioADesactivar = null; })"
        Titulo="@TextosUsuarios["DesactivarTitulo", _usuarioADesactivar?.NombreCompleto ?? string.Empty]"
        CerrarAlHacerClicFuera="!_desactivando">

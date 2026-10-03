@@ -93,13 +93,11 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     /// </summary>
     private static readonly IReadOnlyDictionary<string, string> SalidasDelPieSinGuardian = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        // Regla de Chris (2026-09-29): toda pérdida de edición pregunta. «Descartar la propuesta» de Retención salió de esta lista (2026-10-03)
-        // porque su Motivo es obligatorio. «Desactivar usuario» se mantiene (decisión de la coordinadora, 2026-10-03): su Gestor CAE de
-        // destino es una elección opcional y el valor por defecto es «no reasignar».
-        ["src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor#Modal2:@TextosUsuarios[\"DesactivarVolver\"]"] =
-            "Confirmación «Desactivar usuario» con un Gestor CAE de destino opcional para la cartera: la acción es confirmar y «Volver» " +
-            "descarta la elección a propósito (el destino por defecto es «no reasignar»). Excepción por analogía con Visitas; " +
-            "pendiente de confirmar por la coordinadora.",
+        // Regla de Chris (2026-09-29): toda pérdida de edición pregunta. Vacía a propósito: «Descartar la propuesta» de Retención salió
+        // de esta lista el 2026-10-03 porque su Motivo es obligatorio, y «Desactivar usuario» salió el mismo día (decisión de Chris:
+        // debe preguntar antes de descartar lo elegido): el Gestor CAE de destino del traspaso ya no existe desde D-7, el diálogo no
+        // tiene ningún campo y por eso no lleva HayCambios; si vuelve a tener uno, el primer test de esta clase lo obliga a pasarlo
+        // y entonces su «Volver» tiene que pasar por SolicitarCierreAsync, sin excepción.
     };
 
     private const string MotivoOpcionalDeConfirmacion =
@@ -130,7 +128,8 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         var raiz = MarcadoRazor.RaizDelRepositorio();
 
         ContenedoresSinGuardian.Should().OnlyContain(kv => kv.Value.Length >= 40, "cada excepción lleva su razón escrita");
-        SalidasDelPieSinGuardian.Should().OnlyContain(kv => kv.Value.Length >= 40, "cada salida declarada lleva su razón escrita");
+        // Sin OnlyContain: la lista puede estar vacía (FluentAssertions lo da por fallo con una colección vacía).
+        SalidasDelPieSinGuardian.Where(kv => kv.Value.Length < 40).Should().BeEmpty("cada salida declarada lleva su razón escrita");
         ContenedoresSinGuardian.Keys.Concat(SalidasDelPieSinGuardian.Keys)
             .Select(k => k.Split('#')[0])
             .Where(ruta => !File.Exists(Path.Combine(raiz, ruta)))
