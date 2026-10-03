@@ -22,6 +22,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Features.Documentos.Components;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -456,10 +457,12 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         }
     }
 
-    private string TextoVence(DateOnly? fechaVencimiento, EstadoDocumento estado) =>
+    // Sin fecha son dos cosas distintas, y una tercera si no hay vigencia que rotular: la regla es de
+    // EstadoDocumentoUi.TextoSinFechaDeVencimiento («Sin caducidad» / «Sin confirmar» / «—»), la misma que Centro 360,
+    // Subcontrata 360 y Reportes.
+    private static string TextoVence(DateOnly? fechaVencimiento, EstadoDocumento estado) =>
         fechaVencimiento is { } vence ? vence.ToString("dd/MM/yyyy")
-        : estado == EstadoDocumento.SinCaducidad ? Textos["SinCaducidad"]
-        : "—";
+        : EstadoDocumentoUi.TextoSinFechaDeVencimiento(estado);
 
     private void IrABreadcrumb(int indice)
     {

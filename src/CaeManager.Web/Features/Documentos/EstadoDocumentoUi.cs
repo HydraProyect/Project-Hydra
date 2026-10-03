@@ -62,6 +62,23 @@ public static class EstadoDocumentoUi
     };
 
     /// <summary>
+    /// Aviso ámbar de una celda de vigencia «Sin confirmar» (cuenta como al día, con aviso; decisión del propietario del
+    /// 2026-10-01). Lo comparten Centro 360, Trabajador 360 y Subcontrata 360: es la misma regla que
+    /// <see cref="TextoSinFechaDeVencimiento"/> y se mantiene en el mismo sitio. <c>null</c> para cualquier otro estado.
+    /// </summary>
+    public static string? ClaseAvisoVigenciaSinConfirmar(EstadoDocumento? estado) =>
+        estado == EstadoDocumento.SinConfirmar ? "celda-documento-vigencia-sin-confirmar" : null;
+
+    /// <summary>
+    /// Clase de la celda de vigencia de las tablas de documentos requeridos (Centro 360 y Subcontrata 360): estilo neutro
+    /// de la columna más, si procede, el aviso de <see cref="ClaseAvisoVigenciaSinConfirmar"/>.
+    /// </summary>
+    public static string ClaseCeldaVigencia(EstadoDocumento? estado) =>
+        ClaseAvisoVigenciaSinConfirmar(estado) is { } aviso
+            ? $"celda-documento-vigencia {aviso}"
+            : "celda-documento-vigencia";
+
+    /// <summary>
     /// Estado documental derivado de Trabajador/Empresa/Vehículo, donde null
     /// significa "no tiene ningún documento todavía" — ver
     /// <see cref="ICalculoEstadoDocumentalService"/>.

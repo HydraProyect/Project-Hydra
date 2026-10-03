@@ -519,9 +519,6 @@
   <data name="VenceEl" xml:space="preserve">
     <value>Vence: {0}</value>
   </data>
-  <data name="SinCaducidad" xml:space="preserve">
-    <value>Sin caducidad</value>
-  </data>
   <data name="DocumentacionErrorTitulo" xml:space="preserve">
     <value>No pudimos cargar la documentación</value>
   </data>

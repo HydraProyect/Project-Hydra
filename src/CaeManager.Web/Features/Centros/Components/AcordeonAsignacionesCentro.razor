@@ -126,7 +126,7 @@ else
                         }
                     </span>
                     <span role="cell">
-                        <TextoFechaCopiable Fecha="incidencia.FechaVencimiento" Class="@ClaseVigencia(incidencia.Estado)">
+                        <TextoFechaCopiable Fecha="incidencia.FechaVencimiento" Class="@EstadoDocumentoUi.ClaseCeldaVigencia(incidencia.Estado)">
                             @TextoVigenciaEmpresa(incidencia)
                         </TextoFechaCopiable>
                     </span>
@@ -404,7 +404,7 @@ else
                                                 }
                                             </span>
                                             <span role="cell">
-                                                <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="@ClaseVigencia(documento.Estado)">
+                                                <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="@EstadoDocumentoUi.ClaseCeldaVigencia(documento.Estado)">
                                                     @TextoVigencia(documento)
                                                 </TextoFechaCopiable>
                                             </span>
