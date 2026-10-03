@@ -550,42 +550,30 @@ public class InicioGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Mismo defecto que cerró «Mi trabajo» (#599), un piso más arriba: un
-    /// requisito de ALTA NUEVA no cierra ningún Centro, así que no puede
-    /// contarse en «bloquean acceso» ni en la pista «N centros bloqueados» del
-    /// KPI. El segundo grupo es el control positivo: con un requisito que NO es
-    /// alta nueva, los dos recuentos sí cuentan.
+    /// «Bloqueado» es un estado del Trabajador, no del Centro (corrección del propietario, 2026-10-03): la pista del KPI
+    /// cuenta Trabajadores bloqueados, no Centros. Un mismo Trabajador bloqueado en dos Centros (o por dos requisitos) es UN
+    /// Trabajador; dos Trabajadores bloqueados en el mismo Centro son dos. Un recién dado de alta sin documentación cuenta
+    /// igual que cualquier otro.
     /// </summary>
     [Fact]
-    public void Un_grupo_de_altas_nuevas_no_cuenta_como_bloqueo_ni_arriba_ni_en_el_kpi()
+    public void La_pista_del_kpi_cuenta_trabajadores_bloqueados_no_centros()
     {
-        var cut = Renderizar(new MediadorDeInicio(
-            Item("a1", TipoItemBandeja.RequisitoPendiente, Refrielectric, "Refrielectric S.A.")
-                with
-            { CentroId = CentroNorte, EsAltaNueva = true }));
-
-        MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo",
-            "un alta sin completar no cierra ningún Centro: la cabecera no puede decir que bloquea");
-        cut.Markup.Should().NotContain("Bloquea acceso");
-        PistaDelKpi(cut, "Centros / plataformas").Should().BeNull(
-            "la pista «N centros bloqueados» contaba también las altas nuevas y decía que había Centros cerrados donde no los había");
-    }
-
-    /// <summary>Control positivo del caso anterior: un requisito que NO es alta nueva sí cuenta en los dos sitios.</summary>
-    [Fact]
-    public void Un_requisito_que_no_es_alta_nueva_si_cuenta_como_bloqueo_arriba_y_en_el_kpi()
-    {
+        var ana = Guid.NewGuid();
+        var beto = Guid.NewGuid();
         var cut = Renderizar(new MediadorDeInicio(
             Item("b1", TipoItemBandeja.RequisitoPendiente, Refrielectric, "Refrielectric S.A.")
                 with
-            { CentroId = CentroNorte },
+            { CentroId = CentroNorte, TrabajadorId = ana },
             Item("b2", TipoItemBandeja.RequisitoPendiente, Refrielectric, "Refrielectric S.A.")
                 with
-            { CentroId = CentroSur }));
+            { CentroId = CentroSur, TrabajadorId = ana },
+            Item("b3", TipoItemBandeja.RequisitoPendiente, Refrielectric, "Refrielectric S.A.")
+                with
+            { CentroId = CentroNorte, TrabajadorId = beto }));
 
         MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo · 1 bloquea acceso");
         cut.Markup.Should().Contain("Bloquea acceso");
-        PistaDelKpi(cut, "Centros / plataformas").Should().Be("2 centros bloqueados");
+        PistaDelKpi(cut, "Centros / plataformas").Should().Be("2 trabajadores bloqueados");
     }
 
     /// <summary>
@@ -600,11 +588,11 @@ public class InicioGen2Tests : BunitContext
         var cut = Renderizar(new MediadorDeInicio(
             Item("r1", TipoItemBandeja.PlataformaRechazada, CervezasDuff, "Cervezas Duff Ibérica")
                 with
-            { CentroId = CentroNorte, DocumentoId = Guid.NewGuid(), RechazoBloqueaCentro = true }));
+            { CentroId = CentroNorte, DocumentoId = Guid.NewGuid(), TrabajadorId = Guid.NewGuid(), RechazoBloqueaCentro = true }));
 
         MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo · 1 bloquea acceso");
         cut.Markup.Should().Contain("Bloquea acceso");
-        PistaDelKpi(cut, "Centros / plataformas").Should().Be("1 centro bloqueado");
+        PistaDelKpi(cut, "Centros / plataformas").Should().Be("1 trabajador bloqueado");
     }
 
     /// <summary>

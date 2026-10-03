@@ -2,74 +2,161 @@ namespace CaeManager.Domain.Documentos;
 
 /// <summary>
 /// En qué situación está un requisito bloqueante (un <see cref="TipoDocumentoCentro"/> con
-/// <see cref="TipoDocumentoCentro.BloqueaAcceso"/>) para su sujeto, hoy.
+/// <see cref="TipoDocumentoCentro.BloqueaAcceso"/>) para su sujeto, hoy, en UN Centro.
 /// </summary>
 public enum SituacionDeRequisitoBloqueante
 {
-    /// <summary>Hay al menos un Documento del tipo válido hoy: no bloquea.</summary>
+    /// <summary>Hay al menos un Documento del tipo que vale para acceder a ese Centro hoy (incluida la tolerancia): no bloquea.</summary>
     Cumplido = 0,
 
     /// <summary>No existe ningún Documento del tipo para ese sujeto: bloquea.</summary>
     Ausente = 1,
 
-    /// <summary>Existen Documentos del tipo pero ninguno es válido hoy (todos vencidos): bloquea igual que el ausente.</summary>
+    /// <summary>
+    /// Existen Documentos del tipo pero ninguno vale ya para acceder a ese Centro: todos vencieron y, si el Centro
+    /// concede tolerancia, esta ya se agotó. Bloquea igual que el ausente.
+    /// </summary>
     Vencido = 2
 }
 
+/// <summary>Un Documento visto desde la regla de acceso: su vigencia y la fecha de emisión (base de la periodicidad especial de un Centro).</summary>
+public readonly record struct DocumentoParaAcceso(VigenciaDocumento Vigencia, DateOnly FechaEmision);
+
 /// <summary>
-/// <b>Punto único</b> de la regla «un documento bloqueante ausente o vencido bloquea el acceso»
-/// (decisión del propietario del producto, 2026-10-03). Ninguna superficie decide por su cuenta si un documento
-/// bloqueante «cuenta»: llaman aquí.
+/// Las condiciones de UN Centro para un Tipo de documento: la vigencia propia que impone
+/// (<see cref="TipoDocumentoCentro.PeriodicidadEspecialMeses"/>) y los días de tolerancia ya resueltos
+/// (<see cref="ReglaBloqueoDeAcceso.ResolverToleranciaDias"/>).
+/// </summary>
+public readonly record struct CondicionesDeAccesoDelCentro(int? PeriodicidadEspecialMeses, int ToleranciaDias);
+
+/// <summary>
+/// Resultado de evaluar un requisito bloqueante en un Centro.
+/// </summary>
+/// <param name="Situacion">Cumplido, Ausente o Vencido (ya sin tolerancia).</param>
+/// <param name="VencimientoEfectivo">
+/// El vencimiento efectivo en este Centro del Documento más reciente de los que hay; <c>null</c> si no hay ninguno o
+/// el mejor no vence. Con <see cref="Situacion"/> Vencido es la fecha desde la que dejó de valer.
+/// </param>
+/// <param name="EnToleranciaHasta">
+/// Solo cuando <see cref="Situacion"/> es Cumplido <b>gracias a la tolerancia</b>: el último día en que el documento
+/// vale para acceder a este Centro. Es un dato para mostrar («en tolerancia hasta X»); no cambia el estado de vigencia del
+/// Documento, que sigue siendo Vencido.
+/// </param>
+public readonly record struct ResultadoDeRequisito(
+    SituacionDeRequisitoBloqueante Situacion, DateOnly? VencimientoEfectivo, DateOnly? EnToleranciaHasta);
+
+/// <summary>
+/// <b>Punto único</b> de la regla «un documento bloqueante ausente o que ya no vale bloquea el acceso»
+/// (decisión del propietario del producto, 2026-10-03, y su corrección de la tarde). Ninguna superficie decide por su
+/// cuenta si un documento bloqueante «cuenta»: llaman aquí.
 ///
 /// <list type="number">
-/// <item><b>Sujeto Trabajador.</b> Un Documento bloqueante de ámbito Trabajador ausente o no válido hoy
-/// (vencido) bloquea a ESE Trabajador. Un vencido bloquea igual que un ausente.</item>
-/// <item><b>Sujeto Empresa.</b> Un Documento bloqueante de ámbito Empresa ausente o vencido bloquea a TODOS
-/// los Trabajadores de esa Empresa en TODOS los Centros del Tenant propietario, aunque su documentación
-/// personal esté completa. El modelo es egocéntrico por Tenant: nunca se cruza de un Tenant a otro.</item>
-/// <item><b>El Centro no es el sujeto.</b> Un documento bloqueante de Trabajador o de Empresa bloquea a
-/// personas, no convierte al Centro en «bloqueado». Qué debe enseñar el Centro cuando tiene Trabajadores o
-/// Empresas bloqueados es una decisión de producto pendiente: esta regla no la toma. Hoy el semáforo del Centro
-/// (<c>CalculoEstadoCentroService</c>) no lo pone en Bloqueado por esto, pero la Bandeja y Mi trabajo SÍ derivan
-/// «bloquea el centro» de cada fila pendiente que no es un alta nueva (<c>EsAltaNueva == false</c>: un requisito
-/// vencido o uno de Empresa) y la cuentan por Centro: esa divergencia es la decisión pendiente.</item>
+/// <item><b>Se evalúa POR CENTRO.</b> Un documento bloquea el acceso a un Centro solo si ESE Centro lo exige como
+/// bloqueante (<see cref="TipoDocumentoCentro.BloqueaAcceso"/>) y, con las condiciones de ese Centro (vigencia
+/// propia y tolerancia), ya no vale. El mismo documento puede valer en un Centro y no en otro.</item>
+/// <item><b>Sujeto Trabajador.</b> Un Documento bloqueante de ámbito Trabajador ausente o que ya no vale bloquea a
+/// ESE Trabajador en ese Centro.</item>
+/// <item><b>Sujeto Empresa.</b> Un Documento bloqueante de ámbito Empresa ausente o que ya no vale bloquea, en ese
+/// Centro, a TODOS los Trabajadores de esa Empresa, aunque su documentación personal esté completa. Nunca en un
+/// Centro que no lo exige. El modelo es egocéntrico por Tenant: nunca se cruza de un Tenant a otro.</item>
+/// <item><b>«Bloqueado» es un estado del Trabajador, nunca del Centro.</b> El Centro enseña qué Trabajadores están
+/// bloqueados y por qué.</item>
+/// <item><b>Una alta nueva sin documentación está bloqueada</b> (sustituye a la advertencia de «alta nueva» del
+/// 2026-08-16): no hay excepción por no haber completado el alta.</item>
 /// </list>
 ///
 /// <para>
-/// «Válido hoy» es <b>no vencido</b>: un documento con fecha de vencimiento anterior a hoy no vale; uno que
-/// vence hoy, o más adelante (Próximo o Urgente), vale. «Sin confirmar» y «No caduca» no tienen fecha y por
-/// tanto no están vencidos: no bloquean. Eso es lo que ya hacía Mi trabajo y no se decidió cambiarlo para el
-/// bloqueo (el propietario del producto fijó «Sin confirmar» solo para paneles e incidencias, no para el acceso).
+/// <b>Vencimiento efectivo en un Centro</b> (<see cref="VencimientoEfectivo"/>): si el Centro define una periodicidad
+/// especial para el Tipo, el documento vence en la <b>fecha de emisión + esos meses</b> (sustituye al vencimiento que
+/// trae el documento); si no, es el vencimiento del propio documento. «No caduca» nunca vence, tenga el Centro la
+/// periodicidad que tenga. Un documento «Sin confirmar» no tiene vencimiento propio y no bloquea, salvo que el Centro
+/// imponga periodicidad (entonces vence por emisión + meses, porque la vigencia la define el Centro y no hace falta
+/// confirmar la del documento).
 /// </para>
 ///
 /// <para>
-/// Es una función pura sobre <see cref="VigenciaDocumento"/>, no un predicado SQL: EF no puede llamarla
-/// dentro de una consulta, así que quien la use trae el estado y la fecha de vigencia y la evalúa en memoria
-/// (copiar <c>FechaVencimiento == null || FechaVencimiento &gt;= hoy</c> a una consulta es justo la copia que
-/// provocó D-13/D-17/D-22; la vigila <c>ReglasDeNegocioSinCopiasTests</c>).
+/// <b>Tolerancia</b> (<see cref="ValidoParaAcceder"/>): el documento sigue valiendo para el acceso hasta
+/// <c>vencimiento efectivo + tolerancia</c> inclusive (con 15 días, vale el día 15 tras vencer y deja de valer el 16;
+/// con 0, vale el día en que vence y no el siguiente). La tolerancia solo afecta al acceso: el estado de vigencia
+/// que se muestra no cambia (un documento vencido dentro de tolerancia sigue siendo Vencido; se expone «en tolerancia
+/// hasta X» como dato aparte, <see cref="ResultadoDeRequisito.EnToleranciaHasta"/>).
+/// </para>
+///
+/// <para>
+/// Es una función pura, no un predicado SQL: EF no puede llamarla dentro de una consulta, así que quien la use trae
+/// el estado, las fechas y las condiciones del Centro y la evalúa en memoria (copiar
+/// <c>FechaVencimiento == null || FechaVencimiento &gt;= hoy</c> a una consulta es justo la copia que provocó
+/// D-13/D-17/D-22; la vigila <c>ReglasDeNegocioSinCopiasTests</c>).
 /// </para>
 /// </summary>
 public static class ReglaBloqueoDeAcceso
 {
-    /// <summary>¿Vale este documento hoy para cumplir un requisito bloqueante? Todo lo que no está vencido.</summary>
-    public static bool ValidoHoy(VigenciaDocumento vigencia, DateOnly hoy) =>
-        CalculadoraEstadoDocumento.Calcular(vigencia, hoy, umbralAmbarDias: 0, umbralRojoDias: 0) != EstadoDocumento.Vencido;
+    /// <summary>
+    /// La tolerancia que rige en un Centro para un Tipo: la personalización del Centro si existe
+    /// (<see cref="TipoDocumentoCentro.ToleranciaDias"/>); si no, la del Cliente empresarial titular del Centro
+    /// (<see cref="ToleranciaDocumentoClienteEmpresarial"/>); si no, 0.
+    /// </summary>
+    public static int ResolverToleranciaDias(int? delCentro, int? delClienteEmpresarial) =>
+        delCentro ?? delClienteEmpresarial ?? 0;
 
     /// <summary>
-    /// Situación del requisito dados TODOS los Documentos de ese tipo que tiene el sujeto (puede haber un
-    /// vencido y su renovación: basta uno válido hoy para cumplir).
+    /// Cuándo vence el documento PARA ESTE CENTRO, o <c>null</c> si no vence (o no se sabe cuándo).
     /// </summary>
-    public static SituacionDeRequisitoBloqueante Evaluar(IEnumerable<VigenciaDocumento> documentosDelTipo, DateOnly hoy)
+    public static DateOnly? VencimientoEfectivo(DocumentoParaAcceso documento, int? periodicidadEspecialMeses)
+    {
+        if (documento.Vigencia.Estado == EstadoVigenciaDocumento.NoCaduca)
+            return null;
+
+        if (periodicidadEspecialMeses is { } meses)
+            return documento.FechaEmision.AddMonths(meses);
+
+        return documento.Vigencia.FechaVencimiento;
+    }
+
+    /// <summary>Último día en que el documento vale para acceder a este Centro; <c>null</c> si no vence.</summary>
+    public static DateOnly? ValidoParaAccederHasta(DocumentoParaAcceso documento, CondicionesDeAccesoDelCentro condiciones) =>
+        VencimientoEfectivo(documento, condiciones.PeriodicidadEspecialMeses)?.AddDays(condiciones.ToleranciaDias);
+
+    /// <summary>¿Vale este documento hoy para acceder a este Centro? Vencimiento efectivo + tolerancia &gt;= hoy.</summary>
+    public static bool ValidoParaAcceder(DocumentoParaAcceso documento, CondicionesDeAccesoDelCentro condiciones, DateOnly hoy) =>
+        ValeParaAcceder(ValidoParaAccederHasta(documento, condiciones), hoy);
+
+    /// <summary>La comparación única con el último día en que vale (con la tolerancia ya sumada); sin fecha, siempre vale.</summary>
+    private static bool ValeParaAcceder(DateOnly? valeHasta, DateOnly hoy) => valeHasta is not { } hasta || hasta >= hoy;
+
+    /// <summary>
+    /// Situación del requisito en este Centro dados TODOS los Documentos de ese tipo que tiene el sujeto (puede haber
+    /// un vencido y su renovación: basta uno que valga hoy para cumplir).
+    /// </summary>
+    public static ResultadoDeRequisito Evaluar(
+        IEnumerable<DocumentoParaAcceso> documentosDelTipo, CondicionesDeAccesoDelCentro condiciones, DateOnly hoy)
     {
         var existe = false;
-        foreach (var vigencia in documentosDelTipo)
+        DateOnly? mejorVencimiento = null;
+        DateOnly? mejorValeHasta = null;
+
+        foreach (var documento in documentosDelTipo)
         {
-            if (ValidoHoy(vigencia, hoy))
-                return SituacionDeRequisitoBloqueante.Cumplido;
             existe = true;
+            var vencimiento = VencimientoEfectivo(documento, condiciones.PeriodicidadEspecialMeses);
+
+            // Sin vencimiento, o que no ha vencido: vale sin necesidad de tolerancia.
+            if (vencimiento is not { } v || v >= hoy)
+                return new ResultadoDeRequisito(SituacionDeRequisitoBloqueante.Cumplido, vencimiento, null);
+
+            if (mejorVencimiento is null || v > mejorVencimiento)
+                mejorVencimiento = v;
+            var valeHasta = ValidoParaAccederHasta(documento, condiciones)!.Value;
+            if (mejorValeHasta is null || valeHasta > mejorValeHasta)
+                mejorValeHasta = valeHasta;
         }
 
-        return existe ? SituacionDeRequisitoBloqueante.Vencido : SituacionDeRequisitoBloqueante.Ausente;
+        if (!existe)
+            return new ResultadoDeRequisito(SituacionDeRequisitoBloqueante.Ausente, null, null);
+
+        return ValeParaAcceder(mejorValeHasta, hoy)
+            ? new ResultadoDeRequisito(SituacionDeRequisitoBloqueante.Cumplido, mejorVencimiento, mejorValeHasta)
+            : new ResultadoDeRequisito(SituacionDeRequisitoBloqueante.Vencido, mejorVencimiento, null);
     }
 
     /// <summary>Ausente y vencido bloquean por igual; solo cumplido no bloquea.</summary>

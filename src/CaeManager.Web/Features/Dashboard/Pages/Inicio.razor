@@ -212,7 +212,7 @@
                 <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" Enlace="/trabajadores"
                                  Pista="@(_kpis.TrabajadoresNuevosEsteMes > 0 ? $"{_kpis.TrabajadoresNuevosEsteMes} nuevos este mes" : null)" />
                 <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" Enlace="/centros"
-                                 Pista="@(CentrosBloqueados > 0 ? $"{CentrosBloqueados} centro{(CentrosBloqueados == 1 ? "" : "s")} bloqueado{(CentrosBloqueados == 1 ? "" : "s")}" : null)" />
+                                 Pista="@(TrabajadoresBloqueados > 0 ? $"{TrabajadoresBloqueados} trabajador{(TrabajadoresBloqueados == 1 ? "" : "es")} bloqueado{(TrabajadoresBloqueados == 1 ? "" : "s")}" : null)" />
                 <TarjetaMetrica Discreta="true" Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" NombreIcono="check" Enlace="/documentos?estado=Vigente"
                                  Pista="@(DocumentosFueraDeVigencia > 0 ? $"{DocumentosFueraDeVigencia} fuera de vigencia" : null)" />
                 <TarjetaMetrica Discreta="true" Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" NombreIcono="visitas" Enlace="/visitas"

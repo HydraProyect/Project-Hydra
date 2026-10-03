@@ -79,7 +79,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         var resultadoExclusion = await establecerHandler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(
                 centro.Id, tipo.Id, Incluido: false, PeriodicidadEspecialMeses: 6, BloqueaAcceso: true,
-                ArchivoUrl: "plantillas/formacion-prl.pdf", NombreArchivoOriginal: "Formación PRL.pdf"),
+                ArchivoUrl: "plantillas/formacion-prl.pdf", NombreArchivoOriginal: "Formación PRL.pdf", ToleranciaDias: null),
             CancellationToken.None);
         resultadoExclusion.EsExitoso.Should().BeTrue();
 

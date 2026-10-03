@@ -224,7 +224,7 @@ public class CaminosDeAltaAcreditacionesTests
             mundo.Servicio(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
-            new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, Incluido: true, null, false, null, null),
+            new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, Incluido: true, null, false, null, null, ToleranciaDias: null),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -247,7 +247,7 @@ public class CaminosDeAltaAcreditacionesTests
             mundo.Servicio(), new UnitOfWorkFalso());
 
         var resultado = await handler.Handle(
-            new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, Incluido: false, null, false, null, null),
+            new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, Incluido: false, null, false, null, null, ToleranciaDias: null),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();

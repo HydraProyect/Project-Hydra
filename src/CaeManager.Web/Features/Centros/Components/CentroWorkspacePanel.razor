@@ -212,7 +212,11 @@ else
                                 }
                                 else if (item.Incluido is not null)
                                 {
-                                    <p class="workspace-metrica-inline">No vence en este centro</p>
+                                    <p class="workspace-metrica-inline">@Textos["RequisitoVigenciaPropia"]</p>
+                                }
+                                @if (item.BloqueaAcceso)
+                                {
+                                    <p class="workspace-metrica-inline">@TextoToleranciaRequisito(item)</p>
                                 }
                                 @if (item.ArchivoUrl is not null)
                                 {
@@ -436,7 +440,7 @@ else
             </label>
 
             <CampoSelect Etiqueta="Periodo especial de renovación" Valor="@_periodicidadSeleccionEdicion" ValorChanged="v => _periodicidadSeleccionEdicion = v">
-                <option value="">Sin vencimiento en este centro</option>
+                <option value="">@Textos["PeriodicidadSinPropia"]</option>
                 @foreach (var meses in PeriodicidadesPredefinidas)
                 {
                     <option value="@meses">@meses mes(es)</option>
@@ -449,8 +453,24 @@ else
             }
 
             <label class="campo-checkbox">
-                <input type="checkbox" @bind="_bloqueaAccesoEdicion" /> Bloquea el acceso al centro mientras algún trabajador no lo tenga vigente
+                <input type="checkbox" @bind="_bloqueaAccesoEdicion" /> @Textos["BloqueaAccesoCasilla"]
             </label>
+
+            @if (_bloqueaAccesoEdicion)
+            {
+                <CampoSelect Etiqueta="@Textos["ToleranciaEtiqueta"]" Valor="@_toleranciaSeleccionEdicion" ValorChanged="v => _toleranciaSeleccionEdicion = v">
+                    <option value="">@Textos["ToleranciaOpcionHeredada", _toleranciaHeredadaEdicion]</option>
+                    @foreach (var dias in ToleranciasPredefinidas)
+                    {
+                        <option value="@dias">@Textos["ToleranciaOpcionDias", dias]</option>
+                    }
+                    <option value="personalizado">@Textos["ToleranciaOpcionPersonalizada"]</option>
+                </CampoSelect>
+                @if (_toleranciaSeleccionEdicion == "personalizado")
+                {
+                    <CampoTexto Etiqueta="@Textos["ToleranciaEtiquetaPersonalizada"]" Type="number" Valor="@_toleranciaPersonalizadaEdicion" ValorChanged="v => _toleranciaPersonalizadaEdicion = v" />
+                }
+            }
 
             <div class="campo">
                 <label>Formulario adjunto (Word o PDF, opcional)</label>
@@ -748,6 +768,13 @@ else
     private Dictionary<string, string> _erroresInformacion = new();
 
     private static readonly int[] PeriodicidadesPredefinidas = [1, 3, 6, 12, 24, 36, 48, 60];
+    private static readonly int[] ToleranciasPredefinidas = [0, 5, 10, 15, 20, 30];
+
+    /// <summary>La tolerancia que rige para un requisito bloqueante en este Centro, dicha con su origen (Centro o Cliente empresarial).</summary>
+    private string TextoToleranciaRequisito(DocumentacionRequeridaCentroDto item) =>
+        item.ToleranciaDias is { } propia
+            ? Textos["RequisitoToleranciaPropia", propia]
+            : Textos["RequisitoToleranciaHeredada", item.ToleranciaHeredadaDias];
 
     private IReadOnlyList<DocumentacionRequeridaCentroDto>? _documentacion;
     private bool _cargandoDocumentacion;
@@ -760,6 +787,9 @@ else
     private string _periodicidadSeleccionEdicion = string.Empty;
     private string _periodicidadPersonalizadaEdicion = string.Empty;
     private bool _bloqueaAccesoEdicion;
+    private string _toleranciaSeleccionEdicion = string.Empty;
+    private string _toleranciaPersonalizadaEdicion = string.Empty;
+    private int _toleranciaHeredadaEdicion;
     private string? _archivoUrlEdicion;
     private string? _nombreArchivoEdicion;
     private bool _subiendoArchivoEdicion;
@@ -845,7 +875,7 @@ else
         || (_drawerReclamacionCentroVisible && _instantaneaReclamacion.Difiere(ValoresReclamacion()));
 
     private object?[] ValoresDocumentacion() =>
-        [_incluidoEdicion, _periodicidadSeleccionEdicion, _periodicidadPersonalizadaEdicion, _bloqueaAccesoEdicion, _archivoUrlEdicion];
+        [_incluidoEdicion, _periodicidadSeleccionEdicion, _periodicidadPersonalizadaEdicion, _bloqueaAccesoEdicion, _toleranciaSeleccionEdicion, _toleranciaPersonalizadaEdicion, _archivoUrlEdicion];
 
     private const int IndiceProveedorEnValoresCanal = 3;
 
@@ -1090,6 +1120,15 @@ else
         _periodicidadPersonalizadaEdicion = item.PeriodicidadEspecialMeses is { } m && !PeriodicidadesPredefinidas.Contains(m)
             ? m.ToString() : string.Empty;
         _bloqueaAccesoEdicion = item.BloqueaAcceso;
+        _toleranciaHeredadaEdicion = item.ToleranciaHeredadaDias;
+        _toleranciaSeleccionEdicion = item.ToleranciaDias switch
+        {
+            null => string.Empty,
+            { } dias when ToleranciasPredefinidas.Contains(dias) => dias.ToString(),
+            _ => "personalizado"
+        };
+        _toleranciaPersonalizadaEdicion = item.ToleranciaDias is { } d && !ToleranciasPredefinidas.Contains(d)
+            ? d.ToString() : string.Empty;
         _archivoUrlEdicion = item.ArchivoUrl;
         _nombreArchivoEdicion = item.NombreArchivoOriginal;
         _mensajeErrorDocumentacion = null;
@@ -1182,9 +1221,22 @@ else
                 return;
             }
 
+            int? toleranciaDias = _toleranciaSeleccionEdicion switch
+            {
+                "" => null,
+                "personalizado" => int.TryParse(_toleranciaPersonalizadaEdicion, out var tolerancia) ? tolerancia : null,
+                var seleccion => int.Parse(seleccion)
+            };
+
+            if (_toleranciaSeleccionEdicion == "personalizado" && toleranciaDias is null)
+            {
+                _mensajeErrorDocumentacion = Textos["ToleranciaErrorPersonalizada"];
+                return;
+            }
+
             var resultado = await Mediator.Send(new EstablecerDocumentacionRequeridaCentroCommand(
                 EntidadId, _tipoDocumentoIdEditando, _incluidoEdicion, periodicidadMeses, _bloqueaAccesoEdicion,
-                _archivoUrlEdicion, _nombreArchivoEdicion));
+                _archivoUrlEdicion, _nombreArchivoEdicion, toleranciaDias));
 
             if (resultado.EsFallido)
             {

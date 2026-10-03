@@ -25,7 +25,8 @@ public record EstablecerDocumentacionRequeridaCentroCommand(
     int? PeriodicidadEspecialMeses,
     bool BloqueaAcceso,
     string? ArchivoUrl,
-    string? NombreArchivoOriginal) : ICommand;
+    string? NombreArchivoOriginal,
+    int? ToleranciaDias) : ICommand;
 
 public class EstablecerDocumentacionRequeridaCentroCommandValidator : AbstractValidator<EstablecerDocumentacionRequeridaCentroCommand>
 {
@@ -35,6 +36,8 @@ public class EstablecerDocumentacionRequeridaCentroCommandValidator : AbstractVa
         RuleFor(c => c.TipoDocumentoId).NotEmpty();
         RuleFor(c => c.PeriodicidadEspecialMeses).GreaterThan(0).When(c => c.PeriodicidadEspecialMeses is not null)
             .WithMessage("La periodicidad especial debe ser un número entero de meses mayor que cero.");
+        RuleFor(c => c.ToleranciaDias).InclusiveBetween(0, TipoDocumentoCentro.ToleranciaMaximaDias).When(c => c.ToleranciaDias is not null)
+            .WithMessage($"La tolerancia debe ser un número entero de días entre 0 y {TipoDocumentoCentro.ToleranciaMaximaDias}, o vacía para heredar la del Cliente empresarial.");
         RuleFor(c => c.ArchivoUrl).MaximumLength(TipoDocumentoCentro.LongitudMaximaArchivoUrl);
         RuleFor(c => c.NombreArchivoOriginal).MaximumLength(TipoDocumentoCentro.LongitudMaximaNombreArchivo);
     }
@@ -63,14 +66,15 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         {
             fila = new TipoDocumentoCentro(
                 request.TipoDocumentoId, request.CentroId, request.Incluido,
-                request.PeriodicidadEspecialMeses, request.BloqueaAcceso, request.ArchivoUrl, request.NombreArchivoOriginal);
+                request.PeriodicidadEspecialMeses, request.BloqueaAcceso, request.ArchivoUrl, request.NombreArchivoOriginal,
+                request.ToleranciaDias);
             repositorio.Agregar(fila);
         }
         else
         {
             fila.Actualizar(
                 request.Incluido, request.PeriodicidadEspecialMeses, request.BloqueaAcceso,
-                request.ArchivoUrl, request.NombreArchivoOriginal);
+                request.ArchivoUrl, request.NombreArchivoOriginal, request.ToleranciaDias);
         }
 
         // Si el Centro pasa a exigir el tipo, los Documentos de ese tipo de

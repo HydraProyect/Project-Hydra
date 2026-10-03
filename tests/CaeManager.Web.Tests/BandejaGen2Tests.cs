@@ -325,31 +325,27 @@ public class BandejaGen2Tests : BunitContext
     // ------------------------- Revisión de Codex sobre esta misma rama
 
     /// <summary>
-    /// Un requisito de ALTA NUEVA no bloquea nada: es un alta que no se
-    /// completó. Antes, cualquier RequisitoPendiente encendía la banda y el
-    /// badge, así que un grupo sin un solo bloqueo real decía que cerraba el
-    /// acceso a un Centro. El segundo grupo es el control positivo: con un
-    /// requisito que NO es alta nueva, la banda sí aparece.
+    /// Un requisito pendiente es siempre un Trabajador bloqueado en un Centro (también el de un alta nueva sin documentación,
+    /// corrección del propietario 2026-10-03): su grupo enciende la banda y el badge. Un grupo sin requisitos pendientes
+    /// (aquí, con un Vencido, que no es un requisito de acceso) no los enciende.
     /// </summary>
     [Fact]
-    public void Un_grupo_cuyos_requisitos_son_altas_nuevas_no_dice_que_bloquea_el_acceso()
+    public void Un_grupo_con_requisitos_pendientes_dice_que_bloquea_el_acceso_y_uno_sin_ellos_no()
     {
         var (cut, _) = Renderizar(
-            Item("a1", TipoItemBandeja.RequisitoPendiente, Refrielectric, "Refrielectric S.A.") with { EsAltaNueva = true },
+            Item("a1", TipoItemBandeja.Vencido, Refrielectric, "Refrielectric S.A."),
             Item("b1", TipoItemBandeja.RequisitoPendiente, MontajesEbro, "Montajes Ebro"));
 
         var grupos = cut.FindComponents<GrupoCola>();
-        var deAltas = grupos.Single(g => g.Markup.Contains("Refrielectric S.A.", StringComparison.Ordinal));
+        var sinRequisitos = grupos.Single(g => g.Markup.Contains("Refrielectric S.A.", StringComparison.Ordinal));
         var deBloqueo = grupos.Single(g => g.Markup.Contains("Montajes Ebro", StringComparison.Ordinal));
 
-        deAltas.Markup.Should().NotContain("Bloquea acceso", "un alta sin completar no cierra ningún Centro");
-        deAltas.Markup.Should().NotContain("grupo-cola-bloquea");
-        deBloqueo.Markup.Should().Contain("Bloquea acceso", "control: un requisito que no es alta nueva sí bloquea");
+        sinRequisitos.Markup.Should().NotContain("Bloquea acceso");
+        sinRequisitos.Markup.Should().NotContain("grupo-cola-bloquea");
+        deBloqueo.Markup.Should().Contain("Bloquea acceso");
         deBloqueo.Markup.Should().Contain("grupo-cola-bloquea");
 
-        // El chip cuenta los dos (filtra por tipo), así que su explicación no
-        // puede decir que los dos impiden el acceso.
-        cut.Markup.Should().Contain("requisitos de acceso a un Centro: lo bloquean, o son altas sin completar");
+        cut.Markup.Should().Contain("Trabajador bloqueado en un Centro por un requisito de acceso que falta o ya no vale");
         cut.Markup.Should().NotContain("impiden el acceso a un Centro");
     }
 

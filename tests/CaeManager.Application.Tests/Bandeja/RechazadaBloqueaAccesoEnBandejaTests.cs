@@ -37,10 +37,10 @@ public class RechazadaBloqueaAccesoEnBandejaTests
         DocumentoId: documentoId, TipoDocumentoId: Guid.NewGuid(), RequisitoId: null,
         ClienteId: clienteId ?? ClienteDuff, ClienteNombre: clienteNombre, ProveedorNombre: "Dokify");
 
-    private static ItemBandejaDto DeTipo(TipoItemBandeja tipo, Guid clienteId, string clienteNombre, bool esAltaNueva = false) => new(
+    private static ItemBandejaDto DeTipo(TipoItemBandeja tipo, Guid clienteId, string clienteNombre) => new(
         Id: $"{tipo}-{Guid.NewGuid()}", Tipo: tipo, Titulo: "t", Subtitulo: "s", Fecha: null,
         TrabajadorId: Guid.NewGuid(), CentroId: Guid.NewGuid(), DocumentoId: Guid.NewGuid(), TipoDocumentoId: Guid.NewGuid(),
-        RequisitoId: null, ClienteId: clienteId, ClienteNombre: clienteNombre, EsAltaNueva: esAltaNueva);
+        RequisitoId: null, ClienteId: clienteId, ClienteNombre: clienteNombre);
 
     private static CausaEstadoCentro Causa(Guid? documentoId, bool bloqueante, EstadoDocumento? estado = null) => new(
         "Formación 60h — Homer Simpson — rechazado por la plataforma", estado, bloqueante, AmbitoCausa.Trabajador,
@@ -61,7 +61,7 @@ public class RechazadaBloqueaAccesoEnBandejaTests
             Estado(CentroCerveceria, Causa(documento, bloqueante: true)));
 
         items.Should().ContainSingle().Which.RechazoBloqueaCentro.Should().BeTrue();
-        ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro(items[0]).Should().BeTrue();
+        ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso(items[0]).Should().BeTrue();
 
         var grupo = ObtenerBandejaAgrupadaQueryHandler.Agrupar(items).Grupos.Should().ContainSingle().Subject;
         grupo.BloqueaAcceso.Should().BeTrue(
@@ -135,18 +135,15 @@ public class RechazadaBloqueaAccesoEnBandejaTests
         // Defensa del predicado: el campo solo significa algo en PlataformaRechazada.
         var vencido = DeTipo(TipoItemBandeja.Vencido, ClienteDuff, "Cervezas Duff Ibérica") with { RechazoBloqueaCentro = true };
 
-        ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro(vencido).Should().BeFalse();
+        ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso(vencido).Should().BeFalse();
     }
 
     [Fact]
-    public void Un_requisito_de_alta_nueva_no_bloquea_y_uno_que_no_lo_es_si()
+    public void Un_requisito_pendiente_siempre_bloquea_tambien_el_de_un_Trabajador_recien_dado_de_alta()
     {
-        ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro(
-            DeTipo(TipoItemBandeja.RequisitoPendiente, ClienteDuff, "Cervezas Duff Ibérica", esAltaNueva: true))
-            .Should().BeFalse("un alta sin completar no cierra ningún Centro");
-        ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro(
+        ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso(
             DeTipo(TipoItemBandeja.RequisitoPendiente, ClienteDuff, "Cervezas Duff Ibérica"))
-            .Should().BeTrue("control positivo: el requisito que no es alta nueva sí bloquea");
+            .Should().BeTrue("ya no hay excepción de «alta nueva»: sin documentación, el Trabajador está bloqueado");
     }
 
     [Fact]

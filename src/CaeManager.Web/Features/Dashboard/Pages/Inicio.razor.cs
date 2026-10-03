@@ -491,20 +491,19 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             || (_bandejaAgrupada.Grupos.Count == 0 && _bandejaAgrupada.SinGrupo.Count == 0));
 
     /// <summary>
-    /// Centros distintos con al menos un item que de verdad les cierra el
-    /// acceso, en la cola ya cargada — sin query nueva, es el mismo dato que ya
+    /// Trabajadores distintos con al menos un item que de verdad les cierra el
+    /// acceso a un Centro, en la cola ya cargada — sin query nueva, es el mismo dato que ya
     /// pinta "Requiere atención". El criterio es
-    /// <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro"/>, el
+    /// <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso"/>, el
     /// mismo que usa <see cref="TipoItemBandejaUi.BloqueaAccesoDeVerdad"/> para
-    /// el badge «Bloquea acceso» de cada grupo: requisito que no es alta nueva
-    /// (un alta sin completar no cierra nada; contarla decía «2 centros
-    /// bloqueados» bajo un dashboard donde ningún grupo se declaraba
-    /// bloqueante) o acreditación Rechazada que bloquea su Centro (D-7).
+    /// el badge «Bloquea acceso» de cada grupo. «Bloqueado» es un estado del Trabajador, no del
+    /// Centro (2026-10-03): se cuentan Trabajadores, no Centros. Una acreditación Rechazada de un
+    /// documento de Empresa (sin Trabajador) no se cuenta aquí.
     /// </summary>
-    private int CentrosBloqueados => _bandejaAgrupada is null ? 0
+    private int TrabajadoresBloqueados => _bandejaAgrupada is null ? 0
         : _bandejaAgrupada.Grupos.SelectMany(g => g.Items).Concat(_bandejaAgrupada.SinGrupo)
-            .Where(i => ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro(i) && i.CentroId is not null)
-            .Select(i => i.CentroId!.Value)
+            .Where(i => ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso(i) && i.TrabajadorId is not null)
+            .Select(i => i.TrabajadorId!.Value)
             .Distinct()
             .Count();
 

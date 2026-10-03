@@ -265,6 +265,10 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
         () => new ConfiguracionIaDocumentoCliente(Guid.NewGuid(), Guid.NewGuid(), activa: true));
 
     [Fact]
+    public Task Aislamiento_ToleranciaDocumentoClienteEmpresarial() => VerificarAislamientoAsync(
+        () => new ToleranciaDocumentoClienteEmpresarial(Guid.NewGuid(), Guid.NewGuid(), 15));
+
+    [Fact]
     public Task Aislamiento_TipoDocumento() => VerificarAislamientoAsync(
         () => new TipoDocumento("Tipo de prueba", 12, true, 1, AmbitoAplicacion.Trabajador));
 
