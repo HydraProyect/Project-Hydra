@@ -441,13 +441,13 @@ public partial class UsuariosGen2Tests : BunitContext
             return Task.FromResult(EnCartera.RemoveAll(t => t.PropietarioTenantId == propietarioTenantId) > 0);
         }
 
-        /// <summary>Tenants de los que el Gestor CAE ya tiene solo una parte (reparto por Cliente empresarial).</summary>
-        public HashSet<Guid> Parciales { get; } = [];
+        /// <summary>Tenants beneficiarios que el Gestor CAE ya tiene por otra vía (otra cartera vigente, p. ej. de otro rol, o la fila heredada de Operador Delegado): no son candidatos.</summary>
+        public HashSet<Guid> PorOtraVia { get; } = [];
 
         public Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerCandidatosAsync(
             Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<TenantCandidatoIncorporacion>>(operadorTenantId != TenantDelArnes ? [] : Asignables
-                .Where(a => !Parciales.Contains(a.PropietarioTenantId)
+                .Where(a => !PorOtraVia.Contains(a.PropietarioTenantId)
                             && !EnCartera.Any(e => e.PropietarioTenantId == a.PropietarioTenantId))
                 .ToList());
         public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
@@ -1330,18 +1330,20 @@ public partial class UsuariosGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Una_empresa_de_la_que_ya_tiene_solo_una_parte_no_se_ofrece_para_asignar()
+    public async Task Una_empresa_que_el_Gestor_CAE_ya_tiene_por_otra_via_no_se_ofrece_para_asignar()
     {
         SembrarAdministradoraYGestor();
         _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte");
-        _catalogo.Parciales.Add(BeneficiarioNorte);
+        _catalogo.PorOtraVia.Add(BeneficiarioNorte);
         var cut = Renderizar();
 
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
 
         cut.WaitForAssertion(() => CasillasAsignarEmpresas(cut).Should().ContainSingle());
-        CasillasAsignarEmpresas(cut)[0].HasAttribute("disabled").Should().BeTrue("ampliar un reparto por cliente falla siempre");
-        cut.Find("[role=dialog]").TextContent.Should().Contain("ya tiene parte de sus Clientes empresariales");
+        CasillasAsignarEmpresas(cut)[0].HasAttribute("disabled").Should().BeTrue("asignarla otra vez falla siempre (YaTieneCartera)");
+        var texto = cut.Find("[role=dialog]").TextContent;
+        texto.Should().Contain("ya la tiene asignada por otra vía");
+        texto.Should().NotContainAny("parte de sus Clientes", "reparto", "parcial");
     }
 
     [Fact]
@@ -2163,7 +2165,7 @@ public partial class UsuariosGen2Tests : BunitContext
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
 
         var dialogo = cut.Find("[role=dialog]");
-        dialogo.TextContent.Should().Contain("la conserva su Coordinador CAE").And.Contain("no se reparte por Cliente empresarial");
+        dialogo.TextContent.Should().Contain("la conserva su Coordinador CAE").And.NotContain("no se reparte por Cliente empresarial", "el modo por Cliente empresarial ya no existe (D-7)");
         dialogo.QuerySelectorAll("select").Should().BeEmpty("no hay traspaso de cartera");
 
         await ConfirmarDesactivacionAsync(cut);

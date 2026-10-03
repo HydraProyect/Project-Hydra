@@ -5,15 +5,17 @@ using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using RolesIdentidad = CaeManager.Infrastructure.Identity.Roles;
 
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// P1-E2b: salir de /usuarios con el alta o la edición de Usuario a medias, o con un
-/// Gestor CAE de destino ya elegido en la desactivación con traspaso de cartera, pregunta
-/// antes. La ficha recién cargada no es un cambio, y lo ya guardado no deja nada que perder.
+/// P1-E2b: salir de /usuarios con el alta o la edición de Usuario a medias, o con las marcas de
+/// «Asignar empresas» cambiadas, pregunta antes. La ficha recién cargada no es un cambio, y lo ya
+/// guardado no deja nada que perder. El diálogo de desactivar no tiene ninguna elección desde D-7
+/// (no hay traspaso de cartera): cierra sin preguntar por la X, «Volver», Escape y la navegación.
 /// </summary>
 public partial class UsuariosGen2Tests
 {
@@ -166,5 +168,71 @@ public partial class UsuariosGen2Tests
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
 
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "el diálogo de desactivar no tiene nada que perder");
+    }
+
+    /// <summary>
+    /// Regla de Chris (2026-10-03): toda pérdida de edición pregunta. El diálogo de desactivar ya no tiene nada
+    /// que perder desde D-7 (el Gestor CAE de destino del traspaso se retiró con la cartera por Cliente empresarial):
+    /// ni campos ni elección. Esta prueba fija esa premisa; si el diálogo vuelve a tener un campo, tiene que pasar
+    /// <c>HayCambios</c> (lo exige DrawerYModalConCamposPreguntanAlDescartarTests) y esta prueba obliga a releer la regla.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_el_dialogo_de_desactivar_no_tiene_ninguna_eleccion_que_perder()
+    {
+        var cut = await AbrirDesactivarDeAnderAsync();
+
+        cut.Find("[role=dialog]").QuerySelectorAll("input, select, textarea").Should().BeEmpty(
+            "sin elección, «Volver», la X y Escape no descartan nada: cierran sin preguntar");
+    }
+
+    /// <summary>
+    /// «Volver», la X, Escape y el clic en el fondo cierran el diálogo de desactivar sin «¿Descartar cambios?» y sin tocar
+    /// la cuenta. Se ejerce cada salida por separado: un HayCambios que devuelva siempre true deja en rojo la X, Escape y el
+    /// fondo (medido); «Volver» no pasa por SolicitarCierreAsync, y que lo haga cuando haya un campo lo exige el analizador de
+    /// arquitectura. Es una prueba de propiedad (hoy no hay nada que perder), no de regresión.
+    /// </summary>
+    [Theory]
+    [InlineData("Volver")]
+    [InlineData("X")]
+    [InlineData("Escape")]
+    [InlineData("Fondo")]
+    public async Task Aviso_las_salidas_del_dialogo_de_desactivar_cierran_sin_preguntar(string salida)
+    {
+        var cut = await AbrirDesactivarDeAnderAsync();
+
+        switch (salida)
+        {
+            case "Volver":
+                await cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Volver").ClickAsync(new());
+                break;
+            case "X":
+                await cut.Find("[role=dialog] .modal-cerrar").ClickAsync(new());
+                break;
+            case "Escape":
+                await cut.Find("[role=dialog]").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+                break;
+            default:
+                await cut.Find(".modal-superposicion").ClickAsync(new());
+                break;
+        }
+
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?", "no hay nada que descartar");
+        cut.FindAll("[role=dialog]").Should().BeEmpty("la salida cierra el diálogo de desactivar");
+        _identidad.Actualizadas.Should().BeEmpty();
+        _identidad.Cuentas[AnderId].LockoutEnd.Should().BeNull("salir no desactiva la cuenta");
+    }
+
+    private async Task<IRenderedComponent<UsuariosControlados>> AbrirDesactivarDeAnderAsync()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae));
+        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(true, []) };
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("¿Desactivar a Ander Beitia?");
+        return cut;
     }
 }

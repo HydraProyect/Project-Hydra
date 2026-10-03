@@ -34,7 +34,7 @@
     <value>Perderá el acceso en cuanto confirmes: su sesión abierta se cierra. Podrás reactivarla después.</value>
   </data>
   <data name="DesactivarCarteraUniversal" xml:space="preserve">
-    <value>Su Asignación de Cartera es toda la operación de esta organización: no se reparte por Cliente empresarial. Sigue abierta y la conserva su Coordinador CAE.</value>
+    <value>Su Asignación de Cartera es toda la operación de esta organización. Sigue abierta y la conserva su Coordinador CAE.</value>
   </data>
   <data name="DesactivarVolver" xml:space="preserve">
     <value>Volver</value>
@@ -64,7 +64,7 @@
     <value>Gestionará entera cada empresa que marques. Al desmarcar una, deja de tener acceso a ella.</value>
   </data>
   <data name="AsignarEmpresasParcial" xml:space="preserve">
-    <value>ya tiene parte de sus Clientes empresariales; no se amplía desde aquí</value>
+    <value>ya la tiene asignada por otra vía; no se cambia desde aquí</value>
   </data>
   <data name="AsignarEmpresasCargando" xml:space="preserve">
     <value>Cargando empresas…</value>
