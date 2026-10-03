@@ -65,7 +65,21 @@ public record AlertaDto(
     Guid? ClienteId = null,
     string? ClienteNombre = null,
     Guid? EmpresaId = null,
-    string? EmpresaNombre = null);
+    string? EmpresaNombre = null)
+{
+    /// <summary>
+    /// Identidad de la fila que una pantalla pinta para esta alerta. Es la clave <c>@key</c> de la
+    /// fila y la identidad del detalle abierto, así que tiene que ser única entre filas hermanas.
+    /// Una alerta con documento es ese documento. Una alerta sin documento (Faltante) es el par
+    /// Trabajador-Centro-Tipo de documento: el mismo Trabajador asignado a dos Centros a los que
+    /// les falta el mismo Tipo de documento da dos alertas, y con solo Trabajador-Tipo las dos
+    /// compartían Id (claves duplicadas: el renderizador de Blazor lanza «Attempting to return
+    /// wrong pooled instance» y el circuito muere, medido en la landing del Coordinador CAE).
+    /// </summary>
+    public string IdDeFila(string prefijo) => DocumentoId is { } documentoId
+        ? $"{prefijo}-{documentoId}"
+        : $"{prefijo}-{TrabajadorId}-{TipoDocumentoId}-{CentroId?.ToString() ?? "sin-centro"}";
+}
 
 public class ObtenerAlertasQueryHandler(
     IConfiguracionQueryContext configuracionContext,
