@@ -87,6 +87,21 @@
     display: block;
 }
 
+/* Entrada: al pasar de display:none a block, @starting-style da el estado de
+   partida. Si el navegador no lo soporta se ignora y la ventana sigue
+   apareciendo de golpe, que es el comportamiento de arriba (07 § 4). Conserva
+   el translateX(-50%) del centrado. */
+@media (prefers-reduced-motion: no-preference) {
+    .ventana-contexto-panel {
+        transition: opacity var(--motion-base) var(--ease-fluid), transform var(--motion-base) var(--ease-fluid);
+
+        @starting-style {
+            opacity: 0;
+            transform: translateX(-50%) translateY(4px);
+        }
+    }
+}
+
 .ventana-contexto-titulo {
     display: block;
     margin-bottom: var(--space-1);

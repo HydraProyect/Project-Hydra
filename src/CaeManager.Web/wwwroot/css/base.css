@@ -6,6 +6,13 @@
   box-sizing: border-box;
 }
 
+/* Casillas, radios, progress y range heredan el azul del producto en vez del
+   color por defecto del navegador. En tema oscuro --color-primary-500 vale
+   #5ca2f4 (tokens.css), así que el acento sigue al tema solo. */
+:root {
+  accent-color: var(--color-primary-500);
+}
+
 html,
 body {
   margin: 0;
@@ -26,10 +33,19 @@ h3,
 h4 {
   margin: 0;
   color: var(--color-text);
+  /* Reparte las líneas de un título largo en vez de dejar una palabra suelta. */
+  text-wrap: balance;
 }
 
 p {
   margin: 0;
+  /* Texto corrido: evita la palabra huérfana en la última línea. */
+  text-wrap: pretty;
+}
+
+/* Celdas y etiquetas son texto corto y alineado: ahí el reparto no aporta. */
+:where(table, label) p {
+  text-wrap: wrap;
 }
 
 /* 02 § 3.2 asigna #235BC2 (--color-primary-500) a "accion primaria,
@@ -54,6 +70,81 @@ button {
 :focus-visible {
   outline: var(--border-focus);
   outline-offset: 2px;
+}
+
+/* Mismo anillo que CampoTexto/CampoSelect/CampoTextarea (outline + halo) para
+   los campos que no pasan por esos componentes y se quedaban con el foco por
+   defecto del navegador. Casillas, radios y range no llevan halo: son
+   pequeños y conservan el outline global de arriba. */
+:where(input, select, textarea):not([type="checkbox"], [type="radio"], [type="range"], [type="file"]):focus-visible {
+  outline: var(--border-focus);
+  outline-offset: -1px;
+  box-shadow: 0 0 0 4px var(--color-primary-100);
+}
+
+/* Destinos de ancla. El desplazamiento suave va en el documento y
+   en .contenido, que es el contenedor que de verdad desplaza en el shell. */
+:target {
+  scroll-margin-top: var(--space-6);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html,
+  .contenido {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Barras de desplazamiento finas en los contenedores que desplazan: shell,
+   menú lateral, overlays, listas y contenedores de tabla. Los estándares
+   (scrollbar-width/color) mandan en Chromium 121+ y Firefox; el bloque
+   ::-webkit-scrollbar solo cubre a Safari y a Chromium anterior, y por eso va
+   tras @supports not: con los dos a la vez Chromium ignora el segundo. */
+.contenido,
+.barra-lateral,
+.nav-principal,
+.modal-cuerpo,
+.drawer-cuerpo,
+.menu-acciones-panel,
+.ventana-contexto-panel,
+.buscador-resultados,
+.matriz-asignaciones-contenedor,
+.claves-api-tabla-contenedor,
+.lectura-ia-tabla-contenedor {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+@supports not (scrollbar-width: thin) {
+  .contenido::-webkit-scrollbar,
+  .barra-lateral::-webkit-scrollbar,
+  .nav-principal::-webkit-scrollbar,
+  .modal-cuerpo::-webkit-scrollbar,
+  .drawer-cuerpo::-webkit-scrollbar,
+  .menu-acciones-panel::-webkit-scrollbar,
+  .ventana-contexto-panel::-webkit-scrollbar,
+  .buscador-resultados::-webkit-scrollbar,
+  .matriz-asignaciones-contenedor::-webkit-scrollbar,
+  .claves-api-tabla-contenedor::-webkit-scrollbar,
+  .lectura-ia-tabla-contenedor::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .contenido::-webkit-scrollbar-thumb,
+  .barra-lateral::-webkit-scrollbar-thumb,
+  .nav-principal::-webkit-scrollbar-thumb,
+  .modal-cuerpo::-webkit-scrollbar-thumb,
+  .drawer-cuerpo::-webkit-scrollbar-thumb,
+  .menu-acciones-panel::-webkit-scrollbar-thumb,
+  .ventana-contexto-panel::-webkit-scrollbar-thumb,
+  .buscador-resultados::-webkit-scrollbar-thumb,
+  .matriz-asignaciones-contenedor::-webkit-scrollbar-thumb,
+  .claves-api-tabla-contenedor::-webkit-scrollbar-thumb,
+  .lectura-ia-tabla-contenedor::-webkit-scrollbar-thumb {
+    background-color: var(--color-border-strong);
+    border-radius: var(--radius-full);
+  }
 }
 
 /* Fondo y letra como par con variante por tema (tokens.css): el fondo solo
