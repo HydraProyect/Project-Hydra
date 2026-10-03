@@ -378,6 +378,47 @@ public class RetencionTests : BunitContext
     }
 
     /// <summary>
+    /// S12 (lote 3b): los dos formularios de Retención son <c>ModalFormulario</c>; el error del formulario sale en el aviso fijo, fuera del
+    /// cuerpo desplazable (D-20), y escribir de nuevo lo retira. El primario de cada uno es único y sigue ahí tras el rechazo.
+    /// </summary>
+    [Fact]
+    public async Task El_rechazo_de_Autorizar_sale_en_el_aviso_fijo_y_escribir_de_nuevo_lo_retira()
+    {
+        const string rechazo = "La fecha de ejecución no puede ser anterior a hoy.";
+        var (cut, _) = Renderizar(
+            politicaActiva: true, solicitudes: [PendienteDeRevision()],
+            alProgramar: _ => Result.Fallo(Error.Crear("SolicitudPurga.FechaNoValida", rechazo)));
+
+        await BotonConTexto(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+        await cut.Find("[role=dialog] input[type=date]").InputAsync(new ChangeEventArgs { Value = "2001-01-01" });
+        await BotonDelDialogo(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".modal-aviso .alerta-formulario").TextContent.Should().Be(rechazo);
+        cut.FindAll(".modal-cuerpo .alerta-formulario").Should().BeEmpty("el aviso va fuera del cuerpo desplazable (D-20)");
+        cut.FindAll("[role=dialog] .modal-pie button").Count(b => b.ClassList.Contains("boton-primario")).Should().Be(1);
+
+        await cut.Find("[role=dialog] input[type=date]").InputAsync(new ChangeEventArgs { Value = "2030-01-01" });
+
+        cut.FindAll(".modal-aviso").Should().BeEmpty("escribir de nuevo retira el error anterior");
+    }
+
+    [Fact]
+    public async Task El_motivo_que_falta_al_descartar_sale_en_el_aviso_fijo_y_escribirlo_lo_retira()
+    {
+        var (cut, _) = Renderizar(politicaActiva: true, solicitudes: [PendienteDeRevision()]);
+
+        await BotonConTexto(cut, "Descartar").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Descartar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".modal-aviso .alerta-formulario").TextContent.Should().Be("Indica por qué se descarta esta purga.");
+        cut.FindAll(".modal-cuerpo .alerta-formulario").Should().BeEmpty();
+
+        await cut.Find("[role=dialog] input").InputAsync(new ChangeEventArgs { Value = "Política interna de 10 años" });
+
+        cut.FindAll(".modal-aviso").Should().BeEmpty();
+    }
+
+    /// <summary>
     /// Espejo de <c>CancelarPurgaCommandValidator</c> (NotEmpty rechaza vacío y
     /// solo espacios): sin motivo no sale ningún comando.
     /// </summary>

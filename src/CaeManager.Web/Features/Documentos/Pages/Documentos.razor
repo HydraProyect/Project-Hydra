@@ -330,17 +330,14 @@
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
-<Modal @ref="_modalGuardarFiltro" HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarGuardarFiltro" VisibleChanged="CerrarModalGuardarFiltro" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
-    <ChildContent>
-        <CampoTexto Etiqueta="Nombre" Valor="@_nombreFiltroNuevo" ValorChanged="v => _nombreFiltroNuevo = v" Placeholder="Vencidos de trabajadores" />
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => _modalGuardarFiltro?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
-    </Pie>
-</Modal>
-
-@* Fuera de <Pestanas>, a nivel de página: el nombre del filtro no es de ninguna pestaña,
-   y registrarlo en su ámbito haría preguntar al cambiar de pestaña. *@
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => CerrarModalGuardarFiltro(false)" />
+@* «Guardar filtro» es un formulario de un campo: ModalFormulario (guardián, «Cancelar», «Guardar» único con su motivo y estado, aviso
+   del formulario y aviso de navegación vienen del kit). Fuera de <Pestanas>, a nivel de página: el nombre del filtro no es de
+   ninguna pestaña, y registrarlo en su ámbito haría preguntar al cambiar de pestaña. *@
+<ModalFormulario Visible="_mostrarGuardarFiltro" VisibleChanged="CerrarModalGuardarFiltro" Titulo="Guardar filtro actual"
+                 Ancho="AnchoModal.Pequeno" HayCambios="() => HayCambiosSinGuardar" Guardando="_guardandoFiltro"
+                 MensajeError="@_mensajeErrorFiltro" OnGuardar="GuardarFiltroActualAsync"
+                 MotivoGuardarDeshabilitado="@(string.IsNullOrWhiteSpace(_nombreFiltroNuevo) ? Textos["GuardarFiltroSinNombre"].Value : null)"
+                 TextoGuardar="Guardar" TextoCancelar="Cancelar">
+    <CampoTexto Etiqueta="Nombre" Valor="@_nombreFiltroNuevo" ValorChanged="v => { _nombreFiltroNuevo = v; _mensajeErrorFiltro = null; }" Placeholder="Vencidos de trabajadores" />
+</ModalFormulario>
 </LimiteDeErrores>

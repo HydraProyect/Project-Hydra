@@ -412,15 +412,15 @@
     </Pie>
 </Modal>
 
-<Modal @ref="_modalGuardarFiltro" HayCambios="() => HayCambiosSinGuardar" Visible="_mostrarGuardarFiltro" VisibleChanged="v => { if (!v) CerrarModalGuardarFiltro(); }" Titulo="@Textos["ModalGuardarFiltroTitulo"]" CerrarAlHacerClicFuera="!_guardandoFiltro">
-    <ChildContent>
-        <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombreFiltroNuevo" ValorChanged="v => _nombreFiltroNuevo = v" Placeholder="@Textos["PlaceholderNombreFiltro"]" />
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => _modalGuardarFiltro?.SolicitarCierreAsync() ?? Task.CompletedTask">@Textos["BotonCancelar"]</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">@Textos["BotonGuardar"]</Boton>
-    </Pie>
-</Modal>
+@* «Guardar filtro» es un formulario de un campo: ModalFormulario (guardián, «Cancelar», «Guardar» único con su motivo y estado, aviso
+   del formulario y aviso de navegación vienen del kit; «Asignar a centro» sigue en su Modal y en el aviso de la página). *@
+<ModalFormulario Visible="_mostrarGuardarFiltro" VisibleChanged="v => { if (!v) CerrarModalGuardarFiltro(); }" Titulo="@Textos["ModalGuardarFiltroTitulo"]"
+                 Ancho="AnchoModal.Pequeno" HayCambios="() => HayCambiosFiltro" Guardando="_guardandoFiltro"
+                 MensajeError="@_mensajeErrorFiltro" OnGuardar="GuardarFiltroActualAsync"
+                 MotivoGuardarDeshabilitado="@(string.IsNullOrWhiteSpace(_nombreFiltroNuevo) ? Textos["GuardarFiltroSinNombre"].Value : null)"
+                 TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombreFiltroNuevo" ValorChanged="v => { _nombreFiltroNuevo = v; _mensajeErrorFiltro = null; }" Placeholder="@Textos["PlaceholderNombreFiltro"]" />
+</ModalFormulario>
 
 <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
 </LimiteDeErrores>

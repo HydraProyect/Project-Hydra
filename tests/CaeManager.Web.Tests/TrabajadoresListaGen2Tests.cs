@@ -6,6 +6,7 @@ using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesPara
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
@@ -103,6 +104,10 @@ public class TrabajadoresListaGen2Tests : BunitContext
         public List<EmpresaSelectorDto> Empresas { get; } =
             [new(EmpresaEbro, "Montajes Ebro S.L."), new(EmpresaDexter, "Dexter Industrial S.A.")];
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
+
+        /// <summary>Lo que responde «Guardar filtro»; sin valor, éxito.</summary>
+        public Result<Guid>? ResultadoGuardarFiltro { get; set; }
+
         public List<CentroSelectorDto> Centros { get; } = [];
         public Func<Guid, IReadOnlyList<DocumentoFaltanteDto>> Faltantes { get; set; } = _ => [];
 
@@ -159,6 +164,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
                     return Faltantes(q.CentroIds.Single());
                 case CrearTrabajadorCommand:
                     return Result.Exito(Guid.NewGuid());
+                case GuardarFiltroCommand:
+                    return ResultadoGuardarFiltro ?? Result.Exito(Guid.NewGuid());
                 case EliminarTrabajadorCommand c:
                     _papelera.AddRange(Almacen.Where(f => f.Dto.Id == c.Id));
                     Almacen.RemoveAll(f => f.Dto.Id == c.Id);
@@ -1579,5 +1586,67 @@ public class TrabajadoresListaGen2Tests : BunitContext
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
 
         await SalirYComprobarQueNoPreguntaAsync(cut, "cancelar descarta el nombre a propósito");
+    }
+
+    // ------------------------------------------------------------- «Guardar filtro» con ModalFormulario (S12, lote 3b)
+
+    private static IElement GuardarDelFiltro(IRenderedComponent<Trabajadores> cut) =>
+        cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar");
+
+    private async Task<IRenderedComponent<Trabajadores>> AbrirGuardarFiltroAsync(MediatorFalso mediador)
+    {
+        var cut = Renderizar(mediador);
+        await BotonDeLaBarra(cut, "Guardar filtro").ClickAsync(new MouseEventArgs());
+        return cut;
+    }
+
+    private static Task EscribirNombreDelFiltroAsync(IRenderedComponent<Trabajadores> cut, string nombre) =>
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre" && c.Instance.Placeholder != null)
+            .Find("input").InputAsync(new ChangeEventArgs { Value = nombre });
+
+    [Fact]
+    public async Task Guardar_filtro_sin_nombre_esta_deshabilitado_y_dice_por_que_y_con_nombre_se_habilita()
+    {
+        var cut = await AbrirGuardarFiltroAsync(new MediatorFalso());
+
+        GuardarDelFiltro(cut).HasAttribute("disabled").Should().BeTrue("sin nombre no hay nada que guardar");
+        GuardarDelFiltro(cut).GetAttribute("title").Should().Be("Escribe un nombre para el filtro", "un primario deshabilitado sin motivo es el de D-02 y D-06");
+
+        await EscribirNombreDelFiltroAsync(cut, "Mis urgentes");
+
+        GuardarDelFiltro(cut).HasAttribute("disabled").Should().BeFalse();
+        GuardarDelFiltro(cut).HasAttribute("title").Should().BeFalse("habilitado no hay motivo que decir");
+    }
+
+    [Fact]
+    public async Task Guardar_filtro_con_nombre_envia_el_comando_y_cierra_el_modal()
+    {
+        var mediador = new MediatorFalso();
+        var cut = await AbrirGuardarFiltroAsync(mediador);
+        await EscribirNombreDelFiltroAsync(cut, "Mis urgentes");
+
+        await GuardarDelFiltro(cut).ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<GuardarFiltroCommand>().Should().ContainSingle().Which.Nombre.Should().Be("Mis urgentes");
+        cut.FindAll("[role=dialog]").Should().BeEmpty("guardado el filtro, el modal se cierra");
+    }
+
+    [Fact]
+    public async Task Un_rechazo_al_guardar_el_filtro_se_ve_en_el_aviso_fijo_del_modal_y_lo_escrito_no_se_pierde()
+    {
+        var mediador = new MediatorFalso { ResultadoGuardarFiltro = Result.Fallo<Guid>(Error.Crear("Filtro.NombreEnUso", "Ya tienes un filtro con ese nombre.")) };
+        var cut = await AbrirGuardarFiltroAsync(mediador);
+        await EscribirNombreDelFiltroAsync(cut, "Mis urgentes");
+
+        await GuardarDelFiltro(cut).ClickAsync(new MouseEventArgs());
+
+        cut.Find(".modal-aviso .alerta-formulario").TextContent.Should().Contain("Ya tienes un filtro con ese nombre.",
+            "el mensaje del Result es el que el usuario ve, fuera del cuerpo desplazable y no en un toast que desaparece");
+        cut.FindAll(".modal-cuerpo .alerta-formulario").Should().BeEmpty("el aviso va fuera del cuerpo desplazable (D-20)");
+        cut.FindAll("[role=dialog]").Should().NotBeEmpty("el rechazo no cierra el modal ni tira lo escrito");
+
+        await EscribirNombreDelFiltroAsync(cut, "Mis urgentes 2");
+
+        cut.FindAll(".modal-aviso").Should().BeEmpty("escribir de nuevo retira el error anterior");
     }
 }

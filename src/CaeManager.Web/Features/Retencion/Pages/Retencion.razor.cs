@@ -38,8 +38,6 @@ namespace CaeManager.Web.Features.Retencion.Pages;
 /// </summary>
 public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
-    private Modal? _modalProgramar;
-    private Modal? _modalCancelar;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Retencion> Logger { get; set; } = default!;
@@ -187,20 +185,13 @@ public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfi
     private readonly InstantaneaFormulario _instantaneaProgramar = new();
 
     /// <summary>
-    /// P1-E2b: único punto de verdad de «hay cambios» en la página: la fecha de ejecución
-    /// cambiada respecto a la propuesta en el modal de autorizar, o un motivo ya escrito en
-    /// el de descartar. Lo lee AvisoCambiosSinGuardar; cerrados (también tras confirmar)
-    /// nunca hay nada que perder.
+    /// P1-E2b: «hay cambios» de cada ModalFormulario de la página (el guardián de su kit): la fecha de ejecución
+    /// cambiada respecto a la propuesta en el de autorizar, o un motivo ya escrito en el de descartar. Cerrados
+    /// (también tras confirmar) nunca hay nada que perder.
     /// </summary>
-    private bool HayCambiosSinGuardar =>
-        (_aProgramar is not null && _instantaneaProgramar.Difiere(_fechaEjecucion))
-        || (_aCancelar is not null && !string.IsNullOrWhiteSpace(_motivoCancelacion));
+    private bool HayCambiosProgramar => _aProgramar is not null && _instantaneaProgramar.Difiere(_fechaEjecucion);
 
-    private void CerrarFormulariosDescartando()
-    {
-        _aProgramar = null;
-        _aCancelar = null;
-    }
+    private bool HayCambiosCancelar => _aCancelar is not null && !string.IsNullOrWhiteSpace(_motivoCancelacion);
 
     private void AbrirCancelar(SolicitudPurgaDto solicitud)
     {

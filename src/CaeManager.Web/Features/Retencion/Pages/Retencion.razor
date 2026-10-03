@@ -177,52 +177,34 @@
     }
 </div>
 
-<Modal @ref="_modalProgramar" HayCambios="() => HayCambiosSinGuardar" Visible="_aProgramar is not null" VisibleChanged="v => { if (!v) _aProgramar = null; }"
-       Titulo="Autorizar la destrucción" CerrarAlHacerClicFuera="!_procesando">
-    <ChildContent>
-        @if (_aProgramar is not null)
-        {
-            <p>
-                Autorizas destruir <strong>@_aProgramar.RegistrosAfectados registro(s)</strong> de
-                @DescribirTipo(_aProgramar.TipoDato). Queda atribuido a tu usuario.
-            </p>
-            <p class="aviso-purga">
-                Nada se destruye hasta la fecha que indiques, y puedes descartarlo hasta entonces.
-            </p>
+@* Los dos formularios de la página son ModalFormulario (guardián, «Cancelar»/«Volver», primario único con su estado, aviso del formulario y
+   aviso de navegación vienen del kit). El error del servidor o de validación sale en el aviso fijo, no dentro del cuerpo. *@
+<ModalFormulario Visible="_aProgramar is not null" VisibleChanged="v => { if (!v) _aProgramar = null; }" Titulo="Autorizar la destrucción"
+                 HayCambios="() => HayCambiosProgramar" Guardando="_procesando" MensajeError="@_errorFormulario"
+                 OnGuardar="ProgramarAsync" TextoGuardar="Autorizar" TextoCancelar="Cancelar">
+    @if (_aProgramar is not null)
+    {
+        <p>
+            Autorizas destruir <strong>@_aProgramar.RegistrosAfectados registro(s)</strong> de
+            @DescribirTipo(_aProgramar.TipoDato). Queda atribuido a tu usuario.
+        </p>
+        <p class="aviso-purga">
+            Nada se destruye hasta la fecha que indiques, y puedes descartarlo hasta entonces.
+        </p>
 
-            <CampoTexto Etiqueta="Fecha de ejecución" Type="date" Valor="@_fechaEjecucion"
-                        ValorChanged="v => _fechaEjecucion = v" />
+        <CampoTexto Etiqueta="Fecha de ejecución" Type="date" Valor="@_fechaEjecucion"
+                    ValorChanged="v => { _fechaEjecucion = v; _errorFormulario = null; }" />
+    }
+</ModalFormulario>
 
-            @if (_errorFormulario is not null)
-            {
-                <p class="alerta-formulario" role="alert">@_errorFormulario</p>
-            }
-        }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesando" OnClick="() => _modalProgramar?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_procesando" OnClick="ProgramarAsync">Autorizar</Boton>
-    </Pie>
-</Modal>
+<ModalFormulario Visible="_aCancelar is not null" VisibleChanged="v => { if (!v) _aCancelar = null; }" Titulo="Descartar la propuesta"
+                 HayCambios="() => HayCambiosCancelar" Guardando="_procesando" MensajeError="@_errorFormulario"
+                 OnGuardar="CancelarAsync" TextoGuardar="Descartar" TextoCancelar="Volver">
+    <p class="aviso-purga">La propuesta se archiva y esos datos se conservan. Puede volver a proponerse en un barrido posterior.</p>
 
-<Modal @ref="_modalCancelar" HayCambios="() => HayCambiosSinGuardar" Visible="_aCancelar is not null" VisibleChanged="v => { if (!v) _aCancelar = null; }"
-       Titulo="Descartar la propuesta" CerrarAlHacerClicFuera="!_procesando">
-    <ChildContent>
-        <p class="aviso-purga">La propuesta se archiva y esos datos se conservan. Puede volver a proponerse en un barrido posterior.</p>
-
-        <CampoTexto Etiqueta="Motivo" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v"
-                    Placeholder="La organización conserva estos documentos 10 años por política interna" />
-
-        @if (_errorFormulario is not null)
-        {
-            <p class="alerta-formulario" role="alert">@_errorFormulario</p>
-        }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesando" OnClick="() => _modalCancelar?.SolicitarCierreAsync() ?? Task.CompletedTask">Volver</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_procesando" OnClick="CancelarAsync">Descartar</Boton>
-    </Pie>
-</Modal>
+    <CampoTexto Etiqueta="Motivo" Valor="@_motivoCancelacion" ValorChanged="v => { _motivoCancelacion = v; _errorFormulario = null; }"
+                Placeholder="La organización conserva estos documentos 10 años por política interna" />
+</ModalFormulario>
 
 <DialogoConfirmacion Visible="_aEjecutar is not null"
                      VisibleChanged="v => { if (!v) _aEjecutar = null; }"
@@ -231,6 +213,4 @@
                      TextoBotonConfirmar="Destruir definitivamente"
                      EnProgreso="_procesando"
                      OnConfirmar="EjecutarAsync" />
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormulariosDescartando" />
 </LimiteDeErrores>

@@ -663,6 +663,81 @@ public class DocumentosGen2Tests : BunitContext
             "el segundo envío llegó con el primero todavía en vuelo");
     }
 
+    // ------------------------------------------- «Guardar filtro» con ModalFormulario (S12, lote 3b)
+
+    private async Task<(IRenderedComponent<PaginaDocumentos> Cut, MediadorControlado Mediador)> AbrirGuardarFiltroAsync(Result<Guid>? respuesta = null)
+    {
+        var mediador = ConDocumentos(Documento("Reconocimiento médico"));
+        if (respuesta is { } r)
+            mediador.Interceptar = p => p is GuardarFiltroCommand ? Task.FromResult<object?>(r) : null;
+
+        var (cut, _) = Renderizar(mediador, url: "documentos?Estado=Vencido");
+        await BotonPorTexto(cut, ".barra-filtros-lista button", "Guardar filtro").ClickAsync(new MouseEventArgs());
+        return (cut, mediador);
+    }
+
+    private static Task EscribirNombreDelFiltroAsync(IRenderedComponent<PaginaDocumentos> cut, string nombre)
+    {
+        // El campo rebota 300 ms sobre oninput: se invoca su callback (ver Dos_envios_de_Guardar_filtro_mandan_un_solo_comando).
+        var campoNombre = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre");
+        return cut.InvokeAsync(() => campoNombre.Instance.ValorChanged.InvokeAsync(nombre));
+    }
+
+    [Fact]
+    public async Task Guardar_filtro_sin_nombre_esta_deshabilitado_y_dice_por_que_y_con_nombre_se_habilita()
+    {
+        var (cut, _) = await AbrirGuardarFiltroAsync();
+        IElement Guardar() => cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar");
+
+        Guardar().HasAttribute("disabled").Should().BeTrue("sin nombre no hay nada que guardar");
+        Guardar().GetAttribute("title").Should().Be("Escribe un nombre para el filtro", "un primario deshabilitado sin motivo es el de D-02 y D-06");
+
+        await EscribirNombreDelFiltroAsync(cut, "Vencidos que bloquean centro");
+
+        Guardar().HasAttribute("disabled").Should().BeFalse();
+        Guardar().HasAttribute("title").Should().BeFalse("habilitado no hay motivo que decir");
+    }
+
+    [Fact]
+    public async Task Un_rechazo_al_guardar_el_filtro_se_ve_en_el_aviso_fijo_del_modal_y_lo_escrito_no_se_pierde()
+    {
+        var (cut, _) = await AbrirGuardarFiltroAsync(Result.Fallo<Guid>(Error.Crear("Filtro.NombreEnUso", "Ya tienes un filtro con ese nombre.")));
+        await EscribirNombreDelFiltroAsync(cut, "Vencidos que bloquean centro");
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".modal-aviso .alerta-formulario").TextContent.Should().Contain("Ya tienes un filtro con ese nombre.",
+            "el mensaje del Result es el que el usuario ve, fuera del cuerpo desplazable y no en un toast que desaparece");
+        cut.FindAll(".modal-cuerpo .alerta-formulario").Should().BeEmpty("el aviso va fuera del cuerpo desplazable (D-20)");
+        cut.FindAll("[role=dialog]").Should().NotBeEmpty("el rechazo no cierra el modal ni tira lo escrito");
+
+        await EscribirNombreDelFiltroAsync(cut, "Vencidos 2");
+
+        cut.FindAll(".modal-aviso").Should().BeEmpty("escribir de nuevo retira el error anterior");
+    }
+
+    [Fact]
+    public async Task Cancelar_el_filtro_con_el_nombre_escrito_pregunta_como_la_X()
+    {
+        var (cut, _) = await AbrirGuardarFiltroAsync();
+
+        await EscribirNombreDelFiltroAsync(cut, "Vencidos que bloquean centro");
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?", "con el nombre escrito «Cancelar» pregunta, como la X (D-05)");
+    }
+
+    [Fact]
+    public async Task Cancelar_el_filtro_sin_nombre_cierra_sin_preguntar()
+    {
+        var (cut, _) = await AbrirGuardarFiltroAsync();
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?", "sin nombre no hay nada que perder");
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+    }
+
     /// <summary>
     /// Guardar un filtro es autoservicio: <c>GuardarFiltroCommand</c> lleva
     /// <c>IComandoDeAutoservicio</c> y el servidor lo deja pasar a Consulta, así
