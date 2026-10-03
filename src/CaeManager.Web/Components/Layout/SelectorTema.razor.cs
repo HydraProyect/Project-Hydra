@@ -89,7 +89,7 @@ public partial class SelectorTema : IAsyncDisposable
     /// elegido): lo único que puede llegar al navegador, porque <c>aplicarTema</c>
     /// escribe la cookie que <c>TemaCookie</c> lee en la siguiente petición.
     /// <see cref="_temaActual"/> es lo que el usuario ha elegido —lo que
-    /// muestra el <c>&lt;select&gt;</c>— y puede ir por delante mientras un
+    /// muestra el <c>interruptor</c> — y puede ir por delante mientras un
     /// guardado sigue en vuelo, o quedarse por delante para siempre si falla.
     /// Confundirlos es lo que hacía que <see cref="OnAfterRenderAsync"/>
     /// adelantara la cookie a un guardado que aún no había cuajado (segunda
@@ -119,6 +119,21 @@ public partial class SelectorTema : IAsyncDisposable
     /// propio intento (cuarta revisión de Codex).
     /// </summary>
     private int _generacion;
+
+    private bool EsOscuro => _temaActual == "oscuro";
+
+    /// <summary>
+    /// Interruptor de dos estados. El estado claro NO es una elección explícita:
+    /// es la ausencia de preferencia (<c>TemaPreferido.Sistema</c>, "sistema"),
+    /// que <c>tema.js</c> aplica quitando <c>data-theme</c> y la cookie y que
+    /// <c>tokens.css</c> pinta como claro. Así el interruptor no cambia ni el
+    /// valor persistido por defecto, ni el HTML prerenderizado de un usuario en
+    /// claro (ver <c>TemaCookie</c>). «Sistema» ya no es elegible desde la
+    /// interfaz; <c>TemaPreferido.Claro</c> solo queda en cuentas que lo
+    /// guardaron antes, y el interruptor lo muestra apagado (claro).
+    /// </summary>
+    private Task AlternarTemaAsync() =>
+        CambiarTemaAsync(new ChangeEventArgs { Value = EsOscuro ? "sistema" : "oscuro" });
 
     protected override async Task OnInitializedAsync()
     {
@@ -239,13 +254,13 @@ public partial class SelectorTema : IAsyncDisposable
     /// recarga y un segundo intento). Es el precio de que lo que se ve sea lo
     /// que está guardado. Si el guardado falla —por excepción o por resultado
     /// fallido— el DOM y la cookie se quedan como estaban, y queda un
-    /// desajuste que <b>no se resuelve aquí</b>: el <c>&lt;select&gt;</c>
+    /// desajuste que <b>no se resuelve aquí</b>: el <c>interruptor</c>
     /// conserva la opción elegida (<c>_temaActual</c>) mientras la cuenta y el
     /// documento siguen en la anterior, sin aviso al usuario más que el
     /// <c>LogWarning</c>. Es preferible a lo de antes —que pintaba el tema y
     /// dejaba una cookie apuntando a una preferencia inexistente—, pero sigue
     /// siendo un fallo visible solo en el registro. Tampoco se resuelve el
-    /// caso de que, tras un fallo, el <c>&lt;select&gt;</c> quede en una
+    /// caso de que, tras un fallo, el <c>interruptor</c> quede en una
     /// opción distinta de la que la cuenta y el documento conservan:
     /// revertirlo exigiría <c>StateHasChanged</c>, que este componente evita
     /// a propósito (los tests lo invocan sin renderer, ver
@@ -268,7 +283,7 @@ public partial class SelectorTema : IAsyncDisposable
     /// encola —la versión anterior serializaba con un <c>SemaphoreSlim</c>,
     /// cuyo orden de adquisición no está garantizado, y con
     /// oscuro→claro→oscuro podía dejar cuenta, documento y cookie en claro
-    /// con el <c>&lt;select&gt;</c> en oscuro—; (c) si un guardado falla y
+    /// con el <c>interruptor</c> en oscuro—; (c) si un guardado falla y
     /// hubo después alguna elección nueva (<see cref="_generacion"/>, aunque
     /// sea del mismo tema), se intenta la vigente; si no la hubo, el bucle
     /// termina (no reintenta sin fin), y si el usuario vuelve entonces al

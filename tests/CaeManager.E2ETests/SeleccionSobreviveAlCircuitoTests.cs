@@ -173,7 +173,7 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // page.Request, no solo leído del código (control positivo más abajo,
         // en Control_positivo_la_navegacion_por_clic_en_el_menu_SI_genera_una_
         // peticion_http, demuestra que el instrumento sí distingue).
-        var selectorTema = page.Locator("select.selector-tema");
+        var selectorTema = page.GetByRole(AriaRole.Switch, new() { Name = "Tema oscuro" });
         await Assertions.Expect(selectorTema).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
@@ -182,8 +182,8 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // sola vez POR INSTANCIA del componente (guarda _modulo is not
         // null) — y el clic de arriba llega por enhanced navigation, que en
         // esta aplicación puede recrear los componentes interactivos del
-        // layout, reiniciando esa guarda. La primera vez que el <select> de
-        // esta instancia dispara @onchange, ese import (y en la primera
+        // layout, reiniciando esa guarda. La primera vez que el interruptor de
+        // esta instancia dispara @onclick, ese import (y en la primera
         // ejecución de la sesión también los de otros componentes del
         // layout que se inicializan en el mismo pase, como
         // buscador-global.js o atajos-globales.js/atajos-lista.js) puede
@@ -192,21 +192,27 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
         // fuera de la ventana medida, para que el conteo de abajo mida el
         // despacho del evento por el circuito, no el coste de primera carga
         // de una instancia de componente recién montada.
-        var valorActual = await selectorTema.InputValueAsync();
-        var valorCalentamiento = valorActual == "claro" ? "sistema" : "claro";
-        await selectorTema.SelectOptionAsync(valorCalentamiento);
+        // Termina en claro (apagado), de modo que el cambio medido de abajo —a
+        // oscuro— es siempre un cambio real y @onchange/@onclick despacha de
+        // verdad dentro de la ventana.
+        await Ayudas.ElegirTemaOscuroAsync(selectorTema, false);
+        await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
+            "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+        await Ayudas.ElegirTemaOscuroAsync(selectorTema, true);
         await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
-            "data-theme", valorCalentamiento, new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+            "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+        await Ayudas.ElegirTemaOscuroAsync(selectorTema, false);
+        await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
+            "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
 
         var peticionesDurantePausaCircuito = new List<string>();
         void RegistrarPeticion(object? _, IRequest req) =>
             peticionesDurantePausaCircuito.Add($"{req.Method} {req.Url} ({req.ResourceType})");
         page.Request += RegistrarPeticion;
 
-        // valorCalentamiento nunca es "oscuro" (siempre "claro" o "sistema"), así
-        // que este cambio es siempre un valor distinto del que dejó el
-        // calentamiento — @onchange dispara de verdad dentro de la ventana medida.
-        await selectorTema.SelectOptionAsync("oscuro");
+        // El calentamiento dejó el interruptor en claro, así que este clic es
+        // siempre un cambio real: @onclick dispara de verdad dentro de la ventana medida.
+        await Ayudas.ElegirTemaOscuroAsync(selectorTema, true);
 
         // Confirma que el evento sí llegó y se procesó en el circuito (con éxito o
         // sin él, la propia respuesta visual demuestra que no hubo ninguna

@@ -41,10 +41,10 @@ public class SelectorTemaTests(WebAppFixture fixture)
         await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
             "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 10_000 });
 
-        var selectorTema = page.Locator("select.selector-tema");
+        var selectorTema = page.GetByRole(AriaRole.Switch, new() { Name = "Tema oscuro" });
         await Assertions.Expect(selectorTema).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        await selectorTema.SelectOptionAsync("oscuro");
+        await Ayudas.ElegirTemaOscuroAsync(selectorTema, true);
 
         // (1) En vivo, por interoperación de JS sobre el documento actual.
         await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
@@ -72,7 +72,7 @@ public class SelectorTemaTests(WebAppFixture fixture)
 
         // Devuelve la cuenta a su estado inicial: la fixture es compartida por
         // toda "AppCollection" y este usuario lo usan otros tests.
-        await selectorTema.SelectOptionAsync("sistema");
+        await Ayudas.ElegirTemaOscuroAsync(selectorTema, false);
         await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
             "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
     }
@@ -97,10 +97,10 @@ public class SelectorTemaTests(WebAppFixture fixture)
         await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
 
-        var selectorTema = page.Locator("select.selector-tema");
+        var selectorTema = page.GetByRole(AriaRole.Switch, new() { Name = "Tema oscuro" });
         await Assertions.Expect(selectorTema).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        await selectorTema.SelectOptionAsync("oscuro");
+        await Ayudas.ElegirTemaOscuroAsync(selectorTema, true);
         await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
             "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
 
@@ -130,10 +130,10 @@ public class SelectorTemaTests(WebAppFixture fixture)
         // fallo real medido en CI (2026-09-18, PR #710) que no tiene nada
         // que ver con lo que este test mide, solo con la limpieza.
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
-        var selectorTemaTrasRecarga = page.Locator("select.selector-tema");
+        var selectorTemaTrasRecarga = page.GetByRole(AriaRole.Switch, new() { Name = "Tema oscuro" });
         await Assertions.Expect(selectorTemaTrasRecarga).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        await selectorTemaTrasRecarga.SelectOptionAsync("sistema");
+        await Ayudas.ElegirTemaOscuroAsync(selectorTemaTrasRecarga, false);
         await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
             "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
     }
@@ -164,7 +164,7 @@ public class SelectorTemaTests(WebAppFixture fixture)
         // El control mide iniciales, no un logo: si el Tenant de demo tuviera logo no habría letras que leer.
         await Assertions.Expect(avatar).Not.ToBeEmptyAsync(new LocatorAssertionsToBeEmptyOptions { Timeout = 5_000 });
 
-        var selectorTema = page.Locator("select.selector-tema");
+        var selectorTema = page.GetByRole(AriaRole.Switch, new() { Name = "Tema oscuro" });
         await Assertions.Expect(selectorTema).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         const string medirContraste = """
@@ -179,12 +179,17 @@ public class SelectorTemaTests(WebAppFixture fixture)
 
         try
         {
-            // Termina en oscuro: así la espera del finally («sistema» ya no es oscuro) es una barrera real.
+            // Termina en oscuro: así la espera del finally (claro ya no es oscuro) es una barrera real.
             foreach (var tema in new[] { "claro", "oscuro" })
             {
-                await selectorTema.SelectOptionAsync(tema);
-                await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
-                    "data-theme", tema, new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+                await Ayudas.ElegirTemaOscuroAsync(selectorTema, tema == "oscuro");
+                // El estado claro del interruptor es la ausencia de data-theme (ver SelectorTema).
+                if (tema == "oscuro")
+                    await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
+                        "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+                else
+                    await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
+                        "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
 
                 var medida = await avatar.EvaluateAsync<System.Text.Json.JsonElement>(medirContraste);
                 Assert.NotEqual("rgba(0, 0, 0, 0)", medida.GetProperty("fondo").GetString());
@@ -197,7 +202,7 @@ public class SelectorTemaTests(WebAppFixture fixture)
         finally
         {
             // Devuelve la cuenta a su estado inicial: la fixture es compartida por toda "AppCollection".
-            await selectorTema.SelectOptionAsync("sistema");
+            await Ayudas.ElegirTemaOscuroAsync(selectorTema, false);
             await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
                 "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
         }
@@ -227,7 +232,7 @@ public class SelectorTemaTests(WebAppFixture fixture)
             Content = "*, *::before, *::after { transition: none !important; }",
         });
 
-        var selectorTema = page.Locator("select.selector-tema");
+        var selectorTema = page.GetByRole(AriaRole.Switch, new() { Name = "Tema oscuro" });
         await Assertions.Expect(selectorTema).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         const string selectorActivo = ".nav-principal a.nav-item.active";
         var activo = page.Locator(selectorActivo).First;
@@ -247,12 +252,17 @@ public class SelectorTemaTests(WebAppFixture fixture)
 
         try
         {
-            // Termina en oscuro: así la espera del finally («sistema» ya no es oscuro) es una barrera real.
+            // Termina en oscuro: así la espera del finally (claro ya no es oscuro) es una barrera real.
             foreach (var tema in new[] { "claro", "oscuro" })
             {
-                await selectorTema.SelectOptionAsync(tema);
-                await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
-                    "data-theme", tema, new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+                await Ayudas.ElegirTemaOscuroAsync(selectorTema, tema == "oscuro");
+                // El estado claro del interruptor es la ausencia de data-theme (ver SelectorTema).
+                if (tema == "oscuro")
+                    await Assertions.Expect(page.Locator("html")).ToHaveAttributeAsync(
+                        "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+                else
+                    await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
+                        "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
 
                 var seleccion = await page.EvaluateAsync<System.Text.Json.JsonElement>(
                     medirContraste, new { selector = (string?)null, pseudo = "::selection" });
@@ -278,7 +288,7 @@ public class SelectorTemaTests(WebAppFixture fixture)
         finally
         {
             // Devuelve la cuenta a su estado inicial: la fixture es compartida por toda "AppCollection".
-            await selectorTema.SelectOptionAsync("sistema");
+            await Ayudas.ElegirTemaOscuroAsync(selectorTema, false);
             await Assertions.Expect(page.Locator("html")).Not.ToHaveAttributeAsync(
                 "data-theme", "oscuro", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
         }

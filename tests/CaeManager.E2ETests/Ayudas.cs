@@ -172,6 +172,19 @@ public static class Ayudas
     /// (SelectorClienteActivo.razor). El Id del Tenant activo viaja en
     /// <c>data-tenant-id</c> y su nombre está en <c>.selector-tenant-nombre</c>.
     /// </summary>
+    /// <summary>
+    /// El interruptor de tema (<c>SelectorTema</c>) tiene dos estados: apagado = claro
+    /// (ausencia de preferencia, sin data-theme) y encendido = oscuro. Lo deja en el
+    /// pedido pulsándolo solo si hace falta; no espera al efecto: cada test espera el
+    /// suyo (data-theme).
+    /// </summary>
+    public static async Task ElegirTemaOscuroAsync(ILocator interruptor, bool oscuro)
+    {
+        var activo = await interruptor.GetAttributeAsync("aria-checked") == "true";
+        if (activo != oscuro)
+            await interruptor.ClickAsync();
+    }
+
     public static ILocator DisparadorSelectorTenant(IPage page) => page.Locator(".selector-tenant-disparador");
 
     public static async Task<string> TenantActivoIdAsync(IPage page) =>
