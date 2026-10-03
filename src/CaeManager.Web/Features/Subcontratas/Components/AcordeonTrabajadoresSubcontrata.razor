@@ -188,7 +188,7 @@ else
                                             }
                                         </span>
                                         <span role="cell">
-                                            <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="celda-documento-vigencia">
+                                            <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="@EstadoDocumentoUi.ClaseCeldaVigencia(documento.Estado)">
                                                 @TextoVigencia(documento)
                                             </TextoFechaCopiable>
                                         </span>
@@ -293,5 +293,7 @@ else
         total == 1 ? Textos[claveUno] : Textos[claveVarios, total];
 
     private static string TextoVigencia(DocumentoRequeridoDto documento) =>
-        documento.FechaVencimiento is { } fecha ? fecha.ToString("dd/MM/yyyy", CultureInfo.CurrentCulture) : "—";
+        documento.FechaVencimiento is { } fecha
+            ? fecha.ToString("dd/MM/yyyy", CultureInfo.CurrentCulture)
+            : EstadoDocumentoUi.TextoSinFechaDeVencimiento(documento.Estado);
 }

@@ -558,15 +558,6 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private Task ManejarAsignacionGuardadaAsync() => ManejarDocumentoGuardadoAsync();
 
-    /// <summary>
-    /// Clase de la celda de vigencia: «Sin confirmar» lleva el mismo aviso ámbar que el panel Documentación base
-    /// (cuenta como al día, con aviso); el resto, el estilo neutro de la columna.
-    /// </summary>
-    private static string ClaseVigencia(EstadoDocumento? estado) =>
-        estado == EstadoDocumento.SinConfirmar
-            ? "celda-documento-vigencia celda-documento-vigencia-sin-confirmar"
-            : "celda-documento-vigencia";
-
     private string TextoVigenciaEmpresa(IncidenciaCentroDto incidencia)
     {
         // Un rechazo en plataforma (Estado: null a propósito, ver

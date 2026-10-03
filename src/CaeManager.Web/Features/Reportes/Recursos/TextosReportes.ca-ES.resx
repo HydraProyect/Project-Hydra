@@ -192,9 +192,6 @@
   <data name="ColumnaAsignadoDesde" xml:space="preserve">
     <value>Asignado desde</value>
   </data>
-  <data name="VenceNoCaduca" xml:space="preserve">
-    <value>No caduca</value>
-  </data>
   <data name="NotaVistaPrevia" xml:space="preserve">
     <value>Vista previa · el PDF y el Excel se generan con estos mismos filtros en el momento de descargarlos; si los datos cambiaron desde la vista previa, pueden no coincidir con ella</value>
   </data>

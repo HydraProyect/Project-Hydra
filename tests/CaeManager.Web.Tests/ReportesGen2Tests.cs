@@ -289,7 +289,7 @@ public class ReportesGen2Tests : BunitContext
         filas.Select(f => Celdas(f)[0]).Should().Equal(["Juan Pérez", "Iker Mena", "David Rey"],
             "con la Nave Norte elegida solo se pintan sus filas; Nuria Salas es de la Nave Sur");
         Celdas(filas[0]).Should().Equal("Juan Pérez", "Instalaciones Vega S.L.", "Formación PRL — 20 h", "02/08/2026", "Vencido");
-        Celdas(filas[2]).Should().Equal("David Rey", "Instalaciones Vega S.L.", "Alta en Seguridad Social", "No caduca", "Sin caducidad");
+        Celdas(filas[2]).Should().Equal("David Rey", "Instalaciones Vega S.L.", "Alta en Seguridad Social", "Sin caducidad", "Sin caducidad");
 
         Texto(cut.Find(".titulo-hoja-informe")).Should().Be($"Informe de vigencia documental — {NombreA}");
         cut.FindAll(".metadato-hoja-informe").Select(Texto).Last()
@@ -747,11 +747,15 @@ public class ReportesGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Sin fecha no siempre es «No caduca»: si nadie ha confirmado la vigencia,
-    /// la celda no afirma que el documento no caduque.
+    /// Sin fecha no siempre es «Sin caducidad»: si nadie ha confirmado la vigencia,
+    /// la celda no afirma que el documento no caduque, pero tampoco la deja en «—»:
+    /// «—» oculta un estado conocido, así que dice «Sin confirmar» (decisión del
+    /// propietario, 2026-10-03; la misma función que Centro 360, Trabajador 360 y
+    /// Subcontrata 360). Un estado sin fecha que no es ni «Sin caducidad» ni
+    /// «Sin confirmar» sigue en «—».
     /// </summary>
     [Fact]
-    public async Task Un_documento_sin_vigencia_confirmada_no_se_pinta_como_que_no_caduca()
+    public async Task Un_documento_sin_vigencia_confirmada_dice_Sin_confirmar_y_no_se_pinta_como_que_no_caduca_ni_como_raya()
     {
         var escenario = new Escenario();
         escenario.Documentos.Add(new(ClienteB, CentroB1,
@@ -761,8 +765,27 @@ public class ReportesGen2Tests : BunitContext
         await Generar(cut);
 
         var fila = FilasHoja(cut).Single(f => Celdas(f)[0] == "Marta Gil");
-        Celdas(fila)[3].Should().Be("—");
+        Celdas(fila)[3].Should().Be("Sin confirmar");
+        Celdas(fila)[3].Should().NotContain("caduca", "sin fecha no es «no caduca»: nadie ha anotado hasta cuándo vale");
         Celdas(fila)[4].Should().Be("Sin confirmar");
+    }
+
+    /// <summary>
+    /// Control del otro lado: un estado sin fecha que no es «Sin caducidad» ni «Sin confirmar» (aquí un hueco) no
+    /// tiene vigencia que rotular y sigue en «—»; el informe no lo convierte en «Sin confirmar».
+    /// </summary>
+    [Fact]
+    public async Task Un_estado_sin_fecha_que_no_es_ni_sin_caducidad_ni_sin_confirmar_sigue_en_raya()
+    {
+        var escenario = new Escenario();
+        escenario.Documentos.Add(new(ClienteB, CentroB1,
+            Documento("Marta Gil", "Formación en espacios confinados", null, EstadoDocumento.Faltante)));
+        var (cut, _) = Renderizar(escenario, $"reportes?clienteId={ClienteB}");
+
+        await Generar(cut);
+
+        var fila = FilasHoja(cut).Single(f => Celdas(f)[0] == "Marta Gil");
+        Celdas(fila)[3].Should().Be("—");
     }
 
     // ---------------------------------------------------------------- historial

@@ -550,6 +550,110 @@ public class Trabajador360Gen2Tests : BunitContext
                 "si el tope de la página corta la lista, lo que se pierde es lo vigente y no lo que alimenta «Por vencer»");
     }
 
+    /// <summary>
+    /// Mismo criterio en el tercer nivel de la pestaña Operación (Centro desplegado): la celda de vigencia de un
+    /// documento exigido «Sin confirmar» dice «Sin confirmar» con aviso, y un hueco sigue en «—», sin aviso.
+    /// </summary>
+    [Fact]
+    public async Task La_vigencia_de_un_exigido_en_el_centro_desplegado_dice_Sin_confirmar_con_aviso_y_un_hueco_sigue_en_raya()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.SinConfirmar,
+                Documento("Reconocimiento médico", EstadoDocumento.SinConfirmar),
+                Documento("Autorización de acceso", EstadoDocumento.Faltante, existe: false))
+        ];
+
+        var cut = Renderizar(id);
+        await cut.FindAll(".trabajador360-centro-disparador")[0].ClickAsync(new MouseEventArgs());
+
+        var filas = cut.Find(".trabajador360-centro-detalle").QuerySelectorAll(".fila-documento-requerido")
+            .ToDictionary(f => SinEspaciosDeMas(f.QuerySelector(".celda-documento-nombre")!.TextContent),
+                f => f.QuerySelector(".celda-documento-vigencia")!);
+
+        SinEspaciosDeMas(filas["Reconocimiento médico"].TextContent).Should().Be("Sin confirmar");
+        filas["Reconocimiento médico"].ClassList.Should().Contain("celda-documento-vigencia-sin-confirmar");
+        SinEspaciosDeMas(filas["Autorización de acceso"].TextContent).Should().Be("—");
+        filas["Autorización de acceso"].ClassList.Should().NotContain("celda-documento-vigencia-sin-confirmar");
+    }
+
+    /// <summary>
+    /// «Sin confirmar» no tiene fecha de vencimiento y esa celda no puede quedar en «—»: «—» oculta un estado
+    /// conocido (decisión del propietario, 2026-10-03). Dice «Sin confirmar» con el mismo aviso ámbar que Centro 360;
+    /// un estado sin fecha que no es ni «Sin caducidad» ni «Sin confirmar» (un hueco) sigue en «—», sin aviso.
+    /// </summary>
+    [Fact]
+    public async Task La_celda_Vence_de_un_documento_sin_confirmar_dice_Sin_confirmar_con_aviso_y_un_hueco_sigue_en_raya()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Documentos[id] =
+        [
+            DocumentoDelTrabajador("Reconocimiento médico", EstadoDocumento.SinConfirmar, new(2025, 5, 1), null),
+            DocumentoDelTrabajador("DNI", EstadoDocumento.SinCaducidad, new(2020, 1, 1), null),
+            DocumentoDelTrabajador("Formación de centro", EstadoDocumento.Faltante, new(2025, 6, 1), null),
+        ];
+
+        var cut = Renderizar(id);
+        await AbrirPestanaAsync(cut, "Documentación");
+
+        CeldaVence(cut, "Documentos del trabajador", "Reconocimiento médico").TextContent.Trim().Should().Be("Sin confirmar");
+        CeldaVence(cut, "Documentos del trabajador", "Reconocimiento médico").ClassList
+            .Should().Contain("celda-documento-vigencia-sin-confirmar", "lleva el mismo aviso ámbar que Centro 360");
+        CeldaVence(cut, "Documentos del trabajador", "DNI").TextContent.Trim().Should().Be("Sin caducidad");
+        CeldaVence(cut, "Documentos del trabajador", "DNI").ClassList.Should().NotContain("celda-documento-vigencia-sin-confirmar");
+        CeldaVence(cut, "Documentos del trabajador", "Formación de centro").TextContent.Trim()
+            .Should().Be("—", "un estado sin fecha que no es «Sin caducidad» ni «Sin confirmar» no tiene vigencia que rotular");
+        CeldaVence(cut, "Documentos del trabajador", "Formación de centro").ClassList
+            .Should().NotContain("celda-documento-vigencia-sin-confirmar");
+    }
+
+    [Fact]
+    public async Task La_celda_Renovar_antes_de_un_exigido_sin_confirmar_dice_Sin_confirmar_con_aviso_y_un_hueco_sigue_en_raya()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+
+        var tipoGeneral = Guid.NewGuid();
+        mediador.Tipos.Add(Tipo(tipoGeneral, "Formación PRL — 20 h", RequisitoDocumental.Si));
+        var tipoSinConfirmar = Guid.NewGuid();
+        var tipoHueco = Guid.NewGuid();
+        mediador.Tipos.Add(Tipo(tipoSinConfirmar, "Reconocimiento médico de centro", RequisitoDocumental.No));
+        mediador.Tipos.Add(Tipo(tipoHueco, "Autorización de acceso", RequisitoDocumental.No));
+
+        var documentoSinConfirmar = Guid.NewGuid();
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.SinConfirmar,
+                new DocumentoRequeridoDto(documentoSinConfirmar, tipoSinConfirmar, "Reconocimiento médico de centro", EstadoDocumento.SinConfirmar, null),
+                new DocumentoRequeridoDto(null, tipoHueco, "Autorización de acceso", EstadoDocumento.Faltante, null))
+        ];
+        mediador.Documentos[id] =
+        [
+            DocumentoDelTrabajador("Reconocimiento médico de centro", EstadoDocumento.SinConfirmar, new(2025, 5, 1), null, documentoSinConfirmar),
+        ];
+
+        var cut = Renderizar(id);
+        await AbrirPestanaAsync(cut, "Documentación");
+
+        var tabla = "Exigidos solo en algunos Centros de trabajo";
+        CeldaVence(cut, tabla, "Reconocimiento médico de centro").TextContent.Trim().Should().Be("Sin confirmar");
+        CeldaVence(cut, tabla, "Reconocimiento médico de centro").ClassList.Should().Contain("celda-documento-vigencia-sin-confirmar");
+        CeldaVence(cut, tabla, "Autorización de acceso").TextContent.Trim().Should().Be("—");
+        CeldaVence(cut, tabla, "Autorización de acceso").ClassList.Should().NotContain("celda-documento-vigencia-sin-confirmar");
+    }
+
+    /// <summary>Última celda (la fecha de vencimiento o de renovación) de la fila de un documento, en la tabla indicada.</summary>
+    private static AngleSharp.Dom.IElement CeldaVence(IRenderedComponent<TrabajadorDetalle> cut, string tabla, string documento) =>
+        cut.Find($"[role=table][aria-label='{tabla}']").QuerySelectorAll(".fila-documento-requerido")
+            .Single(f => SinEspaciosDeMas(f.QuerySelector("[role=cell]")!.TextContent) == documento)
+            .QuerySelectorAll("[role=cell]").Last();
+
     [Fact]
     public async Task Los_exigidos_solo_en_algunos_Centros_dicen_en_que_Centro_de_que_Cliente_empresarial_y_cuando_renovar()
     {
