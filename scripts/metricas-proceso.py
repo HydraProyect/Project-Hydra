@@ -5,7 +5,7 @@ Sin este instrumento «mejora» no es medible: saca solas, del repositorio y de 
 § 6 del análisis, para imprimir la línea base de hoy y compararla con la de mañana.
 
     python3 scripts/metricas-proceso.py                       # tabla en Markdown, repo + GitHub
-    python3 scripts/metricas-proceso.py --solo repo           # sin llamar a GitHub (M11-M19, M21)
+    python3 scripts/metricas-proceso.py --solo repo           # sin llamar a GitHub (M11-M19, M21, M22)
     python3 scripts/metricas-proceso.py --json > hoy.json     # para comparar
     python3 scripts/metricas-proceso.py --comparar base.json  # añade la columna «Antes» y el delta
 
@@ -357,7 +357,7 @@ def metricas_de_ci(args, ramas_lote):
     return [f4, f5]
 
 
-# ───────────────────────────── métricas del repositorio (M11..M19, M21) ─────────────────────────────
+# ───────────────────────────── métricas del repositorio (M11..M19, M21, M22) ─────────────────────────────
 
 def etiquetas(texto: str, nombre: str):
     """Devuelve el texto de cada etiqueta `<nombre …>` (no `<nombrePlus`), escaneando comillas,
@@ -608,7 +608,7 @@ def main(argv=None):
     # En Windows la consola por defecto es cp1252 y no representa «≥» ni «→» de los rótulos.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    ap = argparse.ArgumentParser(description="Métricas de proceso M1..M21 (S15)")
+    ap = argparse.ArgumentParser(description="Métricas de proceso M1..M22 (S15)")
     ap.add_argument("--solo", choices=["repo", "github"], help="limita las fuentes")
     ap.add_argument("--raiz", default=str(Path(__file__).resolve().parent.parent))
     ap.add_argument("--negocio", default=NEGOCIO_POR_DEFECTO)

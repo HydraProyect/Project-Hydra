@@ -107,6 +107,26 @@ public class FormulariosEnDrawerUsanElKitTests
             "HayCambios es el guardián del formulario: una función que devuelve false siempre tira lo escrito sin preguntar");
     }
 
+    /// <summary>
+    /// La lista <see cref="Campos"/> es de nombres: un componente de campo nuevo en el sistema de diseño que no figure en ella
+    /// haría invisibles a este detector (y al de <c>DrawerYModalConCamposPreguntanAlDescartarTests</c>) los Drawer que lo usen.
+    /// </summary>
+    [Fact]
+    public void Todo_componente_de_campo_del_sistema_de_diseno_esta_en_la_lista_de_campos()
+    {
+        var diseno = Path.Combine(MarcadoRazor.RaizDelRepositorio(), "src", "CaeManager.Web", "Components", "DesignSystem");
+        var conocidos = Campos.Split('|').ToHashSet(StringComparer.Ordinal);
+
+        var campos = Directory.EnumerateFiles(diseno, "*.razor")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Where(n => n!.StartsWith("Campo", StringComparison.Ordinal) || n.StartsWith("Selector", StringComparison.Ordinal))
+            .ToList();
+
+        campos.Should().HaveCountGreaterThan(5, "había 6 al escribirlo (CampoTexto, CampoSelect, CampoTextarea, CampoBuscarSelect, SelectorEntidad, SelectorMultiple); si baja, dejó de mirar");
+        campos.Where(n => !conocidos.Contains(n!)).Should().BeEmpty(
+            "un componente de campo nuevo se añade a Campos de este test y del de DrawerYModalConCamposPreguntanAlDescartarTests");
+    }
+
     [Fact]
     public void Ninguna_pantalla_escribe_a_mano_el_aviso_del_formulario_dentro_del_kit()
     {
@@ -124,8 +144,8 @@ public class FormulariosEnDrawerUsanElKitTests
         var texto = LimpiadorDeComentarios.Quitar(contenido, razor: true);
         foreach (var kit in MarcadoRazor.Elementos(texto, "DrawerFormulario").Where(e => !e.Autocerrado))
         {
-            if (Regex.IsMatch(kit.Cuerpo, @"alerta-formulario|role\s*=\s*""alert"""))
-                yield return $"{ruta}#DrawerFormulario{kit.Ordinal}: aviso escrito a mano (alerta-formulario o role=\"alert\") dentro del kit; usa MensajeError";
+            if (Regex.IsMatch(kit.Cuerpo, @"alerta-formulario|role\s*=\s*""alert""|<AvisoFormulario(?=[\s/>])"))
+                yield return $"{ruta}#DrawerFormulario{kit.Ordinal}: aviso escrito a mano (alerta-formulario, role=\"alert\" o <AvisoFormulario>) dentro del kit; usa MensajeError";
         }
     }
 
@@ -148,6 +168,8 @@ public class FormulariosEnDrawerUsanElKitTests
 
         AvisosAMano("a.razor", "<DrawerFormulario><div class=\"alerta-formulario\" role=\"alert\">x</div></DrawerFormulario>").Should().ContainSingle();
         AvisosAMano("a.razor", "<DrawerFormulario><p role=\"alert\">x</p></DrawerFormulario>").Should().ContainSingle();
+        AvisosAMano("a.razor", "<DrawerFormulario><AvisoFormulario Mensaje=\"@x\" /></DrawerFormulario>").Should().ContainSingle(
+            "el AvisoFormulario dentro del cuerpo reintroduce el aviso que se va con el desplazamiento");
         AvisosAMano("a.razor", "<DrawerFormulario><CampoTexto MensajeError=\"x\" /></DrawerFormulario>").Should().BeEmpty("el error de un campo lo pinta el campo");
         AvisosAMano("a.razor", "<div role=\"alert\">fuera</div><DrawerFormulario><CampoTexto /></DrawerFormulario>").Should().BeEmpty("fuera del kit no es de este test");
 

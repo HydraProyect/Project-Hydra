@@ -1,6 +1,8 @@
 @*
     Patrón estándar de creación/edición para un único agregado simple
-    (ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, "Crear"). Para formularios con varias secciones
+    (ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, "Crear"). Un formulario con campos se escribe con
+    DrawerFormulario, que monta este Drawer con el guardián, el aviso y el pie ya resueltos (S12;
+    FormulariosEnDrawerUsanElKitTests congela los Drawer con campos que aún no lo usan). Para formularios con varias secciones
     (p. ej. Trabajador con documentos y asignaciones) se usa página completa
     en su lugar, no este componente.
 *@

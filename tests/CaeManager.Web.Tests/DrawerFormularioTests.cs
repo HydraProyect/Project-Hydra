@@ -256,6 +256,35 @@ public class DrawerFormularioTests : BunitContext
     }
 
     [Fact]
+    public async Task Un_render_ajeno_al_guardado_con_errores_de_campo_visibles_no_roba_el_foco()
+    {
+        _erroresDeCampo = true;
+        var modulo = JSInterop.SetupModule("./js/formulario-foco.js");
+        var cut = Renderizar();
+
+        // Un error que sale al perder el foco de un campo (validación en línea) o cualquier otro render: no hubo «Guardar».
+        await cut.InvokeAsync(() => cut.Render(p => p.Add(x => x.Titulo, "Otro título")));
+        cut.Render(p => p.Add(x => x.MensajeError, "Otro error"));
+
+        modulo.Invocations.Should().BeEmpty("el foco al primer error solo se mueve al terminar un guardado");
+    }
+
+    [Fact]
+    public async Task Escape_con_cambios_pregunta_y_sin_cambios_cierra()
+    {
+        _hayCambios = true;
+        var cut = Renderizar();
+        await cut.Find(".drawer-panel").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+        _visible.Should().BeTrue();
+        Preguntando(cut).Should().BeTrue();
+
+        _hayCambios = false;
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new MouseEventArgs());
+        await cut.Find(".drawer-panel").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+        _visible.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Tras_guardar_sin_errores_de_campo_no_se_mueve_el_foco()
     {
         var modulo = JSInterop.SetupModule("./js/formulario-foco.js");
