@@ -111,10 +111,11 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         var medidos = MedirTodos();
 
         // Control positivo: si el recorrido no viera contenedores ni campos, «ninguno sin guardián» valdría por vacío.
-        // Cada migración a los kits (DrawerFormulario, ModalFormulario) saca un contenedor artesanal de esta medida: había 56 al escribirlo, 39
-        // tras el lote 3b-1 y bajan unos 16 más con el resto del lote 3b; los kits ya no se cuentan aquí (su guardián lo obliga el compilador).
-        medidos.Count(c => c.Campos > 0).Should().BeGreaterThan(20, "había 56 contenedores con campos al escribirlo (39 tras el lote 3b-1); si baja de golpe sin migrar nada, dejó de mirar");
-        medidos.Count(c => c.TieneGuardian).Should().BeGreaterThan(15, "había ≥ 50 con HayCambios al escribirlo (≥ 36 tras el lote 3b-1); si baja de golpe sin migrar nada, dejó de ver el atributo");
+        // Cada migración a los kits (DrawerFormulario, ModalFormulario) saca un contenedor artesanal de esta medida: los kits ya no se cuentan
+        // aquí (su guardián lo obliga el compilador). Medido tras el lote 3b-1: 39 con campos y 40 con HayCambios; el umbral se ajusta a lo
+        // medido en cada lote que migra, para que un detector que dejara de ver una parte de los contenedores no pase por holgura.
+        medidos.Count(c => c.Campos > 0).Should().BeGreaterThan(35, "había 56 contenedores con campos al escribirlo (39 tras el lote 3b-1); si baja de golpe sin migrar nada, dejó de mirar");
+        medidos.Count(c => c.TieneGuardian).Should().BeGreaterThan(35, "había ≥ 50 con HayCambios al escribirlo (40 tras el lote 3b-1); si baja de golpe sin migrar nada, dejó de ver el atributo");
 
         var problemas = Evaluar(medidos, ContenedoresSinGuardian, SalidasDelPieSinGuardian);
 
@@ -451,8 +452,8 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     private static string TextoVisible(string cuerpo) =>
         Regex.Replace(Regex.Replace(cuerpo, @"<[^>]*>", " "), @"\s+", " ").Trim();
 
-    // El botón que cierra sin hacer nada nunca es el primario ni el destructivo: un «Descartar» primario (Retencion.razor, «Descartar»
-    // la retención programada) es la acción del diálogo, no su salida.
+    // El botón que cierra sin hacer nada nunca es el primario ni el destructivo: un «Descartar» primario (el de «Descartar la propuesta» de
+    // Retención, hoy el TextoGuardar de su ModalFormulario) es la acción del diálogo, no su salida.
     private static readonly Regex VarianteDeAccion = new(@"Variante\s*=\s*""@?\(?\s*VarianteBoton\.(?:Primario|Destructivo)\s*\)?""", RegexOptions.Compiled);
 
     private static bool EsSalidaDelPie(MarcadoRazor.Elemento boton) => !VarianteDeAccion.IsMatch(boton.Apertura);
