@@ -29,7 +29,9 @@ public class ComprobarInstruccionIaCarteraQueryHandlerTests
 
         resultado.ConInstruccion.Select(t => t.TenantId).Should().Equal(Origen.TenantId, ConInstruccion.TenantId, SinCartera.TenantId);
         resultado.SinInstruccion.Select(t => t.TenantId).Should().Equal(SinInstruccion.TenantId);
-        resultado.ErrorSiFalta()!.Mensaje.Should().Contain("Beneficiario sin instrucción");
+        resultado.ErrorSiFalta()!.Mensaje.Should().Contain("Beneficiario sin instrucción")
+            .And.Contain("de esa organización").And.NotContainEquivalentOf("tenant",
+                "decisión de Chris 2026-10-03: en pantalla «Tenant» no se dice a secas, la organización ya está nombrada antes");
     }
 
     [Fact]
@@ -70,7 +72,8 @@ public class ComprobarInstruccionIaCarteraQueryHandlerTests
         var error = dto.ErrorSiFalta()!;
 
         error.Codigo.Should().Be(InstruccionIaCarteraDto.CodigoError);
-        error.Mensaje.Should().Contain("Beneficiario sin instrucción, Otro beneficiario");
+        error.Mensaje.Should().Contain("Beneficiario sin instrucción, Otro beneficiario")
+            .And.Contain("de esas organizaciones").And.NotContainEquivalentOf("tenant");
     }
 
     private static ComprobarInstruccionIaCarteraQueryHandler Handler(Guid[] habilitados) =>

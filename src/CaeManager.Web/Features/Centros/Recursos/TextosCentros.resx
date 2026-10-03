@@ -148,7 +148,7 @@
     <value>¿Eliminar el centro «{0}»?</value>
   </data>
   <data name="EliminarCentroMensaje" xml:space="preserve">
-    <value>Se ocultará de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador del Tenant puede recuperarlo desde Auditoría.</value>
+    <value>Se ocultará de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador de esta organización puede recuperarlo desde Auditoría.</value>
   </data>
   <data name="ToastCentroEliminado" xml:space="preserve">
     <value>Centro «{0}» eliminado.</value>

@@ -19,7 +19,7 @@
     <value>Todavía no tienes cartera asignada, así que no hay datos que mostrar. Pide a tu Coordinador CAE o a un Administrador de tu organización que te la asigne.</value>
   </data>
   <data name="SinCarteraDescripcionCoordinador" xml:space="preserve">
-    <value>Todavía no tienes cartera asignada, así que no hay datos que mostrar. Tu alcance sale de la cartera de los Gestores CAE de tu equipo: asigna empresas a uno de ellos desde Usuarios.</value>
+    <value>Todavía no tienes cartera asignada, así que no hay datos que mostrar. Solo ves las empresas de la cartera de los Gestores CAE de tu equipo: asigna empresas a uno de ellos desde Usuarios.</value>
   </data>
   <data name="SinCarteraEnEsteContextoTitulo" xml:space="preserve">
     <value>Sin cartera en este contexto</value>

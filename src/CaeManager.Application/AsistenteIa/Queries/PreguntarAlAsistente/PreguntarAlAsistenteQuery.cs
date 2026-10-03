@@ -37,7 +37,7 @@ public class PreguntarAlAsistenteQueryHandler(
         if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
             return Result.Fallo<string>(Error.Crear(
                 "AsistenteIa.SinInstruccion",
-                "Este tenant todavía no tiene una instrucción de tratamiento con IA vigente — el asistente no puede procesar tu mensaje."));
+                "Esta organización todavía no tiene una instrucción de tratamiento con IA vigente — el asistente no puede procesar tu mensaje."));
 
         var cartera = await mediator.Send(new ComprobarInstruccionIaCarteraQuery(), cancellationToken);
         if (cartera.ErrorSiFalta() is { } sinInstruccion)

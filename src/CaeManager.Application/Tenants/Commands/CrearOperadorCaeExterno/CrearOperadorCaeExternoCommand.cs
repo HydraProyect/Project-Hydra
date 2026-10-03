@@ -88,7 +88,7 @@ public class CrearOperadorCaeExternoCommandHandler(
         // CrearClienteDeleganteCommand, fuera de alcance de este incremento.
         var nombreNormalizado = request.NombreTenantOperador.Trim();
         if (await tenantRepositorio.ExisteConNombreAsync(nombreNormalizado, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("OperadorCaeExterno.NombreDuplicado", "Ya existe un tenant con este nombre."));
+            return Result.Fallo<Guid>(Error.Crear("OperadorCaeExterno.NombreDuplicado", "Ya existe una organización con este nombre."));
 
         // Perfil Consultora: cómo el tenant se ve a sí mismo (lista de
         // Empresas gestionadas, no "Mi empresa" singular) — DDL-072, capa de
