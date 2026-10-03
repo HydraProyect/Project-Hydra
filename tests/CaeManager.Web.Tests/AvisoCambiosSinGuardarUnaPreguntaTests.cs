@@ -250,7 +250,9 @@ public class AvisoCambiosSinGuardarUnaPreguntaTests : BunitContext
         confirmacion.IsCompleted.Should().BeFalse();
         await Pulsar(cut, "Salir y descartar");
 
-        (await confirmacion).Should().BeTrue();
+        // Con tope: si el ámbito volviera a preguntar por cada aviso, la segunda pregunta no se contestaría nunca y la prueba
+        // colgaría hasta el tiempo máximo del job de CI en vez de fallar con un mensaje.
+        (await confirmacion.WaitAsync(TimeSpan.FromSeconds(5))).Should().BeTrue();
         (_descartesKit, _descartesPagina).Should().Be((1, 1));
         Preguntas(cut).Should().Be(0);
     }
@@ -264,7 +266,7 @@ public class AvisoCambiosSinGuardarUnaPreguntaTests : BunitContext
         var confirmacion = cut.InvokeAsync(() => ambito.ConfirmarAbandonoAsync());
         await Pulsar(cut, "Seguir editando");
 
-        (await confirmacion).Should().BeFalse();
+        (await confirmacion.WaitAsync(TimeSpan.FromSeconds(5))).Should().BeFalse();
         (_descartesKit + _descartesPagina).Should().Be(0);
     }
 
