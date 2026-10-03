@@ -1372,7 +1372,7 @@ jobs:
       - name: scripts/gate.tests.sh
         run: bash scripts/gate.tests.sh
 
-      # Métricas de proceso M1..M21 (S15): cifras exactas sobre datos sintéticos, fuente ausente =
+      # Métricas de proceso M1..M22 (S15): cifras exactas sobre datos sintéticos, fuente ausente =
       # NO_MEDIDA (nunca 0) y once mutantes del propio guion que deben poner en rojo su prueba.
       - name: scripts/metricas-proceso.tests.sh
         run: bash scripts/metricas-proceso.tests.sh

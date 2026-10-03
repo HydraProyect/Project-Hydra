@@ -45,6 +45,7 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     /// </summary>
     private static readonly string[] FormulariosProtegidos =
     [
+        "src/CaeManager.Web/Components/DesignSystem/DrawerFormulario.razor",
         "src/CaeManager.Web/Components/DesignSystem/RedactarMensajeDrawer.razor",
         "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
         "src/CaeManager.Web/Features/Bandeja/Components/DrawerReclamacionLote.razor",
@@ -98,6 +99,7 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     /// </summary>
     private static readonly string[] ContenedoresQuePreguntanAlCerrar =
     [
+        "src/CaeManager.Web/Components/DesignSystem/DrawerFormulario.razor",
         "src/CaeManager.Web/Components/DesignSystem/RedactarMensajeDrawer.razor",
         "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",
         "src/CaeManager.Web/Features/Bandeja/Components/DrawerReclamacionLote.razor",

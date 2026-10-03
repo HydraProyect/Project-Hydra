@@ -567,14 +567,18 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private readonly InstantaneaFormulario _instantaneaAsignarCentro = new();
 
     /// <summary>
-    /// P1-E2b: único punto de verdad de «hay cambios» en la página: el drawer de alta de
-    /// Trabajador o el modal de asignar a centro comparados con cómo se abrieron, o un
-    /// nombre ya escrito en el modal de guardar filtro. Lo lee AvisoCambiosSinGuardar;
-    /// cerrados (también tras guardar) nunca hay nada que perder.
+    /// P1-E2b: «hay cambios» del drawer de alta de Trabajador, comparado con cómo se abrió; cerrado (también tras
+    /// guardar) nunca hay nada que perder. Lo lee DrawerFormulario, que lleva dentro el guardián de cerrar y de navegar.
+    /// </summary>
+    private bool HayCambiosAlta => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
+
+    /// <summary>
+    /// P1-E2b: «hay cambios» de los dos modales de la página (asignar a centro, guardar filtro), que no son un formulario
+    /// de DrawerFormulario: el modal de asignar comparado con cómo se abrió o un nombre ya escrito en el de guardar filtro.
+    /// Lo lee AvisoCambiosSinGuardar; cerrados nunca hay nada que perder.
     /// </summary>
     private bool HayCambiosSinGuardar =>
-        (_drawerVisible && _instantanea.Difiere(ValoresFormulario()))
-        || (_asignarCentroVisible && _instantaneaAsignarCentro.Difiere(ValoresAsignarCentro()))
+        (_asignarCentroVisible && _instantaneaAsignarCentro.Difiere(ValoresAsignarCentro()))
         || (_mostrarGuardarFiltro && !string.IsNullOrWhiteSpace(_nombreFiltroNuevo));
 
     private object?[] ValoresFormulario() =>
@@ -586,7 +590,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private void CerrarFormulariosDescartando()
     {
-        _drawerVisible = false;
         CerrarAsignarCentro();
         CerrarModalGuardarFiltro();
     }
@@ -609,15 +612,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _subcontrataId = string.Empty;
         LimpiarAvisoDeEmpleadorFaltante();
     }
-
-    private Drawer? _drawerAlta;
-
-    /// <summary>
-    /// «Cancelar» pasa por el mismo guardián que la X: con datos escritos pregunta «¿Descartar cambios?»
-    /// (D-05); sin cambios cierra directamente.
-    /// </summary>
-    private Task CancelarAltaAsync() =>
-        _drawerAlta is { } drawer ? drawer.SolicitarCierreAsync() : CerrarDrawerAsync(false);
 
     // D-05: el aviso «Selecciona una empresa/subcontrata.» era de un intento anterior de guardar;
     // al elegir el empleador deja de ser verdad y no puede quedarse en pantalla hasta el siguiente guardado.

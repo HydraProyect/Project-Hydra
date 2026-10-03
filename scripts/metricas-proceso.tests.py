@@ -197,6 +197,8 @@ class Repo(unittest.TestCase):
                  'class T {\n    private static readonly Dictionary<string, int> Congelado = new()\n    {\n        ["Hydra"] = 10,\n        ["Delegacion"] = 340,\n    };\n}\n')
         escribir(raiz, "tests/CaeManager.Architecture.Tests/Congelados/ClienteId-ubicaciones.txt",
                  "a.cs :: ClienteId = 3\nb.cs :: clienteId = 2\nb.cs :: ClienteId = 1\n")
+        escribir(raiz, "tests/CaeManager.Architecture.Tests/Congelados/Drawer-formulario-fuera-del-kit.txt",
+                 "# comentario\nx.razor :: Drawer = 2\ny.razor :: Drawer = 1\n")
 
     def filas(self):
         with tempfile.TemporaryDirectory() as t:
@@ -264,6 +266,18 @@ class Repo(unittest.TestCase):
         self.assertEqual(f["M18"]["valor"], "6 apariciones / 2 ficheros")
         self.assertEqual(f["M21"]["valor"], "2 ficheros / 2 métodos [Fact]/[Theory]")
         self.assertEqual(f["M20"]["clase"], "NO_MEDIDA")
+        self.assertEqual(f["M22"]["valor"], "3 Drawers / 2 ficheros")
+
+    def test_M22_sin_lista_o_con_formato_roto_es_NO_MEDIDA_no_cero(self):
+        with tempfile.TemporaryDirectory() as t:
+            raiz = Path(t)
+            (raiz / "src").mkdir()
+            (raiz / "tests" / "CaeManager.Architecture.Tests").mkdir(parents=True)
+            self.assertEqual({x["id"]: x for x in mp.metricas_de_repo(raiz)}["M22"]["clase"], "NO_MEDIDA")
+            escribir(raiz, "tests/CaeManager.Architecture.Tests/Congelados/Drawer-formulario-fuera-del-kit.txt", "basura\n")
+            f = {x["id"]: x for x in mp.metricas_de_repo(raiz)}["M22"]
+        self.assertEqual(f["clase"], "NO_MEDIDA")
+        self.assertIn("formato", f["detalle"])
 
     def test_directorios_existentes_pero_vacios_dan_NO_MEDIDA_no_cero(self):
         with tempfile.TemporaryDirectory() as t:
