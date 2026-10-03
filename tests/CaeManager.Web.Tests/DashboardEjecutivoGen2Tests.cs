@@ -457,7 +457,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         var periodo = cut.Find(".periodo-texto");
         Disparador(periodo).Should().Be(esperado, "el mes en curso se consulta entero: PeriodoKpi es semiabierto y su fin es exclusivo");
         periodo.GetAttribute("aria-label").Should().Be(
-            "2 organizaciones en el alcance: la tuya más las que os han delegado su gestión CAE. Los KPI de esta sección suman las 2.");
+            "2 organizaciones en este panel: la tuya más las que os han delegado su gestión CAE. Los KPI de esta sección suman las 2.");
     }
 
     // ---------------------------------------------------------------- gráficos

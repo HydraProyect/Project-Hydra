@@ -65,7 +65,7 @@ public class ReactivarConexionCommandHandler(
         if (necesitaReclamarBuzon)
         {
             if (tenantActual.TenantId is not { } resuelto)
-                return Result.Fallo(Error.Crear("Integraciones.Microsoft365.TenantNoResuelto", "No se pudo determinar el tenant actual."));
+                return Result.Fallo(Error.Crear("Integraciones.Microsoft365.TenantNoResuelto", "No se pudo determinar la organización actual."));
             tenantId = resuelto;
         }
 

@@ -36,6 +36,7 @@ public class ProponerPlanAsistenteQueryHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("AsistenteIa.SinInstruccion");
+        resultado.Error.Mensaje.Should().StartWith("Esta organización todavía no tiene").And.NotContainEquivalentOf("tenant");
         decisiones.Clasificaciones.Should().Be(0);
         decisiones.Solicitadas.Should().BeNull();
     }
@@ -132,6 +133,8 @@ public class ProponerPlanAsistenteQueryHandlerTests
         var resultado = await Handler(decisiones).Handle(new(Orden, TenantElegido: Guid.NewGuid()), default);
 
         resultado.Error.Codigo.Should().Be("AsistenteIa.TenantFueraDeCartera");
+        resultado.Error.Mensaje.Should().Be("La organización elegida no es de tu cartera.",
+            "es una denegación: no lleva el nombre de una organización que no es de la cartera, solo «la organización»");
         decisiones.Solicitadas.Should().BeNull();
     }
 

@@ -80,6 +80,7 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
         "src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor",
         "src/CaeManager.Web/Features/Usuarios/Pages/MiFirma.razor",
         "src/CaeManager.Web/Features/Vehiculos/Components/VehiculoWorkspacePanel.razor",
+        "src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor",
     ];
 
     /// <summary>
@@ -89,6 +90,7 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     /// </summary>
     private static readonly string[] ContenedoresQuePreguntanAlCerrar =
     [
+        "src/CaeManager.Web/Components/DesignSystem/DialogoConfirmacion.razor",
         "src/CaeManager.Web/Components/DesignSystem/DrawerFormulario.razor",
         "src/CaeManager.Web/Components/DesignSystem/ModalFormulario.razor",
         "src/CaeManager.Web/Components/Workspace/ModalContactoAgenda.razor",

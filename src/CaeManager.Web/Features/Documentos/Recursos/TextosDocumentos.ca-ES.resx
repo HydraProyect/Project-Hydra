@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas. Podrás deshacer la eliminación desde el aviso que aparecerá; después, solo un Administrador del Tenant puede recuperarlos desde Auditoría.</value>
+    <value>Se ocultarán de las listas activas. Podrás deshacer la eliminación desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlos desde Auditoría.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>

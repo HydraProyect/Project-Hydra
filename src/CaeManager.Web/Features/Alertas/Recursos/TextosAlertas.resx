@@ -46,7 +46,7 @@
     <value>Nada que reclamar con ese filtro</value>
   </data>
   <data name="LoteVacioDetalle" xml:space="preserve">
-    <value>Prueba con otro tipo de documento o alcance.</value>
+    <value>Prueba con otro tipo de documento o selecciona otra Empresa o Trabajador.</value>
   </data>
   <data name="LoteNuncaReclamado" xml:space="preserve">
     <value>Nunca reclamado.</value>

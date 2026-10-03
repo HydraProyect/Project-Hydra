@@ -584,6 +584,7 @@
 <DialogoConfirmacion
     Visible="_confirmarCancelarVisible"
     VisibleChanged="v => _confirmarCancelarVisible = v"
+    HayCambios="() => HayMotivoSinConfirmar(_confirmarCancelarVisible, _motivoCancelacion)"
     Titulo="@Textos["ConfirmarCancelarTitulo", _centroACancelar]"
     Mensaje="@Textos["ConfirmarCancelarMensaje"]"
     TextoBotonConfirmar="@Textos["AccionCancelar"]"
@@ -596,6 +597,7 @@
 <DialogoConfirmacion
     Visible="_confirmarReactivarVisible"
     VisibleChanged="v => _confirmarReactivarVisible = v"
+    HayCambios="() => HayMotivoSinConfirmar(_confirmarReactivarVisible, _motivoReactivacion)"
     Titulo="@Textos["ConfirmarReactivarTitulo", _centroAReactivar]"
     Mensaje="@Textos["ConfirmarReactivarMensaje"]"
     TextoBotonConfirmar="@Textos["AccionReactivar"]"
@@ -617,6 +619,7 @@
 <DialogoConfirmacion
     Visible="_confirmarCancelarLoteVisible"
     VisibleChanged="v => _confirmarCancelarLoteVisible = v"
+    HayCambios="() => HayMotivoSinConfirmar(_confirmarCancelarLoteVisible, _motivoCancelacion)"
     Titulo="@Textos["ConfirmarCancelarLoteTitulo", _seleccionados.Count]"
     Mensaje="@Textos["ConfirmarCancelarLoteMensaje"]"
     TextoBotonConfirmar="@Textos["BotonCancelarSeleccionadas"]"
@@ -625,5 +628,9 @@
     OnConfirmar="ConfirmarCancelarLoteAsync">
     <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v" Filas="2" />
 </DialogoConfirmacion>
+
+@* Salir de la pantalla con un «Motivo (opcional)» escrito en alguno de los tres diálogos de confirmación pregunta; el cierre
+   del propio diálogo (X, Escape, fondo, «Volver») lo pregunta el DialogoConfirmacion con ese mismo HayCambios. *@
+<AvisoCambiosSinGuardar HayCambios="HayMotivoEnAlgunDialogo" AlDescartar="CerrarDialogosDescartando" />
 
 </LimiteDeErrores>

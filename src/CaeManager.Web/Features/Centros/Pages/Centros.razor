@@ -477,7 +477,7 @@
     Visible="_confirmarEliminarLoteVisible"
     VisibleChanged="CambiarVisibilidadConfirmarEliminar"
     Titulo="@(_centroAEliminarId is { } ? Textos["EliminarCentroTitulo", _centroAEliminarNombre].Value : $"¿Eliminar {_seleccionados.Count} centro(s)?")"
-    Mensaje="Se ocultará(n) de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador del Tenant puede recuperarlos desde Auditoría."
+    Mensaje="Se ocultará(n) de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador de esta organización puede recuperarlos desde Auditoría."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 </LimiteDeErrores>
