@@ -231,6 +231,8 @@ public class BotonVarianteYUnSoloPrimarioTests
         // Control positivo del kit: los formularios migrados a <DrawerFormulario> (13 al escribirlo) se miden con su «Guardar» implícito.
         medido.Keys.Count(k => k.Contains("#DrawerFormulario", StringComparison.Ordinal)).Should().BeGreaterThan(11,
             "los DrawerFormulario migrados aparecen en la medición; si no, el detector volvió a no reconocer el kit");
+        medido.Keys.Should().Contain(k => k.Contains("#ModalFormulario", StringComparison.Ordinal),
+            "el piloto «Guardar filtro» (Clientes) usa <ModalFormulario>: si no aparece, el detector no reconoce el kit de Modal");
 
         var problemas = Evaluar(medido, PrimariosPermitidosPorSuperficie);
 
@@ -338,11 +340,12 @@ public class BotonVarianteYUnSoloPrimarioTests
         // El kit tiene un único primario («Guardar»). Si alguien añade otro al kit, este número sube solo y las pantallas que
         // lo usan pasan a contar dos: el cambio se ve aquí, en una línea, y no en veinte superficies.
         PrimariosImplicitosDelKit["DrawerFormulario"].Should().Be(1, "«Guardar» es el único primario de DrawerFormulario");
+        PrimariosImplicitosDelKit["ModalFormulario"].Should().Be(1, "«Guardar» es el único primario de ModalFormulario");
     }
 
     /// <summary>
     /// Cierra el hueco por el que entró este defecto: un kit nuevo del sistema de diseño que pinte un primario por dentro
-    /// (ModalFormulario, el siguiente) y no figure en <c>NombresDeKit</c> volvería a esconder el segundo primario de sus pantallas.
+    /// (ModalFormulario, ya en la lista) y no figure en <c>NombresDeKit</c> volvería a esconder el segundo primario de sus pantallas.
     /// Un .razor de DesignSystem con un <c>&lt;Boton Variante="…Primario"&gt;</c> literal o es un kit (y está en la lista, con su
     /// primario medido) o es una de las piezas listadas aquí, que son un botón o un diálogo propio y no un contenedor de pantallas.
     /// </summary>
@@ -357,7 +360,7 @@ public class BotonVarianteYUnSoloPrimarioTests
             .ToList();
 
         // Control positivo: el recorrido ve el kit que hoy existe.
-        conPrimario.Should().Contain("DrawerFormulario");
+        conPrimario.Should().Contain(["DrawerFormulario", "ModalFormulario"]);
 
         conPrimario.Where(n => !NombresDeKit.Contains(n) && !PiezasConPrimarioPropio.Contains(n)).Should().BeEmpty(
             "un componente del sistema de diseño que pinta un primario propio, y que se usa dentro de pantallas, se añade a NombresDeKit " +
@@ -394,6 +397,25 @@ public class BotonVarianteYUnSoloPrimarioTests
         });
 
         Evaluar(Medir("x.razor", razor), new Dictionary<string, int>()).Should().ContainSingle(m => m.Contains("x.razor#DrawerFormulario1") && m.Contains("sin excepción"));
+    }
+
+    [Fact]
+    public void El_primario_de_Guardar_del_ModalFormulario_cuenta_junto_a_los_que_escribe_la_pantalla()
+    {
+        var razor = """
+            <ModalFormulario Titulo="A" HayCambios="() => x">
+                <Boton Variante="VarianteBoton.Primario">Aceptar</Boton>
+            </ModalFormulario>
+            <ModalFormulario Titulo="B" HayCambios="() => x" />
+            <Modal Titulo="C"><Boton Variante="VarianteBoton.Primario">Aceptar</Boton></Modal>
+            """;
+
+        Medir("x.razor", razor).Should().BeEquivalentTo(new Dictionary<string, int>
+        {
+            ["x.razor#ModalFormulario1"] = 2,
+            ["x.razor#ModalFormulario2"] = 1,
+            ["x.razor#Modal1"] = 1,
+        });
     }
 
     [Fact]
@@ -488,7 +510,7 @@ public class BotonVarianteYUnSoloPrimarioTests
     private sealed record Analisis(List<BotonAnalizado> Botones, List<ContenedorAnalizado> Contenedores);
 
     /// <summary>Los contenedores donde se escribe un primario: los de siempre y los kits de formulario (que ponen el suyo).</summary>
-    private static readonly string[] NombresDeKit = ["DrawerFormulario"];
+    private static readonly string[] NombresDeKit = ["DrawerFormulario", "ModalFormulario"];
 
     private static readonly string Contenedores = "Drawer|Modal|DialogoConfirmacion|" + string.Join('|', NombresDeKit);
 
