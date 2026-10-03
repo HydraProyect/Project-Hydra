@@ -67,6 +67,9 @@
   <data name="CambiosSinGuardarDescartar" xml:space="preserve">
     <value>Sortir i descartar</value>
   </data>
+  <data name="Cargando" xml:space="preserve">
+    <value>Carregant…</value>
+  </data>
   <data name="DescartarCambiosTitulo" xml:space="preserve">
     <value>Vols descartar els canvis?</value>
   </data>

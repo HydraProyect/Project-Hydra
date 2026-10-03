@@ -29,8 +29,8 @@ namespace CaeManager.Architecture.Tests;
 /// <b>Contrato efectivo, más estrecho que el nombre.</b> «Campo» y «contenedor» son los de
 /// <c>DrawerYModalConCamposPreguntanAlDescartarTests</c> (<c>CampoTexto</c>, <c>CampoSelect</c>… y <c>&lt;input&gt;</c>/
 /// <c>&lt;select&gt;</c>/<c>&lt;textarea&gt;</c> crudos, salvo <c>hidden</c>; el campo se atribuye al contenedor más interior).
-/// Solo se vigila el <c>Drawer</c>: un formulario en <c>Modal</c> (hoy ~15) y el de un componente hijo que el Drawer monta no
-/// entran (lote 2: <c>ModalFormulario</c>); tampoco los Drawer de solo lectura (vista previa, detalle), que no tienen campos.
+/// Solo se vigila el <c>Drawer</c>: un formulario en <c>Modal</c> lo vigila <c>FormulariosEnModalUsanElKitTests</c> (<c>ModalFormulario</c>,
+/// S12 lote 3a) y el de un componente hijo que el Drawer monta no entra; tampoco los Drawer de solo lectura (vista previa, detalle), que no tienen campos.
 /// NO ve que el kit se use <i>bien</i> (campos dentro, un <c>HayCambios</c> que cubra todos): eso lo prueba el bUnit de cada
 /// pantalla. Un <c>&lt;input&gt;</c> escrito en un fichero que ya está congelado no sube el recuento (cuenta Drawers, no campos).
 /// </para>
@@ -39,7 +39,8 @@ public class FormulariosEnDrawerUsanElKitTests
 {
     private const string Kit = "src/CaeManager.Web/Components/DesignSystem/DrawerFormulario.razor";
     private const string Lista = "Drawer-formulario-fuera-del-kit";
-    private const string Contenedores = "Drawer|Modal|DialogoConfirmacion";
+    // Los kits cuentan como contenedor para atribuir el campo al más interior: un campo de <ModalFormulario> dentro de un <Drawer> es del kit.
+    private const string Contenedores = "Drawer|Modal|DialogoConfirmacion|DrawerFormulario|ModalFormulario";
 
     private const string Campos =
         "CampoTexto|CampoSelect|CampoTextarea|CampoBuscarSelect|SelectorEntidad|SelectorMultiple|ZonaSoltarArchivo|" +
@@ -164,6 +165,8 @@ public class FormulariosEnDrawerUsanElKitTests
         MedirFueraDelKit([("a.razor", "<Drawer><input type=\"hidden\" /></Drawer>")]).Should().BeEmpty("un hidden no es un campo");
         MedirFueraDelKit([("a.razor", "<Drawer><Modal><CampoTexto /></Modal></Drawer>")]).Should().BeEmpty(
             "el campo es del Modal más interior, que este test no vigila");
+        MedirFueraDelKit([("a.razor", "<Drawer><ModalFormulario><CampoTexto Valor=\"x\" /></ModalFormulario></Drawer>")]).Should().BeEmpty(
+            "el campo es del ModalFormulario más interior, que vigila FormulariosEnModalUsanElKitTests");
         MedirFueraDelKit([(Kit, artesanal)]).Should().BeEmpty("el propio kit monta el Drawer");
 
         AvisosAMano("a.razor", "<DrawerFormulario><div class=\"alerta-formulario\" role=\"alert\">x</div></DrawerFormulario>").Should().ContainSingle();

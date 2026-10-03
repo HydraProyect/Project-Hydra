@@ -420,17 +420,14 @@
     EnProgreso="_eliminandoFiltroGuardado"
     OnConfirmar="ConfirmarEliminarFiltroGuardadoAsync" />
 
-<Modal @ref="_modalGuardarFiltro" HayCambios="() => HayCambiosFiltro" Visible="_mostrarGuardarFiltro" VisibleChanged="CerrarModalGuardarFiltro" Titulo="Guardar filtro actual" CerrarAlHacerClicFuera="!_guardandoFiltro">
-    <ChildContent>
-        <CampoTexto Etiqueta="Nombre" Valor="@_nombreFiltroNuevo" ValorChanged="v => _nombreFiltroNuevo = v" Placeholder="Críticos sin CIF verificado" />
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoFiltro" OnClick="() => _modalGuardarFiltro?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoFiltro" OnClick="GuardarFiltroActualAsync">Guardar</Boton>
-    </Pie>
-</Modal>
-
-@* El Drawer lleva su propio guardián (DrawerFormulario); este cubre solo el modal de guardar filtro, que aún no tiene kit. *@
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosFiltro" AlDescartar="CerrarFiltroDescartando" />
+@* «Guardar filtro» es un formulario de un campo: ModalFormulario (guardián, «Cancelar», «Guardar» único con su motivo y estado, aviso
+   del formulario y aviso de navegación vienen del kit; el DrawerFormulario de arriba lleva el suyo). *@
+<ModalFormulario Visible="_mostrarGuardarFiltro" VisibleChanged="CerrarModalGuardarFiltro" Titulo="Guardar filtro actual"
+                 Ancho="AnchoModal.Pequeno" HayCambios="() => HayCambiosFiltro" Guardando="_guardandoFiltro"
+                 MensajeError="@_mensajeErrorFiltro" OnGuardar="GuardarFiltroActualAsync"
+                 MotivoGuardarDeshabilitado="@(string.IsNullOrWhiteSpace(_nombreFiltroNuevo) ? Textos["GuardarFiltroSinNombre"].Value : null)"
+                 AlDescartarPorNavegacion="CerrarFiltroDescartando" TextoGuardar="Guardar" TextoCancelar="Cancelar">
+    <CampoTexto Etiqueta="Nombre" Valor="@_nombreFiltroNuevo" ValorChanged="v => { _nombreFiltroNuevo = v; _mensajeErrorFiltro = null; }" Placeholder="Críticos sin CIF verificado" />
+</ModalFormulario>
 </LimiteDeErrores>
 

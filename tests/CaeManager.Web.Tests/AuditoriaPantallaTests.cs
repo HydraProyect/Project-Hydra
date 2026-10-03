@@ -150,6 +150,7 @@ public class AuditoriaPantallaTests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<PuertaAccesoDatos>();
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped(_ => new UserManager<ApplicationUser>(
             new AlmacenUsuarios(_usuarios), null!, null!, null!, null!, null!, null!, null!, null!));

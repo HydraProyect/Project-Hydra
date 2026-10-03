@@ -31,7 +31,6 @@ public record GestorCaeSelectorDto(Guid Id, string NombreCompleto, string Email)
 
 public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
-    private Modal? _modalGuardarFiltro;
     /// <summary>
     /// Se cancela al salir de la página: la resolución de la empresa activa que siga en vuelo deja de trabajar
     /// para nadie y su respuesta tardía no repinta un componente ya retirado.
@@ -173,7 +172,11 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         return WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, destino.Id, nombre, destino.Pestana);
     }
 
-    private void AbrirGuardarFiltro() => _mostrarGuardarFiltro = true;
+    private void AbrirGuardarFiltro()
+    {
+        _mensajeErrorFiltro = null;
+        _mostrarGuardarFiltro = true;
+    }
 
     private IReadOnlyList<OpcionEstado> OpcionesFiltrosGuardados =>
         _filtrosGuardados.Select(f => new OpcionEstado(f.Id.ToString(), f.Nombre)).ToList();
@@ -232,6 +235,9 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     private bool _mostrarGuardarFiltro;
     private string _nombreFiltroNuevo = string.Empty;
     private bool _guardandoFiltro;
+
+    /// <summary>Error del servidor al guardar el filtro: se ve en el aviso fijo del ModalFormulario (D-20), no en un toast que desaparece.</summary>
+    private string? _mensajeErrorFiltro;
     private FiltroGuardadoDto? _filtroGuardadoAEliminar;
     private bool _eliminandoFiltroGuardado;
 
@@ -698,6 +704,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     {
         _mostrarGuardarFiltro = false;
         _nombreFiltroNuevo = string.Empty;
+        _mensajeErrorFiltro = null;
     }
 
     private Task CerrarDrawerAsync(bool visible)
@@ -1129,6 +1136,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         {
             // Cancelar descarta el nombre: reabrir el modal sin tocarlo no es un cambio.
             _nombreFiltroNuevo = string.Empty;
+            _mensajeErrorFiltro = null;
             QuitarAccionDeLaUrl();
         }
     }
@@ -1138,6 +1146,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         if (_guardandoFiltro || string.IsNullOrWhiteSpace(_nombreFiltroNuevo)) return;
 
         _guardandoFiltro = true;
+        _mensajeErrorFiltro = null;
 
         try
         {
@@ -1152,7 +1161,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
             if (resultado.EsFallido)
             {
-                ToastService.MostrarError(resultado.Error);
+                _mensajeErrorFiltro = resultado.Error.Mensaje;
                 return;
             }
 
@@ -1163,7 +1172,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos guardar el filtro. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            _mensajeErrorFiltro = "No pudimos guardar el filtro. Intenta nuevamente en unos segundos.";
         }
         finally
         {

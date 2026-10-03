@@ -1,4 +1,9 @@
-<div class="esqueleto-lista" aria-busy="true" aria-label="Cargando…">
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+@* El aria-label es del kit (TextosComunes.Cargando): una pantalla en catalán no lo anuncia en español (S12, lote 3a). *@
+<div class="esqueleto-lista" aria-busy="true" aria-label="@Comunes["Cargando"]">
     @for (var i = 0; i < Filas; i++)
     {
         <div class="esqueleto-fila"></div>

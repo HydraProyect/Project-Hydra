@@ -157,6 +157,7 @@ public class FacturacionGen2Tests : BunitContext
 
         var mediador = new MediadorControlado(escenario.Responder);
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
 
         return (Render<FacturacionPagina>(), mediador);

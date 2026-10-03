@@ -89,3 +89,12 @@
         width: 100%;
     }
 }
+
+/* Aviso del formulario (ModalFormulario): fuera del cuerpo desplazable, como .drawer-aviso. */
+.modal-aviso {
+    padding: var(--space-4) var(--space-5) 0;
+}
+
+.modal-aviso:empty {
+    display: none;
+}

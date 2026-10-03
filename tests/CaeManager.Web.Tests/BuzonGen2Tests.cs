@@ -86,6 +86,7 @@ public class BuzonGen2Tests : BunitContext
     {
         var mediador = new MediadorControlado(escenario.Responder);
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddSingleton<ILogger<Buzon>>(_ => NullLogger<Buzon>.Instance);
         return (Render<Buzon>(), mediador);

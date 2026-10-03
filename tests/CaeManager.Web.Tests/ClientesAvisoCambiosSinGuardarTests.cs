@@ -4,6 +4,7 @@ using Bunit.TestDoubles;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Application.Tenants;
@@ -36,7 +37,7 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// S12 (lote 2b), piloto Clientes: el alta y la edición de Cliente empresarial usan <c>DrawerFormulario</c>. Salir de /clientes con
 /// el drawer a medias pregunta una sola vez; «Continuar con la empresa» no pregunta (lo escrito ya está guardado); «Cancelar»
-/// pregunta como la X (D-05). El modal de guardar filtro, que aún no tiene kit, conserva el aviso de la página y también pregunta
+/// pregunta como la X (D-05). El modal de guardar filtro usa <c>ModalFormulario</c> (S12, lote 3a) y también pregunta
 /// una sola vez. Antes de migrar la página no tenía ninguno de estos casos probado a nivel de componente (solo E2E).
 ///
 /// <para>
@@ -50,7 +51,7 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
 
     public ClientesAvisoCambiosSinGuardarTests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
-    private sealed class MediatorPorTipo : IMediator
+    private sealed class MediatorPorTipo(bool guardarFiltroDevuelveFallo = false) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(object)(request switch
@@ -58,6 +59,7 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
                 ObtenerFiltrosGuardadosQuery => (object)Array.Empty<FiltroGuardadoDto>(),
                 ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 CrearClienteCommand => Result.Exito(ClienteCreadoId),
+                GuardarFiltroCommand when guardarFiltroDevuelveFallo => Result.Fallo<Guid>(Error.Crear("Filtro.NombreEnUso", "Ya tienes un filtro con ese nombre.")),
                 ObtenerClientesQuery q => new ResultadoPaginado<ClienteListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerAlcanceCeroQuery => (object)false,
                 ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
@@ -172,9 +174,9 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
             new PuertaAccesoDatos(), identidad);
     }
 
-    private IRenderedComponent<Clientes> Renderizar(string accion)
+    private IRenderedComponent<Clientes> Renderizar(string accion, bool guardarFiltroDevuelveFallo = false)
     {
-        Services.AddScoped<IMediator>(_ => new MediatorPorTipo());
+        Services.AddScoped<IMediator>(_ => new MediatorPorTipo(guardarFiltroDevuelveFallo));
         Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
@@ -284,5 +286,64 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
 
         navegacion.Uri.Should().Be(origen);
         PreguntasDeSalida(cut).Should().Be(1);
+    }
+
+    // ------------------------------------------------------------- Piloto de ModalFormulario: «Guardar filtro» (S12, lote 3a)
+
+    [Fact]
+    public async Task Guardar_filtro_sin_nombre_esta_deshabilitado_y_dice_por_que_y_con_nombre_se_habilita()
+    {
+        var cut = Renderizar("guardar-filtro");
+        var guardar = () => cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar");
+
+        guardar().HasAttribute("disabled").Should().BeTrue("sin nombre no hay nada que guardar");
+        guardar().GetAttribute("title").Should().Be("Escribe un nombre para el filtro", "un primario deshabilitado sin motivo es el de D-02 y D-06");
+
+        await cut.FindAll(".modal-contenido input").First().InputAsync(new ChangeEventArgs { Value = "Críticos" });
+
+        guardar().HasAttribute("disabled").Should().BeFalse();
+        guardar().HasAttribute("title").Should().BeFalse("habilitado no hay motivo que decir");
+    }
+
+    [Fact]
+    public async Task Un_fallo_al_guardar_el_filtro_se_ve_en_el_aviso_fijo_del_modal_y_lo_escrito_no_se_pierde()
+    {
+        // Este mediador no conoce GuardarFiltroCommand: lanza, y la pantalla lo recoge como fallo de guardado.
+        var cut = Renderizar("guardar-filtro");
+        await cut.FindAll(".modal-contenido input").First().InputAsync(new ChangeEventArgs { Value = "Críticos" });
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".modal-aviso .alerta-formulario").TextContent.Should().Contain("No pudimos guardar el filtro");
+        cut.FindAll(".modal-cuerpo .alerta-formulario").Should().BeEmpty("el aviso va fuera del cuerpo desplazable (D-20)");
+        cut.FindAll(".modal-contenido").Should().NotBeEmpty("el modal sigue abierto: el fallo no cierra ni tira lo escrito");
+
+        await cut.FindAll(".modal-contenido input").First().InputAsync(new ChangeEventArgs { Value = "Críticos 2" });
+
+        cut.FindAll(".modal-aviso").Should().BeEmpty("escribir de nuevo retira el error anterior");
+    }
+
+    [Fact]
+    public async Task Cancelar_el_filtro_con_el_nombre_escrito_pregunta_como_la_X()
+    {
+        var cut = Renderizar("guardar-filtro");
+        await cut.FindAll(".modal-contenido input").First().InputAsync(new ChangeEventArgs { Value = "Críticos" });
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+    }
+
+    [Fact]
+    public async Task Un_resultado_fallido_al_guardar_el_filtro_muestra_el_mensaje_del_servidor_en_el_aviso_fijo()
+    {
+        var cut = Renderizar("guardar-filtro", guardarFiltroDevuelveFallo: true);
+        await cut.FindAll(".modal-contenido input").First().InputAsync(new ChangeEventArgs { Value = "Críticos" });
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".modal-aviso .alerta-formulario").TextContent.Should().Contain("Ya tienes un filtro con ese nombre.",
+            "el mensaje del Result es el que el usuario ve, fuera del cuerpo desplazable y sin cerrar el modal");
+        cut.FindAll(".modal-contenido").Should().NotBeEmpty();
     }
 }

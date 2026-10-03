@@ -326,6 +326,9 @@
   <data name="AltaGuiadaToastCreado" xml:space="preserve">
     <value>Cliente empresarial creado correctamente.</value>
   </data>
+  <data name="GuardarFiltroSinNombre" xml:space="preserve">
+    <value>Escribe un nombre para el filtro</value>
+  </data>
   <data name="DarDeBaja" xml:space="preserve">
     <value>Dar de baja</value>
   </data>

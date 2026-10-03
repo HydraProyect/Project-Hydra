@@ -12,6 +12,11 @@
                     <button type="button" class="modal-cerrar" aria-label="Cerrar" @onclick="SolicitarCierreAsync"><Icono Nombre="cerrar" /></button>
                 }
             </div>
+            @if (Aviso is not null)
+            {
+                @* Fuera del cuerpo desplazable: un aviso del formulario no puede quedar fuera de la vista (D-20), como en Drawer. *@
+                <div class="modal-aviso">@Aviso</div>
+            }
             <div class="modal-cuerpo">
                 @ChildContent
             </div>
@@ -39,6 +44,13 @@
     [Parameter] public string Titulo { get; set; } = string.Empty;
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public RenderFragment? Pie { get; set; }
+
+    /// <summary>
+    /// Aviso del formulario (p. ej. <c>AvisoFormulario</c>), entre la cabecera y el cuerpo y fuera de su desplazamiento: se ve
+    /// aunque el cuerpo haga scroll (D-20). Es la ranura que usa <c>ModalFormulario</c>; igual que <c>Drawer.Aviso</c>.
+    /// </summary>
+    [Parameter] public RenderFragment? Aviso { get; set; }
+
     [Parameter] public bool CerrarAlHacerClicFuera { get; set; } = true;
 
     /// <summary>
