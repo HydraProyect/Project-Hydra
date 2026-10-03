@@ -90,6 +90,38 @@ public class VerificacionIaTardiaBajoRuntimeTests
     }
 
     [Fact]
+    public async Task Un_Documento_sustituido_antes_de_procesar_descarta_la_verificacion_y_no_toca_el_historial()
+    {
+        await using var arnes = await CrearArnesAsync();
+        var (documentoId, encargo) = await SembrarDocumentoEncoladoAsync(arnes);
+        await SustituirAsync(arnes, documentoId);
+
+        var extraccion = new ExtraccionQueCoincide();
+        var descarte = await ProcesarAsync(arnes, encargo, extraccion);
+
+        descarte.Should().Contain("historial");
+        extraccion.Llamadas.Should().Be(0, "descartable antes de leer: no se paga la llamada al proveedor de IA");
+        (await LeerAprobacionesComoPropietarioAsync(arnes, documentoId)).Should().BeEmpty(
+            "el historial es inmutable: la verificación tardía no le añade una aprobación");
+        (await ContarRevisionesComoPropietarioAsync(arnes, documentoId)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Una_sustitucion_durante_la_extraccion_la_ve_la_comprobacion_de_la_transaccion()
+    {
+        await using var arnes = await CrearArnesAsync();
+        var (documentoId, encargo) = await SembrarDocumentoEncoladoAsync(arnes);
+
+        var extraccion = new ExtraccionQueCoincide(() => SustituirAsync(arnes, documentoId));
+        var descarte = await ProcesarAsync(arnes, encargo, extraccion);
+
+        descarte.Should().Contain("historial");
+        extraccion.Llamadas.Should().Be(1, "la sustitución llega después de la comprobación previa");
+        (await LeerAprobacionesComoPropietarioAsync(arnes, documentoId)).Should().BeEmpty();
+        (await ContarRevisionesComoPropietarioAsync(arnes, documentoId)).Should().Be(0);
+    }
+
+    [Fact]
     public async Task Una_decision_manual_durante_la_extraccion_la_ve_la_comprobacion_de_la_transaccion()
     {
         await using var arnes = await CrearArnesAsync();
@@ -281,6 +313,18 @@ public class VerificacionIaTardiaBajoRuntimeTests
         var documento = await contexto.Documentos.SingleAsync(d => d.Id == documentoId);
         documento.CorregirVigencia(Emision, VigenciaDocumento.NoCaduca);
         documento.AdjuntarArchivo("renovado.pdf");
+        await contexto.SaveChangesAsync();
+    }
+
+    /// <summary>Como <c>RenovarDocumentoCommand</c> con archivo nuevo: crea el Documento nuevo y manda este al historial.</summary>
+    private async Task SustituirAsync(ArnesDeArranqueRuntime arnes, Guid documentoId)
+    {
+        await using var scope = arnes.Servicios.CreateAsyncScope();
+        var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var anterior = await contexto.Documentos.SingleAsync(d => d.Id == documentoId);
+        var nuevo = anterior.NuevoDelMismoTitular(Emision, VigenciaDocumento.NoCaduca, "renovado.pdf", null);
+        contexto.Documentos.Add(nuevo);
+        anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
         await contexto.SaveChangesAsync();
     }
 

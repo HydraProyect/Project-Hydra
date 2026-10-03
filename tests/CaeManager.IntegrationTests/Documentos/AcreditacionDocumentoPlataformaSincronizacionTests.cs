@@ -144,37 +144,9 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Renovar_documento_reinicia_sus_acreditaciones_a_pendiente_de_subir_sin_tocar_el_historial()
+    public async Task Renovar_sin_archivo_nuevo_corrige_el_mismo_registro_y_reinicia_sus_acreditaciones_sin_tocar_el_historial()
     {
-        Guid trabajadorId, tipoDocumentoId;
-        await using (var contexto = CrearContexto())
-        {
-            var cliente = Empresa.CrearComoCliente("Cliente Renovación S.L.", "B10380194", false, null, null);
-            var empresa = new Empresa("Empresa Renovación S.L.", "B10380186");
-            contexto.Empresas.Add(cliente);
-            contexto.Empresas.Add(empresa);
-            await contexto.SaveChangesAsync();
-
-            var centro = new Centro(cliente.Id, empresa.Id, "Centro Renovación");
-            contexto.Centros.Add(centro);
-            await contexto.SaveChangesAsync();
-
-            var proveedor = await contexto.ProveedoresPlataformaCae.FirstAsync();
-            var canal = CanalGestionDocumental.DePlataforma(centro.Id, "Gestión general", proveedor.Id, null, null, null);
-            contexto.CanalesGestionDocumental.Add(canal);
-
-            var trabajador = Trabajador.DeEmpresa(empresa.Id, "Marta", "Ruiz", "11223344B");
-            contexto.Trabajadores.Add(trabajador);
-            await contexto.SaveChangesAsync();
-
-            contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, new DateOnly(2026, 1, 1)));
-            var tipoDocumento = new TipoDocumento("Certificado", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
-            contexto.TiposDocumento.Add(tipoDocumento);
-            await contexto.SaveChangesAsync();
-
-            trabajadorId = trabajador.Id;
-            tipoDocumentoId = tipoDocumento.Id;
-        }
+        var (trabajadorId, tipoDocumentoId) = await SembrarTrabajadorConAccesoDePlataformaAsync();
 
         Guid documentoId;
         await using (var contexto = CrearContexto())
@@ -200,18 +172,12 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var handlerRenovar = new RenovarDocumentoCommandHandler(
-                new DocumentoRepository(contexto), contexto, new AlcanceDatosServiceFalso(), contexto,
-                new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
-                new AcreditacionDocumentoPlataformaRepository(contexto), new PublisherFalso(), contexto,
-                new AlmacenamientoQueNoSeUsaAqui(),
-                NullLogger<RenovarDocumentoCommandHandler>.Instance);
-
-            var resultado = await handlerRenovar.Handle(
+            var resultado = await ConstruirHandlerRenovar(contexto).Handle(
                 new RenovarDocumentoCommand(documentoId, new DateOnly(2026, 2, 1), null, null, null),
                 CancellationToken.None);
 
             resultado.EsExitoso.Should().BeTrue();
+            resultado.Valor.Should().Be(documentoId, "sin archivo nuevo no se crea otro registro: el Id no cambia");
         }
 
         await using var verificacion = CrearContexto();
@@ -222,6 +188,93 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
         acreditacionFinal.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir);
         acreditacionFinal.HistorialRechazos.Should().ContainSingle("el historial de un rechazo real anterior no se borra al renovar");
     }
+
+    [Fact]
+    public async Task Renovar_con_archivo_nuevo_deja_las_acreditaciones_del_anterior_como_historial_y_da_de_alta_las_del_nuevo()
+    {
+        var (trabajadorId, tipoDocumentoId) = await SembrarTrabajadorConAccesoDePlataformaAsync();
+
+        Guid anteriorId;
+        await using (var contexto = CrearContexto())
+        {
+            var resultado = await ConstruirHandlerCrear(contexto).Handle(
+                new CrearDocumentoCommand(
+                    TrabajadorId: trabajadorId, ClienteId: null, EmpresaId: null, VehiculoId: null, ProyectoId: null,
+                    TipoDocumentoId: tipoDocumentoId, FechaEmision: new DateOnly(2026, 1, 1),
+                    FechaVencimientoManual: null, ArchivoUrl: "archivos/anterior.pdf", Comentarios: null),
+                CancellationToken.None);
+            anteriorId = resultado.Valor;
+        }
+
+        // El portal rechazó la del documento anterior: es un hecho pasado real y tiene que quedar tal cual.
+        await using (var contexto = CrearContexto())
+        {
+            var acreditacion = (await new AcreditacionDocumentoPlataformaRepository(contexto).ObtenerPorDocumentoIdAsync(anteriorId)).Single();
+            acreditacion.Rechazar(CausaRechazoAcreditacion.Ilegible, "Escaneo borroso.", DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+        }
+
+        Guid nuevoId;
+        await using (var contexto = CrearContexto())
+        {
+            var resultado = await ConstruirHandlerRenovar(contexto).Handle(
+                new RenovarDocumentoCommand(anteriorId, new DateOnly(2026, 2, 1), null, "archivos/nuevo.pdf", null),
+                CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue();
+            nuevoId = resultado.Valor;
+        }
+
+        nuevoId.Should().NotBe(anteriorId, "renovar con archivo crea un registro nuevo (D8)");
+
+        await using var verificacion = CrearContexto();
+        var delAnterior = await verificacion.AcreditacionesDocumentoPlataforma
+            .Include(a => a.HistorialRechazos).SingleAsync(a => a.DocumentoId == anteriorId);
+        delAnterior.Estado.Should().Be(EstadoAcreditacion.Rechazada, "las acreditaciones del anterior quedan como historial, sin reiniciarse");
+        delAnterior.HistorialRechazos.Should().ContainSingle();
+
+        var delNuevo = await verificacion.AcreditacionesDocumentoPlataforma.SingleAsync(a => a.DocumentoId == nuevoId);
+        delNuevo.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir, "las del nuevo nacen por la regla única de alta de acreditaciones");
+        delNuevo.CanalGestionDocumentalId.Should().Be(delAnterior.CanalGestionDocumentalId);
+    }
+
+    /// <summary>Un Trabajador asignado a un Centro con un acceso de plataforma, y un tipo obligatorio por defecto.</summary>
+    private async Task<(Guid TrabajadorId, Guid TipoDocumentoId)> SembrarTrabajadorConAccesoDePlataformaAsync()
+    {
+        await using var contexto = CrearContexto();
+        var cliente = Empresa.CrearComoCliente("Cliente Renovación S.L.", "B10380194", false, null, null);
+        var empresa = new Empresa("Empresa Renovación S.L.", "B10380186");
+        contexto.Empresas.Add(cliente);
+        contexto.Empresas.Add(empresa);
+        await contexto.SaveChangesAsync();
+
+        var centro = new Centro(cliente.Id, empresa.Id, "Centro Renovación");
+        contexto.Centros.Add(centro);
+        await contexto.SaveChangesAsync();
+
+        var proveedor = await contexto.ProveedoresPlataformaCae.FirstAsync();
+        var canal = CanalGestionDocumental.DePlataforma(centro.Id, "Gestión general", proveedor.Id, null, null, null);
+        contexto.CanalesGestionDocumental.Add(canal);
+
+        var trabajador = Trabajador.DeEmpresa(empresa.Id, "Marta", "Ruiz", "11223344B");
+        contexto.Trabajadores.Add(trabajador);
+        await contexto.SaveChangesAsync();
+
+        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, new DateOnly(2026, 1, 1)));
+        var tipoDocumento = new TipoDocumento("Certificado", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
+        contexto.TiposDocumento.Add(tipoDocumento);
+        await contexto.SaveChangesAsync();
+
+
+        return (trabajador.Id, tipoDocumento.Id);
+    }
+
+    private static RenovarDocumentoCommandHandler ConstruirHandlerRenovar(CaeManagerDbContext contexto) =>
+        new(
+            new DocumentoRepository(contexto), contexto, new AlcanceDatosServiceFalso(), contexto,
+            new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
+            new AcreditacionDocumentoPlataformaRepository(contexto), AltaAcreditacionesDePrueba.Con(contexto),
+            new PublisherFalso(), contexto);
 
     private static CrearDocumentoCommandHandler ConstruirHandlerCrear(CaeManagerDbContext contexto) =>
         new(
@@ -258,23 +311,5 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
 
         public Task<int> ContarActivosAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(0);
-    }
-
-    /// <summary>
-    /// El caso de este fichero renueva sin adjuntar archivo nuevo, así que el
-    /// handler nunca llega a borrar nada. Lanzar si se le llamara es la forma
-    /// de que un cambio futuro que sí borrase aquí se note, en vez de pasar
-    /// como un no-op silencioso.
-    /// </summary>
-    private sealed class AlmacenamientoQueNoSeUsaAqui : IFileStorageService
-    {
-        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException("Este escenario no debe borrar ningún archivo.");
     }
 }

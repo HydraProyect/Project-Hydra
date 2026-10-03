@@ -45,6 +45,11 @@ public class CorregirRevisionIaDocumentoCommandHandler(
         if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
             return Result.Fallo(Error.Crear("RevisionIa.NoEncontrada", "No encontramos esta revisión."));
 
+        // El historial es inmutable: la corrección de una lectura de la IA sobre un documento que otro ya sustituyó
+        // no se aplica.
+        if (!DocumentoOperativo.Es(documento))
+            return Result.Fallo(DocumentoEnHistorial.NuevoError());
+
         var tipoDocumento = await tiposDocumentoContext.TiposDocumento
             .FirstOrDefaultAsync(t => t.Id == documento.TipoDocumentoId, cancellationToken);
         if (tipoDocumento is null)

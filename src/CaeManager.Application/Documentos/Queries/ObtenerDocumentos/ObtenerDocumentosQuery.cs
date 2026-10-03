@@ -67,7 +67,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         var vehiculoIdsVisibles = await alcanceDatos.ObtenerVehiculoIdsVisiblesAsync(cancellationToken);
 
         var deTrabajador =
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Operativos()
             where documento.TrabajadorId != null
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
@@ -87,7 +87,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             };
 
         var deCliente =
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Operativos()
             where documento.ClienteId != null
             where clienteIdsVisibles == null || clienteIdsVisibles.Contains(documento.ClienteId!.Value)
             // Documento.ClienteId ya apunta a Empresas (F3): el propietario "Cliente"
@@ -109,7 +109,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             };
 
         var deEmpresa =
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Operativos()
             where documento.EmpresaId != null
             where empresaIdsVisibles == null || empresaIdsVisibles.Contains(documento.EmpresaId!.Value)
             join empresa in empresasContext.Empresas on documento.EmpresaId!.Value equals empresa.Id
@@ -129,7 +129,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             };
 
         var deVehiculo =
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Operativos()
             where documento.VehiculoId != null
             where vehiculoIdsVisibles == null || vehiculoIdsVisibles.Contains(documento.VehiculoId!.Value)
             join vehiculo in vehiculosContext.Vehiculos on documento.VehiculoId!.Value equals vehiculo.Id
@@ -149,7 +149,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             };
 
         var deProyecto =
-            from documento in documentosContext.Documentos
+            from documento in documentosContext.Documentos.Operativos()
             where documento.ProyectoId != null
             join proyecto in proyectosContext.Proyectos on documento.ProyectoId!.Value equals proyecto.Id
             where clienteIdsVisibles == null || clienteIdsVisibles.Contains(proyecto.ClienteId)

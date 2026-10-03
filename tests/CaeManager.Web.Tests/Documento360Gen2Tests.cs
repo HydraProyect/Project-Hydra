@@ -21,7 +21,7 @@ public partial class Documento360Gen2Tests : BunitContext
     private sealed class MediadorFalso : IMediator
     {
         public Dictionary<Guid, DocumentoDetalleDto> Detalles { get; } = [];
-        public Result ResultadoRenovar { get; set; } = Result.Exito();
+        public Result<Guid> ResultadoRenovar { get; set; } = Result.Exito(Guid.NewGuid());
         public Func<object, Task?>? Retener { get; set; }
         public List<object> Enviadas { get; } = [];
         public List<(object Peticion, CancellationToken Token)> Tokens { get; } = [];
@@ -222,7 +222,7 @@ public partial class Documento360Gen2Tests : BunitContext
     public async Task Un_resultado_fallido_de_renovar_no_anuncia_exito_y_queda_en_el_formulario()
     {
         var id = Guid.NewGuid();
-        var mediador = Registrar(new MediadorFalso { ResultadoRenovar = Result.Fallo(Error.Crear("Documento.Conflicto", "Otra persona ya lo renovó.")) });
+        var mediador = Registrar(new MediadorFalso { ResultadoRenovar = Result.Fallo<Guid>(Error.Crear("Documento.Conflicto", "Otra persona ya lo renovó.")) });
         mediador.Detalles[id] = Detalle(id);
         var cut = Renderizar(id);
 

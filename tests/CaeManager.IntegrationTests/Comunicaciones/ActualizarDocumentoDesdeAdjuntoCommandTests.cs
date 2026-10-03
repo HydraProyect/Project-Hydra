@@ -82,7 +82,10 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         contexto.Documentos.Add(documentoExistente);
         await contexto.SaveChangesAsync();
 
-        var mediatorFalso = new MediatorDocumentoFalso(resultadoRenovar: Result.Exito());
+        // Renovar con archivo crea un Documento nuevo (D8): el Id que queda en uso es el que devuelve el comando, no el
+        // del operativo que se renovó.
+        var documentoRenovadoId = Guid.NewGuid();
+        var mediatorFalso = new MediatorDocumentoFalso(resultadoRenovar: Result.Exito(documentoRenovadoId));
         var almacenamiento = AlmacenamientoConAdjuntoSembrado();
         var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(
             contexto, new AlcanceDatosServiceFalso(), contexto, mediatorFalso, mediatorFalso, almacenamiento,
@@ -94,14 +97,14 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         var resultado = await handler.Handle(comando, CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        resultado.Valor.Should().Be(documentoExistente.Id);
+        resultado.Valor.Should().Be(documentoRenovadoId);
         mediatorFalso.ComandoRenovarRecibido.Should().NotBeNull();
         mediatorFalso.ComandoRenovarRecibido!.Id.Should().Be(documentoExistente.Id);
         mediatorFalso.ComandoRenovarRecibido.ArchivoUrl.Should().NotBe("adjuntos/certificado.pdf");
         almacenamiento.Leer(mediatorFalso.ComandoRenovarRecibido.ArchivoUrl).Should().Equal(ContenidoAdjuntoDePrueba);
         mediatorFalso.ComandoCrearRecibido.Should().BeNull();
         mediatorFalso.Publicados.Should().ContainSingle()
-            .Which.Should().BeEquivalentTo(new DocumentoActualizadoEvent(conversacionId, documentoExistente.Id));
+            .Which.Should().BeEquivalentTo(new DocumentoActualizadoEvent(conversacionId, documentoRenovadoId));
     }
 
     [Fact]
@@ -141,7 +144,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var mediatorFalso = new MediatorDocumentoFalso(
-            resultadoRenovar: Result.Fallo(Error.Crear("Documento.NoEncontrado", "No encontramos este documento.")));
+            resultadoRenovar: Result.Fallo<Guid>(Error.Crear("Documento.NoEncontrado", "No encontramos este documento.")));
         var almacenamiento = AlmacenamientoConAdjuntoSembrado();
         var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(
             contexto, new AlcanceDatosServiceFalso(), contexto, mediatorFalso, mediatorFalso, almacenamiento,
@@ -324,7 +327,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
     }
 
     /// <summary>Resuelve únicamente Crear/RenovarDocumentoCommand con el Result preconfigurado — mismo patrón que MediatorDeUnSoloComandoFalso de PedirPrioridadValidacionCommandTests, extendido para capturar también lo publicado.</summary>
-    private class MediatorDocumentoFalso(Result<Guid>? resultadoCrear = null, Result? resultadoRenovar = null) : IMediator
+    private class MediatorDocumentoFalso(Result<Guid>? resultadoCrear = null, Result<Guid>? resultadoRenovar = null) : IMediator
     {
         public CrearDocumentoCommand? ComandoCrearRecibido { get; private set; }
         public RenovarDocumentoCommand? ComandoRenovarRecibido { get; private set; }
@@ -339,7 +342,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
                     return Task.FromResult((TResponse)(object)(resultadoCrear ?? Result.Exito(Guid.NewGuid())));
                 case RenovarDocumentoCommand renovar:
                     ComandoRenovarRecibido = renovar;
-                    return Task.FromResult((TResponse)(object)(resultadoRenovar ?? Result.Exito()));
+                    return Task.FromResult((TResponse)(object)(resultadoRenovar ?? Result.Exito(Guid.NewGuid())));
                 default:
                     throw new NotSupportedException("Este fake solo resuelve Crear/RenovarDocumentoCommand.");
             }

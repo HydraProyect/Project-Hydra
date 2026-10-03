@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
@@ -7,16 +8,18 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
 using FluentValidation;
 using MediatR;
-using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Documentos.Commands.RenovarDocumento;
 
 /// <summary>
-/// "Editar" un Documento es, en la práctica, renovarlo: nueva fecha de
-/// emisión (y opcionalmente un nuevo archivo). El trabajador y el tipo de
-/// documento no cambian — si son incorrectos, se elimina y se crea de nuevo
-/// (ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, "Cambiar estado").
+/// Renovar un Documento. <b>Con archivo nuevo</b> crea un Documento nuevo del mismo titular y Tipo y sustituye
+/// al anterior (<see cref="Documento.SustituirPor"/>): el anterior pasa al historial con su archivo, sus fechas y sus
+/// acreditaciones intactos, y el nuevo es el único operativo de la unidad. <b>El Id cambia</b> (D8 del diseño del
+/// documento efectivo): el comando devuelve el Id del Documento que queda en uso, y quien guarde enlaces tiene que
+/// usar ese; un enlace al Id antiguo abre el historial con «sustituido por…». <b>Sin archivo nuevo</b> no hay nada que
+/// sustituir: es una corrección de fechas o comentarios del mismo registro (<see cref="Documento.CorregirVigencia"/>) y
+/// devuelve el mismo Id. Un Documento que ya está en el historial no se renueva ni se corrige.
 ///
 /// <paramref name="Version"/> es la del registro tal como lo vio quien
 /// renueva (llega en <c>DocumentoDetalleDto</c>) — mismo patrón que
@@ -31,7 +34,7 @@ namespace CaeManager.Application.Documentos.Commands.RenovarDocumento;
 /// </summary>
 public record RenovarDocumentoCommand(
     Guid Id, DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios,
-    Guid Version = default, bool NoCaduca = false) : ICommand;
+    Guid Version = default, bool NoCaduca = false) : ICommand<Guid>;
 
 public class RenovarDocumentoCommandValidator : AbstractValidator<RenovarDocumentoCommand>
 {
@@ -53,109 +56,102 @@ public class RenovarDocumentoCommandHandler(
     IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext,
     ITrabajoAnalisisDocumentoRepository colaAnalisis, ICurrentUserService currentUserService,
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio,
-    IPublisher publisher, IUnitOfWork unitOfWork,
-    IFileStorageService almacenamiento, ILogger<RenovarDocumentoCommandHandler> logger)
-    : IRequestHandler<RenovarDocumentoCommand, Result>
+    IAltaAcreditacionesPlataformaService altaAcreditaciones,
+    IPublisher publisher, IUnitOfWork unitOfWork)
+    : IRequestHandler<RenovarDocumentoCommand, Result<Guid>>
 {
-    public async Task<Result> Handle(RenovarDocumentoCommand request, CancellationToken cancellationToken)
+    public async Task<Result<Guid>> Handle(RenovarDocumentoCommand request, CancellationToken cancellationToken)
     {
         var documento = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
 
-        // Se captura antes de adjuntar el nuevo: AdjuntarArchivo sobreescribe
-        // ArchivoUrl y la clave anterior se perdería para siempre. Sin ella, el
-        // PDF de la versión anterior —datos médicos, art. 9 RGPD— se queda en
-        // almacenamiento sin que ninguna fila lo nombre: la retención no lo
-        // alcanza y ninguna purga puede encontrarlo. Cada renovación dejaba una
-        // copia fuera del ciclo de vida.
-        var archivoAnterior = documento?.ArchivoUrl;
-
         if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
-            return Result.Fallo(Error.Crear("Documento.NoEncontrado", "No encontramos este documento."));
+            return Result.Fallo<Guid>(Error.Crear("Documento.NoEncontrado", "No encontramos este documento."));
+
+        // El historial es inmutable (D5/D8): lo que ya sustituyó otro documento no se renueva ni se corrige; se
+        // renueva el vigente. Antes de la comprobación de versión: un documento sustituido ha cambiado de versión
+        // (SustituirPor lo modificó) y el aviso de «otra persona lo editó» confundiría más que esta explicación.
+        if (!DocumentoOperativo.Es(documento))
+            return Result.Fallo<Guid>(DocumentoEnHistorial.NuevoError());
 
         if (ConcurrenciaOptimista.Verificar(documento, request.Version, "este documento") is { } conflicto)
-            return Result.Fallo(conflicto);
+            return Result.Fallo<Guid>(conflicto);
 
         var tipoDocumento = await dbContext.TiposDocumento
             .FirstOrDefaultAsync(t => t.Id == documento.TipoDocumentoId, cancellationToken);
 
         if (tipoDocumento is null)
-            return Result.Fallo(Error.Crear("Documento.TipoDocumentoNoEncontrado", "No encontramos el tipo de documento asociado."));
+            return Result.Fallo<Guid>(Error.Crear("Documento.TipoDocumentoNoEncontrado", "No encontramos el tipo de documento asociado."));
 
         var vigencia = CalculadoraEstadoDocumento.ResolverVigencia(
             tipoDocumento.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
             request.FechaEmision, request.FechaVencimientoManual, request.NoCaduca);
+
+        return string.IsNullOrWhiteSpace(request.ArchivoUrl)
+            ? await CorregirEnElMismoRegistroAsync(documento, request, vigencia, cancellationToken)
+            : await SustituirPorUnoNuevoAsync(documento, tipoDocumento, request, vigencia, cancellationToken);
+    }
+
+    /// <summary>
+    /// Sin archivo nuevo no hay nada que sustituir: se corrigen las fechas y los comentarios del mismo registro y se
+    /// reinician sus acreditaciones (los datos que se validaron en el portal ya no son estos). El Id no cambia.
+    /// </summary>
+    private async Task<Result<Guid>> CorregirEnElMismoRegistroAsync(
+        Documento documento, RenovarDocumentoCommand request, VigenciaDocumento vigencia, CancellationToken cancellationToken)
+    {
         documento.CorregirVigencia(request.FechaEmision, vigencia);
-
-        if (!string.IsNullOrWhiteSpace(request.ArchivoUrl))
-        {
-            documento.AdjuntarArchivo(request.ArchivoUrl);
-
-            // La mensualidad entra por aquí, no por Crear: el certificado de
-            // agosto reemplaza al de julio renovando el mismo Documento. Sin
-            // este reencolado, el archivo nuevo jamás se validaría. Mismo
-            // SaveChangesAsync que el resto del cambio — se confirman juntos
-            // o ninguno, la garantía de CrearDocumentoCommand. Los análisis
-            // IA (VerificacionIa/DeteccionTrabajadores) siguen sin reencolarse
-            // al renovar — decisión pendiente aparte, por su coste de LLM en
-            // cada renovación (plan de la épica, PR-3).
-            if (tipoDocumento.PerfilDocumentoOficial != PerfilDocumentoOficial.Ninguno)
-            {
-                var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
-                colaAnalisis.Agregar(new TrabajoAnalisisDocumento(
-                    documento.Id, usuarioId, TipoAnalisisDocumento.VerificacionFirmaDigital));
-            }
-        }
-
         documento.ActualizarComentarios(request.Comentarios);
 
-        // Invariante de Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b): la
-        // versión anterior del documento ya no es la que hay que validar en
-        // ningún portal — renovar reinicia todas sus acreditaciones a
-        // Pendiente de subir. El historial de rechazos no se toca (sigue
-        // siendo un hecho pasado real). No se re-derivan canales nuevos aquí
-        // — si la asignación del trabajador cambió, es un caso fuera de
-        // alcance de este lote (Lote 2-D), sin decisión tomada todavía.
+        // Invariante de Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (b): la versión
+        // anterior de los datos ya no es la que hay que validar en ningún portal — corregirlos reinicia todas las
+        // acreditaciones del documento a Pendiente de subir. El historial de rechazos no se toca (sigue siendo un hecho
+        // pasado real).
         var acreditaciones = await acreditacionRepositorio.ObtenerPorDocumentoIdAsync(documento.Id, cancellationToken);
         foreach (var acreditacion in acreditaciones)
             acreditacion.ReiniciarPorRenovacionDocumento();
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // DESPUÉS del commit, nunca antes: si se borrara primero y el commit
-        // fallara, el documento seguiría apuntando a un archivo ya destruido.
-        // Mismo patrón, y mismas limitaciones, que FirmarDocumentoEnCampoCommand
-        // — mejor esfuerzo con constancia. Una caída entre el commit y el
-        // borrado deja un huérfano; cerrarlo del todo exige un registro durable
-        // de supresiones con reintentos, pendiente de decisión (informe del
-        // Módulo 2, compartido con el Módulo 7).
-        //
-        // Es seguro borrar desde aquí porque una clave de archivo tiene una
-        // única fila propietaria: hasta el Módulo 6 (#370),
-        // ActualizarDocumentoDesdeAdjuntoCommand reutilizaba la clave del
-        // AdjuntoMensaje, y borrar aquí habría destruido el adjunto de la
-        // conversación. Ahora copia a una clave propia del Documento.
-        if (archivoAnterior is not null && archivoAnterior != documento.ArchivoUrl)
-        {
-            try
-            {
-                await almacenamiento.EliminarAsync(archivoAnterior, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                // No se revierte la renovación por esto: ya está confirmada y es
-                // correcta. Queda constancia con la clave, que es lo único que
-                // permite borrarlo a mano después.
-                logger.LogError(ex,
-                    "No se pudo borrar el archivo anterior {Archivo} del documento {DocumentoId} tras renovarlo. " +
-                    "Queda en almacenamiento sin fila que lo referencie.",
-                    archivoAnterior, documento.Id);
-            }
-        }
-
-        // Renovar puede sacar de "Vencido" el último documento que bloqueaba el
-        // expediente de una visita pendiente.
         await publisher.Publish(new DocumentacionCambiadaEvent(documento.Id), cancellationToken);
 
-        return Result.Exito();
+        return Result.Exito(documento.Id);
+    }
+
+    /// <summary>
+    /// Con archivo nuevo: Documento nuevo + sustitución del anterior en el mismo <c>SaveChangesAsync</c>, o todo o
+    /// nada. <b>No se borra nada</b>: el archivo del anterior queda en almacenamiento, referenciado por su fila, que es
+    /// historial (decisión 7: sin borrado automático). Las acreditaciones del anterior quedan como historial —no se
+    /// reinician—; las del nuevo nacen en Pendiente de subir por la regla única de
+    /// <see cref="IAltaAcreditacionesPlataformaService"/>, la misma del alta.
+    /// </summary>
+    private async Task<Result<Guid>> SustituirPorUnoNuevoAsync(
+        Documento anterior, TipoDocumento tipoDocumento, RenovarDocumentoCommand request,
+        VigenciaDocumento vigencia, CancellationToken cancellationToken)
+    {
+        var nuevo = anterior.NuevoDelMismoTitular(request.FechaEmision, vigencia, request.ArchivoUrl, request.Comentarios);
+
+        repositorio.Agregar(nuevo);
+        anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [nuevo] }, cancellationToken);
+
+        // La mensualidad entra por aquí, no por Crear: el certificado de agosto reemplaza al de julio renovándolo.
+        // Sin este reencolado, el archivo nuevo jamás se validaría. Mismo SaveChangesAsync que el resto del cambio —
+        // se confirman juntos o ninguno, la garantía de CrearDocumentoCommand. Los análisis IA
+        // (VerificacionIa/DeteccionTrabajadores) siguen sin reencolarse al renovar — decisión pendiente aparte, por su
+        // coste de LLM en cada renovación (plan de la épica, PR-3).
+        if (tipoDocumento.PerfilDocumentoOficial != PerfilDocumentoOficial.Ninguno)
+        {
+            var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+            colaAnalisis.Agregar(new TrabajoAnalisisDocumento(
+                nuevo.Id, usuarioId, TipoAnalisisDocumento.VerificacionFirmaDigital));
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Renovar puede sacar de "Vencido" el último documento que bloqueaba el expediente de una visita pendiente. El
+        // evento lleva el Id del documento que queda en uso.
+        await publisher.Publish(new DocumentacionCambiadaEvent(nuevo.Id), cancellationToken);
+
+        return Result.Exito(nuevo.Id);
     }
 }

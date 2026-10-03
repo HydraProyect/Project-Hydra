@@ -327,7 +327,7 @@ public class DocumentoSustitucionTests
     // ── D5: el sustituido nunca vuelve a ser operativo ─────────────────────
 
     [Fact]
-    public void Un_sustituido_no_vuelve_a_ser_operativo_ni_eliminandolo_y_restaurandolo_ni_corrigiendo_su_vigencia()
+    public void Un_sustituido_no_vuelve_a_ser_operativo_ni_eliminandolo_y_restaurandolo()
     {
         var trabajador = Guid.NewGuid();
         var anterior = DeTrabajador(trabajador, emitidoHaceDias: 400);
@@ -336,13 +336,87 @@ public class DocumentoSustitucionTests
 
         anterior.MarcarComoEliminado(Guid.NewGuid());
         anterior.Restaurar();
-        // CorregirVigencia no rechaza hoy un sustituido (si el historial es inmutable lo decide el PR 4); lo que se
-        // afirma aquí es solo que corregirlo no lo devuelve a operativo.
-        anterior.CorregirVigencia(Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(2)));
 
         anterior.EstaSustituido.Should().BeTrue();
         anterior.SustituidoPorDocumentoId.Should().Be(nuevo.Id);
-        DocumentoOperativo.Es(anterior).Should().BeFalse("D5: ni siquiera con fechas más recientes que las del sustituto");
+        DocumentoOperativo.Es(anterior).Should().BeFalse("D5: eliminarlo y restaurarlo no lo devuelve a operativo");
+    }
+
+    // ── El historial es inmutable (PR 4) ───────────────────────────────────
+
+    [Fact]
+    public void Un_sustituido_rechaza_la_correccion_de_vigencia_y_no_cambia()
+    {
+        var trabajador = Guid.NewGuid();
+        var anterior = DeTrabajador(trabajador, emitidoHaceDias: 400);
+        var emisionOriginal = anterior.FechaEmision;
+        var vigenciaOriginal = anterior.Vigencia;
+        anterior.SustituirPor(DeTrabajador(trabajador), MotivoSustitucionDocumento.Renovacion, Ahora);
+
+        var corregir = () => anterior.CorregirVigencia(Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(2)));
+
+        corregir.Should().Throw<InvalidOperationException>().WithMessage("*historial*");
+        anterior.FechaEmision.Should().Be(emisionOriginal);
+        anterior.Vigencia.Should().Be(vigenciaOriginal);
+    }
+
+    [Fact]
+    public void Un_sustituido_rechaza_adjuntar_archivo_y_conserva_el_suyo()
+    {
+        var trabajador = Guid.NewGuid();
+        var anterior = DeTrabajador(trabajador, emitidoHaceDias: 400);
+        var archivoOriginal = anterior.ArchivoUrl;
+        anterior.SustituirPor(DeTrabajador(trabajador), MotivoSustitucionDocumento.Renovacion, Ahora);
+
+        var adjuntar = () => anterior.AdjuntarArchivo("archivos/pisado.pdf");
+
+        adjuntar.Should().Throw<InvalidOperationException>().WithMessage("*historial*");
+        anterior.ArchivoUrl.Should().Be(archivoOriginal);
+    }
+
+    [Fact]
+    public void Un_documento_en_uso_si_acepta_correccion_y_archivo_control_positivo()
+    {
+        var documento = DeTrabajador(Guid.NewGuid());
+
+        documento.CorregirVigencia(Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(2)));
+        documento.AdjuntarArchivo("archivos/nuevo.pdf");
+
+        documento.ArchivoUrl.Should().Be("archivos/nuevo.pdf");
+        documento.FechaEmision.Should().Be(Hoy);
+    }
+
+    [Fact]
+    public void El_nuevo_del_mismo_titular_copia_titular_y_tipo_y_no_sustituye_nada()
+    {
+        var trabajador = Guid.NewGuid();
+        var anterior = DeTrabajador(trabajador, emitidoHaceDias: 400);
+
+        var nuevo = anterior.NuevoDelMismoTitular(Hoy, VigenciaDocumento.NoCaduca, "archivos/nuevo.pdf", "Renovado");
+
+        nuevo.Id.Should().NotBe(anterior.Id);
+        nuevo.TrabajadorId.Should().Be(trabajador);
+        nuevo.TipoDocumentoId.Should().Be(anterior.TipoDocumentoId);
+        nuevo.FechaEmision.Should().Be(Hoy);
+        nuevo.ArchivoUrl.Should().Be("archivos/nuevo.pdf");
+        nuevo.Comentarios.Should().Be("Renovado");
+        nuevo.EstaSustituido.Should().BeFalse();
+        anterior.EstaSustituido.Should().BeFalse("crear el nuevo no sustituye: eso lo decide SustituirPor");
+        // y el nuevo es un sustituto válido del anterior
+        anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, Ahora);
+        anterior.SustituidoPorDocumentoId.Should().Be(nuevo.Id);
+    }
+
+    [Fact]
+    public void Un_sustituido_no_genera_un_nuevo_del_mismo_titular()
+    {
+        var trabajador = Guid.NewGuid();
+        var anterior = DeTrabajador(trabajador, emitidoHaceDias: 400);
+        anterior.SustituirPor(DeTrabajador(trabajador), MotivoSustitucionDocumento.Renovacion, Ahora);
+
+        var crear = () => anterior.NuevoDelMismoTitular(Hoy, VigenciaDocumento.NoCaduca, null, null);
+
+        crear.Should().Throw<InvalidOperationException>();
     }
 
     [Fact]

@@ -42,7 +42,12 @@ public record DocumentoDetalleDto(
     Guid? TrabajadorId = null,
     // Nombre canónico para descargar/enviar/exportar (NombreArchivoDocumento.Suelto):
     // calculado aquí, donde se conocen propietario, tipo y coincidencias del mismo día.
-    string NombreArchivoDescarga = "");
+    string NombreArchivoDescarga = "",
+    // Historial (D8 del diseño del documento efectivo): un enlace a un Id que otro documento sustituyó resuelve aquí,
+    // con el Id del que lo sustituyó, para que la pantalla diga «sustituido por…» y lleve al vigente. Nulos si el
+    // documento sigue en uso. Opcionales y al final: ningún productor cambia.
+    Guid? SustitutoId = null,
+    DateTime? SustituidoEn = null);
 
 public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerDocumentoPorIdQuery, DocumentoDetalleDto?>
@@ -66,7 +71,9 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
                 d.ArchivoUrl,
                 d.Comentarios,
                 d.Version,
-                d.CreadoEnUtc
+                d.CreadoEnUtc,
+                d.SustituidoPorDocumentoId,
+                d.SustituidoEnUtc
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -178,6 +185,7 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
             documento.EstadoVigencia, documento.ArchivoUrl, documento.Comentarios,
             tipoDocumento.Descripcion, tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones,
             documento.Version, tipoDocumento.PerfilDocumentoOficial, documento.EmpresaId, documento.TrabajadorId,
-            NombreArchivoDocumento.Suelto(nombreEnArchivo, tipoDocumento.Nombre, documento.FechaEmision, anteriores + 1));
+            NombreArchivoDocumento.Suelto(nombreEnArchivo, tipoDocumento.Nombre, documento.FechaEmision, anteriores + 1),
+            documento.SustituidoPorDocumentoId, documento.SustituidoEnUtc);
     }
 }

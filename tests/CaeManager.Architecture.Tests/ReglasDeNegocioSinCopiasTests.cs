@@ -366,9 +366,9 @@ public class ReglasDeNegocioSinCopiasTests
 
     private static readonly Dictionary<string, int> LectoresDeDocumentosSinFiltroOperativo = new()
     {
-        // --- El historial se ve a propósito (PR 9 del diseño: «Incluir historial»). Hasta entonces los listados no
-        //     filtran; hoy ninguna ruta de la aplicación sustituye (PR 4/5), así que no hay historial que mostrar. ---
-        ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs"] = 5,
+        // --- El historial se ve a propósito (PR 9 del diseño: «Incluir historial»). La lista de Documentos
+        //     (ObtenerDocumentosQuery) ya muestra solo los operativos desde la PR 4 (Renovar sustituye y el anterior
+        //     pasaría a salir duplicado); la búsqueda global sigue sin filtrar hasta la PR 9. ---
         ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs"] = 2,
         ["src/CaeManager.Application/BusquedaGlobal/Queries/BuscarGlobal/BuscarGlobalQuery.cs"] = 5,
 
