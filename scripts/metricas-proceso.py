@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Métricas de proceso M1..M21 (S15 del análisis de causas raíz de 2026-10-02).
+"""Métricas de proceso M1..M22 (S15 del análisis de causas raíz de 2026-10-02).
 
 Sin este instrumento «mejora» no es medible: saca solas, del repositorio y de GitHub, las métricas del
 § 6 del análisis, para imprimir la línea base de hoy y compararla con la de mañana.
@@ -550,6 +550,26 @@ def metricas_de_repo(raiz: Path):
                           "ficheros .cs y atributos de tests/CaeManager.Architecture.Tests (un Theory cuenta 1, no sus casos)", attrs))
     else:
         filas.append(no_medida("M21", "Cobertura de salvaguardas", "no hay ningún .cs en tests/CaeManager.Architecture.Tests"))
+
+    # M22: Drawers con campos fuera del kit DrawerFormulario (S12) — la lista congelada por ubicación
+    # (FormulariosEnDrawerUsanElKitTests). Solo baja: cada pantalla migrada al kit la reduce.
+    lista = arq / "Congelados" / "Drawer-formulario-fuera-del-kit.txt"
+    if lista.exists():
+        total = 0
+        archivos = set()
+        for l in lista.read_text(encoding="utf-8").splitlines():
+            m = re.match(r"^(.*) :: (.*) = (\d+)$", l.strip())
+            if m:
+                archivos.add(m.group(1))
+                total += int(m.group(3))
+        if not archivos:
+            filas.append(no_medida("M22", "Drawers de formulario fuera del kit",
+                                   "la lista existe pero ninguna línea casa con «lugar :: símbolo = n» (¿cambió el formato?)"))
+        else:
+            filas.append(fila("M22", "Drawers de formulario fuera del kit", f"{total} Drawers / {len(archivos)} ficheros",
+                              "INSTRUMENTO", "suma de Congelados/Drawer-formulario-fuera-del-kit.txt (Drawers con campos que no usan DrawerFormulario)", total))
+    else:
+        filas.append(no_medida("M22", "Drawers de formulario fuera del kit", "no existe la lista (el kit DrawerFormulario aún no está en esta rama)"))
     return filas
 
 

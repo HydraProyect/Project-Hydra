@@ -15,6 +15,11 @@
                 <h2 id="@_tituloId">@Titulo</h2>
                 <button type="button" class="drawer-cerrar" aria-label="Cerrar" @onclick="SolicitarCierreAsync"><Icono Nombre="cerrar" /></button>
             </div>
+            @if (Aviso is not null)
+            {
+                @* Fuera del cuerpo desplazable: un aviso del formulario no puede quedar fuera de la vista (D-20). *@
+                <div class="drawer-aviso">@Aviso</div>
+            }
             <div class="drawer-cuerpo">
                 @ChildContent
             </div>
@@ -42,6 +47,12 @@
     [Parameter] public string Titulo { get; set; } = string.Empty;
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public RenderFragment? Pie { get; set; }
+
+    /// <summary>
+    /// Aviso del formulario (p. ej. <c>AvisoFormulario</c>), entre la cabecera y el cuerpo y fuera de su desplazamiento: se ve
+    /// siempre, también con el cuerpo desplazado (D-20). Lo rellena <c>DrawerFormulario</c>.
+    /// </summary>
+    [Parameter] public RenderFragment? Aviso { get; set; }
 
     /// <summary>
     /// En false mientras hay un error de validación visible o se está

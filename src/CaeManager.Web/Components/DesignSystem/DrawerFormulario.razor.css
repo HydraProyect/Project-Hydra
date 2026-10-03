@@ -1,0 +1,13 @@
+/* El envoltorio solo existe para que el foco al primer error tenga un contenedor al que preguntar: no es una caja. */
+.formulario-drawer-contenido {
+    display: contents;
+}
+
+/* El fieldset solo existe para deshabilitar de una vez las acciones extra mientras se guarda: no es una caja. */
+.formulario-drawer-pie-extra {
+    display: contents;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+}
