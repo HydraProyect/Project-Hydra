@@ -1,9 +1,7 @@
-using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
-
-namespace CaeManager.Application.Bandeja;
+namespace CaeManager.Application.Common;
 
 /// <summary>
-/// El único sitio donde se construye <see cref="ItemBandejaDto.Id"/>.
+/// El único sitio donde se construye el <c>Id</c> de <c>ItemBandejaDto</c> (la fila de la cola de trabajo).
 ///
 /// <para>
 /// <b>Por qué hay un punto único.</b> El Id de una fila de la cola es la clave <c>@key</c> del <c>@foreach</c> que la
@@ -13,14 +11,14 @@ namespace CaeManager.Application.Bandeja;
 /// compartía Id (#1064). Con la cadena escrita a mano en cada productor, la unicidad dependía de que cada autor
 /// recordara qué dimensiones identifican su fila; aquí cada constructor declara TODAS sus dimensiones como parámetros
 /// obligatorios, y quien añade un productor nuevo pasa por este fichero (lo exige
-/// <c>BandejaItemIdUnicoPorConstruccionTests</c>, trinquete por ubicación).
+/// <c>ClavesDeListaUnicasPorConstruccionTests</c>, trinquete por ubicación).
 /// </para>
 ///
 /// <para>
 /// <b>Qué dimensiones lleva cada Id, y cuáles no.</b> El Id es único dentro de la cola de <i>un</i> Tenant propietario
-/// (cada productor corre sellado a su Tenant); el Tenant no viaja en el Id porque <see cref="ItemBandejaDto"/> no lo
-/// lleva (la vista de Mi trabajo, que sí mezcla Tenants en un mismo grupo por severidad, lo añade a su clave:
-/// <c>FilaMiTrabajo.ClaveUnica</c>). Cada prefijo es un tipo de fila distinto, así que dos filas de tipos distintos
+/// (cada productor corre sellado a su Tenant); el Tenant no viaja en el Id porque <c>ItemBandejaDto</c> no lo
+/// lleva (la vista de Mi trabajo, que sí mezcla Tenants en un mismo grupo por severidad, lo añade a la identidad de su clave:
+/// <c>ClavesDeHermanos</c>). Cada prefijo es un tipo de fila distinto, así que dos filas de tipos distintos
 /// nunca chocan aunque compartan Guid.
 /// </para>
 ///
@@ -31,7 +29,7 @@ namespace CaeManager.Application.Bandeja;
 /// <see cref="Duplicados"/> es la medida común de ambas.
 /// </para>
 /// </summary>
-public static class IdFilaBandeja
+public static class IdDeFilaDeCola
 {
     /// <summary>
     /// Alerta documental. Con documento, esa alerta es el documento. Sin documento (Faltante), el trío
@@ -64,9 +62,12 @@ public static class IdFilaBandeja
 
     public static string Seguimiento(Guid acreditacionId) => $"seguimiento-{acreditacionId}";
 
-    /// <summary>Los Id que aparecen más de una vez en <paramref name="items"/>, cada uno con cuántas veces (vacío = todos únicos).</summary>
-    public static IReadOnlyDictionary<string, int> Duplicados(IEnumerable<ItemBandejaDto> items) => items
-        .GroupBy(i => i.Id, StringComparer.Ordinal)
+    /// <summary>
+    /// Los Id que aparecen más de una vez entre <paramref name="items"/> (cada uno con cuántas veces; vacío = todos únicos). Genérico
+    /// sobre el elemento: la cola de ItemBandejaDto lo usa con <c>i =&gt; i.Id</c>, y no obliga a esta clase a nombrar el tipo.
+    /// </summary>
+    public static IReadOnlyDictionary<string, int> Duplicados<T>(IEnumerable<T> items, Func<T, string> id) => items
+        .GroupBy(id, StringComparer.Ordinal)
         .Where(g => g.Count() > 1)
         .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
 }

@@ -55,7 +55,7 @@ public static class CalculoBloqueoDeAccesoDeTrabajadores
 
         var resultado = new List<BloqueoDeAccesoDeTrabajador>();
 
-        // Una fila por Trabajador × Centro: el Id de la fila de la Bandeja (IdFilaBandeja.Requisito) es ese trío
+        // Una fila por Trabajador × Centro: el Id de la fila de la Bandeja (IdDeFilaDeCola.Requisito) es ese trío
         // más el Tipo, así que dos Asignaciones del mismo Trabajador al mismo Centro darían dos filas con el mismo Id
         // (@key duplicada: el circuito de Blazor muere). La base lo impide (EXCLUDE de vigencias solapadas); aquí
         // no se depende de ello: el resultado es único por (Centro, Trabajador, Tipo) por construcción.

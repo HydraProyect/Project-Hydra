@@ -228,12 +228,12 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         var seguimientoSinEmpresa = MapearSeguimiento(pendientesPlataforma);
 
         // Dos filas con el mismo Id son dos @key hermanas: la vista numera las repeticiones para que el circuito no
-        // muera (FilaMiTrabajo.ClaveUnica), pero el productor que las emite tiene un defecto que alguien debe ver.
-        var idsDuplicados = IdFilaBandeja.Duplicados(fusionados.Concat(proximosSinEmpresa).Concat(seguimientoSinEmpresa));
+        // muera (ClavesDeHermanos, en la Web), pero el productor que las emite tiene un defecto que alguien debe ver.
+        var idsDuplicados = IdDeFilaDeCola.Duplicados(fusionados.Concat(proximosSinEmpresa).Concat(seguimientoSinEmpresa), i => i.Id);
         if (idsDuplicados.Count > 0)
         {
             logger.LogError(
-                "Mi trabajo: la cola del Tenant {TenantId} trae {Cantidad} Id de fila repetidos (p. ej. {Ejemplos}); la pantalla los numera, pero un productor de ItemBandejaDto emite filas hermanas con el mismo Id.",
+                "Mi trabajo: la cola del Tenant {TenantId} trae {Cantidad} Id de fila repetidos (p. ej. {Ejemplos}); la pantalla los numera, pero un productor de filas de la cola emite filas hermanas con el mismo Id.",
                 tenant.TenantId, idsDuplicados.Count, string.Join(", ", idsDuplicados.Keys.Take(3)));
         }
 
@@ -379,7 +379,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
                             && d.VencidaEnPlataforma
                             && !documentosVencidos.Contains(d.DocumentoId))
                 .Select(d => new ItemBandejaDto(
-                    Id: IdFilaBandeja.PlataformaVencida(d.AcreditacionId),
+                    Id: IdDeFilaDeCola.PlataformaVencida(d.AcreditacionId),
                     Tipo: TipoItemBandeja.PlataformaVencida,
                     Titulo: d.TipoDocumentoNombre,
                     Subtitulo: d.PropietarioNombre,
@@ -424,7 +424,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         .SelectMany(proveedor => proveedor.Clientes.SelectMany(cliente => cliente.Documentos
             .Where(d => d.Estado == EstadoAcreditacion.Subida)
             .Select(d => new ItemBandejaDto(
-                Id: IdFilaBandeja.Seguimiento(d.AcreditacionId),
+                Id: IdDeFilaDeCola.Seguimiento(d.AcreditacionId),
                 Tipo: TipoItemBandeja.EnPlataformaSeguimiento,
                 Titulo: d.TipoDocumentoNombre,
                 Subtitulo: d.PropietarioNombre,

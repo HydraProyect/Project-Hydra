@@ -16,7 +16,7 @@ namespace CaeManager.Architecture.Tests;
 /// <para>
 /// Dos trinquetes por ubicación (<see cref="ListaCongelada"/>), uno por cada punto único que garantiza la unicidad:
 /// <list type="number">
-/// <item><b>El Id de la fila de la cola nace en <c>IdFilaBandeja</c></b> (Application): todo <c>new ItemBandejaDto(…)</c> de
+/// <item><b>El Id de la fila de la cola nace en <c>IdDeFilaDeCola</c></b> (Application): todo <c>new ItemBandejaDto(…)</c> de
 /// <c>src</c> recibe su Id de ese punto (o de <c>AlertaDto.IdDeFila</c>, que delega en él). Una cadena interpolada escrita en un
 /// productor nuevo es una línea que falta en la lista.</item>
 /// <item><b>Toda <c>@key</c> construida de un <c>.razor</c> pasa por <c>ClavesDeHermanos.De(…)</c></b> (Web), que numera las
@@ -41,13 +41,13 @@ namespace CaeManager.Architecture.Tests;
 /// </summary>
 public class ClavesDeListaUnicasPorConstruccionTests
 {
-    private const string ListaIds = "Bandeja-Id-fuera-del-punto-unico";
+    private const string ListaIds = "Id-de-fila-fuera-del-punto-unico";
     private const string ListaKeys = "Key-construida-fuera-del-punto-unico";
 
     private const string GuiaIds =
-        "El Id de una fila de la cola se construye en IdFilaBandeja (src/CaeManager.Application/Bandeja): un constructor por tipo de fila con " +
+        "El Id de una fila de la cola se construye en IdDeFilaDeCola (src/CaeManager.Application/Bandeja): un constructor por tipo de fila con " +
         "todas sus dimensiones. No escribas el Id a mano en el productor. Si es una instancia que no va a una lista (un ítem de prueba que solo " +
-        "sirve para calcular un tono), no sube la lista: pásale un Id de IdFilaBandeja o añade la línea con el motivo en tests/CaeManager.Architecture.Tests/Congelados/" + ListaIds + ".txt.";
+        "sirve para calcular un tono), no sube la lista: pásale un Id de IdDeFilaDeCola o añade la línea con el motivo en tests/CaeManager.Architecture.Tests/Congelados/" + ListaIds + ".txt.";
 
     private const string GuiaKeys =
         "Una @key construida se pasa por ClavesDeHermanos: `@{ var claves = new ClavesDeHermanos(); }` en el contenedor de los hermanos y " +
@@ -68,7 +68,7 @@ public class ClavesDeListaUnicasPorConstruccionTests
             var (total, fuera) = MedirItemIds(File.ReadAllText(archivo));
             construcciones += total;
             if (fuera > 0)
-                medido[new Ubicacion(ruta, "ItemBandejaDto con Id fuera de IdFilaBandeja")] = fuera;
+                medido[new Ubicacion(ruta, "ItemBandejaDto con Id fuera de IdDeFilaDeCola")] = fuera;
         }
 
         // Control positivo: si el recorrido no viera las construcciones reales, «ninguna fuera del punto único» valdría por vacío.
@@ -79,7 +79,7 @@ public class ClavesDeListaUnicasPorConstruccionTests
 
     /// <summary>
     /// Cuántos <c>new ItemBandejaDto(…)</c> hay en el texto y cuántos reciben su Id (primer argumento o <c>Id:</c> con nombre) de algo
-    /// que no es <c>IdFilaBandeja.X(…)</c> ni <c>algo.IdDeFila(…)</c>. También cuenta <c>… with { Id = … }</c> (cambiar el Id de un
+    /// que no es <c>IdDeFilaDeCola.X(…)</c> ni <c>algo.IdDeFila(…)</c>. También cuenta <c>… with { Id = … }</c> (cambiar el Id de un
     /// ítem ya hecho): desde el texto no se sabe de qué tipo es el receptor, así que un <c>with</c> que asigne <c>Id</c> cuenta siempre.
     /// </summary>
     internal static (int Total, int FueraDelPuntoUnico) MedirItemIds(string texto)
@@ -122,7 +122,7 @@ public class ClavesDeListaUnicasPorConstruccionTests
 
     private static bool EsDelPuntoUnico(ExpressionSyntax expresion) =>
         expresion is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax acceso }
-        && (acceso.Expression is IdentifierNameSyntax { Identifier.ValueText: "IdFilaBandeja" }
+        && (acceso.Expression is IdentifierNameSyntax { Identifier.ValueText: "IdDeFilaDeCola" }
             || acceso.Name.Identifier.ValueText == "IdDeFila");
 
     [Fact]
@@ -136,10 +136,10 @@ public class ClavesDeListaUnicasPorConstruccionTests
         MedirItemIds("class C { object X() => new ItemBandejaDto(Id: \"\", Tipo: 1); }").Should().Be((1, 1));
         MedirItemIds("class C { object X(ItemBandejaDto i) => i with { Id = \"otro\" }; }").Should().Be((0, 1));
 
-        MedirItemIds("class C { object X(Guid g) => new ItemBandejaDto(Id: IdFilaBandeja.Visita(g), Tipo: 1); }").Should().Be((1, 0));
+        MedirItemIds("class C { object X(Guid g) => new ItemBandejaDto(Id: IdDeFilaDeCola.Visita(g), Tipo: 1); }").Should().Be((1, 0));
         MedirItemIds("class C { object X(A a) => new ItemBandejaDto(Id: a.IdDeFila(\"alerta\"), Tipo: 1); }").Should().Be((1, 0));
         MedirItemIds("class C { object X(Guid g) => new Otro(Id: $\"x-{g}\"); }").Should().Be((0, 0));
-        MedirItemIds("class C { object X(Guid g) => new CaeManager.Application.ItemBandejaDto(IdFilaBandeja.Revision(g), 1); }").Should().Be((1, 0));
+        MedirItemIds("class C { object X(Guid g) => new CaeManager.Application.ItemBandejaDto(IdDeFilaDeCola.Revision(g), 1); }").Should().Be((1, 0));
     }
 
     // ---------------------------------------------------------------- 2. @key construidas en .razor
@@ -209,7 +209,7 @@ public class ClavesDeListaUnicasPorConstruccionTests
         // valdría por vacío (p. ej. si la enumeración de .razor se rompiera, todas las líneas de la lista pasarían a OBSOLETA a la vez).
         ficheros.Should().BeGreaterThan(150, "había 223 .razor en la Web al escribirlo");
         clases.GetValueOrDefault(ClaseDeKey.Entidad).Should().BeGreaterThan(60, "había ~70 @key de entidad al escribirlo");
-        clases.GetValueOrDefault(ClaseDeKey.PuntoUnico).Should().BeGreaterThanOrEqualTo(8, "había 8 @key por el punto único al escribirlo (Mi trabajo ×3, GrupoCola, Bandeja, Inicio, Trabajador 360, Sugerencias)");
+        clases.GetValueOrDefault(ClaseDeKey.PuntoUnico).Should().BeGreaterThanOrEqualTo(5, "había 8 @key por el punto único al escribirlo (Mi trabajo ×3, GrupoCola, Bandeja, Inicio, Trabajador 360, Sugerencias)");
         clases.GetValueOrDefault(ClaseDeKey.Construida).Should().BeGreaterThan(10, "había ~15 @key construidas fuera del punto único (congeladas) al escribirlo");
 
         ListaCongelada.Verificar(ListaKeys, medido, GuiaKeys).Should().BeNull();

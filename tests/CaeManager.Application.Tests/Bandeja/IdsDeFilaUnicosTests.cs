@@ -28,7 +28,7 @@ namespace CaeManager.Application.Tests.Bandeja;
 /// la fila: dos filas hermanas con el mismo Id matan el circuito de Blazor. Tres propiedades, cada una en su capa:
 ///
 /// <list type="number">
-/// <item><b>Cada constructor lleva todas las dimensiones de su fila</b> (<see cref="IdFilaBandeja"/>): variar una sola dimensión
+/// <item><b>Cada constructor lleva todas las dimensiones de su fila</b> (<see cref="IdDeFilaDeCola"/>): variar una sola dimensión
 /// cambia el Id, y dos tipos de fila nunca comparten Id aunque compartan Guid.</item>
 /// <item><b>Datos que generan hermanos no dan Ids repetidos</b> a través de la fusión real: el mismo Trabajador y Tipo en varios
 /// Centros, una Empresa bloqueante × varios Trabajadores × varios Centros (R2 de #1069), una Asignación repetida.</item>
@@ -52,13 +52,13 @@ public class IdsDeFilaUnicosTests
     public void El_Id_de_una_alerta_sin_documento_cambia_con_cada_una_de_sus_tres_dimensiones()
     {
         var (trabajador, tipo, centro) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
-        var baseId = IdFilaBandeja.Alerta("alerta", null, trabajador, tipo, centro);
+        var baseId = IdDeFilaDeCola.Alerta("alerta", null, trabajador, tipo, centro);
 
-        IdFilaBandeja.Alerta("alerta", null, Guid.NewGuid(), tipo, centro).Should().NotBe(baseId, "Trabajador");
-        IdFilaBandeja.Alerta("alerta", null, trabajador, Guid.NewGuid(), centro).Should().NotBe(baseId, "Tipo de documento");
-        IdFilaBandeja.Alerta("alerta", null, trabajador, tipo, Guid.NewGuid()).Should().NotBe(baseId, "Centro");
-        IdFilaBandeja.Alerta("alerta", null, trabajador, tipo, null).Should().NotBe(baseId, "sin Centro no es un Centro cualquiera");
-        IdFilaBandeja.Alerta("proximo", null, trabajador, tipo, centro).Should().NotBe(baseId, "el prefijo separa los tipos de fila");
+        IdDeFilaDeCola.Alerta("alerta", null, Guid.NewGuid(), tipo, centro).Should().NotBe(baseId, "Trabajador");
+        IdDeFilaDeCola.Alerta("alerta", null, trabajador, Guid.NewGuid(), centro).Should().NotBe(baseId, "Tipo de documento");
+        IdDeFilaDeCola.Alerta("alerta", null, trabajador, tipo, Guid.NewGuid()).Should().NotBe(baseId, "Centro");
+        IdDeFilaDeCola.Alerta("alerta", null, trabajador, tipo, null).Should().NotBe(baseId, "sin Centro no es un Centro cualquiera");
+        IdDeFilaDeCola.Alerta("proximo", null, trabajador, tipo, centro).Should().NotBe(baseId, "el prefijo separa los tipos de fila");
     }
 
     [Fact]
@@ -66,21 +66,21 @@ public class IdsDeFilaUnicosTests
     {
         var documento = Guid.NewGuid();
 
-        IdFilaBandeja.Alerta("alerta", documento, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid())
-            .Should().Be(IdFilaBandeja.Alerta("alerta", documento, Guid.NewGuid(), Guid.NewGuid(), null));
-        IdFilaBandeja.Alerta("alerta", documento, Guid.NewGuid(), Guid.NewGuid(), null)
-            .Should().NotBe(IdFilaBandeja.Alerta("alerta", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null));
+        IdDeFilaDeCola.Alerta("alerta", documento, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid())
+            .Should().Be(IdDeFilaDeCola.Alerta("alerta", documento, Guid.NewGuid(), Guid.NewGuid(), null));
+        IdDeFilaDeCola.Alerta("alerta", documento, Guid.NewGuid(), Guid.NewGuid(), null)
+            .Should().NotBe(IdDeFilaDeCola.Alerta("alerta", Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null));
     }
 
     [Fact]
     public void El_Id_de_un_requisito_cambia_con_el_Centro_el_Trabajador_y_el_Tipo()
     {
         var (centro, trabajador, tipo) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
-        var baseId = IdFilaBandeja.Requisito(centro, trabajador, tipo);
+        var baseId = IdDeFilaDeCola.Requisito(centro, trabajador, tipo);
 
-        IdFilaBandeja.Requisito(Guid.NewGuid(), trabajador, tipo).Should().NotBe(baseId, "Centro");
-        IdFilaBandeja.Requisito(centro, Guid.NewGuid(), tipo).Should().NotBe(baseId, "Trabajador");
-        IdFilaBandeja.Requisito(centro, trabajador, Guid.NewGuid()).Should().NotBe(baseId, "Tipo de documento");
+        IdDeFilaDeCola.Requisito(Guid.NewGuid(), trabajador, tipo).Should().NotBe(baseId, "Centro");
+        IdDeFilaDeCola.Requisito(centro, Guid.NewGuid(), tipo).Should().NotBe(baseId, "Trabajador");
+        IdDeFilaDeCola.Requisito(centro, trabajador, Guid.NewGuid()).Should().NotBe(baseId, "Tipo de documento");
     }
 
     [Fact]
@@ -89,9 +89,9 @@ public class IdsDeFilaUnicosTests
         var g = Guid.NewGuid();
         string[] ids =
         [
-            IdFilaBandeja.Alerta("alerta", g, g, g, g), IdFilaBandeja.Alerta("proximo", g, g, g, g), IdFilaBandeja.Revision(g),
-            IdFilaBandeja.Visita(g), IdFilaBandeja.SugerenciaVisita(g), IdFilaBandeja.Deteccion(g), IdFilaBandeja.Plataforma(g),
-            IdFilaBandeja.PlataformaVencida(g), IdFilaBandeja.Seguimiento(g), IdFilaBandeja.Requisito(g, g, g),
+            IdDeFilaDeCola.Alerta("alerta", g, g, g, g), IdDeFilaDeCola.Alerta("proximo", g, g, g, g), IdDeFilaDeCola.Revision(g),
+            IdDeFilaDeCola.Visita(g), IdDeFilaDeCola.SugerenciaVisita(g), IdDeFilaDeCola.Deteccion(g), IdDeFilaDeCola.Plataforma(g),
+            IdDeFilaDeCola.PlataformaVencida(g), IdDeFilaDeCola.Seguimiento(g), IdDeFilaDeCola.Requisito(g, g, g),
         ];
 
         ids.Should().OnlyHaveUniqueItems();
@@ -102,9 +102,9 @@ public class IdsDeFilaUnicosTests
     {
         ItemBandejaDto Item(string id) => new(id, TipoItemBandeja.Faltante, "t", "s", null, null, null, null, null, null);
 
-        IdFilaBandeja.Duplicados([Item("a"), Item("b"), Item("a"), Item("a")]).Should().Equal(new Dictionary<string, int> { ["a"] = 3 });
-        IdFilaBandeja.Duplicados([Item("a"), Item("b")]).Should().BeEmpty();
-        IdFilaBandeja.Duplicados([]).Should().BeEmpty();
+        IdDeFilaDeCola.Duplicados([Item("a"), Item("b"), Item("a"), Item("a")], i => i.Id).Should().Equal(new Dictionary<string, int> { ["a"] = 3 });
+        IdDeFilaDeCola.Duplicados([Item("a"), Item("b")], i => i.Id).Should().BeEmpty();
+        IdDeFilaDeCola.Duplicados(Array.Empty<ItemBandejaDto>(), i => i.Id).Should().BeEmpty();
     }
 
     // ------------------------------------- 2. datos que generan hermanos, a través de la fusión real
@@ -138,7 +138,7 @@ public class IdsDeFilaUnicosTests
         var cola = ColaCompleta([.. centros.Select(c => Faltante(trabajador, tipo, c)), Faltante(trabajador, tipo, null)], []);
 
         cola.Should().HaveCount(5);
-        IdFilaBandeja.Duplicados(cola).Should().BeEmpty();
+        IdDeFilaDeCola.Duplicados(cola, i => i.Id).Should().BeEmpty();
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class IdsDeFilaUnicosTests
         var cola = ColaCompleta([], [.. bloqueos.Select(Pendiente)]);
 
         cola.Should().HaveCount(bloqueos.Count);
-        IdFilaBandeja.Duplicados(cola).Should().BeEmpty();
+        IdDeFilaDeCola.Duplicados(cola, i => i.Id).Should().BeEmpty();
     }
 
     [Fact]
@@ -182,7 +182,7 @@ public class IdsDeFilaUnicosTests
             Hoy);
 
         bloqueos.Should().HaveCount(2, "un requisito de Trabajador y uno de Empresa, no cuatro");
-        IdFilaBandeja.Duplicados(ColaCompleta([], [.. bloqueos.Select(Pendiente)])).Should().BeEmpty();
+        IdDeFilaDeCola.Duplicados(ColaCompleta([], [.. bloqueos.Select(Pendiente)]), i => i.Id).Should().BeEmpty();
     }
 
     // ----------------------------------------------- 3. un productor que repite se deja ver

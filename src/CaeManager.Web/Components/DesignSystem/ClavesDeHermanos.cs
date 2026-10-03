@@ -19,7 +19,7 @@ public readonly record struct ClaveDeHermano(object Base, int Repeticion);
 /// las dimensiones que identifican su fila. Aquí la unicidad no depende del dato: la primera aparición de una identidad
 /// conserva su clave base y cada repetición posterior recibe la misma base con su número de orden, así que la pantalla
 /// pinta TODAS las filas (ninguna se oculta por repetida) y el circuito sigue vivo. Un duplicado sigue siendo un defecto
-/// del productor, que los tests de unicidad de los datos (<c>IdFilaBandeja.Duplicados</c>) y el log de Mi trabajo señalan.
+/// del productor, que los tests de unicidad de los datos (<c>IdDeFilaDeCola.Duplicados</c>) y el log de Mi trabajo señalan.
 /// </para>
 ///
 /// <para>
