@@ -82,7 +82,7 @@
     <value>El negocio en el periodo</value>
   </data>
   <data name="VentanaAlcanceTitulo" xml:space="preserve">
-    <value>Organizaciones</value>
+    <value>Organizaciones incluidas</value>
   </data>
   <data name="AlertaPresupuestoIaInicio" xml:space="preserve">
     <value>Presupuesto de IA superado este período en:</value>
