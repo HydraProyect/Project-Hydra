@@ -253,8 +253,10 @@ public class PaqueteDocumentalVisitaServiceTests
     [Fact]
     public async Task A_igual_emision_una_copia_confirmada_precede_a_una_sin_confirmar()
     {
-        DocumentoDeTrabajador(_ana, _formacion, Hoy.AddDays(-30), VigenciaDocumento.SinConfirmar, "sin-confirmar");
+        // La confirmada se siembra PRIMERO: sin el paso «confirmada antes», el desempate por alta (la
+        // más tardía gana) daría la sin confirmar, así que el test no puede pasar por casualidad.
         DocumentoDeTrabajador(_ana, _formacion, Hoy.AddDays(-30), VigenciaDocumento.NoCaduca, "no-caduca");
+        DocumentoDeTrabajador(_ana, _formacion, Hoy.AddDays(-30), VigenciaDocumento.SinConfirmar, "sin-confirmar");
 
         await GenerarAsync();
 
@@ -334,14 +336,42 @@ public class PaqueteDocumentalVisitaServiceTests
     [Fact]
     public async Task Si_el_archivo_de_la_mejor_copia_no_se_puede_abrir_envia_la_siguiente_vigente()
     {
-        // Storage inconsistente: la de mayor vigencia apunta a un objeto que ya no existe.
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(400)), "irrelevante", archivoInexistente: true);
+        // Storage inconsistente: la de emisión más reciente apunta a un objeto que ya no existe, y la reserva
+        // sigue el mismo orden (emisión), no el de vigencia: la de -90 vence mucho más tarde y NO es la elegida.
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "irrelevante", archivoInexistente: true);
         DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-30), VigenciaDocumento.VenceEl(Hoy.AddDays(200)), "copia-de-reserva");
-        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-90), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "otra-copia");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-90), VigenciaDocumento.VenceEl(Hoy.AddDays(900)), "otra-copia");
 
         await GenerarAsync();
 
         LeerZip().Should().ContainSingle("sigue siendo uno por titular y tipo").Which.Value.Should().Be("copia-de-reserva");
+    }
+
+    [Fact]
+    public async Task El_aviso_de_sin_confirmar_refleja_lo_que_viajo_si_la_elegida_no_se_pudo_abrir()
+    {
+        // La sin confirmar es la de emisión más reciente pero su archivo no existe: viaja la confirmada,
+        // y el log no puede decir que se envió algo sin confirmar.
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-5), VigenciaDocumento.SinConfirmar, "irrelevante", archivoInexistente: true);
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-50), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "confirmada-de-reserva");
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("confirmada-de-reserva");
+        _logger.Entradas.Should().NotContain(e => e.Mensaje.Contains("sin vigencia confirmada"));
+    }
+
+    [Fact]
+    public async Task El_aviso_de_sin_confirmar_consta_si_la_copia_de_reserva_que_viaja_esta_sin_confirmar()
+    {
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-5), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "irrelevante", archivoInexistente: true);
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-50), VigenciaDocumento.SinConfirmar, "sin-confirmar-de-reserva");
+
+        await GenerarAsync();
+
+        LeerZip().Should().ContainSingle().Which.Value.Should().Be("sin-confirmar-de-reserva");
+        _logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Warning
+            && e.Mensaje.Contains("sin vigencia confirmada") && e.Mensaje.Contains(_reconocimiento.Id.ToString()));
     }
 
     [Fact]

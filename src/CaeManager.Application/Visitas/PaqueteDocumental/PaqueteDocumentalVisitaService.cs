@@ -37,13 +37,12 @@ public class PaqueteDocumentalVisitaService(
 
     /// <summary>
     /// Un grupo por (titular, tipo) con al menos una copia no vencida — sus copias en orden
-    /// de preferencia, de las que viajará UNA —, los pares que se quedan fuera por tener solo
-    /// copias vencidas y los pares que viajan sin que nadie haya confirmado su vigencia.
+    /// de preferencia, de las que viajará UNA — y los pares que se quedan fuera por tener solo
+    /// copias vencidas.
     /// </summary>
     private record SeleccionPaquete(
         IReadOnlyList<IReadOnlyList<DocumentoParaZipDto>> Enviar,
-        IReadOnlyList<(Guid? TrabajadorId, Guid TipoDocumentoId)> SoloVencidos,
-        IReadOnlyList<(Guid? TrabajadorId, Guid TipoDocumentoId)> SoloSinConfirmar);
+        IReadOnlyList<(Guid? TrabajadorId, Guid TipoDocumentoId)> SoloVencidos);
 
     public async Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionId, CancellationToken cancellationToken = default)
     {
@@ -122,17 +121,6 @@ public class PaqueteDocumentalVisitaService(
                 string.Join(", ", seleccion.SoloVencidos.Select(o => $"{o.TipoDocumentoId}/{(o.TrabajadorId is { } t ? t.ToString() : "empresa")}")));
         }
 
-        if (seleccion.SoloSinConfirmar.Count > 0)
-        {
-            // La copia elegida no está vencida, pero nadie ha confirmado hasta cuándo vale:
-            // que conste, igual que lo omitido por vencido.
-            logger.LogWarning(
-                "Visita {VisitaId}: {Cantidad} documento(s) del paquete documental se envían sin vigencia confirmada (tipo/titular): {SinConfirmar}.",
-                visitaId,
-                seleccion.SoloSinConfirmar.Count,
-                string.Join(", ", seleccion.SoloSinConfirmar.Select(o => $"{o.TipoDocumentoId}/{(o.TrabajadorId is { } t ? t.ToString() : "empresa")}")));
-        }
-
         if (gruposAEnviar.Count == 0)
         {
             logger.LogWarning("Visita {VisitaId}: ningún documento vigente que enviar, no se genera paquete documental.", visitaId);
@@ -159,6 +147,23 @@ public class PaqueteDocumentalVisitaService(
         if (zip is null) return null; // ningún archivo pudo abrirse — no tiene sentido ofrecer un zip vacío.
         var (zipBytes, incluidos) = zip.Value;
 
+        // Lo que consta es lo que de verdad viajó: si la copia sin confirmar elegida no se pudo abrir
+        // y entró otra, no hay nada sin confirmar que avisar (y al revés).
+        var sinConfirmarEnviados = incluidos
+            .Select(i => candidatos.First(c => c.Id == i.DocumentoId))
+            .Where(c => c.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
+            .ToList();
+        if (sinConfirmarEnviados.Count > 0)
+        {
+            // La copia enviada no está vencida, pero nadie ha confirmado hasta cuándo vale:
+            // que conste, igual que lo omitido por vencido.
+            logger.LogWarning(
+                "Visita {VisitaId}: {Cantidad} documento(s) del paquete documental se envían sin vigencia confirmada (tipo/titular): {SinConfirmar}.",
+                visitaId,
+                sinConfirmarEnviados.Count,
+                string.Join(", ", sinConfirmarEnviados.Select(o => $"{o.TipoDocumentoId}/{(o.TrabajadorId is { } t ? t.ToString() : "empresa")}")));
+        }
+
         var nombreZip = $"documentacion-visita-{centro.Nombre.Replace(' ', '-')}-{visita.FechaInicio:yyyyMMdd}.zip";
         return new PaqueteDocumentalZip(nombreZip, zipBytes, incluidos, centro.Nombre, visita.FechaInicio, visita.FechaFin);
     }
@@ -177,9 +182,9 @@ public class PaqueteDocumentalVisitaService(
     /// </para>
     ///
     /// <para>
-    /// Si la copia elegida está sin confirmar —nadie ha anotado hasta cuándo vale, pero no
-    /// está vencida—, el par se devuelve en <see cref="SeleccionPaquete.SoloSinConfirmar"/>
-    /// para que conste en el log.
+    /// Si la copia que acaba viajando está sin confirmar —nadie ha anotado hasta cuándo vale,
+    /// pero no está vencida—, <see cref="ConstruirAsync"/> lo deja en el log (una vez
+    /// construido el zip, para que conste lo que de verdad se envió).
     /// </para>
     ///
     /// <para>
@@ -208,7 +213,6 @@ public class PaqueteDocumentalVisitaService(
     {
         var enviar = new List<IReadOnlyList<DocumentoParaZipDto>>();
         var soloVencidos = new List<(Guid? TrabajadorId, Guid TipoDocumentoId)>();
-        var soloSinConfirmar = new List<(Guid? TrabajadorId, Guid TipoDocumentoId)>();
 
         foreach (var grupo in candidatos.GroupBy(d => (d.TrabajadorId, d.TipoDocumentoId)))
         {
@@ -225,13 +229,10 @@ public class PaqueteDocumentalVisitaService(
                 continue;
             }
 
-            if (vigentes[0].EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
-                soloSinConfirmar.Add(grupo.Key);
-
             enviar.Add(vigentes.Select(d => new DocumentoParaZipDto(d.Id, d.TrabajadorId, d.TipoDocumentoId, d.ArchivoUrl)).ToList());
         }
 
-        return new SeleccionPaquete(enviar, soloVencidos, soloSinConfirmar);
+        return new SeleccionPaquete(enviar, soloVencidos);
     }
 
     /// <summary>
