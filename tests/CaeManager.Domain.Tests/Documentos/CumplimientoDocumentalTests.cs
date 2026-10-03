@@ -222,6 +222,19 @@ public class CumplimientoDocumentalTests
     }
 
     [Fact]
+    public void El_predicado_por_par_da_hoy_lo_mismo_que_el_del_estado_y_los_contextos_pasan_por_el()
+    {
+        foreach (var par in Pares)
+            CumplimientoDocumental.EsConforme(par).Should().Be(CumplimientoDocumental.EsConforme(par.Estado), par.Estado.ToString());
+
+        // Semilla de la tolerancia (decisión 2026-10-03, aún sin dato): un único predicado por par decide el numerador de
+        // todos los contextos; la suma de los contextos de un mismo nivel lo confirma.
+        CumplimientoDocumental.Evaluar(Pares).Should().Be(CumplimientoDocumental.Evaluar(Pares.Select(p => p.Estado)));
+        CumplimientoDocumental.PorContexto(ContextoCumplimiento.Centro, Pares).Values.Sum(f => f.AlDia)
+            .Should().Be(CumplimientoDocumental.Evaluar(Pares).AlDia);
+    }
+
+    [Fact]
     public void Un_contexto_desconocido_se_rechaza()
     {
         var accion = () => CumplimientoDocumental.De((ContextoCumplimiento)99, Guid.NewGuid(), Pares);
