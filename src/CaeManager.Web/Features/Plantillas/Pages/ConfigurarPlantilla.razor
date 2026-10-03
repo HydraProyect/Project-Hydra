@@ -59,7 +59,7 @@
             </CampoSelect>
 
             <CampoSelect Etiqueta="Centro (opcional)" Valor="@(_centroId?.ToString() ?? "")" ValorChanged="CambiarCentro">
-                <option value="">Todo el tenant</option>
+                <option value="">Toda la organización</option>
                 @foreach (var centro in _centrosDisponibles)
                 {
                     <option value="@centro.Id">@centro.Nombre — @centro.EmpresaRazonSocial</option>
@@ -67,7 +67,7 @@
             </CampoSelect>
 
             <CampoSelect Etiqueta="Cliente empresarial (opcional)" Valor="@(_clienteId?.ToString() ?? "")" ValorChanged="CambiarCliente">
-                <option value="">Todo el tenant</option>
+                <option value="">Toda la organización</option>
                 @foreach (var cliente in _clientesDisponibles)
                 {
                     <option value="@cliente.Id">@cliente.RazonSocial</option>

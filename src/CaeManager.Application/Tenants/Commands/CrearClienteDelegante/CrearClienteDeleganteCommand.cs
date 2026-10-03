@@ -108,7 +108,7 @@ public class CrearClienteDeleganteCommandHandler(
                 "ClienteDelegante.SinTenantDeOrigen", "No pudimos determinar desde qué organización operas."));
 
         if (await tenantRepositorio.ExisteConNombreAsync(request.NombreTenantCliente, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("ClienteDelegante.NombreDuplicado", "Ya existe un tenant con este nombre."));
+            return Result.Fallo<Guid>(Error.Crear("ClienteDelegante.NombreDuplicado", "Ya existe una organización con este nombre."));
 
         // Un Cliente Delegante es una única empresa gestionada por la
         // consultora — vocabulario ClienteDirecto para él mismo (DDL-072: el

@@ -77,12 +77,8 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
             "Confirmación del acto fundacional: su única «entrada» es una casilla de «Entiendo…» que habilita el botón. " +
             "No hay dato que se pierda al cerrar; cerrar y volver a abrir es gratis.",
 
-        // Los tres diálogos de confirmación de Visitas (cancelar, reactivar, cancelar en lote) llevan un «Motivo
-        // (opcional)»: es el cuerpo de una confirmación, no un formulario; «Volver» y la X lo descartan a propósito.
-        // Si se decide proteger el motivo, DialogoConfirmacion necesita un HayCambios que pase a su Modal.
-        ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor#DialogoConfirmacion1"] = MotivoOpcionalDeConfirmacion,
-        ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor#DialogoConfirmacion2"] = MotivoOpcionalDeConfirmacion,
-        ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor#DialogoConfirmacion3"] = MotivoOpcionalDeConfirmacion,
+        // Los tres diálogos de confirmación de Visitas con «Motivo (opcional)» salieron de esta lista (2026-10-03, regla de Chris:
+        // toda pérdida de edición pregunta): DialogoConfirmacion pasa ahora un HayCambios a su Modal y su botón de salida cierra como la X.
     };
 
     /// <summary>
@@ -93,16 +89,19 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     /// </summary>
     private static readonly IReadOnlyDictionary<string, string> SalidasDelPieSinGuardian = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        // Regla de Chris (2026-09-29): toda pérdida de edición pregunta. Vacía a propósito: «Descartar la propuesta» de Retención salió
-        // de esta lista el 2026-10-03 porque su Motivo es obligatorio, y «Desactivar usuario» salió el mismo día (decisión de Chris:
-        // debe preguntar antes de descartar lo elegido): el Gestor CAE de destino del traspaso ya no existe desde D-7, el diálogo no
-        // tiene ningún campo y por eso no lleva HayCambios; si vuelve a tener uno, el primer test de esta clase lo obliga a pasarlo
-        // y entonces su «Volver» tiene que pasar por SolicitarCierreAsync, sin excepción.
-    };
+        // El botón de confirmar de DialogoConfirmacion lleva la variante como parámetro (Destructivo por defecto, Primario al reactivar),
+        // y el analizador no la ve como literal: lo toma por un secundario. Es la acción del diálogo, no su salida (la salida es
+        // TextoBotonDescartar, que sí cierra por SolicitarCierreAsync).
+        ["src/CaeManager.Web/Components/DesignSystem/DialogoConfirmacion.razor#Modal1:@TextoBotonConfirmar"] =
+            "Acción, no salida: es el botón de confirmar del diálogo y su variante (Destructivo o Primario) la pasa la pantalla como " +
+            "parámetro, por lo que el analizador no la reconoce como primaria/destructiva. La salida es TextoBotonDescartar.",
 
-    private const string MotivoOpcionalDeConfirmacion =
-        "Diálogo de confirmación con un «Motivo (opcional)» de una línea o dos: la acción es confirmar, el texto es un añadido " +
-        "voluntario y se pierde a propósito con «Volver». Excepción abierta a decisión de producto (¿proteger el motivo?).";
+        // Regla de Chris (2026-09-29): toda pérdida de edición pregunta. «Descartar la propuesta» de Retención salió de esta lista el
+        // 2026-10-03 porque su Motivo es obligatorio, y «Desactivar usuario» salió el mismo día (decisión de Chris: debe preguntar antes
+        // de descartar lo elegido): el Gestor CAE de destino del traspaso ya no existe desde D-7, el diálogo no tiene ningún campo y por
+        // eso no lleva HayCambios; si vuelve a tener uno, el primer test de esta clase lo obliga a pasarlo y entonces su «Volver» tiene
+        // que pasar por SolicitarCierreAsync, sin excepción.
+    };
 
     // -------------------------------------------------------------------------------------------
 
@@ -120,6 +119,24 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         string.Join(Environment.NewLine, problemas).Should().BeEmpty(
             "un Drawer o Modal con campos pasa HayCambios (con InstantaneaFormulario, p. ej.): cerrarlo con la X, Escape o el fondo " +
             "con algo escrito pregunta «¿Descartar cambios?». Solo si no hay dato que perder se añade a ContenedoresSinGuardian, con su motivo");
+    }
+
+    /// <summary>
+    /// DialogoConfirmacion monta el Modal dentro de sí: el analizador de arriba mira los <c>&lt;DialogoConfirmacion&gt;</c> de cada pantalla
+    /// (pasan <c>HayCambios</c>), pero no su pie. Esta es la mitad que falta: el componente pasa ese <c>HayCambios</c> a su Modal y su
+    /// botón de salida cierra como la X (<c>SolicitarCierreAsync</c>); si no, «Volver» tiraría el motivo escrito sin preguntar aunque la
+    /// pantalla declare el guardián. NO ve que la referencia apunte al Modal correcto (lo prueba el bUnit de Visitas).
+    /// </summary>
+    [Fact]
+    public void DialogoConfirmacion_pasa_HayCambios_a_su_Modal_y_su_salida_cierra_como_la_X()
+    {
+        var razor = LimpiadorDeComentarios.Quitar(
+            File.ReadAllText(Path.Combine(MarcadoRazor.RaizDelRepositorio(), "src/CaeManager.Web/Components/DesignSystem/DialogoConfirmacion.razor")), razor: true);
+
+        var modal = MarcadoRazor.Aperturas(razor, "Modal").Should().ContainSingle("el diálogo monta un único Modal").Subject;
+        AtributoHayCambios.IsMatch(modal.Texto).Should().BeTrue("el Modal recibe el HayCambios del diálogo: la X, Escape y el fondo preguntan");
+        Regex.IsMatch(razor, @"CancelarAsync\s*\(\s*\)\s*=>\s*_modal\s+is\s*\{\s*\}\s+\w+\s*\?\s*\w+\.SolicitarCierreAsync\(\)").Should().BeTrue(
+            "el botón de salida llama a SolicitarCierreAsync del Modal en vez de poner Visible a false");
     }
 
     [Fact]

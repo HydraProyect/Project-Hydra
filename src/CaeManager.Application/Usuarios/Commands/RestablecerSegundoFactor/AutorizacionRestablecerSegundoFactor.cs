@@ -171,7 +171,7 @@ public class AutorizacionRestablecerSegundoFactorPorSoporte(
         if (sesion.Capacidad != CapacidadPrivilegio.RestablecimientoSegundoFactor)
             return Result.Fallo<ViaRestablecimientoSegundoFactor>(Error.Crear(
                 "SegundoFactor.SesionSinCapacidad",
-                "Esta sesión de soporte no permite restablecer la verificación en dos pasos. Hace falta una concesión específica para este Tenant."));
+                "Esta sesión de soporte no permite restablecer la verificación en dos pasos. Hace falta una concesión específica para esta organización."));
 
         if (sesion.UsuarioSimuladoId is not null)
             return Result.Fallo<ViaRestablecimientoSegundoFactor>(Error.Crear(
@@ -181,7 +181,7 @@ public class AutorizacionRestablecerSegundoFactorPorSoporte(
         if (tenantActual.TenantId != sesion.TenantObjetivoId)
             return Result.Fallo<ViaRestablecimientoSegundoFactor>(Error.Crear(
                 "SegundoFactor.FueraDelTenantObjetivo",
-                "Esta sesión solo puede actuar en el Tenant sobre el que se abrió."));
+                "Esta sesión solo puede actuar en la organización sobre la que se abrió."));
 
         var estado = await segundoFactor.ObtenerEstadoAsync(usuarioId, cancellationToken);
         if (estado is null || estado.TenantId != sesion.TenantObjetivoId)
@@ -190,7 +190,7 @@ public class AutorizacionRestablecerSegundoFactorPorSoporte(
         if (!await segundoFactor.EsAdministradorUnicoActivoAsync(usuarioId, sesion.TenantObjetivoId, cancellationToken))
             return Result.Fallo<ViaRestablecimientoSegundoFactor>(Error.Crear(
                 "SegundoFactor.NoEsAdministradorUnico",
-                "Soporte TALVEG solo restablece la verificación del Administrador único. Si el Tenant tiene otro Administrador activo, lo hace él desde Usuarios."));
+                "Soporte TALVEG solo restablece la verificación del Administrador único. Si la organización tiene otro Administrador activo, lo hace él desde Usuarios."));
 
         return Result.Exito(new ViaRestablecimientoSegundoFactor(sesion.SesionId));
     }

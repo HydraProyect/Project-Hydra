@@ -69,7 +69,7 @@ public class ConectarBuzonMicrosoft365CommandHandler(
         // reclamación necesita el Tenant de la sesión explícito (DN-3, el
         // buzón conectado pertenece siempre al Tenant propietario).
         if (tenantActual.TenantId is not { } tenantId)
-            return Result.Fallo<Guid>(Error.Crear("Integraciones.Microsoft365.TenantNoResuelto", "No se pudo determinar el tenant actual."));
+            return Result.Fallo<Guid>(Error.Crear("Integraciones.Microsoft365.TenantNoResuelto", "No se pudo determinar la organización actual."));
 
         // Sin esta comprobación, repetir el flujo OAuth para un buzón que el
         // propio Tenant ya tiene conectado chocaría contra el índice único
