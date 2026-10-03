@@ -155,7 +155,6 @@
                             @foreach (var centro in _centros)
                             {
                                 var expandido = _expandidosCentro.Contains(centro.CentroId);
-                                var alDia = Vigentes(centro);
                                 var incidencias = Incidencias(centro);
                                 var sinConfirmarCentro = SinConfirmar(centro);
                                 <div class="trabajador360-centro @(incidencias > 0 ? "trabajador360-centro-con-incidencia" : null)" @key="centro.CentroId">
@@ -175,9 +174,9 @@
                                                 <span class="trabajador360-centro-nombre">@centro.CentroNombre</span>
                                                 <span class="trabajador360-centro-resumen">
                                                     @centro.ClienteRazonSocial ·
-                                                    @(centro.Documentos.Count == 0
+                                                    @(centro.Cumplimiento.Requeridos == 0
                                                         ? Textos["ResumenSinExigencia"]
-                                                        : Textos["ResumenExigidosCorrectos", alDia, centro.Documentos.Count])
+                                                        : Textos["ResumenExigidosCorrectos", centro.Cumplimiento.AlDia, centro.Cumplimiento.Requeridos])
                                                 </span>
                                             </span>
                                         </button>

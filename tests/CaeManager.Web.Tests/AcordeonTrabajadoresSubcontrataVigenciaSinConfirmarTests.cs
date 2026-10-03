@@ -91,7 +91,8 @@ public class AcordeonTrabajadoresSubcontrataVigenciaSinConfirmarTests : BunitCon
     {
         var trabajador = new TrabajadorDocumentacionSubcontrataDto(
             Guid.NewGuid(), "Ruiz Peña, Ana", "12345678A", estado,
-            [new DocumentoRequeridoDto(estado == EstadoDocumento.Faltante ? null : Guid.NewGuid(), Guid.NewGuid(), "Reconocimiento médico", estado, fecha)]);
+            [new DocumentoRequeridoDto(estado == EstadoDocumento.Faltante ? null : Guid.NewGuid(), Guid.NewGuid(), "Reconocimiento médico", estado, fecha)],
+            CumplimientoDocumental.Evaluar([estado]));
 
         RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
 

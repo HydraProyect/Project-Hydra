@@ -223,7 +223,8 @@ public class Centro360Gen2Tests : BunitContext
 
     private static TrabajadorAsignacionDocumentacionDto Asignado(
         string nombre, EstadoDocumento peor, params DocumentoRequeridoDto[] documentos) =>
-        new(Guid.NewGuid(), Guid.NewGuid(), nombre, new DateOnly(2026, 1, 9), peor, documentos);
+        new(Guid.NewGuid(), Guid.NewGuid(), nombre, new DateOnly(2026, 1, 9), peor, documentos,
+            CumplimientoDocumental.Evaluar(documentos.Select(d => d.Estado)));
 
     private static IElement Boton(IRenderedComponent<CentroDetalle> cut, string texto) =>
         cut.FindAll("button").Where(b => b.TextContent.Trim() == texto)

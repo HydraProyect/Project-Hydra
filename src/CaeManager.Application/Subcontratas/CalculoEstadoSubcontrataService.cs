@@ -191,12 +191,13 @@ public class CalculoEstadoSubcontrataService(
                     ? CalculadoraEstadoDocumento.Calcular(documento!.EstadoVigencia, documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
                     : EstadoDocumento.Faltante;
 
-                var alDia = actual.AlDia + (estado is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad ? 1 : 0);
+                var alDia = actual.AlDia + (CumplimientoDocumental.EsConforme(estado) ? 1 : 0);
                 actual = (alDia, actual.Requeridos + 1);
 
-                // Sin vigencia confirmada no está al día (no suma arriba) pero
+                // Sin vigencia confirmada no cuenta como al día en el porcentaje (no suma arriba) pero
                 // tampoco es incidencia de color: mismo criterio que el Centro
-                // (CalculoEstadoCentroService.AgregarCausasDeEmpresaAsync).
+                // (CalculoEstadoCentroService.AgregarCausasDeEmpresaAsync). Próximo y Urgente suman al día
+                // y siguen siendo incidencia: son dos preguntas distintas.
                 if (estado is EstadoDocumento.SinCaducidad or EstadoDocumento.Vigente or EstadoDocumento.SinConfirmar) continue;
 
                 causasPorSubcontrata[subcontrataId].Add(new IncidenciaSubcontrataDto(

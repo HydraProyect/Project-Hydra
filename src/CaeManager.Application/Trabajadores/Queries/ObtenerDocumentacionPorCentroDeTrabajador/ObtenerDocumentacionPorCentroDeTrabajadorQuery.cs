@@ -27,9 +27,19 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCen
 public record ObtenerDocumentacionPorCentroDeTrabajadorQuery(Guid TrabajadorId)
     : IRequest<IReadOnlyList<CentroDocumentacionTrabajadorDto>>;
 
+/// <param name="Documentos">
+/// Lo que el Trabajador tiene pendiente o por revisar en ese Centro: no lista «Sin caducidad», que no es un requisito
+/// pendiente, así que NO sirve para contar el cumplimiento — para eso está <paramref name="Cumplimiento"/>.
+/// </param>
+/// <param name="Cumplimiento">
+/// Contexto <see cref="ContextoCumplimiento.Trabajador"/> en este Centro, medido por <see cref="CumplimientoDocumental"/>
+/// sobre TODOS los pares exigidos (incluidos los «Sin caducidad», que entran como requeridos y al día). El % de
+/// Trabajador 360 es la suma de estas fracciones.
+/// </param>
 public record CentroDocumentacionTrabajadorDto(
     Guid AsignacionId, Guid CentroId, string CentroNombre, Guid ClienteId, string ClienteRazonSocial,
-    DateOnly FechaAlta, EstadoDocumento PeorEstado, IReadOnlyList<DocumentoRequeridoDto> Documentos);
+    DateOnly FechaAlta, EstadoDocumento PeorEstado, IReadOnlyList<DocumentoRequeridoDto> Documentos,
+    FraccionCumplimiento Cumplimiento);
 
 public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
     IAsignacionesQueryContext asignacionesContext,
@@ -107,17 +117,20 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
                 .ToList();
 
             var items = new List<DocumentoRequeridoDto>();
+            var estadosDeLosPares = new List<EstadoDocumento>();
 
             foreach (var tipo in tiposRequeridos)
             {
                 if (!documentosPorTipo.TryGetValue(tipo.Id, out var documento))
                 {
                     items.Add(new DocumentoRequeridoDto(null, tipo.Id, tipo.Nombre, EstadoDocumento.Faltante, null));
+                    estadosDeLosPares.Add(EstadoDocumento.Faltante);
                     continue;
                 }
 
                 var estado = CalculadoraEstadoDocumento.Calcular(
                     documento.EstadoVigencia, documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
+                estadosDeLosPares.Add(estado);
                 // Solo se omite lo confirmado como que no caduca; lo sin confirmar se lista.
                 if (estado == EstadoDocumento.SinCaducidad) continue;
 
@@ -129,7 +142,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
             resultado.Add(new CentroDocumentacionTrabajadorDto(
                 asignacion.AsignacionId, asignacion.CentroId, asignacion.CentroNombre, asignacion.ClienteId, asignacion.ClienteRazonSocial,
-                asignacion.FechaAlta, peorEstado, ordenados));
+                asignacion.FechaAlta, peorEstado, ordenados, CumplimientoDocumental.Evaluar(estadosDeLosPares)));
         }
 
         return resultado;

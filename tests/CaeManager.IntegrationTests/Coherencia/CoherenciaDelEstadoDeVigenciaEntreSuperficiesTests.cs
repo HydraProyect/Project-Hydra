@@ -55,12 +55,13 @@ namespace CaeManager.IntegrationTests.Coherencia;
 ///
 /// <para>
 /// <b>Lo que esta tabla NO cubre, a propósito, porque hoy las superficies difieren y la regla buena es una
-/// decisión del propietario</b> (medido el 2026-10-03, ver el informe de S4): (1) el histórico de un mismo tipo
+/// decisión del propietario</b> (medido el 2026-10-03, ver el informe de S4): el histórico de un mismo tipo
 /// —un documento vencido y su renovación vigente—: Trabajador 360 y el cumplimiento del Centro eligen la
 /// renovación (<c>PreferenciaDocumentoPorTipo</c>) mientras Alertas, la lista de Trabajadores y las causas del
-/// Centro siguen diciendo «Vencido»; (2) el porcentaje de cumplimiento con «No caduca»: el Centro lo cuenta como
-/// al día y como requerido, Trabajador 360 lo omite y la tasa del Dashboard lo deja fuera del denominador. Esta
-/// tabla no los fija para no consagrar una de las dos lecturas.
+/// Centro siguen diciendo «Vencido». Esta tabla no lo fija para no consagrar una de las dos lecturas. Los
+/// porcentajes de cumplimiento (qué cuenta como al día, de quién se miden) los fija
+/// <see cref="CoherenciaDelCumplimientoEntreSuperficiesTests"/>; aquí el Centro solo comprueba que el panel y la
+/// lista dan la misma fracción.
 /// </para>
 /// </summary>
 public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
@@ -363,7 +364,10 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
         }
 
         var cumplimiento = (await calculoCentro.CalcularCumplimientoAsync([_centroId], CancellationToken.None))[_centroId];
-        var alDiaEsperado = _casos.Count(x => x.Esperado is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad);
+        // Al día en un porcentaje (decisión 2026-10-03): lo válido hoy —Vigente, Próximo y Urgente— y «No caduca»; no
+        // «Sin confirmar» ni Vencido. El oráculo está escrito a mano, no llama a CumplimientoDocumental.
+        var alDiaEsperado = _casos.Count(x => x.Esperado is EstadoDocumento.Vigente or EstadoDocumento.Proximo
+            or EstadoDocumento.Urgente or EstadoDocumento.SinCaducidad);
         if (cumplimiento.AlDia != alDiaEsperado || cumplimiento.Requeridos != _casos.Count)
             fallos.Add($"Centro · cumplimiento: esperado {alDiaEsperado}/{_casos.Count}, observado {cumplimiento.AlDia}/{cumplimiento.Requeridos}");
 

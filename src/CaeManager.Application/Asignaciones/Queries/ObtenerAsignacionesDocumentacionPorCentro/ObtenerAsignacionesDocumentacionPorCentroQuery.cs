@@ -48,9 +48,20 @@ public record DocumentoRequeridoDto(
     Guid? DocumentoId, Guid TipoDocumentoId, string TipoDocumentoNombre, EstadoDocumento Estado,
     DateOnly? FechaVencimiento, bool CaducaEnVentanaVisita = false);
 
+/// <param name="Documentos">
+/// Lo que se enseña al expandir al Trabajador: no lista «Sin caducidad» y, si hay un documento vencido y su
+/// renovación del mismo tipo, enseña los dos. NO sirve para contar el cumplimiento: para eso está
+/// <paramref name="Cumplimiento"/>.
+/// </param>
+/// <param name="Cumplimiento">
+/// Los pares exigidos de este Trabajador en este Centro medidos por <see cref="CumplimientoDocumental"/> (un documento
+/// por tipo, el preferido): la porción de este Trabajador del % del Centro. <see cref="FraccionCumplimiento.SinRequisitos"/>
+/// si el Centro no exige nada.
+/// </param>
 public record TrabajadorAsignacionDocumentacionDto(
     Guid AsignacionId, Guid TrabajadorId, string TrabajadorNombre, DateOnly FechaAlta,
-    EstadoDocumento PeorEstado, IReadOnlyList<DocumentoRequeridoDto> Documentos);
+    EstadoDocumento PeorEstado, IReadOnlyList<DocumentoRequeridoDto> Documentos,
+    FraccionCumplimiento Cumplimiento);
 
 public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
     IAsignacionesQueryContext asignacionesContext,
@@ -112,7 +123,8 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
         {
             return asignaciones
                 .Select(a => new TrabajadorAsignacionDocumentacionDto(
-                    a.AsignacionId, a.TrabajadorId, a.TrabajadorNombre, a.FechaAlta, EstadoDocumento.Vigente, []))
+                    a.AsignacionId, a.TrabajadorId, a.TrabajadorNombre, a.FechaAlta, EstadoDocumento.Vigente, [],
+                    FraccionCumplimiento.SinRequisitos))
                 .ToList();
         }
 
@@ -123,11 +135,15 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsRequeridos.Contains(d.TipoDocumentoId))
-            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
+            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
             .ToListAsync(cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
+
+        // El documento que representa a cada par Trabajador×Tipo: el mismo que usa el % del Centro.
+        var preferidosPorPar = PreferenciaDocumentoPorTipo.UnoPorClave(
+            documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, hoy);
 
         var documentosPorTrabajador = documentosExistentes
             .GroupBy(d => d.TrabajadorId)
@@ -172,9 +188,15 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             var ordenados = items.OrderBy(i => SeveridadEstadoDocumento.Rango(i.Estado)).ThenBy(i => i.TipoDocumentoNombre).ToList();
             var peorEstado = ordenados.Count > 0 ? ordenados[0].Estado : EstadoDocumento.Vigente;
 
+            var cumplimiento = CumplimientoDocumental.Evaluar(tiposRequeridosPorCentro.Select(tipo =>
+                preferidosPorPar.TryGetValue((asignacion.TrabajadorId, tipo.Id), out var preferido)
+                    ? CalculadoraEstadoDocumento.Calcular(
+                        preferido.EstadoVigencia, preferido.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
+                    : EstadoDocumento.Faltante));
+
             resultado.Add(new TrabajadorAsignacionDocumentacionDto(
                 asignacion.AsignacionId, asignacion.TrabajadorId, asignacion.TrabajadorNombre, asignacion.FechaAlta,
-                peorEstado, ordenados));
+                peorEstado, ordenados, cumplimiento));
         }
 
         return resultado;

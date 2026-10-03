@@ -92,7 +92,8 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     {
         var trabajador = new TrabajadorAsignacionDocumentacionDto(
             Guid.NewGuid(), Guid.NewGuid(), "Ruiz Peña, Ana", new DateOnly(2026, 1, 15), EstadoDocumento.Faltante,
-            [new DocumentoRequeridoDto(null, Guid.NewGuid(), "Reconocimiento médico", EstadoDocumento.Faltante, null)]);
+            [new DocumentoRequeridoDto(null, Guid.NewGuid(), "Reconocimiento médico", EstadoDocumento.Faltante, null)],
+            new FraccionCumplimiento(0, 1));
 
         RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
 
@@ -127,7 +128,8 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
     private static TrabajadorAsignacionDocumentacionDto TrabajadorConDocumento(EstadoDocumento estado) => new(
         Guid.NewGuid(), Guid.NewGuid(), "Ruiz Peña, Ana", new DateOnly(2026, 1, 15), estado,
         [new DocumentoRequeridoDto(estado == EstadoDocumento.Faltante ? null : Guid.NewGuid(), Guid.NewGuid(), "Reconocimiento médico", estado,
-            estado == EstadoDocumento.Faltante ? null : new DateOnly(2027, 1, 15))]);
+            estado == EstadoDocumento.Faltante ? null : new DateOnly(2027, 1, 15))],
+        CumplimientoDocumental.Evaluar([estado]));
 
     private async Task<IRenderedComponent<AcordeonAsignacionesCentro>> RenderizarExpandidoAsync(EstadoDocumento estado, string? rol = null)
     {

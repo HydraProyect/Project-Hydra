@@ -2,19 +2,19 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa;
 
 /// <summary>
-/// % de cumplimiento agregado de una Empresa (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
-/// § 0.8) — suma <c>AlDia</c>/<c>Requeridos</c> de <see cref="ICalculoEstadoCentroService.CalcularCumplimientoAsync"/>
-/// sobre los Centros donde la Empresa tiene actividad real (mismo universo que
-/// <c>ObtenerCentrosConActividadDeEmpresaQuery</c>: Empresa → Trabajadores →
-/// Asignaciones activas → Centro, Centro no cuelga de Empresa). Es la fracción
-/// total de pares Trabajador×TipoDocumento, no la media de los % de cada
-/// Centro — la media sesgaría a favor de Centros con pocos requisitos.
+/// % de cumplimiento de una Empresa (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
+/// § 0.8): contexto <see cref="ContextoCumplimiento.Empresa"/> de <see cref="CumplimientoDocumental"/>. Mide los pares
+/// Trabajador×TipoDocumento exigidos a los Trabajadores de la Empresa en los Centros donde tienen una Asignación activa
+/// (<see cref="ICalculoEstadoCentroService.ObtenerParesExigidosAsync"/>); los de otras Empresas que comparten Centro con
+/// ella no cuentan. Es la fracción total de pares, no la media de los % de cada Centro — la media sesgaría a favor de
+/// Centros con pocos requisitos.
 /// </summary>
 public record ObtenerCumplimientoEmpresaQuery(Guid EmpresaId) : IRequest<int?>;
 
@@ -58,11 +58,8 @@ public class ObtenerCumplimientoEmpresaQueryHandler(
 
         if (centroIds.Count == 0) return null;
 
-        var fracciones = await calculoEstadoCentro.CalcularCumplimientoAsync(centroIds, cancellationToken);
+        var pares = await calculoEstadoCentro.ObtenerParesExigidosAsync(centroIds, cancellationToken);
 
-        var alDia = fracciones.Values.Sum(f => f.AlDia);
-        var requeridos = fracciones.Values.Sum(f => f.Requeridos);
-
-        return requeridos == 0 ? null : (int)Math.Round(alDia * 100.0 / requeridos);
+        return CumplimientoDocumental.De(ContextoCumplimiento.Empresa, request.EmpresaId, pares).Porcentaje;
     }
 }

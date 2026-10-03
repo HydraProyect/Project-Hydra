@@ -123,7 +123,7 @@ public class InicioGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 2 } });
 
-        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("87% de cumplimiento documental");
+        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("91% de cumplimiento documental");
         cut.Find(".dashboard-resumen-anillo-bloqueo").TextContent.Should()
             .Be("2 centros de trabajo con el acceso bloqueado: el porcentaje cuenta documentos, no acceso.");
     }
@@ -133,7 +133,7 @@ public class InicioGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediadorDeInicio());
 
-        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("87% de cumplimiento documental");
+        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("91% de cumplimiento documental");
         cut.FindAll(".dashboard-resumen-anillo-bloqueo").Should().BeEmpty();
     }
 
@@ -757,7 +757,7 @@ public class InicioGen2Tests : BunitContext
         var cut = Renderizar(new MediadorDeInicio());
 
         cut.Find(".dashboard-resumen-anillo-detalle").TextContent.Trim()
-            .Should().Be("3.812 de 4.383 documentos vigentes en cartera");
+            .Should().Be("3.983 de 4.383 documentos al día en cartera");
 
         DestinoDelKpi(cut, "Trabajadores activos").Should().Be("/trabajadores");
         DestinoDelKpi(cut, "Centros / plataformas").Should().Be("/centros");
@@ -1017,11 +1017,15 @@ public class InicioGen2Tests : BunitContext
     /// </summary>
     private sealed class MediadorDeInicio(params ItemBandejaDto[] items) : IMediator
     {
-        /// <summary>Tres mil ochocientos doce vigentes de cuatro mil trescientos ochenta y tres — las cifras del mockup, para poder leerlas tal cual en los casos.</summary>
+        /// <summary>
+        /// Tres mil novecientos ochenta y tres al día (3.812 vigentes + 71 próximos + 100 urgentes) de cuatro mil trescientos
+        /// ochenta y tres documentos: 91 %. El mockup enseñaba 3.812 de 4.383 (87 %) porque contaba solo los vigentes; desde la
+        /// decisión del propietario de 2026-10-03 Próximo y Urgente también están al día (<see cref="CumplimientoDocumental"/>).
+        /// </summary>
         public KpisDashboardDto Kpis { get; init; } = new(
             TrabajadoresActivos: 418, Centros: 37, DocumentosVencidos: 400, DocumentosUrgentes: 100,
             DocumentosProximos: 71, DocumentosVigentes: 3812, VisitasProgramadas: 12,
-            TasaCumplimientoDocumental: 87);
+            TasaCumplimientoDocumental: 91);
 
         public IReadOnlyList<VisitaListaDto> Visitas { get; init; } = [];
         public IReadOnlyList<PendientePorPlataformaDto> Plataformas { get; init; } = [];

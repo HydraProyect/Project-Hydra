@@ -88,8 +88,12 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator) : IReques
         var proximos = porTenant.Sum(p => p.Valores.Documental.DocumentosProximos);
         var urgentes = porTenant.Sum(p => p.Valores.Documental.DocumentosUrgentes);
         var vencidos = porTenant.Sum(p => p.Valores.Documental.DocumentosVencidos);
-        var totalConVigencia = vigentes + proximos + urgentes + vencidos;
-        var tasaCumplimiento = totalConVigencia == 0 ? 100 : vigentes * 100 / totalConVigencia;
+        // La tasa es la de CumplimientoDocumental sobre los recuentos de todos los Tenants sumados (misma definición que
+        // la de Inicio, incluidos «Sin confirmar» en el denominador y «Sin caducidad» en los dos lados).
+        var tasaCumplimiento = KpisDashboardDto.FraccionDe(
+            vigentes, proximos, urgentes, vencidos,
+            porTenant.Sum(p => p.Valores.Documental.DocumentosSinConfirmar),
+            porTenant.Sum(p => p.Valores.Documental.DocumentosSinCaducidad)).Porcentaje ?? 100;
 
         var centrosConMenorCumplimiento = porTenant
             .SelectMany(p => p.Valores.CentrosConMenorCumplimiento.Select(c =>
