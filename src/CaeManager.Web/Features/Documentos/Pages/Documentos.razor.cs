@@ -38,7 +38,6 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 
 public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
-    private Modal? _modalGuardarFiltro;
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
@@ -319,6 +318,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
         _mostrarGuardarFiltro = false;
         _nombreFiltroNuevo = string.Empty;
+        _mensajeErrorFiltro = null;
 
         // Las banderas de «en curso» se reinician porque pertenecían a lo
         // anterior: dejarlas encendidas bloquearía para siempre el botón del
@@ -356,6 +356,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private bool _mostrarGuardarFiltro;
     private string _nombreFiltroNuevo = string.Empty;
     private bool _guardandoFiltro;
+
+    /// <summary>Error del servidor al guardar el filtro: se ve en el aviso fijo del ModalFormulario (D-20), no en un toast que desaparece.</summary>
+    private string? _mensajeErrorFiltro;
 
     private record FiltrosDocumentosJson(string? Busqueda, string? Ambito, string? Estado);
 
@@ -509,7 +512,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // filtros de arriba desde la URL, así que el modal parte de los
         // filtros ya vigentes en pantalla.
         if (Accion == "guardar-filtro")
+        {
+            _mensajeErrorFiltro = null;
             _mostrarGuardarFiltro = true;
+        }
     }
 
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
@@ -1003,7 +1009,11 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             : WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion");
     }
 
-    private void AbrirGuardarFiltro() => _mostrarGuardarFiltro = true;
+    private void AbrirGuardarFiltro()
+    {
+        _mensajeErrorFiltro = null;
+        _mostrarGuardarFiltro = true;
+    }
 
     private IReadOnlyList<OpcionEstado> OpcionesFiltrosGuardados =>
         _filtrosGuardados.Select(f => new OpcionEstado(f.Id.ToString(), f.Nombre)).ToList();
@@ -1061,8 +1071,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     /// <summary>
     /// P1-E2b: el modal «Guardar filtro» abre siempre con el nombre vacío, así que hay algo
-    /// que perder en cuanto se ha escrito uno. Lo leen AvisoCambiosSinGuardar y el Modal;
-    /// cerrado (también tras guardar) nunca.
+    /// que perder en cuanto se ha escrito uno. Lo lee el ModalFormulario (guardián de la X, Escape, el fondo y «Cancelar», y aviso de
+    /// navegación); cerrado (también tras guardar) nunca.
     /// </summary>
     private bool HayCambiosSinGuardar => _mostrarGuardarFiltro && !string.IsNullOrWhiteSpace(_nombreFiltroNuevo);
 
@@ -1073,6 +1083,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         {
             // Cancelar descarta el nombre: reabrir el modal sin tocarlo no es un cambio.
             _nombreFiltroNuevo = string.Empty;
+            _mensajeErrorFiltro = null;
         }
     }
 
@@ -1093,6 +1104,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
 
         _guardandoFiltro = true;
+        _mensajeErrorFiltro = null;
 
         try
         {
@@ -1101,7 +1113,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
             if (resultado.EsFallido)
             {
-                ToastService.MostrarError(resultado.Error);
+                // Como el resto del guardado: solo si el contexto sigue siendo el que lo pidió (otro contexto reinició el modal).
+                if (ContextoSigueSiendo(contexto))
+                    _mensajeErrorFiltro = resultado.Error.Mensaje;
                 return;
             }
 

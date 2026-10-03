@@ -36,8 +36,21 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
     /// (<c>VisibleChanged="v =&gt; …"</c>) lleva un &gt; dentro de las comillas y cortaba la etiqueta antes de llegar a HayCambios.
     /// </summary>
     private static bool ContenedorQuePregunta(string razor) =>
-        MarcadoRazor.Aperturas(LimpiadorDeComentarios.Quitar(razor, razor: true), "Drawer|Modal")
+        MarcadoRazor.Aperturas(LimpiadorDeComentarios.Quitar(razor, razor: true), "Drawer|Modal|DrawerFormulario|ModalFormulario")
             .Any(a => AtributoHayCambios.IsMatch(a.Texto));
+
+    /// <summary>
+    /// Un formulario «lleva el aviso» si monta <c>&lt;AvisoCambiosSinGuardar&gt;</c> él mismo o si usa un kit
+    /// (<c>DrawerFormulario</c>, <c>ModalFormulario</c>) que lo trae dentro y le exige <c>HayCambios</c>. Migrar una pantalla al kit
+    /// (S12) no la saca de la lista de protegidas: el aviso pasó al kit y la lista no baja. Un kit sin <c>HayCambios</c> no cuenta;
+    /// que el guardián sea real (no un <c>() =&gt; false</c>) lo vigilan <c>FormulariosEnModalUsanElKitTests</c> y su gemelo de Drawer.
+    /// </summary>
+    private static bool LlevaElAviso(string razor)
+    {
+        var texto = LimpiadorDeComentarios.Quitar(razor, razor: true);
+        return PatronUsoDelAviso.IsMatch(texto)
+            || MarcadoRazor.Aperturas(texto, "DrawerFormulario|ModalFormulario").Any(a => AtributoHayCambios.IsMatch(a.Texto));
+    }
 
     /// <summary>
     /// Formularios con el aviso puesto. Solo crece: un formulario nuevo con estado que se
@@ -55,6 +68,7 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
         "src/CaeManager.Web/Features/Centros/Pages/Centros.razor",
         "src/CaeManager.Web/Features/Clientes/Components/ClienteWorkspacePanel.razor",
         "src/CaeManager.Web/Features/Clientes/Pages/AltaGuiada.razor",
+        "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
         "src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor",
         "src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor",
         "src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor",
@@ -99,6 +113,7 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
         "src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor",
         "src/CaeManager.Web/Features/Centros/Components/DrawerAsignacionMasiva.razor",
         "src/CaeManager.Web/Features/Clientes/Components/FormularioRapidoCliente.razor",
+        "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
         "src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor",
         "src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor",
         "src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor",
@@ -157,7 +172,7 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
 
         var sinAviso = FormulariosProtegidos
             .Where(ruta => !File.Exists(Path.Combine(raiz, ruta))
-                || !PatronUsoDelAviso.IsMatch(File.ReadAllText(Path.Combine(raiz, ruta))))
+                || !LlevaElAviso(File.ReadAllText(Path.Combine(raiz, ruta))))
             .ToList();
 
         sinAviso.Should().BeEmpty(
@@ -181,6 +196,16 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
         ContenedorQuePregunta("<Drawer HayCambios=\"() => HayCambiosSinGuardar\" Visible=\"_drawerVisible\">").Should().BeTrue();
         ContenedorQuePregunta("<Modal Visible=\"_v\" HayCambios=\"() => X\">").Should().BeTrue();
         ContenedorQuePregunta("<Drawer Visible=\"_drawerVisible\">").Should().BeFalse();
+
+        // Los kits cuentan: migrar al kit no saca a una pantalla de las listas, y un kit sin HayCambios no la protege.
+        ContenedorQuePregunta("<ModalFormulario Visible=\"_v\" HayCambios=\"() => X\" Titulo=\"T\">").Should().BeTrue();
+        ContenedorQuePregunta("<DrawerFormulario Visible=\"_v\" HayCambios=\"() => X\" Titulo=\"T\">").Should().BeTrue();
+        ContenedorQuePregunta("<ModalFormulario Visible=\"_v\" Titulo=\"T\">").Should().BeFalse("el kit sin HayCambios no pregunta");
+        LlevaElAviso("<ModalFormulario Visible=\"_v\" HayCambios=\"() => X\" />").Should().BeTrue("el aviso de navegación va dentro del kit");
+        LlevaElAviso("<ModalFormulario Visible=\"_v\" />").Should().BeFalse("un kit sin HayCambios no lleva guardián");
+        LlevaElAviso("@* <ModalFormulario HayCambios=\"() => X\" /> *@").Should().BeFalse("un comentario de Razor no cuenta");
+        LlevaElAviso("<AvisoCambiosSinGuardar HayCambios=\"() => X\" />").Should().BeTrue();
+        LlevaElAviso("<Modal HayCambios=\"() => X\" />").Should().BeFalse("un Modal a pelo no monta el aviso de navegación");
         ContenedorQuePregunta("<AvisoCambiosSinGuardar HayCambios=\"X\" />").Should().BeFalse(
             "el aviso de navegación no es el Drawer ni el Modal");
 

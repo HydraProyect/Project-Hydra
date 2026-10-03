@@ -130,4 +130,7 @@
   <data name="PlatBloqueResultado" xml:space="preserve">
     <value>Vigència anotada en {0} de {1} acreditacions.</value>
   </data>
+  <data name="GuardarFiltroSinNombre" xml:space="preserve">
+    <value>Escriu un nom per al filtre</value>
+  </data>
 </root>

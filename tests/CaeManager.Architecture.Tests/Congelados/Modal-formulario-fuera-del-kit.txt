@@ -12,13 +12,11 @@ src/CaeManager.Web/Features/Delegaciones/OperadoresCaeExternosPanel.razor :: Mod
 src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor :: Modal = 3
 src/CaeManager.Web/Features/Documentos/Components/PlantillasTab.razor :: Modal = 1
 src/CaeManager.Web/Features/Documentos/Components/PlataformaTab.razor :: Modal = 2
-src/CaeManager.Web/Features/Documentos/Pages/Documentos.razor :: Modal = 1
 src/CaeManager.Web/Features/Empresas/Components/FormularioRapidoEmpresa.razor :: Modal = 1
 src/CaeManager.Web/Features/IncorporacionCartera/Components/DialogoSolicitarIncorporacion.razor :: Modal = 1
 src/CaeManager.Web/Features/Integraciones/Pages/Conexiones.razor :: Modal = 1
 src/CaeManager.Web/Features/Plataforma/Pages/Plataforma.razor :: Modal = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor :: Modal = 1
-src/CaeManager.Web/Features/Retencion/Pages/Retencion.razor :: Modal = 2
 src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor :: Modal = 2
-src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor :: Modal = 2
+src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor :: Modal = 1
 src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor :: Modal = 1
