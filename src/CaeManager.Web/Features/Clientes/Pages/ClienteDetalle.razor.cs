@@ -1,4 +1,5 @@
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
@@ -92,6 +93,13 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     private IReadOnlyList<CentroListaDto>? _centros;
     private int _totalCentros;
+    private bool _drawerToleranciasVisible;
+
+    /// <summary>
+    /// Los bloqueos de acceso de los Trabajadores en los Centros de ESTE Cliente empresarial (regla única por Centro,
+    /// <c>IEvaluacionDeAccesoPorCentroService</c>). «Bloqueado» es un estado del Trabajador: el Cliente dice cuántos hay y dónde.
+    /// </summary>
+    private IReadOnlyList<DocumentacionBloqueantePendienteDto> _bloqueos = [];
     private bool _cargandoCentros;
     private bool _errorCentros;
     private IReadOnlyList<EmpresaDeClienteDto>? _empresas;
@@ -187,6 +195,12 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _cargaSubcontratas++;
     }
 
+    private Task AbrirToleranciasAsync()
+    {
+        _drawerToleranciasVisible = true;
+        return Task.CompletedTask;
+    }
+
     private void ReiniciarParaNuevoCliente()
     {
         InvalidarCargas();
@@ -195,6 +209,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _resumen = null;
         _centros = null;
         _totalCentros = 0;
+        _bloqueos = [];
+        _drawerToleranciasVisible = false;
         _errorCentros = false;
         _cargandoCentros = false;
         _empresas = null;
@@ -299,6 +315,19 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (carga != _cargaCentros) return;
             _centros = pagina.Elementos;
             _totalCentros = pagina.TotalElementos;
+
+            // Informativo, como el resto de indicadores: si falla, la cabecera no los pinta (no tumba la pestaña).
+            try
+            {
+                var bloqueos = await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(), _cancelacion);
+                if (carga != _cargaCentros) return;
+                _bloqueos = bloqueos.Where(b => b.ClienteId == id).ToList();
+            }
+            catch (Exception)
+            {
+                if (carga == _cargaCentros)
+                    _bloqueos = [];
+            }
         }
         catch (Exception)
         {
@@ -456,6 +485,18 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
             var indicadores = new List<Indicador>();
 
+            // Trabajadores bloqueados: un Trabajador bloqueado en dos Centros cuenta una vez, y la ventana lo lista por Centro.
+            var trabajadoresBloqueados = _bloqueos.Select(b => b.TrabajadorId).Distinct().Count();
+            if (trabajadoresBloqueados > 0)
+            {
+                indicadores.Add(Crear("trabajadores-bloqueados",
+                    Plural(trabajadoresBloqueados, "IndicadorTrabajadoresBloqueadosUno", "IndicadorTrabajadoresBloqueadosVarios"),
+                    Plural(trabajadoresBloqueados, "VentanaTrabajadoresBloqueadosUno", "VentanaTrabajadoresBloqueadosVarios"),
+                    _bloqueos.Select(b => $"{b.TrabajadorNombre} · {b.CentroNombre}").Distinct().ToList(),
+                    TonoBadge.Peligro, TamanoBadge.Medio));
+            }
+
+            // El Centro solo está «Bloqueado» por la plataforma del Cliente empresarial (D-7), no por documentos.
             var bloqueados = _centros.Where(c => c.Estado == EstadoCentro.Bloqueado).ToList();
             if (bloqueados.Count > 0)
             {

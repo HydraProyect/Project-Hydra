@@ -192,4 +192,31 @@
   <data name="ToleranciaErrorPersonalizada" xml:space="preserve">
     <value>Indica un número entero de días de tolerancia, o elige la heredada del Cliente empresarial.</value>
   </data>
+  <data name="BloqueadosTrabajadoresUno" xml:space="preserve">
+    <value>1 trabajador bloqueado</value>
+  </data>
+  <data name="BloqueadosTrabajadoresVarios" xml:space="preserve">
+    <value>{0} trabajadores bloqueados</value>
+  </data>
+  <data name="BloqueadosEncabezado" xml:space="preserve">
+    <value>Trabajadores bloqueados en este Centro</value>
+  </data>
+  <data name="BloqueadoEtiqueta" xml:space="preserve">
+    <value>Bloqueado</value>
+  </data>
+  <data name="BloqueoSituacionAusente" xml:space="preserve">
+    <value>no tiene el documento</value>
+  </data>
+  <data name="BloqueoSituacionVencido" xml:space="preserve">
+    <value>venció el {0}</value>
+  </data>
+  <data name="BloqueoSituacionVencidoSinFecha" xml:space="preserve">
+    <value>ya no vale</value>
+  </data>
+  <data name="BloqueoSituacionFinTolerancia" xml:space="preserve">
+    <value>venció el {0} y la tolerancia de {1} días terminó</value>
+  </data>
+  <data name="BloqueoTipoDeEmpresa" xml:space="preserve">
+    <value>{0} (de la Empresa)</value>
+  </data>
 </root>

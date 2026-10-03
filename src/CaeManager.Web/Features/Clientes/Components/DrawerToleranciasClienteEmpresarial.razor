@@ -1,0 +1,195 @@
+@*
+    Tolerancia por defecto de un Cliente empresarial, por Tipo de documento: los días que un documento sigue valiendo para
+    ACCEDER a los Centros de ese Cliente empresarial tras vencer (regla de acceso por Centro, ReglaBloqueoDeAcceso). Sus Centros
+    la heredan salvo que personalicen la suya en su panel de requisitos (selector «heredada / predefinida / personalizada»).
+
+    Sin mockup (consultado «Cliente 360 TALVEG.dc.html» y el resto de los mockups de Cliente: ninguno dibuja la tolerancia);
+    se construye con el kit (DrawerFormulario) y el patrón del selector de tolerancia del Centro (CentroWorkspacePanel).
+    Lee con ObtenerToleranciasClienteEmpresarialQuery y escribe con EstablecerToleranciaClienteEmpresarialCommand, que ya
+    controla el alcance: la pantalla no decide quién puede.
+*@
+@using CaeManager.Application.TiposDocumento.Commands.EstablecerToleranciaClienteEmpresarial
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerToleranciasClienteEmpresarial
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.Clientes.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosClientes> Textos
+@inject IMediator Mediator
+@inject ToastService ToastService
+
+<DrawerFormulario Visible="Visible" VisibleChanged="VisibleChanged"
+                  Titulo="@Textos["ToleranciaTitulo"]"
+                  HayCambios="HayCambios" Guardando="_guardando" MensajeError="@_mensajeError"
+                  HayErroresDeCampo="@HayErroresDeCampo" OnGuardar="GuardarAsync"
+                  Cargando="_cargando" SinContenido="@(_errorCarga || _filas.Count == 0 ? SinContenidoTolerancias : null)"
+                  MotivoGuardarDeshabilitado="@MotivoGuardarDeshabilitado"
+                  TextoGuardar="@Textos["ToleranciaGuardar"]" TextoCancelar="@Textos["ToleranciaCancelar"]">
+    <ChildContent>
+        <p class="texto-ayuda-campo">@Textos["ToleranciaIntro"]</p>
+        @foreach (var fila in _filas)
+        {
+            <div class="campo-tolerancia" @key="fila.TipoDocumentoId">
+                <CampoSelect Etiqueta="@Etiqueta(fila)" Valor="@fila.Seleccion" ValorChanged="v => Cambiar(fila, v)">
+                    @foreach (var dias in ToleranciasPredefinidas)
+                    {
+                        <option value="@dias">@(dias == 0 ? Textos["ToleranciaOpcionSin"] : Textos["ToleranciaOpcionDias", dias])</option>
+                    }
+                    <option value="@Personalizado">@Textos["ToleranciaOpcionPersonalizada"]</option>
+                </CampoSelect>
+                @if (fila.Seleccion == Personalizado)
+                {
+                    <CampoTexto Etiqueta="@Textos["ToleranciaEtiquetaPersonalizada"]" Type="number" Valor="@fila.Personalizada"
+                                ValorChanged="v => fila.Personalizada = v"
+                                MensajeError="@(ErrorDe(fila))" />
+                }
+            </div>
+        }
+    </ChildContent>
+</DrawerFormulario>
+
+@code {
+    private const string Personalizado = "personalizado";
+
+    // Mismas opciones predefinidas que el selector de tolerancia del Centro (CentroWorkspacePanel): 0 es «sin tolerancia».
+    private static readonly int[] ToleranciasPredefinidas = [0, 5, 10, 15, 20, 30];
+
+    private sealed class Fila(ToleranciaTipoDocumentoDto origen)
+    {
+        public Guid TipoDocumentoId { get; } = origen.TipoDocumentoId;
+        public string Nombre { get; } = origen.Nombre;
+        public AmbitoAplicacion Ambito { get; } = origen.Ambito;
+        public int Original { get; set; } = origen.ToleranciaDias;
+        public string Seleccion { get; set; } = ToleranciasPredefinidas.Contains(origen.ToleranciaDias)
+            ? origen.ToleranciaDias.ToString() : Personalizado;
+        public string Personalizada { get; set; } = ToleranciasPredefinidas.Contains(origen.ToleranciaDias)
+            ? string.Empty : origen.ToleranciaDias.ToString();
+    }
+
+    /// <summary>Solo se pasa al kit cuando no hay campos que pintar: un fragmento no nulo sustituye al cuerpo.</summary>
+    private RenderFragment SinContenidoTolerancias => builder =>
+    {
+        builder.OpenComponent<EstadoVacio>(0);
+        builder.AddAttribute(1, nameof(EstadoVacio.Titulo), _errorCarga ? Textos["ToleranciaErrorCargaTitulo"].Value : Textos["ToleranciaSinTiposTitulo"].Value);
+        builder.AddAttribute(2, nameof(EstadoVacio.Descripcion), _errorCarga ? Textos["ToleranciaErrorCargaDescripcion"].Value : Textos["ToleranciaSinTiposDescripcion"].Value);
+        builder.CloseComponent();
+    };
+
+    private readonly InstantaneaFormulario _instantanea = new();
+    private List<Fila> _filas = [];
+    private bool _cargando;
+    private bool _errorCarga;
+    private bool _guardando;
+    private bool _visiblePrevio;
+    private bool _intentoGuardar;
+    private string? _mensajeError;
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+
+    /// <summary>El <c>Empresa.Id</c> del Cliente empresarial (en la ficha, <c>ClienteId</c>).</summary>
+    [Parameter, EditorRequired] public Guid ClienteEmpresarialId { get; set; }
+
+    /// <summary>Tras guardar con éxito: la ficha refresca lo que dependa de la tolerancia.</summary>
+    [Parameter] public EventCallback OnGuardado { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var abre = Visible && !_visiblePrevio;
+        _visiblePrevio = Visible;
+        if (abre)
+            await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _errorCarga = false;
+        _mensajeError = null;
+        _intentoGuardar = false;
+        try
+        {
+            var tolerancias = await Mediator.Send(new ObtenerToleranciasClienteEmpresarialQuery(ClienteEmpresarialId));
+            _filas = tolerancias.Select(t => new Fila(t)).ToList();
+            _instantanea.Fijar(ValoresActuales());
+        }
+        catch (Exception)
+        {
+            _filas = [];
+            _errorCarga = true;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private object?[] ValoresActuales() => _filas.SelectMany(f => new object?[] { f.Seleccion, f.Personalizada }).ToArray();
+
+    private bool HayCambios() => _instantanea.Difiere(ValoresActuales());
+
+    private string Etiqueta(Fila fila) =>
+        fila.Ambito == AmbitoAplicacion.Empresa
+            ? Textos["ToleranciaTipoDeEmpresa", fila.Nombre].Value
+            : fila.Nombre;
+
+    private void Cambiar(Fila fila, string valor)
+    {
+        fila.Seleccion = valor;
+        if (valor != Personalizado)
+            fila.Personalizada = string.Empty;
+    }
+
+    /// <summary>Los días que dice la fila, o <c>null</c> si «personalizado» no es un entero válido dentro de la cota.</summary>
+    private static int? Dias(Fila fila) =>
+        fila.Seleccion == Personalizado
+            ? int.TryParse(fila.Personalizada, out var n) && n is >= 0 and <= TipoDocumentoCentro.ToleranciaMaximaDias ? n : null
+            : int.Parse(fila.Seleccion);
+
+    private string? ErrorDe(Fila fila) =>
+        _intentoGuardar && Dias(fila) is null ? Textos["ToleranciaErrorPersonalizada", TipoDocumentoCentro.ToleranciaMaximaDias].Value : null;
+
+    private bool HayErroresDeCampo => _intentoGuardar && _filas.Any(f => Dias(f) is null);
+
+    private string? MotivoGuardarDeshabilitado =>
+        _errorCarga || _filas.Count == 0 || !HayCambios() ? Textos["ToleranciaSinCambios"].Value : null;
+
+    private async Task GuardarAsync()
+    {
+        _intentoGuardar = true;
+        _mensajeError = null;
+        if (_filas.Any(f => Dias(f) is null))
+            return;
+
+        _guardando = true;
+        try
+        {
+            foreach (var fila in _filas.Where(f => Dias(f) != f.Original))
+            {
+                var resultado = await Mediator.Send(new EstablecerToleranciaClienteEmpresarialCommand(
+                    ClienteEmpresarialId, fila.TipoDocumentoId, Dias(fila)));
+                if (resultado.EsFallido)
+                {
+                    // Las anteriores ya se guardaron (su Original ya es lo guardado) y lo que la persona está editando
+                    // se conserva: recargar aquí le borraría las ediciones que no entraron.
+                    _mensajeError = resultado.Error.Mensaje;
+                    return;
+                }
+                fila.Original = Dias(fila)!.Value;
+            }
+
+            ToastService.Mostrar(Textos["ToleranciaGuardada"].Value, TonoToast.Exito);
+            await VisibleChanged.InvokeAsync(false);
+            await OnGuardado.InvokeAsync();
+        }
+        catch (Exception)
+        {
+            _mensajeError = Textos["ToleranciaErrorGuardar"].Value;
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

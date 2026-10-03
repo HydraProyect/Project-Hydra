@@ -5,8 +5,11 @@ namespace CaeManager.Domain.Centros;
 /// <summary>
 /// Calcula el estado de cumplimiento de un Centro como el peor caso entre
 /// los EstadoDocumento de sus Documentos aplicables (de su Empresa y de cada
-/// Trabajador con Asignación activa) y sus RequisitosDocumentales
-/// bloqueantes. Función pura, sin dependencias — mismo criterio que
+/// Trabajador con Asignación activa) y las causas bloqueantes que vienen de la
+/// plataforma del Cliente empresarial (<c>tieneRequisitoBloqueanteSinCumplir</c>:
+/// vigencia vencida o acreditación rechazada allí). Los documentos de Trabajador
+/// y de Empresa bloquean a Trabajadores por Centro (<see cref="Documentos.ReglaBloqueoDeAcceso"/>),
+/// no ponen el Centro en <see cref="EstadoCentro.Bloqueado"/>. Función pura, sin dependencias — mismo criterio que
 /// CalculadoraEstadoDocumento: quien llama ya resolvió qué Documentos y
 /// Requisitos aplican a este Centro, aquí solo se agrega el peor caso.
 ///

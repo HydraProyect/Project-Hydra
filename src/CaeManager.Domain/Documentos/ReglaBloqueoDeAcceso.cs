@@ -77,9 +77,12 @@ public readonly record struct ResultadoDeRequisito(
 /// <para>
 /// <b>Tolerancia</b> (<see cref="ValidoParaAcceder"/>): el documento sigue valiendo para el acceso hasta
 /// <c>vencimiento efectivo + tolerancia</c> inclusive (con 15 días, vale el día 15 tras vencer y deja de valer el 16;
-/// con 0, vale el día en que vence y no el siguiente). La tolerancia solo afecta al acceso: el estado de vigencia
-/// que se muestra no cambia (un documento vencido dentro de tolerancia sigue siendo Vencido; se expone «en tolerancia
-/// hasta X» como dato aparte, <see cref="ResultadoDeRequisito.EnToleranciaHasta"/>).
+/// con 0, vale el día en que vence y no el siguiente). Esta regla solo decide el acceso y expone «en tolerancia
+/// hasta X» como dato aparte (<see cref="ResultadoDeRequisito.EnToleranciaHasta"/>); el estado de vigencia del Documento
+/// sigue siendo Vencido. Decisión del propietario (2026-10-03) todavía NO implementada aquí: un vencido dentro de la
+/// tolerancia cuenta como al día en el porcentaje (incremento 2 del porcentaje, <c>EsConforme(ParDocumentalExigido)</c>), y
+/// el estado «En tolerancia» se mostrará solo en las vistas con contexto de Centro o de Cliente empresarial (las generales
+/// siguen mostrando «Vencido»).
 /// </para>
 ///
 /// <para>

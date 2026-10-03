@@ -125,8 +125,8 @@ public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Con cartera pero sin Centros de Trabajo ni documentos con fecha: su 100% es «sin datos».</summary>
     private IReadOnlyList<ClienteRiesgoDto> SinDatos => ConCartera.Where(o => o.SinDatos).ToList();
 
-    /// <summary>Las que tienen algún Centro de Trabajo bloqueado (D-7): nunca en verde.</summary>
-    private IReadOnlyList<ClienteRiesgoDto> ConBloqueos => Organizaciones.Where(o => o.CentrosBloqueados > 0).ToList();
+    /// <summary>Las que tienen algún Trabajador bloqueado o algún Centro de Trabajo con bloqueo de la plataforma (D-7): nunca en verde.</summary>
+    private IReadOnlyList<ClienteRiesgoDto> ConBloqueos => Organizaciones.Where(o => o.TieneBloqueos).ToList();
 
     /// <summary>
     /// La media solo existe si alguna organización pesa en ella (lo dice la
@@ -139,7 +139,7 @@ public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Verde = 90% documental o más Y <see cref="ClienteRiesgoDto.AdmiteVeredictoVerde"/>:
-    /// con cartera, con datos y sin ningún Centro de Trabajo bloqueado.
+    /// con cartera, con datos y sin ningún bloqueo (Trabajadores bloqueados o Centros de Trabajo con bloqueo de la plataforma).
     /// </summary>
     private IReadOnlyList<ClienteRiesgoDto> OrganizacionesEnVerde =>
         Organizaciones.Where(o => o.AdmiteVeredictoVerde && o.TasaCumplimientoDocumental >= UmbralVerde).ToList();
@@ -223,9 +223,11 @@ public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva
         _ => Textos["DetalleBloqueosVarias", Enumerar(ConBloqueos.Select(o => o.Nombre))].Value
     };
 
-    private string PistaCentrosBloqueados => ConBloqueos.Count == 0
-        ? Textos["PistaCentrosBloqueadosNinguno"].Value
-        : Textos["PistaCentrosBloqueados", ConBloqueos.Count, Organizaciones.Count].Value;
+    /// <summary>En cuántas organizaciones hay Trabajadores bloqueados (los Centros con bloqueo de la plataforma van en el badge de su fila).</summary>
+    private string PistaCentrosBloqueados =>
+        Organizaciones.Count(o => o.TrabajadoresBloqueados > 0) is var conTrabajadoresBloqueados and > 0
+            ? Textos["PistaCentrosBloqueados", conTrabajadoresBloqueados, Organizaciones.Count].Value
+            : Textos["PistaCentrosBloqueadosNinguno"].Value;
 
     private string DetalleExcluidas => SinCartera.Count == 1
         ? Textos["DetalleExcluidaUna", SinCartera[0].Nombre].Value
@@ -273,7 +275,7 @@ public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva
         _ => TonoBadge.Peligro
     };
 
-    /// <summary>Con algún Centro de Trabajo bloqueado en la cartera, la media documental nunca se pinta en verde.</summary>
+    /// <summary>Con algún bloqueo en la cartera, la media documental nunca se pinta en verde.</summary>
     private TonoBadge TonoMedia => HayMediaQueMostrar && _kpis is not null
         ? SinVerdeSiHayBloqueos(TonoCumplimiento(_kpis.TasaCumplimientoDocumentalPromedio), ConBloqueos.Count)
         : TonoBadge.Neutro;
@@ -281,15 +283,29 @@ public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva
     private static TonoBadge SinVerdeSiHayBloqueos(TonoBadge tono, int bloqueos) =>
         bloqueos > 0 && tono == TonoBadge.Exito ? TonoBadge.Advertencia : tono;
 
-    /// <summary>Tono de la tasa de una fila: la de una organización con un Centro de Trabajo bloqueado no sale en verde.</summary>
+    /// <summary>Tono de la tasa de una fila: la de una organización con bloqueos no sale en verde.</summary>
     private static string ClaseTono(ClienteRiesgoDto o, int tasa) =>
-        $"tono-{SinVerdeSiHayBloqueos(TonoCumplimiento(tasa), o.CentrosBloqueados).ToString().ToLowerInvariant()}";
+        $"tono-{SinVerdeSiHayBloqueos(TonoCumplimiento(tasa), o.TieneBloqueos ? 1 : 0).ToString().ToLowerInvariant()}";
 
-    private TonoBadge TonoCentrosBloqueados => _kpis is { CentrosBloqueados: > 0 } ? TonoBadge.Peligro : TonoBadge.Neutro;
+    private TonoBadge TonoTrabajadoresBloqueados => _kpis is { TrabajadoresBloqueados: > 0 } ? TonoBadge.Peligro : TonoBadge.Neutro;
 
-    private string TextoBadgeBloqueados(ClienteRiesgoDto o) => o.CentrosBloqueados == 1
-        ? Textos["BadgeBloqueadosUno"].Value
-        : Textos["BadgeBloqueadosVarios", o.CentrosBloqueados].Value;
+    /// <summary>
+    /// Los bloqueos de una organización, dichos como son: Trabajadores bloqueados (el bloqueo de un documento es del Trabajador,
+    /// nunca del Centro) y, aparte, Centros de Trabajo con bloqueo de la plataforma del Cliente empresarial (D-7).
+    /// </summary>
+    private string TextoBadgeBloqueados(ClienteRiesgoDto o)
+    {
+        var partes = new List<string>();
+        if (o.TrabajadoresBloqueados > 0)
+            partes.Add(o.TrabajadoresBloqueados == 1
+                ? Textos["BadgeTrabajadoresBloqueadosUno"].Value
+                : Textos["BadgeTrabajadoresBloqueadosVarios", o.TrabajadoresBloqueados].Value);
+        if (o.CentrosBloqueados > 0)
+            partes.Add(o.CentrosBloqueados == 1
+                ? Textos["BadgeBloqueadosUno"].Value
+                : Textos["BadgeBloqueadosVarios", o.CentrosBloqueados].Value);
+        return string.Join(" · ", partes);
+    }
 
     // ---------------------------------------------------------------- tabla
 
@@ -310,10 +326,8 @@ public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva
             return Textos["TituloCumplimientoSinCartera", o.Nombre].Value;
         if (o.SinDatos)
             return Textos["TituloCumplimientoSinDatos", o.Nombre].Value;
-        if (o.CentrosBloqueados > 0)
-            return o.CentrosBloqueados == 1
-                ? Textos["TituloCumplimientoBloqueadaUno", o.Nombre, o.TasaCumplimientoDocumental].Value
-                : Textos["TituloCumplimientoBloqueadaVarios", o.Nombre, o.TasaCumplimientoDocumental, o.CentrosBloqueados].Value;
+        if (o.TieneBloqueos)
+            return Textos["TituloCumplimientoConBloqueos", o.Nombre, o.TasaCumplimientoDocumental, TextoBadgeBloqueados(o)].Value;
 
         var tramo = o.TasaCumplimientoDocumental >= UmbralVerde ? Textos["TramoVerde"].Value
             : o.TasaCumplimientoDocumental >= UmbralAmbar ? Textos["TramoAmbar"].Value
@@ -364,10 +378,10 @@ public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
-    /// <summary>Sin barra no es «sin riesgo» si no hay cartera, no hay datos o hay un Centro de Trabajo bloqueado.</summary>
+    /// <summary>Sin barra no es «sin riesgo» si no hay cartera, no hay datos o hay bloqueos.</summary>
     private string TextoSinBarra(ClienteRiesgoDto o) =>
         o.SinCarteraAsignada ? Textos["BarraSinCartera"].Value
-        : o.CentrosBloqueados > 0 ? Textos["BarraBloqueada"].Value
+        : o.TieneBloqueos ? Textos["BarraBloqueada"].Value
         : o.SinDatos ? Textos["BarraSinDatos"].Value
         : Textos["BarraSinRiesgo"].Value;
 

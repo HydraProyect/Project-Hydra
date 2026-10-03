@@ -80,7 +80,24 @@
                     <span class="centro360-indicadores">
                         @if (_resumen.Estado == EstadoCentro.Bloqueado)
                         {
-                            <Badge Tono="TonoBadge.Peligro">Acceso bloqueado</Badge>
+                            @* Solo lo causa la plataforma del Cliente empresarial (D-7): el bloqueo de un documento es del Trabajador. *@
+                            <Badge Tono="TonoBadge.Peligro">@EstadoCentroUi.Texto(EstadoCentro.Bloqueado)</Badge>
+                        }
+                        @if (_bloqueos.Count > 0)
+                        {
+                            var trabajadoresBloqueados = TextoBloqueoDeAcceso.TrabajadoresBloqueados(_bloqueos);
+                            var tituloBloqueados = TextoBloqueoDeAcceso.Titulo(Textos, trabajadoresBloqueados);
+                            <VentanaContexto Etiqueta="@tituloBloqueados" Titulo="@Textos["BloqueadosEncabezado"].Value">
+                                <Disparador>
+                                    <Badge Tono="TonoBadge.Peligro" ConIcono="true">@tituloBloqueados</Badge>
+                                </Disparador>
+                                <Detalle>
+                                    @foreach (var bloqueo in _bloqueos)
+                                    {
+                                        <span class="ventana-linea">@TextoBloqueoDeAcceso.Linea(Textos, bloqueo)</span>
+                                    }
+                                </Detalle>
+                            </VentanaContexto>
                         }
                         @if (_resumen.Estado == EstadoCentro.SinGestionCae)
                         {
@@ -169,6 +186,7 @@
                                               SoloIncidencias="false"
                                               FiltroTexto="@_busqueda" FiltroEstado="@_estadoFiltro"
                                               MostrarTotales="true"
+                                              Bloqueos="_bloqueos"
                                               OnCambio="CargarAsync" />
             </div>
 

@@ -13,10 +13,12 @@ namespace CaeManager.Application.Centros;
 /// <summary>
 /// Causa concreta que empuja el EstadoCentro por debajo de Vigente — un
 /// Documento (de la Empresa o de un Trabajador) que no está Vigente, o un
-/// hueco total (ningún Documento) de un Tipo con <c>TipoDocumentoCentro.BloqueaAcceso</c>.
-/// El vencimiento de un Documento bloqueante y los Documentos bloqueantes de Empresa
-/// bloquean a Trabajadores (<see cref="ReglaBloqueoDeAcceso"/>, usada por
-/// Mi trabajo) y aquí todavía no ponen el Centro en Bloqueado: decisión de producto pendiente.
+/// hueco total (ningún Documento) de un Tipo exigido por el Centro.
+/// Un documento de Trabajador o de Empresa, ausente o vencido, bloquea a PERSONAS
+/// (<see cref="ReglaBloqueoDeAcceso"/> por Centro, vía <see cref="IEvaluacionDeAccesoPorCentroService"/>: Mi trabajo y el detalle
+/// por Trabajador del Centro 360) y NUNCA pone el Centro en Bloqueado (decisión del propietario, 2026-10-03): «Bloqueado» es un
+/// estado del Trabajador. <see cref="CausaEstadoCentro.Bloqueante"/> queda solo para las causas que vienen de la plataforma
+/// del Cliente empresarial (vigencia vencida y acreditación rechazada, D-7).
 /// Solo se generan causas para lo que efectivamente aporta al peor caso —
 /// nada Vigente aparece aquí, igual que ObtenerAlertasQuery no lista
 /// Documentos al día.
@@ -477,14 +479,10 @@ public class CalculoEstadoCentroService(
                 if (parejasConDocumento.Contains((asignacion.TrabajadorId, tipo.Id)))
                     continue;
 
-                // BloqueaAcceso de la fila explícita (si hay) fuerza EstadoCentro.Bloqueado
-                // aquí mismo para el hueco TOTAL — sustituye a RequisitoDocumental.BloqueaAcceso/Cumplido
-                // (retirado). Un bloqueante vencido o de Empresa también bloquea (ReglaBloqueoDeAcceso)
-                // pero no pasa por este camino: ver el resumen de la clase.
-                var bloquea = filasPorPar.TryGetValue((tipo.Id, asignacion.CentroId), out var fila) && fila.BloqueaAcceso;
-
+                // Aunque la fila marque BloqueaAcceso, la falta total de un documento es un «Falta documentación» del Centro,
+                // no un «Bloqueado»: quien queda bloqueado es el Trabajador (ReglaBloqueoDeAcceso, por Centro).
                 causasPorCentro[asignacion.CentroId].Add(new CausaEstadoCentro(
-                    $"{tipo.Nombre} — {asignacion.TrabajadorNombre}", EstadoDocumento.Faltante, Bloqueante: bloquea, AmbitoCausa.Trabajador,
+                    $"{tipo.Nombre} — {asignacion.TrabajadorNombre}", EstadoDocumento.Faltante, Bloqueante: false, AmbitoCausa.Trabajador,
                     DocumentoId: null, TipoDocumentoId: null, FechaVencimiento: null));
             }
         }

@@ -6,6 +6,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
 using CaeManager.Application.Centros.Commands.EliminarCentro;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
@@ -55,6 +56,12 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private IReadOnlyList<VisitaResumenDto> _visitas = [];
     private IReadOnlyList<CanalGestionResumenDto> _canales = [];
     private int _documentosPorReclamar;
+
+    /// <summary>
+    /// Por qué cada Trabajador está bloqueado en ESTE Centro (<see cref="IEvaluacionDeAccesoPorCentroService"/>, la misma regla y
+    /// los mismos datos que Mi trabajo). «Bloqueado» es un estado del Trabajador, nunca del Centro: el Centro enseña el detalle.
+    /// </summary>
+    private IReadOnlyList<DocumentacionBloqueantePendienteDto> _bloqueos = [];
     private bool _cargando = true;
     private bool _error;
     private bool _cargandoCanales = true;
@@ -192,6 +199,7 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         _visitas = [];
         _canales = [];
         _documentosPorReclamar = 0;
+        _bloqueos = [];
         _error = false;
         _cargandoCanales = true;
     }
@@ -240,6 +248,19 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
             {
                 if (carga == _cargaDetalle)
                     _documentosPorReclamar = 0;
+            }
+
+            // Trabajadores bloqueados en este Centro: contexto, no el Centro. Mismo criterio de «no tumbar la página».
+            try
+            {
+                var bloqueos = await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(centroId), _cancelacion);
+                if (carga != _cargaDetalle) return;
+                _bloqueos = bloqueos;
+            }
+            catch (Exception)
+            {
+                if (carga == _cargaDetalle)
+                    _bloqueos = [];
             }
 
             // RendererInfo.IsInteractive: mismo motivo que TrabajadorDetalle

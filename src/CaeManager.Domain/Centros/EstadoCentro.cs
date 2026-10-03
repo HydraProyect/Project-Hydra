@@ -20,13 +20,11 @@ public enum EstadoCentro
     Faltante = 4,
 
     /// <summary>
-    /// Hoy lo causa un Trabajador asignado al que le falta por completo un Tipo
-    /// marcado con <c>TipoDocumentoCentro.BloqueaAcceso</c>, o una acreditación de
-    /// la plataforma vencida o rechazada. Es el peor caso posible. OJO: la regla
-    /// de acceso (<see cref="Documentos.ReglaBloqueoDeAcceso"/>: ausente o vencido,
-    /// del Trabajador o de su Empresa, bloquean a PERSONAS, no al Centro) no está
-    /// aplicada entera aquí; qué debe enseñar el Centro con Trabajadores o Empresas
-    /// bloqueados es una decisión de producto pendiente.
+    /// Solo lo causa la plataforma del Cliente empresarial: una acreditación vencida allí o rechazada por ella (D-7 del piloto
+    /// Outbound). Es el peor caso posible. Un documento de Trabajador o de Empresa ausente o vencido NO lo causa: bloquea a
+    /// PERSONAS (<see cref="Documentos.ReglaBloqueoDeAcceso"/>, por Centro) y el Centro enseña el detalle por Trabajador; «Bloqueado»
+    /// es un estado del Trabajador (decisión del propietario, 2026-10-03). Que el veredicto de la plataforma siga marcando el
+    /// Centro es una decisión pendiente aparte.
     /// </summary>
     Bloqueado = 5,
 

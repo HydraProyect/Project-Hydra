@@ -276,7 +276,7 @@ internal sealed class EscenarioDeFotoDeSuperficies
             Seccion("Subcontrata").Add($"{Emp(empresa)} | {Fr((await calculoSubcontrata.CalcularCumplimientoAsync([empresa], CancellationToken.None))[empresa])}");
 
         // 9. Tarjeta de Inicio.
-        var kpis = await new ObtenerKpisDashboardQueryHandler(c, c, c, c, c, alcance, calculoCentro).Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
+        var kpis = await new ObtenerKpisDashboardQueryHandler(c, c, c, c, c, alcance, calculoCentro, new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, alcance)).Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
         Seccion("Inicio").Add(
             $"activos={kpis.TrabajadoresActivos} centros={kpis.Centros} vencidos={kpis.DocumentosVencidos} urgentes={kpis.DocumentosUrgentes} " +
             $"proximos={kpis.DocumentosProximos} vigentes={kpis.DocumentosVigentes} tasa={kpis.TasaCumplimientoDocumental} fraccion={Fr(kpis.Fraccion)} " +

@@ -1204,7 +1204,6 @@ src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: L
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: MetaDelegada = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: MetaTuOrganizacion = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: MetricaCentros = 1
-src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: MetricaCentrosBloqueados = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: MetricaCumplimientoPromedio = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: MetricaOrganizaciones = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: MetricaProximos = 1
@@ -1237,8 +1236,6 @@ src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: S
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: SinRiesgoTodas = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: TituloCabecera = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: TituloCumplimiento = 1
-src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: TituloCumplimientoBloqueadaUno = 1
-src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: TituloCumplimientoBloqueadaVarios = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: TituloCumplimientoSinCartera = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: TituloCumplimientoSinDatos = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: TituloPagina = 1

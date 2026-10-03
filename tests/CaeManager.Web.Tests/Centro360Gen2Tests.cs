@@ -13,6 +13,7 @@ using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
@@ -78,6 +79,9 @@ public class Centro360Gen2Tests : BunitContext
         public Dictionary<Guid, List<TrabajadorSinAsignacionDto>> SinAsignacion { get; } = [];
         public Dictionary<Guid, List<DocumentoReclamableDto>> PorReclamar { get; } = [];
 
+        /// <summary>Los bloqueos de acceso por Centro: responde a la consulta con SU Centro, como la real.</summary>
+        public Dictionary<Guid, List<DocumentacionBloqueantePendienteDto>> Bloqueos { get; } = [];
+
         public Result<ResultadoBajaLoteDto> ResultadoBaja { get; set; } = Result.Exito(new ResultadoBajaLoteDto(0, []));
         public Result<Guid> ResultadoCrearAsignacion { get; set; } = Result.Exito(Guid.NewGuid());
 
@@ -117,6 +121,8 @@ public class Centro360Gen2Tests : BunitContext
                 ? new List<LoteReclamacionClienteDto> { new(Guid.NewGuid(), "Refrielectric S.A.", null, docs) }
                 : new List<LoteReclamacionClienteDto>(),
             ObtenerAsignacionesDocumentacionPorCentroQuery q => Asignaciones.GetValueOrDefault(q.CentroId) ?? [],
+            ObtenerDocumentacionBloqueantePendienteQuery q => (IReadOnlyList<DocumentacionBloqueantePendienteDto>)
+                (q.CentroId is { } id ? Bloqueos.GetValueOrDefault(id) ?? [] : Bloqueos.Values.SelectMany(b => b).ToList()),
             ObtenerTrabajadoresVisitaSinAsignacionQuery q => SinAsignacion.GetValueOrDefault(q.CentroId) ?? [],
             ObtenerDocumentosFaltantesParaAsignacionQuery => new List<DocumentoFaltanteDto>(),
             DarDeBajaAsignacionesCommand => ResultadoBaja,
@@ -569,6 +575,84 @@ public class Centro360Gen2Tests : BunitContext
     }
 
     /// <summary>
+    /// «Bloqueado» es un estado del Trabajador (2026-10-03): el Centro 360 dice cuántos Trabajadores están bloqueados EN ESE Centro y
+    /// cuál es, pero no rotula al Centro «Acceso bloqueado» por un documento. La consulta lleva el Centro de la página.
+    /// </summary>
+    [Fact]
+    public void Un_Trabajador_bloqueado_se_dice_en_la_cabecera_y_en_su_fila_y_el_Centro_no_se_rotula_bloqueado()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", estado: EstadoCentro.Faltante);
+        var bloqueado = Asignado("Juan Pérez", EstadoDocumento.Faltante, Documento("Formación PRL", EstadoDocumento.Faltante));
+        var libre = Asignado("Marco Vila", EstadoDocumento.Vigente, Documento("Formación PRL", EstadoDocumento.Vigente, new DateOnly(2027, 4, 17)));
+        mediador.Asignaciones[id] = [bloqueado, libre];
+        mediador.Bloqueos[id] =
+        [
+            new(id, "Centro Norte", bloqueado.TrabajadorId, "Juan Pérez", Guid.NewGuid(), "Formación PRL")
+        ];
+
+        var cut = Renderizar(id);
+
+        mediador.Enviadas.OfType<ObtenerDocumentacionBloqueantePendienteQuery>().Should().ContainSingle()
+            .Which.CentroId.Should().Be(id, "el detalle por Trabajador es el de ESTE Centro, no el de todos los visibles");
+        cut.Markup.Should().Contain("1 trabajador bloqueado");
+        cut.Markup.Should().NotContain("Acceso bloqueado").And.NotContain("Bloqueo de la plataforma CAE",
+            "un documento de Trabajador no bloquea al Centro: el Centro está en Faltante");
+        var filaBloqueada = cut.FindAll(".fila-trabajador-nombre").Single(b => b.TextContent.Contains("Juan Pérez"));
+        filaBloqueada.TextContent.Should().Contain("Bloqueado");
+        cut.FindAll(".fila-trabajador-nombre").Single(b => b.TextContent.Contains("Marco Vila"))
+            .TextContent.Should().NotContain("Bloqueado", "el otro Trabajador no tiene ningún bloqueo en este Centro");
+    }
+
+    /// <summary>
+    /// El acordeón de la lista de Centros no recibe los bloqueos: los carga él, con el Centro de su fila, y la fila del
+    /// Trabajador dice lo mismo que en Centro 360. Si la lectura falla, la fila se pinta sin el distintivo.
+    /// </summary>
+    [Fact]
+    public void El_acordeon_sin_Bloqueos_los_carga_para_su_Centro_y_marca_al_Trabajador()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        var bloqueado = Asignado("Juan Pérez", EstadoDocumento.Faltante, Documento("Formación PRL", EstadoDocumento.Faltante));
+        var libre = Asignado("Marco Vila", EstadoDocumento.Vigente, Documento("Formación PRL", EstadoDocumento.Vigente, new DateOnly(2027, 4, 17)));
+        mediador.Asignaciones[id] = [bloqueado, libre];
+        mediador.Bloqueos[id] =
+        [
+            new(id, "Centro Norte", bloqueado.TrabajadorId, "Juan Pérez", Guid.NewGuid(), "Formación PRL")
+        ];
+
+        var cut = RenderizarAcordeon(id);
+
+        cut.WaitForAssertion(() =>
+            cut.FindAll(".fila-trabajador-nombre").Single(b => b.TextContent.Contains("Juan Pérez"))
+                .TextContent.Should().Contain("Bloqueado"));
+        cut.FindAll(".fila-trabajador-nombre").Single(b => b.TextContent.Contains("Marco Vila"))
+            .TextContent.Should().NotContain("Bloqueado");
+        mediador.Enviadas.OfType<ObtenerDocumentacionBloqueantePendienteQuery>().Should().ContainSingle()
+            .Which.CentroId.Should().Be(id);
+    }
+
+    /// <summary>
+    /// Lo único que aún marca «Bloqueado» al Centro es la plataforma del Cliente empresarial (D-7), y se rotula así, no como
+    /// «Acceso bloqueado», que sugeriría el bloqueo de un Trabajador.
+    /// </summary>
+    [Fact]
+    public void El_bloqueo_de_la_plataforma_del_Cliente_empresarial_se_rotula_como_tal()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", estado: EstadoCentro.Bloqueado);
+
+        var cut = Renderizar(id);
+
+        cut.Markup.Should().Contain("Bloqueo de la plataforma CAE").And.NotContain("Acceso bloqueado");
+        cut.Markup.Should().NotContain("trabajador bloqueado", "sin ningún Trabajador bloqueado la cabecera no dice nada de Trabajadores");
+    }
+
+    /// <summary>
     /// Barra de trabajo del mockup: el filtro de estado sale del mismo léxico
     /// cerrado que el resto de la aplicación y filtra la lista ya cargada, sin
     /// pedir nada nuevo.
@@ -782,7 +866,7 @@ public class Centro360Gen2Tests : BunitContext
             [
                 nameof(ObtenerCentroPorIdQuery), nameof(ObtenerCentrosQuery),
                 nameof(ObtenerProximaVisitaPorCentroQuery), nameof(ObtenerLoteReclamacionQuery),
-                nameof(ObtenerCanalesGestionDeCentroQuery),
+                nameof(ObtenerCanalesGestionDeCentroQuery), nameof(ObtenerDocumentacionBloqueantePendienteQuery),
                 // Las del acordeón: es hijo de la página y su token es el suyo propio.
                 nameof(ObtenerAsignacionesDocumentacionPorCentroQuery),
                 nameof(ObtenerTrabajadoresVisitaSinAsignacionQuery)

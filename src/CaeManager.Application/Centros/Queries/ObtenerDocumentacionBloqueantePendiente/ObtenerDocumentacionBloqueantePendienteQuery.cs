@@ -18,7 +18,9 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueanteP
 /// Sustituye a ObtenerRequisitosDocumentalesPendientesQuery/RequisitoDocumental (retirados): antes era un check manual a nivel
 /// de Centro, ahora es automático y por Trabajador.
 /// </summary>
-public record ObtenerDocumentacionBloqueantePendienteQuery : IRequest<IReadOnlyList<DocumentacionBloqueantePendienteDto>>;
+/// <param name="CentroId">Limita el resultado a ese Centro (el detalle por Trabajador del Centro 360); <c>null</c> = todos los visibles (Mi trabajo).</param>
+public record ObtenerDocumentacionBloqueantePendienteQuery(Guid? CentroId = null)
+    : IRequest<IReadOnlyList<DocumentacionBloqueantePendienteDto>>;
 
 /// <param name="ClienteId">Cliente del Centro — alimenta la agrupación "por situación" del rediseño de Inicio (hallazgo P-03 de la auditoría de producto 2026-08-16). El Centro ya es exacto aquí, así que no hace falta ningún criterio de desambiguación.</param>
 /// <param name="EmpresaId">Empresa del Trabajador (<c>Trabajador.EmpresaId</c>) — sub-agrupación Empresa→Trabajador de "Requiere atención" en vocabulario Consultora (GrupoCola). En una fila de ámbito Empresa es la Empresa dueña del requisito, sea cual sea la columna que la guarde.</param>
@@ -46,7 +48,8 @@ public class ObtenerDocumentacionBloqueantePendienteQueryHandler(
     public async Task<IReadOnlyList<DocumentacionBloqueantePendienteDto>> Handle(
         ObtenerDocumentacionBloqueantePendienteQuery request, CancellationToken cancellationToken)
     {
-        var evaluacion = await evaluacionDeAcceso.EvaluarAsync(centroIds: null, cancellationToken);
+        var evaluacion = await evaluacionDeAcceso.EvaluarAsync(
+            request.CentroId is { } centroSolicitado ? [centroSolicitado] : null, cancellationToken);
 
         var bloqueos = evaluacion.Requisitos
             .Where(r => ReglaBloqueoDeAcceso.Bloquea(r.Resultado.Situacion))
