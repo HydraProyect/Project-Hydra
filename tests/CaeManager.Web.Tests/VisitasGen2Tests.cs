@@ -1326,9 +1326,14 @@ public class VisitasGen2Tests : BunitContext
         _ => mediator.Comandos.OfType<CancelarVisitasCommand>().Single().Motivo,
     };
 
-    private static IElement Salida(IRenderedComponent<Visitas> cut, string salida) => salida == "X"
-        ? cut.Find(".modal-cerrar")
-        : cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Volver");
+    /// <summary>Las cuatro salidas de un diálogo: «Volver», la X, Escape y el clic en el fondo; todas deben cerrar «como la X».</summary>
+    private static Task PulsarSalidaAsync(IRenderedComponent<Visitas> cut, string salida) => salida switch
+    {
+        "X" => cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs()),
+        "Escape" => cut.Find(".modal-contenido").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" }),
+        "Fondo" => cut.Find(".modal-superposicion").ClickAsync(new MouseEventArgs()),
+        _ => cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Volver").ClickAsync(new MouseEventArgs()),
+    };
 
     private static bool PreguntaDescartar(IRenderedComponent<Visitas> cut) =>
         cut.FindAll("h2").Any(h => h.TextContent.Trim() == "¿Descartar cambios?");
@@ -1340,11 +1345,17 @@ public class VisitasGen2Tests : BunitContext
     [InlineData(Reactivar, "X")]
     [InlineData(Lote, "Volver")]
     [InlineData(Lote, "X")]
-    public async Task Volver_o_la_X_con_motivo_escrito_pregunta_y_seguir_editando_lo_conserva(string cual, string salida)
+    [InlineData(Cancelar, "Escape")]
+    [InlineData(Cancelar, "Fondo")]
+    [InlineData(Reactivar, "Escape")]
+    [InlineData(Reactivar, "Fondo")]
+    [InlineData(Lote, "Escape")]
+    [InlineData(Lote, "Fondo")]
+    public async Task Cualquier_salida_con_motivo_escrito_pregunta_y_seguir_editando_lo_conserva(string cual, string salida)
     {
         var (cut, mediator) = await AbrirDialogoConMotivoAsync(cual, TextoDelMotivo);
 
-        await Salida(cut, salida).ClickAsync(new MouseEventArgs());
+        await PulsarSalidaAsync(cut, salida);
 
         PreguntaDescartar(cut).Should().BeTrue($"«{salida}» con el motivo escrito pregunta antes de tirarlo");
         await cut.PulsarEnElAvisoAsync("Seguir editando");
@@ -1364,11 +1375,17 @@ public class VisitasGen2Tests : BunitContext
     [InlineData(Reactivar, "X")]
     [InlineData(Lote, "Volver")]
     [InlineData(Lote, "X")]
+    [InlineData(Cancelar, "Escape")]
+    [InlineData(Cancelar, "Fondo")]
+    [InlineData(Reactivar, "Escape")]
+    [InlineData(Reactivar, "Fondo")]
+    [InlineData(Lote, "Escape")]
+    [InlineData(Lote, "Fondo")]
     public async Task Descartar_cambios_cierra_el_dialogo_sin_enviar_nada(string cual, string salida)
     {
         var (cut, mediator) = await AbrirDialogoConMotivoAsync(cual, TextoDelMotivo);
 
-        await Salida(cut, salida).ClickAsync(new MouseEventArgs());
+        await PulsarSalidaAsync(cut, salida);
         await cut.PulsarEnElAvisoAsync("Descartar cambios");
 
         cut.FindAll("[role=dialog]").Should().BeEmpty("al descartar se cierra");
@@ -1385,11 +1402,14 @@ public class VisitasGen2Tests : BunitContext
     [InlineData(Lote, "Volver", "")]
     [InlineData(Lote, "X", "")]
     [InlineData(Lote, "Volver", "   ")]
-    public async Task Volver_o_la_X_sin_motivo_escrito_cierran_sin_preguntar(string cual, string salida, string motivo)
+    [InlineData(Cancelar, "Escape", "")]
+    [InlineData(Reactivar, "Fondo", "")]
+    [InlineData(Lote, "Escape", "   ")]
+    public async Task Cualquier_salida_sin_motivo_escrito_cierran_sin_preguntar(string cual, string salida, string motivo)
     {
         var (cut, mediator) = await AbrirDialogoConMotivoAsync(cual, motivo);
 
-        await Salida(cut, salida).ClickAsync(new MouseEventArgs());
+        await PulsarSalidaAsync(cut, salida);
 
         PreguntaDescartar(cut).Should().BeFalse("sin nada escrito no hay nada que perder");
         cut.FindAll("[role=dialog]").Should().BeEmpty();
@@ -1415,6 +1435,7 @@ public class VisitasGen2Tests : BunitContext
         await cut.SalirYComprobarQuePreguntaAsync(navegacion);
         await cut.PulsarEnElAvisoAsync("Salir y descartar");
         navegacion.Uri.Should().EndWith(AvisoCambiosSinGuardarPrueba.DestinoFuera);
+        cut.FindAll("[role=dialog]").Should().BeEmpty("«Salir y descartar» cierra el diálogo de motivo (AlDescartar)");
     }
 
     [Theory]
