@@ -51,7 +51,7 @@
     flex: none;
     display: flex;
     color: var(--color-text-muted);
-    transition: transform var(--motion-base) var(--ease-standard);
+    transition: transform var(--motion-transition) var(--ease-fluid);
 }
 
 .grupo-cola-chevron-abierta {
@@ -91,6 +91,39 @@
     flex-direction: column;
     border-top: var(--border-default);
     padding-top: var(--space-1);
+}
+
+/*
+  Entrada del contenido al expandir: el contenido solo existe en el DOM mientras
+  el grupo está abierto (lo pinta Blazor), así que no hay altura que animar sin
+  tocar la lógica; entra con un fundido corto y los primeros hijos en cascada.
+*/
+.grupo-cola-contenido {
+    animation: grupo-cola-entra var(--motion-transition) var(--ease-fluid);
+}
+
+.grupo-cola-contenido > ::deep * {
+    animation: grupo-cola-entra var(--motion-transition) var(--ease-fluid) backwards;
+}
+
+.grupo-cola-contenido > ::deep :nth-child(1) { animation-delay: 70ms; }
+.grupo-cola-contenido > ::deep :nth-child(2) { animation-delay: 120ms; }
+.grupo-cola-contenido > ::deep :nth-child(n + 3) { animation-delay: 170ms; }
+
+@keyframes grupo-cola-entra {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .grupo-cola-chevron,
+    .grupo-cola-contenido,
+    .grupo-cola-contenido > ::deep * {
+        animation: none;
+        transition: none;
+    }
 }
 
 /*
