@@ -230,155 +230,143 @@
     }
 </div>
 
-<Drawer @ref="_drawerTipo" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? Textos["DrawerTituloNuevo"].Value : Textos["DrawerTituloEditar"].Value)" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
-    <ChildContent>
-        <p class="nivel-drawer">@Textos["NivelDrawer"]</p>
+<DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync"
+                 Titulo="@(_editandoId is null ? Textos["DrawerTituloNuevo"].Value : Textos["DrawerTituloEditar"].Value)"
+                 HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
+                 HayErroresDeCampo="@(_erroresCampo.Count > 0)" OnGuardar="GuardarAsync"
+                 AlDescartarPorNavegacion="CerrarFormularioDescartando"
+                 TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <p class="nivel-drawer">@Textos["NivelDrawer"]</p>
 
-        @if (_mensajeErrorFormulario is not null)
+    <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Nombre))" />
+
+    <div class="bloque-campo">
+        @* Sin for= a propósito: los E2E piden GetByLabel("Nombre"), y un
+           «Nombres alternativos» asociado al input casaría también. El input
+           lleva su propio aria-label. *@
+        <span class="etiqueta-campo">@Textos["EtiquetaAlias"] <span class="etiqueta-pista">@Textos["PistaAlias"]</span></span>
+        <div class="fila-alias">
+            <input class="input-alias" aria-label="@Textos["AriaAliasNuevo"]" placeholder="@Textos["PlaceholderAlias"]"
+                   value="@_aliasNuevo" @oninput="e => _aliasNuevo = e.Value?.ToString() ?? string.Empty"
+                   @onkeydown="ManejarTeclaAliasAsync" />
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AgregarAlias">
+                @Textos["BotonAnadirAlias"]
+            </Boton>
+        </div>
+        @if (_aliasesSeleccionados.Count > 0)
         {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
-        }
-
-        <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Nombre))" />
-
-        <div class="bloque-campo">
-            @* Sin for= a propósito: los E2E piden GetByLabel("Nombre"), y un
-               «Nombres alternativos» asociado al input casaría también. El input
-               lleva su propio aria-label. *@
-            <span class="etiqueta-campo">@Textos["EtiquetaAlias"] <span class="etiqueta-pista">@Textos["PistaAlias"]</span></span>
-            <div class="fila-alias">
-                <input class="input-alias" aria-label="@Textos["AriaAliasNuevo"]" placeholder="@Textos["PlaceholderAlias"]"
-                       value="@_aliasNuevo" @oninput="e => _aliasNuevo = e.Value?.ToString() ?? string.Empty"
-                       @onkeydown="ManejarTeclaAliasAsync" />
-                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AgregarAlias">
-                    @Textos["BotonAnadirAlias"]
-                </Boton>
+            <div class="chips-filtros">
+                @foreach (var alias in _aliasesSeleccionados)
+                {
+                    <span class="chip-filtro">
+                        @alias
+                        <button type="button" class="chip-filtro-quitar" @onclick="() => QuitarAlias(alias)" aria-label="@Textos["AriaQuitarAlias", alias]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                    </span>
+                }
             </div>
-            @if (_aliasesSeleccionados.Count > 0)
+        }
+    </div>
+
+    @if (_editandoId is null)
+    {
+        <CampoSelect Etiqueta="@Textos["EtiquetaAmbitoAplicacion"]" Valor="@_ambito.ToString()" ValorChanged="v => _ambito = Enum.Parse<AmbitoAplicacion>(v)">
+            <option value="@nameof(AmbitoAplicacion.Trabajador)">@Textos["AmbitoTrabajador"]</option>
+            <option value="@nameof(AmbitoAplicacion.Cliente)">@Textos["AmbitoCliente"]</option>
+            <option value="@nameof(AmbitoAplicacion.Empresa)">@Textos["AmbitoEmpresa"]</option>
+            <option value="@nameof(AmbitoAplicacion.Vehiculo)">@Textos["AmbitoVehiculo"]</option>
+            <option value="@nameof(AmbitoAplicacion.Proyecto)">@Textos["AmbitoProyecto"]</option>
+        </CampoSelect>
+    }
+    else
+    {
+        <div class="bloque-campo ambito-fijo">
+            <span class="etiqueta-campo">@Textos["EtiquetaAmbitoAplicacion"]</span>
+            <span class="ambito-fijo-valor">@TextoAmbito(_ambito)</span>
+            <span class="pista-campo">@Textos["PistaAmbitoFijo"]</span>
+        </div>
+    }
+
+    <div class="bloque-vencimiento">
+        <label class="campo-checkbox">
+            <input type="checkbox" @bind="_aplicaVencimientoAutomatico" /> @Textos["CheckVencimientoAutomatico"]
+        </label>
+        @if (_aplicaVencimientoAutomatico)
+        {
+            <div class="sangria-vigencia">
+                <CampoTexto Etiqueta="@Textos["EtiquetaVigenciaMeses"]" Type="number" Valor="@_vigenciaMeses" ValorChanged="v => _vigenciaMeses = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.VigenciaMeses))" />
+            </div>
+        }
+    </div>
+
+    <fieldset class="bloque-exigencia">
+        <legend>@Textos["LeyendaExigencia"]</legend>
+        <CampoSelect Etiqueta="@Textos["EtiquetaSePide"]" Valor="@_requerido.ToString()" ValorChanged="v => _requerido = Enum.Parse<RequisitoDocumental>(v)">
+            <option value="@nameof(RequisitoDocumental.No)">@Textos["RequeridoNo"]</option>
+            <option value="@nameof(RequisitoDocumental.Si)">@Textos["RequeridoSi"]</option>
+            <option value="@nameof(RequisitoDocumental.Condicional)">@Textos["OpcionRequeridoCondicional"]</option>
+        </CampoSelect>
+        <CampoSelect Etiqueta="@Textos["EtiquetaAutoridad"]" Valor="@_naturaleza.ToString()" ValorChanged="v => _naturaleza = Enum.Parse<NaturalezaJuridica>(v)">
+            <option value="@nameof(NaturalezaJuridica.ObligacionLegal)">@Textos["NaturalezaObligacionLegal"]</option>
+            <option value="@nameof(NaturalezaJuridica.ObligacionCondicionada)">@Textos["NaturalezaObligacionCondicionada"]</option>
+            <option value="@nameof(NaturalezaJuridica.PracticaSector)">@Textos["NaturalezaPracticaSector"]</option>
+            <option value="@nameof(NaturalezaJuridica.RequisitoCliente)">@Textos["NaturalezaRequisitoCliente"]</option>
+            <option value="@nameof(NaturalezaJuridica.Recomendacion)">@Textos["OpcionNaturalezaRecomendacion"]</option>
+        </CampoSelect>
+        <p class="vista-previa-exigencia">
+            @Textos["VistaPreviaExigencia"]
+            <Badge Tono="@TonoExigencia(_requerido, _naturaleza)">@TextoExigencia(_requerido, _naturaleza)</Badge>
+        </p>
+    </fieldset>
+
+    <CampoTexto Etiqueta="@Textos["EtiquetaOrden"]" Type="number" Valor="@_orden" ValorChanged="v => _orden = v" />
+    @if (_editandoId is null)
+    {
+        <p class="pista-campo pista-orden">@PistaOrden</p>
+    }
+
+    <CampoTextarea Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_notas" ValorChanged="v => _notas = v" Filas="3" />
+    <CampoTextarea Etiqueta="@Textos["EtiquetaDescripcion"]" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Descripcion))" />
+    <CampoTextarea Etiqueta="@Textos["EtiquetaCriterios"]" Valor="@_criteriosValidacion" ValorChanged="v => _criteriosValidacion = v" Filas="4" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.CriteriosValidacion))" />
+    <p class="pista-campo pista-criterios">
+        @Textos["PistaCriterios"]
+    </p>
+    <CampoTexto Etiqueta="@Textos["EtiquetaSeSolicitaA"]" Valor="@_seSolicitaA" ValorChanged="v => _seSolicitaA = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.SeSolicitaA))" />
+    <CampoTextarea Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Observaciones))" />
+
+    @if (_ambito == AmbitoAplicacion.Trabajador)
+    {
+        @* El mockup rotula esto «vacío = aplica en todos». Solo es verdad
+           cuando «¿Se pide?» es «Sí, siempre»: un centro sin fila propia
+           sigue el valor general (ResolucionTipoDocumentoCentro.Aplica), así
+           que con «No se pide» dejarlo vacío significa que no lo pide
+           ninguno. El resumen de abajo dice lo que pasa de verdad. *@
+        <div class="bloque-campo bloque-centros">
+            <span class="etiqueta-campo">@Textos["EtiquetaCentrosExpresos"] <span class="etiqueta-pista">@Textos["PistaCentrosExpresos"]</span></span>
+            @if (_centrosDisponibles.Count == 0)
             {
-                <div class="chips-filtros">
-                    @foreach (var alias in _aliasesSeleccionados)
+                <p class="texto-vacio-seccion">@Textos["SinCentrosCreados"]</p>
+            }
+            else
+            {
+                <div class="lista-centros">
+                    @foreach (var centro in _centrosDisponibles)
                     {
-                        <span class="chip-filtro">
-                            @alias
-                            <button type="button" class="chip-filtro-quitar" @onclick="() => QuitarAlias(alias)" aria-label="@Textos["AriaQuitarAlias", alias]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                        </span>
+                        <label class="opcion-centro">
+                            <input type="checkbox"
+                                   checked="@_centroIdsSeleccionados.Contains(centro.Id)"
+                                   @onchange="e => AlternarCentro(centro.Id, e.Value is bool marcado && marcado)" />
+                            <span class="opcion-centro-texto">
+                                <span>@centro.Nombre</span>
+                                <span class="opcion-centro-contexto">@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial</span>
+                            </span>
+                        </label>
                     }
                 </div>
+                <p class="pista-campo resumen-centros">@ResumenCentros</p>
             }
         </div>
-
-        @if (_editandoId is null)
-        {
-            <CampoSelect Etiqueta="@Textos["EtiquetaAmbitoAplicacion"]" Valor="@_ambito.ToString()" ValorChanged="v => _ambito = Enum.Parse<AmbitoAplicacion>(v)">
-                <option value="@nameof(AmbitoAplicacion.Trabajador)">@Textos["AmbitoTrabajador"]</option>
-                <option value="@nameof(AmbitoAplicacion.Cliente)">@Textos["AmbitoCliente"]</option>
-                <option value="@nameof(AmbitoAplicacion.Empresa)">@Textos["AmbitoEmpresa"]</option>
-                <option value="@nameof(AmbitoAplicacion.Vehiculo)">@Textos["AmbitoVehiculo"]</option>
-                <option value="@nameof(AmbitoAplicacion.Proyecto)">@Textos["AmbitoProyecto"]</option>
-            </CampoSelect>
-        }
-        else
-        {
-            <div class="bloque-campo ambito-fijo">
-                <span class="etiqueta-campo">@Textos["EtiquetaAmbitoAplicacion"]</span>
-                <span class="ambito-fijo-valor">@TextoAmbito(_ambito)</span>
-                <span class="pista-campo">@Textos["PistaAmbitoFijo"]</span>
-            </div>
-        }
-
-        <div class="bloque-vencimiento">
-            <label class="campo-checkbox">
-                <input type="checkbox" @bind="_aplicaVencimientoAutomatico" /> @Textos["CheckVencimientoAutomatico"]
-            </label>
-            @if (_aplicaVencimientoAutomatico)
-            {
-                <div class="sangria-vigencia">
-                    <CampoTexto Etiqueta="@Textos["EtiquetaVigenciaMeses"]" Type="number" Valor="@_vigenciaMeses" ValorChanged="v => _vigenciaMeses = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.VigenciaMeses))" />
-                </div>
-            }
-        </div>
-
-        <fieldset class="bloque-exigencia">
-            <legend>@Textos["LeyendaExigencia"]</legend>
-            <CampoSelect Etiqueta="@Textos["EtiquetaSePide"]" Valor="@_requerido.ToString()" ValorChanged="v => _requerido = Enum.Parse<RequisitoDocumental>(v)">
-                <option value="@nameof(RequisitoDocumental.No)">@Textos["RequeridoNo"]</option>
-                <option value="@nameof(RequisitoDocumental.Si)">@Textos["RequeridoSi"]</option>
-                <option value="@nameof(RequisitoDocumental.Condicional)">@Textos["OpcionRequeridoCondicional"]</option>
-            </CampoSelect>
-            <CampoSelect Etiqueta="@Textos["EtiquetaAutoridad"]" Valor="@_naturaleza.ToString()" ValorChanged="v => _naturaleza = Enum.Parse<NaturalezaJuridica>(v)">
-                <option value="@nameof(NaturalezaJuridica.ObligacionLegal)">@Textos["NaturalezaObligacionLegal"]</option>
-                <option value="@nameof(NaturalezaJuridica.ObligacionCondicionada)">@Textos["NaturalezaObligacionCondicionada"]</option>
-                <option value="@nameof(NaturalezaJuridica.PracticaSector)">@Textos["NaturalezaPracticaSector"]</option>
-                <option value="@nameof(NaturalezaJuridica.RequisitoCliente)">@Textos["NaturalezaRequisitoCliente"]</option>
-                <option value="@nameof(NaturalezaJuridica.Recomendacion)">@Textos["OpcionNaturalezaRecomendacion"]</option>
-            </CampoSelect>
-            <p class="vista-previa-exigencia">
-                @Textos["VistaPreviaExigencia"]
-                <Badge Tono="@TonoExigencia(_requerido, _naturaleza)">@TextoExigencia(_requerido, _naturaleza)</Badge>
-            </p>
-        </fieldset>
-
-        <CampoTexto Etiqueta="@Textos["EtiquetaOrden"]" Type="number" Valor="@_orden" ValorChanged="v => _orden = v" />
-        @if (_editandoId is null)
-        {
-            <p class="pista-campo pista-orden">@PistaOrden</p>
-        }
-
-        <CampoTextarea Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_notas" ValorChanged="v => _notas = v" Filas="3" />
-        <CampoTextarea Etiqueta="@Textos["EtiquetaDescripcion"]" Valor="@_descripcion" ValorChanged="v => _descripcion = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Descripcion))" />
-        <CampoTextarea Etiqueta="@Textos["EtiquetaCriterios"]" Valor="@_criteriosValidacion" ValorChanged="v => _criteriosValidacion = v" Filas="4" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.CriteriosValidacion))" />
-        <p class="pista-campo pista-criterios">
-            @Textos["PistaCriterios"]
-        </p>
-        <CampoTexto Etiqueta="@Textos["EtiquetaSeSolicitaA"]" Valor="@_seSolicitaA" ValorChanged="v => _seSolicitaA = v" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.SeSolicitaA))" />
-        <CampoTextarea Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" MensajeError="@ObtenerError(nameof(CrearTipoDocumentoCommand.Observaciones))" />
-
-        @if (_ambito == AmbitoAplicacion.Trabajador)
-        {
-            @* El mockup rotula esto «vacío = aplica en todos». Solo es verdad
-               cuando «¿Se pide?» es «Sí, siempre»: un centro sin fila propia
-               sigue el valor general (ResolucionTipoDocumentoCentro.Aplica), así
-               que con «No se pide» dejarlo vacío significa que no lo pide
-               ninguno. El resumen de abajo dice lo que pasa de verdad. *@
-            <div class="bloque-campo bloque-centros">
-                <span class="etiqueta-campo">@Textos["EtiquetaCentrosExpresos"] <span class="etiqueta-pista">@Textos["PistaCentrosExpresos"]</span></span>
-                @if (_centrosDisponibles.Count == 0)
-                {
-                    <p class="texto-vacio-seccion">@Textos["SinCentrosCreados"]</p>
-                }
-                else
-                {
-                    <div class="lista-centros">
-                        @foreach (var centro in _centrosDisponibles)
-                        {
-                            <label class="opcion-centro">
-                                <input type="checkbox"
-                                       checked="@_centroIdsSeleccionados.Contains(centro.Id)"
-                                       @onchange="e => AlternarCentro(centro.Id, e.Value is bool marcado && marcado)" />
-                                <span class="opcion-centro-texto">
-                                    <span>@centro.Nombre</span>
-                                    <span class="opcion-centro-contexto">@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial</span>
-                                </span>
-                            </label>
-                        }
-                    </div>
-                    <p class="pista-campo resumen-centros">@ResumenCentros</p>
-                }
-            </div>
-        }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawerTipo?.SolicitarCierreAsync() ?? Task.CompletedTask">
-            @Textos["BotonCancelar"]
-        </Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
-            @Textos["BotonGuardar"]
-        </Boton>
-    </Pie>
-</Drawer>
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarFormularioDescartando" />
+    }
+</DrawerFormulario>
 
 <DialogoConfirmacion Visible="_confirmacionVisible"
                      VisibleChanged="v => _confirmacionVisible = v"
@@ -390,7 +378,6 @@
 </LimiteDeErrores>
 
 @code {
-    private Drawer? _drawerTipo;
     /// <summary>
     /// Interruptor de una fila. Sigue siendo un <c>&lt;input type="checkbox"&gt;</c>
     /// —con <c>role="switch"</c> y aspecto de interruptor por CSS— y no un

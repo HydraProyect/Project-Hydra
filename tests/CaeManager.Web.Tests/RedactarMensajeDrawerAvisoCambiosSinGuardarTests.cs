@@ -157,6 +157,26 @@ public class RedactarMensajeDrawerAvisoCambiosSinGuardarTests : BunitContext
     }
 
     /// <summary>
+    /// S12 (lote 2a): el error de «Enviar» sale en el aviso del Drawer, fuera del cuerpo desplazable (D-20), y mientras está
+    /// visible un clic fuera no cierra el formulario; el kit lo da por construcción, la prueba fija que la pantalla se lo pasa.
+    /// </summary>
+    [Fact]
+    public async Task Enviar_sin_destinatario_avisa_fuera_del_cuerpo_y_el_clic_fuera_no_cierra()
+    {
+        var cierres = new List<bool>();
+        var (cut, _) = Renderizar(visibleChanged: v => cierres.Add(v));
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".drawer-aviso [role=alert]").TextContent.Should().Be("Indica al menos un destinatario.");
+        cut.FindAll(".drawer-cuerpo [role=alert]").Should().BeEmpty("el aviso no va dentro del cuerpo desplazable");
+
+        await cut.Find(".drawer-superposicion").MouseDownAsync(new MouseEventArgs());
+        await cut.Find(".drawer-superposicion").ClickAsync(new MouseEventArgs());
+        cierres.Should().BeEmpty("con un error visible, un clic fuera no cierra el formulario");
+    }
+
+    /// <summary>
     /// Revisión Codex (lote C): lo tecleado mientras cargan los buzones es un cambio. Al
     /// preseleccionar el único buzón solo cambia ese valor de partida, no los demás.
     /// </summary>
