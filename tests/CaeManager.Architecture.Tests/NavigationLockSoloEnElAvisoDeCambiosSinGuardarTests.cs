@@ -76,14 +76,11 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
         "src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor",
         "src/CaeManager.Web/Features/Retencion/Pages/Retencion.razor",
         "src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor",
-        "src/CaeManager.Web/Features/Subcontratas/Pages/Subcontratas.razor",
         "src/CaeManager.Web/Features/Trabajadores/Components/TrabajadorWorkspacePanel.razor",
         "src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor",
         "src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor",
         "src/CaeManager.Web/Features/Usuarios/Pages/MiFirma.razor",
         "src/CaeManager.Web/Features/Vehiculos/Components/VehiculoWorkspacePanel.razor",
-        "src/CaeManager.Web/Features/Vehiculos/Pages/Vehiculos.razor",
-        "src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor",
     ];
 
     /// <summary>
@@ -117,12 +114,9 @@ public class NavigationLockSoloEnElAvisoDeCambiosSinGuardarTests
         "src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor",
         "src/CaeManager.Web/Features/Retencion/Pages/Retencion.razor",
         "src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor",
-        "src/CaeManager.Web/Features/Subcontratas/Pages/Subcontratas.razor",
         "src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor",
         "src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor",
         "src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor",
-        "src/CaeManager.Web/Features/Vehiculos/Pages/Vehiculos.razor",
-        "src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor",
     ];
 
     [Fact]
