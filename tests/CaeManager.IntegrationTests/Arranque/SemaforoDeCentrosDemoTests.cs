@@ -97,10 +97,12 @@ public class SemaforoDeCentrosDemoTests
         reparto.Keys.Should().Contain(EstadoCentro.Faltante,
             $"MEDIDO ({detalle}): el guion de la demo enseña también huecos documentales reales");
 
-        reparto.Keys.Should().Contain(EstadoCentro.Bloqueado,
-            $"MEDIDO ({detalle}): la siembra garantiza un centro con requisito bloqueante sin cumplir " +
-            "(ver DatosPruebaSeederDeterminismoTests) — ese centro tiene que llegar a EstadoCentro.Bloqueado, " +
-            "no quedarse en el papel");
+        // «Bloqueado» es un estado del Trabajador (2026-10-03): el Centro solo lo está por la plataforma del Cliente
+        // empresarial (D-7: una Rechazada o una vigencia vencida en la plataforma), y la demo no siembra ninguna. El centro con
+        // requisito bloqueante sin cumplir (ver DatosPruebaSeederDeterminismoTests) enseña su hueco como Faltante; sus
+        // Trabajadores bloqueados salen de IEvaluacionDeAccesoPorCentroService, no de este semáforo.
+        reparto.Keys.Should().NotContain(EstadoCentro.Bloqueado,
+            $"MEDIDO ({detalle}): ningún documento de Trabajador ni de Empresa pone un Centro en Bloqueado");
 
         var total = reparto.Values.Sum();
         var mayoritario = reparto.MaxBy(par => par.Value);

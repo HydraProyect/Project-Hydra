@@ -192,4 +192,31 @@
   <data name="ToleranciaErrorPersonalizada" xml:space="preserve">
     <value>Indica un nombre enter de dies de tolerància, o tria la heretada del Client empresarial.</value>
   </data>
+  <data name="BloqueadosTrabajadoresUno" xml:space="preserve">
+    <value>1 treballador bloquejat</value>
+  </data>
+  <data name="BloqueadosTrabajadoresVarios" xml:space="preserve">
+    <value>{0} treballadors bloquejats</value>
+  </data>
+  <data name="BloqueadosEncabezado" xml:space="preserve">
+    <value>Treballadors bloquejats en aquest Centre</value>
+  </data>
+  <data name="BloqueadoEtiqueta" xml:space="preserve">
+    <value>Bloquejat</value>
+  </data>
+  <data name="BloqueoSituacionAusente" xml:space="preserve">
+    <value>no té el document</value>
+  </data>
+  <data name="BloqueoSituacionVencido" xml:space="preserve">
+    <value>va vèncer el {0}</value>
+  </data>
+  <data name="BloqueoSituacionVencidoSinFecha" xml:space="preserve">
+    <value>ja no val</value>
+  </data>
+  <data name="BloqueoSituacionFinTolerancia" xml:space="preserve">
+    <value>va vèncer el {0} i la tolerància ({1} d) ha acabat</value>
+  </data>
+  <data name="BloqueoTipoDeEmpresa" xml:space="preserve">
+    <value>{0} (de l'Empresa)</value>
+  </data>
 </root>

@@ -52,16 +52,16 @@
     <value>Crític</value>
   </data>
   <data name="IndicadorBloqueados" xml:space="preserve">
-    <value>Accés bloquejat en {0} de {1} centres</value>
+    <value>Bloqueig de la plataforma CAE en {0} de {1} centres</value>
   </data>
   <data name="IndicadorBloqueadosUnico" xml:space="preserve">
-    <value>Accés bloquejat en el seu únic centre</value>
+    <value>Bloqueig de la plataforma CAE en el seu únic centre</value>
   </data>
   <data name="VentanaBloqueadosUno" xml:space="preserve">
-    <value>1 centre amb accés bloquejat</value>
+    <value>1 centre amb bloqueig de la plataforma CAE</value>
   </data>
   <data name="VentanaBloqueadosVarios" xml:space="preserve">
-    <value>{0} centres amb accés bloquejat</value>
+    <value>{0} centres amb bloqueig de la plataforma CAE</value>
   </data>
   <data name="IndicadorVencidosUno" xml:space="preserve">
     <value>1 centre amb vençuts</value>
@@ -317,5 +317,80 @@
   </data>
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Els Clients empresarials es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
+  </data>
+  <data name="IndicadorTrabajadoresBloqueadosUno" xml:space="preserve">
+    <value>1 treballador bloquejat</value>
+  </data>
+  <data name="IndicadorTrabajadoresBloqueadosVarios" xml:space="preserve">
+    <value>{0} treballadors bloquejats</value>
+  </data>
+  <data name="VentanaTrabajadoresBloqueadosUno" xml:space="preserve">
+    <value>1 treballador bloquejat en els seus centres</value>
+  </data>
+  <data name="VentanaTrabajadoresBloqueadosVarios" xml:space="preserve">
+    <value>{0} treballadors bloquejats en els seus centres</value>
+  </data>
+  <data name="ToleranciaMenu" xml:space="preserve">
+    <value>Tolerància de documents</value>
+  </data>
+  <data name="ToleranciaTarjetaTitulo" xml:space="preserve">
+    <value>Tolerància de documents</value>
+  </data>
+  <data name="ToleranciaTarjetaDescripcion" xml:space="preserve">
+    <value>Dies que un document continua valent per accedir als centres d'aquest Client empresarial després de vèncer. Cada centre hereta aquesta tolerància tret que fixi la seva.</value>
+  </data>
+  <data name="ToleranciaTarjetaBoton" xml:space="preserve">
+    <value>Configurar toleràncies</value>
+  </data>
+  <data name="ToleranciaTitulo" xml:space="preserve">
+    <value>Tolerància de documents per defecte</value>
+  </data>
+  <data name="ToleranciaGuardar" xml:space="preserve">
+    <value>Desar</value>
+  </data>
+  <data name="ToleranciaCancelar" xml:space="preserve">
+    <value>Cancel·lar</value>
+  </data>
+  <data name="ToleranciaIntro" xml:space="preserve">
+    <value>Dies que cada document continua valent per accedir als centres d'aquest Client empresarial després del seu venciment. Cada centre hereta aquest valor tret que fixi el seu en els seus requisits; 0 és sense tolerància.</value>
+  </data>
+  <data name="ToleranciaOpcionSin" xml:space="preserve">
+    <value>Sense tolerància (0 dies)</value>
+  </data>
+  <data name="ToleranciaOpcionDias" xml:space="preserve">
+    <value>{0} dies</value>
+  </data>
+  <data name="ToleranciaOpcionPersonalizada" xml:space="preserve">
+    <value>Un altre nombre de dies…</value>
+  </data>
+  <data name="ToleranciaEtiquetaPersonalizada" xml:space="preserve">
+    <value>Dies (nombre enter)</value>
+  </data>
+  <data name="ToleranciaTipoDeEmpresa" xml:space="preserve">
+    <value>{0} (de l'Empresa)</value>
+  </data>
+  <data name="ToleranciaErrorPersonalizada" xml:space="preserve">
+    <value>Indica un nombre enter de dies entre 0 i {0}.</value>
+  </data>
+  <data name="ToleranciaSinCambios" xml:space="preserve">
+    <value>No has canviat cap tolerància.</value>
+  </data>
+  <data name="ToleranciaGuardada" xml:space="preserve">
+    <value>Toleràncies del Client empresarial actualitzades.</value>
+  </data>
+  <data name="ToleranciaErrorGuardar" xml:space="preserve">
+    <value>No hem pogut desar les toleràncies. Torna-ho a provar en uns segons.</value>
+  </data>
+  <data name="ToleranciaErrorCargaTitulo" xml:space="preserve">
+    <value>No hem pogut carregar les toleràncies</value>
+  </data>
+  <data name="ToleranciaErrorCargaDescripcion" xml:space="preserve">
+    <value>Tanca aquest panell i torna a obrir-lo. Si continua fallant, avisa el suport.</value>
+  </data>
+  <data name="ToleranciaSinTiposTitulo" xml:space="preserve">
+    <value>Sense tipus de document</value>
+  </data>
+  <data name="ToleranciaSinTiposDescripcion" xml:space="preserve">
+    <value>Aquest Client empresarial no té tipus de document de Treballador o d'Empresa als quals fixar tolerància, o no hi tens accés.</value>
   </data>
 </root>

@@ -10,7 +10,10 @@ namespace CaeManager.IntegrationTests.Coherencia;
 /// (<see cref="EscenarioDeFotoDeSuperficies"/>) sobre los MISMOS datos con tolerancia configurada y con tolerancia 0 en todo:
 /// <list type="bullet">
 /// <item>alertas, estado y % de Centro, Trabajador, Empresa, Cliente empresarial y Subcontrata, y la tarjeta de Inicio son
-/// IDÉNTICOS: la tolerancia solo afecta al acceso, no al estado mostrado ni a ningún porcentaje (decisión del propietario);</item>
+/// IDÉNTICOS HOY: la tolerancia aún no entra ni en el estado mostrado ni en ningún porcentaje. NO es una decisión de que
+/// nunca entre: el propietario decidió (2026-10-03) que un documento vencido dentro de la tolerancia CUENTA COMO AL DÍA en el
+/// porcentaje, y eso se hará en el incremento 2 del porcentaje (<c>EsConforme(ParDocumentalExigido)</c>). Ese día esta foto
+/// cambiará a propósito en las secciones de porcentaje, y el cambio tendrá que ser exactamente el de ese incremento;</item>
 /// <item>Mi trabajo y los Trabajadores bloqueados por Centro difieren EXACTAMENTE en las filas que la regla exige, escritas a
 /// mano abajo: un documento vencido que sigue dentro de la tolerancia del Centro deja de bloquear en ese Centro, y en ningún otro.</item>
 /// </list>

@@ -59,17 +59,17 @@
     <comment>Cliente empresarial marcado como crítico.</comment>
   </data>
   <data name="IndicadorBloqueados" xml:space="preserve">
-    <value>Acceso bloqueado en {0} de {1} centros</value>
+    <value>Bloqueo de la plataforma CAE en {0} de {1} centros</value>
     <comment>{0} centros con EstadoCentro.Bloqueado de los {1} centros del cliente.</comment>
   </data>
   <data name="IndicadorBloqueadosUnico" xml:space="preserve">
-    <value>Acceso bloqueado en su único centro</value>
+    <value>Bloqueo de la plataforma CAE en su único centro</value>
   </data>
   <data name="VentanaBloqueadosUno" xml:space="preserve">
-    <value>1 centro con acceso bloqueado</value>
+    <value>1 centro con bloqueo de la plataforma CAE</value>
   </data>
   <data name="VentanaBloqueadosVarios" xml:space="preserve">
-    <value>{0} centros con acceso bloqueado</value>
+    <value>{0} centros con bloqueo de la plataforma CAE</value>
   </data>
   <data name="IndicadorVencidosUno" xml:space="preserve">
     <value>1 centro con vencidos</value>
@@ -340,5 +340,80 @@
   </data>
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Los Clientes empresariales se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
+  </data>
+  <data name="IndicadorTrabajadoresBloqueadosUno" xml:space="preserve">
+    <value>1 trabajador bloqueado</value>
+  </data>
+  <data name="IndicadorTrabajadoresBloqueadosVarios" xml:space="preserve">
+    <value>{0} trabajadores bloqueados</value>
+  </data>
+  <data name="VentanaTrabajadoresBloqueadosUno" xml:space="preserve">
+    <value>1 trabajador bloqueado en sus centros</value>
+  </data>
+  <data name="VentanaTrabajadoresBloqueadosVarios" xml:space="preserve">
+    <value>{0} trabajadores bloqueados en sus centros</value>
+  </data>
+  <data name="ToleranciaMenu" xml:space="preserve">
+    <value>Tolerancia de documentos</value>
+  </data>
+  <data name="ToleranciaTarjetaTitulo" xml:space="preserve">
+    <value>Tolerancia de documentos</value>
+  </data>
+  <data name="ToleranciaTarjetaDescripcion" xml:space="preserve">
+    <value>Días que un documento sigue valiendo para acceder a los centros de este Cliente empresarial tras vencer. Cada centro hereda esta tolerancia salvo que fije la suya.</value>
+  </data>
+  <data name="ToleranciaTarjetaBoton" xml:space="preserve">
+    <value>Configurar tolerancias</value>
+  </data>
+  <data name="ToleranciaTitulo" xml:space="preserve">
+    <value>Tolerancia de documentos por defecto</value>
+  </data>
+  <data name="ToleranciaGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="ToleranciaCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="ToleranciaIntro" xml:space="preserve">
+    <value>Días que cada documento sigue valiendo para acceder a los centros de este Cliente empresarial tras su vencimiento. Cada centro hereda este valor salvo que fije el suyo en sus requisitos; 0 es sin tolerancia.</value>
+  </data>
+  <data name="ToleranciaOpcionSin" xml:space="preserve">
+    <value>Sin tolerancia (0 días)</value>
+  </data>
+  <data name="ToleranciaOpcionDias" xml:space="preserve">
+    <value>{0} días</value>
+  </data>
+  <data name="ToleranciaOpcionPersonalizada" xml:space="preserve">
+    <value>Otro número de días…</value>
+  </data>
+  <data name="ToleranciaEtiquetaPersonalizada" xml:space="preserve">
+    <value>Días (número entero)</value>
+  </data>
+  <data name="ToleranciaTipoDeEmpresa" xml:space="preserve">
+    <value>{0} (de la Empresa)</value>
+  </data>
+  <data name="ToleranciaErrorPersonalizada" xml:space="preserve">
+    <value>Indica un número entero de días entre 0 y {0}.</value>
+  </data>
+  <data name="ToleranciaSinCambios" xml:space="preserve">
+    <value>No has cambiado ninguna tolerancia.</value>
+  </data>
+  <data name="ToleranciaGuardada" xml:space="preserve">
+    <value>Tolerancias del Cliente empresarial actualizadas.</value>
+  </data>
+  <data name="ToleranciaErrorGuardar" xml:space="preserve">
+    <value>No pudimos guardar las tolerancias. Inténtalo de nuevo en unos segundos.</value>
+  </data>
+  <data name="ToleranciaErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar las tolerancias</value>
+  </data>
+  <data name="ToleranciaErrorCargaDescripcion" xml:space="preserve">
+    <value>Cierra este panel y vuelve a abrirlo. Si sigue fallando, avisa a soporte.</value>
+  </data>
+  <data name="ToleranciaSinTiposTitulo" xml:space="preserve">
+    <value>Sin tipos de documento</value>
+  </data>
+  <data name="ToleranciaSinTiposDescripcion" xml:space="preserve">
+    <value>Este Cliente empresarial no tiene tipos de documento de Trabajador o de Empresa a los que fijar tolerancia, o no tienes acceso a él.</value>
   </data>
 </root>

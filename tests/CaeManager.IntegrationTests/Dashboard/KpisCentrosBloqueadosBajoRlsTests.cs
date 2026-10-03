@@ -36,6 +36,12 @@ namespace CaeManager.IntegrationTests.Dashboard;
 /// datos», nunca como organización en verde.
 ///
 /// <para>
+/// «Bloqueado» es un estado del Trabajador (2026-10-03): los mismos KPI cuentan también los <b>Trabajadores bloqueados</b>
+/// (<c>TrabajadoresBloqueados</c>, regla de acceso por Centro de <c>IEvaluacionDeAccesoPorCentroService</c>) en un cuarto Tenant C,
+/// con un documento bloqueante ausente: no suma Centros bloqueados y no se cuela en los otros Tenants.
+/// </para>
+///
+/// <para>
 /// Tres Tenants: el del Operador CAE externo (origen de la sesión, sin datos),
 /// un Tenant beneficiario A con una Rechazada aplicable a su Centro de Trabajo
 /// y otro B con una Rechazada NO aplicable (tipo no requerido). La lectura va
@@ -59,7 +65,11 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
     private Guid _tenantOrigen;
     private Guid _tenantA;
     private Guid _tenantB;
+    private Guid _tenantC;
     private Guid _centroA;
+    private Guid _centroC;
+    private Guid _trabajadorBloqueadoC;
+    private Guid[] _tiposBloqueantesC = [];
 
     public async Task InitializeAsync()
     {
@@ -74,11 +84,13 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
         var tenantOrigen = new Tenant("Operador CAE externo de prueba");
         var tenantA = new Tenant("Tenant beneficiario con bloqueo");
         var tenantB = new Tenant("Tenant beneficiario sin bloqueo");
-        _propietario.Tenants.AddRange(tenantOrigen, tenantA, tenantB);
+        var tenantC = new Tenant("Tenant beneficiario con Trabajador bloqueado");
+        _propietario.Tenants.AddRange(tenantOrigen, tenantA, tenantB, tenantC);
         _tenantOrigen = tenantOrigen.Id;
         _tenantA = tenantA.Id;
         _tenantB = tenantB.Id;
-        foreach (var delegante in new[] { _tenantA, _tenantB })
+        _tenantC = tenantC.Id;
+        foreach (var delegante in new[] { _tenantA, _tenantB, _tenantC })
         {
             var delegacion = new DelegacionTenant(_tenantOrigen, delegante);
             _propietario.DelegacionesTenant.Add(delegacion);
@@ -96,6 +108,7 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
 
         _centroA = await SembrarTenantConRechazadaAsync(_tenantA, requerido: RequisitoDocumental.Si);
         await SembrarTenantConRechazadaAsync(_tenantB, requerido: RequisitoDocumental.No);
+        await SembrarTenantConTrabajadorBloqueadoAsync(_tenantC);
 
         var tenantDeLaPeticion = new TenantActualDeLaPeticion(_tenantOrigen);
         var usuario = new CurrentUserServiceFalso(_usuario, tenantOrigenId: _tenantOrigen);
@@ -160,7 +173,7 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
         var kpis = await _servicios.GetRequiredService<IMediator>().Send(new ObtenerKpisGlobalesQuery());
 
         var porTenant = kpis.ClientesConMasRiesgo.ToDictionary(c => c.TenantId);
-        porTenant.Keys.Should().BeEquivalentTo([_tenantOrigen, _tenantA, _tenantB]);
+        porTenant.Keys.Should().BeEquivalentTo([_tenantOrigen, _tenantA, _tenantB, _tenantC]);
 
         var a = porTenant[_tenantA];
         a.CentrosBloqueados.Should().Be(1, "la Rechazada es aplicable a su Centro de Trabajo (D-7)");
@@ -180,6 +193,32 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
 
         kpis.CentrosBloqueados.Should().Be(1);
         kpis.HayCumplimientoDocumentalQueMedir.Should().BeTrue();
+
+        // «Bloqueado» es del Trabajador: el bloqueo de la plataforma de A no es un Trabajador bloqueado, y al revés.
+        a.TrabajadoresBloqueados.Should().Be(0, "su documento es vigente en TALVEG y no hay requisito bloqueante: nadie queda sin entrar");
+        b.TrabajadoresBloqueados.Should().Be(0);
+        origen.TrabajadoresBloqueados.Should().Be(0);
+        var c = porTenant[_tenantC];
+        c.TrabajadoresBloqueados.Should().Be(1, "su Trabajador no tiene los dos documentos bloqueantes que su Centro exige, y cuenta una vez");
+        c.CentrosBloqueados.Should().Be(0, "el bloqueo de un documento no pone al Centro en Bloqueado");
+        c.AdmiteVeredictoVerde.Should().BeFalse("con un Trabajador bloqueado la organización no está al día");
+        kpis.TrabajadoresBloqueados.Should().Be(1, "la suma de la cartera cuenta el Trabajador de C una vez");
+    }
+
+    [Fact]
+    public async Task Inicio_cuenta_los_Trabajadores_bloqueados_del_Tenant_activo_y_no_los_de_otros()
+    {
+        var mediador = _servicios.GetRequiredService<IMediator>();
+
+        KpisDashboardDto enC, enA;
+        using (AmbitoTenantExplicito.Establecer(_tenantC))
+            enC = await mediador.Send(new ObtenerKpisDashboardQuery());
+        using (AmbitoTenantExplicito.Establecer(_tenantA))
+            enA = await mediador.Send(new ObtenerKpisDashboardQuery());
+
+        enC.TrabajadoresBloqueados.Should().Be(1);
+        enC.CentrosBloqueados.Should().Be(0);
+        enA.TrabajadoresBloqueados.Should().Be(0, "el Trabajador bloqueado de C no se ve ni se cuenta en A");
     }
 
     [Fact]
@@ -231,6 +270,34 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// «Trabajadores bloqueados» cuenta Trabajadores, no pares Trabajador-Centro: el mismo Trabajador sin los documentos
+    /// bloqueantes en tres Centros del Tenant cuenta uno, y el recuento sigue sin una consulta por Centro.
+    /// </summary>
+    [Fact]
+    public async Task El_mismo_Trabajador_bloqueado_en_varios_Centros_cuenta_una_vez_y_sin_consultas_por_Centro()
+    {
+        var mediador = _servicios.GetRequiredService<IMediator>();
+
+        async Task<(KpisDashboardDto Kpis, int Consultas)> MedirAsync()
+        {
+            using var ambito = AmbitoTenantExplicito.Establecer(_tenantC);
+            var antes = _contador.Total;
+            var kpis = await mediador.Send(new ObtenerKpisDashboardQuery());
+            return (kpis, _contador.Total - antes);
+        }
+
+        var (conUno, consultasConUno) = await MedirAsync();
+        await SembrarCentrosExtraConElMismoTrabajadorBloqueadoAsync(_tenantC, cuantos: 2);
+        var (conTres, consultasConTres) = await MedirAsync();
+
+        conUno.TrabajadoresBloqueados.Should().Be(1);
+        conTres.Centros.Should().Be(conUno.Centros + 2, "control: los Centros añadidos están en el Tenant");
+        conTres.TrabajadoresBloqueados.Should().Be(1, "es el mismo Trabajador, bloqueado en tres Centros");
+        consultasConUno.Should().BeGreaterThan(0, "control: el contador observa las órdenes de la lectura");
+        consultasConTres.Should().Be(consultasConUno, "sin N+1: las mismas consultas para 1 que para 3 Centros");
+    }
+
+    /// <summary>
     /// En el Tenant dado: un Centro de Trabajo con un Trabajador asignado y un
     /// Documento vigente en TALVEG cuya acreditación rechaza la plataforma del
     /// Centro. Con <paramref name="requerido"/> = Si el tipo aplica al Centro
@@ -270,6 +337,79 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
         await _propietario.SaveChangesAsync();
 
         return centro.Id;
+    }
+
+    /// <summary>
+    /// En el Tenant dado: un Centro de Trabajo con gestión CAE (un canal de plataforma) que exige un documento bloqueante de
+    /// Trabajador, y un Trabajador asignado que NO lo tiene (ausente): bloqueado en ese Centro por la regla de acceso.
+    /// </summary>
+    private async Task SembrarTenantConTrabajadorBloqueadoAsync(Guid tenantId)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+
+        var cliente = Empresa.CrearComoCliente("Cervezas Duff Ibérica", "B12345674", false, null, null);
+        var empresa = new Empresa("Montajes Springfield S.L.", "B87654323");
+        _propietario.Empresas.AddRange(cliente, empresa);
+        _propietario.ParametrosSistema.Add(new ParametroSistema(umbralAmbarDias: 30, umbralRojoDias: 15));
+        var tipo = new TipoDocumento("Formulario de acceso", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.No);
+        // Dos requisitos bloqueantes ausentes para el MISMO Trabajador: sigue siendo un solo Trabajador bloqueado.
+        var segundoTipo = new TipoDocumento("Reconocimiento médico", null, aplicaVencimientoAutomatico: false, 2, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.No);
+        _propietario.TiposDocumento.AddRange(tipo, segundoTipo);
+        var proveedor = new ProveedorPlataformaCae($"PLAT-{Guid.NewGuid():N}"[..14], "Plataforma de prueba");
+        _propietario.ProveedoresPlataformaCae.Add(proveedor);
+        await _propietario.SaveChangesAsync();
+
+        var centro = new Centro(cliente.Id, empresa.Id, "Fábrica de Springfield");
+        var trabajador = Trabajador.DeEmpresa(empresa.Id, "Homer", "Simpson", "77189989B");
+        _propietario.Centros.Add(centro);
+        _propietario.Trabajadores.Add(trabajador);
+        await _propietario.SaveChangesAsync();
+
+        // Un segundo Trabajador con los dos documentos vigentes: cumple, NO está bloqueado y no debe contar (control del filtro).
+        var alDia = Trabajador.DeEmpresa(empresa.Id, "Marge", "Simpson", "00000000T");
+        _propietario.Trabajadores.Add(alDia);
+        await _propietario.SaveChangesAsync();
+
+        var hoy = DiaDeNegocio.Hoy();
+        _propietario.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, hoy));
+        _propietario.Asignaciones.Add(new Asignacion(alDia.Id, centro.Id, hoy));
+        foreach (var tipoCumplido in new[] { tipo, segundoTipo })
+            _propietario.Documentos.Add(Documento.DeTrabajador(alDia.Id, tipoCumplido.Id, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1))));
+        _propietario.CanalesGestionDocumental.Add(CanalGestionDocumental.DePlataforma(centro.Id, "Acceso de prueba", proveedor.Id, null, null, null));
+        _propietario.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipo.Id, centro.Id, incluido: true, bloqueaAcceso: true));
+        _propietario.TiposDocumentoCentros.Add(new TipoDocumentoCentro(segundoTipo.Id, centro.Id, incluido: true, bloqueaAcceso: true));
+        await _propietario.SaveChangesAsync();
+
+        _centroC = centro.Id;
+        _trabajadorBloqueadoC = trabajador.Id;
+        _tiposBloqueantesC = [tipo.Id, segundoTipo.Id];
+    }
+
+    /// <summary>
+    /// Más Centros de Trabajo en C, cada uno con gestión CAE, los mismos dos requisitos bloqueantes y el MISMO Trabajador sin
+    /// los documentos: es un solo Trabajador bloqueado en varios Centros (se cuenta una vez, no una por Centro).
+    /// </summary>
+    private async Task SembrarCentrosExtraConElMismoTrabajadorBloqueadoAsync(Guid tenantId, int cuantos)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+
+        var centroBase = await _propietario.Centros.SingleAsync(c => c.Id == _centroC);
+        var proveedorId = await _propietario.ProveedoresPlataformaCae.Select(p => p.Id).FirstAsync();
+        var hoy = DiaDeNegocio.Hoy();
+
+        for (var i = 0; i < cuantos; i++)
+        {
+            var centro = new Centro(centroBase.ClienteId, centroBase.EmpresaId, $"Centro extra bloqueante {i}");
+            _propietario.Centros.Add(centro);
+            await _propietario.SaveChangesAsync();
+
+            _propietario.Asignaciones.Add(new Asignacion(_trabajadorBloqueadoC, centro.Id, hoy));
+            _propietario.CanalesGestionDocumental.Add(
+                CanalGestionDocumental.DePlataforma(centro.Id, $"Acceso extra {i}", proveedorId, null, null, null));
+            foreach (var tipoId in _tiposBloqueantesC)
+                _propietario.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoId, centro.Id, incluido: true, bloqueaAcceso: true));
+            await _propietario.SaveChangesAsync();
+        }
     }
 
     /// <summary>Más Centros de Trabajo en el Tenant, cada uno con su canal y la misma acreditación rechazada del Documento requerido ya sembrado.</summary>

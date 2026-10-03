@@ -333,8 +333,8 @@ public static class EscenariosDireccionDemoSeeder
     /// La única fuente de qué documento está en qué estado en cada escenario.
     /// Solo lista las excepciones; todo lo demás está <see cref="VigenciaDemo.AlDia"/>.
     /// El estado de cada centro que de aquí sale (Faltante &gt; Vencido &gt;
-    /// Urgente &gt; Próximo &gt; Vigente, y Bloqueado si falta un requisito
-    /// bloqueante) lo mide <c>EscenariosDireccionDemoTests</c> con el servicio
+    /// Urgente &gt; Próximo &gt; Vigente, y Bloqueado solo si la plataforma del
+    /// Cliente empresarial lo bloquea: Rechazada o vencida allí) lo mide <c>EscenariosDireccionDemoTests</c> con el servicio
     /// real, no con esta tabla.
     /// </summary>
     private static VigenciaDemo? VigenciaEspecial(EscenarioClienteDemo escenario, string puesto, string tipo) =>
@@ -433,7 +433,8 @@ public static class EscenariosDireccionDemoSeeder
             if (spec.Escenario is EscenarioClienteDemo.AccesoBloqueado)
             {
                 // El requisito que bloquea el acceso: sin documento de identidad
-                // presentado (ver NoPresentado), el centro de c1 no lo admite.
+                // presentado (ver NoPresentado), el centro de c1 no admite al
+                // Trabajador (queda «Bloqueado» él; el Centro no cambia de estado).
                 var tipoIdentidad = tipos.Single(t => t.Nombre == DocumentoIdentidad);
                 dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoIdentidad.Id, centros[0].Id, bloqueaAcceso: true));
             }

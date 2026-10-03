@@ -19,20 +19,20 @@
     El alcance de cada fila lo decide ObtenerKpisGlobalesQuery con el rol
     efectivo y la Asignación de Cartera de ESA organización; la pantalla no
     lee ningún rol (el del contexto activo no vale para las demás) y solo pinta
-    lo que la consulta dice por fila: SinCarteraAsignada, SinDatos y
-    CentrosBloqueados.
+    lo que la consulta dice por fila: SinCarteraAsignada, SinDatos,
+    TrabajadoresBloqueados y CentrosBloqueados.
 
     El porcentaje de cada fila es solo documental. El veredicto «en verde»
     exige además ClienteRiesgoDto.AdmiteVeredictoVerde: con cartera, con datos
-    y sin ningún Centro de Trabajo bloqueado según ICalculoEstadoCentroService
-    (D-7: una Rechazada aplicable bloquea). Una organización con bloqueos
+    y sin ningún bloqueo: ni un Trabajador bloqueado (regla de acceso por Centro) ni un Centro de Trabajo con bloqueo de la
+    plataforma según ICalculoEstadoCentroService (D-7: una Rechazada aplicable bloquea). Una organización con bloqueos
     enseña su recuento junto al porcentaje y nunca sale en verde; una sin
     Centros ni documentos sale «sin datos», nunca al 100%.
 
     Lo que el mockup pinta y aquí NO se copia, porque la consulta no lo sabe:
     el desglose por centro de cada fila (ClienteRiesgoDto no lo trae), el
     «84 trabajadores · 7 centros» por fila, «X de N bloquean acceso a algún
-    centro» (se cuentan Centros de Trabajo bloqueados, no documentos que
+    centro» (se cuentan Trabajadores bloqueados y Centros de Trabajo con bloqueo de la plataforma, no documentos que
     bloquean), las ventanas fijas «≤15/≤30 días» (son los umbrales urgente y
     próximo de cada organización, configurables) y el rótulo «SLA» (no hay
     acuerdo de nivel de servicio detrás: es la tasa de cumplimiento
@@ -97,8 +97,8 @@
                                     Pista="@Textos["PistaProximos"]" />
                     <TarjetaMetrica Etiqueta="@Textos["MetricaCumplimientoPromedio"]" Valor="@ValorMedia" NombreIcono="check"
                                     Tono="@TonoMedia" Pista="@PistaMedia" />
-                    <TarjetaMetrica Etiqueta="@Textos["MetricaCentrosBloqueados"]" Valor="@_kpis.CentrosBloqueados.ToString()" NombreIcono="error-circulo"
-                                    Tono="@TonoCentrosBloqueados" Pista="@PistaCentrosBloqueados" />
+                    <TarjetaMetrica Etiqueta="@Textos["MetricaTrabajadoresBloqueados"]" Valor="@_kpis.TrabajadoresBloqueados.ToString()" NombreIcono="error-circulo"
+                                    Tono="@TonoTrabajadoresBloqueados" Pista="@PistaCentrosBloqueados" />
                 </div>
             </section>
 
@@ -225,7 +225,7 @@
                 }
 
                 <Tarjeta Class="tarjeta-organizaciones-riesgo">
-                    @if (Organizaciones.All(o => o.DocumentosVencidos == 0 && o.DocumentosUrgentes == 0 && o.CentrosBloqueados == 0))
+                    @if (Organizaciones.All(o => o.DocumentosVencidos == 0 && o.DocumentosUrgentes == 0 && !o.TieneBloqueos))
                     {
                         <p class="texto-vacio-seccion">@TextoSinRiesgo</p>
                     }
@@ -275,7 +275,7 @@
                                                     </span>
                                                     <span class="valor-cumplimiento @ClaseTono(organizacion, tasa)">@tasa%</span>
                                                 </span>
-                                                @if (organizacion.CentrosBloqueados > 0)
+                                                @if (organizacion.TieneBloqueos)
                                                 {
                                                     <Badge Tono="TonoBadge.Peligro" ConIcono="true" class="bloqueos-organizacion" title="@TituloCumplimiento(organizacion)">@TextoBadgeBloqueados(organizacion)</Badge>
                                                 }

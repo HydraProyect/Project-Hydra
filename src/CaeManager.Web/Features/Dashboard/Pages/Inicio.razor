@@ -181,9 +181,11 @@
             <div class="dashboard-resumen-tarjeta-anillo">
                 @* P2.4 (D-7): sin Centros de Trabajo ni documentos con vigencia, el
                    100 % de la consulta es «nada que medir», no «al día» (SinDatos); y
-                   el porcentaje cuenta documentos, no acceso: un Centro de Trabajo
-                   bloqueado (CalculoEstadoCentroService, el mismo cálculo que Centro
-                   360) se declara junto a él para que no se lea como cumplimiento. *@
+                   el porcentaje cuenta documentos, no acceso: los Trabajadores
+                   bloqueados (regla de acceso por Centro) y los Centros de Trabajo con
+                   bloqueo de la plataforma CAE (CalculoEstadoCentroService, el mismo
+                   cálculo que Centro 360) se declaran junto a él para que no se lea
+                   como cumplimiento. *@
                 <AnilloCumplimiento Porcentaje="@(_kpis.SinDatos ? null : _kpis.TasaCumplimientoDocumental)" Tamano="TamanoAnillo.Grande" Leyenda="Cumplimiento"
                                      Etiqueta="@(_kpis.SinDatos ? Textos["AnilloSinDatos"].Value : $"{_kpis.TasaCumplimientoDocumental}% de cumplimiento documental")" />
                 <div>
@@ -196,6 +198,10 @@
                     {
                         <p class="dashboard-resumen-anillo-titulo">@_kpis.TasaCumplimientoDocumental% de cumplimiento documental</p>
                         <p class="dashboard-resumen-anillo-detalle">@_kpis.Fraccion.AlDia.ToString("N0") de @_kpis.Fraccion.Requeridos.ToString("N0") documentos al día en cartera</p>
+                    }
+                    @if (_kpis.TrabajadoresBloqueados > 0)
+                    {
+                        <p class="dashboard-resumen-anillo-bloqueo">@TextoTrabajadoresBloqueadosKpi</p>
                     }
                     @if (_kpis.CentrosBloqueados > 0)
                     {

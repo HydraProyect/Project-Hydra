@@ -119,7 +119,7 @@ public class VisitaCanceladaFueraDeLoActivoTests : IAsyncLifetime
         await using var lectura = CrearContexto();
         var calculo = new CalculoEstadoCentroService(lectura, lectura, lectura, lectura, lectura, lectura);
 
-        var kpis = await new ObtenerKpisDashboardQueryHandler(lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(), calculo)
+        var kpis = await new ObtenerKpisDashboardQueryHandler(lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(), calculo, new EvaluacionDeAccesoPorCentroService(lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso()))
             .Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
 
         kpis.VisitasProgramadas.Should().Be(1);

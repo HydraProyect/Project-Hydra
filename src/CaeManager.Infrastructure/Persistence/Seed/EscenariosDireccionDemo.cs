@@ -8,7 +8,9 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// <b>Lectura del vocabulario, no concepto nuevo.</b> El dominio no tiene un
 /// estado «acceso» por Cliente empresarial: lo que existe, y lo que pinta la
 /// pantalla, es (a) el <c>EstadoCentro</c> que calcula
-/// <c>CalculoEstadoCentroService</c> (<c>Bloqueado</c> = «acceso bloqueado»,
+/// <c>CalculoEstadoCentroService</c> (<c>Bloqueado</c> = «bloqueo de la plataforma
+/// CAE»: un hecho de la plataforma del Cliente empresarial, no un documento de Trabajador;
+/// el bloqueo por documentos es de cada Trabajador y lo da la regla por Centro,
 /// <c>Vigente</c> = «con acceso y sin documentación pendiente»,
 /// <c>Proximo/Urgente/Vencido/Faltante</c> = «con acceso pero con documentación
 /// pendiente») y (b) el <c>EstadoAcreditacion</c> de cada documento ante la
@@ -42,7 +44,11 @@ public enum EscenarioClienteDemo
     /// <summary>Todos los centros <c>Vigente</c> y todas las acreditaciones aceptadas, pero con la ficha a medias (centros sin contacto ni fin de contrato).</summary>
     ConAccesoSinDocumentacionPendiente,
 
-    /// <summary>Al menos un centro <c>Bloqueado</c> (requisito bloqueante sin cumplir por un extranjero sin documento de identidad presentado).</summary>
+    /// <summary>
+    /// Al menos un centro <c>Bloqueado</c>, y solo por la acreditación Rechazada en la plataforma del Cliente empresarial
+    /// (causa de plataforma). Además, un Trabajador extranjero sin documento de identidad presentado queda «Bloqueado» por
+    /// el requisito bloqueante del centro de c1: eso es estado del Trabajador, no del Centro.
+    /// </summary>
     AccesoBloqueado,
 
     /// <summary>Centros <c>Vigente</c>, pero ninguna acreditación aceptada: todas subidas y a la espera de la plataforma del cliente.</summary>

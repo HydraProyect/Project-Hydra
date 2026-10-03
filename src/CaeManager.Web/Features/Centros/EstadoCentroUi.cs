@@ -58,10 +58,9 @@ public static class EstadoCentroUi
         EstadoCentro.Urgente => "Urgente",
         EstadoCentro.Vencido => "Vencido",
         EstadoCentro.Faltante => "Falta documentación",
-        // "Acceso bloqueado", no "Bloqueado" ni "Bloquea acceso": nombra el
-        // estado del sujeto, no lo que el documento provoca (decisión
-        // cerrada del lámina, protocolo de cierre — banco visual Ronda 1).
-        EstadoCentro.Bloqueado => "Acceso bloqueado",
+        // Solo lo causa la plataforma del Cliente empresarial (D-7). «Bloqueado» es un estado del Trabajador (2026-10-03):
+        // el Centro nunca se rotula «Acceso bloqueado» por un documento; su detalle por Trabajador va aparte.
+        EstadoCentro.Bloqueado => "Bloqueo de la plataforma CAE",
         EstadoCentro.SinGestionCae => "No requiere gestión CAE",
         _ => "Estado desconocido"
     };

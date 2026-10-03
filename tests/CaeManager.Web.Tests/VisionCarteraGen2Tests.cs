@@ -63,7 +63,7 @@ public class VisionCarteraGen2Tests : BunitContext
     // ---------------------------------------------------------------- dobles
 
     /// <summary>Documentos por estado y actividad; la tasa se calcula como <c>ObtenerKpisDashboardQueryHandler</c>.</summary>
-    private sealed record Datos(int Vencidos, int Urgentes, int Proximos, int Vigentes, int Trabajadores, int Centros, int Bloqueados = 0)
+    private sealed record Datos(int Vencidos, int Urgentes, int Proximos, int Vigentes, int Trabajadores, int Centros, int Bloqueados = 0, int TrabajadoresBloqueados = 0)
     {
         public static readonly Datos Nada = new(0, 0, 0, 0, 0, 0);
 
@@ -76,6 +76,7 @@ public class VisionCarteraGen2Tests : BunitContext
             TasaCumplimientoDocumental: ConVigencia == 0 ? 100 : Vigentes * 100 / ConVigencia,
             SinCarteraAsignada: sinCartera,
             CentrosBloqueados: Bloqueados,
+            TrabajadoresBloqueados: TrabajadoresBloqueados,
             SinDatos: Centros == 0 && ConVigencia == 0);
     }
 
@@ -274,7 +275,7 @@ public class VisionCarteraGen2Tests : BunitContext
             $"En {NombreB} no tienes ninguna Asignación de Cartera: no cuentas ningún documento suyo y su tasa no entra en la media.");
         MetricaMedia(cut).Valor.Should().Be("82%", "(96×64 + 74×100) / 164: Montajes Ebro no pesa en la media");
         cut.Find(".pulso-en-verde").GetAttribute("aria-label").Should().Be(
-            $"1 de 2 organizaciones con cartera con el cumplimiento documental en el 90% o más y sin Centros de Trabajo bloqueados: {NombrePropio} 96%. "
+            $"1 de 2 organizaciones con cartera con el cumplimiento documental en el 90% o más y sin bloqueos: {NombrePropio} 96%. "
             + $"No entra {NombreB}: sin Asignación de Cartera tuya.");
         cut.FindAll("svg.reparto-riesgo-grafico g.barra-organizacion")[2].TextContent.Should().Contain("sin cartera");
         TablaDelGrafico(cut)[2].Organizacion.Should().Be($"{NombreB}, sin Asignación de Cartera tuya");
@@ -338,7 +339,7 @@ public class VisionCarteraGen2Tests : BunitContext
             ("Próximos a vencer", "17", "Según el umbral próximo de cada organización"),
             // (96×64 + 74×100 + 36×30) / 194 = 75; la media simple de 96, 74 y 36 sería 68.
             ("Cumplimiento documental promedio", "75%", "Ponderada por volumen de documentos"),
-            ("Centros de Trabajo bloqueados", "0", "En ninguna organización"));
+            ("Trabajadores bloqueados", "0", "En ninguna organización"));
 
         // Los umbrales son ParametroSistema de cada organización, configurables:
         // una ventana fija escrita en la pantalla sería falsa en cuanto alguien los cambie.
@@ -430,22 +431,23 @@ public class VisionCarteraGen2Tests : BunitContext
         var valor = fila.QuerySelector(".valor-cumplimiento")!;
         Texto(valor).Should().Be("96%", "el porcentaje documental sigue a la vista");
         valor.ClassList.Should().NotContain("tono-exito", "con un Centro de Trabajo bloqueado el porcentaje no es un veredicto verde");
-        Texto(fila.QuerySelector(".bloqueos-organizacion")!).Should().Be("1 Centro de Trabajo bloqueado");
+        Texto(fila.QuerySelector(".bloqueos-organizacion")!).Should().Be("1 Centro de Trabajo con bloqueo de la plataforma CAE");
         fila.QuerySelector(".cumplimiento-organizacion")!.GetAttribute("title").Should().Be(
-            $"{NombrePropio}: 96% de cumplimiento documental, pero 1 Centro de Trabajo bloqueado: no está al día");
+            $"{NombrePropio}: 96% de cumplimiento documental, pero con bloqueos (1 Centro de Trabajo con bloqueo de la plataforma CAE): no está al día");
 
         var verde = cut.Find(".pulso-en-verde");
         verde.TextContent.Should().StartWith("0");
         verde.GetAttribute("aria-label").Should().Be(
-            "Ninguna de las 3 organizaciones llega al 90% de cumplimiento documental sin Centros de Trabajo bloqueados. "
-            + $"No está en verde {NombrePropio}: tiene algún Centro de Trabajo bloqueado.");
+            "Ninguna de las 3 organizaciones llega al 90% de cumplimiento documental sin bloqueos. "
+            + $"No está en verde {NombrePropio}: tiene algún bloqueo.");
 
+        // Sin Trabajadores bloqueados la tarjeta de Trabajadores dice 0: el bloqueo de la plataforma CAE no es de un Trabajador.
         cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(Metrica)
-            .Single(m => m.Etiqueta == "Centros de Trabajo bloqueados")
-            .Should().Be(("Centros de Trabajo bloqueados", "1", "En 1 de 3 organizaciones, que no están en verde"));
+            .Single(m => m.Etiqueta == "Trabajadores bloqueados")
+            .Should().Be(("Trabajadores bloqueados", "0", "En ninguna organización"));
         MetricaMedia(cut).Pista.Should().Be("Solo documental: los bloqueos se cuentan aparte");
         Texto(cut.Find(".detalle-bloqueos-cartera")).Should().Be(
-            $"{NombrePropio} tiene algún Centro de Trabajo bloqueado: no está al día, aunque su porcentaje documental sea alto.");
+            $"{NombrePropio} tiene algún bloqueo: no está al día, aunque su porcentaje documental sea alto.");
         cut.FindAll("svg.reparto-riesgo-grafico g.barra-organizacion")[2].TextContent.Should().Contain("bloqueada").And.NotContain("sin riesgo");
     }
 
@@ -461,7 +463,30 @@ public class VisionCarteraGen2Tests : BunitContext
 
         cut.FindAll(".tarjeta-organizaciones-riesgo .texto-vacio-seccion").Should().BeEmpty(
             "«ninguna tiene riesgo» ocultaría el Centro de Trabajo bloqueado");
-        Filas(cut).Select(f => f.QuerySelector(".bloqueos-organizacion") is { } b ? Texto(b) : "").Should().Contain("2 Centros de Trabajo bloqueados");
+        Filas(cut).Select(f => f.QuerySelector(".bloqueos-organizacion") is { } b ? Texto(b) : "").Should().Contain("2 Centros de Trabajo con bloqueo de la plataforma CAE");
+    }
+
+    /// <summary>
+    /// «Bloqueado» es un estado del Trabajador (2026-10-03): la cartera cuenta Trabajadores bloqueados, y una organización con alguno
+    /// no sale en verde aunque su porcentaje documental sea alto y ningún Centro esté bloqueado por la plataforma.
+    /// </summary>
+    [Fact]
+    public void Los_Trabajadores_bloqueados_se_cuentan_y_la_organizacion_no_sale_en_verde()
+    {
+        var escenario = new Escenario();
+        escenario.Cambiar(TenantPropio, o => o with { Completa = o.Completa with { TrabajadoresBloqueados = 3 } });
+
+        var cut = Renderizar(escenario).Cut;
+
+        var fila = Filas(cut)[2];
+        var valor = fila.QuerySelector(".valor-cumplimiento")!;
+        Texto(valor).Should().Be("96%", "el porcentaje documental sigue a la vista");
+        valor.ClassList.Should().NotContain("tono-exito", "con Trabajadores bloqueados el porcentaje no es un veredicto verde");
+        Texto(fila.QuerySelector(".bloqueos-organizacion")!).Should().Be("3 Trabajadores bloqueados");
+        cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(Metrica)
+            .Single(m => m.Etiqueta == "Trabajadores bloqueados")
+            .Should().Be(("Trabajadores bloqueados", "3", "En 1 de 3 organizaciones, que no están en verde"));
+        cut.Find(".pulso-en-verde").TextContent.Should().StartWith("0");
     }
 
     /// <summary>
@@ -566,7 +591,7 @@ public class VisionCarteraGen2Tests : BunitContext
 
         var verde = cut.Find(".pulso-en-verde");
         verde.GetAttribute("aria-label").Should().Be(
-            $"1 de 3 organizaciones con el cumplimiento documental en el 90% o más y sin Centros de Trabajo bloqueados: {NombrePropio} 96%.");
+            $"1 de 3 organizaciones con el cumplimiento documental en el 90% o más y sin bloqueos: {NombrePropio} 96%.");
         verde.TextContent.Should().StartWith("1");
 
         var riesgo = cut.Find(".pulso-en-riesgo");

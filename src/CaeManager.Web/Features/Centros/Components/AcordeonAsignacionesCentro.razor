@@ -247,6 +247,10 @@ else
                             </button>
                             <button type="button" class="enlace-nombre-fila fila-trabajador-nombre" @onclick="() => AbrirDetalleTrabajador(trabajador)">
                                 @trabajador.TrabajadorNombre
+                                @if (EstaBloqueado(trabajador.TrabajadorId))
+                                {
+                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" title="@DescripcionBloqueo(trabajador.TrabajadorId)">@Textos["BloqueadoEtiqueta"]</Badge>
+                                }
                             </button>
                             <span class="fila-trabajador-fraccion">
                                 @(trabajador.Cumplimiento.Requeridos > 0 ? $"{trabajador.Cumplimiento.AlDia}/{trabajador.Cumplimiento.Requeridos}" : "—")

@@ -14,6 +14,7 @@
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Blindaje42.Components
 @using CaeManager.Web.Features.Centros
+@using CaeManager.Web.Features.Clientes.Components
 @using CaeManager.Web.Features.Clientes.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosClientes> Textos
@@ -104,6 +105,7 @@
                 <SoloConEscritura>
                     <MenuAcciones>
                         <ItemMenuAccion OnClick="AbrirInformacionAsync">@Textos["EditarCliente"]</ItemMenuAccion>
+                        <ItemMenuAccion OnClick="AbrirToleranciasAsync">@Textos["ToleranciaMenu"]</ItemMenuAccion>
                     </MenuAcciones>
                 </SoloConEscritura>
             </Acciones>
@@ -262,6 +264,19 @@
                 </Tarjeta>
 
                 @*
+                    Tolerancia por defecto del Cliente empresarial: sin mockup (ninguno de los de Cliente la dibuja), se construye con
+                    el kit (DrawerFormulario) y el patrón del selector del Centro. Los Centros la heredan salvo que fijen la suya.
+                *@
+                <Tarjeta Compacta="true" Titulo="@Textos["ToleranciaTarjetaTitulo"]">
+                    <ChildContent>
+                        <p class="texto-ayuda-campo">@Textos["ToleranciaTarjetaDescripcion"]</p>
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirToleranciasAsync">@Textos["ToleranciaTarjetaBoton"]</Boton>
+                        </SoloConEscritura>
+                    </ChildContent>
+                </Tarjeta>
+
+                @*
                     «Notas» es una sola columna (ClienteDetalleDto.Notas): la
                     tarjeta la enseña y «Editar →» abre el panel en la pestaña
                     Notas. Sin historial con fecha y autor: no existe entidad Nota.
@@ -288,4 +303,5 @@
         </CuerpoConLateral>
     }
 </div>
+<DrawerToleranciasClienteEmpresarial @bind-Visible="_drawerToleranciasVisible" ClienteEmpresarialId="ClienteId" OnGuardado="RefrescarBloqueosAsync" />
 </LimiteDeErrores>

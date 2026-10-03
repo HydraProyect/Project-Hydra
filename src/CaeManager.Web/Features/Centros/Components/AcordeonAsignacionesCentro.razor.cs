@@ -7,6 +7,7 @@ using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentaci
 using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
 using CaeManager.Application.Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -121,6 +122,24 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// </summary>
     [Parameter] public bool MostrarTotales { get; set; }
 
+    /// <summary>
+    /// Los bloqueos de acceso de los Trabajadores de ESTE Centro (la regla única por Centro): marcan «Bloqueado» al Trabajador en su fila.
+    /// «Bloqueado» es un estado del Trabajador, nunca del Centro. Si el llamador ya los tiene (Centro 360)
+    /// los pasa; si es <c>null</c> (la lista de Centros) el acordeón los carga él mismo, para que la fila
+    /// del Trabajador diga lo mismo en las dos superficies.
+    /// </summary>
+    [Parameter] public IReadOnlyList<CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente.DocumentacionBloqueantePendienteDto>? Bloqueos { get; set; }
+
+    private IReadOnlyList<CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente.DocumentacionBloqueantePendienteDto> _bloqueosPropios = [];
+
+    private IReadOnlyList<CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente.DocumentacionBloqueantePendienteDto> BloqueosEfectivos =>
+        Bloqueos ?? _bloqueosPropios;
+
+    private bool EstaBloqueado(Guid trabajadorId) => BloqueosEfectivos.Any(b => b.TrabajadorId == trabajadorId);
+
+    private string DescripcionBloqueo(Guid trabajadorId) =>
+        string.Join("; ", BloqueosEfectivos.Where(b => b.TrabajadorId == trabajadorId).Select(b => TextoBloqueoDeAcceso.Linea(Textos, b)));
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     private bool _cargando = true;
@@ -220,6 +239,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         InvalidarCargas();
         _trabajadores = [];
         _trabajadoresVisitaSinAsignacion = [];
+        _bloqueosPropios = [];
         _errorCarga = false;
         _seleccionados.Clear();
         _expandidosTrabajador.Clear();
@@ -265,6 +285,28 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
                 _cargando = false;
                 StateHasChanged();
             }
+        }
+
+        if (Bloqueos is null)
+            await CargarBloqueosPropiosAsync(carga, centroId);
+    }
+
+    /// <summary>
+    /// Los bloqueos son un adorno de la fila: si no se pueden leer, la fila se enseña sin el distintivo
+    /// y la lista no falla (mismo criterio que Centro 360).
+    /// </summary>
+    private async Task CargarBloqueosPropiosAsync(int carga, Guid centroId)
+    {
+        try
+        {
+            var bloqueos = await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(centroId), _cancelacion);
+            if (carga != _cargaLista) return;
+            _bloqueosPropios = bloqueos;
+            StateHasChanged();
+        }
+        catch (Exception)
+        {
+            // Fail-soft: sin bloqueos la fila se pinta igual.
         }
     }
 

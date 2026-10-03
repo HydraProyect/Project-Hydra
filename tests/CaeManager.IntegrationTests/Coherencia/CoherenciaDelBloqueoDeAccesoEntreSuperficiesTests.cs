@@ -2,6 +2,7 @@ using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
+using CaeManager.Application.TiposDocumento.Queries.ObtenerToleranciasClienteEmpresarial;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Asignaciones;
@@ -636,6 +637,69 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         }
 
         fallos.Should().BeEmpty("todas las superficies tienen que dar lo mismo que la tabla:\n" + string.Join("\n", fallos));
+    }
+
+    /// <summary>
+    /// Centro 360 por Trabajador: el detalle de ESE Centro es exactamente lo que Mi trabajo dice de ese Centro (la misma regla
+    /// por Centro, los mismos datos), no una segunda lectura. Todos los Centros juntos reconstruyen Mi trabajo, y un Centro de
+    /// otro Tenant no devuelve nada bajo RLS.
+    /// </summary>
+    [Fact]
+    public async Task El_detalle_por_Trabajador_de_un_Centro_es_Mi_trabajo_restringido_a_ese_Centro()
+    {
+        var comoA = Runtime(_tenantA);
+        var miTrabajo = await MiTrabajo(comoA);
+        var evaluacion = new EvaluacionDeAccesoPorCentroService(comoA, comoA, comoA, comoA, comoA, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerDocumentacionBloqueantePendienteQueryHandler(comoA, comoA, comoA, evaluacion);
+
+        miTrabajo.Select(p => p.CentroId).Distinct().Should().HaveCountGreaterThan(1,
+            "control del instrumento: hay bloqueos en varios Centros, así que filtrar por uno distingue algo");
+
+        var reconstruido = new List<DocumentacionBloqueantePendienteDto>();
+        foreach (var centro in miTrabajo.Select(p => p.CentroId).Distinct())
+        {
+            var delCentro = await handler.Handle(new ObtenerDocumentacionBloqueantePendienteQuery(centro), CancellationToken.None);
+            delCentro.Select(f => f.CentroId).Distinct().Should().Equal([centro], "solo ese Centro");
+            delCentro.Should().BeEquivalentTo(miTrabajo.Where(p => p.CentroId == centro),
+                $"el detalle del Centro {Nombre(centro)} es lo que Mi trabajo dice de ese Centro");
+            reconstruido.AddRange(delCentro);
+        }
+
+        reconstruido.Should().BeEquivalentTo(miTrabajo, "todos los Centros juntos reconstruyen Mi trabajo");
+
+        // Un Centro de otro Tenant, pedido desde A: RLS lo oculta y no hay filas.
+        (await handler.Handle(new ObtenerDocumentacionBloqueantePendienteQuery(_centroB), CancellationToken.None))
+            .Should().BeEmpty("el Centro del Tenant B no existe para A");
+        // Un Centro de A sin ningún bloqueo (sin gestión CAE) tampoco devuelve nada.
+        (await handler.Handle(new ObtenerDocumentacionBloqueantePendienteQuery(_centroA3SinGestion), CancellationToken.None))
+            .Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// La pantalla de la tolerancia por defecto del Cliente empresarial lee lo que el comando escribe y lo que la regla de acceso
+    /// consume: sin fila es 0, y un Cliente empresarial no ve las tolerancias de otro (ni de otro Tenant).
+    /// </summary>
+    [Fact]
+    public async Task La_pantalla_de_tolerancia_por_defecto_del_Cliente_empresarial_lee_la_misma_tolerancia_que_aplica_la_regla()
+    {
+        var comoA = Runtime(_tenantA);
+        var handler = new ObtenerToleranciasClienteEmpresarialQueryHandler(comoA, new AlcanceDatosServiceFalso());
+
+        var delCliente = await handler.Handle(new ObtenerToleranciasClienteEmpresarialQuery(_clienteA), CancellationToken.None);
+
+        delCliente.Single(t => t.TipoDocumentoId == _tipoCertificado).ToleranciaDias.Should().Be(ToleranciaA4,
+            "es la tolerancia que hereda el Centro A4 de su Cliente empresarial");
+        delCliente.Single(t => t.TipoDocumentoId == _tipoPss).ToleranciaDias.Should().Be(0, "sin fila la tolerancia es 0");
+        delCliente.Select(t => t.Ambito).Should().OnlyContain(a => a == AmbitoAplicacion.Trabajador || a == AmbitoAplicacion.Empresa,
+            "solo los ámbitos que la regla de acceso evalúa");
+
+        // Un Cliente empresarial fuera del alcance del usuario no enseña nada.
+        var sinAcceso = new ObtenerToleranciasClienteEmpresarialQueryHandler(comoA, new AlcanceDatosServiceFalso(clienteIds: [Guid.NewGuid()]));
+        (await sinAcceso.Handle(new ObtenerToleranciasClienteEmpresarialQuery(_clienteA), CancellationToken.None)).Should().BeEmpty();
+
+        // Y bajo RLS: el Cliente empresarial de B no tiene filas para A.
+        var delOtroTenant = await handler.Handle(new ObtenerToleranciasClienteEmpresarialQuery(_clienteB), CancellationToken.None);
+        delOtroTenant.Should().OnlyContain(t => t.ToleranciaDias == 0, "la tolerancia 100 de B no se ve desde A");
     }
 
     [Fact]

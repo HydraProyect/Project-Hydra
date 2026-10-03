@@ -387,7 +387,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Retorna_Bloqueado_cuando_falta_un_documento_bloqueante_aunque_todo_lo_demas_este_vigente()
+    public async Task Un_documento_bloqueante_ausente_deja_el_Centro_en_Faltante_y_no_Bloqueado_porque_Bloqueado_es_del_Trabajador()
     {
         Guid tipoBloqueanteId;
         await using (var contexto = CrearContexto())
@@ -406,8 +406,12 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
 
         var resultado = await CalcularAsync();
 
-        resultado.Estado.Should().Be(EstadoCentro.Bloqueado);
-        resultado.Causas.Should().ContainSingle(c => c.Bloqueante && c.Descripcion.Contains("Formulario de acceso") && c.Descripcion.Contains("Ana García"));
+        // «Bloqueado» es un estado del Trabajador (2026-10-03): el Centro solo lo está por la plataforma del Cliente empresarial
+        // (D-7). Quién no puede entrar y por qué lo dice IEvaluacionDeAccesoPorCentroService, no este semáforo.
+        resultado.Estado.Should().Be(EstadoCentro.Faltante);
+        resultado.Causas.Should().ContainSingle(c =>
+            !c.Bloqueante && c.Estado == EstadoDocumento.Faltante
+            && c.Descripcion.Contains("Formulario de acceso") && c.Descripcion.Contains("Ana García"));
     }
 
     [Fact]
