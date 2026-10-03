@@ -67,6 +67,8 @@ public class ObtenerPendientePorPlataformaQueryHandler(
             from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
             where acreditacion.Estado == EstadoAcreditacion.PendienteDeSubir || acreditacion.Estado == EstadoAcreditacion.Rechazada
             join canal in canalesQuery on acreditacion.CanalGestionDocumentalId equals canal.Id
+            // Las acreditaciones de un documento sustituido son historial: no son trabajo pendiente.
+            join documento in documentosContext.Documentos.Operativos() on acreditacion.DocumentoId equals documento.Id
             group acreditacion by canal.ProveedorPlataformaCaeId into porProveedor
             select new
             {

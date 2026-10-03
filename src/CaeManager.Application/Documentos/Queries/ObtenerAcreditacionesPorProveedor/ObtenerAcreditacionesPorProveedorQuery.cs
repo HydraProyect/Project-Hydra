@@ -147,7 +147,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             // P1-X2: los canales que conserve un Centro sin gestión CAE no
             // generan trabajo de acreditación (ni pendientes ni rechazos).
             where centro.GestionCae != ModalidadGestionCae.SinGestionCae
-            join documento in documentosContext.Documentos on acreditacion.DocumentoId equals documento.Id
+            join documento in documentosContext.Documentos.Operativos() on acreditacion.DocumentoId equals documento.Id
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new
             {

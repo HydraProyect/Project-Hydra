@@ -350,14 +350,21 @@ public class ReglasDeNegocioSinCopiasTests
     /// es rojo hasta que filtre o se declare a conciencia.
     /// </summary>
     private static readonly Regex PatronLectorDeDocumentosSinFiltroOperativo = new(
-        @"\b(?:documentosContext|dbContext)\s*\.\s*Documentos\b(?!\s*\.\s*(?:Operativos\s*\(|Reclamables\s*\(|Where\s*\(\s*DocumentoOperativo\s*\.\s*Expresion))",
+        @"\b\w*(?:[Cc]ontext|[Cc]ontexto|[Dd]b)\s*\.\s*Documentos\b(?!\s*\.\s*(?:Operativos\s*\(|Reclamables\s*\(|Where\s*\(\s*DocumentoOperativo\s*\.\s*Expresion))",
         RegexOptions.Compiled);
 
     /// <summary>
-    /// Escritura, siembra y repositorio por Id: el DbContext como almacén, no como lector de estado. No entran en el
-    /// inventario porque no deciden nada de lo que ve el Gestor CAE.
+    /// Siembra de datos de prueba y repositorio por Id: el DbContext como almacén, no como lector de estado. No entran
+    /// en el inventario porque no deciden nada de lo que ve el Gestor CAE. Son rutas concretas (no toda la carpeta de
+    /// persistencia): un lector nuevo en ella sí cuenta.
     /// </summary>
-    private const string PersistenciaFueraDelInventario = "src/CaeManager.Infrastructure/Persistence/";
+    private static readonly string[] FueraDelInventarioDeLectores =
+    [
+        "src/CaeManager.Infrastructure/Persistence/Seed/",
+        "src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs",
+        // La implementación explícita de IDocumentosQueryContext.Documentos: la definición de la fuente, no un lector.
+        "src/CaeManager.Infrastructure/Persistence/CaeManagerDbContext.cs",
+    ];
 
     private static readonly Dictionary<string, int> LectoresDeDocumentosSinFiltroOperativo = new()
     {
@@ -371,7 +378,6 @@ public class ReglasDeNegocioSinCopiasTests
         //     sustituirse: el dato referenciado se resuelve aunque sea historial). ---
         ["src/CaeManager.Application/Comunicaciones/Queries/ObtenerConversacionPorId/ObtenerConversacionPorIdQuery.cs"] = 2,
         ["src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeService.cs"] = 1,
-        ["src/CaeManager.Application/Documentos/Queries/ObtenerAcreditacionesPorProveedor/ObtenerAcreditacionesPorProveedorQuery.cs"] = 1,
         ["src/CaeManager.Application/Visitas/Antelacion/EvaluadorExpedienteVisitaService.cs"] = 1,
         ["src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs"] = 1,
 
@@ -392,7 +398,9 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Retencion/EjecucionPurgaService.cs"] = 1,
 
         // --- Actividad, no estado: cuentan documentos SUBIDOS en un periodo (producción y facturación), y una versión
-        //     sustituida se subió igual. ---
+        //     sustituida se subió igual; la ficha del Proyecto cuenta los documentos gestionados en su vida, historial
+        //     incluido. ---
+        ["src/CaeManager.Application/Proyectos/Queries/ObtenerProyectoPorId/ObtenerProyectoPorIdQuery.cs"] = 1,
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerCatalogoKpisQuery.cs"] = 2,
         ["src/CaeManager.Application/Facturacion/Queries/ObtenerResumenFacturacion/ObtenerResumenFacturacionQuery.cs"] = 2,
 
@@ -405,7 +413,7 @@ public class ReglasDeNegocioSinCopiasTests
     public void Todo_lector_de_documentos_filtra_los_operativos_o_declara_por_que_no()
     {
         var medido = ContarPorFichero(PatronLectorDeDocumentosSinFiltroOperativo)
-            .Where(x => !x.Key.StartsWith(PersistenciaFueraDelInventario, StringComparison.Ordinal))
+            .Where(x => !FueraDelInventarioDeLectores.Any(f => x.Key.StartsWith(f, StringComparison.Ordinal)))
             .ToDictionary(x => x.Key, x => x.Value);
 
         Divergencias(LectoresDeDocumentosSinFiltroOperativo, medido).Should().BeEmpty(
@@ -428,6 +436,9 @@ public class ReglasDeNegocioSinCopiasTests
             "            join documento in dbContext.Documentos on a.DocumentoId equals documento.Id",
             "            .Join(documentosContext.Documentos, rd => rd.DocumentoId, d => d.Id,",
             "        var z = documentosContext . Documentos",
+            "        var w = await _documentosContext.Documentos.ToListAsync();",
+            "        var v = contexto.Documentos.Where(d => d.Id == id);",
+            "        var u = db.Documentos.Any();",
         ];
         foreach (var linea in sinFiltro)
             EsCodigoQueCasa(linea, PatronLectorDeDocumentosSinFiltroOperativo).Should().BeTrue(linea);
@@ -651,8 +662,10 @@ public class ReglasDeNegocioSinCopiasTests
         File.Exists(Path.Combine(raiz, PuntoUnicoDeLaVentana)).Should().BeTrue("el punto único de la ventana tiene que existir");
         File.Exists(Path.Combine(raiz, PuntoUnicoDelBloqueoDeAcceso)).Should().BeTrue("el punto único del bloqueo de acceso tiene que existir");
         File.Exists(Path.Combine(raiz, PuntoUnicoDelDocumentoOperativo)).Should().BeTrue("el punto único del documento operativo tiene que existir");
-        Directory.Exists(Path.Combine(raiz, PersistenciaFueraDelInventario.TrimEnd('/').Replace('/', Path.DirectorySeparatorChar)))
-            .Should().BeTrue("la carpeta que el inventario de lectores deja fuera tiene que existir: si se movió, deja de excluir lo que decía");
+        foreach (var fuera in FueraDelInventarioDeLectores)
+            (Directory.Exists(Path.Combine(raiz, fuera.TrimEnd('/').Replace('/', Path.DirectorySeparatorChar)))
+                || File.Exists(Path.Combine(raiz, fuera.Replace('/', Path.DirectorySeparatorChar))))
+                .Should().BeTrue($"{fuera} queda fuera del inventario de lectores: si se movió, deja de excluir lo que decía");
 
         foreach (var ruta in LecturasDeLaFilaBloqueante.Keys
                      .Concat(ComparacionesDeSustitucionDeclaradas.Keys)

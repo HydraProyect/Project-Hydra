@@ -3,7 +3,6 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Proyectos;
-using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -46,7 +45,7 @@ public class ObtenerProyectoPorIdQueryHandler(ICentrosQueryContext centrosContex
 
         var tecnicosActivos = await proyectosContext.ProyectosTecnicos
             .CountAsync(pt => pt.ProyectoId == proyecto.Id && pt.FechaBaja == null, cancellationToken);
-        var documentosGestionados = await documentosContext.Documentos.Operativos()
+        var documentosGestionados = await documentosContext.Documentos
             .CountAsync(d => d.ProyectoId == proyecto.Id, cancellationToken);
 
         return new ProyectoDetalleDto(
