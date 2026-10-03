@@ -944,9 +944,29 @@
     background-color: var(--color-surface);
 }
 
+/* Tercer nivel de Centro 360: solo existe mientras la fila de Trabajador está expandida; entra con la misma cascada del sistema. */
+.tabla-documentos-requeridos > * {
+    animation: tabla-documentos-entra var(--motion-transition) var(--ease-fluid) backwards;
+}
+
+.tabla-documentos-requeridos > :nth-child(1) { animation-delay: 70ms; }
+.tabla-documentos-requeridos > :nth-child(2) { animation-delay: 120ms; }
+.tabla-documentos-requeridos > :nth-child(n + 3) { animation-delay: 170ms; }
+
+@keyframes tabla-documentos-entra {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .fila-documento-requerido > * {
         transition: none;
+    }
+
+    .tabla-documentos-requeridos > * {
+        animation: none;
     }
 }
 
