@@ -78,6 +78,7 @@ public class LecturaIaClienteGen2Tests : BunitContext
         var mediador = new MediadorControlado(escenario.Responder);
         var toasts = new ToastService();
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddLocalization();
         Services.AddScoped<ToastService>(_ => toasts);
         var cut = Render<ConfiguracionIaCliente>(p => p.Add(x => x.ClienteId, clienteId ?? ClienteA));
         return (cut, mediador, toasts);

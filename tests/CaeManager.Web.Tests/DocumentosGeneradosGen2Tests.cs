@@ -34,6 +34,7 @@ public class DocumentosGeneradosGen2Tests : BunitContext
     public DocumentosGeneradosGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
     }
 

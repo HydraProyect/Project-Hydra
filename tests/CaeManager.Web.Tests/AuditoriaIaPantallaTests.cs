@@ -88,6 +88,7 @@ public class AuditoriaIaPantallaTests : BunitContext
     private IRenderedComponent<Features.AuditoriaIa.Pages.AuditoriaIa> Renderizar(string? proveedor = null, bool integrada = false)
     {
         Services.AddScoped<IMediator>(_ => _mediador);
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
         // BotonCopiar (panel de detalle) importa clipboard.js al pintarse.
         JSInterop.Mode = JSRuntimeMode.Loose;

@@ -275,6 +275,7 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
     {
         var mediador = new MediadorControlado(escenario.Responder);
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<AuthenticationStateProvider>(_ => new AutenticacionFalsa(rol));
         Services.AddAuthorizationCore();

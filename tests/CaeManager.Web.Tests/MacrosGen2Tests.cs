@@ -161,6 +161,7 @@ public class MacrosGen2Tests : BunitContext
     {
         var mediador = new MediadorControlado(escenario.Responder);
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddSingleton<ILogger<Macros>>(_ => NullLogger<Macros>.Instance);

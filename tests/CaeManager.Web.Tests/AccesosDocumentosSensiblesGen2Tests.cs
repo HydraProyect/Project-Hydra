@@ -128,6 +128,7 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
     private void Registrar()
     {
         Services.AddScoped<IMediator>(_ => _mediador);
+        Services.AddLocalization();
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped(_ => new UserManager<ApplicationUser>(
             new AlmacenUsuarios(_usuarios), null!, null!, null!, null!, null!, null!, null!, null!));

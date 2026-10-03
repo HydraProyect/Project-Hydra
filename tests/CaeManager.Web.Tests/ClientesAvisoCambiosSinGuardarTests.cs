@@ -4,6 +4,7 @@ using Bunit.TestDoubles;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Application.Tenants;
@@ -50,7 +51,7 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
 
     public ClientesAvisoCambiosSinGuardarTests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
-    private sealed class MediatorPorTipo : IMediator
+    private sealed class MediatorPorTipo(bool guardarFiltroDevuelveFallo = false) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(object)(request switch
@@ -58,6 +59,7 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
                 ObtenerFiltrosGuardadosQuery => (object)Array.Empty<FiltroGuardadoDto>(),
                 ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 CrearClienteCommand => Result.Exito(ClienteCreadoId),
+                GuardarFiltroCommand when guardarFiltroDevuelveFallo => Result.Fallo<Guid>(Error.Crear("Filtro.NombreEnUso", "Ya tienes un filtro con ese nombre.")),
                 ObtenerClientesQuery q => new ResultadoPaginado<ClienteListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerAlcanceCeroQuery => (object)false,
                 ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
@@ -172,9 +174,9 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
             new PuertaAccesoDatos(), identidad);
     }
 
-    private IRenderedComponent<Clientes> Renderizar(string accion)
+    private IRenderedComponent<Clientes> Renderizar(string accion, bool guardarFiltroDevuelveFallo = false)
     {
-        Services.AddScoped<IMediator>(_ => new MediatorPorTipo());
+        Services.AddScoped<IMediator>(_ => new MediatorPorTipo(guardarFiltroDevuelveFallo));
         Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
@@ -330,5 +332,18 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
 
         cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+    }
+
+    [Fact]
+    public async Task Un_resultado_fallido_al_guardar_el_filtro_muestra_el_mensaje_del_servidor_en_el_aviso_fijo()
+    {
+        var cut = Renderizar("guardar-filtro", guardarFiltroDevuelveFallo: true);
+        await cut.FindAll(".modal-contenido input").First().InputAsync(new ChangeEventArgs { Value = "Críticos" });
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".modal-aviso .alerta-formulario").TextContent.Should().Contain("Ya tienes un filtro con ese nombre.",
+            "el mensaje del Result es el que el usuario ve, fuera del cuerpo desplazable y sin cerrar el modal");
+        cut.FindAll(".modal-contenido").Should().NotBeEmpty();
     }
 }

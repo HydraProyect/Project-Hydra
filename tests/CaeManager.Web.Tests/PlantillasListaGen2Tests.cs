@@ -84,6 +84,7 @@ public class PlantillasListaGen2Tests : BunitContext
     private void Registrar(MediatorFalso mediador)
     {
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
     }
 

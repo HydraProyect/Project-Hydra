@@ -486,6 +486,21 @@ public class ModalFormularioTests : BunitContext
     }
 
     [Fact]
+    public async Task Bloqueante_tampoco_se_cierra_con_Salir_y_descartar_de_la_navegacion_pero_avisa_a_la_pantalla()
+    {
+        _hayCambios = true;
+        var avisos = 0;
+        var cut = Renderizar(p => p.Add(x => x.Bloqueante, true).Add(x => x.AlDescartarPorNavegacion, EventCallback.Factory.Create(this, () => avisos++)));
+        var navegacion = Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("/trabajadores"));
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Salir y descartar").ClickAsync(new MouseEventArgs());
+
+        _visible.Should().BeTrue("un modal Bloqueante solo se sale guardando: la navegación no lo cierra por su cuenta");
+        avisos.Should().Be(1, "la pantalla limpia su estado en AlDescartarPorNavegacion");
+    }
+
+    [Fact]
     public void Sin_Bloqueante_Cancelar_y_la_X_existen()
     {
         var cut = Renderizar();

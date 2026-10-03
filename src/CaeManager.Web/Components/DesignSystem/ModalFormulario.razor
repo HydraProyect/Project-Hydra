@@ -148,7 +148,7 @@
     /// <summary>Diálogos que abre el formulario: se pintan después del modal y antes del aviso de navegación.</summary>
     [Parameter] public RenderFragment? Dialogos { get; set; }
 
-    /// <summary>Tras «Salir y descartar» del aviso de navegación, además de cerrar el modal.</summary>
+    /// <summary>Tras «Salir y descartar» del aviso de navegación, además de cerrar el modal (un modal Bloqueante no se cierra: solo se sale guardando).</summary>
     [Parameter] public EventCallback AlDescartarPorNavegacion { get; set; }
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
@@ -210,7 +210,10 @@
 
     private async Task DescartarPorNavegacionAsync()
     {
-        await VisibleChanged.InvokeAsync(false);
+        // Un modal Bloqueante solo se sale guardando: «Salir y descartar» deja continuar la navegación (la pantalla se va con ella) pero
+        // no cierra el modal por su cuenta; si la pantalla quiere limpiar su estado, lo hace en AlDescartarPorNavegacion.
+        if (!Bloqueante)
+            await VisibleChanged.InvokeAsync(false);
         await AlDescartarPorNavegacion.InvokeAsync();
     }
 

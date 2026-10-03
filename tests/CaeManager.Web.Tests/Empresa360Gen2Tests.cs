@@ -82,7 +82,7 @@ public partial class Empresa360Gen2Tests : BunitContext
     }
 
     private static EmpresaDetalleDto Detalle(Guid id, string nombre) => new(id, nombre, "B-50", DateTime.UtcNow, [], Guid.NewGuid());
-    private MediadorFalso Registrar(MediadorFalso m) { Services.AddScoped<IMediator>(_ => m); Services.AddScoped<ToastService>(); Services.AddScoped<ContextWorkspaceService>(); return m; }
+    private MediadorFalso Registrar(MediadorFalso m) { Services.AddScoped<IMediator>(_ => m); Services.AddLocalization(); Services.AddScoped<ToastService>(); Services.AddScoped<ContextWorkspaceService>(); return m; }
     private IRenderedComponent<EmpresaWorkspacePanel> Renderizar(Guid id, string pestana = "informacion") => Render<EmpresaWorkspacePanel>(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, pestana).Add(x => x.PestanaActivaChanged, EventCallback.Factory.Create<string>(this, _ => { })));
     private static IElement Boton(IRenderedComponent<EmpresaWorkspacePanel> cut, string texto) => cut.FindAll("button").Where(x => x.TextContent.Trim() == texto).Should().ContainSingle().Subject;
     private static IElement Control(IRenderedComponent<EmpresaWorkspacePanel> cut, string etiqueta) { var id = cut.FindAll("label").Where(x => x.TextContent.Trim() == etiqueta).Should().ContainSingle().Subject.GetAttribute("for"); return cut.Find($"#{id}"); }

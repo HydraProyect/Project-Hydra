@@ -101,6 +101,7 @@ public class PestanaHistorialPuertaAccesoDatosTests : BunitContext
             new(Guid.NewGuid(), "Cliente", entidadId, "Modificado", usuarioId, DateTime.UtcNow, false, false),
         };
         Services.AddScoped<IMediator>(_ => new MediatorHistorial(filas));
+        Services.AddLocalization();
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped(_ => new UserManager<ApplicationUser>(
             almacen, null!, null!, null!, null!, null!, null!, null!, null!));

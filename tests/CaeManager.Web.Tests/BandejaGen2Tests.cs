@@ -38,6 +38,7 @@ public class BandejaGen2Tests : BunitContext
         MediatorDeLaBandeja mediator, string? tipo = null)
     {
         Services.AddScoped<IMediator>(_ => mediator);
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
 
