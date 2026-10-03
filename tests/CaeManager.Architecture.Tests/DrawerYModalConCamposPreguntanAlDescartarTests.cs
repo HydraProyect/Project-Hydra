@@ -101,9 +101,9 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         ["src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor#Drawer1:Continuar con el centro"] =
             "Acción, no salida: guarda la Empresa y continúa con el alta de su Centro; lo escrito ya está guardado.",
 
-        // Diálogo de confirmación con una elección opcional (decisión de la coordinadora, 2026-10-03: toda pérdida de edición
-        // pregunta). «Descartar la propuesta» de Retención YA NO está aquí: su Motivo es obligatorio, y «Volver» pregunta como la X.
-        // «Desactivar usuario» se queda: su Gestor CAE de destino es opcional y el valor por defecto es «no reasignar».
+        // Regla de Chris (2026-09-29): toda pérdida de edición pregunta. «Descartar la propuesta» de Retención salió de esta lista (2026-10-03)
+        // porque su Motivo es obligatorio. «Desactivar usuario» se mantiene (decisión de la coordinadora, 2026-10-03): su Gestor CAE de
+        // destino es una elección opcional y el valor por defecto es «no reasignar».
         ["src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor#Modal2:@TextosUsuarios[\"DesactivarVolver\"]"] =
             "Confirmación «Desactivar usuario» con un Gestor CAE de destino opcional para la cartera: la acción es confirmar y «Volver» " +
             "descarta la elección a propósito (el destino por defecto es «no reasignar»). Excepción por analogía con Visitas; " +

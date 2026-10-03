@@ -611,6 +611,7 @@ public class RetencionTests : BunitContext
 
         cut.FindAll("[role=dialog]").Should().BeEmpty("al descartar se cierra");
         mediator.Enviados.OfType<CancelarPurgaCommand>().Should().BeEmpty("volver no descarta la propuesta");
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "tras descartar los cambios no queda nada que perder");
     }
 
     [Theory]
