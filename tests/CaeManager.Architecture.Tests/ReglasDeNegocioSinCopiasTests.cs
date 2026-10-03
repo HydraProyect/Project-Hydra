@@ -43,6 +43,10 @@ namespace CaeManager.Architecture.Tests;
 /// <item><b>Lectores de Documentos solo sobre operativos</b> — <c>documentosContext.Documentos.Operativos()</c>. Todo
 /// lector que no lo aplica (listados con historial, auditoría, purga, resolución por Id, actividad) está inventariado con
 /// su motivo; uno nuevo es rojo.</item>
+/// <item><b>Elegir el documento efectivo</b> — punto único <c>DocumentoEfectivo</c> (Application): válido hoy → nominativo
+/// → emisión más reciente → vigencia confirmada → <c>CreadoEnUtc</c> → <c>Id</c>. Un orden de elección escrito a mano
+/// (por «sin confirmar», por <c>FechaEmision</c> descendente o por quien vence más tarde) es rojo salvo en las
+/// excepciones declaradas.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -420,6 +424,69 @@ public class ReglasDeNegocioSinCopiasTests
             "un lector de Documentos decide estado, alertas, bloqueo, faltantes, paquete o cifras sobre los operativos: " +
             "`.Operativos()` (o `.Where(DocumentoOperativo.Expresion)`). Si el lector ignora a propósito el historial " +
             "(auditoría, purga, resolución por Id, actividad), se declara aquí con su motivo");
+    }
+
+    // ---------- 8. Elegir el documento efectivo: un solo orden ----------
+
+    /// <summary>
+    /// Una elección de «qué documento representa» escrita a mano: ordenar por «sin confirmar», quedarse con la emisión
+    /// más reciente (<c>OrderByDescending/ThenByDescending/MaxBy(d =&gt; d.FechaEmision)</c>) o por quien vence más tarde
+    /// (<c>OrderByDescending(d =&gt; d.FechaVencimiento ?? …)</c>, el criterio que el diseño retiró). El orden es
+    /// <c>DocumentoEfectivo.Ordenar</c> (válido hoy → nominativo → emisión más reciente → vigencia confirmada →
+    /// <c>CreadoEnUtc</c> → <c>Id</c>); copiarlo en un lector hace que dos superficies elijan documentos distintos.
+    /// </summary>
+    private static readonly Regex PatronEleccionDeDocumentoEfectivoCopiada = new(
+        @"\b(?:OrderBy|ThenBy)(?:Descending)?\s*\([^;]*\bSinConfirmar\b"
+        + @"|\b(?:OrderByDescending|ThenByDescending|MaxBy)\s*\(\s*\w+\s*=>\s*\w+\s*\.\s*FechaEmision\b"
+        + @"|\b(?:OrderByDescending|ThenByDescending|MaxBy)\s*\(\s*\w+\s*=>\s*\w+\s*\.\s*FechaVencimiento\s*\?\?",
+        RegexOptions.Compiled);
+
+    private static readonly Dictionary<string, int> EleccionesDeDocumentoDeOtraPregunta = new()
+    {
+        // El punto único: «sin confirmar» como desempate del orden (una línea).
+        ["src/CaeManager.Application/Documentos/DocumentoEfectivo.cs"] = 1,
+        // Orden de la LISTA de Documentos por la columna que elige el usuario (emisión, dos líneas): no elige a quién
+        // representa a un tipo, presenta filas.
+        ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs"] = 2,
+    };
+
+    [Fact]
+    public void El_orden_que_elige_el_documento_efectivo_no_se_copia_fuera_de_su_punto_unico()
+    {
+        Divergencias(EleccionesDeDocumentoDeOtraPregunta, ContarPorFichero(PatronEleccionDeDocumentoEfectivoCopiada)).Should().BeEmpty(
+            "elegir qué documento representa a un par (tipo + sujeto) es DocumentoEfectivo.Ordenar/UnoPorClave; un orden " +
+            "escrito a mano en un lector puede divergir del resto sin que nada lo avise. Si responde a otra pregunta " +
+            "(presentar filas), declara la excepción en esta lista");
+    }
+
+    [Fact]
+    public void El_patron_de_eleccion_del_efectivo_reconoce_las_copias_e_ignora_las_ordenaciones_ajenas()
+    {
+        string[] copias =
+        [
+            "            .ThenByDescending(d => d.EstadoVigencia != EstadoVigenciaDocumento.SinConfirmar)",
+            "            .OrderBy(d => d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 1 : 0)",
+            "            .OrderByDescending(d => d.FechaEmision)",
+            "            .ThenByDescending(x => x.FechaEmision).First()",
+            "        var uno = grupo.MaxBy(d => d.FechaEmision);",
+            "            .OrderByDescending(d => d.FechaVencimiento ?? DateOnly.MaxValue)",
+            "            .ThenByDescending(d => d.FechaVencimiento ?? DateOnly.MinValue)",
+        ];
+        foreach (var linea in copias)
+            EsCodigoQueCasa(linea, PatronEleccionDeDocumentoEfectivoCopiada).Should().BeTrue(linea);
+
+        string[] ajenas =
+        [
+            "            .OrderBy(d => d.FechaVencimiento ?? DateOnly.MaxValue)",
+            "            .ThenBy(a => a.FechaVencimiento)",
+            "            .OrderByDescending(c => c.CreadoEnUtc)",
+            "            .ThenByDescending(fechaEmision)",
+            "                : d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 1 : 2)",
+            "            // .OrderByDescending(d => d.FechaEmision)",
+            "            .OrderByDescending(v => v.FechaVerificacion)",
+        ];
+        foreach (var linea in ajenas)
+            EsCodigoQueCasa(linea, PatronEleccionDeDocumentoEfectivoCopiada).Should().BeFalse(linea);
     }
 
     // ---------- Instrumento ----------

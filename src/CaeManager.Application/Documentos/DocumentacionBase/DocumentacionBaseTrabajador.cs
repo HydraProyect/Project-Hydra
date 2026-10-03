@@ -43,7 +43,7 @@ public record DocumentacionBaseTrabajadorDto(IReadOnlyList<IndicadorDocumentacio
 {
     /// <summary>
     /// Al día = ningún indicador Falta ni Vencido. «Próximo a vencer» sigue siendo válido hoy
-    /// (como en <see cref="PreferenciaDocumentoPorTipo"/>) y «Vigencia sin confirmar» también
+    /// (como en <see cref="DocumentoEfectivo"/>) y «Vigencia sin confirmar» también
     /// cuenta (decisión del propietario, 2026-10-01): el documento está y lo pendiente es
     /// confirmar su fecha. Los dos se avisan aparte, en el indicador y, el segundo, también en
     /// el resumen (<see cref="TieneVigenciaSinConfirmar"/>).
@@ -60,7 +60,8 @@ public record DocumentoParaDocumentacionBase(
     string TipoDocumentoNombre,
     EstadoVigenciaDocumento EstadoVigencia,
     DateOnly? FechaVencimiento,
-    DateOnly FechaEmision);
+    DateOnly FechaEmision,
+    DateTime CreadoEnUtc = default);
 
 public static class DocumentacionBaseTrabajador
 {
@@ -86,8 +87,8 @@ public static class DocumentacionBaseTrabajador
             .Select(d => (Tipo: Clasificar(d.TipoDocumentoNombre), Documento: d))
             .Where(x => x.Tipo is not null)
             .GroupBy(x => x.Tipo!.Value)
-            .ToDictionary(g => g.Key, g => PreferenciaDocumentoPorTipo.Ordenar(
-                g.Select(x => x.Documento), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, hoy).First());
+            .ToDictionary(g => g.Key, g => DocumentoEfectivo.Ordenar(
+                g.Select(x => x.Documento), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy).First());
 
         var indicadores = Enum.GetValues<TipoDocumentoBase>()
             .Select(tipo => porTipo.TryGetValue(tipo, out var d)

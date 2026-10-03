@@ -57,7 +57,7 @@ namespace CaeManager.IntegrationTests.Coherencia;
 /// <b>Lo que esta tabla NO cubre, a propósito, porque hoy las superficies difieren y la regla buena es una
 /// decisión del propietario</b> (medido el 2026-10-03, ver el informe de S4): el histórico de un mismo tipo
 /// —un documento vencido y su renovación vigente—: Trabajador 360 y el cumplimiento del Centro eligen la
-/// renovación (<c>PreferenciaDocumentoPorTipo</c>) mientras Alertas, la lista de Trabajadores y las causas del
+/// renovación (<c>DocumentoEfectivo</c>) mientras Alertas, la lista de Trabajadores y las causas del
 /// Centro siguen diciendo «Vencido». Esta tabla no lo fija para no consagrar una de las dos lecturas
 /// (el histórico <i>sin</i> sustitución explícita; el <i>sustituido</i> sí se fija, filas «E2»: es historial y no cuenta). Los
 /// porcentajes de cumplimiento (qué cuenta como al día, de quién se miden) los fija

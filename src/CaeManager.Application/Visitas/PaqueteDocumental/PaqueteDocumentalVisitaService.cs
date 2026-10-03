@@ -171,12 +171,12 @@ public class PaqueteDocumentalVisitaService(
     /// <summary>
     /// Reglas del propietario (2026-09-20 y precisión del 2026-10-01): al Cliente empresarial
     /// se le envían los documentos vigentes, uno por (titular, tipo) y el de emisión más
-    /// reciente; nunca los vencidos.
+    /// reciente; nunca los vencidos. El que viaja es el documento efectivo (<see cref="DocumentoEfectivo"/>), si es vigente.
     ///
     /// <para>
     /// Entre las copias vigentes de un (titular, tipo) viaja la de <c>FechaEmision</c> más
     /// reciente, aunque otra venza más tarde; el desempate es determinista y está en
-    /// <see cref="PreferenciaCopiaDelPaquete"/>. «Sin confirmar» y
+    /// <see cref="DocumentoEfectivo"/>. «Sin confirmar» y
     /// <see cref="EstadoVigenciaDocumento.NoCaduca"/> (p. ej. Formación 60h) son vigentes y
     /// compiten por su emisión como cualquier otra copia.
     /// </para>
@@ -190,7 +190,7 @@ public class PaqueteDocumentalVisitaService(
     /// <para>
     /// Vencido es <c>FechaVencimiento &lt; hoy</c> (el umbral ámbar/rojo no interviene:
     /// Próximo y Urgente siguen vigentes), evaluado con
-    /// <see cref="PreferenciaDocumentoPorTipo.EstaVencido"/> para no duplicar la regla. Si de
+    /// <see cref="DocumentoEfectivo.ValidoHoy"/> para no duplicar la regla. Si de
     /// un (titular, tipo) solo hay copias vencidas no se envía ninguna y el par se devuelve en
     /// <see cref="SeleccionPaquete.SoloVencidos"/>: nunca se manda el vencido «por si acaso».
     /// </para>
@@ -216,11 +216,13 @@ public class PaqueteDocumentalVisitaService(
 
         foreach (var grupo in candidatos.GroupBy(d => (d.TrabajadorId, d.TipoDocumentoId)))
         {
-            // Se descartan los vencidos (nunca se envían) y entre el resto manda la emisión más
-            // reciente (PreferenciaCopiaDelPaquete), no la preferencia de las vistas de estado.
-            var vigentes = PreferenciaCopiaDelPaquete.Ordenar(
-                    grupo.Where(d => !PreferenciaDocumentoPorTipo.EstaVencido(d.EstadoVigencia, d.FechaVencimiento, hoy)),
-                    d => d.FechaEmision, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.CreadoEnUtc, d => d.Id)
+            // El documento efectivo del grupo es el primero (DocumentoEfectivo, el mismo orden que el estado y el
+            // cumplimiento) y solo viaja si es vigente: los vencidos nunca se envían. Los válidos van antes que los
+            // vencidos, así que las copias vigentes son el prefijo del orden: el efectivo y, detrás, las de reserva por si
+            // su archivo no se puede abrir.
+            var vigentes = DocumentoEfectivo.Ordenar(
+                    grupo, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy)
+                .TakeWhile(d => DocumentoEfectivo.ValidoHoy(d.EstadoVigencia, d.FechaVencimiento, hoy))
                 .ToList();
 
             if (vigentes.Count == 0)

@@ -135,15 +135,15 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsRequeridos.Contains(d.TipoDocumentoId))
-            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
+            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
             .ToListAsync(cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
 
         // El documento que representa a cada par Trabajador×Tipo: el mismo que usa el % del Centro.
-        var preferidosPorPar = PreferenciaDocumentoPorTipo.UnoPorClave(
-            documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, hoy);
+        var preferidosPorPar = DocumentoEfectivo.UnoPorClave(
+            documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
 
         var documentosPorTrabajador = documentosExistentes
             .GroupBy(d => d.TrabajadorId)

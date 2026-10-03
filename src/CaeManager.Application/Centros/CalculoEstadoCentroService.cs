@@ -552,16 +552,14 @@ public class CalculoEstadoCentroService(
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsCandidatos.Contains(d.TipoDocumentoId))
-            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
+            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
             .ToListAsync(cancellationToken);
 
-        // Puede haber varios por par (el vencido y su renovación): el índice
-        // (TrabajadorId, TipoDocumentoId) no es único y la subida no rechaza un
-        // segundo documento del mismo tipo. Manda el que decide PreferenciaDocumentoPorTipo
-        // (la copia que mejor cumple: estado y vigencia). NO es el que elige el paquete de
-        // acreditación, que usa PreferenciaCopiaDelPaquete (emisión más reciente primero).
-        var estadosPorPareja = PreferenciaDocumentoPorTipo.UnoPorClave(
-                documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, hoy)
+        // Un solo documento operativo por par en el caso normal (el vencido y su renovación ya no coexisten: el
+        // anterior pasa al historial); con duplicados aún sin resolver manda el documento efectivo (DocumentoEfectivo),
+        // el mismo que elige el paquete de acreditación de la Visita.
+        var estadosPorPareja = DocumentoEfectivo.UnoPorClave(
+                documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy)
             .ToDictionary(
                 p => p.Key,
                 p => CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));

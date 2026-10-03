@@ -479,8 +479,8 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     /// renovación típica deja el vencido y añade el nuevo. Antes, el
     /// <c>ToDictionary</c> por par lanzaba ArgumentException y tumbaba el
     /// cumplimiento del Centro entero. Ahora manda el documento que elige
-    /// <c>PreferenciaDocumentoPorTipo</c> para representar al tipo: el no
-    /// vencido antes que el vencido.
+    /// <c>DocumentoEfectivo</c> para representar al tipo: el válido hoy
+    /// antes que el vencido.
     /// </summary>
     [Fact]
     public async Task Con_el_vencido_y_su_renovacion_del_mismo_tipo_cuenta_al_dia_por_el_vigente()

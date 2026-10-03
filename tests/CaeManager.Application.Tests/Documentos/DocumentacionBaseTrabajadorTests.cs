@@ -80,7 +80,7 @@ public class DocumentacionBaseTrabajadorTests
     [Fact]
     public void Del_mismo_tipo_un_sin_confirmar_representa_frente_a_un_vencido_y_cuenta_como_al_dia()
     {
-        // PreferenciaDocumentoPorTipo antepone lo no vencido: la renovación cuya fecha falta por
+        // DocumentoEfectivo antepone lo válido hoy: la renovación cuya fecha falta por
         // confirmar representa el tipo, y por la decisión del propietario cuenta como al día.
         var d = Calcular(
             Vence("Certificado de aptitud médica", -30),
