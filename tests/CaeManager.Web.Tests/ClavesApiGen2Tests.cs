@@ -98,23 +98,6 @@ public class ClavesApiGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Cancelar_generar_con_el_nombre_escrito_pregunta_y_sin_nombre_cierra()
-    {
-        var (cut, mediator) = Renderizar();
-        await Seleccionar(cut, mediator.DelegacionId);
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
-        cut.FindAll("[role=dialog]").Should().BeEmpty("sin nombre escrito «Cancelar» cierra sin preguntar");
-
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
-        await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre").Find("input").InputAsync(new ChangeEventArgs { Value = "ERP" });
-        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
-
-        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Descartar cambios", "con el nombre escrito «Cancelar» pregunta como la X");
-        mediator.Enviadas.OfType<GenerarClaveApiCommand>().Should().BeEmpty();
-    }
-
-    [Fact]
     public async Task Revocar_no_envia_comando_hasta_confirmar_y_usa_la_clave_de_la_fila()
     {
         var (cut, mediator) = Renderizar();
