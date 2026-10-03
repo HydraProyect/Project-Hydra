@@ -315,10 +315,11 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
     /// (<see cref="TipoItemBandeja.PlataformaVencida"/>) y la sugerencia de
     /// visita urgente son siempre bloqueo. Para
     /// RequisitoPendiente y PlataformaRechazada decide
-    /// <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro"/>
+    /// <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso"/>
     /// —el mismo criterio que marca «bloquea acceso» en la cola agrupada—, así
     /// que Mi trabajo no puede contradecir a /bandeja ni a Centro 360: un
-    /// requisito de alta nueva no bloquea, y una Rechazada solo bloquea si el
+    /// requisito pendiente siempre bloquea (también el de un Trabajador recién
+    /// dado de alta sin documentación), y una Rechazada solo bloquea si el
     /// cálculo de estado de su Centro de Trabajo la cuenta como causa
     /// bloqueante (<see cref="ItemBandejaDto.RechazoBloqueaCentro"/>). Una
     /// Rechazada no aplicable a su Centro queda en «Requiere actuación».
@@ -335,7 +336,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         TipoItemBandeja.Faltante => true,
         TipoItemBandeja.Vencido => true,
         TipoItemBandeja.PlataformaVencida => true,
-        _ => ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro(item)
+        _ => ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso(item)
     };
 
     /// <summary>

@@ -79,7 +79,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         var resultadoExclusion = await establecerHandler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(
                 centro.Id, tipo.Id, Incluido: false, PeriodicidadEspecialMeses: 6, BloqueaAcceso: true,
-                ArchivoUrl: "plantillas/formacion-prl.pdf", NombreArchivoOriginal: "Formación PRL.pdf"),
+                ArchivoUrl: "plantillas/formacion-prl.pdf", NombreArchivoOriginal: "Formación PRL.pdf", ToleranciaDias: 15),
             CancellationToken.None);
         resultadoExclusion.EsExitoso.Should().BeTrue();
 
@@ -134,6 +134,8 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         fila.PeriodicidadEspecialMeses.Should().Be(6);
         fila.BloqueaAcceso.Should().BeTrue();
         fila.ArchivoUrl.Should().Be("plantillas/formacion-prl.pdf");
+        // La tolerancia del Centro la fija «Requisitos del Centro»: convertir la fila desde el picker de Tipos no la pierde.
+        fila.ToleranciaDias.Should().Be(15);
     }
 
     [Fact]
@@ -159,5 +161,6 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
             .SingleAsync(tc => tc.TipoDocumentoId == tipo.Id && tc.CentroId == centro.Id);
 
         fila.Incluido.Should().BeFalse("guardar sin marcar el centro no debe revertir su exclusión");
+        fila.ToleranciaDias.Should().Be(15, "ni tocar la tolerancia que se guardó con ella");
     }
 }

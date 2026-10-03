@@ -347,6 +347,9 @@ public class GateNivel0EnDeteccionesDeIngestaTests
 
         public IQueryable<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente =>
             throw new InvalidOperationException("Este flujo no mira los niveles 1 y 2.");
+
+        public IQueryable<ToleranciaDocumentoClienteEmpresarial> ToleranciasDocumentoClienteEmpresarial =>
+            throw new InvalidOperationException("Este flujo no mira la tolerancia.");
     }
 
     private sealed class AsignacionesQueryContextQueLanzaSiSeInvoca : IAsignacionesQueryContext
@@ -374,5 +377,7 @@ public class GateNivel0EnDeteccionesDeIngestaTests
         public IQueryable<TipoDocumentoAlias> TiposDocumentoAlias => throw new InvalidOperationException("No se usa en este flujo.");
 
         public IQueryable<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente => throw new InvalidOperationException("No se usa en este flujo.");
+
+        public IQueryable<ToleranciaDocumentoClienteEmpresarial> ToleranciasDocumentoClienteEmpresarial => throw new InvalidOperationException("No se usa en este flujo.");
     }
 }

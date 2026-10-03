@@ -6,43 +6,33 @@ using FluentAssertions;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Un RequisitoPendiente con EsAltaNueva (Trabajador sin ningún documento
-/// vigente de los tipos bloqueantes en ese Centro — nunca llegó a completar
-/// el alta) debe leerse distinto de un requisito que sí bloquea acceso por
-/// una regresión (algo caducó): ni el badge ni la acción primaria deben
-/// alarmar como si el centro se hubiera roto.
+/// Un RequisitoPendiente es siempre un Trabajador bloqueado en un Centro (corrección del propietario, 2026-10-03): también
+/// el recién dado de alta sin documentación, que sustituye a la advertencia de «alta nueva» del 2026-08-16. «Bloqueado» es
+/// un estado del Trabajador, no del Centro: el rótulo no dice «Bloquea el centro».
 /// </summary>
 public class TipoItemBandejaUiTests
 {
-    private static ItemBandejaDto Requisito(bool esAltaNueva) => new(
+    private static ItemBandejaDto Requisito() => new(
         Id: "requisito-1", Tipo: TipoItemBandeja.RequisitoPendiente, Titulo: "PSS firmado — Ana García",
         Subtitulo: "Centro Sur", Fecha: null, TrabajadorId: Guid.NewGuid(), CentroId: Guid.NewGuid(),
-        DocumentoId: null, TipoDocumentoId: Guid.NewGuid(), RequisitoId: null, EsAltaNueva: esAltaNueva);
+        DocumentoId: null, TipoDocumentoId: Guid.NewGuid(), RequisitoId: null);
 
     [Fact]
-    public void Alta_nueva_usa_tono_de_advertencia_no_de_peligro()
+    public void Un_requisito_pendiente_usa_tono_de_peligro()
     {
-        TipoItemBandejaUi.Tono(Requisito(esAltaNueva: true)).Should().Be(TonoBadge.Advertencia);
+        TipoItemBandejaUi.Tono(Requisito()).Should().Be(TonoBadge.Peligro);
     }
 
     [Fact]
-    public void Visita_tradicional_sigue_usando_tono_de_peligro()
+    public void Un_requisito_pendiente_dice_trabajador_bloqueado_no_bloquea_el_centro()
     {
-        TipoItemBandejaUi.Tono(Requisito(esAltaNueva: false)).Should().Be(TonoBadge.Peligro);
+        TipoItemBandejaUi.Texto(Requisito()).Should().Be("Trabajador bloqueado");
     }
 
     [Fact]
-    public void Alta_nueva_dice_alta_pendiente_en_vez_de_bloquea_el_centro()
+    public void Un_requisito_pendiente_ofrece_ver_el_requisito()
     {
-        TipoItemBandejaUi.Texto(Requisito(esAltaNueva: true)).Should().Be("Alta pendiente");
-        TipoItemBandejaUi.Texto(Requisito(esAltaNueva: false)).Should().Be("Bloquea el centro");
-    }
-
-    [Fact]
-    public void Alta_nueva_ofrece_adjuntar_en_vez_de_ver_requisito()
-    {
-        TipoItemBandejaUi.TextoAccion(Requisito(esAltaNueva: true)).Should().Be("Adjuntar");
-        TipoItemBandejaUi.TextoAccion(Requisito(esAltaNueva: false)).Should().Be("Ver requisito");
+        TipoItemBandejaUi.TextoAccion(Requisito()).Should().Be("Ver requisito");
     }
 
     [Fact]

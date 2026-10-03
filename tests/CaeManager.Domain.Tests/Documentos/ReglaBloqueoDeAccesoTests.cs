@@ -5,13 +5,20 @@ using Xunit;
 namespace CaeManager.Domain.Tests.Documentos;
 
 /// <summary>
-/// La regla única de bloqueo de acceso (decisión del propietario del producto, 2026-10-03): un documento bloqueante AUSENTE o
-/// VENCIDO bloquea por igual; Próximo y Urgente (válidos hoy), «No caduca» y «Sin confirmar» no bloquean. Cada fila
-/// es una entrada de la tabla; el día de negocio es fijo para que el límite (vence hoy) sea exacto.
+/// La regla única de bloqueo de acceso, evaluada POR CENTRO (decisión del propietario del producto, 2026-10-03, y su
+/// corrección de la tarde): un documento bloqueante AUSENTE, o que ya no vale con las condiciones de ese Centro (vigencia
+/// propia y tolerancia), bloquea por igual; «No caduca» y «Sin confirmar» (sin periodicidad del Centro) no bloquean.
+/// Cada fila es una entrada de la tabla; el día de negocio es fijo para que los límites (vence hoy, último día de
+/// tolerancia) sean exactos.
 /// </summary>
 public class ReglaBloqueoDeAccesoTests
 {
     private static readonly DateOnly Hoy = new(2026, 10, 3);
+
+    private static CondicionesDeAccesoDelCentro Cond(int? periodicidadMeses = null, int toleranciaDias = 0) => new(periodicidadMeses, toleranciaDias);
+
+    private static DocumentoParaAcceso VenceHaceDias(int diasDesdeQueVencio, DateOnly? emision = null) =>
+        new(VigenciaDocumento.VenceEl(Hoy.AddDays(-diasDesdeQueVencio)), emision ?? Hoy.AddYears(-1));
 
     [Theory]
     [InlineData("Vencido ayer", -1, false)]
@@ -20,48 +27,195 @@ public class ReglaBloqueoDeAccesoTests
     [InlineData("Vence manana (Urgente)", 1, true)]
     [InlineData("Vence en 20 dias (Proximo)", 20, true)]
     [InlineData("Vence en un ano (Vigente)", 365, true)]
-    public void Solo_un_documento_con_fecha_anterior_a_hoy_deja_de_ser_valido(string caso, int diasHastaVencer, bool esperado)
+    public void Con_tolerancia_0_solo_un_documento_con_fecha_anterior_a_hoy_deja_de_ser_valido(string caso, int diasHastaVencer, bool esperado)
     {
-        ReglaBloqueoDeAcceso.ValidoHoy(VigenciaDocumento.VenceEl(Hoy.AddDays(diasHastaVencer)), Hoy).Should().Be(esperado, caso);
+        var documento = new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy.AddDays(diasHastaVencer)), Hoy.AddYears(-2));
+
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(), Hoy).Should().Be(esperado, caso);
+    }
+
+    [Theory]
+    [InlineData(0, 0, true)]
+    [InlineData(1, 0, false)]
+    [InlineData(14, 15, true)]
+    [InlineData(15, 15, true)]
+    [InlineData(16, 15, false)]
+    [InlineData(20, 15, false)]
+    [InlineData(5, 5, true)]
+    [InlineData(6, 5, false)]
+    public void La_tolerancia_alarga_el_acceso_hasta_el_ultimo_dia_inclusive(int diasDesdeQueVencio, int toleranciaDias, bool valeParaAcceder)
+    {
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(VenceHaceDias(diasDesdeQueVencio), Cond(toleranciaDias: toleranciaDias), Hoy)
+            .Should().Be(valeParaAcceder);
     }
 
     [Fact]
-    public void Un_documento_sin_fecha_no_esta_vencido_y_por_tanto_no_bloquea()
+    public void El_mismo_documento_vale_en_un_centro_y_no_en_otro_segun_su_tolerancia()
     {
-        ReglaBloqueoDeAcceso.ValidoHoy(VigenciaDocumento.NoCaduca, Hoy).Should().BeTrue("«No caduca» no tiene fecha");
-        ReglaBloqueoDeAcceso.ValidoHoy(VigenciaDocumento.SinConfirmar, Hoy).Should().BeTrue(
+        var documento = VenceHaceDias(10);
+
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(toleranciaDias: 15), Hoy).Should().BeTrue("este Centro concede 15 dias");
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(toleranciaDias: 0), Hoy).Should().BeFalse("este Centro no concede tolerancia");
+    }
+
+    [Fact]
+    public void La_tolerancia_no_cambia_el_vencimiento_efectivo_solo_hasta_cuando_vale_para_acceder()
+    {
+        var documento = VenceHaceDias(10);
+
+        ReglaBloqueoDeAcceso.VencimientoEfectivo(documento, null).Should().Be(Hoy.AddDays(-10));
+        ReglaBloqueoDeAcceso.ValidoParaAccederHasta(documento, Cond(toleranciaDias: 15)).Should().Be(Hoy.AddDays(5));
+    }
+
+    [Fact]
+    public void Una_periodicidad_especial_del_centro_cuenta_desde_la_fecha_de_emision_y_sustituye_al_vencimiento_del_documento()
+    {
+        // El documento trae un vencimiento propio ya pasado (12 meses), pero este Centro admite 36 meses desde la emision.
+        var emision = new DateOnly(2025, 10, 3).AddYears(-1).AddDays(1);
+        var documento = new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy.AddDays(-1)), emision);
+
+        ReglaBloqueoDeAcceso.VencimientoEfectivo(documento, 36).Should().Be(emision.AddMonths(36));
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(), Hoy).Should().BeFalse("con el vencimiento propio estaria vencido");
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(periodicidadMeses: 36), Hoy).Should().BeTrue("este Centro acepta 36 meses");
+    }
+
+    [Fact]
+    public void Una_periodicidad_especial_mas_corta_que_el_vencimiento_del_documento_tambien_manda()
+    {
+        var documento = new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy.AddYears(3)), Hoy.AddMonths(-13));
+
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(), Hoy).Should().BeTrue();
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(periodicidadMeses: 12), Hoy).Should().BeFalse("este Centro exige renovar cada 12 meses");
+    }
+
+    [Theory]
+    [InlineData(0, 12, false)]
+    [InlineData(15, 12, true)]
+    public void La_tolerancia_se_suma_al_vencimiento_efectivo_con_periodicidad_especial(int toleranciaDias, int periodicidadMeses, bool valeParaAcceder)
+    {
+        // Emitido hace 12 meses y 10 dias: con 12 meses de periodicidad vencio hace 10 dias.
+        var documento = new DocumentoParaAcceso(VigenciaDocumento.NoCaduca, Hoy.AddMonths(-12).AddDays(-10));
+
+        // NoCaduca nunca vence, tenga el Centro la periodicidad que tenga.
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(periodicidadMeses, toleranciaDias), Hoy).Should().BeTrue();
+
+        var conFecha = new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy.AddYears(5)), Hoy.AddMonths(-12).AddDays(-10));
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(conFecha, Cond(periodicidadMeses, toleranciaDias), Hoy).Should().Be(valeParaAcceder);
+    }
+
+    [Fact]
+    public void No_caduca_nunca_vence_ni_con_periodicidad_ni_con_tolerancia_0()
+    {
+        var documento = new DocumentoParaAcceso(VigenciaDocumento.NoCaduca, Hoy.AddYears(-30));
+
+        ReglaBloqueoDeAcceso.VencimientoEfectivo(documento, 12).Should().BeNull();
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(periodicidadMeses: 12), Hoy).Should().BeTrue();
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(), Hoy).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Sin_confirmar_no_bloquea_si_el_centro_no_impone_periodicidad()
+    {
+        var documento = new DocumentoParaAcceso(VigenciaDocumento.SinConfirmar, Hoy.AddYears(-5));
+
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(), Hoy).Should().BeTrue(
             "«Sin confirmar» no se decidio para el bloqueo: se conserva lo que ya hacia Mi trabajo");
-        ReglaBloqueoDeAcceso.ValidoHoy(default, Hoy).Should().BeTrue("el valor por defecto del struct es «Sin confirmar»");
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(new DocumentoParaAcceso(default, Hoy.AddYears(-5)), Cond(), Hoy).Should().BeTrue(
+            "el valor por defecto del struct es «Sin confirmar»");
+    }
+
+    [Fact]
+    public void Sin_confirmar_con_periodicidad_del_centro_vence_por_emision_mas_meses()
+    {
+        // Decision de la regla: la vigencia la define el Centro y no hace falta confirmar la del documento.
+        var documento = new DocumentoParaAcceso(VigenciaDocumento.SinConfirmar, Hoy.AddMonths(-13));
+
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(periodicidadMeses: 12), Hoy).Should().BeFalse();
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(periodicidadMeses: 24), Hoy).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(null, null, 0)]
+    [InlineData(null, 10, 10)]
+    [InlineData(5, 10, 5)]
+    [InlineData(0, 10, 0)]
+    [InlineData(20, null, 20)]
+    public void La_tolerancia_que_rige_es_la_del_centro_si_la_personaliza_si_no_la_del_cliente_empresarial_si_no_0(
+        int? delCentro, int? delClienteEmpresarial, int esperado)
+    {
+        ReglaBloqueoDeAcceso.ResolverToleranciaDias(delCentro, delClienteEmpresarial).Should().Be(esperado);
     }
 
     [Fact]
     public void Sin_ningun_documento_el_requisito_esta_ausente_y_bloquea()
     {
-        var situacion = ReglaBloqueoDeAcceso.Evaluar([], Hoy);
+        var resultado = ReglaBloqueoDeAcceso.Evaluar([], Cond(toleranciaDias: 30), Hoy);
 
-        situacion.Should().Be(SituacionDeRequisitoBloqueante.Ausente);
-        ReglaBloqueoDeAcceso.Bloquea(situacion).Should().BeTrue();
+        resultado.Situacion.Should().Be(SituacionDeRequisitoBloqueante.Ausente);
+        resultado.VencimientoEfectivo.Should().BeNull();
+        ReglaBloqueoDeAcceso.Bloquea(resultado.Situacion).Should().BeTrue("la tolerancia no cubre lo que nunca existio");
     }
 
     [Fact]
-    public void Con_solo_documentos_vencidos_el_requisito_esta_vencido_y_bloquea_igual_que_el_ausente()
+    public void Con_solo_documentos_vencidos_y_agotada_la_tolerancia_el_requisito_esta_vencido_y_bloquea_igual_que_el_ausente()
     {
-        var situacion = ReglaBloqueoDeAcceso.Evaluar(
-            [VigenciaDocumento.VenceEl(Hoy.AddDays(-1)), VigenciaDocumento.VenceEl(Hoy.AddDays(-400))], Hoy);
+        var resultado = ReglaBloqueoDeAcceso.Evaluar([VenceHaceDias(20), VenceHaceDias(400)], Cond(toleranciaDias: 15), Hoy);
 
-        situacion.Should().Be(SituacionDeRequisitoBloqueante.Vencido);
-        ReglaBloqueoDeAcceso.Bloquea(situacion).Should().BeTrue(
+        resultado.Situacion.Should().Be(SituacionDeRequisitoBloqueante.Vencido);
+        resultado.VencimientoEfectivo.Should().Be(Hoy.AddDays(-20), "el mas reciente de los vencidos");
+        resultado.EnToleranciaHasta.Should().BeNull();
+        ReglaBloqueoDeAcceso.Bloquea(resultado.Situacion).Should().BeTrue(
             "un vencido y un ausente bloquean de igual manera (decision del propietario del producto, 2026-10-03)");
     }
 
     [Fact]
-    public void Un_vencido_con_su_renovacion_valida_cumple_el_requisito()
+    public void Un_vencido_dentro_de_la_tolerancia_cumple_el_requisito_y_expone_hasta_cuando()
     {
-        var situacion = ReglaBloqueoDeAcceso.Evaluar(
-            [VigenciaDocumento.VenceEl(Hoy.AddDays(-30)), VigenciaDocumento.VenceEl(Hoy.AddDays(335))], Hoy);
+        var resultado = ReglaBloqueoDeAcceso.Evaluar([VenceHaceDias(10)], Cond(toleranciaDias: 15), Hoy);
 
-        situacion.Should().Be(SituacionDeRequisitoBloqueante.Cumplido);
-        ReglaBloqueoDeAcceso.Bloquea(situacion).Should().BeFalse();
+        resultado.Situacion.Should().Be(SituacionDeRequisitoBloqueante.Cumplido);
+        resultado.EnToleranciaHasta.Should().Be(Hoy.AddDays(5));
+        ReglaBloqueoDeAcceso.Bloquea(resultado.Situacion).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Un_vencido_con_su_renovacion_valida_cumple_el_requisito_sin_estar_en_tolerancia()
+    {
+        var renovacion = new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy.AddDays(335)), Hoy.AddDays(-30));
+        var resultado = ReglaBloqueoDeAcceso.Evaluar([VenceHaceDias(30), renovacion], Cond(toleranciaDias: 15), Hoy);
+
+        resultado.Situacion.Should().Be(SituacionDeRequisitoBloqueante.Cumplido);
+        resultado.EnToleranciaHasta.Should().BeNull("hay un documento valido sin necesidad de tolerancia");
+    }
+
+    [Fact]
+    public void Una_fecha_centinela_o_una_periodicidad_desmesurada_no_lanzan_y_valen_para_siempre()
+    {
+        // Esta funcion corre en memoria sobre todos los documentos del Tenant: una fila rara no puede tirar Mi trabajo.
+        var centinela = new DocumentoParaAcceso(VigenciaDocumento.VenceEl(DateOnly.MaxValue), Hoy.AddYears(-1));
+        var emisionTardia = new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy), DateOnly.MaxValue);
+        var normal = new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy), Hoy.AddYears(-1));
+
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(centinela, Cond(toleranciaDias: 15), Hoy).Should().BeTrue();
+        ReglaBloqueoDeAcceso.ValidoParaAccederHasta(centinela, Cond(toleranciaDias: 365)).Should().Be(DateOnly.MaxValue);
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(normal, Cond(periodicidadMeses: int.MaxValue), Hoy).Should().BeTrue();
+        ReglaBloqueoDeAcceso.VencimientoEfectivo(normal, int.MaxValue).Should().Be(DateOnly.MaxValue);
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(emisionTardia, Cond(periodicidadMeses: 12, toleranciaDias: 15), Hoy).Should().BeTrue();
+        ReglaBloqueoDeAcceso.Evaluar([centinela, emisionTardia], Cond(periodicidadMeses: 12, toleranciaDias: 365), Hoy).Situacion
+            .Should().Be(SituacionDeRequisitoBloqueante.Cumplido);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(15)]
+    public void Un_documento_que_vence_hoy_no_esta_en_tolerancia_aunque_el_Centro_la_tenga(int toleranciaDias)
+    {
+        // Vencer hoy es seguir vigente: la tolerancia solo empieza el dia SIGUIENTE al vencimiento efectivo.
+        var resultado = ReglaBloqueoDeAcceso.Evaluar([new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy), Hoy.AddYears(-1))], Cond(toleranciaDias: toleranciaDias), Hoy);
+
+        resultado.Situacion.Should().Be(SituacionDeRequisitoBloqueante.Cumplido);
+        resultado.EnToleranciaHasta.Should().BeNull();
+        resultado.VencimientoEfectivo.Should().Be(Hoy);
     }
 
     [Theory]
@@ -77,7 +231,8 @@ public class ReglaBloqueoDeAccesoTests
             _ => VigenciaDocumento.VenceEl(Hoy)
         };
 
-        ReglaBloqueoDeAcceso.Evaluar([vigencia], Hoy).Should().Be(SituacionDeRequisitoBloqueante.Cumplido);
+        ReglaBloqueoDeAcceso.Evaluar([new DocumentoParaAcceso(vigencia, Hoy.AddYears(-1))], Cond(), Hoy).Situacion
+            .Should().Be(SituacionDeRequisitoBloqueante.Cumplido);
     }
 
     [Theory]

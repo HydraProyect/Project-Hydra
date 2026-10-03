@@ -124,12 +124,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IDis
             "documento que ya está fuera de vigencia", "documentos que ya están fuera de vigencia"),
         new(nameof(TipoItemBandeja.VisitaUrgente), "Visita próxima", Contador(TipoItemBandeja.VisitaUrgente),
             "visita ya programada que toca preparar", "visitas ya programadas que tocan preparar"),
-        // No dice «impide el acceso» a secas: este tipo agrupa el requisito que
-        // bloquea el Centro Y el alta nueva que todavía no se completó, que no
-        // bloquea nada (DocumentacionBloqueantePendienteDto.EsAltaNueva).
         new(nameof(TipoItemBandeja.RequisitoPendiente), "Requisitos de acceso", Contador(TipoItemBandeja.RequisitoPendiente),
-            "requisito de acceso a un Centro: o lo bloquea, o es un alta sin completar",
-            "requisitos de acceso a un Centro: lo bloquean, o son altas sin completar"),
+            "Trabajador bloqueado en un Centro por un requisito de acceso que falta o ya no vale",
+            "Trabajadores bloqueados en un Centro por un requisito de acceso que falta o ya no vale"),
         new(nameof(TipoItemBandeja.Urgente), "Urgente", Contador(TipoItemBandeja.Urgente),
             "documento a punto de vencer", "documentos a punto de vencer"),
         new(nameof(TipoItemBandeja.RevisionIa), "Revisión IA", Contador(TipoItemBandeja.RevisionIa),

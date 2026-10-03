@@ -159,4 +159,37 @@
   <data name="ToastCentroRestaurado" xml:space="preserve">
     <value>Centro restaurado. Sus asignaciones siguen de baja.</value>
   </data>
+  <data name="RequisitoVigenciaPropia" xml:space="preserve">
+    <value>Vigencia: la del propio documento</value>
+  </data>
+  <data name="RequisitoToleranciaPropia" xml:space="preserve">
+    <value>Tolerancia tras vencer: {0} día(s), fijada en este Centro</value>
+  </data>
+  <data name="RequisitoToleranciaHeredada" xml:space="preserve">
+    <value>Tolerancia tras vencer: {0} día(s), la del Cliente empresarial</value>
+  </data>
+  <data name="PeriodicidadSinPropia" xml:space="preserve">
+    <value>Sin periodo propio: vale el vencimiento del documento</value>
+  </data>
+  <data name="BloqueaAccesoCasilla" xml:space="preserve">
+    <value>Bloquea el acceso a este Centro a quien no lo tenga en vigor</value>
+  </data>
+  <data name="ToleranciaEtiqueta" xml:space="preserve">
+    <value>Tolerancia tras el vencimiento (días)</value>
+  </data>
+  <data name="ToleranciaOpcionHeredada" xml:space="preserve">
+    <value>Heredada del Cliente empresarial ({0} días)</value>
+  </data>
+  <data name="ToleranciaOpcionDias" xml:space="preserve">
+    <value>{0} días</value>
+  </data>
+  <data name="ToleranciaOpcionPersonalizada" xml:space="preserve">
+    <value>Personalizada…</value>
+  </data>
+  <data name="ToleranciaEtiquetaPersonalizada" xml:space="preserve">
+    <value>Días de tolerancia (número entero)</value>
+  </data>
+  <data name="ToleranciaErrorPersonalizada" xml:space="preserve">
+    <value>Indica un número entero de días de tolerancia, o elige la heredada del Cliente empresarial.</value>
+  </data>
 </root>

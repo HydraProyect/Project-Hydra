@@ -75,6 +75,7 @@ internal sealed class TiposDocumentoQueryContextFalso : ITiposDocumentoQueryCont
     public IQueryable<TipoDocumentoCentro> TiposDocumentoCentros => new TestAsyncQueryable<TipoDocumentoCentro>(Enumerable.Empty<TipoDocumentoCentro>().AsQueryable());
     public IQueryable<TipoDocumentoAlias> TiposDocumentoAlias => new TestAsyncQueryable<TipoDocumentoAlias>(Enumerable.Empty<TipoDocumentoAlias>().AsQueryable());
     public IQueryable<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente => new TestAsyncQueryable<ConfiguracionIaDocumentoCliente>(Enumerable.Empty<ConfiguracionIaDocumentoCliente>().AsQueryable());
+    public IQueryable<ToleranciaDocumentoClienteEmpresarial> ToleranciasDocumentoClienteEmpresarial => new TestAsyncQueryable<ToleranciaDocumentoClienteEmpresarial>(Enumerable.Empty<ToleranciaDocumentoClienteEmpresarial>().AsQueryable());
 }
 
 internal sealed class AsignacionesQueryContextFalso : IAsignacionesQueryContext

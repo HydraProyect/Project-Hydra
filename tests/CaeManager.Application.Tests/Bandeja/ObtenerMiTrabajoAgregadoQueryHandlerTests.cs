@@ -15,7 +15,7 @@ namespace CaeManager.Application.Tests.Bandeja;
 /// (<see cref="TipoItemBandeja.VencimientoProximo"/>,
 /// <see cref="TipoItemBandeja.EnPlataformaSeguimiento"/>) y la severidad
 /// «Bloqueo» (<c>EsBloqueo</c>, que para los tipos que dependen del Centro de
-/// Trabajo delega en <c>BloqueaAccesoAlCentro</c>). No repite la fusión ni
+/// Trabajo delega en <c>BloqueaElAcceso</c>). No repite la fusión ni
 /// el agrupado — esos ya están probados donde viven.
 /// </summary>
 public class ObtenerMiTrabajoAgregadoQueryHandlerTests
@@ -77,23 +77,13 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
     }
 
     [Fact]
-    public void EsBloqueo_es_falso_para_un_requisito_pendiente_de_alta_nueva()
+    public void EsBloqueo_es_verdadero_para_un_requisito_pendiente_tambien_el_de_un_Trabajador_recien_dado_de_alta()
     {
-        var item = new ItemBandejaDto(
-            Id: "r1", Tipo: TipoItemBandeja.RequisitoPendiente, Titulo: "PSS", Subtitulo: "Centro",
-            TrabajadorId: null, CentroId: null, DocumentoId: null, TipoDocumentoId: null, RequisitoId: Guid.NewGuid(),
-            Fecha: null, EsAltaNueva: true);
-
-        ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(item).Should().BeFalse();
-    }
-
-    [Fact]
-    public void EsBloqueo_es_verdadero_para_un_requisito_pendiente_que_no_es_alta_nueva()
-    {
+        // Sustituye a la excepcion de «alta nueva» del 2026-08-16: sin documentacion, bloqueado.
         var item = new ItemBandejaDto(
             Id: "r2", Tipo: TipoItemBandeja.RequisitoPendiente, Titulo: "PSS", Subtitulo: "Centro",
             TrabajadorId: null, CentroId: null, DocumentoId: null, TipoDocumentoId: null, RequisitoId: Guid.NewGuid(),
-            Fecha: null, EsAltaNueva: false);
+            Fecha: null);
 
         ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(item).Should().BeTrue();
     }
@@ -144,23 +134,22 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
     /// <summary>
     /// Mi trabajo y la cola agrupada no pueden discrepar: para los dos tipos
     /// que dependen del Centro, la severidad «Bloqueo» es exactamente el
-    /// «bloquea acceso» de <c>BloqueaAccesoAlCentro</c>.
+    /// «bloquea acceso» de <c>BloqueaElAcceso</c>.
     /// </summary>
     [Theory]
-    [InlineData(TipoItemBandeja.PlataformaRechazada, false, false)]
-    [InlineData(TipoItemBandeja.PlataformaRechazada, true, false)]
-    [InlineData(TipoItemBandeja.RequisitoPendiente, false, false)]
-    [InlineData(TipoItemBandeja.RequisitoPendiente, false, true)]
-    public void EsBloqueo_coincide_con_BloqueaAccesoAlCentro_en_los_tipos_que_dependen_del_Centro(
-        TipoItemBandeja tipo, bool rechazoBloqueaCentro, bool esAltaNueva)
+    [InlineData(TipoItemBandeja.PlataformaRechazada, false)]
+    [InlineData(TipoItemBandeja.PlataformaRechazada, true)]
+    [InlineData(TipoItemBandeja.RequisitoPendiente, false)]
+    public void EsBloqueo_coincide_con_BloqueaElAcceso_en_los_tipos_que_dependen_del_Centro(
+        TipoItemBandeja tipo, bool rechazoBloqueaCentro)
     {
         var item = new ItemBandejaDto(
             Id: "c", Tipo: tipo, Titulo: "T", Subtitulo: "S",
             TrabajadorId: null, CentroId: Guid.NewGuid(), DocumentoId: Guid.NewGuid(), TipoDocumentoId: null, RequisitoId: null, Fecha: null,
-            EsAltaNueva: esAltaNueva, RechazoBloqueaCentro: rechazoBloqueaCentro);
+            RechazoBloqueaCentro: rechazoBloqueaCentro);
 
         ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo(item)
-            .Should().Be(ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro(item));
+            .Should().Be(ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso(item));
     }
 
     private static readonly DateOnly Hoy = new(2026, 9, 23);

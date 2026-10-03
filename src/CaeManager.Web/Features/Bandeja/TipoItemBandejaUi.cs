@@ -12,11 +12,8 @@ namespace CaeManager.Web.Features.Bandeja;
 public static class TipoItemBandejaUi
 {
     /// <summary>
-    /// Recibe el ítem completo, no solo el tipo — un RequisitoPendiente con
-    /// EsAltaNueva (ver DocumentacionBloqueantePendienteDto.EsAltaNueva) no es
-    /// un bloqueo que haya que corregir, es una alta que todavía no se ha
-    /// completado: mismo tono que un documento simplemente pendiente, no el
-    /// rojo de "algo se rompió".
+    /// Recibe el ítem completo, no solo el tipo. Un RequisitoPendiente es siempre un Trabajador bloqueado en un Centro
+    /// (también el recién dado de alta sin documentación: ya no hay excepción de «alta nueva»), rojo.
     /// </summary>
     public static TonoBadge Tono(ItemBandejaDto item) => item.Tipo switch
     {
@@ -27,7 +24,7 @@ public static class TipoItemBandejaUi
         TipoItemBandeja.PlataformaRechazada => TonoBadge.Peligro,
         // La plataforma ya no la da por buena (P12): mismo rojo que Vencido.
         TipoItemBandeja.PlataformaVencida => TonoBadge.Peligro,
-        TipoItemBandeja.RequisitoPendiente => item.EsAltaNueva ? TonoBadge.Advertencia : TonoBadge.Peligro,
+        TipoItemBandeja.RequisitoPendiente => TonoBadge.Peligro,
         TipoItemBandeja.VisitaUrgente => TonoBadge.Advertencia,
         TipoItemBandeja.Urgente => TonoBadge.Advertencia,
         TipoItemBandeja.RevisionIa => TonoBadge.Advertencia,
@@ -53,10 +50,8 @@ public static class TipoItemBandejaUi
         TipoItemBandeja.SugerenciaVisitaUrgente => "Visita sorpresa",
         TipoItemBandeja.Faltante => "Falta",
         TipoItemBandeja.Vencido => "Vencido",
-        // "Bloquea el centro" implica una regresión a corregir; una alta
-        // nueva nunca llegó a completarse, así que "Alta pendiente" describe
-        // mejor la situación real (ver EsAltaNueva).
-        TipoItemBandeja.RequisitoPendiente => item.EsAltaNueva ? "Alta pendiente" : "Bloquea el centro",
+        // «Bloqueado» es un estado del Trabajador, no del Centro: la fila es un Trabajador sin acceso a ESE Centro.
+        TipoItemBandeja.RequisitoPendiente => "Trabajador bloqueado",
         TipoItemBandeja.VisitaUrgente => "Visita próxima",
         TipoItemBandeja.Urgente => "Urgente",
         TipoItemBandeja.RevisionIa => "Revisión IA",
@@ -78,15 +73,13 @@ public static class TipoItemBandejaUi
     /// Recibe el ítem completo, no solo el tipo — PlataformaPendiente necesita
     /// el nombre real de la plataforma ("Subir a Dokify"), que es un dato del
     /// ítem (ItemBandejaDto.ProveedorNombre), no un texto fijo por tipo como
-    /// el resto de acciones; RequisitoPendiente con EsAltaNueva ofrece
-    /// directamente "Adjuntar" el documento que falta, en vez de mandar a ver
-    /// un requisito que en realidad nunca se llegó a cumplir.
+    /// el resto de acciones.
     /// </summary>
     public static string TextoAccion(ItemBandejaDto item) => item.Tipo switch
     {
         TipoItemBandeja.Faltante => "Subir documento",
         TipoItemBandeja.RevisionIa => "Revisar",
-        TipoItemBandeja.RequisitoPendiente => item.EsAltaNueva ? "Adjuntar" : "Ver requisito",
+        TipoItemBandeja.RequisitoPendiente => "Ver requisito",
         TipoItemBandeja.SugerenciaVisitaUrgente => "Confirmar visita",
         TipoItemBandeja.VisitaUrgente => "Ver visita",
         TipoItemBandeja.DeteccionPendiente => "Revisar detección",
@@ -115,15 +108,11 @@ public static class TipoItemBandejaUi
 
     /// <summary>
     /// «Bloquea acceso» solo cuando de verdad bloquea.
-    /// <see cref="GrupoColaDto.BloqueaAcceso"/> es la clave de orden del grupo
-    /// e incluye los RequisitoPendiente de ALTA NUEVA, que no son un bloqueo que
-    /// corregir sino un alta sin completar (mismo criterio que
-    /// <see cref="Tono(ItemBandejaDto)"/>, que ya le da otro tono). Pintar la
-    /// banda, el badge o contarlo en «N bloquean acceso» por él le dice al
-    /// Gestor CAE que un Centro está cerrado cuando no lo está. Qué item bloquea
-    /// de verdad —requisito que no es alta nueva, o acreditación Rechazada que
-    /// el cálculo del Centro cuenta como bloqueante (D-7)— lo decide
-    /// <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro"/>,
+    /// <see cref="GrupoColaDto.BloqueaAcceso"/> es la clave de orden del grupo.
+    /// Qué item bloquea de verdad —requisito pendiente (Trabajador bloqueado en un
+    /// Centro), o acreditación Rechazada que el cálculo del Centro cuenta como
+    /// bloqueante (D-7)— lo decide
+    /// <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso"/>,
     /// no esta clase.
     ///
     /// <para>
@@ -136,7 +125,7 @@ public static class TipoItemBandejaUi
     /// </summary>
     public static bool BloqueaAccesoDeVerdad(GrupoColaDto grupo) =>
         grupo.BloqueaAcceso
-        && grupo.Items.Any(ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro);
+        && grupo.Items.Any(ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso);
 
     /// <summary>
     /// Gate del hallazgo de P9 (2026-09-18, Project-Hydra-Negocio/tecnico/CAPA-USUARIO-AVANZADO-TALVEG.md

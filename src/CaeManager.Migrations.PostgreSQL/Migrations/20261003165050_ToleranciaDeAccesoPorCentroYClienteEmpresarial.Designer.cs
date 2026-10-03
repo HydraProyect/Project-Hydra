@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261003165050_ToleranciaDeAccesoPorCentroYClienteEmpresarial")]
+    partial class ToleranciaDeAccesoPorCentroYClienteEmpresarial
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1839,16 +1842,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateOnly?>("FechaVencimiento")
                         .HasColumnType("date");
 
-                    b.Property<int?>("MotivoSustitucion")
-                        .HasColumnType("integer");
-
                     b.Property<Guid?>("ProyectoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("SustituidoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("SustituidoPorDocumentoId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
@@ -1884,8 +1878,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "ProyectoId");
 
-                    b.HasIndex("TenantId", "SustituidoPorDocumentoId");
-
                     b.HasIndex("TenantId", "TipoDocumentoId");
 
                     b.HasIndex("TenantId", "TrabajadorId");
@@ -1900,11 +1892,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         {
                             t.HasCheckConstraint("CK_Documentos_EstadoVigenciaCoherente", "(\"EstadoVigencia\" = 2 AND \"FechaVencimiento\" IS NOT NULL) OR (\"EstadoVigencia\" IN (0, 1) AND \"FechaVencimiento\" IS NULL)");
 
-                            t.HasCheckConstraint("CK_Documentos_NoSeSustituyeASiMismo", "\"SustituidoPorDocumentoId\" IS DISTINCT FROM \"Id\"");
-
                             t.HasCheckConstraint("CK_Documentos_PropietarioXor", "num_nonnulls(\"TrabajadorId\", \"ClienteId\", \"EmpresaId\", \"VehiculoId\", \"ProyectoId\") = 1");
-
-                            t.HasCheckConstraint("CK_Documentos_SustitucionCoherente", "num_nonnulls(\"SustituidoPorDocumentoId\", \"SustituidoEnUtc\", \"MotivoSustitucion\") IN (0, 3) AND (\"MotivoSustitucion\" IS NULL OR \"MotivoSustitucion\" IN (1, 2, 3))");
                         });
                 });
 
@@ -7894,12 +7882,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasOne("CaeManager.Domain.Proyectos.Proyecto", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ProyectoId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CaeManager.Domain.Documentos.Documento", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "SustituidoPorDocumentoId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
