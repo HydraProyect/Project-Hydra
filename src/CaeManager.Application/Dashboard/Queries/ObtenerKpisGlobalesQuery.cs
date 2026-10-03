@@ -100,8 +100,8 @@ public class ObtenerKpisGlobalesQueryHandler(IMediator mediator)
     ///
     /// <para>
     /// La media de SLA documental pondera cada Cliente Delegante por su
-    /// volumen de documentos con vigencia (<c>DocumentosVigentes + Próximos +
-    /// Urgentes + Vencidos</c>) y excluye a los que no tienen ninguna cartera
+    /// volumen de documentos medidos (el denominador de
+    /// <see cref="KpisDashboardDto.Fraccion"/>: todos los estados, «Sin confirmar» y «Sin caducidad» incluidos) y excluye a los que no tienen ninguna cartera
     /// asignada: su 100% es "no hay nada que evaluar para este usuario", no
     /// "está al día", y promediarlo igual que un Cliente con cartera completa
     /// inflaba el SLA agregado con alcance que en realidad no existe (defecto
@@ -130,7 +130,7 @@ public class ObtenerKpisGlobalesQueryHandler(IMediator mediator)
 
         var conPeso = porCliente
             .Where(p => !p.Kpis.SinCarteraAsignada)
-            .Select(p => (Tasa: p.Kpis.TasaCumplimientoDocumental, Peso: (double)TotalConVigencia(p.Kpis)))
+            .Select(p => (Tasa: p.Kpis.TasaCumplimientoDocumental, Peso: (double)p.Kpis.Fraccion.Requeridos))
             .Where(p => p.Peso > 0)
             .ToList();
         var tasaPromedio = conPeso.Count == 0 ? 100 : (int)(conPeso.Sum(p => p.Tasa * p.Peso) / conPeso.Sum(p => p.Peso));
@@ -156,7 +156,4 @@ public class ObtenerKpisGlobalesQueryHandler(IMediator mediator)
             CentrosBloqueados: porCliente.Sum(p => p.Kpis.CentrosBloqueados),
             HayCumplimientoDocumentalQueMedir: conPeso.Count > 0);
     }
-
-    private static int TotalConVigencia(KpisDashboardDto kpis) =>
-        kpis.DocumentosVigentes + kpis.DocumentosProximos + kpis.DocumentosUrgentes + kpis.DocumentosVencidos;
 }

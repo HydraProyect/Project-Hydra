@@ -19,7 +19,7 @@ public class ObtenerKpisGlobalesQueryHandlerTests
     private static ClienteAutorizadoDto Cliente(string nombre) => new(Guid.NewGuid(), nombre, EsOrigen: false);
 
     private static KpisDashboardDto Kpis(
-        int vigentes = 0, int proximos = 0, int urgentes = 0, int vencidos = 0,
+        int vigentes = 0, int proximos = 0, int urgentes = 0, int vencidos = 0, int sinConfirmar = 0, int sinCaducidad = 0,
         int tasa = 100, bool sinCarteraAsignada = false, int trabajadoresActivos = 0, int centros = 0) =>
         new(
             TrabajadoresActivos: trabajadoresActivos,
@@ -30,7 +30,9 @@ public class ObtenerKpisGlobalesQueryHandlerTests
             DocumentosVigentes: vigentes,
             VisitasProgramadas: 0,
             TasaCumplimientoDocumental: tasa,
-            SinCarteraAsignada: sinCarteraAsignada);
+            SinCarteraAsignada: sinCarteraAsignada,
+            DocumentosSinConfirmar: sinConfirmar,
+            DocumentosSinCaducidad: sinCaducidad);
 
     [Fact]
     public void Suma_los_conteos_de_todos_los_clientes()
@@ -74,6 +76,29 @@ public class ObtenerKpisGlobalesQueryHandlerTests
             "el 100% de un Cliente sin cartera no es SLA al día: no debe contar en la media");
         resultado.TasaCumplimientoDocumentalPromedio.Should().NotBe(50,
             "un promedio simple (1+100)/2 sería exactamente el defecto reproducido");
+    }
+
+    /// <summary>
+    /// El peso de cada Cliente en la media es el denominador de la definición única de cumplimiento
+    /// (<c>KpisDashboardDto.Fraccion</c>): todos los estados, «Sin confirmar» y «Sin caducidad» incluidos. Antes los
+    /// dejaba fuera y un Cliente con muchos documentos sin confirmar pesaba menos de lo que medía su tasa.
+    /// </summary>
+    [Fact]
+    public void El_peso_de_cada_cliente_es_todo_lo_que_se_mide_incluidos_sin_confirmar_y_sin_caducidad()
+    {
+        var porCliente = new List<(ClienteAutorizadoDto, KpisDashboardDto)>
+        {
+            // 100 % sobre 10 documentos (diez vigentes).
+            (Cliente("Uno"), Kpis(vigentes: 10, tasa: 100)),
+            // 30 al día de 100 documentos: 10 vigentes + 5 próximos + 5 urgentes + 10 sin caducidad; 20 vencidos; 50 sin confirmar.
+            (Cliente("Dos"), Kpis(vigentes: 10, proximos: 5, urgentes: 5, vencidos: 20, sinConfirmar: 50, sinCaducidad: 10, tasa: 30)),
+        };
+
+        var resultado = ObtenerKpisGlobalesQueryHandler.Fusionar(porCliente);
+
+        // Cliente Dos: 30 al día de 100 → peso 100 (tasa 30). (100 × 10 + 30 × 100) / 110 = 36,4 → 36.
+        // Si «Sin confirmar» y «Sin caducidad» no pesaran (peso 40): (100 × 10 + 30 × 40) / 50 = 44.
+        resultado.TasaCumplimientoDocumentalPromedio.Should().Be(36);
     }
 
     /// <summary>

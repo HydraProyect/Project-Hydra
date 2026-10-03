@@ -249,7 +249,7 @@ else
                                 @trabajador.TrabajadorNombre
                             </button>
                             <span class="fila-trabajador-fraccion">
-                                @(trabajador.Documentos.Count > 0 ? $"{DocumentosAlDia(trabajador)}/{trabajador.Documentos.Count}" : "—")
+                                @(trabajador.Cumplimiento.Requeridos > 0 ? $"{trabajador.Cumplimiento.AlDia}/{trabajador.Cumplimiento.Requeridos}" : "—")
                             </span>
                             <span class="tarjeta-fila-acordeon-indicadores">
                                 <span class="ranura-recuento">

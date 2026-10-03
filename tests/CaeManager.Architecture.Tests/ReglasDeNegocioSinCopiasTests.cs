@@ -30,6 +30,11 @@ namespace CaeManager.Architecture.Tests;
 /// <c>hoy + umbral</c> para filtrar o acotar en PostgreSQL: están enumeradas y cada una la ata a la calculadora la
 /// tabla de <c>CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests</c>. Una consulta nueva que lo necesite se añade
 /// aquí a conciencia, con su motivo, y a esa tabla.</item>
+/// <item><b>Qué documentos cuentan como «al día» en un porcentaje</b> — punto único
+/// <c>CumplimientoDocumental.EsConforme</c> (Domain) y <c>FraccionCumplimiento</c>. Un conjunto de estados «al día»
+/// escrito a mano (<c>Vigente or SinCaducidad</c>…) o un <c>Count(… == Vigente)</c> es rojo salvo en las excepciones
+/// declaradas, que responden a otra pregunta (incidencia, estado de un propietario, idoneidad estricta para una
+/// visita).</item>
 /// <item><b>Bloqueo de acceso por documento bloqueante</b> — punto único <c>ReglaBloqueoDeAcceso</c> (Domain). Los
 /// lectores de la fila bloqueante del Centro están enumerados con su motivo y la comparación «sin fecha o fecha &gt;= hoy»
 /// no puede reaparecer en una consulta; la tabla es <c>CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests</c>.</item>
@@ -169,7 +174,60 @@ public class ReglasDeNegocioSinCopiasTests
             "SQL, se declara aquí con su motivo y se añade a la tabla de CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests");
     }
 
-    // ---------- 4. Bloqueo de acceso por documento bloqueante ----------
+    // ---------- 4. Qué documentos cuentan como «al día» en un porcentaje ----------
+
+    /// <summary>
+    /// Un conjunto de estados «al día» escrito a mano: <c>Vigente</c> y <c>SinCaducidad</c> juntos en un <c>or</c> o un
+    /// <c>||</c> (en cualquier orden), o un recuento <c>Count(… Estado == EstadoDocumento.Vigente)</c> /
+    /// <c>Sum(…)</c>. Decisión del propietario (2026-10-03): lo que cuenta como al día en un porcentaje es
+    /// <c>CumplimientoDocumental.EsConforme</c> (Vigente, Próximo, Urgente y Sin caducidad confirmado; Sin confirmar,
+    /// Vencido y Faltante no) y el porcentaje es <c>FraccionCumplimiento</c>. No ve un conjunto sin literales
+    /// (<c>estado &gt;= x</c>) ni uno repartido en varias líneas: lista NO exhaustiva.
+    /// </summary>
+    private static readonly Regex PatronConjuntoAlDiaCopiado = new(
+        @"\bEstadoDocumento\s*\.\s*Vigente\b[^;]*?(?:\bor\b|\|\|)[^;]*?\bEstadoDocumento\s*\.\s*SinCaducidad\b"
+        + @"|\bEstadoDocumento\s*\.\s*SinCaducidad\b[^;]*?(?:\bor\b|\|\|)[^;]*?\bEstadoDocumento\s*\.\s*Vigente\b"
+        + @"|\.\s*(?:Count|Sum)\s*\([^;]*\bEstado\w*\s*==\s*EstadoDocumento\s*\.\s*Vigente\b",
+        RegexOptions.Compiled);
+
+    private static readonly Dictionary<string, int> ConjuntoAlDiaDeOtraPregunta = new()
+    {
+        // El punto único: EsConforme enumera Vigente, Próximo, Urgente y Sin caducidad (una vez).
+        ["src/CaeManager.Domain/Documentos/CumplimientoDocumental.cs"] = 1,
+        // «Aguantará hasta el final de la visita»: recalcula un documento Vigente a la fecha de fin de la visita y pregunta
+        // si deja de serlo. Es una pregunta de caducidad en una fecha futura, no un porcentaje.
+        ["src/CaeManager.Application/Asignaciones/Queries/ObtenerAsignacionesDocumentacionPorCentro/ObtenerAsignacionesDocumentacionPorCentroQuery.cs"] = 1,
+        // Derivación del estado de una agregación SQL (peor fecha + «hay algún sin confirmar»): no cuenta nada, devuelve
+        // un estado de propietario. Atada a la calculadora por CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests.
+        ["src/CaeManager.Application/Documentos/CalculoEstadoDocumentalService.cs"] = 1,
+        // Traduce el estado de un documento al indicador de la documentación base del Trabajador (Vigente/Próximo/…):
+        // es un mapeo de presentación, no un recuento.
+        ["src/CaeManager.Application/Documentos/DocumentacionBase/DocumentacionBaseTrabajador.cs"] = 1,
+        // «Sin incidencia de color»: omite de la lista de incidencias los estados que no la son (Vigente, Sin caducidad y
+        // Sin confirmar). Es la pregunta de la incidencia, distinta de la del porcentaje (Próximo y Urgente: al día en el
+        // porcentaje, incidencia en la lista). No suma nada.
+        ["src/CaeManager.Application/Subcontratas/CalculoEstadoSubcontrataService.cs"] = 1,
+        // Idoneidad ESTRICTA para una visita: un documento Próximo o Urgente no basta para acceder, así que «vigente» aquí
+        // es más exigente que «al día en un porcentaje». Dos usos: documento del Trabajador y de la Empresa.
+        ["src/CaeManager.Application/Visitas/Queries/ObtenerVisitas/ObtenerVisitasQuery.cs"] = 2,
+        // Filtro «Al día» de la lista de Trabajadores de una Empresa: filtra por el PEOR estado de cada Trabajador
+        // (sin incidencia), no calcula un porcentaje. Deuda: el rótulo «Al día» del filtro y el porcentaje de la misma
+        // pantalla responden a preguntas distintas; unificarlos es una decisión de producto (no se decidió).
+        ["src/CaeManager.Web/Features/Empresas/Pages/EmpresaDetalle.razor.cs"] = 1,
+    };
+
+    [Fact]
+    public void El_conjunto_de_estados_al_dia_de_un_porcentaje_no_se_copia_fuera_de_su_punto_unico()
+    {
+        var medidos = ContarPorFichero(PatronConjuntoAlDiaCopiado);
+
+        Divergencias(ConjuntoAlDiaDeOtraPregunta, medidos).Should().BeEmpty(
+            "lo que cuenta como al día en un porcentaje es CumplimientoDocumental.EsConforme y la fracción es " +
+            "FraccionCumplimiento; un conjunto escrito a mano diverge en silencio (Próximo y Urgente, Sin caducidad, " +
+            "Sin confirmar). Si responde a otra pregunta, declara la excepción en esta lista con su motivo");
+    }
+
+    // ---------- 5. Bloqueo de acceso por documento bloqueante ----------
 
     private const string PuntoUnicoDelBloqueoDeAcceso = "src/CaeManager.Domain/Documentos/ReglaBloqueoDeAcceso.cs";
 
@@ -331,6 +389,35 @@ public class ReglasDeNegocioSinCopiasTests
     }
 
     [Fact]
+    public void El_patron_del_conjunto_al_dia_reconoce_sus_formas_e_ignora_las_ajenas()
+    {
+        string[] alDia =
+        [
+            "        EstadoDocumento.SinCaducidad or EstadoDocumento.Vigente or EstadoDocumento.Proximo or EstadoDocumento.Urgente;",
+            "            is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad);",
+            "        => e == EstadoDocumento.Vigente || e == EstadoDocumento.SinCaducidad;",
+            "        var alDia = documentos.Count(d => d.Estado == EstadoDocumento.Vigente);",
+            "        var n = filas.Sum(f => f.Estado == EstadoDocumento.Vigente ? 1 : 0);",
+            "        e is EstadoDocumento.Vigente or EstadoDocumento.Proximo or EstadoDocumento.Urgente or EstadoDocumento.SinCaducidad;",
+            "        e is EstadoDocumento.SinCaducidad or EstadoDocumento.Proximo or EstadoDocumento.Vigente;",
+        ];
+        foreach (var linea in alDia)
+            EsCodigoQueCasa(linea, PatronConjuntoAlDiaCopiado).Should().BeTrue(linea);
+
+        string[] noAlDia =
+        [
+            "        if (estado is EstadoDocumento.Vigente) continue;",
+            "        EstadoDocumento.Vencido or EstadoDocumento.Faltante => 0,",
+            "        var alDia = CumplimientoDocumental.Evaluar(estados);",
+            "        // EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad",
+            "        var vencidos = documentos.Count(d => d.Estado == EstadoDocumento.Vencido);",
+            "        e is EstadoDocumento.Vigente or EstadoDocumento.Proximo;",
+        ];
+        foreach (var linea in noAlDia)
+            EsCodigoQueCasa(linea, PatronConjuntoAlDiaCopiado).Should().BeFalse(linea);
+    }
+
+    [Fact]
     public void Cada_punto_unico_y_cada_excepcion_declarada_existe_y_la_lista_mide_lo_que_dice()
     {
         var raiz = RaizDelRepositorio();
@@ -342,6 +429,7 @@ public class ReglasDeNegocioSinCopiasTests
                      .Concat(VentanaNoEsLaDeReclamacion.Keys)
                      .Concat(OrdenDeGravedadDeOtraPregunta.Keys)
                      .Concat(UmbralesDeVigenciaReimplementadosEnSql.Keys)
+                     .Concat(ConjuntoAlDiaDeOtraPregunta.Keys)
                      .Concat(OrdenesQueElPatronNoVe))
         {
             File.Exists(Path.Combine(raiz, ruta.Replace('/', Path.DirectorySeparatorChar)))

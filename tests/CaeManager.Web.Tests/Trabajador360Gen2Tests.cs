@@ -170,7 +170,9 @@ public class Trabajador360Gen2Tests : BunitContext
     private static CentroDocumentacionTrabajadorDto Centro(
         string nombre, string clienteEmpresarial, EstadoDocumento peorEstado, params DocumentoRequeridoDto[] documentos) =>
         new(Guid.NewGuid(), Guid.NewGuid(), nombre, Guid.NewGuid(), clienteEmpresarial,
-            new DateOnly(2026, 7, 2), peorEstado, documentos);
+            new DateOnly(2026, 7, 2), peorEstado, documentos,
+            // Con «Sin caducidad» el listado no lo trae pero el par cuenta: un caso aparte construye el Dto con su fracción.
+            CumplimientoDocumental.Evaluar(documentos.Select(d => d.Estado)));
 
     private static GestionListaDto Gestion(Guid trabajadorId, string tipoDocumento, string centro) =>
         new(Guid.NewGuid(), trabajadorId, "Javier Salas", Guid.NewGuid(), centro,
@@ -305,7 +307,8 @@ public class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         var cabecera = cut.Find(".cabecera-pagina");
-        // El porcentaje sigue la regla de Centro 360 (solo cuenta lo vigente: 1 de 3); la única incidencia es el vencido.
+        // El porcentaje sigue la definición única de CumplimientoDocumental: «Sin confirmar» no cuenta como al día en un
+        // porcentaje (1 de 3), aunque en las incidencias sí; la única incidencia es el vencido.
         cabecera.QuerySelector(".cabecera-pagina-inicio .anillo-cumplimiento-texto")!.TextContent.Trim().Should().StartWith("33");
         cabecera.TextContent.Should().Contain("1 incidencia — Centro Norte")
             .And.Contain("Formación específica de centro — Vencido")
@@ -335,7 +338,58 @@ public class Trabajador360Gen2Tests : BunitContext
         tarjeta.ClassList.Should().NotContain("trabajador360-centro-con-incidencia");
         tarjeta.TextContent.Should().Contain("Sin incidencias · vigencia sin confirmar");
         cut.Find(".anillo-cumplimiento-texto").TextContent.Trim().Should().StartWith("0",
-            "el porcentaje no cambia con D-22: solo cuenta lo vigente, como Centro 360 (decisión pendiente del propietario)");
+            "«Sin confirmar» no es al día en un porcentaje (decisión del propietario, 2026-10-03): solo lo es en incidencias y paneles");
+    }
+
+    /// <summary>
+    /// Decisión del propietario, 2026-10-03: Próximo y Urgente siguen siendo válidos hoy y cuentan como al día en el
+    /// porcentaje, aunque sigan siendo incidencias. El % es la suma de las fracciones de CumplimientoDocumental de cada Centro.
+    /// </summary>
+    [Fact]
+    public void Proximo_y_urgente_cuentan_como_al_dia_en_el_porcentaje_aunque_sigan_siendo_incidencia()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Urgente,
+                Documento("Reconocimiento médico", EstadoDocumento.Proximo),
+                Documento("Formación PRL — 20 h", EstadoDocumento.Urgente),
+                Documento("Formación específica de centro", EstadoDocumento.Vencido))
+        ];
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cabecera-pagina .cabecera-pagina-inicio .anillo-cumplimiento-texto").TextContent.Trim().Should().StartWith("67",
+            "dos de tres exigidos están al día (Próximo y Urgente); solo el vencido no");
+        SinEspaciosDeMas(cut.Find(".pestanas-contador").TextContent).Should().Be("3 documentos con incidencia",
+            "Próximo y Urgente al día en el porcentaje no deja de ser incidencia: son dos preguntas distintas");
+    }
+
+    /// <summary>
+    /// «No caduca» confirmado es al día Y requerido. El listado del Centro no lo trae (no es un requisito pendiente), así
+    /// que el porcentaje sale de la fracción que calcula la consulta, no de contar filas.
+    /// </summary>
+    [Fact]
+    public void Un_documento_que_no_caduca_cuenta_como_al_dia_y_como_requerido_aunque_el_listado_no_lo_traiga()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        // Dos exigidos: uno «No caduca» (omitido del listado) y uno vencido. La fracción de la consulta es 1 de 2.
+        mediador.Centros[id] =
+        [
+            new CentroDocumentacionTrabajadorDto(
+                Guid.NewGuid(), Guid.NewGuid(), "Centro Norte", Guid.NewGuid(), "Refrielectric S.A.", new DateOnly(2026, 7, 2),
+                EstadoDocumento.Vencido, [Documento("Formación específica de centro", EstadoDocumento.Vencido)],
+                new FraccionCumplimiento(1, 2))
+        ];
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cabecera-pagina .cabecera-pagina-inicio .anillo-cumplimiento-texto").TextContent.Trim().Should().StartWith("50");
+        cut.Find(".trabajador360-centro-resumen").TextContent.Should().Contain("1 de 2 exigidos correctos");
     }
 
     /// <summary>

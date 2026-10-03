@@ -194,7 +194,7 @@
                     else
                     {
                         <p class="dashboard-resumen-anillo-titulo">@_kpis.TasaCumplimientoDocumental% de cumplimiento documental</p>
-                        <p class="dashboard-resumen-anillo-detalle">@_kpis.DocumentosVigentes.ToString("N0") de @TotalDocumentosConVigencia.ToString("N0") documentos vigentes en cartera</p>
+                        <p class="dashboard-resumen-anillo-detalle">@_kpis.Fraccion.AlDia.ToString("N0") de @_kpis.Fraccion.Requeridos.ToString("N0") documentos al día en cartera</p>
                     }
                     @if (_kpis.CentrosBloqueados > 0)
                     {

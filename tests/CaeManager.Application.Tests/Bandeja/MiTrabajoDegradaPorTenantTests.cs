@@ -1,6 +1,7 @@
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Centros;
+using CaeManager.Domain.Documentos;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
@@ -134,6 +135,9 @@ public class MiTrabajoDegradaPorTenantTests
             IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyDictionary<Guid, FraccionCumplimiento>> CalcularCumplimientoAsync(
+            IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosAsync(
             IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

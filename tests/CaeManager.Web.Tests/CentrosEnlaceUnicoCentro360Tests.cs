@@ -127,7 +127,8 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
 
     private static TrabajadorAsignacionDocumentacionDto Trabajador(string nombre, EstadoDocumento estado) => new(
         Guid.NewGuid(), Guid.NewGuid(), nombre, new DateOnly(2026, 1, 15), estado,
-        [new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Formación PRL", estado, new DateOnly(2027, 1, 15))]);
+        [new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Formación PRL", estado, new DateOnly(2027, 1, 15))],
+        CumplimientoDocumental.Evaluar([estado]));
 
     private static IReadOnlyList<TrabajadorAsignacionDocumentacionDto> Trabajadores(Escenario escenario) => escenario switch
     {
