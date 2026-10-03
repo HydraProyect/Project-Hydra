@@ -417,6 +417,11 @@ public class TerminologiaCanonicaTests
     /// <b><c>Delegacion</c> 340 → 339 (D-7, 2026-10-02): −1.</b> Misma retirada: un identificador menos
     /// tras reescribir la reapertura de carteras del writer y retirar de él el reparto por Cliente empresarial.
     /// </para>
+    /// <para>
+    /// <b><c>Delegacion</c> 339 → 337 (S12 lote 3b, 2026-10-03): −2.</b> Los tres modales de la pantalla de Delegaciones pasan al kit
+    /// <c>ModalFormulario</c>: el marcado de los modales (que en <c>.razor</c> cuenta cualquier aparición) se reescribe y
+    /// pierde dos líneas con el término; no se renombra nada.
+    /// </para>
     /// </summary>
     private static readonly Dictionary<string, int> Congelado = new()
     {
@@ -426,7 +431,7 @@ public class TerminologiaCanonicaTests
         // identificadores legacy que ya existen y no se renombran aquí —DelegacionesTenant,
         // DelegacionTenantId y PropositoDelegacion— en la retirada de la fila heredada de
         // Operador Delegado de CatalogoIncorporacionCartera (mismo join que PropietariosEnCarteraAsync).
-        ["Delegacion"] = 339,
+        ["Delegacion"] = 337,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

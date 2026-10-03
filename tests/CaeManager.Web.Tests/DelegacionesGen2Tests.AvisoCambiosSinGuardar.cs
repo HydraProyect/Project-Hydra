@@ -1,7 +1,9 @@
 using Bunit;
+using CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
 using CaeManager.Application.Tenants.Commands.CrearOperadorCaeExterno;
 using CaeManager.Application.Tenants.Queries.AutorizarOperadorCaeExterno;
+using CaeManager.Domain.Common;
 using CaeManager.Web.Features.Delegaciones.Pages;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
@@ -58,6 +60,73 @@ public partial class DelegacionesGen2Tests
         mediador.Enviadas.Should().Contain(x => x.Peticion is CrearClienteDeleganteCommand, "si no se creó, el test no mide nada");
 
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "la delegación ya está creada");
+    }
+
+    // ------------------------------------------------- ModalFormulario (S12, lote 3b): el error del formulario va en el aviso fijo
+
+    private static AngleSharp.Dom.IElement BotonDelModal(IRenderedComponent<Delegaciones> cut, string texto) =>
+        cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == texto);
+
+    [Fact]
+    public async Task El_error_de_validacion_del_acceso_de_Soporte_sale_en_el_aviso_fijo_y_escribir_de_nuevo_lo_retira()
+    {
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false, Delegacion(soporte: true, activa: false));
+        await BotonConTexto(cut, "Abrir acceso").ClickAsync(new MouseEventArgs());
+        var horas = cut.FindAll("[role=dialog] input")[1];
+        await horas.InputAsync(new ChangeEventArgs { Value = "no-es-un-numero" });
+        await horas.BlurAsync(new FocusEventArgs());
+
+        await BotonDelModal(cut, "Abrir acceso").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".modal-aviso .alerta-formulario").TextContent.Should().Contain("Indica las horas de acceso como un número.");
+        cut.FindAll(".modal-cuerpo .alerta-formulario").Should().BeEmpty("el aviso va fuera del cuerpo desplazable (D-20)");
+        cut.FindAll("[role=dialog]").Should().NotBeEmpty("el error no cierra el modal ni tira lo escrito");
+        mediador.Enviadas.Should().NotContain(x => x.Peticion is AbrirAccesoSoporteCommand, "las horas no son un número: no sale ningún comando");
+
+        var motivo = cut.FindAll("[role=dialog] input")[0];
+        await motivo.InputAsync(new ChangeEventArgs { Value = "Incidencia de importación" });
+        await motivo.BlurAsync(new FocusEventArgs());
+
+        cut.FindAll(".modal-aviso").Should().BeEmpty("escribir de nuevo retira el error anterior");
+    }
+
+    [Fact]
+    public async Task El_rechazo_de_Nueva_delegacion_sale_en_el_aviso_fijo_y_lo_escrito_no_se_pierde()
+    {
+        var (cut, mediador, _) = Renderizar(Delegacion());
+        mediador.ResultadoCreacion = Result.Fallo<Guid>(Error.Crear("Cliente.NombreEnUso", "Ya existe una organización con ese nombre."));
+        await BotonConTexto(cut, "Nueva delegación").ClickAsync(new MouseEventArgs());
+        await EscribirEnElModalAsync(cut, "Organización nueva");
+
+        await BotonDelModal(cut, "Crear").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".modal-aviso .alerta-formulario").TextContent.Should().Contain("Ya existe una organización con ese nombre.");
+        cut.FindAll(".modal-cuerpo .alerta-formulario").Should().BeEmpty();
+        cut.FindComponents<CaeManager.Web.Components.DesignSystem.CampoTexto>()
+            .Single(c => c.Instance.Etiqueta == "Nombre de la organización").Instance.Valor.Should().Be("Organización nueva", "el rechazo no tira lo escrito");
+
+        await EscribirEnElModalAsync(cut, "Organización nueva 2");
+
+        cut.FindAll(".modal-aviso").Should().BeEmpty("escribir de nuevo retira el error anterior");
+    }
+
+    [Fact]
+    public async Task El_rechazo_de_Autorizar_un_Operador_sale_en_el_aviso_fijo_y_el_primario_es_unico()
+    {
+        var arcoSpa = new OperadorCaeExternoAutorizableDto(Guid.NewGuid(), "ArcoSPA");
+        ComoAdministradorDelTenantPropietario(_ => arcoSpa);
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false);
+        mediador.ResultadoAutorizacion = Result.Fallo<Guid>(Error.Crear("DelegacionTenant.OtroOperadorVigente",
+            "Tu organización ya tiene otro Operador CAE externo activo."));
+        await BotonConTexto(cut, "Autorizar un Operador CAE externo").ClickAsync(new MouseEventArgs());
+        await EscribirEnElModalAsync(cut, "ArcoSPA");
+        await cut.Find("[role=option]").ClickAsync(new MouseEventArgs());
+
+        await BotonDelModal(cut, "Autorizar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".modal-aviso .alerta-formulario").TextContent.Should().Contain("ya tiene otro Operador CAE externo activo");
+        cut.FindAll(".modal-cuerpo .alerta-formulario").Should().BeEmpty();
+        cut.FindAll("[role=dialog] .modal-pie button").Count(b => b.ClassList.Contains("boton-primario")).Should().Be(1);
     }
 
     private static bool PreguntaDescartar(IRenderedComponent<Delegaciones> cut) =>

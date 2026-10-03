@@ -55,14 +55,18 @@
     }
 </div>
 
-<Modal @ref="_modalGenerar" Visible="_mostrarFormularioGenerar" VisibleChanged="CerrarFormularioGenerar" Titulo="Generar clave" CerrarAlHacerClicFuera="@(!_generando)"
-       HayCambios="() => _mostrarFormularioGenerar && !_generando && !string.IsNullOrWhiteSpace(_nombreNuevaClave)">
-    <ChildContent>
+@* «Generar clave» es un formulario de un campo: ModalFormulario (guardián, «Cancelar» como la X, primario único con su estado, aviso del
+   formulario y aviso de navegación vienen del kit). «Clave generada» (abajo) es de solo lectura y no es un formulario. *@
+@* Solo existe mientras está abierto: cambiar de organización descarta la generación en vuelo de la anterior (la página la deja morir, ver GenerarAsync)
+   y, con el kit siempre montado, su guarda de doble clic seguiría retenida por esa operación y la generación nueva no podría empezar. *@
+@if (_mostrarFormularioGenerar)
+{
+    <ModalFormulario Visible="true" VisibleChanged="CerrarFormularioGenerar" Titulo="Generar clave" Ancho="AnchoModal.Pequeno"
+                     HayCambios="() => !_generando && !string.IsNullOrWhiteSpace(_nombreNuevaClave)"
+                     Guardando="_generando" MensajeError="@_errorGenerar" OnGuardar="GenerarAsync" TextoGuardar="Generar" TextoCancelar="Cancelar">
         <CampoTexto Etiqueta="Nombre" Valor="@_nombreNuevaClave" ValorChanged="CambiarNombreNuevaClave" Placeholder="Integración con el ERP" />
-        @if (_errorGenerar is not null) { <p class="aviso-error" role="alert">@_errorGenerar</p> }
-    </ChildContent>
-    <Pie><Boton Variante="VarianteBoton.Secundario" Deshabilitado="_generando" OnClick="CancelarGeneracionAsync">Cancelar</Boton><Boton Variante="VarianteBoton.Primario" Cargando="_generando" OnClick="GenerarAsync">Generar</Boton></Pie>
-</Modal>
+    </ModalFormulario>
+}
 
 <Modal Visible="@(_claveGenerada is not null)" VisibleChanged="CerrarClaveGenerada" Titulo="Clave generada" CerrarAlHacerClicFuera="false">
     <ChildContent>

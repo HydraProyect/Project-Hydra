@@ -104,11 +104,6 @@
     padding: var(--space-3) var(--space-5);
 }
 
-.delegaciones-error {
-    color: var(--color-danger-700);
-    font: var(--font-body-sm);
-}
-
 @media (max-width: 640px) {
     .delegaciones-tarjeta-cabecera {
         padding: var(--space-4);
