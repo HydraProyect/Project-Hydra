@@ -237,6 +237,7 @@ public class IdsDeFilaUnicosTests
     {
         public Task<IReadOnlyDictionary<Guid, ResultadoEstadoCentro>> CalcularAsync(IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyDictionary<Guid, FraccionCumplimiento>> CalcularCumplimientoAsync(IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosAsync(IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private static async Task<List<string>> ErroresDeMiTrabajoAsync(IReadOnlyList<AlertaDto> alertasA, IReadOnlyList<AlertaDto> alertasB)
