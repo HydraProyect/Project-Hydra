@@ -1,4 +1,3 @@
-using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants.Commands.CrearAsignacionOperadorDelegado;
 using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
 using CaeManager.Application.Tenants.Commands.CrearDelegacionTenant;
@@ -87,6 +86,20 @@ public class MensajesDeLaOrganizacionQueDelegaTests
 
         sinTenant.Error.Codigo.Should().Be("DelegacionTenant.ClienteNoEncontrado");
         sinTenant.Error.Mensaje.Should().Contain("organización que delega").And.NotContain("Cliente");
+    }
+
+    [Fact]
+    public async Task El_tenant_de_plataforma_como_organizacion_que_delega_no_se_nombra()
+    {
+        var plataforma = new Tenant("TALVEG");
+        plataforma.MarcarComoPlataforma();
+        _tenants.ListaTenants.Add(plataforma);
+
+        var resultado = await HandlerDeDelegacion(AutorizacionDelegacionFalsa.AdministradorDe(plataforma.Id)).Handle(
+            new CrearDelegacionTenantCommand(_operador.Id, plataforma.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("DelegacionTenant.ClienteNoEncontrado");
+        resultado.Error.Mensaje.Should().NotContain("TALVEG").And.NotContain("Cliente");
     }
 
     [Fact]
