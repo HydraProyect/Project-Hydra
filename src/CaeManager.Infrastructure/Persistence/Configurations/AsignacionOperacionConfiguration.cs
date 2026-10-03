@@ -61,10 +61,8 @@ public class AsignacionOperacionConfiguration : IEntityTypeConfiguration<Asignac
         // responde del ámbito y debe poder convivir con la Vigente a la que va a
         // sustituir (la ventana de traspaso), y una Cerrada es historia.
         //
-        // Solo cubren las dos combinaciones de ámbito que F1 emite. Cuando se
-        // habiliten las dimensiones diferidas harán falta más, y el índice de
-        // AsignacionCartera por relación tendrá que retirarse (ver su
-        // configuración).
+        // Solo cubren las combinaciones de ámbito que F1 emite. Cuando se
+        // habiliten las dimensiones diferidas harán falta más.
 
         // Una sola raíz vigente por (propietario, servicio).
         builder.HasIndex(

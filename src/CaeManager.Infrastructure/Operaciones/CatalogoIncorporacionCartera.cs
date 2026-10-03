@@ -232,7 +232,8 @@ public class CatalogoIncorporacionCartera(
             solicitud.Revocar(actorUsuarioId, ahora);
 
         // La fila heredada solo sobra si no queda otra cartera vigente del usuario en ese Tenant:
-        // un reparto por Cliente empresarial sigue necesitando que el Tenant le aparezca.
+        // otra cartera vigente suya en ese Tenant (de otro rol, o bajo otra operación) sigue necesitando que el
+        // Tenant le aparezca.
         var vigenteAhora = DateTime.UtcNow;
         var leQuedaOtra = await dbContext.AsignacionesCartera.AnyAsync(c =>
             c.UsuarioId == usuarioId

@@ -80,17 +80,20 @@ public class RevocacionCarteraEnCircuitoVivoTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto(tenant);
         var ahora = DateTime.UtcNow;
-        // Una sola raíz vigente por Tenant (IX_AsignacionesOperacion_RaizVigente): se reutiliza. El
-        // filtro por Tenant propietario es explícito: AsignacionesOperacion no lleva HasQueryFilter
+        // La cartera es siempre el Tenant entero (D-7): el alcance de un solo Cliente empresarial se acota en la
+        // operación. Una sola operación vigente por Cliente empresarial (IX_AsignacionesOperacion_ResponsableRelacionVigente):
+        // se reutiliza. El filtro por Tenant propietario es explícito: AsignacionesOperacion no lleva HasQueryFilter
         // (el Operador CAE puede ser otro Tenant).
-        var raiz = await contexto.AsignacionesOperacion.FirstOrDefaultAsync(o => o.PropietarioTenantId == tenant);
-        if (raiz is null)
+        var acotada = await contexto.AsignacionesOperacion.FirstOrDefaultAsync(
+            o => o.PropietarioTenantId == tenant && o.AmbitoRelacionClienteId == clienteId);
+        if (acotada is null)
         {
-            raiz = AsignacionOperacion.Raiz(tenant, ServicioCae.Outbound, ahora, ahora);
-            contexto.AsignacionesOperacion.Add(raiz);
+            acotada = AsignacionOperacion.Interna(
+                tenant, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteId), ahora, null, ahora);
+            contexto.AsignacionesOperacion.Add(acotada);
         }
         var cartera = AsignacionCartera.Interna(
-            raiz, usuarioId, AmbitoAsignacion.DeRelacionCliente(clienteId), ahora, vigenciaHasta, ahora);
+            acotada, usuarioId, AmbitoAsignacion.Universal, ahora, vigenciaHasta, ahora);
         contexto.AsignacionesCartera.Add(cartera);
         await contexto.SaveChangesAsync();
         return cartera.Id;

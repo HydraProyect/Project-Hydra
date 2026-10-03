@@ -193,7 +193,7 @@ public class SolicitudIncorporacionCarteraTests
         var operacion = OperacionExternaUniversal();
         var solicitud = Pendiente(operacion);
         var acotada = AsignacionCartera.Externa(
-            operacion, Gestor, "GestorCae", AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()), Ahora, null, Ahora);
+            operacion, Gestor, "GestorCae", new AmbitoAsignacion(CentroId: Guid.NewGuid()), Ahora, null, Ahora);
 
         var aceptar = () => solicitud.Aceptar(Coordinador, acotada, null, Ahora);
 

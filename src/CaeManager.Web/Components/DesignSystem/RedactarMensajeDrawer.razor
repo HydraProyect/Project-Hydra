@@ -16,40 +16,29 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 
-<Drawer @ref="_drawer" HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviando">
-    <ChildContent>
-        @if (_error is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_error</div>
-        }
+<DrawerFormulario Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Redactar mensaje"
+                 HayCambios="() => HayCambiosSinGuardar" Guardando="_enviando" MensajeError="@_error"
+                 OnGuardar="EnviarAsync" TextoGuardar="Enviar" TextoCancelar="Cancelar">
+    @if (_conexiones.Count > 1)
+    {
+        <CampoSelect Etiqueta="Enviar desde" Valor="@(_conexionId?.ToString() ?? string.Empty)" ValorChanged="v => _conexionId = Guid.TryParse(v, out var id) ? id : null">
+            <option value="">Selecciona un buzón…</option>
+            @foreach (var conexion in _conexiones)
+            {
+                <option value="@conexion.Id">@conexion.Nombre (@conexion.BuzonEmail)</option>
+            }
+        </CampoSelect>
+    }
 
-        @if (_conexiones.Count > 1)
-        {
-            <CampoSelect Etiqueta="Enviar desde" Valor="@(_conexionId?.ToString() ?? string.Empty)" ValorChanged="v => _conexionId = Guid.TryParse(v, out var id) ? id : null">
-                <option value="">Selecciona un buzón…</option>
-                @foreach (var conexion in _conexiones)
-                {
-                    <option value="@conexion.Id">@conexion.Nombre (@conexion.BuzonEmail)</option>
-                }
-            </CampoSelect>
-        }
+    <CampoTexto Etiqueta="Para (separados por coma)" Valor="@_destinatarios" ValorChanged="v => _destinatarios = v" Placeholder="contacto@cliente.com" />
+    <CampoTexto Etiqueta="Asunto" Valor="@_asunto" ValorChanged="v => _asunto = v" />
+    <CampoTextarea Etiqueta="Mensaje" Valor="@_cuerpo" ValorChanged="v => _cuerpo = v" Filas="6" />
 
-        <CampoTexto Etiqueta="Para (separados por coma)" Valor="@_destinatarios" ValorChanged="v => _destinatarios = v" Placeholder="contacto@cliente.com" />
-        <CampoTexto Etiqueta="Asunto" Valor="@_asunto" ValorChanged="v => _asunto = v" />
-        <CampoTextarea Etiqueta="Mensaje" Valor="@_cuerpo" ValorChanged="v => _cuerpo = v" Filas="6" />
-
-        @if (Adjunto is not null)
-        {
-            <span class="detalle-tecnico">📎 @Adjunto.NombreArchivo</span>
-        }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviando" OnClick="CancelarAsync">Cancelar</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_enviando" OnClick="EnviarAsync">Enviar</Boton>
-    </Pie>
-</Drawer>
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => VisibleChanged.InvokeAsync(false)" />
+    @if (Adjunto is not null)
+    {
+        <span class="detalle-tecnico">📎 @Adjunto.NombreArchivo</span>
+    }
+</DrawerFormulario>
 
 @code {
     [Parameter] public bool Visible { get; set; }
@@ -110,18 +99,13 @@
     /// <summary>
     /// P1-E2b: único punto de verdad de «hay cambios» en el mensaje que se está redactando,
     /// comparado con cómo se abrió (asunto y cuerpo iniciales del llamador incluidos). Lo
-    /// leen el Drawer (X, Escape, fondo) y AvisoCambiosSinGuardar (salir de la página).
+    /// lee DrawerFormulario: la X, Escape, el fondo, «Cancelar» y salir de la página.
     /// </summary>
     private bool HayCambiosSinGuardar => Visible && _instantanea.Difiere(ValoresFormulario());
 
     private object?[] ValoresFormulario() => [_conexionId, _destinatarios, _asunto, _cuerpo];
 
     private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
-
-    private Drawer? _drawer;
-
-    /// <summary>«Cancelar» cierra como la X (D-05): con algo escrito pregunta «¿Descartar cambios?».</summary>
-    private Task CancelarAsync() => _drawer is { } drawer ? drawer.SolicitarCierreAsync() : CerrarAsync(false);
 
     private Task CerrarAsync(bool visible)
     {

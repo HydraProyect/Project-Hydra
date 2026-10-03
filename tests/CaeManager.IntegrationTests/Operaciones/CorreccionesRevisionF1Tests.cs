@@ -407,59 +407,6 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
             .Estado.Should().Be(EstadoAsignacion.Vigente);
     }
 
-    // ---------- O2: rol efectivo determinista ----------
-
-    [Fact]
-    public async Task El_rol_efectivo_es_estable_cuando_el_usuario_tiene_varias_carteras_en_la_misma_operacion()
-    {
-        await EjecutarBackfillAsync();
-
-        var ahora = DateTime.UtcNow;
-        Guid operacionId;
-
-        await using (var contexto = CrearContexto(_propietario))
-        {
-            // La operación externa ya existe: la creó el backfill a partir de
-            // la delegación comercial. Crear otra chocaría contra el índice de
-            // "una sola delegación total vigente".
-            var externa = await contexto.AsignacionesOperacion
-                .FirstAsync(o => !o.EsRaiz && o.PropietarioTenantId == _propietario);
-
-            // Una cartera por Cliente empresarial heredada (el modo retirado ya no se produce, pero
-            // la fila puede existir hasta que la conversión la cierre) más una universal: dos carteras
-            // del MISMO usuario bajo la MISMA operación, que los índices permiten. Con roles
-            // distintos, un FirstOrDefault sin orden elegiría uno al azar.
-            contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
-                externa, _gestorConsultora, Roles.GestorCae, AmbitoAsignacion.DeRelacionCliente(_clienteId), ahora, null, ahora));
-            contexto.AsignacionesCartera.Add(AsignacionCartera.Externa(
-                externa, _gestorConsultora, Roles.Consulta, AmbitoAsignacion.Universal, ahora, null, ahora));
-
-            await contexto.SaveChangesAsync();
-            operacionId = externa.Id;
-
-            (await contexto.AsignacionesCartera
-                    .CountAsync(c => c.AsignacionOperacionId == operacionId && c.UsuarioId == _gestorConsultora))
-                .Should().Be(2, "el escenario exige dos carteras del mismo usuario en la misma operación");
-        }
-
-        // Diez resoluciones seguidas, cada una con su propio contexto: el
-        // resultado tiene que ser siempre el mismo, y el de la cartera
-        // universal, que es la que describe el rol en el workspace.
-        for (var intento = 0; intento < 10; intento++)
-        {
-            await using var contexto = CrearContexto(_propietario);
-            var rol = await contexto.AsignacionesCartera
-                .Where(c => c.AsignacionOperacionId == operacionId
-                            && c.UsuarioId == _gestorConsultora
-                            && c.Estado == EstadoAsignacion.Vigente)
-                .OrderBy(c => c.AmbitoRelacionClienteId == null ? 0 : 1).ThenBy(c => c.Id)
-                .Select(c => c.Rol)
-                .FirstOrDefaultAsync();
-
-            rol.Should().Be(Roles.Consulta);
-        }
-    }
-
     // ---------- Auditoría Módulo 5: rol delegado falla cerrado ----------
 
     [Fact]

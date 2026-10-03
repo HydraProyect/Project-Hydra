@@ -127,8 +127,9 @@ public static class TenantsBeneficiariosAutorizados
     /// <summary>
     /// UNA sola definición del rol efectivo por la vía de Operación, para la
     /// operación ya elegida (<see cref="OperacionQueAutorizaAsync"/> o la del token):
-    /// el par (operación, usuario) NO es único, así que entre las carteras vigentes
-    /// con rol delegable manda la universal y, a igualdad, la de menor Id. Lo usan
+    /// el par (operación, usuario) NO es único (los índices solo garantizan una universal
+    /// vigente), así que entre las carteras vigentes con rol delegable manda la de menor
+    /// Id: determinista. Lo usan
     /// <c>CurrentUserService</c> (rol efectivo) y <c>ObtenerClientesAutorizadosQuery</c>
     /// (Tenant por defecto, decisión 7 quater): ambos deben coincidir siempre.
     /// </summary>
@@ -139,8 +140,7 @@ public static class TenantsBeneficiariosAutorizados
             .Where(v => v.Operacion.Id == asignacionOperacionId
                         && v.Operacion.PropietarioTenantId == tenantId
                         && v.Cartera.Rol != null && RolesDelegablesPorOperacion.Contains(v.Cartera.Rol))
-            .OrderBy(v => v.Cartera.AmbitoRelacionClienteId == null ? 0 : 1)
-            .ThenBy(v => v.Cartera.Id)
+            .OrderBy(v => v.Cartera.Id)
             .Select(v => v.Cartera.Rol)
             .FirstOrDefaultAsync(cancellationToken);
 

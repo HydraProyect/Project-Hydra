@@ -79,10 +79,11 @@ public class CrearVisitaCommandAlcanceCarteraTests : IAsyncLifetime
 
         _gestor = Guid.NewGuid();
         var ahora = DateTime.UtcNow;
-        var raiz = AsignacionOperacion.Raiz(_tenant, ServicioCae.Outbound, ahora, ahora);
-        contexto.AsignacionesOperacion.Add(raiz);
+        // La cartera es siempre el Tenant entero (D-7): el alcance de un solo Cliente empresarial se acota en la operación.
+        var acotada = AsignacionOperacion.Interna(_tenant, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDentro.Id), ahora, null, ahora);
+        contexto.AsignacionesOperacion.Add(acotada);
         contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
-            raiz, _gestor, AmbitoAsignacion.DeRelacionCliente(clienteDentro.Id), ahora, null, ahora));
+            acotada, _gestor, AmbitoAsignacion.Universal, ahora, null, ahora));
         await contexto.SaveChangesAsync();
 
         (_clienteDentro, _centroDentro, _trabajadorDentro) = (clienteDentro.Id, centroDentro.Id, trabajadorDentro.Id);
