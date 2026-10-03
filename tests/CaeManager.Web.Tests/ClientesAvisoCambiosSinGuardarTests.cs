@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Bunit;
+using Bunit.TestDoubles;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Common;
@@ -231,6 +232,17 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Salir y descartar").ClickAsync(new MouseEventArgs());
 
         navegacion.Uri.Should().EndWith("/trabajadores");
+        PreguntasDeSalida(cut).Should().Be(0, "descartar no vuelve a preguntar");
+
+        // «Salir y descartar» cierra el drawer por el mismo camino que «Cancelar» (el kit llama a VisibleChanged(false)), que quita
+        // ?accion= de la URL con un reemplazo antes de la navegación confirmada. Fijado porque antes no ocurría (el AlDescartar de
+        // la página solo cerraba): primero el reemplazo sin ?accion= y después, una sola vez, el destino. Medido solo con el
+        // arnés de bUnit, no con el circuito real.
+        var historial = ((BunitNavigationManager)navegacion).History.ToList(); // el más reciente primero
+        historial[0].Uri.Should().EndWith("/trabajadores");
+        historial.Count(h => h.Uri.EndsWith("/trabajadores")).Should().Be(1, "una sola navegación al destino");
+        historial[1].Uri.Should().EndWith("/clientes", "el reemplazo que quita la acción precede al destino");
+        historial[1].Options.ReplaceHistoryEntry.Should().BeTrue();
     }
 
     [Fact]

@@ -26,6 +26,9 @@ public class AvisoCambiosSinGuardarUnaPreguntaTests : BunitContext
     private int _descartesPagina;
     private bool _visible = true;
 
+    /// <summary>Lo que el AlDescartar del aviso de página hace además de contar (p. ej. cerrar el drawer que mira el kit).</summary>
+    private Action? _alDescartarPagina;
+
     public AvisoCambiosSinGuardarUnaPreguntaTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -49,7 +52,11 @@ public class AvisoCambiosSinGuardarUnaPreguntaTests : BunitContext
     {
         b.OpenComponent<AvisoCambiosSinGuardar>(0);
         b.AddAttribute(1, nameof(AvisoCambiosSinGuardar.HayCambios), (Func<bool>)(() => _paginaHayCambios));
-        b.AddAttribute(2, nameof(AvisoCambiosSinGuardar.AlDescartar), EventCallback.Factory.Create(this, () => _descartesPagina++));
+        b.AddAttribute(2, nameof(AvisoCambiosSinGuardar.AlDescartar), EventCallback.Factory.Create(this, () =>
+        {
+            _descartesPagina++;
+            _alDescartarPagina?.Invoke();
+        }));
         b.CloseComponent();
     };
 
@@ -222,9 +229,41 @@ public class AvisoCambiosSinGuardarUnaPreguntaTests : BunitContext
         (_descartesKit, _descartesPagina).Should().Be((1, 1));
     }
 
+    [Fact]
+    public async Task Una_ficha_del_workspace_con_cambios_no_se_descarta_de_paso_y_pregunta_aparte()
+    {
+        // El Context Workspace vive en el layout: su ficha a medias sobrevive al cambio de ruta. Descartar la pantalla no la
+        // descarta a ella; su pregunta llega en la segunda vuelta y ahí se puede seguir editando (comportamiento de antes de la v2).
+        var cut = Render(b =>
+        {
+            b.AddContent(0, AvisoDePagina);
+            b.OpenComponent<CascadingValue<AmbitoCambiosSinGuardar>>(1);
+            b.AddAttribute(2, "Value", new AmbitoCambiosSinGuardar());
+            b.AddAttribute(3, "Name", AmbitoCambiosSinGuardar.NombreAmbitoFicha);
+            b.AddAttribute(4, "IsFixed", true);
+            b.AddAttribute(5, "ChildContent", Kit);
+            b.CloseComponent();
+        });
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var origen = navegacion.Uri;
+
+        await IntentarSalirAsync(cut);
+        Preguntas(cut).Should().Be(1);
+        await Pulsar(cut, "Salir y descartar");
+
+        _descartesPagina.Should().Be(1);
+        _descartesKit.Should().Be(0, "la ficha del workspace no es de esta pantalla: no se descarta sin preguntarle");
+        Preguntas(cut).Should().Be(1, "la ficha pregunta aparte");
+        navegacion.Uri.Should().Be(origen);
+
+        await Pulsar(cut, "Seguir editando");
+        _descartesKit.Should().Be(0);
+        navegacion.Uri.Should().Be(origen);
+    }
+
     // ---- Cambiar de pestaña o de ficha: el mismo criterio por ámbito, no por aviso.
 
-    private IRenderedComponent<IComponent> DosAvisosEnUnAmbito(AmbitoCambiosSinGuardar ambito) =>
+    private IRenderedComponent<IComponent> DosAvisosEnUnAmbito(AmbitoCambiosSinGuardar ambito, bool avisoDePaginaPrimero = false) =>
         Render(b =>
         {
             b.OpenComponent<CascadingValue<AmbitoCambiosSinGuardar>>(0);
@@ -232,8 +271,8 @@ public class AvisoCambiosSinGuardarUnaPreguntaTests : BunitContext
             b.AddAttribute(2, "IsFixed", true);
             b.AddAttribute(3, "ChildContent", (RenderFragment)(inner =>
             {
-                inner.AddContent(0, Kit);
-                inner.AddContent(1, AvisoDePagina);
+                inner.AddContent(0, avisoDePaginaPrimero ? AvisoDePagina : Kit);
+                inner.AddContent(1, avisoDePaginaPrimero ? Kit : AvisoDePagina);
             }));
             b.CloseComponent();
         });
@@ -255,6 +294,23 @@ public class AvisoCambiosSinGuardarUnaPreguntaTests : BunitContext
         (await confirmacion.WaitAsync(TimeSpan.FromSeconds(5))).Should().BeTrue();
         (_descartesKit, _descartesPagina).Should().Be((1, 1));
         Preguntas(cut).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_ambito_descarta_a_todos_los_que_tenian_cambios_aunque_el_primer_descarte_apague_el_HayCambios_del_otro()
+    {
+        // El descarte del aviso de página cierra lo que mira el kit (p. ej. el drawer): sin volver a filtrar, el kit descarta igual.
+        _alDescartarPagina = () => _kitHayCambios = false;
+        var ambito = new AmbitoCambiosSinGuardar();
+        var cut = DosAvisosEnUnAmbito(ambito, avisoDePaginaPrimero: true);
+
+        var confirmacion = cut.InvokeAsync(() => ambito.ConfirmarAbandonoAsync());
+        Preguntas(cut).Should().Be(1);
+        await Pulsar(cut, "Salir y descartar");
+
+        (await confirmacion.WaitAsync(TimeSpan.FromSeconds(5))).Should().BeTrue();
+        (_descartesPagina, _descartesKit).Should().Be((1, 1),
+            "el kit tenía cambios cuando se preguntó: su descarte no depende de lo que el otro limpie después");
     }
 
     [Fact]

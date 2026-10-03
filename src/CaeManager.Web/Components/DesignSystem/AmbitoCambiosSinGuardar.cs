@@ -84,7 +84,9 @@ public sealed class AmbitoCambiosSinGuardar
         if (!await conCambios[0].ConfirmarAbandonoAsync())
             return false;
 
-        foreach (var otro in conCambios.Skip(1).Where(a => a.TieneCambios))
+        // Sin volver a filtrar por TieneCambios: el descarte del primero puede limpiar lo que mira otro aviso (cerrar el drawer
+        // apaga el HayCambios del kit) y ese otro dejaría de correr su AlDescartar.
+        foreach (var otro in conCambios.Skip(1))
             await otro.DescartarSinPreguntarAsync();
 
         return true;

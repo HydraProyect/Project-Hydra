@@ -206,8 +206,12 @@
         if (!Montados.TryGetValue(Navegacion, out var montados))
             return [];
 
+        // Solo los de la misma superficie: el Context Workspace vive en el layout y sus formularios sobreviven al cambio de ruta.
+        // Quien descarta la pantalla no descarta de paso la ficha que tenga a medias: esa pregunta sigue siendo suya (segunda
+        // vuelta, como antes de la v2) y en ella se puede seguir editando.
         lock (montados)
-            return montados.Where(a => !ReferenceEquals(a, this) && !a._salidaConfirmada && !a._preguntando && a.DebeDetener(contexto)).ToList();
+            return montados.Where(a => !ReferenceEquals(a, this) && ReferenceEquals(a.AmbitoFicha, AmbitoFicha)
+                                       && !a._salidaConfirmada && !a._preguntando && a.DebeDetener(contexto)).ToList();
     }
 
     /// <summary>
