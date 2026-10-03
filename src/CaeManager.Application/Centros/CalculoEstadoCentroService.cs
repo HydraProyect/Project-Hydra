@@ -13,7 +13,10 @@ namespace CaeManager.Application.Centros;
 /// <summary>
 /// Causa concreta que empuja el EstadoCentro por debajo de Vigente — un
 /// Documento (de la Empresa o de un Trabajador) que no está Vigente, o un
-/// hueco de <c>TipoDocumentoCentro.BloqueaAcceso</c> sin Documento Vigente.
+/// hueco total (ningún Documento) de un Tipo con <c>TipoDocumentoCentro.BloqueaAcceso</c>.
+/// El vencimiento de un Documento bloqueante y los Documentos bloqueantes de Empresa
+/// bloquean a Trabajadores (<see cref="ReglaBloqueoDeAcceso"/>, usada por
+/// Mi trabajo) y aquí todavía no ponen el Centro en Bloqueado: decisión de producto pendiente.
 /// Solo se generan causas para lo que efectivamente aporta al peor caso —
 /// nada Vigente aparece aquí, igual que ObtenerAlertasQuery no lista
 /// Documentos al día.
@@ -480,9 +483,9 @@ public class CalculoEstadoCentroService(
                     continue;
 
                 // BloqueaAcceso de la fila explícita (si hay) fuerza EstadoCentro.Bloqueado
-                // aquí mismo — sustituye a RequisitoDocumental.BloqueaAcceso/Cumplido
-                // (retirado): antes era un check manual a nivel de Centro, ahora es
-                // automático por trabajador, igual que el resto de este servicio.
+                // aquí mismo para el hueco TOTAL — sustituye a RequisitoDocumental.BloqueaAcceso/Cumplido
+                // (retirado). Un bloqueante vencido o de Empresa también bloquea (ReglaBloqueoDeAcceso)
+                // pero no pasa por este camino: ver el resumen de la clase.
                 var bloquea = filasPorPar.TryGetValue((tipo.Id, asignacion.CentroId), out var fila) && fila.BloqueaAcceso;
 
                 causasPorCentro[asignacion.CentroId].Add(new CausaEstadoCentro(

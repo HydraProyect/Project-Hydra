@@ -15,10 +15,13 @@ namespace CaeManager.Domain.Documentos;
 ///
 /// Absorbe también lo que antes vivía en RequisitoDocumental (retirado en el mismo
 /// lote): <see cref="PeriodicidadEspecial"/> (override de la vigencia del Tipo solo
-/// para este Centro, null = no vence) y <see cref="BloqueaAcceso"/> (si ningún
-/// Trabajador con Asignación activa tiene un Documento Vigente de este Tipo en este
-/// Centro, fuerza el Centro a EstadoCentro.Bloqueado — ver
-/// CalculoEstadoCentroService.AgregarCausasDeRequisitosBloqueantesAsync). El adjunto
+/// para este Centro, null = no vence) y <see cref="BloqueaAcceso"/> (el Tipo es un
+/// requisito bloqueante: su falta o su vencimiento impide el acceso; la regla única, sus
+/// sujetos —el Trabajador o su Empresa— y su alcance están en <see cref="ReglaBloqueoDeAcceso"/>
+/// y la consume Mi trabajo vía ObtenerDocumentacionBloqueantePendienteQuery. El semáforo del
+/// Centro no aplica todavía esa regla entera: solo lo pone en Bloqueado la ausencia total
+/// del Tipo para un Trabajador asignado (CalculoEstadoCentroService), no el vencimiento ni
+/// el documento de Empresa; qué debe enseñar el Centro es una decisión de producto pendiente). El adjunto
 /// (<see cref="ArchivoUrl"/>) es la plantilla en blanco a rellenar, no un
 /// justificante con caducidad — mismo criterio que tenía RequisitoDocumental.
 /// </summary>
