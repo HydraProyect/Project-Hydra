@@ -550,8 +550,9 @@ public class CalculoEstadoCentroService(
 
         // Puede haber varios por par (el vencido y su renovación): el índice
         // (TrabajadorId, TipoDocumentoId) no es único y la subida no rechaza un
-        // segundo documento del mismo tipo. Manda el mismo que elige el paquete
-        // de acreditación (P1-D3).
+        // segundo documento del mismo tipo. Manda el que decide PreferenciaDocumentoPorTipo
+        // (la copia que mejor cumple: estado y vigencia). NO es el que elige el paquete de
+        // acreditación, que usa PreferenciaCopiaDelPaquete (emisión más reciente primero).
         var estadosPorPareja = PreferenciaDocumentoPorTipo.UnoPorClave(
                 documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, hoy)
             .ToDictionary(
