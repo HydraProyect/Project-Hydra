@@ -15,63 +15,60 @@
 @inject IMediator Mediator
 @inject ToastService Toasts
 
-<Modal @ref="_modal" HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync"
-       Titulo="@(Contacto is null ? "Nuevo contacto" : "Editar contacto")"
-       Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="false">
-    <ChildContent>
-        <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="AlCambiarNombre" MensajeError="@_errorNombre" />
-        <CampoTexto Etiqueta="Email" Type="email" Valor="@_email" ValorChanged="AlCambiarEmail" MensajeError="@_errorEmail" />
-        <CampoTexto Etiqueta="Teléfono (WhatsApp)" Type="tel" Valor="@_telefono" ValorChanged="v => _telefono = v"
-                    Placeholder="+34 600 00 00 00" />
-        <CampoTexto Etiqueta="Cargo" Valor="@_cargo" ValorChanged="v => _cargo = v"
-                    Placeholder="Finanzas, PRL, Vigilancia de la Salud…" />
-        <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => _notas = v" />
+@* ModalFormulario: guardián, «Cancelar» como la X (D-05), primario único con su estado, aviso del formulario (el error del servidor) y aviso de
+   navegación vienen del kit; los errores de campo (nombre, email) los pintan los campos. Con 13 controles se sale del «uno a tres campos» para el
+   que el kit está pensado (un formulario así de largo sería DrawerFormulario o página); se mantiene en Modal Grande para no cambiar de contenedor
+   en este incremento. A diferencia del Modal anterior, el clic fuera ya puede cerrarlo (con datos escritos pregunta antes). *@
+<ModalFormulario Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@(Contacto is null ? "Nuevo contacto" : "Editar contacto")"
+                 Ancho="AnchoModal.Grande" HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando"
+                 MensajeError="@_errorGuardar" HayErroresDeCampo="@(_errorNombre is not null || _errorEmail is not null)"
+                 OnGuardar="GuardarAsync" TextoGuardar="Guardar" TextoCancelar="Cancelar">
+    <CampoTexto Etiqueta="Nombre" Valor="@_nombre" ValorChanged="AlCambiarNombre" MensajeError="@_errorNombre" />
+    <CampoTexto Etiqueta="Email" Type="email" Valor="@_email" ValorChanged="AlCambiarEmail" MensajeError="@_errorEmail" />
+    <CampoTexto Etiqueta="Teléfono (WhatsApp)" Type="tel" Valor="@_telefono" ValorChanged="v => { _telefono = v; _errorGuardar = null; }"
+                Placeholder="+34 600 00 00 00" />
+    <CampoTexto Etiqueta="Cargo" Valor="@_cargo" ValorChanged="v => { _cargo = v; _errorGuardar = null; }"
+                Placeholder="Finanzas, PRL, Vigilancia de la Salud…" />
+    <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => { _notas = v; _errorGuardar = null; }" />
 
-        <label class="campo-checkbox" for="@($"{_idBase}-predeterminado")">
-            <input type="checkbox" id="@($"{_idBase}-predeterminado")" checked="@_esPredeterminado"
-                   @onchange="e => _esPredeterminado = e.Value is bool m && m" />
-            Contacto predeterminado — recibe lo que no tenga destinatario propio
-        </label>
-        <label class="campo-checkbox" for="@($"{_idBase}-programacion")">
-            <input type="checkbox" id="@($"{_idBase}-programacion")" checked="@_recibeProgramacionVisitas"
-                   @onchange="e => _recibeProgramacionVisitas = e.Value is bool m && m" />
-            Recibe la programación de visitas
-        </label>
-        <label class="campo-checkbox" for="@($"{_idBase}-facturacion")">
-            <input type="checkbox" id="@($"{_idBase}-facturacion")" checked="@_recibeFacturacion"
-                   @onchange="e => _recibeFacturacion = e.Value is bool m && m" />
-            Recibe la facturación
-        </label>
+    <label class="campo-checkbox" for="@($"{_idBase}-predeterminado")">
+        <input type="checkbox" id="@($"{_idBase}-predeterminado")" checked="@_esPredeterminado"
+               @onchange="e => { _esPredeterminado = e.Value is bool m && m; _errorGuardar = null; }" />
+        Contacto predeterminado — recibe lo que no tenga destinatario propio
+    </label>
+    <label class="campo-checkbox" for="@($"{_idBase}-programacion")">
+        <input type="checkbox" id="@($"{_idBase}-programacion")" checked="@_recibeProgramacionVisitas"
+               @onchange="e => { _recibeProgramacionVisitas = e.Value is bool m && m; _errorGuardar = null; }" />
+        Recibe la programación de visitas
+    </label>
+    <label class="campo-checkbox" for="@($"{_idBase}-facturacion")">
+        <input type="checkbox" id="@($"{_idBase}-facturacion")" checked="@_recibeFacturacion"
+               @onchange="e => { _recibeFacturacion = e.Value is bool m && m; _errorGuardar = null; }" />
+        Recibe la facturación
+    </label>
 
-        <label class="campo-checkbox" for="@($"{_idBase}-prl")">
-            <input type="checkbox" id="@($"{_idBase}-prl")" checked="@_roles.Contains(RolContacto.ResponsablePrl)"
-                   @onchange="e => AlternarRol(RolContacto.ResponsablePrl, e.Value is bool m && m)" />
-            Responsable de PRL
-        </label>
-        <label class="campo-checkbox" for="@($"{_idBase}-representante")">
-            <input type="checkbox" id="@($"{_idBase}-representante")" checked="@_roles.Contains(RolContacto.RepresentanteLegal)"
-                   @onchange="e => AlternarRol(RolContacto.RepresentanteLegal, e.Value is bool m && m)" />
-            Representante legal
-        </label>
-        <label class="campo-checkbox" for="@($"{_idBase}-cae")">
-            <input type="checkbox" id="@($"{_idBase}-cae")" checked="@_roles.Contains(RolContacto.ContactoCae)"
-                   @onchange="e => AlternarRol(RolContacto.ContactoCae, e.Value is bool m && m)" />
-            Contacto CAE
-        </label>
+    <label class="campo-checkbox" for="@($"{_idBase}-prl")">
+        <input type="checkbox" id="@($"{_idBase}-prl")" checked="@_roles.Contains(RolContacto.ResponsablePrl)"
+               @onchange="e => AlternarRol(RolContacto.ResponsablePrl, e.Value is bool m && m)" />
+        Responsable de PRL
+    </label>
+    <label class="campo-checkbox" for="@($"{_idBase}-representante")">
+        <input type="checkbox" id="@($"{_idBase}-representante")" checked="@_roles.Contains(RolContacto.RepresentanteLegal)"
+               @onchange="e => AlternarRol(RolContacto.RepresentanteLegal, e.Value is bool m && m)" />
+        Representante legal
+    </label>
+    <label class="campo-checkbox" for="@($"{_idBase}-cae")">
+        <input type="checkbox" id="@($"{_idBase}-cae")" checked="@_roles.Contains(RolContacto.ContactoCae)"
+               @onchange="e => AlternarRol(RolContacto.ContactoCae, e.Value is bool m && m)" />
+        Contacto CAE
+    </label>
 
-        <SelectorMultiple Etiqueta="Documentación que se le pide"
-                          Elementos="_opcionesTipoDocumento"
-                          Seleccionados="_tiposSeleccionados"
-                          OnAlternar="AlternarTipoDocumento"
-                          TextoVacio="No hay tipos de documento configurados." />
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" OnClick="CancelarAsync" Deshabilitado="_guardando">Cancelar</Boton>
-        <Boton Variante="VarianteBoton.Primario" OnClick="GuardarAsync" Cargando="_guardando" Deshabilitado="_guardando">Guardar</Boton>
-    </Pie>
-</Modal>
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => VisibleChanged.InvokeAsync(false)" />
+    <SelectorMultiple Etiqueta="Documentación que se le pide"
+                      Elementos="_opcionesTipoDocumento"
+                      Seleccionados="_tiposSeleccionados"
+                      OnAlternar="AlternarTipoDocumento"
+                      TextoVacio="No hay tipos de documento configurados." />
+</ModalFormulario>
 
 @code {
     [Parameter] public bool Visible { get; set; }
@@ -90,25 +87,26 @@
 
     private IReadOnlyList<ElementoSeleccionable> _opcionesTipoDocumento = [];
     private bool _guardando;
-    private Modal? _modal;
+
+    /// <summary>Error del servidor al guardar: se ve en el aviso fijo del ModalFormulario (D-20), no en un toast que desaparece.</summary>
+    private string? _errorGuardar;
 
     // Prefijo de los id de las casillas: la etiqueta se asocia por for/id (D-08).
     private static int _contador;
     private readonly string _idBase = $"contacto-{System.Threading.Interlocked.Increment(ref _contador)}";
 
-    /// <summary>«Cancelar» pasa por el mismo guardián que la X: con datos escritos pregunta «¿Descartar cambios?» (D-05).</summary>
-    private Task CancelarAsync() => _modal is { } modal ? modal.SolicitarCierreAsync() : CerrarAsync(false);
-
     // D-05: «El nombre/email es obligatorio» era del intento anterior de guardar; al escribir deja de ser verdad.
     private void AlCambiarNombre(string valor)
     {
         _nombre = valor;
+        _errorGuardar = null;
         if (!string.IsNullOrWhiteSpace(valor)) _errorNombre = null;
     }
 
     private void AlCambiarEmail(string valor)
     {
         _email = valor;
+        _errorGuardar = null;
         if (!string.IsNullOrWhiteSpace(valor)) _errorEmail = null;
     }
     private bool _visibleAnterior;
@@ -144,8 +142,8 @@
 
     /// <summary>
     /// P1-E2b: único punto de verdad de «hay cambios» en el contacto que se está dando de
-    /// alta o editando. Lo leen el Modal (X, Escape) y AvisoCambiosSinGuardar (salir de la
-    /// página o cambiar de pestaña: la agenda y la reclamación viven dentro de pestañas).
+    /// alta o editando. Lo lee el ModalFormulario (X, Escape, «Cancelar» y el aviso de navegación:
+    /// salir de la página o cambiar de pestaña; la agenda y la reclamación viven dentro de pestañas).
     /// </summary>
     private bool HayCambiosSinGuardar => Visible && _instantanea.Difiere(ValoresFormulario());
 
@@ -169,6 +167,7 @@
         _roles = Contacto is null ? [] : [.. Contacto.Roles];
         _errorNombre = null;
         _errorEmail = null;
+        _errorGuardar = null;
     }
 
     /// <summary>
@@ -195,12 +194,14 @@
 
     private void AlternarTipoDocumento((Guid Id, bool Marcado) cambio)
     {
+        _errorGuardar = null;
         if (cambio.Marcado) _tiposSeleccionados.Add(cambio.Id);
         else _tiposSeleccionados.Remove(cambio.Id);
     }
 
     private void AlternarRol(RolContacto rol, bool marcado)
     {
+        _errorGuardar = null;
         if (marcado) _roles.Add(rol);
         else _roles.Remove(rol);
     }
@@ -210,6 +211,7 @@
 
     private async Task GuardarAsync()
     {
+        _errorGuardar = null;
         _errorNombre = string.IsNullOrWhiteSpace(_nombre) ? "El nombre es obligatorio." : null;
         _errorEmail = string.IsNullOrWhiteSpace(_email)
             ? "El email es obligatorio — la solicitud se envía siempre por correo."
@@ -232,7 +234,7 @@
 
             if (resultado.EsFallido)
             {
-                Toasts.MostrarError(resultado.Error);
+                _errorGuardar = resultado.Error.Mensaje;
                 return;
             }
 

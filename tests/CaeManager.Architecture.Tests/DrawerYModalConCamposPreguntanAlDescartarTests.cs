@@ -112,10 +112,10 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
 
         // Control positivo: si el recorrido no viera contenedores ni campos, «ninguno sin guardián» valdría por vacío.
         // Cada migración a los kits (DrawerFormulario, ModalFormulario) saca un contenedor artesanal de esta medida: los kits ya no se cuentan
-        // aquí (su guardián lo obliga el compilador). Medido tras el lote 3b-1: 39 con campos y 40 con HayCambios; el umbral se ajusta a lo
+        // aquí (su guardián lo obliga el compilador). Medido tras el lote 3b-2: 31 con campos y 32 con HayCambios; el umbral se ajusta a lo
         // medido en cada lote que migra, para que un detector que dejara de ver una parte de los contenedores no pase por holgura.
-        medidos.Count(c => c.Campos > 0).Should().BeGreaterThan(35, "había 56 contenedores con campos al escribirlo (39 tras el lote 3b-1); si baja de golpe sin migrar nada, dejó de mirar");
-        medidos.Count(c => c.TieneGuardian).Should().BeGreaterThan(35, "había ≥ 50 con HayCambios al escribirlo (40 tras el lote 3b-1); si baja de golpe sin migrar nada, dejó de ver el atributo");
+        medidos.Count(c => c.Campos > 0).Should().BeGreaterThan(27, "había 56 contenedores con campos al escribirlo (39 tras el lote 3b-1, 31 tras el 3b-2); si baja de golpe sin migrar nada, dejó de mirar");
+        medidos.Count(c => c.TieneGuardian).Should().BeGreaterThan(28, "había ≥ 50 con HayCambios al escribirlo (40 tras el lote 3b-1, 32 tras el 3b-2); si baja de golpe sin migrar nada, dejó de ver el atributo");
 
         var problemas = Evaluar(medidos, ContenedoresSinGuardian, SalidasDelPieSinGuardian);
 

@@ -26,6 +26,7 @@ public class ClavesApiGen2Tests : BunitContext
         public TaskCompletionSource? EsperaRevocacion { get; set; }
         public Queue<TaskCompletionSource> EsperasGeneracion { get; } = [];
         public Queue<string> ClavesGeneradas { get; } = [];
+        public string? FallaGenerarCon { get; set; }
         public IReadOnlyList<DelegacionDto>? Delegaciones { get; set; }
         /// <summary>Lista completa de claves cuando un test necesita más de una fila (atajos j/k).</summary>
         public IReadOnlyList<ClaveApiDto>? Claves { get; set; }
@@ -40,6 +41,7 @@ public class ClavesApiGen2Tests : BunitContext
             {
                 ObtenerDelegacionesQuery => Delegaciones ?? [Delegacion(DelegacionId)],
                 ObtenerClavesApiQuery => Claves ?? new[] { Clave(ClaveId) },
+                GenerarClaveApiCommand when FallaGenerarCon is { } motivo => Result.Fallo<ClaveApiGeneradaDto>(Error.Crear("claveapi.rechazada", motivo)),
                 GenerarClaveApiCommand => Result.Exito(new ClaveApiGeneradaDto(ClaveId, ClavesGeneradas.TryDequeue(out var claveGenerada) ? claveGenerada : string.Concat("tlv_", new string('x', 32)), "tlv_xxxxxx")),
                 RevocarClaveApiCommand => Result.Exito(),
                 _ => throw new NotSupportedException()
@@ -62,6 +64,7 @@ public class ClavesApiGen2Tests : BunitContext
         var mediator = new Mediador { DelegacionId = Guid.NewGuid(), ClaveId = Guid.NewGuid() };
         configurar?.Invoke(mediator);
         Services.AddScoped<IMediator>(_ => mediator); Services.AddScoped<ToastService>();
+        Services.AddLocalization(); // ModalFormulario (kit de «Generar clave») localiza sus textos comunes
         return (Render<ClavesApi>(), mediator);
     }
     private static Task Seleccionar(IRenderedComponent<ClavesApi> cut, Guid id) => cut.Find("select").ChangeAsync(new ChangeEventArgs { Value = id.ToString() });
@@ -74,6 +77,24 @@ public class ClavesApiGen2Tests : BunitContext
         var filas = cut.FindAll("tbody tr");
         filas.Should().ContainSingle("control positivo: el instrumento debe observar la lista").Which.TextContent.Should().Contain("Integración ERP");
         filas.Should().OnlyContain(f => f.TextContent.Contains("tlv_xxxxxx…"), "la lista solo expone el prefijo visible");
+    }
+
+    [Fact]
+    public async Task Generar_rechazado_por_el_servidor_deja_el_modal_abierto_con_el_motivo_en_el_aviso_fijo_y_escribir_lo_quita()
+    {
+        var (cut, mediator) = Renderizar(m => m.FallaGenerarCon = "Ya existe una clave con ese nombre.");
+        await Seleccionar(cut, mediator.DelegacionId);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
+        cut.FindAll("[role=dialog] [role=alert]").Should().BeEmpty("control positivo: antes del intento no hay aviso");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
+
+        mediator.Enviadas.OfType<GenerarClaveApiCommand>().Should().ContainSingle("control positivo: se intentó");
+        cut.Find("[role=dialog] [role=alert]").TextContent.Trim().Should().Be("Ya existe una clave con ese nombre.");
+        cut.FindAll("[role=dialog] .modal-cuerpo [role=alert]").Should().BeEmpty("el aviso va fuera del cuerpo desplazable (D-20)");
+
+        await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre").Find("input").InputAsync(new ChangeEventArgs { Value = "Otro" });
+        cut.FindAll("[role=dialog] [role=alert]").Should().BeEmpty("el motivo era del intento anterior");
     }
 
     [Fact]

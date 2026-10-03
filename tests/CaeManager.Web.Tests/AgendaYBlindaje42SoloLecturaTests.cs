@@ -26,6 +26,7 @@ public class AgendaYBlindaje42SoloLecturaTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddScoped<ToastService>();
         Services.AddSingleton(TimeProvider.System);
+        Services.AddLocalization(); // ModalContactoAgenda usa ModalFormulario, que localiza sus textos comunes
     }
 
     private sealed class MediatorFalso : IMediator
