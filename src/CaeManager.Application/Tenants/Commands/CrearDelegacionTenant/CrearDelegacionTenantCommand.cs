@@ -42,7 +42,7 @@ public class CrearDelegacionTenantCommandValidator : AbstractValidator<CrearDele
     public CrearDelegacionTenantCommandValidator()
     {
         RuleFor(c => c.TenantConsultoraId).NotEmpty().WithMessage("Selecciona la Consultora.");
-        RuleFor(c => c.TenantClienteId).NotEmpty().WithMessage("Selecciona el Cliente Delegante.");
+        RuleFor(c => c.TenantClienteId).NotEmpty().WithMessage("Selecciona la organización que delega.");
         RuleFor(c => c)
             .Must(c => c.TenantConsultoraId != c.TenantClienteId)
             .WithMessage("Un tenant no puede delegarse acceso a sí mismo.");
@@ -75,7 +75,7 @@ public class CrearDelegacionTenantCommandHandler(
                 usuarioId.Value, request.TenantClienteId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "DelegacionTenant.NoAutorizado",
-                "Solo un administrador del Cliente Delegante puede autorizar el acceso a sus datos."));
+                "Solo un administrador de la organización que delega puede autorizar el acceso a sus datos."));
 
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         // Tenant es catálogo global (Entity, no EntidadConTenant): la consulta
@@ -98,14 +98,22 @@ public class CrearDelegacionTenantCommandHandler(
         // escribe de verdad y no debe depender solo de que la pantalla se comporte
         // (hallazgo de Codex, alto, sobre el incremento 1b). Mismo mensaje que "no
         // existe": no hace falta que quien pregunta sepa que acertó el Id de plataforma.
-        if (!await tenantsContext.Tenants
-                .Where(t => t.Id == request.TenantClienteId && !t.EsPlataforma)
-                .AnyAsync(cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("DelegacionTenant.ClienteNoEncontrado", "No encontramos ese Cliente Delegante."));
+        //
+        // El nombre se lee aquí, ya con la autoridad confirmada: quien llega es
+        // Administrador de este Tenant propietario, así que su propio nombre no
+        // le revela nada. Los mensajes de antes de la autoridad no lo llevan.
+        var nombreOrganizacionQueDelega = await tenantsContext.Tenants
+            .Where(t => t.Id == request.TenantClienteId && !t.EsPlataforma)
+            .Select(t => t.Nombre)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (nombreOrganizacionQueDelega is null)
+            return Result.Fallo<Guid>(Error.Crear(
+                "DelegacionTenant.ClienteNoEncontrado", "No encontramos la organización que delega."));
 
         if (await repositorio.ExisteActivaAsync(request.TenantConsultoraId, request.TenantClienteId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
-                "DelegacionTenant.YaActiva", "Ya existe una delegación activa entre esta Consultora y este Cliente."));
+                "DelegacionTenant.YaActiva",
+                $"Ya existe una delegación activa entre esta Consultora y «{nombreOrganizacionQueDelega}»."));
 
         // Otro Operador CAE externo con la operación completa: la base ya lo
         // prohíbe (una sola delegación total vigente por Tenant propietario y
