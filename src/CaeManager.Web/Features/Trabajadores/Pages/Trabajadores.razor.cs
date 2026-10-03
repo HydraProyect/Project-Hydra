@@ -37,7 +37,6 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 
 public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
-    private Modal? _modalGuardarFiltro;
     private Modal? _modalAsignarCentro;
     /// <summary>
     /// Se cancela al salir de la página: la resolución de la empresa activa que siga en vuelo deja de trabajar
@@ -189,6 +188,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private string _nombreFiltroNuevo = string.Empty;
     private bool _guardandoFiltro;
 
+    /// <summary>Error del servidor al guardar el filtro: se ve en el aviso fijo del ModalFormulario (D-20), no en un toast que desaparece.</summary>
+    private string? _mensajeErrorFiltro;
+
     // --- Fase B: "Asignar a centro…" en lote desde /trabajadores ---
     private bool _asignarCentroVisible;
     private IReadOnlyList<CentroSelectorDto> _centrosDisponiblesParaAsignar = [];
@@ -314,7 +316,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         // filtros de arriba desde la URL, así que el modal parte de los
         // filtros ya vigentes en pantalla.
         if (Accion == "guardar-filtro")
+        {
+            _mensajeErrorFiltro = null;
             _mostrarGuardarFiltro = true;
+        }
     }
 
     private async Task CambiarEstadoAsync(string valor)
@@ -573,13 +578,15 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private bool HayCambiosAlta => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
 
     /// <summary>
-    /// P1-E2b: «hay cambios» de los dos modales de la página (asignar a centro, guardar filtro), que no son un formulario
-    /// de DrawerFormulario: el modal de asignar comparado con cómo se abrió o un nombre ya escrito en el de guardar filtro.
-    /// Lo lee AvisoCambiosSinGuardar; cerrados nunca hay nada que perder.
+    /// P1-E2b: «hay cambios» del modal de asignar a centro, que no es un formulario de kit: sus campos comparados con cómo se
+    /// abrió. Lo lee AvisoCambiosSinGuardar; cerrado nunca hay nada que perder. «Guardar filtro» (ModalFormulario) lleva el suyo
+    /// en <see cref="HayCambiosFiltro"/>.
     /// </summary>
     private bool HayCambiosSinGuardar =>
-        (_asignarCentroVisible && _instantaneaAsignarCentro.Difiere(ValoresAsignarCentro()))
-        || (_mostrarGuardarFiltro && !string.IsNullOrWhiteSpace(_nombreFiltroNuevo));
+        _asignarCentroVisible && _instantaneaAsignarCentro.Difiere(ValoresAsignarCentro());
+
+    /// <summary>«Guardar filtro» abre siempre con el nombre vacío: hay algo que perder en cuanto se ha escrito uno.</summary>
+    private bool HayCambiosFiltro => _mostrarGuardarFiltro && !string.IsNullOrWhiteSpace(_nombreFiltroNuevo);
 
     private object?[] ValoresFormulario() =>
         [_tipoEmpleador, _empresaId, _subcontrataId, _dni, _nombre, _apellidos, _alias, _puesto, _fechaNacimiento, _email, _telefono, _observaciones];
@@ -588,17 +595,14 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
 
-    private void CerrarFormulariosDescartando()
-    {
-        CerrarAsignarCentro();
-        CerrarModalGuardarFiltro();
-    }
+    private void CerrarFormulariosDescartando() => CerrarAsignarCentro();
 
     /// <summary>Cancelar descarta el nombre: reabrir el modal sin tocarlo no es un cambio.</summary>
     private void CerrarModalGuardarFiltro()
     {
         _mostrarGuardarFiltro = false;
         _nombreFiltroNuevo = string.Empty;
+        _mensajeErrorFiltro = null;
     }
 
     private void SeleccionarTipoEmpresa() => CambiarTipoEmpleador("empresa");
@@ -1118,6 +1122,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         if (string.IsNullOrWhiteSpace(_nombreFiltroNuevo) || _guardandoFiltro) return;
 
         _guardandoFiltro = true;
+        _mensajeErrorFiltro = null;
 
         try
         {
@@ -1131,7 +1136,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
             if (resultado.EsFallido)
             {
-                ToastService.MostrarError(resultado.Error);
+                _mensajeErrorFiltro = resultado.Error.Mensaje;
                 return;
             }
 

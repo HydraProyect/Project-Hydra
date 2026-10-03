@@ -57,7 +57,7 @@ public class FormulariosEnModalUsanElKitTests
         var medido = MedirFueraDelKit(MarcadoRazor.LeerRazorDeLaWeb());
 
         // Control positivo: si el recorrido no viera Modales con campos, «ninguno nuevo» valdría por vacío.
-        medido.Values.Sum().Should().BeGreaterThan(20, "había 28 Modales con campos al escribirlo (27 tras el piloto Guardar filtro); si baja de golpe sin migrar nada, dejó de mirar");
+        medido.Values.Sum().Should().BeGreaterThan(14, "había 28 Modales con campos al escribirlo (27 tras el piloto Guardar filtro, 23 tras el lote 3b-1, 15 tras el 3b-2); el umbral se ajusta a lo medido en cada lote que migra; si baja de golpe sin migrar nada, dejó de mirar");
 
         ListaCongelada.Verificar(Lista, medido, Guia).Should().BeNull();
     }

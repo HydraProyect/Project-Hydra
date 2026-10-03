@@ -135,12 +135,12 @@ public class DocumentoTests
     }
 
     [Fact]
-    public void Renovar_no_cambia_el_propietario()
+    public void Corregir_la_vigencia_no_cambia_el_propietario()
     {
         var clienteId = Guid.NewGuid();
         var documento = Documento.DeCliente(clienteId, Guid.NewGuid(), Hoy.AddDays(-30), VigenciaDocumento.NoCaduca);
 
-        documento.Renovar(Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)));
+        documento.CorregirVigencia(Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)));
 
         documento.ClienteId.Should().Be(clienteId);
         documento.Ambito.Should().Be(AmbitoAplicacion.Cliente);

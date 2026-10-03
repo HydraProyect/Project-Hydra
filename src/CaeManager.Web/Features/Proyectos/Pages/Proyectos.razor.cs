@@ -381,15 +381,14 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private readonly InstantaneaFormulario _instantaneaTecnico = new();
 
     /// <summary>
-    /// P1-E2b: único punto de verdad de «hay cambios» en la página: cualquiera de los cuatro
-    /// formularios (drawer de nuevo proyecto, modal de cerrar proyecto, edición de la
-    /// información del panel de detalle y alta de técnico) comparado con cómo se abrió (la
-    /// fecha de hoy que traen puesta no es un cambio). Lo lee AvisoCambiosSinGuardar; cerrados
-    /// (también tras guardar) nunca hay nada que perder. Cada drawer o modal pregunta solo por
-    /// su propio contenido (HayCambiosEnElDrawer, HayCambiosEnElModalDeCierre).
+    /// P1-E2b: «hay cambios» del aviso de la página: el drawer de nuevo proyecto y la edición de la información o el alta de
+    /// técnico del panel de detalle, comparados con cómo se abrieron (la fecha de hoy que traen puesta no es un cambio). Lo
+    /// lee AvisoCambiosSinGuardar; cerrados (también tras guardar) nunca hay nada que perder. El modal de cerrar proyecto
+    /// (ModalFormulario) lleva el suyo en <see cref="HayCambiosEnElModalDeCierre"/> y su propio aviso de navegación; cada
+    /// drawer o modal pregunta solo por su propio contenido (HayCambiosEnElDrawer, HayCambiosEnElModalDeCierre).
     /// </summary>
     private bool HayCambiosSinGuardar =>
-        HayCambiosEnElDrawer || HayCambiosEnElModalDeCierre || HayCambiosEnElDetalle;
+        HayCambiosEnElDrawer || HayCambiosEnElDetalle;
 
     private bool HayCambiosEnElDrawer => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
 
@@ -443,7 +442,6 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private void CerrarFormulariosDescartando()
     {
         _drawerVisible = false;
-        _mostrarCerrarConfirm = false;
         _mostrarFormularioTecnico = false;
         CancelarEdicionInfo();
     }
@@ -796,6 +794,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         }
 
         _guardando = true;
+        _errorCierre = null;
         StateHasChanged();
 
         try

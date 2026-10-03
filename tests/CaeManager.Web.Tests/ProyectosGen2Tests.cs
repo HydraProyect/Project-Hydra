@@ -1117,6 +1117,27 @@ public class ProyectosGen2Tests : BunitContext
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "el cierre ya está guardado");
     }
 
+    [Fact]
+    public async Task Cerrar_proyecto_con_la_fecha_vacia_avisa_en_el_aviso_fijo_del_modal_sin_enviar_y_el_aviso_se_va_al_escribir()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+        await CerrarDesdeLaFilaAsync(cut, ProyectoAbierto);
+        var campo = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de cierre");
+        cut.Find("[role=dialog] .modal-cuerpo").QuerySelectorAll("[role=alert]").Should().BeEmpty("control positivo: sin intento no hay aviso");
+
+        await campo.Find("input").InputAsync(new ChangeEventArgs { Value = "" });
+        await ConfirmarCierre(cut);
+
+        _mediator.Enviados.OfType<CerrarProyectoCommand>().Should().BeEmpty("la fecha no es válida: no se envía");
+        cut.Find("[role=dialog] [role=alert]").TextContent.Trim().Should().Be("Introduce una fecha de cierre válida.");
+        cut.FindAll("[role=dialog] .modal-cuerpo [role=alert]").Should().BeEmpty("el aviso va fuera del cuerpo desplazable (D-20)");
+
+        await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de cierre")
+            .Find("input").InputAsync(new ChangeEventArgs { Value = "2020-01-01" });
+        cut.FindAll("[role=dialog] [role=alert]").Should().BeEmpty("el aviso era del intento anterior");
+    }
+
     // ------------------------------------------------------------------ P1-E2b lote 2: panel de detalle
 
     private static bool PreguntaAbierta(IRenderedComponent<Proyectos> cut) =>

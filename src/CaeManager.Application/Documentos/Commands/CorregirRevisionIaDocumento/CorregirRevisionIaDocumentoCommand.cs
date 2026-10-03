@@ -62,7 +62,7 @@ public class CorregirRevisionIaDocumentoCommandHandler(
                 CalculadoraEstadoDocumento.CalcularFechaVencimiento(request.FechaEmision, tipoDocumento.VigenciaMeses))
             : documento.Vigencia;
 
-        documento.Renovar(request.FechaEmision, vigencia);
+        documento.CorregirVigencia(request.FechaEmision, vigencia);
         revision.Resolver();
         aprobacionRepositorio.Agregar(AprobacionDocumento.CrearManual(revision.DocumentoId, revision.ConfianzaGeneral, usuarioId.Value));
 

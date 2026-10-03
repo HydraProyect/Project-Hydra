@@ -58,6 +58,62 @@ public sealed class PlataformaTabVigenciaEnBloqueTests : BunitContext
         comandos.Should().OnlyContain(c => c.Vigencia.FechaVencimiento == new DateOnly(2027, 3, 1));
     }
 
+    private async Task<IRenderedComponent<PlataformaTab>> AbrirVigenciaEnBloqueConFechaAsync()
+    {
+        var cut = Render<PlataformaTab>();
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Seleccionar sin vigencia").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Contains("Anotar vigencia (2)")).ClickAsync(new MouseEventArgs());
+        var fecha = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de vencimiento");
+        await cut.InvokeAsync(() => fecha.Instance.ValorChanged.InvokeAsync("2027-03-01"));
+        return cut;
+    }
+
+    [Fact]
+    public async Task Si_el_servidor_rechaza_todas_el_motivo_sale_en_el_aviso_fijo_y_el_modal_sigue_abierto_con_la_fecha()
+    {
+        _mediador.FallaConfirmarVigenciaCon = "La acreditación no admite vigencia.";
+        var cut = await AbrirVigenciaEnBloqueConFechaAsync();
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar vigencia").ClickAsync(new MouseEventArgs());
+
+        _mediador.Recibidas.OfType<ConfirmarVigenciaAcreditacionCommand>().Should().HaveCount(2, "control positivo: se intentó");
+        cut.Find("[role=dialog] [role=alert]").TextContent.Trim().Should().Be("La acreditación no admite vigencia.");
+        cut.FindAll("[role=dialog] .modal-cuerpo [role=alert]").Should().BeEmpty("el aviso va fuera del cuerpo desplazable (D-20)");
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de vencimiento").Instance.Valor
+            .Should().Be("2027-03-01", "se puede reintentar sin reescribir");
+    }
+
+    [Fact]
+    public async Task El_error_de_la_fecha_vacia_se_va_al_cambiar_la_fecha_o_el_estado_y_no_deja_el_modal_sin_Escape()
+    {
+        var cut = Render<PlataformaTab>();
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Seleccionar sin vigencia").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Contains("Anotar vigencia (2)")).ClickAsync(new MouseEventArgs());
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar vigencia").ClickAsync(new MouseEventArgs());
+        var campo = () => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de vencimiento");
+        campo().Instance.MensajeError.Should().NotBeNullOrWhiteSpace("control positivo: la fecha vacía se rechaza en el campo");
+        _mediador.Recibidas.OfType<ConfirmarVigenciaAcreditacionCommand>().Should().BeEmpty();
+
+        await cut.InvokeAsync(() => campo().Instance.ValorChanged.InvokeAsync("2027-03-01"));
+        campo().Instance.MensajeError.Should().BeNull("el error era del intento anterior; si no, el kit sigue bloqueando Escape y el clic fuera");
+    }
+
+    [Fact]
+    public async Task Cancelar_con_la_fecha_escrita_pregunta_y_sin_ella_cierra()
+    {
+        var cut = Render<PlataformaTab>();
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Seleccionar sin vigencia").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Contains("Anotar vigencia (2)")).ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        cut.FindAll("[role=dialog]").Should().BeEmpty("sin nada escrito «Cancelar» cierra sin preguntar");
+
+        cut = await AbrirVigenciaEnBloqueConFechaAsync();
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Descartar cambios", "con la fecha escrita «Cancelar» pregunta como la X");
+    }
+
     [Fact]
     public void Sin_nada_marcado_el_boton_en_bloque_esta_deshabilitado_y_dice_por_que()
     {
@@ -72,6 +128,7 @@ public sealed class PlataformaTabVigenciaEnBloqueTests : BunitContext
     {
         public List<object> Recibidas { get; } = [];
         public List<Guid> SinVigenciaIds { get; } = [];
+        public string? FallaConfirmarVigenciaCon { get; set; }
         private readonly IReadOnlyList<ProveedorAcreditacionesDto> _datos;
 
         public Mediador()
@@ -98,7 +155,7 @@ public sealed class PlataformaTabVigenciaEnBloqueTests : BunitContext
             object valor = request switch
             {
                 ObtenerAcreditacionesPorProveedorQuery => _datos,
-                ConfirmarVigenciaAcreditacionCommand => Result.Exito(),
+                ConfirmarVigenciaAcreditacionCommand => FallaConfirmarVigenciaCon is { } motivo ? Result.Fallo(Error.Crear("vigencia.rechazada", motivo)) : Result.Exito(),
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
             return Task.FromResult((TResponse)valor);

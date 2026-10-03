@@ -192,6 +192,9 @@
   <data name="ModalGuardarFiltroTitulo" xml:space="preserve">
     <value>Guardar filtro actual</value>
   </data>
+  <data name="GuardarFiltroSinNombre" xml:space="preserve">
+    <value>Escriu un nom per al filtre</value>
+  </data>
   <data name="PlaceholderNombreFiltro" xml:space="preserve">
     <value>Trabajadores de Subcontrata X</value>
   </data>
