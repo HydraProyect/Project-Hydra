@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Métricas de proceso M1..M21 (S15 del análisis de causas raíz de 2026-10-02).
+"""Métricas de proceso M1..M22 (S15 del análisis de causas raíz de 2026-10-02).
 
 Sin este instrumento «mejora» no es medible: saca solas, del repositorio y de GitHub, las métricas del
 § 6 del análisis, para imprimir la línea base de hoy y compararla con la de mañana.
 
     python3 scripts/metricas-proceso.py                       # tabla en Markdown, repo + GitHub
-    python3 scripts/metricas-proceso.py --solo repo           # sin llamar a GitHub (M11-M19, M21)
+    python3 scripts/metricas-proceso.py --solo repo           # sin llamar a GitHub (M11-M19, M21, M22)
     python3 scripts/metricas-proceso.py --json > hoy.json     # para comparar
     python3 scripts/metricas-proceso.py --comparar base.json  # añade la columna «Antes» y el delta
 
@@ -357,7 +357,7 @@ def metricas_de_ci(args, ramas_lote):
     return [f4, f5]
 
 
-# ───────────────────────────── métricas del repositorio (M11..M19, M21) ─────────────────────────────
+# ───────────────────────────── métricas del repositorio (M11..M19, M21, M22) ─────────────────────────────
 
 def etiquetas(texto: str, nombre: str):
     """Devuelve el texto de cada etiqueta `<nombre …>` (no `<nombrePlus`), escaneando comillas,
@@ -550,6 +550,26 @@ def metricas_de_repo(raiz: Path):
                           "ficheros .cs y atributos de tests/CaeManager.Architecture.Tests (un Theory cuenta 1, no sus casos)", attrs))
     else:
         filas.append(no_medida("M21", "Cobertura de salvaguardas", "no hay ningún .cs en tests/CaeManager.Architecture.Tests"))
+
+    # M22: Drawers con campos fuera del kit DrawerFormulario (S12) — la lista congelada por ubicación
+    # (FormulariosEnDrawerUsanElKitTests). Solo baja: cada pantalla migrada al kit la reduce.
+    lista = arq / "Congelados" / "Drawer-formulario-fuera-del-kit.txt"
+    if lista.exists():
+        total = 0
+        archivos = set()
+        for l in lista.read_text(encoding="utf-8").splitlines():
+            m = re.match(r"^(.*) :: (.*) = (\d+)$", l.strip())
+            if m:
+                archivos.add(m.group(1))
+                total += int(m.group(3))
+        if not archivos:
+            filas.append(no_medida("M22", "Drawers de formulario fuera del kit",
+                                   "la lista existe pero ninguna línea casa con «lugar :: símbolo = n» (¿cambió el formato?)"))
+        else:
+            filas.append(fila("M22", "Drawers de formulario fuera del kit", f"{total} Drawers / {len(archivos)} ficheros",
+                              "INSTRUMENTO", "suma de Congelados/Drawer-formulario-fuera-del-kit.txt (Drawers con campos que no usan DrawerFormulario)", total))
+    else:
+        filas.append(no_medida("M22", "Drawers de formulario fuera del kit", "no existe la lista (el kit DrawerFormulario aún no está en esta rama)"))
     return filas
 
 
@@ -588,7 +608,7 @@ def main(argv=None):
     # En Windows la consola por defecto es cp1252 y no representa «≥» ni «→» de los rótulos.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    ap = argparse.ArgumentParser(description="Métricas de proceso M1..M21 (S15)")
+    ap = argparse.ArgumentParser(description="Métricas de proceso M1..M22 (S15)")
     ap.add_argument("--solo", choices=["repo", "github"], help="limita las fuentes")
     ap.add_argument("--raiz", default=str(Path(__file__).resolve().parent.parent))
     ap.add_argument("--negocio", default=NEGOCIO_POR_DEFECTO)

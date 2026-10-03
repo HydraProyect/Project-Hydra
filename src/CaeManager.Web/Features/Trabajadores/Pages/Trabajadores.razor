@@ -274,79 +274,67 @@
     }
 </div>
 
-<Drawer @ref="_drawerAlta" HayCambios="() => HayCambiosSinGuardar" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
-    <ChildContent>
-        @if (_mensajeErrorFormulario is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
-        }
-
-        <div class="campo">
-            <label>@Textos["EtiquetaEmpleador"]</label>
-            <div class="lista-seleccion-multiple">
-                <label class="campo-checkbox">
-                    <input type="radio" name="tipo-empleador" checked="@(_tipoEmpleador == "empresa")" @onchange="SeleccionarTipoEmpresa" />
-                    @Textos["EtiquetaEmpresa"]
-                </label>
-                <label class="campo-checkbox">
-                    <input type="radio" name="tipo-empleador" checked="@(_tipoEmpleador == "subcontrata")" @onchange="SeleccionarTipoSubcontrata" />
-                    @Textos["EtiquetaSubcontrata"]
-                </label>
-            </div>
+<DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]"
+                 HayCambios="() => HayCambiosAlta" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
+                 HayErroresDeCampo="@(_erroresCampo.Count > 0)" OnGuardar="GuardarAsync"
+                 TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <div class="campo">
+        <label>@Textos["EtiquetaEmpleador"]</label>
+        <div class="lista-seleccion-multiple">
+            <label class="campo-checkbox">
+                <input type="radio" name="tipo-empleador" checked="@(_tipoEmpleador == "empresa")" @onchange="SeleccionarTipoEmpresa" />
+                @Textos["EtiquetaEmpresa"]
+            </label>
+            <label class="campo-checkbox">
+                <input type="radio" name="tipo-empleador" checked="@(_tipoEmpleador == "subcontrata")" @onchange="SeleccionarTipoSubcontrata" />
+                @Textos["EtiquetaSubcontrata"]
+            </label>
         </div>
+    </div>
 
-        @if (_tipoEmpleador == "empresa" && _resolverEmpresaEnSilencio)
-        {
-            @* DDL-076: perfil Cliente Directo con una única Empresa — sin
-               selector, pedirle que confirme que él es él en un desplegable
-               de un solo elemento no aporta nada. *@
-            <CampoInfo Etiqueta="@Textos["EtiquetaEmpresa"]" Valor="@_empresasDisponibles[0].RazonSocial" />
-        }
-        else if (_tipoEmpleador == "empresa")
-        {
-            <CampoSelect Etiqueta="@Textos["EtiquetaEmpresa"]" Valor="@_empresaId" ValorChanged="AlElegirEmpresa">
-                <option value="">@Textos["OpcionSeleccionaEmpresa"]</option>
-                @foreach (var empresa in _empresasDisponibles)
-                {
-                    <option value="@empresa.Id">@empresa.RazonSocial</option>
-                }
-            </CampoSelect>
-        }
-        else
-        {
-            <CampoSelect Etiqueta="@Textos["EtiquetaSubcontrata"]" Valor="@_subcontrataId" ValorChanged="AlElegirSubcontrata">
-                <option value="">@Textos["OpcionSeleccionaSubcontrata"]</option>
-                @foreach (var subcontrata in _subcontratasDisponibles)
-                {
-                    <option value="@subcontrata.Id">@subcontrata.RazonSocial</option>
-                }
-            </CampoSelect>
-        }
+    @if (_tipoEmpleador == "empresa" && _resolverEmpresaEnSilencio)
+    {
+        @* DDL-076: perfil Cliente Directo con una única Empresa — sin
+           selector, pedirle que confirme que él es él en un desplegable
+           de un solo elemento no aporta nada. *@
+        <CampoInfo Etiqueta="@Textos["EtiquetaEmpresa"]" Valor="@_empresasDisponibles[0].RazonSocial" />
+    }
+    else if (_tipoEmpleador == "empresa")
+    {
+        <CampoSelect Etiqueta="@Textos["EtiquetaEmpresa"]" Valor="@_empresaId" ValorChanged="AlElegirEmpresa">
+            <option value="">@Textos["OpcionSeleccionaEmpresa"]</option>
+            @foreach (var empresa in _empresasDisponibles)
+            {
+                <option value="@empresa.Id">@empresa.RazonSocial</option>
+            }
+        </CampoSelect>
+    }
+    else
+    {
+        <CampoSelect Etiqueta="@Textos["EtiquetaSubcontrata"]" Valor="@_subcontrataId" ValorChanged="AlElegirSubcontrata">
+            <option value="">@Textos["OpcionSeleccionaSubcontrata"]</option>
+            @foreach (var subcontrata in _subcontratasDisponibles)
+            {
+                <option value="@subcontrata.Id">@subcontrata.RazonSocial</option>
+            }
+        </CampoSelect>
+    }
 
-        <CampoTexto Etiqueta="@Textos["EtiquetaDocumentoIdentidad"]" Valor="@_dni" ValorChanged="v => _dni = v" OnBlur="ValidarDniAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Dni))" />
-        @if (PistaDni is not null)
-        {
-            <p class="pista-documento pista-documento-@ToneDni">@PistaDni</p>
-        }
+    <CampoTexto Etiqueta="@Textos["EtiquetaDocumentoIdentidad"]" Valor="@_dni" ValorChanged="v => _dni = v" OnBlur="ValidarDniAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Dni))" />
+    @if (PistaDni is not null)
+    {
+        <p class="pista-documento pista-documento-@ToneDni">@PistaDni</p>
+    }
 
-        <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" OnBlur="ValidarNombreAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Nombre))" />
-        <CampoTexto Etiqueta="@Textos["EtiquetaApellidos"]" Valor="@_apellidos" ValorChanged="v => _apellidos = v" OnBlur="ValidarApellidosAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Apellidos))" />
-        <CampoTexto Etiqueta="@Textos["EtiquetaAliasOpcional"]" Placeholder="@Textos["PlaceholderAlias"]" Valor="@_alias" ValorChanged="v => _alias = v" OnBlur="ValidarAliasAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Alias))" />
-        <CampoTexto Etiqueta="@Textos["EtiquetaPuestoOpcional"]" Placeholder="@Textos["PlaceholderPuesto"]" Valor="@_puesto" ValorChanged="v => _puesto = v" OnBlur="ValidarPuestoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Puesto))" />
-        <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_fechaNacimiento" ValorChanged="v => _fechaNacimiento = v" />
-        <CampoTexto Etiqueta="@Textos["EtiquetaEmail"]" Type="email" Valor="@_email" ValorChanged="v => _email = v" OnBlur="ValidarEmailAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Email))" />
-        <CampoTexto Etiqueta="@Textos["EtiquetaTelefonoWhatsapp"]" Type="tel" Placeholder="+34 600 00 00 00" Valor="@_telefono" ValorChanged="v => _telefono = v" OnBlur="ValidarTelefonoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Telefono))" />
-        <CampoTextarea Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="CancelarAltaAsync">
-            @Textos["BotonCancelar"]
-        </Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
-            @Textos["BotonGuardar"]
-        </Boton>
-    </Pie>
-</Drawer>
+    <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_nombre" ValorChanged="v => _nombre = v" OnBlur="ValidarNombreAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Nombre))" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaApellidos"]" Valor="@_apellidos" ValorChanged="v => _apellidos = v" OnBlur="ValidarApellidosAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Apellidos))" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaAliasOpcional"]" Placeholder="@Textos["PlaceholderAlias"]" Valor="@_alias" ValorChanged="v => _alias = v" OnBlur="ValidarAliasAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Alias))" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaPuestoOpcional"]" Placeholder="@Textos["PlaceholderPuesto"]" Valor="@_puesto" ValorChanged="v => _puesto = v" OnBlur="ValidarPuestoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Puesto))" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Type="date" Valor="@_fechaNacimiento" ValorChanged="v => _fechaNacimiento = v" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaEmail"]" Type="email" Valor="@_email" ValorChanged="v => _email = v" OnBlur="ValidarEmailAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Email))" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaTelefonoWhatsapp"]" Type="tel" Placeholder="+34 600 00 00 00" Valor="@_telefono" ValorChanged="v => _telefono = v" OnBlur="ValidarTelefonoAsync" MensajeError="@ObtenerError(nameof(CrearTrabajadorCommand.Telefono))" />
+    <CampoTextarea Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
+</DrawerFormulario>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarVisible"

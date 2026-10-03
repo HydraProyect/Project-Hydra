@@ -67,6 +67,14 @@
     color: var(--color-text);
 }
 
+.drawer-aviso {
+    padding: var(--space-4) var(--space-5) 0;
+}
+
+.drawer-aviso:empty {
+    display: none;
+}
+
 .drawer-cuerpo {
     padding: var(--space-5);
     overflow-y: auto;

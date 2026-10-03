@@ -1,0 +1,15 @@
+@*
+    Aviso de error de un formulario (S9/S12). Un solo marcado para lo que 66 sitios escribían a mano:
+    <div class="alerta-formulario" role="alert">. Sin mensaje no pinta nada.
+
+    Dentro de DrawerFormulario va en la ranura Aviso del Drawer, fuera del cuerpo desplazable, para que se vea
+    aunque el formulario esté desplazado (D-20). En cualquier otro contenedor basta con ponerlo al principio.
+*@
+@if (!string.IsNullOrWhiteSpace(Mensaje))
+{
+    <div class="alerta-formulario" role="alert">@Mensaje</div>
+}
+
+@code {
+    [Parameter] public string? Mensaje { get; set; }
+}

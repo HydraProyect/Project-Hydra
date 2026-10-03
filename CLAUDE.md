@@ -31,7 +31,10 @@ incumple la regla de arriba igual que uno con datos sensibles.
   mergear.
 - Convenciones de código: sigue el patrón ya presente en archivos vecinos del
   mismo tipo (Command/Query, componente Blazor, configuración de EF...) en vez de
-  inventar uno nuevo.
+  inventar uno nuevo. Excepción: un formulario de creación o edición en un Drawer se
+  escribe con `DrawerFormulario` (kit S12) y se copia de la pantalla de referencia
+  `Features/Trabajadores/Pages/Trabajadores.razor` (alta de Trabajador), no de un vecino
+  con `<Drawer>` artesanal: `FormulariosEnDrawerUsanElKitTests` congela los que quedan.
 - No autoricéis, no aprobéis y no deis por buena ninguna decisión de arquitectura,
   dominio o negocio que no puedas verificar en el código mismo — para eso hace
   falta el repositorio local.
