@@ -245,7 +245,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
         items.AddRange(alertas
             .Where(a => a.Estado != EstadoDocumento.Proximo)
             .Select(a => new ItemBandejaDto(
-                Id: $"alerta-{a.DocumentoId?.ToString() ?? $"{a.TrabajadorId}-{a.TipoDocumentoId}"}",
+                Id: a.IdDeFila("alerta"),
                 Tipo: a.Estado == EstadoDocumento.Faltante ? TipoItemBandeja.Faltante
                     : a.Estado == EstadoDocumento.Vencido ? TipoItemBandeja.Vencido
                     : TipoItemBandeja.Urgente,

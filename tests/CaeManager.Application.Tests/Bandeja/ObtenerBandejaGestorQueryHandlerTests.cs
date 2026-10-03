@@ -85,6 +85,50 @@ public class ObtenerBandejaGestorQueryHandlerTests
         resultado[0].Tipo.Should().Be(TipoItemBandeja.Vencido);
     }
 
+    // El Id de la fila es su @key en Mi trabajo y en Bandeja: dos filas hermanas con el mismo Id
+    // matan el circuito de Blazor («Attempting to return wrong pooled instance»). Medido en el E2E
+    // del Coordinador CAE: el mismo Trabajador, asignado a dos Centros, sin el mismo Tipo de
+    // documento en ninguno, daba dos alertas Faltante con Id alerta-{Trabajador}-{Tipo}.
+    [Fact]
+    public void Un_mismo_documento_que_falta_en_dos_Centros_del_Trabajador_da_dos_filas_con_Id_distinto()
+    {
+        var trabajador = Guid.NewGuid();
+        var tipo = Guid.NewGuid();
+        AlertaDto Faltante(Guid centro, string nombreCentro) => new(
+            DocumentoId: null, TrabajadorId: trabajador, TrabajadorNombre: "Ana García",
+            TipoDocumentoId: tipo, TipoDocumentoNombre: "Apto médico", FechaVencimiento: null,
+            Estado: EstadoDocumento.Faltante, ArchivoUrl: null, CentroNombre: nombreCentro, CentroId: centro);
+
+        var resultado = Fusionar(alertas: [Faltante(Guid.NewGuid(), "Centro Norte"), Faltante(Guid.NewGuid(), "Centro Sur")]);
+
+        resultado.Should().HaveCount(2);
+        resultado.Select(i => i.Id).Should().OnlyHaveUniqueItems();
+    }
+
+    [Fact]
+    public void Todas_las_filas_de_la_fusion_tienen_Id_distinto_aunque_compartan_Trabajador_y_Tipo()
+    {
+        var trabajador = Guid.NewGuid();
+        var tipo = Guid.NewGuid();
+        var centro = Guid.NewGuid();
+        AlertaDto NuevaAlerta(Guid? documento, Guid? centroId, EstadoDocumento estado) => new(
+            DocumentoId: documento, TrabajadorId: trabajador, TrabajadorNombre: "Ana García",
+            TipoDocumentoId: tipo, TipoDocumentoNombre: "Apto médico", FechaVencimiento: null,
+            Estado: estado, ArchivoUrl: null, CentroNombre: "Centro", CentroId: centroId);
+
+        var alertas = new[]
+        {
+            NuevaAlerta(documento: null, centroId: centro, EstadoDocumento.Faltante),
+            NuevaAlerta(documento: null, centroId: Guid.NewGuid(), EstadoDocumento.Faltante),
+            NuevaAlerta(documento: Guid.NewGuid(), centroId: centro, EstadoDocumento.Vencido),
+            NuevaAlerta(documento: Guid.NewGuid(), centroId: centro, EstadoDocumento.Vencido),
+        };
+
+        var resultado = Fusionar(alertas: alertas, requisitos: [Requisito(), Requisito()]);
+
+        resultado.Select(i => i.Id).Should().OnlyHaveUniqueItems();
+    }
+
     [Fact]
     public void Ordena_por_prioridad_completa()
     {

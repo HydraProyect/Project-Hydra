@@ -16,6 +16,38 @@ public class CoordinadorCaeTenantBeneficiarioTests(WebAppFixtureEscenariosDirecc
 {
     private const string PizzaPlanet = "Pizza Planet S.L.";
 
+    /// <summary>
+    /// Causa del rojo intermitente de la prueba de abajo en CI (dos veces: «Timeout 5000ms
+    /// exceeded» esperando <c>.selector-tenant-panel</c>): la landing del Coordinador CAE
+    /// (Mi trabajo) mataba su circuito de Blazor ~1 s después de cargar. Su cola traía dos filas
+    /// hermanas con el mismo Id (el mismo Trabajador, asignado a dos Centros, sin el mismo Tipo
+    /// de documento) y Blazor lanza «Attempting to return wrong pooled instance» al repintar con
+    /// claves repetidas. Con el circuito muerto la pantalla queda inerte y el aviso de error
+    /// aparece. La otra prueba solo lo notaba si su primer clic caía después de esa muerte,
+    /// según la velocidad del runner; esta deja pasar la ventana a propósito y es determinista.
+    /// </summary>
+    [Fact]
+    public async Task La_landing_del_Coordinador_CAE_mantiene_el_circuito_vivo_y_el_selector_abre_con_la_pantalla_ya_asentada()
+    {
+        var email = await fixture.LeerValorSqlAsync(
+            """SELECT "Email" FROM "AspNetUsers" WHERE "Email" LIKE 'coordinador1.%@caemanager.local' """);
+
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, email, Ayudas.ContrasenaUsuariosPrueba);
+
+        // Barrera: la cola ya se pintó (las dos consultas de la página terminaron).
+        await page.Locator(".mi-trabajo-chips").WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+
+        // El circuito moría en el primer segundo tras pintar la cola; se deja pasar con margen.
+        await page.WaitForTimeoutAsync(4_000);
+
+        // Una observación positiva que exige circuito vivo: el disparador del selector es un islote interactivo.
+        await Ayudas.AbrirSelectorTenantAsync(page);
+        await Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
+    }
+
     [Fact]
     public async Task El_Tenant_beneficiario_elegido_sobrevive_al_menu_lateral_del_Coordinador_CAE()
     {
