@@ -113,7 +113,7 @@ public class TextosSinLocalizarCongeladosTests
         //   («(var i = 0; i», «(numero», «.ToString("dd/MM/yy HH:mm")») y los corchetes anidados de
         //   @Textos[ClavesPasos[i]] y @Textos["BotonContinuarConPlantilla", Textos[…].Value].
         ["Importacion"] = 18,
-        ["Integraciones"] = 92,
+        ["Integraciones"] = 91,
         ["Plantillas"] = 158,
         ["Plataforma"] = 74,
         ["Retencion"] = 85,

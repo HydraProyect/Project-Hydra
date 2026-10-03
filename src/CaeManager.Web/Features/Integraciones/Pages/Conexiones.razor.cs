@@ -56,10 +56,8 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
     private bool HayCambiosEnLinea => _modalLineaVisible && _instantaneaLinea.Difiere(ValoresDeLaLinea());
 
-    private Modal? _modalLinea;
-
-    // «Cancelar» cierra como la X: con cambios pregunta antes de descartarlos (D-05).
-    private Task CancelarLineaAsync() => _modalLinea is { } modal ? modal.SolicitarCierreAsync() : CerrarModalLinea();
+    /// <summary>Rechazo del servidor (o fallo inesperado) al guardar la línea: va en el aviso fijo del ModalFormulario, junto al formulario que hay que corregir (antes, un toast).</summary>
+    private string? _errorLinea;
 
     private object?[] ValoresDeLaLinea() =>
     [
@@ -191,6 +189,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         _lineaMiembros.Clear();
         _lineaEmpresaId = null;
         _lineaMensajeAutoTriage = string.Empty;
+        _errorLinea = null;
         _modalLineaVisible = true;
         _instantaneaLinea.Fijar(ValoresDeLaLinea());
     }
@@ -205,11 +204,10 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         _lineaMiembros.Clear();
         foreach (var miembro in linea.MiembrosPool) _lineaMiembros.Add(miembro);
         _lineaMensajeAutoTriage = linea.MensajeAutoTriage ?? string.Empty;
+        _errorLinea = null;
         _modalLineaVisible = true;
         _instantaneaLinea.Fijar(ValoresDeLaLinea());
     }
-
-    private Task CerrarModalLinea() => CerrarModalLinea(false);
 
     private Task CerrarModalLinea(bool visible)
     {
@@ -221,6 +219,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
     private void AlternarMiembroPool(Guid usuarioId, bool marcado)
     {
+        _errorLinea = null;
         if (marcado) _lineaMiembros.Add(usuarioId);
         else _lineaMiembros.Remove(usuarioId);
     }
@@ -228,6 +227,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     private async Task GuardarLineaAsync()
     {
         if (_guardandoLinea) return;
+        _errorLinea = null;
         _guardandoLinea = true;
         var generacion = Interlocked.Increment(ref _generacionOperacionLinea);
         var lineaEnEdicion = _lineaEnEdicion;
@@ -251,7 +251,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
             if (resultadoError is not null)
             {
-                ToastService.Mostrar(resultadoError.Mensaje, TonoToast.Error);
+                _errorLinea = resultadoError.Mensaje;
                 return;
             }
 
@@ -265,7 +265,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
             if (generacion == _generacionOperacionLinea)
             {
                 Logger.LogError(ex, "Error al guardar la línea de WhatsApp.");
-                ToastService.Mostrar("No pudimos guardar la línea.", TonoToast.Error);
+                _errorLinea = "No pudimos guardar la línea.";
             }
         }
         finally

@@ -186,21 +186,24 @@
     </Pie>
 </Modal>
 
-<Modal @ref="_modalLinea" Visible="_modalLineaVisible" VisibleChanged="(bool visible) => CerrarModalLinea(visible)"
-       Titulo="@(_lineaEnEdicion is null ? "Nueva línea WhatsApp" : "Editar línea WhatsApp")"
-       CerrarAlHacerClicFuera="!_guardandoLinea" Bloqueante="_guardandoLinea" HayCambios="() => HayCambiosEnLinea">
-    <ChildContent>
+@* ModalFormulario: guardián, «Cancelar» como la X (D-05), primario único con su estado, aviso fijo (el rechazo del servidor) y aviso de navegación
+   vienen del kit. «Guardando» ya impide cerrar por fuera mientras se guarda: no hace falta Bloqueante (que quita la salida del todo). Con 8 a 10
+   controles se sale del «uno a tres campos» del kit; se mantiene en Modal para no cambiar de contenedor en este incremento. *@
+<ModalFormulario Visible="_modalLineaVisible" VisibleChanged="(bool visible) => CerrarModalLinea(visible)"
+                 Titulo="@(_lineaEnEdicion is null ? "Nueva línea WhatsApp" : "Editar línea WhatsApp")"
+                 HayCambios="() => HayCambiosEnLinea" Guardando="_guardandoLinea" MensajeError="@_errorLinea"
+                 OnGuardar="GuardarLineaAsync" TextoGuardar="@(_lineaEnEdicion is null ? "Crear línea" : "Guardar cambios")" TextoCancelar="Cancelar">
         @if (_lineaEnEdicion is null)
         {
-            <CampoTexto Etiqueta="Nombre" Valor="@_lineaNombre" ValorChanged="v => _lineaNombre = v"
+            <CampoTexto Etiqueta="Nombre" Valor="@_lineaNombre" ValorChanged="v => { _lineaNombre = v; _errorLinea = null; }"
                         Placeholder="Línea comercial Madrid" />
-            <CampoTexto Etiqueta="Número de teléfono (E.164)" Valor="@_lineaNumero" ValorChanged="v => _lineaNumero = v"
+            <CampoTexto Etiqueta="Número de teléfono (E.164)" Valor="@_lineaNumero" ValorChanged="v => { _lineaNumero = v; _errorLinea = null; }"
                         Placeholder="+34686543364" />
-            <CampoTexto Etiqueta="Phone Number ID (Meta)" Valor="@_lineaPhoneNumberId" ValorChanged="v => _lineaPhoneNumberId = v" />
-            <CampoTexto Etiqueta="WABA ID (Meta)" Valor="@_lineaWabaId" ValorChanged="v => _lineaWabaId = v" />
+            <CampoTexto Etiqueta="Phone Number ID (Meta)" Valor="@_lineaPhoneNumberId" ValorChanged="v => { _lineaPhoneNumberId = v; _errorLinea = null; }" />
+            <CampoTexto Etiqueta="WABA ID (Meta)" Valor="@_lineaWabaId" ValorChanged="v => { _lineaWabaId = v; _errorLinea = null; }" />
 
             <CampoSelect Etiqueta="Empresa sin rol CAE (opcional)" Valor="@(_lineaEmpresaId?.ToString() ?? string.Empty)"
-                         ValorChanged="v => _lineaEmpresaId = Guid.TryParse(v, out var id) ? id : null">
+                         ValorChanged="v => { _lineaEmpresaId = Guid.TryParse(v, out var id) ? id : null; _errorLinea = null; }">
                 <option value="">Organización propia</option>
                 @foreach (var cliente in _clientes)
                 {
@@ -210,10 +213,10 @@
         }
 
         <CampoTexto Etiqueta="@(_lineaEnEdicion is null ? "Token de acceso (System User)" : "Nuevo token de acceso (vacío = conservar el actual)")"
-                    Type="password" Valor="@_lineaToken" ValorChanged="v => _lineaToken = v" />
+                    Type="password" Valor="@_lineaToken" ValorChanged="v => { _lineaToken = v; _errorLinea = null; }" />
 
         <CampoSelect Etiqueta="Modo de asignación" Valor="@_lineaModo.ToString()"
-                     ValorChanged="v => _lineaModo = Enum.Parse<ModoAsignacionLinea>(v)">
+                     ValorChanged="v => { _lineaModo = Enum.Parse<ModoAsignacionLinea>(v); _errorLinea = null; }">
             <option value="@ModoAsignacionLinea.GestorFijo">Gestor CAE fijo (línea de una persona)</option>
             <option value="@ModoAsignacionLinea.PoolInbound">Reparto equitativo entre Gestores CAE</option>
         </CampoSelect>
@@ -221,7 +224,7 @@
         @if (_lineaModo == ModoAsignacionLinea.GestorFijo)
         {
             <CampoSelect Etiqueta="Gestor CAE dueño" Valor="@(_lineaComercialId?.ToString() ?? string.Empty)"
-                         ValorChanged="v => _lineaComercialId = Guid.TryParse(v, out var id) ? id : null">
+                         ValorChanged="v => { _lineaComercialId = Guid.TryParse(v, out var id) ? id : null; _errorLinea = null; }">
                 <option value="">Elegir Gestor CAE…</option>
                 @foreach (var gestor in _gestores)
                 {
@@ -245,14 +248,7 @@
         }
 
         <CampoTextarea Etiqueta="Mensaje automático de triage (vacío = desactivado)" Filas="3"
-                       Valor="@_lineaMensajeAutoTriage" ValorChanged="v => _lineaMensajeAutoTriage = v"
+                       Valor="@_lineaMensajeAutoTriage" ValorChanged="v => { _lineaMensajeAutoTriage = v; _errorLinea = null; }"
                        Placeholder="¡Hola! Para atenderte mejor, dinos de qué empresa nos escribes y en qué podemos ayudarte." />
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoLinea" OnClick="CancelarLineaAsync">Cancelar</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoLinea" OnClick="GuardarLineaAsync">
-            @(_lineaEnEdicion is null ? "Crear línea" : "Guardar cambios")
-        </Boton>
-    </Pie>
-</Modal>
+</ModalFormulario>
 </LimiteDeErrores>

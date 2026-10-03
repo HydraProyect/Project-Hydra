@@ -69,6 +69,9 @@
   <data name="AsignarEmpresasCargando" xml:space="preserve">
     <value>Cargando empresas…</value>
   </data>
+  <data name="AsignarEmpresasSinCambios" xml:space="preserve">
+    <value>Marca o desmarca alguna empresa</value>
+  </data>
   <data name="AsignarEmpresasVacio" xml:space="preserve">
     <value>Tu organización no gestiona ninguna empresa que se pueda asignar.</value>
   </data>

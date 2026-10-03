@@ -70,7 +70,6 @@ public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
 
 public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
-    private Modal? _modalAsignarEmpresas;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
@@ -1403,6 +1402,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     private void AlternarEmpresaDelGestor(Guid tenantId, bool marcada)
     {
+        _errorEmpresasDelGestor = null;
         if (marcada)
             _empresasMarcadasDelGestor.Add(tenantId);
         else
@@ -1411,6 +1411,22 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     private bool HayCambiosEnEmpresasDelGestor =>
         _empresasDelGestor.Any(e => e.EnCartera != _empresasMarcadasDelGestor.Contains(e.TenantId));
+
+    /// <summary>Estado sin lista del ModalFormulario: si falló la carga, el motivo ya sale en su aviso fijo y aquí no se repite como «no hay empresas».</summary>
+    private RenderFragment SinEmpresasAsignables => builder =>
+    {
+        if (_errorEmpresasDelGestor is not null) return;
+        builder.OpenElement(0, "p");
+        builder.AddContent(1, TextosUsuarios["AsignarEmpresasVacio"].Value);
+        builder.CloseElement();
+    };
+
+    /// <summary>Por qué «Guardar» está deshabilitado (el kit lo exige: sin motivo no hay primario mudo). Cargando lo dice el propio kit.</summary>
+    private string? MotivoGuardarEmpresasDeshabilitado =>
+        _cargandoEmpresasDelGestor ? null
+        : _empresasDelGestor.Count == 0 ? (_errorEmpresasDelGestor ?? TextosUsuarios["AsignarEmpresasVacio"].Value)
+        : !HayCambiosEnEmpresasDelGestor ? TextosUsuarios["AsignarEmpresasSinCambios"].Value
+        : null;
 
     private void CerrarAsignarEmpresas()
     {

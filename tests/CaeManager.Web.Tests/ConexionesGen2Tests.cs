@@ -29,7 +29,11 @@ namespace CaeManager.Web.Tests;
 
 public class ConexionesGen2Tests : BunitContext
 {
-    public ConexionesGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public ConexionesGen2Tests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization(); // el modal de línea es ModalFormulario, que localiza sus textos comunes
+    }
 
     private sealed class MediadorFalso : IMediator
     {
@@ -437,7 +441,6 @@ public class ConexionesGen2Tests : BunitContext
     [Fact]
     public async Task Cerrar_el_modal_de_linea_con_cambios_pregunta_y_sin_cambios_cierra_directamente()
     {
-        Services.AddLocalization();
         var cut = Renderizar();
         await cut.InvokeAsync(() => Invocar(cut.Instance, "AbrirAltaLinea"));
         cut.Render();
@@ -471,7 +474,6 @@ public class ConexionesGen2Tests : BunitContext
     [Fact]
     public async Task La_instantanea_se_toma_al_abrir_cada_vez_en_edicion_y_en_alta()
     {
-        Services.AddLocalization();
         var cut = Renderizar();
 
         await cut.InvokeAsync(() => Invocar(cut.Instance, "AbrirEdicionLinea", LineaDeReparto("reparto")));
@@ -488,7 +490,6 @@ public class ConexionesGen2Tests : BunitContext
     [Fact]
     public async Task Cambiar_el_token_al_editar_una_linea_hace_que_la_X_pregunte()
     {
-        Services.AddLocalization();
         var cut = Renderizar();
         await cut.InvokeAsync(() => Invocar(cut.Instance, "AbrirEdicionLinea", LineaDeReparto("reparto")));
         cut.Render();
@@ -500,11 +501,54 @@ public class ConexionesGen2Tests : BunitContext
         Preguntando(cut).Should().BeTrue();
     }
 
+    /// <summary>El rechazo del servidor deja el modal abierto con el motivo en el aviso fijo (antes, un toast); escribir lo quita.</summary>
+    [Fact]
+    public async Task El_rechazo_del_servidor_al_guardar_una_linea_sale_en_el_aviso_fijo_y_escribir_lo_quita()
+    {
+        var rechazo = new TaskCompletionSource<Result<Guid>>();
+        rechazo.SetResult(Result.Fallo<Guid>(Error.Crear("linea.duplicada", "Ya existe una línea con ese número.")));
+        var mediador = new MediadorFalso { CrearLineaPendiente = rechazo };
+        var cut = Renderizar(mediador);
+        await cut.InvokeAsync(() => Invocar(cut.Instance, "AbrirAltaLinea"));
+        cut.Render();
+        await EscribirNombreDeLineaAsync(cut, "Línea comercial Madrid");
+        cut.FindAll("[role=dialog] [role=alert]").Should().BeEmpty("control positivo: antes del intento no hay aviso");
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Crear línea").ClickAsync(new MouseEventArgs());
+
+        mediador.ComandosCrearLinea.Should().Be(1, "control positivo: se intentó");
+        cut.FindAll("[role=dialog] [role=alert]").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Ya existe una línea con ese número.");
+        cut.FindAll("[role=dialog] .modal-cuerpo [role=alert]").Should().BeEmpty("el aviso va fuera del cuerpo desplazable (D-20)");
+        cut.FindAll(".modal-contenido").Should().ContainSingle("un rechazo no cierra el modal");
+
+        await EscribirNombreDeLineaAsync(cut, "Línea comercial Bilbao");
+        cut.FindAll("[role=dialog] [role=alert]").Should().BeEmpty("el motivo era del intento anterior");
+
+        // Cualquier campo cuenta, no solo el nombre: un aviso que sobrevive a la corrección deja Escape y el clic fuera bloqueados sin motivo a la vista.
+        var ediciones = new (string Campo, Func<Task> Editar)[]
+        {
+            ("Número de teléfono", () => cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta!.StartsWith("Número de teléfono", StringComparison.Ordinal)).Instance.ValorChanged.InvokeAsync("+34686543364"))),
+            ("Phone Number ID", () => cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta!.StartsWith("Phone Number ID", StringComparison.Ordinal)).Instance.ValorChanged.InvokeAsync("123"))),
+            ("WABA ID", () => cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta!.StartsWith("WABA ID", StringComparison.Ordinal)).Instance.ValorChanged.InvokeAsync("456"))),
+            ("Token", () => cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta!.StartsWith("Token", StringComparison.Ordinal)).Instance.ValorChanged.InvokeAsync("EAAB"))),
+            ("Mensaje automático", () => cut.InvokeAsync(() => cut.FindComponents<CampoTextarea>().Single(c => c.Instance.Etiqueta!.StartsWith("Mensaje automático", StringComparison.Ordinal)).Instance.ValorChanged.InvokeAsync("¡Hola!"))),
+            ("Modo de asignación", () => cut.InvokeAsync(() => cut.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta == "Modo de asignación").Instance.ValorChanged.InvokeAsync(nameof(ModoAsignacionLinea.PoolInbound)))),
+        };
+        foreach (var (campo, editar) in ediciones)
+        {
+            await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Crear línea").ClickAsync(new MouseEventArgs());
+            cut.FindAll("[role=dialog] [role=alert]").Should().ContainSingle($"control positivo: el rechazo vuelve antes de editar «{campo}»");
+
+            await editar();
+
+            cut.FindAll("[role=dialog] [role=alert]").Should().BeEmpty($"editar «{campo}» retira el aviso del intento anterior");
+        }
+    }
+
     /// <summary>«Cancelar» cierra como la X (D-05): con algo escrito pregunta; sin nada, cierra.</summary>
     [Fact]
     public async Task Cancelar_en_el_modal_de_linea_con_cambios_pregunta_antes_de_descartar()
     {
-        Services.AddLocalization();
         var cut = Renderizar();
         await cut.InvokeAsync(() => Invocar(cut.Instance, "AbrirAltaLinea"));
         cut.Render();
