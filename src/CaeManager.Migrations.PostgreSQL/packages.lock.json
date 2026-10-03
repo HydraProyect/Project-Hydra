@@ -4,9 +4,9 @@
     "net10.0": {
       "AngleSharp": {
         "type": "Direct",
-        "requested": "[1.7.3, )",
-        "resolved": "1.7.3",
-        "contentHash": "I8TpSvgOPAVQHjVvXaROZOkIGZdX0tn+e9CUix6mv5pMqfyKO+/zm/dofsXgsxVTJl/sSTnEMFwrdnqxTt2axQ=="
+        "requested": "[1.8.3, )",
+        "resolved": "1.8.3",
+        "contentHash": "IiXdbBHzeKRUDayOFT/5nAqkY7Tqbtzr9dqoWrsfseLRs2r1j94qP8MmKnfs9aX+WHucmlmX8xq9QosIUJ/sbA=="
       },
       "Npgsql.EntityFrameworkCore.PostgreSQL": {
         "type": "Direct",
@@ -705,7 +705,7 @@
         "dependencies": {
           "AWSSDK.KeyManagementService": "[4.0.100.14, )",
           "AWSSDK.S3": "[4.0.102.5, )",
-          "AngleSharp": "[1.7.3, )",
+          "AngleSharp": "[1.8.3, )",
           "CaeManager.Application": "[1.0.0, )",
           "CaeManager.Domain": "[1.0.0, )",
           "ClosedXML": "[0.105.*, )",
