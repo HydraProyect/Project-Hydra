@@ -27,7 +27,7 @@ public class ActualizarEstadoAutomatizacionCommandHandler(IEstadoAutomatizacionR
 
         if (!definicion.Conmutable)
             return Result.Fallo(Error.Crear(
-                "Automatizacion.NoConmutable", $"«{definicion.Nombre}» es global para todos los tenants y no se puede apagar por separado."));
+                "Automatizacion.NoConmutable", $"«{definicion.Nombre}» es global para todas las organizaciones y no se puede apagar por separado."));
 
         var estado = await repositorio.ObtenerPorTrabajoAsync(request.TrabajoId, cancellationToken);
         if (estado is null)

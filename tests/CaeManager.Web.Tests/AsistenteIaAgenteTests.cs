@@ -249,7 +249,7 @@ public class AsistenteIaAgenteTests : BunitContext
         var panel = Abrir();
         Enviar(panel, "alta de centro");
 
-        panel.Find(".plan-aviso-peligro").TextContent.Should().Contain("mezcla datos de dos Tenants");
+        panel.Find(".plan-aviso-peligro").TextContent.Should().Contain("mezcla datos de dos organizaciones");
         panel.Find(".plan-pastilla").TextContent.Should().Be("Bloqueado");
         panel.Find(".plan-confirmar").GetAttribute("aria-disabled").Should().Be("true");
 
@@ -327,7 +327,7 @@ public class AsistenteIaAgenteTests : BunitContext
         Configurar(anthropic: true, typeSafeActivo: true);
         GuionDeAgente(PlanConfirmable());
         _mediador.Guion[typeof(ProponerPlanDeTareaAsistenteCommand)] = _ => Result.Fallo<PlanPropuestoDto>(
-            Error.Crear("AsistenteIa.SinInstruccion", "Este tenant todavía no tiene una instrucción de tratamiento con IA vigente."));
+            Error.Crear("AsistenteIa.SinInstruccion", "Esta organización todavía no tiene una instrucción de tratamiento con IA vigente."));
         var panel = Abrir();
         Enviar(panel, "reclama");
 

@@ -145,7 +145,7 @@ public class SegundoFactorDeCuentasIdentity(
                 : Result.Fallo(Error.Crear(
                     "SegundoFactor.RestablecimientoPorSoporteDenegado",
                     "La base de datos no autorizó el restablecimiento (" + codigo + "). " +
-                    "Comprueba que la sesión sigue abierta y que la cuenta es el Administrador único del Tenant."));
+                    "Comprueba que la sesión sigue abierta y que la cuenta es el Administrador único de la organización."));
         }, cancellationToken);
 
     // El nombre que usa UserStoreBase para la clave TOTP (constante privada allí).

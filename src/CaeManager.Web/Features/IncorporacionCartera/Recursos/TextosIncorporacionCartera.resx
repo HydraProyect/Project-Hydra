@@ -229,7 +229,7 @@
     <value>Añadir a mi cartera</value>
   </data>
   <data name="SinAsignacionDetalleCoordinador" xml:space="preserve">
-    <value>No tienes ninguna Asignación de Cartera vigente en esta empresa, así que aquí no aparece nada: no es que esté al día ni que falte por dar de alta. Tu alcance sale de la cartera de los Gestores CAE de tu equipo: asigna empresas a uno de ellos desde Usuarios.</value>
+    <value>No tienes ninguna Asignación de Cartera vigente en esta empresa, así que aquí no aparece nada: no es que esté al día ni que falte por dar de alta. Solo ves las empresas de la cartera de los Gestores CAE de tu equipo: asigna empresas a uno de ellos desde Usuarios.</value>
   </data>
   <data name="SinAsignacionEnlaceUsuarios" xml:space="preserve">
     <value>Ir a Usuarios</value>

@@ -78,6 +78,7 @@ public class PreguntarAlAsistenteQueryHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("AsistenteIa.SinInstruccion");
+        resultado.Error.Mensaje.Should().StartWith("Esta organización todavía no tiene").And.NotContainEquivalentOf("tenant");
     }
 
     [Fact]

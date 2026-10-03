@@ -45,7 +45,7 @@ public class CrearDelegacionTenantCommandValidator : AbstractValidator<CrearDele
         RuleFor(c => c.TenantClienteId).NotEmpty().WithMessage("Selecciona la organización que delega.");
         RuleFor(c => c)
             .Must(c => c.TenantConsultoraId != c.TenantClienteId)
-            .WithMessage("Un tenant no puede delegarse acceso a sí mismo.");
+            .WithMessage("Una organización no puede delegarse acceso a sí misma.");
     }
 }
 

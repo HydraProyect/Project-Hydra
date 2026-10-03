@@ -30,6 +30,8 @@ public class RegistrarInstruccionTratamientoIaTenantPropietarioCommandHandlerTes
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("InstruccionTratamientoIa.SinAutoridad");
+        resultado.Error.Mensaje.Should().Contain("esa organización").And.NotContain("Refrielectric").And.NotContainEquivalentOf("tenant",
+            "sin autoridad confirmada el mensaje no nombra a la organización: no debe revelar qué Ids existen");
         repositorio.Filas.Should().BeEmpty();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
@@ -51,6 +53,8 @@ public class RegistrarInstruccionTratamientoIaTenantPropietarioCommandHandlerTes
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Tenant.NoEncontrado");
+        resultado.Error.Mensaje.Should().Be("No encontramos esa organización.",
+            "no distingue «no existe» de «es la de plataforma» ni nombra a ninguna");
         repositorio.Filas.Should().BeEmpty();
     }
 
@@ -72,6 +76,9 @@ public class RegistrarInstruccionTratamientoIaTenantPropietarioCommandHandlerTes
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("InstruccionTratamientoIa.YaVigente");
+        resultado.Error.Mensaje.Should().StartWith("«Refrielectric» ya tiene una instrucción vigente.",
+            "tras confirmar la autoridad sobre ese Tenant propietario, el mensaje nombra a la organización por su nombre");
+        resultado.Error.Mensaje.Should().NotContainEquivalentOf("tenant");
         repositorio.Filas.Should().HaveCount(1);
     }
 

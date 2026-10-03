@@ -45,7 +45,7 @@ public class RevocarInstruccionTratamientoIaTenantPropietarioCommandHandler(
         if (!await autorizacion.PuedeSobreTenantAsync(usuarioId.Value, request.TenantPropietarioId, cancellationToken))
             return Result.Fallo(Error.Crear(
                 "InstruccionTratamientoIa.SinAutoridad",
-                "No tienes capacidad de administración de plataforma sobre ese tenant."));
+                "No tienes capacidad de administración de plataforma sobre esa organización."));
 
         // La lectura tiene que ir bajo el MISMO ámbito que la escritura:
         // InstruccionesTratamientoIaTenantPropietario lleva RLS + filtro
@@ -58,7 +58,7 @@ public class RevocarInstruccionTratamientoIaTenantPropietarioCommandHandler(
             var vigente = await repositorio.ObtenerVigenteAsync(request.TenantPropietarioId, cancellationToken);
             if (vigente is null)
                 return Result.Fallo(Error.Crear(
-                    "InstruccionTratamientoIa.NoEncontrada", "Este tenant no tiene ninguna instrucción vigente que revocar."));
+                    "InstruccionTratamientoIa.NoEncontrada", "Esta organización no tiene ninguna instrucción vigente que revocar."));
 
             vigente.Revocar(request.Motivo, DateTime.UtcNow);
             await unitOfWork.SaveChangesAsync(cancellationToken);

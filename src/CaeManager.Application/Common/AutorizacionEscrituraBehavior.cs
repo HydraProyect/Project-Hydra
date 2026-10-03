@@ -147,7 +147,7 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
                 if (tenantActual.TenantId != sesion.TenantObjetivoId)
                     return CrearRespuestaFallo<TResponse>(Error.Crear(
                         "Autorizacion.RestablecimientoFueraDelTenantObjetivo",
-                        "Esta sesión solo puede actuar en el Tenant sobre el que se abrió."));
+                        "Esta sesión solo puede actuar en la organización sobre la que se abrió."));
 
                 return await next(cancellationToken);
             }
@@ -170,7 +170,7 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
             if (tenantActual.TenantId != sesion.TenantObjetivoId)
                 return CrearRespuestaFallo<TResponse>(Error.Crear(
                     "Autorizacion.AprovisionamientoFueraDelTenantObjetivo",
-                    "Esta sesión de aprovisionamiento solo puede escribir en el tenant objetivo."));
+                    "Esta sesión de aprovisionamiento solo puede escribir en la organización objetivo."));
 
             return await next(cancellationToken);
         }

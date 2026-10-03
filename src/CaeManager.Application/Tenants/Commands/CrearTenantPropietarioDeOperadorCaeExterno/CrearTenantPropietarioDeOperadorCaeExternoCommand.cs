@@ -108,7 +108,7 @@ public class CrearTenantPropietarioDeOperadorCaeExternoCommandHandler(
 
         var nombreNormalizado = request.NombreTenantPropietario.Trim();
         if (await tenantRepositorio.ExisteConNombreAsync(nombreNormalizado, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("TenantPropietarioDeOperador.NombreDuplicado", "Ya existe un tenant con este nombre."));
+            return Result.Fallo<Guid>(Error.Crear("TenantPropietarioDeOperador.NombreDuplicado", "Ya existe una organización con este nombre."));
 
         // ClienteDirecto: cómo el Tenant propietario se ve a sí mismo (una sola empresa gestionada).
         var tenantPropietario = new Tenant(nombreNormalizado, PerfilVocabularioTenant.ClienteDirecto);
