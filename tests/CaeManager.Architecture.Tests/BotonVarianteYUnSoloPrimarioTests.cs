@@ -225,6 +225,10 @@ public class BotonVarianteYUnSoloPrimarioTests
         // Control positivo: la medición ve superficies reales y la lista no está vacía por accidente.
         medido.Values.Sum().Should().BeGreaterThan(200, "había 277 primarios declarados al escribirlo; si baja de golpe, dejó de mirar");
 
+        // Control positivo del kit: los formularios migrados a <DrawerFormulario> (13 al escribirlo) se miden con su «Guardar» implícito.
+        medido.Keys.Count(k => k.Contains("#DrawerFormulario", StringComparison.Ordinal)).Should().BeGreaterThan(10,
+            "los DrawerFormulario migrados aparecen en la medición; si no, el detector volvió a no reconocer el kit");
+
         var problemas = Evaluar(medido, PrimariosPermitidosPorSuperficie);
 
         string.Join(Environment.NewLine, problemas).Should().BeEmpty(
@@ -326,6 +330,50 @@ public class BotonVarianteYUnSoloPrimarioTests
     }
 
     [Fact]
+    public void El_primario_implicito_del_kit_se_mide_sobre_su_fuente()
+    {
+        // El kit tiene un único primario («Guardar»). Si alguien añade otro al kit, este número sube solo y las pantallas que
+        // lo usan pasan a contar dos: el cambio se ve aquí, en una línea, y no en veinte superficies.
+        PrimariosImplicitosDelKit["DrawerFormulario"].Should().Be(1, "«Guardar» es el único primario de DrawerFormulario");
+    }
+
+    [Fact]
+    public void El_primario_de_Guardar_del_kit_cuenta_junto_a_los_que_escribe_la_pantalla()
+    {
+        // El caso real de DrawerGestionDocumento: «Aceptar» del alias sugerido primario + el «Guardar» del kit.
+        var razor = """
+            <DrawerFormulario Titulo="A" HayCambios="() => x">
+                <Boton Variante="VarianteBoton.Primario">Aceptar</Boton>
+            </DrawerFormulario>
+            <DrawerFormulario Titulo="B" HayCambios="() => x">
+                <Boton Variante="VarianteBoton.Secundario">Aceptar</Boton>
+            </DrawerFormulario>
+            <DrawerFormulario Titulo="C" HayCambios="() => x" />
+            <DrawerFormulario Titulo="D" HayCambios="() => x">
+                <Dialogos><DialogoConfirmacion><Boton Variante="VarianteBoton.Primario">Confirmar</Boton></DialogoConfirmacion></Dialogos>
+            </DrawerFormulario>
+            """;
+
+        Medir("x.razor", razor).Should().BeEquivalentTo(new Dictionary<string, int>
+        {
+            ["x.razor#DrawerFormulario1"] = 2,
+            ["x.razor#DrawerFormulario2"] = 1,
+            ["x.razor#DrawerFormulario3"] = 1,
+            ["x.razor#DrawerFormulario4"] = 1,
+            ["x.razor#DialogoConfirmacion1"] = 1,
+        });
+
+        Evaluar(Medir("x.razor", razor), new Dictionary<string, int>()).Should().ContainSingle(m => m.Contains("x.razor#DrawerFormulario1") && m.Contains("sin excepción"));
+    }
+
+    [Fact]
+    public void El_kit_no_se_confunde_con_el_Drawer_de_nombre_parecido()
+    {
+        Medir("x.razor", """<Drawer Titulo="A"><Boton Variante="VarianteBoton.Primario">P</Boton></Drawer>""")
+            .Should().BeEquivalentTo(new Dictionary<string, int> { ["x.razor#Drawer1"] = 1 }, "un Drawer a pelo no lleva «Guardar» implícito");
+    }
+
+    [Fact]
     public void El_trinquete_se_pone_rojo_por_el_motivo_previsto()
     {
         var lista = new Dictionary<string, int> { ["a.razor"] = 3 };
@@ -380,6 +428,15 @@ public class BotonVarianteYUnSoloPrimarioTests
         var analisis = Analizar(razor);
         var porSuperficie = new Dictionary<string, int>(StringComparer.Ordinal);
 
+        // El kit pinta su propio «Guardar» primario sin que el fuente de la pantalla lo escriba: es un primario más de SU
+        // contenedor, y quien lo pone es el kit, no un <Boton> visible aquí (S12 lote 3a: tras migrar DrawerGestionDocumento al kit,
+        // el «Aceptar» del alias sugerido quedó junto a «Guardar», dos primarios que este trinquete dejó de ver).
+        foreach (var contenedor in analisis.Contenedores.Where(c => PrimariosImplicitosDelKit.ContainsKey(c.Tipo)))
+        {
+            var clave = $"{ruta}#{contenedor.Nombre}";
+            porSuperficie[clave] = porSuperficie.GetValueOrDefault(clave) + PrimariosImplicitosDelKit[contenedor.Tipo];
+        }
+
         foreach (var boton in analisis.Botones.Where(b => b.EsPrimario))
         {
             // El contenedor más interior que contiene el botón; ninguno = la vista.
@@ -396,9 +453,27 @@ public class BotonVarianteYUnSoloPrimarioTests
 
     private sealed record BotonAnalizado(int Inicio, bool DeclaraVariante, bool EsPrimario);
 
-    private sealed record ContenedorAnalizado(string Nombre, int Inicio, int Fin);
+    private sealed record ContenedorAnalizado(string Tipo, string Nombre, int Inicio, int Fin);
 
     private sealed record Analisis(List<BotonAnalizado> Botones, List<ContenedorAnalizado> Contenedores);
+
+    /// <summary>Los contenedores donde se escribe un primario: los de siempre y los kits de formulario (que ponen el suyo).</summary>
+    private static readonly string[] NombresDeKit = ["DrawerFormulario"];
+
+    private static readonly string Contenedores = "Drawer|Modal|DialogoConfirmacion|" + string.Join('|', NombresDeKit);
+
+    /// <summary>
+    /// Cuántos primarios pinta el propio kit, medidos sobre su fuente (un solo sitio: si el kit añade o quita un primario, el
+    /// trinquete lo sigue; <see cref="El_primario_implicito_del_kit_se_mide_sobre_su_fuente"/> fija que hoy es uno). Un kit
+    /// autocerrado (<c>&lt;DrawerFormulario … /&gt;</c>) también pinta su «Guardar».
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, int> PrimariosImplicitosDelKit = NombresDeKit.ToDictionary(n => n, PrimariosDeUnKit, StringComparer.Ordinal);
+
+    private static int PrimariosDeUnKit(string componente)
+    {
+        var ruta = Path.Combine(MarcadoRazor.RaizDelRepositorio(), "src", "CaeManager.Web", "Components", "DesignSystem", $"{componente}.razor");
+        return Analizar(File.ReadAllText(ruta)).Botones.Count(b => b.EsPrimario);
+    }
 
     private static Analisis Analizar(string razor)
     {
@@ -411,9 +486,9 @@ public class BotonVarianteYUnSoloPrimarioTests
             return new BotonAnalizado(a.Inicio, declara.Success, valor.Contains("VarianteBoton.Primario", StringComparison.Ordinal));
         }).ToList();
 
-        var contenedores = MarcadoRazor.Elementos(texto, "Drawer|Modal|DialogoConfirmacion")
-            .Where(e => !e.Autocerrado)
-            .Select(e => new ContenedorAnalizado($"{e.Nombre}{e.Ordinal}", e.Inicio, e.Fin))
+        var contenedores = MarcadoRazor.Elementos(texto, Contenedores)
+            .Where(e => !e.Autocerrado || NombresDeKit.Contains(e.Nombre))
+            .Select(e => new ContenedorAnalizado(e.Nombre, $"{e.Nombre}{e.Ordinal}", e.Inicio, e.Fin))
             .ToList();
 
         return new Analisis(botones, contenedores);
