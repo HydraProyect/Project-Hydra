@@ -386,10 +386,8 @@ public class ReglasDeNegocioSinCopiasTests
 
         // --- Verificación y revisión de IA: el análisis tardío de un histórico se registra sin mutarlo (PR 4). ---
         ["src/CaeManager.Application/Documentos/Verificacion/VerificacionIaDocumentoService.cs"] = 1,
-        ["src/CaeManager.Application/Documentos/ValidacionOficial/ValidacionDocumentoOficialService.cs"] = 1,
         ["src/CaeManager.Application/Documentos/Commands/ResolverRevisionIaDocumento/ResolverRevisionIaDocumentoCommand.cs"] = 1,
         ["src/CaeManager.Application/Documentos/Queries/ObtenerRevisionesIaPendientes/ObtenerRevisionesIaPendientesQuery.cs"] = 1,
-        ["src/CaeManager.Application/Trabajadores/Deteccion/DeteccionTrabajadoresService.cs"] = 1,
 
         // --- Retención y purga: el RGPD alcanza al historial tanto como a lo operativo. ---
         ["src/CaeManager.Application/Retencion/DeteccionPurgaService.cs"] = 1,

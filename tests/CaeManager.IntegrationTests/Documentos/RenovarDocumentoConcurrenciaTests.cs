@@ -193,8 +193,11 @@ public class RenovarDocumentoConcurrenciaTests : IAsyncLifetime
         nuevo.EmpresaId.Should().Be(anterior.EmpresaId, "mismo titular");
         nuevo.TipoDocumentoId.Should().Be(anterior.TipoDocumentoId, "mismo Tipo");
 
-        (await verificacion.Documentos.Operativos().Where(d => d.EmpresaId == anterior.EmpresaId && d.TipoDocumentoId == anterior.TipoDocumentoId).Select(d => d.Id).ToListAsync())
-            .Should().Equal(nuevoId);
+        // En la unidad (Empresa, Tipo) el operativo es el nuevo y ya no el anterior.
+        var operativos = await verificacion.Documentos.Operativos()
+            .Where(d => d.EmpresaId == anterior.EmpresaId && d.TipoDocumentoId == anterior.TipoDocumentoId)
+            .Select(d => d.Id).ToListAsync();
+        operativos.Should().Contain(nuevoId).And.NotContain(anteriorId);
     }
 
     [Fact]
@@ -203,6 +206,9 @@ public class RenovarDocumentoConcurrenciaTests : IAsyncLifetime
         // Sin archivo nuevo no hay nada que sustituir: se corrigen fechas y comentarios en su sitio y el archivo
         // existente se queda donde está.
         var (documentoId, archivoUrl) = await SembrarDocumentoConArchivoAsync();
+        int antes;
+        await using (var conteo = CrearContexto())
+            antes = await conteo.Documentos.CountAsync();
 
         await using (var contexto = CrearContexto())
         {
@@ -219,7 +225,53 @@ public class RenovarDocumentoConcurrenciaTests : IAsyncLifetime
         documento.EstaSustituido.Should().BeFalse();
         documento.ArchivoUrl.Should().Be(archivoUrl);
         documento.Comentarios.Should().Be("Solo fechas");
-        (await verificacion.Documentos.CountAsync()).Should().Be(1, "no nace ningún registro nuevo");
+        (await verificacion.Documentos.CountAsync()).Should().Be(antes, "no nace ningún registro nuevo");
+    }
+
+    [Fact]
+    public async Task Un_enlace_al_Id_antiguo_resuelve_al_historial_y_dice_quien_lo_sustituyo_D8()
+    {
+        var (anteriorId, _) = await SembrarDocumentoConArchivoAsync();
+        Guid nuevoId;
+        await using (var contexto = CrearContexto())
+        {
+            nuevoId = (await ConstruirHandlerRenovar(contexto).Handle(
+                new RenovarDocumentoCommand(anteriorId, new DateOnly(2026, 2, 1), null, "archivos/renovado.pdf", null),
+                CancellationToken.None)).Valor;
+        }
+
+        await using var consulta = CrearContexto();
+        var historial = await ConstruirHandlerConsulta(consulta).Handle(new ObtenerDocumentoPorIdQuery(anteriorId), CancellationToken.None);
+        var vigente = await ConstruirHandlerConsulta(consulta).Handle(new ObtenerDocumentoPorIdQuery(nuevoId), CancellationToken.None);
+
+        historial.Should().NotBeNull("el Id antiguo sigue resolviendo: el sustituido conserva su identidad");
+        historial!.SustitutoId.Should().Be(nuevoId);
+        historial.SustituidoEn.Should().NotBeNull();
+        vigente!.SustitutoId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Renovar_reenviando_el_archivo_que_ya_tiene_corrige_en_el_mismo_registro_y_no_comparte_el_blob()
+    {
+        // El formulario de edición reenvía el ArchivoUrl existente cuando solo se corrigen fechas.
+        var (documentoId, archivoUrl) = await SembrarDocumentoConArchivoAsync();
+        int antes;
+        await using (var conteo = CrearContexto())
+            antes = await conteo.Documentos.CountAsync();
+
+        await using (var contexto = CrearContexto())
+        {
+            var resultado = await ConstruirHandlerRenovar(contexto).Handle(
+                new RenovarDocumentoCommand(documentoId, new DateOnly(2026, 2, 1), null, archivoUrl, "Solo fechas"),
+                CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue();
+            resultado.Valor.Should().Be(documentoId, "no hay archivo nuevo: no hay documento nuevo");
+        }
+
+        await using var verificacion = CrearContexto();
+        (await verificacion.Documentos.CountAsync()).Should().Be(antes);
+        (await verificacion.Documentos.SingleAsync(d => d.Id == documentoId)).EstaSustituido.Should().BeFalse();
     }
 
     [Fact]
@@ -233,6 +285,10 @@ public class RenovarDocumentoConcurrenciaTests : IAsyncLifetime
                 new RenovarDocumentoCommand(anteriorId, new DateOnly(2026, 2, 1), null, "archivos/renovado.pdf", null),
                 CancellationToken.None)).Valor;
         }
+
+        int antes;
+        await using (var conteo = CrearContexto())
+            antes = await conteo.Documentos.CountAsync();
 
         foreach (var archivo in new string?[] { "archivos/otro.pdf", null })
         {
@@ -250,7 +306,7 @@ public class RenovarDocumentoConcurrenciaTests : IAsyncLifetime
         anterior.FechaEmision.Should().Be(new DateOnly(2026, 1, 1));
         anterior.Comentarios.Should().BeNull();
         anterior.SustituidoPorDocumentoId.Should().Be(nuevoId, "el historial sigue apuntando a su único sustituto");
-        (await verificacion.Documentos.CountAsync()).Should().Be(2, "los rechazos no crean registros");
+        (await verificacion.Documentos.CountAsync()).Should().Be(antes, "los rechazos no crean registros");
     }
 
     [Fact]

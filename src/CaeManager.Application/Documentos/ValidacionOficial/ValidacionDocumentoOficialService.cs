@@ -52,7 +52,8 @@ public class ValidacionDocumentoOficialService(
 
     public async Task ProcesarDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default)
     {
-        var documento = await documentosContext.Documentos.FirstOrDefaultAsync(d => d.Id == documentoId, cancellationToken);
+        // Solo se valida lo que está en uso: la validación tardía de un documento que ya pasó al historial no lo muta.
+        var documento = await documentosContext.Documentos.Operativos().FirstOrDefaultAsync(d => d.Id == documentoId, cancellationToken);
         if (documento is null || string.IsNullOrWhiteSpace(documento.ArchivoUrl))
             return;
 

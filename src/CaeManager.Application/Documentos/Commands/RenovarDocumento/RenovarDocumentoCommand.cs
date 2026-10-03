@@ -86,7 +86,11 @@ public class RenovarDocumentoCommandHandler(
             tipoDocumento.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
             request.FechaEmision, request.FechaVencimientoManual, request.NoCaduca);
 
-        return string.IsNullOrWhiteSpace(request.ArchivoUrl)
+        // Un archivo «nuevo» es uno distinto del que ya tiene el documento: el formulario de edición reenvía el existente
+        // cuando solo se corrigen fechas, y sustituir por un registro que comparte el blob rompería «un blob, un propietario».
+        var hayArchivoNuevo = !string.IsNullOrWhiteSpace(request.ArchivoUrl) && request.ArchivoUrl != documento.ArchivoUrl;
+
+        return !hayArchivoNuevo
             ? await CorregirEnElMismoRegistroAsync(documento, request, vigencia, cancellationToken)
             : await SustituirPorUnoNuevoAsync(documento, tipoDocumento, request, vigencia, cancellationToken);
     }
