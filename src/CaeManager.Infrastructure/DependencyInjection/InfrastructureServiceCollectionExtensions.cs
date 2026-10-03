@@ -282,6 +282,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITipoDocumentoRepository, TipoDocumentoRepository>();
         services.AddScoped<ITipoDocumentoCentroRepository, TipoDocumentoCentroRepository>();
         services.AddScoped<IConfiguracionIaDocumentoClienteRepository, ConfiguracionIaDocumentoClienteRepository>();
+        services.AddScoped<IToleranciaDocumentoClienteEmpresarialRepository, ToleranciaDocumentoClienteEmpresarialRepository>();
         services.AddScoped<IRevisionIaDocumentoRepository, RevisionIaDocumentoRepository>();
         services.AddScoped<IAprobacionDocumentoRepository, AprobacionDocumentoRepository>();
         services.AddScoped<IFirmaDigitalDocumentoRepository, FirmaDigitalDocumentoRepository>();

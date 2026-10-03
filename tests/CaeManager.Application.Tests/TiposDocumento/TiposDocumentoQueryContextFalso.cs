@@ -16,6 +16,7 @@ public class TiposDocumentoQueryContextFalso : ITiposDocumentoQueryContext
     public List<TipoDocumentoCentro> ListaTiposDocumentoCentros { get; } = [];
     public List<TipoDocumentoAlias> ListaTiposDocumentoAlias { get; } = [];
     public List<ConfiguracionIaDocumentoCliente> ListaConfiguracionesIaDocumentoCliente { get; } = [];
+    public List<ToleranciaDocumentoClienteEmpresarial> ListaToleranciasDocumentoClienteEmpresarial { get; } = [];
 
     public IQueryable<CaeManager.Domain.Documentos.TipoDocumento> TiposDocumento =>
         new TestAsyncQueryable<CaeManager.Domain.Documentos.TipoDocumento>(ListaTiposDocumento.AsQueryable());
@@ -25,4 +26,6 @@ public class TiposDocumentoQueryContextFalso : ITiposDocumentoQueryContext
         new TestAsyncQueryable<TipoDocumentoAlias>(ListaTiposDocumentoAlias.AsQueryable());
     public IQueryable<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente =>
         new TestAsyncQueryable<ConfiguracionIaDocumentoCliente>(ListaConfiguracionesIaDocumentoCliente.AsQueryable());
+    public IQueryable<ToleranciaDocumentoClienteEmpresarial> ToleranciasDocumentoClienteEmpresarial =>
+        new TestAsyncQueryable<ToleranciaDocumentoClienteEmpresarial>(ListaToleranciasDocumentoClienteEmpresarial.AsQueryable());
 }

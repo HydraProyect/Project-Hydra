@@ -234,7 +234,7 @@ public class ReglasDeNegocioSinCopiasTests
     /// <summary>
     /// Quién LEE la fila bloqueante del Centro (<c>TipoDocumentoCentro.BloqueaAcceso</c>) para decidir algo, por los
     /// nombres con que hoy se le llama en esas lecturas (<c>tc</c> y <c>fila</c>). La regla —ausente o vencido bloquea
-    /// igual, sujeto Trabajador o Empresa, Empresa en todos los Centros del Tenant— es de
+    /// igual, sujeto Trabajador o Empresa, evaluada POR CENTRO con su vigencia propia y su tolerancia— es de
     /// <c>ReglaBloqueoDeAcceso</c> y de <c>CalculoBloqueoDeAccesoDeTrabajadores</c>; un lector nuevo que decida por su
     /// cuenta es rojo hasta que se declare aquí y se ate a la tabla de
     /// <c>CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests</c>. Patrón por nombre: no ve una lectura con otro nombre de
@@ -245,16 +245,18 @@ public class ReglasDeNegocioSinCopiasTests
 
     private static readonly Dictionary<string, int> LecturasDeLaFilaBloqueante = new()
     {
-        // La consulta que aplica la regla única (R1, R2) y alimenta Mi trabajo.
-        ["src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionBloqueantePendiente/ObtenerDocumentacionBloqueantePendienteQuery.cs"] = 1,
+        // El único sitio que carga las filas bloqueantes de cada Centro (con su vigencia propia y su tolerancia) y aplica la
+        // regla única por Centro (R1, R2): lo usan Mi trabajo y el detalle por Trabajador del Centro 360.
+        ["src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs"] = 1,
         // El semáforo del Centro: solo pone Bloqueado la ausencia TOTAL de un tipo de Trabajador, no el vencido ni el
-        // requisito de Empresa. Divergencia declarada: qué debe enseñar el Centro (R3) es una decisión pendiente.
+        // requisito de Empresa. Divergencia declarada: «Bloqueado» es un estado del Trabajador, no del Centro, y este cálculo
+        // pasa a no ponerlo por documentos de Trabajador ni de Empresa en el incremento siguiente.
         ["src/CaeManager.Application/Centros/CalculoEstadoCentroService.cs"] = 1,
     };
 
     /// <summary>
     /// La comparación «sin fecha O fecha &gt;= hoy» escrita en una consulta o en una pantalla: es la regla de validez
-    /// del bloqueo copiada (la tuvo la consulta de Mi trabajo hasta que pasó a <c>ReglaBloqueoDeAcceso.ValidoHoy</c>).
+    /// del bloqueo copiada (la tuvo la consulta de Mi trabajo hasta que pasó a <c>ReglaBloqueoDeAcceso</c>).
     /// </summary>
     private static readonly Regex PatronValidezDeBloqueoCopiada = new(
         @"\bFechaVencimiento\s*(?:==\s*null|is\s+null|is\s+not\s*\{\s*\}\s*\w+)\s*\|\|", RegexOptions.Compiled);
@@ -273,7 +275,7 @@ public class ReglasDeNegocioSinCopiasTests
         var medidos = ContarPorFichero(PatronValidezDeBloqueoCopiada);
 
         medidos.Should().BeEmpty(
-            "«sin fecha o fecha >= hoy» es ReglaBloqueoDeAcceso.ValidoHoy(vigencia, hoy); EF no puede llamarla en una consulta, " +
+            "«sin fecha o fecha >= hoy» es ReglaBloqueoDeAcceso.ValidoParaAcceder(...); EF no puede llamarla en una consulta, " +
             "así que se trae el estado y la fecha de vigencia y se evalúa en memoria, no se copia la comparación");
     }
 

@@ -560,6 +560,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("TiposDocumento.ActualizarLecturaIaClienteCommandHandler", "IClientesQueryContext"),
         ("TiposDocumento.ActualizarLecturaIaClienteCommandHandler", "IConfiguracionIaDocumentoClienteRepository"),
         ("TiposDocumento.ActualizarLecturaIaGlobalCommandHandler", "ITipoDocumentoRepository"),
+        // La tolerancia por defecto del Cliente empresarial (Empresa contraparte) vive junto a los Tipos; se comprueba el alcance como en la lectura por IA.
+        ("TiposDocumento.EstablecerToleranciaClienteEmpresarialCommandHandler", "IToleranciaDocumentoClienteEmpresarialRepository"),
         ("TiposDocumento.ActualizarPerfilDocumentoOficialGlobalCommandHandler", "ITipoDocumentoRepository"),
         ("TiposDocumento.ActualizarVerificacionIaGlobalCommandHandler", "ITipoDocumentoRepository"),
         ("TiposDocumento.CrearTipoDocumentoCommandHandler", "ICentrosQueryContext"),
@@ -720,6 +722,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.ObtenerCentrosConActividadDeSubcontrataQueryHandler", "IEmpresasQueryContext"),
         ("Subcontratas.ObtenerSupervisionSubcontrataQueryHandler", "IEmpresasQueryContext"),
         ("TiposDocumento.ActualizarLecturaIaClienteCommandHandler", "IEmpresasQueryContext"),
+        ("TiposDocumento.EstablecerToleranciaClienteEmpresarialCommandHandler", "IEmpresasQueryContext"),
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "IEmpresasQueryContext"),
         ("Trabajadores.ResolverDeteccionAusenteCommandHandler", "IAsignacionRepository"),
         ("Visitas.ObtenerVisitasParaCalendarioQueryHandler", "IEmpresasQueryContext"),

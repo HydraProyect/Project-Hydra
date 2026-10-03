@@ -14,6 +14,9 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDe
 /// cada uno: si aplica hoy (<see cref="ResolucionTipoDocumentoCentro"/>), si
 /// hay una fila explícita (y su Incluido/PeriodicidadEspecial/BloqueaAcceso/
 /// adjunto) o si sigue el criterio global de <c>TipoDocumento.CuentaParaCumplimiento</c>.
+/// <c>ToleranciaDias</c> es la personalización de este Centro (<c>null</c> = hereda) y
+/// <c>ToleranciaHeredadaDias</c> la del Cliente empresarial titular del Centro (0 si no la fijó): lo que rige es
+/// <see cref="ReglaBloqueoDeAcceso.ResolverToleranciaDias"/>.
 /// Sustituye a ObtenerRequisitosDocumentalesDeCentroQuery (retirada junto con
 /// RequisitoDocumental).
 /// </summary>
@@ -29,7 +32,9 @@ public record DocumentacionRequeridaCentroDto(
     int? PeriodicidadEspecialMeses,
     bool BloqueaAcceso,
     string? ArchivoUrl,
-    string? NombreArchivoOriginal);
+    string? NombreArchivoOriginal,
+    int? ToleranciaDias = null,
+    int ToleranciaHeredadaDias = 0);
 
 public class ObtenerDocumentacionRequeridaDeCentroQueryHandler(
     ICentrosQueryContext centrosContext,
@@ -43,8 +48,16 @@ public class ObtenerDocumentacionRequeridaDeCentroQueryHandler(
         if (!await alcanceDatos.CentroVisibleAsync(request.CentroId, cancellationToken))
             return null;
 
-        if (!await centrosContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken))
+        var clienteEmpresarialId = await centrosContext.Centros
+            .Where(c => c.Id == request.CentroId)
+            .Select(c => (Guid?)c.ClienteId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (clienteEmpresarialId is null)
             return null;
+
+        var toleranciasHeredadas = await tiposDocumentoContext.ToleranciasDocumentoClienteEmpresarial
+            .Where(t => t.ClienteEmpresarialId == clienteEmpresarialId)
+            .ToDictionaryAsync(t => t.TipoDocumentoId, t => t.ToleranciaDias, cancellationToken);
 
         var tipos = await tiposDocumentoContext.TiposDocumento
             .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador || t.AmbitoAplicacion == AmbitoAplicacion.Empresa)
@@ -68,7 +81,9 @@ public class ObtenerDocumentacionRequeridaDeCentroQueryHandler(
                     PeriodicidadEspecialMeses: fila?.PeriodicidadEspecialMeses,
                     BloqueaAcceso: fila?.BloqueaAcceso ?? false,
                     ArchivoUrl: fila?.ArchivoUrl,
-                    NombreArchivoOriginal: fila?.NombreArchivoOriginal);
+                    NombreArchivoOriginal: fila?.NombreArchivoOriginal,
+                    ToleranciaDias: fila?.ToleranciaDias,
+                    ToleranciaHeredadaDias: toleranciasHeredadas.TryGetValue(t.Id, out var heredada) ? heredada : 0);
             })
             .ToList();
     }

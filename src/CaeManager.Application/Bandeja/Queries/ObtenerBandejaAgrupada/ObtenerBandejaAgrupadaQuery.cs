@@ -17,10 +17,10 @@ public record ObtenerBandejaAgrupadaQuery : IRequest<BandejaAgrupadaDto>;
 /// <param name="GrupoId">Identificador estable del grupo — "cliente-{id}" o "empresa-{id}" (ver <see cref="ObtenerBandejaAgrupadaQueryHandler.Agrupar"/>).</param>
 /// <param name="BloqueaAcceso">
 /// True si algún item del grupo es <see cref="TipoItemBandeja.RequisitoPendiente"/>
-/// (también de alta nueva) o cumple <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro"/>
+/// o cumple <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso"/>
 /// — esos grupos van primero (§ 11 de la ficha SCREEN 01, Parte XV de la
 /// auditoría). Es la clave de orden, no el dato «bloquea acceso» que se
-/// enseña: ese, sin las altas nuevas, es <c>TipoItemBandejaUi.BloqueaAccesoDeVerdad</c>.
+/// enseña: ese es <c>TipoItemBandejaUi.BloqueaAccesoDeVerdad</c>.
 /// </param>
 public record GrupoColaDto(string GrupoId, string Titulo, bool BloqueaAcceso, IReadOnlyList<ItemBandejaDto> Items);
 
@@ -118,7 +118,7 @@ public class ObtenerBandejaAgrupadaQueryHandler(IMediator mediator, ICalculoEsta
         var grupos = orden
             .Select(id => new GrupoColaDto(
                 id, claves[id].Titulo,
-                claves[id].Items.Any(i => i.Tipo == TipoItemBandeja.RequisitoPendiente || BloqueaAccesoAlCentro(i)),
+                claves[id].Items.Any(i => i.Tipo == TipoItemBandeja.RequisitoPendiente || BloqueaElAcceso(i)),
                 claves[id].Items))
             .OrderByDescending(g => g.BloqueaAcceso)
             .ThenBy(g => g.Items.Min(PrioridadTipo))
@@ -129,17 +129,18 @@ public class ObtenerBandejaAgrupadaQueryHandler(IMediator mediator, ICalculoEsta
     }
 
     /// <summary>
-    /// Qué item de la cola cierra de verdad el acceso a un Centro de Trabajo.
+    /// Qué item de la cola cierra de verdad el acceso de un Trabajador a un Centro de Trabajo.
     /// Única fuente para la tarjeta del grupo (badge y banda), el recuento
-    /// «M bloquean acceso» y la pista «N centros bloqueados» de Inicio:
+    /// «M bloquean acceso» y la pista «N trabajadores bloqueados» de Inicio.
+    /// «Bloqueado» es un estado del Trabajador, nunca del Centro (corrección del propietario, 2026-10-03):
     /// <list type="bullet">
-    ///   <item><description><see cref="TipoItemBandeja.RequisitoPendiente"/> que no es alta nueva — un alta sin completar no cierra nada.</description></item>
+    ///   <item><description><see cref="TipoItemBandeja.RequisitoPendiente"/> — siempre: un requisito bloqueante ausente o que ya no vale en ese Centro bloquea, también al Trabajador recién dado de alta sin documentación (ya no hay excepción de «alta nueva»).</description></item>
     ///   <item><description><see cref="TipoItemBandeja.PlataformaRechazada"/> que el cálculo de estado del Centro cuenta como bloqueante (D-7, <see cref="ItemBandejaDto.RechazoBloqueaCentro"/>). Una rechazada no aplicable a ese Centro no cuenta.</description></item>
     /// </list>
     /// </summary>
-    public static bool BloqueaAccesoAlCentro(ItemBandejaDto item) => item.Tipo switch
+    public static bool BloqueaElAcceso(ItemBandejaDto item) => item.Tipo switch
     {
-        TipoItemBandeja.RequisitoPendiente => !item.EsAltaNueva,
+        TipoItemBandeja.RequisitoPendiente => true,
         TipoItemBandeja.PlataformaRechazada => item.RechazoBloqueaCentro,
         _ => false
     };

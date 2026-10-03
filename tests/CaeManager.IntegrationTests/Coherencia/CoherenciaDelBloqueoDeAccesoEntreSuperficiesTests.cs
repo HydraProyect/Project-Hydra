@@ -1,6 +1,8 @@
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
+using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -20,26 +22,39 @@ namespace CaeManager.IntegrationTests.Coherencia;
 
 /// <summary>
 /// Bloqueo de acceso por documento bloqueante, dirigido por tabla y contra PostgreSQL con RLS real (el rol
-/// <c>cae_app_runtime</c> de producción). Decisión del propietario del producto, 2026-10-03:
+/// <c>cae_app_runtime</c> de producción). Decisión del propietario del producto, 2026-10-03, y su corrección de la tarde:
 /// <list type="number">
-/// <item><b>R1</b> — un documento bloqueante de Trabajador ausente o vencido bloquea a ese Trabajador; Próximo,
-/// Urgente (válidos hoy), «No caduca» y «Sin confirmar» no.</item>
-/// <item><b>R2</b> — un documento bloqueante de Empresa ausente o vencido bloquea a TODOS los Trabajadores de esa
-/// Empresa en TODOS los Centros del Tenant propietario (también a los de un subcontratista), aunque su
-/// documentación personal esté completa; nunca cruza de un Tenant a otro.</item>
-/// <item><b>R3</b> — el sujeto es el Trabajador o la Empresa; el Centro no es el sujeto.</item>
+/// <item><b>R1</b> — un documento bloqueante de Trabajador ausente o que ya no vale bloquea a ese Trabajador en los Centros
+/// que lo exigen. Un Trabajador recién dado de alta, sin ningún documento, está bloqueado (no hay «alta nueva» exenta).</item>
+/// <item><b>R2</b> — un documento bloqueante de Empresa ausente o que ya no vale bloquea a TODOS los Trabajadores de esa
+/// Empresa, aunque su documentación personal esté completa, pero SOLO en los Centros que ese documento exige como
+/// bloqueante; nunca cruza de un Tenant a otro.</item>
+/// <item><b>R3</b> — el sujeto es el Trabajador o la Empresa; «Bloqueado» es un estado del Trabajador, nunca del Centro.</item>
+/// <item><b>Vigencia y tolerancia por Centro</b> — «ya no vale» se decide con las condiciones de cada Centro: su periodicidad
+/// especial (sustituye al vencimiento del documento) y su tolerancia en días (la del Centro si la personaliza; si no, la
+/// del Cliente empresarial titular; si no, 0). La Empresa con el mismo certificado vencido puede estar bloqueada en un
+/// Centro y no en otro.</item>
 /// </list>
 ///
 /// <para>
 /// Las superficies que consumen la regla (la consulta de Mi trabajo y la fusión de la cola que la pinta) tienen que
-/// dar la misma respuesta que la tabla. <b>Lo que esta tabla NO fija, a propósito</b>: qué enseña el semáforo del
-/// Centro (<c>CalculoEstadoCentroService</c>) con Trabajadores o Empresas bloqueados. Hoy solo lo pone en Bloqueado la
-/// ausencia total de un tipo de Trabajador (no el vencido, no el de Empresa) y la regla R3 deja ese estado sin
-/// definir: es una decisión de producto pendiente, y una fila aquí la consagraría.
+/// dar la misma respuesta que la tabla. <b>Lo que esta tabla NO fija</b>: el semáforo del Centro por las causas de
+/// plataforma (acreditación rechazada o vencida en plataforma), que no son documentos de Trabajador ni de Empresa.
 /// </para>
 /// </summary>
 public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
 {
+    // Tolerancia que rige para el certificado de Empresa en cada Centro de la siembra: A1 la fija en 0 (gana al 30 del
+    // Cliente empresarial), A2 la personaliza en 15 y A4 la hereda del Cliente empresarial (30).
+    private const int ToleranciaA1 = 0;
+    private const int ToleranciaA2 = 15;
+    private const int ToleranciaA4 = 30;
+
+    // Otros dos Clientes empresariales del mismo Tenant: el A2 fija un defecto distinto (5) y el A3 no fija ninguno (0). Sus
+    // Centros (A6 y A7) heredan cada uno el suyo; si el servicio tomara la tolerancia de otro Cliente empresarial, fallaria.
+    private const int ToleranciaA6 = 5;
+    private const int ToleranciaA7 = 0;
+
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenantA = Guid.NewGuid();
     private readonly Guid _tenantB = Guid.NewGuid();
@@ -52,11 +67,15 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     private CaeManagerDbContext _propietario = null!;
     private readonly List<CaeManagerDbContext> _contextosRuntime = [];
 
-    private Guid _centroA1, _centroA2, _centroA3SinGestion;
+    private Guid _clienteA, _centroA1, _centroA2, _centroA3SinGestion, _centroA4, _centroA5, _centroA6, _centroA7;
     private Guid _tipoPss, _tipoCertificado;
     private readonly List<Caso> _casos = [];
 
-    private sealed record Esperado(AmbitoAplicacion Ambito, SituacionDeRequisitoBloqueante Situacion, bool EsAltaNueva);
+    private sealed record Esperado(AmbitoAplicacion Ambito, SituacionDeRequisitoBloqueante Situacion, int ToleranciaDias);
+
+    private static Esperado EsperadoDeTrabajador(SituacionDeRequisitoBloqueante situacion) => new(AmbitoAplicacion.Trabajador, situacion, 0);
+    private static Esperado EmpresaAusente(int tolerancia) => new(AmbitoAplicacion.Empresa, SituacionDeRequisitoBloqueante.Ausente, tolerancia);
+    private static Esperado EmpresaVencida(int tolerancia) => new(AmbitoAplicacion.Empresa, SituacionDeRequisitoBloqueante.Vencido, tolerancia);
 
     /// <summary>Una fila de la tabla: un Trabajador, dónde está asignado y a qué Centros y por qué debe estar bloqueado.</summary>
     private sealed class Caso(string nombre, string superficie)
@@ -108,24 +127,37 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
 
         var cliente = Empresa.CrearComoCliente("Cliente empresarial A", "B12345674", false, null, null);
         var contratista = new Empresa("Contratista A S.L.");
+        var cliente2 = Empresa.CrearComoCliente("Cliente empresarial A2", "B23456783", false, null, null);
+        var cliente3 = Empresa.CrearComoCliente("Cliente empresarial A3", "B34567891", false, null, null);
+        var empVencida5 = new Empresa("Empresa con certificado vencido hace 5 dias");
+        var empVencida6 = new Empresa("Empresa con certificado vencido hace 6 dias");
         var empresaBase = new Empresa("Empresa base A");
         var empAusente = new Empresa("Empresa sin certificado");
-        var empVencida = new Empresa("Empresa con certificado vencido");
+        var empVencida1 = new Empresa("Empresa con certificado vencido hace 1 dia");
+        var empVencida15 = new Empresa("Empresa con certificado vencido hace 15 dias");
+        var empVencida16 = new Empresa("Empresa con certificado vencido hace 16 dias");
+        var empVencida30 = new Empresa("Empresa con certificado vencido hace 30 dias");
+        var empVencida31 = new Empresa("Empresa con certificado vencido hace 31 dias");
         var empVenceHoy = new Empresa("Empresa con certificado que vence hoy");
         var empNoCaduca = new Empresa("Empresa con certificado que no caduca");
         var empSinConfirmar = new Empresa("Empresa con certificado sin confirmar");
         var empVigente = new Empresa("Empresa con certificado vigente");
         var subAusente = new Empresa("Subcontratista sin certificado");
         var subVigente = new Empresa("Subcontratista con certificado");
-        c.Empresas.AddRange(cliente, contratista, empresaBase, empAusente, empVencida, empVenceHoy, empNoCaduca,
-            empSinConfirmar, empVigente, subAusente, subVigente);
+        c.Empresas.AddRange(cliente2, cliente3, empVencida5, empVencida6);
+        c.Empresas.AddRange(cliente, contratista, empresaBase, empAusente, empVencida1, empVencida15, empVencida16,
+            empVencida30, empVencida31, empVenceHoy, empNoCaduca, empSinConfirmar, empVigente, subAusente, subVigente);
         await c.SaveChangesAsync();
 
         var centro1 = new Centro(cliente.Id, contratista.Id, "Centro A1");
         var centro2 = new Centro(cliente.Id, contratista.Id, "Centro A2");
         var centro3 = new Centro(cliente.Id, contratista.Id, "Centro A3 sin gestion CAE");
         centro3.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
-        c.Centros.AddRange(centro1, centro2, centro3);
+        var centro4 = new Centro(cliente.Id, contratista.Id, "Centro A4");
+        var centro5 = new Centro(cliente.Id, contratista.Id, "Centro A5");
+        var centro6 = new Centro(cliente2.Id, contratista.Id, "Centro A6 (Cliente empresarial A2)");
+        var centro7 = new Centro(cliente3.Id, contratista.Id, "Centro A7 (Cliente empresarial A3)");
+        c.Centros.AddRange(centro1, centro2, centro3, centro4, centro5, centro6, centro7);
 
         var pss = new TipoDocumento("PSS firmado", null, false, 1, AmbitoAplicacion.Trabajador);
         var certificado = new TipoDocumento("Certificado de la Seguridad Social", null, false, 2, AmbitoAplicacion.Empresa);
@@ -133,17 +165,33 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         c.TiposDocumento.AddRange(pss, certificado, deCliente);
         await c.SaveChangesAsync();
 
-        // El PSS es bloqueante SOLO en el Centro 1; el certificado de Empresa, marcado en el Centro 1, bloquea en todos
-        // (R2). El tipo de ambito Cliente tambien esta marcado: no tiene sujeto y no debe bloquear a nadie.
+        // El PSS es bloqueante en el Centro 1 y en el 5 (este con renovacion cada 12 meses). El certificado de Empresa lo es
+        // en los Centros 1 (tolerancia 0 propia), 2 (15 propia) y 4 (sin propia: hereda 30 del Cliente empresarial); en el 3,
+        // sin gestion CAE, la marca no cuenta; en el 5 no se exige. El tipo de ambito Cliente tambien esta marcado: no tiene
+        // sujeto y no debe bloquear a nadie.
         c.TiposDocumentoCentros.AddRange(
             new TipoDocumentoCentro(pss.Id, centro1.Id, incluido: true, bloqueaAcceso: true),
-            new TipoDocumentoCentro(certificado.Id, centro1.Id, incluido: true, bloqueaAcceso: true),
+            new TipoDocumentoCentro(pss.Id, centro3.Id, incluido: true, bloqueaAcceso: true),
+            new TipoDocumentoCentro(pss.Id, centro5.Id, incluido: true, periodicidadEspecialMeses: 12, bloqueaAcceso: true),
+            new TipoDocumentoCentro(certificado.Id, centro1.Id, incluido: true, bloqueaAcceso: true, toleranciaDias: ToleranciaA1),
+            new TipoDocumentoCentro(certificado.Id, centro2.Id, incluido: true, bloqueaAcceso: true, toleranciaDias: ToleranciaA2),
+            new TipoDocumentoCentro(certificado.Id, centro3.Id, incluido: true, bloqueaAcceso: true, toleranciaDias: ToleranciaA2),
+            new TipoDocumentoCentro(certificado.Id, centro4.Id, incluido: true, bloqueaAcceso: true),
+            new TipoDocumentoCentro(certificado.Id, centro6.Id, incluido: true, bloqueaAcceso: true),
+            new TipoDocumentoCentro(certificado.Id, centro7.Id, incluido: true, bloqueaAcceso: true),
             new TipoDocumentoCentro(deCliente.Id, centro1.Id, incluido: true, bloqueaAcceso: true));
+        c.ToleranciasDocumentoClienteEmpresarial.Add(new ToleranciaDocumentoClienteEmpresarial(cliente.Id, certificado.Id, ToleranciaA4));
+        c.ToleranciasDocumentoClienteEmpresarial.Add(new ToleranciaDocumentoClienteEmpresarial(cliente2.Id, certificado.Id, ToleranciaA6));
         await c.SaveChangesAsync();
 
+        _clienteA = cliente.Id;
         _centroA1 = centro1.Id;
         _centroA2 = centro2.Id;
         _centroA3SinGestion = centro3.Id;
+        _centroA4 = centro4.Id;
+        _centroA5 = centro5.Id;
+        _centroA6 = centro6.Id;
+        _centroA7 = centro7.Id;
         _tipoPss = pss.Id;
         _tipoCertificado = certificado.Id;
 
@@ -151,7 +199,13 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
 
         // La Empresa base y las de «vigente» cumplen el certificado: no bloquean a sus Trabajadores por R2.
         c.Documentos.Add(Documento.DeEmpresa(empresaBase.Id, certificado.Id, emision, VigenciaDocumento.NoCaduca));
-        c.Documentos.Add(Documento.DeEmpresa(empVencida.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(-1))));
+        c.Documentos.Add(Documento.DeEmpresa(empVencida1.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(-1))));
+        c.Documentos.Add(Documento.DeEmpresa(empVencida15.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(-15))));
+        c.Documentos.Add(Documento.DeEmpresa(empVencida16.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(-16))));
+        c.Documentos.Add(Documento.DeEmpresa(empVencida30.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(-30))));
+        c.Documentos.Add(Documento.DeEmpresa(empVencida31.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(-31))));
+        c.Documentos.Add(Documento.DeEmpresa(empVencida5.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(-5))));
+        c.Documentos.Add(Documento.DeEmpresa(empVencida6.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(-6))));
         c.Documentos.Add(Documento.DeEmpresa(empVenceHoy.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy)));
         c.Documentos.Add(Documento.DeEmpresa(empNoCaduca.Id, certificado.Id, emision, VigenciaDocumento.NoCaduca));
         c.Documentos.Add(Documento.DeEmpresa(empSinConfirmar.Id, certificado.Id, emision, VigenciaDocumento.SinConfirmar));
@@ -159,32 +213,61 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         c.Documentos.Add(Documento.DeEmpresa(subVigente.Id, certificado.Id, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(200))));
         await c.SaveChangesAsync();
 
-        var trabajador = new Esperado(AmbitoAplicacion.Trabajador, SituacionDeRequisitoBloqueante.Ausente, true);
-        var trabajadorVencido = new Esperado(AmbitoAplicacion.Trabajador, SituacionDeRequisitoBloqueante.Vencido, false);
-        var empresaAusente = new Esperado(AmbitoAplicacion.Empresa, SituacionDeRequisitoBloqueante.Ausente, false);
-        var empresaVencida = new Esperado(AmbitoAplicacion.Empresa, SituacionDeRequisitoBloqueante.Vencido, false);
+        var ausente = EsperadoDeTrabajador(SituacionDeRequisitoBloqueante.Ausente);
+        var vencido = EsperadoDeTrabajador(SituacionDeRequisitoBloqueante.Vencido);
 
-        // R1: un Trabajador de la Empresa base, asignado solo al Centro 1, con el PSS en cada situacion.
-        await AnadirR1Async(c, empresaBase.Id, "R1 · PSS ausente", null, trabajador);
-        await AnadirR1Async(c, empresaBase.Id, "R1 · PSS vencido ayer", [VigenciaDocumento.VenceEl(_hoy.AddDays(-1))], trabajadorVencido);
-        await AnadirR1Async(c, empresaBase.Id, "R1 · PSS vence hoy (Urgente, valido hoy)", [VigenciaDocumento.VenceEl(_hoy)], null);
-        await AnadirR1Async(c, empresaBase.Id, "R1 · PSS Urgente a 5 dias", [VigenciaDocumento.VenceEl(_hoy.AddDays(5))], null);
-        await AnadirR1Async(c, empresaBase.Id, "R1 · PSS Proximo a 20 dias", [VigenciaDocumento.VenceEl(_hoy.AddDays(20))], null);
-        await AnadirR1Async(c, empresaBase.Id, "R1 · PSS vigente a 200 dias", [VigenciaDocumento.VenceEl(_hoy.AddDays(200))], null);
-        await AnadirR1Async(c, empresaBase.Id, "R1 · PSS No caduca", [VigenciaDocumento.NoCaduca], null);
-        await AnadirR1Async(c, empresaBase.Id, "R1 · PSS Sin confirmar", [VigenciaDocumento.SinConfirmar], null);
-        await AnadirR1Async(c, empresaBase.Id, "R1 · PSS vencido y su renovacion vigente",
-            [VigenciaDocumento.VenceEl(_hoy.AddDays(-30)), VigenciaDocumento.VenceEl(_hoy.AddDays(335))], null);
+        // R1: un Trabajador de la Empresa base, asignado solo al Centro 1, con el PSS en cada situacion. El primero es el
+        // recien dado de alta: sin ningun documento, bloqueado.
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "R1 · alta nueva sin ningun documento", emision, [], (_centroA1, ausente));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "R1 · PSS vencido ayer", emision, [VigenciaDocumento.VenceEl(_hoy.AddDays(-1))], (_centroA1, vencido));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "R1 · PSS vence hoy (Urgente, valido hoy)", emision, [VigenciaDocumento.VenceEl(_hoy)], (_centroA1, null));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "R1 · PSS Urgente a 5 dias", emision, [VigenciaDocumento.VenceEl(_hoy.AddDays(5))], (_centroA1, null));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "R1 · PSS Proximo a 20 dias", emision, [VigenciaDocumento.VenceEl(_hoy.AddDays(20))], (_centroA1, null));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "R1 · PSS vigente a 200 dias", emision, [VigenciaDocumento.VenceEl(_hoy.AddDays(200))], (_centroA1, null));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "R1 · PSS No caduca", emision, [VigenciaDocumento.NoCaduca], (_centroA1, null));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "R1 · PSS Sin confirmar", emision, [VigenciaDocumento.SinConfirmar], (_centroA1, null));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "R1 · PSS vencido y su renovacion vigente", emision,
+            [VigenciaDocumento.VenceEl(_hoy.AddDays(-30)), VigenciaDocumento.VenceEl(_hoy.AddDays(335))], (_centroA1, null));
 
-        // R2: un Trabajador con el PSS completo, asignado a los Centros 1, 2 y 3 (este sin gestion CAE), de cada Empresa.
-        await AnadirR2Async(c, "R2 · Empresa sin el certificado", empAusente.Id, subcontrata: false, empresaAusente);
-        await AnadirR2Async(c, "R2 · certificado de Empresa vencido ayer", empVencida.Id, subcontrata: false, empresaVencida);
-        await AnadirR2Async(c, "R2 · certificado de Empresa que vence hoy", empVenceHoy.Id, subcontrata: false, null);
-        await AnadirR2Async(c, "R2 · certificado de Empresa que no caduca", empNoCaduca.Id, subcontrata: false, null);
-        await AnadirR2Async(c, "R2 · certificado de Empresa sin confirmar", empSinConfirmar.Id, subcontrata: false, null);
-        await AnadirR2Async(c, "R2 · certificado de Empresa vigente", empVigente.Id, subcontrata: false, null);
-        await AnadirR2Async(c, "R2 · Trabajador de un subcontratista sin el certificado", subAusente.Id, subcontrata: true, empresaAusente);
-        await AnadirR2Async(c, "R2 · Trabajador de un subcontratista con el certificado", subVigente.Id, subcontrata: true, null);
+        // Vigencia por Centro: el Centro 5 exige renovar el PSS cada 12 meses desde la emision; el Centro 1 vale el
+        // vencimiento del propio documento.
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Vigencia · PSS emitido hace 400 dias que vence en 200: vale en A1, vencido en A5 (12 meses)",
+            emision, [VigenciaDocumento.VenceEl(_hoy.AddDays(200))], (_centroA1, null), (_centroA5, vencido));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Vigencia · PSS emitido hace 100 dias vencido hace 5: vencido en A1, vale en A5 (la periodicidad sustituye al vencimiento)",
+            _hoy.AddDays(-100), [VigenciaDocumento.VenceEl(_hoy.AddDays(-5))], (_centroA1, vencido), (_centroA5, null));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Vigencia · PSS No caduca no vence en ningun Centro, tampoco con periodicidad",
+            emision, [VigenciaDocumento.NoCaduca], (_centroA1, null), (_centroA5, null));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Vigencia · sin PSS: ausente en A1 y en A5",
+            emision, [], (_centroA1, ausente), (_centroA5, ausente));
+
+        // R2: un Trabajador con el PSS completo, asignado a los Centros 1, 2, 3 (sin gestion CAE) y 4, de cada Empresa. El
+        // certificado bloquea solo donde se exige y segun la tolerancia de cada Centro: [A1 (0), A2 (15), A4 (30)].
+        await AnadirR2Async(c, "R2 · Empresa sin el certificado", empAusente.Id, false,
+            EmpresaAusente(ToleranciaA1), EmpresaAusente(ToleranciaA2), EmpresaAusente(ToleranciaA4));
+        await AnadirR2Async(c, "R2 · certificado de Empresa vencido hace 1 dia", empVencida1.Id, false,
+            EmpresaVencida(ToleranciaA1), null, null);
+        await AnadirR2Async(c, "R2 · certificado de Empresa vencido hace 15 dias (limite de A2)", empVencida15.Id, false,
+            EmpresaVencida(ToleranciaA1), null, null);
+        await AnadirR2Async(c, "R2 · certificado de Empresa vencido hace 16 dias", empVencida16.Id, false,
+            EmpresaVencida(ToleranciaA1), EmpresaVencida(ToleranciaA2), null);
+        await AnadirR2Async(c, "R2 · certificado de Empresa vencido hace 30 dias (limite de A4)", empVencida30.Id, false,
+            EmpresaVencida(ToleranciaA1), EmpresaVencida(ToleranciaA2), null);
+        await AnadirR2Async(c, "R2 · certificado de Empresa vencido hace 31 dias", empVencida31.Id, false,
+            EmpresaVencida(ToleranciaA1), EmpresaVencida(ToleranciaA2), EmpresaVencida(ToleranciaA4));
+        await AnadirR2Async(c, "R2 · certificado de Empresa que vence hoy", empVenceHoy.Id, false, null, null, null);
+        await AnadirR2Async(c, "R2 · certificado de Empresa que no caduca", empNoCaduca.Id, false, null, null, null);
+        await AnadirR2Async(c, "R2 · certificado de Empresa sin confirmar", empSinConfirmar.Id, false, null, null, null);
+        await AnadirR2Async(c, "R2 · certificado de Empresa vigente", empVigente.Id, false, null, null, null);
+        await AnadirR2Async(c, "R2 · Trabajador de un subcontratista sin el certificado", subAusente.Id, true,
+            EmpresaAusente(ToleranciaA1), EmpresaAusente(ToleranciaA2), EmpresaAusente(ToleranciaA4));
+        await AnadirR2Async(c, "R2 · Trabajador de un subcontratista con el certificado", subVigente.Id, true, null, null, null);
+
+        // Cada Centro hereda el defecto de SU Cliente empresarial: A4 (Cliente A, 30), A6 (Cliente A2, 5) y A7 (Cliente A3, sin
+        // defecto: 0). Un certificado vencido hace 5 dias vale en A4 y A6 y no en A7; hace 6, solo en A4.
+        await AnadirHerenciaAsync(c, "Herencia · certificado de Empresa vencido hace 5 dias", empVencida5.Id,
+            null, EmpresaVencida(ToleranciaA7));
+        await AnadirHerenciaAsync(c, "Herencia · certificado de Empresa vencido hace 6 dias", empVencida6.Id,
+            EmpresaVencida(ToleranciaA6), EmpresaVencida(ToleranciaA7));
 
         // Control: el requisito de Trabajador es de SU Centro. En el Centro 2 el PSS no es bloqueante y nadie tiene
         // que aparecer por no tenerlo.
@@ -217,22 +300,28 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         _casos.Add(casoBaja);
     }
 
-    private async Task AnadirR1Async(CaeManagerDbContext c, Guid empresaId, string nombre, VigenciaDocumento[]? vigencias, Esperado? esperado)
+    private async Task AnadirTrabajadorConPssAsync(
+        CaeManagerDbContext c, Guid empresaId, string nombre, DateOnly emision, VigenciaDocumento[] vigencias,
+        params (Guid Centro, Esperado? Esperado)[] porCentro)
     {
         var trabajador = Trabajador.DeEmpresa(empresaId, "Caso", nombre, Dni());
         c.Trabajadores.Add(trabajador);
         await c.SaveChangesAsync();
-        c.Asignaciones.Add(new Asignacion(trabajador.Id, _centroA1, _hoy.AddDays(-400)));
-        foreach (var vigencia in vigencias ?? [])
-            c.Documentos.Add(Documento.DeTrabajador(trabajador.Id, _tipoPss, _hoy.AddDays(-400), vigencia));
+        foreach (var (centro, _) in porCentro)
+            c.Asignaciones.Add(new Asignacion(trabajador.Id, centro, _hoy.AddDays(-400)));
+        foreach (var vigencia in vigencias)
+            c.Documentos.Add(Documento.DeTrabajador(trabajador.Id, _tipoPss, emision, vigencia));
         await c.SaveChangesAsync();
 
         var caso = new Caso(nombre, "Trabajador") { TrabajadorId = trabajador.Id };
-        caso.PorCentro[_centroA1] = esperado;
+        foreach (var (centro, esperado) in porCentro)
+            caso.PorCentro[centro] = esperado;
         _casos.Add(caso);
     }
 
-    private async Task AnadirR2Async(CaeManagerDbContext c, string nombre, Guid empresaId, bool subcontrata, Esperado? esperado)
+    private async Task AnadirR2Async(
+        CaeManagerDbContext c, string nombre, Guid empresaId, bool subcontrata,
+        Esperado? enA1, Esperado? enA2, Esperado? enA4)
     {
         var trabajador = subcontrata
             ? Trabajador.DeSubcontrata(empresaId, "Caso", nombre, Dni())
@@ -241,22 +330,42 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         await c.SaveChangesAsync();
 
         var emision = _hoy.AddDays(-400);
-        // Documentacion personal COMPLETA: el PSS vigente. R2: bloquea igual.
+        // Documentacion personal COMPLETA: el PSS vigente. R2: bloquea igual donde el certificado se exige.
         c.Documentos.Add(Documento.DeTrabajador(trabajador.Id, _tipoPss, emision, VigenciaDocumento.VenceEl(_hoy.AddDays(200))));
-        foreach (var centro in new[] { _centroA1, _centroA2, _centroA3SinGestion })
+        foreach (var centro in new[] { _centroA1, _centroA2, _centroA3SinGestion, _centroA4 })
             c.Asignaciones.Add(new Asignacion(trabajador.Id, centro, emision));
         await c.SaveChangesAsync();
 
         var caso = new Caso(nombre, "Empresa") { TrabajadorId = trabajador.Id };
-        caso.PorCentro[_centroA1] = esperado;
-        caso.PorCentro[_centroA2] = esperado;
+        caso.PorCentro[_centroA1] = enA1;
+        caso.PorCentro[_centroA2] = enA2;
         caso.PorCentro[_centroA3SinGestion] = null; // un Centro sin gestion CAE no exige nada, tampoco por R2
+        caso.PorCentro[_centroA4] = enA4;
+        _casos.Add(caso);
+    }
+
+    private async Task AnadirHerenciaAsync(CaeManagerDbContext c, string nombre, Guid empresaId, Esperado? enA6, Esperado? enA7)
+    {
+        var trabajador = Trabajador.DeEmpresa(empresaId, "Caso", nombre, Dni());
+        c.Trabajadores.Add(trabajador);
+        await c.SaveChangesAsync();
+
+        var emision = _hoy.AddDays(-400);
+        foreach (var centro in new[] { _centroA4, _centroA6, _centroA7 })
+            c.Asignaciones.Add(new Asignacion(trabajador.Id, centro, emision));
+        await c.SaveChangesAsync();
+
+        var caso = new Caso(nombre, "Empresa") { TrabajadorId = trabajador.Id };
+        caso.PorCentro[_centroA4] = null; // 30 dias de su Cliente empresarial: vale
+        caso.PorCentro[_centroA6] = enA6;
+        caso.PorCentro[_centroA7] = enA7;
         _casos.Add(caso);
     }
 
     /// <summary>
     /// Tenant B: su Empresa no tiene el certificado y el tipo es bloqueante en B. Su Trabajador esta bloqueado en B y
-    /// nunca debe verse desde otro Tenant.
+    /// nunca debe verse desde otro Tenant. Su Cliente empresarial fija una tolerancia de 100 dias para el Tipo: es la que
+    /// rige en B (no la de 30 del Tenant A) y ninguna fila de tolerancia cruza de un Tenant a otro.
     /// </summary>
     private async Task SembrarTenantBAsync()
     {
@@ -274,6 +383,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         c.TiposDocumento.Add(certificado);
         await c.SaveChangesAsync();
         c.TiposDocumentoCentros.Add(new TipoDocumentoCentro(certificado.Id, centro.Id, incluido: true, bloqueaAcceso: true));
+        c.ToleranciasDocumentoClienteEmpresarial.Add(new ToleranciaDocumentoClienteEmpresarial(cliente.Id, certificado.Id, 100));
 
         var trabajador = Trabajador.DeEmpresa(contratista.Id, "Trabajador", "De B", Dni());
         c.Trabajadores.Add(trabajador);
@@ -281,11 +391,12 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         c.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, _hoy.AddDays(-400)));
         await c.SaveChangesAsync();
 
+        _clienteB = cliente.Id;
         _centroB = centro.Id;
         _trabajadorB = trabajador.Id;
     }
 
-    private Guid _centroB, _trabajadorB, _centroC, _trabajadorC;
+    private Guid _clienteB, _centroB, _trabajadorB, _centroC, _trabajadorC;
 
     /// <summary>
     /// Tenant C: tiene el mismo tipo de certificado, su Empresa tampoco lo tiene, pero el tipo NO es bloqueante en C.
@@ -371,9 +482,13 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     }
 
     private static Task<IReadOnlyList<DocumentacionBloqueantePendienteDto>> MiTrabajo(
-        CaeManagerDbContext c, IAlcanceDatosService? alcance = null) =>
-        new ObtenerDocumentacionBloqueantePendienteQueryHandler(c, c, c, c, c, c, alcance ?? new AlcanceDatosServiceFalso())
+        CaeManagerDbContext c, IAlcanceDatosService? alcance = null)
+    {
+        var alcanceEfectivo = alcance ?? new AlcanceDatosServiceFalso();
+        var evaluacion = new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, alcanceEfectivo);
+        return new ObtenerDocumentacionBloqueantePendienteQueryHandler(c, c, c, evaluacion)
             .Handle(new ObtenerDocumentacionBloqueantePendienteQuery(), CancellationToken.None);
+    }
 
     // ---------- La tabla ----------
 
@@ -387,11 +502,37 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task La_tolerancia_del_Cliente_empresarial_es_del_Tenant_propietario_y_RLS_la_aisla()
+    {
+        // La tabla nueva tiene RLS por Tenant: cada Tenant ve solo sus filas, aunque se salten los filtros de EF.
+        var delA = await Runtime(_tenantA).ToleranciasDocumentoClienteEmpresarial.IgnoreQueryFilters()
+            .Select(t => new { t.ClienteEmpresarialId, t.ToleranciaDias }).ToListAsync();
+        delA.Should().HaveCount(2).And.Contain(new { ClienteEmpresarialId = _clienteA, ToleranciaDias = ToleranciaA4 });
+        delA.Select(t => t.ToleranciaDias).Should().BeEquivalentTo([ToleranciaA4, ToleranciaA6]);
+
+        var delB = await Runtime(_tenantB).ToleranciasDocumentoClienteEmpresarial.IgnoreQueryFilters()
+            .Select(t => new { t.ClienteEmpresarialId, t.ToleranciaDias }).ToListAsync();
+        delB.Should().ContainSingle().Which.Should().Be(new { ClienteEmpresarialId = _clienteB, ToleranciaDias = 100 });
+
+        (await Runtime(_tenantC).ToleranciasDocumentoClienteEmpresarial.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
     public void Control_la_siembra_aporta_al_menos_un_bloqueo_y_un_no_bloqueo_de_cada_regla()
     {
         // Que la tabla pueda fallar: sin filas bloqueadas ni no bloqueadas de R1 y de R2, «todo coincide» seria vacio.
         _casos.Where(c => c.Superficie == "Trabajador").SelectMany(c => c.PorCentro.Values).Should().Contain(v => v != null).And.Contain(v => v == null);
         _casos.Where(c => c.Superficie == "Empresa").SelectMany(c => c.PorCentro.Values).Should().Contain(v => v != null).And.Contain(v => v == null);
+    }
+
+    [Fact]
+    public void Control_hay_una_misma_Empresa_bloqueada_en_un_Centro_y_no_en_otro()
+    {
+        // El caso que motiva la regla por Centro: mismo certificado, misma Empresa, tolerancias distintas.
+        var caso = _casos.Single(c => c.Nombre == "R2 · certificado de Empresa vencido hace 16 dias");
+        caso.PorCentro[_centroA1].Should().NotBeNull();
+        caso.PorCentro[_centroA2].Should().NotBeNull();
+        caso.PorCentro[_centroA4].Should().BeNull();
     }
 
     [Fact]
@@ -420,12 +561,16 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
                 }
 
                 var fila = filas[0];
-                if (fila.Ambito != esperado.Ambito || fila.Situacion != esperado.Situacion || fila.EsAltaNueva != esperado.EsAltaNueva)
+                if (fila.Ambito != esperado.Ambito || fila.Situacion != esperado.Situacion || fila.ToleranciaDias != esperado.ToleranciaDias)
                     fallos.Add($"{caso.Nombre} · Centro {Nombre(centro)}: esperado {esperado}, observado {Describir([fila])}");
 
                 var tipoEsperado = esperado.Ambito == AmbitoAplicacion.Trabajador ? _tipoPss : _tipoCertificado;
                 if (fila.TipoDocumentoId != tipoEsperado)
                     fallos.Add($"{caso.Nombre} · Centro {Nombre(centro)}: el requisito no es el del ambito {esperado.Ambito}");
+
+                // Un Vencido lleva el dia en que venció en ese Centro; un Ausente no.
+                if ((fila.Situacion == SituacionDeRequisitoBloqueante.Vencido) != fila.VencimientoEfectivo.HasValue)
+                    fallos.Add($"{caso.Nombre} · Centro {Nombre(centro)}: VencimientoEfectivo={fila.VencimientoEfectivo} no es coherente con {fila.Situacion}");
             }
         }
 
@@ -442,15 +587,13 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         foreach (var fila in pendientes)
         {
             var item = cola.Single(i => i.Id == $"requisito-{fila.CentroId}-{fila.TrabajadorId}-{fila.TipoDocumentoId}");
-            var bloqueaDeVerdad = ObtenerBandejaAgrupadaQueryHandler.BloqueaAccesoAlCentro(item);
-            if (bloqueaDeVerdad == fila.EsAltaNueva)
-                fallos.Add($"Cola · {item.Titulo}: BloqueaAccesoAlCentro={bloqueaDeVerdad} pero EsAltaNueva={fila.EsAltaNueva}");
+            ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso(item).Should().BeTrue(
+                "toda fila de Mi trabajo es un Trabajador bloqueado: no hay excepcion de alta nueva");
 
             if (fila.Ambito == AmbitoAplicacion.Empresa)
             {
                 item.Titulo.Should().Contain("(Empresa ").And.Contain(fila.EmpresaNombre!,
                     "el titulo dice que el documento que falta es de la Empresa, no del Trabajador");
-                fila.EsAltaNueva.Should().BeFalse("un Trabajador bloqueado por su Empresa no es un alta sin completar");
             }
             else
             {
@@ -462,31 +605,62 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task R2_un_requisito_de_Empresa_marcado_en_un_Centro_no_visible_bloquea_igual_en_los_Centros_visibles()
+    public async Task R2_con_alcance_limitado_solo_ve_su_Centro_y_el_bloqueo_se_decide_con_las_condiciones_de_ese_Centro()
     {
-        // El tipo esta marcado SOLO en el Centro A1; un Gestor CAE que ve solo el A2 tiene que ver bloqueados a los
-        // Trabajadores de la Empresa sin certificado. El alcance limita lo que se devuelve, no si el requisito existe.
+        // Un Gestor CAE que ve solo el Centro A2 (tolerancia 15). El alcance limita lo que se devuelve; el bloqueo es el
+        // de A2, no el de A1 (tolerancia 0): la Empresa vencida hace 1 dia esta bloqueada en A1 pero no aqui.
         var pendientes = await MiTrabajo(Runtime(_tenantA), new AlcanceDatosServiceFalso(centroIds: [_centroA2]));
 
         pendientes.Should().NotBeEmpty();
         pendientes.Select(p => p.CentroId).Distinct().Should().Equal([_centroA2], "solo el Centro visible");
 
-        var ausente = _casos.Single(c => c.Nombre == "R2 · Empresa sin el certificado");
-        pendientes.Should().ContainSingle(p => p.TrabajadorId == ausente.TrabajadorId && p.Ambito == AmbitoAplicacion.Empresa);
+        var vencida16 = _casos.Single(c => c.Nombre == "R2 · certificado de Empresa vencido hace 16 dias");
+        pendientes.Should().ContainSingle(p => p.TrabajadorId == vencida16.TrabajadorId && p.Ambito == AmbitoAplicacion.Empresa
+            && p.Situacion == SituacionDeRequisitoBloqueante.Vencido && p.ToleranciaDias == ToleranciaA2);
 
-        // Y no se cuela nada de Centros fuera de su alcance, ni del requisito de Trabajador marcado en el A1.
+        var vencida1 = _casos.Single(c => c.Nombre == "R2 · certificado de Empresa vencido hace 1 dia");
+        pendientes.Should().NotContain(p => p.TrabajadorId == vencida1.TrabajadorId,
+            "dentro de la tolerancia de A2 (15 dias); que en A1 (tolerancia 0) este bloqueada no le alcanza aqui");
+
+        // Y no se cuela el requisito de Trabajador marcado en otros Centros.
         pendientes.Should().NotContain(p => p.Ambito == AmbitoAplicacion.Trabajador);
+    }
+
+    [Fact]
+    public async Task La_pantalla_de_requisitos_del_Centro_ensena_la_tolerancia_propia_y_la_heredada_de_su_Cliente_empresarial()
+    {
+        // Lo que el Gestor CAE ve al editar: la personalizada del Centro (null = hereda) y la que heredaria del Cliente
+        // empresarial TITULAR DE ESE CENTRO. Cada Centro lee la de su Cliente empresarial, no la de otro.
+        var comoA = Runtime(_tenantA);
+
+        async Task<DocumentacionRequeridaCentroDto> Fila(Guid centro) =>
+            (await new ObtenerDocumentacionRequeridaDeCentroQueryHandler(comoA, comoA, new AlcanceDatosServiceFalso())
+                .Handle(new ObtenerDocumentacionRequeridaDeCentroQuery(centro), CancellationToken.None))!
+                .Single(d => d.TipoDocumentoId == _tipoCertificado);
+
+        var a1 = await Fila(_centroA1);
+        (a1.ToleranciaDias, a1.ToleranciaHeredadaDias).Should().Be((ToleranciaA1, ToleranciaA4));
+        var a2 = await Fila(_centroA2);
+        (a2.ToleranciaDias, a2.ToleranciaHeredadaDias).Should().Be((ToleranciaA2, ToleranciaA4));
+        var a4 = await Fila(_centroA4);
+        (a4.ToleranciaDias, a4.ToleranciaHeredadaDias).Should().Be(((int?)null, ToleranciaA4));
+        var a6 = await Fila(_centroA6);
+        (a6.ToleranciaDias, a6.ToleranciaHeredadaDias).Should().Be(((int?)null, ToleranciaA6));
+        var a7 = await Fila(_centroA7);
+        (a7.ToleranciaDias, a7.ToleranciaHeredadaDias).Should().Be(((int?)null, ToleranciaA7));
     }
 
     [Fact]
     public async Task Aislamiento_cada_Tenant_ve_solo_lo_suyo_y_un_requisito_de_otro_Tenant_no_bloquea_a_nadie()
     {
-        // B: su Trabajador esta bloqueado por el certificado de su Empresa y solo B lo ve.
+        // B: su Trabajador esta bloqueado por el certificado de su Empresa y solo B lo ve; rige la tolerancia de SU
+        // Cliente empresarial (100), no la del Tenant A (30).
         var deB = await MiTrabajo(Runtime(_tenantB));
         var filaB = deB.Should().ContainSingle().Subject;
         filaB.TrabajadorId.Should().Be(_trabajadorB);
         filaB.CentroId.Should().Be(_centroB);
         filaB.Ambito.Should().Be(AmbitoAplicacion.Empresa);
+        filaB.ToleranciaDias.Should().Be(100);
 
         // C: el tipo es bloqueante en B pero no en C; el Trabajador de C, cuya Empresa tampoco tiene el certificado,
         // no esta bloqueado. Si la designacion cruzara Tenants, apareceria aqui.
@@ -516,10 +690,11 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
     }
 
     private string Nombre(Guid centro) =>
-        centro == _centroA1 ? "A1" : centro == _centroA2 ? "A2" : centro == _centroA3SinGestion ? "A3 (sin gestion CAE)" : centro.ToString();
+        centro == _centroA1 ? "A1" : centro == _centroA2 ? "A2" : centro == _centroA3SinGestion ? "A3 (sin gestion CAE)"
+        : centro == _centroA4 ? "A4" : centro == _centroA5 ? "A5" : centro == _centroA6 ? "A6" : centro == _centroA7 ? "A7" : centro.ToString();
 
     private static string Describir(IEnumerable<DocumentacionBloqueantePendienteDto> filas) =>
-        "[" + string.Join("; ", filas.Select(f => $"{f.Ambito}/{f.Situacion}/altaNueva={f.EsAltaNueva}")) + "]";
+        "[" + string.Join("; ", filas.Select(f => $"{f.Ambito}/{f.Situacion}/tolerancia={f.ToleranciaDias}")) + "]";
 
     private sealed class TenantActualPorAmbito : ITenantActual
     {

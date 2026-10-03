@@ -8,4 +8,5 @@ public interface ITiposDocumentoQueryContext
     IQueryable<TipoDocumentoCentro> TiposDocumentoCentros { get; }
     IQueryable<TipoDocumentoAlias> TiposDocumentoAlias { get; }
     IQueryable<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente { get; }
+    IQueryable<ToleranciaDocumentoClienteEmpresarial> ToleranciasDocumentoClienteEmpresarial { get; }
 }

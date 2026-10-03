@@ -250,7 +250,7 @@ public sealed class MiTrabajoVista
     public static string? ClaveLote(FilaMiTrabajo fila) =>
         fila.Severidad == SeveridadMiTrabajo.Bloqueo || fila.Item.TrabajadorId is not { } trabajador
             ? null
-            : $"{fila.TenantId}|{fila.Item.Tipo}|{trabajador}|{fila.Severidad}|{fila.Item.ClienteNombre}|{fila.Item.ProveedorNombre}|{fila.Item.Subtitulo}|{fila.Item.EsAltaNueva}";
+            : $"{fila.TenantId}|{fila.Item.Tipo}|{trabajador}|{fila.Severidad}|{fila.Item.ClienteNombre}|{fila.Item.ProveedorNombre}|{fila.Item.Subtitulo}";
 
     public string Titular(FiltroMiTrabajo filtro)
     {

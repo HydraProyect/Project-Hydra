@@ -171,6 +171,8 @@ public class CaeManagerDbContext(
     IQueryable<TipoDocumentoAlias> ITiposDocumentoQueryContext.TiposDocumentoAlias => TiposDocumentoAlias;
     public DbSet<ConfiguracionIaDocumentoCliente> ConfiguracionesIaDocumentoCliente => Set<ConfiguracionIaDocumentoCliente>();
     IQueryable<ConfiguracionIaDocumentoCliente> ITiposDocumentoQueryContext.ConfiguracionesIaDocumentoCliente => ConfiguracionesIaDocumentoCliente;
+    public DbSet<ToleranciaDocumentoClienteEmpresarial> ToleranciasDocumentoClienteEmpresarial => Set<ToleranciaDocumentoClienteEmpresarial>();
+    IQueryable<ToleranciaDocumentoClienteEmpresarial> ITiposDocumentoQueryContext.ToleranciasDocumentoClienteEmpresarial => ToleranciasDocumentoClienteEmpresarial;
     public DbSet<RevisionIaDocumento> RevisionesIaDocumento => Set<RevisionIaDocumento>();
     IQueryable<RevisionIaDocumento> IDocumentosQueryContext.RevisionesIaDocumento => RevisionesIaDocumento;
     public DbSet<AprobacionDocumento> AprobacionesDocumento => Set<AprobacionDocumento>();
