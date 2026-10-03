@@ -296,6 +296,24 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     }
 
     [Fact]
+    public async Task Salir_descartando_el_drawer_cierra_tambien_el_modal_rapido_aunque_este_no_tenga_cambios()
+    {
+        // El drawer lleva el aviso del kit y el modal rápido, sin nada escrito, no activa el de la página: quien descarta el
+        // alta cierra todo lo que ella abrió (la salida a la propia página no desmonta nada).
+        var cut = await AbrirAltaAsync(Renderizar());
+        await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
+        await CrearClienteDesdeElSelectorAsync(cut, "Hierros Aragón");
+
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("centros?q=zaragoza"));
+        PreguntasDeSalida(cut).Should().Be(1);
+        await cut.PulsarEnElAvisoAsync("Salir y descartar");
+
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo Cliente empresarial",
+            "el modal que abrió el alta no sobrevive a su descarte");
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Lo_escrito_en_el_modal_de_crear_Empresa_pregunta_una_vez_y_lo_traido_del_selector_no()
     {
         var cut = await AbrirAltaAsync(Renderizar());

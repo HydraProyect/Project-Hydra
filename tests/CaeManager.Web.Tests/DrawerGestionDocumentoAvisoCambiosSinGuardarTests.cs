@@ -248,6 +248,14 @@ public class DrawerGestionDocumentoAvisoCambiosSinGuardarTests : BunitContext
         var subida = Task.Run(() => entrada.UploadFiles(InputFileContent.CreateFromBinary(CrearPdf(), "prl.pdf", contentType: "application/pdf")));
         cut.WaitForAssertion(() => cut.FindComponent<ZonaSoltarArchivo>().Instance.Cargando.Should().BeTrue("la subida tiene que estar en curso para que esto mida algo"));
 
+        // Con el kit, el primario deshabilitado dice por qué (D-02, D-06): antes era un botón mudo.
+        cut.WaitForAssertion(() =>
+        {
+            var guardar = cut.Find(".drawer-pie .boton-primario");
+            guardar.HasAttribute("disabled").Should().BeTrue("no se guarda con el archivo todavía en vuelo");
+            guardar.GetAttribute("title").Should().Be("Espera a que termine la subida del archivo.");
+        });
+
         await cut.InvokeAsync(() => navegacion.NavigateTo("/trabajadores"));
 
         cut.FindAll(".modal-contenido").Should().ContainSingle("con una subida en curso salir se detiene y pregunta");
