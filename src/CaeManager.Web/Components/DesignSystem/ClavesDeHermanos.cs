@@ -24,7 +24,8 @@ public readonly record struct ClaveDeHermano(object Base, int Repeticion);
 ///
 /// <para>
 /// <b>Uso.</b> Una instancia por contenedor cuyos hijos comparten padre, creada en el propio marcado (se rehace en cada
-/// pintado, y el orden de recorrido es el de pantalla, así que las claves son estables entre pintados):
+/// pintado y el orden de recorrido es el de pantalla; las claves son estables mientras no cambie el orden o el conjunto de
+/// filas pintadas: si una repetición se oculta o se reordena, las posteriores cambian de número y se recrean):
 /// <c>@{ var claves = new ClavesDeHermanos(); }</c> y <c>@key="claves.De(item.Id)"</c>. Si varios <c>@foreach</c> alimentan al
 /// mismo padre (lotes de filas dentro de un grupo), comparten la instancia: la unicidad es del padre, no de cada bucle.
 /// </para>

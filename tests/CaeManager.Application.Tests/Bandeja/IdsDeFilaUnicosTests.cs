@@ -196,7 +196,7 @@ public class IdsDeFilaUnicosTests
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
-            if (logLevel >= LogLevel.Error) Errores.Add(formatter(state, exception));
+            if (logLevel >= LogLevel.Warning) Errores.Add(formatter(state, exception));
         }
     }
 

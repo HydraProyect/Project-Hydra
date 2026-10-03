@@ -156,7 +156,7 @@ public class MiTrabajoClavesUnicasTests : BunitContext
 
         var cut = await PintarAsentadoAsync(cola, filasEsperadas: 3);
 
-        ClavesDeRender.Duplicadas(this, cut).Should().BeEmpty("agrupado por Empresa");
+        ClavesDeRender.Duplicadas(this, cut).Should().BeEmpty("agrupado por Tenant propietario (pestaña «Empresa»)");
         ClavesDeRender.ClavesObservadas(this, cut).Should().BeGreaterThanOrEqualTo(3 + 2, "tres filas más los dos grupos de Tenant: el detector observa claves");
         cut.Render();
 

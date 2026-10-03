@@ -1,5 +1,6 @@
 using Bunit;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
+using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Bandeja.Pages;
@@ -158,9 +159,12 @@ public class ClavesUnicasEnListasTests : BunitContext
         Pintar().Should().Equal(Pintar());
     }
 
-    private (IRenderedComponent<Bandeja> Cut, MediatorDeLaBandeja Mediator) PintarBandeja(params ItemBandejaDto[] items)
+    private (IRenderedComponent<Bandeja> Cut, MediatorDeLaBandeja Mediator) PintarBandeja(params ItemBandejaDto[] items) =>
+        PintarBandeja(PerfilVocabularioTenant.ClienteDirecto, items);
+
+    private (IRenderedComponent<Bandeja> Cut, MediatorDeLaBandeja Mediator) PintarBandeja(PerfilVocabularioTenant perfil, params ItemBandejaDto[] items)
     {
-        var mediator = new MediatorDeLaBandeja(items);
+        var mediator = new MediatorDeLaBandeja(items) { Perfil = perfil };
         Services.AddScoped<IMediator>(_ => mediator);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
@@ -188,6 +192,27 @@ public class ClavesUnicasEnListasTests : BunitContext
         ClavesDeRender.ClavesObservadas(this, cut).Should().BeGreaterThanOrEqualTo(4, "se pintan al menos las cuatro filas keyed");
 
         // El diff contra el árbol anterior es lo que lanzaba: un repintado no puede romper.
+        cut.Render();
+        ClavesDeRender.Duplicadas(this, cut).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Bandeja_en_vocabulario_Consultora_con_el_mismo_Id_en_dos_Empresas_contratistas_del_mismo_grupo_no_repite_claves()
+    {
+        // Con Perfil Consultora el grupo se parte en Empresa contratista → Trabajador (bucle anidado): las filas de las dos
+        // Empresas son hermanas de un mismo padre, así que la fuente de claves debe cubrir TODO el grupo, no cada Empresa.
+        var cliente = Guid.NewGuid();
+        var empresaA = Guid.NewGuid();
+        var empresaB = Guid.NewGuid();
+        var (cut, _) = PintarBandeja(
+            PerfilVocabularioTenant.Consultora,
+            Item("alerta-repetida", TipoItemBandeja.Vencido, cliente, "Refrielectric S.A.", trabajadorId: Guid.NewGuid(), trabajadorNombre: "Ana") with { EmpresaId = empresaA, EmpresaNombre = "Montajes A" },
+            Item("alerta-repetida", TipoItemBandeja.Vencido, cliente, "Refrielectric S.A.", trabajadorId: Guid.NewGuid(), trabajadorNombre: "Luis") with { EmpresaId = empresaB, EmpresaNombre = "Montajes B" });
+
+        cut.WaitForAssertion(() => cut.FindAll(".panel-resolver-item").Count.Should().Be(2));
+        cut.FindAll(".grupo-cola-subcabecera-empresa").Should().HaveCount(2, "el vocabulario Consultora parte el grupo por Empresa contratista");
+
+        ClavesDeRender.Duplicadas(this, cut).Should().BeEmpty();
         cut.Render();
         ClavesDeRender.Duplicadas(this, cut).Should().BeEmpty();
     }

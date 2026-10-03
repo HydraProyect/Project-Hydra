@@ -232,7 +232,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         var idsDuplicados = IdDeFilaDeCola.Duplicados(fusionados.Concat(proximosSinEmpresa).Concat(seguimientoSinEmpresa), i => i.Id);
         if (idsDuplicados.Count > 0)
         {
-            logger.LogError(
+            logger.LogWarning(
                 "Mi trabajo: la cola del Tenant {TenantId} trae {Cantidad} Id de fila repetidos (p. ej. {Ejemplos}); la pantalla los numera, pero un productor de filas de la cola emite filas hermanas con el mismo Id.",
                 tenant.TenantId, idsDuplicados.Count, string.Join(", ", idsDuplicados.Keys.Take(3)));
         }

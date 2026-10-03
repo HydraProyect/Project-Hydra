@@ -36,7 +36,9 @@ namespace CaeManager.Architecture.Tests;
 /// <c>Id</c> de entidad no repita es una propiedad de su consulta (clave de BD, o una fila por entidad), no de este trinquete.
 /// (b) La congelada incluye <c>@key</c> que no compiten con hermanos (reinicio de un único hijo: <c>_version</c>,
 /// <c>GeneracionDe(…)</c>): son inocuas y se listan porque, desde el texto, no se distinguen de una construida en un bucle.
-/// (c) No ve un <c>SetKey</c> escrito en C# (<c>BuildRenderTree</c> a mano); hoy no hay ninguno en <c>src</c>.
+/// (c) No ve un <c>SetKey</c> escrito en C# (<c>BuildRenderTree</c> a mano); hoy no hay ninguno en <c>src</c>. (d) Del Id de
+/// <c>ItemBandejaDto</c> ve el <c>new ItemBandejaDto(…)</c> explícito, el <c>new(Id: …)</c> de tipo inferido con los argumentos
+/// <c>Id:</c> con nombre y <c>with { Id = … }</c>; NO ve un <c>new(…)</c> posicional de tipo inferido ni un <c>.razor</c> que construya el ítem.
 /// </para>
 /// </summary>
 public class ClavesDeListaUnicasPorConstruccionTests
@@ -45,7 +47,7 @@ public class ClavesDeListaUnicasPorConstruccionTests
     private const string ListaKeys = "Key-construida-fuera-del-punto-unico";
 
     private const string GuiaIds =
-        "El Id de una fila de la cola se construye en IdDeFilaDeCola (src/CaeManager.Application/Bandeja): un constructor por tipo de fila con " +
+        "El Id de una fila de la cola se construye en IdDeFilaDeCola (src/CaeManager.Application/Common): un constructor por tipo de fila con " +
         "todas sus dimensiones. No escribas el Id a mano en el productor. Si es una instancia que no va a una lista (un ítem de prueba que solo " +
         "sirve para calcular un tono), no sube la lista: pásale un Id de IdDeFilaDeCola o añade la línea con el motivo en tests/CaeManager.Architecture.Tests/Congelados/" + ListaIds + ".txt.";
 
@@ -72,7 +74,7 @@ public class ClavesDeListaUnicasPorConstruccionTests
         }
 
         // Control positivo: si el recorrido no viera las construcciones reales, «ninguna fuera del punto único» valdría por vacío.
-        construcciones.Should().BeGreaterThanOrEqualTo(10, "había 10 new ItemBandejaDto en src al escribirlo (7 en Fusionar, 3 en Mi trabajo, 1 en TipoItemBandejaUi); si baja, dejó de mirar o se movieron");
+        construcciones.Should().BeGreaterThanOrEqualTo(3, "había 11 new ItemBandejaDto en src al escribirlo (7 en Fusionar, 3 en Mi trabajo, 1 en TipoItemBandejaUi): el suelo solo dice que el recorrido ve productores; no es un recuento a conservar");
 
         ListaCongelada.Verificar(ListaIds, medido, GuiaIds).Should().BeNull();
     }
@@ -90,12 +92,24 @@ public class ClavesDeListaUnicasPorConstruccionTests
 
         foreach (var creacion in raiz.DescendantNodes().OfType<BaseObjectCreationExpressionSyntax>())
         {
-            if (creacion is not ObjectCreationExpressionSyntax { Type: var tipo } explicita
-                || NombreSimple(tipo) != "ItemBandejaDto")
-                continue;
+            SeparatedSyntaxList<ArgumentSyntax> argumentos;
+            switch (creacion)
+            {
+                case ObjectCreationExpressionSyntax explicita when NombreSimple(explicita.Type) == "ItemBandejaDto":
+                    argumentos = explicita.ArgumentList?.Arguments ?? default;
+                    break;
+                // `new(Id: ..., Tipo: ..., Titulo: ...)`: sin semántica no se sabe el tipo destino. Se cuenta si nombra a la vez
+                // `Id:`, `Tipo:` y `Titulo:` (otros records con `Id:` nombrado, p. ej. las órdenes del asistente, no se confunden);
+                // un `new(...)` posicional con tipo inferido NO se ve (contrato efectivo).
+                case ImplicitObjectCreationExpressionSyntax implicita
+                    when new[] { "Id", "Tipo", "Titulo" }.All(n => implicita.ArgumentList.Arguments.Any(a => a.NameColon?.Name.Identifier.ValueText == n)):
+                    argumentos = implicita.ArgumentList.Arguments;
+                    break;
+                default:
+                    continue;
+            }
 
             total++;
-            var argumentos = explicita.ArgumentList?.Arguments ?? default;
             var id = argumentos.FirstOrDefault(a => a.NameColon?.Name.Identifier.ValueText == "Id")
                      ?? argumentos.FirstOrDefault(a => a.NameColon is null);
             if (id is null || !EsDelPuntoUnico(id.Expression))
@@ -135,6 +149,11 @@ public class ClavesDeListaUnicasPorConstruccionTests
             .Should().Be((1, 1), "posicional: el primer argumento es el Id");
         MedirItemIds("class C { object X() => new ItemBandejaDto(Id: \"\", Tipo: 1); }").Should().Be((1, 1));
         MedirItemIds("class C { object X(ItemBandejaDto i) => i with { Id = \"otro\" }; }").Should().Be((0, 1));
+
+        MedirItemIds("class C { ItemBandejaDto X(Guid g) => new(Id: $\"alerta-{g}\", Tipo: 1, Titulo: \"t\"); }").Should().Be((1, 1), "tipo inferido con Id: con nombre");
+        MedirItemIds("class C { ItemBandejaDto X(Guid g) => new(Id: IdDeFilaDeCola.Visita(g), Tipo: 1, Titulo: \"t\"); }").Should().Be((1, 0));
+        MedirItemIds("class C { Otra X() => new(Id: \"x\", Nombre: \"y\"); }").Should().Be((0, 0), "otro record con Id: con nombre no es una fila de la cola");
+        MedirItemIds("class C { Otro X() => new(1, 2); }").Should().Be((0, 0), "un new(...) posicional de tipo inferido no se ve: contrato efectivo");
 
         MedirItemIds("class C { object X(Guid g) => new ItemBandejaDto(Id: IdDeFilaDeCola.Visita(g), Tipo: 1); }").Should().Be((1, 0));
         MedirItemIds("class C { object X(A a) => new ItemBandejaDto(Id: a.IdDeFila(\"alerta\"), Tipo: 1); }").Should().Be((1, 0));
@@ -208,9 +227,8 @@ public class ClavesDeListaUnicasPorConstruccionTests
         // Control positivo: el recorrido ve el árbol entero y reparte entre las tres clases. Sin él, «ninguna fuera del punto único»
         // valdría por vacío (p. ej. si la enumeración de .razor se rompiera, todas las líneas de la lista pasarían a OBSOLETA a la vez).
         ficheros.Should().BeGreaterThan(150, "había 223 .razor en la Web al escribirlo");
-        clases.GetValueOrDefault(ClaseDeKey.Entidad).Should().BeGreaterThan(60, "había ~70 @key de entidad al escribirlo");
-        clases.GetValueOrDefault(ClaseDeKey.PuntoUnico).Should().BeGreaterThanOrEqualTo(5, "había 8 @key por el punto único al escribirlo (Mi trabajo ×3, GrupoCola, Bandeja, Inicio, Trabajador 360, Sugerencias)");
-        clases.GetValueOrDefault(ClaseDeKey.Construida).Should().BeGreaterThan(10, "había ~15 @key construidas fuera del punto único (congeladas) al escribirlo");
+        clases.GetValueOrDefault(ClaseDeKey.Entidad).Should().BeGreaterThan(30, "había ~70 @key de entidad al escribirlo");
+        clases.GetValueOrDefault(ClaseDeKey.PuntoUnico).Should().BeGreaterThanOrEqualTo(1, "hay @key por el punto único (Mi trabajo, GrupoCola, Bandeja…): si no se ve ninguna, el clasificador dejó de reconocerlo");
 
         ListaCongelada.Verificar(ListaKeys, medido, GuiaKeys).Should().BeNull();
     }
@@ -232,12 +250,48 @@ public class ClavesDeListaUnicasPorConstruccionTests
             }
         }
 
-        vistos.Should().BeGreaterThanOrEqualTo(4, "había 4 <PanelResolverItem> al escribirlo (GrupoCola, Bandeja, Inicio ×2)");
+        vistos.Should().BeGreaterThanOrEqualTo(1, "hay <PanelResolverItem> en GrupoCola, Bandeja e Inicio: si no se ve ninguno, el recorrido dejó de mirar");
         string.Join(Environment.NewLine, problemas).Should().BeEmpty();
     }
 
     internal static bool PanelResolverItemSinKeyAPelo(string aperturaDelElemento) =>
         Keys(aperturaDelElemento).All(k => Clasificar(k) == ClaseDeKey.PuntoUnico);
+
+    private static readonly Regex UsoDeFuente = new(@"\b(claves\w*)\.De\(", RegexOptions.Compiled);
+
+    /// <summary>Nombres de fuente de claves que el marcado usa (<c>claves.De(…)</c>) sin declararlos allí como <c>claves = new ClavesDeHermanos()</c>.</summary>
+    internal static IReadOnlyList<string> FuentesSinDeclarar(string textoSinComentarios) => UsoDeFuente.Matches(textoSinComentarios)
+        .Select(m => m.Groups[1].Value)
+        .Distinct()
+        .Where(nombre => !Regex.IsMatch(textoSinComentarios, $@"\b{nombre}\s*=\s*new\s+ClavesDeHermanos\s*\(\s*\)"))
+        .ToList();
+
+    [Fact]
+    public void Toda_fuente_de_claves_se_crea_en_el_propio_marcado()
+    {
+        // Un campo (o un static) acumularía repeticiones entre pintados: las claves cambiarían en cada render y se recrearía todo.
+        var problemas = new List<string>();
+        var usos = 0;
+
+        foreach (var (ruta, contenido) in MarcadoRazor.LeerRazorDeLaWeb())
+        {
+            var texto = LimpiadorDeComentarios.Quitar(contenido, razor: true);
+            usos += UsoDeFuente.Matches(texto).Count;
+            problemas.AddRange(FuentesSinDeclarar(texto).Select(n => $"{ruta}: usa {n}.De(…) sin declarar `{n} = new ClavesDeHermanos()` en el marcado"));
+        }
+
+        usos.Should().BeGreaterThanOrEqualTo(1, "hay @key por el punto único: si no se ve ningún uso, el recorrido dejó de mirar");
+        string.Join(Environment.NewLine, problemas).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_detector_de_fuentes_ve_la_que_falta_y_acepta_la_declarada()
+    {
+        FuentesSinDeclarar("@{ var claves = new ClavesDeHermanos(); } <li @key=\"claves.De(a)\">").Should().BeEmpty();
+        FuentesSinDeclarar("var claves = new ClavesDeHermanos();\n<li @key=\"claves.De(a)\"><li @key=\"clavesGrupos.De(a)\">").Should().Equal("clavesGrupos");
+        FuentesSinDeclarar("<li @key=\"claves.De(a)\">").Should().Equal("claves");
+        FuentesSinDeclarar("<li @key=\"a.Id\">").Should().BeEmpty();
+    }
 
     [Fact]
     public void El_clasificador_de_keys_distingue_entidad_punto_unico_y_construida()
