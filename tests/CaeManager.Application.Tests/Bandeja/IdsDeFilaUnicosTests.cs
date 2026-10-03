@@ -117,7 +117,13 @@ public class IdsDeFilaUnicosTests
     private static DocumentacionBloqueantePendienteDto Pendiente(BloqueoDeAccesoDeTrabajador b) => new(
         CentroId: b.CentroId, CentroNombre: "Centro", TrabajadorId: b.TrabajadorId, TrabajadorNombre: "Ana García",
         TipoDocumentoId: b.TipoDocumentoId, TipoDocumentoNombre: "Tipo", EmpresaId: b.EmpresaId,
-        EsAltaNueva: b.EsAltaNueva, Ambito: b.Ambito, Situacion: b.Situacion);
+        Ambito: b.Ambito, Situacion: b.Situacion);
+
+    private static RequisitoBloqueanteDelCentro DeTrabajadorEn(Guid centro, Guid tipo) =>
+        new(centro, tipo, AmbitoAplicacion.Trabajador, new CondicionesDeAccesoDelCentro(null, 0));
+
+    private static RequisitoBloqueanteDelCentro DeEmpresaEn(Guid centro, Guid tipo) =>
+        new(centro, tipo, AmbitoAplicacion.Empresa, new CondicionesDeAccesoDelCentro(null, 0));
 
     private static IReadOnlyList<ItemBandejaDto> ColaCompleta(
         IReadOnlyList<AlertaDto> alertas, IReadOnlyList<DocumentacionBloqueantePendienteDto> requisitos)
@@ -153,8 +159,7 @@ public class IdsDeFilaUnicosTests
         var asignaciones = centros.SelectMany(c => trabajadores.Select(t => new AsignacionParaBloqueo(c, t, empresa))).ToList();
         var bloqueos = CalculoBloqueoDeAccesoDeTrabajadores.Calcular(
             asignaciones,
-            centros.ToDictionary(c => c, _ => (IReadOnlySet<Guid>)new HashSet<Guid> { tipoTrabajador }),
-            new HashSet<Guid> { tipoEmpresa },
+            [.. centros.SelectMany(c => new[] { DeTrabajadorEn(c, tipoTrabajador), DeEmpresaEn(c, tipoEmpresa) })],
             documentos: [],
             Hoy);
 
@@ -176,8 +181,7 @@ public class IdsDeFilaUnicosTests
 
         var bloqueos = CalculoBloqueoDeAccesoDeTrabajadores.Calcular(
             [asignacion, asignacion],
-            new Dictionary<Guid, IReadOnlySet<Guid>> { [centro] = new HashSet<Guid> { tipoTrabajador } },
-            new HashSet<Guid> { tipoEmpresa },
+            [DeTrabajadorEn(centro, tipoTrabajador), DeEmpresaEn(centro, tipoEmpresa)],
             documentos: [],
             Hoy);
 

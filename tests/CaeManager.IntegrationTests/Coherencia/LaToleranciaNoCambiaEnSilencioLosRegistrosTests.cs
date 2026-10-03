@@ -81,7 +81,7 @@ public class LaToleranciaNoCambiaEnSilencioLosRegistrosTests : IAsyncLifetime
         ];
         string[] desaparecenEnDos = ["Centro A2 | t2 vencido hace 50 | PSS firmado | Trabajador | Vencido"];
 
-        void Diferencia(string nombre, SortedDictionary<string, List<string>> con, SortedDictionary<string, List<string>> sin, string[] esperadas)
+        void Diferencia(string nombre, SortedDictionary<string, List<string>> con, SortedDictionary<string, List<string>> sin, string[] esperadas, string[] bloqueadosQueSeLibran)
         {
             var soloSin = sin["Mi trabajo"].Except(con["Mi trabajo"]).OrderBy(x => x, StringComparer.Ordinal).ToList();
             var soloCon = con["Mi trabajo"].Except(sin["Mi trabajo"]).ToList();
@@ -90,14 +90,18 @@ public class LaToleranciaNoCambiaEnSilencioLosRegistrosTests : IAsyncLifetime
             if (soloCon.Count != 0)
                 fallos.Add($"{nombre} · Mi trabajo: la tolerancia NO puede añadir filas y añade {string.Join(" ; ", soloCon)}");
 
-            // Los Trabajadores bloqueados por Centro: los que ya no tienen ninguna fila en ese Centro.
+            // Los Trabajadores bloqueados por Centro: se libran exactamente los que SOLO estaban bloqueados por documentos
+            // dentro de tolerancia (oráculo a mano). r1 sigue bloqueado en el Centro B y q sigue bloqueado en A (le falta el certificado).
             var bloqueadosSin = sin["Trabajadores bloqueados por Centro"].ToHashSet();
             var bloqueadosCon = con["Trabajadores bloqueados por Centro"].ToHashSet();
             bloqueadosCon.IsSubsetOf(bloqueadosSin).Should().BeTrue("la tolerancia nunca bloquea a alguien nuevo");
+            bloqueadosSin.Except(bloqueadosCon).Order(StringComparer.Ordinal).Should().Equal(bloqueadosQueSeLibran.Order(StringComparer.Ordinal),
+                nombre + ": los Trabajadores que dejan de estar bloqueados con tolerancia");
         }
 
-        Diferencia("Tenant uno", fotoUnoCon, fotoUnoSin, desaparecenEnUno);
-        Diferencia("Tenant dos", fotoDosCon, fotoDosSin, desaparecenEnDos);
+        Diferencia("Tenant uno", fotoUnoCon, fotoUnoSin, desaparecenEnUno,
+            ["Centro A | p vencido ayer", "Centro A | p vencido hace 10", "Centro A | p vencido hace 15", "Centro A | r1 en A y B"]);
+        Diferencia("Tenant dos", fotoDosCon, fotoDosSin, desaparecenEnDos, ["Centro A2 | t2 vencido hace 50"]);
 
         // 3. Lo que NO es tolerable sigue bloqueando con tolerancia: vencido hace 20 (más que los 15 de A), el certificado
         //    vencido en el Centro B (personalizado a 0), la Empresa sin certificado, las altas nuevas y el R2 por Centro.

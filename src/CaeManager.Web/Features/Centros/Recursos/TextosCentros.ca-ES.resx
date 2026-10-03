@@ -163,10 +163,10 @@
     <value>Vigència: la del propi document</value>
   </data>
   <data name="RequisitoToleranciaPropia" xml:space="preserve">
-    <value>Tolerància després de vèncer: {0} dia(s), fixada en aquest Centre</value>
+    <value>Tolerància després de vèncer: {0} dies, fixada en aquest Centre</value>
   </data>
   <data name="RequisitoToleranciaHeredada" xml:space="preserve">
-    <value>Tolerància després de vèncer: {0} dia(s), la del Client empresarial</value>
+    <value>Tolerància després de vèncer: {0} dies, la del Client empresarial</value>
   </data>
   <data name="PeriodicidadSinPropia" xml:space="preserve">
     <value>Sense període propi: val el venciment del document</value>
