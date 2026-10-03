@@ -205,7 +205,7 @@
     </Pie>
 </Modal>
 
-<Modal HayCambios="() => HayCambiosSinGuardar" Visible="_aCancelar is not null" VisibleChanged="v => { if (!v) _aCancelar = null; }"
+<Modal @ref="_modalCancelar" HayCambios="() => HayCambiosSinGuardar" Visible="_aCancelar is not null" VisibleChanged="v => { if (!v) _aCancelar = null; }"
        Titulo="Descartar la propuesta" CerrarAlHacerClicFuera="!_procesando">
     <ChildContent>
         <p class="aviso-purga">La propuesta se archiva y esos datos se conservan. Puede volver a proponerse en un barrido posterior.</p>
@@ -219,7 +219,7 @@
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesando" OnClick="() => _aCancelar = null">Volver</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesando" OnClick="() => _modalCancelar?.SolicitarCierreAsync() ?? Task.CompletedTask">Volver</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_procesando" OnClick="CancelarAsync">Descartar</Boton>
     </Pie>
 </Modal>

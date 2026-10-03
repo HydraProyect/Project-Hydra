@@ -101,15 +101,12 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         ["src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor#Drawer1:Continuar con el centro"] =
             "Acción, no salida: guarda la Empresa y continúa con el alta de su Centro; lo escrito ya está guardado.",
 
-        // Diálogos de confirmación con una elección opcional (decisión de la coordinadora, 2026-10-03, por analogía con los de
-        // Visitas): «Volver» es la salida de la confirmación y descarta la elección a propósito; la X sí pregunta.
-        ["src/CaeManager.Web/Features/Retencion/Pages/Retencion.razor#Modal2:Volver"] =
-            "Confirmación «Descartar la propuesta»: la acción es confirmar y «Volver» deja la propuesta como estaba. OJO: a diferencia de " +
-            "los diálogos de Visitas, aquí el Motivo es obligatorio y HayCambios es real, así que la X pregunta y «Volver» tira el motivo " +
-            "escrito sin aviso. Excepción declarada por la coordinadora (2026-10-03); revisable si se prefiere que pregunte.",
+        // Diálogo de confirmación con una elección opcional (decisión de la coordinadora, 2026-10-03: toda pérdida de edición
+        // pregunta). «Descartar la propuesta» de Retención YA NO está aquí: su Motivo es obligatorio, y «Volver» pregunta como la X.
+        // «Desactivar usuario» se queda: su Gestor CAE de destino es opcional y el valor por defecto es «no reasignar».
         ["src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor#Modal2:@TextosUsuarios[\"DesactivarVolver\"]"] =
             "Confirmación «Desactivar usuario» con un Gestor CAE de destino opcional para la cartera: la acción es confirmar y «Volver» " +
-            "descarta la elección a propósito (el destino por defecto es «no reasignar»). Excepción por analogía con Retención y Visitas; " +
+            "descarta la elección a propósito (el destino por defecto es «no reasignar»). Excepción por analogía con Visitas; " +
             "pendiente de confirmar por la coordinadora.",
     };
 

@@ -39,6 +39,7 @@ namespace CaeManager.Web.Features.Retencion.Pages;
 public partial class Retencion : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 {
     private Modal? _modalProgramar;
+    private Modal? _modalCancelar;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Retencion> Logger { get; set; } = default!;
