@@ -492,7 +492,7 @@
 
 @* Los dos modales de la ficha son ModalFormulario: cada uno con su guardián, su estado de «guardando», su aviso fijo (el rechazo del servidor) y el
    motivo por el que «Crear» o «Reclamar» están deshabilitados (antes eran primarios mudos). Cada kit trae su aviso de navegación. *@
-<ModalFormulario Visible="_crearGestionVisible" VisibleChanged="v => _crearGestionVisible = v" Titulo="@Textos["ModalCrearGestionTitulo"]"
+<ModalFormulario Visible="_crearGestionVisible" VisibleChanged="v => { if (v || !_creandoGestion) _crearGestionVisible = v; }" Titulo="@Textos["ModalCrearGestionTitulo"]"
                  HayCambios="() => HayCambiosCrearGestion" Guardando="_creandoGestion" MensajeError="@_errorCrearGestion"
                  MotivoGuardarDeshabilitado="@(string.IsNullOrEmpty(_tipoDocumentoParaGestion) ? Textos["MotivoCrearGestionSinTipo"].Value : null)"
                  OnGuardar="ConfirmarCrearGestionAsync" TextoGuardar="@Textos["BotonCrear"]" TextoCancelar="@Textos["BotonCancelar"]">
@@ -519,7 +519,7 @@
     EnProgreso="_asignacionABajar is { } enCurso && _dandoDeBajaAsignacion.Contains(enCurso)"
     OnConfirmar="ConfirmarBajaAsignacionAsync" />
 
-<ModalFormulario Visible="_reclamarFaltantesVisible" VisibleChanged="v => _reclamarFaltantesVisible = v" Titulo="@Textos["ModalReclamarTitulo"]"
+<ModalFormulario Visible="_reclamarFaltantesVisible" VisibleChanged="v => { if (v || !_reclamandoFaltantes) _reclamarFaltantesVisible = v; }" Titulo="@Textos["ModalReclamarTitulo"]"
                  HayCambios="() => HayCambiosReclamar" Guardando="_reclamandoFaltantes" MensajeError="@_errorReclamar"
                  MotivoGuardarDeshabilitado="@(_clientesSeleccionadosReclamar.Count == 0 ? Textos["MotivoReclamarSinCliente"].Value : null)"
                  OnGuardar="ConfirmarReclamarFaltantesAsync" TextoGuardar="@Textos["BotonReclamar"]" TextoCancelar="@Textos["BotonCancelar"]">

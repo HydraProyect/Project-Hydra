@@ -56,7 +56,7 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
 
     private bool HayCambiosEnLinea => _modalLineaVisible && _instantaneaLinea.Difiere(ValoresDeLaLinea());
 
-    /// <summary>Rechazo del servidor (o fallo inesperado) al guardar la línea: va en el aviso fijo del ModalFormulario, no en un toast que desaparece.</summary>
+    /// <summary>Rechazo del servidor (o fallo inesperado) al guardar la línea: va en el aviso fijo del ModalFormulario, junto al formulario que hay que corregir (antes, un toast).</summary>
     private string? _errorLinea;
 
     private object?[] ValoresDeLaLinea() =>

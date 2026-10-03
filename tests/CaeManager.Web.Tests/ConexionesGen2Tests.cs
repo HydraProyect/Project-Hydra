@@ -523,6 +523,26 @@ public class ConexionesGen2Tests : BunitContext
 
         await EscribirNombreDeLineaAsync(cut, "Línea comercial Bilbao");
         cut.FindAll("[role=dialog] [role=alert]").Should().BeEmpty("el motivo era del intento anterior");
+
+        // Cualquier campo cuenta, no solo el nombre: un aviso que sobrevive a la corrección deja Escape y el clic fuera bloqueados sin motivo a la vista.
+        var ediciones = new (string Campo, Func<Task> Editar)[]
+        {
+            ("Número de teléfono", () => cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta!.StartsWith("Número de teléfono", StringComparison.Ordinal)).Instance.ValorChanged.InvokeAsync("+34686543364"))),
+            ("Phone Number ID", () => cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta!.StartsWith("Phone Number ID", StringComparison.Ordinal)).Instance.ValorChanged.InvokeAsync("123"))),
+            ("WABA ID", () => cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta!.StartsWith("WABA ID", StringComparison.Ordinal)).Instance.ValorChanged.InvokeAsync("456"))),
+            ("Token", () => cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta!.StartsWith("Token", StringComparison.Ordinal)).Instance.ValorChanged.InvokeAsync("EAAB"))),
+            ("Mensaje automático", () => cut.InvokeAsync(() => cut.FindComponents<CampoTextarea>().Single(c => c.Instance.Etiqueta!.StartsWith("Mensaje automático", StringComparison.Ordinal)).Instance.ValorChanged.InvokeAsync("¡Hola!"))),
+            ("Modo de asignación", () => cut.InvokeAsync(() => cut.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta == "Modo de asignación").Instance.ValorChanged.InvokeAsync(nameof(ModoAsignacionLinea.PoolInbound)))),
+        };
+        foreach (var (campo, editar) in ediciones)
+        {
+            await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Crear línea").ClickAsync(new MouseEventArgs());
+            cut.FindAll("[role=dialog] [role=alert]").Should().ContainSingle($"control positivo: el rechazo vuelve antes de editar «{campo}»");
+
+            await editar();
+
+            cut.FindAll("[role=dialog] [role=alert]").Should().BeEmpty($"editar «{campo}» retira el aviso del intento anterior");
+        }
     }
 
     /// <summary>«Cancelar» cierra como la X (D-05): con algo escrito pregunta; sin nada, cierra.</summary>

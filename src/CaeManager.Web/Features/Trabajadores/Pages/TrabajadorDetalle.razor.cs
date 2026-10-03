@@ -51,7 +51,7 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 /// </summary>
 public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
-    /// <summary>Rechazo del servidor al crear la gestión: va en el aviso fijo del modal, no en un toast que desaparece.</summary>
+    /// <summary>Rechazo del servidor al crear la gestión: va en el aviso fijo del modal, junto al formulario que hay que corregir (antes, un toast).</summary>
     private string? _errorCrearGestion;
 
     /// <summary>Todos los envíos de la reclamación fallaron: el modal sigue abierto con la selección y el motivo en su aviso fijo.</summary>
@@ -657,6 +657,9 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     {
         if (_reclamandoFaltantes) return;
 
+        // Con el modal abierto durante el envío, la ficha puede cambiar de trabajador antes de que termine: el resultado (modal, aviso fijo)
+        // era del anterior y no se escribe sobre el estado del nuevo; los toasts sí salen, que el envío ocurrió.
+        var trabajadorDelEnvio = _trabajadorEnPantalla;
         _errorReclamar = null;
         _reclamandoFaltantes = true;
         try
@@ -678,7 +681,9 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             else if (enviadosA.Count > 1)
                 ToastService.Mostrar(Textos["ToastReclamacionEnviadaVarios", enviadosA.Count, string.Join(", ", enviadosA)], TonoToast.Exito);
 
-            if (desdeElModal && enviadosA.Count == 0)
+            var sigueElMismoTrabajador = !_desechado && _trabajadorEnPantalla == trabajadorDelEnvio;
+
+            if (desdeElModal && enviadosA.Count == 0 && sigueElMismoTrabajador)
             {
                 _errorReclamar = string.Join(" ", fallidos);
                 return;
@@ -686,6 +691,9 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
             foreach (var mensaje in fallidos)
                 ToastService.Mostrar(mensaje, TonoToast.Error);
+
+            if (!sigueElMismoTrabajador)
+                return;
 
             if (desdeElModal)
                 _reclamarFaltantesVisible = false;
@@ -717,6 +725,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         if (_creandoGestion) return;
         if (!Guid.TryParse(_tipoDocumentoParaGestion, out var tipoDocumentoId)) return;
 
+        var trabajadorDelEnvio = _trabajadorEnPantalla;
         _errorCrearGestion = null;
         _creandoGestion = true;
         try
@@ -724,7 +733,9 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             var resultado = await Mediator.Send(new CrearGestionesParaTrabajadorCommand(TrabajadorId, tipoDocumentoId));
             if (resultado.EsFallido)
             {
-                _errorCrearGestion = resultado.Error.Mensaje;
+                // Si la ficha cambió de trabajador mientras tanto, el rechazo era del anterior: no se escribe en el aviso del nuevo.
+                if (_trabajadorEnPantalla == trabajadorDelEnvio)
+                    _errorCrearGestion = resultado.Error.Mensaje;
                 return;
             }
 

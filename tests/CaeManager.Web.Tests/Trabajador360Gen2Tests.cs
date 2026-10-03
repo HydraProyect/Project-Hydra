@@ -90,6 +90,10 @@ public class Trabajador360Gen2Tests : BunitContext
 
         /// <summary>Si tiene valor, el servidor rechaza el envío de la reclamación / la creación de la gestión con ese motivo.</summary>
         public string? FallaEnviarReclamacionCon { get; set; }
+
+        /// <summary>Con <see cref="FallaEnviarReclamacionCon"/>, el envío a partir del cual falla (1 = todos; 2 = el primero sale y el segundo falla).</summary>
+        public int FallaEnviarReclamacionDesdeElEnvio { get; set; } = 1;
+        private int EnviosReclamacion;
         public string? FallaCrearGestionCon { get; set; }
 
         /// <summary>Si devuelve una tarea, la respuesta espera a que se complete.</summary>
@@ -122,7 +126,7 @@ public class Trabajador360Gen2Tests : BunitContext
             ObtenerDocumentosQuery q => PaginarDocumentos(q),
             DarDeBajaAsignacionesCommand => ResultadoDarDeBajaAsignacion,
             ReactivarAsignacionCommand => ResultadoReactivar,
-            EnviarReclamacionCommand when FallaEnviarReclamacionCon is { } motivo => Result.Fallo<EnvioReclamacionResultado>(Error.Crear("reclamacion.rechazada", motivo)),
+            EnviarReclamacionCommand when FallaEnviarReclamacionCon is { } motivo && ++EnviosReclamacion >= FallaEnviarReclamacionDesdeElEnvio => Result.Fallo<EnvioReclamacionResultado>(Error.Crear("reclamacion.rechazada", motivo)),
             EnviarReclamacionCommand c => Result.Exito(new EnvioReclamacionResultado(c.DocumentoIds, ["cliente@ejemplo.com"])),
             CrearGestionesParaTrabajadorCommand when FallaCrearGestionCon is { } motivo => Result.Fallo<ResultadoCrearGestionesDto>(Error.Crear("gestion.rechazada", motivo)),
             CrearGestionesParaTrabajadorCommand => Result.Exito(new ResultadoCrearGestionesDto(1)),
@@ -1514,6 +1518,83 @@ public class Trabajador360Gen2Tests : BunitContext
 
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().HaveCount(2, "un envío por Cliente empresarial");
         cut.FindAll("[role=dialog]").Should().BeEmpty("al terminar bien, se cierra");
+    }
+
+    /// <summary>El kit bloquea Escape y el clic fuera mientras guarda, pero la X es del Modal: la pantalla ignora el cierre mientras envía.</summary>
+    [Fact]
+    public async Task La_X_no_cierra_el_modal_de_reclamar_ni_el_de_crear_gestion_mientras_se_envia()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConDosClientesEmpresarialesQueReclamar(id);
+        var envio = new TaskCompletionSource();
+        mediador.Retener = p => p is EnviarReclamacionCommand ? envio.Task : null;
+        var cut = Renderizar(id);
+        await AbrirModalReclamarAsync(cut);
+
+        var pulsado = BotonDelPie(cut, "Reclamar").ClickAsync(new MouseEventArgs());
+        try
+        {
+            mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle("control positivo: el envío está en curso");
+            await cut.Find("[role=dialog] .modal-cerrar").ClickAsync(new MouseEventArgs());
+            cut.FindAll("[role=dialog]").Should().NotBeEmpty("cerrar con la X a mitad de un envío perdería su resultado");
+        }
+        finally
+        {
+            await cut.InvokeAsync(() => envio.TrySetResult());
+            await pulsado.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+    }
+
+    [Fact]
+    public async Task Reclamar_con_exito_parcial_cierra_y_avisa_en_toasts_del_envio_que_fallo()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConDosClientesEmpresarialesQueReclamar(id);
+        mediador.FallaEnviarReclamacionCon = "Sin contacto con email.";
+        mediador.FallaEnviarReclamacionDesdeElEnvio = 2;
+        var cut = Renderizar(id);
+        await AbrirModalReclamarAsync(cut);
+
+        await BotonDelPie(cut, "Reclamar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().HaveCount(2, "control positivo: se intentó con los dos");
+        cut.FindAll("[role=dialog]").Should().BeEmpty("alguno salió: se cierra");
+        Avisos.Mensajes.Should().Contain(m => m.Tono == TonoToast.Error && m.Mensaje.Contains("Sin contacto con email."), "el fallo parcial no se pierde");
+        Avisos.Mensajes.Should().Contain(m => m.Tono == TonoToast.Exito, "y el envío que salió también se anuncia");
+    }
+
+    /// <summary>Con el modal abierto durante el envío, la ficha puede cambiar de trabajador antes de que termine.</summary>
+    [Fact]
+    public async Task Un_envio_de_reclamacion_que_termina_tras_cambiar_de_trabajador_no_escribe_en_la_ficha_nueva_y_sus_fallos_salen_en_toasts()
+    {
+        var primero = Guid.NewGuid();
+        var segundo = Guid.NewGuid();
+        var mediador = ConDosClientesEmpresarialesQueReclamar(primero);
+        mediador.Detalles[segundo] = Detalle(segundo, "Eider", "Lasa Arrieta");
+        mediador.Centros[segundo] = mediador.Centros[primero];
+        mediador.FallaEnviarReclamacionCon = "Sin contacto con email.";
+        var envio = new TaskCompletionSource();
+        mediador.Retener = p => p is EnviarReclamacionCommand ? envio.Task : null;
+        var cut = Renderizar(primero);
+        await AbrirModalReclamarAsync(cut);
+
+        var pulsado = BotonDelPie(cut, "Reclamar").ClickAsync(new MouseEventArgs());
+        try
+        {
+            mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle("control positivo: el envío del primero está en curso");
+            cut.Render(p => p.Add(x => x.TrabajadorId, segundo));
+            cut.Find(".cabecera-pagina h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
+        }
+        finally
+        {
+            await cut.InvokeAsync(() => envio.TrySetResult());
+            await pulsado.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+
+        // El segundo trabajador abre su propio modal: no hereda el aviso del envío del primero.
+        await AbrirModalReclamarAsync(cut);
+        AlertasDelModal(cut).Should().BeEmpty("el rechazo era del trabajador anterior");
+        Avisos.Mensajes.Should().Contain(m => m.Tono == TonoToast.Error && m.Mensaje.Contains("Sin contacto con email."), "el fallo del primero no se pierde: sale en toast");
     }
 
     [Fact]

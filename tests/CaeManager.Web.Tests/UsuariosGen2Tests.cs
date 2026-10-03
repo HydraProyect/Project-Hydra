@@ -1378,6 +1378,27 @@ public partial class UsuariosGen2Tests : BunitContext
     }
 
     [Fact]
+    public async Task Si_falla_la_carga_de_empresas_el_motivo_sale_en_el_aviso_fijo_sin_decir_que_no_hay_empresas_y_Guardar_lo_repite()
+    {
+        SembrarAdministradoraYGestor();
+        _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte");
+        var cut = Renderizar();
+        var despacharReal = _mediador.Despachar!;
+        _mediador.Despachar = (peticion, ct) => peticion is ObtenerCarteraDeGestorCaeQuery
+            ? throw new InvalidOperationException("Fallo simulado de la carga.")
+            : despacharReal(peticion, ct);
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
+
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] [role=alert]").Should().ContainSingle());
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.TextContent.Should().NotContain("no gestiona ninguna empresa", "el fallo de carga no es «no hay empresas»");
+        var guardar = cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Guardar");
+        guardar.HasAttribute("disabled").Should().BeTrue();
+        guardar.GetAttribute("title").Should().Be(cut.Find("[role=dialog] [role=alert]").TextContent.Trim(), "el motivo de «Guardar» es el error de carga");
+    }
+
+    [Fact]
     public async Task El_rechazo_del_servidor_al_asignar_empresas_se_quita_al_marcar_otra_casilla()
     {
         SembrarAdministradoraYGestor();
