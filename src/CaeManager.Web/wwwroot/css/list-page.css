@@ -965,6 +965,11 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* «Sin confirmar»: cuenta como al día, con aviso. Mismo ámbar que el aviso del panel Documentación base. */
+.celda-documento-vigencia-sin-confirmar {
+    color: var(--color-warning-700);
+}
+
 /*
   Sin `justify-self: end`: eso encoge la celda al ancho de su contenido y su
   borde izquierdo deja de coincidir con el de la cabecera — la columna se ve

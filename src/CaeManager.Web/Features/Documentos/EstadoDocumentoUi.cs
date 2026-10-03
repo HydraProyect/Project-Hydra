@@ -48,6 +48,20 @@ public static class EstadoDocumentoUi
     };
 
     /// <summary>
+    /// Texto de una celda de vigencia cuando el documento NO tiene fecha de vencimiento. Una fecha ausente son
+    /// dos cosas distintas (el modelo eliminó el «nulo = no caduca»): «Sin caducidad» solo si está confirmado que no
+    /// caduca; «Sin confirmar» si nadie ha anotado hasta cuándo vale (cuenta como al día, con aviso, decisión del
+    /// propietario del 2026-10-01). Cualquier otro estado sin fecha (un hueco, un rechazo) no tiene vigencia que
+    /// rotular: «—».
+    /// </summary>
+    public static string TextoSinFechaDeVencimiento(EstadoDocumento? estado) => estado switch
+    {
+        EstadoDocumento.SinCaducidad => Texto(EstadoDocumento.SinCaducidad),
+        EstadoDocumento.SinConfirmar => Texto(EstadoDocumento.SinConfirmar),
+        _ => "—"
+    };
+
+    /// <summary>
     /// Estado documental derivado de Trabajador/Empresa/Vehículo, donde null
     /// significa "no tiene ningún documento todavía" — ver
     /// <see cref="ICalculoEstadoDocumentalService"/>.
