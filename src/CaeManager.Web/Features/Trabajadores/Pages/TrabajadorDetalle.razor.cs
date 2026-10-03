@@ -51,8 +51,11 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 /// </summary>
 public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
-    private Modal? _modalReclamarFaltantes;
-    private Modal? _modalCrearGestion;
+    /// <summary>Rechazo del servidor al crear la gestión: va en el aviso fijo del modal, no en un toast que desaparece.</summary>
+    private string? _errorCrearGestion;
+
+    /// <summary>Todos los envíos de la reclamación fallaron: el modal sigue abierto con la selección y el motivo en su aviso fijo.</summary>
+    private string? _errorReclamar;
 
     [Parameter] public Guid TrabajadorId { get; set; }
 
@@ -612,6 +615,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         _clientesSeleccionadosReclamar.Clear();
         foreach (var cliente in clientes)
             _clientesSeleccionadosReclamar.Add(cliente.ClienteId);
+        _errorReclamar = null;
         _reclamarFaltantesVisible = true;
         // Todos los Clientes empresariales vienen marcados: no es un cambio de quien edita.
         _instantaneaReclamar.Fijar(_clientesSeleccionadosReclamar);
@@ -620,17 +624,16 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private readonly InstantaneaFormulario _instantaneaReclamar = new();
 
     /// <summary>
-    /// P1-E2b: único punto de verdad de «hay cambios» en la ficha: un tipo de documento
-    /// ya elegido en el modal de crear gestión, o las casillas del modal de reclamar
-    /// faltantes cambiadas respecto a cómo se abrió. Lo lee AvisoCambiosSinGuardar;
-    /// cerrados (también tras confirmar) nunca hay nada que perder.
+    /// P1-E2b: «hay cambios» de cada modal de la ficha (el guardián de su kit): un tipo de documento ya elegido en el de crear gestión,
+    /// o las casillas del de reclamar faltantes cambiadas respecto a cómo se abrió. Cerrados (también tras confirmar) no hay nada que perder.
     /// </summary>
-    private bool HayCambiosSinGuardar =>
-        (_crearGestionVisible && !string.IsNullOrEmpty(_tipoDocumentoParaGestion))
-        || (_reclamarFaltantesVisible && _instantaneaReclamar.Difiere(_clientesSeleccionadosReclamar));
+    private bool HayCambiosCrearGestion => _crearGestionVisible && !string.IsNullOrEmpty(_tipoDocumentoParaGestion);
+
+    private bool HayCambiosReclamar => _reclamarFaltantesVisible && _instantaneaReclamar.Difiere(_clientesSeleccionadosReclamar);
 
     private void AlternarClienteReclamar(Guid clienteId, bool marcado)
     {
+        _errorReclamar = null;
         if (marcado) _clientesSeleccionadosReclamar.Add(clienteId);
         else _clientesSeleccionadosReclamar.Remove(clienteId);
     }
@@ -640,8 +643,9 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         var seleccionados = _clientesReclamables.Where(c => _clientesSeleccionadosReclamar.Contains(c.ClienteId)).ToList();
         if (seleccionados.Count == 0) return;
 
-        _reclamarFaltantesVisible = false;
-        await EnviarReclamacionAClientesAsync(seleccionados);
+        // El modal sigue abierto mientras se envía (con «Guardando»): cerrarlo antes tiraba la selección y escondía el resultado. Se cierra
+        // al terminar, salvo que fallen todos los envíos: entonces se queda con la selección y el motivo en su aviso fijo.
+        await EnviarReclamacionAClientesAsync(seleccionados, desdeElModal: true);
     }
 
     /// <summary>
@@ -649,10 +653,11 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// secuencial (no Task.WhenAll) porque el DbContext de la petición Blazor
     /// Server es scoped y no admite uso concurrente.
     /// </summary>
-    private async Task EnviarReclamacionAClientesAsync(IReadOnlyList<ClienteReclamableDto> clientes)
+    private async Task EnviarReclamacionAClientesAsync(IReadOnlyList<ClienteReclamableDto> clientes, bool desdeElModal = false)
     {
         if (_reclamandoFaltantes) return;
 
+        _errorReclamar = null;
         _reclamandoFaltantes = true;
         try
         {
@@ -673,8 +678,17 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             else if (enviadosA.Count > 1)
                 ToastService.Mostrar(Textos["ToastReclamacionEnviadaVarios", enviadosA.Count, string.Join(", ", enviadosA)], TonoToast.Exito);
 
+            if (desdeElModal && enviadosA.Count == 0)
+            {
+                _errorReclamar = string.Join(" ", fallidos);
+                return;
+            }
+
             foreach (var mensaje in fallidos)
                 ToastService.Mostrar(mensaje, TonoToast.Error);
+
+            if (desdeElModal)
+                _reclamarFaltantesVisible = false;
 
             if (enviadosA.Count > 0)
                 await CargarAsync();
@@ -694,6 +708,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
         _tiposDocumentoDisponibles = tipos;
         _tipoDocumentoParaGestion = string.Empty;
+        _errorCrearGestion = null;
         _crearGestionVisible = true;
     }
 
@@ -702,13 +717,14 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         if (_creandoGestion) return;
         if (!Guid.TryParse(_tipoDocumentoParaGestion, out var tipoDocumentoId)) return;
 
+        _errorCrearGestion = null;
         _creandoGestion = true;
         try
         {
             var resultado = await Mediator.Send(new CrearGestionesParaTrabajadorCommand(TrabajadorId, tipoDocumentoId));
             if (resultado.EsFallido)
             {
-                ToastService.MostrarError(resultado.Error);
+                _errorCrearGestion = resultado.Error.Mensaje;
                 return;
             }
 
@@ -777,6 +793,8 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     {
         _crearGestionVisible = false;
         _tipoDocumentoParaGestion = string.Empty;
+        _errorCrearGestion = null;
+        _errorReclamar = null;
         _reclamarFaltantesVisible = false;
         _confirmarBajaAsignacionVisible = false;
         _asignacionABajar = null;

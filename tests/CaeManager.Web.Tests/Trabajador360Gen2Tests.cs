@@ -9,6 +9,7 @@ using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentaci
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
@@ -87,6 +88,10 @@ public class Trabajador360Gen2Tests : BunitContext
 
         public Result ResultadoReactivar { get; set; } = Result.Exito();
 
+        /// <summary>Si tiene valor, el servidor rechaza el envío de la reclamación / la creación de la gestión con ese motivo.</summary>
+        public string? FallaEnviarReclamacionCon { get; set; }
+        public string? FallaCrearGestionCon { get; set; }
+
         /// <summary>Si devuelve una tarea, la respuesta espera a que se complete.</summary>
         public Func<object, Task?>? Retener { get; set; }
 
@@ -117,7 +122,10 @@ public class Trabajador360Gen2Tests : BunitContext
             ObtenerDocumentosQuery q => PaginarDocumentos(q),
             DarDeBajaAsignacionesCommand => ResultadoDarDeBajaAsignacion,
             ReactivarAsignacionCommand => ResultadoReactivar,
+            EnviarReclamacionCommand when FallaEnviarReclamacionCon is { } motivo => Result.Fallo<EnvioReclamacionResultado>(Error.Crear("reclamacion.rechazada", motivo)),
             EnviarReclamacionCommand c => Result.Exito(new EnvioReclamacionResultado(c.DocumentoIds, ["cliente@ejemplo.com"])),
+            CrearGestionesParaTrabajadorCommand when FallaCrearGestionCon is { } motivo => Result.Fallo<ResultadoCrearGestionesDto>(Error.Crear("gestion.rechazada", motivo)),
+            CrearGestionesParaTrabajadorCommand => Result.Exito(new ResultadoCrearGestionesDto(1)),
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -1389,5 +1397,143 @@ public class Trabajador360Gen2Tests : BunitContext
 
         await cut.FindAll(".reclamacion-destinatarios input[type=checkbox]")[0].ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "volver a marcarla deja la modal como se abrió");
+    }
+
+    // ---- S12 lote 3b: los dos modales de la ficha son ModalFormulario
+
+    private static IElement BotonDelPie(IRenderedComponent<TrabajadorDetalle> cut, string texto) =>
+        cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == texto);
+
+    private static IReadOnlyList<string> AlertasDelModal(IRenderedComponent<TrabajadorDetalle> cut) =>
+        cut.FindAll("[role=dialog] [role=alert]").Select(a => a.TextContent.Trim()).ToList();
+
+    [Fact]
+    public async Task Crear_gestion_sin_tipo_deshabilita_Crear_con_su_motivo_y_con_tipo_lo_habilita()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        var tipo = Guid.NewGuid();
+        mediador.Tipos.Add(Tipo(tipo, "Formación PRL — 20 h", RequisitoDocumental.Si));
+        var cut = Renderizar(id);
+        await AbrirModalCrearGestionAsync(cut);
+
+        var crear = BotonDelPie(cut, "Crear");
+        crear.HasAttribute("disabled").Should().BeTrue("sin tipo elegido no hay nada que crear");
+        crear.GetAttribute("title").Should().Be("Elige un tipo de documento", "un primario deshabilitado dice por qué");
+
+        await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = tipo.ToString() });
+
+        BotonDelPie(cut, "Crear").HasAttribute("disabled").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Crear_gestion_rechazada_por_el_servidor_sale_en_el_aviso_fijo_no_en_un_toast_y_elegir_otro_tipo_lo_quita()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        mediador.FallaCrearGestionCon = "Ya hay una gestión abierta de este tipo.";
+        var tipo = Guid.NewGuid();
+        mediador.Tipos.Add(Tipo(tipo, "Formación PRL — 20 h", RequisitoDocumental.Si));
+        var cut = Renderizar(id);
+        await AbrirModalCrearGestionAsync(cut);
+        await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = tipo.ToString() });
+        AlertasDelModal(cut).Should().BeEmpty("control positivo: antes del intento no hay aviso");
+
+        await BotonDelPie(cut, "Crear").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<CrearGestionesParaTrabajadorCommand>().Should().ContainSingle("control positivo: se intentó");
+        AlertasDelModal(cut).Should().Equal("Ya hay una gestión abierta de este tipo.");
+        cut.FindAll("[role=dialog] .modal-cuerpo [role=alert]").Should().BeEmpty("el aviso va fuera del cuerpo desplazable (D-20)");
+        Avisos.Mensajes.Should().BeEmpty("el motivo ya no es un toast que desaparece");
+
+        await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = string.Empty });
+        AlertasDelModal(cut).Should().BeEmpty("el motivo era del intento anterior");
+    }
+
+    [Fact]
+    public async Task Cancelar_en_crear_gestion_con_un_tipo_elegido_pregunta_y_sin_tipo_cierra()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        var tipo = Guid.NewGuid();
+        mediador.Tipos.Add(Tipo(tipo, "Formación PRL — 20 h", RequisitoDocumental.Si));
+        var cut = Renderizar(id);
+        await AbrirModalCrearGestionAsync(cut);
+        await BotonDelPie(cut, "Cancelar").ClickAsync(new MouseEventArgs());
+        cut.FindAll("[role=dialog]").Should().BeEmpty("sin tipo elegido «Cancelar» cierra sin preguntar");
+
+        await AbrirModalCrearGestionAsync(cut);
+        await cut.Find("[role=dialog] select").ChangeAsync(new ChangeEventArgs { Value = tipo.ToString() });
+        await BotonDelPie(cut, "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Descartar cambios", "con un tipo elegido «Cancelar» pregunta como la X");
+    }
+
+    [Fact]
+    public async Task Reclamar_sin_ningun_Cliente_empresarial_marcado_deshabilita_Reclamar_con_su_motivo()
+    {
+        var id = Guid.NewGuid();
+        ConDosClientesEmpresarialesQueReclamar(id);
+        var cut = Renderizar(id);
+        await AbrirModalReclamarAsync(cut);
+        BotonDelPie(cut, "Reclamar").HasAttribute("disabled").Should().BeFalse("control positivo: con las dos marcadas se puede reclamar");
+
+        for (var i = 0; i < 2; i++)
+            await cut.FindAll(".reclamacion-destinatarios input[type=checkbox]")[i].ChangeAsync(new ChangeEventArgs { Value = false });
+
+        var reclamar = BotonDelPie(cut, "Reclamar");
+        reclamar.HasAttribute("disabled").Should().BeTrue();
+        reclamar.GetAttribute("title").Should().Be("Marca al menos un Cliente empresarial");
+    }
+
+    /// <summary>El modal cerraba antes de enviar: la selección se perdía y, si el envío fallaba, solo quedaban toasts.</summary>
+    [Fact]
+    public async Task Reclamar_mantiene_el_modal_abierto_mientras_envia_y_lo_cierra_al_terminar()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConDosClientesEmpresarialesQueReclamar(id);
+        var envio = new TaskCompletionSource();
+        mediador.Retener = p => p is EnviarReclamacionCommand ? envio.Task : null;
+        var cut = Renderizar(id);
+        await AbrirModalReclamarAsync(cut);
+
+        var pulsado = BotonDelPie(cut, "Reclamar").ClickAsync(new MouseEventArgs());
+        try
+        {
+            mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle("control positivo: el primer envío está en curso");
+            cut.FindAll("[role=dialog]").Should().NotBeEmpty("el modal sigue abierto mientras se envía");
+            cut.FindAll(".reclamacion-destinatarios input[type=checkbox]").Should().HaveCount(2, "y conserva la selección");
+            cut.Find(".reclamacion-destinatarios").HasAttribute("disabled").Should().BeTrue("las casillas no se tocan mientras se envía");
+            BotonDelPie(cut, "Cancelar").HasAttribute("disabled").Should().BeTrue();
+        }
+        finally
+        {
+            await cut.InvokeAsync(() => envio.TrySetResult());
+            await pulsado.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().HaveCount(2, "un envío por Cliente empresarial");
+        cut.FindAll("[role=dialog]").Should().BeEmpty("al terminar bien, se cierra");
+    }
+
+    [Fact]
+    public async Task Reclamar_con_todos_los_envios_rechazados_deja_el_modal_con_la_seleccion_y_el_motivo_en_el_aviso_fijo()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConDosClientesEmpresarialesQueReclamar(id);
+        mediador.FallaEnviarReclamacionCon = "El Cliente empresarial no tiene contacto con email.";
+        var cut = Renderizar(id);
+        await AbrirModalReclamarAsync(cut);
+
+        await BotonDelPie(cut, "Reclamar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().HaveCount(2, "control positivo: se intentó con los dos");
+        cut.FindAll("[role=dialog]").Should().NotBeEmpty("si no se envió ninguno, el modal sigue para reintentar");
+        AlertasDelModal(cut).Should().ContainSingle().Which.Should().Contain("El Cliente empresarial no tiene contacto con email.");
+        cut.FindAll(".reclamacion-destinatarios input[type=checkbox]").Should().OnlyContain(c => c.HasAttribute("checked"), "la selección se conserva");
+        Avisos.Mensajes.Should().BeEmpty("los motivos van en el aviso fijo, no en toasts");
+
+        await cut.FindAll(".reclamacion-destinatarios input[type=checkbox]")[0].ChangeAsync(new ChangeEventArgs { Value = false });
+        AlertasDelModal(cut).Should().BeEmpty("el motivo era del intento anterior");
     }
 }

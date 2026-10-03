@@ -490,22 +490,21 @@
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
 
-<Modal @ref="_modalCrearGestion" HayCambios="() => HayCambiosSinGuardar" Visible="_crearGestionVisible" VisibleChanged="v => _crearGestionVisible = v" Titulo="@Textos["ModalCrearGestionTitulo"]" CerrarAlHacerClicFuera="!_creandoGestion">
-    <ChildContent>
-        <p class="workspace-nota-contextual">@Textos["NotaCrearGestion"]</p>
-        <CampoSelect Etiqueta="@Textos["EtiquetaTipoDocumento"]" Valor="@_tipoDocumentoParaGestion" ValorChanged="v => _tipoDocumentoParaGestion = v">
-            <option value="">@Textos["OpcionSeleccionaTipoDocumento"]</option>
-            @foreach (var tipo in _tiposDocumentoDisponibles)
-            {
-                <option value="@tipo.Id">@tipo.Nombre</option>
-            }
-        </CampoSelect>
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_creandoGestion" OnClick="() => _modalCrearGestion?.SolicitarCierreAsync() ?? Task.CompletedTask">@Textos["BotonCancelar"]</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_creandoGestion" Deshabilitado="string.IsNullOrEmpty(_tipoDocumentoParaGestion)" OnClick="ConfirmarCrearGestionAsync">@Textos["BotonCrear"]</Boton>
-    </Pie>
-</Modal>
+@* Los dos modales de la ficha son ModalFormulario: cada uno con su guardián, su estado de «guardando», su aviso fijo (el rechazo del servidor) y el
+   motivo por el que «Crear» o «Reclamar» están deshabilitados (antes eran primarios mudos). Cada kit trae su aviso de navegación. *@
+<ModalFormulario Visible="_crearGestionVisible" VisibleChanged="v => _crearGestionVisible = v" Titulo="@Textos["ModalCrearGestionTitulo"]"
+                 HayCambios="() => HayCambiosCrearGestion" Guardando="_creandoGestion" MensajeError="@_errorCrearGestion"
+                 MotivoGuardarDeshabilitado="@(string.IsNullOrEmpty(_tipoDocumentoParaGestion) ? Textos["MotivoCrearGestionSinTipo"].Value : null)"
+                 OnGuardar="ConfirmarCrearGestionAsync" TextoGuardar="@Textos["BotonCrear"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <p class="workspace-nota-contextual">@Textos["NotaCrearGestion"]</p>
+    <CampoSelect Etiqueta="@Textos["EtiquetaTipoDocumento"]" Valor="@_tipoDocumentoParaGestion" ValorChanged="v => { _tipoDocumentoParaGestion = v; _errorCrearGestion = null; }">
+        <option value="">@Textos["OpcionSeleccionaTipoDocumento"]</option>
+        @foreach (var tipo in _tiposDocumentoDisponibles)
+        {
+            <option value="@tipo.Id">@tipo.Nombre</option>
+        }
+    </CampoSelect>
+</ModalFormulario>
 
 @* Solo aparece cuando el trabajador tiene asignaciones activas en Centros de
    más de un Cliente empresarial a la vez — con uno solo, ReclamarFaltantesAsync
@@ -520,31 +519,25 @@
     EnProgreso="_asignacionABajar is { } enCurso && _dandoDeBajaAsignacion.Contains(enCurso)"
     OnConfirmar="ConfirmarBajaAsignacionAsync" />
 
-<Modal @ref="_modalReclamarFaltantes" HayCambios="() => HayCambiosSinGuardar" Visible="_reclamarFaltantesVisible" VisibleChanged="v => _reclamarFaltantesVisible = v"
-       Titulo="@Textos["ModalReclamarTitulo"]" CerrarAlHacerClicFuera="!_reclamandoFaltantes">
-    <ChildContent>
-        <p class="workspace-nota-contextual">
-            @Textos["NotaReclamarVarios", NombreCompleto ?? string.Empty]
-        </p>
-        <fieldset class="reclamacion-destinatarios">
-            <legend>@Textos["LeyendaClientesEmpresariales"]</legend>
-            @foreach (var cliente in _clientesReclamables)
-            {
-                <label class="campo-checkbox" @key="cliente.ClienteId">
-                    <input type="checkbox"
-                           checked="@_clientesSeleccionadosReclamar.Contains(cliente.ClienteId)"
-                           @onchange="e => AlternarClienteReclamar(cliente.ClienteId, (bool)e.Value!)" />
-                    <span>@cliente.ClienteRazonSocial</span>
-                    <span class="reclamacion-motivo">@(cliente.DocumentoIds.Count == 1 ? Textos["DocumentosPendientesUno"] : Textos["DocumentosPendientesVarios", cliente.DocumentoIds.Count])</span>
-                </label>
-            }
-        </fieldset>
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_reclamandoFaltantes" OnClick="() => _modalReclamarFaltantes?.SolicitarCierreAsync() ?? Task.CompletedTask">@Textos["BotonCancelar"]</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_reclamandoFaltantes" Deshabilitado="_clientesSeleccionadosReclamar.Count == 0" OnClick="ConfirmarReclamarFaltantesAsync">@Textos["BotonReclamar"]</Boton>
-    </Pie>
-</Modal>
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarModalesPendientes" />
+<ModalFormulario Visible="_reclamarFaltantesVisible" VisibleChanged="v => _reclamarFaltantesVisible = v" Titulo="@Textos["ModalReclamarTitulo"]"
+                 HayCambios="() => HayCambiosReclamar" Guardando="_reclamandoFaltantes" MensajeError="@_errorReclamar"
+                 MotivoGuardarDeshabilitado="@(_clientesSeleccionadosReclamar.Count == 0 ? Textos["MotivoReclamarSinCliente"].Value : null)"
+                 OnGuardar="ConfirmarReclamarFaltantesAsync" TextoGuardar="@Textos["BotonReclamar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <p class="workspace-nota-contextual">
+        @Textos["NotaReclamarVarios", NombreCompleto ?? string.Empty]
+    </p>
+    <fieldset class="reclamacion-destinatarios" disabled="@_reclamandoFaltantes">
+        <legend>@Textos["LeyendaClientesEmpresariales"]</legend>
+        @foreach (var cliente in _clientesReclamables)
+        {
+            <label class="campo-checkbox" @key="cliente.ClienteId">
+                <input type="checkbox"
+                       checked="@_clientesSeleccionadosReclamar.Contains(cliente.ClienteId)"
+                       @onchange="e => AlternarClienteReclamar(cliente.ClienteId, (bool)e.Value!)" />
+                <span>@cliente.ClienteRazonSocial</span>
+                <span class="reclamacion-motivo">@(cliente.DocumentoIds.Count == 1 ? Textos["DocumentosPendientesUno"] : Textos["DocumentosPendientesVarios", cliente.DocumentoIds.Count])</span>
+            </label>
+        }
+    </fieldset>
+</ModalFormulario>
 </LimiteDeErrores>

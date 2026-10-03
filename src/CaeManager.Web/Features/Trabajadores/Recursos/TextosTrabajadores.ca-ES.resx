@@ -597,6 +597,12 @@
   <data name="ToastGestionCreada" xml:space="preserve">
     <value>Se creó la gestión en {0} centro(s).</value>
   </data>
+  <data name="MotivoCrearGestionSinTipo" xml:space="preserve">
+    <value>Tria un tipus de document</value>
+  </data>
+  <data name="MotivoReclamarSinCliente" xml:space="preserve">
+    <value>Marca almenys un Client empresarial</value>
+  </data>
   <data name="AriaVistaPrevia" xml:space="preserve">
     <value>Vista previa del trabajador</value>
   </data>

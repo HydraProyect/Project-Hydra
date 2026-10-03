@@ -1356,9 +1356,44 @@ public partial class UsuariosGen2Tests : BunitContext
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
         cut.WaitForAssertion(() => CasillasAsignarEmpresas(cut).Should().ContainSingle());
 
-        cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Guardar")
-            .HasAttribute("disabled").Should().BeTrue("no hay nada que guardar");
+        var guardar = cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Guardar");
+        guardar.HasAttribute("disabled").Should().BeTrue("no hay nada que guardar");
+        guardar.GetAttribute("title").Should().Be("Marca o desmarca alguna empresa", "un primario deshabilitado dice por qué");
         _mediador.Enviadas.OfType<AsignarCarteraGestorCaeCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_empresas_asignables_el_dialogo_lo_dice_y_Guardar_dice_por_que_esta_deshabilitado()
+    {
+        SembrarAdministradoraYGestor();
+        var cut = Renderizar();
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
+
+        cut.WaitForAssertion(() => cut.Find("[role=dialog]").TextContent.Should().Contain("no gestiona ninguna empresa que se pueda asignar"));
+        CasillasAsignarEmpresas(cut).Should().BeEmpty();
+        var guardar = cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Guardar");
+        guardar.HasAttribute("disabled").Should().BeTrue();
+        guardar.GetAttribute("title").Should().Contain("no gestiona ninguna empresa que se pueda asignar");
+    }
+
+    [Fact]
+    public async Task El_rechazo_del_servidor_al_asignar_empresas_se_quita_al_marcar_otra_casilla()
+    {
+        SembrarAdministradoraYGestor();
+        _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte");
+        _catalogo.Registrar(BeneficiarioSur, "Montajes del Sur");
+        var cut = Renderizar();
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
+        cut.WaitForAssertion(() => CasillasAsignarEmpresas(cut).Should().HaveCount(2));
+        _catalogo.Asignables.Clear();
+        await CasillasAsignarEmpresas(cut)[0].ChangeAsync(new() { Value = true });
+        await GuardarAsignarEmpresasAsync(cut);
+        cut.FindAll("[role=dialog] [role=alert]").Should().ContainSingle("control positivo: el rechazo está a la vista");
+
+        await CasillasAsignarEmpresas(cut)[1].ChangeAsync(new() { Value = true });
+
+        cut.FindAll("[role=dialog] [role=alert]").Should().BeEmpty("el motivo era del intento anterior; si no, el kit sigue bloqueando Escape y el clic fuera");
     }
 
     [Fact]
