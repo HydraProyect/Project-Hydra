@@ -162,41 +162,31 @@
     }
 </div>
 
-<Drawer @ref="_drawerRedactar" HayCambios="() => HayCambiosSinGuardar" Visible="_redactarVisible" VisibleChanged="v => _redactarVisible = v" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviandoRedaccion">
-    <ChildContent>
-        @if (_redactarError is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_redactarError</div>
-        }
+<DrawerFormulario Visible="_redactarVisible" VisibleChanged="v => _redactarVisible = v" Titulo="Redactar mensaje"
+                 HayCambios="() => HayCambiosSinGuardar" Guardando="_enviandoRedaccion" MensajeError="@_redactarError"
+                 OnGuardar="EnviarMensajeNuevoAsync" TextoGuardar="Enviar" TextoCancelar="Cancelar">
+    <CampoTexto Etiqueta="Para (separados por coma)" Valor="@_redactarDestinatarios" ValorChanged="v => _redactarDestinatarios = v" Placeholder="contacto@empresa.example" />
+    <CampoTexto Etiqueta="Asunto" Valor="@_redactarAsunto" ValorChanged="v => _redactarAsunto = v" />
+    <CampoTextarea Etiqueta="Mensaje" Valor="@_redactarCuerpo" ValorChanged="v => _redactarCuerpo = v" Filas="6" />
 
-        <CampoTexto Etiqueta="Para (separados por coma)" Valor="@_redactarDestinatarios" ValorChanged="v => _redactarDestinatarios = v" Placeholder="contacto@empresa.example" />
-        <CampoTexto Etiqueta="Asunto" Valor="@_redactarAsunto" ValorChanged="v => _redactarAsunto = v" />
-        <CampoTextarea Etiqueta="Mensaje" Valor="@_redactarCuerpo" ValorChanged="v => _redactarCuerpo = v" Filas="6" />
+    @if (_redactarAdjuntos.Count > 0)
+    {
+        <div class="bandeja-adjuntos-pendientes">
+            @foreach (var adjunto in _redactarAdjuntos)
+            {
+                <span class="bandeja-adjunto-chip bandeja-adjunto-chip-pendiente">
+                    <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />
+                    <span class="bandeja-adjunto-nombre">@adjunto.NombreArchivo</span>
+                    <button type="button" class="bandeja-adjunto-quitar" aria-label="Quitar @adjunto.NombreArchivo" @onclick="() => QuitarAdjuntoRedactar(adjunto)"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
+                </span>
+            }
+        </div>
+    }
 
-        @if (_redactarAdjuntos.Count > 0)
-        {
-            <div class="bandeja-adjuntos-pendientes">
-                @foreach (var adjunto in _redactarAdjuntos)
-                {
-                    <span class="bandeja-adjunto-chip bandeja-adjunto-chip-pendiente">
-                        <Icono Nombre="documentos" Tamano="TamanoIcono.Pequeno" />
-                        <span class="bandeja-adjunto-nombre">@adjunto.NombreArchivo</span>
-                        <button type="button" class="bandeja-adjunto-quitar" aria-label="Quitar @adjunto.NombreArchivo" @onclick="() => QuitarAdjuntoRedactar(adjunto)"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                    </span>
-                }
-            </div>
-        }
+    <label class="bandeja-boton-adjuntar">
+        <Icono Nombre="adjunto" Tamano="TamanoIcono.Pequeno" /> Adjuntar
+        <InputFile OnChange="ManejarArchivosRedactarAsync" multiple />
+    </label>
+</DrawerFormulario>
 
-        <label class="bandeja-boton-adjuntar">
-            <Icono Nombre="adjunto" Tamano="TamanoIcono.Pequeno" /> Adjuntar
-            <InputFile OnChange="ManejarArchivosRedactarAsync" multiple />
-        </label>
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviandoRedaccion" OnClick="() => _drawerRedactar?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_enviandoRedaccion" OnClick="EnviarMensajeNuevoAsync">Enviar</Boton>
-    </Pie>
-</Drawer>
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => _redactarVisible = false" />
 </LimiteDeErrores>

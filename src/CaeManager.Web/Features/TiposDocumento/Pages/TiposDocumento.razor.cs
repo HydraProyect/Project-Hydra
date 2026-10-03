@@ -780,8 +780,8 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
 
     /// <summary>
     /// P1-E2b: hay algo que perder si el drawer de alta o edición de Tipo de documento
-    /// difiere de cómo se abrió (con el orden propuesto o la ficha ya cargada). Lo leen
-    /// AvisoCambiosSinGuardar y el Drawer; cerrado (también tras guardar) nunca.
+    /// difiere de cómo se abrió (con el orden propuesto o la ficha ya cargada). Lo lee DrawerFormulario
+    /// (guardián de cerrar y de navegar); cerrado (también tras guardar) nunca.
     /// </summary>
     private bool HayCambiosSinGuardar => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
 

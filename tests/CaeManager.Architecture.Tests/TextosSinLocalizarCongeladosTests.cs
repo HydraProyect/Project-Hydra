@@ -66,7 +66,7 @@ public class TextosSinLocalizarCongeladosTests
         ["Clientes"] = 248, // 249 → 248 el 2026-10-02 (resto D-07/D-27) SIN migrar: formas antiguas («Cliente creado correctamente.», «Cliente crítico», «Editar cliente»…) se funden con las nuevas con «Cliente empresarial». 250→249 (D-29): «Ver ficha 360» pasó a «Abrir ficha 360», que ya contaba en esta superficie (ClientePreviewDrawer). No se ha migrado nada a .resx.
         ["Comercial"] = 61,
         ["Components/Account"] = 93,
-        ["Components/DesignSystem"] = 51,
+        ["Components/DesignSystem"] = 49,
         // 92 → 77 el 2026-09-23 SIN migrar nada: los rótulos del menú lateral pasaron del marcado
         // de NavMenu.razor a literales de CatalogoMenuLateral.cs, y la heurística no ve un literal
         // de una sola palabra («Dashboard», «Empresas»…). Siguen sin localizar; su migración a
