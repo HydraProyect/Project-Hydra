@@ -29,7 +29,7 @@ public enum ContextoCumplimiento
 /// <param name="EmpresaId">Empresa del Trabajador, o <c>null</c> si no tiene.</param>
 /// <param name="TrabajadorId">Trabajador al que se le exige.</param>
 /// <param name="TipoDocumentoId">Tipo exigido.</param>
-/// <param name="Estado">Estado del documento preferido del par (<c>PreferenciaDocumentoPorTipo</c>), o Faltante.</param>
+/// <param name="Estado">Estado del documento efectivo del par (<c>DocumentoEfectivo</c>, Application), o Faltante.</param>
 public readonly record struct ParDocumentalExigido(
     Guid CentroId,
     Guid ClienteEmpresarialId,
@@ -76,8 +76,9 @@ public sealed record FraccionCumplimiento(int AlDia, int Requeridos)
 /// <para>
 /// <b>Fuera del universo, a propósito, hasta que el propietario decida.</b> (1) Los documentos de ámbito Empresa: hoy
 /// ningún porcentaje los cuenta y el cálculo no sabe qué tipos de Empresa exige cada Centro. (2) El tratamiento de los
-/// documentos históricos sustituidos: se aplica la preferencia vigente de <c>PreferenciaDocumentoPorTipo</c> (uno por
-/// par) y no se decide otra.
+/// documentos históricos sustituidos: no entran (un documento sustituido es historial, <c>DocumentoOperativo</c>) y de
+/// los operativos de un par representa el documento efectivo (<c>DocumentoEfectivo</c>: válido hoy, nominativo, emisión
+/// más reciente) y no se decide otra.
 /// </para>
 /// </summary>
 public static class CumplimientoDocumental

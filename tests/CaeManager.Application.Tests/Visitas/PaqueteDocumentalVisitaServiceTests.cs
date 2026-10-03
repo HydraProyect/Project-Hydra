@@ -156,18 +156,6 @@ public class PaqueteDocumentalVisitaServiceTests
     }
 
     [Fact]
-    public async Task A_igual_emision_gana_la_que_vence_mas_tarde()
-    {
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-5), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(100)), contenido: "vence-antes");
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-5), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(300)), contenido: "vence-despues");
-        DocumentoDeTrabajador(_ana, _epi, emision: Hoy.AddDays(-45), vigencia: VigenciaDocumento.VenceEl(Hoy.AddDays(900)), contenido: "emision-antigua");
-
-        await GenerarAsync();
-
-        LeerZip().Should().ContainSingle().Which.Value.Should().Be("vence-despues");
-    }
-
-    [Fact]
     public async Task La_eleccion_no_depende_del_orden_en_que_devuelve_las_filas_la_base()
     {
         // Mismo titular, tipo, emisión y vencimiento: solo el desempate final (alta, luego Id) decide, y
