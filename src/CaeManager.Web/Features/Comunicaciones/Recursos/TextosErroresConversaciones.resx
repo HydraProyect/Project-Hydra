@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="ErrorAbrirConversacion" xml:space="preserve">
+    <value>No pudimos abrir la conversación. Vuelve a pulsarla en la lista; si sigue fallando, recarga la página.</value>
+  </data>
+  <data name="ErrorResumenDocumentacion" xml:space="preserve">
+    <value>No pudimos generar el resumen de documentación del Centro. Vuelve a elegirlo en «Compartir formatos de centro»: tu respuesta no se ha modificado.</value>
+  </data>
+  <data name="ErrorEnviarRespuesta" xml:space="preserve">
+    <value>No se envió la respuesta. Tu texto y los adjuntos siguen en el redactor: comprueba tu conexión y pulsa Enviar otra vez.</value>
+  </data>
+  <data name="ErrorEnviarCorreoFallback" xml:space="preserve">
+    <value>No se envió el correo. Tu mensaje sigue en el redactor: comprueba la conexión y vuelve a pulsar «Continuar por correo».</value>
+  </data>
+  <data name="ErrorDescartarSugerencia" xml:space="preserve">
+    <value>No pudimos descartar la sugerencia; sigue pendiente. Vuelve a pulsar Descartar.</value>
+  </data>
+  <data name="ErrorGenerarGestiones" xml:space="preserve">
+    <value>No pudimos completar la generación de gestiones. Revisa las gestiones del Trabajador antes de repetirla, para no duplicarlas.</value>
+  </data>
+  <data name="ErrorVincularConversacion" xml:space="preserve">
+    <value>No pudimos vincular las conversaciones. Vuelve a intentarlo desde la tarjeta «Relacionar conversación».</value>
+  </data>
+  <data name="ErrorConfirmarRuido" xml:space="preserve">
+    <value>No pudimos confirmar la clasificación del mensaje como ruido; sigue como estaba. Vuelve a confirmarla.</value>
+  </data>
+  <data name="ErrorActualizarDocumento" xml:space="preserve">
+    <value>No pudimos aplicar la actualización de documentación. Comprueba el estado del documento antes de repetirla, para no aplicarla dos veces.</value>
+  </data>
+  <data name="ErrorBorradorPrioridad" xml:space="preserve">
+    <value>No pudimos preparar el borrador de petición de prioridad. Vuelve a abrirlo en unos segundos; si sigue fallando, escríbelo a mano en el redactor.</value>
+  </data>
+  <data name="ErrorEnviarMensajeNuevo" xml:space="preserve">
+    <value>No se envió el mensaje. Tu texto sigue en el formulario: comprueba tu conexión y pulsa Enviar otra vez.</value>
+  </data>
+</root>
