@@ -107,44 +107,121 @@
     min-width: 0;
 }
 
+/* Bloque fijo de la cabecera (rediseño, propuestas 06 y 07): la barra y la banda de avisos del
+   sistema se quedan arriba al desplazar la página. Por debajo de Drawer (1040) y Modal (1050), por
+   encima de lo que se desplaza. Con la página en reposo es una superficie lisa; al desplazar
+   (cabecera.js pone data-desplazada) gana sombra y un velo translúcido con desenfoque. */
+.cabecera-fija {
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+    flex-shrink: 0;
+    border-bottom: var(--border-default);
+    transition: box-shadow var(--motion-base) var(--ease-standard);
+}
+
+/* El fondo vive en un pseudoelemento y no en la propia cabecera: un backdrop-filter en la
+   cabecera haría de ella el bloque contenedor de los velos position:fixed de sus paneles
+   (PanelDesplegableCabecera), que dejarían de cubrir la pantalla entera. */
+.cabecera-fija::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-color: var(--color-surface);
+    transition: background-color var(--motion-base) var(--ease-standard);
+}
+
+.cabecera-fija[data-desplazada] {
+    box-shadow: var(--shadow-cabecera-tabla);
+}
+
+.cabecera-fija[data-desplazada]::before {
+    background-color: color-mix(in srgb, var(--color-surface) 86%, transparent);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+}
+
 .barra-superior {
     height: var(--navbar-height);
-    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--space-4);
     padding: 0 var(--space-6);
-    border-bottom: var(--border-default);
-    background-color: var(--color-surface);
+}
+
+.barra-superior-izquierda,
+.barra-superior-derecha {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.barra-superior-derecha {
+    flex-shrink: 0;
 }
 
 .menu-usuario {
     display: flex;
     align-items: center;
-    gap: var(--space-4);
+    gap: var(--space-3);
 }
 
-.menu-usuario-nombre {
-    font: var(--font-body-md);
+/* Banda única de avisos del sistema. Se pliega con animación (grid-template-rows 1fr → 0fr) cuando
+   cabecera.js descarta el último aviso; sin avisos mide 0 porque no tiene contenido ni relleno. */
+.cabecera-bandas {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows var(--motion-transition) var(--ease-fluid);
+}
+
+.cabecera-bandas.cerrada {
+    grid-template-rows: 0fr;
+}
+
+.cabecera-bandas-interior {
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* Cada aviso del sistema es una fila de la banda. El tono sale de data-tono: «soporte» es el de
+   advertencia (el mismo que tenían TrazaSoporte, AvisoVentanaSoporte y AvisoFinDeAccesoEstatico) y
+   «info» el neutro de solo consulta. El texto oscuro sobre el ámbar es el mismo de siempre
+   (#1a1206 sobre --color-warning-500). */
+.cabecera-bandas ::deep [data-aviso-sistema] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    max-height: 20rem;
+    padding: var(--space-2) var(--space-4);
+    border-top: var(--border-default);
+    font: var(--font-body-sm);
+    text-align: center;
+    transition: max-height var(--motion-transition) var(--ease-fluid),
+        padding var(--motion-transition) var(--ease-fluid),
+        opacity var(--motion-slow) var(--ease-standard);
+}
+
+.cabecera-bandas ::deep [data-aviso-sistema][data-tono='soporte'] {
+    background: var(--color-warning-500);
+    color: #1a1206;
+    font-weight: 600;
+}
+
+.cabecera-bandas ::deep [data-aviso-sistema][data-tono='info'] {
+    background: var(--color-surface-subtle);
     color: var(--color-text-muted);
 }
 
-.boton-cerrar-sesion {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    background: none;
-    border: var(--border-control);
-    border-radius: var(--radius-md);
-    padding: var(--space-2) var(--space-4);
-    color: var(--color-text);
-    cursor: pointer;
-    font: var(--font-label-md);
-    transition: background-color var(--motion-fast) var(--ease-standard);
-}
-
-.boton-cerrar-sesion:hover {
-    background-color: var(--color-surface-hover);
+.cabecera-bandas ::deep [data-aviso-sistema][data-saliendo] {
+    max-height: 0;
+    padding-block: 0;
+    opacity: 0;
+    overflow: hidden;
 }
 
 .contenido {
@@ -183,11 +260,10 @@
     }
 
     /*
-      Navbar compacta en tablet/móvil: menos altura y padding lateral, y se
-      quita todo lo que no sea imprescindible (nombre de usuario en texto,
-      etiquetas de los botones) para dejar sitio al hamburguesa
-      (NavegacionMovil) + buscador + acciones — mismo punto de corte que
-      oculta ".barra-lateral" arriba.
+      Cabecera compacta en tablet/móvil (propuesta 08): solo iconos —menú, título de la pantalla,
+      buscar, avisos, tema y avatar—, menos altura y padding lateral. Los selectores técnicos y
+      «Cerrar sesión» no ocupan sitio: viven en los paneles que abren el chip y el avatar. Mismo
+      punto de corte que oculta ".barra-lateral".
     */
     .barra-superior {
         height: 56px;
@@ -195,19 +271,18 @@
         gap: var(--space-2);
     }
 
+    .barra-superior-izquierda,
+    .barra-superior-derecha,
     .menu-usuario {
         gap: var(--space-2);
     }
+}
 
-    .menu-usuario-nombre {
-        display: none;
-    }
-
-    .boton-cerrar-sesion {
-        padding: var(--space-2);
-    }
-
-    .boton-cerrar-sesion-texto {
-        display: none;
+@media (prefers-reduced-motion: reduce) {
+    .cabecera-fija,
+    .cabecera-fija::before,
+    .cabecera-bandas,
+    .cabecera-bandas ::deep [data-aviso-sistema] {
+        transition: none;
     }
 }

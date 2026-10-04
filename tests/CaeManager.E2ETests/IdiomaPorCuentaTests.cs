@@ -226,6 +226,7 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
         await page.GotoAsync($"{fixture.BaseUrl}/cuenta/iniciar-sesion");
         await page.FillAsync("#email", email);
         await page.FillAsync("#password", password);
+        await Ayudas.AbrirMenuDeUsuarioAsync(page);
         var respuesta = await page.RunAndWaitForResponseAsync(
             () => page.ClickAsync("button[type=\"submit\"]"), EsPostA("/cuenta/iniciar-sesion"));
 
@@ -266,6 +267,7 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
         // 286 ms después del HTML y el servidor no vio ningún POST en 30 s).
         // DOMContentLoaded no se dispara hasta ejecutar los scripts síncronos.
         await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Ayudas.AbrirMenuDeUsuarioAsync(page);
         var respuesta = await page.RunAndWaitForResponseAsync(
             () => page.SelectOptionAsync("select.selector-idioma", cultura),
             EsPostA("/cuenta/idioma"));
@@ -278,6 +280,7 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
 
     private static async Task<IReadOnlyList<string>> CerrarSesionAsync(IPage page)
     {
+        await Ayudas.AbrirMenuDeUsuarioAsync(page);
         var respuesta = await page.RunAndWaitForResponseAsync(
             () => page.ClickAsync(".boton-cerrar-sesion"), EsPostA("/cuenta/cerrar-sesion"));
         await page.WaitForURLAsync("**/cuenta/iniciar-sesion**");
@@ -292,7 +295,7 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
     private async Task RestaurarEspanolAsync(IPage page, string email)
     {
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
-        if (await page.Locator(".boton-cerrar-sesion").IsVisibleAsync())
+        if (await page.Locator("#menu-cuenta-boton").IsVisibleAsync())
             await CerrarSesionAsync(page);
 
         await IniciarSesionLocalAsync(page, email, Ayudas.ContrasenaUsuariosPrueba);

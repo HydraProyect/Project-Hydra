@@ -1,0 +1,44 @@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Textos
+
+@*
+    Menú de la cuenta (rediseño de la cabecera, propuesta 01): el avatar con las iniciales abre
+    un panel con «Mi firma y mis datos», el idioma y «Cerrar sesión», que antes ocupaban la
+    fila de la cabecera. SSR estático, sin @rendermode: abre, cierra y navega con el teclado
+    wwwroot/js/cabecera.js (delegado en document), y «Cerrar sesión» e idioma siguen siendo
+    <form> con POST y token antiforgery, como siempre.
+
+    El panel está siempre en el marcado (oculto con visibility, no con display) para que la
+    transición de apertura se vea y para que Esc devuelva el foco al botón.
+*@
+<div class="menu-cuenta">
+    <button type="button" class="menu-cuenta-boton" id="menu-cuenta-boton"
+            data-menu-cabecera aria-haspopup="menu" aria-expanded="false" aria-controls="menu-cuenta-panel"
+            aria-label="@Textos["CabeceraMenuUsuario"]" data-tooltip="@Textos["CabeceraMenuUsuario"]">
+        <span class="menu-cuenta-iniciales" aria-hidden="true">@InicialesDeUsuario.De(Nombre)</span>
+    </button>
+
+    <div class="panel-cabecera menu-cuenta-panel" id="menu-cuenta-panel" role="menu" aria-labelledby="menu-cuenta-boton">
+        <div class="menu-cuenta-cabecera" role="none">
+            <span class="menu-cuenta-nombre">@Nombre</span>
+        </div>
+        <a href="/mi-firma" class="menu-cuenta-elemento" role="menuitem">@Textos["CabeceraMiFirma"]</a>
+        <div class="menu-cuenta-idioma" role="group" aria-label="@Textos["IdiomaEtiqueta"]">
+            <SelectorIdioma />
+        </div>
+        <div class="menu-cuenta-separador" role="separator"></div>
+        <form method="post" action="/cuenta/cerrar-sesion" role="none">
+            <AntiforgeryToken />
+            <button type="submit" class="boton-cerrar-sesion menu-cuenta-elemento" role="menuitem">
+                <Icono Nombre="cerrar-sesion" Tamano="TamanoIcono.Pequeno" />
+                <span>@Textos["CabeceraCerrarSesion"]</span>
+            </button>
+        </form>
+    </div>
+</div>
+
+@code {
+    /// <summary>El nombre que expone la identidad de quien mira (<c>Identity.Name</c>).</summary>
+    [Parameter] public string? Nombre { get; set; }
+}

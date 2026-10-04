@@ -1,15 +1,7 @@
-/* Franja permanente durante una sesión de soporte. Deliberadamente visible y
-   no un badge discreto: quien opera datos de otra organización tiene que
-   verlo sin buscarlo, y saber que queda registrado. */
-.aviso-sesion-soporte {
-    padding: var(--space-2) var(--space-4);
-    background: var(--color-warning-500);
-    color: #1a1206;
-    font: var(--font-body-sm);
-    font-weight: 600;
-    text-align: center;
-}
-
+/* Franja permanente durante una sesión de soporte. Deliberadamente visible y no un badge
+   discreto: quien opera datos de otra organización tiene que verlo sin buscarlo, y saber que queda
+   registrado. Su aspecto base (tono de advertencia) lo pone la banda única de la cabecera
+   (MainLayout.razor.css); aquí solo sus enlaces. */
 .form-salir-sesion-soporte {
     display: inline;
     margin-inline-start: var(--space-2);

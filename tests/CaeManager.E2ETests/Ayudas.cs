@@ -1241,4 +1241,21 @@ public static class Ayudas
 
         return Path.Combine(directorio.FullName, "src", "CaeManager.Web", "bin", configuracion, "net10.0", "App_Data", "logs");
     }
+
+    /// <summary>
+    /// Abre el menú de usuario de la cabecera (avatar) si está cerrado: «Cerrar sesión» y el idioma
+    /// viven en su panel, que cerrado es <c>visibility: hidden</c> y no admite clics. Lo abre
+    /// <c>wwwroot/js/cabecera.js</c>, un script al final del <c>&lt;body&gt;</c>: se espera a
+    /// DOMContentLoaded para no pulsar antes de que el listener exista (misma ventana que
+    /// documenta <c>CambiarIdiomaAsync</c> de IdiomaPorCuentaTests).
+    /// </summary>
+    public static async Task AbrirMenuDeUsuarioAsync(IPage page)
+    {
+        await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        var boton = page.Locator("#menu-cuenta-boton");
+        if (await boton.GetAttributeAsync("aria-expanded") == "true") return;
+
+        await boton.ClickAsync();
+        await Assertions.Expect(page.Locator("#menu-cuenta-panel.abierto")).ToBeVisibleAsync();
+    }
 }

@@ -1,0 +1,59 @@
+@*
+    Botón + panel flotante de la cabecera para los islotes interactivos (vistas técnicas, campana
+    de avisos): el estado abierto/cerrado lo lleva Blazor porque lo que hay dentro depende del
+    circuito. El menú de usuario, que es estático, no pasa por aquí: lo abre cabecera.js.
+
+    Accesibilidad: el botón anuncia aria-expanded y aria-controls; Esc cierra y devuelve el foco al
+    botón; un velo transparente a pantalla completa cierra con un clic fuera. El panel está siempre
+    en el marcado y se oculta con visibility (no con display) para poder animar la entrada y para
+    que, cerrado, nada de lo que contiene reciba el foco.
+*@
+<div class="panel-desplegable" @onkeydown="AlPulsarTecla">
+    <button type="button" @ref="_boton" class="@ClaseBoton" aria-haspopup="dialog"
+            aria-expanded="@(Abierto ? "true" : "false")" aria-controls="@IdPanel"
+            aria-label="@EtiquetaAccesible" data-tooltip="@Tooltip" @onclick="AlternarAsync">
+        @ContenidoBoton
+    </button>
+
+    <div id="@IdPanel" class="panel-desplegable-panel @(Abierto ? "abierto" : null)" role="dialog"
+         aria-label="@Titulo">
+        @ChildContent
+    </div>
+
+    @if (Abierto)
+    {
+        <div class="panel-desplegable-velo" aria-hidden="true" @onclick="CerrarAsync"></div>
+    }
+</div>
+
+@code {
+    private ElementReference _boton;
+
+    [Parameter, EditorRequired] public string IdPanel { get; set; } = string.Empty;
+    [Parameter] public string? ClaseBoton { get; set; }
+    [Parameter] public string? EtiquetaAccesible { get; set; }
+    [Parameter] public string? Tooltip { get; set; }
+    [Parameter] public string? Titulo { get; set; }
+    [Parameter] public bool Abierto { get; set; }
+    [Parameter] public EventCallback<bool> AbiertoChanged { get; set; }
+    [Parameter] public RenderFragment? ContenidoBoton { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private Task AlternarAsync() => CambiarAsync(!Abierto);
+
+    private Task CerrarAsync() => CambiarAsync(false);
+
+    private async Task CambiarAsync(bool abierto)
+    {
+        Abierto = abierto;
+        await AbiertoChanged.InvokeAsync(abierto);
+    }
+
+    private async Task AlPulsarTecla(KeyboardEventArgs e)
+    {
+        if (!Abierto || e.Key != "Escape") return;
+
+        await CambiarAsync(false);
+        await _boton.FocusAsync();
+    }
+}

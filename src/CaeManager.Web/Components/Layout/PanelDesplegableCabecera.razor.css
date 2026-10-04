@@ -1,0 +1,51 @@
+.panel-desplegable {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.panel-desplegable-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + var(--space-2));
+    z-index: 2;
+    min-width: 280px;
+    max-width: min(380px, calc(100vw - 2 * var(--space-4)));
+    padding: var(--space-2);
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-overlay);
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    transform-origin: top right;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity var(--motion-base) var(--ease-standard),
+        transform var(--motion-base) var(--ease-fluid),
+        visibility 0s linear var(--motion-base);
+}
+
+.panel-desplegable-panel.abierto {
+    opacity: 1;
+    transform: none;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity var(--motion-base) var(--ease-standard),
+        transform var(--motion-base) var(--ease-fluid);
+}
+
+/* Velo invisible: solo recoge el clic de fuera para cerrar. Por debajo del panel (2), por encima
+   del resto de la cabecera. */
+.panel-desplegable-velo {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .panel-desplegable-panel,
+    .panel-desplegable-panel.abierto {
+        transition: none;
+    }
+}

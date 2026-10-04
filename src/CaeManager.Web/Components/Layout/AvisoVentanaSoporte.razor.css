@@ -1,14 +1,5 @@
-/* Mismo tono que la franja de sesión de soporte (TrazaSoporte): es un aviso
-   del mismo asunto. La de «terminó» se distingue por el enlace de salida. */
-.aviso-ventana-soporte {
-    padding: var(--space-2) var(--space-4);
-    background: var(--color-warning-500);
-    color: #1a1206;
-    font: var(--font-body-sm);
-    font-weight: 600;
-    text-align: center;
-}
-
+/* Mismo asunto que la franja de sesión de soporte (TrazaSoporte); su aspecto base lo pone la banda
+   única de la cabecera (MainLayout.razor.css). La de «terminó» se distingue por el enlace de salida. */
 .enlace-volver-organizacion {
     margin-inline-start: var(--space-2);
     color: inherit;

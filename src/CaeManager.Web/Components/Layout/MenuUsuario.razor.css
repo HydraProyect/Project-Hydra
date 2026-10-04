@@ -1,0 +1,124 @@
+.menu-cuenta {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.menu-cuenta-boton {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-full);
+    background-color: var(--color-avatar-fondo);
+    color: var(--color-avatar-texto);
+    cursor: pointer;
+    transition: box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.menu-cuenta-boton:hover,
+.menu-cuenta-boton[aria-expanded='true'] {
+    box-shadow: 0 0 0 3px var(--color-surface-hover);
+}
+
+.menu-cuenta-boton:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.menu-cuenta-iniciales {
+    font: var(--font-label-md);
+}
+
+/* Panel flotante. Cerrado: invisible y sin recibir eventos, pero presente, para animar la
+   entrada. La visibilidad se retrasa lo que dura la salida (misma técnica que el resto de
+   overlays del producto). */
+.menu-cuenta-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + var(--space-2));
+    z-index: 1;
+    min-width: 260px;
+    padding: var(--space-2);
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-overlay);
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    transform-origin: top right;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity var(--motion-base) var(--ease-standard),
+        transform var(--motion-base) var(--ease-fluid),
+        visibility 0s linear var(--motion-base);
+}
+
+.menu-cuenta-panel.abierto {
+    opacity: 1;
+    transform: none;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity var(--motion-base) var(--ease-standard),
+        transform var(--motion-base) var(--ease-fluid);
+}
+
+.menu-cuenta-cabecera {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: var(--border-default);
+    margin-bottom: var(--space-1);
+}
+
+.menu-cuenta-nombre {
+    display: block;
+    font: var(--font-label-md);
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+}
+
+.menu-cuenta-elemento {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text);
+    font: var(--font-body-md);
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.menu-cuenta-elemento:hover,
+.menu-cuenta-elemento:focus-visible {
+    background-color: var(--color-surface-hover);
+}
+
+.menu-cuenta-elemento:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}
+
+.menu-cuenta-idioma {
+    display: flex;
+    padding: var(--space-1) var(--space-3);
+}
+
+.menu-cuenta-separador {
+    height: 1px;
+    margin: var(--space-1) 0;
+    background-color: var(--color-border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .menu-cuenta-panel,
+    .menu-cuenta-panel.abierto,
+    .menu-cuenta-boton {
+        transition: none;
+    }
+}

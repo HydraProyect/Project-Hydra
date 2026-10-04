@@ -25,14 +25,14 @@
 <LimiteDeErrores Islote="this">
 @if (_terminada)
 {
-    <div class="aviso-ventana-soporte aviso-ventana-soporte--terminada" role="status">
+    <div class="aviso-ventana-soporte aviso-ventana-soporte--terminada" role="status" data-aviso-sistema data-tono="soporte">
         @AvisoFinDeAcceso.Texto(_motivo)
         <a href="/" data-enhance-nav="false" class="enlace-volver-organizacion">Volver a mi organización principal</a>
     </div>
 }
 else if (_minutosRestantes is { } minutos)
 {
-    <div class="aviso-ventana-soporte" role="status">
+    <div class="aviso-ventana-soporte" role="status" data-aviso-sistema data-tono="soporte">
         La ventana de soporte termina en @(minutos == 1 ? "1 minuto" : minutos + " minutos").
         Al terminar volverás a tu organización principal.
     </div>

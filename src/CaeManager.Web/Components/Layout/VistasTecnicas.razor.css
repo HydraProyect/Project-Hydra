@@ -1,0 +1,57 @@
+/* El chip: un pill discreto y de tono de aviso suave, para que se vea que la vista es una lente
+   de prueba y no la sesión real. El par texto/fondo es el warning 700/50 que cambia de tema con
+   tokens.css. */
+::deep .vistas-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-3);
+    border: 0;
+    border-radius: var(--radius-full);
+    background-color: var(--color-warning-50);
+    color: var(--color-warning-700);
+    font: var(--font-body-sm);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+::deep .vistas-chip:hover,
+::deep .vistas-chip[aria-expanded='true'] {
+    box-shadow: 0 0 0 2px var(--color-warning-700);
+}
+
+::deep .vistas-chip:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.vistas-cabecera {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: var(--border-default);
+    margin-bottom: var(--space-2);
+    color: var(--color-text);
+    font: var(--font-body-md);
+}
+
+.vistas-cabecera small {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+.vistas-selectores {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: 0 var(--space-3) var(--space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    ::deep .vistas-chip {
+        transition: none;
+    }
+}

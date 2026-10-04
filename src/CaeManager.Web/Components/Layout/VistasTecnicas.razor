@@ -1,0 +1,80 @@
+@inherits CaeManager.Web.Components.IsloteInteractivo
+@using CaeManager.Application.VistaDemo
+@using CaeManager.Infrastructure.Identity
+@using CaeManager.Web.Recursos
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Localization
+@inject IServiceProvider Servicios
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IStringLocalizer<TextosComunes> Textos
+
+@*
+    Rediseño de la cabecera, propuesta 05: la vista previa de vocabulario (solo Administrador) y
+    la vista de demo (solo cuentas y Tenants de demo) son herramientas de configuración, no de uso
+    diario. En lugar de dos selectores sueltos en la fila, un único chip discreto que abre su
+    panel, y que solo existe para quien tiene al menos una de las dos.
+
+    Esto no concede ni quita nada: cada selector sigue siendo el mismo <form> POST de siempre y
+    decide por su cuenta si se pinta (SelectorVistaVocabulario por rol, SelectorVistaDemo por
+    IVistaDemoActual). Aquí solo se averigua si hay algo que mostrar, para no pintar un chip con
+    el panel vacío, y la etiqueta de la vista de demo activa.
+*@
+<LimiteDeErrores Islote="this">
+@if (_hayVistas)
+{
+    <PanelDesplegableCabecera IdPanel="panel-vistas-tecnicas"
+                              ClaseBoton="vistas-chip"
+                              EtiquetaAccesible="@Textos["CabeceraVistasTitulo"]"
+                              Titulo="@Textos["CabeceraVistasTitulo"]"
+                              @bind-Abierto="_abierto">
+        <ContenidoBoton>
+            <span data-testid="vistas-chip-etiqueta">@Etiqueta</span> <span aria-hidden="true">▾</span>
+        </ContenidoBoton>
+        <ChildContent>
+            <div class="vistas-cabecera">
+                <strong>@Textos["CabeceraVistasTitulo"]</strong>
+                <small>@Textos["CabeceraVistasAyuda"]</small>
+            </div>
+            <div class="vistas-selectores">
+                <SelectorVistaVocabulario />
+                <SelectorVistaDemo />
+            </div>
+        </ChildContent>
+    </PanelDesplegableCabecera>
+}
+</LimiteDeErrores>
+
+@code {
+    private bool _hayVistas;
+    private bool _abierto;
+    private string? _vistaDemoActiva;
+
+    private string Etiqueta => _vistaDemoActiva is { } vista
+        ? Textos["CabeceraVistasEtiquetaDemo", vista].Value
+        : Textos["CabeceraVistasEtiqueta"].Value;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var estado = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var esAdministrador = estado.User.IsInRole(Roles.Administrador);
+
+        var demoDisponible = false;
+        if (Servicios.GetService<IVistaDemoActual>() is { } vistaDemo)
+        {
+            demoDisponible = await vistaDemo.EstaDisponibleAsync();
+            if (demoDisponible)
+            {
+                // La vista EFECTIVA, no la petición cruda de la cookie (mismo criterio que SelectorVistaDemo).
+                var efectiva = await vistaDemo.ObtenerEfectivaAsync();
+                _vistaDemoActiva = efectiva switch
+                {
+                    { Vista: Application.VistaDemo.VistaDemo.CoordinadorCae } => "Coordinador CAE",
+                    { Vista: Application.VistaDemo.VistaDemo.GestorCae } => "Gestor CAE",
+                    _ => null,
+                };
+            }
+        }
+
+        _hayVistas = esAdministrador || demoDisponible;
+    }
+}

@@ -186,4 +186,49 @@
   <data name="EsperaHecho" xml:space="preserve">
     <value>Guardado</value>
   </data>
+  <data name="CabeceraMenuUsuario" xml:space="preserve">
+    <value>Menú de usuario</value>
+  </data>
+  <data name="CabeceraMiFirma" xml:space="preserve">
+    <value>Mi firma y mis datos</value>
+  </data>
+  <data name="CabeceraCerrarSesion" xml:space="preserve">
+    <value>Cerrar sesión</value>
+  </data>
+  <data name="CabeceraAvisos" xml:space="preserve">
+    <value>Avisos pendientes</value>
+  </data>
+  <data name="CabeceraAvisosConContador" xml:space="preserve">
+    <value>Avisos pendientes, {0} sin leer</value>
+  </data>
+  <data name="CabeceraAvisosMarcarLeidas" xml:space="preserve">
+    <value>Marcar notificaciones como leídas</value>
+  </data>
+  <data name="CabeceraAvisosVacio" xml:space="preserve">
+    <value>No tienes avisos pendientes.</value>
+  </data>
+  <data name="CabeceraAvisosNuevo" xml:space="preserve">
+    <value>Nuevo</value>
+  </data>
+  <data name="CabeceraVistasTitulo" xml:space="preserve">
+    <value>Vistas de demostración y de vocabulario</value>
+  </data>
+  <data name="CabeceraVistasAyuda" xml:space="preserve">
+    <value>Solo estrecha lo que ya está autorizado; no concede nada.</value>
+  </data>
+  <data name="CabeceraVistasEtiqueta" xml:space="preserve">
+    <value>Vistas</value>
+  </data>
+  <data name="CabeceraVistasEtiquetaDemo" xml:space="preserve">
+    <value>Demostración · {0}</value>
+  </data>
+  <data name="CabeceraRuta" xml:space="preserve">
+    <value>Ruta de la página</value>
+  </data>
+  <data name="CabeceraMigaFicha" xml:space="preserve">
+    <value>Ficha</value>
+  </data>
+  <data name="CabeceraDescartar" xml:space="preserve">
+    <value>Descartar</value>
+  </data>
 </root>

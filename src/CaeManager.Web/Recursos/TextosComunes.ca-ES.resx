@@ -184,4 +184,49 @@
   <data name="EsperaHecho" xml:space="preserve">
     <value>Desat</value>
   </data>
+  <data name="CabeceraMenuUsuario" xml:space="preserve">
+    <value>Menú d'usuari</value>
+  </data>
+  <data name="CabeceraMiFirma" xml:space="preserve">
+    <value>La meva signatura i les meves dades</value>
+  </data>
+  <data name="CabeceraCerrarSesion" xml:space="preserve">
+    <value>Tanca la sessió</value>
+  </data>
+  <data name="CabeceraAvisos" xml:space="preserve">
+    <value>Avisos pendents</value>
+  </data>
+  <data name="CabeceraAvisosConContador" xml:space="preserve">
+    <value>Avisos pendents, {0} sense llegir</value>
+  </data>
+  <data name="CabeceraAvisosMarcarLeidas" xml:space="preserve">
+    <value>Marca les notificacions com a llegides</value>
+  </data>
+  <data name="CabeceraAvisosVacio" xml:space="preserve">
+    <value>No tens avisos pendents.</value>
+  </data>
+  <data name="CabeceraAvisosNuevo" xml:space="preserve">
+    <value>Nou</value>
+  </data>
+  <data name="CabeceraVistasTitulo" xml:space="preserve">
+    <value>Vistes de demostració i de vocabulari</value>
+  </data>
+  <data name="CabeceraVistasAyuda" xml:space="preserve">
+    <value>Només restringeix el que ja està autoritzat; no concedeix res.</value>
+  </data>
+  <data name="CabeceraVistasEtiqueta" xml:space="preserve">
+    <value>Vistes</value>
+  </data>
+  <data name="CabeceraVistasEtiquetaDemo" xml:space="preserve">
+    <value>Demostració · {0}</value>
+  </data>
+  <data name="CabeceraRuta" xml:space="preserve">
+    <value>Ruta de la pàgina</value>
+  </data>
+  <data name="CabeceraMigaFicha" xml:space="preserve">
+    <value>Fitxa</value>
+  </data>
+  <data name="CabeceraDescartar" xml:space="preserve">
+    <value>Descarta</value>
+  </data>
 </root>
