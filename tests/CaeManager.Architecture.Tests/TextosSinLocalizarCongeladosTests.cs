@@ -76,7 +76,7 @@ public class TextosSinLocalizarCongeladosTests
         ["Components/Legal"] = 163,
         ["Components/Pages"] = 18,
         ["Components/Workspace"] = 58,
-        ["Comunicaciones"] = 312, // 310 → 312 el 2026-10-02 (resto D-07/D-27) SIN migrar: «este Cliente empresarial» (Macros) y «mismo Cliente empresarial» (AccionCenter) pasan a llevar mayúscula en medio de la frase y el detector los empieza a ver; se funden además las formas «Cliente» y «Cliente (opcional)».
+        ["Comunicaciones"] = 302, // 312 → 302 el 2026-10-04 (errores accionables de la pantalla de conversaciones a TextosErroresConversaciones.resx, 10 literales migrados). Antes: 310 → 312 el 2026-10-02 (resto D-07/D-27) SIN migrar: «este Cliente empresarial» (Macros) y «mismo Cliente empresarial» (AccionCenter) pasan a llevar mayúscula en medio de la frase y el detector los empieza a ver; se funden además las formas «Cliente» y «Cliente (opcional)».
         // Migrada a TextosConfiguracion: el 1 restante es un falso positivo del
         // detector, la cabecera «@for (var indice = 0; indice < Grupos.Count; …)»
         // de Configuracion.razor, que el '<' de la comparación hace pasar por texto.
@@ -92,7 +92,7 @@ public class TextosSinLocalizarCongeladosTests
         // esta entrada se retira.
         ["DashboardEjecutivo"] = 1,
         ["Delegaciones"] = 97,
-        ["Documentos"] = 453, // 454 → 453 el 2026-10-04 (CampoSelectAvanzado): el selector de sello de FirmaEnCampoTab deja de llevar «Ninguno» como <option> y pasa a la lista de opciones (SIN migrar a .resx). Antes: 455 → 454 el 2026-10-02: «Enviadas» y «+ Nueva reclamación» pasan de marcado a la lista de pestañas de ReclamacionesTab (D-30; sigue sin localizar, solo cambia de lugar). 459 → 458 el 2026-09-26: borrado en lote de Documentos.razor a TextosDocumentos.resx (FS-09). 458 → 455 el 2026-09-29: lote 3, chips, «Más» y textos del 4a a TextosDocumentos.resx.
+        ["Documentos"] = 445, // 446 → 445 el 2026-10-04 (CampoSelectAvanzado): el selector de sello de FirmaEnCampoTab deja de llevar «Ninguno» como <option> y pasa a la lista de opciones (SIN migrar a .resx). Antes: 454 → 446 el 2026-10-04: la aceptación en bloque de RevisionIaTab sustituye el lote del 95 %, y sus textos nuevos van a TextosDocumentos.resx. 455 → 454 el 2026-10-02: «Enviadas» y «+ Nueva reclamación» pasan de marcado a la lista de pestañas de ReclamacionesTab (D-30; sigue sin localizar, solo cambia de lugar). 459 → 458 el 2026-09-26: borrado en lote de Documentos.razor a TextosDocumentos.resx (FS-09). 458 → 455 el 2026-09-29: lote 3, chips, «Más» y textos del 4a a TextosDocumentos.resx.
         ["Empresas"] = 198,
         ["Extension"] = 29,
         ["Facturacion"] = 96,

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="ErrorAbrirConversacion" xml:space="preserve">
+    <value>No hem pogut obrir la conversa. Torna a prémer-la a la llista; si continua fallant, recarrega la pàgina.</value>
+  </data>
+  <data name="ErrorResumenDocumentacion" xml:space="preserve">
+    <value>No hem pogut generar el resum de documentació del Centre. Torna a triar-lo a «Compartir formats de centre»: la teva resposta no s'ha modificat.</value>
+  </data>
+  <data name="ErrorEnviarRespuesta" xml:space="preserve">
+    <value>No s'ha enviat la resposta. El teu text i els adjunts continuen a l'editor: comprova la connexió i prem Enviar un altre cop.</value>
+  </data>
+  <data name="ErrorEnviarCorreoFallback" xml:space="preserve">
+    <value>No s'ha enviat el correu. El teu missatge continua a l'editor: comprova la connexió i torna a prémer «Continuar per correu».</value>
+  </data>
+  <data name="ErrorDescartarSugerencia" xml:space="preserve">
+    <value>No hem pogut descartar el suggeriment; continua pendent. Torna a prémer Descartar.</value>
+  </data>
+  <data name="ErrorGenerarGestiones" xml:space="preserve">
+    <value>No hem pogut completar la generació de gestions. Revisa les gestions del Treballador abans de repetir-la, per no duplicar-les.</value>
+  </data>
+  <data name="ErrorVincularConversacion" xml:space="preserve">
+    <value>No hem pogut vincular les converses. Torna-ho a provar des de la targeta «Relacionar conversa».</value>
+  </data>
+  <data name="ErrorConfirmarRuido" xml:space="preserve">
+    <value>No hem pogut confirmar la classificació del missatge com a soroll; continua com estava. Torna a confirmar-la.</value>
+  </data>
+  <data name="ErrorActualizarDocumento" xml:space="preserve">
+    <value>No hem pogut aplicar l'actualització de documentació. Comprova l'estat del document abans de repetir-la, per no aplicar-la dues vegades.</value>
+  </data>
+  <data name="ErrorBorradorPrioridad" xml:space="preserve">
+    <value>No hem pogut preparar l'esborrany de petició de prioritat. Torna a obrir-lo d'aquí a uns segons; si continua fallant, escriu-lo a mà a l'editor.</value>
+  </data>
+  <data name="ErrorEnviarMensajeNuevo" xml:space="preserve">
+    <value>No s'ha enviat el missatge. El teu text continua al formulari: comprova la connexió i prem Enviar un altre cop.</value>
+  </data>
+</root>

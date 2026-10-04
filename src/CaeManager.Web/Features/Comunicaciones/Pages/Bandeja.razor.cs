@@ -65,6 +65,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private Drawer? _drawerRedactar;
     private Modal? _modalActualizarDocumento;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
+    [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosErroresConversaciones> ErroresTextos { get; set; } = default!;
     [Inject] private ILogger<Bandeja> Logger { get; set; } = default!;
     [Inject] private IOptions<ComunicacionesOptions> OpcionesComunicaciones { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -110,6 +111,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private bool _cargandoLista = true;
     private bool _errorCargaLista;
     private IReadOnlyList<ConversacionListaDto> _conversaciones = [];
+    private Guid? _idEnfocado;
 
     // --- Paginación en SQL (Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md § Paginación/volumen — la
     // bandeja no tenía techo, cargaba TODAS las conversaciones que cumplieran
@@ -572,6 +574,44 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private IEnumerable<IGrouping<Guid, ConversacionListaDto>> GruposPorCliente() =>
         _conversaciones.Where(c => c.ClienteId is not null).GroupBy(c => c.ClienteId!.Value);
 
+    /// <summary>Conversaciones en el orden en que se pintan (Triage primero, después cada Cliente empresarial), sin las de grupos colapsados: es el orden por el que se mueve j/k.</summary>
+    private List<ConversacionListaDto> ConversacionesVisiblesEnOrden()
+    {
+        var visibles = new List<ConversacionListaDto>();
+        if (!GrupoColapsado("triage")) visibles.AddRange(ConversacionesTriage());
+        foreach (var grupo in GruposPorCliente())
+            if (!GrupoColapsado(grupo.Key.ToString()))
+                visibles.AddRange(grupo.OrderByDescending(c => c.FechaUltimoMensajeUtc));
+        return visibles;
+    }
+
+    /// <summary>
+    /// j/k mueven el foco por la lista y Enter abre la conversación enfocada.
+    /// <c>atajos-lista.js</c> ya descarta las teclas con el foco en un textarea, input o select
+    /// (el Composer) y con Ctrl/Meta/Alt, así que escribir una respuesta nunca llega aquí.
+    /// </summary>
+    private async Task ManejarAtajoListaAsync(string tecla)
+    {
+        var filas = ConversacionesVisiblesEnOrden();
+        if (filas.Count == 0) return;
+
+        var indice = _idEnfocado is null ? -1 : filas.FindIndex(f => f.Id == _idEnfocado);
+        switch (tecla)
+        {
+            case "j":
+                _idEnfocado = filas[Math.Min(indice + 1, filas.Count - 1)].Id;
+                break;
+            case "k":
+                _idEnfocado = filas[Math.Max(indice - 1, 0)].Id;
+                break;
+            case "Enter" when indice >= 0:
+                await SeleccionarConversacionAsync(filas[indice].Id);
+                return;
+        }
+
+        StateHasChanged();
+    }
+
     private IReadOnlyList<ConversacionListaDto> ConversacionesTriage() =>
         _conversaciones.Where(c => c.ClienteId is null).OrderByDescending(c => c.FechaUltimoMensajeUtc).ToList();
 
@@ -751,7 +791,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             Logger.LogError(ex, "Error al abrir la conversación {ConversacionId}.", id);
             if (carga != _cargaDetalleVigente) return;
 
-            ToastService.Mostrar("No pudimos abrir esta conversación. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(ErroresTextos["ErrorAbrirConversacion"].Value, TonoToast.Error);
         }
         finally
         {
@@ -770,7 +810,14 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         {
             var macro = _macrosDisponibles.FirstOrDefault(m => m.Id == macroId);
             if (macro is not null)
-                _textoRespuesta = macro.CuerpoHtml;
+            {
+                // Nunca pisa lo ya escrito: un borrador a medias se pierde sin
+                // remedio (el Composer no tiene deshacer), así que con texto
+                // previo la macro se añade al final, separada por una línea en blanco.
+                _textoRespuesta = string.IsNullOrWhiteSpace(_textoRespuesta)
+                    ? macro.CuerpoHtml
+                    : $"{_textoRespuesta.TrimEnd()}\n\n{macro.CuerpoHtml}";
+            }
         }
     }
 
@@ -794,7 +841,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al generar los formatos requeridos del centro {CentroId}.", centroId);
-            ToastService.Mostrar("No pudimos generar el resumen de documentación. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(ErroresTextos["ErrorResumenDocumentacion"].Value, TonoToast.Error);
         }
     }
 
@@ -885,7 +932,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al responder en la conversación {ConversacionId}.", _conversacionSeleccionadaId);
-            ToastService.Mostrar("No pudimos enviar la respuesta. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(ErroresTextos["ErrorEnviarRespuesta"].Value, TonoToast.Error);
         }
         finally
         {
@@ -928,7 +975,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al migrar a correo la conversación {ConversacionId}.", _conversacionSeleccionadaId);
-            ToastService.Mostrar("No pudimos enviar el correo. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(ErroresTextos["ErrorEnviarCorreoFallback"].Value, TonoToast.Error);
         }
         finally
         {
@@ -1078,7 +1125,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al descartar la sugerencia de visita {SugerenciaId}.", sugerenciaId);
-            ToastService.Mostrar("No pudimos descartar la sugerencia. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(ErroresTextos["ErrorDescartarSugerencia"].Value, TonoToast.Error);
         }
     }
 
@@ -1108,7 +1155,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al generar gestiones desde la sugerencia {SugerenciaId}.", sugerenciaId);
-            ToastService.Mostrar("No pudimos generar las gestiones. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(ErroresTextos["ErrorGenerarGestiones"].Value, TonoToast.Error);
         }
     }
 
@@ -1138,7 +1185,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al vincular la conversación {Origen} con {Destino}.", conversacionOrigenId, conversacionDestinoId);
-            ToastService.Mostrar("No pudimos vincular la conversación. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(ErroresTextos["ErrorVincularConversacion"].Value, TonoToast.Error);
         }
     }
 
@@ -1160,7 +1207,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al confirmar la clasificación de ruido del mensaje {MensajeId}.", mensajeId);
-            ToastService.Mostrar("No pudimos confirmar el mensaje. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(ErroresTextos["ErrorConfirmarRuido"].Value, TonoToast.Error);
         }
     }
 
@@ -1181,7 +1228,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al descartar la sugerencia de gestión {SugerenciaId}.", sugerenciaId);
-            ToastService.Mostrar("No pudimos descartar la sugerencia. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar(ErroresTextos["ErrorDescartarSugerencia"].Value, TonoToast.Error);
         }
     }
 
@@ -1302,7 +1349,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al actualizar la documentación desde el adjunto {AdjuntoId}.", _adjuntoParaActualizarDocumentoId);
-            _errorActualizarDocumento = "No pudimos aplicar la actualización. Intenta nuevamente.";
+            _errorActualizarDocumento = ErroresTextos["ErrorActualizarDocumento"].Value;
         }
         finally
         {
@@ -1415,7 +1462,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al preparar el borrador de pedir prioridad para el centro {CentroId}.", centroId);
-            _mensajeErrorPrioridad = "No pudimos preparar el borrador. Intenta nuevamente en unos segundos.";
+            _mensajeErrorPrioridad = ErroresTextos["ErrorBorradorPrioridad"].Value;
         }
         finally
         {
@@ -1524,7 +1571,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al enviar un mensaje nuevo desde la conexión {ConexionId}.", _conexionRedactarId);
-            _redactarError = "No pudimos enviar el mensaje. Intenta nuevamente.";
+            _redactarError = ErroresTextos["ErrorEnviarMensajeNuevo"].Value;
         }
         finally
         {

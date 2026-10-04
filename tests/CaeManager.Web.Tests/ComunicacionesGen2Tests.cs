@@ -208,6 +208,8 @@ public class ComunicacionesGen2Tests : BunitContext
 
         public List<MensajeBuzonPersonalDto> BuzonPersonal { get; } = [];
 
+        public List<MacroListaDto> Macros { get; } = [];
+
         public Func<Guid, ConversacionDetalleDto?> Detalle { get; set; } = _ => null;
 
         public List<NotaInternaDetalleDto> NotasInternas { get; } = [];
@@ -226,7 +228,7 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerConversacionPorIdQuery q => Detalle(q.Id),
                 ObtenerClientePorIdQuery q => new ClienteDetalleDto(
                     q.Id, Clientes.First(c => c.Id == q.Id).RazonSocial, "A11111111", false, null, DateTime.UtcNow, null, Guid.NewGuid()),
-                ObtenerMacrosQuery => new List<MacroListaDto>(),
+                ObtenerMacrosQuery => Macros.ToList(),
                 ObtenerCentrosParaSelectorQuery => new List<CentroSelectorDto>(),
                 ObtenerTiposDocumentoQuery => new List<TipoDocumentoListaDto>(),
                 ObtenerTrabajadoresParaSelectorQuery => new List<TrabajadorSelectorDto>(),
@@ -1058,5 +1060,174 @@ public class ComunicacionesGen2Tests : BunitContext
 
         cut.FindComponent<NavigationLock>().Instance.ConfirmExternalNavigation.Should().BeTrue(
             "recargar o cerrar la pestaña con la nota a medias tiene que avisar");
+    }
+
+    // ---------------------------------------------------------------- macro, Ctrl+Intro, j/k y errores accionables
+
+    private static IElement TextareaCorreo(IRenderedComponent<Bandeja> cut) => cut.Find(".composer-correo textarea");
+
+    private static Task Teclear(IElement elemento, string tecla, bool ctrl = false, bool meta = false) =>
+        elemento.KeyDownAsync(new KeyboardEventArgs { Key = tecla, CtrlKey = ctrl, MetaKey = meta });
+
+    [Fact]
+    public async Task Aplicar_una_macro_con_un_borrador_escrito_lo_conserva_y_anade_la_macro_al_final()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var macro = new MacroListaDto(Guid.NewGuid(), null, null, "Acuse", "Gracias, lo revisamos hoy.", Guid.NewGuid());
+        escenario.Macros.Add(macro);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        await Escribir(cut, "Hola Carmen,");
+
+        await cut.Find(".composer-macro-campo select").ChangeAsync(new ChangeEventArgs { Value = macro.Id.ToString() });
+
+        var texto = TextareaCorreo(cut).TextContent;
+        texto.Should().StartWith("Hola Carmen,", "el borrador no se pierde");
+        texto.Should().EndWith("Gracias, lo revisamos hoy.", "la macro se añade al final");
+    }
+
+    [Fact]
+    public async Task Aplicar_una_macro_sin_borrador_deja_solo_la_macro()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var macro = new MacroListaDto(Guid.NewGuid(), null, null, "Acuse", "Gracias, lo revisamos hoy.", Guid.NewGuid());
+        escenario.Macros.Add(macro);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        await cut.Find(".composer-macro-campo select").ChangeAsync(new ChangeEventArgs { Value = macro.Id.ToString() });
+
+        TextareaCorreo(cut).TextContent.Should().Be("Gracias, lo revisamos hoy.");
+    }
+
+    [Theory]
+    [InlineData(true, false, 1)]
+    [InlineData(false, true, 1)]
+    [InlineData(false, false, 0)]
+    public async Task Ctrl_o_Cmd_Intro_envian_el_correo_y_Intro_solo_no(bool ctrl, bool meta, int enviosEsperados)
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        await Escribir(cut, "Recibido, gracias.");
+
+        await Teclear(TextareaCorreo(cut), "Enter", ctrl, meta);
+
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().HaveCount(enviosEsperados);
+    }
+
+    [Fact]
+    public async Task Ctrl_Intro_sin_texto_no_envia_nada()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+
+        await Teclear(TextareaCorreo(cut), "Enter", ctrl: true);
+
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Dos_Ctrl_Intro_seguidos_mandan_un_solo_correo()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var envio = new TaskCompletionSource<object?>();
+        escenario.Interceptar = p => p is ResponderConversacionCommand ? envio.Task : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        await Escribir(cut, "Recibido, gracias.");
+
+        var primero = Teclear(TextareaCorreo(cut), "Enter", ctrl: true);
+        var segundo = Teclear(TextareaCorreo(cut), "Enter", ctrl: true);
+
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle(
+            "el segundo atajo llega con el primer envío en curso");
+
+        await cut.InvokeAsync(() => envio.SetResult(Result.Exito()));
+        await primero;
+        await segundo;
+
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().ContainSingle();
+    }
+
+    private static Task PulsarAtajoDeLista(IRenderedComponent<Bandeja> cut, string tecla) =>
+        cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo(tecla));
+
+    private static IReadOnlyList<string> AsuntosEnfocados(IRenderedComponent<Bandeja> cut) =>
+        cut.FindAll(".bandeja-fila.fila-enfocada .bandeja-fila-asunto").Select(f => f.TextContent.Trim()).ToList();
+
+    [Fact]
+    public async Task J_y_k_mueven_el_foco_por_la_lista_y_Intro_abre_la_conversacion_enfocada()
+    {
+        var primera = Conversacion("Primera", ClienteRefrielectric);
+        var segunda = Conversacion("Segunda", ClienteEbro);
+        var escenario = new Escenario { Detalle = id => DetalleDe(id == primera.Id ? primera : segunda) };
+        escenario.Conversaciones.Add(primera);
+        escenario.Conversaciones.Add(segunda);
+        var (cut, mediador) = Renderizar(escenario);
+        var orden = AsuntosVisibles(cut);
+
+        AsuntosEnfocados(cut).Should().BeEmpty("hasta pulsar j no hay fila enfocada");
+
+        await PulsarAtajoDeLista(cut, "j");
+        AsuntosEnfocados(cut).Should().Equal(orden[0]);
+
+        await PulsarAtajoDeLista(cut, "j");
+        AsuntosEnfocados(cut).Should().Equal(orden[1]);
+
+        await PulsarAtajoDeLista(cut, "j");
+        AsuntosEnfocados(cut).Should().ContainSingle().Which.Should().Be(orden[1], "j no pasa del final");
+
+        await PulsarAtajoDeLista(cut, "k");
+        AsuntosEnfocados(cut).Should().Equal(orden[0]);
+
+        await PulsarAtajoDeLista(cut, "Enter");
+        var abierta = orden[0] == "Primera" ? primera : segunda;
+        mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Should().ContainSingle().Which.Id.Should().Be(abierta.Id);
+    }
+
+    [Fact]
+    public async Task Intro_sin_fila_enfocada_no_abre_nada()
+    {
+        var conversacion = Conversacion("Primera", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, mediador) = Renderizar(escenario);
+
+        await PulsarAtajoDeLista(cut, "Enter");
+
+        mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_fallo_inesperado_al_enviar_dice_que_fallo_y_que_el_texto_sigue_en_el_redactor()
+    {
+        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var escenario = new Escenario
+        {
+            Detalle = _ => DetalleDe(conversacion),
+            AlResponder = _ => throw new InvalidOperationException("boom")
+        };
+        escenario.Conversaciones.Add(conversacion);
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentación pendiente");
+        await Escribir(cut, "Recibido, gracias.");
+
+        await Enviar(cut);
+
+        var mensaje = Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Subject.Mensaje;
+        mensaje.Should().StartWith("No se envió la respuesta.").And.Contain("siguen en el redactor");
+        mensaje.Should().NotContain("Intenta nuevamente");
     }
 }

@@ -780,6 +780,41 @@
     min-width: 0;
 }
 
+/* Motivo del bloqueo de un Trabajador en el Centro (ficha 12): bajo la fila, una línea por documento con su «Pedir». */
+.motivo-bloqueo {
+    margin: 0.25rem 0 0.5rem 2.25rem;
+    padding-left: 0.75rem;
+    border-left: 2px solid var(--color-danger-700);
+}
+
+.motivo-bloqueo-lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.motivo-bloqueo-linea {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.125rem 0;
+}
+
+.motivo-bloqueo-texto {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.motivo-bloqueo-sin-pedir,
+.motivo-bloqueo-subtitulo {
+    color: var(--color-text-muted);
+}
+
+.motivo-bloqueo-subtitulo {
+    margin: 0.5rem 0 0.125rem;
+}
+
 /*
   Fila de Trabajador (contrato de fidelidad 2026-08-09 § 1.4, lámina L3
   ".wrow"): mismo grid de 5 columnas fijas que la fila de Centro, sin anillo
@@ -1204,6 +1239,65 @@
 @media (prefers-reduced-motion: reduce) {
     .tabla-datos tbody tr,
     .stagger-item {
+        animation: none;
+    }
+}
+
+/*
+  Acabado de tablas (ficha 14). Cabecera fija: la tabla desplaza dentro de
+  .contenido (o del cuerpo de un Drawer/Modal), así que top:0 la pega al borde
+  del contenedor que desplaza. Sin overflow en .tabla-datos (ver arriba), el
+  sticky llega al contenedor real. En móvil .tabla-datos pasa a ser su propio
+  contenedor (overflow-x) y la cabecera deja de pegarse: no es un fallo.
+*/
+.tabla-datos thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+/*
+  Sombra bajo la cabecera mientras se desplaza, con la línea de tiempo de
+  scroll del navegador (sin JS). Sin soporte, la cabecera simplemente no lleva
+  sombra. El rango 0–40px la hace crecer a medida que el contenido se va.
+*/
+@supports (animation-timeline: scroll()) {
+    @media (prefers-reduced-motion: no-preference) {
+        .tabla-datos thead th {
+            animation: sombra-cabecera-tabla linear both;
+            animation-timeline: scroll(nearest block);
+            animation-range: 0 40px;
+        }
+    }
+}
+
+@keyframes sombra-cabecera-tabla {
+    from {
+        box-shadow: 0 0 0 0 transparent;
+    }
+    to {
+        box-shadow: var(--shadow-cabecera-tabla);
+    }
+}
+
+/*
+  Destello de la fila nueva o modificada por una acción del usuario: lo pone
+  js/destello-fila.js (o la propia pantalla, añadiendo la clase), nunca en la
+  carga inicial. Anima solo el fondo de las celdas hacia el que ya tengan, así
+  que no hay que repetir el color final.
+*/
+.tabla-datos tr.fila-destello td {
+    animation: destello-fila 1.5s var(--ease-standard);
+}
+
+@keyframes destello-fila {
+    from {
+        background-color: color-mix(in srgb, var(--color-primary-500) 24%, transparent);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tabla-datos tr.fila-destello td {
         animation: none;
     }
 }

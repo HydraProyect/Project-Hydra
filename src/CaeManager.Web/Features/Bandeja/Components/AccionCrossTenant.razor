@@ -3,7 +3,8 @@
     antiforgery a /cuenta/cliente-activo que el selector de Tenant de la cabecera y
     VisionCartera, con returnUrl = la pantalla exacta del ítem
     (AccionesBandeja.ResolverUrl; contrato Gen2 § 8). El endpoint revalida la
-    autorización sobre ese Tenant en cada envío.
+    autorización sobre ese Tenant en cada envío. Si recibe UrlRetorno (Mi trabajo con sus filtros),
+    el destino lleva ?volver=… y el layout ofrece la vuelta (RetornoMiTrabajo).
 
     Se usa también para el Tenant que ya esté activo: un único camino para
     todas las filas evita que el comportamiento dependa de cuál sea el activo.
@@ -11,6 +12,7 @@
 *@
 @using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
 @using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Components.Layout
 @using Microsoft.AspNetCore.Components.Forms
 
 <form method="post" action="/cuenta/cliente-activo" class="accion-cross-tenant" data-accion-cross-tenant>
@@ -19,7 +21,7 @@
         <input type="hidden" name="@Token.FormFieldName" value="@Token.Value" />
     }
     <input type="hidden" name="tenantId" value="@TenantId" />
-    <input type="hidden" name="returnUrl" value="@(AccionesBandeja.ResolverUrl(Item) ?? "/bandeja")" />
+    <input type="hidden" name="returnUrl" value="@Destino" />
     <Boton Type="submit" Variante="Variante" Tamano="Tamano" title="@Titulo">
         @TipoItemBandejaUi.TextoAccion(Item)
     </Boton>
@@ -30,6 +32,11 @@
     [Parameter, EditorRequired] public ItemBandejaDto Item { get; set; } = default!;
     [Parameter] public AntiforgeryRequestToken? Token { get; set; }
     [Parameter] public string? Titulo { get; set; }
+
+    /// <summary>La URL de Mi trabajo con sus filtros, para que el destino ofrezca la vuelta (RetornoMiTrabajo).</summary>
+    [Parameter] public string? UrlRetorno { get; set; }
+
+    private string Destino => RetornoMiTrabajo.ComponerDestino(AccionesBandeja.ResolverUrl(Item) ?? "/bandeja", UrlRetorno);
     [Parameter] public VarianteBoton Variante { get; set; } = VarianteBoton.Fantasma;
     [Parameter] public TamanoBoton Tamano { get; set; } = TamanoBoton.Pequeno;
 }
