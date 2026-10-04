@@ -111,6 +111,18 @@ public class AtajosGlobalesTests : BunitContext
         sinTexto.Should().BeEmpty();
     }
 
+    /// <summary>La chuleta anuncia la «f» de las listas (rediseño de listados, fase 1) con su texto.</summary>
+    [Fact]
+    public async Task La_chuleta_anuncia_f_para_ir_al_filtro_de_la_pantalla()
+    {
+        var cut = Render<AtajosGlobales>();
+
+        await cut.InvokeAsync(cut.Instance.AlternarAyuda);
+
+        cut.Markup.Should().Contain("Ir al filtro de esta pantalla");
+        CatalogoAtajos.Lista.Should().Contain(a => a.Tecla == "f" && a.ClaveDescripcion == "ListaFiltrarPantalla");
+    }
+
     [Fact]
     public async Task AlternarAyuda_pinta_los_textos_y_no_las_claves()
     {

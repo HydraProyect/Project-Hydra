@@ -8,8 +8,9 @@
     CascadingValue — ver ItemMenuAccion.razor.
 *@
 <div class="menu-acciones">
-    <button type="button" class="menu-acciones-disparador @(Etiqueta is null ? null : "menu-acciones-disparador-texto")" aria-haspopup="menu" aria-expanded="@(_abierto ? "true" : "false")"
-            aria-controls="@_panelId" aria-label="@(Etiqueta ?? EtiquetaAccesible ?? "Más acciones")" @ref="_disparador" @onclick="Alternar" @onkeydown="ManejarTeclaDisparadorAsync">
+    <button type="button" class="@ClasesDisparador" aria-haspopup="menu" aria-expanded="@(_abierto ? "true" : "false")"
+            aria-controls="@_panelId" aria-label="@(Etiqueta ?? EtiquetaAccesible ?? "Más acciones")" title="@(Etiqueta is null && ConBorde ? EtiquetaAccesible : null)"
+            @ref="_disparador" @onclick="Alternar" @onkeydown="ManejarTeclaDisparadorAsync">
         @if (Etiqueta is null)
         {
             <Icono Nombre="mas-opciones" />
@@ -23,7 +24,7 @@
     @if (_abierto)
     {
         <div class="menu-acciones-superposicion" @onclick="Cerrar"></div>
-        <div id="@_panelId" class="menu-acciones-panel" role="menu" @onclick:stopPropagation="true">
+        <div id="@_panelId" class="@(Pastilla ? "menu-acciones-panel menu-acciones-panel-izquierda" : "menu-acciones-panel")" role="menu" @onclick:stopPropagation="true">
             <CascadingValue Value="this" IsFixed="true">
                 @ChildContent
             </CascadingValue>
@@ -55,6 +56,25 @@
     /// manda esta. Sin valor, el nombre es «Más acciones», como siempre.
     /// </summary>
     [Parameter] public string? EtiquetaAccesible { get; set; }
+
+    /// <summary>
+    /// El disparador es una pastilla de filtro (BarraFiltros con pastillas): borde redondeado
+    /// completo, y el panel se abre alineado a la izquierda, bajo la pastilla.
+    /// </summary>
+    [Parameter] public bool Pastilla { get; set; }
+
+    /// <summary>Con <see cref="Pastilla"/>: el filtro tiene un valor aplicado y la pastilla lo marca.</summary>
+    [Parameter] public bool Activa { get; set; }
+
+    /// <summary>Disparador de icono «⋯» con borde, del tamaño de los botones de la cabecera de listado.</summary>
+    [Parameter] public bool ConBorde { get; set; }
+
+    private string ClasesDisparador =>
+        "menu-acciones-disparador"
+        + (Etiqueta is null ? "" : " menu-acciones-disparador-texto")
+        + (Pastilla ? " menu-acciones-disparador-pastilla" : "")
+        + (Pastilla && Activa ? " menu-acciones-disparador-activa" : "")
+        + (ConBorde ? " menu-acciones-disparador-borde" : "");
 
     private void Alternar()
     {
@@ -110,7 +130,9 @@
         if ((_primerItemPendiente || _ultimoItemPendiente) && _items.Count > 0)
         {
             var habilitados = _items.Where(i => i.Habilitado).ToList();
-            _itemPendienteDeFoco = _primerItemPendiente ? habilitados.FirstOrDefault() : habilitados.LastOrDefault();
+            // En un menú de opciones (pastilla de filtro) el foco empieza en la vigente.
+            var marcado = habilitados.FirstOrDefault(i => i.Marcado == true);
+            _itemPendienteDeFoco = _primerItemPendiente ? marcado ?? habilitados.FirstOrDefault() : habilitados.LastOrDefault();
             _primerItemPendiente = false;
             _ultimoItemPendiente = false;
         }
@@ -160,6 +182,9 @@
     {
         if (e.Key == "ArrowDown") Abrir(primerItem: true);
         else if (e.Key == "ArrowUp") Abrir(primerItem: false);
+        // Abierto sin ningún ítem habilitado (p. ej. «Más filtros» solo con «Guardar filtro»
+        // deshabilitado) el foco se queda en el disparador: Esc también cierra desde ahí.
+        else if (e.Key == "Escape" && _abierto) Cerrar();
         return Task.CompletedTask;
     }
 }

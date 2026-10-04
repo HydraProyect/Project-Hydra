@@ -93,10 +93,17 @@ public static class CatalogoAtajos
         new("?", "AccionMostrarAyuda")
     ];
 
+    /// <summary>
+    /// Atajos dentro de una lista: las teclas que reparte <c>atajos-lista.js</c> (su array
+    /// <c>TECLAS_ADMITIDAS</c> lleva exactamente estas; <c>CatalogoAtajosSincronizadoConJsTests</c>
+    /// lo vigila). <c>f</c> enfoca el buscador «Filtrar esta pantalla» del listado; no choca
+    /// con Ctrl/Cmd+K (buscador universal de la cabecera) ni con «/» (filtro del menú lateral).
+    /// </summary>
     public static readonly IReadOnlyList<DefinicionAtajo> Lista =
     [
         new("j / k", "ListaFilaSiguienteAnterior"),
         new("x", "ListaMarcarFila"),
-        new("Enter", "ListaAbrirFila")
+        new("Enter", "ListaAbrirFila"),
+        new("f", "ListaFiltrarPantalla")
     ];
 }

@@ -172,4 +172,137 @@ public class BarraFiltrosTests : BunitContext
 
         cut.FindAll(".barra-filtros-lista button").Should().BeEmpty("Exportar, Importar y Nuevo son de la cabecera, no de la barra de filtros");
     }
+
+    [Fact]
+    public void Sin_pastillas_la_barra_sigue_en_su_modo_de_selects()
+    {
+        var cut = RenderizarConDosSelects();
+
+        cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty("Empresas, Centros, Subcontratas y Documentos no cambian en la fase 1");
+        cut.FindAll("[data-filtro-pantalla]").Should().BeEmpty();
+        cut.Find(".barra-filtros-lista input[type=text]").GetAttribute("placeholder").Should().Be("Buscar por nombre…");
+    }
+
+    // ------------------------------------------- Modo pastillas (rediseño de listados, fase 1)
+
+    private IRenderedComponent<BarraFiltros> RenderizarConPastillas(Action<ComponentParameterCollectionBuilder<BarraFiltros>>? ajustes = null)
+    {
+        // Las pastillas son MenuAcciones: al abrirse piden el foco por JS.
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        return Render<BarraFiltros>(p =>
+        {
+            p.Add(b => b.Pastillas, (RenderFragment)(builder =>
+            {
+                builder.OpenComponent<PastillaFiltro>(0);
+                builder.AddAttribute(1, nameof(PastillaFiltro.Etiqueta), "Estado");
+                builder.AddAttribute(2, nameof(PastillaFiltro.Opciones), (IReadOnlyList<OpcionEstado>)[new OpcionEstado("Vencido", "Con vencidos")]);
+                builder.CloseComponent();
+            }));
+            ajustes?.Invoke(p);
+        });
+    }
+
+    [Fact]
+    public void Con_pastillas_el_buscador_es_Filtrar_esta_pantalla_con_la_tecla_F()
+    {
+        var cut = RenderizarConPastillas();
+
+        var buscador = cut.Find(".barra-filtros-pastillas input[type=text]");
+        buscador.GetAttribute("placeholder").Should().Be("Filtrar esta pantalla");
+        buscador.GetAttribute("aria-label").Should().Be("Filtrar esta pantalla");
+        buscador.GetAttribute("aria-keyshortcuts").Should().Be("f");
+        buscador.HasAttribute("data-filtro-pantalla").Should().BeTrue("es el gancho de la tecla f en atajos-lista.js");
+        cut.Find(".barra-filtros-buscador-pantalla kbd.barra-filtros-tecla").TextContent.Trim().Should().Be("F");
+        cut.FindAll(".barra-filtros-lista").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Con_pastillas_el_placeholder_propio_manda()
+    {
+        var cut = RenderizarConPastillas(p => p.Add(b => b.PlaceholderBuscador, "Filtrar esta pantalla: nombre"));
+
+        cut.Find("[data-filtro-pantalla]").GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: nombre");
+    }
+
+    [Fact]
+    public void Las_pastillas_van_tras_el_buscador_y_sin_nada_que_ofrecer_no_hay_Mas_filtros()
+    {
+        var cut = RenderizarConPastillas(p => p.Add(b => b.Resumen, (RenderFragment)(r => r.AddContent(0, "3 con estos filtros"))));
+
+        var fila = cut.Find(".barra-filtros-pastillas-fila");
+        fila.Children.Select(e => e.ClassList[0]).Should().Equal("barra-filtros-buscador-pantalla", "menu-acciones", "barra-filtros-resumen");
+        cut.FindAll(".menu-acciones-disparador").Select(d => d.GetAttribute("aria-label")).Should().Equal("Estado");
+        cut.Find(".barra-filtros-resumen").TextContent.Should().Be("3 con estos filtros");
+    }
+
+    [Fact]
+    public async Task Mas_filtros_aplica_y_borra_los_guardados_y_guarda_el_actual()
+    {
+        var aplicados = new List<string>();
+        var borrados = new List<string>();
+        var guardados = 0;
+        var cut = RenderizarConPastillas(p => p
+            .Add(b => b.HayFiltrosActivos, true)
+            .Add(b => b.FiltrosGuardados, [new OpcionEstado("f-1", "Críticos de Marta")])
+            .Add(b => b.OnAplicarFiltroGuardado, v => aplicados.Add(v))
+            .Add(b => b.OnBorrarFiltroGuardado, v => borrados.Add(v))
+            .Add(b => b.OnGuardarFiltro, () => guardados++));
+
+        var masFiltros = () => cut.FindAll(".menu-acciones-disparador").Single(d => d.GetAttribute("aria-label") == "Más filtros");
+
+        await masFiltros().ClickAsync(new MouseEventArgs());
+        cut.Find("[role=menu] .menu-filtros-titulo").TextContent.Trim().Should().Be("Filtros guardados");
+        cut.FindAll("[role=menu] [role=menuitem]").Select(i => i.GetAttribute("aria-label") ?? i.TextContent.Trim())
+            .Should().Equal("Críticos de Marta", "Borrar filtro guardado Críticos de Marta", "Guardar filtro");
+
+        await cut.FindAll("[role=menu] [role=menuitem]")[0].ClickAsync(new MouseEventArgs());
+        aplicados.Should().Equal("f-1");
+
+        await masFiltros().ClickAsync(new MouseEventArgs());
+        await cut.Find("[aria-label='Borrar filtro guardado Críticos de Marta']").ClickAsync(new MouseEventArgs());
+        borrados.Should().Equal("f-1");
+        aplicados.Should().HaveCount(1, "el aspa borra; no aplica");
+
+        await masFiltros().ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menu] [role=menuitem]").Single(i => i.TextContent.Trim() == "Guardar filtro").ClickAsync(new MouseEventArgs());
+        guardados.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Sin_filtros_activos_Guardar_filtro_se_ve_deshabilitado_y_no_hay_chips()
+    {
+        var guardados = 0;
+        var cut = RenderizarConPastillas(p => p
+            .Add(b => b.HayFiltrosActivos, false)
+            .Add(b => b.OnGuardarFiltro, () => guardados++));
+
+        cut.FindAll(".chips-filtros").Should().BeEmpty();
+        cut.FindAll(".limpiar-filtros-barra").Should().BeEmpty();
+
+        await cut.FindAll(".menu-acciones-disparador").Single(d => d.GetAttribute("aria-label") == "Más filtros").ClickAsync(new MouseEventArgs());
+        var guardar = cut.FindAll("[role=menu] [role=menuitem]").Single(i => i.TextContent.Trim() == "Guardar filtro");
+        guardar.HasAttribute("disabled").Should().BeTrue();
+        await guardar.ClickAsync(new MouseEventArgs());
+        guardados.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Con_filtros_activos_los_chips_y_Limpiar_todo_van_debajo_de_las_pastillas()
+    {
+        var limpiezas = 0;
+        var cut = RenderizarConPastillas(p => p
+            .Add(b => b.HayFiltrosActivos, true)
+            .Add(b => b.OnLimpiarTodo, () => limpiezas++)
+            .Add(b => b.Chips, (RenderFragment)(c =>
+            {
+                c.OpenComponent<ChipFiltro>(0);
+                c.AddAttribute(1, nameof(ChipFiltro.Etiqueta), "Estado: Vencido");
+                c.CloseComponent();
+            })));
+
+        var chips = cut.Find(".barra-filtros-pastillas > .chips-filtros");
+        chips.TextContent.Should().Contain("Estado: Vencido");
+        await chips.QuerySelector("button.limpiar-filtros-barra")!.ClickAsync(new MouseEventArgs());
+        limpiezas.Should().Be(1);
+    }
 }

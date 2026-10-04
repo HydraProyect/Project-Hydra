@@ -1,0 +1,69 @@
+@*
+    Cabecera de un listado en una sola línea (rediseño de listados, fase 1): título con su
+    contador y, a la derecha, el conmutador de selección múltiple (☑), el menú «⋯» con las
+    acciones secundarias de la pantalla (Exportar a Excel, importaciones, alta guiada…) y la
+    acción primaria. Sin antetítulo: el grupo del menú ya está en las migas.
+
+    Es una CabeceraPagina: el contador va en JuntoAlTitulo y lo demás en Acciones.
+
+    Uso:
+
+        <CabeceraListado Titulo="Clientes empresariales" Contador="@_total"
+                         SeleccionMultiple="_seleccion" SeleccionMultipleChanged="Alternar">
+            <Menu>
+                <ItemMenuAccion Href="/clientes/exportar.xlsx">Exportar a Excel</ItemMenuAccion>
+            </Menu>
+            <Primaria>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="Crear">+ Nuevo…</Boton></SoloConEscritura>
+            </Primaria>
+        </CabeceraListado>
+
+    El conmutador conserva el nombre accesible «Selección múltiple» (aria-pressed dice si está
+    activo). Solo se pinta si el llamador pasa SeleccionMultipleChanged.
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<CabeceraPagina Titulo="@Titulo" JuntoAlTitulo="@(Contador is null ? null : ContadorFragment)">
+    <Acciones>
+        @if (SeleccionMultipleChanged.HasDelegate)
+        {
+            <button type="button" class="cabecera-listado-icono @(SeleccionMultiple ? "cabecera-listado-icono-activo" : null)"
+                    aria-pressed="@(SeleccionMultiple ? "true" : "false")"
+                    aria-label="@Comunes["SeleccionMultiple"]" title="@Comunes["SeleccionMultiple"]"
+                    @onclick="() => SeleccionMultipleChanged.InvokeAsync(!SeleccionMultiple)">
+                <Icono Nombre="seleccion" />
+            </button>
+        }
+        @if (Menu is not null)
+        {
+            <MenuAcciones ConBorde="true" EtiquetaAccesible="@Comunes["MasAcciones"]">@Menu</MenuAcciones>
+        }
+        @Primaria
+    </Acciones>
+</CabeceraPagina>
+
+@code {
+    /// <summary>Título de la pantalla (el <c>h1</c>).</summary>
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>Número junto al título. Sin valor no se pinta.</summary>
+    [Parameter] public int? Contador { get; set; }
+
+    [Parameter] public bool SeleccionMultiple { get; set; }
+
+    /// <summary>Sin delegado no se pinta el conmutador ☑.</summary>
+    [Parameter] public EventCallback<bool> SeleccionMultipleChanged { get; set; }
+
+    /// <summary>Ítems (<see cref="ItemMenuAccion"/>) del menú «⋯». Sin valor no se pinta el menú.</summary>
+    [Parameter] public RenderFragment? Menu { get; set; }
+
+    /// <summary>La acción primaria de la pantalla, a la derecha del todo.</summary>
+    [Parameter] public RenderFragment? Primaria { get; set; }
+
+    private RenderFragment ContadorFragment => __builder =>
+    {
+        <span class="cabecera-listado-contador">@Contador</span>
+    };
+}

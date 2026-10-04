@@ -40,10 +40,38 @@ public class CatalogoAtajosSincronizadoConJsTests
             "una letra en un lado y no en el otro es un atajo que no funciona o que nunca se anuncia");
     }
 
-    private static string LeerAtajosGlobalesJs()
+    /// <summary>
+    /// Mismo riesgo para la sección «Dentro de una lista» de la chuleta: <see cref="CatalogoAtajos.Lista"/>
+    /// anuncia teclas que solo funcionan si <c>atajos-lista.js</c> las admite en su
+    /// <c>TECLAS_ADMITIDAS</c> (la «f» de «Filtrar esta pantalla» entró así, por los dos lados).
+    /// Las teclas del catálogo se separan por « / » («j / k»).
+    /// </summary>
+    [Fact]
+    public void Teclas_admitidas_del_js_de_lista_coinciden_con_CatalogoAtajos_Lista()
     {
-        var ruta = Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "wwwroot", "js", "atajos-globales.js");
-        File.Exists(ruta).Should().BeTrue("atajos-globales.js debería existir — si se movió o renombró, actualiza este test");
+        var contenidoJs = LeerJs("atajos-lista.js");
+        var match = Regex.Match(contenidoJs, @"TECLAS_ADMITIDAS\s*=\s*\[(?<teclas>[^\]]*)\]");
+
+        match.Success.Should().BeTrue("atajos-lista.js debe declarar TECLAS_ADMITIDAS como un array literal — si cambió de forma, actualiza este test");
+
+        var teclasJs = Regex.Matches(match.Groups["teclas"].Value, @"'(\w+)'")
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet();
+
+        var teclasCatalogo = CatalogoAtajos.Lista
+            .SelectMany(a => a.Tecla.Split(" / ", StringSplitOptions.TrimEntries))
+            .ToHashSet();
+
+        teclasJs.Should().BeEquivalentTo(teclasCatalogo,
+            "la chuleta solo puede anunciar teclas de lista que atajos-lista.js reparte, y al revés");
+    }
+
+    private static string LeerAtajosGlobalesJs() => LeerJs("atajos-globales.js");
+
+    private static string LeerJs(string fichero)
+    {
+        var ruta = Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "wwwroot", "js", fichero);
+        File.Exists(ruta).Should().BeTrue($"{fichero} debería existir — si se movió o renombró, actualiza este test");
         return File.ReadAllText(ruta);
     }
 

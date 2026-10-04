@@ -1,6 +1,24 @@
-<button type="button" class="menu-acciones-item @(Destructivo ? "menu-acciones-item-destructivo" : "")" role="menuitem" tabindex="-1" disabled="@(!Habilitado)" @ref="_boton" @onclick="EjecutarAsync" @onkeydown="ManejarTeclaAsync">
-    @ChildContent
-</button>
+@*
+    Ítem de MenuAcciones. Tres formas, con el mismo teclado (flechas, Inicio, Fin, Esc):
+    - acción (OnClick): un <button role="menuitem">;
+    - enlace (Href): un <a role="menuitem">, para lo que es un fichero o una página
+      del servidor («Exportar a Excel» descarga por GET; no pasa por el circuito);
+    - opción de un filtro (Marcado con valor): role="menuitemradio" con aria-checked,
+      para las pastillas de filtro (PastillaFiltro).
+*@
+@if (Href is not null)
+{
+    <a class="@Clases" role="menuitem" tabindex="-1" href="@Href" aria-label="@EtiquetaAccesible" @ref="_boton" @onclick="CerrarTrasEnlace" @onkeydown="ManejarTeclaAsync">
+        @ChildContent
+    </a>
+}
+else
+{
+    <button type="button" class="@Clases" role="@(Marcado is null ? "menuitem" : "menuitemradio")" aria-checked="@(Marcado is null ? null : (Marcado.Value ? "true" : "false"))"
+            aria-label="@EtiquetaAccesible" tabindex="-1" disabled="@(!Habilitado)" @ref="_boton" @onclick="EjecutarAsync" @onkeydown="ManejarTeclaAsync">
+        @ChildContent
+    </button>
+}
 
 @code {
     [CascadingParameter] private MenuAcciones? Menu { get; set; }
@@ -9,9 +27,30 @@
     [Parameter] public bool Destructivo { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
+    /// <summary>Destino de un ítem que es un enlace (descarga o página del servidor). Con valor, se ignora <see cref="OnClick"/>.</summary>
+    [Parameter] public string? Href { get; set; }
+
+    /// <summary>
+    /// Opción de un filtro: con valor, el ítem es <c>menuitemradio</c> y anuncia si es la opción
+    /// vigente. Al abrir el menú, el foco va a la marcada. Sin valor, es un ítem de acción normal.
+    /// </summary>
+    [Parameter] public bool? Marcado { get; set; }
+
+    /// <summary>Nombre accesible cuando el contenido visible no lo dice todo (un ✕ que borra un filtro guardado).</summary>
+    [Parameter] public string? EtiquetaAccesible { get; set; }
+
+    /// <summary>Clase adicional del ítem.</summary>
+    [Parameter] public string? Clase { get; set; }
+
     private ElementReference _boton;
 
-    internal bool Habilitado => OnClick.HasDelegate;
+    internal bool Habilitado => Href is not null || OnClick.HasDelegate;
+
+    private string Clases =>
+        "menu-acciones-item"
+        + (Destructivo ? " menu-acciones-item-destructivo" : "")
+        + (Marcado == true ? " menu-acciones-item-marcado" : "")
+        + (string.IsNullOrWhiteSpace(Clase) ? "" : " " + Clase);
 
     protected override void OnAfterRender(bool firstRender) => Menu?.Registrar(this);
 
@@ -21,6 +60,9 @@
         await OnClick.InvokeAsync();
         Menu?.Cerrar();
     }
+
+    // El navegador sigue el enlace por su cuenta; aquí solo se cierra el menú.
+    private void CerrarTrasEnlace() => Menu?.Cerrar();
 
     internal Task EnfocarAsync() => _boton.FocusAsync().AsTask();
 

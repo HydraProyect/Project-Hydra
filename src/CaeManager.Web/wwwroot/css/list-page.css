@@ -126,6 +126,160 @@
 }
 
 /*
+  Rediseño de listados, fase 1 (componentes CabeceraListado, BarraFiltros en modo
+  pastillas y PastillaFiltro). Global por el mismo motivo que .barra-filtros-lista.
+*/
+
+/* Cabecera de una línea: el contador junto al título y los botones de icono. */
+.cabecera-listado-contador {
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-full);
+    background-color: var(--color-surface-hover);
+    color: var(--color-text-muted);
+    font: var(--font-label-md);
+}
+
+.cabecera-listado-icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.cabecera-listado-icono:hover {
+    background-color: var(--color-surface-hover);
+    color: var(--color-text);
+}
+
+.cabecera-listado-icono:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.cabecera-listado-icono-activo {
+    border-color: var(--color-primary-500);
+    background-color: var(--color-primary-50);
+    color: var(--color-text);
+}
+
+/* Barra de filtros en modo pastillas: una fila, sin tarjeta. */
+.barra-filtros-pastillas {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+.barra-filtros-pastillas-fila {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.barra-filtros-buscador-pantalla {
+    position: relative;
+    flex: 1 1 260px;
+    max-width: 360px;
+    min-width: 200px;
+}
+
+/* CampoTexto aísla su .campo-input; tres clases para ganar a la regla aislada (0,2,0). */
+.barra-filtros-buscador-pantalla .campo .campo-input {
+    width: 100%;
+    min-height: 36px;
+    padding-left: calc(var(--space-3) + 20px);
+    padding-right: calc(var(--space-3) + 24px);
+}
+
+.barra-filtros-buscador-icono,
+.barra-filtros-tecla {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.barra-filtros-buscador-icono {
+    left: var(--space-3);
+    display: inline-flex;
+    color: var(--color-text-muted);
+}
+
+.barra-filtros-tecla {
+    right: var(--space-3);
+    padding: 0 var(--space-1);
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface-hover);
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+}
+
+.barra-filtros-resumen {
+    margin-left: auto;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+/* «Más filtros»: rótulo de grupo y fila de un filtro guardado con su ✕. */
+.menu-filtros-titulo {
+    padding: var(--space-1) var(--space-3);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.menu-filtro-guardado {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+/* Filas con problema (vencido o bloqueo / urgente): fondo plano del tono y franja de 3 px
+   a la izquierda. Sin degradado: el contraste se mide con el fondo plano. Más específica
+   que el resalte al pasar el puntero, para que la fila no pierda el tono. */
+.tabla-datos tr.fila-tintada-peligro td {
+    background-color: var(--color-danger-50);
+    color: var(--color-text);
+}
+
+.tabla-datos tr.fila-tintada-aviso td {
+    background-color: var(--color-warning-50);
+    color: var(--color-text);
+}
+
+.tabla-datos tr.fila-tintada-peligro td:first-child {
+    box-shadow: inset 3px 0 0 var(--color-danger-700);
+}
+
+.tabla-datos tr.fila-tintada-aviso td:first-child {
+    box-shadow: inset 3px 0 0 var(--color-warning-700);
+}
+
+/* Persona con sus iniciales delante (Gestor CAE de la fila). */
+.persona-iniciales {
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    margin-right: var(--space-2);
+    border-radius: var(--radius-full);
+    background-color: var(--color-primary-50);
+    color: var(--color-text);
+    font: var(--font-caption);
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+/*
   Toolbar de Centros (lámina L3 ".toolbar", contrato de fidelidad
   2026-08-09 § 1.4): una sola fila con buscar/estado/orden/selección
   múltiple/expandir todos/exportar/nuevo centro, en vez de las 3 regiones

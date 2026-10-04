@@ -141,6 +141,24 @@
   <data name="LimpiarTodo" xml:space="preserve">
     <value>Limpiar todo</value>
   </data>
+  <data name="FiltrarEstaPantalla" xml:space="preserve">
+    <value>Filtrar esta pantalla</value>
+  </data>
+  <data name="MasFiltros" xml:space="preserve">
+    <value>Más filtros</value>
+  </data>
+  <data name="OpcionTodos" xml:space="preserve">
+    <value>Todos</value>
+  </data>
+  <data name="SeleccionMultiple" xml:space="preserve">
+    <value>Selección múltiple</value>
+  </data>
+  <data name="MasAcciones" xml:space="preserve">
+    <value>Más acciones</value>
+  </data>
+  <data name="BorrarFiltroGuardado" xml:space="preserve">
+    <value>Borrar filtro guardado {0}</value>
+  </data>
   <data name="SoporteEnlaceLogoOrganizacion" xml:space="preserve">
     <value>Logo de la organización</value>
   </data>

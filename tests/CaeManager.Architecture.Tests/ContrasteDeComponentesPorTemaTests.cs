@@ -136,6 +136,13 @@ public class ContrasteDeComponentesPorTemaTests
         new("Quitar del chip de filtro, hover", ListPage, [".chip-filtro-quitar", ".chip-filtro-quitar:hover"],
             FondoSiFalta: "var(--color-surface-hover)"),
 
+        // ---- Listados (rediseño fase 1): filas tintadas por estado, pastilla activa, cabecera ----
+        new("Fila tintada de peligro (vencido o bloqueo)", ListPage, [".tabla-datos tr.fila-tintada-peligro td"]),
+        new("Fila tintada de aviso (urgente)", ListPage, [".tabla-datos tr.fila-tintada-aviso td"]),
+        new("Pastilla de filtro aplicada", "Components/DesignSystem/MenuAcciones.razor.css", [".menu-acciones-disparador-activa"]),
+        new("Conmutador de selección múltiple activo", ListPage, [".cabecera-listado-icono-activo"]),
+        new("Contador junto al título del listado", ListPage, [".cabecera-listado-contador"]),
+
         // ---- Enlaces ----
         new("Enlace sobre superficie", "wwwroot/css/base.css", ["a"], FondoSiFalta: "var(--color-surface)"),
         new("Enlace sobre el fondo de página", "wwwroot/css/base.css", ["a"], FondoSiFalta: "var(--color-bg)"),

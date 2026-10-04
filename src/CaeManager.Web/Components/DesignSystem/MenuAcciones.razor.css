@@ -29,6 +29,36 @@
     font: var(--font-label-md);
 }
 
+.menu-acciones-disparador:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+/* Pastilla de filtro (BarraFiltros con pastillas): «Gestor CAE ▾», «Estado: Con vencidos ▾». */
+.menu-acciones-disparador-pastilla {
+    border-radius: var(--radius-full);
+    font: var(--font-body-sm);
+    white-space: nowrap;
+}
+
+/* Filtro aplicado: misma señal que la fila con foco de teclado (primario suave con borde primario). */
+.menu-acciones-disparador-activa {
+    background-color: var(--color-primary-50);
+    border-color: var(--color-primary-500);
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+/* «⋯» de la cabecera de listado: botón cuadrado con borde, a la altura de sus vecinos. */
+.menu-acciones-disparador-borde {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+}
+
 .menu-acciones-superposicion {
     position: fixed;
     inset: 0;
@@ -77,6 +107,27 @@
 
 .menu-acciones-panel ::deep .menu-acciones-item:hover {
     background-color: var(--color-surface-hover);
+}
+
+/* Pastilla: el panel cae bajo la pastilla, no hacia la izquierda (la primera se saldría de la pantalla). */
+.menu-acciones-panel-izquierda {
+    left: 0;
+    right: auto;
+}
+
+/* Ítem enlace (Href): mismo aspecto que un ítem botón. */
+.menu-acciones-panel ::deep a.menu-acciones-item {
+    display: block;
+    text-decoration: none;
+}
+
+/* Opción vigente de una pastilla de filtro (menuitemradio con aria-checked). */
+.menu-acciones-panel ::deep .menu-acciones-item-marcado {
+    font-weight: 600;
+}
+
+.menu-acciones-panel ::deep .menu-acciones-item-marcado::before {
+    content: "✓ ";
 }
 
 .menu-acciones-panel ::deep .menu-acciones-item-destructivo {

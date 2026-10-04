@@ -91,6 +91,89 @@ public class MenuAccionesTests : BunitContext
         Disparador(cut).GetAttribute("aria-expanded").Should().Be("false");
     }
 
+    /// <summary>
+    /// Un ítem con <c>Href</c> es un enlace de verdad (la exportación descarga por GET del
+    /// servidor, no pasa por el circuito): <c>a[role=menuitem]</c> con su href, que cierra el
+    /// menú al pulsarlo y entra en la navegación por flechas como cualquier otro.
+    /// </summary>
+    [Fact]
+    public async Task Un_item_con_Href_es_un_enlace_del_menu_que_lo_cierra_al_pulsarlo()
+    {
+        var cut = Render<MenuAcciones>(p => p.AddChildContent((RenderFragment)(b =>
+        {
+            b.OpenComponent<ItemMenuAccion>(0);
+            b.AddAttribute(1, nameof(ItemMenuAccion.Href), "/clientes/exportar.xlsx");
+            b.AddAttribute(2, nameof(ItemMenuAccion.ChildContent), (RenderFragment)(c => c.AddContent(3, "Exportar a Excel")));
+            b.CloseComponent();
+            b.OpenComponent<ItemMenuAccion>(4);
+            b.AddAttribute(5, nameof(ItemMenuAccion.OnClick), EventCallback.Factory.Create(this, () => { }));
+            b.AddAttribute(6, nameof(ItemMenuAccion.ChildContent), (RenderFragment)(c => c.AddContent(7, "Otra")));
+            b.CloseComponent();
+        })));
+        await Disparador(cut).ClickAsync(new MouseEventArgs());
+
+        var enlace = cut.Find("a[role=menuitem]");
+        enlace.GetAttribute("href").Should().Be("/clientes/exportar.xlsx");
+        enlace.GetAttribute("tabindex").Should().Be("-1");
+
+        await enlace.KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
+        FocoPedido(cut).Should().Be(ReferenciaItem(cut, "Otra").Id, "el enlace navega con flechas como los demás ítems");
+
+        await cut.Find("a[role=menuitem]").ClickAsync(new MouseEventArgs());
+        Disparador(cut).GetAttribute("aria-expanded").Should().Be("false");
+    }
+
+    /// <summary>
+    /// Opciones de filtro (pastilla): <c>menuitemradio</c> con <c>aria-checked</c>, y al abrir el
+    /// foco va a la marcada, no a la primera.
+    /// </summary>
+    [Fact]
+    public async Task Las_opciones_marcables_son_menuitemradio_y_al_abrir_el_foco_va_a_la_marcada()
+    {
+        var cut = Render<MenuAcciones>(p => p
+            .Add(m => m.Etiqueta, "Estado")
+            .Add(m => m.Pastilla, true)
+            .Add(m => m.Activa, true)
+            .AddChildContent((RenderFragment)(b =>
+            {
+                b.OpenComponent<ItemMenuAccion>(0);
+                b.AddAttribute(1, nameof(ItemMenuAccion.Marcado), (bool?)false);
+                b.AddAttribute(2, nameof(ItemMenuAccion.OnClick), EventCallback.Factory.Create(this, () => { }));
+                b.AddAttribute(3, nameof(ItemMenuAccion.ChildContent), (RenderFragment)(c => c.AddContent(4, "Todos")));
+                b.CloseComponent();
+                b.OpenComponent<ItemMenuAccion>(5);
+                b.AddAttribute(6, nameof(ItemMenuAccion.Marcado), (bool?)true);
+                b.AddAttribute(7, nameof(ItemMenuAccion.OnClick), EventCallback.Factory.Create(this, () => { }));
+                b.AddAttribute(8, nameof(ItemMenuAccion.ChildContent), (RenderFragment)(c => c.AddContent(9, "Con vencidos")));
+                b.CloseComponent();
+            })));
+
+        Disparador(cut).ClassList.Should().Contain(["menu-acciones-disparador-pastilla", "menu-acciones-disparador-activa"]);
+
+        await Disparador(cut).ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=menuitemradio]").Select(i => (i.TextContent.Trim(), i.GetAttribute("aria-checked")))
+            .Should().Equal(("Todos", "false"), ("Con vencidos", "true"));
+        cut.Find("[role=menu]").ClassList.Should().Contain("menu-acciones-panel-izquierda");
+        FocoPedido(cut).Should().Be(ReferenciaItem(cut, "Con vencidos").Id);
+    }
+
+    /// <summary>
+    /// Abierto sin ningún ítem habilitado el foco se queda en el disparador; Esc también cierra
+    /// desde ahí (si no, el menú solo se cerraría con el ratón).
+    /// </summary>
+    [Fact]
+    public async Task Escape_sobre_el_disparador_cierra_el_menu_abierto()
+    {
+        var cut = Renderizar();
+        await Disparador(cut).ClickAsync(new MouseEventArgs());
+
+        await Disparador(cut).KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+
+        Disparador(cut).GetAttribute("aria-expanded").Should().Be("false");
+        cut.FindAll("[role=menu]").Should().BeEmpty();
+    }
+
     private IRenderedComponent<MenuAcciones> Renderizar(Action? primera = null)
     {
         var accionPrimera = primera ?? (() => { });
@@ -115,7 +198,7 @@ public class MenuAccionesTests : BunitContext
 
     private static ElementReference ReferenciaItem(IRenderedComponent<MenuAcciones> cut, string texto)
     {
-        var item = cut.FindComponents<ItemMenuAccion>().Single(c => c.Find("button").TextContent.Trim() == texto).Instance;
+        var item = cut.FindComponents<ItemMenuAccion>().Single(c => c.Find("button, a").TextContent.Trim() == texto).Instance;
         var campo = typeof(ItemMenuAccion).GetField("_boton", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
         return (ElementReference)campo.GetValue(item)!;
     }

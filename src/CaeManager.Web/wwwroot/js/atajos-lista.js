@@ -5,7 +5,13 @@
 // interceptar "j"/"k" mientras el usuario escribe en un filtro.
 import { hayDialogoModalAbierto } from './atajos-contexto.js';
 
-const TECLAS_ADMITIDAS = ['j', 'k', 'x', 'Enter'];
+// Debe coincidir con CatalogoAtajos.Lista (CatalogoAtajosSincronizadoConJsTests).
+const TECLAS_ADMITIDAS = ['j', 'k', 'x', 'Enter', 'f'];
+
+// Buscador «Filtrar esta pantalla» del listado (BarraFiltros con pastillas). "f" lo
+// enfoca aquí mismo, sin pasar por C#: no hay estado de la página que cambiar. Si la
+// página no lo tiene, la tecla sigue su curso normal.
+const SELECTOR_FILTRO_PANTALLA = '[data-filtro-pantalla]';
 
 // <input> cuyo type NO consume texto libre (checkbox, radio, los distintos
 // botones...) — un Tab que aterriza en "Solo críticos" o en un checkbox de
@@ -72,6 +78,16 @@ export function registrarAtajosLista(dotNetRef) {
 
         const enElementoInteractivo = activo && activo !== document.body && activo.matches?.(SELECTOR_INTERACTIVO);
         if (evento.key === 'Enter' && enElementoInteractivo) return;
+
+        if (evento.key === 'f') {
+            const filtro = document.querySelector(SELECTOR_FILTRO_PANTALLA);
+            if (!filtro) return;
+            // preventDefault: la «f» no debe acabar escrita dentro del campo recién enfocado.
+            evento.preventDefault();
+            filtro.focus();
+            filtro.select?.();
+            return;
+        }
 
         evento.preventDefault();
         await dotNetRef.invokeMethodAsync('RecibirAtajo', evento.key);
