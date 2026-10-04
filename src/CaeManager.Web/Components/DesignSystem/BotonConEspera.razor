@@ -15,10 +15,10 @@
     puede interrumpir (y que podría acabar duplicando el alta) sería peor que no ofrecerlo.
 *@
 @implements IDisposable
-@using System.Diagnostics
 @using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
+@inject IServiceProvider Servicios
 
 <div class="boton-espera" data-estado="@_estado.ToString().ToLowerInvariant()" data-indeterminado="@(EnCurso && Progreso is null ? "true" : null)">
     <div class="boton-espera-fila">
@@ -112,13 +112,20 @@
     [Parameter(CaptureUnmatchedValues = true)]
     public Dictionary<string, object>? AtributosAdicionales { get; set; }
 
+    /// <summary>
+    /// El reloj de la espera: el <see cref="TimeProvider"/> registrado (el del sistema en producción) para poder avanzar el tiempo de
+    /// forma explícita en los tests. Sin registro, el del sistema: los kits se usan en pantallas y tests que no lo registran.
+    /// </summary>
+    private TimeProvider Reloj => _reloj ??= Servicios.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System;
+    private TimeProvider? _reloj;
+
     private EstadoEspera _estado = EstadoEspera.Reposo;
     private bool _guardandoPrevio;
     private int? _progresoPrevio;
     private long _inicio;
     private long _ultimaSenal;
     private long _inicioHecha;
-    private System.Timers.Timer? _temporizador;
+    private ITimer? _temporizador;
     private bool _eliminado;
 
     private bool EnCurso => _estado is EstadoEspera.Guardando or EstadoEspera.Lenta or EstadoEspera.Colgada;
@@ -147,7 +154,7 @@
     private string? Mensaje => _estado switch
     {
         EstadoEspera.Lenta => Comunes["EsperaLenta"].Value,
-        EstadoEspera.Colgada => string.Format(Comunes["EsperaColgada"].Value, (int)Math.Floor(Stopwatch.GetElapsedTime(_ultimaSenal).TotalSeconds)),
+        EstadoEspera.Colgada => string.Format(Comunes["EsperaColgada"].Value, (int)Math.Floor(Reloj.GetElapsedTime(_ultimaSenal).TotalSeconds)),
         _ => null
     };
 
@@ -155,7 +162,7 @@
     {
         if (Guardando && !_guardandoPrevio)
         {
-            _inicio = _ultimaSenal = Stopwatch.GetTimestamp();
+            _inicio = _ultimaSenal = Reloj.GetTimestamp();
             _progresoPrevio = Progreso;
             _estado = EstadoEspera.Guardando;
             ArrancarTemporizador();
@@ -170,14 +177,14 @@
             else
             {
                 _estado = EstadoEspera.Hecha;
-                _inicioHecha = Stopwatch.GetTimestamp();
+                _inicioHecha = Reloj.GetTimestamp();
                 ArrancarTemporizador();
             }
         }
         else if (Guardando && Progreso != _progresoPrevio)
         {
             _progresoPrevio = Progreso;
-            _ultimaSenal = Stopwatch.GetTimestamp();
+            _ultimaSenal = Reloj.GetTimestamp();
             _estado = Reevaluar();
         }
 
@@ -185,19 +192,17 @@
     }
 
     private EstadoEspera Reevaluar() =>
-        ClasificadorEspera.Clasificar(true, Stopwatch.GetElapsedTime(_inicio), Stopwatch.GetElapsedTime(_ultimaSenal), UmbralLenta, UmbralColgada);
+        ClasificadorEspera.Clasificar(true, Reloj.GetElapsedTime(_inicio), Reloj.GetElapsedTime(_ultimaSenal), UmbralLenta, UmbralColgada);
 
     private void ArrancarTemporizador()
     {
         DetenerTemporizador();
-        _temporizador = new System.Timers.Timer(Math.Max(1, Intervalo.TotalMilliseconds)) { AutoReset = true };
-        _temporizador.Elapsed += (_, _) => _ = InvokeAsync(AlLatir);
-        _temporizador.Start();
+        var intervalo = Intervalo > TimeSpan.Zero ? Intervalo : TimeSpan.FromMilliseconds(1);
+        _temporizador = Reloj.CreateTimer(_ => _ = InvokeAsync(AlLatir), null, intervalo, intervalo);
     }
 
     private void DetenerTemporizador()
     {
-        _temporizador?.Stop();
         _temporizador?.Dispose();
         _temporizador = null;
     }
@@ -208,7 +213,7 @@
 
         if (_estado == EstadoEspera.Hecha)
         {
-            if (Stopwatch.GetElapsedTime(_inicioHecha) < DuracionHecha) return;
+            if (Reloj.GetElapsedTime(_inicioHecha) < DuracionHecha) return;
             _estado = EstadoEspera.Reposo;
             DetenerTemporizador();
         }

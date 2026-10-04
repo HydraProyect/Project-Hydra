@@ -12,9 +12,10 @@ namespace CaeManager.Web.Tests;
 /// <list type="bullet">
 /// <item><see cref="ClasificadorEspera"/> es una función pura: aquí se fijan los umbrales exactos (en el borde, no «más o menos»), de
 /// modo que cambiar un <c>&gt;=</c> por <c>&gt;</c> o intercambiar los umbrales se ve en rojo (mutaciones del PR).</item>
-/// <item>El componente se prueba con umbrales de milisegundos y reloj real (el estado depende del tiempo y no hay reloj inyectable):
-/// el marcado de cada estado, que no hay doble envío y que Cancelar/Reintentar solo existen si el llamador los cablea. Las pruebas
-/// con espera usan <c>WaitForAssertion</c> con margen: observan que el estado llega, no cuándo exactamente.</item>
+/// <item>El componente se prueba con un <see cref="RelojManual"/> inyectado como <see cref="TimeProvider"/>: el tiempo avanza solo cuando
+/// el test lo dice, con los umbrales reales, y nada depende de lo cargada que esté la máquina (un umbral de milisegundos contra el reloj
+/// de pared dio un rojo intermitente en el gate). Se comprueba el marcado de cada estado, un latido antes y en el umbral, que no hay
+/// doble envío y que Cancelar/Reintentar solo existen si el llamador los cablea.</item>
 /// </list>
 /// Lo que NO observan: el aspecto (bUnit no aplica CSS) ni el contraste, que miden <c>ContrasteDeComponentesPorTemaTests</c> y el
 /// navegador.
@@ -128,56 +129,71 @@ public class BotonConEsperaTests : BunitContext
         region.GetAttribute("role").Should().Be("status");
     }
 
-    // ---- Lenta ----
+    // ---- Lenta, colgada y hecha: el tiempo lo avanza el test, no el reloj de pared ----
+
+    private RelojManual Reloj { get; } = new();
+
+    /// <summary>Avanza el reloj de la espera dentro del dispatcher del renderizador, como lo haría el temporizador real.</summary>
+    private Task Avanzar(IRenderedComponent<BotonConEspera> cut, TimeSpan cuanto) => cut.InvokeAsync(() => Reloj.Avanzar(cuanto));
+
+    private IRenderedComponent<BotonConEspera> RenderizarConReloj(Action<ComponentParameterCollectionBuilder<BotonConEspera>>? extra = null)
+    {
+        Services.AddSingleton<TimeProvider>(Reloj);
+        return Renderizar(p =>
+        {
+            p.Add(x => x.Guardando, true);
+            extra?.Invoke(p);
+        });
+    }
+
+    private static string Estado(IRenderedComponent<BotonConEspera> cut) => cut.Find(".boton-espera").GetAttribute("data-estado")!;
+
+    private static readonly TimeSpan Latido = BotonConEspera.IntervaloPorDefecto;
 
     [Fact]
-    public void Pasado_el_umbral_avisa_de_que_tarda_y_ofrece_cancelar_si_el_llamador_puede()
+    public async Task Pasado_el_umbral_avisa_de_que_tarda_y_ofrece_cancelar_si_el_llamador_puede()
     {
-        var cut = Renderizar(p => p.Add(x => x.Guardando, true)
-            .Add(x => x.UmbralLenta, TimeSpan.FromMilliseconds(40))
-            .Add(x => x.Intervalo, TimeSpan.FromMilliseconds(10))
-            .Add(x => x.OnCancelarEspera, EventCallback.Factory.Create(this, () => _cancelados++)));
+        var cut = RenderizarConReloj(p => p.Add(x => x.OnCancelarEspera, EventCallback.Factory.Create(this, () => _cancelados++)));
 
+        await Avanzar(cut, BotonConEspera.UmbralLentaPorDefecto - Latido);
+        Estado(cut).Should().Be("guardando", "un latido antes del umbral todavía no hay nada que avisar");
         cut.FindAll(".boton-espera-cancelar").Should().BeEmpty("al principio no hay nada que cancelar todavía");
         cut.Find(".boton-espera-mensaje").TextContent.Should().BeEmpty();
 
-        cut.WaitForAssertion(() => cut.Find(".boton-espera-mensaje").TextContent.Should().Be("Tarda más de lo habitual. No cierres la página."),
-            TimeSpan.FromSeconds(5));
-        cut.Find(".boton-espera").GetAttribute("data-estado").Should().Be("lenta");
+        await Avanzar(cut, Latido);
 
+        Estado(cut).Should().Be("lenta");
+        cut.Find(".boton-espera-mensaje").TextContent.Should().Be("Tarda más de lo habitual. No cierres la página.");
         cut.Find(".boton-espera-cancelar").Click();
         _cancelados.Should().Be(1);
     }
 
     [Fact]
-    public void Sin_delegado_de_cancelar_no_se_ofrece_cancelar_aunque_tarde()
+    public async Task Sin_delegado_de_cancelar_no_se_ofrece_cancelar_aunque_tarde()
     {
-        var cut = Renderizar(p => p.Add(x => x.Guardando, true)
-            .Add(x => x.UmbralLenta, TimeSpan.FromMilliseconds(40))
-            .Add(x => x.Intervalo, TimeSpan.FromMilliseconds(10)));
+        var cut = RenderizarConReloj();
 
-        cut.WaitForAssertion(() => cut.Find(".boton-espera").GetAttribute("data-estado").Should().Be("lenta"), TimeSpan.FromSeconds(5));
+        await Avanzar(cut, BotonConEspera.UmbralLentaPorDefecto);
 
+        Estado(cut).Should().Be("lenta");
         cut.FindAll(".boton-espera-cancelar").Should().BeEmpty("prometer cancelar lo que no se puede interrumpir engaña");
     }
-
-    // ---- Colgada ----
 
     [Fact]
     public async Task Colgada_con_reintento_pasa_a_Reintentar_en_aviso_y_el_clic_reintenta_sin_repetir_el_original()
     {
-        var cut = Renderizar(p => p.Add(x => x.Guardando, true)
-            .Add(x => x.UmbralLenta, TimeSpan.FromMilliseconds(20))
-            .Add(x => x.UmbralColgada, TimeSpan.FromMilliseconds(80))
-            .Add(x => x.Intervalo, TimeSpan.FromMilliseconds(10))
-            .Add(x => x.OnReintentar, EventCallback.Factory.Create(this, () => _reintentos++)));
+        var cut = RenderizarConReloj(p => p.Add(x => x.OnReintentar, EventCallback.Factory.Create(this, () => _reintentos++)));
 
-        cut.WaitForAssertion(() => cut.Find(".boton-espera").GetAttribute("data-estado").Should().Be("colgada"), TimeSpan.FromSeconds(5));
+        await Avanzar(cut, BotonConEspera.UmbralColgadaPorDefecto - Latido);
+        Estado(cut).Should().Be("lenta", "un latido antes del umbral de colgado sigue siendo lenta");
 
+        await Avanzar(cut, Latido);
+
+        Estado(cut).Should().Be("colgada");
         Boton(cut).TextContent.Trim().Should().Be("Reintentar");
         Boton(cut).ClassList.Should().Contain("boton-espera-colgada");
         Boton(cut).HasAttribute("disabled").Should().BeFalse("colgada con reintento es lo único pulsable");
-        cut.Find(".boton-espera-mensaje").TextContent.Should().MatchRegex(@"^Sin respuesta desde hace \d+ s\. Lo que has escrito se conserva\.$");
+        cut.Find(".boton-espera-mensaje").TextContent.Should().Be("Sin respuesta desde hace 12 s. Lo que has escrito se conserva.");
 
         await Boton(cut).ClickAsync(new MouseEventArgs());
         _reintentos.Should().Be(1);
@@ -185,49 +201,38 @@ public class BotonConEsperaTests : BunitContext
     }
 
     [Fact]
-    public void Colgada_sin_delegado_de_reintento_sigue_deshabilitada_pero_avisa()
+    public async Task Colgada_sin_delegado_de_reintento_sigue_deshabilitada_pero_avisa()
     {
-        var cut = Renderizar(p => p.Add(x => x.Guardando, true)
-            .Add(x => x.UmbralLenta, TimeSpan.FromMilliseconds(20))
-            .Add(x => x.UmbralColgada, TimeSpan.FromMilliseconds(80))
-            .Add(x => x.Intervalo, TimeSpan.FromMilliseconds(10)));
+        var cut = RenderizarConReloj();
 
-        cut.WaitForAssertion(() => cut.Find(".boton-espera").GetAttribute("data-estado").Should().Be("colgada"), TimeSpan.FromSeconds(5));
+        await Avanzar(cut, BotonConEspera.UmbralColgadaPorDefecto);
 
+        Estado(cut).Should().Be("colgada");
         Boton(cut).HasAttribute("disabled").Should().BeTrue("reintentar a ciegas un alta que quizá ya se hizo la duplicaría");
         Boton(cut).TextContent.Trim().Should().NotBe("Reintentar");
         cut.Find(".boton-espera-mensaje").TextContent.Should().Contain("Sin respuesta desde hace");
     }
 
     [Fact]
-    public void Una_señal_de_progreso_aplaza_el_colgado()
+    public async Task Una_señal_de_progreso_aplaza_el_colgado()
     {
         // Colgada se mide desde el último progreso: con total conocido, cada avance es una señal de vida.
-        var cut = Renderizar(p => p.Add(x => x.Guardando, true).Add(x => x.Progreso, 0)
-            .Add(x => x.UmbralLenta, TimeSpan.FromMilliseconds(20))
-            .Add(x => x.UmbralColgada, TimeSpan.FromMilliseconds(600))
-            .Add(x => x.Intervalo, TimeSpan.FromMilliseconds(10)));
+        var cut = RenderizarConReloj(p => p.Add(x => x.Progreso, 0));
+        var casi = BotonConEspera.UmbralColgadaPorDefecto - TimeSpan.FromSeconds(1);
 
-        for (var i = 1; i <= 8; i++)
-        {
-            Thread.Sleep(120); // ~1 s en total, con un avance cada 120 ms: nunca 600 ms sin señal
-            var valor = i * 10;
-            cut.Render(p => p.Add(x => x.Progreso, valor));
-            cut.Find(".boton-espera").GetAttribute("data-estado").Should().NotBe("colgada", $"avance {i}: hubo señal hace menos de 600 ms");
-        }
+        await Avanzar(cut, casi);
+        cut.Render(p => p.Add(x => x.Progreso, 10)); // señal de vida
+        await Avanzar(cut, casi); // casi otro umbral entero desde la señal; casi el doble desde el inicio
+        Estado(cut).Should().Be("lenta", "hubo señal hace menos del umbral: no cuelga aunque lleve el doble en total");
 
-        cut.WaitForAssertion(() => cut.Find(".boton-espera").GetAttribute("data-estado").Should().Be("colgada"),
-            TimeSpan.FromSeconds(5)); // y sin más avances, acaba colgando
+        await Avanzar(cut, TimeSpan.FromSeconds(1)); // y sin más avances, acaba colgando
+        Estado(cut).Should().Be("colgada");
     }
 
-    // ---- Hecha ----
-
     [Fact]
-    public void Al_terminar_bien_dibuja_el_check_y_vuelve_a_la_etiqueta()
+    public async Task Al_terminar_bien_dibuja_el_check_y_vuelve_a_la_etiqueta()
     {
-        var cut = Renderizar(p => p.Add(x => x.Guardando, true)
-            .Add(x => x.DuracionHecha, TimeSpan.FromMilliseconds(80))
-            .Add(x => x.Intervalo, TimeSpan.FromMilliseconds(10)));
+        var cut = RenderizarConReloj();
 
         cut.Render(p => p.Add(x => x.Guardando, false));
 
@@ -235,12 +240,17 @@ public class BotonConEsperaTests : BunitContext
         Boton(cut).TextContent.Trim().Should().Be("Guardado");
         Boton(cut).ClassList.Should().Contain("boton-espera-hecha");
 
-        cut.WaitForAssertion(() =>
-        {
-            cut.FindAll(".boton-espera-check").Should().BeEmpty();
-            Boton(cut).TextContent.Trim().Should().Be("Guardar");
-        }, TimeSpan.FromSeconds(5));
+        await Avanzar(cut, BotonConEspera.DuracionHechaPorDefecto - Latido);
+        cut.FindAll(".boton-espera-check").Should().NotBeEmpty("un latido antes de que venza, el check sigue");
+
+        await Avanzar(cut, Latido * 2); // el latido que cruza DuracionHecha
+
+        cut.FindAll(".boton-espera-check").Should().BeEmpty();
+        Boton(cut).TextContent.Trim().Should().Be("Guardar");
+        Reloj.TemporizadoresVivos.Should().Be(0, "al volver al reposo el componente suelta su temporizador");
     }
+
+    // ---- Hecha (con error) ----
 
     [Fact]
     public void Al_terminar_con_error_no_hay_check_y_el_boton_vuelve_a_estar_pulsable()
