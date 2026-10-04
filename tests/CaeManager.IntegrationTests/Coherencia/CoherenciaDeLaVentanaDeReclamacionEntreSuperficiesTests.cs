@@ -105,6 +105,8 @@ public class CoherenciaDeLaVentanaDeReclamacionEntreSuperficiesTests : IAsyncLif
         _trabajadorId = trabajador.Id;
         await contexto.SaveChangesAsync();
 
+        // Lo que el Centro exige a la Empresa de sus Trabajadores (bloquea el acceso) y la Empresa nunca subió: el «Ausente» de Empresa.
+        contexto.TiposDocumentoCentros.Add(new TipoDocumentoCentro(tipoEmpresaRequerido.Id, centro.Id, incluido: true, bloqueaAcceso: true));
         contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, _hoy.AddDays(-400)));
         contexto.ContactosAgenda.Add(ContactoAgenda.DeCliente(cliente.Id, "cliente@ventana.test", "cliente@ventana.test", esPredeterminado: true));
         contexto.ContactosAgenda.Add(ContactoAgenda.DeEmpresa(empresa.Id, "empresa@ventana.test", "empresa@ventana.test", esPredeterminado: true));
@@ -253,10 +255,9 @@ public class CoherenciaDeLaVentanaDeReclamacionEntreSuperficiesTests : IAsyncLif
         ofrecidosTrabajadores.Should().NotBeEmpty();
         ofrecidosEmpresas.Should().NotBeEmpty();
 
-        fallos.Should().BeEmpty(
-            "lo que se pide sin fecha es una sola regla (IPendientesDeReclamacionService); una superficie que la calcule aparte ofrece lo que otra rechaza"
-            + " | DIAG empresas: " + string.Join(";", ofrecidosEmpresas.Select(p => $"{p.Motivo}/{p.TipoDocumentoId}/{p.TrabajadorId}"))
-            + " | titulares lote: " + string.Join(";", loteEmpresas.Select(l => $"{l.EmpresaId}:{l.Documentos.Count}:{l.PendientesSinFecha?.Count}")));
+        // Se afirma sobre el texto unido: BeEmpty de FluentAssertions solo enseña el primer elemento y ocultaría el resto.
+        string.Join(" ; ", fallos).Should().BeEmpty(
+            "lo que se pide sin fecha es una sola regla (IPendientesDeReclamacionService); una superficie que la calcule aparte ofrece lo que otra rechaza");
     }
 
     private CaeManagerDbContext CrearContexto()

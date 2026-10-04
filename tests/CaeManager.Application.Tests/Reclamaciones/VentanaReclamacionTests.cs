@@ -76,6 +76,14 @@ public class VentanaReclamacionTests
     }
 
     [Fact]
+    public void Un_sin_confirmar_con_fecha_no_es_sin_fecha_aunque_el_dominio_no_deje_construirlo()
+    {
+        // La función en memoria recibe estado y fecha sueltos (no un Documento): no puede apoyarse en que
+        // VigenciaDocumento rechace «Sin confirmar» con fecha. Sin esta fila la mitad «fecha is null» no la observa nadie.
+        VentanaReclamacion.EsSinConfirmarSinFecha(EstadoVigenciaDocumento.SinConfirmar, new DateOnly(2027, 1, 2)).Should().BeFalse();
+    }
+
+    [Fact]
     public void Un_sin_confirmar_sin_fecha_nunca_es_reclamable_por_vencimiento_y_lo_que_vence_nunca_se_pide_sin_fecha()
     {
         // Las dos puertas del flujo son disjuntas: lo que se ofrece por una no se ofrece por la otra.
