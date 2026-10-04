@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 
 namespace CaeManager.E2ETests;
@@ -24,27 +23,18 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     // 127.0.0.1 — ver el comentario en WebAppFixture, que es donde vive el
     // arreglo (techo del limitador configurable para la suite).
 
-    [GeneratedRegex(@"Página \d+ de \d+")]
-    private static partial Regex PatronContadorElementos();
-
-    [GeneratedRegex(@"—\s*(\d+)\s")]
-    private static partial Regex PatronTotalElementos();
-
     /// <summary>
-    /// El paginador único en español (H2, Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md;
-    /// Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md § Paginar) renderiza "Página X de Y — N cliente(s)" —
-    /// antes del cambio de <c>Paginator</c> de QuickGrid ("1–20 of 200
-    /// items") este método buscaba el número justo antes de "items". El
-    /// total ahora está justo después del guion largo, delante de la
-    /// etiqueta de la entidad.
+    /// Total de Clientes empresariales que la lista dice tener: el contador junto al título
+    /// (CabeceraListado, rediseño de listados fase 1). Antes se leía del paginador («Página X de
+    /// Y — N cliente(s)»), pero el paginador ya solo aparece con más de una página, y la siembra
+    /// determinista tiene 9. El contador solo se pinta con la carga terminada sin error, así que
+    /// esperarlo es esperar a que la consulta haya respondido.
     /// </summary>
-    private static int ExtraerTotalElementos(string textoPaginador)
+    private static async Task<int> LeerTotalDeLaCabeceraAsync(IPage page)
     {
-        var coincidencia = PatronTotalElementos().Match(textoPaginador);
-        if (!coincidencia.Success)
-            throw new InvalidOperationException($"No se encontró un total de elementos en «{textoPaginador}».");
-
-        return int.Parse(coincidencia.Groups[1].Value);
+        var contador = page.Locator(".cabecera-listado-contador");
+        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+        return int.Parse((await contador.InnerTextAsync()).Trim());
     }
 
     /// <summary>
@@ -111,23 +101,20 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         // contador saldría con el total y este test fallaría — verificado
         // por mutación el 2026-08-28, no supuesto.
         //
-        // Es una prueba de un solo sentido, y conviene saberlo: en el camino
-        // correcto el contador no llega a renderizarse, así que el Assert de
-        // abajo no se ejecuta. Por eso el estado vacío se exige aparte — sin
-        // esa exigencia, una /clientes rota por cualquier otro motivo pasaría
-        // por "acotada correctamente", que es justo el falso verde que la
-        // cuarentena de F3b dejó vivo durante dos días.
+        // El contador de la cabecera se pinta también con cero, así que esta prueba ya no es de
+        // un solo sentido: el total tiene que quedar por debajo de la cartera entera, y si es
+        // cero (el camino esperado: alcance cero) se exige además el estado vacío propio —sin
+        // esa exigencia, una /clientes rota por cualquier otro motivo pasaría por "acotada
+        // correctamente", que es justo el falso verde que la cuarentena de F3b dejó vivo dos días.
         //
         // Con alcance cero, desde P0-9a (FS-05) el estado vacío ya no es «Aún no
         // hay clientes» —que invitaba a crear lo que existe fuera de su
         // cartera— sino el aviso «Sin Asignación de Cartera», y la cabecera
         // deja de ofrecer «+ Nuevo Cliente empresarial».
-        var contador = page.GetByText(PatronContadorElementos()).First;
-        var totalVisible = await contador.IsVisibleAsync();
+        var total = await LeerTotalDeLaCabeceraAsync(page);
+        Assert.True(total < 9, $"el administrador delegado ve {total} Clientes empresariales: la cartera entera son 9");
 
-        if (totalVisible)
-            Assert.True(ExtraerTotalElementos(await contador.InnerTextAsync()) < 9);
-        else
+        if (total == 0)
         {
             await Assertions.Expect(page.Locator("[data-estado=sin-asignacion-cartera]"))
                 .ToContainTextAsync("Sin Asignación de Cartera", new LocatorAssertionsToContainTextOptions { Timeout = 10_000 });
@@ -154,11 +141,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        var contador = page.GetByText(PatronContadorElementos()).First;
-        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
-
-        var total = ExtraerTotalElementos(await contador.InnerTextAsync());
-        Assert.Equal(9, total);
+        Assert.Equal(9, await LeerTotalDeLaCabeceraAsync(page));
     }
 
     [Fact]
@@ -177,9 +160,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         // comprobación vuelve: Consulta es rol de alcance total
         // (TieneAccesoTotalAsync), luego ve los 9 clientes de la siembra
         // determinista, no un subconjunto.
-        var contador = page.GetByText(PatronContadorElementos()).First;
-        await contador.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
-        Assert.Equal(9, ExtraerTotalElementos(await contador.InnerTextAsync()));
+        Assert.Equal(9, await LeerTotalDeLaCabeceraAsync(page));
 
         // Desde la demo a dirección (2026-09-20) la interfaz ya no ofrece lo que el rol
         // no puede hacer: antes «+ Nuevo Cliente empresarial» se veía habilitado y fallaba al guardar

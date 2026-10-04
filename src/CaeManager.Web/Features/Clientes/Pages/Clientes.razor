@@ -17,6 +17,7 @@
 @using Microsoft.AspNetCore.Components.QuickGrid
 @using CaeManager.Web.Features.IncorporacionCartera.Components
 @using CaeManager.Web.Features.Clientes.Recursos
+@using CaeManager.Web.Components.Layout
 @using Microsoft.Extensions.Localization
 @inject IMediator Mediator
 @inject IStringLocalizer<TextosClientes> Textos
@@ -28,56 +29,48 @@
 <PageTitle>Clientes empresariales — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    @* Mockup «Selector Empresa Gestionada» (lienzo 2): con varias empresas gestionadas, la lista dice de
-       cuál es. El selector de la barra lateral cambia de empresa y recarga esta misma ruta sin query. *@
-    @if (!_sinEmpresaSeleccionada)
+    @* Rediseño de listados, fase 1 (piloto): cabecera de una línea (CabeceraListado) con el
+       contador, el conmutador ☑ de selección múltiple, el menú «⋯» con las acciones
+       secundarias y UNA acción primaria. Las filas de esta pantalla son Clientes
+       empresariales del Tenant (Empresas que reciben el servicio en una Relación
+       Empresarial), no Clientes comerciales TALVEG.
+
+       Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo de la empresa
+       gestionada: el selector de la barra lateral ya dice cuál es. El estado vacío sin
+       empresa elegida (4a) sigue más abajo.
+
+       El «⋯» junta lo que antes era el enlace «Exportar a Excel» y el menú «Más»:
+       Exportar (cualquier rol: es lectura), las dos importaciones (solo Administrador) y
+       «Alta guiada» (con escritura y alcance no cero). *@
+    @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
     {
-        <CabeceraEmpresaActiva Empresa="_empresaActiva" />
-    }
-
-    @* Patrón único de pantalla de lista, piloto en Clientes
-       (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3).
-       Las filas de esta pantalla son Clientes empresariales del Tenant
-       (Empresas que reciben el servicio en una Relación Empresarial), no
-       Clientes comerciales TALVEG.
-
-       Pieza 1, cabecera: «Exportar» como enlace secundario, un menú «Más» con
-       las importaciones (solo Administrador) y «Alta guiada», y UNA sola
-       acción primaria «+ Nuevo Cliente empresarial». Antes eran cinco acciones sueltas.
-       Frente al mockup antiguo «Lista Clientes TALVEG.dc.html» (que solo
-       dibuja Exportar y Nuevo), manda el contrato: lo que el mockup no pinta
-       y la pantalla ya tenía se conserva, pero dentro de «Más». *@
-    <CabeceraPagina Titulo="Clientes empresariales" Kicker="Negocio">
-        <Acciones>
-            @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
-            {
-                <a class="enlace-exportar" href="/clientes/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-            }
-            @* «Más» solo existe si el rol puede escribir: todo lo que contiene
-               (importar, alta guiada) es escritura. El Administrador está en
-               ConEscritura, así que un menú visible nunca queda vacío salvo
-               con alcance cero y sin ser Administrador; ahí no se ofrece. *@
-            @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
-            {
-            <SoloConEscritura>
-                <MenuAcciones Etiqueta="Más">
+        <CabeceraListado Titulo="@Textos["ListaTitulo"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+                         SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
+            <Menu>
+                <ItemMenuAccion Href="/clientes/exportar.xlsx">@Textos["ListaExportarExcel"]</ItemMenuAccion>
+                <SoloConEscritura>
                     <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
-                        <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/importacion?plantilla=clientes")'>Importar Clientes empresariales</ItemMenuAccion>
-                        <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/importacion?plantilla=combinada")'>Importación combinada</ItemMenuAccion>
+                        <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/importacion?plantilla=clientes")'>@Textos["ListaImportar"]</ItemMenuAccion>
+                        <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/importacion?plantilla=combinada")'>@Textos["ListaImportacionCombinada"]</ItemMenuAccion>
                     </AuthorizeView>
                     @if (!_alcanceCero)
                     {
                         <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/clientes/alta-guiada")'>Alta guiada</ItemMenuAccion>
                     }
-                </MenuAcciones>
-            </SoloConEscritura>
-            @if (!_alcanceCero)
-            {
-                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nuevo Cliente empresarial</Boton></SoloConEscritura>
-            }
-            }
-        </Acciones>
-    </CabeceraPagina>
+                </SoloConEscritura>
+            </Menu>
+            <Primaria>
+                @if (!_alcanceCero)
+                {
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">@Textos["ListaNuevo"]</Boton></SoloConEscritura>
+                }
+            </Primaria>
+        </CabeceraListado>
+    }
+    else
+    {
+        <CabeceraListado Titulo="@Textos["ListaTitulo"]" />
+    }
     @if (_resolviendoEmpresa)
     {
         <EstadoCargando Filas="3" />
@@ -92,45 +85,27 @@
     else
     {
 
-    @* Pieza 2, barra de filtros (BarraFiltros): buscador y selects con su
-       etiqueta visible encima, «Filtros guardados» al final, y debajo los
-       chips activos con «Limpiar todo» y «Guardar filtro».
+    @* Barra de filtros en modo pastillas: el buscador «Filtrar esta pantalla» (tecla f),
+       una pastilla por filtro y «Más filtros» con los filtros guardados (cada uno con su ✕,
+       que pide confirmación) y «Guardar filtro».
 
-       Frente al mockup antiguo:
-       - El buscador dice «Buscar por nombre…», no «Razón social, alias o
-         CIF»: ObtenerClientesQuery solo busca en la razón social, y el DTO
-         no tiene alias. Prometer CIF sería un buscador que no encuentra lo
-         que dice.
-       - «Solo críticos» era una casilla suelta: ahora es el select
-         «Criticidad» (Todos / Solo críticos), coherente con el patrón. Sigue
-         viajando en la URL como <c>critico</c>.
-       - «Ejecutivo» era deuda terminológica que el propio mockup anota:
-         nombra al Gestor CAE (la persona) de referencia de este Cliente
-         empresarial (no concede alcance: la cartera es el Tenant entero). Etiqueta, columna y chip dicen «Gestor CAE»;
-         el campo del modelo sigue siendo deuda terminológica en código. *@
-    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="Buscar por nombre…"
+       - El buscador solo busca en la razón social (ObtenerClientesQuery no busca por CIF ni
+         alias): la pista dice «nombre», no promete lo que no encuentra.
+       - «Criticidad» (Todos / Solo críticos) sigue viajando en la URL como <c>critico</c>.
+       - «Gestor CAE» nombra a la persona de referencia de este Cliente empresarial (no
+         concede alcance: la cartera es el Tenant entero); el campo del modelo sigue siendo
+         deuda terminológica en código. *@
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos"
                   OnLimpiarTodo="LimpiarFiltrosAsync" OnGuardarFiltro="AbrirGuardarFiltro"
-                  FiltrosGuardados="OpcionesFiltrosGuardados" OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync">
-        <Filtros>
-            <CampoSelect Etiqueta="Gestor CAE" Valor="@_ejecutivoFiltro" ValorChanged="CambiarEjecutivoFiltroAsync">
-                <option value="">Todos</option>
-                @foreach (var gestor in _ejecutivosParaFiltro)
-                {
-                    <option value="@gestor.Id">@gestor.NombreCompleto</option>
-                }
-            </CampoSelect>
-            <CampoSelect Etiqueta="Estado" Valor="@_estadoDocumentalFiltro" ValorChanged="CambiarEstadoDocumentalFiltroAsync">
-                <option value="">Todos</option>
-                <option value="@nameof(EstadoDocumento.Vencido)">Con vencidos</option>
-                <option value="@nameof(EstadoDocumento.Urgente)">Con urgentes</option>
-                <option value="@EstadoDocumentalFiltro.AlCorriente">Al corriente</option>
-            </CampoSelect>
-            <CampoSelect Etiqueta="Criticidad" Valor="@(_soloCriticos ? ValorSoloCriticos : string.Empty)" ValorChanged="v => CambiarSoloCriticosAsync(v == ValorSoloCriticos)">
-                <option value="">Todos</option>
-                <option value="@ValorSoloCriticos">Solo críticos</option>
-            </CampoSelect>
-        </Filtros>
+                  FiltrosGuardados="OpcionesFiltrosGuardados" OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
+                  OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado">
+        <Pastillas>
+            <PastillaFiltro Etiqueta="Gestor CAE" Valor="@_ejecutivoFiltro" ValorChanged="CambiarEjecutivoFiltroAsync" Opciones="OpcionesGestorCae" />
+            <PastillaFiltro Etiqueta="@Textos["ListaFiltroEstado"]" Valor="@_estadoDocumentalFiltro" ValorChanged="CambiarEstadoDocumentalFiltroAsync" Opciones="OpcionesEstadoDocumental" />
+            <PastillaFiltro Etiqueta="@Textos["ListaFiltroCriticidad"]" Valor="@(_soloCriticos ? ValorSoloCriticos : string.Empty)"
+                            ValorChanged="v => CambiarSoloCriticosAsync(v == ValorSoloCriticos)" Opciones="OpcionesCriticidad" />
+        </Pastillas>
         <Chips>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
@@ -149,20 +124,15 @@
                 <ChipFiltro Etiqueta="@EtiquetaFiltroEstadoDocumental" EtiquetaAccesible="Quitar filtro de estado documental" OnQuitar="QuitarFiltroEstadoDocumentalAsync" />
             }
         </Chips>
-    </BarraFiltros>
-
-    @if (_filtrosGuardados.Count > 0)
-    {
-        <div class="chips-filtros">
-            @foreach (var filtro in _filtrosGuardados)
+        <Resumen>
+            @if (!_errorCarga && _totalElementos > 0 && HayFiltrosActivos)
             {
-                <span class="chip-filtro" title="Filtro guardado">
-                    @filtro.Nombre
-                    <button type="button" class="chip-filtro-quitar" @onclick="() => PedirEliminarFiltroGuardado(filtro)" aria-label="@($"Borrar filtro guardado {filtro.Nombre}")"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                </span>
+                @* El total lo da la consulta ya filtrada: es el número de coincidencias, no el de
+                   la cartera entera. Sin filtros ya lo dice el contador de la cabecera. *@
+                <span class="conteo-clientes">@TextoConteo</span>
             }
-        </div>
-    }
+        </Resumen>
+    </BarraFiltros>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -179,17 +149,6 @@
         @* El grid se mantiene siempre montado (solo se oculta con CSS) para que la
            referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
            pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
-        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
-            <Extra>
-                @if (_totalElementos > 0)
-                {
-                    @* El total lo da la consulta ya filtrada: es el número de
-                       coincidencias, no el de la cartera entera. *@
-                    <span class="conteo-clientes">@TextoConteo</span>
-                }
-            </Extra>
-        </BarraHerramientasLista>
-
         @if (_seleccionMultiple && TodosSeleccionados && _totalElementos > _elementosPagina.Count)
         {
             @* Mitad informativa del banner del mockup. La otra mitad,
@@ -224,6 +183,11 @@
                        2026-09-22 (nombre = enlace a la ficha); el contrato
                        del 2026-09-28 manda. *@
                     <button type="button" class="enlace-nombre-fila nombre-fila-entidad" @onclick="() => AbrirVistaPrevia(context.Id)">@context.RazonSocial</button>
+                    @* «⚑ Crítico» junto al nombre, en lugar de la antigua columna «Crítico». *@
+                    @if (context.EsCritico)
+                    {
+                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="insignia-critico" title="@Textos["ListaCriticoTitulo"]"><Icono Nombre="bandera" Tamano="TamanoIcono.Pequeno" />@Textos["Critico"]</Badge>
+                    }
                     @* Perfil incompleto: sin agenda no hay a quién reclamarle.
                        Lleva directo a la pestaña que lo resuelve. No sale en el
                        mockup y se conserva. *@
@@ -237,8 +201,15 @@
                     }
                 </TemplateColumn>
                 <PropertyColumn Property="@(c => c.Cif)" Title="CIF" Sortable="true" />
-                <TemplateColumn Title="Gestor CAE asignado">
-                    @(ObtenerNombreEjecutivo(context.EjecutivoUsuarioId))
+                <TemplateColumn Title="Gestor CAE">
+                    @if (NombreGestorCae(context.EjecutivoUsuarioId) is { } gestor)
+                    {
+                        <span class="persona-iniciales" aria-hidden="true">@InicialesDeUsuario.De(gestor)</span>@gestor
+                    }
+                    else
+                    {
+                        <span class="texto-vacio-celda">—</span>
+                    }
                 </TemplateColumn>
                 <TemplateColumn Title="Centros" Align="Align.Center">
                     @* Antes era un enlace a /centros?clienteId=…, pero la lista
@@ -259,7 +230,10 @@
                         <span class="texto-vacio-celda">0</span>
                     }
                 </TemplateColumn>
-                <TemplateColumn Title="Estado documental">
+                @* Columna de orden por defecto: el peor estado primero (Faltante → Vencido →
+                   Urgente → Próximo → Al corriente), resuelto en ObtenerClientesQuery. *@
+                <TemplateColumn Title="Estado documental" Sortable="true" IsDefaultSortColumn="true"
+                                SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EstadoDocumentalPeor))">
                     @if (context.EstadoDocumentalPeor is { } peor)
                     {
                         <Badge Tono="EstadoDocumentoUi.Tono(peor)" ConIcono="true" title="@TituloEstadoDocumental(peor)">@TextoEstadoDocumental(peor, context.EstadoDocumentalCantidad)</Badge>
@@ -268,17 +242,6 @@
                     {
                         <Badge Tono="TonoBadge.Exito" ConIcono="true" title="Sin alertas de vigencia abiertas entre sus trabajadores">Al corriente</Badge>
                     }
-                </TemplateColumn>
-                <TemplateColumn Title="Crítico" Align="Align.Center" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EsCritico))">
-                    @* Un span vacío con solo title no tiene nombre fiable para un
-                       lector de pantalla (title no se anuncia en todos). El
-                       catálogo no tiene una clase global de texto solo para
-                       lectores (las que hay son CSS aislado de cada página), así
-                       que el punto es una imagen con nombre. *@
-                    <span class="@("punto-critico" + (context.EsCritico ? " punto-critico-activo" : ""))"
-                          role="img"
-                          aria-label="@(context.EsCritico ? "Crítico" : "Sin situación crítica")"
-                          title="@(context.EsCritico ? "Crítico: bloquea acceso a un centro" : "Sin situación crítica")"></span>
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
                     @* Orden del contrato: «Abrir ficha 360 · Editar · … ·
@@ -302,9 +265,15 @@
                 </TemplateColumn>
             </QuickGrid>
 
+            @* Solo con más de una página (al tamaño mínimo, 20): con menos no hay nada que
+               paginar, pero por encima de 20 se conserva el selector de tamaño aunque el
+               tamaño elegido quepa en una página. *@
+            @if (_totalElementos > TamanoPaginaMinimo)
+            {
             <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                               Etiqueta="Cliente(s) empresarial(es)" PaginaActualChanged="CambiarPaginaAsync"
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+            }
         </div>
 
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)

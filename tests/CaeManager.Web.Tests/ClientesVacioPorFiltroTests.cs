@@ -347,7 +347,7 @@ public class ClientesVacioPorFiltroTests : BunitContext
     private bool _alcanceCero;
 
     [Fact]
-    public void Con_alcance_cero_y_sin_registros_dice_que_falta_la_Asignacion_de_Cartera()
+    public async Task Con_alcance_cero_y_sin_registros_dice_que_falta_la_Asignacion_de_Cartera()
     {
         _alcanceCero = true;
 
@@ -358,6 +358,13 @@ public class ClientesVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("Aún no hay Clientes empresariales");
         cut.Markup.Should().NotContain("+ Nuevo Cliente empresarial", "invitar a crear con alcance cero termina en un duplicado");
         cut.Markup.Should().NotContain("Alta guiada", "invitar a crear con alcance cero termina en un duplicado");
+
+        // «Alta guiada» vive en el «⋯» de la cabecera (rediseño de listados, fase 1), que cerrado
+        // no pinta sus ítems: hay que abrirlo para que la comprobación de arriba observe algo.
+        await cut.Find("header.cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Should().NotBeEmpty("control positivo: el menú está abierto");
+        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
+            .Should().NotContain("Alta guiada", "invitar a crear con alcance cero termina en un duplicado");
     }
 
     [Fact]

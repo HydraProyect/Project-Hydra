@@ -341,6 +341,45 @@
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Los Clientes empresariales se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
   </data>
+  <data name="ListaTitulo" xml:space="preserve">
+    <value>Clientes empresariales</value>
+  </data>
+  <data name="ListaExportarExcel" xml:space="preserve">
+    <value>Exportar a Excel</value>
+  </data>
+  <data name="ListaImportar" xml:space="preserve">
+    <value>Importar Clientes empresariales</value>
+  </data>
+  <data name="ListaImportacionCombinada" xml:space="preserve">
+    <value>Importación combinada</value>
+  </data>
+  <data name="ListaNuevo" xml:space="preserve">
+    <value>+ Nuevo Cliente empresarial</value>
+  </data>
+  <data name="ListaFiltrarPlaceholder" xml:space="preserve">
+    <value>Filtrar esta pantalla: nombre</value>
+  </data>
+  <data name="ListaFiltroEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="ListaFiltroConVencidos" xml:space="preserve">
+    <value>Con vencidos</value>
+  </data>
+  <data name="ListaFiltroConUrgentes" xml:space="preserve">
+    <value>Con urgentes</value>
+  </data>
+  <data name="ListaFiltroAlCorriente" xml:space="preserve">
+    <value>Al corriente</value>
+  </data>
+  <data name="ListaFiltroCriticidad" xml:space="preserve">
+    <value>Criticidad</value>
+  </data>
+  <data name="ListaFiltroSoloCriticos" xml:space="preserve">
+    <value>Solo críticos</value>
+  </data>
+  <data name="ListaCriticoTitulo" xml:space="preserve">
+    <value>Crítico: bloquea acceso a un centro</value>
+  </data>
   <data name="IndicadorTrabajadoresBloqueadosUno" xml:space="preserve">
     <value>1 trabajador bloqueado</value>
   </data>

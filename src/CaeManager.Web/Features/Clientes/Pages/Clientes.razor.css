@@ -24,6 +24,7 @@
     outline: var(--border-focus);
 }
 
+/* Resumen de la barra de filtros: «3 Clientes empresariales con estos filtros». */
 .conteo-clientes {
     font: var(--font-caption);
     color: var(--color-text-muted);
@@ -56,24 +57,11 @@
     color: var(--color-primary-600);
 }
 
-/*
-  Punto de "Crítico" (mockup "Lista Clientes TALVEG"): un indicador discreto
-  en vez de un Badge de texto — con "Estado documental" ya ocupando su
-  propio Badge en la fila, un segundo Badge para Crítico competía por la
-  misma atención visual sin aportar más que el color. El título (tooltip)
-  lleva el texto que el Badge daba antes, así que no se pierde para lectores
-  de pantalla ni al pasar el ratón.
-*/
-.punto-critico {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: var(--radius-full);
-    background: var(--color-border);
-}
-
-.punto-critico-activo {
-    background: var(--color-danger-500);
+/* «⚑ Crítico» junto al nombre (sustituye a la antigua columna «Crítico»). Badge es un
+   componente hijo: su <span> no lleva el atributo de ámbito de esta página. */
+.contenedor-pagina ::deep .insignia-critico {
+    margin-left: var(--space-2);
+    vertical-align: middle;
 }
 
 .texto-vacio-celda {
