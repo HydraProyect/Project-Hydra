@@ -280,6 +280,11 @@
     border-left-color: var(--color-primary-500);
 }
 
+.bandeja-lista ::deep .bandeja-fila.fila-enfocada {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: -2px;
+}
+
 .bandeja-lista ::deep .bandeja-fila-esperando:not(.bandeja-fila-activa) {
     border-left-color: var(--color-warning-500);
 }

@@ -139,4 +139,55 @@
   <data name="Documento360VerVigente" xml:space="preserve">
     <value>Ver el documento vigente</value>
   </data>
+  <data name="RevIaReglaBloque" xml:space="preserve">
+    <value>Aceptación en bloque: eliges la confianza y confirmas tú</value>
+  </data>
+  <data name="RevIaFallosTitulo" xml:space="preserve">
+    <value>No se pudieron aceptar {0} lectura(s); siguen pendientes:</value>
+  </data>
+  <data name="RevIaCerrar" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="RevIaConfianzaDesde" xml:space="preserve">
+    <value>Seleccionar con confianza desde</value>
+  </data>
+  <data name="RevIaAceptarSeleccionadas" xml:space="preserve">
+    <value>Aceptar seleccionadas ({0})</value>
+  </data>
+  <data name="RevIaAyudaSeleccion" xml:space="preserve">
+    <value>La confianza solo preselecciona. Revisa la selección y pulsa «Aceptar seleccionadas»: nada se acepta solo. Si la vigencia del tipo la confirmas tú a mano, o la IA no leyó fecha, la lectura se acepta de una en una.</value>
+  </data>
+  <data name="RevIaCasillaIncluir" xml:space="preserve">
+    <value>Incluir en «Aceptar seleccionadas»</value>
+  </data>
+  <data name="RevIaCasillaManual" xml:space="preserve">
+    <value>{0}: se acepta de una en una</value>
+  </data>
+  <data name="RevIaCasillaEtiqueta" xml:space="preserve">
+    <value>Seleccionar {0} · {1} para aceptar en bloque</value>
+  </data>
+  <data name="RevIaDialogoTitulo" xml:space="preserve">
+    <value>Aceptar las lecturas seleccionadas</value>
+  </data>
+  <data name="RevIaDialogoMensaje" xml:space="preserve">
+    <value>Vas a aceptar {0} lectura(s) de la IA. Cada una aplica la fecha de emisión leída y calcula el vencimiento con la regla de su tipo de documento; queda una decisión registrada por documento a tu nombre. Las que no incluyas siguen pendientes.</value>
+  </data>
+  <data name="RevIaDialogoConfirmar" xml:space="preserve">
+    <value>Aceptar seleccionadas</value>
+  </data>
+  <data name="RevIaFalloGenerico" xml:space="preserve">
+    <value>No se pudo aceptar.</value>
+  </data>
+  <data name="RevIaAceptable" xml:space="preserve">
+    <value>Aceptable en bloque</value>
+  </data>
+  <data name="RevIaVigenciaAMano" xml:space="preserve">
+    <value>Vigencia a confirmar a mano</value>
+  </data>
+  <data name="RevIaResumenTodas" xml:space="preserve">
+    <value>{0} lectura(s) aceptada(s).</value>
+  </data>
+  <data name="RevIaResumenParcial" xml:space="preserve">
+    <value>Se aceptaron {0} de {1} lecturas; {2} no se pudieron aceptar.</value>
+  </data>
 </root>

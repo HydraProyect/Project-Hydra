@@ -1,9 +1,12 @@
 @using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes
 @using CaeManager.Application.Documentos.Commands.CorregirRevisionIaDocumento
 @using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.Documentos.Recursos
+@using Microsoft.Extensions.Localization
 @using MediatR
 @inject IMediator Mediator
 @inject ToastService ToastService
+@inject IStringLocalizer<TextosDocumentos> Textos
 
 <section class="revision-ia" aria-label="Revisiones IA pendientes">
     <div class="revision-ia-introduccion">
@@ -13,9 +16,22 @@
         </p>
         <div class="revision-ia-reglas" aria-label="Criterios de la cola">
             <span>Ordenadas por confianza ascendente</span>
-            <span>Confirmación en lote: 95 % y fecha detectada</span>
+            <span>@Textos["RevIaReglaBloque"]</span>
         </div>
     </div>
+    @if (_fallosBloque.Count > 0)
+    {
+        <div class="revision-ia-resultado" role="status">
+            <strong>@Textos["RevIaFallosTitulo", _fallosBloque.Count]</strong>
+            <ul>
+                @foreach (var fallo in _fallosBloque)
+                {
+                    <li>@fallo.Propietario · @fallo.Tipo — @fallo.Motivo</li>
+                }
+            </ul>
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CerrarFallosBloque">@Textos["RevIaCerrar"]</Boton>
+        </div>
+    }
     @if (_errorCarga)
     {
         <EstadoVacio
@@ -54,12 +70,23 @@
             <span>
                 @RevisionesVisibles.Count @(RevisionesVisibles.Count == 1 ? "extracción pendiente" : "extracciones pendientes")
             </span>
-            <Boton
-                Variante="VarianteBoton.Secundario"
-                Deshabilitado="@(RevisionesConfirmablesEnLote.Count == 0)"
-                OnClick="PrepararConfirmacionLote">
-                Confirmar todos los ≥95 % (@RevisionesConfirmablesEnLote.Count)
-            </Boton>
+            <div class="revision-ia-seleccion">
+                <CampoSelect Etiqueta="@Textos["RevIaConfianzaDesde"]" Valor="@_confianzaMinima.ToString()" ValorChanged="CambiarConfianzaMinima" Deshabilitado="_operacionEnCurso">
+                    @foreach (var minima in ConfianzasMinimas)
+                    {
+                        <option value="@minima">@minima %</option>
+                    }
+                </CampoSelect>
+                <Boton
+                    Variante="VarianteBoton.Secundario"
+                    Deshabilitado="@(RevisionesSeleccionadas.Count == 0 || _operacionEnCurso)"
+                    OnClick="PrepararConfirmacionLote">
+                    @Textos["RevIaAceptarSeleccionadas", RevisionesSeleccionadas.Count]
+                </Boton>
+            </div>
+            <p class="revision-ia-ayuda-seleccion">
+                @Textos["RevIaAyudaSeleccion"]
+            </p>
         </div>
         <div class="revision-ia-contenido">
             <aside class="revision-ia-cola" aria-label="Extracciones por revisar">
@@ -81,6 +108,16 @@
                 </div>
                 @foreach (var revision in RevisionesVisibles)
                 {
+                    var aceptable = EsAceptableEnBloque(revision);
+                    <div class="revision-ia-fila-selector">
+                    <input
+                        type="checkbox"
+                        class="revision-ia-casilla"
+                        checked="@_seleccion.Contains(revision.Id)"
+                        disabled="@(!aceptable || _operacionEnCurso)"
+                        title="@(aceptable ? Textos["RevIaCasillaIncluir"] : Textos["RevIaCasillaManual", EtiquetaTratamiento(revision)])"
+                        aria-label="@Textos["RevIaCasillaEtiqueta", revision.PropietarioNombre, revision.TipoDocumentoNombre]"
+                        @onchange="e => AlternarSeleccion(revision, e.Value is true)" />
                     <button
                         type="button"
                         class="@ClaseRevision(revision)"
@@ -104,6 +141,7 @@
                             <small>@EtiquetaTratamiento(revision)</small>
                         </span>
                     </button>
+                    </div>
                 }
             </aside>
             @if (RevisionSeleccionada is { } seleccionada)
@@ -228,13 +266,11 @@
 <DialogoConfirmacion
     Visible="_confirmacionLoteVisible"
     VisibleChanged="v => _confirmacionLoteVisible = v"
-    Titulo="Confirmar revisiones en lote"
-    Mensaje="@(
-        "Se aplicarán todas las revisiones cargadas que alcanzan el 95 % de confianza y tienen fecha de emisión detectada. " +
-        "Cada una renueva el documento y puede recalcular su vencimiento.")"
-    TextoBotonConfirmar="Confirmar lote"
+    Titulo="@Textos["RevIaDialogoTitulo"]"
+    Mensaje="@Textos["RevIaDialogoMensaje", RevisionesSeleccionadas.Count]"
+    TextoBotonConfirmar="@Textos["RevIaDialogoConfirmar"]"
     EnProgreso="_confirmandoLote"
-    OnConfirmar="ConfirmarLoteAsync" />
+    OnConfirmar="AceptarSeleccionadasAsync" />
 <DialogoConfirmacion
     Visible="_confirmacionDescartarVisible"
     VisibleChanged="v => _confirmacionDescartarVisible = v"

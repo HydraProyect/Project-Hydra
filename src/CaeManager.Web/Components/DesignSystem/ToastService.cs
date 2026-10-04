@@ -47,6 +47,8 @@ public record ToastMensaje(Guid Id, string Mensaje, TonoToast Tono, string? Text
 /// (ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, "Toasts"). Un toast con acción ("Deshacer", Fase D)
 /// vive 8s en vez de 5 — el usuario necesita un instante extra para leer el
 /// mensaje y decidir si actuar, no solo para leerlo y descartarlo.
+/// La cuenta atrás se detiene mientras el puntero o el foco de teclado están sobre el toast
+/// (<see cref="PunteroSobre"/>, <see cref="FocoEn"/>) y sigue por donde iba al salir.
 /// </summary>
 public class ToastService
 {
@@ -64,6 +66,23 @@ public class ToastService
     public const int MaximoVisibles = 3;
 
     private readonly List<ToastMensaje> _mensajes = [];
+
+    /// <summary>Cuenta atrás de autodescarte de cada toast que la tiene (los de error no).</summary>
+    private readonly Dictionary<Guid, CuentaAtras> _cuentas = [];
+
+    private readonly TimeSpan _duracion;
+    private readonly TimeSpan _duracionConAccion;
+
+    public ToastService() : this(DuracionAutoDescarte, DuracionAutoDescarteConAccion)
+    {
+    }
+
+    /// <summary>Duraciones propias: solo para probar el temporizador sin esperar 5 u 8 segundos.</summary>
+    public ToastService(TimeSpan duracion, TimeSpan duracionConAccion)
+    {
+        _duracion = duracion;
+        _duracionConAccion = duracionConAccion;
+    }
 
     public event Action? OnCambio;
 
@@ -83,7 +102,7 @@ public class ToastService
         OnCambio?.Invoke();
 
         if (tono != TonoToast.Error)
-            _ = AutoDescartarAsync(toast.Id, onAccion is not null ? DuracionAutoDescarteConAccion : DuracionAutoDescarte);
+            Programar(toast.Id, onAccion is not null ? _duracionConAccion : _duracion);
     }
 
     /// <summary>
@@ -117,9 +136,21 @@ public class ToastService
 
     public void Descartar(Guid id)
     {
+        Cancelar(id);
         if (_mensajes.RemoveAll(m => m.Id == id) > 0)
             OnCambio?.Invoke();
     }
+
+    /// <summary>
+    /// El puntero entra o sale del toast. Mientras está encima, la cuenta atrás de
+    /// autodescarte se detiene (WCAG 2.2.1: quien lee despacio, o está a punto de pulsar
+    /// «Deshacer», no ve desaparecer el aviso bajo el puntero). La barra de tiempo se
+    /// detiene por CSS con el mismo criterio; esto detiene el temporizador de verdad.
+    /// </summary>
+    public void PunteroSobre(Guid id, bool dentro) => Pausar(id, c => c.Puntero = dentro);
+
+    /// <summary>Lo mismo con el foco de teclado dentro del toast (sus botones).</summary>
+    public void FocoEn(Guid id, bool dentro) => Pausar(id, c => c.Foco = dentro);
 
     /// <summary>Ejecuta la acción del toast (p. ej. "Deshacer") y lo descarta de inmediato — un clic no debe competir con el auto-descarte.</summary>
     public async Task EjecutarAccionAsync(Guid id)
@@ -131,9 +162,78 @@ public class ToastService
             await toast.OnAccion();
     }
 
-    private async Task AutoDescartarAsync(Guid id, TimeSpan duracion)
+    private void Programar(Guid id, TimeSpan duracion)
     {
-        await Task.Delay(duracion);
+        var cuenta = new CuentaAtras(duracion);
+        lock (_cuentas)
+        {
+            _cuentas[id] = cuenta;
+            Arrancar(id, cuenta);
+        }
+    }
+
+    private void Arrancar(Guid id, CuentaAtras cuenta)
+    {
+        var cts = new CancellationTokenSource();
+        cuenta.Cts = cts;
+        cuenta.Inicio = DateTime.UtcNow;
+        _ = EsperarAsync(id, cuenta.Restante, cts.Token);
+    }
+
+    private async Task EsperarAsync(Guid id, TimeSpan restante, CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(restante, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
         Descartar(id);
+    }
+
+    private void Pausar(Guid id, Action<CuentaAtras> cambiar)
+    {
+        lock (_cuentas)
+        {
+            if (!_cuentas.TryGetValue(id, out var cuenta))
+                return;
+
+            var estabaPausada = cuenta.Pausada;
+            cambiar(cuenta);
+
+            if (!estabaPausada && cuenta.Pausada)
+            {
+                cuenta.Cts?.Cancel();
+                cuenta.Restante -= DateTime.UtcNow - cuenta.Inicio;
+                if (cuenta.Restante < TimeSpan.Zero)
+                    cuenta.Restante = TimeSpan.Zero;
+            }
+            else if (estabaPausada && !cuenta.Pausada)
+            {
+                Arrancar(id, cuenta);
+            }
+        }
+    }
+
+    private void Cancelar(Guid id)
+    {
+        lock (_cuentas)
+        {
+            if (_cuentas.Remove(id, out var cuenta))
+                cuenta.Cts?.Cancel();
+        }
+    }
+
+    private sealed class CuentaAtras(TimeSpan restante)
+    {
+        public TimeSpan Restante { get; set; } = restante;
+        public DateTime Inicio { get; set; }
+        public CancellationTokenSource? Cts { get; set; }
+        public bool Puntero { get; set; }
+        public bool Foco { get; set; }
+        public bool Pausada => Puntero || Foco;
     }
 }

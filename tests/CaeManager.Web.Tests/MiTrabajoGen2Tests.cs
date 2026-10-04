@@ -8,9 +8,11 @@ using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.Bandeja;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
 using MiTrabajoPagina = CaeManager.Web.Features.Bandeja.Pages.MiTrabajo;
@@ -122,13 +124,15 @@ public class MiTrabajoGen2Tests : BunitContext
     private IRenderedComponent<MiTrabajoPagina> Renderizar(
         Func<MiTrabajoAgregadoDto>? respuesta = null,
         Func<Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>>>? candidatos = null,
-        string? rol = null)
+        string? rol = null,
+        string? url = null)
     {
         _mediador = new MediadorFijo(respuesta ?? Cartera, candidatos ?? SinPermiso);
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
         Services.AddSingleton<ToastService>();
         Services.AddLocalization();
+        if (url is not null) Services.GetRequiredService<NavigationManager>().NavigateTo(url);
         if (rol is null) return Render<MiTrabajoPagina>();
         var estado = Task.FromResult(new Microsoft.AspNetCore.Components.Authorization.AuthenticationState(
             new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
@@ -146,6 +150,9 @@ public class MiTrabajoGen2Tests : BunitContext
         return (form.GetAttribute("action")!, form.GetAttribute("method")!, Campo("tenantId"), Campo("returnUrl"), Campo("__RequestVerificationToken"));
     }
 
+    /// <summary>La vuelta a Mi trabajo sin filtros que lleva todo destino (RetornoMiTrabajo).</summary>
+    private static readonly string Vuelta = $"volver={Uri.EscapeDataString("/mi-trabajo")}";
+
     private static IReadOnlyList<string> TitulosVisibles(IRenderedComponent<MiTrabajoPagina> cut) =>
         cut.FindAll(".mi-trabajo-fila-titulo").Select(e => e.TextContent).ToList();
 
@@ -155,11 +162,11 @@ public class MiTrabajoGen2Tests : BunitContext
         var cut = Renderizar();
 
         var refri = Formulario(FilaDe(cut, "Reconocimiento médico"));
-        refri.Should().Be(("/cuenta/cliente-activo", "post", TenantRefri.ToString(), $"/documentos?documentoId={DocumentoVencido}", "token-de-prueba"));
+        refri.Should().Be(("/cuenta/cliente-activo", "post", TenantRefri.ToString(), $"/documentos?documentoId={DocumentoVencido}&{Vuelta}", "token-de-prueba"));
 
         var dexter = Formulario(FilaDe(cut, "Rechazado por la plataforma"));
         dexter.Tenant.Should().Be(TenantDexter.ToString(), "la fila de otro Tenant no puede heredar el Tenant de la primera tarjeta");
-        dexter.ReturnUrl.Should().Be("/documentos?pestana=plataforma");
+        dexter.ReturnUrl.Should().Be($"/documentos?pestana=plataforma&{Vuelta}");
     }
 
     [Theory]
@@ -239,7 +246,7 @@ public class MiTrabajoGen2Tests : BunitContext
         var requisito = Formulario(FilaDe(cut, "Requisito del centro"));
 
         requisito.Tenant.Should().Be(TenantRefri.ToString());
-        requisito.ReturnUrl.Should().Be("/bandeja");
+        requisito.ReturnUrl.Should().Be($"/bandeja?{Vuelta}");
     }
 
     [Fact]
@@ -771,5 +778,108 @@ public class MiTrabajoGen2Tests : BunitContext
 
         cut.Find(".mi-trabajo-lote").GetAttribute("aria-expanded").Should().Be("true");
         cut.FindAll(".mi-trabajo-fila-enfocada").Should().ContainSingle();
+    }
+
+    // ── Filtros en la URL y vuelta desde la acción de una fila ────────────────
+
+    private string UrlActual => Services.GetRequiredService<NavigationManager>().Uri;
+
+    [Fact]
+    public void Los_filtros_de_la_URL_se_leen_al_montar()
+    {
+        var cut = Renderizar(url: $"/mi-trabajo?severidad=bloqueo&empresa={TenantRefri}&q=Reconocimiento&agrupar=severidad&orden=cliente");
+
+        TitulosVisibles(cut).Should().BeEquivalentTo("Reconocimiento médico");
+        cut.Find("input.mi-trabajo-filtro").GetAttribute("value").Should().Be("Reconocimiento");
+        cut.FindAll(".mi-trabajo-chip-activo").Single().TextContent.Should().Contain("Bloqueos");
+        cut.FindAll(".mi-trabajo-cartera-fila-activa").Single().TextContent.Should().Contain("Refrielectric");
+        cut.FindAll(".mi-trabajo-pestana-activa").Select(e => e.TextContent.Trim()).Should().BeEquivalentTo("Severidad", "Cliente empresarial");
+    }
+
+    [Fact]
+    public void Un_valor_de_la_URL_que_no_se_reconoce_se_ignora()
+    {
+        var cut = Renderizar(url: "/mi-trabajo?severidad=no-existe&empresa=no-es-un-guid&agrupar=99&orden=xx");
+
+        TitulosVisibles(cut).Should().HaveCount(4, "sin filtros reconocidos se ve toda la cola");
+        cut.FindAll(".mi-trabajo-chip-activo").Single().TextContent.Should().Contain("Todas");
+    }
+
+    [Fact]
+    public void Cambiar_los_filtros_se_escribe_en_la_URL_y_el_Tenant_viaja_como_empresa()
+    {
+        var cut = Renderizar();
+
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloqueos")).Click();
+        UrlActual.Should().EndWith("?severidad=bloqueo");
+
+        cut.FindAll(".mi-trabajo-cartera-fila").Single(f => f.TextContent.Contains("Laboratorios Dexter")).Click();
+        cut.Find("input.mi-trabajo-filtro").Input("Rechazado");
+        cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent.Trim() == "Severidad").Click();
+        cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent.Trim() == "Cliente empresarial").Click();
+
+        var consulta = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(UrlActual).Query);
+        consulta["severidad"].ToString().Should().Be("bloqueo");
+        consulta["empresa"].ToString().Should().Be(TenantDexter.ToString());
+        consulta["q"].ToString().Should().Be("Rechazado");
+        consulta["agrupar"].ToString().Should().Be("severidad");
+        consulta["orden"].ToString().Should().Be("cliente");
+    }
+
+    [Fact]
+    public void Quitar_filtros_limpia_tambien_la_URL()
+    {
+        var cut = Renderizar();
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Seguimiento")).Click();
+        cut.Find("input.mi-trabajo-filtro").Input("zzz-sin-resultados");
+        UrlActual.Should().Contain("severidad=seguimiento").And.Contain("q=zzz-sin-resultados");
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Quitar filtros").Click();
+
+        new Uri(UrlActual).Query.Should().BeEmpty("OnParametersSet repondría los filtros desde una URL que los conserve");
+        TitulosVisibles(cut).Should().HaveCount(4);
+    }
+
+    [Fact]
+    public void La_accion_de_una_fila_ofrece_la_vuelta_a_Mi_trabajo_con_los_filtros_vigentes()
+    {
+        var cut = Renderizar(url: "/mi-trabajo");
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloqueos")).Click();
+
+        var destino = Formulario(FilaDe(cut, "Reconocimiento médico")).ReturnUrl;
+
+        destino.Should().Be($"/documentos?documentoId={DocumentoVencido}&volver={Uri.EscapeDataString("/mi-trabajo?severidad=bloqueo")}");
+    }
+
+    [Theory]
+    [InlineData("/mi-trabajo", "/mi-trabajo")]
+    [InlineData("/mi-trabajo?severidad=bloqueo&q=Vega", "/mi-trabajo?severidad=bloqueo&q=Vega")]
+    [InlineData("https://atacante.example/mi-trabajo", null)]
+    [InlineData("//atacante.example", null)]
+    [InlineData("/\atacante.example", null)]
+    [InlineData("/mi-trabajo	/x", null)]
+    [InlineData("/mi-trabajoX", null)]
+    [InlineData("/otra?x=/mi-trabajo", null)]
+    [InlineData("/documentos", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void El_retorno_solo_admite_una_ruta_local_de_Mi_trabajo(string? valor, string? esperado) =>
+        RetornoMiTrabajo.Validar(valor).Should().Be(esperado);
+
+    [Fact]
+    public void El_enlace_de_vuelta_solo_se_pinta_con_un_retorno_valido()
+    {
+        Services.AddLocalization();
+        var nav = Services.GetRequiredService<NavigationManager>();
+
+        nav.NavigateTo("/documentos?volver=" + Uri.EscapeDataString("/mi-trabajo?severidad=bloqueo"));
+        var valido = Render<EnlaceVolverAMiTrabajo>();
+        valido.Find("a[data-enlace='volver-mi-trabajo']").GetAttribute("href").Should().Be("/mi-trabajo?severidad=bloqueo");
+
+        nav.NavigateTo("/documentos?volver=" + Uri.EscapeDataString("https://atacante.example"));
+        Render<EnlaceVolverAMiTrabajo>().FindAll("a").Should().BeEmpty("un retorno externo no se enlaza");
+
+        nav.NavigateTo("/documentos");
+        Render<EnlaceVolverAMiTrabajo>().FindAll("a").Should().BeEmpty();
     }
 }

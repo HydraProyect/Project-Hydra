@@ -122,7 +122,9 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         // Abrir la fila Rechazada de B, que no es el Tenant activo: el formulario de la
         // propia fila (AccionCrossTenant) hace el POST real y aterriza en la acreditación.
         await FiltrarColaAsync(page, TrabajadorB);
-        var destinoEsperado = $"/documentos?pestana=plataforma&acreditacionId={rechazadaB}";
+        // La acción lleva además la vuelta a Mi trabajo con la búsqueda vigente (RetornoMiTrabajo).
+        var vueltaEsperada = Uri.EscapeDataString($"/mi-trabajo?q={Uri.EscapeDataString(TrabajadorB)}");
+        var destinoEsperado = $"/documentos?pestana=plataforma&acreditacionId={rechazadaB}&volver={vueltaEsperada}";
         var cambio = await page.RunAndWaitForResponseAsync(
             () => filaRechazadaB.Locator("form[data-accion-cross-tenant] button[type=submit]").ClickAsync(),
             r => r.Url.Contains("/cuenta/cliente-activo") && r.Request.Method == "POST");

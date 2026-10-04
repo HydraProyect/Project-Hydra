@@ -115,6 +115,7 @@ src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: ObtenerBandejaGestor
 src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: TipoItemBandeja = 43
 src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: TipoItemBandejaUi = 1
 src/CaeManager.Web/Features/BusquedaGlobal/CoberturaDePaleta.cs :: bandeja = 1
+src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor :: Bandeja = 1
 src/CaeManager.Web/Features/Comunicaciones/Components/FilaConversacion.razor :: bandeja = 14
 src/CaeManager.Web/Features/Comunicaciones/Components/FilaMensajeBuzonPersonal.razor :: bandeja = 11
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: (nombre de fichero) = 1

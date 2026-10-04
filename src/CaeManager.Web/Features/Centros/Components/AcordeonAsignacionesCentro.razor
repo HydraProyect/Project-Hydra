@@ -19,6 +19,7 @@
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Bandeja.Components
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Documentos.Components
 @using FluentValidation
@@ -322,6 +323,13 @@ else
                                 </Boton>
                             </span>
                         </div>
+                        @if (EstaBloqueado(trabajador.TrabajadorId))
+                        {
+                            <MotivoBloqueoTrabajador TrabajadorId="trabajador.TrabajadorId"
+                                                     Bloqueos="BloqueosDe(trabajador.TrabajadorId)"
+                                                     Otros="OtrosPendientesDe(trabajador)"
+                                                     OnPedir="PedirAsync" />
+                        }
                         @if (expandido)
                         {
                             @if (trabajador.Documentos.Count == 0)
@@ -488,3 +496,7 @@ else
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
 <DrawerAsignacionMasiva @ref="_drawerAsignacion" OnGuardado="ManejarAsignacionGuardadaAsync" />
+
+<DrawerReclamacionLote Visible="_pedirVisible" VisibleChanged="v => _pedirVisible = v"
+                       AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
+                       AmbitoInicial="_pedirAmbito" EntidadIdInicial="_pedirEntidadId" />

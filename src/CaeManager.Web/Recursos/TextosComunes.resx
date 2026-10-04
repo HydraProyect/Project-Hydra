@@ -135,6 +135,9 @@
   <data name="SoporteEnlaceLogoOrganizacion" xml:space="preserve">
     <value>Logo de la organización</value>
   </data>
+  <data name="VolverAMiTrabajo" xml:space="preserve">
+    <value>Volver a Mi trabajo</value>
+  </data>
   <data name="SaltarAlContenido" xml:space="preserve">
     <value>Saltar al contenido</value>
   </data>

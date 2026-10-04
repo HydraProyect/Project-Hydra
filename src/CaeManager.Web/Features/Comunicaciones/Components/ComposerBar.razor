@@ -55,7 +55,9 @@
     }
     else
     {
-        <div class="composer-correo">
+        @* Ctrl/Cmd+Intro envía (el keydown del textarea burbujea hasta aquí). Intro solo
+           sigue siendo salto de línea: un correo es texto largo, no un chat. *@
+        <div class="composer-correo" @onkeydown="ManejarAtajoCorreoAsync">
             <div class="composer-correo-prellenados">
                 <div class="composer-macro-campo">
                     <CampoSelect Etiqueta="Macro / plantilla" Valor="@MacroSeleccionadaId" ValorChanged="v => OnAplicarMacro.InvokeAsync(v)">
@@ -150,6 +152,16 @@
     [Parameter] public string EmailFallback { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> EmailFallbackChanged { get; set; }
     [Parameter] public EventCallback OnEnviarFallbackCorreo { get; set; }
+
+    /// <summary>
+    /// Ctrl+Intro (Cmd+Intro en Mac) envía el correo con las mismas condiciones que el botón Enviar:
+    /// texto no vacío, adjuntos sin error y ningún envío en curso.
+    /// </summary>
+    private Task ManejarAtajoCorreoAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        var puedeEnviar = !Enviando && !string.IsNullOrWhiteSpace(Texto) && ErrorAdjuntos is null;
+        return e.Key == "Enter" && (e.CtrlKey || e.MetaKey) && puedeEnviar ? OnEnviar.InvokeAsync() : Task.CompletedTask;
+    }
 
     /// <summary>Enter envía, Shift+Enter hace salto de línea — convención de chat.</summary>
     private Task ManejarTeclaAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e) =>

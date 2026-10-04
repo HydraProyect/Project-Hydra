@@ -1,0 +1,57 @@
+@*
+    Ficha 12 de «La jornada del Gestor CAE»: junto al «Bloqueado» de un Trabajador en un Centro, el motivo y los documentos que
+    faltan, con «Pedir». No decide nada: los bloqueos llegan ya evaluados por la regla única por Centro
+    (ReglaBloqueoDeAcceso, vía ObtenerDocumentacionBloqueantePendienteQuery) y esta pieza solo los dice; por eso nunca muestra un
+    bloqueo de otro Centro.
+
+    «Pedir» abre el flujo de reclamación que ya existe (DrawerReclamacionLote): el Gestor CAE elige y revisa, y es él quien
+    envía. Solo se ofrece donde ese flujo puede actuar: un documento que ya existe y tiene vencimiento (VentanaReclamacion).
+    Un documento que todavía no existe no es reclamable hoy y la línea lo dice en vez de ofrecer un botón que no puede cumplir.
+*@
+
+@using CaeManager.Domain.Documentos
+
+@if (Bloqueos.Count > 0)
+{
+    var clavesBloqueos = new ClavesDeHermanos();
+    var clavesOtros = new ClavesDeHermanos();
+    <div class="motivo-bloqueo" role="group" aria-label="@Textos["MotivoBloqueoEncabezado"]">
+        <ul class="motivo-bloqueo-lista">
+            @foreach (var bloqueo in Bloqueos)
+            {
+                var entidad = EntidadAReclamar(bloqueo);
+                <li class="motivo-bloqueo-linea" @key="clavesBloqueos.De((bloqueo.TipoDocumentoId, bloqueo.Ambito))">
+                    <span class="motivo-bloqueo-texto">@TextoBloqueoDeAcceso.LineaDeDocumento(Textos, bloqueo)</span>
+                    @if (entidad is { } e)
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="motivo-bloqueo-pedir"
+                               aria-label="@Textos["MotivoBloqueoPedirDe", bloqueo.TipoDocumentoNombre]"
+                               OnClick="() => OnPedir.InvokeAsync(e)">@Textos["MotivoBloqueoPedir"]</Boton>
+                    }
+                    else
+                    {
+                        <span class="motivo-bloqueo-sin-pedir">@Textos["MotivoBloqueoNoSePuedePedir"]</span>
+                    }
+                </li>
+            }
+        </ul>
+        @if (Otros.Count > 0)
+        {
+            <p class="motivo-bloqueo-subtitulo">@Textos["MotivoBloqueoTambien"]</p>
+            <ul class="motivo-bloqueo-lista">
+                @foreach (var documento in Otros)
+                {
+                    <li class="motivo-bloqueo-linea" @key="clavesOtros.De(documento.TipoDocumentoId)">
+                        <span class="motivo-bloqueo-texto">@DescribirOtro(documento)</span>
+                        @if (EsReclamable(documento))
+                        {
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="motivo-bloqueo-pedir"
+                                   aria-label="@Textos["MotivoBloqueoPedirDe", documento.TipoDocumentoNombre]"
+                                   OnClick="() => OnPedir.InvokeAsync(new EntidadAPedir(AmbitoAplicacion.Trabajador, TrabajadorId))">@Textos["MotivoBloqueoPedir"]</Boton>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+}

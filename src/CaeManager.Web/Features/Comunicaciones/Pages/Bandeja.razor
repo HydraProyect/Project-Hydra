@@ -121,6 +121,7 @@
                     </details>
                 </div>
 
+                <AtajosListaTeclado OnAtajo="ManejarAtajoListaAsync" />
                 <div class="bandeja-lista">
                     @if (_errorCargaLista)
                     {
@@ -176,7 +177,7 @@
                                     <ul class="bandeja-grupo-filas">
                                         @foreach (var conversacion in triage)
                                         {
-                                            <FilaConversacion Conversacion="conversacion" Activa="@(conversacion.Id == _conversacionSeleccionadaId)" OnSeleccionar="SeleccionarConversacionAsync" />
+                                            <FilaConversacion Conversacion="conversacion" Activa="@(conversacion.Id == _conversacionSeleccionadaId)" Enfocada="@(conversacion.Id == _idEnfocado)" OnSeleccionar="SeleccionarConversacionAsync" />
                                         }
                                     </ul>
                                 }
@@ -200,7 +201,7 @@
                                     <ul class="bandeja-grupo-filas">
                                         @foreach (var conversacion in conversacionesCliente)
                                         {
-                                            <FilaConversacion Conversacion="conversacion" Activa="@(conversacion.Id == _conversacionSeleccionadaId)" OnSeleccionar="SeleccionarConversacionAsync" />
+                                            <FilaConversacion Conversacion="conversacion" Activa="@(conversacion.Id == _conversacionSeleccionadaId)" Enfocada="@(conversacion.Id == _idEnfocado)" OnSeleccionar="SeleccionarConversacionAsync" />
                                         }
                                     </ul>
                                 }

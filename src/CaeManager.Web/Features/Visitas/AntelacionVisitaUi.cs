@@ -35,4 +35,20 @@ public static class AntelacionVisitaUi
 
     /// <summary>Horas con un decimal y sin ceros de relleno — "15 h", "71,5 h".</summary>
     public static string Horas(decimal? horas) => horas is null ? "—" : $"{horas.Value:0.#} h";
+
+    /// <summary>
+    /// Cuánto falta para la Visita, en días de negocio (Europe/Madrid): el
+    /// llamador pasa <c>DiaDeNegocio.Hoy()</c>, no la fecha UTC. Solo lee las
+    /// fechas de la Visita; no cambia su semántica.
+    /// </summary>
+    public static (PlazoVisita Plazo, int Dias) Plazo(DateOnly inicio, DateOnly fin, DateOnly hoy)
+    {
+        if (fin < hoy) return (PlazoVisita.Finalizada, 0);
+        if (inicio == hoy) return (PlazoVisita.Hoy, 0);
+        if (inicio < hoy) return (PlazoVisita.EnCurso, 0);
+        var dias = inicio.DayNumber - hoy.DayNumber;
+        return dias == 1 ? (PlazoVisita.Manana, 1) : (PlazoVisita.EnDias, dias);
+    }
 }
+
+public enum PlazoVisita { Finalizada, EnCurso, Hoy, Manana, EnDias }
