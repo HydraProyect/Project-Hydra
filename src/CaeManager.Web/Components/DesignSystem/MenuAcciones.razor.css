@@ -52,6 +52,17 @@
 /* Los ítems son <ItemMenuAccion>, un componente hijo declarado por la página, no
    por MenuAcciones: el identificador de CSS aislado de este fichero no llega a su
    <button>, y sin ::deep los ítems se pintaban con el estilo nativo del navegador. */
+@media (prefers-reduced-motion: no-preference) {
+    .menu-acciones-panel {
+        transition: opacity var(--motion-transition) var(--ease-fluid), transform var(--motion-transition) var(--ease-fluid);
+
+        @starting-style {
+            opacity: 0;
+            transform: translateY(-8px);
+        }
+    }
+}
+
 .menu-acciones-panel ::deep .menu-acciones-item {
     background: none;
     border: none;

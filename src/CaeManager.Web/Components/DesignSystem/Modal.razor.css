@@ -21,6 +21,28 @@
     flex-direction: column;
 }
 
+/* Entrada sin JS: el modal solo existe en el DOM mientras está abierto, así que
+   @starting-style da el estado de partida de la transición (Tier B, 07 § 4).
+   Anulada con prefers-reduced-motion: reduce al no declarar la transición. */
+@media (prefers-reduced-motion: no-preference) {
+    .modal-superposicion {
+        transition: opacity var(--motion-transition) var(--ease-fluid);
+
+        @starting-style {
+            opacity: 0;
+        }
+    }
+
+    .modal-contenido {
+        transition: opacity var(--motion-transition) var(--ease-fluid), transform var(--motion-transition) var(--ease-fluid);
+
+        @starting-style {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+    }
+}
+
 .modal-contenido-pequeno {
     max-width: 420px;
 }
@@ -54,10 +76,18 @@
     color: var(--color-text-muted);
     cursor: pointer;
     padding: var(--space-1);
+    border-radius: var(--radius-full);
+    transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard),
+        transform var(--motion-fast) var(--ease-standard);
 }
 
 .modal-cerrar:hover {
     color: var(--color-text);
+    background-color: var(--color-surface-hover);
+}
+
+.modal-cerrar:active {
+    transform: scale(0.9);
 }
 
 .modal-cuerpo {

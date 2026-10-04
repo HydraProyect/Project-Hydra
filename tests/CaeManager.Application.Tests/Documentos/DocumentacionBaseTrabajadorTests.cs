@@ -12,7 +12,7 @@ public class DocumentacionBaseTrabajadorTests
     private const int Rojo = 7;
 
     private static DocumentoParaDocumentacionBase Doc(string tipo, EstadoVigenciaDocumento vigencia, DateOnly? vence, DateOnly? emision = null) =>
-        new(Guid.NewGuid(), tipo, vigencia, vence, emision ?? new DateOnly(2026, 1, 1));
+        new(Guid.NewGuid(), tipo, vigencia, vence, emision ?? new DateOnly(2026, 1, 1), new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
 
     private static DocumentoParaDocumentacionBase Vence(string tipo, int dias, DateOnly? emision = null) =>
         Doc(tipo, EstadoVigenciaDocumento.VenceEnFecha, Hoy.AddDays(dias), emision);
@@ -80,7 +80,7 @@ public class DocumentacionBaseTrabajadorTests
     [Fact]
     public void Del_mismo_tipo_un_sin_confirmar_representa_frente_a_un_vencido_y_cuenta_como_al_dia()
     {
-        // PreferenciaDocumentoPorTipo antepone lo no vencido: la renovación cuya fecha falta por
+        // DocumentoEfectivo antepone lo válido hoy: la renovación cuya fecha falta por
         // confirmar representa el tipo, y por la decisión del propietario cuenta como al día.
         var d = Calcular(
             Vence("Certificado de aptitud médica", -30),
@@ -140,6 +140,17 @@ public class DocumentacionBaseTrabajadorTests
         Estado(Calcular(Vence("Entrega de EPI", -30, new DateOnly(2026, 6, 1)), Vence("Entrega de EPI", 100, new DateOnly(2026, 2, 1))), TipoDocumentoBase.EntregaEpi)
             .Should().Be(EstadoIndicadorBase.Vigente);
         Estado(d, TipoDocumentoBase.EntregaEpi).Should().Be(EstadoIndicadorBase.Vigente);
+    }
+
+    [Fact]
+    public void Entre_dos_validos_hoy_representa_el_de_emision_mas_reciente_aunque_venza_antes()
+    {
+        // «Vence más tarde» ya no decide: la copia reciente (vence en 100 días) gana a la antigua (vence en 300).
+        var reciente = Vence("Entrega de EPI", 100, new DateOnly(2026, 9, 1));
+        var antigua = Vence("Entrega de EPI", 300, new DateOnly(2026, 1, 1));
+
+        foreach (var d in new[] { Calcular(reciente, antigua), Calcular(antigua, reciente) })
+            d.Indicadores.Single(i => i.Tipo == TipoDocumentoBase.EntregaEpi).DocumentoId.Should().Be(reciente.Id);
     }
 
     [Fact]

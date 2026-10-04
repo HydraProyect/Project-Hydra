@@ -17,3 +17,83 @@
     width: 24px;
     height: 24px;
 }
+
+/*
+    Microanimaciones al pasar el ratón o enfocar el control que contiene el
+    icono (botón, enlace o NavLink). Solo CSS y solo transform/stroke: el
+    glifo, el trazo de 1,75 px y el tamaño no cambian. Se disparan desde el
+    control y no desde el icono, que es aria-hidden y no recibe foco.
+    La campana suena (cuerpo y badajo), el check se dibuja y el aro del
+    círculo late una vez. Reposo = estado sin animar, así que con
+    prefers-reduced-motion todo queda como siempre.
+*/
+.icono .ic-campana-cuerpo,
+.icono .ic-campana-badajo,
+.icono .ic-aro {
+    transform-box: fill-box;
+}
+
+.icono .ic-campana-cuerpo {
+    transform-origin: 50% 0;
+}
+
+.icono .ic-campana-badajo {
+    transform-origin: 50% 0;
+}
+
+.icono .ic-aro {
+    transform-origin: center;
+}
+
+.icono .ic-trazo {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+}
+
+:is(button, a):is(:hover, :focus-visible):not(:disabled, [aria-disabled="true"]) .icono .ic-campana-cuerpo {
+    animation: icono-campana-suena var(--motion-transition) var(--ease-standard);
+}
+
+:is(button, a):is(:hover, :focus-visible):not(:disabled, [aria-disabled="true"]) .icono .ic-campana-badajo {
+    animation: icono-campana-badajo var(--motion-transition) var(--ease-standard);
+}
+
+:is(button, a):is(:hover, :focus-visible):not(:disabled, [aria-disabled="true"]) .icono .ic-trazo {
+    animation: icono-trazo-dibuja var(--motion-transition) var(--ease-fluid);
+}
+
+:is(button, a):is(:hover, :focus-visible):not(:disabled, [aria-disabled="true"]) .icono .ic-aro {
+    animation: icono-aro-pulso var(--motion-transition) var(--ease-fluid);
+}
+
+@keyframes icono-campana-suena {
+    0%, 100% { transform: rotate(0); }
+    15% { transform: rotate(14deg); }
+    35% { transform: rotate(-12deg); }
+    55% { transform: rotate(8deg); }
+    75% { transform: rotate(-4deg); }
+}
+
+@keyframes icono-campana-badajo {
+    0%, 100% { transform: translateX(0); }
+    30% { transform: translateX(-1px); }
+    60% { transform: translateX(1px); }
+}
+
+@keyframes icono-trazo-dibuja {
+    from { stroke-dashoffset: 1; }
+    to { stroke-dashoffset: 0; }
+}
+
+@keyframes icono-aro-pulso {
+    50% { transform: scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .icono .ic-campana-cuerpo,
+    .icono .ic-campana-badajo,
+    .icono .ic-trazo,
+    .icono .ic-aro {
+        animation: none !important;
+    }
+}

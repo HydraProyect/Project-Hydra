@@ -49,7 +49,7 @@ public enum EstadoDocumento
     /// <item>Porcentajes de cumplimiento: entra en el denominador como no conforme y
     /// baja el porcentaje (2026-10-03).</item>
     /// <item>Elección de la copia que representa al tipo en el estado y el cumplimiento
-    /// (<c>PreferenciaDocumentoPorTipo</c>): no gana a una copia con vigencia comprobada.</item>
+    /// (<c>DocumentoEfectivo</c>): entre copias válidas hoy con la misma emisión, no gana a una con vigencia comprobada.</item>
     /// <item>Paquete de acreditación: es vigente y entra, compitiendo por su fecha de
     /// emisión como cualquier otra copia (2026-10-01).</item>
     /// </list>

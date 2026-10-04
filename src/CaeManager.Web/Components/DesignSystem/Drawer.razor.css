@@ -11,6 +11,17 @@
     z-index: 1040;
 }
 
+/* El panel ya entra con su propia animación; el velo funde con @starting-style. */
+@media (prefers-reduced-motion: no-preference) {
+    .drawer-superposicion {
+        transition: opacity var(--motion-transition) var(--ease-fluid);
+
+        @starting-style {
+            opacity: 0;
+        }
+    }
+}
+
 /* Nivel Overlay (06 § 3). */
 .drawer-panel {
     background-color: var(--color-overlay);
@@ -61,10 +72,18 @@
     color: var(--color-text-muted);
     cursor: pointer;
     padding: var(--space-1);
+    border-radius: var(--radius-full);
+    transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard),
+        transform var(--motion-fast) var(--ease-standard);
 }
 
 .drawer-cerrar:hover {
     color: var(--color-text);
+    background-color: var(--color-surface-hover);
+}
+
+.drawer-cerrar:active {
+    transform: scale(0.9);
 }
 
 .drawer-aviso {

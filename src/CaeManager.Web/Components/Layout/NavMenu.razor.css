@@ -53,12 +53,68 @@
 
 .nav-grupo-titulo .icono {
     flex-shrink: 0;
-    transition: transform var(--motion-fast) var(--ease-standard);
+    transition: transform var(--motion-transition) var(--ease-fluid);
 }
 
 /* Cerrado: el chevron (que apunta hacia abajo por defecto) gira a "derecha". */
 .nav-grupo-detalle:not([open]) .nav-grupo-titulo .icono {
     transform: rotate(-90deg);
+}
+
+/*
+    Altura animada del grupo, solo CSS: interpolate-size permite transicionar
+    block-size hacia/desde auto y ::details-content con content-visibility
+    discreto mantiene el contenido pintado durante el cierre. En navegadores sin
+    ::details-content (Firefox, Safari anteriores) no hay animación y el grupo
+    se abre/cierra de golpe, como hasta ahora. El selector va dentro de @supports
+    para no invalidar nada fuera. El atributo [open] sigue siendo la verdad: lo
+    leen menu-lateral.js y los tests.
+*/
+@supports selector(::details-content) {
+    .nav-grupo-detalle {
+        interpolate-size: allow-keywords;
+    }
+
+    .nav-grupo-detalle::details-content {
+        block-size: 0;
+        overflow: hidden;
+        transition: block-size var(--motion-transition) var(--ease-fluid),
+            content-visibility var(--motion-transition) allow-discrete;
+    }
+
+    .nav-grupo-detalle[open]::details-content {
+        block-size: auto;
+    }
+}
+
+/* Entrada escalonada de los enlaces al abrir el grupo. */
+.nav-grupo-detalle[open] .nav-grupo-items ::deep .nav-item {
+    animation: nav-grupo-item-entra var(--motion-transition) var(--ease-fluid) backwards;
+}
+
+.nav-grupo-detalle[open] .nav-grupo-items ::deep .nav-item:nth-child(1) { animation-delay: 70ms; }
+.nav-grupo-detalle[open] .nav-grupo-items ::deep .nav-item:nth-child(2) { animation-delay: 120ms; }
+.nav-grupo-detalle[open] .nav-grupo-items ::deep .nav-item:nth-child(n + 3) { animation-delay: 170ms; }
+
+@keyframes nav-grupo-item-entra {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nav-grupo-detalle::details-content {
+        transition: none;
+    }
+
+    .nav-grupo-titulo .icono {
+        transition: none;
+    }
+
+    .nav-grupo-detalle[open] .nav-grupo-items ::deep .nav-item {
+        animation: none;
+    }
 }
 
 .nav-grupo-items {

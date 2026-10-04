@@ -164,8 +164,10 @@ public static class ReglaBloqueoDeAcceso
     private static bool ValeParaAcceder(DateOnly? valeHasta, DateOnly hoy) => valeHasta is not { } hasta || hasta >= hoy;
 
     /// <summary>
-    /// Situación del requisito en este Centro dados TODOS los Documentos de ese tipo que tiene el sujeto (puede haber
-    /// un vencido y su renovación: basta uno que valga hoy para cumplir).
+    /// Situación del requisito en este Centro dados TODOS los Documentos <b>operativos</b> de ese tipo que tiene el
+    /// sujeto (un sustituido es historial y no entra: el vencido y su renovación no coexisten como operativos). Con más de
+    /// un operativo —duplicados aún sin resolver—, basta uno que valga hoy para cumplir; unificarlo con el documento
+    /// efectivo (<c>DocumentoEfectivo</c>, Application) llega con el destinatario nominativo (PR 6 del diseño).
     /// </summary>
     public static ResultadoDeRequisito Evaluar(
         IEnumerable<DocumentoParaAcceso> documentosDelTipo, CondicionesDeAccesoDelCentro condiciones, DateOnly hoy)

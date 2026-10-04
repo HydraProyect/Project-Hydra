@@ -59,7 +59,7 @@ public record DocumentoRequeridoDto(
 /// </param>
 /// <param name="Cumplimiento">
 /// Los pares exigidos de este Trabajador en este Centro medidos por <see cref="CumplimientoDocumental"/> (un documento
-/// por tipo, el preferido): la porción de este Trabajador del % del Centro. <see cref="FraccionCumplimiento.SinRequisitos"/>
+/// por tipo, el efectivo): la porción de este Trabajador del % del Centro. <see cref="FraccionCumplimiento.SinRequisitos"/>
 /// si el Centro no exige nada.
 /// </param>
 public record TrabajadorAsignacionDocumentacionDto(
@@ -139,7 +139,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsRequeridos.Contains(d.TipoDocumentoId))
-            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
+            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
             .ToListAsync(cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
@@ -155,8 +155,8 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             tiposDocumentoContext, [clienteEmpresarialId], tipoIdsRequeridos, cancellationToken);
 
         // El documento que representa a cada par Trabajador×Tipo: el mismo que usa el % del Centro.
-        var preferidosPorPar = PreferenciaDocumentoPorTipo.UnoPorClave(
-            documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, hoy);
+        var preferidosPorPar = DocumentoEfectivo.UnoPorClave(
+            documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
 
         var documentosPorTrabajador = documentosExistentes
             .GroupBy(d => d.TrabajadorId)

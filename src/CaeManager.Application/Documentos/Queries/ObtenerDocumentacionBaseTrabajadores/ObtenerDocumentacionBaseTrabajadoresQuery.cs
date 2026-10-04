@@ -52,7 +52,7 @@ public class ObtenerDocumentacionBaseTrabajadoresQueryHandler(
         var tipoIds = tiposBasicos.Keys.ToList();
         var filas = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null && pedidos.Contains(d.TrabajadorId.Value) && tipoIds.Contains(d.TipoDocumentoId))
-            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
+            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
             .ToListAsync(cancellationToken);
 
         var porTrabajador = filas.ToLookup(f => f.TrabajadorId);
@@ -60,7 +60,7 @@ public class ObtenerDocumentacionBaseTrabajadoresQueryHandler(
             id => id,
             id => DocumentacionBaseTrabajador.Calcular(
                 porTrabajador[id].Select(f => new DocumentoParaDocumentacionBase(
-                    f.Id, tiposBasicos[f.TipoDocumentoId], f.EstadoVigencia, f.FechaVencimiento, f.FechaEmision)),
+                    f.Id, tiposBasicos[f.TipoDocumentoId], f.EstadoVigencia, f.FechaVencimiento, f.FechaEmision, f.CreadoEnUtc)),
                 hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
     }
 }
