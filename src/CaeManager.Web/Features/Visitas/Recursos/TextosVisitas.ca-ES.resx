@@ -405,4 +405,13 @@
   <data name="OrigenManual" xml:space="preserve">
     <value>Manual</value>
   </data>
+  <data name="EnviarPaquetePorCorreo" xml:space="preserve">
+    <value>Enviar per correu</value>
+  </data>
+  <data name="PaqueteDemasiadoGrandeParaCorreo" xml:space="preserve">
+    <value>El ZIP pesa {0} MB i un correu admet fins a {1} MB d'adjunts. Descarrega'l amb el botó del costat i envia'l des del teu correu.</value>
+  </data>
+  <data name="ErrorEnviarPaquetePorCorreo" xml:space="preserve">
+    <value>No hem pogut preparar el correu amb el paquet. Pots descarregar el ZIP i enviar-lo des del teu correu.</value>
+  </data>
 </root>

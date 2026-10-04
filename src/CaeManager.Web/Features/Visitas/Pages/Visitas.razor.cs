@@ -11,6 +11,8 @@ using CaeManager.Application.Visitas.Commands.ReactivarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
+using CaeManager.Application.Integraciones;
+using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
@@ -164,6 +166,13 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private bool _cargandoSolicitudCorreo;
     private SolicitudAccesoCorreoDto? _solicitudCorreo;
     private string? _errorSolicitudCorreo;
+
+    // Enviar el paquete por correo desde la Visita: abre el compositor de Comunicaciones con el
+    // contacto, el asunto y el ZIP ya puestos. Siempre lo envía el Gestor CAE desde el compositor.
+    private bool _preparandoEnvioPaquete;
+    private bool _composerPaqueteVisible;
+    private AdjuntoParaEnviarDto? _adjuntoPaquete;
+    private string? _avisoEnvioPaquete;
 
     private bool _visorVisible;
     private Guid _visorDocumentoId;
@@ -517,6 +526,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _errorAviso = null;
         _solicitudCorreo = null;
         _errorSolicitudCorreo = null;
+        _avisoEnvioPaquete = null;
+        _composerPaqueteVisible = false;
+        _adjuntoPaquete = null;
 
         try
         {
@@ -612,6 +624,58 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         solicitud.Asunto + "\n\n" + solicitud.Cuerpo;
 
     private static string RutaPaqueteDocumental(Guid visitaId) => $"/visitas/{visitaId}/paquete-documental.zip";
+
+    /// <summary>
+    /// «Enviar por correo»: construye el paquete con la misma consulta que la descarga
+    /// (<see cref="ObtenerPaqueteDocumentalVisitaQuery"/>: autoriza, aplica la selección de
+    /// qué viaja y registra el acceso a documentos sensibles) y abre el compositor. Si el ZIP
+    /// supera lo que admite un correo, no abre nada: avisa con la descarga como alternativa.
+    /// </summary>
+    private async Task AbrirEnviarPaquetePorCorreoAsync()
+    {
+        if (_detalle is not { } detalle || _solicitudCorreo is not { } solicitud || _preparandoEnvioPaquete)
+            return;
+
+        var carga = _cargaDetalle;
+        _preparandoEnvioPaquete = true;
+        _avisoEnvioPaquete = null;
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerPaqueteDocumentalVisitaQuery(detalle.Id));
+            if (carga != _cargaDetalle) return;
+
+            if (resultado.EsFallido)
+            {
+                _avisoEnvioPaquete = resultado.Error.Mensaje;
+                return;
+            }
+
+            var paquete = resultado.Valor;
+            if (paquete.Contenido.LongLength > LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes)
+            {
+                _avisoEnvioPaquete = Textos["PaqueteDemasiadoGrandeParaCorreo",
+                    MegabytesParaMostrar(paquete.Contenido.LongLength),
+                    MegabytesParaMostrar(LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes)].Value;
+                return;
+            }
+
+            _adjuntoPaquete = new AdjuntoParaEnviarDto(paquete.NombreArchivo, "application/zip", paquete.Contenido);
+            _composerPaqueteVisible = true;
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaDetalle)
+                _avisoEnvioPaquete = Textos["ErrorEnviarPaquetePorCorreo"].Value;
+        }
+        finally
+        {
+            _preparandoEnvioPaquete = false;
+        }
+    }
+
+    /// <summary>Redondeo hacia arriba a un decimal: un ZIP de 3,01 MB no puede mostrarse como «3 MB» junto a un tope de 3 MB.</summary>
+    private static string MegabytesParaMostrar(long bytes) =>
+        (Math.Ceiling(bytes / (1024d * 1024d) * 10) / 10).ToString("0.#", System.Globalization.CultureInfo.CurrentCulture);
 
     /// <summary>Lo que se pega en el correo: asunto en la primera línea y el cuerpo debajo.</summary>
     private static string TextoAvisoParaCopiar(AvisoVisitaDto aviso) =>
