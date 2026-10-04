@@ -575,16 +575,16 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// <summary>
     /// Solo cuentan documentos que existen (<c>DocumentoId != null</c>), no vigentes y reclamables según
     /// <see cref="VentanaReclamacion"/> (con FechaVencimiento y dentro de la ventana): un Faltante no tiene fila de
-    /// Documento que reclamar, y un «Sin confirmar» sin fecha no tiene vencimiento que renovar, igual que en
-    /// <c>ObtenerLoteReclamacionQuery</c> y en el envío. «Reclamar» pide una renovación, no la creación de algo
-    /// que nunca existió ni la confirmación de una vigencia sin fecha. No replica el resto de filtros del envío
-    /// (asignación activa, alcance, Centro con gestión CAE): el envío los revalida.
+    /// Documento que reclamar, y un «Sin confirmar» sin fecha no tiene vencimiento que renovar. «Reclamar» pide una
+    /// renovación; lo que falta y lo «Sin confirmar» sin fecha se piden con «Pedir» (Centro 360 y Mi trabajo), que
+    /// viaja por las Pendientes del mismo envío. No replica el resto de filtros del envío (asignación activa,
+    /// alcance, Centro con gestión CAE): el envío los revalida.
     /// </summary>
     private async Task ReclamarFaltantesAsync()
     {
         // Solo se ofrece lo que el envío acepta (VentanaReclamacion: con FechaVencimiento y dentro de la
-        // ventana). Un «Sin confirmar» sin fecha no tiene vencimiento que renovar: el envío lo rechaza, así
-        // que aquí no se ofrece y, si es lo único pendiente, se explica por qué.
+        // ventana). Un «Sin confirmar» sin fecha no tiene vencimiento que renovar: este botón no lo incluye
+        // (se pide con «Pedir») y, si es lo único pendiente, se explica por qué.
         var hoy = DiaDeNegocio.Hoy();
         var clientes = _centros
             .SelectMany(c => c.Documentos

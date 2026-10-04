@@ -286,6 +286,11 @@
                                                     {
                                                         <span class="mi-trabajo-fila-fecha">@fecha.ToString(Textos["FormatoDiaMes"], Cultura)</span>
                                                     }
+                                                    @if (AccionesBandeja.PuedePedir(fila.Item))
+                                                    {
+                                                        <AccionCrossTenant TenantId="fila.TenantId" Item="fila.Item" Token="_token" UrlRetorno="@UrlMiTrabajo" Pedir="true"
+                                                                           Titulo="@Textos["AccionPedirTitulo", MiTrabajoVista.Sujeto(fila.Item), fila.TenantNombre]" />
+                                                    }
                                                     <AccionCrossTenant TenantId="fila.TenantId" Item="fila.Item" Token="_token" UrlRetorno="@UrlMiTrabajo"
                                                                        Titulo="@Textos["AbreEnLaPantalla", fila.TenantNombre]" />
                                                 </span>
@@ -341,6 +346,12 @@
                             <dd>@plataforma</dd>
                         }
                     </dl>
+                    @if (AccionesBandeja.PuedePedir(abierta.Item))
+                    {
+                        <AccionCrossTenant TenantId="abierta.TenantId" Item="abierta.Item" Token="_token" UrlRetorno="@UrlMiTrabajo" Pedir="true"
+                                           Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Medio"
+                                           Titulo="@Textos["AccionPedirTitulo", MiTrabajoVista.Sujeto(abierta.Item), abierta.TenantNombre]" />
+                    }
                     <AccionCrossTenant TenantId="abierta.TenantId" Item="abierta.Item" Token="_token" UrlRetorno="@UrlMiTrabajo"
                                        Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Medio"
                                        Titulo="@Textos["AbreEnLaPantalla", abierta.TenantNombre]" />

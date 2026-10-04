@@ -23,7 +23,7 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPor
 /// preferible a devolver una lista vacía que se confunda con "sin
 /// pendientes".
 /// </summary>
-public record ObtenerLoteReclamacionPorFiltroQuery(FiltroLoteDocumental Filtro)
+public record ObtenerLoteReclamacionPorFiltroQuery(FiltroLoteDocumental Filtro, bool IncluirPendientesSinFecha = false)
     : IRequest<IReadOnlyList<LoteReclamacionAgrupadoDto>>;
 
 /// <param name="TitularId">
@@ -50,7 +50,8 @@ public record LoteReclamacionAgrupadoDto(
     DateTime? UltimaReclamacionFechaUtc,
     IReadOnlyList<DocumentoReclamableDto> Documentos,
     Guid? UltimaReclamacionConversacionId,
-    IReadOnlyList<DestinatarioAgendaDto>? Destinatarios);
+    IReadOnlyList<DestinatarioAgendaDto>? Destinatarios,
+    IReadOnlyList<DocumentoPendienteDto>? PendientesSinFecha = null);
 
 public class ObtenerLoteReclamacionPorFiltroQueryHandler(IMediator mediator)
     : IRequestHandler<ObtenerLoteReclamacionPorFiltroQuery, IReadOnlyList<LoteReclamacionAgrupadoDto>>
@@ -62,42 +63,44 @@ public class ObtenerLoteReclamacionPorFiltroQueryHandler(IMediator mediator)
 
         return filtro.Ambito switch
         {
-            AmbitoAplicacion.Trabajador => await ResolverTrabajadorAsync(mediator, filtro, cancellationToken),
-            AmbitoAplicacion.Empresa => await ResolverEmpresaAsync(mediator, filtro, cancellationToken),
+            AmbitoAplicacion.Trabajador => await ResolverTrabajadorAsync(mediator, filtro, request.IncluirPendientesSinFecha, cancellationToken),
+            AmbitoAplicacion.Empresa => await ResolverEmpresaAsync(mediator, filtro, request.IncluirPendientesSinFecha, cancellationToken),
             _ => throw new NotSupportedException(
                 $"Todavía no hay camino de reclamación para el ámbito {filtro.Ambito} — no lo ofrezcas en SelectorLoteDocumental.AmbitosDisponibles.")
         };
     }
 
     private static async Task<IReadOnlyList<LoteReclamacionAgrupadoDto>> ResolverTrabajadorAsync(
-        IMediator mediator, FiltroLoteDocumental filtro, CancellationToken cancellationToken)
+        IMediator mediator, FiltroLoteDocumental filtro, bool incluirPendientes, CancellationToken cancellationToken)
     {
         var lotes = await mediator.Send(
             new ObtenerLoteReclamacionQuery(
                 TrabajadorId: filtro.EntidadId,
-                TipoDocumentoIds: filtro.TipoDocumentoIds.Count > 0 ? filtro.TipoDocumentoIds : null),
+                TipoDocumentoIds: filtro.TipoDocumentoIds.Count > 0 ? filtro.TipoDocumentoIds : null,
+                IncluirPendientesSinFecha: incluirPendientes),
             cancellationToken);
 
         return lotes
             .Select(l => new LoteReclamacionAgrupadoDto(
                 l.ClienteId, l.RazonSocialCliente, AmbitoAplicacion.Trabajador,
-                l.UltimaReclamacionFechaUtc, l.Documentos, l.UltimaReclamacionConversacionId, l.Destinatarios))
+                l.UltimaReclamacionFechaUtc, l.Documentos, l.UltimaReclamacionConversacionId, l.Destinatarios, l.PendientesSinFecha))
             .ToList();
     }
 
     private static async Task<IReadOnlyList<LoteReclamacionAgrupadoDto>> ResolverEmpresaAsync(
-        IMediator mediator, FiltroLoteDocumental filtro, CancellationToken cancellationToken)
+        IMediator mediator, FiltroLoteDocumental filtro, bool incluirPendientes, CancellationToken cancellationToken)
     {
         var lotes = await mediator.Send(
             new ObtenerLoteReclamacionEmpresaQuery(
                 EmpresaId: filtro.EntidadId,
-                TipoDocumentoIds: filtro.TipoDocumentoIds.Count > 0 ? filtro.TipoDocumentoIds : null),
+                TipoDocumentoIds: filtro.TipoDocumentoIds.Count > 0 ? filtro.TipoDocumentoIds : null,
+                IncluirPendientesSinFecha: incluirPendientes),
             cancellationToken);
 
         return lotes
             .Select(l => new LoteReclamacionAgrupadoDto(
                 l.EmpresaId, l.RazonSocialEmpresa, AmbitoAplicacion.Empresa,
-                l.UltimaReclamacionFechaUtc, l.Documentos, l.UltimaReclamacionConversacionId, l.Destinatarios))
+                l.UltimaReclamacionFechaUtc, l.Documentos, l.UltimaReclamacionConversacionId, l.Destinatarios, l.PendientesSinFecha))
             .ToList();
     }
 }

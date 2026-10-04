@@ -16,6 +16,7 @@
 @using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
 @using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro
 @using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Bandeja.Recursos
 @using CaeManager.Web.Features.Documentos
 @using MediatR
 @inject IMediator Mediator
@@ -52,14 +53,16 @@
             @foreach (var lote in _lotes)
             {
                 var seleccionados = _seleccionPorTitular[lote.TitularId];
+                var pendientesSeleccionados = _seleccionPendientesPorTitular[lote.TitularId];
+                var totalSeleccionado = seleccionados.Count + pendientesSeleccionados.Count;
                 var contactos = _contactosPorTitular.GetValueOrDefault(lote.TitularId, []);
                 var enviandoEste = _enviandoTitularId == lote.TitularId;
 
                 <Tarjeta @key="lote.TitularId" Titulo="@lote.TitularNombre" Class="tarjeta-reclamacion">
                     <AccionesHeader>
-                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || contactos.Count == 0 || _enviando)"
+                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(totalSeleccionado == 0 || contactos.Count == 0 || _enviando)"
                                Cargando="enviandoEste" OnClick="() => EnviarAsync(lote)">
-                            Enviar (@seleccionados.Count)
+                            Enviar (@totalSeleccionado)
                         </Boton>
                     </AccionesHeader>
                     <ChildContent>
@@ -117,6 +120,28 @@
                                         <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
                                     </tr>
                                 }
+
+                                @* Lo que se pide sin vencimiento al que anclarse: el documento que falta del todo y el «Sin confirmar»
+                                   sin fecha. Mismas filas, mismo envío, mismo correo: solo cambia lo que dicen las dos últimas columnas.
+                                   La selección va por Clave (el Documento si lo hay; si no, a quién le falta y qué), no por Id de Documento. *@
+                                @{ var clavesPendientes = new ClavesDeHermanos(); }
+                                @foreach (var pendiente in lote.PendientesSinFecha ?? [])
+                                {
+                                    var estadoPendiente = pendiente.Motivo == MotivoPendienteDeReclamacion.Ausente ? EstadoDocumento.Faltante : EstadoDocumento.SinConfirmar;
+                                    <tr @key="clavesPendientes.De(pendiente.Clave)">
+                                        <td>
+                                            <input type="checkbox" aria-label="@EtiquetaIncluir(pendiente, muestraTrabajador)" checked="@pendientesSeleccionados.Contains(pendiente.Clave)"
+                                                   @onchange="e => AlternarPendiente(lote.TitularId, pendiente.Clave, (bool)e.Value!)" />
+                                        </td>
+                                        @if (muestraTrabajador)
+                                        {
+                                            <td>@pendiente.TrabajadorNombre</td>
+                                        }
+                                        <td>@pendiente.TipoDocumentoNombre</td>
+                                        <td>@TextosMiTrabajo.Texto("ReclamacionSinFecha")</td>
+                                        <td><Badge Tono="EstadoDocumentoUi.Tono(estadoPendiente)">@EstadoDocumentoUi.Texto(estadoPendiente)</Badge></td>
+                                    </tr>
+                                }
                             </tbody>
                         </table>
                     </ChildContent>
@@ -135,6 +160,7 @@
     private Paso _paso = Paso.Seleccion;
     private IReadOnlyList<LoteReclamacionAgrupadoDto> _lotes = [];
     private readonly Dictionary<Guid, HashSet<Guid>> _seleccionPorTitular = [];
+    private readonly Dictionary<Guid, HashSet<string>> _seleccionPendientesPorTitular = [];
     private readonly Dictionary<Guid, HashSet<Guid>> _contactosPorTitular = [];
     private bool _enviando;
     private Guid? _enviandoTitularId;
@@ -168,7 +194,8 @@
 
     private string ValoresRevision(Guid titularId) =>
         string.Join(',', _seleccionPorTitular.GetValueOrDefault(titularId, []).Order())
-        + ';' + string.Join(',', _contactosPorTitular.GetValueOrDefault(titularId, []).Order());
+        + ';' + string.Join(',', _contactosPorTitular.GetValueOrDefault(titularId, []).Order())
+        + ';' + string.Join(',', _seleccionPendientesPorTitular.GetValueOrDefault(titularId, []).Order(StringComparer.Ordinal));
 
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
@@ -179,6 +206,13 @@
     /// <summary>Preseed al abrir desde un ítem concreto de la cola (p. ej. "Reclamar" sobre un Faltante ya sabe su Trabajador) — ver SelectorLoteDocumental.</summary>
     [Parameter] public AmbitoAplicacion? AmbitoInicial { get; set; }
     [Parameter] public Guid? EntidadIdInicial { get; set; }
+
+    /// <summary>
+    /// Además de lo que vence, ofrece lo que se pide sin vencimiento: los documentos que faltan del todo y los «Sin confirmar»
+    /// sin fecha (ObtenerLoteReclamacionPorFiltroQuery.IncluirPendientesSinFecha). Lo activan las puertas de «Pedir» (Centro 360,
+    /// y Mi trabajo vía /bandeja?pedir=); el lote en bloque desde la cabecera de la cola sigue siendo el de siempre.
+    /// </summary>
+    [Parameter] public bool IncluirPendientesSinFecha { get; set; }
 
     /// <summary>Se dispara tras cada envío exitoso, para que el llamador refresque su propia lista (p. ej. la cola).</summary>
     [Parameter] public EventCallback OnReclamacionEnviada { get; set; }
@@ -191,7 +225,7 @@
         _paso = Paso.Cargando;
         StateHasChanged();
 
-        _lotes = await Mediator.Send(new ObtenerLoteReclamacionPorFiltroQuery(filtro));
+        _lotes = await Mediator.Send(new ObtenerLoteReclamacionPorFiltroQuery(filtro, IncluirPendientesSinFecha));
 
         if (_lotes.Count == 0)
         {
@@ -200,10 +234,12 @@
         }
 
         _seleccionPorTitular.Clear();
+        _seleccionPendientesPorTitular.Clear();
         _contactosPorTitular.Clear();
         foreach (var lote in _lotes)
         {
             _seleccionPorTitular[lote.TitularId] = lote.Documentos.Select(d => d.DocumentoId).ToHashSet();
+            _seleccionPendientesPorTitular[lote.TitularId] = (lote.PendientesSinFecha ?? []).Select(p => p.Clave).ToHashSet();
             _contactosPorTitular[lote.TitularId] = (lote.Destinatarios ?? []).Select(d => d.ContactoId).ToHashSet();
         }
 
@@ -221,6 +257,27 @@
         else seleccionados.Remove(documentoId);
     }
 
+    private void AlternarPendiente(Guid titularId, string clave, bool seleccionado)
+    {
+        var seleccionados = _seleccionPendientesPorTitular[titularId];
+        if (seleccionado) seleccionados.Add(clave);
+        else seleccionados.Remove(clave);
+    }
+
+    private static string EtiquetaIncluir(DocumentoPendienteDto pendiente, bool conTrabajador)
+    {
+        var sinConfirmar = pendiente.Motivo == MotivoPendienteDeReclamacion.SinConfirmar;
+        if (conTrabajador)
+        {
+            return TextosMiTrabajo.Formato(
+                sinConfirmar ? "ReclamacionIncluirSinConfirmar" : "ReclamacionIncluirFalta",
+                pendiente.TipoDocumentoNombre, pendiente.TrabajadorNombre ?? string.Empty);
+        }
+
+        return TextosMiTrabajo.Formato(
+            sinConfirmar ? "ReclamacionIncluirSinConfirmarEmpresa" : "ReclamacionIncluirFaltaEmpresa", pendiente.TipoDocumentoNombre);
+    }
+
     private void AlternarContacto(Guid titularId, Guid contactoId, bool marcado)
     {
         if (!_contactosPorTitular.TryGetValue(titularId, out var marcados))
@@ -235,7 +292,14 @@
         if (_enviando || !Visible || !_lotes.Any(l => l.TitularId == lote.TitularId)) return;
 
         var documentoIds = _seleccionPorTitular[lote.TitularId].ToList();
-        if (documentoIds.Count == 0) return;
+
+        // Lo seleccionado sin vencimiento, tal como lo pide el envío (que lo revalida contra la base).
+        var seleccionPendientes = _seleccionPendientesPorTitular[lote.TitularId];
+        var pendientes = (lote.PendientesSinFecha ?? [])
+            .Where(p => seleccionPendientes.Contains(p.Clave))
+            .Select(p => p.ComoPedido())
+            .ToList();
+        if (documentoIds.Count == 0 && pendientes.Count == 0) return;
 
         var contactoIds = _contactosPorTitular.GetValueOrDefault(lote.TitularId, []).ToList();
         if (contactoIds.Count == 0) return;
@@ -251,9 +315,9 @@
             // dos casos: el selector no acota por Centro.
             var resultado = lote.Ambito == AmbitoAplicacion.Empresa
                 ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(
-                    lote.TitularId, documentoIds, ContactoIdsSeleccionados: contactoIds))
+                    lote.TitularId, documentoIds, ContactoIdsSeleccionados: contactoIds, Pendientes: pendientes))
                 : await Mediator.Send(new EnviarReclamacionCommand(
-                    lote.TitularId, documentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds));
+                    lote.TitularId, documentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds, Pendientes: pendientes));
 
             if (resultado.EsFallido)
             {

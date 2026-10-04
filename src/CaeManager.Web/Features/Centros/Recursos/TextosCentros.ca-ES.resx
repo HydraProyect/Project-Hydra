@@ -229,7 +229,7 @@
     <value>Demanar {0}</value>
   </data>
   <data name="MotivoBloqueoNoSePuedePedir" xml:space="preserve">
-    <value>encara no hi ha cap document que reclamar</value>
+    <value>no es pot demanar des d’aquí</value>
   </data>
   <data name="MotivoBloqueoTambien" xml:space="preserve">
     <value>A més, per atendre en aquest Centre</value>

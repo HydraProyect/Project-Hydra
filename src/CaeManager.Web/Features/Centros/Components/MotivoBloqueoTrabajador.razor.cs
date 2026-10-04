@@ -32,15 +32,25 @@ public partial class MotivoBloqueoTrabajador
         estado is EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.EnTolerancia or EstadoDocumento.SinConfirmar;
 
     /// <summary>
-    /// Un documento que ya existe y tiene vencimiento es lo único que el envío acepta (<see cref="VentanaReclamacion"/>);
-    /// uno que no existe, o un «Sin confirmar» sin fecha, no tiene nada que renovar.
+    /// Lo que el flujo de reclamación acepta pedir de un documento que ya existe: el que vence dentro de la ventana
+    /// (<see cref="VentanaReclamacion.EsReclamable"/>) y el «Sin confirmar» sin fecha de vencimiento, que se pide por su
+    /// vigencia (<see cref="VentanaReclamacion.EsSinConfirmarSinFecha"/>; IPendientesDeReclamacionService). Un «No caduca»
+    /// confirmado no tiene nada que pedir.
     /// </summary>
     private static bool EsReclamable(DocumentoRequeridoDto documento) =>
-        documento.DocumentoId is not null && VentanaReclamacion.EsReclamable(documento.FechaVencimiento, DiaDeNegocio.Hoy());
+        documento.DocumentoId is not null
+        && (VentanaReclamacion.EsReclamable(documento.FechaVencimiento, DiaDeNegocio.Hoy())
+            || (documento.Estado == EstadoDocumento.SinConfirmar && documento.FechaVencimiento is null));
 
+    /// <summary>
+    /// A quién se le pide lo que bloquea. Un documento ausente se pide igual que uno vencido: el flujo de reclamación pide lo
+    /// que falta (IPendientesDeReclamacionService) con el mismo correo, la misma autorización y el mismo registro. El ámbito
+    /// decide el destinatario: el Trabajador (se resuelve a su Cliente empresarial vía Centro) o la Empresa titular del
+    /// documento de Empresa.
+    /// </summary>
     private EntidadAPedir? EntidadAReclamar(DocumentacionBloqueantePendienteDto bloqueo)
     {
-        if (bloqueo.Situacion != SituacionDeRequisitoBloqueante.Vencido)
+        if (bloqueo.Situacion is not (SituacionDeRequisitoBloqueante.Vencido or SituacionDeRequisitoBloqueante.Ausente))
             return null;
 
         return bloqueo.Ambito switch

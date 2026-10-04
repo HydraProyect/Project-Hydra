@@ -69,11 +69,21 @@ public class ClasificacionRuidoMensajeService(
         if (reclamacionIds.Count == 0)
             return;
 
-        var documentosReclamados = await reclamacionesContext.ReclamacionesDocumentalesDocumento
-            .Where(rd => reclamacionIds.Contains(rd.ReclamacionDocumentalId))
+        // Dos formas de línea (ReclamacionDocumentalDocumento): un Documento que existía (el par sale de él) y un documento que
+        // faltaba (el par se guardó en la propia línea). Las dos son «lo que se reclamó»: la notificación de la plataforma que
+        // repite una petición de documento ausente también es una repetición.
+        var conDocumento = await reclamacionesContext.ReclamacionesDocumentalesDocumento
+            .Where(rd => reclamacionIds.Contains(rd.ReclamacionDocumentalId) && rd.DocumentoId != null)
             .Join(documentosContext.Documentos, rd => rd.DocumentoId, d => d.Id,
                 (rd, d) => new DocumentoReclamadoDto(rd.Id, d.TrabajadorId, d.TipoDocumentoId))
             .ToListAsync(cancellationToken);
+
+        var queFaltaban = await reclamacionesContext.ReclamacionesDocumentalesDocumento
+            .Where(rd => reclamacionIds.Contains(rd.ReclamacionDocumentalId) && rd.DocumentoId == null)
+            .Select(rd => new DocumentoReclamadoDto(rd.Id, rd.TrabajadorId, rd.TipoDocumentoId))
+            .ToListAsync(cancellationToken);
+
+        var documentosReclamados = conDocumento.Concat(queFaltaban).ToList();
 
         var detalles = sugerencia.Detalles
             .Select(d => new DetalleParaClasificarDto(d.Id, d.TrabajadorId, d.TipoDocumentoId))

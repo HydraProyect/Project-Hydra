@@ -24,7 +24,8 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// Ficha 12: junto al «Bloqueado» de un Trabajador en un Centro, el motivo y los documentos que faltan, con «Pedir». La pieza solo
 /// dice lo que la regla única por Centro ya evaluó (los bloqueos entran hechos) y «Pedir» abre el flujo de reclamación existente:
-/// nunca envía por sí solo y nunca se ofrece donde ese flujo no puede actuar (documento que no existe).
+/// nunca envía por sí solo. Se ofrece para lo vencido, para el documento que falta del todo y para el «Sin confirmar» sin fecha
+/// (el flujo ya sabe pedirlos); no se ofrece donde no hay a quién pedírselo (documento de Empresa sin Empresa identificada).
 /// </summary>
 public class MotivoBloqueoTrabajadorTests : BunitContext
 {
@@ -67,13 +68,36 @@ public class MotivoBloqueoTrabajadorTests : BunitContext
     }
 
     [Fact]
-    public void Un_documento_que_no_existe_dice_que_falta_y_no_ofrece_un_Pedir_que_el_flujo_no_puede_cumplir()
+    public async Task Un_documento_que_falta_del_todo_dice_el_motivo_y_Pedir_abre_la_reclamacion_de_ese_Trabajador()
     {
-        var cut = Pintar([Bloqueo(Ana, "Formación PRL", SituacionDeRequisitoBloqueante.Ausente)], null, []);
+        var pedidos = new List<MotivoBloqueoTrabajador.EntidadAPedir>();
+        var cut = Pintar([Bloqueo(Ana, "Formación PRL", SituacionDeRequisitoBloqueante.Ausente)], null, pedidos);
 
         cut.Markup.Should().Contain("Formación PRL: no tiene el documento");
+        cut.Markup.Should().NotContain("no se puede pedir desde aquí");
+        await cut.Find("button.motivo-bloqueo-pedir").ClickAsync(new MouseEventArgs());
+
+        pedidos.Should().ContainSingle().Which.Should().Be(new MotivoBloqueoTrabajador.EntidadAPedir(AmbitoAplicacion.Trabajador, Ana));
+    }
+
+    [Fact]
+    public async Task Un_documento_de_Empresa_que_falta_se_pide_a_la_Empresa_y_no_al_Trabajador()
+    {
+        var pedidos = new List<MotivoBloqueoTrabajador.EntidadAPedir>();
+        var cut = Pintar([Bloqueo(Ana, "Seguro de responsabilidad civil", SituacionDeRequisitoBloqueante.Ausente, AmbitoAplicacion.Empresa, EmpresaId)], null, pedidos);
+
+        await cut.Find("button.motivo-bloqueo-pedir").ClickAsync(new MouseEventArgs());
+
+        pedidos.Should().ContainSingle().Which.Should().Be(new MotivoBloqueoTrabajador.EntidadAPedir(AmbitoAplicacion.Empresa, EmpresaId));
+    }
+
+    [Fact]
+    public void Un_documento_de_Empresa_que_falta_sin_Empresa_identificada_no_ofrece_Pedir_y_lo_dice()
+    {
+        var cut = Pintar([Bloqueo(Ana, "Seguro de responsabilidad civil", SituacionDeRequisitoBloqueante.Ausente, AmbitoAplicacion.Empresa, empresaId: null)], null, []);
+
         cut.FindAll("button.motivo-bloqueo-pedir").Should().BeEmpty();
-        cut.Markup.Should().Contain("todavía no hay documento que reclamar");
+        cut.Markup.Should().Contain("no se puede pedir desde aquí");
     }
 
     [Fact]
@@ -100,7 +124,7 @@ public class MotivoBloqueoTrabajadorTests : BunitContext
     }
 
     [Fact]
-    public void Los_pendientes_que_no_bloquean_salen_aparte_y_solo_se_pide_el_que_existe_y_tiene_vencimiento()
+    public void Los_pendientes_que_no_bloquean_salen_aparte_y_se_pide_el_que_vence_y_el_sin_confirmar_sin_fecha()
     {
         var hoy = DiaDeNegocio.Hoy();
         var otros = new[]
@@ -113,8 +137,26 @@ public class MotivoBloqueoTrabajadorTests : BunitContext
         cut.Markup.Should().Contain("Además, por atender en este Centro");
         cut.Markup.Should().Contain($"Formación PRL — caduca {hoy.AddDays(6):dd/MM/yyyy}");
         cut.Markup.Should().Contain("Seguro RC — sin confirmar");
-        // Bloqueo ausente: sin botón. Próximo con fecha: uno. Sin confirmar sin fecha: sin botón.
-        cut.FindAll("button.motivo-bloqueo-pedir").Should().ContainSingle();
+        // Bloqueo ausente: uno. Próximo con fecha: uno. Sin confirmar sin fecha: uno (el flujo lo pide por su vigencia).
+        cut.FindAll("button.motivo-bloqueo-pedir").Should().HaveCount(3);
+    }
+
+    [Fact]
+    public void Un_pendiente_que_ni_cabe_en_la_ventana_ni_es_un_sin_confirmar_con_documento_no_ofrece_Pedir()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        // Un próximo a vencer fuera de la ventana de 3 meses no es reclamable todavía; un requisito sin Documento (sin Id) tampoco
+        // es un «Sin confirmar»: lo que falta del todo se pide desde su bloqueo, no desde «además».
+        var otros = new[]
+        {
+            new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Seguro RC", EstadoDocumento.Proximo, hoy.AddYears(2)),
+            new DocumentoRequeridoDto(null, Guid.NewGuid(), "Plan de emergencia", EstadoDocumento.SinConfirmar, null),
+        };
+
+        var cut = Pintar([Bloqueo(Ana, "Aptitud médica", SituacionDeRequisitoBloqueante.Vencido, AmbitoAplicacion.Empresa, empresaId: null, vencimiento: hoy.AddDays(-1))], otros, []);
+
+        cut.Markup.Should().Contain("Seguro RC — caduca");
+        cut.FindAll("button.motivo-bloqueo-pedir").Should().BeEmpty();
     }
 
     [Theory]

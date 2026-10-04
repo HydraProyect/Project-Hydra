@@ -583,7 +583,7 @@
     <value>Baja deshecha: la asignación vuelve a estar activa.</value>
   </data>
   <data name="ToastSinConfirmarSinFechaNoReclamable" xml:space="preserve">
-    <value>Els documents «Sense confirmar» no tenen data de venciment, així que no hi ha res a reclamar. Confirma’n la vigència al document.</value>
+    <value>Els documents «Sense confirmar» no tenen data de venciment, així que «Reclamar» no els inclou. Demana’ls des del Centre o des de Mi trabajo, o confirma’n la vigència al document.</value>
   </data>
   <data name="ToastSinPendientesReclamar" xml:space="preserve">
     <value>No hay documentos pendientes que reclamar.</value>

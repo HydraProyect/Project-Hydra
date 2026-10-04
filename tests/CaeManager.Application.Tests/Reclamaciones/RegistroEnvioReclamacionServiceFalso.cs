@@ -1,5 +1,6 @@
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Reclamaciones;
 
 namespace CaeManager.Application.Tests.Reclamaciones;
 
@@ -19,6 +20,7 @@ public class RegistroEnvioReclamacionServiceFalso : IRegistroEnvioReclamacionSer
     public IReadOnlyList<string>? UltimosDestinatarios { get; private set; }
     public string? UltimoAsunto { get; private set; }
     public string? UltimoCuerpoHtml { get; private set; }
+    public IReadOnlyList<DocumentoQueFaltaPedido>? UltimosDocumentosQueFaltan { get; private set; }
 
     public Task<Result> EnviarYRegistrarAsync(
         TitularReclamacion titular,
@@ -26,9 +28,11 @@ public class RegistroEnvioReclamacionServiceFalso : IRegistroEnvioReclamacionSer
         IReadOnlyList<string> destinatarios,
         string asunto,
         string cuerpoHtml,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<DocumentoQueFaltaPedido>? documentosQueFaltan = null)
     {
         VecesLlamado++;
+        UltimosDocumentosQueFaltan = documentosQueFaltan;
         UltimoTitular = titular;
         UltimosDocumentoIds = documentoIds;
         UltimosDestinatarios = destinatarios;

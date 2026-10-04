@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Contactos;
+using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
 using CaeManager.Application.Reclamaciones.Eventos;
@@ -301,8 +302,9 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
         await SembrarReclamacionDeEmpresaAsync(_empresaId, documentoId);
 
         await using var contexto = CrearContexto();
+        var alcance = new AlcanceDatosServiceFalso();
         var handler = new ObtenerReclamacionesEnviadasQueryHandler(
-            contexto, contexto, contexto, new AlcanceDatosServiceFalso());
+            contexto, contexto, contexto, alcance, PendientesDeReclamacionFabrica.Crear(contexto, alcance));
 
         var pagina = await handler.Handle(new ObtenerReclamacionesEnviadasQuery(), CancellationToken.None);
 
@@ -322,9 +324,9 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
         await SembrarReclamacionDeEmpresaAsync(_otraEmpresaId, ajena);
 
         await using var contexto = CrearContexto();
+        var alcance = new AlcanceDatosServiceFalso(clienteIds: [_clienteId], empresaIds: [_empresaId]);
         var handler = new ObtenerReclamacionesEnviadasQueryHandler(
-            contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(clienteIds: [_clienteId], empresaIds: [_empresaId]));
+            contexto, contexto, contexto, alcance, PendientesDeReclamacionFabrica.Crear(contexto, alcance));
 
         var pagina = await handler.Handle(new ObtenerReclamacionesEnviadasQuery(), CancellationToken.None);
 
@@ -349,7 +351,7 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
             empresaIds: [_empresaId],
             empresaIdsParaGestion: []);
 
-        var pagina = await new ObtenerReclamacionesEnviadasQueryHandler(contexto, contexto, contexto, portal)
+        var pagina = await new ObtenerReclamacionesEnviadasQueryHandler(contexto, contexto, contexto, portal, PendientesDeReclamacionFabrica.Crear(contexto, portal))
             .Handle(new ObtenerReclamacionesEnviadasQuery(), CancellationToken.None);
 
         pagina.Elementos.Should().BeEmpty(
@@ -375,6 +377,79 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Reclamacion.SinAcceso");
+    }
+
+    // ---- «Pedir» lo que no vence a una Empresa titular (decisión de Chris, 2026-10-04) ----
+
+    private async Task<Guid> SembrarDocumentoSinConfirmarDeEmpresaAsync(Guid empresaId, Guid tipoDocumentoId)
+    {
+        await using var contexto = CrearContexto();
+        var documento = Documento.DeEmpresa(empresaId, tipoDocumentoId, DiaDeNegocio.Hoy().AddMonths(-3), VigenciaDocumento.SinConfirmar);
+        contexto.Documentos.Add(documento);
+        await contexto.SaveChangesAsync();
+        return documento.Id;
+    }
+
+    [Fact]
+    public async Task Un_sin_confirmar_de_empresa_se_ofrece_solo_con_la_bandera_y_se_pide_por_el_mismo_envio()
+    {
+        var documentoId = await SembrarDocumentoSinConfirmarDeEmpresaAsync(_empresaId, _tipoEmpresaId);
+        await SembrarContactoDeEmpresaAsync(_empresaId, "agenda@contratista.test");
+
+        await using (var lectura = CrearContexto())
+        {
+            (await CrearLoteHandler(lectura).Handle(new ObtenerLoteReclamacionEmpresaQuery(), CancellationToken.None))
+                .Should().BeEmpty("sin la bandera el lote es el de siempre: solo lo que vence");
+
+            var lote = (await CrearLoteHandler(lectura).Handle(new ObtenerLoteReclamacionEmpresaQuery(IncluirPendientesSinFecha: true), CancellationToken.None))
+                .Should().ContainSingle().Which;
+            lote.Documentos.Should().BeEmpty();
+            var pendiente = lote.PendientesSinFecha.Should().ContainSingle().Which;
+            pendiente.Motivo.Should().Be(MotivoPendienteDeReclamacion.SinConfirmar);
+            pendiente.DocumentoId.Should().Be(documentoId);
+            pendiente.TrabajadorId.Should().BeNull("un documento de empresa no cuelga de ningún Trabajador");
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var resultado = await CrearCommandHandler(contexto, new MediatorSoloEnviarMensajeNuevo(Guid.NewGuid()))
+                .Handle(new EnviarReclamacionEmpresaCommand(_empresaId, [], Pendientes: [PendienteSinFecha.SinConfirmar(documentoId)]), CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        await using var comprobacion = CrearContexto();
+        var reclamacion = await comprobacion.ReclamacionesDocumentales.Include(r => r.Documentos).SingleAsync();
+        reclamacion.EmpresaId.Should().Be(_empresaId);
+        reclamacion.Documentos.Select(d => d.DocumentoId).Should().BeEquivalentTo([documentoId]);
+    }
+
+    [Fact]
+    public async Task El_historial_ofrece_para_reclamar_de_nuevo_lo_que_faltaba_y_lo_que_sigue_sin_confirmar()
+    {
+        var sinConfirmarId = await SembrarDocumentoSinConfirmarDeEmpresaAsync(_empresaId, _tipoEmpresaId);
+        await using (var siembra = CrearContexto())
+        {
+            siembra.ReclamacionesDocumentales.Add(ReclamacionDocumental.ParaEmpresa(
+                _empresaId, Guid.NewGuid(), "agenda@contratista.test", DateTime.UtcNow.AddDays(-1), [sinConfirmarId],
+                documentosQueFaltan: [new DocumentoQueFaltaPedido(_tipoClienteId, null)]));
+            await siembra.SaveChangesAsync();
+        }
+
+        await using var contexto = CrearContexto();
+        var alcance = new AlcanceDatosServiceFalso();
+        var pagina = await new ObtenerReclamacionesEnviadasQueryHandler(
+            contexto, contexto, contexto, alcance, PendientesDeReclamacionFabrica.Crear(contexto, alcance))
+            .Handle(new ObtenerReclamacionesEnviadasQuery(), CancellationToken.None);
+
+        var fila = pagina.Elementos.Should().ContainSingle().Which;
+        fila.TotalDocumentos.Should().Be(2, "cuenta todas las líneas del lote, esté donde esté cada una");
+        fila.DocumentoIds.Should().BeEmpty("lo que ya no vence no entra por la ventana");
+        fila.Pendientes.Should().BeEquivalentTo(
+        [
+            PendienteSinFecha.Ausente(null, _tipoClienteId),
+            PendienteSinFecha.SinConfirmar(sinConfirmarId),
+        ]);
     }
 
     // ---- siembra ----
@@ -436,7 +511,8 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
     private static ObtenerLoteReclamacionEmpresaQueryHandler CrearLoteHandler(
         CaeManagerDbContext contexto, IAlcanceDatosService alcanceDatos) =>
         new(contexto, contexto, contexto, contexto, contexto, alcanceDatos,
-            new ResolucionDestinatariosAgendaService(contexto, contexto));
+            new ResolucionDestinatariosAgendaService(contexto, contexto),
+            PendientesDeReclamacionFabrica.Crear(contexto, alcanceDatos));
 
     private static EnviarReclamacionEmpresaCommandHandler CrearCommandHandler(
         CaeManagerDbContext contexto, IMediator mediator) =>
@@ -450,7 +526,8 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
             new RegistroEnvioReclamacionService(
                 contexto, emailService ?? new EmailServiceFalso(), new ReclamacionDocumentalRepository(contexto),
                 new CurrentUserServiceFalso(Guid.NewGuid()), new CorreoDelActorRealFalso(correoDeQuienReclama),
-                mediator, NullLogger<RegistroEnvioReclamacionService>.Instance, contexto));
+                mediator, NullLogger<RegistroEnvioReclamacionService>.Instance, contexto),
+            PendientesDeReclamacionFabrica.Crear(contexto, alcanceDatos));
 
     private CaeManagerDbContext CrearContexto()
     {

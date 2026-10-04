@@ -126,6 +126,8 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<
             Reclamaciones.Commands.EnviarReclamacion.IRegistroEnvioReclamacionService,
             Reclamaciones.Commands.EnviarReclamacion.RegistroEnvioReclamacionService>();
+        // Qué se puede pedir sin vencimiento (documento que falta, «Sin confirmar» sin fecha): lo leen el lote y el envío.
+        services.AddScoped<Reclamaciones.IPendientesDeReclamacionService, Reclamaciones.PendientesDeReclamacionService>();
         // La vista previa de una reclamación llama a PrepararAsync de los handlers de envío (una sola
         // implementación de «qué se envía y a quién»): hace falta resolverlos como clases concretas.
         services.AddScoped<Reclamaciones.Commands.EnviarReclamacion.EnviarReclamacionCommandHandler>();

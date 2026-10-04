@@ -23,6 +23,9 @@ namespace CaeManager.Application.Reclamaciones;
 /// <c>RegistroEnvioReclamacionService</c>.
 /// </para>
 /// </summary>
+/// <param name="DocumentoIdsEnviados">Los Documentos enviados: los que vencen y los «Sin confirmar» sin fecha.</param>
+/// <param name="DocumentosQueFaltaban">Cuántos documentos que nunca se subieron se pidieron en el mismo correo (no tienen Id de Documento).</param>
 public sealed record EnvioReclamacionResultado(
     IReadOnlyList<Guid> DocumentoIdsEnviados,
-    IReadOnlyList<string> Destinatarios);
+    IReadOnlyList<string> Destinatarios,
+    int DocumentosQueFaltaban = 0);

@@ -58,6 +58,17 @@ public static class AccionesBandeja
             : $"/documentos?trabajadorId={item.TrabajadorId}&tipoDocumentoId={item.TipoDocumentoId}"
     };
 
+    /// <summary>
+    /// «Pedir» en una fila de Mi trabajo: lo que se le pide a alguien por correo cuando no hay documento (un «Faltante» de un
+    /// Trabajador). El resto de tipos no es algo que se pida por correo (ver <see cref="TipoItemBandejaUi.EsReclamable"/>), y los
+    /// que sí lo son por vencer (Vencido, Urgente) siguen con su acción primaria.
+    /// </summary>
+    public static bool PuedePedir(ItemBandejaDto item) =>
+        item.Tipo == TipoItemBandeja.Faltante && item.TrabajadorId is not null;
+
+    /// <summary>La pantalla de «Pedir»: <c>/bandeja</c> con «Reclamar en lote» abierto sobre el Trabajador del ítem.</summary>
+    public static string UrlPedir(ItemBandejaDto item) => $"/bandeja?pedir={item.TrabajadorId}";
+
     private static Task AbrirRequisitoAsync(ItemBandejaDto item, ContextWorkspaceService workspaceService) =>
         item.CentroId is { } centroId
             ? workspaceService.AbrirAsync(EntidadWorkspace.Centro, centroId, item.Subtitulo, "requisitos")
