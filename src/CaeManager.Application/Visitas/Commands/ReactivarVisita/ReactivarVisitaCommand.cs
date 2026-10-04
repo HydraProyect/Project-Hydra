@@ -47,6 +47,11 @@ public class ReactivarVisitaCommandHandler(
 {
     public async Task<Result> Handle(ReactivarVisitaCommand request, CancellationToken cancellationToken)
     {
+        // Defensa en profundidad: el validador ya lo exige, pero Guid.Empty saltaría la comprobación
+        // si alguien invocara el handler sin pasar por el pipeline.
+        if (request.VersionEsperada == Guid.Empty)
+            return Result.Fallo(Error.Crear("Visita.VersionRequerida", "Falta la versión de la visita que se vio."));
+
         // Releída de la base de datos: se compara contra el estado actual, no contra una
         // copia que este circuito rastreara antes.
         var visita = await repositorio.ObtenerPorIdActualizadoAsync(request.Id, cancellationToken);

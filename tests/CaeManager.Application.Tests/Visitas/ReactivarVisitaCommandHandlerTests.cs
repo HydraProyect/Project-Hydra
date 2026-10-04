@@ -189,6 +189,20 @@ public class ReactivarVisitaCommandHandlerTests
         validador.Validate(new ReactivarVisitaCommand(Guid.NewGuid(), Guid.NewGuid())).IsValid.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task El_handler_rechaza_version_vacia_aunque_no_pase_por_el_validador()
+    {
+        var visita = VisitaCancelada();
+        var unitOfWork = new UnitOfWorkFalso();
+
+        var resultado = await new ReactivarVisitaCommandHandler(Repositorio(visita), unitOfWork, new AlcanceDatosServiceFalso(), new EvaluadorQueAnota(), Log)
+            .Handle(new ReactivarVisitaCommand(visita.Id, Guid.Empty), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Visita.VersionRequerida");
+        visita.EstaCancelada.Should().BeTrue();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
     /// <summary>El alcance se comprueba antes que la versión: fuera de la cartera no se revela ni el conflicto.</summary>
     [Fact]
     public async Task Sin_alcance_se_responde_no_existe_aunque_la_version_este_desfasada()
