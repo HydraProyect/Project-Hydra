@@ -972,18 +972,22 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     // --- P3-31: atajos de teclado j/k/x/Enter ---
 
     /// <summary>
-    /// La fila con foco de teclado manda (j/k). Si no, la fila se tinta por su peor estado
-    /// documental: Faltante o Vencido en rojo, Urgente en ámbar (rediseño de listados, fase 1).
+    /// La fila se tinta por su peor estado documental: Faltante o Vencido en rojo, Urgente en
+    /// ámbar (rediseño de listados, fase 1). El foco de teclado (j/k) se suma al tinte, no lo
+    /// sustituye: la fila enfocada sigue diciendo en qué estado está (list-page.css combina las
+    /// dos clases).
     /// </summary>
-    private string ObtenerClaseFila(ClienteListaDto item) =>
-        item.Id == _idEnfocado
-            ? "fila-enfocada"
-            : item.EstadoDocumentalPeor switch
-            {
-                EstadoDocumento.Faltante or EstadoDocumento.Vencido => "fila-tintada-peligro",
-                EstadoDocumento.Urgente => "fila-tintada-aviso",
-                _ => ""
-            };
+    private string ObtenerClaseFila(ClienteListaDto item)
+    {
+        var tinte = item.EstadoDocumentalPeor switch
+        {
+            EstadoDocumento.Faltante or EstadoDocumento.Vencido => "fila-tintada-peligro",
+            EstadoDocumento.Urgente => "fila-tintada-aviso",
+            _ => null
+        };
+        var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;
+        return string.Join(' ', new[] { foco, tinte }.Where(c => c is not null));
+    }
 
     private async Task ManejarAtajoAsync(string tecla)
     {

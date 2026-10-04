@@ -264,6 +264,22 @@
     box-shadow: inset 3px 0 0 var(--color-warning-700);
 }
 
+/* Fila tintada que además tiene el foco de j/k: conserva el tinte y la franja de su estado
+   (las reglas de arriba ganan a .fila-enfocada por especificidad) y suma la señal de foco
+   como líneas arriba y abajo, para que no se pierda ninguna de las dos. */
+.tabla-datos tr.fila-enfocada.fila-tintada-peligro td,
+.tabla-datos tr.fila-enfocada.fila-tintada-aviso td {
+    box-shadow: inset 0 2px 0 var(--color-primary-400), inset 0 -2px 0 var(--color-primary-400);
+}
+
+.tabla-datos tr.fila-enfocada.fila-tintada-peligro td:first-child {
+    box-shadow: inset 3px 0 0 var(--color-danger-700), inset 0 2px 0 var(--color-primary-400), inset 0 -2px 0 var(--color-primary-400);
+}
+
+.tabla-datos tr.fila-enfocada.fila-tintada-aviso td:first-child {
+    box-shadow: inset 3px 0 0 var(--color-warning-700), inset 0 2px 0 var(--color-primary-400), inset 0 -2px 0 var(--color-primary-400);
+}
+
 /* Persona con sus iniciales delante (Gestor CAE de la fila). */
 .persona-iniciales {
     display: inline-grid;

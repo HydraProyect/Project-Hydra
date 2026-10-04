@@ -267,8 +267,10 @@
 
             @* Solo con más de una página (al tamaño mínimo, 20): con menos no hay nada que
                paginar, pero por encima de 20 se conserva el selector de tamaño aunque el
-               tamaño elegido quepa en una página. *@
-            @if (_totalElementos > TamanoPaginaMinimo)
+               tamaño elegido quepa en una página. Y si ya se eligió un tamaño mayor que el
+               mínimo, el paginador se queda aunque el total baje (un filtro): sin él no habría
+               forma de volver al tamaño de antes. Con cero resultados manda el estado vacío. *@
+            @if (_totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _paginacion.ItemsPerPage > TamanoPaginaMinimo))
             {
             <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                               Etiqueta="Cliente(s) empresarial(es)" PaginaActualChanged="CambiarPaginaAsync"

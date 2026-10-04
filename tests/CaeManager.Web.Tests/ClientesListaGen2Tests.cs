@@ -210,12 +210,14 @@ public class ClientesListaGen2Tests : BunitContext
             IEnumerable<ClienteListaDto> ordenados = Ordenar(sinEstado, q.OrdenarPor, q.Descendente).ThenBy(c => c.Id);
 
             // Orden por Estado documental (el de por defecto de la pantalla desde el rediseño de
-            // listados, fase 1): como el handler, sobre los candidatos acotados y con OrderBy
-            // estable, de modo que la razón social queda como desempate.
+            // listados, fase 1): como el handler, con OrderBy estable (la razón social queda como
+            // desempate) y sobre la cartera entera; solo con filtro de estado hereda su tope.
             var ordenarPorEstado = q.OrdenarPor == nameof(ClienteListaDto.EstadoDocumentalPeor);
             if (ordenarPorEstado)
             {
-                var candidatos = ordenados.Take(LimiteCandidatosConFiltroDeEstado).ToList();
+                var candidatos = q.EstadoDocumental is null
+                    ? ordenados.ToList()
+                    : ordenados.Take(LimiteCandidatosConFiltroDeEstado).ToList();
                 ordenados = q.Descendente
                     ? candidatos.OrderByDescending(Prioridad).ToList()
                     : candidatos.OrderBy(Prioridad).ToList();
@@ -1167,6 +1169,65 @@ public class ClientesListaGen2Tests : BunitContext
             "fila-tintada-peligro", "fila-tintada-peligro", "fila-tintada-aviso", string.Empty);
     }
 
+    /// <summary>
+    /// El foco de j/k se suma al tinte, no lo sustituye: la fila enfocada sigue diciendo que está
+    /// en riesgo, y al irse el foco vuelve a ser solo tintada.
+    /// </summary>
+    [Fact]
+    public async Task La_fila_enfocada_con_j_conserva_el_tinte_de_su_estado()
+    {
+        var cut = Renderizar(new MediatorFalso
+        {
+            Almacen = { Cliente("Alfa Montajes S.L."), Cliente("Zeta Talleres Coop.", peor: EstadoDocumento.Vencido, cantidad: 1) }
+        });
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+        IEnumerable<string> Clases() => cut.FindAll("tbody tr").Where(tr => tr.QuerySelector(".enlace-nombre-fila") is not null)
+            .Select(tr => tr.ClassName ?? string.Empty);
+
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("j"));
+        Clases().Should().Equal("fila-enfocada fila-tintada-peligro", string.Empty);
+
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("j"));
+        Clases().Should().Equal("fila-tintada-peligro", "fila-enfocada");
+    }
+
+    /// <summary>
+    /// Con un tamaño de página mayor que el mínimo ya elegido, el paginador (y su selector de
+    /// tamaño) se queda aunque un filtro deje el total por debajo de 20: si desapareciera, no
+    /// habría forma de volver a 20 por página. Sin tamaño elegido, con 20 o menos no se pinta.
+    /// </summary>
+    [Fact]
+    public async Task El_selector_de_tamano_sigue_ahi_si_se_eligio_uno_mayor_aunque_el_total_baje()
+    {
+        var mediador = new MediatorFalso();
+        for (var i = 1; i <= 25; i++)
+            mediador.Almacen.Add(Cliente($"Cliente {i:00}", critico: i <= 3));
+        var cut = Renderizar(mediador);
+        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+
+        await ElegirEnLaPastilla(cut, "Criticidad", "Solo críticos");
+
+        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(3));
+        cut.FindAll(".paginador-tamano-select").Should().ContainSingle("el tamaño elegido (50) tiene que poder deshacerse");
+
+        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "20" });
+        cut.WaitForAssertion(() => cut.FindAll(".paginador-tamano-select").Should().BeEmpty(
+            "de vuelta al mínimo, con 3 resultados no hay nada que paginar"));
+    }
+
+    [Fact]
+    public void Con_veinte_o_menos_y_el_tamano_minimo_no_hay_paginador()
+    {
+        var mediador = new MediatorFalso();
+        for (var i = 1; i <= 20; i++)
+            mediador.Almacen.Add(Cliente($"Cliente {i:00}"));
+
+        var cut = Renderizar(mediador);
+
+        NombresDeLasFilas(cut).Should().HaveCount(20);
+        cut.FindAll(".paginador-simple").Should().BeEmpty();
+    }
+
     /// <summary>La columna «Gestor CAE» pinta las iniciales de la persona delante de su nombre.</summary>
     [Fact]
     public void El_Gestor_CAE_de_la_fila_lleva_sus_iniciales()
@@ -1658,12 +1719,12 @@ public class ClientesListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Con el orden por Estado documental (el de por defecto), el handler también ordena en
-    /// memoria sobre los 2.000 primeros candidatos por razón social, y el total es lo que ha
-    /// podido ordenar: un Cliente empresarial más allá del tope no aparece, aunque sea el peor.
+    /// Con el orden por Estado documental (el de por defecto) y sin filtro de estado, el handler
+    /// ordena la cartera entera (ObtenerClientesOrdenPorEstadoDocumentalTests lo fija contra
+    /// PostgreSQL): el total es el real y un Faltante cuyo nombre va el último sale el primero.
     /// </summary>
     [Fact]
-    public void El_doble_con_orden_por_estado_solo_ordena_los_primeros_2000_candidatos_como_el_handler()
+    public void El_doble_con_orden_por_estado_ordena_la_cartera_entera_como_el_handler()
     {
         var mediador = new MediatorFalso();
         for (var i = 1; i <= MediatorFalso.LimiteCandidatosConFiltroDeEstado; i++)
@@ -1673,9 +1734,9 @@ public class ClientesListaGen2Tests : BunitContext
 
         var ordenados = mediador.Filtrar(new ObtenerClientesQuery(null, null, OrdenarPor: nameof(ClienteListaDto.EstadoDocumentalPeor)));
 
-        ordenados.TotalElementos.Should().Be(MediatorFalso.LimiteCandidatosConFiltroDeEstado);
-        ordenados.Elementos.Select(c => c.RazonSocial).Should().StartWith(["Aaa Primero", "Cliente 0001"],
-            "Cliente 9999 cae fuera del tope; dentro, el vencido va primero y el resto sigue por razón social");
+        ordenados.TotalElementos.Should().Be(MediatorFalso.LimiteCandidatosConFiltroDeEstado + 2);
+        ordenados.Elementos.Select(c => c.RazonSocial).Should().StartWith(["Cliente 9999", "Aaa Primero", "Cliente 0001"],
+            "el Faltante va primero aunque por nombre sea el candidato 2.002; después el vencido y el resto por razón social");
     }
 
     /// <summary>
