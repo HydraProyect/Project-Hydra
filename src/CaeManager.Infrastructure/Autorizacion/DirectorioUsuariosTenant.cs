@@ -42,7 +42,8 @@ public class DirectorioUsuariosTenant(
     UserManager<ApplicationUser> userManager, ITenantsQueryContext dbContext, ITenantActual tenantActual,
     PuertaAccesoDatos puertaAccesoDatos, Persistence.CaeManagerDbContext identidad)
     : IDirectorioUsuariosService, CaeManager.Application.Clientes.IDirectorioDestinosCartera,
-      CaeManager.Application.Usuarios.IDirectorioEquipoCoordinador
+      CaeManager.Application.Usuarios.IDirectorioEquipoCoordinador,
+      CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.IDirectorioCompanerosGestorCae
 {
     /// <summary>
     /// Usuarios del tenant activo, más sus Operadores Delegados. Sin tenant
@@ -180,6 +181,55 @@ public class DirectorioUsuariosTenant(
                 .Select(u => new CaeManager.Application.Usuarios.MiembroDeEquipo(
                     u.Id, u.Email ?? string.Empty, u.NombreCompleto, !u.EstaDesactivada(ahora),
                     string.IsNullOrEmpty(u.PasswordHash) && !conLoginExterno.Contains(u.Id)))
+                .ToList();
+        }, cancellationToken);
+
+    /// <summary>
+    /// Tope defensivo de la lista de compañeros: un Operador CAE con más Gestores CAE que esto no cabe en un
+    /// desplegable de la bandeja, y la lectura no debe crecer sin techo con el tamaño de la organización.
+    /// </summary>
+    private const int MaximoCompanerosGestorCae = 200;
+
+    /// <summary>
+    /// Los Gestores CAE activos de <paramref name="operadorTenantId"/> (su Tenant de origen), menos el propio
+    /// usuario. <b>Fallo cerrado</b>: si el Tenant activo del contexto no es ese Operador CAE —es decir, el llamante
+    /// no abrió el ámbito de origen que le corresponde, ver <c>ContextoOperadorCae.EnOrigen</c>— devuelve vacío en
+    /// vez de leer: este método no sabe quién pregunta y no puede ser el que decida si un Tenant ajeno es legible.
+    /// Dentro de ese ámbito la RLS de <c>AspNetUsers</c> ya acota la lectura a las cuentas del Tenant activo, y el
+    /// filtro por <c>TenantId</c> de abajo lo repite como defensa en profundidad.
+    ///
+    /// <para>
+    /// Sin rastreo y con el bloqueo evaluado en memoria, como <see cref="ObtenerEquipoAsync"/>: una cuenta
+    /// desactivada deja de ofrecerse al momento. Sin Coordinadores CAE ni otros roles: el contrato es «Gestores CAE».
+    /// </para>
+    /// </summary>
+    public Task<IReadOnlyList<CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.CompaneroGestorCaeDto>>
+        ObtenerGestoresCaeDelOperadorAsync(
+            Guid operadorTenantId, Guid excluirUsuarioId, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.CompaneroGestorCaeDto>>(async () =>
+        {
+            if (tenantActual.TenantId != operadorTenantId) return [];
+
+            var cuentas = await (
+                from u in identidad.Users.AsNoTracking()
+                join ur in identidad.UserRoles on u.Id equals ur.UserId
+                join r in identidad.Roles on ur.RoleId equals r.Id
+                where u.TenantId == operadorTenantId
+                      && u.Id != excluirUsuarioId
+                      && r.Name == Roles.GestorCae
+                orderby u.NombreCompleto, u.Email
+                select u)
+                .ToListAsync(cancellationToken);
+
+            var ahora = DateTimeOffset.UtcNow;
+            return cuentas
+                .Where(u => !u.EstaDesactivada(ahora))
+                .Take(MaximoCompanerosGestorCae)
+                .Select(u => new CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.CompaneroGestorCaeDto(
+                    u.Id,
+                    string.IsNullOrWhiteSpace(u.NombreCompleto) ? u.Email ?? "—" : u.NombreCompleto,
+                    string.IsNullOrWhiteSpace(u.Email) ? null : u.Email,
+                    string.IsNullOrWhiteSpace(u.PhoneNumber) ? null : u.PhoneNumber))
                 .ToList();
         }, cancellationToken);
 

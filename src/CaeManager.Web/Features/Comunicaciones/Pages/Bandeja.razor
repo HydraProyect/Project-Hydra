@@ -12,6 +12,7 @@
 @using CaeManager.Web.Features.Documentos.Recursos
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae
 @using CaeManager.Domain.Comunicaciones
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Comunicaciones.Components
@@ -21,6 +22,7 @@
 @using CaeManager.Web.Features.Comunicaciones.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosListaConversaciones> TextosLista
+@inject IStringLocalizer<TextosCompanerosGestorCae> TextosCompaneros
 @inject IMediator Mediator
 @inject ToastService ToastService
 
@@ -76,6 +78,52 @@
                     Mi buzón personal
                 </button>
             </div>
+
+            @* «Contactar con un compañero»: correo y teléfono de los demás Gestores CAE de mi mismo
+               Operador CAE, copiables. Lo que llega ya viene acotado en Application
+               (ObtenerCompanerosGestorCaeQuery): esta página no filtra nada. Quien no es Gestor CAE
+               recibe la lista vacía y no ve la sección. *@
+            @if (_companeros.Count > 0)
+            {
+                <details class="companeros">
+                    <summary>@TextosCompaneros["Titulo"]</summary>
+                    <p class="companeros-ayuda">@TextosCompaneros["Ayuda"]</p>
+                    <ul class="companeros-lista">
+                        @foreach (var companero in _companeros)
+                        {
+                            <li @key="companero.UsuarioId" class="companero">
+                                <span class="companero-nombre">@companero.Nombre</span>
+                                <span class="companero-dato">
+                                    <span class="companero-rotulo">@TextosCompaneros["Correo"]</span>
+                                    @if (companero.Correo is { } correo)
+                                    {
+                                        <span class="companero-valor">@correo</span>
+                                        <BotonCopiar Valor="@correo" Texto="@TextosCompaneros["CopiarCorreo"].Value"
+                                                     Etiqueta="@TextosCompaneros["EtiquetaCorreo", companero.Nombre].Value" />
+                                    }
+                                    else
+                                    {
+                                        <span class="companero-sin-dato">@TextosCompaneros["SinCorreo"]</span>
+                                    }
+                                </span>
+                                <span class="companero-dato">
+                                    <span class="companero-rotulo">@TextosCompaneros["Telefono"]</span>
+                                    @if (companero.Telefono is { } telefono)
+                                    {
+                                        <span class="companero-valor">@telefono</span>
+                                        <BotonCopiar Valor="@telefono" Texto="@TextosCompaneros["CopiarTelefono"].Value"
+                                                     Etiqueta="@TextosCompaneros["EtiquetaTelefono", companero.Nombre].Value" />
+                                    }
+                                    else
+                                    {
+                                        <span class="companero-sin-dato">@TextosCompaneros["SinTelefono"]</span>
+                                    }
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                </details>
+            }
 
             @if (_vista == "clientes")
             {

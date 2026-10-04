@@ -8,6 +8,7 @@ using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrioridad;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCentro;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
@@ -210,6 +211,9 @@ public class ComunicacionesGen2Tests : BunitContext
 
         public List<MacroListaDto> Macros { get; } = [];
 
+        /// <summary>Lo que devolvería <c>ObtenerCompanerosGestorCaeQuery</c>: ya acotado por Application, la página no filtra.</summary>
+        public List<CompaneroGestorCaeDto> Companeros { get; } = [];
+
         public Func<Guid, ConversacionDetalleDto?> Detalle { get; set; } = _ => null;
 
         public List<NotaInternaDetalleDto> NotasInternas { get; } = [];
@@ -229,6 +233,7 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerClientePorIdQuery q => new ClienteDetalleDto(
                     q.Id, Clientes.First(c => c.Id == q.Id).RazonSocial, "A11111111", false, null, DateTime.UtcNow, null, Guid.NewGuid()),
                 ObtenerMacrosQuery => Macros.ToList(),
+                ObtenerCompanerosGestorCaeQuery => Companeros.ToList(),
                 ObtenerCentrosParaSelectorQuery => new List<CentroSelectorDto>(),
                 ObtenerTiposDocumentoQuery => new List<TipoDocumentoListaDto>(),
                 ObtenerTrabajadoresParaSelectorQuery => new List<TrabajadorSelectorDto>(),
@@ -1229,5 +1234,100 @@ public class ComunicacionesGen2Tests : BunitContext
         var mensaje = Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle().Subject.Mensaje;
         mensaje.Should().StartWith("No se envió la respuesta.").And.Contain("siguen en el redactor");
         mensaje.Should().NotContain("Intenta nuevamente");
+    }
+
+    // ---------------------------------------------------------------- Contactar con un compañero
+
+    private static readonly CompaneroGestorCaeDto Marta = new(Guid.NewGuid(), "Marta Solà", "marta@operador.test", "+34 600 111 222");
+    private static readonly CompaneroGestorCaeDto PereSinTelefono = new(Guid.NewGuid(), "Pere Vidal", "pere@operador.test", null);
+
+    private static IReadOnlyList<IElement> FilasDeCompaneros(IRenderedComponent<Bandeja> cut) =>
+        cut.FindAll(".companero");
+
+    [Fact]
+    public void Sin_companeros_la_seccion_no_se_pinta_y_la_bandeja_pide_la_lista_una_vez()
+    {
+        var (cut, mediador) = Renderizar(new Escenario());
+
+        cut.FindAll(".companeros").Should().BeEmpty("quien no es Gestor CAE recibe la lista vacía y no ve la sección");
+        mediador.Enviados.OfType<ObtenerCompanerosGestorCaeQuery>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Con_companeros_el_desplegable_muestra_nombre_correo_y_telefono_cada_uno_con_su_boton_de_copiar()
+    {
+        var escenario = new Escenario();
+        escenario.Companeros.AddRange([Marta, PereSinTelefono]);
+        var (cut, _) = Renderizar(escenario);
+
+        cut.Find(".companeros summary").TextContent.Trim().Should().Be("Contactar con un compañero");
+        var filas = FilasDeCompaneros(cut);
+        filas.Should().HaveCount(2);
+
+        filas[0].TextContent.Should().Contain("Marta Solà").And.Contain("marta@operador.test").And.Contain("+34 600 111 222");
+        filas[0].QuerySelectorAll("button.boton-copiar").Select(b => b.TextContent.Trim())
+            .Should().Equal("Copiar correo", "Copiar teléfono");
+
+        filas[1].TextContent.Should().Contain("Pere Vidal").And.Contain("pere@operador.test")
+            .And.Contain("Sin teléfono registrado");
+        filas[1].QuerySelectorAll("button.boton-copiar").Select(b => b.TextContent.Trim())
+            .Should().Equal("Copiar correo");
+    }
+
+    [Fact]
+    public async Task Copiar_el_telefono_lo_manda_al_portapapeles_y_lo_anuncia_con_el_nombre_del_companero()
+    {
+        var modulo = JSInterop.SetupModule("./js/clipboard.js");
+        modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
+        var escenario = new Escenario();
+        escenario.Companeros.Add(Marta);
+        var (cut, _) = Renderizar(escenario);
+
+        var boton = FilasDeCompaneros(cut)[0].QuerySelectorAll("button.boton-copiar").Single(b => b.TextContent.Trim() == "Copiar teléfono");
+        await boton.ClickAsync(new MouseEventArgs());
+
+        modulo.VerifyInvoke("copiarAlPortapapeles").Arguments.Should().Equal("+34 600 111 222");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
+            .Which.Mensaje.Should().Be("Se copió el teléfono de Marta Solà al portapapeles.");
+    }
+
+    [Fact]
+    public void Si_la_lectura_de_companeros_falla_la_bandeja_sigue_con_su_lista_y_sin_la_seccion()
+    {
+        var escenario = new Escenario
+        {
+            Interceptar = p => p is ObtenerCompanerosGestorCaeQuery
+                ? Task.FromException<object?>(new InvalidOperationException("boom"))
+                : null
+        };
+        escenario.Conversaciones.Add(Conversacion("Documentación pendiente", ClienteRefrielectric));
+        var (cut, _) = Renderizar(escenario);
+
+        cut.FindAll(".companeros").Should().BeEmpty();
+        AsuntosVisibles(cut).Should().ContainSingle().Which.Should().Be("Documentación pendiente");
+    }
+
+    [Fact]
+    public void En_catalan_los_textos_de_la_seccion_salen_en_catalan()
+    {
+        var (previa, previaUi) = (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture);
+        System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.CurrentUICulture =
+            System.Globalization.CultureInfo.GetCultureInfo("ca-ES");
+        try
+        {
+            var escenario = new Escenario();
+            escenario.Companeros.Add(PereSinTelefono);
+            var (cut, _) = Renderizar(escenario);
+
+            cut.Find(".companeros summary").TextContent.Trim().Should().Be("Contactar amb un company");
+            var fila = FilasDeCompaneros(cut).Single();
+            fila.TextContent.Should().Contain("Correu").And.Contain("Sense telèfon registrat");
+            fila.QuerySelectorAll("button.boton-copiar").Select(b => b.TextContent.Trim()).Should().Equal("Copia el correu");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = previa;
+            System.Globalization.CultureInfo.CurrentUICulture = previaUi;
+        }
     }
 }
