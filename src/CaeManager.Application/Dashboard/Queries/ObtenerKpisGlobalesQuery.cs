@@ -20,13 +20,6 @@ public record ClienteRiesgoDto(
     /// no "está al día" (ver <see cref="ObtenerKpisGlobalesQueryHandler.Fusionar"/>).
     /// </summary>
     bool SinCarteraAsignada = false,
-    /// <summary>
-    /// <see cref="KpisDashboardDto.CentrosBloqueados"/> de esta organización:
-    /// Centros de Trabajo en <c>EstadoCentro.Bloqueado</c> según
-    /// <c>ICalculoEstadoCentroService</c>, que desde 2026-10-03 solo lo causa la plataforma del Cliente empresarial (D-7).
-    /// Con uno o más, la organización no está al día por alta que sea su tasa documental.
-    /// </summary>
-    int CentrosBloqueados = 0,
     /// <summary><see cref="KpisDashboardDto.SinDatos"/>: su 100% es «sin datos», no «al día».</summary>
     bool SinDatos = false,
     /// <summary><see cref="KpisDashboardDto.TrabajadoresBloqueados"/> de esta organización: con uno o más, tampoco está al día.</summary>
@@ -34,14 +27,14 @@ public record ClienteRiesgoDto(
 {
     /// <summary>
     /// Si la organización puede presentarse en verde: con Asignación de Cartera
-    /// de quien mira, con datos que medir, sin ningún Trabajador bloqueado y sin ningún Centro de Trabajo
-    /// con bloqueo de la plataforma. La tasa documental decide el tramo solo entre las que
+    /// de quien mira, con datos que medir y sin ningún Trabajador bloqueado (por documento o por la plataforma
+    /// del Cliente empresarial). La tasa documental decide el tramo solo entre las que
     /// cumplen esto; las demás nunca cuentan como verdes.
     /// </summary>
     public bool AdmiteVeredictoVerde => !SinCarteraAsignada && !SinDatos && !TieneBloqueos;
 
-    /// <summary>Algún Trabajador bloqueado o algún Centro de Trabajo con bloqueo de la plataforma: la organización no está al día.</summary>
-    public bool TieneBloqueos => CentrosBloqueados > 0 || TrabajadoresBloqueados > 0;
+    /// <summary>Algún Trabajador bloqueado: la organización no está al día.</summary>
+    public bool TieneBloqueos => TrabajadoresBloqueados > 0;
 }
 
 /// <param name="TasaCumplimientoDocumentalPromedio">
@@ -49,7 +42,6 @@ public record ClienteRiesgoDto(
 /// Vale 100 cuando <paramref name="HayCumplimientoDocumentalQueMedir"/> es
 /// false, y ese 100 no se pinta.
 /// </param>
-/// <param name="CentrosBloqueados">Suma de <see cref="ClienteRiesgoDto.CentrosBloqueados"/> de todas las organizaciones.</param>
 /// <param name="TrabajadoresBloqueados">Suma de <see cref="ClienteRiesgoDto.TrabajadoresBloqueados"/> de todas las organizaciones.</param>
 /// <param name="HayCumplimientoDocumentalQueMedir">
 /// Alguna organización con Asignación de Cartera tiene documentos con fecha de
@@ -64,7 +56,6 @@ public record KpisGlobalesDto(
     int Centros,
     int TasaCumplimientoDocumentalPromedio,
     IReadOnlyList<ClienteRiesgoDto> ClientesConMasRiesgo,
-    int CentrosBloqueados = 0,
     bool HayCumplimientoDocumentalQueMedir = false,
     int TrabajadoresBloqueados = 0);
 
@@ -121,8 +112,8 @@ public class ObtenerKpisGlobalesQueryHandler(IMediator mediator)
     /// </para>
     ///
     /// <para>
-    /// La media es documental y no ve los Trabajadores bloqueados ni los Centros de Trabajo con bloqueo de la plataforma (D-7):
-    /// se suman aparte en <c>TrabajadoresBloqueados</c> y <c>CentrosBloqueados</c>, y una organización con
+    /// La media es documental y no ve los Trabajadores bloqueados (por documento o por la plataforma, D-7):
+    /// se suman aparte en <c>TrabajadoresBloqueados</c>, y una organización con
     /// alguno nunca admite veredicto verde
     /// (<see cref="ClienteRiesgoDto.AdmiteVeredictoVerde"/>).
     /// </para>
@@ -146,7 +137,7 @@ public class ObtenerKpisGlobalesQueryHandler(IMediator mediator)
             .Select(p => new ClienteRiesgoDto(
                 p.Cliente.TenantId, p.Cliente.Nombre, p.Kpis.DocumentosVencidos, p.Kpis.DocumentosUrgentes,
                 p.Kpis.TasaCumplimientoDocumental, p.Kpis.SinCarteraAsignada,
-                p.Kpis.CentrosBloqueados, p.Kpis.SinDatos, p.Kpis.TrabajadoresBloqueados))
+                p.Kpis.SinDatos, p.Kpis.TrabajadoresBloqueados))
             .OrderByDescending(c => c.DocumentosVencidos)
             .ThenByDescending(c => c.DocumentosUrgentes)
             .ToList();
@@ -160,7 +151,6 @@ public class ObtenerKpisGlobalesQueryHandler(IMediator mediator)
             Centros: centros,
             TasaCumplimientoDocumentalPromedio: tasaPromedio,
             ClientesConMasRiesgo: clientesConMasRiesgo,
-            CentrosBloqueados: porCliente.Sum(p => p.Kpis.CentrosBloqueados),
             HayCumplimientoDocumentalQueMedir: conPeso.Count > 0,
             TrabajadoresBloqueados: porCliente.Sum(p => p.Kpis.TrabajadoresBloqueados));
     }

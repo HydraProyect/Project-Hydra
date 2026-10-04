@@ -253,7 +253,7 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
             // Trabajadores bloqueados en este Centro: contexto, no el Centro. Mismo criterio de «no tumbar la página».
             try
             {
-                var bloqueos = await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(centroId), _cancelacion);
+                var bloqueos = await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(centroId, IncluirBloqueosDePlataforma: true), _cancelacion);
                 if (carga != _cargaDetalle) return;
                 _bloqueos = bloqueos;
             }

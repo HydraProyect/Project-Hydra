@@ -20,19 +20,19 @@
     efectivo y la Asignación de Cartera de ESA organización; la pantalla no
     lee ningún rol (el del contexto activo no vale para las demás) y solo pinta
     lo que la consulta dice por fila: SinCarteraAsignada, SinDatos,
-    TrabajadoresBloqueados y CentrosBloqueados.
+    TrabajadoresBloqueados.
 
     El porcentaje de cada fila es solo documental. El veredicto «en verde»
     exige además ClienteRiesgoDto.AdmiteVeredictoVerde: con cartera, con datos
-    y sin ningún bloqueo: ni un Trabajador bloqueado (regla de acceso por Centro) ni un Centro de Trabajo con bloqueo de la
-    plataforma según ICalculoEstadoCentroService (D-7: una Rechazada aplicable bloquea). Una organización con bloqueos
+    y sin ningún Trabajador bloqueado (regla de acceso por Centro, por documento o por la plataforma del Cliente
+    empresarial: D-7, una Rechazada aplicable o una vigencia vencida allí bloquea al Trabajador afectado, no al Centro). Una organización con bloqueos
     enseña su recuento junto al porcentaje y nunca sale en verde; una sin
     Centros ni documentos sale «sin datos», nunca al 100%.
 
     Lo que el mockup pinta y aquí NO se copia, porque la consulta no lo sabe:
     el desglose por centro de cada fila (ClienteRiesgoDto no lo trae), el
     «84 trabajadores · 7 centros» por fila, «X de N bloquean acceso a algún
-    centro» (se cuentan Trabajadores bloqueados y Centros de Trabajo con bloqueo de la plataforma, no documentos que
+    centro» (se cuentan Trabajadores bloqueados, no documentos que
     bloquean), las ventanas fijas «≤15/≤30 días» (son los umbrales urgente y
     próximo de cada organización, configurables) y el rótulo «SLA» (no hay
     acuerdo de nivel de servicio detrás: es la tasa de cumplimiento

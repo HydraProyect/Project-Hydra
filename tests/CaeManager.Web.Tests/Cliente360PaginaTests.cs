@@ -238,7 +238,7 @@ public class Cliente360PaginaTests : BunitContext
     {
         var (id, mediador) = ClienteBase();
         mediador.Centros.AddRange([
-            Centro("Planta Barakaldo", EstadoCentro.Bloqueado, vencidas: 2, empresa: "Montajes Ebro S.L."),
+            Centro("Planta Barakaldo", EstadoCentro.Faltante, vencidas: 2, empresa: "Montajes Ebro S.L."),
             Centro("Almacén Getafe", EstadoCentro.Vencido, vencidas: 1, proximas: 1),
             Centro("Oficinas Bilbao", EstadoCentro.Vigente)]);
         Registrar(mediador);
@@ -246,25 +246,20 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id);
 
         var indicadores = cut.FindAll(".cliente360-indicador-boton");
-        indicadores.Select(i => i.GetAttribute("data-indicador")).Should().Equal(["bloqueados", "vencidos", "proximos"]);
-        Textos(indicadores).Should().Equal([
-            "Bloqueo de la plataforma CAE en 1 de 3 centros", "2 centros con vencidos", "1 centro con próximos"]);
+        indicadores.Select(i => i.GetAttribute("data-indicador")).Should().Equal(["vencidos", "proximos"]);
+        Textos(indicadores).Should().Equal(["2 centros con vencidos", "1 centro con próximos"]);
 
         var ventanas = cut.FindAll(".cliente360-indicadores .ventana-contexto");
-        ventanas.Should().HaveCount(3);
-        ventanas[0].QuerySelector(".ventana-contexto-titulo")!.TextContent.Should().Be("1 centro con bloqueo de la plataforma CAE");
-        Textos(ventanas[0].QuerySelectorAll(".ventana-linea")).Should().Equal(["Planta Barakaldo · Montajes Ebro S.L."]);
-        Textos(ventanas[1].QuerySelectorAll(".ventana-linea")).Should().Equal([
+        ventanas.Should().HaveCount(2);
+        Textos(ventanas[0].QuerySelectorAll(".ventana-linea")).Should().Equal([
             "Planta Barakaldo · 2 vencidos", "Almacén Getafe · 1 vencido"]);
-        Textos(ventanas[2].QuerySelectorAll(".ventana-linea")).Should().Equal(["Almacén Getafe · 1 próximo"]);
-        ventanas[0].GetAttribute("aria-label").Should().Be(
-            "Bloqueo de la plataforma CAE en 1 de 3 centros: Planta Barakaldo · Montajes Ebro S.L.. Pulsa para ver los centros");
+        Textos(ventanas[1].QuerySelectorAll(".ventana-linea")).Should().Equal(["Almacén Getafe · 1 próximo"]);
     }
 
     /// <summary>
-    /// «Bloqueado» es un estado del Trabajador (2026-10-03): el Cliente empresarial cuenta Trabajadores bloqueados en SUS Centros
-    /// (los bloqueos de otro Cliente empresarial no cuentan; un Trabajador bloqueado en dos Centros cuenta una vez) y los nombra
-    /// con su Centro. Los Centros con bloqueo de la plataforma CAE (D-7) son un indicador aparte.
+    /// «Bloqueado» es un estado del Trabajador, nunca del Centro (2026-10-03; tampoco por la plataforma, 2026-10-04): el Cliente
+    /// empresarial cuenta Trabajadores bloqueados en SUS Centros (los bloqueos de otro Cliente empresarial no cuentan; un Trabajador
+    /// bloqueado en dos Centros cuenta una vez) y los nombra con su Centro. No hay indicador de «Centros bloqueados».
     /// </summary>
     [Fact]
     public void Los_Trabajadores_bloqueados_de_sus_centros_son_un_indicador_propio_y_no_el_de_los_centros_bloqueados()
@@ -286,7 +281,7 @@ public class Cliente360PaginaTests : BunitContext
         Textos(indicadores).Should().Equal(["2 trabajadores bloqueados", "1 centro con vencidos"]);
         Textos(cut.FindAll(".cliente360-indicadores .ventana-contexto")[0].QuerySelectorAll(".ventana-linea")).Should().BeEquivalentTo([
             "Juan Pérez · Almacén Getafe", "Juan Pérez · Oficinas Bilbao", "Marco Vila · Almacén Getafe"]);
-        cut.Markup.Should().NotContain("Bloqueo de la plataforma CAE", "ningún Centro está bloqueado por la plataforma");
+        cut.Markup.Should().NotContain("Bloqueo de la plataforma CAE", "el Centro nunca se marca bloqueado");
     }
 
     /// <summary>
@@ -331,7 +326,7 @@ public class Cliente360PaginaTests : BunitContext
     public void Pulsar_un_indicador_lleva_a_la_pestana_Centros()
     {
         var (id, mediador) = ClienteBase();
-        mediador.Centros.Add(Centro("Planta Barakaldo", EstadoCentro.Bloqueado));
+        mediador.Centros.Add(Centro("Planta Barakaldo", EstadoCentro.Vencido, vencidas: 1));
         mediador.Empresas.Add(new EmpresaDeClienteDto(Guid.NewGuid(), "Ibertec GmbH", "B-12345678"));
         Registrar(mediador);
         var cut = Renderizar(id, "?pestana=empresas");
@@ -353,7 +348,7 @@ public class Cliente360PaginaTests : BunitContext
     public void Cambiar_de_Cliente_sin_recrear_la_pagina_no_arrastra_nada_del_anterior()
     {
         var (idA, mediador) = ClienteBase();
-        mediador.CentrosPorCliente[idA] = [Centro("Planta Barakaldo", EstadoCentro.Bloqueado)];
+        mediador.CentrosPorCliente[idA] = [Centro("Planta Barakaldo", EstadoCentro.Faltante)];
         mediador.EmpresasPorCliente[idA] = [new EmpresaDeClienteDto(Guid.NewGuid(), "Ibertec GmbH", "B-12345678")];
         var idB = Guid.NewGuid();
         mediador.Detalles[idB] = new ClienteDetalleDto(idB, "Aislamientos Nervión S.L.", "B-99.000.111", false, null, Alta, null, Guid.NewGuid());
@@ -385,7 +380,7 @@ public class Cliente360PaginaTests : BunitContext
         var consulta = mediador.Enviadas.OfType<ObtenerCentrosQuery>().Single();
         consulta.ClienteId.Should().Be(id);
         consulta.OrdenarPor.Should().Be(nameof(CentroListaDto.Estado));
-        consulta.Descendente.Should().BeTrue("EstadoCentro va de mejor a peor: descendente pone Bloqueado primero");
+        consulta.Descendente.Should().BeTrue("EstadoCentro va de mejor a peor: descendente pone Faltante primero");
         consulta.Pagina.Should().Be(1);
         consulta.TamanoPagina.Should().Be(MaximoCentros);
         consulta.Busqueda.Should().BeNull();
@@ -443,10 +438,10 @@ public class Cliente360PaginaTests : BunitContext
     public void Cada_centro_enlaza_a_su_pagina_y_su_boton_360_abre_su_panel()
     {
         var (id, mediador) = ClienteBase();
-        var bloqueado = Centro("Planta Barakaldo", EstadoCentro.Bloqueado, vencidas: 3, proximas: 1, cumplimiento: 40,
+        var peor = Centro("Planta Barakaldo", EstadoCentro.Faltante, vencidas: 3, proximas: 1, cumplimiento: 40,
             empresa: "Montajes Ebro S.L.");
         var vigente = Centro("Oficinas Bilbao", EstadoCentro.Vigente, cumplimiento: null);
-        mediador.Centros.AddRange([bloqueado, vigente]);
+        mediador.Centros.AddRange([peor, vigente]);
         Registrar(mediador);
 
         var cut = Renderizar(id);
@@ -454,31 +449,31 @@ public class Cliente360PaginaTests : BunitContext
         cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("2 centros de este Cliente empresarial, del peor estado al mejor.");
         var filas = cut.FindAll("li.fila-relacion");
         filas.Select(f => f.QuerySelector("a.fila-relacion-nombre")!.GetAttribute("href"))
-            .Should().Equal([$"/centros/{bloqueado.Id}", $"/centros/{vigente.Id}"], "el orden es el de la consulta: peor primero");
+            .Should().Equal([$"/centros/{peor.Id}", $"/centros/{vigente.Id}"], "el orden es el de la consulta: peor primero");
         filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresa: Montajes Ebro S.L. · 3 vencidos · 1 próximo");
         filas[1].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresa: Ibertec GmbH");
         filas[0].QuerySelector(".cliente360-cumplimiento")!.TextContent.Trim().Should().Be("40 %");
         filas[1].QuerySelector(".cliente360-cumplimiento")!.TextContent.Trim().Should().Be("Sin requisitos");
-        filas[0].QuerySelector(".badge")!.TextContent.Trim().Should().Be(Features.Centros.EstadoCentroUi.Texto(EstadoCentro.Bloqueado));
+        filas[0].QuerySelector(".badge")!.TextContent.Trim().Should().Be(Features.Centros.EstadoCentroUi.Texto(EstadoCentro.Faltante));
 
         filas[0].QuerySelector("button.boton-360")!.Click();
 
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(
-            new WorkspaceFrame(EntidadWorkspace.Centro, bloqueado.Id, "Planta Barakaldo", "informacion"));
+            new WorkspaceFrame(EntidadWorkspace.Centro, peor.Id, "Planta Barakaldo", "informacion"));
     }
 
     [Fact]
     public void Con_mas_centros_de_los_que_se_pintan_la_lista_lo_dice()
     {
         var (id, mediador) = ClienteBase();
-        mediador.Centros.AddRange([Centro("Planta Barakaldo", EstadoCentro.Bloqueado), Centro("Almacén Getafe", EstadoCentro.Vencido)]);
+        mediador.Centros.AddRange([Centro("Planta Barakaldo", EstadoCentro.Faltante, vencidas: 1), Centro("Almacén Getafe", EstadoCentro.Vigente)]);
         mediador.TotalCentros = 250;
         Registrar(mediador);
 
         var cut = Renderizar(id);
 
         cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("Se muestran los 2 centros con peor estado de 250.");
-        cut.Find(".cliente360-indicador-boton").TextContent.Trim().Should().Be("Bloqueo de la plataforma CAE en 1 de 250 centros");
+        cut.Find(".cliente360-indicador-boton").TextContent.Trim().Should().Be("1 centro con vencidos");
     }
 
     [Fact]

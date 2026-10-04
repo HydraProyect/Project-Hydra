@@ -224,7 +224,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// <summary>Los bloqueos visibles, quedándose con los de los Centros de este Cliente empresarial.</summary>
     private async Task<List<DocumentacionBloqueantePendienteDto>> LeerBloqueosDelClienteAsync(Guid id)
     {
-        var bloqueos = await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(), _cancelacion);
+        var bloqueos = await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(IncluirBloqueosDePlataforma: true), _cancelacion);
         return bloqueos.Where(b => b.ClienteId == id).ToList();
     }
 
@@ -512,7 +512,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
             var indicadores = new List<Indicador>();
 
-            // Trabajadores bloqueados: un Trabajador bloqueado en dos Centros cuenta una vez, y la ventana lo lista por Centro.
+            // Trabajadores bloqueados (por documento o por la plataforma del Cliente empresarial, D-7): un Trabajador bloqueado
+            // en dos Centros cuenta una vez, y la ventana lo lista por Centro. El Centro ya no se marca «Bloqueado» (2026-10-04).
             var trabajadoresBloqueados = _bloqueos.Select(b => b.TrabajadorId).Distinct().Count();
             if (trabajadoresBloqueados > 0)
             {
@@ -520,19 +521,6 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
                     Plural(trabajadoresBloqueados, "IndicadorTrabajadoresBloqueadosUno", "IndicadorTrabajadoresBloqueadosVarios"),
                     Plural(trabajadoresBloqueados, "VentanaTrabajadoresBloqueadosUno", "VentanaTrabajadoresBloqueadosVarios"),
                     _bloqueos.Select(b => $"{b.TrabajadorNombre} · {b.CentroNombre}").Distinct().ToList(),
-                    TonoBadge.Peligro, TamanoBadge.Medio));
-            }
-
-            // El Centro solo está «Bloqueado» por la plataforma del Cliente empresarial (D-7), no por documentos.
-            var bloqueados = _centros.Where(c => c.Estado == EstadoCentro.Bloqueado).ToList();
-            if (bloqueados.Count > 0)
-            {
-                var texto = _totalCentros == 1
-                    ? Textos["IndicadorBloqueadosUnico"]
-                    : Textos["IndicadorBloqueados", bloqueados.Count, _totalCentros];
-                indicadores.Add(Crear("bloqueados", texto,
-                    Plural(bloqueados.Count, "VentanaBloqueadosUno", "VentanaBloqueadosVarios"),
-                    bloqueados.Select(c => $"{c.Nombre} · {c.EmpresaRazonSocial}").ToList(),
                     TonoBadge.Peligro, TamanoBadge.Medio));
             }
 

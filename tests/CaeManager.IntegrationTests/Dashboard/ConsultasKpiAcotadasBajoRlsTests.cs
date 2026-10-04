@@ -43,7 +43,7 @@ namespace CaeManager.IntegrationTests.Dashboard;
 /// <see cref="CalculadoraEstadoDocumento"/> (referencia calculada aquí, fuera
 /// del handler). La lectura va autenticando como <c>cae_app_runtime</c> con los
 /// interceptores de sellado y de sesión RLS de producción (mismo arnés que
-/// <c>KpisCentrosBloqueadosBajoRlsTests</c>); la siembra va como propietario de
+/// <c>KpisTrabajadoresBloqueadosBajoRlsTests</c>); la siembra va como propietario de
 /// la base, porque no es lo que se mide.
 /// </para>
 /// </summary>

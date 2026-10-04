@@ -51,18 +51,6 @@
   <data name="Critico" xml:space="preserve">
     <value>Crític</value>
   </data>
-  <data name="IndicadorBloqueados" xml:space="preserve">
-    <value>Bloqueig de la plataforma CAE en {0} de {1} centres</value>
-  </data>
-  <data name="IndicadorBloqueadosUnico" xml:space="preserve">
-    <value>Bloqueig de la plataforma CAE en el seu únic centre</value>
-  </data>
-  <data name="VentanaBloqueadosUno" xml:space="preserve">
-    <value>1 centre amb bloqueig de la plataforma CAE</value>
-  </data>
-  <data name="VentanaBloqueadosVarios" xml:space="preserve">
-    <value>{0} centres amb bloqueig de la plataforma CAE</value>
-  </data>
   <data name="IndicadorVencidosUno" xml:space="preserve">
     <value>1 centre amb vençuts</value>
   </data>

@@ -5,13 +5,13 @@ namespace CaeManager.Domain.Centros;
 /// <summary>
 /// Calcula el estado de cumplimiento de un Centro como el peor caso entre
 /// los EstadoDocumento de sus Documentos aplicables (de su Empresa y de cada
-/// Trabajador con Asignación activa) y las causas bloqueantes que vienen de la
-/// plataforma del Cliente empresarial (<c>tieneRequisitoBloqueanteSinCumplir</c>:
-/// vigencia vencida o acreditación rechazada allí). Los documentos de Trabajador
-/// y de Empresa bloquean a Trabajadores por Centro (<see cref="Documentos.ReglaBloqueoDeAcceso"/>),
-/// no ponen el Centro en <see cref="EstadoCentro.Bloqueado"/>. Función pura, sin dependencias — mismo criterio que
-/// CalculadoraEstadoDocumento: quien llama ya resolvió qué Documentos y
-/// Requisitos aplican a este Centro, aquí solo se agrega el peor caso.
+/// Trabajador con Asignación activa). Ningún documento, ni el veredicto de la
+/// plataforma del Cliente empresarial (acreditación vencida o rechazada allí),
+/// pone el Centro en <see cref="EstadoCentro.Bloqueado"/>: bloquean a Trabajadores por
+/// Centro (<see cref="Documentos.ReglaBloqueoDeAcceso"/>) y el Centro enseña el detalle
+/// por Trabajador (decisiones del propietario, 2026-10-03 y 2026-10-04). Función pura, sin
+/// dependencias — mismo criterio que CalculadoraEstadoDocumento: quien llama ya resolvió qué
+/// Documentos aplican a este Centro, aquí solo se agrega el peor caso.
 ///
 /// Una Gestion Pendiente asociada a un hueco no cambia este cálculo a
 /// propósito: es solo seguimiento operativo del Gestor, y el hueco real
@@ -24,13 +24,8 @@ namespace CaeManager.Domain.Centros;
 /// </summary>
 public static class CalculadoraEstadoCentro
 {
-    public static EstadoCentro Calcular(
-        IReadOnlyCollection<EstadoDocumento> estadosDocumentos,
-        bool tieneRequisitoBloqueanteSinCumplir)
+    public static EstadoCentro Calcular(IReadOnlyCollection<EstadoDocumento> estadosDocumentos)
     {
-        if (tieneRequisitoBloqueanteSinCumplir)
-            return EstadoCentro.Bloqueado;
-
         if (estadosDocumentos.Contains(EstadoDocumento.Faltante))
             return EstadoCentro.Faltante;
 
@@ -50,7 +45,7 @@ public static class CalculadoraEstadoCentro
     /// Clave para ordenar por gravedad (mayor = peor). Coincide con el valor
     /// numérico salvo <see cref="EstadoCentro.SinGestionCae"/>, que no es un
     /// grado de incumplimiento y va por debajo de <see cref="EstadoCentro.Vigente"/>:
-    /// sin esta clave, ordenar «peor primero» lo pondría encima de Bloqueado.
+    /// sin esta clave, ordenar «peor primero» lo pondría encima de cualquier grado.
     /// </summary>
     public static int Gravedad(EstadoCentro estado) =>
         estado == EstadoCentro.SinGestionCae ? -1 : (int)estado;

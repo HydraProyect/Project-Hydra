@@ -128,7 +128,9 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
         [EscenarioClienteDemo.CasiCompleto] = [EstadoCentro.Vigente, EstadoCentro.Vigente, EstadoCentro.Proximo],
         [EscenarioClienteDemo.ConAccesoConDocumentacionPendiente] = [EstadoCentro.Vencido, EstadoCentro.Urgente, EstadoCentro.Faltante],
         [EscenarioClienteDemo.ConAccesoSinDocumentacionPendiente] = [EstadoCentro.Vigente, EstadoCentro.Vigente, EstadoCentro.Vigente],
-        [EscenarioClienteDemo.AccesoBloqueado] = [EstadoCentro.Bloqueado, EstadoCentro.Vencido, EstadoCentro.Vigente],
+        // El primer centro ya no es «Bloqueado» (D-7 plataforma, 2026-10-04): la acreditación Rechazada bloquea a un Trabajador y el
+        // Centro enseña su hueco documental (el Trabajador sin documento de identidad presentado): Faltante.
+        [EscenarioClienteDemo.AccesoBloqueado] = [EstadoCentro.Faltante, EstadoCentro.Vencido, EstadoCentro.Vigente],
         [EscenarioClienteDemo.AccesoPendienteDeConfirmacion] = [EstadoCentro.Vigente, EstadoCentro.Vigente, EstadoCentro.Vigente],
     };
 

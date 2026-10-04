@@ -220,17 +220,10 @@ public class ObtenerCentrosQueryHandler(
     /// bucket de conteo agregado cae.
     /// </para>
     /// <para>
-    /// El rechazo en plataforma (<see cref="CalculoEstadoCentroService"/>) no
-    /// tiene vigencia documental que describir — es una decisión activa de la
-    /// plataforma del Cliente empresarial, no un vencimiento de fecha — así
-    /// que llega con <see cref="CausaEstadoCentro.Estado"/> en <c>null</c> a
-    /// propósito: forzarle un <see cref="EstadoDocumento"/> sería una
-    /// clasificación documental falsa. El switch cubre ese <c>null</c> solo
-    /// cuando la causa es <see cref="CausaEstadoCentro.Bloqueante"/> (el único
-    /// caso real hoy) y la manda a "vencidas": es una causa roja que bloquea
-    /// el acceso, aunque no describa un vencimiento. Una causa no bloqueante
-    /// sin estado sería un defecto en su origen, no un caso más que enmascarar
-    /// aquí.
+    /// Toda causa lleva un <see cref="CausaEstadoCentro.Estado"/>. El rechazo de la plataforma del Cliente empresarial no es una
+    /// causa del Centro (no es un vencimiento ni una falta, y forzarle un <see cref="EstadoDocumento"/> sería una clasificación
+    /// documental falsa): bloquea al Trabajador o a la Empresa afectados y vive en su detalle por Trabajador (decisión del
+    /// propietario, 2026-10-04). Una causa sin estado sería un defecto en su origen, no un caso que enmascarar aquí.
     /// </para>
     /// </summary>
     private static RecuentosCentroDto Desglosar(ResultadoEstadoCentro resultado)
@@ -249,9 +242,6 @@ public class ObtenerCentrosQueryHandler(
                     break;
                 case EstadoDocumento.Urgente or EstadoDocumento.Proximo:
                     proximas.Add(incidencia);
-                    break;
-                case null when causa.Bloqueante:
-                    vencidas.Add(incidencia);
                     break;
             }
         }

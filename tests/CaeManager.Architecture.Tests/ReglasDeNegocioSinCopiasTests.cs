@@ -257,8 +257,8 @@ public class ReglasDeNegocioSinCopiasTests
         // El único sitio que carga las filas bloqueantes de cada Centro (con su vigencia propia y su tolerancia) y aplica la
         // regla única por Centro (R1, R2): lo usan Mi trabajo y el detalle por Trabajador del Centro 360.
         ["src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs"] = 1,
-        // El semáforo del Centro ya no lee BloqueaAcceso: «Bloqueado» es un estado del Trabajador (2026-10-03) y el Centro solo
-        // lo está por la plataforma del Cliente empresarial (D-7). Por eso no figura aquí.
+        // El semáforo del Centro ya no lee BloqueaAcceso: «Bloqueado» es un estado del Trabajador, nunca del Centro (2026-10-03;
+        // tampoco por la plataforma del Cliente empresarial, 2026-10-04). Por eso no figura aquí.
     };
 
     /// <summary>

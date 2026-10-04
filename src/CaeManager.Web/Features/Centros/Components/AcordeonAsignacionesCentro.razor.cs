@@ -327,7 +327,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     {
         try
         {
-            var bloqueos = await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(centroId), _cancelacion);
+            var bloqueos = await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(centroId, IncluirBloqueosDePlataforma: true), _cancelacion);
             if (carga != _cargaLista) return;
             _bloqueosPropios = bloqueos;
             StateHasChanged();

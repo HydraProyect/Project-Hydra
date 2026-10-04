@@ -2,7 +2,9 @@ namespace CaeManager.Domain.Documentos;
 
 /// <summary>
 /// En qué situación está un requisito bloqueante (un <see cref="TipoDocumentoCentro"/> con
-/// <see cref="TipoDocumentoCentro.BloqueaAcceso"/>) para su sujeto, hoy, en UN Centro.
+/// <see cref="TipoDocumentoCentro.BloqueaAcceso"/>, o el veredicto de la plataforma del Cliente empresarial) para su
+/// sujeto, hoy, en UN Centro. <see cref="ReglaBloqueoDeAcceso.Evaluar"/> solo devuelve las tres primeras; las dos de
+/// plataforma las aporta <c>EvaluacionDeAccesoPorCentroService</c> desde las acreditaciones del Centro.
 /// </summary>
 public enum SituacionDeRequisitoBloqueante
 {
@@ -16,7 +18,23 @@ public enum SituacionDeRequisitoBloqueante
     /// Existen Documentos del tipo pero ninguno vale ya para acceder a ese Centro: todos vencieron y, si el Centro
     /// concede tolerancia, esta ya se agotó. Bloquea igual que el ausente.
     /// </summary>
-    Vencido = 2
+    Vencido = 2,
+
+    /// <summary>
+    /// La vigencia de un Documento del sujeto <b>en la plataforma del Cliente empresarial</b> ya venció, aunque en TALVEG
+    /// siga vigente: si el portal no lo acepta, el Trabajador no entra (D-7 del piloto Outbound, decisión del propietario,
+    /// 2026-09-21). No viene de un <see cref="TipoDocumentoCentro"/> bloqueante: la plataforma decide por su cuenta, sin
+    /// tolerancia. Bloquea al Trabajador (documento de Trabajador) o a los Trabajadores de la Empresa (documento de Empresa)
+    /// en el Centro de esa plataforma; nunca marca el Centro entero (decisión del propietario, 2026-10-04).
+    /// </summary>
+    VencidoEnPlataforma = 3,
+
+    /// <summary>
+    /// La plataforma del Cliente empresarial <b>rechazó</b> la acreditación aplicable a ese Centro del Documento del sujeto
+    /// (D-7). Mismo sujeto y mismo alcance que <see cref="VencidoEnPlataforma"/>; el rechazo reinicia la vigencia en
+    /// plataforma, así que un mismo Documento no cuenta como las dos a la vez.
+    /// </summary>
+    RechazadoPorPlataforma = 4
 }
 
 /// <summary>Un Documento visto desde la regla de acceso: su vigencia y la fecha de emisión (base de la periodicidad especial de un Centro).</summary>
@@ -200,7 +218,7 @@ public static class ReglaBloqueoDeAcceso
             : new ResultadoDeRequisito(SituacionDeRequisitoBloqueante.Vencido, mejorVencimiento, null);
     }
 
-    /// <summary>Ausente y vencido bloquean por igual; solo cumplido no bloquea.</summary>
+    /// <summary>Ausente, vencido y los dos veredictos de la plataforma bloquean por igual; solo cumplido no bloquea.</summary>
     public static bool Bloquea(SituacionDeRequisitoBloqueante situacion) =>
         situacion != SituacionDeRequisitoBloqueante.Cumplido;
 

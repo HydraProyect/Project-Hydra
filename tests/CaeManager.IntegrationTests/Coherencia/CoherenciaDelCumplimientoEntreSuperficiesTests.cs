@@ -300,7 +300,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
 
         // 7. Tasa de Inicio: universo de TODOS los documentos de Trabajador (no es un contexto), pero la MISMA
         //    clasificación: 13 documentos (nueve de P menos el Faltante = 8, q1, q2, s1, s2, s3); al día = 6 de P + s1 + s3 = 8.
-        var kpis = await new ObtenerKpisDashboardQueryHandler(c, c, c, c, c, alcance, calculoCentro, new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, alcance))
+        var kpis = await new ObtenerKpisDashboardQueryHandler(c, c, c, c, c, alcance, new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, alcance))
             .Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
         Comprobar("Inicio · tasa (documentos de Trabajador)", kpis.Fraccion, 8, 13);
         ComprobarPorcentaje("Inicio · % mostrado", kpis.TasaCumplimientoDocumental, 62);

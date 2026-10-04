@@ -30,15 +30,15 @@ namespace CaeManager.IntegrationTests.Dashboard;
 /// P2.4 (D-7 del piloto Outbound): los KPI de Inicio
 /// (<see cref="ObtenerKpisDashboardQuery"/>) y de Visión de cartera
 /// (<see cref="ObtenerKpisGlobalesQuery"/>, fan-out por Tenant) cuentan los
-/// Centros de Trabajo bloqueados con <c>ICalculoEstadoCentroService</c> — una
-/// acreditación Rechazada aplicable a su Centro lo bloquea aunque el porcentaje
+/// <b>Trabajadores bloqueados</b> con <c>IEvaluacionDeAccesoPorCentroService</c> — una
+/// acreditación Rechazada aplicable a su Centro bloquea al Trabajador afectado aunque el porcentaje
 /// documental siga al 100% —, y un Tenant sin Centros ni documentos sale «sin
 /// datos», nunca como organización en verde.
 ///
 /// <para>
-/// «Bloqueado» es un estado del Trabajador (2026-10-03): los mismos KPI cuentan también los <b>Trabajadores bloqueados</b>
-/// (<c>TrabajadoresBloqueados</c>, regla de acceso por Centro de <c>IEvaluacionDeAccesoPorCentroService</c>) en un cuarto Tenant C,
-/// con un documento bloqueante ausente: no suma Centros bloqueados y no se cuela en los otros Tenants.
+/// «Bloqueado» es un estado del Trabajador, nunca del Centro (2026-10-03; la plataforma dejó de marcar el Centro entero el
+/// 2026-10-04): un cuarto Tenant C, con un documento bloqueante ausente, aporta el bloqueo por documento al mismo recuento y no
+/// se cuela en los otros Tenants.
 /// </para>
 ///
 /// <para>
@@ -54,7 +54,7 @@ namespace CaeManager.IntegrationTests.Dashboard;
 /// propietario de la base, porque no es lo que se mide.
 /// </para>
 /// </summary>
-public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
+public class KpisTrabajadoresBloqueadosBajoRlsTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _usuario = Guid.NewGuid();
@@ -168,7 +168,7 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Vision_de_cartera_cuenta_el_bloqueo_solo_en_su_Tenant_y_no_da_en_verde_ni_al_bloqueado_ni_al_vacio()
+    public async Task Vision_de_cartera_cuenta_el_Trabajador_bloqueado_solo_en_su_Tenant_y_no_da_en_verde_ni_al_bloqueado_ni_al_vacio()
     {
         var kpis = await _servicios.GetRequiredService<IMediator>().Send(new ObtenerKpisGlobalesQuery());
 
@@ -176,33 +176,28 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
         porTenant.Keys.Should().BeEquivalentTo([_tenantOrigen, _tenantA, _tenantB, _tenantC]);
 
         var a = porTenant[_tenantA];
-        a.CentrosBloqueados.Should().Be(1, "la Rechazada es aplicable a su Centro de Trabajo (D-7)");
+        a.TrabajadoresBloqueados.Should().Be(1, "la Rechazada es aplicable a su Centro de Trabajo y bloquea a ese Trabajador (D-7)");
         a.TasaCumplimientoDocumental.Should().Be(100, "control: el porcentaje documental no ve el rechazo");
         a.AdmiteVeredictoVerde.Should().BeFalse("nunca «apto» con una Rechazada aplicable");
 
         var b = porTenant[_tenantB];
-        b.CentrosBloqueados.Should().Be(0,
+        b.TrabajadoresBloqueados.Should().Be(0,
             "su Rechazada no es aplicable (tipo no requerido y sin fila del Centro), y el bloqueo de A no se cuela en B");
         b.SinDatos.Should().BeFalse();
         b.AdmiteVeredictoVerde.Should().BeTrue("control positivo: con datos y sin bloqueo, sí admite verde");
 
         var origen = porTenant[_tenantOrigen];
         origen.SinDatos.Should().BeTrue("el Tenant del Operador CAE no tiene Centros ni documentos");
-        origen.CentrosBloqueados.Should().Be(0);
+        origen.TrabajadoresBloqueados.Should().Be(0);
         origen.AdmiteVeredictoVerde.Should().BeFalse("«sin datos» no es una organización en verde");
 
-        kpis.CentrosBloqueados.Should().Be(1);
         kpis.HayCumplimientoDocumentalQueMedir.Should().BeTrue();
 
-        // «Bloqueado» es del Trabajador: el bloqueo de la plataforma de A no es un Trabajador bloqueado, y al revés.
-        a.TrabajadoresBloqueados.Should().Be(0, "su documento es vigente en TALVEG y no hay requisito bloqueante: nadie queda sin entrar");
-        b.TrabajadoresBloqueados.Should().Be(0);
-        origen.TrabajadoresBloqueados.Should().Be(0);
+        // Dos causas distintas del mismo recuento: el rechazo de la plataforma (A) y el documento bloqueante ausente (C).
         var c = porTenant[_tenantC];
         c.TrabajadoresBloqueados.Should().Be(1, "su Trabajador no tiene los dos documentos bloqueantes que su Centro exige, y cuenta una vez");
-        c.CentrosBloqueados.Should().Be(0, "el bloqueo de un documento no pone al Centro en Bloqueado");
         c.AdmiteVeredictoVerde.Should().BeFalse("con un Trabajador bloqueado la organización no está al día");
-        kpis.TrabajadoresBloqueados.Should().Be(1, "la suma de la cartera cuenta el Trabajador de C una vez");
+        kpis.TrabajadoresBloqueados.Should().Be(2, "la suma de la cartera cuenta el Trabajador de A (plataforma) y el de C (documento), una vez cada uno");
     }
 
     [Fact]
@@ -217,12 +212,11 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
             enA = await mediador.Send(new ObtenerKpisDashboardQuery());
 
         enC.TrabajadoresBloqueados.Should().Be(1);
-        enC.CentrosBloqueados.Should().Be(0);
-        enA.TrabajadoresBloqueados.Should().Be(0, "el Trabajador bloqueado de C no se ve ni se cuenta en A");
+        enA.TrabajadoresBloqueados.Should().Be(1, "solo su Trabajador con el rechazo: el Trabajador bloqueado de C no se ve ni se cuenta en A");
     }
 
     [Fact]
-    public async Task Inicio_cuenta_el_Centro_bloqueado_del_Tenant_activo()
+    public async Task Inicio_cuenta_el_Trabajador_bloqueado_por_la_plataforma_del_Tenant_activo_y_no_en_otros()
     {
         var mediador = _servicios.GetRequiredService<IMediator>();
 
@@ -232,15 +226,15 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
         enOrigen = await mediador.Send(new ObtenerKpisDashboardQuery());
 
         enA.Centros.Should().Be(1);
-        enA.CentrosBloqueados.Should().Be(1);
+        enA.TrabajadoresBloqueados.Should().Be(1, "la Rechazada aplicable bloquea a su Trabajador en ese Centro (D-7)");
         enA.SinDatos.Should().BeFalse();
-        enOrigen.CentrosBloqueados.Should().Be(0, "fuera del ámbito de A, su bloqueo no se ve");
+        enOrigen.TrabajadoresBloqueados.Should().Be(0, "fuera del ámbito de A, su bloqueo no se ve");
         enOrigen.SinDatos.Should().BeTrue();
     }
 
     /// <summary>
     /// Coste: el recuento de bloqueos es una llamada por lotes a
-    /// <c>ICalculoEstadoCentroService</c>, no una por Centro. Triplicar los
+    /// <c>IEvaluacionDeAccesoPorCentroService</c>, no una por Centro. Triplicar los
     /// Centros de Trabajo del Tenant no cambia el número de órdenes SQL.
     /// </summary>
     [Fact]
@@ -265,8 +259,12 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
         conTres.Should().Be(conUno, "sin N+1: las mismas consultas para 1 que para 3 Centros de Trabajo");
 
         using (AmbitoTenantExplicito.Establecer(_tenantA))
-            (await mediador.Send(new ObtenerKpisDashboardQuery())).CentrosBloqueados.Should().Be(3,
-                "control: los Centros añadidos también están bloqueados y se cuentan");
+        {
+            var kpisConTres = await mediador.Send(new ObtenerKpisDashboardQuery());
+            kpisConTres.Centros.Should().Be(3, "control: los Centros añadidos están en el Tenant");
+            kpisConTres.TrabajadoresBloqueados.Should().Be(1,
+                "es el mismo Trabajador con el mismo rechazo en tres Centros: cuenta una vez");
+        }
     }
 
     /// <summary>

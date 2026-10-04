@@ -96,46 +96,36 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
     [Fact]
-    public async Task Un_Centro_Bloqueado_solo_por_una_acreditacion_Rechazada_declara_la_causa_en_Vencidas()
+    public async Task Una_acreditacion_Rechazada_no_marca_el_Centro_ni_inventa_una_incidencia_de_vencimiento()
     {
-        // Documento al día en TALVEG — lo único que bloquea es el rechazo en
-        // la plataforma, para aislar exactamente la causa bajo prueba.
+        // D-7 plataforma (2026-10-04). Documento al día en TALVEG — lo único que hay es el rechazo en la plataforma. Bloquea
+        // al Trabajador (su detalle, en el evaluador), no al Centro: el Centro conserva el estado que dicen sus documentos.
         await SembrarDocumentoAlDiaAsync();
         await SembrarAcreditacionRechazadaAsync();
 
         var centro = await ObtenerCentroUnicoAsync();
 
-        centro.Estado.Should().Be(EstadoCentro.Bloqueado,
-            "control positivo: sin esto, el resto de la prueba no mediría nada");
-        centro.Recuentos.TotalVencidas.Should().Be(1,
-            "una causa bloqueante sin vigencia documental que describir sigue siendo una incidencia que declarar, " +
-            "no un hueco silencioso entre Vencidas y Próximas");
-        centro.Recuentos.Vencidas.Should().ContainSingle(i => i.Descripcion.Contains("rechazado por la plataforma"))
-            .Which.Estado.Should().BeNull(
-                "un rechazo en plataforma no es un vencimiento de fecha: forzar un EstadoDocumento para evitar " +
-                "el null sería una clasificación documental falsa — la causa se bucketiza en Vencidas por Bloqueante, no por Estado");
+        centro.Estado.Should().Be(EstadoCentro.Vigente,
+            "un rechazo de la plataforma ya no marca el Centro: el documento está al día");
+        centro.Recuentos.TotalVencidas.Should().Be(0,
+            "un rechazo en plataforma no es un vencimiento de fecha, y forzarle un EstadoDocumento sería una clasificación documental falsa");
+        centro.Recuentos.TotalProximas.Should().Be(0);
     }
 
     [Fact]
-    public async Task Un_Centro_Bloqueado_por_un_rechazo_de_documento_de_Empresa_declara_la_causa_con_Estado_nulo()
+    public async Task Un_rechazo_de_documento_de_Empresa_tampoco_marca_el_Centro()
     {
-        // Mismo defecto, camino distinto: TrabajadorId nulo en la fila
-        // rechazada produce AmbitoCausa.Empresa (no Trabajador). Es el camino
-        // que AcordeonAsignacionesCentro.razor renderizaba con
-        // "incidencia.Estado!.Value" sin comprobar null — el componente ya
-        // tiene una rama null-safe (badge "Rechazado") para este caso, así
-        // que aquí solo se demuestra que el DTO sigue llegando con
-        // Estado: null y Bloqueante: true, sin excepción en el handler.
+        // Mismo caso, camino distinto: TrabajadorId nulo en la fila rechazada (documento de Empresa). Bloquea a los Trabajadores
+        // de esa Empresa asignados en el Centro (evaluador), no al Centro.
+        await SembrarDocumentoAlDiaAsync();
         var tipoEmpresa = await SembrarTipoDocumentoEmpresaAsync();
         var documentoEmpresa = await SembrarDocumentoEmpresaAlDiaAsync(tipoEmpresa);
         await SembrarAcreditacionRechazadaAsync(documentoEmpresa);
 
         var centro = await ObtenerCentroUnicoAsync();
 
-        centro.Estado.Should().Be(EstadoCentro.Bloqueado);
-        centro.Recuentos.Vencidas.Should().ContainSingle(i => i.Descripcion.Contains("rechazado por la plataforma"))
-            .Which.Should().Match<IncidenciaCentroDto>(i =>
-                i.Ambito == AmbitoCausa.Empresa && i.Estado == null);
+        centro.Estado.Should().NotBe(EstadoCentro.Bloqueado).And.Be(EstadoCentro.Vigente);
+        centro.Recuentos.TotalVencidas.Should().Be(0);
     }
 
     [Fact]

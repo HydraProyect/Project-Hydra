@@ -179,7 +179,7 @@ public static class DatosPruebaSeeder
     /// <c>Vencido/Urgente/Proximo</c>. Las dos cosas juntas hacían que el
     /// hueco universal tapara cualquier otro estado: medido sobre la siembra
     /// completa, <b>41 de 41</b> centros con plantilla salían
-    /// <c>Faltante</c> (40) o <c>Bloqueado</c> (1) — el semáforo entero de un
+    /// <c>Faltante</c> (40) o <c>Bloqueado</c> (1; estado que el Centro ya no tiene) — el semáforo entero de un
     /// solo color, con el reparto de vigencias que sí siembra
     /// <see cref="CrearDocumento"/> invisible detrás. Ver
     /// <c>SemaforoDeCentrosDemoTests</c>.

@@ -28,6 +28,11 @@ public static class TextoBloqueoDeAcceso
         var situacion = bloqueo.Situacion switch
         {
             SituacionDeRequisitoBloqueante.Ausente => textos["BloqueoSituacionAusente"].Value,
+            // El veredicto de la plataforma del Cliente empresarial no concede tolerancia (D-7): se dice tal cual.
+            SituacionDeRequisitoBloqueante.RechazadoPorPlataforma => textos["BloqueoSituacionRechazadoPlataforma"].Value,
+            SituacionDeRequisitoBloqueante.VencidoEnPlataforma when bloqueo.VencimientoEfectivo is { } vencimientoPlataforma =>
+                textos["BloqueoSituacionVencidoPlataforma", vencimientoPlataforma.ToString("dd/MM/yyyy")].Value,
+            SituacionDeRequisitoBloqueante.VencidoEnPlataforma => textos["BloqueoSituacionVencidoPlataformaSinFecha"].Value,
             _ when bloqueo.VencimientoEfectivo is { } vencimiento && bloqueo.ToleranciaDias > 0 =>
                 textos["BloqueoSituacionFinTolerancia", vencimiento.ToString("dd/MM/yyyy"), bloqueo.ToleranciaDias].Value,
             _ when bloqueo.VencimientoEfectivo is { } vencimiento =>

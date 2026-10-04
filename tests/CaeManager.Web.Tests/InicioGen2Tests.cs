@@ -118,40 +118,32 @@ public class InicioGen2Tests : BunitContext
         cut.Find(".dashboard-resumen").TextContent.Should().NotContain("100%");
     }
 
-    [Fact]
-    public void Con_centros_de_trabajo_con_bloqueo_de_la_plataforma_el_anillo_declara_que_el_porcentaje_no_mide_el_acceso()
-    {
-        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 2 } });
-
-        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("91% de cumplimiento documental");
-        cut.Find(".dashboard-resumen-anillo-bloqueo").TextContent.Should()
-            .Be("2 Centros de Trabajo con bloqueo de la plataforma CAE del Cliente empresarial: el porcentaje cuenta documentos, no acceso.");
-    }
-
     /// <summary>
-    /// «Bloqueado» es un estado del Trabajador (2026-10-03): el anillo cuenta Trabajadores bloqueados (regla de acceso por Centro),
-    /// y lo dice aparte del bloqueo de la plataforma CAE de un Centro (D-7), sin mezclar los dos.
+    /// «Bloqueado» es un estado del Trabajador, nunca del Centro (2026-10-03; la plataforma del Cliente empresarial dejó de marcar
+    /// el Centro entero el 2026-10-04, D-7): el anillo cuenta Trabajadores bloqueados (regla de acceso por Centro), sea por un
+    /// documento o por la plataforma, y no hay aviso aparte de «Centros bloqueados».
     /// </summary>
     [Fact]
-    public void Con_trabajadores_bloqueados_el_anillo_los_cuenta_aparte_de_los_centros_de_la_plataforma()
+    public void Con_trabajadores_bloqueados_el_anillo_declara_que_el_porcentaje_no_mide_el_acceso()
     {
         var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { TrabajadoresBloqueados = 3 } });
 
+        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("91% de cumplimiento documental");
         cut.FindAll(".dashboard-resumen-anillo-bloqueo").Select(e => e.TextContent).Should().Equal(
             "3 Trabajadores bloqueados: el porcentaje cuenta documentos, no acceso.");
     }
 
     [Fact]
-    public void Con_trabajadores_bloqueados_y_un_centro_de_la_plataforma_bloqueado_salen_los_dos_avisos()
+    public void Con_un_trabajador_bloqueado_el_aviso_va_en_singular()
     {
-        var conAmbos = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { TrabajadoresBloqueados = 1, CentrosBloqueados = 1 } });
-        conAmbos.FindAll(".dashboard-resumen-anillo-bloqueo").Select(e => e.TextContent).Should().Equal(
-            "1 Trabajador bloqueado: el porcentaje cuenta documentos, no acceso.",
-            "1 Centro de Trabajo con bloqueo de la plataforma CAE del Cliente empresarial: el porcentaje cuenta documentos, no acceso.");
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { TrabajadoresBloqueados = 1 } });
+
+        cut.FindAll(".dashboard-resumen-anillo-bloqueo").Select(e => e.TextContent).Should().Equal(
+            "1 Trabajador bloqueado: el porcentaje cuenta documentos, no acceso.");
     }
 
     [Fact]
-    public void Sin_centros_de_trabajo_bloqueados_no_hay_aviso_de_bloqueo_junto_al_anillo()
+    public void Sin_trabajadores_bloqueados_no_hay_aviso_de_bloqueo_junto_al_anillo()
     {
         var cut = Renderizar(new MediadorDeInicio());
 

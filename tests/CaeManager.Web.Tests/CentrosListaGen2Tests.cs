@@ -160,21 +160,21 @@ public class CentrosListaGen2Tests : BunitContext
 
     /// <summary>
     /// El enlace no depende de lo que haya dentro del acordeón ni del estado
-    /// del centro: un centro bloqueado y uno vigente lo llevan igual, y cada
+    /// del centro: un centro con faltantes y uno vigente lo llevan igual, y cada
     /// uno apunta a SU ficha.
     /// </summary>
     [Fact]
     public async Task Cada_centro_expandido_enlaza_a_su_propio_Centro_360_sea_cual_sea_su_estado()
     {
-        var bloqueado = Centro("Obra Valdés — Fase 2", EstadoCentro.Bloqueado);
+        var conFaltantes = Centro("Obra Valdés — Fase 2", EstadoCentro.Faltante);
         var vigente = Centro("Almacén Sur", EstadoCentro.Vigente);
-        var cut = Renderizar(bloqueado, vigente);
+        var cut = Renderizar(conFaltantes, vigente);
 
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Expandir todos").ClickAsync(new MouseEventArgs());
 
         cut.FindAll("a.acordeon-centro-enlace-360")
             .Select(a => a.GetAttribute("href"))
-            .Should().Equal($"/centros/{bloqueado.Id}", $"/centros/{vigente.Id}");
+            .Should().Equal($"/centros/{conFaltantes.Id}", $"/centros/{vigente.Id}");
     }
 
     /// <summary>

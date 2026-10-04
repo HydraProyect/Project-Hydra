@@ -1,7 +1,6 @@
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Centros;
-using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
 using Xunit;
@@ -10,18 +9,19 @@ namespace CaeManager.Application.Tests.Bandeja;
 
 /// <summary>
 /// P2.7 (recalibración de la demo del piloto Outbound, 2026-09-23): una
-/// acreditación Rechazada que bloquea su Centro de Trabajo (D-7) tiene que
-/// marcar su grupo de la cola como «bloquea acceso», igual que un
+/// acreditación Rechazada que bloquea al Trabajador (o a los de su Empresa) en su Centro de
+/// Trabajo (D-7) tiene que marcar su grupo de la cola como «bloquea acceso», igual que un
 /// RequisitoPendiente. Antes solo lo marcaba un RequisitoPendiente, y un
-/// Centro bloqueado únicamente por un rechazo salía en Mi trabajo e Inicio sin
-/// banda ni recuento de bloqueo, mientras Centro 360 decía «Acceso bloqueado».
+/// Trabajador bloqueado únicamente por un rechazo salía en Mi trabajo e Inicio sin
+/// banda ni recuento de bloqueo, mientras Centro 360 decía que no podía entrar.
 ///
 /// <para>
-/// Qué rechazada bloquea no se decide en la cola: se lee del mismo cálculo
-/// que pinta el estado del Centro (<see cref="ICalculoEstadoCentroService"/>).
-/// Estos tests fijan la lectura de ese resultado; que el cálculo emita la
-/// causa solo para rechazadas aplicables lo prueban
-/// <c>CalculoEstadoCentroServiceTests</c> (integración) y, de extremo a
+/// Qué rechazada bloquea no se decide en la cola: se lee del mismo evaluador
+/// que pinta el detalle por Trabajador del Centro 360
+/// (<see cref="IEvaluacionDeAccesoPorCentroService"/>). Desde 2026-10-04 ya no se lee del estado
+/// del Centro: el Centro no se marca «Bloqueado» por un rechazo. Estos tests fijan la lectura de las
+/// filas evaluadas; que el evaluador las emita solo para rechazadas aplicables lo prueban
+/// <c>LaPlataformaBloqueaAlTrabajadorYNoAlCentroTests</c> (integración) y, de extremo a
 /// extremo, <c>BandejaRechazadaBloqueaAccesoTests</c>.
 /// </para>
 /// </summary>
@@ -42,41 +42,35 @@ public class RechazadaBloqueaAccesoEnBandejaTests
         TrabajadorId: Guid.NewGuid(), CentroId: Guid.NewGuid(), DocumentoId: Guid.NewGuid(), TipoDocumentoId: Guid.NewGuid(),
         RequisitoId: null, ClienteId: clienteId, ClienteNombre: clienteNombre);
 
-    private static CausaEstadoCentro Causa(Guid? documentoId, bool bloqueante, EstadoDocumento? estado = null) => new(
-        "Formación 60h — Homer Simpson — rechazado por la plataforma", estado, bloqueante, AmbitoCausa.Trabajador,
-        documentoId, Guid.NewGuid(), FechaVencimiento: null);
-
-    private static Dictionary<Guid, ResultadoEstadoCentro> Estado(Guid centroId, params CausaEstadoCentro[] causas) => new()
-    {
-        [centroId] = new ResultadoEstadoCentro(
-            causas.Any(c => c.Bloqueante) ? EstadoCentro.Bloqueado : EstadoCentro.Vigente, causas)
-    };
+    private static RequisitoEvaluado Evaluado(
+        Guid centroId, Guid? documentoId, SituacionDeRequisitoBloqueante situacion = SituacionDeRequisitoBloqueante.RechazadoPorPlataforma) => new(
+        centroId, TrabajadorId: Guid.NewGuid(), TipoDocumentoId: Guid.NewGuid(), AmbitoAplicacion.Trabajador, EmpresaId: null,
+        new ResultadoDeRequisito(situacion, VencimientoEfectivo: null, EnToleranciaHasta: null), ToleranciaDias: 0, documentoId);
 
     [Fact]
-    public void Una_rechazada_que_bloquea_su_Centro_marca_su_grupo_como_bloquea_acceso()
+    public void Una_rechazada_que_bloquea_a_un_Trabajador_en_su_Centro_marca_su_grupo_como_bloquea_acceso()
     {
         var documento = Guid.NewGuid();
         var items = ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloquean(
             [Rechazada(CentroCerveceria, documento)],
-            Estado(CentroCerveceria, Causa(documento, bloqueante: true)));
+            [Evaluado(CentroCerveceria, documento)]);
 
         items.Should().ContainSingle().Which.RechazoBloqueaCentro.Should().BeTrue();
         ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso(items[0]).Should().BeTrue();
 
         var grupo = ObtenerBandejaAgrupadaQueryHandler.Agrupar(items).Grupos.Should().ContainSingle().Subject;
         grupo.BloqueaAcceso.Should().BeTrue(
-            "el Centro está Bloqueado solo por este rechazo (D-7): su grupo no puede salir como si no bloqueara");
+            "un Trabajador está bloqueado solo por este rechazo (D-7): su grupo no puede salir como si no bloqueara");
     }
 
     [Fact]
-    public void Una_rechazada_que_el_calculo_del_Centro_no_cuenta_como_bloqueante_no_marca_el_grupo()
+    public void Una_rechazada_que_el_evaluador_no_cuenta_como_bloqueo_no_marca_el_grupo()
     {
-        // Rechazada de otro Centro, de un Trabajador desvinculado o de un tipo
-        // que no aplica: el cálculo del Centro no emite causa por ella. Sigue
-        // siendo trabajo en la cola, pero no cierra ningún Centro.
+        // Rechazada de otro Centro, de un Trabajador desvinculado, de una Empresa sin Trabajadores en el Centro o de un
+        // tipo que no aplica: el evaluador no emite fila por ella. Sigue siendo trabajo en la cola, pero no bloquea a nadie.
         var items = ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloquean(
             [Rechazada(CentroCerveceria, Guid.NewGuid())],
-            Estado(CentroCerveceria));
+            []);
 
         items.Should().ContainSingle().Which.RechazoBloqueaCentro.Should().BeFalse();
         ObtenerBandejaAgrupadaQueryHandler.Agrupar(items).Grupos.Should().ContainSingle()
@@ -88,30 +82,31 @@ public class RechazadaBloqueaAccesoEnBandejaTests
     {
         var items = ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloquean(
             [Rechazada(CentroCerveceria, Guid.NewGuid())],
-            Estado(CentroCerveceria, Causa(Guid.NewGuid(), bloqueante: true)));
+            [Evaluado(CentroCerveceria, Guid.NewGuid())]);
 
         items.Should().ContainSingle().Which.RechazoBloqueaCentro.Should().BeFalse(
-            "el Centro está bloqueado, pero no por este documento: quien lo cierra es otro item");
+            "hay un Trabajador bloqueado en el Centro, pero no por este documento: quien lo cierra es otro item");
     }
 
     [Fact]
-    public void Una_causa_no_bloqueante_sobre_el_mismo_documento_no_marca_la_rechazada()
+    public void Una_fila_de_otra_situacion_sobre_el_mismo_documento_no_marca_la_rechazada()
     {
         var documento = Guid.NewGuid();
         var items = ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloquean(
             [Rechazada(CentroCerveceria, documento)],
-            Estado(CentroCerveceria, Causa(documento, bloqueante: false, EstadoDocumento.Urgente)));
+            [Evaluado(CentroCerveceria, documento, SituacionDeRequisitoBloqueante.VencidoEnPlataforma)]);
 
-        items.Should().ContainSingle().Which.RechazoBloqueaCentro.Should().BeFalse();
+        items.Should().ContainSingle().Which.RechazoBloqueaCentro.Should().BeFalse(
+            "la fila existe pero dice «vencido en la plataforma», no «rechazado»: no es el rechazo de este item");
     }
 
     [Fact]
-    public void Sin_estado_calculado_para_su_Centro_la_rechazada_no_se_marca()
+    public void Un_bloqueo_del_mismo_documento_en_otro_Centro_no_marca_la_rechazada()
     {
         var documento = Guid.NewGuid();
         var items = ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloquean(
             [Rechazada(CentroCerveceria, documento)],
-            Estado(Guid.NewGuid(), Causa(documento, bloqueante: true)));
+            [Evaluado(Guid.NewGuid(), documento)]);
 
         items.Should().ContainSingle().Which.RechazoBloqueaCentro.Should().BeFalse();
     }
@@ -123,7 +118,7 @@ public class RechazadaBloqueaAccesoEnBandejaTests
         var pendiente = Rechazada(CentroCerveceria, documento) with { Tipo = TipoItemBandeja.PlataformaPendiente };
 
         var items = ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloquean(
-            [pendiente], Estado(CentroCerveceria, Causa(documento, bloqueante: true)));
+            [pendiente], [Evaluado(CentroCerveceria, documento)]);
 
         items.Should().ContainSingle().Which.RechazoBloqueaCentro.Should().BeFalse(
             "pendiente de subir es trabajo, no un «no» de la plataforma (D-7)");
@@ -150,14 +145,14 @@ public class RechazadaBloqueaAccesoEnBandejaTests
     public void El_grupo_que_bloquea_por_un_rechazo_va_antes_que_uno_con_un_vencido_que_no_bloquea()
     {
         // Sin el marcado, el Vencido (prioridad 2) adelantaría a la Rechazada
-        // (prioridad 3): el grupo que de verdad cierra un Centro quedaría detrás.
+        // (prioridad 3): el grupo que de verdad bloquea a un Trabajador quedaría detrás.
         var documento = Guid.NewGuid();
         var items = ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloquean(
             [
                 DeTipo(TipoItemBandeja.Vencido, ClienteKrusty, "Hamburguesas Krusty"),
                 Rechazada(CentroCerveceria, documento)
             ],
-            Estado(CentroCerveceria, Causa(documento, bloqueante: true)));
+            [Evaluado(CentroCerveceria, documento)]);
 
         var grupos = ObtenerBandejaAgrupadaQueryHandler.Agrupar(items).Grupos;
 

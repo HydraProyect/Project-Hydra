@@ -24,6 +24,7 @@ public static class EstadoCentroUi
         EstadoCentro.Urgente => TonoBadge.Peligro,
         EstadoCentro.Vencido => TonoBadge.Peligro,
         EstadoCentro.Faltante => TonoBadge.Peligro,
+        // Retirado (2026-10-04): ningún cálculo lo emite, la rama solo existe porque el valor sigue declarado.
         EstadoCentro.Bloqueado => TonoBadge.Peligro,
         // P1-X2: neutro, nunca Exito — el Centro no está "al día", es que no
         // se le exige documentación. Pintarlo en verde sería un verde falso.
@@ -40,7 +41,6 @@ public static class EstadoCentroUi
     public static IReadOnlyList<OpcionEstado> Opciones { get; } =
         new[]
         {
-            EstadoCentro.Bloqueado,
             EstadoCentro.Faltante,
             EstadoCentro.Vencido,
             EstadoCentro.Urgente,
@@ -58,8 +58,8 @@ public static class EstadoCentroUi
         EstadoCentro.Urgente => "Urgente",
         EstadoCentro.Vencido => "Vencido",
         EstadoCentro.Faltante => "Falta documentación",
-        // Solo lo causa la plataforma del Cliente empresarial (D-7). «Bloqueado» es un estado del Trabajador (2026-10-03):
-        // el Centro nunca se rotula «Acceso bloqueado» por un documento; su detalle por Trabajador va aparte.
+        // Valor retirado (2026-10-04): «Bloqueado» es un estado del Trabajador, nunca del Centro, ni por un documento ni por
+        // la plataforma del Cliente empresarial (D-7); el Centro enseña el detalle por Trabajador. Nada lo emite ya.
         EstadoCentro.Bloqueado => "Bloqueo de la plataforma CAE",
         EstadoCentro.SinGestionCae => "No requiere gestión CAE",
         _ => "Estado desconocido"
@@ -69,7 +69,7 @@ public static class EstadoCentroUi
     /// D-17: «Vigente» afirma «todo al día», y con el denominador de cumplimiento a 0
     /// (<paramref name="cumplimientoPorcentaje"/> <c>null</c>: ningún Trabajador×TipoDocumento
     /// obligatorio aplicable) no se ha medido nada. Ese caso se rotula «Sin datos», en neutro.
-    /// El resto de estados no cambian: Próximo, Vencido, Faltante o Bloqueado ya dicen algo medido.
+    /// El resto de estados no cambian: Próximo, Vencido o Faltante ya dicen algo medido.
     /// </summary>
     public static bool EsSinDatos(EstadoCentro estado, int? cumplimientoPorcentaje) =>
         estado == EstadoCentro.Vigente && cumplimientoPorcentaje is null;

@@ -1,5 +1,6 @@
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Centros;
+using CaeManager.Domain.Documentos;
 using MediatR;
 
 namespace CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
@@ -31,26 +32,26 @@ public record GrupoColaDto(string GrupoId, string Titulo, bool BloqueaAcceso, IR
 /// </param>
 public record BandejaAgrupadaDto(IReadOnlyList<GrupoColaDto> Grupos, IReadOnlyList<ItemBandejaDto> SinGrupo);
 
-public class ObtenerBandejaAgrupadaQueryHandler(IMediator mediator, ICalculoEstadoCentroService calculoEstadoCentro)
+public class ObtenerBandejaAgrupadaQueryHandler(IMediator mediator, IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso)
     : IRequestHandler<ObtenerBandejaAgrupadaQuery, BandejaAgrupadaDto>
 {
     public async Task<BandejaAgrupadaDto> Handle(ObtenerBandejaAgrupadaQuery request, CancellationToken cancellationToken)
     {
         var items = await mediator.Send(new ObtenerBandejaGestorQuery(), cancellationToken);
-        return Agrupar(await MarcarRechazosQueBloqueanAsync(items, calculoEstadoCentro, cancellationToken));
+        return Agrupar(await MarcarRechazosQueBloqueanAsync(items, evaluacionDeAcceso, cancellationToken));
     }
 
     /// <summary>
-    /// D-7 del piloto Outbound: una acreditación Rechazada aplicable bloquea el
-    /// Centro de Trabajo. Qué es «aplicable» no se decide aquí — se pregunta al
-    /// mismo cálculo que pinta el estado del Centro
-    /// (<see cref="ICalculoEstadoCentroService.CalcularAsync"/>), para que el
-    /// «bloquea acceso» de un grupo por un rechazo no pueda contradecir al
-    /// Centro 360. Solo se calcula para los Centros que tienen alguna
-    /// rechazada en la cola: sin ninguna, no hay consulta extra.
+    /// D-7 del piloto Outbound: una acreditación Rechazada aplicable bloquea al Trabajador (o a los Trabajadores de la
+    /// Empresa) a quien afecta en ese Centro de Trabajo; ya no marca el Centro entero (decisión del propietario,
+    /// 2026-10-04). Qué es «aplicable» y a quién bloquea no se decide aquí — se pregunta al mismo evaluador que pinta el
+    /// detalle por Trabajador del Centro 360 y Mi trabajo
+    /// (<see cref="IEvaluacionDeAccesoPorCentroService.EvaluarAsync"/>), para que el «bloquea acceso» de un grupo por un
+    /// rechazo no pueda contradecirlos. Solo se evalúan los Centros que tienen alguna rechazada en la cola: sin
+    /// ninguna, no hay consulta extra.
     /// </summary>
     public static async Task<IReadOnlyList<ItemBandejaDto>> MarcarRechazosQueBloqueanAsync(
-        IReadOnlyList<ItemBandejaDto> items, ICalculoEstadoCentroService calculoEstadoCentro, CancellationToken cancellationToken)
+        IReadOnlyList<ItemBandejaDto> items, IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso, CancellationToken cancellationToken)
     {
         var centroIds = items
             .Where(i => i.Tipo == TipoItemBandeja.PlataformaRechazada && i.CentroId is not null && i.DocumentoId is not null)
@@ -59,27 +60,26 @@ public class ObtenerBandejaAgrupadaQueryHandler(IMediator mediator, ICalculoEsta
             .ToList();
         if (centroIds.Count == 0) return items;
 
-        var estados = await calculoEstadoCentro.CalcularAsync(centroIds, cancellationToken);
-        return MarcarRechazosQueBloquean(items, estados);
+        var evaluacion = await evaluacionDeAcceso.EvaluarAsync(centroIds, cancellationToken);
+        return MarcarRechazosQueBloquean(items, evaluacion.Requisitos);
     }
 
     /// <summary>
-    /// Parte pura de <see cref="MarcarRechazosQueBloqueanAsync"/>. Una rechazada
-    /// bloquea si el estado de SU Centro tiene una causa bloqueante sobre SU
-    /// documento: el cálculo solo emite la causa de rechazo cuando la rechazada
-    /// es aplicable a ese Centro, así que un rechazo de otro Centro, de un
-    /// Trabajador desvinculado o de un tipo que no aplica queda en false. No se
-    /// distingue qué clase de causa bloqueante es: si ese mismo documento
-    /// cierra el Centro por otro motivo (vigencia vencida en la plataforma),
-    /// el grupo también bloquea de verdad.
+    /// Parte pura de <see cref="MarcarRechazosQueBloqueanAsync"/>. Una rechazada bloquea si el evaluador devuelve, en SU
+    /// Centro, una fila <see cref="SituacionDeRequisitoBloqueante.RechazadoPorPlataforma"/> sobre SU documento: el
+    /// evaluador solo la emite cuando la rechazada es aplicable a ese Centro y hay algún Trabajador asignado al que
+    /// alcance, así que un rechazo de otro Centro, de un Trabajador desvinculado, de una Empresa sin Trabajadores en el
+    /// Centro o de un tipo que no aplica queda en false.
     /// </summary>
     public static IReadOnlyList<ItemBandejaDto> MarcarRechazosQueBloquean(
-        IReadOnlyList<ItemBandejaDto> items, IReadOnlyDictionary<Guid, ResultadoEstadoCentro> estadosPorCentro) => items
+        IReadOnlyList<ItemBandejaDto> items, IReadOnlyCollection<RequisitoEvaluado> requisitosEvaluados) => items
         .Select(i => i.Tipo == TipoItemBandeja.PlataformaRechazada
                      && i.CentroId is { } centroId
                      && i.DocumentoId is { } documentoId
-                     && estadosPorCentro.TryGetValue(centroId, out var estado)
-                     && estado.Causas.Any(c => c.Bloqueante && c.DocumentoId == documentoId)
+                     && requisitosEvaluados.Any(r =>
+                         r.CentroId == centroId
+                         && r.DocumentoId == documentoId
+                         && r.Resultado.Situacion == SituacionDeRequisitoBloqueante.RechazadoPorPlataforma)
             ? i with { RechazoBloqueaCentro = true }
             : i)
         .ToList();
@@ -135,7 +135,7 @@ public class ObtenerBandejaAgrupadaQueryHandler(IMediator mediator, ICalculoEsta
     /// «Bloqueado» es un estado del Trabajador, nunca del Centro (corrección del propietario, 2026-10-03):
     /// <list type="bullet">
     ///   <item><description><see cref="TipoItemBandeja.RequisitoPendiente"/> — siempre: un requisito bloqueante ausente o que ya no vale en ese Centro bloquea, también al Trabajador recién dado de alta sin documentación (ya no hay excepción de «alta nueva»).</description></item>
-    ///   <item><description><see cref="TipoItemBandeja.PlataformaRechazada"/> que el cálculo de estado del Centro cuenta como bloqueante (D-7, <see cref="ItemBandejaDto.RechazoBloqueaCentro"/>). Una rechazada no aplicable a ese Centro no cuenta.</description></item>
+    ///   <item><description><see cref="TipoItemBandeja.PlataformaRechazada"/> que el evaluador de acceso por Trabajador cuenta como bloqueo de alguien en ese Centro (D-7, <see cref="ItemBandejaDto.RechazoBloqueaCentro"/>, nombre heredado: marca el acceso del Trabajador, no el Centro). Una rechazada no aplicable a ese Centro no cuenta.</description></item>
     /// </list>
     /// </summary>
     public static bool BloqueaElAcceso(ItemBandejaDto item) => item.Tipo switch

@@ -17,17 +17,31 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueanteP
 /// Trabajador, nunca del Centro. Un Trabajador sin documentación es una fila como cualquier otra (no hay «alta nueva» exenta).
 /// Sustituye a ObtenerRequisitosDocumentalesPendientesQuery/RequisitoDocumental (retirados): antes era un check manual a nivel
 /// de Centro, ahora es automático y por Trabajador.
+///
+/// <para>
+/// El veredicto de la plataforma del Cliente empresarial (acreditación vencida allí o rechazada por ella, D-7) bloquea igual,
+/// al Trabajador o a los Trabajadores de la Empresa afectados (<see cref="IEvaluacionDeAccesoPorCentroService"/>; decisión del
+/// propietario, 2026-10-04), pero Mi trabajo ya lo pinta con sus propios items de acreditación (<c>PlataformaVencida</c> y
+/// <c>PlataformaRechazada</c>, que llevan a su fila de la pestaña Plataforma): por eso solo entra aquí cuando se pide
+/// (<paramref name="IncluirBloqueosDePlataforma"/>), que es lo que hacen las superficies que enseñan el detalle por Trabajador de
+/// un Centro.
+/// </para>
 /// </summary>
 /// <param name="CentroId">Limita el resultado a ese Centro (el detalle por Trabajador del Centro 360); <c>null</c> = todos los visibles (Mi trabajo).</param>
-public record ObtenerDocumentacionBloqueantePendienteQuery(Guid? CentroId = null)
+/// <param name="IncluirBloqueosDePlataforma">
+/// Añade las filas que causa el veredicto de la plataforma (<see cref="SituacionDeRequisitoBloqueante.VencidoEnPlataforma"/> y
+/// <see cref="SituacionDeRequisitoBloqueante.RechazadoPorPlataforma"/>). Con <c>false</c> (Mi trabajo) solo salen los
+/// requisitos documentales del Centro.
+/// </param>
+public record ObtenerDocumentacionBloqueantePendienteQuery(Guid? CentroId = null, bool IncluirBloqueosDePlataforma = false)
     : IRequest<IReadOnlyList<DocumentacionBloqueantePendienteDto>>;
 
 /// <param name="ClienteId">Cliente del Centro — alimenta la agrupación "por situación" del rediseño de Inicio (hallazgo P-03 de la auditoría de producto 2026-08-16). El Centro ya es exacto aquí, así que no hace falta ningún criterio de desambiguación.</param>
 /// <param name="EmpresaId">Empresa del Trabajador (<c>Trabajador.EmpresaId</c>) — sub-agrupación Empresa→Trabajador de "Requiere atención" en vocabulario Consultora (GrupoCola). En una fila de ámbito Empresa es la Empresa dueña del requisito, sea cual sea la columna que la guarde.</param>
 /// <param name="Ambito">Quién es el sujeto del requisito: el Trabajador o su Empresa.</param>
-/// <param name="Situacion">Ausente o Vencido (los dos bloquean igual; solo cambia lo que hay que hacer).</param>
-/// <param name="ToleranciaDias">Tolerancia que rige en este Centro para el Tipo; con valor mayor que 0, un Vencido es un fin de tolerancia.</param>
-/// <param name="VencimientoEfectivo">Cuándo venció en este Centro el documento (con su vigencia propia); <c>null</c> si está ausente.</param>
+/// <param name="Situacion">Ausente o Vencido (los dos bloquean igual; solo cambia lo que hay que hacer) y, si se piden, VencidoEnPlataforma o RechazadoPorPlataforma (el veredicto de la plataforma del Cliente empresarial).</param>
+/// <param name="ToleranciaDias">Tolerancia que rige en este Centro para el Tipo; con valor mayor que 0, un Vencido es un fin de tolerancia. Siempre 0 en un veredicto de la plataforma.</param>
+/// <param name="VencimientoEfectivo">Cuándo venció en este Centro el documento (con su vigencia propia), o allí en la plataforma si es VencidoEnPlataforma; <c>null</c> si está ausente o rechazado.</param>
 public record DocumentacionBloqueantePendienteDto(
     Guid CentroId, string CentroNombre, Guid TrabajadorId, string TrabajadorNombre,
     Guid TipoDocumentoId, string TipoDocumentoNombre,
@@ -53,6 +67,9 @@ public class ObtenerDocumentacionBloqueantePendienteQueryHandler(
 
         var bloqueos = evaluacion.Requisitos
             .Where(r => ReglaBloqueoDeAcceso.Bloquea(r.Resultado.Situacion))
+            .Where(r => request.IncluirBloqueosDePlataforma || !EsDePlataforma(r.Resultado.Situacion))
+            // Dos acreditaciones del mismo Tipo para el mismo Trabajador y Centro (documento duplicado, dos canales) dan una sola línea.
+            .DistinctBy(r => (r.CentroId, r.TrabajadorId, r.TipoDocumentoId, r.Resultado.Situacion))
             .ToList();
 
         if (bloqueos.Count == 0)
@@ -120,4 +137,7 @@ public class ObtenerDocumentacionBloqueantePendienteQueryHandler(
 
         return pendientes.OrderBy(p => p.CentroNombre).ThenBy(p => p.TrabajadorNombre).ToList();
     }
+
+    private static bool EsDePlataforma(SituacionDeRequisitoBloqueante situacion) =>
+        situacion is SituacionDeRequisitoBloqueante.VencidoEnPlataforma or SituacionDeRequisitoBloqueante.RechazadoPorPlataforma;
 }

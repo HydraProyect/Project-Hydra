@@ -15,7 +15,7 @@ public record ObtenerEstadoCentroQuery(Guid CentroId) : IRequest<EstadoCentroDto
 /// </param>
 public record EstadoCentroDto(EstadoCentro Estado, IReadOnlyList<CausaEstadoCentroDto> Causas, int? CumplimientoPorcentaje);
 
-public record CausaEstadoCentroDto(string Descripcion, EstadoDocumento? Estado, bool Bloqueante);
+public record CausaEstadoCentroDto(string Descripcion, EstadoDocumento? Estado);
 
 public class ObtenerEstadoCentroQueryHandler(ICalculoEstadoCentroService calculoEstadoCentro, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerEstadoCentroQuery, EstadoCentroDto?>
@@ -33,7 +33,7 @@ public class ObtenerEstadoCentroQueryHandler(ICalculoEstadoCentroService calculo
 
         return new EstadoCentroDto(
             resultado.Estado,
-            resultado.Causas.Select(c => new CausaEstadoCentroDto(c.Descripcion, c.Estado, c.Bloqueante)).ToList(),
+            resultado.Causas.Select(c => new CausaEstadoCentroDto(c.Descripcion, c.Estado)).ToList(),
             cumplimiento.TryGetValue(request.CentroId, out var fraccion) ? fraccion.Porcentaje : null);
     }
 }

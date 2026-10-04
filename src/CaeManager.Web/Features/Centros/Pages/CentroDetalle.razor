@@ -78,11 +78,8 @@
                 @if (_resumen is not null)
                 {
                     <span class="centro360-indicadores">
-                        @if (_resumen.Estado == EstadoCentro.Bloqueado)
-                        {
-                            @* Solo lo causa la plataforma del Cliente empresarial (D-7): el bloqueo de un documento es del Trabajador. *@
-                            <Badge Tono="TonoBadge.Peligro">@EstadoCentroUi.Texto(EstadoCentro.Bloqueado)</Badge>
-                        }
+                        @* «Bloqueado» es del Trabajador, nunca del Centro: ni por un documento ni por la plataforma del Cliente
+                           empresarial (D-7, 2026-10-04). El Centro enseña el detalle por Trabajador. *@
                         @if (_bloqueos.Count > 0)
                         {
                             var trabajadoresBloqueados = TextoBloqueoDeAcceso.TrabajadoresBloqueados(_bloqueos);

@@ -505,22 +505,13 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
 
     /// <summary>
     /// Aviso bajo el anillo cuando la consulta de KPI cuenta Trabajadores bloqueados
-    /// (<see cref="KpisDashboardDto.TrabajadoresBloqueados"/>, regla de acceso por Centro): «Bloqueado» es un estado del
-    /// Trabajador, y el porcentaje mide documentos vigentes, no acceso.
+    /// (<see cref="KpisDashboardDto.TrabajadoresBloqueados"/>, regla de acceso por Centro, también por la plataforma del Cliente
+    /// empresarial, D-7): «Bloqueado» es un estado del Trabajador, y el porcentaje mide documentos vigentes, no acceso.
     /// </summary>
     private string TextoTrabajadoresBloqueadosKpi => _kpis is not { TrabajadoresBloqueados: > 0 } k ? string.Empty
         : k.TrabajadoresBloqueados == 1
             ? Textos["TrabajadoresBloqueadosKpiUno"]
             : Textos["TrabajadoresBloqueadosKpiVarios", k.TrabajadoresBloqueados];
-
-    /// <summary>
-    /// Aviso bajo el anillo cuando la consulta de KPI cuenta Centros de Trabajo con bloqueo de la plataforma del Cliente
-    /// empresarial (<see cref="KpisDashboardDto.CentrosBloqueados"/>, D-7): es lo único que aún marca «Bloqueado» al Centro.
-    /// </summary>
-    private string TextoCentrosBloqueadosKpi => _kpis is not { CentrosBloqueados: > 0 } k ? string.Empty
-        : k.CentrosBloqueados == 1
-            ? Textos["CentrosBloqueadosKpiUno"]
-            : Textos["CentrosBloqueadosKpiVarios", k.CentrosBloqueados];
 
     private string TextoCierreAtencion =>
         _proximoVencimiento is { } proximo

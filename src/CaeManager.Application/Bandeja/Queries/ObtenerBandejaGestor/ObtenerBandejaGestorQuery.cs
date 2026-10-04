@@ -151,12 +151,14 @@ public enum TipoItemBandeja
 /// significa «no se sabe», nunca «Subcontrata».
 /// </param>
 /// <param name="RechazoBloqueaCentro">
-/// Solo PlataformaRechazada: true si el cálculo de estado del Centro de
-/// Trabajo (<c>ICalculoEstadoCentroService</c>, D-7 del piloto Outbound)
-/// cuenta este documento como causa bloqueante de ESE Centro — la rechazada
-/// es aplicable a él (su canal, Trabajador aún asignado, tipo que le aplica).
-/// Una rechazada no aplicable sigue siendo trabajo en la cola, pero no cierra
-/// ningún Centro, y se queda en false. Lo rellena
+/// Solo PlataformaRechazada: true si el evaluador de acceso por Trabajador
+/// (<c>IEvaluacionDeAccesoPorCentroService</c>, D-7 del piloto Outbound)
+/// cuenta este documento como bloqueo de algún Trabajador en ESE Centro — la
+/// rechazada es aplicable a él (su canal, Trabajador aún asignado o, si es de
+/// una Empresa, algún Trabajador de ella asignado, tipo que le aplica).
+/// Una rechazada no aplicable sigue siendo trabajo en la cola, pero no
+/// bloquea a nadie, y se queda en false. Nombre heredado: desde 2026-10-04
+/// marca el acceso del Trabajador, no cierra el Centro. Lo rellena
 /// <c>ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloqueanAsync</c>,
 /// al que llaman la cola agrupada que leen /bandeja e Inicio y Mi trabajo
 /// agregada (por Tenant propietario, para su severidad «Bloqueo»:

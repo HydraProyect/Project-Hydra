@@ -237,11 +237,9 @@ public class IdsDeFilaUnicosTests
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => throw new NotSupportedException();
     }
 
-    private sealed class CalculoEstadoCentroSinUso : ICalculoEstadoCentroService
+    private sealed class EvaluacionDeAccesoSinUso : IEvaluacionDeAccesoPorCentroService
     {
-        public Task<IReadOnlyDictionary<Guid, ResultadoEstadoCentro>> CalcularAsync(IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IReadOnlyDictionary<Guid, FraccionCumplimiento>> CalcularCumplimientoAsync(IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosAsync(IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<EvaluacionDeAccesoPorCentro> EvaluarAsync(IReadOnlyCollection<Guid>? centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private static async Task<List<string>> ErroresDeMiTrabajoAsync(IReadOnlyList<AlertaDto> alertasA, IReadOnlyList<AlertaDto> alertasB)
@@ -252,7 +250,7 @@ public class IdsDeFilaUnicosTests
         var logger = new LoggerDeErrores();
         var handler = new ObtenerMiTrabajoAgregadoQueryHandler(
             new MediadorConAlertas(tenantA, alertasA, tenantB, alertasB), configuracion, new EmpresasQueryContextFalso(),
-            new CalculoEstadoCentroSinUso(), new AlcanceDatosServiceFalso(), logger);
+            new EvaluacionDeAccesoSinUso(), new AlcanceDatosServiceFalso(), logger);
 
         var resultado = await handler.Handle(new ObtenerMiTrabajoAgregadoQuery(), CancellationToken.None);
 

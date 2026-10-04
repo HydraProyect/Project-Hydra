@@ -216,6 +216,15 @@
   <data name="BloqueoSituacionFinTolerancia" xml:space="preserve">
     <value>venció el {0} y la tolerancia ({1} d) terminó</value>
   </data>
+  <data name="BloqueoSituacionRechazadoPlataforma" xml:space="preserve">
+    <value>rechazado por la plataforma</value>
+  </data>
+  <data name="BloqueoSituacionVencidoPlataforma" xml:space="preserve">
+    <value>venció en la plataforma el {0}</value>
+  </data>
+  <data name="BloqueoSituacionVencidoPlataformaSinFecha" xml:space="preserve">
+    <value>vencido en la plataforma</value>
+  </data>
   <data name="BloqueoTipoDeEmpresa" xml:space="preserve">
     <value>{0} (de la Empresa)</value>
   </data>

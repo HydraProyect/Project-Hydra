@@ -434,7 +434,7 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
                        $"observado {centroEnLista.Recuentos.TotalVencidas} y {centroEnLista.Recuentos.TotalProximas}");
 
         // 11. KPIs del Dashboard: los recuentos por estado son los de la tabla (solo Documentos de Trabajador).
-        var kpis = await new ObtenerKpisDashboardQueryHandler(c, c, c, c, c, alcance, calculoCentro, new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, alcance))
+        var kpis = await new ObtenerKpisDashboardQueryHandler(c, c, c, c, c, alcance, new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, alcance))
             .Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
         void ComprobarKpi(string nombre, int observado, params EstadoDocumento[] estados)
         {

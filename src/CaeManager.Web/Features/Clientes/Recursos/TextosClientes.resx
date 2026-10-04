@@ -58,19 +58,6 @@
     <value>Crítico</value>
     <comment>Cliente empresarial marcado como crítico.</comment>
   </data>
-  <data name="IndicadorBloqueados" xml:space="preserve">
-    <value>Bloqueo de la plataforma CAE en {0} de {1} centros</value>
-    <comment>{0} centros con EstadoCentro.Bloqueado de los {1} centros del cliente.</comment>
-  </data>
-  <data name="IndicadorBloqueadosUnico" xml:space="preserve">
-    <value>Bloqueo de la plataforma CAE en su único centro</value>
-  </data>
-  <data name="VentanaBloqueadosUno" xml:space="preserve">
-    <value>1 centro con bloqueo de la plataforma CAE</value>
-  </data>
-  <data name="VentanaBloqueadosVarios" xml:space="preserve">
-    <value>{0} centros con bloqueo de la plataforma CAE</value>
-  </data>
   <data name="IndicadorVencidosUno" xml:space="preserve">
     <value>1 centro con vencidos</value>
     <comment>Centros con Recuentos.Vencidas &gt; 0 (Faltante cuenta como vencido).</comment>

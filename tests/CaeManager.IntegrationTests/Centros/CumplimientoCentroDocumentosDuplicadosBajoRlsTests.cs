@@ -23,7 +23,7 @@ namespace CaeManager.IntegrationTests.Centros;
 /// Trabajador (el vencido y su renovación) no tumban el cumplimiento del
 /// Centro de Trabajo y manda el vigente, leyendo <b>como
 /// <c>cae_app_runtime</c></b> con los interceptores de sellado y de sesión
-/// RLS de producción (mismo arnés que <c>KpisCentrosBloqueadosBajoRlsTests</c>).
+/// RLS de producción (mismo arnés que <c>KpisTrabajadoresBloqueadosBajoRlsTests</c>).
 /// Otro Tenant propietario tiene su propio par duplicado, los dos vencidos,
 /// como control de que la conexión de lectura está de verdad bajo RLS. La
 /// siembra va como propietario de la base, porque no es lo que se mide.

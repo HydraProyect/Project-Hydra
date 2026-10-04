@@ -167,10 +167,10 @@ public class ObtenerKpisGlobalesQueryHandlerTests
     // ---------------------------------------------------------------- P2.4 / D-7
 
     private static KpisDashboardDto ConBloqueosYDatos(KpisDashboardDto kpis, int bloqueados = 0, bool sinDatos = false) =>
-        kpis with { CentrosBloqueados = bloqueados, SinDatos = sinDatos };
+        kpis with { TrabajadoresBloqueados = bloqueados, SinDatos = sinDatos };
 
     [Fact]
-    public void Suma_los_Centros_de_Trabajo_bloqueados_y_los_lleva_a_cada_organizacion()
+    public void Suma_los_Trabajadores_bloqueados_y_los_lleva_a_cada_organizacion()
     {
         var porCliente = new List<(ClienteAutorizadoDto, KpisDashboardDto)>
         {
@@ -181,15 +181,15 @@ public class ObtenerKpisGlobalesQueryHandlerTests
 
         var resultado = ObtenerKpisGlobalesQueryHandler.Fusionar(porCliente);
 
-        resultado.CentrosBloqueados.Should().Be(3);
+        resultado.TrabajadoresBloqueados.Should().Be(3);
         var porNombre = resultado.ClientesConMasRiesgo.ToDictionary(c => c.Nombre);
-        porNombre["Bloqueada"].CentrosBloqueados.Should().Be(1);
-        porNombre["DosBloqueos"].CentrosBloqueados.Should().Be(2);
-        porNombre["AlDia"].CentrosBloqueados.Should().Be(0);
+        porNombre["Bloqueada"].TrabajadoresBloqueados.Should().Be(1);
+        porNombre["DosBloqueos"].TrabajadoresBloqueados.Should().Be(2);
+        porNombre["AlDia"].TrabajadoresBloqueados.Should().Be(0);
     }
 
     [Fact]
-    public void Una_organizacion_con_un_Centro_de_Trabajo_bloqueado_no_admite_veredicto_verde_aunque_su_tasa_sea_96()
+    public void Una_organizacion_con_un_Trabajador_bloqueado_no_admite_veredicto_verde_aunque_su_tasa_sea_96()
     {
         var porCliente = new List<(ClienteAutorizadoDto, KpisDashboardDto)>
         {
@@ -201,7 +201,7 @@ public class ObtenerKpisGlobalesQueryHandlerTests
 
         var bloqueada = resultado.ClientesConMasRiesgo.Single(c => c.Nombre == "Bloqueada");
         bloqueada.TasaCumplimientoDocumental.Should().Be(96, "el porcentaje documental no cambia");
-        bloqueada.AdmiteVeredictoVerde.Should().BeFalse("D-7: nunca «apto» con una Rechazada aplicable");
+        bloqueada.AdmiteVeredictoVerde.Should().BeFalse("D-7: nunca «apto» con un Trabajador bloqueado, ni por un documento ni por la plataforma del Cliente empresarial");
         resultado.ClientesConMasRiesgo.Single(c => c.Nombre == "AlDia").AdmiteVeredictoVerde.Should().BeTrue();
     }
 

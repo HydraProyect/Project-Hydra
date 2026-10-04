@@ -27,9 +27,14 @@ public readonly record struct DocumentoParaBloqueo(
 /// </summary>
 /// <param name="Ambito">Quién es el sujeto del requisito: el propio Trabajador o su Empresa.</param>
 /// <param name="EmpresaId">La Empresa dueña del requisito cuando <paramref name="Ambito"/> es Empresa; si no, <c>null</c>.</param>
+/// <param name="DocumentoId">
+/// Solo en un bloqueo de la plataforma del Cliente empresarial (<see cref="SituacionDeRequisitoBloqueante.VencidoEnPlataforma"/> y
+/// <see cref="SituacionDeRequisitoBloqueante.RechazadoPorPlataforma"/>): el Documento cuya acreditación lo causa, para que la
+/// cola pueda enlazar el item de esa acreditación con el Trabajador al que bloquea. <c>null</c> en un requisito documental.
+/// </param>
 public readonly record struct RequisitoEvaluado(
     Guid CentroId, Guid TrabajadorId, Guid TipoDocumentoId, AmbitoAplicacion Ambito, Guid? EmpresaId,
-    ResultadoDeRequisito Resultado, int ToleranciaDias);
+    ResultadoDeRequisito Resultado, int ToleranciaDias, Guid? DocumentoId = null);
 
 /// <summary>Un Trabajador bloqueado en un Centro por un requisito bloqueante concreto.</summary>
 /// <param name="Ambito">Quién es el sujeto del requisito: el propio Trabajador o su Empresa.</param>
@@ -52,6 +57,9 @@ public record BloqueoDeAccesoDeTrabajador(
 /// <item>Todos los Trabajadores de la Empresa E bloqueados en C: a E le falta, o no vale en C, algún documento bloqueante de
 /// Empresa que C exige. Un requisito de Empresa que C no exige no bloquea en C.</item>
 /// <item>Un Trabajador sin ningún documento está bloqueado en los Centros que exigen algo: no hay «alta nueva» exenta.</item>
+/// <item>La plataforma del Cliente empresarial (D-7 plataforma, 2026-10-04) es la segunda fuente de bloqueo, en
+/// <see cref="EvaluarPlataforma"/>: una vigencia vencida o una acreditación Rechazada bloquea al Trabajador de la
+/// acreditación o, si es de Empresa, a todos los Trabajadores de esa Empresa con Asignación activa en ese Centro. Nunca al Centro.</item>
 /// </list>
 /// </summary>
 public static class CalculoBloqueoDeAccesoDeTrabajadores
@@ -116,5 +124,53 @@ public static class CalculoBloqueoDeAccesoDeTrabajadores
         }
 
         return resultado;
+    }
+
+    /// <summary>
+    /// Los Trabajadores que el veredicto de la plataforma del Cliente empresarial bloquea en cada Centro (D-7): el Trabajador de un
+    /// documento de Trabajador, y todos los Trabajadores de una Empresa asignados al Centro cuando el documento es de Empresa. Es
+    /// la misma pregunta que <see cref="Evaluar"/> con otra fuente (la plataforma decide, no un Tipo bloqueante del Centro), así
+    /// que devuelve el mismo <see cref="RequisitoEvaluado"/>: sin tolerancia (el portal no la concede) y con el Documento que
+    /// lo causa. Una acreditación cuyo sujeto no tiene Trabajadores asignados a ese Centro no bloquea a nadie. Una fila por
+    /// Trabajador, Centro, Documento y veredicto, aunque el mismo Documento esté acreditado en dos canales del mismo Centro.
+    /// </summary>
+    public static IReadOnlyList<RequisitoEvaluado> EvaluarPlataforma(
+        IReadOnlyCollection<AsignacionParaBloqueo> asignaciones,
+        IReadOnlyCollection<AcreditacionEnPlataformaDeCentro> acreditaciones)
+    {
+        var asignacionesPorCentro = asignaciones
+            .DistinctBy(a => (a.CentroId, a.TrabajadorId))
+            .ToLookup(a => a.CentroId);
+
+        var resultado = new List<RequisitoEvaluado>();
+        foreach (var acreditacion in acreditaciones)
+        {
+            var situacion = acreditacion.Veredicto == VeredictoDePlataforma.Rechazada
+                ? SituacionDeRequisitoBloqueante.RechazadoPorPlataforma
+                : SituacionDeRequisitoBloqueante.VencidoEnPlataforma;
+            var vencimiento = acreditacion.VencimientoEnPlataforma;
+
+            foreach (var asignacion in asignacionesPorCentro[acreditacion.CentroId])
+            {
+                if (acreditacion.TrabajadorId is { } trabajadorId)
+                {
+                    if (asignacion.TrabajadorId != trabajadorId) continue;
+                    resultado.Add(new RequisitoEvaluado(
+                        acreditacion.CentroId, asignacion.TrabajadorId, acreditacion.TipoDocumentoId, AmbitoAplicacion.Trabajador, EmpresaId: null,
+                        new ResultadoDeRequisito(situacion, vencimiento, EnToleranciaHasta: null), ToleranciaDias: 0, acreditacion.DocumentoId));
+                }
+                else if (acreditacion.EmpresaId is { } empresaId)
+                {
+                    if (asignacion.EmpresaDelTrabajadorId != empresaId) continue;
+                    resultado.Add(new RequisitoEvaluado(
+                        acreditacion.CentroId, asignacion.TrabajadorId, acreditacion.TipoDocumentoId, AmbitoAplicacion.Empresa, empresaId,
+                        new ResultadoDeRequisito(situacion, vencimiento, EnToleranciaHasta: null), ToleranciaDias: 0, acreditacion.DocumentoId));
+                }
+            }
+        }
+
+        return resultado
+            .DistinctBy(r => (r.CentroId, r.TrabajadorId, r.DocumentoId, r.Resultado.Situacion))
+            .ToList();
     }
 }

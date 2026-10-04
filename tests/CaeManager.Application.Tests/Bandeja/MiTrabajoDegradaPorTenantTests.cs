@@ -40,7 +40,7 @@ public class MiTrabajoDegradaPorTenantTests
         configuracion.ListaParametrosSistema.Add(new ParametroSistema(30, 7));
 
         return new ObtenerMiTrabajoAgregadoQueryHandler(
-            mediator, configuracion, new EmpresasQueryContextFalso(), new CalculoEstadoCentroSinUso(),
+            mediator, configuracion, new EmpresasQueryContextFalso(), new EvaluacionDeAccesoSinUso(),
             new AlcanceDatosServiceFalso(), NullLogger<ObtenerMiTrabajoAgregadoQueryHandler>.Instance);
     }
 
@@ -129,15 +129,8 @@ public class MiTrabajoDegradaPorTenantTests
     }
 
     /// <summary>Colas vacías: ninguna Rechazada, así que el cálculo de estado del Centro no debe correr.</summary>
-    private sealed class CalculoEstadoCentroSinUso : ICalculoEstadoCentroService
+    private sealed class EvaluacionDeAccesoSinUso : IEvaluacionDeAccesoPorCentroService
     {
-        public Task<IReadOnlyDictionary<Guid, ResultadoEstadoCentro>> CalcularAsync(
-            IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<IReadOnlyDictionary<Guid, FraccionCumplimiento>> CalcularCumplimientoAsync(
-            IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosAsync(
-            IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<EvaluacionDeAccesoPorCentro> EvaluarAsync(IReadOnlyCollection<Guid>? centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

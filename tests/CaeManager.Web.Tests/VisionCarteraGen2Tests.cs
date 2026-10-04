@@ -63,7 +63,7 @@ public class VisionCarteraGen2Tests : BunitContext
     // ---------------------------------------------------------------- dobles
 
     /// <summary>Documentos por estado y actividad; la tasa se calcula como <c>ObtenerKpisDashboardQueryHandler</c>.</summary>
-    private sealed record Datos(int Vencidos, int Urgentes, int Proximos, int Vigentes, int Trabajadores, int Centros, int Bloqueados = 0, int TrabajadoresBloqueados = 0)
+    private sealed record Datos(int Vencidos, int Urgentes, int Proximos, int Vigentes, int Trabajadores, int Centros, int TrabajadoresBloqueados = 0)
     {
         public static readonly Datos Nada = new(0, 0, 0, 0, 0, 0);
 
@@ -75,7 +75,6 @@ public class VisionCarteraGen2Tests : BunitContext
             VisitasProgramadas: 0,
             TasaCumplimientoDocumental: ConVigencia == 0 ? 100 : Vigentes * 100 / ConVigencia,
             SinCarteraAsignada: sinCartera,
-            CentrosBloqueados: Bloqueados,
             TrabajadoresBloqueados: TrabajadoresBloqueados,
             SinDatos: Centros == 0 && ConVigencia == 0);
     }
@@ -413,16 +412,16 @@ public class VisionCarteraGen2Tests : BunitContext
     // ---------------------------------------------------------------- bloqueos y sin datos (P2.4, D-7)
 
     /// <summary>
-    /// D-7: una acreditación Rechazada aplicable pone su Centro de Trabajo en
-    /// Bloqueado, y la organización deja de estar al día aunque su tasa
+    /// D-7: una acreditación Rechazada aplicable bloquea al Trabajador afectado en su Centro de Trabajo
+    /// (no al Centro, 2026-10-04), y la organización deja de estar al día aunque su tasa
     /// documental siga en el 96%. El recuento sale junto al porcentaje, y ni la
     /// fila ni el pulso la presentan en verde.
     /// </summary>
     [Fact]
-    public void Una_organizacion_con_un_Centro_de_Trabajo_bloqueado_no_sale_en_verde_aunque_su_tasa_sea_alta()
+    public void Una_organizacion_con_un_Trabajador_bloqueado_no_sale_en_verde_aunque_su_tasa_sea_alta()
     {
         var escenario = new Escenario();
-        escenario.Cambiar(TenantPropio, o => o with { Completa = o.Completa with { Bloqueados = 1 } });
+        escenario.Cambiar(TenantPropio, o => o with { Completa = o.Completa with { TrabajadoresBloqueados = 1 } });
 
         var cut = Renderizar(escenario).Cut;
 
@@ -430,10 +429,10 @@ public class VisionCarteraGen2Tests : BunitContext
         Texto(fila.QuerySelector(".nombre-organizacion")!).Should().Be(NombrePropio);
         var valor = fila.QuerySelector(".valor-cumplimiento")!;
         Texto(valor).Should().Be("96%", "el porcentaje documental sigue a la vista");
-        valor.ClassList.Should().NotContain("tono-exito", "con un Centro de Trabajo bloqueado el porcentaje no es un veredicto verde");
-        Texto(fila.QuerySelector(".bloqueos-organizacion")!).Should().Be("1 Centro de Trabajo con bloqueo de la plataforma CAE");
+        valor.ClassList.Should().NotContain("tono-exito", "con un Trabajador bloqueado el porcentaje no es un veredicto verde");
+        Texto(fila.QuerySelector(".bloqueos-organizacion")!).Should().Be("1 Trabajador bloqueado");
         fila.QuerySelector(".cumplimiento-organizacion")!.GetAttribute("title").Should().Be(
-            $"{NombrePropio}: 96% de cumplimiento documental, pero con bloqueos (1 Centro de Trabajo con bloqueo de la plataforma CAE): no está al día");
+            $"{NombrePropio}: 96% de cumplimiento documental, pero con bloqueos (1 Trabajador bloqueado): no está al día");
 
         var verde = cut.Find(".pulso-en-verde");
         verde.TextContent.Should().StartWith("0");
@@ -441,10 +440,9 @@ public class VisionCarteraGen2Tests : BunitContext
             "Ninguna de las 3 organizaciones llega al 90% de cumplimiento documental sin bloqueos. "
             + $"No está en verde {NombrePropio}: tiene algún bloqueo.");
 
-        // Sin Trabajadores bloqueados la tarjeta de Trabajadores dice 0: el bloqueo de la plataforma CAE no es de un Trabajador.
         cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(Metrica)
             .Single(m => m.Etiqueta == "Trabajadores bloqueados")
-            .Should().Be(("Trabajadores bloqueados", "0", "En ninguna organización"));
+            .Should().Be(("Trabajadores bloqueados", "1", "En 1 de 3 organizaciones, que no están en verde"));
         MetricaMedia(cut).Pista.Should().Be("Solo documental: los bloqueos se cuentan aparte");
         Texto(cut.Find(".detalle-bloqueos-cartera")).Should().Be(
             $"{NombrePropio} tiene algún bloqueo: no está al día, aunque su porcentaje documental sea alto.");
@@ -457,18 +455,18 @@ public class VisionCarteraGen2Tests : BunitContext
         var escenario = new Escenario();
         foreach (var id in new[] { TenantA, TenantB })
             escenario.Cambiar(id, o => o with { Cartera = new(0, 0, 0, 10, 5, 1) });
-        escenario.Cambiar(TenantA, o => o with { Cartera = o.Cartera! with { Bloqueados = 2 } });
+        escenario.Cambiar(TenantA, o => o with { Cartera = o.Cartera! with { TrabajadoresBloqueados = 2 } });
 
         var cut = Renderizar(escenario).Cut;
 
         cut.FindAll(".tarjeta-organizaciones-riesgo .texto-vacio-seccion").Should().BeEmpty(
-            "«ninguna tiene riesgo» ocultaría el Centro de Trabajo bloqueado");
-        Filas(cut).Select(f => f.QuerySelector(".bloqueos-organizacion") is { } b ? Texto(b) : "").Should().Contain("2 Centros de Trabajo con bloqueo de la plataforma CAE");
+            "«ninguna tiene riesgo» ocultaría a los Trabajadores bloqueados");
+        Filas(cut).Select(f => f.QuerySelector(".bloqueos-organizacion") is { } b ? Texto(b) : "").Should().Contain("2 Trabajadores bloqueados");
     }
 
     /// <summary>
-    /// «Bloqueado» es un estado del Trabajador (2026-10-03): la cartera cuenta Trabajadores bloqueados, y una organización con alguno
-    /// no sale en verde aunque su porcentaje documental sea alto y ningún Centro esté bloqueado por la plataforma.
+    /// «Bloqueado» es un estado del Trabajador, nunca del Centro (2026-10-03, 2026-10-04): la cartera cuenta Trabajadores bloqueados,
+    /// y una organización con alguno no sale en verde aunque su porcentaje documental sea alto.
     /// </summary>
     [Fact]
     public void Los_Trabajadores_bloqueados_se_cuentan_y_la_organizacion_no_sale_en_verde()

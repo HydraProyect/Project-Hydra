@@ -26,8 +26,7 @@ public record KpisDashboardDto(
     /// Solo documental: los Documentos de Trabajador al día según
     /// <see cref="CumplimientoDocumental"/> (Vigente, Próximo, Urgente y Sin caducidad) sobre todos los
     /// Documentos de Trabajador, histórico incluido (<see cref="Fraccion"/>). NO es un veredicto de cumplimiento — no
-    /// ve los Trabajadores bloqueados (<see cref="TrabajadoresBloqueados"/>) ni los Centros de Trabajo con bloqueo de la plataforma
-    /// (<see cref="CentrosBloqueados"/>), y sin ningún documento vale 100 porque
+    /// ve los Trabajadores bloqueados (<see cref="TrabajadoresBloqueados"/>), y sin ningún documento vale 100 porque
     /// no hay nada que contar (<see cref="SinDatos"/>, <see cref="SinCarteraAsignada"/>). Su universo (todos los
     /// documentos, no los pares que exigen los Centros) no es ninguno de los cuatro contextos de
     /// <see cref="ContextoCumplimiento"/>: queda pendiente de decisión del propietario.
@@ -37,16 +36,6 @@ public record KpisDashboardDto(
     bool SinCarteraAsignada = false,
     /// <summary>Trabajadores dados de alta desde el día 1 del mes en curso (mockup Inicio TALVEG, pista del KPI "Trabajadores activos") — EntidadBase.CreadoEnUtc, sin campo nuevo.</summary>
     int TrabajadoresNuevosEsteMes = 0,
-    /// <summary>
-    /// Centros de Trabajo del alcance cuyo estado, calculado con
-    /// <see cref="ICalculoEstadoCentroService"/> (el mismo criterio que la tabla
-    /// de Centros, el Centro 360 y la cola de /bandeja), es
-    /// <see cref="EstadoCentro.Bloqueado"/>. Desde 2026-10-03 solo lo causa la plataforma del Cliente empresarial: una
-    /// acreditación vencida allí o Rechazada por ella y aplicable a ese Centro (D-7 del piloto Outbound); los documentos
-    /// de Trabajador y de Empresa bloquean a Trabajadores, no al Centro (<see cref="TrabajadoresBloqueados"/>). Con uno o
-    /// más, el Tenant no está al día aunque <see cref="TasaCumplimientoDocumental"/> sea alta.
-    /// </summary>
-    int CentrosBloqueados = 0,
     /// <summary>
     /// Ni un Centro de Trabajo ni un Documento con fecha de vencimiento en el
     /// alcance: el 100 de <see cref="TasaCumplimientoDocumental"/> es «nada que
@@ -58,10 +47,12 @@ public record KpisDashboardDto(
     /// <summary>Documentos de Trabajador confirmados como que no caducan: cuentan en el numerador y en el denominador de la tasa.</summary>
     int DocumentosSinCaducidad = 0,
     /// <summary>
-    /// Trabajadores distintos, del alcance, bloqueados en al menos un Centro por un documento bloqueante ausente o que ya no vale
-    /// con las condiciones de ese Centro (<see cref="IEvaluacionDeAccesoPorCentroService"/>: la misma regla y los mismos datos que
-    /// Mi trabajo). «Bloqueado» es un estado del Trabajador, nunca del Centro (2026-10-03). Con uno o más, el Tenant no está al día
-    /// aunque <see cref="TasaCumplimientoDocumental"/> sea alta.
+    /// Trabajadores distintos, del alcance, bloqueados en al menos un Centro: por un documento bloqueante ausente o que ya no vale
+    /// con las condiciones de ese Centro, por una vigencia vencida en la plataforma del Cliente empresarial o por una
+    /// acreditación Rechazada aplicable a ese Centro, propia o de su Empresa (<see cref="IEvaluacionDeAccesoPorCentroService"/>: la
+    /// misma regla y los mismos datos que Mi trabajo y el Centro 360). «Bloqueado» es un estado del Trabajador, nunca del Centro
+    /// (2026-10-03; la plataforma dejó de marcar el Centro entero el 2026-10-04). Con uno o más, el Tenant no está al día aunque
+    /// <see cref="TasaCumplimientoDocumental"/> sea alta.
     /// </summary>
     int TrabajadoresBloqueados = 0)
 {
@@ -92,13 +83,12 @@ public record KpisDashboardDto(
 /// <para>
 /// El porcentaje es documental y no decide si el Tenant está al día: los
 /// Trabajadores bloqueados (<see cref="KpisDashboardDto.TrabajadoresBloqueados"/>, con
-/// <see cref="IEvaluacionDeAccesoPorCentroService"/>) y los Centros de Trabajo con bloqueo de la plataforma
-/// (<see cref="KpisDashboardDto.CentrosBloqueados"/>, con <see cref="ICalculoEstadoCentroService"/>) se cuentan aparte sobre los
-/// Centros del alcance, en una sola llamada por lotes cada uno — su número de consultas no crece con el de
-/// Centros (<c>KpisCentrosBloqueadosBajoRlsTests</c>).
+/// <see cref="IEvaluacionDeAccesoPorCentroService"/>, también por la plataforma del Cliente empresarial) se cuentan aparte
+/// sobre los Centros del alcance, en una sola llamada por lotes — su número de consultas no crece con el de
+/// Centros (<c>KpisTrabajadoresBloqueadosBajoRlsTests</c>).
 /// </para>
 /// </summary>
-public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoCentroService calculoEstadoCentro, IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso)
+public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso)
     : IRequestHandler<ObtenerKpisDashboardQuery, KpisDashboardDto>
 {
     public async Task<KpisDashboardDto> Handle(ObtenerKpisDashboardQuery request, CancellationToken cancellationToken)
@@ -125,14 +115,8 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         var centroIds = await centrosQuery.Select(c => c.Id).ToListAsync(cancellationToken);
         var centros = centroIds.Count;
 
-        // D-7: una acreditación Rechazada aplicable (y cualquier otra causa
-        // bloqueante) pone el Centro en Bloqueado. Mismo servicio, sin copiar
-        // la lista de causas, y solo sobre los Centros del alcance ya filtrado.
-        var estadosCentro = await calculoEstadoCentro.CalcularAsync(centroIds, cancellationToken);
-        var centrosBloqueados = estadosCentro.Values.Count(r => r.Estado == EstadoCentro.Bloqueado);
-
-        // Trabajadores bloqueados: la regla única por Centro, sobre los Centros del alcance. Un Trabajador bloqueado en dos
-        // Centros cuenta una vez.
+        // Trabajadores bloqueados: la regla única por Centro, sobre los Centros del alcance (documentos bloqueantes y
+        // veredicto de la plataforma, D-7). Un Trabajador bloqueado en dos Centros cuenta una vez.
         var evaluacion = centroIds.Count == 0
             ? EvaluacionDeAccesoPorCentro.Vacia
             : await evaluacionDeAcceso.EvaluarAsync(centroIds, cancellationToken);
@@ -197,7 +181,6 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             VisitasUrgentes: visitasUrgentes,
             SinCarteraAsignada: sinCarteraAsignada,
             TrabajadoresNuevosEsteMes: trabajadoresNuevosEsteMes,
-            CentrosBloqueados: centrosBloqueados,
             SinDatos: centros == 0 && fraccion.Requeridos == 0,
             DocumentosSinConfirmar: sinConfirmar,
             DocumentosSinCaducidad: sinCaducidad,

@@ -125,7 +125,7 @@ public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Con cartera pero sin Centros de Trabajo ni documentos con fecha: su 100% es «sin datos».</summary>
     private IReadOnlyList<ClienteRiesgoDto> SinDatos => ConCartera.Where(o => o.SinDatos).ToList();
 
-    /// <summary>Las que tienen algún Trabajador bloqueado o algún Centro de Trabajo con bloqueo de la plataforma (D-7): nunca en verde.</summary>
+    /// <summary>Las que tienen algún Trabajador bloqueado (por un documento o por la plataforma del Cliente empresarial): nunca en verde.</summary>
     private IReadOnlyList<ClienteRiesgoDto> ConBloqueos => Organizaciones.Where(o => o.TieneBloqueos).ToList();
 
     /// <summary>
@@ -139,7 +139,7 @@ public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Verde = 90% documental o más Y <see cref="ClienteRiesgoDto.AdmiteVeredictoVerde"/>:
-    /// con cartera, con datos y sin ningún bloqueo (Trabajadores bloqueados o Centros de Trabajo con bloqueo de la plataforma).
+    /// con cartera, con datos y sin ningún Trabajador bloqueado (por un documento o por la plataforma).
     /// </summary>
     private IReadOnlyList<ClienteRiesgoDto> OrganizacionesEnVerde =>
         Organizaciones.Where(o => o.AdmiteVeredictoVerde && o.TasaCumplimientoDocumental >= UmbralVerde).ToList();
@@ -223,7 +223,7 @@ public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva
         _ => Textos["DetalleBloqueosVarias", Enumerar(ConBloqueos.Select(o => o.Nombre))].Value
     };
 
-    /// <summary>En cuántas organizaciones hay Trabajadores bloqueados (los Centros con bloqueo de la plataforma van en el badge de su fila).</summary>
+    /// <summary>En cuántas organizaciones hay Trabajadores bloqueados (por documento o por la plataforma del Cliente empresarial).</summary>
     private string PistaCentrosBloqueados =>
         Organizaciones.Count(o => o.TrabajadoresBloqueados > 0) is var conTrabajadoresBloqueados and > 0
             ? Textos["PistaCentrosBloqueados", conTrabajadoresBloqueados, Organizaciones.Count].Value
@@ -290,22 +290,16 @@ public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva
     private TonoBadge TonoTrabajadoresBloqueados => _kpis is { TrabajadoresBloqueados: > 0 } ? TonoBadge.Peligro : TonoBadge.Neutro;
 
     /// <summary>
-    /// Los bloqueos de una organización, dichos como son: Trabajadores bloqueados (el bloqueo de un documento es del Trabajador,
-    /// nunca del Centro) y, aparte, Centros de Trabajo con bloqueo de la plataforma del Cliente empresarial (D-7).
+    /// Los bloqueos de una organización, dichos como son: Trabajadores bloqueados. «Bloqueado» es un estado del Trabajador, nunca del
+    /// Centro, ni por un documento ni por la plataforma del Cliente empresarial (D-7, 2026-10-04).
     /// </summary>
-    private string TextoBadgeBloqueados(ClienteRiesgoDto o)
-    {
-        var partes = new List<string>();
-        if (o.TrabajadoresBloqueados > 0)
-            partes.Add(o.TrabajadoresBloqueados == 1
-                ? Textos["BadgeTrabajadoresBloqueadosUno"].Value
-                : Textos["BadgeTrabajadoresBloqueadosVarios", o.TrabajadoresBloqueados].Value);
-        if (o.CentrosBloqueados > 0)
-            partes.Add(o.CentrosBloqueados == 1
-                ? Textos["BadgeBloqueadosUno"].Value
-                : Textos["BadgeBloqueadosVarios", o.CentrosBloqueados].Value);
-        return string.Join(" · ", partes);
-    }
+    private string TextoBadgeBloqueados(ClienteRiesgoDto o) =>
+        o.TrabajadoresBloqueados switch
+        {
+            0 => string.Empty,
+            1 => Textos["BadgeTrabajadoresBloqueadosUno"].Value,
+            _ => Textos["BadgeTrabajadoresBloqueadosVarios", o.TrabajadoresBloqueados].Value
+        };
 
     // ---------------------------------------------------------------- tabla
 

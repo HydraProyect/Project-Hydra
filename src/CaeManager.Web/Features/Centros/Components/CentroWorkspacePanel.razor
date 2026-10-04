@@ -178,11 +178,7 @@ else
                         {
                             <li class="workspace-tarjeta-requisito">
                                 <span>@causa.Descripcion</span>
-                                @if (causa.Bloqueante)
-                                {
-                                    <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
-                                }
-                                else if (causa.Estado is { } estadoDocumento)
+                                @if (causa.Estado is { } estadoDocumento)
                                 {
                                     <Badge Tono="EstadoDocumentoUi.Tono(estadoDocumento)" ConIcono>@EstadoDocumentoUi.Texto(estadoDocumento)</Badge>
                                 }
@@ -1104,7 +1100,7 @@ else
 
         try
         {
-            var bloqueos = await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(idSolicitado));
+            var bloqueos = await Mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(idSolicitado, IncluirBloqueosDePlataforma: true));
             if (idSolicitado == EntidadId)
                 _bloqueos = bloqueos;
         }

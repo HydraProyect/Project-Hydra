@@ -912,8 +912,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// próximos no digan ya: Vencido/Próximo/Falta documentación quedan
     /// reflejados en esas dos ranuras (mismo criterio de bucketing que
     /// <c>ObtenerCentrosQuery.Desglosar</c>), así que repetirlos aquí era
-    /// justo la redundancia que hacía desbordar la columna. Bloqueado
-    /// (el peor caso posible) sí necesita la ranura. Urgente también: desde
+    /// justo la redundancia que hacía desbordar la columna. Urgente sí necesita la ranura: desde
     /// que <c>Desglosar</c> lo funde con Vencido/Faltante en "vencidas"
     /// (mismo tono Peligro que ya le da <c>EstadoDocumentoUi.Tono</c>), el
     /// recuento por sí solo ya no distingue Urgente de un vencimiento
@@ -922,7 +921,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// completamente muda.
     /// </summary>
     private static bool MostrarEstadoEnIndicadores(CentroListaDto centro) =>
-        centro.Estado is EstadoCentro.Bloqueado or EstadoCentro.Urgente
+        centro.Estado is EstadoCentro.Urgente
         || (centro.Recuentos.TotalVencidas == 0 && centro.Recuentos.TotalProximas == 0);
 
     /// <summary>

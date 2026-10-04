@@ -36,12 +36,6 @@
   <data name="AnilloSinDatosDetalle" xml:space="preserve">
     <value>No hay centros de trabajo ni documentos con vigencia en cartera que medir.</value>
   </data>
-  <data name="CentrosBloqueadosKpiUno" xml:space="preserve">
-    <value>1 Centro de Trabajo con bloqueo de la plataforma CAE del Cliente empresarial: el porcentaje cuenta documentos, no acceso.</value>
-  </data>
-  <data name="CentrosBloqueadosKpiVarios" xml:space="preserve">
-    <value>{0} Centros de Trabajo con bloqueo de la plataforma CAE del Cliente empresarial: el porcentaje cuenta documentos, no acceso.</value>
-  </data>
   <data name="TrabajadoresBloqueadosKpiUno" xml:space="preserve">
     <value>1 Trabajador bloqueado: el porcentaje cuenta documentos, no acceso.</value>
   </data>

@@ -635,21 +635,36 @@ public class Centro360Gen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Lo único que aún marca «Bloqueado» al Centro es la plataforma del Cliente empresarial (D-7), y se rotula así, no como
-    /// «Acceso bloqueado», que sugeriría el bloqueo de un Trabajador.
+    /// D-7 plataforma (2026-10-04): el rechazo o la vigencia vencida en la plataforma del Cliente empresarial ya no marcan el Centro
+    /// «Bloqueado»: bloquean al Trabajador (o a los de la Empresa) afectado, y el Centro lo dice con el detalle por Trabajador, igual
+    /// que para un documento. El Centro sigue con el estado que dicen sus documentos.
     /// </summary>
     [Fact]
-    public void El_bloqueo_de_la_plataforma_del_Cliente_empresarial_se_rotula_como_tal()
+    public void El_bloqueo_de_la_plataforma_del_Cliente_empresarial_se_dice_por_Trabajador_y_no_rotula_el_Centro()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
         mediador.Detalles[id] = Detalle(id, "Centro Norte");
-        mediador.Resumenes[id] = Resumen(id, "Centro Norte", estado: EstadoCentro.Bloqueado);
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", estado: EstadoCentro.Vencido);
+        var rechazado = Asignado("Juan Pérez", EstadoDocumento.Vigente, Documento("Formación PRL", EstadoDocumento.Vigente, new DateOnly(2027, 4, 17)));
+        var vencido = Asignado("Marco Vila", EstadoDocumento.Vigente, Documento("Formación PRL", EstadoDocumento.Vigente, new DateOnly(2027, 4, 17)));
+        mediador.Asignaciones[id] = [rechazado, vencido];
+        mediador.Bloqueos[id] =
+        [
+            new(id, "Centro Norte", rechazado.TrabajadorId, "Juan Pérez", Guid.NewGuid(), "Formación PRL",
+                Situacion: SituacionDeRequisitoBloqueante.RechazadoPorPlataforma),
+            new(id, "Centro Norte", vencido.TrabajadorId, "Marco Vila", Guid.NewGuid(), "Acreditación Dokify",
+                Situacion: SituacionDeRequisitoBloqueante.VencidoEnPlataforma, VencimientoEfectivo: new DateOnly(2026, 9, 30))
+        ];
 
         var cut = Renderizar(id);
 
-        cut.Markup.Should().Contain("Bloqueo de la plataforma CAE").And.NotContain("Acceso bloqueado");
-        cut.Markup.Should().NotContain("trabajador bloqueado", "sin ningún Trabajador bloqueado la cabecera no dice nada de Trabajadores");
+        cut.Markup.Should().Contain("2 trabajadores bloqueados");
+        cut.Markup.Should().NotContain("Acceso bloqueado").And.NotContain("Bloqueo de la plataforma CAE",
+            "la plataforma bloquea a Trabajadores, no al Centro");
+        var filas = cut.FindAll(".fila-trabajador-nombre");
+        filas.Single(b => b.TextContent.Contains("Juan Pérez")).TextContent.Should().Contain("Bloqueado");
+        filas.Single(b => b.TextContent.Contains("Marco Vila")).TextContent.Should().Contain("Bloqueado");
     }
 
     /// <summary>

@@ -61,8 +61,8 @@ namespace CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 ///
 /// <para>
 /// Y, solo cuando la cola del Tenant trae alguna acreditación Rechazada, el
-/// cálculo de estado de sus Centros de Trabajo
-/// (<see cref="ICalculoEstadoCentroService.CalcularAsync"/>, vía
+/// evaluador de acceso por Trabajador de sus Centros de Trabajo
+/// (<see cref="IEvaluacionDeAccesoPorCentroService.EvaluarAsync"/>, vía
 /// <see cref="ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloqueanAsync"/>):
 /// D-7 del piloto Outbound, una Rechazada bloquea solo si es aplicable a su
 /// Centro, y el mismo criterio que usa la cola agrupada de /bandeja e Inicio
@@ -166,7 +166,7 @@ public record ParteMiTrabajoDto(
 
 public class ObtenerMiTrabajoAgregadoQueryHandler(
     IMediator mediator, IConfiguracionQueryContext configuracionContext, IEmpresasQueryContext empresasContext,
-    ICalculoEstadoCentroService calculoEstadoCentro, IAlcanceDatosService alcanceDatos,
+    IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso, IAlcanceDatosService alcanceDatos,
     ILogger<ObtenerMiTrabajoAgregadoQueryHandler> logger, PuertaAccesoDatos? puerta = null)
     : IRequestHandler<ObtenerMiTrabajoAgregadoQuery, MiTrabajoAgregadoDto>,
       IStreamRequestHandler<ObtenerMiTrabajoPorPartesQuery, ParteMiTrabajoDto>
@@ -295,12 +295,12 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
 
         var empresas = await CargarEmpresasSujetoAsync(
             fusionados.Concat(proximosSinEmpresa).Concat(seguimientoSinEmpresa), cancellationToken);
-        // D-7: qué Rechazada cierra de verdad su Centro de Trabajo lo decide
-        // el cálculo de estado del Centro, sobre los datos de ESTE Tenant
+        // D-7: qué Rechazada bloquea de verdad a alguien en su Centro de Trabajo
+        // lo decide el evaluador de acceso por Trabajador, sobre los datos de ESTE Tenant
         // (seguimos dentro de su AmbitoTenantExplicito). Sin esto, EsBloqueo
         // no tendría RechazoBloqueaCentro que leer.
         var bloqueoActuacionItems = await ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloqueanAsync(
-            MarcarEmpresaSujeto(fusionados, empresas), calculoEstadoCentro, cancellationToken);
+            MarcarEmpresaSujeto(fusionados, empresas), evaluacionDeAcceso, cancellationToken);
         var proximos = MarcarEmpresaSujeto(proximosSinEmpresa, empresas);
         var seguimiento = MarcarEmpresaSujeto(seguimientoSinEmpresa, empresas);
         var bloqueoActuacion = ObtenerBandejaAgrupadaQueryHandler.Agrupar(bloqueoActuacionItems);
@@ -376,8 +376,8 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
     /// que Mi trabajo no puede contradecir a /bandeja ni a Centro 360: un
     /// requisito pendiente siempre bloquea (también el de un Trabajador recién
     /// dado de alta sin documentación), y una Rechazada solo bloquea si el
-    /// cálculo de estado de su Centro de Trabajo la cuenta como causa
-    /// bloqueante (<see cref="ItemBandejaDto.RechazoBloqueaCentro"/>). Una
+    /// evaluador de acceso por Trabajador la cuenta como bloqueo de alguien en
+    /// su Centro de Trabajo (<see cref="ItemBandejaDto.RechazoBloqueaCentro"/>). Una
     /// Rechazada no aplicable a su Centro queda en «Requiere actuación».
     ///
     /// <para>

@@ -215,9 +215,9 @@ public class BandejaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// P2.7: un Centro Bloqueado solo por una acreditación Rechazada (D-7) —
+    /// P2.7: un Trabajador bloqueado solo por una acreditación Rechazada (D-7) —
     /// sin ningún RequisitoPendiente— tiene que llevar la banda y el badge en
-    /// Mi trabajo. La segunda Rechazada, que el cálculo del Centro no cuenta
+    /// Mi trabajo. La segunda Rechazada, que el evaluador de acceso no cuenta
     /// como bloqueante, es el control negativo: sigue en la cola sin banda.
     /// </summary>
     [Fact]

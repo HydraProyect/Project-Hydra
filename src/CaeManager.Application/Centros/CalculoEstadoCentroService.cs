@@ -14,11 +14,11 @@ namespace CaeManager.Application.Centros;
 /// Causa concreta que empuja el EstadoCentro por debajo de Vigente — un
 /// Documento (de la Empresa o de un Trabajador) que no está Vigente, o un
 /// hueco total (ningún Documento) de un Tipo exigido por el Centro.
-/// Un documento de Trabajador o de Empresa, ausente o vencido, bloquea a PERSONAS
-/// (<see cref="ReglaBloqueoDeAcceso"/> por Centro, vía <see cref="IEvaluacionDeAccesoPorCentroService"/>: Mi trabajo y el detalle
-/// por Trabajador del Centro 360) y NUNCA pone el Centro en Bloqueado (decisión del propietario, 2026-10-03): «Bloqueado» es un
-/// estado del Trabajador. <see cref="CausaEstadoCentro.Bloqueante"/> queda solo para las causas que vienen de la plataforma
-/// del Cliente empresarial (vigencia vencida y acreditación rechazada, D-7).
+/// Un documento de Trabajador o de Empresa, ausente o vencido, y el veredicto de la plataforma del Cliente empresarial
+/// (vigencia vencida allí o acreditación rechazada, D-7) bloquean a PERSONAS (<see cref="ReglaBloqueoDeAcceso"/> por Centro, vía
+/// <see cref="IEvaluacionDeAccesoPorCentroService"/>: Mi trabajo y el detalle por Trabajador del Centro 360) y NUNCA ponen el
+/// Centro en Bloqueado (decisiones del propietario, 2026-10-03 y 2026-10-04): «Bloqueado» es un estado del Trabajador. Por eso
+/// la causa ya no lleva marca de bloqueo.
 /// Solo se generan causas para lo que efectivamente aporta al peor caso —
 /// nada Vigente aparece aquí, igual que ObtenerAlertasQuery no lista
 /// Documentos al día.
@@ -48,7 +48,7 @@ public enum AmbitoCausa
 /// que ya decidieron el EstadoCentro.
 /// </param>
 public record CausaEstadoCentro(
-    string Descripcion, EstadoDocumento? Estado, bool Bloqueante, AmbitoCausa Ambito,
+    string Descripcion, EstadoDocumento? Estado, AmbitoCausa Ambito,
     Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento);
 
 public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEstadoCentro> Causas);
@@ -57,14 +57,14 @@ public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEsta
 /// Cálculo compartido entre ObtenerCentrosQuery (badge de la tabla) y
 /// ObtenerEstadoCentroQuery (desglose del Workspace) — agrega de una sola
 /// vez los Documentos de Empresa, los Documentos y huecos obligatorios de
-/// cada Trabajador con Asignación activa, y los RequisitosDocumentales
-/// bloqueantes de uno o varios Centros, para no lanzar N consultas al pintar
+/// cada Trabajador con Asignación activa de uno o varios Centros, y la vigencia
+/// vencida en la plataforma, para no lanzar N consultas al pintar
 /// una página de la tabla. La lógica de "documento faltante" replica la de
 /// ObtenerAlertasQuery.ObtenerFaltantesAsync (Trabajador únicamente — los
 /// Documentos de Empresa aquí solo aportan su vigencia, sin detección de
-/// falta total, mismo alcance que esa Query). Además, dos causas bloqueantes que
-/// vienen de la plataforma del Cliente empresarial y no del archivo documental: la
-/// vigencia vencida en la plataforma y la acreditación rechazada por ella.
+/// falta total, mismo alcance que esa Query). La vigencia vencida en la plataforma
+/// del Cliente empresarial es una causa «vencido» como cualquier otra; el veredicto de esa
+/// plataforma sobre una persona (rechazo, vencimiento) bloquea al Trabajador, no al Centro.
 /// </summary>
 public interface ICalculoEstadoCentroService
 {
@@ -127,15 +127,13 @@ public class CalculoEstadoCentroService(
             await AgregarCausasDeEmpresaAsync(conGestionCae, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
             await AgregarCausasDeTrabajadorAsync(conGestionCae, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
             await AgregarCausasDeVigenciaEnPlataformaAsync(conGestionCae, hoy, causasPorCentro, cancellationToken);
-            await AgregarCausasDeRechazoEnPlataformaAsync(conGestionCae, causasPorCentro, cancellationToken);
         }
 
         var resultado = causasPorCentro.ToDictionary(
             par => par.Key,
             par => new ResultadoEstadoCentro(
                 CalculadoraEstadoCentro.Calcular(
-                    par.Value.Where(c => c.Estado is not null).Select(c => c.Estado!.Value).ToList(),
-                    par.Value.Any(c => c.Bloqueante)),
+                    par.Value.Where(c => c.Estado is not null).Select(c => c.Estado!.Value).ToList()),
                 par.Value));
 
         foreach (var centroId in sinGestionCae)
@@ -145,28 +143,22 @@ public class CalculoEstadoCentroService(
     }
 
     /// <summary>
-    /// Un documento cuya vigencia <b>en la plataforma</b> ya venció pone el
-    /// Centro en rojo, aunque en TALVEG siga vigente por su fecha de emisión.
-    /// Decisión del propietario (2026-09-21): si el portal no lo acepta, el
-    /// Trabajador no entra, y el semáforo existe para decir si se puede
-    /// trabajar — no para describir el archivo documental.
+    /// Un documento cuya vigencia <b>en la plataforma</b> ya venció es una causa «vencido» del Centro, aunque en TALVEG siga
+    /// vigente por su fecha de emisión: el semáforo existe para decir si se puede trabajar, no para describir el archivo
+    /// documental. NO pone el Centro en «Bloqueado» (decisión del propietario, 2026-10-04): si el portal no lo acepta, el
+    /// Trabajador no entra, y eso lo dice el bloqueo por Trabajador del Centro (<see cref="IEvaluacionDeAccesoPorCentroService"/>,
+    /// que lee el mismo veredicto en <see cref="AcreditacionesEnPlataformaDeCentros"/>). Lo que sigue aquí es el color «Vencido»
+    /// del Centro y su incidencia, igual que un documento vencido en TALVEG.
     ///
     /// <para>
-    /// Solo cuentan las vigencias <b>vencidas</b>, nunca las que están sin
-    /// confirmar. Meter «no lo sé» en rojo pondría en rojo todos los Centros a
-    /// la vez el día que se despliegue esto, porque las acreditaciones que ya
-    /// existen nacen sin confirmar. Eso no es lo que se decidió y no sería
-    /// información: sería ruido con el que nadie puede trabajar. Que falte por
-    /// confirmar se resuelve en su propia pantalla, no aquí.
+    /// Solo cuentan las vigencias <b>vencidas</b>, nunca las que están sin confirmar. Meter «no lo sé» en rojo pondría en rojo
+    /// todos los Centros a la vez el día que se despliegue, porque las acreditaciones que ya existen nacen sin confirmar. No se
+    /// filtra por <c>EstadoAcreditacion</c>: la condición es la fecha (ver <see cref="AcreditacionesEnPlataformaDeCentros"/>).
     /// </para>
     ///
     /// <para>
-    /// No se filtra por <c>EstadoAcreditacion</c> a propósito. La condición es
-    /// la fecha: si alguien anotó que aquello vence el día tal y ese día pasó,
-    /// allí ya no vale, esté la acreditación como esté. Condicionarlo además al
-    /// estado ataría esta regla a una correlación (solo las aceptadas tienen
-    /// fecha) que hoy se cumple y que un cambio futuro podría romper en
-    /// silencio.
+    /// El rechazo de la plataforma NO es una causa del Centro: no describe un documento vencido ni falta, es un veredicto sobre un
+    /// Trabajador o una Empresa y vive en su bloqueo por Trabajador (mismo motivo que lo retiró de «Bloqueado»).
     /// </para>
     /// </summary>
     private async Task AgregarCausasDeVigenciaEnPlataformaAsync(
@@ -175,7 +167,7 @@ public class CalculoEstadoCentroService(
     {
         // Un documento de Trabajador solo cuenta si ese Trabajador sigue
         // asignado al Centro: la acreditación sobrevive a la baja, y sin este
-        // filtro una vigencia vencida bloquearía un Centro por alguien que ya
+        // filtro una vigencia vencida marcaría un Centro por alguien que ya
         // no trabaja ahí. Es el mismo criterio que usa el resto del cálculo de
         // documentos de Trabajador; los de Empresa no dependen de asignaciones.
         var asignacionesActivas = await asignacionesContext.Asignaciones
@@ -187,28 +179,8 @@ public class CalculoEstadoCentroService(
             .GroupBy(a => a.CentroId)
             .ToDictionary(g => g.Key, g => g.Select(a => a.TrabajadorId).ToHashSet());
 
-        var vencidasEnPlataforma = await (
-            from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
-            where acreditacion.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
-            where acreditacion.FechaVencimientoEnPlataforma != null
-                  && acreditacion.FechaVencimientoEnPlataforma < hoy
-            join canal in centrosContext.CanalesGestionDocumental
-                on acreditacion.CanalGestionDocumentalId equals canal.Id
-            where centroIds.Contains(canal.CentroId)
-            join documento in documentosContext.Documentos.Operativos()
-                on acreditacion.DocumentoId equals documento.Id
-            join tipoDocumento in tiposDocumentoContext.TiposDocumento
-                on documento.TipoDocumentoId equals tipoDocumento.Id
-            select new
-            {
-                canal.CentroId,
-                documento.Id,
-                documento.TipoDocumentoId,
-                documento.TrabajadorId,
-                TipoDocumentoNombre = tipoDocumento.Nombre,
-                FechaVencimientoEnPlataforma = acreditacion.FechaVencimientoEnPlataforma!.Value
-            })
-            .ToListAsync(cancellationToken);
+        var vencidasEnPlataforma = await AcreditacionesEnPlataformaDeCentros.LeerVencidasAsync(
+            documentosContext, centrosContext, tiposDocumentoContext, centroIds, hoy, cancellationToken);
 
         foreach (var fila in vencidasEnPlataforma)
         {
@@ -222,117 +194,8 @@ public class CalculoEstadoCentroService(
             causas.Add(new CausaEstadoCentro(
                 $"{fila.TipoDocumentoNombre} — vencido en la plataforma",
                 EstadoDocumento.Vencido,
-                Bloqueante: true,
                 fila.TrabajadorId is null ? AmbitoCausa.Empresa : AmbitoCausa.Trabajador,
-                fila.Id, fila.TipoDocumentoId, fila.FechaVencimientoEnPlataforma));
-        }
-    }
-
-    /// <summary>
-    /// Una acreditación <b>aplicable</b> que la plataforma rechazó pone el Centro
-    /// en rojo, aunque el documento siga vigente en TALVEG (D-7 del piloto
-    /// Outbound). Validez documental en TALVEG, estado de acreditación externa y
-    /// cumplimiento contextual son tres cosas distintas: el semáforo dice si se
-    /// puede trabajar, y con la acreditación rechazada en la plataforma del
-    /// Cliente empresarial no se puede, esté el archivo como esté aquí.
-    ///
-    /// <para>
-    /// «Aplicable» es exactamente el contexto de este Centro: el canal de
-    /// plataforma de ESTE Centro (una rechazada de otro Centro no cuenta), el
-    /// Trabajador aún asignado a él (la acreditación sobrevive a la baja) y un
-    /// tipo que le aplique (fila explícita del Centro o, sin ella, requerido por defecto,
-    /// como en el resto del cálculo). Es el mismo motor: no
-    /// hay un segundo cálculo ni un estado global «Apto».
-    /// </para>
-    ///
-    /// <para>
-    /// Solo <c>Rechazada</c>. Pendiente de subir y Subida (esperando respuesta)
-    /// son trabajo y seguimiento, no un «no» de la plataforma, y no bloquean.
-    /// Rechazar reinicia la vigencia en plataforma, así que esta causa y la de
-    /// vigencia vencida nunca cuentan la misma acreditación dos veces; renovar el
-    /// documento reinicia la acreditación a Pendiente y retira el bloqueo.
-    /// </para>
-    /// </summary>
-    private async Task AgregarCausasDeRechazoEnPlataformaAsync(
-        IReadOnlyList<Guid> centroIds,
-        Dictionary<Guid, List<CausaEstadoCentro>> causasPorCentro, CancellationToken cancellationToken)
-    {
-        var rechazadas = await (
-            from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
-            where acreditacion.Estado == EstadoAcreditacion.Rechazada
-            join canal in centrosContext.CanalesGestionDocumental
-                on acreditacion.CanalGestionDocumentalId equals canal.Id
-            where centroIds.Contains(canal.CentroId)
-            join documento in documentosContext.Documentos.Operativos()
-                on acreditacion.DocumentoId equals documento.Id
-            join tipoDocumento in tiposDocumentoContext.TiposDocumento
-                on documento.TipoDocumentoId equals tipoDocumento.Id
-            select new
-            {
-                canal.CentroId,
-                documento.Id,
-                documento.TipoDocumentoId,
-                documento.TrabajadorId,
-                TipoDocumentoNombre = tipoDocumento.Nombre,
-                CuentaParaCumplimiento = tipoDocumento.Requerido == RequisitoDocumental.Si
-            })
-            .ToListAsync(cancellationToken);
-
-        if (rechazadas.Count == 0) return;
-
-        var asignacionesActivas = await asignacionesContext.Asignaciones
-            .Where(a => a.FechaBaja == null && centroIds.Contains(a.CentroId))
-            .Select(a => new { a.CentroId, a.TrabajadorId })
-            .ToListAsync(cancellationToken);
-        var trabajadoresPorCentro = asignacionesActivas
-            .GroupBy(a => a.CentroId)
-            .ToDictionary(g => g.Key, g => g.Select(a => a.TrabajadorId).ToHashSet());
-
-        var tipoIds = rechazadas.Select(r => r.TipoDocumentoId).Distinct().ToList();
-        var filasPorPar = (await tiposDocumentoContext.TiposDocumentoCentros
-            .Where(tc => tipoIds.Contains(tc.TipoDocumentoId) && centroIds.Contains(tc.CentroId))
-            .ToListAsync(cancellationToken))
-            .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
-
-        var trabajadorIds = rechazadas.Where(r => r.TrabajadorId is not null).Select(r => r.TrabajadorId!.Value).Distinct().ToList();
-        var nombres = await trabajadoresContext.Trabajadores
-            .Where(t => trabajadorIds.Contains(t.Id))
-            .ToDictionaryAsync(t => t.Id, t => t.Nombre + " " + t.Apellidos, cancellationToken);
-
-        foreach (var fila in rechazadas)
-        {
-            if (!causasPorCentro.TryGetValue(fila.CentroId, out var causas)) continue;
-
-            if (fila.TrabajadorId is { } trabajadorId
-                && !(trabajadoresPorCentro.TryGetValue(fila.CentroId, out var asignados)
-                     && asignados.Contains(trabajadorId)))
-                continue;
-
-            // Misma regla de aplicabilidad que el resto del cálculo: una fila explícita del Centro
-            // manda; sin ella, solo cuenta un tipo requerido por defecto. Un rechazo de un tipo
-            // opcional no bloquea, pero sigue visible como trabajo en la Bandeja.
-            if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, fila.TipoDocumentoId, fila.CentroId, fila.CuentaParaCumplimiento))
-                continue;
-
-            var propietario = fila.TrabajadorId is { } id && nombres.TryGetValue(id, out var nombre)
-                ? $" — {nombre}"
-                : " — Empresa";
-            // Sin vigencia documental que describir: no es un vencimiento de
-            // fecha, es un rechazo activo de la plataforma del Cliente
-            // empresarial (a diferencia de su causa hermana "vencido en la
-            // plataforma", que sí tiene una FechaVencimientoEnPlataforma real
-            // y por eso reutiliza EstadoDocumento.Vencido con propiedad). Forzar
-            // aquí un EstadoDocumento sería una clasificación documental falsa
-            // — un rechazo no es un vencimiento — así que Estado se deja sin
-            // valor a propósito. ObtenerCentrosQuery.Desglosar la bucketiza por
-            // Bloqueante, y AcordeonAsignacionesCentro ya sabe renderizar esta
-            // causa sin badge de vigencia documental.
-            causas.Add(new CausaEstadoCentro(
-                $"{fila.TipoDocumentoNombre}{propietario} — rechazado por la plataforma",
-                Estado: null,
-                Bloqueante: true,
-                fila.TrabajadorId is null ? AmbitoCausa.Empresa : AmbitoCausa.Trabajador,
-                fila.Id, fila.TipoDocumentoId, FechaVencimiento: null));
+                fila.DocumentoId, fila.TipoDocumentoId, fila.VencimientoEnPlataforma));
         }
     }
 
@@ -380,7 +243,7 @@ public class CalculoEstadoCentroService(
             if (!centroIdsPorEmpresa.TryGetValue(documento.EmpresaId, out var centrosDeEmpresa)) continue;
 
             var causa = new CausaEstadoCentro(
-                $"{documento.Nombre} — Empresa", estado, Bloqueante: false, AmbitoCausa.Empresa,
+                $"{documento.Nombre} — Empresa", estado, AmbitoCausa.Empresa,
                 documento.Id, documento.TipoDocumentoId, documento.FechaVencimiento);
             foreach (var centroId in centrosDeEmpresa)
                 causasPorCentro[centroId].Add(causa);
@@ -437,7 +300,7 @@ public class CalculoEstadoCentroService(
 
                 causasPorCentro[asignacion.CentroId].Add(
                     new CausaEstadoCentro(
-                        $"{documento.Nombre} — {asignacion.TrabajadorNombre}", estado, Bloqueante: false, AmbitoCausa.Trabajador,
+                        $"{documento.Nombre} — {asignacion.TrabajadorNombre}", estado, AmbitoCausa.Trabajador,
                         DocumentoId: null, TipoDocumentoId: null, FechaVencimiento: null));
             }
         }
@@ -482,7 +345,7 @@ public class CalculoEstadoCentroService(
                 // Aunque la fila marque BloqueaAcceso, la falta total de un documento es un «Falta documentación» del Centro,
                 // no un «Bloqueado»: quien queda bloqueado es el Trabajador (ReglaBloqueoDeAcceso, por Centro).
                 causasPorCentro[asignacion.CentroId].Add(new CausaEstadoCentro(
-                    $"{tipo.Nombre} — {asignacion.TrabajadorNombre}", EstadoDocumento.Faltante, Bloqueante: false, AmbitoCausa.Trabajador,
+                    $"{tipo.Nombre} — {asignacion.TrabajadorNombre}", EstadoDocumento.Faltante, AmbitoCausa.Trabajador,
                     DocumentoId: null, TipoDocumentoId: null, FechaVencimiento: null));
             }
         }
