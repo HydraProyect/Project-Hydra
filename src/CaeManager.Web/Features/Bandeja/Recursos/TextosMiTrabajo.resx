@@ -27,6 +27,9 @@
   <data name="CarteraIncompleta" xml:space="preserve">
     <value>Cartera incompleta: no pudimos consultar {0}. Lo que ves es el resto de tu cartera.</value>
   </data>
+  <data name="CargandoEmpresas" xml:space="preserve">
+    <value>Cargando {0} de {1} empresas…</value>
+  </data>
   <data name="AlDiaIncompleta" xml:space="preserve">
     <value>Lo consultado está al día</value>
   </data>
