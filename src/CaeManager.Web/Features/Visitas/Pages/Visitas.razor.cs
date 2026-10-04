@@ -51,6 +51,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private bool _soloActivas = true;
     private bool _soloUrgentes;
     private string _filtroNotificado = string.Empty;
+    private string _orden = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -197,6 +198,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     [SupplyParameterFromQuery(Name = "notificado")]
     public string? NotificadoInicial { get; set; }
 
+    /// <summary>Orden pedido por la URL: <c>documentacion</c> = las Visitas con documentación por gestionar primero.</summary>
+    [SupplyParameterFromQuery(Name = "orden")]
+    public string? OrdenInicial { get; set; }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     private GridItemsProvider<VisitaListaDto>? _proveedorElementos;
@@ -226,6 +231,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     {
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _filtroNotificado = NotificadoInicial ?? string.Empty;
+        _orden = OrdenInicial == OrdenPorDocumentacion ? OrdenPorDocumentacion : string.Empty;
     }
 
     /// <summary>
@@ -246,6 +252,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _errorCarga = false;
 
         var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+        // El orden de la URL manda sobre el de la cabecera: «por gestionar»
+        // son los verdaderos (descendente).
+        if (_orden == OrdenPorDocumentacion)
+            (ordenarPor, descendente) = (nameof(VisitaListaDto.PorGestionar), true);
         var consulta = new ObtenerVisitasQuery(
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             SoloActivas: _soloActivas,
@@ -293,6 +303,15 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     {
         _busqueda = valor;
         NavigationManager.ActualizarFiltroEnUrl("q", valor);
+        await RecargarAsync();
+    }
+
+    private const string OrdenPorDocumentacion = "documentacion";
+
+    private async Task OrdenarAsync(string valor)
+    {
+        _orden = valor == OrdenPorDocumentacion ? valor : string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("orden", _orden);
         await RecargarAsync();
     }
 
@@ -731,6 +750,25 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _detalleVisible = false;
         await AbrirEditarAsync(detalle.Id);
     }
+
+    /// <summary>Día de negocio (Europe/Madrid) de la carga de la página, para «hoy/mañana».</summary>
+    private DateOnly Hoy => DiaDeNegocio.Hoy();
+
+    private string TextoPlazo(VisitaListaDto v)
+    {
+        var (plazo, dias) = AntelacionVisitaUi.Plazo(v.FechaInicio, v.FechaFin, Hoy);
+        return plazo switch
+        {
+            PlazoVisita.Hoy => Textos["PlazoHoy"].Value,
+            PlazoVisita.Manana => Textos["PlazoManana"].Value,
+            PlazoVisita.EnDias => Textos["PlazoEnDias", dias].Value,
+            PlazoVisita.EnCurso => Textos["PlazoEnCurso"].Value,
+            _ => Textos["PlazoFinalizada"].Value
+        };
+    }
+
+    private string TituloTramo(VisitaListaDto v) =>
+        Textos["DetalleAntelacionHoras", AntelacionVisitaUi.Horas(v.AntelacionNominalHoras), AntelacionVisitaUi.Horas(v.AntelacionEfectivaHoras)].Value;
 
     private static string TextoFechas(DateOnly inicio, DateOnly fin) =>
         inicio == fin ? inicio.ToString("dd/MM/yyyy") : $"{inicio:dd/MM/yyyy} – {fin:dd/MM/yyyy}";
