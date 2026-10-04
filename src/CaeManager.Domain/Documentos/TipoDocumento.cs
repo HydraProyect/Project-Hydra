@@ -22,6 +22,15 @@ public class TipoDocumento : EntidadConTenant
     public string Nombre { get; private set; } = string.Empty;
     public int? VigenciaMeses { get; private set; }
     public bool AplicaVencimientoAutomatico { get; private set; }
+
+    /// <summary>
+    /// La fecha de vencimiento de un Documento de este tipo es siempre un cálculo desde su emisión
+    /// (<see cref="AplicaVencimientoAutomatico"/> con <see cref="VigenciaMeses"/>): nadie tiene que
+    /// confirmarla a mano. Es el criterio de la aceptación en bloque de la Revisión IA, que nunca fija
+    /// una vigencia que el Gestor CAE no haya visto. La consulta de revisiones pendientes repite este
+    /// predicado como expresión SQL; <c>AceptarDeteccionesIaEnBloqueTests</c> comprueba que coinciden.
+    /// </summary>
+    public bool FijaVigenciaDesdeLaEmision => AplicaVencimientoAutomatico && VigenciaMeses.HasValue;
     public string? Notas { get; private set; }
     public int Orden { get; private set; }
     public string? Descripcion { get; private set; }

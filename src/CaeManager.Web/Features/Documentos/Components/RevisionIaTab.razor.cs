@@ -1,3 +1,4 @@
+using CaeManager.Application.Documentos.Commands.AceptarDeteccionesIaEnBloque;
 using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
 using CaeManager.Application.Documentos.Commands.CorregirRevisionIaDocumento;
 using CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento;
@@ -10,7 +11,16 @@ namespace CaeManager.Web.Features.Documentos.Components;
 public partial class RevisionIaTab : ComponentBase, IDisposable
 {
     private Drawer? _drawerCorreccion;
-    private const int UmbralConfianzaLote = 95;
+    // Solo preselecciona: nada se acepta sin que el Gestor CAE pulse «Aceptar seleccionadas». No es el umbral del modelo.
+    private const int ConfianzaMinimaPorDefecto = 95;
+    private static IReadOnlyList<int> ConfianzasMinimas { get; } = [95, 90, 80];
+
+    private sealed record FalloAceptacion(string Propietario, string Tipo, string Motivo);
+
+    private readonly HashSet<Guid> _seleccion = [];
+    private int _confianzaMinima = ConfianzaMinimaPorDefecto;
+    private bool _preseleccionPendiente = true;
+    private IReadOnlyList<FalloAceptacion> _fallosBloque = [];
 
     private IReadOnlyList<RevisionIaDocumentoDto> _revisiones = [];
     private bool _cargando = true;
@@ -48,7 +58,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     ];
 
     private IReadOnlyList<RevisionIaDocumentoDto> RevisionesVisibles => _revisiones.Where(CumpleFiltro).ToList();
-    private IReadOnlyList<RevisionIaDocumentoDto> RevisionesConfirmablesEnLote => _revisiones.Where(EsConfirmable).ToList();
+    private IReadOnlyList<RevisionIaDocumentoDto> RevisionesSeleccionadas => _revisiones.Where(r => _seleccion.Contains(r.Id) && EsAceptableEnBloque(r)).ToList();
     private RevisionIaDocumentoDto? RevisionSeleccionada => _revisiones.FirstOrDefault(r => r.Id == _revisionIdSeleccionada);
 
     protected override Task OnInitializedAsync() => CargarAsync();
@@ -73,6 +83,17 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             }
 
             _revisiones = revisiones;
+            if (_preseleccionPendiente)
+            {
+                Preseleccionar();
+                _preseleccionPendiente = false;
+            }
+            else
+            {
+                // Lo ya aceptado o resuelto por otra vía sale de la selección; lo que falló sigue marcado para reintentar.
+                _seleccion.IntersectWith(revisiones.Select(r => r.Id));
+            }
+
             SeleccionarPrimeraVisible();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -236,48 +257,48 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         }
     }
 
-    private async Task ConfirmarLoteAsync()
+    private async Task AceptarSeleccionadasAsync()
     {
         if (_confirmandoLote || _operacionEnCurso)
         {
             return;
         }
 
-        var revisionIds = RevisionesConfirmablesEnLote.Select(r => r.Id).ToList();
-        if (revisionIds.Count == 0)
+        var seleccionadas = RevisionesSeleccionadas;
+        if (seleccionadas.Count == 0)
         {
             return;
         }
 
+        var datos = seleccionadas.ToDictionary(r => r.Id);
         _confirmandoLote = true;
         _operacionEnCurso = true;
+        _fallosBloque = [];
         StateHasChanged();
 
         try
         {
-            var confirmadas = 0;
-            var errores = 0;
-            foreach (var revisionId in revisionIds)
-            {
-                var resultado = await Mediator.Send(new AplicarDeteccionIaDocumentoCommand(revisionId));
-                if (resultado.EsExitoso)
-                {
-                    confirmadas++;
-                }
-                else
-                {
-                    errores++;
-                }
-            }
-
+            var resultado = await Mediator.Send(new AceptarDeteccionesIaEnBloqueCommand(seleccionadas.Select(r => r.Id).ToList()));
             if (_dispose)
             {
                 return;
             }
 
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            var desenlace = resultado.Valor;
+            _fallosBloque = desenlace.Resultados
+                .Where(r => !r.Aceptada)
+                .Select(r => new FalloAceptacion(
+                    datos[r.RevisionId].PropietarioNombre, datos[r.RevisionId].TipoDocumentoNombre, r.Mensaje ?? Textos["RevIaFalloGenerico"]))
+                .ToList();
             ToastService.Mostrar(
-                ResumenLote(confirmadas, revisionIds.Count, errores),
-                confirmadas == revisionIds.Count ? TonoToast.Exito : TonoToast.Advertencia);
+                ResumenBloque(desenlace.Aceptadas, seleccionadas.Count, desenlace.Fallidas),
+                desenlace.Fallidas == 0 ? TonoToast.Exito : TonoToast.Advertencia);
             _confirmacionLoteVisible = false;
             await CargarAsync();
         }
@@ -287,6 +308,47 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             _operacionEnCurso = false;
         }
     }
+
+    private void Preseleccionar()
+    {
+        _seleccion.Clear();
+        foreach (var revision in _revisiones.Where(r => EsAceptableEnBloque(r) && r.ConfianzaGeneral >= _confianzaMinima))
+        {
+            _seleccion.Add(revision.Id);
+        }
+    }
+
+    private void CambiarConfianzaMinima(string valor)
+    {
+        if (!int.TryParse(valor, out var minima) || !ConfianzasMinimas.Contains(minima) || _operacionEnCurso)
+        {
+            return;
+        }
+
+        _confianzaMinima = minima;
+        _confirmacionLoteVisible = false;
+        Preseleccionar();
+    }
+
+    private void AlternarSeleccion(RevisionIaDocumentoDto revision, bool marcada)
+    {
+        if (_operacionEnCurso || !EsAceptableEnBloque(revision))
+        {
+            return;
+        }
+
+        _confirmacionLoteVisible = false;
+        if (marcada)
+        {
+            _seleccion.Add(revision.Id);
+        }
+        else
+        {
+            _seleccion.Remove(revision.Id);
+        }
+    }
+
+    private void CerrarFallosBloque() => _fallosBloque = [];
 
     private void CambiarFiltro(FiltroRevision filtro)
     {
@@ -330,7 +392,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         _procesandoId = null;
     }
 
-    private void PrepararConfirmacionLote() => _confirmacionLoteVisible = RevisionesConfirmablesEnLote.Count > 0;
+    private void PrepararConfirmacionLote() => _confirmacionLoteVisible = RevisionesSeleccionadas.Count > 0;
     private void PrepararDescartar() => _confirmacionDescartarVisible = RevisionSeleccionada is not null;
     private void PrepararCorreccionManual()
     {
@@ -360,13 +422,15 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
 
     private bool CumpleFiltro(RevisionIaDocumentoDto revision) => _filtro switch
     {
-        FiltroRevision.Confirmables => EsConfirmable(revision),
-        FiltroRevision.Manuales => revision.FechaEmisionDetectada is not null && !EsConfirmable(revision),
+        FiltroRevision.Confirmables => EsAceptableEnBloque(revision),
+        FiltroRevision.Manuales => revision.FechaEmisionDetectada is not null && !EsAceptableEnBloque(revision),
         FiltroRevision.SinFecha => revision.FechaEmisionDetectada is null,
         _ => true
     };
 
-    private static bool EsConfirmable(RevisionIaDocumentoDto revision) => revision.ConfianzaGeneral >= UmbralConfianzaLote && revision.FechaEmisionDetectada is not null;
+    // Aceptable en bloque = hay fecha de emisión leída y el tipo calcula el vencimiento desde ella. La confianza no
+    // decide esto, solo la preselección; la vigencia que confirma el Gestor CAE a mano no se acepta en bloque.
+    private static bool EsAceptableEnBloque(RevisionIaDocumentoDto revision) => revision.FechaEmisionDetectada is not null && revision.VigenciaLaFijaElTipo;
 
     private static string TextoFiltro(FiltroRevision f) => f switch
     {
@@ -379,13 +443,13 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private string ClaseFiltro(FiltroRevision f) => _filtro == f ? "revision-ia-filtro activo" : "revision-ia-filtro";
     private string ClaseRevision(RevisionIaDocumentoDto r) => RevisionSeleccionada?.Id == r.Id ? "revision-ia-fila activa" : "revision-ia-fila";
     private static string Ambito(RevisionIaDocumentoDto r) => r.TrabajadorId is null ? "Empresa" : "Trabajador";
-    private static string EtiquetaTratamiento(RevisionIaDocumentoDto r) => EsConfirmable(r)
-        ? "Confirmable en lote"
-        : r.FechaEmisionDetectada is null ? "Sin fecha" : "Revisión manual";
+    private string EtiquetaTratamiento(RevisionIaDocumentoDto r) => EsAceptableEnBloque(r)
+        ? Textos["RevIaAceptable"]
+        : r.FechaEmisionDetectada is null ? "Sin fecha" : Textos["RevIaVigenciaAMano"];
 
-    private static string ResumenLote(int confirmadas, int solicitadas, int errores) => confirmadas == solicitadas
-        ? $"{confirmadas} revisión(es) confirmada(s)."
-        : $"Se aplicaron {confirmadas} de {solicitadas} revisiones; {errores} no se pudieron aplicar.";
+    private string ResumenBloque(int aceptadas, int solicitadas, int fallidas) => aceptadas == solicitadas
+        ? Textos["RevIaResumenTodas", aceptadas]
+        : Textos["RevIaResumenParcial", aceptadas, solicitadas, fallidas];
 
     private static string Fecha(DateOnly? fecha) => fecha?.ToString("dd/MM/yyyy") ?? "No disponible";
     private static string Firma(bool? tieneFirma) => tieneFirma switch
