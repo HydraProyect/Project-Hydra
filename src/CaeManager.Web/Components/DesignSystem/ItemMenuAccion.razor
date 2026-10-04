@@ -58,7 +58,9 @@ else
     {
         if (!Habilitado) return;
         await OnClick.InvokeAsync();
-        Menu?.Cerrar();
+        // Una opción de filtro devuelve el foco a su pastilla; una acción no (ver MenuAcciones).
+        if (Marcado is not null) Menu?.CerrarDevolviendoFoco();
+        else Menu?.Cerrar();
     }
 
     // El navegador sigue el enlace por su cuenta; aquí solo se cierra el menú.

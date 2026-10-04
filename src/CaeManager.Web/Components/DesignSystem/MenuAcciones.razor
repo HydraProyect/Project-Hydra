@@ -93,6 +93,17 @@
         StateHasChanged();
     }
 
+    /// <summary>
+    /// Cierra y devuelve el foco al disparador: Esc, y elegir una opción de una pastilla de filtro
+    /// (el usuario sigue en la barra; sin esto el foco se perdería con el panel). Las acciones no
+    /// lo hacen: suelen abrir un drawer o un diálogo que se queda con el foco.
+    /// </summary>
+    internal void CerrarDevolviendoFoco()
+    {
+        _disparadorPendienteDeFoco = true;
+        Cerrar();
+    }
+
     internal void Registrar(ItemMenuAccion item)
     {
         if (_items.Contains(item)) return;
@@ -113,8 +124,7 @@
             case "Home": ProgramarFoco(habilitados.FirstOrDefault()); break;
             case "End": ProgramarFoco(habilitados.LastOrDefault()); break;
             case "Escape":
-                _disparadorPendienteDeFoco = true;
-                Cerrar();
+                CerrarDevolviendoFoco();
                 break;
             case "Tab": Cerrar(); break;
             // Enter y Espacio NO se manejan aquí: sobre un <button> el navegador ya

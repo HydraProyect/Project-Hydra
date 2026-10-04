@@ -212,6 +212,39 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
     }
 
     /// <summary>
+    /// Casos negativos de la «f»: escribiendo en un campo, la «f» es una letra más; con un menú
+    /// abierto (una pastilla de filtro), el teclado es del menú y el foco no salta al buscador.
+    /// </summary>
+    [Fact]
+    public async Task F_no_actua_escribiendo_en_un_campo_ni_con_un_menu_abierto()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
+
+        var buscador = page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Filtrar esta pantalla", Exact = true });
+
+        // Menú abierto: la pastilla «Estado» enfoca su opción vigente («Todos»).
+        var pastillaEstado = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Estado", Exact = true });
+        await pastillaEstado.ClickAsync();
+        var todos = page.GetByRole(AriaRole.Menuitemradio, new PageGetByRoleOptions { Name = "Todos", Exact = true });
+        await Expect(todos).ToBeFocusedAsync();
+        await page.Keyboard.PressAsync("f");
+        await Expect(todos).ToBeFocusedAsync();
+        await Expect(buscador).Not.ToBeFocusedAsync();
+        await page.Keyboard.PressAsync("Escape");
+        await Expect(pastillaEstado).ToHaveAttributeAsync("aria-expanded", "false");
+
+        // Campo editable: la «f» se escribe (se usa el propio buscador, sin debounce que esperar
+        // para leer su valor).
+        await buscador.FocusAsync();
+        await page.Keyboard.PressAsync("f");
+        await Expect(buscador).ToHaveValueAsync("f");
+    }
+
+    /// <summary>
     /// Defecto de accesibilidad (WCAG 2.1.1) encontrado en revisión de
     /// Plantillas: atajos-lista.js interceptaba Enter con preventDefault()
     /// sin mirar dónde estaba el foco, así que tabular hasta CUALQUIER botón

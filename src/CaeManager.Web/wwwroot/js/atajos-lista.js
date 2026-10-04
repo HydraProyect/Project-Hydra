@@ -63,6 +63,21 @@ function enfocarFilaActiva(intentosRestantes = 10) {
     }
 }
 
+// Un menú (MenuAcciones) abierto: el foco está dentro de su panel role="menu", o su
+// disparador anuncia aria-expanded="true" (abierto sin ítems habilitados, el foco se
+// queda en el disparador).
+function hayMenuAbierto(activo) {
+    if (activo?.closest?.('[role="menu"]')) return true;
+    return document.querySelector('[aria-haspopup="menu"][aria-expanded="true"]') !== null;
+}
+
+// Un buscador oculto (pestaña inactiva, display:none, visibility:hidden) o deshabilitado
+// no puede recibir la «f»: el foco se iría a un sitio que el usuario no ve.
+function esVisibleYUsable(campo) {
+    if (campo.disabled || campo.getClientRects().length === 0) return false;
+    return getComputedStyle(campo).visibility !== 'hidden';
+}
+
 export function registrarAtajosLista(dotNetRef) {
     const manejador = async (evento) => {
         if (!TECLAS_ADMITIDAS.includes(evento.key)) return;
@@ -80,8 +95,11 @@ export function registrarAtajosLista(dotNetRef) {
         if (evento.key === 'Enter' && enElementoInteractivo) return;
 
         if (evento.key === 'f') {
+            // Con un menú abierto (una pastilla de filtro, el «⋯» de la cabecera o de una fila)
+            // el teclado es del menú: «f» no le roba el foco.
+            if (hayMenuAbierto(activo)) return;
             const filtro = document.querySelector(SELECTOR_FILTRO_PANTALLA);
-            if (!filtro) return;
+            if (!filtro || !esVisibleYUsable(filtro)) return;
             // preventDefault: la «f» no debe acabar escrita dentro del campo recién enfocado.
             evento.preventDefault();
             filtro.focus();

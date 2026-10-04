@@ -92,6 +92,11 @@ public class PastillaFiltroTests : BunitContext
 
         _elegidos.Should().Equal("Vencido");
         cut.FindAll("[role=menu]").Should().BeEmpty();
+        var campo = typeof(MenuAcciones).GetField("_disparador", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var disparador = (ElementReference)campo.GetValue(cut.FindComponent<MenuAcciones>().Instance)!;
+        JSInterop.Invocations.Last(i => i.Identifier.Contains("focus", StringComparison.OrdinalIgnoreCase))
+            .Arguments[0].Should().BeOfType<ElementReference>().Which.Id
+            .Should().Be(disparador.Id, "el foco vuelve a la pastilla");
     }
 
     [Fact]

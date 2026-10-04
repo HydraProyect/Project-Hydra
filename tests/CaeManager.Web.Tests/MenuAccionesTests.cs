@@ -156,6 +156,28 @@ public class MenuAccionesTests : BunitContext
             .Should().Equal(("Todos", "false"), ("Con vencidos", "true"));
         cut.Find("[role=menu]").ClassList.Should().Contain("menu-acciones-panel-izquierda");
         FocoPedido(cut).Should().Be(ReferenciaItem(cut, "Con vencidos").Id);
+
+        // Elegir una opción cierra y devuelve el foco a la pastilla: si no, se perdería con el panel.
+        await cut.FindAll("[role=menuitemradio]").Single(i => i.TextContent.Trim() == "Todos").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=menu]").Should().BeEmpty();
+        FocoPedido(cut).Should().Be(ReferenciaDisparador(cut).Id);
+    }
+
+    /// <summary>
+    /// Una acción, en cambio, no devuelve el foco al disparador: suele abrir un drawer o un
+    /// diálogo, que se queda con él.
+    /// </summary>
+    [Fact]
+    public async Task Una_accion_cierra_el_menu_sin_devolver_el_foco_al_disparador()
+    {
+        var cut = Renderizar();
+        await Disparador(cut).ClickAsync(new MouseEventArgs());
+
+        await Item(cut, "Primera").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=menu]").Should().BeEmpty();
+        FocoPedido(cut).Should().NotBe(ReferenciaDisparador(cut).Id);
     }
 
     /// <summary>
