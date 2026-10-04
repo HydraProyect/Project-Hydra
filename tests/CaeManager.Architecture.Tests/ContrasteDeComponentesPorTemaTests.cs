@@ -127,6 +127,7 @@ public class ContrasteDeComponentesPorTemaTests
         new("Badge éxito", Badge, [".badge-exito"]),
         new("Badge advertencia", Badge, [".badge-advertencia"]),
         new("Badge peligro", Badge, [".badge-peligro"]),
+        new("Badge tolerancia (En tolerancia)", Badge, [".badge-tolerancia"]),
         new("Badge info", Badge, [".badge-info"]),
 
         // ---- Chips ----
@@ -298,6 +299,37 @@ public class ContrasteDeComponentesPorTemaTests
         Raiz("--color-primario-fondo-hover").Should().Be("#1e4a9e");
         Raiz("--color-primario-texto").Should().Be("#ffffff");
         Raiz("--color-exito-solido-texto").Should().Be("#ffffff");
+    }
+
+    /// <summary>
+    /// «En tolerancia» (decisión de Chris, 2026-10-04) es un tono propio ENTRE el ámbar de advertencia y el rojo de peligro, en
+    /// los dos temas y tanto en la letra como en el fondo del chip: el contraste ya lo mide <see cref="Pares"/>, esto fija que
+    /// el tono no se funda con ninguno de sus vecinos (un retoque que lo acercase al ámbar o al rojo deshace la decisión).
+    /// </summary>
+    [Theory]
+    [InlineData("oscuro", "--color-tolerancia-700", "--color-warning-700", "--color-danger-700")]
+    [InlineData("claro", "--color-tolerancia-700", "--color-warning-700", "--color-danger-700")]
+    [InlineData("oscuro", "--color-tolerancia-50", "--color-warning-50", "--color-danger-50")]
+    [InlineData("claro", "--color-tolerancia-50", "--color-warning-50", "--color-danger-50")]
+    public void El_tono_de_tolerancia_queda_entre_el_ambar_y_el_rojo_en_los_dos_temas(string tema, string tolerancia, string ambar, string rojo)
+    {
+        var tokens = Tokens.Desde(File.ReadAllText(RutaTokensCss()));
+
+        double Matiz(string token)
+        {
+            var hex = tokens.IntentarResolver($"var({token})", tema);
+            hex.Should().NotBeNull($"{token} debe declararse y resolverse en el tema {tema}");
+            var n = Convert.ToInt32(hex![1..], 16);
+            double r = (n >> 16) / 255.0, g = ((n >> 8) & 255) / 255.0, b = (n & 255) / 255.0;
+            var max = Math.Max(r, Math.Max(g, b));
+            var d = max - Math.Min(r, Math.Min(g, b));
+            var h = max == r ? ((g - b) / d) % 6 : max == g ? ((b - r) / d) + 2 : ((r - g) / d) + 4;
+            return (h * 60 + 360) % 360;
+        }
+
+        var (mAmbar, mTolerancia, mRojo) = (Matiz(ambar), Matiz(tolerancia), Matiz(rojo));
+        mTolerancia.Should().BeLessThan(mAmbar - 5, $"{tolerancia} no puede confundirse con el ámbar ({ambar})");
+        mTolerancia.Should().BeGreaterThan(mRojo + 5, $"{tolerancia} no puede confundirse con el rojo ({rojo})");
     }
 
     /// <param name="Relleno">Regla cuyo <c>background</c> es el relleno que tiene que distinguirse (sin letra).</param>

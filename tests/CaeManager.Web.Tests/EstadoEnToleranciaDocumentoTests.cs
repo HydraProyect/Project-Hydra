@@ -22,8 +22,9 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// «En tolerancia» (aprobado 2026-10-03): un Documento vencido que en ESTE Centro aún vale para acceder se rotula «Vencido · en
 /// tolerancia hasta dd/MM», con severidad entre Vencido y Urgente. Solo lo producen las vistas con contexto de Centro; sigue
-/// siendo un vencido para los recuentos y los filtros de «vencidos» (esconderlo sería contar menos de lo que hay), y su color es
-/// el ámbar de «lo que pide acción pero no es rojo».
+/// siendo un vencido para los recuentos y los filtros de «vencidos» (esconderlo sería contar menos de lo que hay). Su color
+/// (decisión de Chris, 2026-10-04) es un tono propio entre el ámbar de Próximo y Sin confirmar y el rojo de Vencido
+/// (<see cref="TonoBadge.Tolerancia"/>, tokens <c>--color-tolerancia-*</c>), porque su gravedad está entre Urgente y Vencido.
 /// </summary>
 public class EstadoEnToleranciaDocumentoTests : BunitContext
 {
@@ -59,9 +60,13 @@ public class EstadoEnToleranciaDocumentoTests : BunitContext
     }
 
     [Fact]
-    public void Es_ambar_no_rojo_y_cuenta_como_vencido_para_los_recuentos()
+    public void Tiene_tono_propio_ni_ambar_ni_rojo_y_cuenta_como_vencido_para_los_recuentos()
     {
-        EstadoDocumentoUi.Tono(EstadoDocumento.EnTolerancia).Should().Be(TonoBadge.Advertencia);
+        EstadoDocumentoUi.Tono(EstadoDocumento.EnTolerancia).Should().Be(TonoBadge.Tolerancia);
+        EstadoDocumentoUi.Tono(EstadoDocumento.EnTolerancia).Should().NotBe(EstadoDocumentoUi.Tono(EstadoDocumento.Proximo), "ya no comparte el ámbar de Próximo");
+        EstadoDocumentoUi.Tono(EstadoDocumento.EnTolerancia).Should().NotBe(EstadoDocumentoUi.Tono(EstadoDocumento.SinConfirmar), "ni el de Sin confirmar");
+        EstadoDocumentoUi.Tono(EstadoDocumento.EnTolerancia).Should().NotBe(EstadoDocumentoUi.Tono(EstadoDocumento.Vencido), "ni el rojo de Vencido");
+        EstadoDocumentoUi.Tono(EstadoDocumento.Proximo).Should().Be(TonoBadge.Advertencia, "control: Próximo sigue en ámbar");
         EstadoDocumentoUi.Tono(EstadoDocumento.Vencido).Should().Be(TonoBadge.Peligro, "control: el vencido sin tolerancia sigue en rojo");
         EstadoDocumentoUi.HaVencido(EstadoDocumento.EnTolerancia).Should().BeTrue();
         EstadoDocumentoUi.HaVencido(EstadoDocumento.Vencido).Should().BeTrue();
@@ -150,6 +155,31 @@ public class EstadoEnToleranciaDocumentoTests : BunitContext
         var fila = cut.Find(".tabla-documentos-requeridos .fila-documento-requerido");
         fila.TextContent.Should().Contain("Vencido · en tolerancia hasta 15/10");
         fila.TextContent.Should().Contain("Vencio 03/10/2026", "la fecha de vencimiento del Documento no cambia: la tolerancia no lo alarga");
+    }
+
+    [Fact]
+    public async Task La_insignia_de_la_fila_lleva_el_tono_propio_y_no_el_ambar_ni_el_rojo()
+    {
+        var cut = Renderizar(Trabajador("Ruiz Peña, Ana", EstadoDocumento.EnTolerancia, Hasta));
+
+        await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("tabla-documentos-requeridos"));
+
+        var insignia = cut.Find(".tabla-documentos-requeridos .fila-documento-requerido .badge");
+        insignia.ClassList.Should().Contain("badge-tolerancia");
+        insignia.ClassList.Should().NotContain("badge-advertencia").And.NotContain("badge-peligro");
+    }
+
+    [Theory]
+    [InlineData(TonoBadge.Tolerancia, "badge-tolerancia")]
+    [InlineData(TonoBadge.Advertencia, "badge-advertencia")]
+    [InlineData(TonoBadge.Peligro, "badge-peligro")]
+    public void El_Badge_pinta_la_clase_de_su_tono_y_lleva_icono(TonoBadge tono, string clase)
+    {
+        var cut = Render<Badge>(p => p.Add(b => b.Tono, tono).Add(b => b.ConIcono, true).AddChildContent("Texto"));
+
+        cut.Find("span.badge").ClassList.Should().Contain(clase);
+        cut.FindAll("svg").Should().ContainSingle("el estado no depende solo del color (WCAG 1.4.1)");
     }
 
     [Fact]
