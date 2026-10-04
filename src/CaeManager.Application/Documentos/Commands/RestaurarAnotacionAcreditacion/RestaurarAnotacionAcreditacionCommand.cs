@@ -14,6 +14,8 @@ namespace CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditac
 /// <item>Misma autorización y alcance de datos que las dos anotaciones que deshace.</item>
 /// <item>Devuelve los valores exactos previos: el estado y la vigencia, incluido
 /// «Sin confirmar», que no equivale a una vigencia anotada.</item>
+/// <item>El valor previo se valida contra el dominio (<c>PuedeDeshacerAnotacion</c>): no es una
+/// vía para poner cualquier estado.</item>
 /// <item>Rechaza si la acreditación cambió desde la anotación (la versión es obligatoria y
 /// se compara): otra persona o el propio Gestor CAE ya la tocaron, y deshacer pisaría ese cambio.</item>
 /// <item>Idempotente: si ya está en los valores previos, no escribe ni audita de nuevo.</item>
@@ -44,7 +46,7 @@ public class RestaurarAnotacionAcreditacionCommandHandler(
     {
         var noEncontrada = Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación.");
 
-        var acreditacion = await acreditacionRepositorio.ObtenerPorIdAsync(request.AcreditacionId, cancellationToken);
+        var acreditacion = await acreditacionRepositorio.ObtenerPorIdActualizadoAsync(request.AcreditacionId, cancellationToken);
         if (acreditacion is null)
             return Result.Fallo(noEncontrada);
 
@@ -60,7 +62,12 @@ public class RestaurarAnotacionAcreditacionCommandHandler(
                 ConcurrenciaOptimista.CodigoConflicto,
                 "No se puede deshacer: esta acreditación cambió después de anotarla. Abre el documento y corrige la vigencia a mano."));
 
-        acreditacion.Restaurar(request.EstadoPrevio, request.VigenciaPrevia);
+        if (!acreditacion.PuedeDeshacerAnotacion(request.EstadoPrevio, request.VigenciaPrevia))
+            return Result.Fallo(Error.Crear(
+                "Acreditacion.DeshacerNoValido",
+                "No se puede deshacer: el estado anterior ya no encaja con el de esta acreditación. Corrígela a mano."));
+
+        acreditacion.DeshacerAnotacion(request.EstadoPrevio, request.VigenciaPrevia);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

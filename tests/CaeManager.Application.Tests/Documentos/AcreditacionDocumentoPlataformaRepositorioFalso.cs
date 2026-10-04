@@ -9,6 +9,9 @@ public class AcreditacionDocumentoPlataformaRepositorioFalso : IAcreditacionDocu
     public Task<AcreditacionDocumentoPlataforma?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Acreditaciones.FirstOrDefault(a => a.Id == id));
 
+    public Task<AcreditacionDocumentoPlataforma?> ObtenerPorIdActualizadoAsync(Guid id, CancellationToken cancellationToken = default) =>
+        ObtenerPorIdAsync(id, cancellationToken);
+
     public Task<IReadOnlyList<AcreditacionDocumentoPlataforma>> ObtenerPorDocumentoIdAsync(
         Guid documentoId, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<AcreditacionDocumentoPlataforma>>(

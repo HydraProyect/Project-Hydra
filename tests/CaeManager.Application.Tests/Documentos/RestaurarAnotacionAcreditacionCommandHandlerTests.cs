@@ -141,6 +141,61 @@ public class RestaurarAnotacionAcreditacionCommandHandlerTests
         m.UnitOfWork.VecesGuardado.Should().Be(0);
     }
 
+    [Theory]
+    [InlineData(EstadoAcreditacion.Subida)]
+    [InlineData(EstadoAcreditacion.PendienteDeSubir)]
+    public async Task Solo_la_vigencia_se_corrige_si_la_acreditacion_no_esta_aceptada_y_no_vale_para_cambiar_el_estado(EstadoAcreditacion actual)
+    {
+        var m = new Mundo();
+        if (actual == EstadoAcreditacion.Subida) m.Acreditacion.MarcarSubida();
+        var version = m.Acreditacion.Version;
+
+        // Un «previo» fabricado: de Subida/Pendiente a NoRequerida no es deshacer ninguna anotación.
+        var r = await m.Restaurar().Handle(
+            new RestaurarAnotacionAcreditacionCommand(m.Acreditacion.Id, EstadoAcreditacion.NoRequerida, VigenciaEnPlataforma.SinConfirmar, version),
+            CancellationToken.None);
+
+        r.EsFallido.Should().BeTrue();
+        r.Error.Codigo.Should().Be("Acreditacion.DeshacerNoValido");
+        m.Acreditacion.Estado.Should().Be(actual);
+        m.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task No_se_devuelve_a_Rechazada_sin_rechazo_ni_con_una_vigencia_anotada()
+    {
+        var m = new Mundo();
+        m.Acreditacion.MarcarAceptada(Nueva);
+
+        var sinHistorial = await m.Restaurar().Handle(
+            new RestaurarAnotacionAcreditacionCommand(m.Acreditacion.Id, EstadoAcreditacion.Rechazada, VigenciaEnPlataforma.SinConfirmar, m.Acreditacion.Version),
+            CancellationToken.None);
+
+        sinHistorial.Error.Codigo.Should().Be("Acreditacion.DeshacerNoValido", "Rechazada sin ningún rechazo en el historial es incoherente");
+        m.Acreditacion.Estado.Should().Be(EstadoAcreditacion.Aceptada);
+    }
+
+    [Fact]
+    public async Task Se_puede_devolver_a_Rechazada_con_su_historial_y_vigencia_sin_confirmar_pero_no_con_una_anotada()
+    {
+        var m = new Mundo();
+        m.Acreditacion.Rechazar(CausaRechazoAcreditacion.Ilegible, "Firma ilegible", DateTime.UtcNow);
+        var recibo = (await m.Aceptar().Handle(new MarcarAcreditacionAceptadaCommand(m.Acreditacion.Id, Nueva), CancellationToken.None)).Valor;
+        recibo.EstadoPrevio.Should().Be(EstadoAcreditacion.Rechazada);
+
+        var conVigencia = await m.Restaurar().Handle(
+            new RestaurarAnotacionAcreditacionCommand(recibo.AcreditacionId, EstadoAcreditacion.Rechazada, Nueva, recibo.VersionResultante),
+            CancellationToken.None);
+        conVigencia.EsFallido.Should().BeTrue("Rechazar fija SinConfirmar: una rechazada con fecha anotada no existe");
+
+        var ok = await m.Restaurar().Handle(
+            new RestaurarAnotacionAcreditacionCommand(recibo.AcreditacionId, recibo.EstadoPrevio, recibo.VigenciaPrevia, recibo.VersionResultante),
+            CancellationToken.None);
+        ok.EsExitoso.Should().BeTrue();
+        m.Acreditacion.Estado.Should().Be(EstadoAcreditacion.Rechazada);
+        m.Acreditacion.HistorialRechazos.Should().HaveCount(1, "el historial de rechazos nunca se toca");
+    }
+
     [Fact]
     public void La_version_es_obligatoria_en_el_comando()
     {

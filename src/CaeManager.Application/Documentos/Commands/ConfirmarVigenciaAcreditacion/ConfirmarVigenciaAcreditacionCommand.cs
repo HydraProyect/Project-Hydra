@@ -28,7 +28,7 @@ public class ConfirmarVigenciaAcreditacionCommandHandler(
 {
     public async Task<Result<ResultadoAnotacionAcreditacionDto>> Handle(ConfirmarVigenciaAcreditacionCommand request, CancellationToken cancellationToken)
     {
-        var acreditacion = await acreditacionRepositorio.ObtenerPorIdAsync(request.AcreditacionId, cancellationToken);
+        var acreditacion = await acreditacionRepositorio.ObtenerPorIdActualizadoAsync(request.AcreditacionId, cancellationToken);
         if (acreditacion is null)
             return Result.Fallo<ResultadoAnotacionAcreditacionDto>(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
 
