@@ -33,6 +33,38 @@
     border-right: var(--border-default);
     display: flex;
     flex-direction: column;
+    /* Fija a la altura de la ventana: la marca queda arriba y el menú (NavMenu) hace su propio scroll. */
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    transition: width var(--motion-transition) var(--ease-fluid);
+}
+
+/* Modo compacto del menú lateral (<html data-menu-compacto>, lo escribe menu-lateral.js): solo iconos. */
+html[data-menu-compacto] .barra-lateral {
+    width: var(--sidebar-width-compacto);
+}
+
+html[data-menu-compacto] .marca {
+    justify-content: center;
+    padding: 0;
+}
+
+html[data-menu-compacto] .marca .marca-wordmark {
+    display: none;
+}
+
+/* El selector de empresa gestionada no cabe en 64px: se ofrece al ensanchar la barra. */
+html[data-menu-compacto] .barra-lateral > :not(.marca):not(nav) {
+    display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .barra-lateral {
+        transition: none;
+    }
 }
 
 .marca {

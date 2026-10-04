@@ -11,19 +11,26 @@
     usuario con rol Cliente no tiene ningún otro rol: Usuarios sustituye el
     rol y Roles solo asigna a cuentas pendientes sin rol).
 
-    Cada grupo es un <details>/<summary> nativo, no un componente
+    Cada grupo con cabecera es un <details>/<summary> nativo, no un componente
     interactivo: NavMenu no tiene @rendermode propio (ver el comentario de
     MainLayout.razor sobre "todo lo que vive fuera de @Body necesita su propio
     @rendermode explícito o nunca recibe eventos interactivos") y no hace falta
     pagar el coste de un circuito solo para colapsar un grupo — el navegador
-    ya lo resuelve gratis. wwwroot/js/menu-lateral.js solo persiste, por grupo
-    que el usuario haya tocado alguna vez, si quedó abierto o cerrado
-    (localStorage, por navegador — no viaja con la cuenta como el tema, es
-    puramente cosmético) y lo reaplica tras cada navegación "enhanced" de
-    Blazor, mismo mecanismo que tema.js. Un grupo que el usuario nunca tocó
-    conserva el "open" (o su ausencia) que trae su AbiertoPorDefecto — así el
-    colapso por defecto de Control no se pisa con un "abierto" forzado en el
-    primer render.
+    ya lo resuelve gratis. Un grupo con un solo enlace visible no lleva cabecera
+    ni se pliega: se pinta plano. Todo lo demás que es del navegador y no del
+    servidor lo hace wwwroot/js/menu-lateral.js, por navegador (localStorage, no
+    viaja con la cuenta como el tema): qué grupos quedaron abiertos o cerrados,
+    el modo compacto, los enlaces fijados (preferencia personal que solo puede
+    señalar enlaces que ya están en este menú: nunca concede nada), el filtro
+    con la tecla «/» y abrir solo el grupo de la página activa. Se reaplica tras
+    cada navegación "enhanced" de Blazor, mismo mecanismo que tema.js.
+
+    Contadores de pendientes (Mi trabajo, Alertas, Comunicaciones): NO los hay a
+    propósito. Ninguna de las tres pantallas tiene hoy una Query de solo recuento
+    (cada cifra sale de contar en memoria una lista ya cargada, con definiciones
+    distintas entre /bandeja y /mi-trabajo, y Comunicaciones no tiene el concepto
+    «sin leer»): pintarlos exigiría cargar esas colas en cada página o decidir qué
+    es «pendiente», y eso es decisión de producto/modelo.
 *@
 @using System.Security.Claims
 @using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma
@@ -35,53 +42,117 @@
 @using CaeManager.Application.Plataforma.OrdenMenu
 @using CaeManager.Infrastructure.Comunicaciones
 @using MediatR
+@using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Options
+@using CaeManager.Web.Recursos
 @inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
 @inject IMediator Mediator
 @inject IServiceProvider Servicios
-<nav class="nav-principal">
+@inject IStringLocalizer<TextosComunes> Textos
+<nav class="nav-principal" aria-label="@Textos["MenuNavegacionPrincipal"]">
+    <div class="nav-herramientas">
+        @if (_grupos.Count > 0)
+        {
+            <label class="nav-filtro">
+                <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
+                <input type="text" class="nav-filtro-campo" data-menu-filtro autocomplete="off"
+                       placeholder="@Textos["MenuFiltrar"]" aria-label="@Textos["MenuFiltrar"]" />
+                <kbd class="nav-filtro-tecla" aria-hidden="true">/</kbd>
+            </label>
+        }
+        <button type="button" class="nav-compactar" data-menu-compactar
+                aria-label="@Textos["MenuCompactar"]"
+                data-etiqueta-compactar="@Textos["MenuCompactar"]"
+                data-etiqueta-ampliar="@Textos["MenuAmpliar"]">
+            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+        </button>
+    </div>
+
     <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Cliente">
         <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
-            <Icono Nombre="dashboard" /> Inicio
+            <Icono Nombre="dashboard" /> <span class="nav-item-texto">Inicio</span>
         </NavLink>
         <NavLink class="nav-item" href="empresas">
-            <Icono Nombre="empresas" /> Empresas
+            <Icono Nombre="empresas" /> <span class="nav-item-texto">Empresas</span>
         </NavLink>
         <NavLink class="nav-item" href="subcontratas">
-            <Icono Nombre="subcontratas" /> Subcontratas
+            <Icono Nombre="subcontratas" /> <span class="nav-item-texto">Subcontratas</span>
         </NavLink>
         <NavLink class="nav-item" href="centros">
-            <Icono Nombre="centros" /> Centros
+            <Icono Nombre="centros" /> <span class="nav-item-texto">Centros</span>
         </NavLink>
         <NavLink class="nav-item" href="trabajadores">
-            <Icono Nombre="trabajadores" /> Trabajadores
+            <Icono Nombre="trabajadores" /> <span class="nav-item-texto">Trabajadores</span>
         </NavLink>
         <NavLink class="nav-item" href="documentos">
-            <Icono Nombre="documentos" /> Documentos
+            <Icono Nombre="documentos" /> <span class="nav-item-texto">Documentos</span>
         </NavLink>
     </AuthorizeView>
 
+    @if (_grupos.Count > 0)
+    {
+        @* Lo rellena menu-lateral.js con copias de las filas fijadas; vacío, no se ve. *@
+        <div class="nav-fijados" data-menu-fijados hidden>
+            <div class="nav-grupo-titulo nav-fijados-titulo">@Textos["MenuFijados"]</div>
+            <div class="nav-grupo-items" data-menu-fijados-lista></div>
+        </div>
+    }
+
     @foreach (var (grupo, enlaces) in _grupos)
     {
-        <details class="nav-grupo-detalle" data-grupo="@grupo.Id" open="@grupo.AbiertoPorDefecto">
-            <summary class="nav-grupo-titulo">
-                <span>@grupo.Titulo</span>
-                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-            </summary>
-            <div class="nav-grupo-items">
-                @foreach (var enlace in enlaces)
-                {
-                    <NavLink class="nav-item" href="@enlace.RutaPara(_contexto!)"
-                             Match="@(enlace.CoincidenciaExacta ? NavLinkMatch.All : NavLinkMatch.Prefix)">
-                        <Icono Nombre="@enlace.Icono" /> @enlace.RotuloPara(_contexto!)
-                    </NavLink>
-                }
+        if (enlaces.Count == 0)
+        {
+            continue;
+        }
+
+        if (enlaces.Count == 1)
+        {
+            @* Un solo enlace: la cabecera no aporta nada y el grupo no se pliega. *@
+            <div class="nav-grupo-detalle nav-grupo-plano" data-grupo="@grupo.Id">
+                <div class="nav-grupo-items">
+                    @foreach (var enlace in enlaces)
+                    {
+                        @FilaEnlace(enlace)
+                    }
+                </div>
             </div>
-        </details>
+        }
+        else
+        {
+            <details class="nav-grupo-detalle" data-grupo="@grupo.Id" data-abierto-defecto="@(grupo.AbiertoPorDefecto ? "true" : "false")" open="@grupo.AbiertoPorDefecto">
+                <summary class="nav-grupo-titulo" aria-expanded="@(grupo.AbiertoPorDefecto ? "true" : "false")">
+                    <span class="nav-grupo-rotulo">@grupo.Titulo</span>
+                    <span class="nav-grupo-extremo">
+                        <span class="nav-grupo-punto" aria-hidden="true"></span>
+                        <span class="nav-solo-lector">@Textos["MenuGrupoContieneActual"]</span>
+                        <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                    </span>
+                </summary>
+                <div class="nav-grupo-items">
+                    @foreach (var enlace in enlaces)
+                    {
+                        @FilaEnlace(enlace)
+                    }
+                </div>
+            </details>
+        }
     }
 </nav>
 
 @code {
+    private RenderFragment FilaEnlace(EnlaceMenuLateral enlace) => @<div class="nav-fila" data-enlace="@enlace.Id">
+        <NavLink class="nav-item" href="@enlace.RutaPara(_contexto!)"
+                 Match="@(enlace.CoincidenciaExacta ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+            <Icono Nombre="@enlace.Icono" /> <span class="nav-item-texto">@enlace.RotuloPara(_contexto!)</span>
+        </NavLink>
+        <button type="button" class="nav-fijar" data-fijar="@enlace.Id" aria-pressed="false"
+                aria-label="@Textos["MenuFijar", enlace.RotuloPara(_contexto!)]"
+                data-etiqueta-fijar="@Textos["MenuFijar", enlace.RotuloPara(_contexto!)]"
+                data-etiqueta-quitar="@Textos["MenuQuitarFijado", enlace.RotuloPara(_contexto!)]">
+            <Icono Nombre="estrella" Tamano="TamanoIcono.Pequeno" />
+        </button>
+    </div>;
+
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 
     private ContextoMenuLateral? _contexto;

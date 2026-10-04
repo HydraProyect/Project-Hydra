@@ -184,4 +184,28 @@
   <data name="EsperaHecho" xml:space="preserve">
     <value>Desat</value>
   </data>
+  <data name="MenuNavegacionPrincipal" xml:space="preserve">
+    <value>Navegació principal</value>
+  </data>
+  <data name="MenuFiltrar" xml:space="preserve">
+    <value>Filtra el menú</value>
+  </data>
+  <data name="MenuCompactar" xml:space="preserve">
+    <value>Compacta la barra lateral</value>
+  </data>
+  <data name="MenuAmpliar" xml:space="preserve">
+    <value>Amplia la barra lateral</value>
+  </data>
+  <data name="MenuFijar" xml:space="preserve">
+    <value>Fixa «{0}»</value>
+  </data>
+  <data name="MenuQuitarFijado" xml:space="preserve">
+    <value>Treu «{0}» dels fixats</value>
+  </data>
+  <data name="MenuFijados" xml:space="preserve">
+    <value>Fixats</value>
+  </data>
+  <data name="MenuGrupoContieneActual" xml:space="preserve">
+    <value>Conté la pàgina actual</value>
+  </data>
 </root>
