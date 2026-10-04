@@ -15,15 +15,9 @@
     white-space: nowrap;
 }
 
+/* Raíz de CampoSelectAvanzado: el aspecto del disparador y del panel es del kit; aquí solo el ancho. */
 .bandeja-orden-select {
-    min-height: 36px;
-    border: var(--border-control);
-    border-radius: var(--radius-md);
-    padding: 0 var(--space-3);
-    background: var(--color-surface);
-    color: var(--color-text);
-    font: var(--font-body-md);
-    cursor: pointer;
+    min-width: 9rem;
 }
 
 .bandeja-chips {

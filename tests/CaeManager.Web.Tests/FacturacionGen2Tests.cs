@@ -164,7 +164,7 @@ public class FacturacionGen2Tests : BunitContext
     }
 
     private static Task ElegirCliente(IRenderedComponent<FacturacionPagina> cut, Guid clienteId) =>
-        cut.Find("#sel-cliente").ChangeAsync(new ChangeEventArgs { Value = clienteId.ToString() });
+        cut.ElegirPorValorAsync("sel-cliente", clienteId.ToString());
 
     private static Task IrAResumen(IRenderedComponent<FacturacionPagina> cut) =>
         cut.FindAll("button[role=tab]").Single(b => b.TextContent.Trim() == "Resumen mensual").ClickAsync(new MouseEventArgs());

@@ -82,7 +82,6 @@ src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: (nombre de fichero) =
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: Bandeja = 3
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: ObtenerBandejaAgrupada = 1
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: ObtenerBandejaGestor = 1
-src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: OrdenBandeja = 2
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: _bandeja = 1
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: bandeja = 14
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: (nombre de fichero) = 1
@@ -95,7 +94,7 @@ src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: ObtenerBandejaAgru
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: ObtenerBandejaAgrupadaQuery = 1
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: ObtenerBandejaAgrupadaQueryHandler = 1
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: ObtenerBandejaGestor = 1
-src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: OrdenBandeja = 6
+src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: OrdenBandeja = 8
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: TipoItemBandeja = 24
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: _bandeja = 5
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: bandeja = 2
