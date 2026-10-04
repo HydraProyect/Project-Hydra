@@ -139,4 +139,13 @@
   <data name="Documento360VerVigente" xml:space="preserve">
     <value>Veure el document vigent</value>
   </data>
+  <data name="PlatAnotacionDeshecha" xml:space="preserve">
+    <value>Anotació desfeta.</value>
+  </data>
+  <data name="PlatAnotacionesDeshechas" xml:space="preserve">
+    <value>{0} anotacions desfetes.</value>
+  </data>
+  <data name="PlatDeshacerParcial" xml:space="preserve">
+    <value>{0} de {1} desfetes. {2}</value>
+  </data>
 </root>

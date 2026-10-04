@@ -262,6 +262,14 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
                 _ => "Desconocido"
             };
 
+            // Acción propia pedida por la entidad (p. ej. «Restaurado»): solo sustituye al
+            // genérico «Modificado»; Creado/Eliminado no se renombran. Siempre se consume,
+            // para que la marca no sobreviva a este guardado.
+            if (entrada.Entity is IAccionAuditoriaPropia propia
+                && propia.ConsumirAccionAuditoria() is { } accionPropia
+                && entrada.State == EntityState.Modified)
+                accion = accionPropia;
+
             var (entidadTipo, entidadId) = ResolverTipoEId(entrada);
             var sensibles = PropiedadesSensiblesPorTipo.GetValueOrDefault(entrada.Entity.GetType());
             var silenciosas = PropiedadesSilenciosasPorTipo.GetValueOrDefault(entrada.Entity.GetType());

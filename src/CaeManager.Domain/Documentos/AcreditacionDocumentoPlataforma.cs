@@ -1,3 +1,4 @@
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 
 namespace CaeManager.Domain.Documentos;
@@ -21,7 +22,7 @@ namespace CaeManager.Domain.Documentos;
 /// navegador sube documentos contra ellos. El comentario anterior decía que la
 /// lógica de "Lote 2-D" estaba todavía sin construir; dejó de ser verdad.
 /// </summary>
-public class AcreditacionDocumentoPlataforma : EntidadBase
+public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaPropia
 {
     private readonly List<RechazoAcreditacionDocumentoPlataforma> _historialRechazos = [];
 
@@ -97,6 +98,34 @@ public class AcreditacionDocumentoPlataforma : EntidadBase
     {
         EstadoVigencia = vigencia.Estado;
         FechaVencimientoEnPlataforma = vigencia.FechaVencimiento;
+    }
+
+    /// <summary>
+    /// «Deshacer» de una anotación: devuelve el estado y la vigencia EXACTOS que había
+    /// antes (incluido «Sin confirmar», que no es lo mismo que «anotada»). No toca
+    /// el historial de rechazos, que nunca se sobrescribe. La fila de auditoría
+    /// sale como <see cref="RegistroAuditoria.AccionRestaurado"/>.
+    /// </summary>
+    public void Restaurar(EstadoAcreditacion estadoPrevio, VigenciaEnPlataforma vigenciaPrevia)
+    {
+        if (!Enum.IsDefined(estadoPrevio))
+            throw new ArgumentOutOfRangeException(nameof(estadoPrevio), "Estado de acreditación no reconocido.");
+        if (estadoPrevio == EstadoAcreditacion.Rechazada && _historialRechazos.Count == 0)
+            throw new InvalidOperationException("No se puede restaurar a Rechazada una acreditación sin ningún rechazo en el historial.");
+
+        Estado = estadoPrevio;
+        AnotarVigencia(vigenciaPrevia);
+        _accionAuditoria = RegistroAuditoria.AccionRestaurado;
+    }
+
+    // Solo campo: sin propiedad, EF no lo mapea y nunca llega a la base de datos.
+    private string? _accionAuditoria;
+
+    string? IAccionAuditoriaPropia.ConsumirAccionAuditoria()
+    {
+        var accion = _accionAuditoria;
+        _accionAuditoria = null;
+        return accion;
     }
 
     public void MarcarNoRequerida() => Estado = EstadoAcreditacion.NoRequerida;

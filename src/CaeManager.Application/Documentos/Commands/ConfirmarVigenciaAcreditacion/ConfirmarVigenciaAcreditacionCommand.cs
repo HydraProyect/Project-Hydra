@@ -19,18 +19,18 @@ namespace CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditaci
 /// sistema imposible de completar desde el producto.
 /// </para>
 /// </summary>
-public record ConfirmarVigenciaAcreditacionCommand(Guid AcreditacionId, VigenciaEnPlataforma Vigencia) : ICommand;
+public record ConfirmarVigenciaAcreditacionCommand(Guid AcreditacionId, VigenciaEnPlataforma Vigencia) : ICommand<ResultadoAnotacionAcreditacionDto>;
 
 public class ConfirmarVigenciaAcreditacionCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
     IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork)
-    : IRequestHandler<ConfirmarVigenciaAcreditacionCommand, Result>
+    : IRequestHandler<ConfirmarVigenciaAcreditacionCommand, Result<ResultadoAnotacionAcreditacionDto>>
 {
-    public async Task<Result> Handle(ConfirmarVigenciaAcreditacionCommand request, CancellationToken cancellationToken)
+    public async Task<Result<ResultadoAnotacionAcreditacionDto>> Handle(ConfirmarVigenciaAcreditacionCommand request, CancellationToken cancellationToken)
     {
         var acreditacion = await acreditacionRepositorio.ObtenerPorIdAsync(request.AcreditacionId, cancellationToken);
         if (acreditacion is null)
-            return Result.Fallo(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
+            return Result.Fallo<ResultadoAnotacionAcreditacionDto>(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
 
         // Misma comprobación de alcance que el resto de comandos de
         // acreditación: la vigencia en una plataforma es un dato del Documento,
@@ -38,11 +38,15 @@ public class ConfirmarVigenciaAcreditacionCommandHandler(
         // vale.
         var documento = await documentoRepositorio.ObtenerPorIdAsync(acreditacion.DocumentoId, cancellationToken);
         if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
-            return Result.Fallo(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
+            return Result.Fallo<ResultadoAnotacionAcreditacionDto>(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
+
+        var estadoPrevio = acreditacion.Estado;
+        var vigenciaPrevia = acreditacion.Vigencia;
 
         acreditacion.ConfirmarVigencia(request.Vigencia);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result.Exito();
+        // Lo que se sobrescribió y la versión resultante: es lo que necesita «Deshacer».
+        return Result.Exito(new ResultadoAnotacionAcreditacionDto(acreditacion.Id, estadoPrevio, vigenciaPrevia, acreditacion.Version));
     }
 }

@@ -18,26 +18,30 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada;
 /// no un hueco.
 /// </para>
 /// </summary>
-public record MarcarAcreditacionAceptadaCommand(Guid AcreditacionId, VigenciaEnPlataforma Vigencia) : ICommand;
+public record MarcarAcreditacionAceptadaCommand(Guid AcreditacionId, VigenciaEnPlataforma Vigencia) : ICommand<ResultadoAnotacionAcreditacionDto>;
 
 public class MarcarAcreditacionAceptadaCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
     IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork)
-    : IRequestHandler<MarcarAcreditacionAceptadaCommand, Result>
+    : IRequestHandler<MarcarAcreditacionAceptadaCommand, Result<ResultadoAnotacionAcreditacionDto>>
 {
-    public async Task<Result> Handle(MarcarAcreditacionAceptadaCommand request, CancellationToken cancellationToken)
+    public async Task<Result<ResultadoAnotacionAcreditacionDto>> Handle(MarcarAcreditacionAceptadaCommand request, CancellationToken cancellationToken)
     {
         var acreditacion = await acreditacionRepositorio.ObtenerPorIdAsync(request.AcreditacionId, cancellationToken);
         if (acreditacion is null)
-            return Result.Fallo(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
+            return Result.Fallo<ResultadoAnotacionAcreditacionDto>(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
 
         var documento = await documentoRepositorio.ObtenerPorIdAsync(acreditacion.DocumentoId, cancellationToken);
         if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
-            return Result.Fallo(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
+            return Result.Fallo<ResultadoAnotacionAcreditacionDto>(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
+
+        var estadoPrevio = acreditacion.Estado;
+        var vigenciaPrevia = acreditacion.Vigencia;
 
         acreditacion.MarcarAceptada(request.Vigencia);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result.Exito();
+        // Lo que se sobrescribió y la versión resultante: es lo que necesita «Deshacer».
+        return Result.Exito(new ResultadoAnotacionAcreditacionDto(acreditacion.Id, estadoPrevio, vigenciaPrevia, acreditacion.Version));
     }
 }
