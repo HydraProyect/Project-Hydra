@@ -59,6 +59,17 @@
                     }
                     <input type="hidden" name="returnUrl" value="@RutaDeRetorno" />
 
+                    @if (Recientes.Count > 0)
+                    {
+                        <div class="selector-tenant-grupo" id="selector-tenant-recientes">@Textos["SelectorTenantRecientes"]</div>
+                        <div role="listbox" aria-labelledby="selector-tenant-recientes" aria-orientation="vertical" class="selector-tenant-lista">
+                            @foreach (var reciente in Recientes)
+                            {
+                                @Opcion(reciente, false)
+                            }
+                        </div>
+                    }
+
                     <div role="listbox" aria-label="@Textos["SelectorTenantLista"]" aria-orientation="vertical" class="selector-tenant-lista">
                         @foreach (var cliente in Filtrados)
                         {
@@ -90,9 +101,11 @@
     private RenderFragment Opcion(ClienteAutorizadoDto cliente, bool esOrigen) => __builder =>
     {
         var esActivo = cliente.TenantId == _activo!.TenantId;
+        var pendientes = Pendientes(cliente);
+        var etiqueta = pendientes is { } n ? $"{cliente.Nombre}, {Textos["SelectorTenantPendientes", n].Value}" : cliente.Nombre;
         <button type="submit" name="tenantId" value="@cliente.TenantId" role="option" aria-selected="@(esActivo ? "true" : "false")"
                 class="selector-tenant-fila @(esActivo ? "selector-tenant-fila-activa" : null)"
-                title="@cliente.Nombre" aria-label="@cliente.Nombre">
+                title="@cliente.Nombre" aria-label="@etiqueta">
             <AvatarTenant Nombre="@cliente.Nombre" LogoUrl="@UrlLogo(cliente)" Tamano="TamanoAvatarTenant.Pequeno" />
             <span class="selector-tenant-texto">
                 <span class="selector-tenant-nombre">@cliente.Nombre</span>
@@ -101,6 +114,10 @@
                     <span class="selector-tenant-sub">@Textos["SelectorTenantOrigen"]</span>
                 }
             </span>
+            @if (pendientes is { } total)
+            {
+                <span class="selector-tenant-contador" aria-hidden="true">@total</span>
+            }
             @if (esActivo)
             {
                 <span class="selector-tenant-marca" aria-hidden="true"><Icono Nombre="check" Tamano="TamanoIcono.Pequeno" /></span>

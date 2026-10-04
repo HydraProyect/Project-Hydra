@@ -249,6 +249,9 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 // exista la impersonacion.
 builder.Services.AddScoped<IActorAuditoria, ActorAuditoriaDesdeSesion>();
 builder.Services.AddScoped<IClienteActivoSeleccionado, CaeManager.Web.Services.ClienteActivoSeleccionado>();
+builder.Services.AddSingleton<CaeManager.Web.Services.IContadorPendientesSelectorTenant>(
+    _ => new CaeManager.Web.Services.ContadorPendientesSelectorTenant(TimeProvider.System));
+builder.Services.AddScoped<CaeManager.Web.Services.ILectorRecientesSelectorTenant, CaeManager.Web.Services.LectorRecientesSelectorTenant>();
 builder.Services.AddScoped<CaeManager.Application.Tenants.IVistaVocabularioPreviewService, CaeManager.Web.Services.VistaVocabularioPreviewCookie>();
 // Lente de demo (selector Dirección / Coordinador CAE / Gestor CAE): APAGADA por defecto y solo
 // para cuentas y Tenants de demo. Vive aqui y no en AddInfrastructure a proposito: un host sin la

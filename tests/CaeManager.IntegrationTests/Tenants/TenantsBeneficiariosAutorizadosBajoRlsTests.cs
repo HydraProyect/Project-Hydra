@@ -334,6 +334,8 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             _protector, CookieEmitida(httpContext, ClienteActivoSeleccionado.NombreCookie), _gestor);
         tenant.Should().Be(_a);
         operacion.Should().Be(_operacionA);
+        RecientesSelectorTenant.Interpretar(CookieEmitida(httpContext, RecientesSelectorTenant.NombreCookie), _gestor)
+            .Should().Equal([_a]);
     }
 
     [Fact]
@@ -361,6 +363,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
 
             resultado.Should().BeOfType<ForbidHttpResult>($"el Tenant {excluido} no está en el conjunto autorizado (I1)");
             CookieEmitida(httpContext, ClienteActivoSeleccionado.NombreCookie).Should().BeNull();
+            CookieEmitida(httpContext, RecientesSelectorTenant.NombreCookie).Should().BeNull("un Tenant rechazado nunca es reciente");
         }
     }
 
