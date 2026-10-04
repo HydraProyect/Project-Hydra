@@ -328,8 +328,32 @@ public class ContrasteDeComponentesPorTemaTests
         }
 
         var (mAmbar, mTolerancia, mRojo) = (Matiz(ambar), Matiz(tolerancia), Matiz(rojo));
-        mTolerancia.Should().BeLessThan(mAmbar - 5, $"{tolerancia} no puede confundirse con el ámbar ({ambar})");
-        mTolerancia.Should().BeGreaterThan(mRojo + 5, $"{tolerancia} no puede confundirse con el rojo ({rojo})");
+        // 8° de margen: con 5° la letra de claro (#b45309, 26°) y un tolerancia-700 a 22° apenas se distinguen en un chip de 11 px.
+        mTolerancia.Should().BeLessThan(mAmbar - 8, $"{tolerancia} no puede confundirse con el ámbar ({ambar})");
+        mTolerancia.Should().BeGreaterThan(mRojo + 8, $"{tolerancia} no puede confundirse con el rojo ({rojo})");
+    }
+
+    /// <summary>
+    /// Hallazgo de la revisión puente de «En tolerancia»: <c>Badge</c> y el punto de <c>CampoSelectAvanzado</c> derivan la clase CSS
+    /// del NOMBRE del <c>TonoBadge</c>. Un valor nuevo sin regla caería al gris en silencio: este cruce lo hace fallar.
+    /// </summary>
+    [Fact]
+    public void Todo_valor_de_TonoBadge_tiene_su_clase_en_el_Badge_y_en_el_punto_del_selector()
+    {
+        var badge = Leer(Badge);
+        var selector = Leer(Select);
+        var sinClase = new List<string>();
+
+        foreach (var tono in Enum.GetValues<CaeManager.Web.Components.DesignSystem.TonoBadge>())
+        {
+            var nombre = tono.ToString().ToLowerInvariant();
+            if (!Regex.IsMatch(badge, $@"(^|\s|,)\.badge-{nombre}\s*\{{")) sinClase.Add($".badge-{nombre} en {Badge}");
+            // Neutro es el punto por defecto (.csa-punto, gris): no lleva variante.
+            if (tono != CaeManager.Web.Components.DesignSystem.TonoBadge.Neutro
+                && !Regex.IsMatch(selector, $@"(^|\s|,)\.csa-punto-{nombre}\s*\{{")) sinClase.Add($".csa-punto-{nombre} en {Select}");
+        }
+
+        sinClase.Should().BeEmpty("cada TonoBadge necesita su regla en las dos hojas que derivan la clase de su nombre");
     }
 
     /// <param name="Relleno">Regla cuyo <c>background</c> es el relleno que tiene que distinguirse (sin letra).</param>
@@ -348,6 +372,8 @@ public class ContrasteDeComponentesPorTemaTests
             ".visitas-interruptor:checked::before", ".visitas-interruptor:checked"),
         new("Conector de paso completado", "Components/DesignSystem/IndicadorPasos.razor.css",
             ".indicador-pasos-item.indicador-pasos-completado:not(:last-child)::after", "var(--color-surface)"),
+        new("Punto de «En tolerancia» del selector avanzado sobre la superficie",
+            "Components/DesignSystem/CampoSelectAvanzado.razor.css", ".csa-punto-tolerancia", "var(--color-surface)"),
         new("Línea completada de la revisión de sugerencia",
             "Features/Comunicaciones/Components/RevisionSugerenciaModal.razor.css",
             ".revision-stepper-linea-completa", "var(--color-surface)"),

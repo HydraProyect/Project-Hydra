@@ -54,9 +54,13 @@
      un tono propio entre el ámbar de Próximo / Sin confirmar y el rojo de Vencido,
      porque su gravedad está entre Urgente y Vencido. Mismo reparto que el resto
      de la familia: -50 es el fondo del chip y -700 la letra, que se espeja en
-     oscuro. Solo lo usa .badge-tolerancia; no es un color decorativo. */
-  --color-tolerancia-50: #ffe8d6;
-  --color-tolerancia-700: #ad3507;
+     oscuro. -500 es solo para rellenos sin letra (el punto de una opción del
+     selector): un token no puede hacer de texto y de fondo a la vez, y no se
+     espeja porque #e0500a se distingue de la superficie a >= 3:1 en los dos
+     temas (3,95:1 sobre blanco, 4,12:1 sobre #17212c). No es un color decorativo. */
+  --color-tolerancia-50: #ffe3d5;
+  --color-tolerancia-500: #e0500a;
+  --color-tolerancia-700: #b12c0c;
   --color-info-50: var(--color-secondary-50);
   /* Papel: color de TEXTO informativo sobre fondo claro (badge-info,
      badge-visita, pendiente-rol-icono, chips de Plataforma) y acento de borde.
@@ -425,7 +429,7 @@
   --color-success-50: #eefdf3;
   --color-warning-50: #fff8eb;
   --color-danger-50: #fef2f2;
-  --color-tolerancia-50: #ffe8d6;
+  --color-tolerancia-50: #ffe3d5;
   --color-secondary-50: #f1f4f7;
   --color-primary-50: #eef5ff;
   --color-avatar-fondo: var(--color-primary-100);
