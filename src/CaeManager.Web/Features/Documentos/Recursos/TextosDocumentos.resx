@@ -139,6 +139,15 @@
   <data name="Documento360VerVigente" xml:space="preserve">
     <value>Ver el documento vigente</value>
   </data>
+  <data name="PlatAnotacionDeshecha" xml:space="preserve">
+    <value>Anotación deshecha.</value>
+  </data>
+  <data name="PlatAnotacionesDeshechas" xml:space="preserve">
+    <value>{0} anotaciones deshechas.</value>
+  </data>
+  <data name="PlatDeshacerParcial" xml:space="preserve">
+    <value>{0} de {1} deshechas. {2}</value>
+  </data>
   <data name="RevIaReglaBloque" xml:space="preserve">
     <value>Aceptación en bloque: eliges la confianza y confirmas tú</value>
   </data>

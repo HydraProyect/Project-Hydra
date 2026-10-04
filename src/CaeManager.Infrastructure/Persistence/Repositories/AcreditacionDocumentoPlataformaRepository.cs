@@ -10,6 +10,20 @@ public class AcreditacionDocumentoPlataformaRepository(CaeManagerDbContext dbCon
             .Include(a => a.HistorialRechazos)
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
+    public async Task<AcreditacionDocumentoPlataforma?> ObtenerPorIdActualizadoAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var acreditacion = await ObtenerPorIdAsync(id, cancellationToken);
+        if (acreditacion is not null)
+        {
+            // Una consulta no refresca una entidad ya rastreada: sin esto se devolvería la copia vieja.
+            var entrada = dbContext.Entry(acreditacion);
+            await entrada.ReloadAsync(cancellationToken);
+            await entrada.Collection(a => a.HistorialRechazos).LoadAsync(cancellationToken);
+        }
+
+        return acreditacion;
+    }
+
     public async Task<IReadOnlyList<AcreditacionDocumentoPlataforma>> ObtenerPorDocumentoIdAsync(Guid documentoId, CancellationToken cancellationToken = default) =>
         await dbContext.AcreditacionesDocumentoPlataforma
             .Where(a => a.DocumentoId == documentoId)

@@ -20,6 +20,15 @@ public class RegistroAuditoria : EntidadConTenant
     /// </summary>
     public const string AccionAccesoDatoSensible = "AccesoDatoSensible";
 
+    /// <summary>
+    /// Acción de una <b>restauración</b>: deshacer una acción reciente devolviendo los
+    /// valores exactos previos. La escribe el interceptor (no un servicio aparte) a
+    /// petición de la entidad, vía <see cref="IAccionAuditoriaPropia"/>, así que es
+    /// atómica con el cambio. <see cref="DatosAntes"/> y <see cref="DatosDespues"/>
+    /// llevan lo que se sobrescribió y lo que se devolvió.
+    /// </summary>
+    public const string AccionRestaurado = "Restaurado";
+
     public string EntidadTipo { get; private set; } = string.Empty;
     public Guid EntidadId { get; private set; }
     public string Accion { get; private set; } = string.Empty;

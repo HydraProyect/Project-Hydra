@@ -335,6 +335,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.EliminarDocumentosCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionAceptadaCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionRechazadaCommandHandler", "IProyectosQueryContext"),
+        ("Documentos.RestaurarAnotacionAcreditacionCommandHandler", "IProyectosQueryContext"),
         // MVP2 § 14.5 (kill switch remoto, ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md en
         // el repositorio de negocio): ExigirProveedorActivo necesita resolver
         // el proveedor del canal de la acreditación (ICentrosQueryContext) y

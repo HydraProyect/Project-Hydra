@@ -231,4 +231,28 @@
   <data name="CabeceraDescartar" xml:space="preserve">
     <value>Descartar</value>
   </data>
+  <data name="MenuNavegacionPrincipal" xml:space="preserve">
+    <value>Navegación principal</value>
+  </data>
+  <data name="MenuFiltrar" xml:space="preserve">
+    <value>Filtrar el menú</value>
+  </data>
+  <data name="MenuCompactar" xml:space="preserve">
+    <value>Compactar la barra lateral</value>
+  </data>
+  <data name="MenuAmpliar" xml:space="preserve">
+    <value>Ampliar la barra lateral</value>
+  </data>
+  <data name="MenuFijar" xml:space="preserve">
+    <value>Fijar «{0}»</value>
+  </data>
+  <data name="MenuQuitarFijado" xml:space="preserve">
+    <value>Quitar «{0}» de los fijados</value>
+  </data>
+  <data name="MenuFijados" xml:space="preserve">
+    <value>Fijados</value>
+  </data>
+  <data name="MenuGrupoContieneActual" xml:space="preserve">
+    <value>Contiene la página actual</value>
+  </data>
 </root>

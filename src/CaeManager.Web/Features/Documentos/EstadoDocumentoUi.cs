@@ -33,8 +33,9 @@ public static class EstadoDocumentoUi
         // Vigencia sin anotar: pide acción del Gestor CAE, pero no es un
         // vencimiento conocido — ámbar, no rojo ni neutro.
         EstadoDocumento.SinConfirmar => TonoBadge.Advertencia,
-        // Vencido pero todavía válido para acceder a este Centro: ya no es lo urgente del rojo, y tampoco está al día.
-        EstadoDocumento.EnTolerancia => TonoBadge.Advertencia,
+        // Vencido pero todavía válido para acceder a este Centro: su gravedad está entre Urgente y Vencido, así que lleva un
+        // tono propio entre el ámbar y el rojo (decisión de Chris, 2026-10-04), no el ámbar de Próximo y Sin confirmar.
+        EstadoDocumento.EnTolerancia => TonoBadge.Tolerancia,
         _ => TonoBadge.Peligro
     };
 

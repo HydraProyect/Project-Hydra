@@ -146,16 +146,16 @@ public static class CatalogoMenuLateral
 
     public static IReadOnlyList<EnlaceMenuLateral> Enlaces { get; } =
     [
-        new("dashboard", "dashboards", "", "dashboard", "Inicio", CoincidenciaExacta: true),
+        new("dashboard", "dashboards", "", "inicio", "Inicio", CoincidenciaExacta: true),
         new("vision-cartera", "dashboards", "vision-cartera", "cartera", "Visión de cartera",
             Condicion: c => c.TieneAlgunRol(RolesDeCartera)),
         // Rótulo localizado (TextosIncorporacionCartera), a diferencia de sus vecinos todavía literales:
         // lo da RotuloPorContexto, así que el Rotulo fijo queda vacío.
-        new("solicitudes-cartera", "dashboards", "cartera/solicitudes", "cartera", "",
+        new("solicitudes-cartera", "dashboards", "cartera/solicitudes", "solicitud", "",
             // Por el rol en el tenant de origen, no por IsInRole (ver ParticipaEnIncorporacionCartera).
             Condicion: c => c.ParticipaEnIncorporacionCartera,
             RotuloPorContexto: _ => TextosIncorporacionCartera.Texto("EnlaceMenu")),
-        new("dashboard-ejecutivo", "dashboards", "dashboard-ejecutivo", "dashboard", "Dashboard Ejecutivo",
+        new("dashboard-ejecutivo", "dashboards", "dashboard-ejecutivo", "ejecutivo", "Dashboard Ejecutivo",
             Condicion: c => c.TieneAlgunRol(RolesDeDashboardEjecutivo)),
 
         // DDL-072 (decisión del propietario 2026-09-28): "Mi empresa" (registro único) solo si el
@@ -183,7 +183,7 @@ public static class CatalogoMenuLateral
         // un Tenant autorizado (mismo criterio que el selector de Tenant de la cabecera) es la cola
         // agregada de toda la cartera (/mi-trabajo); con uno solo, /bandeja. Abre Operación por
         // mandato del propietario del 2026-09-29.
-        new("mi-trabajo", "operacion", "bandeja", "alertas", "Mi trabajo",
+        new("mi-trabajo", "operacion", "bandeja", "mi-trabajo", "Mi trabajo",
             RutaPorContexto: c => c.VariosTenants ? "mi-trabajo" : "bandeja"),
         // Comunicaciones es la excepción explícita a "solo lo que ya funciona": se oculta con
         // Comunicaciones:Activo porque no hay ingesta real detrás (ver ComunicacionesOptions).
@@ -196,18 +196,20 @@ public static class CatalogoMenuLateral
         // Alertas NO es una segunda cola de "qué hacer ahora": desde DEC-4 es la vista agregada de
         // documentación a reclamar, que conserva a propósito EstadoDocumento.Proximo.
         new("alertas", "control", "alertas", "alertas", "Alertas"),
-        new("facturacion", "control", "facturacion", "reportes", "Facturación",
+        new("facturacion", "control", "facturacion", "facturacion", "Facturación",
             Condicion: c => c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
         new("calendario", "control", "calendario", "calendario", "Calendario"),
         new("reportes", "control", "reportes", "reportes", "Reportes"),
         // Cierra Control por mandato del propietario del 2026-09-29 (salvo el enlace de equipo del Coordinador CAE, de más abajo).
-        new("conectar-extension", "control", "cuenta/extension", "plataforma", "Conectar extensión"),
+        new("conectar-extension", "control", "cuenta/extension", "conectar", "Conectar extensión"),
+        // Rótulo «Mi equipo» (no «Usuarios»): Administración ya tiene su «Usuarios»: así el catálogo no
+        // repite el rótulo para la misma ruta. La pantalla sigue titulándose Usuarios.
         // D-12: el Coordinador CAE gestiona su equipo en /usuarios (la página ya lo autoriza por rol,
         // Usuarios.razor) pero no ve el grupo «Administración», que es de Administrador y Dirección CAE.
         // Este enlace solo hace descubrible lo ya autorizado: misma ruta, misma autorización, ningún
         // permiso nuevo. Administrador y Dirección CAE conservan «usuarios» en Administración, y no
         // lo ven duplicado aquí.
-        new("usuarios-equipo", "control", "usuarios", "usuarios", "Usuarios",
+        new("usuarios-equipo", "control", "usuarios", "equipo", "Mi equipo",
             Condicion: c => c.TieneAlgunRol(Roles.CoordinadorCae)
                             && !c.TieneAlgunRol(RolesDeAdministracionAmpliada)),
 
@@ -221,8 +223,8 @@ public static class CatalogoMenuLateral
         new("verificacion-dos-pasos", "administracion", "cuenta/configurar-2fa", "seguridad", "Verificación en dos pasos",
             Condicion: c => c.TieneAlgunRol(Roles.Administrador)),
 
-        new("delegaciones", "plataforma", "delegaciones", "cartera", "Delegaciones"),
-        new("estado-comercial", "plataforma", "configuracion/comercial", "cartera", "Estado comercial"),
+        new("delegaciones", "plataforma", "delegaciones", "delegacion", "Delegaciones"),
+        new("estado-comercial", "plataforma", "configuracion/comercial", "etiqueta", "Estado comercial"),
         new("conectores-cae", "plataforma", "plataforma/conectores-cae", "plataforma", "Conectores CAE"),
     ];
 
