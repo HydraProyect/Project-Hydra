@@ -413,5 +413,28 @@
   </data>
   <data name="ErrorEnviarPaquetePorCorreo" xml:space="preserve">
     <value>No pudimos preparar el correo con el paquete. Puedes descargar el ZIP y enviarlo desde tu correo.</value>
+  <data name="PlazoHoy" xml:space="preserve">
+    <value>Hoy</value>
+  </data>
+  <data name="PlazoManana" xml:space="preserve">
+    <value>Mañana</value>
+  </data>
+  <data name="PlazoEnDias" xml:space="preserve">
+    <value>En {0} días</value>
+  </data>
+  <data name="PlazoEnCurso" xml:space="preserve">
+    <value>En curso</value>
+  </data>
+  <data name="PlazoFinalizada" xml:space="preserve">
+    <value>Finalizada</value>
+  </data>
+  <data name="EtiquetaOrden" xml:space="preserve">
+    <value>Orden</value>
+  </data>
+  <data name="OpcionOrdenFechas" xml:space="preserve">
+    <value>Por fechas</value>
+  </data>
+  <data name="OpcionOrdenDocumentacion" xml:space="preserve">
+    <value>Documentación por gestionar primero</value>
   </data>
 </root>

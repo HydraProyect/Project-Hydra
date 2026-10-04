@@ -6,7 +6,7 @@
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
 @using CaeManager.Domain.Comunicaciones
 
-<li class="bandeja-fila @(Activa ? "bandeja-fila-activa" : null) @(Conversacion.EsperandoCliente ? "bandeja-fila-esperando" : null)" @onclick="() => OnSeleccionar.InvokeAsync(Conversacion.Id)">
+<li class="bandeja-fila @(Activa ? "bandeja-fila-activa" : null) @(Enfocada ? "fila-enfocada" : null) @(Conversacion.EsperandoCliente ? "bandeja-fila-esperando" : null)" @onclick="() => OnSeleccionar.InvokeAsync(Conversacion.Id)">
     <span class="bandeja-fila-avatar" aria-hidden="true">
         @ObtenerIniciales(Conversacion.RemitentePrincipal)
         <span class="bandeja-fila-canal bandeja-fila-canal-@Conversacion.Canal.ToString().ToLowerInvariant()" title="@(Conversacion.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : "Correo")">
@@ -41,6 +41,9 @@
 @code {
     [Parameter, EditorRequired] public ConversacionListaDto Conversacion { get; set; } = default!;
     [Parameter] public bool Activa { get; set; }
+
+    /// <summary>Fila marcada por j/k (todavía no abierta): lleva la clase que <c>atajos-lista.js</c> usa para darle foco de DOM.</summary>
+    [Parameter] public bool Enfocada { get; set; }
     [Parameter] public EventCallback<Guid> OnSeleccionar { get; set; }
 
     private static TonoBadge TonoBadgeDeEstado(EstadoConversacion estado) => estado switch

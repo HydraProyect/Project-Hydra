@@ -50,3 +50,37 @@
 .estado-vacio-accion {
     margin-top: var(--space-4);
 }
+
+/* Acabado (ficha 12): el estado vacío entra con un fundido y un leve ascenso, y
+   su icono genérico respira muy despacio —tenue, solo opacidad y desplazamiento,
+   que no provocan repintado—. Vive aquí, en el componente compartido, y llega a
+   todos sus usos de una vez. El icono de severidad (AcentoIcono: error, aviso,
+   bloqueo) no respira: un estado de error que late parece vivo, no roto. */
+.estado-vacio {
+    animation: entrar-estado-vacio var(--motion-transition) var(--ease-fluid) backwards;
+}
+
+.estado-vacio-icono:not(.estado-vacio-icono-acento) {
+    animation: respirar-estado-vacio calc(var(--motion-live-cycle) * 1.5) ease-in-out infinite;
+}
+
+@keyframes entrar-estado-vacio {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+}
+
+@keyframes respirar-estado-vacio {
+    50% {
+        opacity: 0.55;
+        transform: translateY(-3px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .estado-vacio,
+    .estado-vacio-icono:not(.estado-vacio-icono-acento) {
+        animation: none;
+    }
+}
