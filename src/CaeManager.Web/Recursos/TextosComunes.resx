@@ -150,4 +150,25 @@
   <data name="SaltarAlContenido" xml:space="preserve">
     <value>Saltar al contenido</value>
   </data>
+  <data name="EsperaGuardando" xml:space="preserve">
+    <value>Guardando…</value>
+  </data>
+  <data name="EsperaGuardandoPorcentaje" xml:space="preserve">
+    <value>Guardando… {0} %</value>
+  </data>
+  <data name="EsperaLenta" xml:space="preserve">
+    <value>Tarda más de lo habitual. No cierres la página.</value>
+  </data>
+  <data name="EsperaColgada" xml:space="preserve">
+    <value>Sin respuesta desde hace {0} s. Lo que has escrito se conserva.</value>
+  </data>
+  <data name="EsperaReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="EsperaCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="EsperaHecho" xml:space="preserve">
+    <value>Guardado</value>
+  </data>
 </root>

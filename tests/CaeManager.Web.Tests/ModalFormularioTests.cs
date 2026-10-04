@@ -111,7 +111,8 @@ public class ModalFormularioTests : BunitContext
         cut.Find(".modal-pie .boton-secundario").HasAttribute("disabled").Should().BeTrue();
         var guardar = cut.Find(".modal-pie .boton-primario");
         guardar.HasAttribute("disabled").Should().BeTrue("Cargando deshabilita el botón: sin doble clic");
-        guardar.QuerySelector(".boton-spinner").Should().NotBeNull();
+        guardar.QuerySelector(".boton-espera-relleno").Should().NotBeNull("el relleno de espera sustituye al spinner (ficha 11)");
+        guardar.GetAttribute("aria-busy").Should().Be("true");
     }
 
     [Theory]

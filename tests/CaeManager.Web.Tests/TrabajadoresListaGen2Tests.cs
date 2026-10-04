@@ -680,14 +680,14 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
         var cut = Render<Trabajadores>();
 
-        cut.WaitForAssertion(() => cut.FindAll(".esqueleto-lista[aria-busy=true]").Should().ContainSingle());
+        cut.WaitForAssertion(() => cut.FindAll(".esqueleto[aria-busy=true]").Should().ContainSingle());
         cut.Markup.Should().NotContain("Aún no hay trabajadores", "todavía no se sabe si hay alguno");
 
         mediador.Retener = null;
         await cut.InvokeAsync(() => respuesta.SetResult(mediador.Filtrar(UltimaConsulta(mediador))));
 
         cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Salas Moreno"));
-        cut.FindAll(".esqueleto-lista").Should().BeEmpty();
+        cut.FindAll(".esqueleto").Should().BeEmpty();
     }
 
     [Fact]

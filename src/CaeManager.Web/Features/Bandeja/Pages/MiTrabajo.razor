@@ -59,7 +59,7 @@
     }
     else if (_cargando || _vista is null)
     {
-        <EstadoCargando Filas="7" />
+        <Esqueleto Forma="FormaEsqueleto.Lista" Cantidad="7" />
     }
     else
     {
@@ -71,7 +71,7 @@
             </div>
         }
 
-        <div class="mi-trabajo-chips" role="group" aria-label="@Textos["FiltrarPorSeveridad"]" data-lista-con-filtros>
+        <div class="mi-trabajo-chips contenido-entra" role="group" aria-label="@Textos["FiltrarPorSeveridad"]" data-lista-con-filtros>
             @foreach (var chip in Chips)
             {
                 <button type="button" class="@("mi-trabajo-chip" + (chip.Severidad == _severidad ? " mi-trabajo-chip-activo" : ""))"
@@ -87,7 +87,7 @@
         @* El detalle solo existe con una tarea abierta: sin ella no reserva
            columna y la cola gana ese ancho. La pista de teclado ya está en la
            barra de la cola («j k mover · ↵ abrir»). *@
-        <div class="@("mi-trabajo-paneles" + (FilaAbierta is null ? " mi-trabajo-paneles-sin-detalle" : ""))">
+        <div class="@("mi-trabajo-paneles contenido-entra" + (FilaAbierta is null ? " mi-trabajo-paneles-sin-detalle" : ""))">
             <aside class="mi-trabajo-cartera" aria-label="@Textos["MiCartera"]">
                 <div class="mi-trabajo-cartera-cabecera">
                     <h2 class="mi-trabajo-cartera-titulo">@Textos["MiCartera"]</h2>

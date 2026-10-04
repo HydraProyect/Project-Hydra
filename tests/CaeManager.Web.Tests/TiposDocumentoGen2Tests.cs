@@ -367,7 +367,7 @@ public class TiposDocumentoGen2Tests : BunitContext
         cut.FindAll(".modal-pie button").Single(b => Texto(b) == texto);
 
     private static Task PulsarGuardar(IRenderedComponent<TiposDocumentoPagina> cut) =>
-        BotonDelPie(cut, "Guardar").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-pie button.boton-espera-boton").Single().ClickAsync(new MouseEventArgs());
 
     /// <summary>El texto entero del diálogo: lo que dice y nada más.</summary>
     private static string TextoDelDialogo(IRenderedComponent<TiposDocumentoPagina> cut) => Texto(cut.Find(".modal-cuerpo p"));
@@ -728,7 +728,7 @@ public class TiposDocumentoGen2Tests : BunitContext
 
         var eleccion = ElegirCliente(cut, ClienteA);
 
-        cut.FindAll(".esqueleto-lista").Should().BeEmpty("el esqueleto es para cuando no hay nada que enseñar");
+        cut.FindAll(".esqueleto, .esqueleto-lista").Should().BeEmpty("el esqueleto es para cuando no hay nada que enseñar");
         cut.Find(".tabla-tipos-marco").GetAttribute("aria-busy").Should().Be("true");
 
         await cut.InvokeAsync(() => lista.SetResult(new List<TipoDocumentoListaDto>()));

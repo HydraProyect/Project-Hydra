@@ -176,14 +176,14 @@
     {
         @if (_cargando && _totalElementos == 0)
         {
-            <EstadoCargando Filas="8" />
+            <Esqueleto Forma="FormaEsqueleto.Tabla" Cantidad="8" Columnas="5" />
         }
 
         @* La rejilla se monta siempre (es la que pide los datos a
            ProveerElementosAsync): se esconde mientras no haya filas que
            enseñar, y en su lugar se ve el esqueleto o el estado vacío que
            toque. *@
-        <div style="display:@(_totalElementos == 0 ? "none" : "block")">
+        <div class="contenido-entra" style="display:@(_totalElementos == 0 ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="TrabajadorListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {

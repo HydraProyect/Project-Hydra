@@ -148,4 +148,25 @@
   <data name="SaltarAlContenido" xml:space="preserve">
     <value>Salta al contingut</value>
   </data>
+  <data name="EsperaGuardando" xml:space="preserve">
+    <value>Desant…</value>
+  </data>
+  <data name="EsperaGuardandoPorcentaje" xml:space="preserve">
+    <value>Desant… {0} %</value>
+  </data>
+  <data name="EsperaLenta" xml:space="preserve">
+    <value>Triga més del habitual. No tanquis la pàgina.</value>
+  </data>
+  <data name="EsperaColgada" xml:space="preserve">
+    <value>Sense resposta des de fa {0} s. El que has escrit es conserva.</value>
+  </data>
+  <data name="EsperaReintentar" xml:space="preserve">
+    <value>Torna-ho a provar</value>
+  </data>
+  <data name="EsperaCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="EsperaHecho" xml:space="preserve">
+    <value>Desat</value>
+  </data>
 </root>

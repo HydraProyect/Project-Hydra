@@ -1,3 +1,4 @@
+@inject IJSRuntime JS
 @{
     var claseTono = Discreta ? "tarjeta-metrica-discreta" : $"tarjeta-metrica-{Tono.ToString().ToLowerInvariant()}";
 }
@@ -10,7 +11,7 @@
             {
                 <Icono Nombre="@NombreIcono" Tamano="TamanoIcono.Pequeno" />
             }
-            <span class="tarjeta-metrica-valor">@Valor</span>
+            <span class="tarjeta-metrica-valor" @ref="_valor">@Valor</span>
         </span>
         @if (!string.IsNullOrWhiteSpace(Pista))
         {
@@ -27,7 +28,7 @@ else
             {
                 <Icono Nombre="@NombreIcono" Tamano="TamanoIcono.Pequeno" />
             }
-            <span class="tarjeta-metrica-valor">@Valor</span>
+            <span class="tarjeta-metrica-valor" @ref="_valor">@Valor</span>
         </span>
         @if (!string.IsNullOrWhiteSpace(Pista))
         {
@@ -37,6 +38,9 @@ else
 }
 
 @code {
+    private ElementReference _valor;
+    private bool _contada;
+
     [Parameter] public string Etiqueta { get; set; } = string.Empty;
     [Parameter] public string Valor { get; set; } = string.Empty;
     [Parameter] public TonoBadge Tono { get; set; } = TonoBadge.Neutro;
@@ -75,4 +79,34 @@ else
     /// color) se reserva así para los KPIs que sí son una señal de estado.
     /// </summary>
     [Parameter] public bool Discreta { get; set; }
+
+    /// <summary>
+    /// La cifra cuenta desde 0 hasta su valor, una sola vez, al primer pintado (ficha 09). Solo para el dashboard: un refresco que
+    /// cambie el valor no vuelve a animar. Sin efecto si <see cref="Valor"/> no es un entero o con movimiento reducido.
+    /// </summary>
+    [Parameter] public bool ContarHastaValor { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _contada || !ContarHastaValor || !int.TryParse(Valor, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var final))
+            return;
+
+        _contada = true;
+
+        // Mejor esfuerzo, como el foco de DrawerFormulario: sin módulo JS (tests de componente, circuito cerrándose) la tarjeta
+        // enseña el valor final y nada más.
+        try
+        {
+            var modulo = await JS.InvokeAsync<IJSObjectReference>("import", "./js/contar-cifra.js");
+            if (modulo is null) return;
+
+            await using (modulo)
+            {
+                await modulo.InvokeAsync<bool>("contarHasta", _valor, final);
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
 }

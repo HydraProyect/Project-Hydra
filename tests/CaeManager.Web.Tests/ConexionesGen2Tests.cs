@@ -280,7 +280,7 @@ public class ConexionesGen2Tests : BunitContext
         // El desenlace llega por reflexion y no repinta: sin Render se lee el modal anterior y el test pasa
         // aunque el desenlace obsoleto cierre el modal (mutacion X2).
         cut.Render();
-        var guardar = cut.FindAll("button").Where(x => x.TextContent.Contains("Crear línea")).ToList();
+        var guardar = cut.FindAll("button").Where(x => x.ClassList.Contains("boton-espera-boton")).ToList();
         guardar.Should().NotBeEmpty("el control positivo prueba que el modal vigente sigue renderizado");
         guardar.Should().ContainSingle().Which.HasAttribute("disabled").Should().BeTrue();
     }
