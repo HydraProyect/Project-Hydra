@@ -638,7 +638,8 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
 
             var handler = new ObtenerLoteReclamacionQueryHandler(
                 lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura,
-                new AlcanceDatosServiceFalso(), new ResolucionDestinatariosAgendaService(lectura, lectura));
+                new AlcanceDatosServiceFalso(), new ResolucionDestinatariosAgendaService(lectura, lectura),
+                PendientesDeReclamacionFabrica.Crear(lectura, new AlcanceDatosServiceFalso()));
 
             var lotes = await handler.Handle(new ObtenerLoteReclamacionQuery(), CancellationToken.None);
 
@@ -718,6 +719,174 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         }
     }
 
+    // ---- «Pedir» lo que no vence: documento AUSENTE o «Sin confirmar» sin fecha (decisión de Chris, 2026-10-04) ----
+
+    [Fact]
+    public async Task Un_documento_que_nunca_se_subio_se_ofrece_solo_cuando_se_piden_los_pendientes_sin_fecha()
+    {
+        await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
+
+        await using var lectura = CrearContexto();
+        var handler = CrearQueryHandler(lectura);
+
+        var sinPedirlo = await handler.Handle(new ObtenerLoteReclamacionQuery(), CancellationToken.None);
+        var pidiendolo = await handler.Handle(new ObtenerLoteReclamacionQuery(IncluirPendientesSinFecha: true), CancellationToken.None);
+
+        sinPedirlo.Should().BeEmpty("sin la bandera el lote es exactamente el de siempre: solo lo que vence");
+        var lote = pidiendolo.Should().ContainSingle(l => l.ClienteId == _clienteId).Subject;
+        lote.Documentos.Should().BeEmpty();
+        var falta = lote.PendientesSinFecha.Should().ContainSingle().Subject;
+        falta.Motivo.Should().Be(MotivoPendienteDeReclamacion.Ausente);
+        falta.DocumentoId.Should().BeNull();
+        falta.TrabajadorId.Should().Be(_trabajadorId);
+        falta.TipoDocumentoId.Should().Be(_tipoDocumentoId);
+        lote.Destinatarios.Should().ContainSingle().Which.Email.Should().Be("agenda@cliente.test",
+            "el destinatario es el de siempre: la agenda del Cliente empresarial, resuelta por el Tipo que falta");
+    }
+
+    [Fact]
+    public async Task Un_sin_confirmar_sin_fecha_se_ofrece_como_pendiente_y_no_como_vencimiento()
+    {
+        Guid documentoId;
+        await using (var contexto = CrearContexto())
+        {
+            var documento = Documento.DeTrabajador(_trabajadorId, _tipoDocumentoId, DiaDeNegocio.Hoy().AddMonths(-3), VigenciaDocumento.SinConfirmar);
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+            documentoId = documento.Id;
+        }
+
+        await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
+
+        await using var lectura = CrearContexto();
+        var handler = CrearQueryHandler(lectura);
+
+        (await handler.Handle(new ObtenerLoteReclamacionQuery(), CancellationToken.None)).Should().BeEmpty();
+        var lote = (await handler.Handle(new ObtenerLoteReclamacionQuery(IncluirPendientesSinFecha: true), CancellationToken.None))
+            .Should().ContainSingle().Subject;
+        lote.Documentos.Should().BeEmpty();
+        var pendiente = lote.PendientesSinFecha.Should().ContainSingle().Subject;
+        pendiente.Motivo.Should().Be(MotivoPendienteDeReclamacion.SinConfirmar);
+        pendiente.DocumentoId.Should().Be(documentoId);
+    }
+
+    [Fact]
+    public async Task Pedir_un_documento_ausente_manda_el_correo_registra_una_linea_sin_documento_y_cuenta_como_reclamado()
+    {
+        await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
+        var emailServiceFalso = new EmailServiceFalso();
+
+        await using (var contexto = CrearContexto())
+        {
+            var resultado = await CrearCommandHandler(contexto, emailServiceFalso, new MediatorFalso(Guid.NewGuid()))
+                .Handle(new EnviarReclamacionCommand(_clienteId, [], Pendientes: [PendienteSinFecha.Ausente(_trabajadorId, _tipoDocumentoId)]), CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue();
+            resultado.Valor.DocumentosQueFaltaban.Should().Be(1);
+        }
+
+        emailServiceFalso.Enviados.Should().ContainSingle(e => e.Destinatario == "agenda@cliente.test");
+        emailServiceFalso.Cuerpos.Should().ContainSingle().Which.Should().Contain(">Falta<").And.Contain("faltan");
+
+        await using var lectura = CrearContexto();
+        var reclamacion = await lectura.ReclamacionesDocumentales.Include(r => r.Documentos).SingleAsync();
+        reclamacion.ClienteId.Should().Be(_clienteId);
+        var linea = reclamacion.Documentos.Should().ContainSingle().Subject;
+        linea.DocumentoId.Should().BeNull();
+        linea.TipoDocumentoId.Should().Be(_tipoDocumentoId);
+        linea.TrabajadorId.Should().Be(_trabajadorId);
+
+        // Cuenta como «reclamado»: el mismo lector que dice «ya se reclamó» (con fecha) lo ve.
+        var lotes = await CrearQueryHandler(lectura).Handle(new ObtenerLoteReclamacionQuery(IncluirPendientesSinFecha: true), CancellationToken.None);
+        lotes.Should().ContainSingle(l => l.ClienteId == _clienteId).Which.UltimaReclamacionFechaUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Pedir_un_ausente_que_ya_se_subio_entre_la_vista_previa_y_el_envio_falla_sin_enviar_nada()
+    {
+        await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Documentos.Add(Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoId, DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1))));
+            await contexto.SaveChangesAsync();
+        }
+
+        var emailServiceFalso = new EmailServiceFalso();
+        await using var envio = CrearContexto();
+        var resultado = await CrearCommandHandler(envio, emailServiceFalso, new MediatorFalso(Guid.NewGuid()))
+            .Handle(new EnviarReclamacionCommand(_clienteId, [], Pendientes: [PendienteSinFecha.Ausente(_trabajadorId, _tipoDocumentoId)]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Reclamacion.PendientesDesactualizados");
+        emailServiceFalso.Enviados.Should().BeEmpty();
+        (await envio.ReclamacionesDocumentales.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_centro_sin_gestion_cae_no_ofrece_ni_acepta_pedir_lo_que_falta()
+    {
+        await using (var contexto = CrearContexto())
+        {
+            (await contexto.Centros.SingleAsync()).EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+            await contexto.SaveChangesAsync();
+        }
+
+        await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
+        var emailServiceFalso = new EmailServiceFalso();
+
+        await using var contextoLectura = CrearContexto();
+        (await CrearQueryHandler(contextoLectura).Handle(new ObtenerLoteReclamacionQuery(IncluirPendientesSinFecha: true), CancellationToken.None))
+            .Should().BeEmpty();
+
+        var resultado = await CrearCommandHandler(contextoLectura, emailServiceFalso, new MediatorFalso(Guid.NewGuid()))
+            .Handle(new EnviarReclamacionCommand(_clienteId, [], Pendientes: [PendienteSinFecha.Ausente(_trabajadorId, _tipoDocumentoId)]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        emailServiceFalso.Enviados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_trabajador_fuera_del_alcance_del_usuario_no_se_ofrece_ni_se_acepta_para_pedir()
+    {
+        await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
+        // El Cliente empresarial sí está en su cartera: lo que queda fuera es el Trabajador (si no, fallaría antes por SinAcceso).
+        var fuera = new AlcanceDatosServiceFalso(clienteIds: [_clienteId], trabajadorIds: [Guid.NewGuid()]);
+        var emailServiceFalso = new EmailServiceFalso();
+
+        await using var contexto = CrearContexto();
+        (await CrearQueryHandler(contexto, fuera).Handle(new ObtenerLoteReclamacionQuery(IncluirPendientesSinFecha: true), CancellationToken.None))
+            .Should().BeEmpty();
+
+        var resultado = await CrearCommandHandler(contexto, emailServiceFalso, new MediatorFalso(Guid.NewGuid()), fuera)
+            .Handle(new EnviarReclamacionCommand(_clienteId, [], Pendientes: [PendienteSinFecha.Ausente(_trabajadorId, _tipoDocumentoId)]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Reclamacion.PendientesDesactualizados");
+        emailServiceFalso.Enviados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_base_de_datos_rechaza_una_linea_de_documento_que_falta_con_Documento()
+    {
+        await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
+        await using (var contexto = CrearContexto())
+        {
+            await CrearCommandHandler(contexto, new EmailServiceFalso(), new MediatorFalso(Guid.NewGuid()))
+                .Handle(new EnviarReclamacionCommand(_clienteId, [], Pendientes: [PendienteSinFecha.Ausente(_trabajadorId, _tipoDocumentoId)]), CancellationToken.None);
+        }
+
+        await using var sql = CrearContexto();
+        var filas = await sql.ReclamacionesDocumentalesDocumento.CountAsync(l => l.DocumentoId == null && l.TipoDocumentoId != null);
+        filas.Should().Be(1, "control positivo: la fila que el UPDATE va a intentar corromper existe y es visible para esta conexión");
+
+        // Mixta: Documento y Tipo a la vez. Ninguna forma de la restricción la admite.
+        var accion = async () => await sql.Database.ExecuteSqlRawAsync(
+            "UPDATE \"ReclamacionesDocumentalesDocumentos\" SET \"DocumentoId\" = gen_random_uuid() WHERE \"TipoDocumentoId\" IS NOT NULL");
+
+        (await accion.Should().ThrowAsync<Npgsql.PostgresException>()).Which.ConstraintName.Should().Be("CK_ReclamacionesDocumentalesDocumentos_Forma");
+    }
+
     // Servicio de resolución REAL, no un doble: los destinatarios salen ahora
     // de la agenda de contactos, y lo que estos tests tienen que comprobar es
     // justamente esa resolución contra datos reales.
@@ -726,7 +895,8 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
 
     private static ObtenerLoteReclamacionQueryHandler CrearQueryHandler(CaeManagerDbContext contexto, IAlcanceDatosService alcanceDatos) =>
         new(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
-            alcanceDatos, new ResolucionDestinatariosAgendaService(contexto, contexto));
+            alcanceDatos, new ResolucionDestinatariosAgendaService(contexto, contexto),
+            PendientesDeReclamacionFabrica.Crear(contexto, alcanceDatos));
 
     /// <summary>
     /// Reenvía el único tipo de Request que ObtenerLoteReclamacionPorFiltroQueryHandler
@@ -772,7 +942,8 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         CaeManagerDbContext contexto, IEmailService emailService, IMediator mediator, IAlcanceDatosService alcanceDatos) =>
         new(contexto, contexto, contexto, contexto, contexto, contexto,
             alcanceDatos, new ResolucionDestinatariosAgendaService(contexto, contexto),
-            CrearRegistroEnvio(contexto, emailService, mediator));
+            CrearRegistroEnvio(contexto, emailService, mediator),
+            PendientesDeReclamacionFabrica.Crear(contexto, alcanceDatos));
 
     /// <summary>
     /// Cola común de envío (buzón → correo → registro → evento), compartida
@@ -824,9 +995,12 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     {
         public List<(string Destinatario, string Asunto)> Enviados { get; } = [];
 
+        public List<string> Cuerpos { get; } = [];
+
         public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, string? responderA = null, CancellationToken cancellationToken = default)
         {
             Enviados.Add((destinatarioEmail, asunto));
+            Cuerpos.Add(cuerpoHtml);
             return Task.FromResult(Result.Exito());
         }
     }

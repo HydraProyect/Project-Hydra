@@ -349,9 +349,10 @@ public class ObtenerConversacionPorIdQueryHandler(
             .ToList();
         var documentoIdsReclamados = reclamacionIds.Count == 0
             ? []
+            // Solo las líneas con Documento: un documento que faltaba al reclamar no tiene a qué citar.
             : await reclamacionesContext.ReclamacionesDocumentalesDocumento
-                .Where(d => reclamacionIds.Contains(d.ReclamacionDocumentalId))
-                .Select(d => d.DocumentoId)
+                .Where(d => reclamacionIds.Contains(d.ReclamacionDocumentalId) && d.DocumentoId != null)
+                .Select(d => d.DocumentoId!.Value)
                 .ToListAsync(cancellationToken);
 
         var documentoIdsConfirmados = eventosDocumentales

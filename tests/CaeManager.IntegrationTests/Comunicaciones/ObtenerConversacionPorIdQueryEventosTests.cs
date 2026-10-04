@@ -179,6 +179,56 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
         evento.Descripcion.Should().Be("Se reclamaron 2 documentos pendientes por esta conversación.");
     }
 
+    /// <summary>«Pedir» un documento que falta (2026-10-04): la línea no tiene Documento y cuenta igual en la descripción del evento y no rompe la lectura del hilo.</summary>
+    [Fact]
+    public async Task El_evento_de_reclamacion_cuenta_tambien_los_documentos_que_faltaban()
+    {
+        Guid conversacionId, reclamacionId;
+        await using (var contexto = CrearContexto())
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Timeline Falta S.L.", "B10380186", false, null, null);
+            var empresa = new Empresa("Empresa Timeline Falta S.L.", "B10380194");
+            contexto.Empresas.AddRange(cliente, empresa);
+            await contexto.SaveChangesAsync();
+
+            var trabajador = Trabajador.DeEmpresa(empresa.Id, "Marco", "Rivas", "11223344B");
+            var tipoDocumento = new TipoDocumento("Reconocimiento médico", 12, true, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
+            contexto.Trabajadores.Add(trabajador);
+            contexto.TiposDocumento.Add(tipoDocumento);
+            await contexto.SaveChangesAsync();
+
+            var vence = Documento.DeTrabajador(trabajador.Id, tipoDocumento.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.VenceEl(new DateOnly(2026, 9, 1)));
+            contexto.Documentos.Add(vence);
+
+            var conversacion = new Conversacion("Documentación pendiente", cliente.Id);
+            contexto.Conversaciones.Add(conversacion);
+            await contexto.SaveChangesAsync();
+            conversacionId = conversacion.Id;
+
+            var reclamacion = ReclamacionDocumental.ParaCliente(
+                cliente.Id, Guid.NewGuid(), "portal@cliente.local", DateTime.UtcNow, [vence.Id], conversacionId,
+                documentosQueFaltan: [new DocumentoQueFaltaPedido(tipoDocumento.Id, trabajador.Id)]);
+            contexto.ReclamacionesDocumentales.Add(reclamacion);
+            await contexto.SaveChangesAsync();
+            reclamacionId = reclamacion.Id;
+
+            contexto.EventosConversacion.Add(new EventoConversacion(
+                conversacionId, TipoEventoConversacion.ReclamacionEnviada, reclamacionId, DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = CrearContexto();
+        var handler = new ObtenerConversacionPorIdQueryHandler(
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
+
+        var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
+
+        detalle.Should().NotBeNull();
+        detalle!.Eventos.Should().ContainSingle().Which.Descripcion
+            .Should().Be("Se reclamaron 2 documentos pendientes por esta conversación.");
+    }
+
     private CaeManagerDbContext CrearContexto()
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };

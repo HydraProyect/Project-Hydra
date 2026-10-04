@@ -28,7 +28,8 @@ namespace CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaRecla
 public record PrepararVistaPreviaReclamacionCommand(
     AmbitoAplicacion Ambito,
     Guid TitularId,
-    IReadOnlyList<Guid> DocumentoIds) : ICommand<ReclamacionPreparada>;
+    IReadOnlyList<Guid> DocumentoIds,
+    IReadOnlyList<PendienteSinFecha>? Pendientes = null) : ICommand<ReclamacionPreparada>;
 
 public class PrepararVistaPreviaReclamacionCommandHandler(
     EnviarReclamacionCommandHandler enviarCliente,
@@ -37,6 +38,6 @@ public class PrepararVistaPreviaReclamacionCommandHandler(
 {
     public Task<Result<ReclamacionPreparada>> Handle(PrepararVistaPreviaReclamacionCommand request, CancellationToken cancellationToken) =>
         request.Ambito == AmbitoAplicacion.Empresa
-            ? enviarEmpresa.PrepararAsync(new EnviarReclamacionEmpresaCommand(request.TitularId, request.DocumentoIds), cancellationToken)
-            : enviarCliente.PrepararAsync(new EnviarReclamacionCommand(request.TitularId, request.DocumentoIds), cancellationToken);
+            ? enviarEmpresa.PrepararAsync(new EnviarReclamacionEmpresaCommand(request.TitularId, request.DocumentoIds, Pendientes: request.Pendientes), cancellationToken)
+            : enviarCliente.PrepararAsync(new EnviarReclamacionCommand(request.TitularId, request.DocumentoIds, Pendientes: request.Pendientes), cancellationToken);
 }

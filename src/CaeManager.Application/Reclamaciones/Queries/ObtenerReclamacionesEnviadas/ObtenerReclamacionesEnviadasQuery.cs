@@ -41,16 +41,26 @@ public record ObtenerReclamacionesEnviadasQuery(int Pagina = 1, int TamanoPagina
 /// reenvío trataría un titular Empresa como si fuera un Cliente y no
 /// encontraría ni un documento reclamable.
 /// </param>
+/// <param name="DocumentoIds">
+/// Los Documentos del lote que «Reclamar de nuevo» pide como lo que vence (el envío revalida la ventana). Un Documento que sigue
+/// «Sin confirmar» y sin fecha no va aquí sino en <paramref name="Pendientes"/>, que es por donde el envío lo acepta.
+/// </param>
+/// <param name="Pendientes">
+/// Lo que el lote pidió sin vencimiento y hoy sigue pendiente: los documentos que faltaban (línea sin Documento) y los
+/// Documentos que siguen «Sin confirmar» sin fecha. Se reenvían tal cual: el envío los revalida contra la base.
+/// <paramref name="TotalDocumentos"/> cuenta todas las líneas del lote, estén donde estén.
+/// </param>
 public record ReclamacionEnviadaDto(
     Guid Id, Guid TitularId, string TitularRazonSocial, AmbitoAplicacion AmbitoTitular, string DestinatarioEmail,
     DateTime FechaEnvioUtc, int TotalDocumentos, Guid? ConversacionId, bool? SinRespuesta,
-    IReadOnlyList<Guid> DocumentoIds);
+    IReadOnlyList<Guid> DocumentoIds, IReadOnlyList<PendienteSinFecha>? Pendientes = null);
 
 public class ObtenerReclamacionesEnviadasQueryHandler(
     IReclamacionesQueryContext reclamacionesContext,
     IEmpresasQueryContext empresasContext,
     IComunicacionesQueryContext comunicacionesContext,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    IPendientesDeReclamacionService pendientesDeReclamacion)
     : IRequestHandler<ObtenerReclamacionesEnviadasQuery, ResultadoPaginado<ReclamacionEnviadaDto>>
 {
     public async Task<ResultadoPaginado<ReclamacionEnviadaDto>> Handle(
@@ -99,11 +109,16 @@ public class ObtenerReclamacionesEnviadasQueryHandler(
 
         var reclamacionIds = pagina.Select(r => r.Id).ToList();
 
-        var documentosPorReclamacion = await reclamacionesContext.ReclamacionesDocumentalesDocumento
+        var lineas = await reclamacionesContext.ReclamacionesDocumentalesDocumento
             .Where(d => reclamacionIds.Contains(d.ReclamacionDocumentalId))
-            .GroupBy(d => d.ReclamacionDocumentalId)
-            .Select(g => new { ReclamacionId = g.Key, DocumentoIds = g.Select(d => d.DocumentoId).ToList() })
-            .ToDictionaryAsync(g => g.ReclamacionId, g => g.DocumentoIds, cancellationToken);
+            .Select(d => new { d.ReclamacionDocumentalId, d.DocumentoId, d.TipoDocumentoId, d.TrabajadorId })
+            .ToListAsync(cancellationToken);
+
+        // De los Documentos de las líneas, cuáles siguen «Sin confirmar» sin fecha: esos se reenvían como pendientes (no entran
+        // en la ventana por vencimiento). Se mira el estado de hoy, no el del día del envío: «Reclamar de nuevo» pide lo que
+        // sigue pendiente ahora.
+        var idsDeDocumentos = lineas.Where(l => l.DocumentoId is not null).Select(l => l.DocumentoId!.Value).Distinct().ToList();
+        var sinConfirmarHoy = await pendientesDeReclamacion.DocumentoIdsAunSinConfirmarSinFechaAsync(idsDeDocumentos, cancellationToken);
 
         // Igual criterio que ObtenerReclamacionesSinRespuestaQuery, pero por
         // FILA (aquí una misma Conversación puede llevar más de un lote a
@@ -123,7 +138,16 @@ public class ObtenerReclamacionesEnviadasQueryHandler(
         var elementos = pagina
             .Select(r =>
             {
-                var documentoIds = documentosPorReclamacion.GetValueOrDefault(r.Id, []);
+                var lineasDe = lineas.Where(l => l.ReclamacionDocumentalId == r.Id).ToList();
+                var documentoIds = lineasDe
+                    .Where(l => l.DocumentoId is { } id && !sinConfirmarHoy.Contains(id))
+                    .Select(l => l.DocumentoId!.Value)
+                    .ToList();
+                IReadOnlyList<PendienteSinFecha> pendientes =
+                [
+                    .. lineasDe.Where(l => l.DocumentoId is null).Select(l => PendienteSinFecha.Ausente(l.TrabajadorId, l.TipoDocumentoId!.Value)),
+                    .. lineasDe.Where(l => l.DocumentoId is { } id && sinConfirmarHoy.Contains(id)).Select(l => PendienteSinFecha.SinConfirmar(l.DocumentoId!.Value))
+                ];
                 bool? sinRespuesta = r.ConversacionId is null
                     ? null
                     : !entrantesPorConversacion.GetValueOrDefault(r.ConversacionId.Value, [])
@@ -133,7 +157,7 @@ public class ObtenerReclamacionesEnviadasQueryHandler(
                     r.Id, r.ClienteId ?? r.EmpresaId!.Value, r.RazonSocial,
                     r.ClienteId is not null ? AmbitoAplicacion.Cliente : AmbitoAplicacion.Empresa,
                     r.DestinatarioEmail, r.FechaEnvioUtc,
-                    documentoIds.Count, r.ConversacionId, sinRespuesta, documentoIds);
+                    lineasDe.Count, r.ConversacionId, sinRespuesta, documentoIds, pendientes);
             })
             .ToList();
 

@@ -43,10 +43,15 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
 /// eligió el gestor — revalidado igualmente contra la agenda real, no se
 /// confía en la UI.
 /// </param>
+/// <param name="Pendientes">
+/// Lo que se pide sin vencimiento en el MISMO correo: documentos de Empresa que faltan y «Sin confirmar» sin fecha. Misma
+/// regla y mismo todo o nada que en <see cref="EnviarReclamacionCommand"/> (ver su docstring): no es otro flujo.
+/// </param>
 public record EnviarReclamacionEmpresaCommand(
     Guid EmpresaId,
     IReadOnlyList<Guid> DocumentoIds,
-    IReadOnlyList<Guid>? ContactoIdsSeleccionados = null) : ICommand<EnvioReclamacionResultado>;
+    IReadOnlyList<Guid>? ContactoIdsSeleccionados = null,
+    IReadOnlyList<PendienteSinFecha>? Pendientes = null) : ICommand<EnvioReclamacionResultado>;
 
 public class EnviarReclamacionEmpresaCommandHandler(
     IEmpresasQueryContext empresasContext,
@@ -54,7 +59,8 @@ public class EnviarReclamacionEmpresaCommandHandler(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IAlcanceDatosService alcanceDatos,
     Contactos.IResolucionDestinatariosAgendaService resolucionDestinatarios,
-    IRegistroEnvioReclamacionService registroEnvio)
+    IRegistroEnvioReclamacionService registroEnvio,
+    IPendientesDeReclamacionService pendientesDeReclamacion)
     : IRequestHandler<EnviarReclamacionEmpresaCommand, Result<EnvioReclamacionResultado>>
 {
     public async Task<Result<EnvioReclamacionResultado>> Handle(EnviarReclamacionEmpresaCommand request, CancellationToken cancellationToken)
@@ -66,11 +72,11 @@ public class EnviarReclamacionEmpresaCommandHandler(
         var p = preparada.Valor;
         var envio = await registroEnvio.EnviarYRegistrarAsync(
             new TitularReclamacion(p.TitularId, p.TitularRazonSocial, AmbitoAplicacion.Empresa),
-            p.DocumentoIds, p.Correos, p.Asunto, p.CuerpoHtml, cancellationToken);
+            p.DocumentoIds, p.Correos, p.Asunto, p.CuerpoHtml, cancellationToken, p.DocumentosQueFaltan);
 
         return envio.EsFallido
             ? Result.Fallo<EnvioReclamacionResultado>(envio.Error)
-            : Result.Exito(new EnvioReclamacionResultado(p.DocumentoIds, p.Correos));
+            : Result.Exito(new EnvioReclamacionResultado(p.DocumentoIds, p.Correos, p.DocumentosQueFaltan.Count));
     }
 
     /// <summary>Misma idea que <c>EnviarReclamacionCommandHandler.PrepararAsync</c>: decide qué se envía y a quién, sin enviar; el envío y la vista previa comparten esta única implementación.</summary>
@@ -88,7 +94,8 @@ public class EnviarReclamacionEmpresaCommandHandler(
         if (empresa is null)
             return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.EmpresaNoEncontrada", "No encontramos esta empresa."));
 
-        if (request.DocumentoIds.Count == 0)
+        var pedidos = request.Pendientes ?? [];
+        if (request.DocumentoIds.Count == 0 && pedidos.Count == 0)
             return Result.Fallo<ReclamacionPreparada>(Error.Crear("Reclamacion.SinDocumentos", "Selecciona al menos un documento a reclamar."));
 
         var idsSolicitados = request.DocumentoIds.Distinct().ToList();
@@ -116,7 +123,7 @@ public class EnviarReclamacionEmpresaCommandHandler(
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        if (filas.Count == 0)
+        if (idsSolicitados.Count > 0 && filas.Count == 0)
         {
             return Result.Fallo<ReclamacionPreparada>(Error.Crear(
                 "Reclamacion.SinDocumentosValidos",
@@ -134,8 +141,15 @@ public class EnviarReclamacionEmpresaCommandHandler(
                 "Algunos de los documentos seleccionados ya no son reclamables — puede que se hayan renovado o hayan salido de la ventana de reclamación. Actualiza la vista antes de volver a intentarlo."));
         }
 
+        // Lo que se pide sin vencimiento: se revalida contra la base con la misma regla que lo ofreció el lote (todo o nada).
+        var pendientes = await pendientesDeReclamacion.ResolverParaEmpresaAsync(request.EmpresaId, pedidos, cancellationToken);
+        if (pendientes.EsFallido)
+            return Result.Fallo<ReclamacionPreparada>(pendientes.Error);
+
         var resueltos = await resolucionDestinatarios.ResolverParaEmpresaAsync(
-            request.EmpresaId, filas.Select(f => f.TipoDocumentoId).Distinct().ToList(), cancellationToken);
+            request.EmpresaId,
+            filas.Select(f => f.TipoDocumentoId).Concat(pendientes.Valor.Select(p => p.TipoDocumentoId)).Distinct().ToList(),
+            cancellationToken);
 
         // La selección manual se filtra CONTRA lo resuelto, no lo sustituye:
         // así un Id de contacto de otra Empresa colado a mano no se convierte
@@ -160,15 +174,17 @@ public class EnviarReclamacionEmpresaCommandHandler(
                 "No hay ningún contacto en la agenda al que reclamar esta documentación — añade uno en la ficha de la empresa."));
         }
 
-        var documentoIds = filas.Select(f => f.DocumentoId).Distinct().ToList();
+        var documentoIds = filas.Select(f => f.DocumentoId)
+            .Concat(pendientes.Valor.Where(p => p.DocumentoId is not null).Select(p => p.DocumentoId!.Value))
+            .Distinct().ToList();
         var destinatarios = resueltos.Select(d => d.Email).Distinct().ToList();
         var asunto = EnviarReclamacionCommandHandler.ConstruirAsunto(empresa.RazonSocial);
         var cuerpoHtml = ConstruirCuerpoHtml(
-            empresa.RazonSocial, filas.Select(f => (f.TipoDocumentoNombre, f.FechaVencimiento!.Value)));
+            empresa.RazonSocial, filas.Select(f => (f.TipoDocumentoNombre, f.FechaVencimiento!.Value)), pendientes.Valor);
 
         return Result.Exito(new ReclamacionPreparada(
             request.EmpresaId, empresa.RazonSocial, documentoIds, destinatarios,
-            [.. resueltos.GroupBy(d => d.Email).Select(g => g.First())], asunto, cuerpoHtml));
+            [.. resueltos.GroupBy(d => d.Email).Select(g => g.First())], asunto, cuerpoHtml, pendientes.Valor));
     }
 
     /// <summary>
@@ -177,25 +193,35 @@ public class EnviarReclamacionEmpresaCommandHandler(
     /// repetir su razón social en cada fila no informaría de nada.
     /// </summary>
     public static string ConstruirCuerpoHtml(
-        string razonSocialEmpresa, IEnumerable<(string TipoDocumentoNombre, DateOnly FechaVencimiento)> documentos)
+        string razonSocialEmpresa,
+        IEnumerable<(string TipoDocumentoNombre, DateOnly FechaVencimiento)> documentos,
+        IReadOnlyList<DocumentoPendienteDto>? pendientes = null)
     {
         var builder = new StringBuilder();
         builder.Append("<p>Estimado/a ").Append(System.Net.WebUtility.HtmlEncode(razonSocialEmpresa)).Append(",</p>");
-        builder.Append("<p>Los siguientes documentos de coordinación de actividades empresariales están próximos a vencer o ya han vencido. Por favor, gestiona su renovación lo antes posible:</p>");
-        builder.Append("<table style=\"border-collapse:collapse;width:100%\"><thead><tr>")
-            .Append("<th style=\"text-align:left;border-bottom:1px solid #ccc;padding:4px\">Documento</th>")
-            .Append("<th style=\"text-align:left;border-bottom:1px solid #ccc;padding:4px\">Vencimiento</th>")
-            .Append("</tr></thead><tbody>");
 
-        foreach (var (tipoDocumentoNombre, fechaVencimiento) in documentos.OrderBy(d => d.FechaVencimiento))
+        var lista = documentos.ToList();
+        // Con pendientes y sin nada que venza, la sección de vencimientos sobra; sin pendientes sale como siempre (aunque esté vacía).
+        if (lista.Count > 0 || pendientes is not { Count: > 0 })
         {
-            builder.Append("<tr>")
-                .Append("<td style=\"padding:4px\">").Append(System.Net.WebUtility.HtmlEncode(tipoDocumentoNombre)).Append("</td>")
-                .Append("<td style=\"padding:4px\">").Append(fechaVencimiento.ToString("dd/MM/yyyy")).Append("</td>")
-                .Append("</tr>");
+            builder.Append("<p>Los siguientes documentos de coordinación de actividades empresariales están próximos a vencer o ya han vencido. Por favor, gestiona su renovación lo antes posible:</p>");
+            builder.Append("<table style=\"border-collapse:collapse;width:100%\"><thead><tr>")
+                .Append("<th style=\"text-align:left;border-bottom:1px solid #ccc;padding:4px\">Documento</th>")
+                .Append("<th style=\"text-align:left;border-bottom:1px solid #ccc;padding:4px\">Vencimiento</th>")
+                .Append("</tr></thead><tbody>");
+
+            foreach (var (tipoDocumentoNombre, fechaVencimiento) in lista.OrderBy(d => d.FechaVencimiento))
+            {
+                builder.Append("<tr>")
+                    .Append("<td style=\"padding:4px\">").Append(System.Net.WebUtility.HtmlEncode(tipoDocumentoNombre)).Append("</td>")
+                    .Append("<td style=\"padding:4px\">").Append(fechaVencimiento.ToString("dd/MM/yyyy")).Append("</td>")
+                    .Append("</tr>");
+            }
+
+            builder.Append("</tbody></table>");
         }
 
-        builder.Append("</tbody></table>");
+        CorreoReclamacionPendientes.Anexar(builder, pendientes ?? [], conTrabajador: false);
         builder.Append("<p>Gracias por tu colaboración.</p>");
         return builder.ToString();
     }

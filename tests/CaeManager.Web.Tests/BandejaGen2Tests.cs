@@ -388,4 +388,86 @@ public class BandejaGen2Tests : BunitContext
             "el fallo de una carga superada no es un error de la que sí fue bien");
         cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reintentar");
     }
+
+    // ------------------------- «Pedir» un documento que falta (decisión de Chris, 2026-10-04)
+
+    /// <summary>Lo que el cajón pide al abrirse (tipos de documento y Trabajadores): el doble de la Bandeja revienta con cualquier otra consulta, a propósito.</summary>
+    private sealed class MediatorConCajon(MediatorDeLaBandeja bandeja, Guid trabajadorId) : IMediator
+    {
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            request switch
+            {
+                CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento.ObtenerTiposDocumentoQuery =>
+                    Task.FromResult((TResponse)(object)(IReadOnlyList<CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento.TipoDocumentoListaDto>)[]),
+                CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.ObtenerTrabajadoresParaSelectorQuery =>
+                    Task.FromResult((TResponse)(object)(IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.TrabajadorSelectorDto>)[new(trabajadorId, "Ana Ruiz", null, null)]),
+                _ => bandeja.Send(request, cancellationToken)
+            };
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => Task.CompletedTask;
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => Task.FromResult<object?>(null);
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => Task.CompletedTask;
+    }
+
+    private (IRenderedComponent<Bandeja> Cut, IRenderedComponent<DrawerReclamacionLote> Drawer) RenderizarConUrl(string url, Guid trabajadorId, params ItemBandejaDto[] items)
+    {
+        Services.AddScoped<IMediator>(_ => new MediatorConCajon(new MediatorDeLaBandeja(items), trabajadorId));
+        Services.AddLocalization();
+        Services.AddScoped<ToastService>();
+        Services.AddScoped<ContextWorkspaceService>();
+        Services.GetRequiredService<NavigationManager>().NavigateTo(url);
+        var cut = Render<Bandeja>();
+        return (cut, cut.FindComponent<DrawerReclamacionLote>());
+    }
+
+    [Fact]
+    public void Con_pedir_en_la_url_el_cajon_se_abre_sobre_ese_Trabajador_con_lo_que_falta_incluido()
+    {
+        var trabajador = Guid.NewGuid();
+        var (_, drawer) = RenderizarConUrl("bandeja?pedir=" + trabajador, trabajador,
+            Item("v1", TipoItemBandeja.Vencido, Refrielectric, "Refrielectric S.A."));
+
+        drawer.Instance.Visible.Should().BeTrue();
+        drawer.Instance.AmbitoInicial.Should().Be(CaeManager.Domain.Documentos.AmbitoAplicacion.Trabajador);
+        drawer.Instance.EntidadIdInicial.Should().Be(trabajador);
+        drawer.Instance.IncluirPendientesSinFecha.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Sin_pedir_en_la_url_el_cajon_no_se_abre()
+    {
+        var (_, drawer) = RenderizarConUrl("bandeja", Guid.NewGuid(),
+            Item("v1", TipoItemBandeja.Vencido, Refrielectric, "Refrielectric S.A."));
+
+        drawer.Instance.Visible.Should().BeFalse();
+        drawer.Instance.IncluirPendientesSinFecha.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Un_pedir_con_Guid_vacio_no_abre_el_cajon()
+    {
+        var (_, drawer) = RenderizarConUrl("bandeja?pedir=" + Guid.Empty, Guid.NewGuid(),
+            Item("v1", TipoItemBandeja.Vencido, Refrielectric, "Refrielectric S.A."));
+
+        drawer.Instance.Visible.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(TipoItemBandeja.Faltante, true)]
+    [InlineData(TipoItemBandeja.Vencido, false)]
+    public void Reclamar_desde_una_fila_pide_lo_que_falta_solo_si_la_fila_es_un_Faltante(TipoItemBandeja tipo, bool incluyePendientes)
+    {
+        var trabajador = Guid.NewGuid();
+        var (cut, drawer) = RenderizarConUrl("bandeja", trabajador,
+            Item("f1", tipo, Refrielectric, "Refrielectric S.A.", trabajadorId: trabajador, trabajadorNombre: "Ana Ruiz", tipoDocumentoId: Guid.NewGuid()));
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Reclamar").Click();
+
+        drawer.Instance.Visible.Should().BeTrue();
+        drawer.Instance.EntidadIdInicial.Should().Be(trabajador);
+        drawer.Instance.IncluirPendientesSinFecha.Should().Be(incluyePendientes);
+    }
 }

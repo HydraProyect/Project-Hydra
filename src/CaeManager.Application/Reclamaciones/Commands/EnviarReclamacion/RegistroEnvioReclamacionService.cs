@@ -38,13 +38,18 @@ public sealed record TitularReclamacion(Guid Id, string RazonSocial, AmbitoAplic
 /// </summary>
 public interface IRegistroEnvioReclamacionService
 {
+    /// <param name="documentosQueFaltan">
+    /// Documentos que nunca se subieron y se piden en el mismo correo: no hay Documento al que apuntar, así que el registro
+    /// guarda su Tipo y a quién le faltan. Cuentan exactamente igual que los demás: misma reclamación, misma «última».
+    /// </param>
     Task<Result> EnviarYRegistrarAsync(
         TitularReclamacion titular,
         IReadOnlyList<Guid> documentoIds,
         IReadOnlyList<string> destinatarios,
         string asunto,
         string cuerpoHtml,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        IReadOnlyList<DocumentoQueFaltaPedido>? documentosQueFaltan = null);
 }
 
 public class RegistroEnvioReclamacionService(
@@ -70,7 +75,8 @@ public class RegistroEnvioReclamacionService(
         IReadOnlyList<string> destinatarios,
         string asunto,
         string cuerpoHtml,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<DocumentoQueFaltaPedido>? documentosQueFaltan = null)
     {
         var destinatarioUnico = string.Join("; ", destinatarios);
         IReadOnlyList<string> destinatariosFallidos = [];
@@ -190,8 +196,8 @@ public class RegistroEnvioReclamacionService(
             return Result.Fallo(Error.Crear("Reclamacion.SinUsuario", "No pudimos identificar tu usuario."));
 
         var reclamacion = titular.Ambito == AmbitoAplicacion.Cliente
-            ? ReclamacionDocumental.ParaCliente(titular.Id, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, documentoIds, conversacionId)
-            : ReclamacionDocumental.ParaEmpresa(titular.Id, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, documentoIds, conversacionId);
+            ? ReclamacionDocumental.ParaCliente(titular.Id, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, documentoIds, conversacionId, documentosQueFaltan)
+            : ReclamacionDocumental.ParaEmpresa(titular.Id, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, documentoIds, conversacionId, documentosQueFaltan);
 
         repositorio.Agregar(reclamacion);
 

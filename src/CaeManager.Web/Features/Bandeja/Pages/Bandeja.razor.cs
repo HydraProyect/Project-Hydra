@@ -16,6 +16,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IDis
     [SupplyParameterFromQuery(Name = "tipo")]
     public string? TipoInicial { get; set; }
 
+    /// <summary>
+    /// Mi trabajo → «Pedir» (una fila de lo que falta): aterriza aquí con el Trabajador y abre «Reclamar en lote» ya
+    /// preseleccionado, con lo que falta incluido (<see cref="_incluirPendientes"/>). El Gestor CAE revisa y es él quien envía.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "pedir")]
+    public Guid? PedirTrabajadorId { get; set; }
+
     private enum OrdenBandeja { Impacto, Fecha }
 
     private BandejaAgrupadaDto? _bandeja;
@@ -28,6 +35,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IDis
     private bool _reclamacionLoteVisible;
     private AmbitoAplicacion? _ambitoPreseed;
     private Guid? _entidadIdPreseed;
+    private bool _incluirPendientes;
+    private bool _pedirAplicado;
 
     /// <summary>
     /// Se cancela al salir de la pantalla: las consultas en curso dejan de
@@ -157,7 +166,27 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IDis
         }
     }
 
-    protected override Task OnInitializedAsync() => CargarAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarAsync();
+        AbrirPedirDeLaUrl();
+    }
+
+    /// <summary>
+    /// <c>/bandeja?pedir={TrabajadorId}</c> abre el cajón una sola vez: el parámetro sigue en la URL mientras la pantalla
+    /// vive, y sin esta marca cada recarga de la cola lo reabriría tras cerrarlo.
+    /// </summary>
+    private void AbrirPedirDeLaUrl()
+    {
+        if (_pedirAplicado || PedirTrabajadorId is not { } trabajadorId || trabajadorId == Guid.Empty || _desechado)
+            return;
+
+        _pedirAplicado = true;
+        _ambitoPreseed = AmbitoAplicacion.Trabajador;
+        _entidadIdPreseed = trabajadorId;
+        _incluirPendientes = true;
+        _reclamacionLoteVisible = true;
+    }
 
     /// <summary>
     /// La URL es la fuente de verdad del filtro, no solo su semilla inicial
@@ -240,6 +269,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IDis
     {
         _ambitoPreseed = null;
         _entidadIdPreseed = null;
+        _incluirPendientes = false;
         _reclamacionLoteVisible = true;
         return Task.CompletedTask;
     }
@@ -249,6 +279,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IDis
     {
         _ambitoPreseed = AmbitoAplicacion.Trabajador;
         _entidadIdPreseed = item.TrabajadorId;
+        // Un «Faltante» no tiene vencimiento: sin lo que falta el cajón se abriría vacío (lo que se pide sin fecha).
+        _incluirPendientes = item.Tipo == TipoItemBandeja.Faltante;
         _reclamacionLoteVisible = true;
         return Task.CompletedTask;
     }

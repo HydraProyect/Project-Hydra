@@ -105,6 +105,34 @@ public class ClasificacionRuidoMensajeServiceTests : IAsyncLifetime
         clasificaciones.Should().NotContain(c => c.DetalleSugerenciaGestionCorreoId == detalleSinReclamar.Id);
     }
 
+    /// <summary>
+    /// «Pedir» un documento que falta (2026-10-04): la línea no tiene Documento, guarda el par (Trabajador, Tipo). La notificación de
+    /// la plataforma que repite esa petición es una repetición igual que la de un documento que vencía, y la consulta no debe
+    /// perder la línea por el join con Documentos.
+    /// </summary>
+    [Fact]
+    public async Task Marca_como_repeticion_lo_que_se_reclamo_como_documento_que_faltaba()
+    {
+        await using (var siembra = CrearContexto())
+        {
+            siembra.ReclamacionesDocumentales.Add(ReclamacionDocumental.ParaCliente(
+                _clienteId, Guid.NewGuid(), "cliente@ejemplo.com", DateTime.UtcNow, [],
+                documentosQueFaltan: [new DocumentoQueFaltaPedido(_tipoDocumentoId, _trabajadorSinReclamarId)]));
+            await siembra.SaveChangesAsync();
+        }
+
+        var sugerencia = await SembrarSugerenciaConDosItemsAsync();
+        var detalleSinReclamar = sugerencia.Detalles.Single(d => d.TrabajadorId == _trabajadorSinReclamarId);
+
+        await using var contexto = CrearContexto();
+        await CrearServicio(contexto).ProcesarAsync(sugerencia, _clienteId, esNotificacionAutomatica: true);
+        await contexto.SaveChangesAsync();
+
+        var clasificaciones = await contexto.ClasificacionesRuidoDetalleGestion.ToListAsync();
+        clasificaciones.Should().HaveCount(2, "el que vencía y el que faltaba: los dos se reclamaron formalmente");
+        clasificaciones.Should().Contain(c => c.DetalleSugerenciaGestionCorreoId == detalleSinReclamar.Id);
+    }
+
     [Fact]
     public async Task No_clasifica_nada_si_el_mensaje_no_es_notificacion_automatica()
     {

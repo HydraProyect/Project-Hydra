@@ -55,6 +55,50 @@ public class VentanaReclamacionTests
         reclamables.Should().ContainSingle().Which.Should().BeSameAs(nuevo);
     }
 
+    public static IEnumerable<object?[]> Vigencias() =>
+    [
+        [EstadoVigenciaDocumento.SinConfirmar, (DateOnly?)null, true, "nadie anotó hasta cuándo vale: se pide su vigencia"],
+        [EstadoVigenciaDocumento.NoCaduca, (DateOnly?)null, false, "«No caduca» confirmado no se pide nunca"],
+        [EstadoVigenciaDocumento.VenceEnFecha, (DateOnly?)new DateOnly(2027, 1, 2), false, "con fecha lo gobierna la ventana, no se pide sin fecha"],
+        [EstadoVigenciaDocumento.VenceEnFecha, (DateOnly?)new DateOnly(2030, 1, 1), false, "con fecha lejana tampoco: no hay nada que pedir"],
+    ];
+
+    [Theory]
+    [MemberData(nameof(Vigencias))]
+    public void Lo_sin_confirmar_sin_fecha_da_el_mismo_veredicto_en_memoria_y_en_consulta(
+        EstadoVigenciaDocumento estado, DateOnly? fecha, bool esperado, string porque)
+    {
+        VentanaReclamacion.EsSinConfirmarSinFecha(estado, fecha).Should().Be(esperado, porque);
+
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), Hoy.AddYears(-5), VigenciaDocumento.Rehidratar(estado, fecha));
+
+        new[] { documento }.AsQueryable().SinConfirmarSinFecha().Any().Should().Be(esperado, porque);
+    }
+
+    [Fact]
+    public void Un_sin_confirmar_sin_fecha_nunca_es_reclamable_por_vencimiento_y_lo_que_vence_nunca_se_pide_sin_fecha()
+    {
+        // Las dos puertas del flujo son disjuntas: lo que se ofrece por una no se ofrece por la otra.
+        var sinConfirmar = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), Hoy.AddYears(-1), VigenciaDocumento.SinConfirmar);
+        var vence = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), Hoy.AddYears(-1), VigenciaDocumento.VenceEl(Hoy.AddDays(5)));
+        var todos = new[] { sinConfirmar, vence }.AsQueryable();
+
+        todos.Reclamables(Hoy).Should().ContainSingle().Which.Should().BeSameAs(vence);
+        todos.SinConfirmarSinFecha().Should().ContainSingle().Which.Should().BeSameAs(sinConfirmar);
+    }
+
+    [Fact]
+    public void Un_sin_confirmar_sustituido_no_se_pide_porque_ya_lo_sustituyo_otro_documento()
+    {
+        var trabajador = Guid.NewGuid();
+        var tipo = Guid.NewGuid();
+        var viejo = Documento.DeTrabajador(trabajador, tipo, Hoy.AddYears(-2), VigenciaDocumento.SinConfirmar);
+        var nuevo = Documento.DeTrabajador(trabajador, tipo, Hoy.AddDays(-20), VigenciaDocumento.VenceEl(Hoy.AddYears(1)));
+        viejo.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+
+        new[] { viejo, nuevo }.AsQueryable().SinConfirmarSinFecha().Should().BeEmpty();
+    }
+
     [Fact]
     public void El_limite_es_hoy_mas_los_meses_de_la_constante()
     {

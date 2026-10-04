@@ -12,6 +12,7 @@ using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.IntegrationTests.Reclamaciones;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -46,6 +47,10 @@ public class CoherenciaDeLaVentanaDeReclamacionEntreSuperficiesTests : IAsyncLif
 
     private Guid _clienteId;
     private Guid _empresaId;
+    private Guid _trabajadorId;
+    private Guid _tipoTrabajadorAusenteId;
+    private Guid _tipoTrabajadorNoRequeridoId;
+    private Guid _tipoEmpresaAusenteId;
 
     private sealed record Caso(string Nombre, bool EsReclamable, VigenciaDocumento Vigencia)
     {
@@ -90,7 +95,14 @@ public class CoherenciaDeLaVentanaDeReclamacionEntreSuperficiesTests : IAsyncLif
 
         var tipoTrabajador = new TipoDocumento("Ficha de riesgos", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador);
         var tipoEmpresa = new TipoDocumento("Plan de prevencion", null, aplicaVencimientoAutomatico: false, 2, AmbitoAplicacion.Empresa);
-        contexto.TiposDocumento.AddRange(tipoTrabajador, tipoEmpresa);
+        // Dos tipos que el Centro exige y de los que no hay ningún documento: son lo que se pide como «Ausente» (nunca se subió).
+        var tipoTrabajadorRequerido = new TipoDocumento("Formacion obligatoria", null, aplicaVencimientoAutomatico: false, 3, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
+        var tipoEmpresaRequerido = new TipoDocumento("Seguro obligatorio", null, aplicaVencimientoAutomatico: false, 4, AmbitoAplicacion.Empresa, requerido: RequisitoDocumental.Si);
+        contexto.TiposDocumento.AddRange(tipoTrabajador, tipoEmpresa, tipoTrabajadorRequerido, tipoEmpresaRequerido);
+        _tipoTrabajadorAusenteId = tipoTrabajadorRequerido.Id;
+        _tipoTrabajadorNoRequeridoId = tipoTrabajador.Id;
+        _tipoEmpresaAusenteId = tipoEmpresaRequerido.Id;
+        _trabajadorId = trabajador.Id;
         await contexto.SaveChangesAsync();
 
         contexto.Asignaciones.Add(new Asignacion(trabajador.Id, centro.Id, _hoy.AddDays(-400)));
@@ -128,16 +140,17 @@ public class CoherenciaDeLaVentanaDeReclamacionEntreSuperficiesTests : IAsyncLif
         await using var c = CrearContexto();
         var alcance = new AlcanceDatosServiceFalso();
         var resolucion = new ResolucionDestinatariosAgendaService(c, c);
+        var pendientes = PendientesDeReclamacionFabrica.Crear(c, alcance);
 
         // 1. La regla en memoria (la usa la ficha de Trabajador 360 para ofrecer el botón).
         foreach (var caso in _casos)
             Comprobar("VentanaReclamacion.EsReclamable", caso, VentanaReclamacion.EsReclamable(caso.Vigencia.FechaVencimiento, _hoy));
 
         // 2-3. La vista previa del lote: de Trabajadores y de Empresas.
-        var loteTrabajadores = await new ObtenerLoteReclamacionQueryHandler(c, c, c, c, c, c, c, c, alcance, resolucion)
+        var loteTrabajadores = await new ObtenerLoteReclamacionQueryHandler(c, c, c, c, c, c, c, c, alcance, resolucion, pendientes)
             .Handle(new ObtenerLoteReclamacionQuery(), CancellationToken.None);
         var idsLoteTrabajadores = loteTrabajadores.SelectMany(l => l.Documentos).Select(d => d.DocumentoId).ToHashSet();
-        var loteEmpresas = await new ObtenerLoteReclamacionEmpresaQueryHandler(c, c, c, c, c, alcance, resolucion)
+        var loteEmpresas = await new ObtenerLoteReclamacionEmpresaQueryHandler(c, c, c, c, c, alcance, resolucion, pendientes)
             .Handle(new ObtenerLoteReclamacionEmpresaQuery(), CancellationToken.None);
         var idsLoteEmpresas = loteEmpresas.SelectMany(l => l.Documentos).Select(d => d.DocumentoId).ToHashSet();
 
@@ -149,8 +162,8 @@ public class CoherenciaDeLaVentanaDeReclamacionEntreSuperficiesTests : IAsyncLif
 
         // 4-5. Lo que el envío acepta (PrepararAsync es el envío sin enviar: es la única implementación de lo
         //      que se acepta, y la vista previa de «Reclamar de nuevo» la llama tal cual).
-        var enviarCliente = new EnviarReclamacionCommandHandler(c, c, c, c, c, c, alcance, resolucion, registroEnvio: null!);
-        var enviarEmpresa = new EnviarReclamacionEmpresaCommandHandler(c, c, c, alcance, resolucion, registroEnvio: null!);
+        var enviarCliente = new EnviarReclamacionCommandHandler(c, c, c, c, c, c, alcance, resolucion, registroEnvio: null!, pendientes);
+        var enviarEmpresa = new EnviarReclamacionEmpresaCommandHandler(c, c, c, alcance, resolucion, registroEnvio: null!, pendientes);
         foreach (var caso in _casos)
         {
             var alCliente = await enviarCliente.PrepararAsync(
@@ -164,6 +177,86 @@ public class CoherenciaDeLaVentanaDeReclamacionEntreSuperficiesTests : IAsyncLif
 
         fallos.Should().BeEmpty(
             "la ventana de reclamación es una sola regla; una superficie que la calcule aparte ofrece lo que otra rechaza");
+    }
+
+    /// <summary>
+    /// La tercera pata del flujo: lo que se PIDE sin fecha (un «Sin confirmar» sin fecha o un documento que nunca se subió)
+    /// lo decide <see cref="IPendientesDeReclamacionService"/>, y el lote que lo ofrece y el envío que lo acepta leen de ahí.
+    /// Misma tabla de vigencias que la ventana: solo «Sin confirmar» se pide sin fecha; lo que vence va por la ventana y
+    /// «No caduca» no se pide nunca. Y un Tipo que el Centro no exige no se pide como ausente aunque se conozca su Id.
+    /// </summary>
+    [Fact]
+    public async Task Lo_que_se_pide_sin_fecha_se_ofrece_exactamente_donde_se_acepta()
+    {
+        var fallos = new List<string>();
+
+        void Comprobar(string superficie, string que, bool esperado, bool observado)
+        {
+            if (observado != esperado)
+                fallos.Add($"{superficie} · {que}: esperado {(esperado ? "pedible" : "NO pedible")}, observado {(observado ? "pedible" : "NO pedible")}");
+        }
+
+        await using var c = CrearContexto();
+        var alcance = new AlcanceDatosServiceFalso();
+        var resolucion = new ResolucionDestinatariosAgendaService(c, c);
+        var pendientes = PendientesDeReclamacionFabrica.Crear(c, alcance);
+
+        var loteTrabajadores = await new ObtenerLoteReclamacionQueryHandler(c, c, c, c, c, c, c, c, alcance, resolucion, pendientes)
+            .Handle(new ObtenerLoteReclamacionQuery(IncluirPendientesSinFecha: true), CancellationToken.None);
+        var ofrecidosTrabajadores = loteTrabajadores.SelectMany(l => l.PendientesSinFecha ?? []).ToList();
+        var loteEmpresas = await new ObtenerLoteReclamacionEmpresaQueryHandler(c, c, c, c, c, alcance, resolucion, pendientes)
+            .Handle(new ObtenerLoteReclamacionEmpresaQuery(IncluirPendientesSinFecha: true), CancellationToken.None);
+        var ofrecidosEmpresas = loteEmpresas.SelectMany(l => l.PendientesSinFecha ?? []).ToList();
+
+        var enviarCliente = new EnviarReclamacionCommandHandler(c, c, c, c, c, c, alcance, resolucion, registroEnvio: null!, pendientes);
+        var enviarEmpresa = new EnviarReclamacionEmpresaCommandHandler(c, c, c, alcance, resolucion, registroEnvio: null!, pendientes);
+
+        foreach (var caso in _casos)
+        {
+            var esperado = caso.Vigencia.Estado == EstadoVigenciaDocumento.SinConfirmar;
+
+            Comprobar("Lote de Trabajadores (pendientes)", caso.Nombre, esperado,
+                ofrecidosTrabajadores.Any(p => p.DocumentoId == caso.DocumentoTrabajadorId));
+            Comprobar("Lote de Empresas (pendientes)", caso.Nombre, esperado,
+                ofrecidosEmpresas.Any(p => p.DocumentoId == caso.DocumentoEmpresaId));
+
+            var alCliente = await enviarCliente.PrepararAsync(
+                new EnviarReclamacionCommand(_clienteId, [], Pendientes: [PendienteSinFecha.SinConfirmar(caso.DocumentoTrabajadorId)]), CancellationToken.None);
+            Comprobar("Envío al Cliente empresarial (pendientes)", caso.Nombre, esperado, alCliente.EsExitoso);
+
+            var aLaEmpresa = await enviarEmpresa.PrepararAsync(
+                new EnviarReclamacionEmpresaCommand(_empresaId, [], Pendientes: [PendienteSinFecha.SinConfirmar(caso.DocumentoEmpresaId)]), CancellationToken.None);
+            Comprobar("Envío a la Empresa (pendientes)", caso.Nombre, esperado, aLaEmpresa.EsExitoso);
+        }
+
+        // Un documento que nunca se subió: de Trabajador (lo exige el Centro) y de Empresa (lo exige el Centro a la Empresa).
+        Comprobar("Lote de Trabajadores (ausente)", "Formación obligatoria", true,
+            ofrecidosTrabajadores.Any(p => p.Motivo == MotivoPendienteDeReclamacion.Ausente && p.TrabajadorId == _trabajadorId && p.TipoDocumentoId == _tipoTrabajadorAusenteId));
+        Comprobar("Envío al Cliente empresarial (ausente)", "Formación obligatoria", true,
+            (await enviarCliente.PrepararAsync(
+                new EnviarReclamacionCommand(_clienteId, [], Pendientes: [PendienteSinFecha.Ausente(_trabajadorId, _tipoTrabajadorAusenteId)]), CancellationToken.None)).EsExitoso);
+
+        Comprobar("Lote de Empresas (ausente)", "Seguro obligatorio", true,
+            ofrecidosEmpresas.Any(p => p.Motivo == MotivoPendienteDeReclamacion.Ausente && p.TrabajadorId is null && p.TipoDocumentoId == _tipoEmpresaAusenteId));
+        Comprobar("Envío a la Empresa (ausente)", "Seguro obligatorio", true,
+            (await enviarEmpresa.PrepararAsync(
+                new EnviarReclamacionEmpresaCommand(_empresaId, [], Pendientes: [PendienteSinFecha.Ausente(null, _tipoEmpresaAusenteId)]), CancellationToken.None)).EsExitoso);
+
+        // Lo que el Centro no exige no se ofrece ni se acepta como ausente.
+        Comprobar("Lote de Trabajadores (ausente)", "Tipo no requerido", false,
+            ofrecidosTrabajadores.Any(p => p.Motivo == MotivoPendienteDeReclamacion.Ausente && p.TipoDocumentoId == _tipoTrabajadorNoRequeridoId));
+        Comprobar("Envío al Cliente empresarial (ausente)", "Tipo no requerido", false,
+            (await enviarCliente.PrepararAsync(
+                new EnviarReclamacionCommand(_clienteId, [], Pendientes: [PendienteSinFecha.Ausente(_trabajadorId, _tipoTrabajadorNoRequeridoId)]), CancellationToken.None)).EsExitoso);
+
+        // Control positivo: el instrumento ve pendientes (sin esto, «nada ofrecido» y «nada aceptado» coinciden por vacío).
+        ofrecidosTrabajadores.Should().NotBeEmpty();
+        ofrecidosEmpresas.Should().NotBeEmpty();
+
+        fallos.Should().BeEmpty(
+            "lo que se pide sin fecha es una sola regla (IPendientesDeReclamacionService); una superficie que la calcule aparte ofrece lo que otra rechaza"
+            + " | DIAG empresas: " + string.Join(";", ofrecidosEmpresas.Select(p => $"{p.Motivo}/{p.TipoDocumentoId}/{p.TrabajadorId}"))
+            + " | titulares lote: " + string.Join(";", loteEmpresas.Select(l => $"{l.EmpresaId}:{l.Documentos.Count}:{l.PendientesSinFecha?.Count}")));
     }
 
     private CaeManagerDbContext CrearContexto()

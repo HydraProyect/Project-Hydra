@@ -346,13 +346,14 @@ public class ReglasDeNegocioSinCopiasTests
     /// <summary>
     /// Un lector de la fuente <c>Documentos</c> (<c>IDocumentosQueryContext</c>, parámetro <c>documentosContext</c> o
     /// <c>dbContext</c>) que NO filtra los operativos en la misma línea: ni <c>.Operativos()</c>, ni
-    /// <c>.Where(DocumentoOperativo.Expresion)</c>, ni <c>.Reclamables(hoy)</c> (que lo aplica por dentro). Un documento
+    /// <c>.Where(DocumentoOperativo.Expresion)</c>, ni <c>.Reclamables(hoy)</c> ni <c>.SinConfirmarSinFecha()</c> (que lo
+    /// aplican por dentro: las dos formas de <c>VentanaReclamacion</c>). Un documento
     /// sustituido es historial (D5): no cuenta para estado, alertas, bloqueo, faltantes, paquete ni cifras. Cada lector
     /// que lo ignora a propósito está en <see cref="LectoresDeDocumentosSinFiltroOperativo"/> con su motivo; uno nuevo
     /// es rojo hasta que filtre o se declare a conciencia.
     /// </summary>
     private static readonly Regex PatronLectorDeDocumentosSinFiltroOperativo = new(
-        @"\b\w*(?:[Cc]ontext|[Cc]ontexto|[Dd]b)\s*\.\s*Documentos\b(?!\s*\.\s*(?:Operativos\s*\(|Reclamables\s*\(|Where\s*\(\s*DocumentoOperativo\s*\.\s*Expresion))",
+        @"\b\w*(?:[Cc]ontext|[Cc]ontexto|[Dd]b)\s*\.\s*Documentos\b(?!\s*\.\s*(?:Operativos\s*\(|Reclamables\s*\(|SinConfirmarSinFecha\s*\(|Where\s*\(\s*DocumentoOperativo\s*\.\s*Expresion))",
         RegexOptions.Compiled);
 
     /// <summary>
@@ -504,6 +505,7 @@ public class ReglasDeNegocioSinCopiasTests
             "        var w = await _documentosContext.Documentos.ToListAsync();",
             "        var v = contexto.Documentos.Where(d => d.Id == id);",
             "        var u = db.Documentos.Any();",
+            "        var t = documentosContext.Documentos.SinConfirmar.Where(d => d.Id == id);",
         ];
         foreach (var linea in sinFiltro)
             EsCodigoQueCasa(linea, PatronLectorDeDocumentosSinFiltroOperativo).Should().BeTrue(linea);
@@ -514,6 +516,7 @@ public class ReglasDeNegocioSinCopiasTests
             "            from documento in documentosContext.Documentos.Operativos()",
             "        var y = documentosContext.Documentos.Where(DocumentoOperativo.Expresion)",
             "            from documento in documentosContext.Documentos.Reclamables(hoy)",
+            "            from documento in documentosContext.Documentos.SinConfirmarSinFecha()",
             "        // documentosContext.Documentos sin filtro",
             "        /// <c>documentosContext.Documentos</c>",
             "        var n = lote.Documentos.Count;",

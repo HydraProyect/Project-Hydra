@@ -169,6 +169,99 @@ public class MiTrabajoGen2Tests : BunitContext
         dexter.ReturnUrl.Should().Be($"/documentos?pestana=plataforma&{Vuelta}");
     }
 
+    // ---- «Pedir» lo que falta (decisión 2026-10-04) ----
+
+    private static readonly Guid TrabajadorQueFalta = Guid.Parse("c0000000-0000-0000-0000-0000000000f1");
+
+    private static MiTrabajoAgregadoDto CarteraConFaltante() => new(
+    [
+        Tenant(TenantRefri, "Refrielectric", esOrigen: false,
+            [
+                Item("f1", TipoItemBandeja.Faltante, "Falta Formación PRL", "Transportes Planet Express", trabajadorId: TrabajadorQueFalta),
+                Item("f2", TipoItemBandeja.Vencido, "Reconocimiento médico", "Transportes Planet Express", documentoId: DocumentoVencido),
+                // Un «Faltante» sin Trabajador (no hay a quién pedírselo desde la cola) no ofrece Pedir.
+                Item("f3", TipoItemBandeja.Faltante, "Falta Seguro RC", "Transportes Planet Express") with { TrabajadorId = null },
+            ]),
+    ]);
+
+    [Fact]
+    public void Una_fila_que_falta_ofrece_Pedir_que_entra_en_el_Tenant_de_su_fila_y_aterriza_en_la_cola_con_el_cajon_preseleccionado()
+    {
+        var cut = Renderizar(CarteraConFaltante);
+
+        var fila = FilaDe(cut, "Falta Formación PRL");
+        var pedir = fila.QuerySelector("form[data-accion-pedir]")!;
+        pedir.GetAttribute("action").Should().Be("/cuenta/cliente-activo");
+        pedir.GetAttribute("method").Should().Be("post");
+        pedir.QuerySelector("input[name='tenantId']")!.GetAttribute("value").Should().Be(TenantRefri.ToString());
+        pedir.QuerySelector("input[name='returnUrl']")!.GetAttribute("value").Should().Be($"/bandeja?pedir={TrabajadorQueFalta}&{Vuelta}");
+        pedir.QuerySelector("input[name='__RequestVerificationToken']")!.GetAttribute("value").Should().Be("token-de-prueba");
+        pedir.QuerySelector("button")!.TextContent.Trim().Should().Be("Pedir");
+
+        // La acción primaria sigue siendo la suya (un solo marcador data-accion-cross-tenant por fila) y no se pisa.
+        fila.QuerySelectorAll("form[data-accion-cross-tenant]").Should().ContainSingle();
+        Formulario(fila).ReturnUrl.Should().StartWith($"/documentos?trabajadorId={TrabajadorQueFalta}&tipoDocumentoId=");
+    }
+
+    [Fact]
+    public void Solo_ofrece_Pedir_la_fila_de_lo_que_falta_con_Trabajador()
+    {
+        var cut = Renderizar(CarteraConFaltante);
+
+        FilaDe(cut, "Reconocimiento médico").QuerySelectorAll("form[data-accion-pedir]").Should().BeEmpty("un vencido ya tiene su camino de renovación");
+        FilaDe(cut, "Falta Seguro RC").QuerySelectorAll("form[data-accion-pedir]").Should().BeEmpty("sin Trabajador no hay a quién pedírselo desde la cola");
+        cut.FindAll("form[data-accion-pedir]").Should().ContainSingle();
+    }
+
+    [Fact]
+    public void El_detalle_de_la_fila_que_falta_tambien_ofrece_Pedir()
+    {
+        var cut = Renderizar(CarteraConFaltante);
+        FilaDe(cut, "Falta Formación PRL").Click();
+
+        var pedir = cut.Find(".mi-trabajo-detalle form[data-accion-pedir]");
+        pedir.QuerySelector("input[name='returnUrl']")!.GetAttribute("value").Should().StartWith($"/bandeja?pedir={TrabajadorQueFalta}");
+        cut.FindAll(".mi-trabajo-detalle form[data-accion-cross-tenant]").Should().ContainSingle("la acción primaria del detalle sigue ahí");
+    }
+
+    [Theory]
+    [InlineData("es-ES", "Pedir")]
+    [InlineData("ca-ES", "Demanar")]
+    public void Pedir_sigue_la_cultura_de_la_interfaz(string cultura, string texto)
+    {
+        var (anterior, anteriorUi) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
+        CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(cultura);
+        try
+        {
+            var cut = Renderizar(CarteraConFaltante);
+
+            FilaDe(cut, "Falta Formación PRL").QuerySelector("form[data-accion-pedir] button")!.TextContent.Trim().Should().Be(texto);
+        }
+        finally
+        {
+            (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture) = (anterior, anteriorUi);
+        }
+    }
+
+    [Theory]
+    [InlineData("es-ES", "Pide lo que falta de")]
+    [InlineData("ca-ES", "Demana el que falta de")]
+    public void El_titulo_de_Pedir_dice_a_donde_lleva_en_la_cultura_de_la_interfaz(string cultura, string inicio)
+    {
+        var (anterior, anteriorUi) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
+        CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(cultura);
+        try
+        {
+            var cut = Renderizar(CarteraConFaltante);
+
+            FilaDe(cut, "Falta Formación PRL").QuerySelector("form[data-accion-pedir] button")!.GetAttribute("title").Should().StartWith(inicio).And.Contain("Refrielectric");
+        }
+        finally
+        {
+            (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture) = (anterior, anteriorUi);
+        }
+    }
+
     [Theory]
     [InlineData("es-ES", "Mi trabajo", "Todas", "1 de octubre de 2026")]
     [InlineData("ca-ES", "La meva feina", "Totes", "octubre de 2026")]

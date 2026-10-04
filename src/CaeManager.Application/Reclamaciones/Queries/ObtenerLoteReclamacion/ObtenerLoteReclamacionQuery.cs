@@ -46,9 +46,17 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 /// reclamación (uso de Centro 360, no del selector). Los tres opcionales y
 /// sin efecto sobre los dos llamadores existentes (ReclamacionesTab, Centro
 /// 360) que nunca los pasan.
+///
+/// <paramref name="IncluirPendientesSinFecha"/> añade, aparte de los que vencen, lo que se
+/// PIDE sin fecha a la que anclarse: los documentos que faltan y los «Sin confirmar» sin
+/// fecha (<see cref="LoteReclamacionClienteDto.PendientesSinFecha"/>; los decide
+/// <see cref="IPendientesDeReclamacionService"/>). Falso por defecto: ReclamacionesTab y
+/// los demás llamadores siguen viendo exactamente lo de siempre. Con él, un titular
+/// que solo tiene pendientes sin fecha también aparece.
 /// </summary>
 public record ObtenerLoteReclamacionQuery(
-    Guid? CentroId = null, Guid? ClienteId = null, Guid? TrabajadorId = null, IReadOnlyList<Guid>? TipoDocumentoIds = null)
+    Guid? CentroId = null, Guid? ClienteId = null, Guid? TrabajadorId = null, IReadOnlyList<Guid>? TipoDocumentoIds = null,
+    bool IncluirPendientesSinFecha = false)
     : IRequest<IReadOnlyList<LoteReclamacionClienteDto>>;
 
 /// <param name="Destinatarios">
@@ -57,13 +65,15 @@ public record ObtenerLoteReclamacionQuery(
 /// con casillas, así que necesita el ContactoId, no solo el email.
 /// Vacío = perfil incompleto: no hay a quién reclamar y el envío se bloquea.
 /// </param>
+/// <param name="PendientesSinFecha">Solo con <c>IncluirPendientesSinFecha</c>: lo que se pide sin vencimiento (documentos que faltan, «Sin confirmar» sin fecha). Nulo/vacío = nada.</param>
 public record LoteReclamacionClienteDto(
     Guid ClienteId,
     string RazonSocialCliente,
     DateTime? UltimaReclamacionFechaUtc,
     IReadOnlyList<DocumentoReclamableDto> Documentos,
     Guid? UltimaReclamacionConversacionId = null,
-    IReadOnlyList<DestinatarioAgendaDto>? Destinatarios = null);
+    IReadOnlyList<DestinatarioAgendaDto>? Destinatarios = null,
+    IReadOnlyList<DocumentoPendienteDto>? PendientesSinFecha = null);
 
 /// <param name="TrabajadorId">
 /// Null en un lote de ámbito Empresa (ObtenerLoteReclamacionEmpresaQuery): un
@@ -91,7 +101,8 @@ public class ObtenerLoteReclamacionQueryHandler(
     IEmpresasQueryContext empresasContext,
     IReclamacionesQueryContext reclamacionesContext,
     IAlcanceDatosService alcanceDatos,
-    Contactos.IResolucionDestinatariosAgendaService resolucionDestinatarios)
+    Contactos.IResolucionDestinatariosAgendaService resolucionDestinatarios,
+    IPendientesDeReclamacionService pendientesDeReclamacion)
     : IRequestHandler<ObtenerLoteReclamacionQuery, IReadOnlyList<LoteReclamacionClienteDto>>
 {
     public async Task<IReadOnlyList<LoteReclamacionClienteDto>> Handle(
@@ -183,31 +194,50 @@ public class ObtenerLoteReclamacionQueryHandler(
             .Where(x => x.Documentos.Count > 0)
             .ToList();
 
+        // Lo que se pide sin vencimiento (falta, «Sin confirmar» sin fecha), solo si el llamador lo pide: un titular que solo
+        // tiene eso también entra en el lote. Mismo alcance y mismo reparto por Cliente que lo de arriba.
+        var pendientesPorCliente = request.IncluirPendientesSinFecha
+            ? (await pendientesDeReclamacion.ListarParaClientesAsync(
+                request.CentroId, request.ClienteId, request.TrabajadorId is { } trabajadorPedido ? [trabajadorPedido] : null,
+                request.TipoDocumentoIds, cancellationToken))
+                .ToDictionary(p => p.TitularId)
+            : new Dictionary<Guid, PendientesDeUnTitular>();
+
+        var titulares = documentosPorCliente
+            .Select(x => (x.Cliente.Id, x.Cliente.RazonSocial, x.Documentos))
+            .Concat(pendientesPorCliente.Values
+                .Where(p => documentosPorCliente.TrueForAll(x => x.Cliente.Id != p.TitularId))
+                .Select(p => (Id: p.TitularId, RazonSocial: p.TitularNombre, Documentos: new List<DocumentoReclamableDto>())))
+            .ToList();
+
         // Destinatarios desde la agenda, no desde los usuarios de portal (ver
         // IResolucionDestinatariosAgendaService): la vista previa debe enseñar
         // exactamente a quién va a salir el correo. Resuelto para todos los
         // Clientes del lote de una vez (ResolverParaClientesAsync) en vez de
         // uno por uno: con CentroId null (caso /documentos) esto puede ser un
         // Cliente por cada email de reclamación pendiente.
-        var tipoDocumentoIdsPorCliente = documentosPorCliente
+        var tipoDocumentoIdsPorCliente = titulares
             .ToDictionary(
-                x => x.Cliente.Id,
-                IReadOnlyList<Guid> (x) => x.Documentos.Select(d => d.TipoDocumentoId).Distinct().ToList());
+                x => x.Id,
+                IReadOnlyList<Guid> (x) => x.Documentos.Select(d => d.TipoDocumentoId)
+                    .Concat(pendientesPorCliente.GetValueOrDefault(x.Id)?.Pendientes.Select(p => p.TipoDocumentoId) ?? [])
+                    .Distinct().ToList());
 
         var destinatariosPorCliente = await resolucionDestinatarios.ResolverParaClientesAsync(
             request.CentroId, tipoDocumentoIdsPorCliente, cancellationToken);
 
-        var resultado = documentosPorCliente
+        var resultado = titulares
             .Select(x =>
             {
-                var ultima = ultimasReclamaciones.GetValueOrDefault(x.Cliente.Id);
+                var ultima = ultimasReclamaciones.GetValueOrDefault(x.Id);
                 return new LoteReclamacionClienteDto(
-                    x.Cliente.Id,
-                    x.Cliente.RazonSocial,
+                    x.Id,
+                    x.RazonSocial,
                     ultima?.Ultima,
                     x.Documentos,
                     ultima?.ConversacionId,
-                    destinatariosPorCliente.GetValueOrDefault(x.Cliente.Id, []));
+                    destinatariosPorCliente.GetValueOrDefault(x.Id, []),
+                    pendientesPorCliente.GetValueOrDefault(x.Id)?.Pendientes ?? []);
             })
             .ToList();
 

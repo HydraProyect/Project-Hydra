@@ -35,8 +35,12 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionEmp
 /// </summary>
 /// <param name="EmpresaId">Null = todas las Empresas visibles (respetando IAlcanceDatosService); con valor = esa Empresa concreta.</param>
 /// <param name="TipoDocumentoIds">Null = todos los tipos de documento de ámbito Empresa.</param>
+/// <param name="IncluirPendientesSinFecha">
+/// Añade lo que se pide sin vencimiento (documentos de Empresa que faltan y «Sin confirmar» sin fecha,
+/// <see cref="LoteReclamacionEmpresaDto.PendientesSinFecha"/>). Falso por defecto: quien no lo pide ve lo de siempre.
+/// </param>
 public record ObtenerLoteReclamacionEmpresaQuery(
-    Guid? EmpresaId = null, IReadOnlyList<Guid>? TipoDocumentoIds = null)
+    Guid? EmpresaId = null, IReadOnlyList<Guid>? TipoDocumentoIds = null, bool IncluirPendientesSinFecha = false)
     : IRequest<IReadOnlyList<LoteReclamacionEmpresaDto>>;
 
 public record LoteReclamacionEmpresaDto(
@@ -45,7 +49,8 @@ public record LoteReclamacionEmpresaDto(
     DateTime? UltimaReclamacionFechaUtc,
     IReadOnlyList<DocumentoReclamableDto> Documentos,
     Guid? UltimaReclamacionConversacionId = null,
-    IReadOnlyList<DestinatarioAgendaDto>? Destinatarios = null);
+    IReadOnlyList<DestinatarioAgendaDto>? Destinatarios = null,
+    IReadOnlyList<DocumentoPendienteDto>? PendientesSinFecha = null);
 
 public class ObtenerLoteReclamacionEmpresaQueryHandler(
     IConfiguracionQueryContext configuracionContext,
@@ -54,7 +59,8 @@ public class ObtenerLoteReclamacionEmpresaQueryHandler(
     IEmpresasQueryContext empresasContext,
     IReclamacionesQueryContext reclamacionesContext,
     IAlcanceDatosService alcanceDatos,
-    IResolucionDestinatariosAgendaService resolucionDestinatarios)
+    IResolucionDestinatariosAgendaService resolucionDestinatarios,
+    IPendientesDeReclamacionService pendientesDeReclamacion)
     : IRequestHandler<ObtenerLoteReclamacionEmpresaQuery, IReadOnlyList<LoteReclamacionEmpresaDto>>
 {
     public async Task<IReadOnlyList<LoteReclamacionEmpresaDto>> Handle(
@@ -125,25 +131,42 @@ public class ObtenerLoteReclamacionEmpresaQueryHandler(
             .Where(x => x.Documentos.Count > 0)
             .ToList();
 
-        var tipoDocumentoIdsPorEmpresa = documentosPorEmpresa
+        // Lo que se pide sin vencimiento, solo si el llamador lo pide: una Empresa que solo tiene eso también entra en el lote.
+        var pendientesPorEmpresa = request.IncluirPendientesSinFecha
+            ? (await pendientesDeReclamacion.ListarParaEmpresasAsync(
+                request.EmpresaId, request.TipoDocumentoIds, cancellationToken))
+                .ToDictionary(p => p.TitularId)
+            : new Dictionary<Guid, PendientesDeUnTitular>();
+
+        var titulares = documentosPorEmpresa
+            .Select(x => (Id: x.Empresa.Id, RazonSocial: x.Empresa.RazonSocial, x.Documentos))
+            .Concat(pendientesPorEmpresa.Values
+                .Where(p => documentosPorEmpresa.TrueForAll(x => x.Empresa.Id != p.TitularId))
+                .Select(p => (Id: p.TitularId, RazonSocial: p.TitularNombre, Documentos: new List<DocumentoReclamableDto>())))
+            .ToList();
+
+        var tipoDocumentoIdsPorEmpresa = titulares
             .ToDictionary(
-                x => x.Empresa.Id,
-                IReadOnlyList<Guid> (x) => x.Documentos.Select(d => d.TipoDocumentoId).Distinct().ToList());
+                x => x.Id,
+                IReadOnlyList<Guid> (x) => x.Documentos.Select(d => d.TipoDocumentoId)
+                    .Concat(pendientesPorEmpresa.GetValueOrDefault(x.Id)?.Pendientes.Select(p => p.TipoDocumentoId) ?? [])
+                    .Distinct().ToList());
 
         var destinatariosPorEmpresa = await resolucionDestinatarios.ResolverParaEmpresasAsync(
             tipoDocumentoIdsPorEmpresa, cancellationToken);
 
-        return documentosPorEmpresa
+        return titulares
             .Select(x =>
             {
-                var ultima = ultimasReclamaciones.GetValueOrDefault(x.Empresa.Id);
+                var ultima = ultimasReclamaciones.GetValueOrDefault(x.Id);
                 return new LoteReclamacionEmpresaDto(
-                    x.Empresa.Id,
-                    x.Empresa.RazonSocial,
+                    x.Id,
+                    x.RazonSocial,
                     ultima?.Ultima,
                     x.Documentos,
                     ultima?.ConversacionId,
-                    destinatariosPorEmpresa.GetValueOrDefault(x.Empresa.Id, []));
+                    destinatariosPorEmpresa.GetValueOrDefault(x.Id, []),
+                    pendientesPorEmpresa.GetValueOrDefault(x.Id)?.Pendientes ?? []);
             })
             .OrderByDescending(r => r.Documentos.Any(d => d.Estado == EstadoDocumento.Vencido))
             .ThenBy(r => r.RazonSocialEmpresa)

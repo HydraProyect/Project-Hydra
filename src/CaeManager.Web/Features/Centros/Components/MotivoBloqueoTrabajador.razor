@@ -5,8 +5,9 @@
     bloqueo de otro Centro.
 
     «Pedir» abre el flujo de reclamación que ya existe (DrawerReclamacionLote): el Gestor CAE elige y revisa, y es él quien
-    envía. Solo se ofrece donde ese flujo puede actuar: un documento que ya existe y tiene vencimiento (VentanaReclamacion).
-    Un documento que todavía no existe no es reclamable hoy y la línea lo dice en vez de ofrecer un botón que no puede cumplir.
+    envía. Se ofrece donde ese flujo puede actuar: un documento que vence (VentanaReclamacion), uno que falta del todo y un
+    «Sin confirmar» sin fecha (IPendientesDeReclamacionService). Donde no puede actuar la línea lo dice en vez de ofrecer un
+    botón que no puede cumplir.
 *@
 
 @using CaeManager.Domain.Documentos

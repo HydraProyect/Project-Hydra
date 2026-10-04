@@ -457,8 +457,8 @@ else
             // buscaría documentos de Trabajador de un Cliente que no existe y
             // fallaría con "ninguno sigue siendo reclamable".
             var resultado = reclamacion.AmbitoTitular == AmbitoAplicacion.Empresa
-                ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(reclamacion.TitularId, reclamacion.DocumentoIds, contactoIds), token)
-                : await Mediator.Send(new EnviarReclamacionCommand(reclamacion.TitularId, reclamacion.DocumentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds), token);
+                ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(reclamacion.TitularId, reclamacion.DocumentoIds, contactoIds, reclamacion.Pendientes), token)
+                : await Mediator.Send(new EnviarReclamacionCommand(reclamacion.TitularId, reclamacion.DocumentoIds, CentroId: null, ContactoIdsSeleccionados: contactoIds, Pendientes: reclamacion.Pendientes), token);
 
             // La pestaña pudo desecharse mientras el comando estaba en vuelo:
             // ni el toast ni la recarga pertenecen a un componente ya retirado.
@@ -569,7 +569,7 @@ else
         try
         {
             var previa = await Mediator.Send(
-                new PrepararVistaPreviaReclamacionCommand(reclamacion.AmbitoTitular, reclamacion.TitularId, reclamacion.DocumentoIds), token);
+                new PrepararVistaPreviaReclamacionCommand(reclamacion.AmbitoTitular, reclamacion.TitularId, reclamacion.DocumentoIds, reclamacion.Pendientes), token);
 
             if (_desechado)
                 return;

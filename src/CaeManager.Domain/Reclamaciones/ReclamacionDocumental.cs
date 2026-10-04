@@ -11,6 +11,11 @@ namespace CaeManager.Domain.Reclamaciones;
 /// por cada vencimiento suelto). Append-only: una vez enviado no se edita ni
 /// se borra, es el historial de qué se reclamó y cuándo.
 ///
+/// Un mismo lote puede pedir, además de los que vencen, lo que no tiene fecha a la que
+/// anclarse: un Documento «Sin confirmar» (una línea con <c>DocumentoId</c>) o un documento
+/// que nunca se subió (una línea sin Documento, con su Tipo y a quién le falta:
+/// <see cref="DocumentoQueFaltaPedido"/>). Cuentan igual: mismo registro y mismo efecto.
+///
 /// UltimaReclamacionFechaUtc (ver ObtenerLoteReclamacionQuery) se calcula
 /// para que el Gestor CAE decida informado, no para bloquear: no existe ni
 /// debe existir una guarda temporal que impida reclamar de nuevo el mismo
@@ -87,7 +92,7 @@ public class ReclamacionDocumental : EntidadBase
 
     private ReclamacionDocumental(
         Guid? clienteId, Guid? empresaId, Guid enviadoPorUsuarioId, string destinatarioEmail, DateTime fechaEnvioUtc,
-        IEnumerable<Guid> documentoIds, Guid? conversacionId)
+        IEnumerable<Guid> documentoIds, Guid? conversacionId, IEnumerable<DocumentoQueFaltaPedido>? documentosQueFaltan)
     {
         if (enviadoPorUsuarioId == Guid.Empty)
             throw new ArgumentException("La reclamación debe registrar quién la envió.", nameof(enviadoPorUsuarioId));
@@ -100,8 +105,16 @@ public class ReclamacionDocumental : EntidadBase
                 $"El destinatario no puede superar {LongitudMaximaDestinatarioEmail} caracteres.", nameof(destinatarioEmail));
 
         var idsUnicos = documentoIds.Distinct().ToList();
-        if (idsUnicos.Count == 0)
+        var faltanUnicos = (documentosQueFaltan ?? []).Distinct().ToList();
+        if (idsUnicos.Count == 0 && faltanUnicos.Count == 0)
             throw new ArgumentException("La reclamación debe incluir al menos un documento.", nameof(documentoIds));
+
+        // Un documento de Empresa que falta no lleva Trabajador, y uno de Trabajador sí: en una reclamación de ámbito
+        // Cliente (documentos de Trabajador) todo lo que falta es de un Trabajador; en una de ámbito Empresa, de la Empresa.
+        if (clienteId is not null && faltanUnicos.Any(f => f.TrabajadorId is null))
+            throw new ArgumentException("Un documento que falta en una reclamación a un cliente debe indicar a qué trabajador le falta.", nameof(documentosQueFaltan));
+        if (empresaId is not null && faltanUnicos.Any(f => f.TrabajadorId is not null))
+            throw new ArgumentException("Un documento que falta en una reclamación a una empresa es de la empresa, no de un trabajador.", nameof(documentosQueFaltan));
 
         ClienteId = clienteId;
         EmpresaId = empresaId;
@@ -112,29 +125,34 @@ public class ReclamacionDocumental : EntidadBase
 
         foreach (var documentoId in idsUnicos)
             _documentos.Add(new ReclamacionDocumentalDocumento(Id, documentoId));
+
+        foreach (var falta in faltanUnicos)
+            _documentos.Add(ReclamacionDocumentalDocumento.DeDocumentoQueFalta(Id, falta.TipoDocumentoId, falta.TrabajadorId));
     }
 
     /// <summary>Reclamación de documentos de Trabajador, dirigida a la Empresa contraparte en posición de cliente.</summary>
+    /// <param name="documentosQueFaltan">Documentos de Trabajador que nunca se subieron y se piden en el mismo correo (no hay Documento: los identifica el Tipo y a quién le falta).</param>
     public static ReclamacionDocumental ParaCliente(
         Guid clienteId, Guid enviadoPorUsuarioId, string destinatarioEmail, DateTime fechaEnvioUtc,
-        IEnumerable<Guid> documentoIds, Guid? conversacionId = null)
+        IEnumerable<Guid> documentoIds, Guid? conversacionId = null, IEnumerable<DocumentoQueFaltaPedido>? documentosQueFaltan = null)
     {
         if (clienteId == Guid.Empty)
             throw new ArgumentException("La reclamación debe pertenecer a un cliente.", nameof(clienteId));
 
         return new ReclamacionDocumental(
-            clienteId, null, enviadoPorUsuarioId, destinatarioEmail, fechaEnvioUtc, documentoIds, conversacionId);
+            clienteId, null, enviadoPorUsuarioId, destinatarioEmail, fechaEnvioUtc, documentoIds, conversacionId, documentosQueFaltan);
     }
 
     /// <summary>Reclamación de documentos de empresa, dirigida a la Empresa contraparte titular de esos documentos (DEC-7).</summary>
+    /// <param name="documentosQueFaltan">Documentos de la Empresa que nunca se subieron y se piden en el mismo correo (sin Trabajador: el sujeto es esta Empresa).</param>
     public static ReclamacionDocumental ParaEmpresa(
         Guid empresaId, Guid enviadoPorUsuarioId, string destinatarioEmail, DateTime fechaEnvioUtc,
-        IEnumerable<Guid> documentoIds, Guid? conversacionId = null)
+        IEnumerable<Guid> documentoIds, Guid? conversacionId = null, IEnumerable<DocumentoQueFaltaPedido>? documentosQueFaltan = null)
     {
         if (empresaId == Guid.Empty)
             throw new ArgumentException("La reclamación debe pertenecer a una empresa.", nameof(empresaId));
 
         return new ReclamacionDocumental(
-            null, empresaId, enviadoPorUsuarioId, destinatarioEmail, fechaEnvioUtc, documentoIds, conversacionId);
+            null, empresaId, enviadoPorUsuarioId, destinatarioEmail, fechaEnvioUtc, documentoIds, conversacionId, documentosQueFaltan);
     }
 }

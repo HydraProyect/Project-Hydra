@@ -525,6 +525,48 @@ public class ReclamacionesTabTests : BunitContext
         envio.ContactoIdsSeleccionados.Should().NotBeNullOrEmpty("se envía a quien enseñó la revisión, no a lo que la agenda resuelva después");
     }
 
+    /// <summary>
+    /// «Pedir» un documento que falta (2026-10-04): «Reclamar de nuevo» una reclamación que pidió lo que faltaba reenvía los mismos
+    /// pendientes en la vista previa Y en el envío (el envío los revalida), aunque no quede ningún documento con vencimiento.
+    /// </summary>
+    [Fact]
+    public async Task Reclamar_de_nuevo_reenvia_lo_que_faltaba_en_la_vista_previa_y_en_el_envio()
+    {
+        var pendientes = new[]
+        {
+            PendienteSinFecha.Ausente(Guid.NewGuid(), Guid.NewGuid()),
+            PendienteSinFecha.SinConfirmar(Guid.NewGuid()),
+        };
+        var fila = ReclamacionEnviada() with { DocumentoIds = [], Pendientes = pendientes, TotalDocumentos = 2 };
+        var mediador = ConHistorial(fila);
+        var (cut, _) = Renderizar(mediador);
+
+        await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+
+        var consulta = mediador.Enviadas.OfType<PrepararVistaPreviaReclamacionCommand>().Should().ContainSingle().Subject;
+        consulta.DocumentoIds.Should().BeEmpty();
+        consulta.Pendientes.Should().Equal(pendientes);
+        var envio = mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle().Subject;
+        envio.DocumentoIds.Should().BeEmpty();
+        envio.Pendientes.Should().Equal(pendientes);
+    }
+
+    [Fact]
+    public async Task Reclamar_de_nuevo_de_titular_Empresa_reenvia_tambien_sus_pendientes()
+    {
+        var pendientes = new[] { PendienteSinFecha.Ausente(null, Guid.NewGuid()) };
+        var fila = ReclamacionEnviada("Contraparte SL") with { AmbitoTitular = AmbitoAplicacion.Empresa, DocumentoIds = [], Pendientes = pendientes };
+        var mediador = ConHistorial(fila);
+        var (cut, _) = Renderizar(mediador);
+
+        await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
+        await BotonPorTexto(cut, "Confirmar y enviar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<PrepararVistaPreviaReclamacionCommand>().Should().ContainSingle().Which.Pendientes.Should().Equal(pendientes);
+        mediador.Enviadas.OfType<EnviarReclamacionEmpresaCommand>().Should().ContainSingle().Which.Pendientes.Should().Equal(pendientes);
+    }
+
     /// <summary>«Volver» en la revisión del reenvío cierra sin enviar.</summary>
     [Fact]
     public async Task Volver_en_la_revision_del_reenvio_cierra_sin_enviar()

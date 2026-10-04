@@ -129,6 +129,6 @@
    fallaría al enviar. *@
 <DrawerReclamacionLote Visible="_reclamacionLoteVisible" VisibleChanged="v => _reclamacionLoteVisible = v"
                        AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
-                       AmbitoInicial="_ambitoPreseed" EntidadIdInicial="_entidadIdPreseed"
+                       AmbitoInicial="_ambitoPreseed" EntidadIdInicial="_entidadIdPreseed" IncluirPendientesSinFecha="_incluirPendientes"
                        OnReclamacionEnviada="CargarAsync" />
 </LimiteDeErrores>

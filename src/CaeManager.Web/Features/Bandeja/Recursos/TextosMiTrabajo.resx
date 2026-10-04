@@ -303,4 +303,25 @@
   <data name="CerrarDetalle" xml:space="preserve">
     <value>Cerrar detalle</value>
   </data>
+  <data name="AccionPedir" xml:space="preserve">
+    <value>Pedir</value>
+  </data>
+  <data name="AccionPedirTitulo" xml:space="preserve">
+    <value>Pide lo que falta de {0} abriendo «Reclamar en lote» en {1}</value>
+  </data>
+  <data name="ReclamacionIncluirFalta" xml:space="preserve">
+    <value>Incluir {0} de {1}, que falta, en la reclamación</value>
+  </data>
+  <data name="ReclamacionIncluirFaltaEmpresa" xml:space="preserve">
+    <value>Incluir {0}, que falta, en la reclamación</value>
+  </data>
+  <data name="ReclamacionIncluirSinConfirmar" xml:space="preserve">
+    <value>Incluir {0} de {1}, con la vigencia sin confirmar, en la reclamación</value>
+  </data>
+  <data name="ReclamacionIncluirSinConfirmarEmpresa" xml:space="preserve">
+    <value>Incluir {0}, con la vigencia sin confirmar, en la reclamación</value>
+  </data>
+  <data name="ReclamacionSinFecha" xml:space="preserve">
+    <value>Sin fecha</value>
+  </data>
 </root>

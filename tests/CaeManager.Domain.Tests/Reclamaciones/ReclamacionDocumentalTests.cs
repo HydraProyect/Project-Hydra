@@ -102,4 +102,109 @@ public class ReclamacionDocumentalTests
 
         accion.Should().Throw<ArgumentException>();
     }
+
+    // ---- Un documento que falta (nunca subido) es una línea sin Documento: «Pedir», 2026-10-04 ----
+
+    [Fact]
+    public void ParaCliente_registra_un_documento_que_falta_con_su_tipo_y_su_trabajador_y_sin_documento()
+    {
+        var tipoId = Guid.NewGuid();
+        var trabajadorId = Guid.NewGuid();
+
+        var reclamacion = ReclamacionDocumental.ParaCliente(
+            Guid.NewGuid(), Guid.NewGuid(), "cliente@example.com", DateTime.UtcNow, [],
+            documentosQueFaltan: [new DocumentoQueFaltaPedido(tipoId, trabajadorId)]);
+
+        var linea = reclamacion.Documentos.Should().ContainSingle().Which;
+        linea.EsDocumentoQueFalta.Should().BeTrue();
+        linea.DocumentoId.Should().BeNull("no hay Documento al que apuntar");
+        linea.TipoDocumentoId.Should().Be(tipoId);
+        linea.TrabajadorId.Should().Be(trabajadorId);
+        linea.ReclamacionDocumentalId.Should().Be(reclamacion.Id);
+    }
+
+    [Fact]
+    public void Lo_que_vence_y_lo_que_falta_conviven_en_la_misma_reclamacion_cada_uno_con_su_forma()
+    {
+        var documentoId = Guid.NewGuid();
+
+        var reclamacion = ReclamacionDocumental.ParaCliente(
+            Guid.NewGuid(), Guid.NewGuid(), "cliente@example.com", DateTime.UtcNow, [documentoId],
+            documentosQueFaltan: [new DocumentoQueFaltaPedido(Guid.NewGuid(), Guid.NewGuid())]);
+
+        reclamacion.Documentos.Should().HaveCount(2);
+        var conDocumento = reclamacion.Documentos.Single(d => !d.EsDocumentoQueFalta);
+        conDocumento.DocumentoId.Should().Be(documentoId);
+        conDocumento.TipoDocumentoId.Should().BeNull("la forma «Documento» no lleva Tipo ni Trabajador");
+        conDocumento.TrabajadorId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Una_reclamacion_solo_de_lo_que_falta_es_valida_pero_sin_nada_sigue_rechazandose()
+    {
+        var soloFalta = () => ReclamacionDocumental.ParaCliente(
+            Guid.NewGuid(), Guid.NewGuid(), "cliente@example.com", DateTime.UtcNow, [],
+            documentosQueFaltan: [new DocumentoQueFaltaPedido(Guid.NewGuid(), Guid.NewGuid())]);
+        var nada = () => ReclamacionDocumental.ParaCliente(
+            Guid.NewGuid(), Guid.NewGuid(), "cliente@example.com", DateTime.UtcNow, [], documentosQueFaltan: []);
+
+        soloFalta.Should().NotThrow();
+        nada.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Lo_que_falta_a_un_cliente_debe_decir_a_que_trabajador_le_falta()
+    {
+        var accion = () => ReclamacionDocumental.ParaCliente(
+            Guid.NewGuid(), Guid.NewGuid(), "cliente@example.com", DateTime.UtcNow, [],
+            documentosQueFaltan: [new DocumentoQueFaltaPedido(Guid.NewGuid(), null)]);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void ParaEmpresa_registra_un_documento_de_empresa_que_falta_sin_trabajador()
+    {
+        var tipoId = Guid.NewGuid();
+
+        var reclamacion = ReclamacionDocumental.ParaEmpresa(
+            Guid.NewGuid(), Guid.NewGuid(), "agenda@empresa.example", DateTime.UtcNow, [],
+            documentosQueFaltan: [new DocumentoQueFaltaPedido(tipoId, null)]);
+
+        var linea = reclamacion.Documentos.Should().ContainSingle().Which;
+        linea.DocumentoId.Should().BeNull();
+        linea.TipoDocumentoId.Should().Be(tipoId);
+        linea.TrabajadorId.Should().BeNull("el sujeto es la propia Empresa de la reclamación");
+    }
+
+    [Fact]
+    public void Lo_que_falta_a_una_empresa_no_puede_nombrar_a_un_trabajador()
+    {
+        var accion = () => ReclamacionDocumental.ParaEmpresa(
+            Guid.NewGuid(), Guid.NewGuid(), "agenda@empresa.example", DateTime.UtcNow, [],
+            documentosQueFaltan: [new DocumentoQueFaltaPedido(Guid.NewGuid(), Guid.NewGuid())]);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Dos_veces_lo_mismo_que_falta_es_una_sola_linea()
+    {
+        var falta = new DocumentoQueFaltaPedido(Guid.NewGuid(), Guid.NewGuid());
+
+        var reclamacion = ReclamacionDocumental.ParaCliente(
+            Guid.NewGuid(), Guid.NewGuid(), "cliente@example.com", DateTime.UtcNow, [], documentosQueFaltan: [falta, falta]);
+
+        reclamacion.Documentos.Should().ContainSingle();
+    }
+
+    [Fact]
+    public void La_linea_de_un_documento_que_falta_exige_reclamacion_y_tipo_y_rechaza_un_trabajador_vacio()
+    {
+        var reclamacion = Guid.NewGuid();
+
+        ((Action)(() => ReclamacionDocumentalDocumento.DeDocumentoQueFalta(Guid.Empty, Guid.NewGuid(), null))).Should().Throw<ArgumentException>();
+        ((Action)(() => ReclamacionDocumentalDocumento.DeDocumentoQueFalta(reclamacion, Guid.Empty, null))).Should().Throw<ArgumentException>();
+        ((Action)(() => ReclamacionDocumentalDocumento.DeDocumentoQueFalta(reclamacion, Guid.NewGuid(), Guid.Empty))).Should().Throw<ArgumentException>();
+    }
 }
