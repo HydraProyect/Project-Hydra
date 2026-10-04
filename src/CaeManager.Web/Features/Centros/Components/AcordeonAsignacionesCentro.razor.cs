@@ -123,7 +123,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     [Parameter] public bool MostrarTotales { get; set; }
 
     /// <summary>
-    /// Los bloqueos de acceso de los Trabajadores de ESTE Centro (la regla única por Centro): marcan «Bloqueado» al Trabajador en su fila.
+    /// Los bloqueos de acceso de los Trabajadores de ESTE Centro (la regla única por Centro): marcan «Bloqueado» al Trabajador en su fila y alimentan su motivo con «Pedir» (<see cref="MotivoBloqueoTrabajador"/>).
     /// «Bloqueado» es un estado del Trabajador, nunca del Centro. Si el llamador ya los tiene (Centro 360)
     /// los pasa; si es <c>null</c> (la lista de Centros) el acordeón los carga él mismo, para que la fila
     /// del Trabajador diga lo mismo en las dos superficies.
@@ -136,6 +136,34 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         Bloqueos ?? _bloqueosPropios;
 
     private bool EstaBloqueado(Guid trabajadorId) => BloqueosEfectivos.Any(b => b.TrabajadorId == trabajadorId);
+
+    private IReadOnlyList<DocumentacionBloqueantePendienteDto> BloqueosDe(Guid trabajadorId) =>
+        BloqueosEfectivos.Where(b => b.TrabajadorId == trabajadorId).ToList();
+
+    /// <summary>
+    /// Lo que el Centro dice de este Trabajador y todavía no bloquea (urgente, próximo, en tolerancia, sin confirmar), sin repetir
+    /// los Tipos que ya salen como bloqueo. Solo filtra estados que ya calculó el Centro: no decide nada.
+    /// </summary>
+    private IReadOnlyList<DocumentoRequeridoDto> OtrosPendientesDe(TrabajadorAsignacionDocumentacionDto trabajador)
+    {
+        var tiposBloqueantes = BloqueosEfectivos.Where(b => b.TrabajadorId == trabajador.TrabajadorId).Select(b => b.TipoDocumentoId).ToHashSet();
+        return trabajador.Documentos
+            .Where(d => MotivoBloqueoTrabajador.EsPendienteQueNoBloquea(d.Estado) && !tiposBloqueantes.Contains(d.TipoDocumentoId))
+            .ToList();
+    }
+
+    private bool _pedirVisible;
+    private AmbitoAplicacion? _pedirAmbito;
+    private Guid? _pedirEntidadId;
+
+    /// <summary>«Pedir»: abre el selector de reclamación ya apuntado a la entidad; no envía nada por sí solo.</summary>
+    private Task PedirAsync(MotivoBloqueoTrabajador.EntidadAPedir entidad)
+    {
+        _pedirAmbito = entidad.Ambito;
+        _pedirEntidadId = entidad.EntidadId;
+        _pedirVisible = true;
+        return Task.CompletedTask;
+    }
 
     private string DescripcionBloqueo(Guid trabajadorId) =>
         string.Join("; ", BloqueosEfectivos.Where(b => b.TrabajadorId == trabajadorId).Select(b => TextoBloqueoDeAcceso.Linea(Textos, b)));

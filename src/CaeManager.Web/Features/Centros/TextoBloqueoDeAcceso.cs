@@ -19,7 +19,11 @@ public static class TextoBloqueoDeAcceso
         trabajadores == 1 ? textos["BloqueadosTrabajadoresUno"].Value : textos["BloqueadosTrabajadoresVarios", trabajadores].Value;
 
     /// <summary>«Trabajador · Tipo (Empresa): situación», con la tolerancia que rige en el Centro cuando la hay.</summary>
-    public static string Linea(IStringLocalizer textos, DocumentacionBloqueantePendienteDto bloqueo)
+    public static string Linea(IStringLocalizer textos, DocumentacionBloqueantePendienteDto bloqueo) =>
+        $"{bloqueo.TrabajadorNombre} · {LineaDeDocumento(textos, bloqueo)}";
+
+    /// <summary>«Tipo (Empresa): situación», sin el Trabajador: para donde el Trabajador ya está dicho (su propia fila).</summary>
+    public static string LineaDeDocumento(IStringLocalizer textos, DocumentacionBloqueantePendienteDto bloqueo)
     {
         var situacion = bloqueo.Situacion switch
         {
@@ -33,6 +37,6 @@ public static class TextoBloqueoDeAcceso
         var tipo = bloqueo.Ambito == AmbitoAplicacion.Empresa
             ? textos["BloqueoTipoDeEmpresa", bloqueo.TipoDocumentoNombre].Value
             : bloqueo.TipoDocumentoNombre;
-        return $"{bloqueo.TrabajadorNombre} · {tipo}: {situacion}";
+        return $"{tipo}: {situacion}";
     }
 }
