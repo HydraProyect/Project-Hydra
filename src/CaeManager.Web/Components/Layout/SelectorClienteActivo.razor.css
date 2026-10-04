@@ -163,3 +163,21 @@
     font: var(--font-body-sm);
     color: var(--color-text-muted);
 }
+
+.selector-tenant-grupo {
+    padding: var(--space-2) var(--space-2) 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+/* Pendientes por empresa gestionada: dato de apoyo, el nombre sigue mandando. */
+.selector-tenant-contador {
+    flex-shrink: 0;
+    min-width: 1.25rem;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--color-primary-50);
+    color: var(--color-primary-600);
+    font: var(--font-caption);
+    text-align: center;
+}

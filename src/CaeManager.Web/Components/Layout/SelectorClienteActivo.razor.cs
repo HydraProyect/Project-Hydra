@@ -1,6 +1,8 @@
+using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Web.Recursos;
+using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -40,6 +42,9 @@ public partial class SelectorClienteActivo
     [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Textos { get; set; } = default!;
     [Inject] private ILogger<ExcepcionDeCircuitoDesconectado> Logger { get; set; } = default!;
+    [Inject] private ICurrentUserService CurrentUserService { get; set; } = default!;
+    [Inject] private IContadorPendientesSelectorTenant ContadorPendientes { get; set; } = default!;
+    [Inject] private ILectorRecientesSelectorTenant LectorRecientes { get; set; } = default!;
 
     private IReadOnlyList<ClienteAutorizadoDto>? _clientes;
     private ClienteAutorizadoDto? _activo;
@@ -50,6 +55,14 @@ public partial class SelectorClienteActivo
     private AntiforgeryRequestToken? _token;
     private bool _abierto;
     private string _busqueda = string.Empty;
+    private IReadOnlyList<Guid> _recientesIds = [];
+    private IReadOnlyDictionary<Guid, int>? _pendientes;
+    private Guid? _usuarioId;
+    private bool _pendientesIniciados;
+    private bool _desechado;
+
+    /// <summary>Tope de espera del contador: pasado, el selector sigue sin contador (nunca bloquea).</summary>
+    public static readonly TimeSpan EsperaMaximaPendientes = TimeSpan.FromSeconds(10);
 
     private string Busqueda
     {
@@ -63,7 +76,7 @@ public partial class SelectorClienteActivo
     /// <see cref="UmbralBusqueda"/> Tenants o más; por debajo, su texto es siempre vacío.
     /// </summary>
     private IEnumerable<ClienteAutorizadoDto> Filtrados => string.IsNullOrWhiteSpace(_busqueda)
-        ? _clientes!.Where(c => !c.EsOrigen)
+        ? _clientes!.Where(c => !c.EsOrigen && !Recientes.Contains(c))
         : _clientes!.Where(c => !c.EsOrigen && CultureInfo.CurrentCulture.CompareInfo.IndexOf(
             c.Nombre, _busqueda.Trim(), CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0);
 
@@ -100,6 +113,23 @@ public partial class SelectorClienteActivo
 
     private static bool EsFichaPorId(string ruta) => FichaPorId.IsMatch(ruta);
 
+    /// <summary>
+    /// «Recientes»: los últimos Tenants abiertos con éxito, recortados SIEMPRE al conjunto autorizado que
+    /// acaba de leer el componente (la cookie es una preferencia, no una autoridad). Fuera: el de origen
+    /// (tiene su fila fija), el activo y, mientras se busca, todos (la búsqueda ve la cartera entera).
+    /// </summary>
+    private IReadOnlyList<ClienteAutorizadoDto> Recientes => _clientes is null || !string.IsNullOrWhiteSpace(_busqueda)
+        ? []
+        : _recientesIds
+            .Select(id => _clientes.FirstOrDefault(c => c.TenantId == id))
+            .OfType<ClienteAutorizadoDto>()
+            .Where(c => !c.EsOrigen && c.TenantId != _activo?.TenantId)
+            .Take(RecientesSelectorTenant.Maximo)
+            .ToList();
+
+    private int? Pendientes(ClienteAutorizadoDto cliente) =>
+        !cliente.EsOrigen && _pendientes is not null && _pendientes.TryGetValue(cliente.TenantId, out var n) && n > 0 ? n : null;
+
     /// <summary>URL versionada del logo del Tenant (§ 4.1.5), o <c>null</c> para pintar las iniciales.</summary>
     private static string? UrlLogo(ClienteAutorizadoDto cliente) =>
         CaeManager.Web.Components.DesignSystem.AvatarTenant.UrlDeLogo(cliente.TenantId, cliente.LogoVersion);
@@ -113,6 +143,16 @@ public partial class SelectorClienteActivo
         _abierto = !_abierto;
         _busqueda = string.Empty;
         _enfocarBuscador = _abierto && _totalCartera >= UmbralBusqueda;
+
+        // Los pendientes se piden al abrir la lista por primera vez, no al cargar la página: el circuito
+        // tiene una sola puerta de acceso a datos y el cálculo (el de Mi trabajo, Tenant a Tenant) la
+        // ocupa entera; pedirlo con cada carga competiría con las consultas de la propia página. Abrir es
+        // un gesto del usuario, y cambiar de empresa es un POST del navegador que no pasa por el circuito.
+        if (_abierto && !_pendientesIniciados && _activo is not null && _usuarioId is not null && _clientes is not null)
+        {
+            _pendientesIniciados = true;
+            _ = CargarPendientesAsync(_usuarioId.Value, _activo.TenantId, _clientes);
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -151,7 +191,40 @@ public partial class SelectorClienteActivo
             StateHasChanged();
         });
 
-    public void Dispose() => NavigationManager.LocationChanged -= AlNavegar;
+    public void Dispose()
+    {
+        _desechado = true;
+        NavigationManager.LocationChanged -= AlNavegar;
+    }
+
+    /// <summary>
+    /// Pide los pendientes por empresa gestionada. El cálculo es el de Mi trabajo
+    /// (<see cref="ObtenerMiTrabajoAgregadoQuery"/>, con su autorización y su RLS por Tenant dentro de la
+    /// Application) detrás de una caché de vida corta; este componente no consulta ningún Tenant. Cualquier
+    /// fallo o espera agotada deja el selector sin contador.
+    /// </summary>
+    private async Task CargarPendientesAsync(Guid usuarioId, Guid tenantActivoId, IReadOnlyList<ClienteAutorizadoDto> autorizados)
+    {
+        try
+        {
+            using var tope = new CancellationTokenSource(EsperaMaximaPendientes);
+            var pendientes = await ContadorPendientes.ObtenerAsync(
+                usuarioId, tenantActivoId, autorizados,
+                ct => Mediator.Send(new ObtenerMiTrabajoAgregadoQuery(), ct), tope.Token);
+            if (pendientes is null || _desechado) return;
+
+            await InvokeAsync(() =>
+            {
+                _pendientes = pendientes;
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            // Un contador es una comodidad: ni siquiera un circuito caído merece más que una traza.
+            Logger.LogWarning(ex, "SelectorClienteActivo descartó el contador de pendientes: {TipoExcepcion}", ex.GetType().Name);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -183,5 +256,16 @@ public partial class SelectorClienteActivo
         _totalCartera = ClientesAutorizados.TotalCartera(_clientes);
 
         _token = AntiforgeryStateProvider.GetAntiforgeryToken();
+
+        try
+        {
+            _usuarioId = await CurrentUserService.ObtenerUsuarioActualIdAsync();
+            if (_usuarioId is { } usuario)
+                _recientesIds = LectorRecientes.Leer(usuario);
+        }
+        catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
+        {
+            // Sin usuario no hay recientes ni contador; el selector sigue funcionando.
+        }
     }
 }

@@ -96,6 +96,15 @@
   <data name="SelectorTenantCartera" xml:space="preserve">
     <value>Mi cartera · {0}</value>
   </data>
+  <data name="SelectorTenantRecientes" xml:space="preserve">
+    <value>Recientes</value>
+  </data>
+  <data name="SelectorTenantPendientes" xml:space="preserve">
+    <value>{0} pendientes</value>
+  </data>
+  <data name="SelectorTenantPendientesUno" xml:space="preserve">
+    <value>1 pendiente</value>
+  </data>
   <data name="SelectorTenantEmpresasUna" xml:space="preserve">
     <value>1 empresa</value>
   </data>

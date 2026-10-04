@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Bunit;
+using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
+using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Infrastructure.Autorizacion;
@@ -39,12 +41,20 @@ public class SelectorClienteActivoTests : BunitContext
         public override AntiforgeryRequestToken? GetAntiforgeryToken() => new("token-de-prueba", "__RequestVerificationToken");
     }
 
-    private sealed class Mediador(Func<IReadOnlyList<ClienteAutorizadoDto>> lista) : IMediator
+    private sealed class Mediador(
+        Func<IReadOnlyList<ClienteAutorizadoDto>> lista, Func<Task<MiTrabajoAgregadoDto>> miTrabajo, Action alCalcularMiTrabajo) : IMediator
     {
-        public Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default) =>
-            request is ObtenerClientesAutorizadosQuery
-                ? Task.FromResult((T)(object)lista())
-                : throw new NotSupportedException(request.GetType().Name);
+        public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
+        {
+            if (request is ObtenerClientesAutorizadosQuery) return (T)(object)lista();
+            if (request is ObtenerMiTrabajoAgregadoQuery)
+            {
+                alCalcularMiTrabajo();
+                return (T)(object)await miTrabajo();
+            }
+
+            throw new NotSupportedException(request.GetType().Name);
+        }
 
         public Task Send<T>(T request, CancellationToken cancellationToken = default) where T : IRequest => throw new NotSupportedException();
         public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -54,13 +64,34 @@ public class SelectorClienteActivoTests : BunitContext
         public Task Publish<T>(T notification, CancellationToken cancellationToken = default) where T : INotification => Task.CompletedTask;
     }
 
+    private sealed class UsuarioFalso : ICurrentUserService
+    {
+        public static readonly Guid Id = Guid.Parse("cccccccc-0000-0000-0000-000000000001");
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Id);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Origen);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    private sealed class RecientesFalsos(Func<IReadOnlyList<Guid>> lista) : ILectorRecientesSelectorTenant
+    {
+        public IReadOnlyList<Guid> Leer(Guid usuarioId) => usuarioId == UsuarioFalso.Id ? lista() : [];
+    }
+
     private IReadOnlyList<ClienteAutorizadoDto> _lista = [];
+    private IReadOnlyList<Guid> _recientes = [];
+    private Func<Task<MiTrabajoAgregadoDto>> _miTrabajo = () => Task.FromResult(new MiTrabajoAgregadoDto([]));
+    private int _cuantasVecesSeCalculoMiTrabajo;
 
     public SelectorClienteActivoTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
-        Services.AddScoped<IMediator>(_ => new Mediador(() => _lista));
+        Services.AddScoped<IMediator>(_ => new Mediador(() => _lista, () => _miTrabajo(), () => _cuantasVecesSeCalculoMiTrabajo++));
+        Services.AddScoped<ICurrentUserService, UsuarioFalso>();
+        Services.AddSingleton<IContadorPendientesSelectorTenant>(new ContadorPendientesSelectorTenant(TimeProvider.System));
+        Services.AddScoped<ILectorRecientesSelectorTenant>(_ => new RecientesFalsos(() => _recientes));
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
         Services.AddSingleton<Microsoft.Extensions.Logging.ILogger<ExcepcionDeCircuitoDesconectado>>(
             NullLogger<ExcepcionDeCircuitoDesconectado>.Instance);
@@ -376,6 +407,145 @@ public class SelectorClienteActivoTests : BunitContext
         await Abrir(cut);
         cut.FindAll(".selector-tenant-fila img").Should().ContainSingle("solo el Tenant con logo lo pinta; el resto, iniciales");
         AvatarTenant.UrlDeLogo(Sur, null).Should().BeNull();
+    }
+
+    // --- Pendientes y «Recientes» (ficha 11) ----------------------------------------------------
+
+    private static readonly Guid FueraDelAlcance = Guid.Parse("bbbbbbbb-0000-0000-0000-0000000000ff");
+
+    private static MiTrabajoTenantDto ColaDe(Guid tenant, string nombre, int total, bool origen = false) => new(
+        tenant, nombre, origen, new BandejaAgrupadaDto([], []), [], [],
+        new ResumenMiTrabajoTenantDto(tenant, nombre, origen, total, 0, total, 0, 0), AlcanceCero: false);
+
+    [Fact]
+    public async Task Los_pendientes_por_empresa_gestionada_salen_del_calculo_de_Mi_trabajo_y_no_cuentan_ni_muestran_un_Tenant_fuera_del_alcance()
+    {
+        _lista = [Propio(gestionado: true), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        _miTrabajo = () => Task.FromResult(new MiTrabajoAgregadoDto([
+            ColaDe(Origen, "Operador de prueba", 7, origen: true), ColaDe(Norte, "Empresa Norte", 4),
+            ColaDe(Sur, "Empresa Sur", 0), ColaDe(FueraDelAlcance, "Empresa ajena", 9)]));
+
+        var cut = Renderizar(seleccionado: Norte);
+        _cuantasVecesSeCalculoMiTrabajo.Should().Be(0, "control: antes de abrir la lista no se calcula nada");
+        await Abrir(cut);
+        cut.WaitForAssertion(() => _cuantasVecesSeCalculoMiTrabajo.Should().Be(1));
+
+        // Solo Norte tiene pendientes: Sur trae 0, el origen no es empresa gestionada y la ajena no está autorizada.
+        cut.WaitForAssertion(() => cut.FindAll(".selector-tenant-contador").Select(c => c.TextContent.Trim()).Should().Equal("4"));
+        cut.Markup.Should().NotContain("Empresa ajena").And.NotContain(">9<").And.NotContain(">7<");
+        cut.Find("[aria-label^='Empresa Norte']").GetAttribute("aria-label").Should().Be("Empresa Norte, 4 pendientes");
+    }
+
+    [Fact]
+    public async Task Si_el_calculo_de_pendientes_falla_el_selector_se_abre_completo_y_sin_contador()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        _miTrabajo = () => throw new InvalidOperationException("fallo simulado");
+
+        var cut = Renderizar(seleccionado: Norte);
+        _cuantasVecesSeCalculoMiTrabajo.Should().Be(0, "antes de abrir la lista no se calcula nada");
+        await Abrir(cut);
+        cut.WaitForAssertion(() => _cuantasVecesSeCalculoMiTrabajo.Should().Be(1));
+
+        NombresDeLaLista(cut).Should().Equal("Empresa Norte", "Empresa Sur");
+        cut.FindAll(".selector-tenant-contador").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_calculo_de_pendientes_que_no_termina_no_bloquea_el_selector()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        var nuncaTermina = new TaskCompletionSource<MiTrabajoAgregadoDto>();
+        _miTrabajo = () => nuncaTermina.Task;
+
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+
+        NombresDeLaLista(cut).Should().Equal("Empresa Norte", "Empresa Sur");
+        cut.FindAll(".selector-tenant-contador").Should().BeEmpty();
+        nuncaTermina.SetResult(new MiTrabajoAgregadoDto([]));
+    }
+
+    [Fact]
+    public void El_selector_no_calcula_pendientes_si_no_se_pinta()
+    {
+        _lista = [Propio()];
+
+        Renderizar();
+
+        _cuantasVecesSeCalculoMiTrabajo.Should().Be(0, "un usuario mono-Tenant no ve selector y no debe pagar el cálculo");
+    }
+
+    [Fact]
+    public async Task Abrir_y_cerrar_la_lista_varias_veces_pide_los_pendientes_una_sola_vez_por_componente()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        var peticiones = 0;
+        Services.AddSingleton<IContadorPendientesSelectorTenant>(new ContadorContado(() => peticiones++));
+
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+        await Abrir(cut);
+        await Abrir(cut);
+
+        cut.WaitForAssertion(() => peticiones.Should().Be(1, "sin el guard cada apertura volvería a pedirlos"));
+    }
+
+    [Fact]
+    public async Task Un_solo_pendiente_se_dice_en_singular_para_quien_usa_lector_de_pantalla()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        _miTrabajo = () => Task.FromResult(new MiTrabajoAgregadoDto([ColaDe(Sur, "Empresa Sur", 1)]));
+
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+
+        cut.WaitForAssertion(() => cut.Find("[aria-label^='Empresa Sur']").GetAttribute("aria-label").Should().Be("Empresa Sur, 1 pendiente"));
+    }
+
+    private sealed class ContadorContado(Action alPedir) : IContadorPendientesSelectorTenant
+    {
+        public Task<IReadOnlyDictionary<Guid, int>?> ObtenerAsync(
+            Guid usuarioId, Guid tenantActivoId, IReadOnlyList<ClienteAutorizadoDto> autorizados,
+            Func<CancellationToken, Task<MiTrabajoAgregadoDto>> calcular, CancellationToken cancellationToken)
+        {
+            alPedir();
+            return Task.FromResult<IReadOnlyDictionary<Guid, int>?>(null);
+        }
+
+        public void Invalidar(Guid usuarioId) { }
+    }
+
+    [Fact]
+    public async Task Los_recientes_salen_primero_y_se_recortan_al_conjunto_autorizado()
+    {
+        _lista = [Propio(gestionado: true), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur"),
+            Gestionado(Guid.Parse("bbbbbbbb-0000-0000-0000-000000000004"), "Empresa Este")];
+        _recientes = [Sur, FueraDelAlcance, Origen, Norte];
+
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+
+        cut.Find("#selector-tenant-recientes").TextContent.Should().Be("Recientes");
+        cut.Find("[aria-labelledby='selector-tenant-recientes']").QuerySelectorAll(".selector-tenant-nombre")
+            .Select(n => n.TextContent.Trim()).Should().Equal(["Empresa Sur"],
+                "el Tenant fuera del alcance, el de origen y el activo no son recientes");
+        NombresDeLaLista(cut).Should().Contain("Empresa Este");
+        cut.FindAll(".selector-tenant-fila").Count(f => f.GetAttribute("title") == "Empresa Sur")
+            .Should().Be(1, "un reciente no se repite en la lista de la cartera");
+    }
+
+    [Fact]
+    public async Task Sin_recientes_validos_no_hay_seccion_Recientes()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        _recientes = [FueraDelAlcance];
+
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+
+        cut.FindAll("#selector-tenant-recientes").Should().BeEmpty();
+        NombresDeLaLista(cut).Should().Equal("Empresa Norte", "Empresa Sur");
     }
 
     [Theory]
