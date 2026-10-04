@@ -10,6 +10,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Clientes.Queries.ObtenerClientes;
 
+/// <param name="OrdenarPor">
+/// Nombre de una propiedad de <see cref="ClienteListaDto"/>. <c>EstadoDocumentalPeor</c> ordena por
+/// el peor estado documental (ascendente: el peor primero) y, como el filtro de estado, se resuelve
+/// en memoria sobre un máximo de 2000 candidatos; sin valor, por razón social.
+/// </param>
 public record ObtenerClientesQuery(
     string? Busqueda, bool? SoloCriticos, Guid? EjecutivoUsuarioId = null, EstadoDocumento? EstadoDocumental = null,
     int Pagina = 1, int TamanoPagina = 20, string? OrdenarPor = null, bool Descendente = false)
@@ -99,17 +104,22 @@ public class ObtenerClientesQueryHandler(
         // el orden que haya elegido el usuario.
         ordenada = ordenada.ThenBy(c => c.Id);
 
-        // Sin filtro de Estado documental: paginación normal en SQL. Con
-        // filtro: el estado es un agregado calculado (no una columna), así
-        // que hace falta materializar candidatos de sobra, calcular su
-        // agregado y paginar en memoria — acotado a un límite razonable
-        // (mismo principio que otros filtros calculados de este código base)
-        // en vez de traer toda la cartera.
+        // Sin filtro ni orden por Estado documental: paginación normal en SQL.
+        // Con cualquiera de los dos: el estado es un agregado calculado (no
+        // una columna), así que hace falta materializar candidatos de sobra,
+        // calcular su agregado y paginar en memoria — acotado a un límite
+        // razonable (mismo principio que otros filtros calculados de este
+        // código base) en vez de traer toda la cartera. Con el orden por
+        // estado, la base sale ordenada por razón social (rama por defecto
+        // del switch de arriba) y ese orden queda como desempate: OrderBy de
+        // LINQ es estable.
         const int limiteCandidatosConFiltroCalculado = 2000;
+        var ordenarPorEstado = request.OrdenarPor == nameof(ClienteListaDto.EstadoDocumentalPeor);
+        var enMemoria = request.EstadoDocumental is not null || ordenarPorEstado;
 
         List<Empresa> candidatos;
         int total;
-        if (request.EstadoDocumental is null)
+        if (!enMemoria)
         {
             candidatos = await ordenada
                 .Skip((request.Pagina - 1) * request.TamanoPagina)
@@ -133,10 +143,27 @@ public class ObtenerClientesQueryHandler(
                 : c)
             .ToList();
 
+        if (ordenarPorEstado)
+        {
+            // «Peor estado primero» (rediseño de listados, fase 1): ascendente
+            // es Faltante → Vencido → Urgente → Próximo → Al corriente, la
+            // misma prioridad que fija el peor estado de cada fila.
+            todosLosCandidatos = request.Descendente
+                ? todosLosCandidatos.OrderByDescending(PrioridadDeLaFila).ToList()
+                : todosLosCandidatos.OrderBy(PrioridadDeLaFila).ToList();
+        }
+
         List<ClienteListaDto> elementos;
-        if (request.EstadoDocumental is null)
+        if (!enMemoria)
         {
             elementos = todosLosCandidatos;
+        }
+        else if (request.EstadoDocumental is null)
+        {
+            // Solo orden por estado: el total es lo que se ha podido ordenar
+            // (la cartera entera salvo que supere el límite de candidatos).
+            total = todosLosCandidatos.Count;
+            elementos = todosLosCandidatos.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList();
         }
         else
         {
@@ -210,6 +237,10 @@ public class ObtenerClientesQueryHandler(
                 return (EstadoDeLaPrioridad(peor), cantidad, presentes);
             });
     }
+
+    /// <summary>Sin alertas abiertas («Al corriente») pesa lo mismo que Vigente: va el último.</summary>
+    private static int PrioridadDeLaFila(ClienteListaDto fila) =>
+        PrioridadEstado(fila.EstadoDocumentalPeor ?? EstadoDocumento.Vigente);
 
     private static int PrioridadEstado(EstadoDocumento estado) => estado switch
     {
