@@ -4,6 +4,8 @@ namespace CaeManager.Web.Components.DesignSystem;
 /// Tono semántico de un Badge. Exito/Advertencia/Peligro se reservan para el
 /// semáforo de vigencia documental — nunca se usan como color decorativo en
 /// otro contexto (ver Project-Hydra-Negocio/tecnico/docs/archive/design/DESIGN_SYSTEM.md).
+/// <c>Tolerancia</c> es el cuarto escalón del semáforo: solo para «En tolerancia», entre el
+/// ámbar de <c>Advertencia</c> y el rojo de <c>Peligro</c>.
 /// </summary>
 public enum TonoBadge
 {
@@ -11,7 +13,8 @@ public enum TonoBadge
     Exito,
     Advertencia,
     Peligro,
-    Info
+    Info,
+    Tolerancia
 }
 
 /// <summary>

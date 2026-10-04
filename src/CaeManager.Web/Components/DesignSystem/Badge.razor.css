@@ -57,6 +57,14 @@
     color: var(--color-danger-700);
 }
 
+/* «En tolerancia»: entre el ámbar de advertencia y el rojo de peligro (su
+   gravedad está entre Urgente y Vencido). Tokens propios en tokens.css, con
+   variante por tema. */
+.badge-tolerancia {
+    background-color: var(--color-tolerancia-50);
+    color: var(--color-tolerancia-700);
+}
+
 .badge-info {
     background-color: var(--color-info-50);
     color: var(--color-info-500);
