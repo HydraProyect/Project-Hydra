@@ -162,6 +162,7 @@
   </data>
   <data name="SelectorResultados" xml:space="preserve">
     <value>{0} resultats</value>
+  </data>
   <data name="EsperaGuardando" xml:space="preserve">
     <value>Desant…</value>
   </data>
