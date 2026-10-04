@@ -80,7 +80,7 @@ public class ReactivarVisitaCommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
         var evaluador = new EvaluadorQueAnota();
         var reactivacion = await new ReactivarVisitaCommandHandler(repositorio, unitOfWork, alcanceDatos, evaluador, Log)
-            .Handle(new ReactivarVisitaCommand(visita.Id, "Se retoma"), CancellationToken.None);
+            .Handle(new ReactivarVisitaCommand(visita.Id, visita.Version, "Se retoma"), CancellationToken.None);
 
         cancelacion.EsExitoso.Should().BeTrue("control positivo: este alcance cancela");
         reactivacion.EsExitoso.Should().BeTrue();
@@ -108,7 +108,7 @@ public class ReactivarVisitaCommandHandlerTests
             .Handle(new CancelarVisitaCommand(activa.Id), CancellationToken.None);
         var unitOfWork = new UnitOfWorkFalso();
         var reactivacion = await new ReactivarVisitaCommandHandler(Repositorio(cancelada), unitOfWork, Alcance(alcance, cancelada.CentroId), new EvaluadorQueAnota(), Log)
-            .Handle(new ReactivarVisitaCommand(cancelada.Id), CancellationToken.None);
+            .Handle(new ReactivarVisitaCommand(cancelada.Id, cancelada.Version), CancellationToken.None);
 
         cancelacion.Error.Codigo.Should().Be("Visita.NoEncontrada");
         reactivacion.Error.Codigo.Should().Be("Visita.NoEncontrada");
@@ -128,25 +128,98 @@ public class ReactivarVisitaCommandHandlerTests
         typeof(CaeManager.Application.Common.ICommandBase).IsAssignableFrom(typeof(ReactivarVisitaCommand)).Should().BeTrue();
     }
 
+    /// <summary>
+    /// Idempotente: reactivar una Visita que ya no está cancelada (un segundo «Deshacer», otra
+    /// pestaña) es éxito, sin escribir, sin tocar la reactivación ya registrada y sin reevaluar el
+    /// expediente. Va antes que la versión: aunque la versión esté desfasada, el estado pedido ya es el actual.
+    /// </summary>
     [Fact]
-    public async Task Una_visita_no_cancelada_no_se_reactiva()
+    public async Task Reactivar_una_visita_ya_reactivada_es_exito_sin_escribir()
     {
-        var visita = VisitaActiva();
+        var visita = VisitaCancelada();
+        var versionAlCancelar = visita.Version;
+        visita.Reactivar(new DateTime(2026, 9, 1, 8, 0, 0, DateTimeKind.Utc), "primera");
+        var unitOfWork = new UnitOfWorkFalso();
+        var evaluador = new EvaluadorQueAnota();
+
+        var resultado = await new ReactivarVisitaCommandHandler(Repositorio(visita), unitOfWork, new AlcanceDatosServiceFalso(), evaluador, Log)
+            .Handle(new ReactivarVisitaCommand(visita.Id, Guid.NewGuid(), "segunda"), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        visita.MotivoReactivacion.Should().Be("primera", "la reactivación ya registrada no se pisa");
+        visita.ReactivadaEnUtc.Should().Be(new DateTime(2026, 9, 1, 8, 0, 0, DateTimeKind.Utc));
+        unitOfWork.VecesGuardado.Should().Be(0);
+        evaluador.Evaluadas.Should().BeEmpty();
+        versionAlCancelar.Should().NotBe(Guid.Empty, "control: la Visita llevaba versión");
+    }
+
+    /// <summary>
+    /// Versión desfasada: la Visita cambió desde que el usuario la vio (p. ej. otra persona la
+    /// reactivó y la volvió a cancelar con otro motivo). Se rechaza con el código de conflicto y no se toca nada.
+    /// </summary>
+    [Fact]
+    public async Task Con_version_desfasada_se_rechaza_con_conflicto_y_no_escribe()
+    {
+        var visita = VisitaCancelada();
+        var unitOfWork = new UnitOfWorkFalso();
+        var evaluador = new EvaluadorQueAnota();
+
+        var resultado = await new ReactivarVisitaCommandHandler(Repositorio(visita), unitOfWork, new AlcanceDatosServiceFalso(), evaluador, Log)
+            .Handle(new ReactivarVisitaCommand(visita.Id, Guid.NewGuid()), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Common.ConcurrenciaOptimista.CodigoConflicto);
+        resultado.Error.Mensaje.Should().Contain("cambió").And.Contain("recargado");
+        visita.EstaCancelada.Should().BeTrue();
+        visita.ReactivadaEnUtc.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(0);
+        evaluador.Evaluadas.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// La versión es obligatoria: Guid.Empty en ConcurrenciaOptimista significa «sin comprobación»,
+    /// y reactivar no admite esa salida.
+    /// </summary>
+    [Fact]
+    public void El_validador_exige_la_version()
+    {
+        var validador = new ReactivarVisitaCommandValidator();
+
+        validador.Validate(new ReactivarVisitaCommand(Guid.NewGuid(), Guid.Empty)).IsValid.Should().BeFalse();
+        validador.Validate(new ReactivarVisitaCommand(Guid.NewGuid(), Guid.NewGuid())).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task El_handler_rechaza_version_vacia_aunque_no_pase_por_el_validador()
+    {
+        var visita = VisitaCancelada();
         var unitOfWork = new UnitOfWorkFalso();
 
         var resultado = await new ReactivarVisitaCommandHandler(Repositorio(visita), unitOfWork, new AlcanceDatosServiceFalso(), new EvaluadorQueAnota(), Log)
-            .Handle(new ReactivarVisitaCommand(visita.Id), CancellationToken.None);
+            .Handle(new ReactivarVisitaCommand(visita.Id, Guid.Empty), CancellationToken.None);
 
-        resultado.Error.Codigo.Should().Be("Visita.NoCancelada");
-        visita.ReactivadaEnUtc.Should().BeNull();
+        resultado.Error.Codigo.Should().Be("Visita.VersionRequerida");
+        visita.EstaCancelada.Should().BeTrue();
         unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>El alcance se comprueba antes que la versión: fuera de la cartera no se revela ni el conflicto.</summary>
+    [Fact]
+    public async Task Sin_alcance_se_responde_no_existe_aunque_la_version_este_desfasada()
+    {
+        var visita = VisitaCancelada();
+
+        var resultado = await new ReactivarVisitaCommandHandler(Repositorio(visita), new UnitOfWorkFalso(), Alcance("CarteraSinElCentro", visita.CentroId), new EvaluadorQueAnota(), Log)
+            .Handle(new ReactivarVisitaCommand(visita.Id, Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Visita.NoEncontrada");
     }
 
     [Fact]
     public async Task Falla_cuando_la_visita_no_existe()
     {
         var resultado = await new ReactivarVisitaCommandHandler(new VisitaRepositorioFalso(), new UnitOfWorkFalso(), new AlcanceDatosServiceFalso(), new EvaluadorQueAnota(), Log)
-            .Handle(new ReactivarVisitaCommand(Guid.NewGuid()), CancellationToken.None);
+            .Handle(new ReactivarVisitaCommand(Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("Visita.NoEncontrada");
     }

@@ -45,7 +45,9 @@ public record DetalleVisitaDto(
     bool CentroGestionadoPorCorreo = false,
     // FS-11: la ficha de una Visita cancelada ofrece reactivarla, no editarla.
     bool EstaCancelada = false,
-    string? MotivoCancelacion = null);
+    string? MotivoCancelacion = null,
+    // Versión de la Visita tal como se abrió la ficha: «Reactivar» la devuelve en el Command.
+    Guid Version = default);
 
 public class ObtenerDetalleVisitaQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
@@ -83,7 +85,8 @@ public class ObtenerDetalleVisitaQueryHandler(
                 v.Tramo,
                 v.Atribucion,
                 v.EstaCancelada,
-                v.MotivoCancelacion
+                v.MotivoCancelacion,
+                v.Version
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -115,6 +118,7 @@ public class ObtenerDetalleVisitaQueryHandler(
             requiereGestionCae,
             gestionadoPorCorreo,
             visita.EstaCancelada,
-            visita.MotivoCancelacion);
+            visita.MotivoCancelacion,
+            visita.Version);
     }
 }

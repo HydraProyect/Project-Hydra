@@ -10,5 +10,8 @@ public class VisitaRepositorioFalso : IVisitaRepository
     public Task<Visita?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Visitas.FirstOrDefault(v => v.Id == id));
 
+    public Task<Visita?> ObtenerPorIdActualizadoAsync(Guid id, CancellationToken cancellationToken = default) =>
+        ObtenerPorIdAsync(id, cancellationToken);
+
     public void Agregar(Visita visita) => Visitas.Add(visita);
 }

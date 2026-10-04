@@ -303,7 +303,9 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
         resultado.Valor.Canceladas.Should().Be(1);
-        resultado.Valor.IdsCanceladas.Should().Equal([_visitaDentro]);
+        resultado.Valor.Recibos.Select(r => r.Id).Should().Equal([_visitaDentro]);
+        resultado.Valor.Recibos.Single().VersionResultante.Should().Be(await VersionAsync(_visitaDentro),
+            "el recibo lleva la versión que quedó en base de datos tras guardar, no la previa");
         resultado.Valor.Errores.Should().ContainSingle();
         (await EstaCanceladaAsync(_visitaDentro)).Should().BeTrue();
         (await EstaCanceladaAsync(_visitaFuera)).Should().BeFalse();
@@ -399,7 +401,8 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
             new VisitaRepository(runtime), runtime, CrearAlcance(runtime, usuario), new EvaluadorExpedienteNulo(),
             NullLogger<ReactivarVisitaCommandHandler>.Instance);
 
-        return await handler.Handle(new ReactivarVisitaCommand(visitaId), CancellationToken.None);
+        // La versión vigente que vería quien pulsa «Reactivar» (la que dejó la cancelación).
+        return await handler.Handle(new ReactivarVisitaCommand(visitaId, await VersionAsync(visitaId)), CancellationToken.None);
     }
 
     private AlcanceDatosService CrearAlcance(CaeManagerDbContext runtime, CurrentUserServiceFalso usuario) =>
@@ -430,6 +433,10 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
     private async Task<bool> EstaEliminadaAsync(Guid visitaId) =>
         await _propietario.Visitas.IgnoreQueryFilters().AsNoTracking()
             .Where(v => v.Id == visitaId).Select(v => v.EstaEliminado).SingleAsync();
+
+    private async Task<Guid> VersionAsync(Guid visitaId) =>
+        await _propietario.Visitas.IgnoreQueryFilters().AsNoTracking()
+            .Where(v => v.Id == visitaId).Select(v => v.Version).SingleAsync();
 
     private async Task<bool> EstaCanceladaAsync(Guid visitaId) =>
         await _propietario.Visitas.IgnoreQueryFilters().AsNoTracking()

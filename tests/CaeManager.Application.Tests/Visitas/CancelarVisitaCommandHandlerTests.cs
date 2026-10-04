@@ -28,6 +28,7 @@ public class CancelarVisitaCommandHandlerTests
         var resultado = await handler.Handle(new CancelarVisitaCommand(visita.Id, "Aplazada por el cliente"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Should().Be(new VisitaCanceladaDto(visita.Id, visita.Version), "el recibo lleva la versión en que quedó la Visita: es lo que «Deshacer» devuelve");
         visita.EstaCancelada.Should().BeTrue();
         visita.MotivoCancelacion.Should().Be("Aplazada por el cliente");
         visita.EstaEliminado.Should().BeFalse();
@@ -119,7 +120,7 @@ public class CancelarVisitaCommandHandlerTests
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Canceladas.Should().Be(1);
-        resultado.Valor.IdsCanceladas.Should().Equal([dentro.Id]);
+        resultado.Valor.Recibos.Should().Equal([new VisitaCanceladaDto(dentro.Id, dentro.Version)]);
         resultado.Valor.Errores.Should().HaveCount(3);
         dentro.EstaCancelada.Should().BeTrue();
         dentro.MotivoCancelacion.Should().Be("Obra aplazada");
