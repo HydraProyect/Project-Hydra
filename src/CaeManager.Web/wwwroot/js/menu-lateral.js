@@ -68,21 +68,22 @@ function esCompacto() {
 const normalizar = texto => (texto ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 
 const menus = () => document.querySelectorAll('.nav-principal');
+// El modo compacto es de la barra lateral: el menú del cajón móvil (bajo 1024px) siempre va completo.
+const enBarraLateral = nav => nav.closest('.barra-lateral') !== null;
 const filtroActivo = nav => normalizar(nav.querySelector('[data-menu-filtro]')?.value);
 
 function fijarAbierto(detalle, abierto) {
-    if (detalle.open !== abierto) {
-        // El evento "toggle" llega después y no puede confundirse con una decisión del usuario.
-        detalle.dataset.programatico = '1';
-        detalle.open = abierto;
-    }
+    // Lo guardado es solo lo que el usuario decide al pulsar la cabecera (ver el listener de
+    // "click" más abajo), no lo que el evento "toggle" informe: así ni abrir un grupo por la
+    // página activa ni abrirlos todos en modo compacto se confunden con una decisión suya.
+    detalle.open = abierto;
     detalle.querySelector(':scope > summary')?.setAttribute('aria-expanded', String(detalle.open));
 }
 
 function aplicarGrupos() {
     const estados = leerEstados();
-    const compacto = esCompacto();
     menus().forEach(nav => {
+        const compacto = esCompacto() && enBarraLateral(nav);
         const filtrando = filtroActivo(nav) !== '';
         nav.querySelectorAll('details.nav-grupo-detalle[data-grupo]').forEach(detalle => {
             const coincide = filtrando && detalle.querySelector('.nav-fila:not([hidden])') !== null;
@@ -145,8 +146,8 @@ function aplicarFiltro(nav) {
 }
 
 function actualizarTooltips() {
-    const compacto = esCompacto();
     menus().forEach(nav => {
+        const compacto = esCompacto() && enBarraLateral(nav);
         nav.querySelectorAll('.nav-item').forEach(enlace => {
             const rotulo = enlace.querySelector('.nav-item-texto');
             const texto = rotulo?.textContent.trim();
@@ -183,20 +184,28 @@ document.addEventListener('toggle', function (evento) {
     const detalle = evento.target;
     if (!detalle.matches?.('details.nav-grupo-detalle[data-grupo]')) return;
     detalle.querySelector(':scope > summary')?.setAttribute('aria-expanded', String(detalle.open));
-
-    if (detalle.dataset.programatico) {
-        delete detalle.dataset.programatico;
-        return;
-    }
-    const estados = leerEstados();
-    estados[detalle.dataset.grupo] = detalle.open;
-    guardar(CLAVE_ESTADO, estados);
 }, true);
 
 document.addEventListener('click', function (evento) {
+    // Decisión del usuario: pulsar la cabecera de un grupo (también con teclado, que dispara el clic).
+    const cabecera = evento.target.closest?.('.nav-principal summary.nav-grupo-titulo');
+    if (cabecera) {
+        const detalle = cabecera.parentElement;
+        // El navegador alterna "open" después del clic: se lee al terminar el turno.
+        setTimeout(function () {
+            const estados = leerEstados();
+            estados[detalle.dataset.grupo] = detalle.open;
+            guardar(CLAVE_ESTADO, estados);
+        }, 0);
+        return;
+    }
+
     const compactar = evento.target.closest?.('[data-menu-compactar]');
     if (compactar) {
         guardar(CLAVE_COMPACTO, esCompacto() ? '0' : '1');
+        // El campo de filtro desaparece en modo compacto: no puede quedar un filtro invisible activo.
+        document.querySelectorAll('[data-menu-filtro]').forEach(campo => { campo.value = ''; });
+        menus().forEach(aplicarFiltro);
         aplicarCompacto();
         aplicarGrupos();
         actualizarTooltips();
@@ -227,6 +236,8 @@ document.addEventListener('keydown', function (evento) {
     const campo = evento.target.matches?.('[data-menu-filtro]') ? evento.target : null;
     if (campo) {
         if (evento.key === 'Escape') {
+            // No cerrar además el cajón u otro panel que escuche Escape.
+            evento.stopPropagation();
             campo.value = '';
             campo.dispatchEvent(new Event('input', { bubbles: true }));
             campo.blur();
@@ -240,6 +251,8 @@ document.addEventListener('keydown', function (evento) {
     if (evento.key !== '/' || evento.ctrlKey || evento.metaKey || evento.altKey) return;
     const objetivo = evento.target;
     if (objetivo.isContentEditable || objetivo.matches?.('input, textarea, select')) return;
+    // Con un diálogo modal abierto el filtro queda detrás del velo.
+    if (document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"], dialog:modal')) return;
     const filtro = [...document.querySelectorAll('[data-menu-filtro]')].find(c => c.offsetParent !== null);
     if (filtro) {
         evento.preventDefault();

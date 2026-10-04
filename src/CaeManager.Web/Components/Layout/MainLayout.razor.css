@@ -57,7 +57,7 @@ html[data-menu-compacto] .marca .marca-wordmark {
 }
 
 /* El selector de empresa gestionada no cabe en 64px: se ofrece al ensanchar la barra. */
-html[data-menu-compacto] .barra-lateral > :not(.marca):not(nav) {
+html[data-menu-compacto] .barra-lateral > ::deep :not(.marca):not(nav) {
     display: none;
 }
 

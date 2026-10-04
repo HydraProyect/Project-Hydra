@@ -96,9 +96,9 @@
     animation: nav-grupo-item-entra var(--motion-transition) var(--ease-fluid) backwards;
 }
 
-.nav-grupo-detalle[open] .nav-grupo-items ::deep .nav-item:nth-child(1) { animation-delay: 70ms; }
-.nav-grupo-detalle[open] .nav-grupo-items ::deep .nav-item:nth-child(2) { animation-delay: 120ms; }
-.nav-grupo-detalle[open] .nav-grupo-items ::deep .nav-item:nth-child(n + 3) { animation-delay: 170ms; }
+.nav-grupo-detalle[open] .nav-grupo-items .nav-fila:nth-child(1) ::deep .nav-item { animation-delay: 70ms; }
+.nav-grupo-detalle[open] .nav-grupo-items .nav-fila:nth-child(2) ::deep .nav-item { animation-delay: 120ms; }
+.nav-grupo-detalle[open] .nav-grupo-items .nav-fila:nth-child(n + 3) ::deep .nav-item { animation-delay: 170ms; }
 
 @keyframes nav-grupo-item-entra {
     from {
@@ -395,50 +395,50 @@
     visibles aunque el grupo esté cerrado (menu-lateral.js los abre mientras
     dura el modo y devuelve el estado guardado al ensanchar).
 */
-html[data-menu-compacto] .nav-principal {
+html[data-menu-compacto] .barra-lateral .nav-principal {
     padding-inline: var(--space-2);
 }
 
-html[data-menu-compacto] .nav-filtro,
-html[data-menu-compacto] .nav-fijar,
-html[data-menu-compacto] .nav-fijados-titulo,
-html[data-menu-compacto] .nav-grupo-titulo {
+html[data-menu-compacto] .barra-lateral .nav-filtro,
+html[data-menu-compacto] .barra-lateral .nav-fijar,
+html[data-menu-compacto] .barra-lateral .nav-fijados-titulo,
+html[data-menu-compacto] .barra-lateral .nav-grupo-titulo {
     display: none;
 }
 
-html[data-menu-compacto] .nav-herramientas {
+html[data-menu-compacto] .barra-lateral .nav-herramientas {
     justify-content: center;
 }
 
-html[data-menu-compacto] .nav-compactar {
+html[data-menu-compacto] .barra-lateral .nav-compactar {
     margin-left: 0;
 }
 
-html[data-menu-compacto] .nav-compactar ::deep .icono {
+html[data-menu-compacto] .barra-lateral .nav-compactar ::deep .icono {
     transform: rotate(-90deg);
 }
 
-html[data-menu-compacto] .nav-principal ::deep .nav-item {
+html[data-menu-compacto] .barra-lateral .nav-principal ::deep .nav-item {
     justify-content: center;
     padding: 0;
 }
 
-html[data-menu-compacto] .nav-item-texto {
+html[data-menu-compacto] .barra-lateral .nav-item-texto {
     display: none;
 }
 
-html[data-menu-compacto] .nav-grupo-detalle + .nav-grupo-detalle {
+html[data-menu-compacto] .barra-lateral .nav-grupo-detalle + .nav-grupo-detalle {
     margin-top: var(--space-1);
     padding-top: var(--space-2);
     border-top: 1px solid var(--color-border);
 }
 
-html[data-menu-compacto] .nav-fijados {
+html[data-menu-compacto] .barra-lateral .nav-fijados {
     padding-bottom: var(--space-2);
 }
 
 @supports selector(::details-content) {
-    html[data-menu-compacto] .nav-grupo-detalle:not([open])::details-content {
+    html[data-menu-compacto] .barra-lateral .nav-grupo-detalle:not([open])::details-content {
         block-size: auto;
         content-visibility: visible;
     }
@@ -447,5 +447,12 @@ html[data-menu-compacto] .nav-fijados {
 @media (prefers-reduced-motion: reduce) {
     .nav-compactar ::deep .icono {
         transition: none;
+    }
+}
+
+/* El cajón móvil (bajo 1024px) no tiene modo compacto: sin barra lateral el botón no hace nada. */
+@media (max-width: 1023px) {
+    .nav-compactar {
+        display: none;
     }
 }
