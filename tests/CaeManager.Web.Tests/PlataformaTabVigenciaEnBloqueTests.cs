@@ -1,5 +1,7 @@
 using Bunit;
+using CaeManager.Application.Documentos.Commands;
 using CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditacion;
+using CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditacion;
 using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -22,13 +24,14 @@ namespace CaeManager.Web.Tests;
 public sealed class PlataformaTabVigenciaEnBloqueTests : BunitContext
 {
     private readonly Mediador _mediador = new();
+    private readonly ToastService _toasts = new();
 
     public PlataformaTabVigenciaEnBloqueTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.ConRolDeEscritura();
         Services.AddSingleton<IMediator>(_mediador);
-        Services.AddSingleton(new ToastService());
+        Services.AddSingleton(_toasts);
         Services.AddLocalization();
     }
 
@@ -56,6 +59,35 @@ public sealed class PlataformaTabVigenciaEnBloqueTests : BunitContext
         comandos.Should().HaveCount(2);
         comandos.Select(c => c.AcreditacionId).Should().BeEquivalentTo(_mediador.SinVigenciaIds);
         comandos.Should().OnlyContain(c => c.Vigencia.FechaVencimiento == new DateOnly(2027, 3, 1));
+    }
+
+    [Fact]
+    public async Task Tras_anotar_en_bloque_el_aviso_ofrece_Deshacer_y_devuelve_cada_recibo_a_su_comando()
+    {
+        var cut = await AbrirVigenciaEnBloqueConFechaAsync();
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar vigencia").ClickAsync(new MouseEventArgs());
+
+        var aviso = _toasts.Mensajes.Single(t => t.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        var restauraciones = _mediador.Recibidas.OfType<RestaurarAnotacionAcreditacionCommand>().ToList();
+        restauraciones.Should().HaveCount(2);
+        restauraciones.Select(r => r.AcreditacionId).Should().BeEquivalentTo(_mediador.SinVigenciaIds);
+        restauraciones.Should().OnlyContain(r => r.EstadoPrevio == EstadoAcreditacion.Subida
+            && r.VigenciaPrevia == VigenciaEnPlataforma.SinConfirmar && r.VersionEsperada == _mediador.VersionDe(r.AcreditacionId),
+            "se devuelve el recibo que dio el servidor, no lo que la pantalla tenía cargado");
+    }
+
+    [Fact]
+    public async Task Si_el_servidor_rechaza_deshacer_el_aviso_dice_por_que_y_no_recarga_en_falso()
+    {
+        var cut = await AbrirVigenciaEnBloqueConFechaAsync();
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar vigencia").ClickAsync(new MouseEventArgs());
+        _mediador.FallaRestaurarCon = "No se puede deshacer: esta acreditación cambió.";
+
+        await cut.InvokeAsync(_toasts.Mensajes.Single(t => t.TextoAccion == "Deshacer").OnAccion!);
+
+        _toasts.Mensajes.Should().Contain(t => t.Mensaje.Contains("0 de 2 deshechas") && t.Mensaje.Contains("cambió") && t.Tono == TonoToast.Advertencia);
     }
 
     private async Task<IRenderedComponent<PlataformaTab>> AbrirVigenciaEnBloqueConFechaAsync()
@@ -129,6 +161,9 @@ public sealed class PlataformaTabVigenciaEnBloqueTests : BunitContext
         public List<object> Recibidas { get; } = [];
         public List<Guid> SinVigenciaIds { get; } = [];
         public string? FallaConfirmarVigenciaCon { get; set; }
+        public string? FallaRestaurarCon { get; set; }
+        private readonly Dictionary<Guid, Guid> _versiones = [];
+        public Guid VersionDe(Guid acreditacionId) => _versiones[acreditacionId];
         private readonly IReadOnlyList<ProveedorAcreditacionesDto> _datos;
 
         public Mediador()
@@ -149,13 +184,25 @@ public sealed class PlataformaTabVigenciaEnBloqueTests : BunitContext
         private static AcreditacionDrillDownDto Fila(string tipo, EstadoAcreditacion estado) =>
             new(Guid.NewGuid(), Guid.NewGuid(), "Iker Etxeberria", tipo, estado, null);
 
+        // El recibo lo fabrica el «servidor»: el valor previo es Subida/SinConfirmar aunque la fila de la
+        // pantalla diga otra cosa, que es justo lo que el test de Deshacer necesita distinguir.
+        private ResultadoAnotacionAcreditacionDto Recibo(Guid id)
+        {
+            var version = Guid.NewGuid();
+            _versiones[id] = version;
+            return new ResultadoAnotacionAcreditacionDto(id, EstadoAcreditacion.Subida, VigenciaEnPlataforma.SinConfirmar, version);
+        }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Recibidas.Add(request);
             object valor = request switch
             {
                 ObtenerAcreditacionesPorProveedorQuery => _datos,
-                ConfirmarVigenciaAcreditacionCommand => FallaConfirmarVigenciaCon is { } motivo ? Result.Fallo(Error.Crear("vigencia.rechazada", motivo)) : Result.Exito(),
+                ConfirmarVigenciaAcreditacionCommand c => FallaConfirmarVigenciaCon is { } motivo
+                    ? Result.Fallo<ResultadoAnotacionAcreditacionDto>(Error.Crear("vigencia.rechazada", motivo))
+                    : Result.Exito(Recibo(c.AcreditacionId)),
+                RestaurarAnotacionAcreditacionCommand => FallaRestaurarCon is { } fallo ? Result.Fallo(Error.Crear("Concurrencia.Conflicto", fallo)) : Result.Exito(),
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
             return Task.FromResult((TResponse)valor);

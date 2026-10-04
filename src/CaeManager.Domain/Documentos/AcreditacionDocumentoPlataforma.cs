@@ -1,3 +1,4 @@
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 
 namespace CaeManager.Domain.Documentos;
@@ -21,7 +22,7 @@ namespace CaeManager.Domain.Documentos;
 /// navegador sube documentos contra ellos. El comentario anterior decía que la
 /// lógica de "Lote 2-D" estaba todavía sin construir; dejó de ser verdad.
 /// </summary>
-public class AcreditacionDocumentoPlataforma : EntidadBase
+public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaPropia
 {
     private readonly List<RechazoAcreditacionDocumentoPlataforma> _historialRechazos = [];
 
@@ -97,6 +98,65 @@ public class AcreditacionDocumentoPlataforma : EntidadBase
     {
         EstadoVigencia = vigencia.Estado;
         FechaVencimientoEnPlataforma = vigencia.FechaVencimiento;
+    }
+
+    /// <summary>
+    /// ¿Se puede devolver la acreditación a este estado y vigencia como «Deshacer» de una anotación?
+    /// El valor previo llega del llamador, así que se valida en vez de creerlo:
+    /// <list type="bullet">
+    /// <item>El estado solo cambia si hoy es Aceptada, que es lo único que una anotación deja
+    /// atrás; si no, solo se corrige la vigencia y el estado previo debe ser el actual.</item>
+    /// <item>Rechazada exige un rechazo en el historial y vigencia Sin confirmar, el valor que
+    /// fija <see cref="Rechazar"/>.</item>
+    /// <item>La vigencia debe ser interpretable (<see cref="VigenciaEnPlataforma.Rehidratar"/>).</item>
+    /// </list>
+    /// </summary>
+    public bool PuedeDeshacerAnotacion(EstadoAcreditacion estadoPrevio, VigenciaEnPlataforma vigenciaPrevia)
+    {
+        if (!Enum.IsDefined(estadoPrevio)) return false;
+        if (estadoPrevio != Estado && Estado != EstadoAcreditacion.Aceptada) return false;
+        if (estadoPrevio == EstadoAcreditacion.Rechazada
+            && (_historialRechazos.Count == 0 || !vigenciaPrevia.EstaSinConfirmar))
+            return false;
+
+        try
+        {
+            _ = VigenciaEnPlataforma.Rehidratar(vigenciaPrevia.Estado, vigenciaPrevia.FechaVencimiento);
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// «Deshacer» de una anotación: devuelve el estado y la vigencia EXACTOS que había
+    /// antes (incluido «Sin confirmar», que no es lo mismo que «anotada»). No toca
+    /// el historial de rechazos, que nunca se sobrescribe. La fila de auditoría
+    /// sale como <see cref="RegistroAuditoria.AccionRestaurado"/>. Se llama antes a
+    /// <see cref="PuedeDeshacerAnotacion"/>; aquí se vuelve a exigir.
+    /// No se llama <c>Restaurar</c> porque ese nombre es el de deshacer un borrado lógico.
+    /// </summary>
+    public void DeshacerAnotacion(EstadoAcreditacion estadoPrevio, VigenciaEnPlataforma vigenciaPrevia)
+    {
+        if (!PuedeDeshacerAnotacion(estadoPrevio, vigenciaPrevia))
+            throw new InvalidOperationException("Esta acreditación no puede devolverse a ese estado y vigencia.");
+
+        Estado = estadoPrevio;
+        AnotarVigencia(vigenciaPrevia);
+        _accionAuditoria = RegistroAuditoria.AccionRestaurado;
+    }
+
+    // Solo campo: sin propiedad, EF no lo mapea y nunca llega a la base de datos.
+    private string? _accionAuditoria;
+
+    string? IAccionAuditoriaPropia.ConsumirAccionAuditoria()
+    {
+        var accion = _accionAuditoria;
+        _accionAuditoria = null;
+        return accion;
     }
 
     public void MarcarNoRequerida() => Estado = EstadoAcreditacion.NoRequerida;

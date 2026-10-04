@@ -252,6 +252,12 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             var esDominio = entrada.Entity.GetType().Namespace?.StartsWith("CaeManager.Domain", StringComparison.Ordinal) == true;
             var esIdentidadAuditada = TiposDeIdentidadAuditados.ContainsKey(entrada.Entity.GetType());
             if (!esDominio && !esIdentidadAuditada) continue;
+
+            // Acción propia pedida por la entidad (p. ej. «Restaurado»): solo sustituye al genérico
+            // «Modificado»; Creado/Eliminado no se renombran. Se consume SIEMPRE, incluso si la entidad
+            // quedó sin cambios, para que la marca no sobreviva a este guardado y etiquete el siguiente.
+            var accionPropia = (entrada.Entity as IAccionAuditoriaPropia)?.ConsumirAccionAuditoria();
+
             if (entrada.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted)) continue;
 
             var accion = entrada.State switch
@@ -261,6 +267,9 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
                 EntityState.Deleted => "Eliminado",
                 _ => "Desconocido"
             };
+
+            if (accionPropia is not null && entrada.State == EntityState.Modified)
+                accion = accionPropia;
 
             var (entidadTipo, entidadId) = ResolverTipoEId(entrada);
             var sensibles = PropiedadesSensiblesPorTipo.GetValueOrDefault(entrada.Entity.GetType());

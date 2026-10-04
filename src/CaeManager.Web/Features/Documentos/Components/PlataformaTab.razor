@@ -16,6 +16,8 @@
 @using CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada
 @using CaeManager.Application.Documentos.Commands.MarcarAcreditacionRechazada
 @using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida
+@using CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditacion
+@using CaeManager.Application.Documentos.Commands
 @using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor
 @using CaeManager.Domain.Common
 @using CaeManager.Domain.Documentos
@@ -518,7 +520,7 @@ else
         }
 
         _confirmandoVigencia = true;
-        Result resultado;
+        Result<ResultadoAnotacionAcreditacionDto> resultado;
         try
         {
             // Dos comandos porque son dos cosas distintas: una acredita el documento
@@ -532,6 +534,7 @@ else
                 // datos que anotarla de una en una; no hay un comando nuevo que se salte nada.
                 // Un fallo no corta el resto: se cuenta y se avisa de cuántas quedaron sin anotar.
                 var anotadas = 0;
+                var recibos = new List<ResultadoAnotacionAcreditacionDto>();
                 Error? primerFallo = null;
                 foreach (var id in _idsVigenciaEnBloque)
                 {
@@ -541,6 +544,7 @@ else
                     else
                     {
                         anotadas++;
+                        recibos.Add(uno.Valor);
                         _seleccionVigencia.Remove(id);
                     }
                 }
@@ -560,7 +564,8 @@ else
 
                 _idsVigenciaEnBloque = [];
                 _vigenciaVisible = false;
-                ToastService.Mostrar(Textos["PlatBloqueResultado", anotadas, total].Value, anotadas == total ? TonoToast.Exito : TonoToast.Advertencia);
+                ToastService.Mostrar(Textos["PlatBloqueResultado", anotadas, total].Value, anotadas == total ? TonoToast.Exito : TonoToast.Advertencia,
+                    Textos["ToastAccionDeshacer"].Value, () => DeshacerAnotacionAsync(recibos));
 
                 await CargarAsync();
                 return;
@@ -588,8 +593,50 @@ else
         // El aviso dice qué se ha guardado, no solo que se guardó algo: esta
         // pantalla lista lo que falta subir, así que en cuanto se marca aceptado
         // la fila desaparece y el Gestor CAE no tiene dónde volver a mirarlo.
-        ToastService.Mostrar(TextoDeLoGuardado(vigencia.Value, _soloVigencia), TonoToast.Exito);
+        ToastService.Mostrar(TextoDeLoGuardado(vigencia.Value, _soloVigencia), TonoToast.Exito,
+            Textos["ToastAccionDeshacer"].Value, () => DeshacerAnotacionAsync([resultado.Valor]));
         await CargarAsync();
+    }
+
+    /// <summary>
+    /// «Deshacer» del aviso de anotar (ficha 09): devuelve cada acreditación a lo que había
+    /// antes, con el recibo que devolvió la propia anotación. Va por
+    /// RestaurarAnotacionAcreditacionCommand (misma autorización y alcance, versión comprobada,
+    /// auditoría «Restaurado»); si alguien la cambió entretanto, el comando rechaza y
+    /// el aviso lo dice, en vez de pisar ese cambio.
+    /// </summary>
+    private bool _deshaciendoAnotacion;
+
+    private async Task DeshacerAnotacionAsync(IReadOnlyList<ResultadoAnotacionAcreditacionDto> recibos)
+    {
+        if (_deshaciendoAnotacion) return;
+        _deshaciendoAnotacion = true;
+
+        try
+        {
+            var restaurados = 0;
+            var errores = new List<string>();
+            foreach (var r in recibos)
+            {
+                var uno = await Mediator.Send(new RestaurarAnotacionAcreditacionCommand(
+                    r.AcreditacionId, r.EstadoPrevio, r.VigenciaPrevia, r.VersionResultante));
+                if (uno.EsExitoso) restaurados++;
+                else if (!errores.Contains(uno.Error.Mensaje)) errores.Add(uno.Error.Mensaje);
+            }
+
+            ToastService.Mostrar(
+                errores.Count == 0
+                    ? (recibos.Count == 1 ? Textos["PlatAnotacionDeshecha"].Value : Textos["PlatAnotacionesDeshechas", restaurados].Value)
+                    : Textos["PlatDeshacerParcial", restaurados, recibos.Count, string.Join(" ", errores)].Value,
+                errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (restaurados > 0)
+                await CargarAsync();
+        }
+        finally
+        {
+            _deshaciendoAnotacion = false;
+        }
     }
 
     private static string TextoDeLoGuardado(VigenciaEnPlataforma vigencia, bool soloVigencia)
