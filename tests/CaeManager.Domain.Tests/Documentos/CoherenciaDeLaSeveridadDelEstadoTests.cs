@@ -17,6 +17,7 @@ public class CoherenciaDeLaSeveridadDelEstadoTests
     [
         EstadoDocumento.Faltante,
         EstadoDocumento.Vencido,
+        EstadoDocumento.EnTolerancia,
         EstadoDocumento.Urgente,
         EstadoDocumento.Proximo,
         EstadoDocumento.SinConfirmar,
@@ -30,8 +31,9 @@ public class CoherenciaDeLaSeveridadDelEstadoTests
         var ordenados = Enum.GetValues<EstadoDocumento>().OrderBy(SeveridadEstadoDocumento.Rango).ToArray();
 
         ordenados.Should().Equal(DeMasAMenosGrave,
-            "lo que falta, antes que lo vencido, lo urgente, lo próximo, lo sin confirmar (detrás de lo malo conocido y " +
-            "delante de lo vigente), lo vigente y, al final, lo que no caduca");
+            "lo que falta, antes que lo vencido, lo vencido en tolerancia (entre vencido y urgente: ya venció pero aún vale " +
+            "para acceder), lo urgente, lo próximo, lo sin confirmar (detrás de lo malo conocido y delante de lo vigente), " +
+            "lo vigente y, al final, lo que no caduca");
     }
 
     [Fact]

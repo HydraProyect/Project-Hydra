@@ -18,6 +18,12 @@
   <data name="SinConfirmar" xml:space="preserve">
     <value>Sin confirmar</value>
   </data>
+  <data name="EnTolerancia" xml:space="preserve">
+    <value>En tolerancia</value>
+  </data>
+  <data name="VencidoEnToleranciaHasta" xml:space="preserve">
+    <value>Vencido · en tolerancia hasta {0}</value>
+  </data>
   <data name="ErrorFechaYNoCaduca" xml:space="preserve">
     <value>Indica una fecha de vencimiento o marca «No caduca», no las dos.</value>
   </data>

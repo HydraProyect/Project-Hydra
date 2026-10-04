@@ -298,6 +298,35 @@ public class Trabajador360Gen2Tests : BunitContext
     }
 
     /// <summary>
+    /// «En tolerancia» (aprobado 2026-10-03): Trabajador 360 es una vista con contexto de Centro, así que rotula «Vencido · en
+    /// tolerancia hasta dd/MM» al vencido que en ese Centro aún vale para acceder. Sigue siendo una incidencia (ya venció) y no
+    /// cuenta como al día en el porcentaje (eso es el incremento 2 del porcentaje).
+    /// </summary>
+    [Fact]
+    public void Un_vencido_en_tolerancia_se_rotula_con_su_fecha_sigue_siendo_incidencia_y_no_sube_el_porcentaje()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        var hasta = DiaDeNegocio.Hoy().AddDays(7);
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.EnTolerancia,
+                new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Formación PRL — 20 h", EstadoDocumento.EnTolerancia,
+                    DiaDeNegocio.Hoy().AddDays(-3), EnToleranciaHasta: hasta),
+                Documento("Reconocimiento médico", EstadoDocumento.Vigente))
+        ];
+
+        var cut = Renderizar(id);
+
+        var cabecera = cut.Find(".cabecera-pagina");
+        cabecera.TextContent.Should().Contain("1 incidencia — Centro Norte")
+            .And.Contain($"Formación PRL — 20 h — Vencido · en tolerancia hasta {hasta:dd/MM}");
+        cabecera.QuerySelector(".cabecera-pagina-inicio .anillo-cumplimiento-texto")!.TextContent.Trim().Should().StartWith("50",
+            "el vencido en tolerancia aún no cuenta como al día: 1 de 2");
+    }
+
+    /// <summary>
     /// D-22 (recorrido de 2026-10-01): «Sin confirmar» no es incidencia —cuenta como al día, con
     /// aviso—, igual que en el panel Documentación base (#1015). Faltante, Vencido, Urgente y Próximo
     /// siguen contando.

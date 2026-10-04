@@ -20,6 +20,7 @@ public class CumplimientoDocumentalTests
         (EstadoDocumento.SinCaducidad, true, "«No caduca» confirmado es al día y requerido, no queda fuera del universo"),
         (EstadoDocumento.SinConfirmar, false, "«Sin confirmar» no es al día en un porcentaje (decisión 2026-10-03, pregunta 2, opción a)"),
         (EstadoDocumento.Vencido, false, "un documento vencido no cumple"),
+        (EstadoDocumento.EnTolerancia, false, "la tolerancia aún no entra en el porcentaje (incremento 2 del porcentaje): como Vencido"),
         (EstadoDocumento.Faltante, false, "lo que no existe no cumple"),
     ];
 
@@ -30,6 +31,7 @@ public class CumplimientoDocumentalTests
     [InlineData(EstadoDocumento.SinCaducidad)]
     [InlineData(EstadoDocumento.SinConfirmar)]
     [InlineData(EstadoDocumento.Vencido)]
+    [InlineData(EstadoDocumento.EnTolerancia)]
     [InlineData(EstadoDocumento.Faltante)]
     public void Cada_estado_cuenta_o_no_como_al_dia_segun_la_tabla(EstadoDocumento estado)
     {
@@ -50,9 +52,9 @@ public class CumplimientoDocumentalTests
     {
         var fraccion = CumplimientoDocumental.Evaluar(Tabla.Select(f => f.Estado));
 
-        fraccion.Requeridos.Should().Be(7, "los siete estados son siete pares exigidos: ninguno queda fuera del universo");
+        fraccion.Requeridos.Should().Be(8, "los ocho estados son ocho pares exigidos: ninguno queda fuera del universo");
         fraccion.AlDia.Should().Be(4, "Vigente, Próximo, Urgente y Sin caducidad");
-        fraccion.Porcentaje.Should().Be(57);
+        fraccion.Porcentaje.Should().Be(50);
     }
 
     [Fact]

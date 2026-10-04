@@ -403,7 +403,7 @@ else
                                                 else
                                                 {
                                                     <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" ConIcono Tamano="TamanoBadge.Pequeno">
-                                                        @EstadoDocumentoUi.Texto(documento.Estado)
+                                                        @EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)
                                                     </Badge>
                                                 }
                                             </span>

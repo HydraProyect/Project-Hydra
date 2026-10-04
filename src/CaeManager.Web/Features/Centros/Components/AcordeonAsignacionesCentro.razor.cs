@@ -411,7 +411,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
                 lista = lista.Where(t => t.TrabajadorNombre.Contains(TextoBusqueda, StringComparison.OrdinalIgnoreCase)).ToList();
 
             if (EstadoFiltrado is { } estado)
-                lista = lista.Where(t => t.Documentos.Any(d => d.Estado == estado)).ToList();
+                // «Vencido» incluye al vencido en tolerancia: filtrar por vencidos no puede esconderlo.
+                lista = lista.Where(t => t.Documentos.Any(d => d.Estado == estado
+                    || (estado == EstadoDocumento.Vencido && d.Estado == EstadoDocumento.EnTolerancia))).ToList();
 
             return lista;
         }
@@ -442,6 +444,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     [
         new(nameof(EstadoDocumento.Vencido), EstadoDocumentoUi.Texto(EstadoDocumento.Vencido)),
         new(nameof(EstadoDocumento.Faltante), EstadoDocumentoUi.Texto(EstadoDocumento.Faltante)),
+        new(nameof(EstadoDocumento.EnTolerancia), EstadoDocumentoUi.Texto(EstadoDocumento.EnTolerancia)),
         new(nameof(EstadoDocumento.Urgente), EstadoDocumentoUi.Texto(EstadoDocumento.Urgente)),
         new(nameof(EstadoDocumento.Proximo), EstadoDocumentoUi.Texto(EstadoDocumento.Proximo)),
         new(nameof(EstadoDocumento.SinConfirmar), EstadoDocumentoUi.Texto(EstadoDocumento.SinConfirmar)),
@@ -493,7 +496,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             return (
                 cumplimiento.Requeridos,
                 cumplimiento.AlDia,
-                documentos.Count(d => d.Estado == EstadoDocumento.Vencido),
+                documentos.Count(d => EstadoDocumentoUi.HaVencido(d.Estado)),
                 documentos.Count(d => d.Estado == EstadoDocumento.Faltante));
         }
     }
@@ -514,7 +517,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// casilla también aquí.
     /// </summary>
     private static IReadOnlyList<DocumentoRequeridoDto> DocumentosVencidos(TrabajadorAsignacionDocumentacionDto trabajador) =>
-        trabajador.Documentos.Where(d => d.Estado is EstadoDocumento.Vencido or EstadoDocumento.Faltante).ToList();
+        trabajador.Documentos.Where(d => EstadoDocumentoUi.HaVencido(d.Estado) || d.Estado == EstadoDocumento.Faltante).ToList();
 
     /// <summary>Documentos próximos a vencer del trabajador, para la 2ª ranura de recuento.</summary>
     private static IReadOnlyList<DocumentoRequeridoDto> DocumentosProximos(TrabajadorAsignacionDocumentacionDto trabajador) =>
@@ -544,6 +547,8 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     {
         EstadoDocumento.Faltante => $"{documento.TipoDocumentoNombre} — falta",
         EstadoDocumento.Vencido when documento.FechaVencimiento is { } vencio => $"{documento.TipoDocumentoNombre} — venció {vencio:dd/MM/yyyy}",
+        EstadoDocumento.EnTolerancia =>
+            $"{documento.TipoDocumentoNombre} — {EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)}",
         EstadoDocumento.Proximo when documento.FechaVencimiento is { } caduca => $"{documento.TipoDocumentoNombre} — caduca {caduca:dd/MM/yyyy}",
         _ => documento.TipoDocumentoNombre
     };
@@ -774,7 +779,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         }
 
         var texto = fecha.ToString("dd/MM/yyyy");
-        return documento.Estado == EstadoDocumento.Vencido ? $"Vencio {texto}" : $"Caduca {texto}";
+        return EstadoDocumentoUi.HaVencido(documento.Estado) ? $"Vencio {texto}" : $"Caduca {texto}";
     }
 
     /// <summary>
@@ -785,5 +790,5 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private static bool RequiereIntervencion(DocumentoRequeridoDto documento) =>
         documento.DocumentoId is null
         || documento.CaducaEnVentanaVisita
-        || documento.Estado is EstadoDocumento.Vencido or EstadoDocumento.Proximo or EstadoDocumento.Faltante;
+        || documento.Estado is EstadoDocumento.Vencido or EstadoDocumento.EnTolerancia or EstadoDocumento.Proximo or EstadoDocumento.Faltante;
 }
