@@ -413,6 +413,7 @@
   </data>
   <data name="ErrorEnviarPaquetePorCorreo" xml:space="preserve">
     <value>No pudimos preparar el correo con el paquete. Puedes descargar el ZIP y enviarlo desde tu correo.</value>
+  </data>
   <data name="PlazoHoy" xml:space="preserve">
     <value>Hoy</value>
   </data>
