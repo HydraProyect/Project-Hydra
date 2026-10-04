@@ -483,6 +483,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IDirectorioUsuariosService>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Clientes.IDirectorioDestinosCartera>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Usuarios.IDirectorioEquipoCoordinador>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
+        services.AddScoped<CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.IDirectorioCompanerosGestorCae>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Usuarios.ISegundoFactorDeCuentas, SegundoFactorDeCuentasIdentity>();
         // P1-I2: las escrituras de cuentas de Identity pasan por Commands de
         // Application; este es su único camino hasta UserManager fuera del login.

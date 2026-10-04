@@ -19,6 +19,7 @@ using CaeManager.Application.Comunicaciones.Commands.VincularConversacion;
 using CaeManager.Application.Comunicaciones.Eventos;
 using CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
 using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCentro;
@@ -129,6 +130,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalConversaciones / (double)TamanoPaginaBandeja));
     private IReadOnlyList<ClienteSelectorDto> _clientesSelector = [];
     private IReadOnlyList<EjecutivoSelectorDto> _ejecutivosDisponibles = [];
+    private IReadOnlyList<CompaneroGestorCaeDto> _companeros = [];
 
     private readonly HashSet<string> _gruposColapsados = [];
 
@@ -252,6 +254,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             .Select(u => new EjecutivoSelectorDto(u.Id, u.NombreCompleto))
             .ToList();
 
+        await CargarCompanerosAsync();
+
         // La suscripción es del tenant del circuito: los avisos de otros
         // tenants nunca llegan aquí (el notificador ya segrega por tenant).
         // Refresca la bandeja unificada al instante cuando la ingesta de
@@ -263,6 +267,28 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             await CargarBuzonPersonalAsync();
         else
             await CargarListaAsync();
+    }
+
+    /// <summary>
+    /// «Contactar con un compañero»: los demás Gestores CAE de mi Operador CAE. El acotado es de Application
+    /// (<see cref="ObtenerCompanerosGestorCaeQuery"/>); aquí solo se pide. Es un dato auxiliar: si la lectura
+    /// falla, la sección no aparece y la pantalla sigue funcionando, en vez de caerse por un listín.
+    /// </summary>
+    private async Task CargarCompanerosAsync()
+    {
+        try
+        {
+            _companeros = await Mediator.Send(new ObtenerCompanerosGestorCaeQuery(), _ciclo.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "No se pudieron leer los compañeros Gestores CAE para la pantalla de Comunicaciones.");
+            _companeros = [];
+        }
     }
 
     public async ValueTask DisposeAsync()

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Titulo" xml:space="preserve">
+    <value>Contactar amb un company</value>
+  </data>
+  <data name="Ayuda" xml:space="preserve">
+    <value>Els altres Gestors CAE del teu Operador CAE, per escriure'ls o trucar-los.</value>
+  </data>
+  <data name="Correo" xml:space="preserve">
+    <value>Correu</value>
+  </data>
+  <data name="Telefono" xml:space="preserve">
+    <value>Telèfon</value>
+  </data>
+  <data name="CopiarCorreo" xml:space="preserve">
+    <value>Copia el correu</value>
+  </data>
+  <data name="CopiarTelefono" xml:space="preserve">
+    <value>Copia el telèfon</value>
+  </data>
+  <data name="EtiquetaCorreo" xml:space="preserve">
+    <value>el correu de {0}</value>
+  </data>
+  <data name="EtiquetaTelefono" xml:space="preserve">
+    <value>el telèfon de {0}</value>
+  </data>
+  <data name="SinCorreo" xml:space="preserve">
+    <value>Sense correu registrat</value>
+  </data>
+  <data name="SinTelefono" xml:space="preserve">
+    <value>Sense telèfon registrat</value>
+  </data>
+  <data name="AccesibleCorreo" xml:space="preserve">
+    <value>Copia el correu de {0}</value>
+  </data>
+  <data name="AccesibleTelefono" xml:space="preserve">
+    <value>Copia el telèfon de {0}</value>
+  </data>
+</root>
