@@ -76,7 +76,7 @@ public class TextosSinLocalizarCongeladosTests
         ["Components/Legal"] = 163,
         ["Components/Pages"] = 18,
         ["Components/Workspace"] = 58,
-        ["Comunicaciones"] = 312, // 310 → 312 el 2026-10-02 (resto D-07/D-27) SIN migrar: «este Cliente empresarial» (Macros) y «mismo Cliente empresarial» (AccionCenter) pasan a llevar mayúscula en medio de la frase y el detector los empieza a ver; se funden además las formas «Cliente» y «Cliente (opcional)».
+        ["Comunicaciones"] = 311, // 312 → 311 el 2026-10-04: la ayuda de Macros cambia de texto al documentar los huecos y el panel nuevo (MacroHuecos) nace en .resx. Antes: 310 → 312 el 2026-10-02 (resto D-07/D-27) SIN migrar: «este Cliente empresarial» (Macros) y «mismo Cliente empresarial» (AccionCenter) pasan a llevar mayúscula en medio de la frase y el detector los empieza a ver; se funden además las formas «Cliente» y «Cliente (opcional)».
         // Migrada a TextosConfiguracion: el 1 restante es un falso positivo del
         // detector, la cabecera «@for (var indice = 0; indice < Grupos.Count; …)»
         // de Configuracion.razor, que el '<' de la comparación hace pasar por texto.

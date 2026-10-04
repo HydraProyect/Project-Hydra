@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Web.Features.Comunicaciones.Components;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
 using CaeManager.Application.Comunicaciones.Commands.AsignarClienteConversacion;
 using CaeManager.Application.Comunicaciones.Commands.AsignarEjecutivoConversacion;
@@ -136,6 +137,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private bool _cargandoDetalle;
     private ClienteDetalleDto? _clienteActivo;
     private IReadOnlyList<MacroListaDto> _macrosDisponibles = [];
+    private MacroListaDto? _macroConHuecos;
     private IReadOnlyList<CentroSelectorDto> _centrosClienteActivo = [];
     private IReadOnlyList<NotaInternaDetalleDto> _notasInternas = [];
     private IReadOnlyDictionary<Guid, string> _autoresNotas = new Dictionary<Guid, string>();
@@ -616,6 +618,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _conversacionSeleccionadaId = id;
         _textoRespuesta = string.Empty;
         _macroSeleccionadaId = string.Empty;
+        _macroConHuecos = null;
         _clienteTriageSeleccionado = string.Empty;
         _adjuntosPendientes.Clear();
         _errorAdjuntos = null;
@@ -766,12 +769,31 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private void AplicarMacro(string macroIdTexto)
     {
         _macroSeleccionadaId = macroIdTexto;
+        _macroConHuecos = null;
         if (Guid.TryParse(macroIdTexto, out var macroId))
         {
             var macro = _macrosDisponibles.FirstOrDefault(m => m.Id == macroId);
-            if (macro is not null)
+            if (macro is null) return;
+
+            // Una macro con huecos ({{centro}}, {{trabajador}}, {{fecha}}) no toca la respuesta hasta que
+            // el Gestor CAE elige todos los valores (MacroHuecos); una sin huecos se copia tal cual, como siempre.
+            if (HuecosMacro.TieneHuecos(macro.CuerpoHtml))
+                _macroConHuecos = macro;
+            else
                 _textoRespuesta = macro.CuerpoHtml;
         }
+    }
+
+    private void InsertarMacroConHuecos(string textoRellenado)
+    {
+        _textoRespuesta = textoRellenado;
+        _macroConHuecos = null;
+    }
+
+    private void CancelarMacroConHuecos()
+    {
+        _macroConHuecos = null;
+        _macroSeleccionadaId = string.Empty;
     }
 
     /// <summary>Genera el resumen de documentación exigida por el Centro elegido y lo añade a la respuesta en curso — mismo patrón de prellenado que AplicarMacro.</summary>
@@ -864,6 +886,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
             _textoRespuesta = string.Empty;
             _macroSeleccionadaId = string.Empty;
+            _macroConHuecos = null;
             _adjuntosPendientes.Clear();
             ToastService.Mostrar("Respuesta enviada.", TonoToast.Exito);
 
@@ -1601,6 +1624,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _drawerPrioridadVisible = false;
         _textoRespuesta = string.Empty;
         _macroSeleccionadaId = string.Empty;
+        _macroConHuecos = null;
         _adjuntosPendientes.Clear();
         _errorAdjuntos = null;
         _emailFallback = string.Empty;

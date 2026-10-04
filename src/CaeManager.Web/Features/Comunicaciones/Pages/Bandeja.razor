@@ -351,6 +351,7 @@
                     <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
                                  Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"
                                  Macros="_macrosDisponibles" MacroSeleccionadaId="@_macroSeleccionadaId" OnAplicarMacro="AplicarMacro"
+                                 MacroConHuecos="_macroConHuecos" Trabajadores="_trabajadoresSelector" OnInsertarMacroConHuecos="InsertarMacroConHuecos" OnCancelarMacroConHuecos="CancelarMacroConHuecos"
                                  Centros="_centrosClienteActivo" CentroFormatosSeleccionado="@_centroFormatosSeleccionado" OnCompartirFormatos="CompartirFormatosCentroAsync"
                                  AdjuntosPendientes="_adjuntosPendientes" ErrorAdjuntos="@_errorAdjuntos"
                                  OnArchivosSeleccionados="ManejarArchivosAdjuntosAsync" OnQuitarAdjunto="QuitarAdjuntoPendiente"

@@ -1,0 +1,104 @@
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
+@using CaeManager.Application.Comunicaciones
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Domain.Common
+@using System.Globalization
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject ISanitizadorHtmlService Sanitizador
+@inject TimeProvider Reloj
+@inject IStringLocalizer<TextosMacroHuecos> T
+
+@* Macro con huecos tipados ({{centro}}, {{trabajador}}, {{fecha}}). El Gestor CAE elige cada valor de
+   una lista (o un día); nada se genera ni se infiere, y la macro no se inserta hasta que no falta ninguno.
+   La sintaxis y el escapado viven en HuecosMacro; aquí se sanea el resultado antes de entregarlo. *@
+<div class="macro-huecos" role="group" aria-label="@T["GrupoMacro", Titulo]">
+    @if (_huecos.Contains(TipoHuecoMacro.Centro))
+    {
+        <CampoSelect Etiqueta="@T["EtiquetaCentro"]" Valor="@_centroId" ValorChanged="v => { _centroId = v; }">
+            <option value="">@T["ElegirCentro"]</option>
+            @foreach (var centro in Centros)
+            {
+                <option value="@centro.Id">@centro.Nombre</option>
+            }
+        </CampoSelect>
+    }
+    @if (_huecos.Contains(TipoHuecoMacro.Trabajador))
+    {
+        <CampoSelect Etiqueta="@T["EtiquetaTrabajador"]" Valor="@_trabajadorId" ValorChanged="v => { _trabajadorId = v; }">
+            <option value="">@T["ElegirTrabajador"]</option>
+            @foreach (var trabajador in _etiquetasTrabajadores)
+            {
+                <option value="@trabajador.Id">@trabajador.Texto</option>
+            }
+        </CampoSelect>
+    }
+    @if (_huecos.Contains(TipoHuecoMacro.Fecha))
+    {
+        <div class="macro-huecos-fecha">
+            <CampoTexto Etiqueta="@T["EtiquetaFecha"]" Type="date" Valor="@_fecha" ValorChanged="v => { _fecha = v; }" />
+            <Boton Variante="VarianteBoton.Secundario" OnClick="PonerHoy">@T["BotonHoy"]</Boton>
+        </div>
+    }
+
+    <p class="macro-huecos-previa" aria-live="polite" data-testid="macro-huecos-previa">@Previa</p>
+
+    <div class="macro-huecos-acciones">
+        <Boton Variante="VarianteBoton.Secundario" OnClick="() => OnCancelar.InvokeAsync()">@T["BotonCancelar"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(Rellenada.Texto is null)" OnClick="InsertarAsync">@T["BotonInsertar"]</Boton>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Cuerpo { get; set; } = string.Empty;
+    [Parameter] public IReadOnlyList<CentroSelectorDto> Centros { get; set; } = [];
+    [Parameter] public IReadOnlyList<TrabajadorSelectorDto> Trabajadores { get; set; } = [];
+    [Parameter] public EventCallback<string> OnInsertar { get; set; }
+    [Parameter] public EventCallback OnCancelar { get; set; }
+
+    private IReadOnlyList<TipoHuecoMacro> _huecos = [];
+    private IReadOnlyList<EtiquetaTrabajador> _etiquetasTrabajadores = [];
+    private string _cuerpoDetectado = string.Empty;
+    private string _centroId = string.Empty;
+    private string _trabajadorId = string.Empty;
+    private string _fecha = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        // Otra macro (u otro texto) = otra elección desde cero: lo elegido para una no se arrastra a la siguiente.
+        if (!string.Equals(_cuerpoDetectado, Cuerpo, StringComparison.Ordinal))
+        {
+            _cuerpoDetectado = Cuerpo;
+            _huecos = HuecosMacro.Detectar(Cuerpo);
+            _centroId = _trabajadorId = _fecha = string.Empty;
+        }
+
+        _etiquetasTrabajadores = EtiquetasSelectorTrabajador.Construir(Trabajadores);
+    }
+
+    /// <summary>
+    /// Solo cuenta lo que sigue estando en los catálogos que recibió el componente: un identificador
+    /// que no esté en ellos (lista que cambió, valor manipulado) se trata como «sin elegir».
+    /// </summary>
+    private ValoresHuecosMacro Valores()
+    {
+        var centro = Guid.TryParse(_centroId, out var cid) ? Centros.FirstOrDefault(c => c.Id == cid)?.Nombre : null;
+        var trabajador = Guid.TryParse(_trabajadorId, out var tid) ? _etiquetasTrabajadores.FirstOrDefault(t => t.Id == tid)?.Texto : null;
+        DateOnly? fecha = DateOnly.TryParseExact(_fecha, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var f) ? f : null;
+        return new ValoresHuecosMacro(centro, trabajador, fecha);
+    }
+
+    private MacroRellenada Rellenada => HuecosMacro.Rellenar(Cuerpo, Valores());
+    private string Previa => HuecosMacro.Previsualizar(Cuerpo, Valores());
+
+    private void PonerHoy() => _fecha = FechaDeHoy.ParaCampoFecha(Reloj);
+
+    private async Task InsertarAsync()
+    {
+        var texto = Rellenada.Texto;
+        if (texto is null) return;
+
+        await OnInsertar.InvokeAsync(Sanitizador.Sanear(texto));
+    }
+}

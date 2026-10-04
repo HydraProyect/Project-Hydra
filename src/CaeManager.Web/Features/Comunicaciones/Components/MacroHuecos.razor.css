@@ -1,0 +1,26 @@
+.macro-huecos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+}
+
+.macro-huecos-fecha {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-2);
+}
+
+.macro-huecos-previa {
+    margin: 0;
+    white-space: pre-wrap;
+    font: var(--font-body-sm);
+}
+
+.macro-huecos-acciones {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}

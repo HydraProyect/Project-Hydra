@@ -9,6 +9,7 @@
 @using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerMacros
 @using CaeManager.Application.Integraciones
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Domain.Comunicaciones
 @using Microsoft.AspNetCore.Components.Forms
 @using CaeManager.Web.Features.Comunicaciones.Recursos
@@ -91,6 +92,12 @@
                 }
             </div>
 
+            @if (MacroConHuecos is not null)
+            {
+                <MacroHuecos Titulo="@MacroConHuecos.Titulo" Cuerpo="@MacroConHuecos.CuerpoHtml" Centros="Centros" Trabajadores="Trabajadores"
+                             OnInsertar="OnInsertarMacroConHuecos" OnCancelar="OnCancelarMacroConHuecos" />
+            }
+
             <CampoTextarea Valor="@Texto" ValorChanged="v => TextoChanged.InvokeAsync(v)" Filas="4" Placeholder="Escribe tu respuesta…" />
 
             @if (AdjuntosPendientes.Count > 0)
@@ -138,6 +145,11 @@
     [Parameter] public IReadOnlyList<MacroListaDto> Macros { get; set; } = [];
     [Parameter] public string MacroSeleccionadaId { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> OnAplicarMacro { get; set; }
+    /// <summary>Macro con huecos elegida y aún sin insertar; null = ninguna (una macro sin huecos se copia tal cual).</summary>
+    [Parameter] public MacroListaDto? MacroConHuecos { get; set; }
+    [Parameter] public IReadOnlyList<TrabajadorSelectorDto> Trabajadores { get; set; } = [];
+    [Parameter] public EventCallback<string> OnInsertarMacroConHuecos { get; set; }
+    [Parameter] public EventCallback OnCancelarMacroConHuecos { get; set; }
     [Parameter] public IReadOnlyList<CentroSelectorDto> Centros { get; set; } = [];
     [Parameter] public string CentroFormatosSeleccionado { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> OnCompartirFormatos { get; set; }
