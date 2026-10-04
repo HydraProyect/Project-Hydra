@@ -20,6 +20,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendiente
 public record ObtenerRevisionesIaPendientesQuery : IRequest<IReadOnlyList<RevisionIaDocumentoDto>>;
 
 /// <param name="PropietarioNombre">El trabajador ("Nombre Apellidos") o la razón social de la Empresa, según el ámbito del Documento.</param>
+/// <param name="VigenciaLaFijaElTipo">El tipo calcula el vencimiento desde la emisión (<c>TipoDocumento.FijaVigenciaDesdeLaEmision</c>): condición para aceptar la lectura en bloque.</param>
 /// <param name="ClienteId">
 /// Solo para revisiones de Documento de Trabajador — Cliente "principal" del
 /// Trabajador (<see cref="IResolverClientePrincipalService"/>), para la
@@ -47,7 +48,8 @@ public record RevisionIaDocumentoDto(
     DateOnly? FechaEmisionIntroducida = null,
     DateOnly? FechaVencimientoIntroducida = null,
     int? NumeroPaginas = null,
-    Guid? AuditoriaExtraccionIaId = null);
+    Guid? AuditoriaExtraccionIaId = null,
+    bool VigenciaLaFijaElTipo = false);
 
 public class ObtenerRevisionesIaPendientesQueryHandler(
     IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext,
@@ -105,7 +107,9 @@ public class ObtenerRevisionesIaPendientesQueryHandler(
                 documento.FechaEmision,
                 documento.FechaVencimiento,
                 null,
-                revision.AuditoriaExtraccionIaId);
+                revision.AuditoriaExtraccionIaId,
+                // Mismo predicado que TipoDocumento.FijaVigenciaDesdeLaEmision, escrito como expresión traducible.
+                tipoDocumento.AplicaVencimientoAutomatico && tipoDocumento.VigenciaMeses != null);
 
         var revisiones = await consulta.ToListAsync(cancellationToken);
         if (revisiones.Count == 0) return revisiones;

@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using CaeManager.Application.Documentos.Commands.AceptarDeteccionesIaEnBloque;
 using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
 using CaeManager.Application.Documentos.Commands.CorregirRevisionIaDocumento;
 using CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento;
@@ -29,6 +30,7 @@ public class RevisionIaGen2Tests : BunitContext
         public Func<AplicarDeteccionIaDocumentoCommand, Result>? AlAplicar { get; set; }
         public Func<ResolverRevisionIaDocumentoCommand, Result>? AlResolver { get; set; }
         public Func<CorregirRevisionIaDocumentoCommand, Result>? AlCorregir { get; set; }
+        public Func<AceptarDeteccionesIaEnBloqueCommand, Result<ResultadoAceptacionEnBloque>>? AlAceptarEnBloque { get; set; }
 
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
@@ -44,6 +46,8 @@ public class RevisionIaGen2Tests : BunitContext
                 AplicarDeteccionIaDocumentoCommand c => AlAplicar?.Invoke(c) ?? Result.Exito(),
                 ResolverRevisionIaDocumentoCommand c => AlResolver?.Invoke(c) ?? Result.Exito(),
                 CorregirRevisionIaDocumentoCommand c => AlCorregir?.Invoke(c) ?? Result.Exito(),
+                AceptarDeteccionesIaEnBloqueCommand c => AlAceptarEnBloque?.Invoke(c) ?? Result.Exito(new ResultadoAceptacionEnBloque(
+                    c.RevisionIds.Select(id => new ResultadoAceptacionRevisionIa(id, true, null, null)).ToList())),
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
             return (T)respuesta!;
@@ -71,9 +75,19 @@ public class RevisionIaGen2Tests : BunitContext
         return Render<RevisionIaTab>();
     }
 
-    private static RevisionIaDocumentoDto Revision(string propietario, int confianza, DateOnly? fecha, Guid? trabajadorId = null) => new(
+    private static RevisionIaDocumentoDto Revision(string propietario, int confianza, DateOnly? fecha, Guid? trabajadorId = null, bool vigenciaLaFijaElTipo = true) => new(
         Guid.NewGuid(), Guid.NewGuid(), propietario, "Formación PRL", confianza, "Formación PRL", fecha,
-        "La lectura requiere revisión.", DateTime.UtcNow, trabajadorId, trabajadorId is null ? Guid.NewGuid() : null);
+        "La lectura requiere revisión.", DateTime.UtcNow, trabajadorId, trabajadorId is null ? Guid.NewGuid() : null,
+        VigenciaLaFijaElTipo: vigenciaLaFijaElTipo);
+
+    private static IElement Casilla(IRenderedComponent<RevisionIaTab> cut, string propietario) => cut.FindAll(".revision-ia-casilla")
+        .Should().ContainSingle(c => c.GetAttribute("aria-label")!.Contains(propietario), $"debe haber una casilla para «{propietario}»").Subject;
+
+    private static async Task ConfirmarBloqueAsync(IRenderedComponent<RevisionIaTab> cut)
+    {
+        var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == "Aceptar las lecturas seleccionadas");
+        await cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
+    }
 
     private static IElement Boton(IRenderedComponent<RevisionIaTab> cut, string texto) => cut.FindAll("button")
         .Should().ContainSingle(b => b.TextContent.Trim() == texto, $"debe existir exactamente el botón «{texto}»").Subject;
@@ -222,49 +236,118 @@ public class RevisionIaGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task El_filtro_no_reduce_el_lote_cargado_y_el_recuento_visible_es_observable()
+    public async Task La_seleccion_solo_cuenta_lo_visible_y_vuelve_al_cambiar_de_filtro()
     {
         var confirmable = Revision("Confirmable", 95, new DateOnly(2026, 9, 1));
-        var manual = Revision("Manual", 80, new DateOnly(2026, 9, 2));
+        var manual = Revision("Manual", 80, new DateOnly(2026, 9, 2), vigenciaLaFijaElTipo: false);
         var sinFecha = Revision("Sin fecha", 99, null);
         var mediador = new MediadorFalso { Revisiones = [confirmable, manual, sinFecha] };
         var cut = Renderizar(mediador);
 
-        await Boton(cut, "Confirmables").ClickAsync(new MouseEventArgs());
+        await Boton(cut, "Aceptables").ClickAsync(new MouseEventArgs());
         var filas = cut.FindAll(".revision-ia-fila").ToList();
-        filas.Should().ContainSingle("control positivo: hay una revisión confirmable en los datos");
+        filas.Should().ContainSingle("control positivo: hay una revisión aceptable en bloque en los datos");
         filas.Select(f => f.TextContent).Should().OnlyContain(t => t.Contains("Confirmable"), "el filtro no deja visibles filas de otra categoría");
         cut.Find(".revision-ia-acciones").TextContent.Should().Contain("1 extracción pendiente");
-        Boton(cut, "Confirmar todos los ≥95 % (1)").Should().NotBeNull();
-        await Boton(cut, "Todas").ClickAsync(new MouseEventArgs());
-        await Boton(cut, "Confirmables").ClickAsync(new MouseEventArgs());
-        await Boton(cut, "Todas").ClickAsync(new MouseEventArgs());
+        Boton(cut, "Aceptar seleccionadas (1)").Should().NotBeNull();
         await Boton(cut, "Sin fecha").ClickAsync(new MouseEventArgs());
-        Boton(cut, "Confirmar todos los ≥95 % (1)").Should().NotBeNull("el lote se calcula sobre todas las revisiones cargadas, no sobre el filtro activo");
+        Boton(cut, "Aceptar seleccionadas (0)").HasAttribute("disabled").Should().BeTrue(
+            "lo que el filtro oculta no se acepta: el Gestor CAE solo confirma lo que tiene delante");
+        await Boton(cut, "Todas").ClickAsync(new MouseEventArgs());
+        Boton(cut, "Aceptar seleccionadas (1)").Should().NotBeNull("la marca sigue ahí al volver a verla");
+    }
+
+    /// <summary>La confianza solo preselecciona: por debajo del mínimo elegido no se marca.</summary>
+    [Fact]
+    public async Task La_confianza_baja_no_se_preselecciona_y_el_minimo_elegido_cambia_la_preseleccion()
+    {
+        var alta = Revision("Alta", 96, new DateOnly(2026, 9, 1));
+        var media = Revision("Media", 90, new DateOnly(2026, 9, 1));
+        var baja = Revision("Baja", 80, new DateOnly(2026, 9, 1));
+        var muyBaja = Revision("Muy baja", 70, new DateOnly(2026, 9, 1));
+        var cut = Renderizar(new MediadorFalso { Revisiones = [alta, media, baja, muyBaja] });
+
+        Casilla(cut, "Alta").HasAttribute("checked").Should().BeTrue("control positivo: 96 % supera el mínimo por defecto (95 %)");
+        Casilla(cut, "Media").HasAttribute("checked").Should().BeFalse();
+        Casilla(cut, "Baja").HasAttribute("checked").Should().BeFalse();
+        Boton(cut, "Aceptar seleccionadas (1)").Should().NotBeNull();
+
+        await cut.Find(".revision-ia-seleccion select").ChangeAsync(new ChangeEventArgs { Value = "80" });
+
+        Casilla(cut, "Alta").HasAttribute("checked").Should().BeTrue();
+        Casilla(cut, "Media").HasAttribute("checked").Should().BeTrue();
+        Casilla(cut, "Baja").HasAttribute("checked").Should().BeTrue("80 % alcanza el mínimo elegido");
+        Casilla(cut, "Muy baja").HasAttribute("checked").Should().BeFalse("70 % queda por debajo de cualquier mínimo ofrecido");
+        Boton(cut, "Aceptar seleccionadas (3)").Should().NotBeNull();
     }
 
     [Fact]
-    public async Task El_lote_incompleto_no_se_anuncia_como_exito()
+    public void Lo_que_no_es_aceptable_en_bloque_no_se_preselecciona_aunque_tenga_confianza_alta_ni_se_puede_marcar()
+    {
+        var vigenciaAMano = Revision("Vigencia a mano", 99, new DateOnly(2026, 9, 1), vigenciaLaFijaElTipo: false);
+        var sinFecha = Revision("Sin fecha", 99, null);
+        var aceptable = Revision("Aceptable", 99, new DateOnly(2026, 9, 1));
+        var cut = Renderizar(new MediadorFalso { Revisiones = [vigenciaAMano, sinFecha, aceptable] });
+
+        Casilla(cut, "Aceptable").HasAttribute("checked").Should().BeTrue("control positivo: la aceptable con 99 % sí se preselecciona");
+        foreach (var propietario in new[] { "Vigencia a mano", "Sin fecha" })
+        {
+            Casilla(cut, propietario).HasAttribute("checked").Should().BeFalse();
+            Casilla(cut, propietario).HasAttribute("disabled").Should().BeTrue("se acepta de una en una");
+        }
+
+        cut.FindAll(".revision-ia-fila").Single(f => f.TextContent.Contains("Vigencia a mano")).TextContent
+            .Should().Contain("Vigencia a confirmar a mano");
+        Boton(cut, "Aceptar seleccionadas (1)").Should().NotBeNull();
+    }
+
+    /// <summary>Principio: la sugerencia nunca se acepta sola. Cargar, preseleccionar o abrir el diálogo no despacha nada.</summary>
+    [Fact]
+    public async Task Nada_se_acepta_hasta_confirmar_y_solo_viajan_las_seleccionadas()
+    {
+        var primera = Revision("Primera", 96, new DateOnly(2026, 9, 1));
+        var segunda = Revision("Segunda", 97, new DateOnly(2026, 9, 2));
+        var mediador = new MediadorFalso { Revisiones = [primera, segunda] };
+        var cut = Renderizar(mediador);
+
+        mediador.Enviadas.OfType<AceptarDeteccionesIaEnBloqueCommand>().Should().BeEmpty("preseleccionar no acepta");
+        await Casilla(cut, "Segunda").ChangeAsync(new ChangeEventArgs { Value = false });
+        await Boton(cut, "Aceptar seleccionadas (1)").ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.OfType<AceptarDeteccionesIaEnBloqueCommand>().Should().BeEmpty("abrir la confirmación tampoco acepta");
+
+        await ConfirmarBloqueAsync(cut);
+
+        var enviada = mediador.Enviadas.OfType<AceptarDeteccionesIaEnBloqueCommand>()
+            .Should().ContainSingle("control positivo: confirmar despacha el bloque").Subject;
+        enviada.RevisionIds.Should().Equal(primera.Id);
+        mediador.Enviadas.OfType<AplicarDeteccionIaDocumentoCommand>().Should().BeEmpty("la interfaz no itera: el bucle vive en Application");
+    }
+
+    [Fact]
+    public async Task El_bloque_incompleto_no_se_anuncia_como_exito_y_lista_lo_que_fallo()
     {
         var primera = Revision("Primera", 96, new DateOnly(2026, 9, 1));
         var segunda = Revision("Segunda", 97, new DateOnly(2026, 9, 2));
         var mediador = new MediadorFalso
         {
             Revisiones = [primera, segunda],
-            AlAplicar = c => c.RevisionId == primera.Id
-                ? Result.Exito()
-                : Result.Fallo(Error.Crear("RevisionIa.Fallo", "No se pudo aplicar."))
+            AlAceptarEnBloque = c => Result.Exito(new ResultadoAceptacionEnBloque(
+            [
+                new ResultadoAceptacionRevisionIa(primera.Id, true, null, null),
+                new ResultadoAceptacionRevisionIa(segunda.Id, false, "RevisionIa.NoEncontrada", "No encontramos esta revisión.")
+            ]))
         };
         var cut = Renderizar(mediador);
 
-        await Boton(cut, "Confirmar todos los ≥95 % (2)").ClickAsync(new MouseEventArgs());
-        var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == "Confirmar revisiones en lote");
-        await cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
+        await Boton(cut, "Aceptar seleccionadas (2)").ClickAsync(new MouseEventArgs());
+        await ConfirmarBloqueAsync(cut);
 
-        mediador.Enviadas.OfType<AplicarDeteccionIaDocumentoCommand>().Should().HaveCount(2, "control positivo: se pidieron dos aplicaciones");
-        var toast = Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle("se observó el desenlace del lote").Subject;
+        var toast = Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle("se observó el desenlace del bloque").Subject;
         toast.Tono.Should().Be(TonoToast.Advertencia);
         toast.Mensaje.Should().Contain("1 de 2");
+        var resultado = cut.Find(".revision-ia-resultado").TextContent;
+        resultado.Should().Contain("Segunda").And.Contain("No encontramos esta revisión.");
+        resultado.Should().NotContain("Primera", "solo se listan las que fallaron");
     }
 
     [Fact]
@@ -312,20 +395,20 @@ public class RevisionIaGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task La_guarda_del_panel_bloquea_la_segunda_confirmacion_del_lote()
+    public async Task La_guarda_del_panel_bloquea_la_segunda_confirmacion_del_bloque()
     {
         var inicio = new TaskCompletionSource();
         var espera = new TaskCompletionSource();
         var revision = Revision("En lote", 95, new DateOnly(2026, 9, 1));
-        var mediador = new MediadorFalso { Revisiones = [revision], Retener = r => r is AplicarDeteccionIaDocumentoCommand ? EsperarComandoAsync(inicio, espera) : null };
+        var mediador = new MediadorFalso { Revisiones = [revision], Retener = r => r is AceptarDeteccionesIaEnBloqueCommand ? EsperarComandoAsync(inicio, espera) : null };
         var cut = Renderizar(mediador);
 
-        await Boton(cut, "Confirmar todos los ≥95 % (1)").ClickAsync(new MouseEventArgs());
-        var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == "Confirmar revisiones en lote");
+        await Boton(cut, "Aceptar seleccionadas (1)").ClickAsync(new MouseEventArgs());
+        var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == "Aceptar las lecturas seleccionadas");
         var primera = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
         await inicio.Task.WaitAsync(TimeSpan.FromSeconds(10));
         var segunda = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
-        mediador.Enviadas.OfType<AplicarDeteccionIaDocumentoCommand>().Should().ContainSingle("control positivo: el primer lote alcanzó el comando");
+        mediador.Enviadas.OfType<AceptarDeteccionesIaEnBloqueCommand>().Should().ContainSingle("control positivo: el primer bloque alcanzó el comando");
 
         espera.SetResult();
         await primera.WaitAsync(TimeSpan.FromSeconds(10));
@@ -366,7 +449,7 @@ public class RevisionIaGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Cambiar_de_seleccion_no_libera_el_bloqueo_del_lote_en_vuelo()
+    public async Task Cambiar_de_seleccion_no_libera_el_bloqueo_del_bloque_en_vuelo()
     {
         var inicio = new TaskCompletionSource();
         var espera = new TaskCompletionSource();
@@ -375,14 +458,14 @@ public class RevisionIaGen2Tests : BunitContext
         var mediador = new MediadorFalso
         {
             Revisiones = [primeraRevision, segundaRevision],
-            Retener = r => r is AplicarDeteccionIaDocumentoCommand
+            Retener = r => r is AceptarDeteccionesIaEnBloqueCommand
                 ? EsperarComandoAsync(inicio, espera)
                 : null
         };
         var cut = Renderizar(mediador);
 
-        await Boton(cut, "Confirmar todos los ≥95 % (1)").ClickAsync(new MouseEventArgs());
-        var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == "Confirmar revisiones en lote");
+        await Boton(cut, "Aceptar seleccionadas (1)").ClickAsync(new MouseEventArgs());
+        var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == "Aceptar las lecturas seleccionadas");
         var lote = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
         await inicio.Task.WaitAsync(TimeSpan.FromSeconds(10));
         var filaSegunda = cut.FindAll(".revision-ia-fila")
@@ -393,7 +476,7 @@ public class RevisionIaGen2Tests : BunitContext
             .Subject;
         await filaSegunda.ClickAsync(new MouseEventArgs());
         var aceptar = InvocarPrivadoAsync(cut, "AceptarDeteccionAsync", segundaRevision.Id);
-        mediador.Enviadas.OfType<AplicarDeteccionIaDocumentoCommand>().Should().ContainSingle("cambiar de entidad no abre una segunda operación mientras el lote sigue en vuelo");
+        mediador.Enviadas.OfType<AceptarDeteccionesIaEnBloqueCommand>().Should().ContainSingle("cambiar de entidad no abre una segunda operación mientras el bloque sigue en vuelo");
 
         espera.SetResult();
         await lote.WaitAsync(TimeSpan.FromSeconds(10));
@@ -437,23 +520,34 @@ public class RevisionIaGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Dispose_durante_lote_no_publica_resultado_en_la_interfaz()
+    public async Task Dispose_durante_bloque_no_publica_resultado_en_la_interfaz()
     {
         var inicio = new TaskCompletionSource();
         var espera = new TaskCompletionSource();
         var revision = Revision("En lote", 95, new DateOnly(2026, 9, 1));
-        var mediador = new MediadorFalso { Revisiones = [revision], Retener = r => r is AplicarDeteccionIaDocumentoCommand ? EsperarComandoAsync(inicio, espera) : null };
+        var mediador = new MediadorFalso { Revisiones = [revision], Retener = r => r is AceptarDeteccionesIaEnBloqueCommand ? EsperarComandoAsync(inicio, espera) : null };
         var cut = Renderizar(mediador);
         var toast = Services.GetRequiredService<ToastService>();
 
-        await Boton(cut, "Confirmar todos los ≥95 % (1)").ClickAsync(new MouseEventArgs());
-        var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == "Confirmar revisiones en lote");
+        await Boton(cut, "Aceptar seleccionadas (1)").ClickAsync(new MouseEventArgs());
+        var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == "Aceptar las lecturas seleccionadas");
         var operacion = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
         await inicio.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await DisposeComponentsAsync();
         espera.SetResult();
         await operacion.WaitAsync(TimeSpan.FromSeconds(10));
-        toast.Mensajes.Should().BeEmpty("un componente dispuesto no publica el desenlace del lote");
+        toast.Mensajes.Should().BeEmpty("un componente dispuesto no publica el desenlace del bloque");
+    }
+
+    [Fact]
+    public void La_preseleccion_no_supera_el_maximo_que_acepta_el_comando()
+    {
+        var revisiones = Enumerable.Range(0, AceptarDeteccionesIaEnBloqueCommandHandler.MaximoRevisionesPorBloque + 5)
+            .Select(i => Revision($"Propietario {i}", 99, new DateOnly(2026, 9, 1))).ToList();
+        var cut = Renderizar(new MediadorFalso { Revisiones = revisiones });
+
+        Boton(cut, $"Aceptar seleccionadas ({AceptarDeteccionesIaEnBloqueCommandHandler.MaximoRevisionesPorBloque})")
+            .Should().NotBeNull("control positivo: hay más aceptables que el tope y solo se preseleccionan las que caben en un bloque");
     }
 
     private static Task EsperarComandoAsync(TaskCompletionSource inicio, TaskCompletionSource espera)
