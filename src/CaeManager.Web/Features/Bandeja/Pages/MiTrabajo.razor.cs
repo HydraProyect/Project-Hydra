@@ -156,8 +156,19 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     private static TEnum? ParsearEnum<TEnum>(string? valor) where TEnum : struct, Enum =>
         Enum.TryParse<TEnum>(valor, ignoreCase: true, out var resultado) && Enum.IsDefined(resultado) ? resultado : null;
 
+    /// <summary>
+    /// Los valores de la URL tal como se aplicaron por última vez. <c>OnParametersSet</c> también corre por
+    /// motivos ajenos a la URL (y entre una escritura y su eco): sin esta guarda, una URL todavía sin el
+    /// filtro recién tecleado lo borraba. Solo se adopta lo que la URL ha cambiado de verdad.
+    /// </summary>
+    private string? _urlAplicada;
+
     private void AplicarFiltrosDeLaUrl()
     {
+        var urlActual = $"{SeveridadUrl}|{EmpresaUrl}|{BusquedaUrl}|{AgruparUrl}|{OrdenUrl}";
+        if (urlActual == _urlAplicada) return;
+        _urlAplicada = urlActual;
+
         _severidad = ParsearEnum<SeveridadMiTrabajo>(SeveridadUrl);
         _tenantFiltro = Guid.TryParse(EmpresaUrl, out var tenantId) ? tenantId : null;
         _agrupar = ParsearEnum<AgruparMiTrabajo>(AgruparUrl) ?? AgruparMiTrabajo.Tenant;
