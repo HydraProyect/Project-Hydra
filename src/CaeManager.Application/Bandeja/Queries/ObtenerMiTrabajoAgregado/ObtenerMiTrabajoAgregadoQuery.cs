@@ -146,51 +146,107 @@ public record MiTrabajoAgregadoDto(
 /// <summary>Un Tenant propietario de la cartera cuya cola no se pudo consultar. Solo lo nombra: no trae ningún dato suyo.</summary>
 public record TenantNoConsultadoDto(Guid TenantId, string TenantNombre, bool EsOrigen);
 
+/// <summary>
+/// Mismo recorrido que <see cref="ObtenerMiTrabajoAgregadoQuery"/>, pero entregado por partes: una por Tenant
+/// propietario, en cuanto su cola está construida, para que la pantalla pinte cada Empresa a medida que termina.
+/// El recorrido sigue siendo secuencial y sellado por Tenant (<see cref="AmbitoTenantExplicito"/>); cada parte ya
+/// viene autorizada y no se comparte entre usuarios ni se guarda. La consulta agregada no cambia.
+/// </summary>
+public record ObtenerMiTrabajoPorPartesQuery : IStreamRequest<ParteMiTrabajoDto>;
+
+/// <summary>
+/// Una parte del recorrido: la cola de un Tenant propietario o su aviso de «no consultado» (nunca las dos). La primera
+/// parte de cada recorrido es de apertura —<see cref="Completados"/> en 0, sin Tenant ni aviso— y solo informa de
+/// cuántos Tenants se van a consultar.
+/// </summary>
+/// <param name="Total">Tenants propietarios que va a consultar el recorrido (los de <see cref="ObtenerClientesAutorizadosQuery"/>).</param>
+/// <param name="Completados">Tenants ya resueltos, contando éste: consultado o no consultado.</param>
+public record ParteMiTrabajoDto(
+    int Total, int Completados, MiTrabajoTenantDto? Tenant = null, TenantNoConsultadoDto? NoConsultado = null);
+
 public class ObtenerMiTrabajoAgregadoQueryHandler(
     IMediator mediator, IConfiguracionQueryContext configuracionContext, IEmpresasQueryContext empresasContext,
     ICalculoEstadoCentroService calculoEstadoCentro, IAlcanceDatosService alcanceDatos,
-    ILogger<ObtenerMiTrabajoAgregadoQueryHandler> logger)
-    : IRequestHandler<ObtenerMiTrabajoAgregadoQuery, MiTrabajoAgregadoDto>
+    ILogger<ObtenerMiTrabajoAgregadoQueryHandler> logger, PuertaAccesoDatos? puerta = null)
+    : IRequestHandler<ObtenerMiTrabajoAgregadoQuery, MiTrabajoAgregadoDto>,
+      IStreamRequestHandler<ObtenerMiTrabajoPorPartesQuery, ParteMiTrabajoDto>
 {
     public async Task<MiTrabajoAgregadoDto> Handle(ObtenerMiTrabajoAgregadoQuery request, CancellationToken cancellationToken)
+    {
+        // La consulta agregada ya corre dentro de la puerta de acceso a datos (SerializacionAccesoDatosBehavior).
+        var resultado = new List<MiTrabajoTenantDto>();
+        var noConsultados = new List<TenantNoConsultadoDto>();
+        await foreach (var parte in RecorrerAsync(serializarPorTenant: false, cancellationToken))
+        {
+            if (parte.Tenant is not null) resultado.Add(parte.Tenant);
+            if (parte.NoConsultado is not null) noConsultados.Add(parte.NoConsultado);
+        }
+
+        return new MiTrabajoAgregadoDto(resultado, noConsultados);
+    }
+
+    /// <summary>
+    /// Un flujo no pasa por el pipeline de MediatR, así que la puerta de acceso a datos (que serializa el DbContext del
+    /// circuito) se toma aquí: una vez por Tenant, y se suelta antes de entregar la parte, para no retenerla mientras
+    /// la pantalla se pinta ni dejar ningún <see cref="AmbitoTenantExplicito"/> abierto al ceder el control.
+    /// </summary>
+    public IAsyncEnumerable<ParteMiTrabajoDto> Handle(ObtenerMiTrabajoPorPartesQuery request, CancellationToken cancellationToken)
+    {
+        if (puerta is null)
+            throw new InvalidOperationException("Mi trabajo por partes necesita la puerta de acceso a datos del circuito.");
+        return RecorrerAsync(serializarPorTenant: true, cancellationToken);
+    }
+
+    private async IAsyncEnumerable<ParteMiTrabajoDto> RecorrerAsync(
+        bool serializarPorTenant, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var tenants = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
 
-        var resultado = new List<MiTrabajoTenantDto>();
-        var noConsultados = new List<TenantNoConsultadoDto>();
+        yield return new ParteMiTrabajoDto(tenants.Count, 0);
+        var completados = 0;
         foreach (var tenant in tenants)
         {
-            // FS-07: el fallo de un Tenant no se lleva por delante la cola de
-            // los demás. Se degrada por Tenant —su cola no aparece y la
-            // pantalla lo nombra— en vez de abortar la consulta entera, que
-            // dejaba al Gestor CAE sin nada y con un «Reintentar» inútil si el
-            // fallo era determinista. Cancelar sí aborta: no es un fallo del
-            // Tenant, es que ya nadie espera la respuesta.
-            // Sellado por Tenant, un Tenant cada vez — nunca una query con el
-            // filtro global quitado (contrato § 9). El resultado de cada
-            // vuelta ya está autorizado antes de pasar a la siguiente.
-            // ParametroSistema también es una fila por Tenant (mismo criterio
-            // que ObtenerBandejaGestorQueryHandler, pero AHÍ el Tenant ya lo
-            // sella la petición HTTP de fuera; aquí lo sella este bucle, así
-            // que el propio SingleAsync tiene que caer DENTRO del ámbito, o
-            // ve cero filas — RLS no deja pasar la fila de ningún Tenant sin
-            // AmbitoTenantExplicito activo).
-            try
+            // Secuencial, un Tenant cada vez. El sellado vive dentro de ConsultarTenantAsync y se cierra antes de cada
+            // yield: ningún ámbito queda abierto mientras el consumidor tiene el control.
+            var parte = serializarPorTenant
+                ? await puerta!.EjecutarAsync(() => ConsultarTenantAsync(tenant, hoy, cancellationToken), cancellationToken)
+                : await ConsultarTenantAsync(tenant, hoy, cancellationToken);
+            completados++;
+            yield return parte with { Total = tenants.Count, Completados = completados };
+        }
+    }
+
+    private async Task<ParteMiTrabajoDto> ConsultarTenantAsync(
+        ClienteAutorizadoDto tenant, DateOnly hoy, CancellationToken cancellationToken)
+    {
+        // FS-07: el fallo de un Tenant no se lleva por delante la cola de
+        // los demás. Se degrada por Tenant —su cola no aparece y la
+        // pantalla lo nombra— en vez de abortar la consulta entera, que
+        // dejaba al Gestor CAE sin nada y con un «Reintentar» inútil si el
+        // fallo era determinista. Cancelar sí aborta: no es un fallo del
+        // Tenant, es que ya nadie espera la respuesta.
+        // Sellado por Tenant, un Tenant cada vez — nunca una query con el
+        // filtro global quitado (contrato § 9). El resultado de cada
+        // vuelta ya está autorizado antes de pasar a la siguiente.
+        // ParametroSistema también es una fila por Tenant (mismo criterio
+        // que ObtenerBandejaGestorQueryHandler, pero AHÍ el Tenant ya lo
+        // sella la petición HTTP de fuera; aquí lo sella este método, así
+        // que el propio SingleAsync tiene que caer DENTRO del ámbito, o
+        // ve cero filas — RLS no deja pasar la fila de ningún Tenant sin
+        // AmbitoTenantExplicito activo).
+        try
+        {
+            using (AmbitoTenantExplicito.Establecer(tenant.TenantId))
             {
-                using (AmbitoTenantExplicito.Establecer(tenant.TenantId))
-                {
-                    resultado.Add(await ConstruirTenantAsync(tenant, hoy, cancellationToken));
-                }
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogError(ex, "Mi trabajo: no se pudo construir la cola del Tenant {TenantId}; se devuelve el resto de la cartera.", tenant.TenantId);
-                noConsultados.Add(new TenantNoConsultadoDto(tenant.TenantId, tenant.Nombre, tenant.EsOrigen));
+                return new ParteMiTrabajoDto(0, 0, await ConstruirTenantAsync(tenant, hoy, cancellationToken));
             }
         }
-
-        return new MiTrabajoAgregadoDto(resultado, noConsultados);
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Mi trabajo: no se pudo construir la cola del Tenant {TenantId}; se devuelve el resto de la cartera.", tenant.TenantId);
+            return new ParteMiTrabajoDto(0, 0, NoConsultado: new TenantNoConsultadoDto(tenant.TenantId, tenant.Nombre, tenant.EsOrigen));
+        }
     }
 
     private async Task<MiTrabajoTenantDto> ConstruirTenantAsync(

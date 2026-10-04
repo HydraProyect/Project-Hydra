@@ -213,11 +213,11 @@ public class ClavesApiGen2Tests : BunitContext
             mediator.Enviadas.OfType<GenerarClaveApiCommand>().Should().ContainSingle("control positivo: la generación antigua está en curso");
             await Seleccionar(cut, organizacionB); await Seleccionar(cut, organizacionA);
             await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
-            segunda = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
+            segunda = cut.FindAll("button.boton-espera-boton").Single().ClickAsync(new MouseEventArgs());
             mediator.Enviadas.OfType<GenerarClaveApiCommand>().Should().HaveCount(2, "control positivo: la generación nueva está en curso");
             await cut.InvokeAsync(() => esperaAntigua.SetResult()); await primera.WaitAsync(TimeSpan.FromSeconds(10));
             cut.Markup.Should().NotContain(claveAntigua, "la clave antigua no se revela tras volver a A");
-            cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").HasAttribute("disabled").Should().BeTrue("la generación nueva sigue en curso");
+            cut.FindAll("button.boton-espera-boton").Single().HasAttribute("disabled").Should().BeTrue("la generación nueva sigue en curso");
             Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Advertencia && m.Mensaje == "Se generó una clave para «Organización A», pero no se mostrará porque cambiaste de organización. Revócala y genera otra.");
             await cut.InvokeAsync(() => esperaNueva.SetResult()); await segunda.WaitAsync(TimeSpan.FromSeconds(10));
         }

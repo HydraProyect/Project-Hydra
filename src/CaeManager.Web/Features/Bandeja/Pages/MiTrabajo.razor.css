@@ -15,6 +15,30 @@
     margin-bottom: var(--space-4);
 }
 
+/* Carga por Empresas: contador «Cargando N de M» y barra, mientras la cola se va pintando. */
+.mi-trabajo-progreso {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+    color: var(--color-text-muted);
+    font: var(--font-label-md);
+}
+
+.mi-trabajo-progreso-barra {
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-border);
+    overflow: hidden;
+}
+
+.mi-trabajo-progreso-barra > i {
+    display: block;
+    height: 100%;
+    background: var(--color-primario-fondo);
+    transition: width var(--transition-slow);
+}
+
 .mi-trabajo-chips {
     display: flex;
     flex-wrap: wrap;

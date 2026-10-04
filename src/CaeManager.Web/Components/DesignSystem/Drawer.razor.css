@@ -123,3 +123,18 @@
         width: 100%;
     }
 }
+
+/* Ficha 16: desenfoque ligero tras el velo, detrás de @supports y bajo el token
+   --scrim-filtro (tokens.css; "none" lo apaga). Con transparencia o movimiento
+   reducidos, el velo vuelve a ser un color plano. */
+@supports (backdrop-filter: blur(1px)) {
+    .drawer-superposicion {
+        backdrop-filter: var(--scrim-filtro);
+    }
+
+    @media (prefers-reduced-transparency: reduce), (prefers-reduced-motion: reduce) {
+        .drawer-superposicion {
+            backdrop-filter: none;
+        }
+    }
+}

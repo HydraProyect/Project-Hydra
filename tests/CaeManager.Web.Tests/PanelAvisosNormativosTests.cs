@@ -65,7 +65,7 @@ public class PanelAvisosNormativosTests : BunitContext
 
         var panel = Render<PanelAvisosNormativos>();
         var boton = panel.Find("button.boton-avisos-normativos");
-        boton.GetAttribute("title").Should().Be("Vigilancia normativa del BOE");
+        boton.GetAttribute("data-tooltip").Should().Be("Vigilancia normativa del BOE");
         boton.Click();
 
         panel.Find(".descripcion-avisos-normativos").TextContent.Should().StartWith("Publicaciones del BOE que tocan");

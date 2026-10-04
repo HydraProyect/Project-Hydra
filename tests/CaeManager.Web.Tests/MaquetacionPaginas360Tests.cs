@@ -45,7 +45,7 @@ public class MaquetacionPaginas360Tests : BunitContext
         boton.GetAttribute("type").Should().Be("button");
         boton.GetAttribute("aria-label").Should().Be("Consultar Montajes Ebro S.L. de un vistazo",
             "con varios botones 360 en la misma pantalla, un nombre accesible genérico no dice cuál abre qué");
-        boton.GetAttribute("title").Should().Be("Consultar de un vistazo");
+        boton.GetAttribute("data-tooltip").Should().Be("Consultar de un vistazo");
         boton.QuerySelectorAll("svg path, svg circle").Should().NotBeEmpty(
             "un nombre de icono desconocido pinta un svg vacío y el botón quedaría en blanco");
 
@@ -71,7 +71,7 @@ public class MaquetacionPaginas360Tests : BunitContext
 
             var boton = cut.Find("button.boton-360");
             boton.GetAttribute("aria-label").Should().Be("Consultar Montajes Ebro S.L. d’un cop d’ull");
-            boton.GetAttribute("title").Should().Be("Consultar d’un cop d’ull");
+            boton.GetAttribute("data-tooltip").Should().Be("Consultar d’un cop d’ull");
         }
         finally
         {

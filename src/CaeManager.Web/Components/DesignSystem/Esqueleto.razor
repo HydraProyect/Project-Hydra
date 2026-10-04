@@ -1,0 +1,51 @@
+@*
+    Esqueleto de carga (ficha 08): la FORMA del contenido que va a llegar, con un brillo suave, en lugar de «Cargando…» y un salto.
+    Hermano de EstadoCargando (barras genéricas de fila): este calca el contenido real (fila con icono redondo y dos líneas, celdas de
+    tabla, tarjetas de métrica) para que al llegar los datos nada se mueva. Como EstadoCargando, no se ve hasta pasados 200 ms: una
+    carga más corta no enseña un destello. El contenido real que lo sustituye entra con fundido (clase global .contenido-entra).
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<div class="esqueleto esqueleto-@Forma.ToString().ToLowerInvariant()" aria-busy="true" aria-label="@Comunes["Cargando"]">
+    @foreach (var _ in Enumerable.Range(0, Cantidad))
+    {
+        @switch (Forma)
+        {
+            case FormaEsqueleto.Lista:
+                <div class="esqueleto-fila-lista">
+                    <span class="esqueleto-bloque esqueleto-redondo"></span>
+                    <span class="esqueleto-textos">
+                        <span class="esqueleto-bloque esqueleto-linea-titulo"></span>
+                        <span class="esqueleto-bloque esqueleto-linea-detalle"></span>
+                    </span>
+                </div>
+                break;
+            case FormaEsqueleto.Tabla:
+                <div class="esqueleto-fila-tabla" style="--esqueleto-columnas:@Columnas">
+                    @foreach (var celda in Enumerable.Range(0, Columnas))
+                    {
+                        <span class="esqueleto-bloque esqueleto-celda"></span>
+                    }
+                </div>
+                break;
+            default:
+                <div class="esqueleto-tarjeta">
+                    <span class="esqueleto-bloque esqueleto-linea-detalle"></span>
+                    <span class="esqueleto-bloque esqueleto-cifra"></span>
+                </div>
+                break;
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public FormaEsqueleto Forma { get; set; } = FormaEsqueleto.Lista;
+
+    /// <summary>Cuántas filas (o tarjetas) se pintan: las que cabrían en la primera pantalla del contenido real.</summary>
+    [Parameter] public int Cantidad { get; set; } = 5;
+
+    /// <summary>Solo <see cref="FormaEsqueleto.Tabla"/>: cuántas celdas por fila, las columnas de la tabla real.</summary>
+    [Parameter] public int Columnas { get; set; } = 4;
+}

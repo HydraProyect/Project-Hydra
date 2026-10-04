@@ -43,6 +43,8 @@
 @code {
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    /// <summary>Destinatarios con los que se abre, separados por coma; quien redacta los revisa y puede cambiarlos.</summary>
+    [Parameter] public string? DestinatariosIniciales { get; set; }
     [Parameter] public string? AsuntoInicial { get; set; }
     [Parameter] public string? CuerpoInicial { get; set; }
     [Parameter] public AdjuntoParaEnviarDto? Adjunto { get; set; }
@@ -72,7 +74,7 @@
 
     private async Task PrepararAsync()
     {
-        _destinatarios = string.Empty;
+        _destinatarios = DestinatariosIniciales ?? string.Empty;
         _asunto = AsuntoInicial ?? string.Empty;
         _cuerpo = CuerpoInicial ?? string.Empty;
         _error = null;
@@ -85,7 +87,7 @@
         // El buzón preseleccionado (el único que hay) no es un cambio de quien redacta. Solo
         // cambia ese valor de partida: lo que se haya tecleado mientras cargaban los buzones
         // sí es un cambio, así que los demás siguen siendo los de la apertura.
-        _instantanea.Fijar(_conexionId, string.Empty, AsuntoInicial ?? string.Empty, CuerpoInicial ?? string.Empty);
+        _instantanea.Fijar(_conexionId, DestinatariosIniciales ?? string.Empty, AsuntoInicial ?? string.Empty, CuerpoInicial ?? string.Empty);
 
         if (_conexiones.Count == 0)
         {
@@ -106,6 +108,14 @@
     private object?[] ValoresFormulario() => [_conexionId, _destinatarios, _asunto, _cuerpo];
 
     private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
+
+    /// <summary>
+    /// El cuadro es de texto plano y el comando envía HTML: sin esto los saltos de línea
+    /// (el correo de la Visita lleva varios párrafos) llegarían colapsados y un «&lt;»
+    /// escrito sería marcado.
+    /// </summary>
+    internal static string TextoPlanoAHtml(string texto) =>
+        System.Net.WebUtility.HtmlEncode(texto).Replace("\r\n", "\n").Replace("\n", "<br>");
 
     private Task CerrarAsync(bool visible)
     {
@@ -139,7 +149,7 @@
         {
             var adjuntos = Adjunto is null ? null : new List<AdjuntoParaEnviarDto> { Adjunto };
             var resultado = await Mediator.Send(new EnviarMensajeNuevoCommand(
-                _conexionId.Value, destinatarios, _asunto, _cuerpo, Adjuntos: adjuntos));
+                _conexionId.Value, destinatarios, _asunto, TextoPlanoAHtml(_cuerpo), Adjuntos: adjuntos));
 
             if (resultado.EsFallido)
             {

@@ -5,6 +5,9 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
+using CaeManager.Application.Integraciones;
+using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisitas;
@@ -13,11 +16,13 @@ using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
+using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Visitas;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -106,6 +111,12 @@ public class VisitasGen2Tests : BunitContext
 
         public int ConsultasSolicitud { get; private set; }
 
+        /// <summary>Lo que devuelve la consulta del paquete documental (la misma que sirve la descarga del ZIP).</summary>
+        public Result<PaqueteDocumentalDescargaDto> Paquete { get; set; } =
+            Result.Exito(new PaqueteDocumentalDescargaDto("paquete-centro-norte.zip", new byte[1024]));
+
+        public int ConsultasPaquete { get; private set; }
+
         public AvisoVisitaDto Aviso { get; set; } = new("Aviso de visita — Almacén Sur — 01/10/2026", "Buenos días:\n\n- Ana Garcia (Contratista Demo SL)");
 
         public int ConsultasDocumentacion { get; private set; }
@@ -153,6 +164,18 @@ public class VisitasGen2Tests : BunitContext
                 case ObtenerSolicitudAccesoCorreoQuery:
                     ConsultasSolicitud++;
                     return Respuesta<TResponse>(Result.Exito(Solicitud));
+
+                case ObtenerPaqueteDocumentalVisitaQuery:
+                    ConsultasPaquete++;
+                    return Respuesta<TResponse>(Paquete);
+
+                case ObtenerConexionesIntegracionQuery:
+                    return Respuesta<TResponse>((IReadOnlyList<ConexionIntegracionListaDto>)
+                        [new(Guid.NewGuid(), "cae@example.invalid", "CAE Norte", null, null, EstadoConexionIntegracion.Habilitada, DateTime.UtcNow, null, null)]);
+
+                case EnviarMensajeNuevoCommand envio:
+                    Comandos.Add(envio);
+                    return Respuesta<TResponse>(Result.Exito(Guid.NewGuid()));
 
                 case ObtenerAvisoVisitaQuery:
                     return Respuesta<TResponse>(Result.Exito(Aviso));
@@ -541,6 +564,114 @@ public class VisitasGen2Tests : BunitContext
         descarga.HasAttribute("download").Should().BeTrue("el zip se descarga, no se navega a él");
         descarga.GetAttribute("data-enhance-nav").Should().Be("false", "la navegación mejorada de Blazor no debe interceptar la descarga");
         cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1, "la comprobación previa sigue: el Centro requiere gestión CAE"));
+    }
+
+
+    private async Task<(IRenderedComponent<Visitas> Cut, MediatorVisitas Mediator)> AbrirCajonPorCorreoAsync(Result<PaqueteDocumentalDescargaDto>? paquete = null)
+    {
+        var norte = Visita("Centro Norte");
+        var mediator = new MediatorVisitas();
+        if (paquete is not null) mediator.Paquete = paquete;
+        mediator.Visitas.Add(norte);
+        mediator.VisitasPorCorreo.Add(norte.Id);
+        var cut = Renderizar(mediator);
+        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Find(".visitas-aviso-destinatarios").TextContent.Should().Contain("acceso@centronorte.es"));
+        return (cut, mediator);
+    }
+
+    private static IElement BotonEnviarPorCorreo(IRenderedComponent<Visitas> cut) =>
+        cut.FindAll(".visitas-aviso-acciones button").Single(b => b.TextContent.Trim() == "Enviar por correo");
+
+    /// <summary>
+    /// «Enviar por correo»: el compositor llega con el contacto del Centro, el asunto y el cuerpo de la solicitud
+    /// y el ZIP que construye la misma consulta que la descarga. Abrirlo no envía nada: el Gestor CAE revisa y pulsa «Enviar».
+    /// </summary>
+    [Fact]
+    public async Task Enviar_por_correo_abre_el_compositor_con_contacto_asunto_cuerpo_y_zip_sin_enviar_nada()
+    {
+        var (cut, mediator) = await AbrirCajonPorCorreoAsync();
+
+        await BotonEnviarPorCorreo(cut).ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindComponents<RedactarMensajeDrawer>().Single().Instance.Visible.Should().BeTrue());
+        var campos = cut.FindComponents<CampoTexto>().Select(c => c.Instance.Valor).ToList();
+        campos.Should().Contain("acceso@centronorte.es", "el contacto sale del Canal de gestión del Centro que ya lee la solicitud");
+        campos.Should().Contain(mediator.Solicitud.Asunto);
+        cut.FindComponents<CampoTextarea>().Should().Contain(c => c.Instance.Valor == mediator.Solicitud.Cuerpo);
+        cut.Markup.Should().Contain("paquete-centro-norte.zip");
+        mediator.ConsultasPaquete.Should().Be(1, "el paquete sale de ObtenerPaqueteDocumentalVisitaQuery, sin reimplementar qué viaja");
+        mediator.Comandos.OfType<EnviarMensajeNuevoCommand>().Should().BeEmpty("el correo lo envía el Gestor CAE tras revisar: abrir el compositor no envía nada");
+    }
+
+    [Fact]
+    public async Task Al_enviar_desde_el_compositor_el_comando_lleva_el_zip_y_el_cuerpo_con_los_saltos_de_linea_en_html()
+    {
+        var (cut, mediator) = await AbrirCajonPorCorreoAsync();
+        await BotonEnviarPorCorreo(cut).ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-pie button").Should().NotBeEmpty());
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
+
+        var envio = mediator.Comandos.OfType<EnviarMensajeNuevoCommand>().Should().ContainSingle().Subject;
+        envio.Destinatarios.Should().Equal("acceso@centronorte.es");
+        var adjunto = envio.Adjuntos.Should().ContainSingle().Subject;
+        adjunto.NombreArchivo.Should().Be("paquete-centro-norte.zip");
+        adjunto.TipoContenido.Should().Be("application/zip");
+        adjunto.Contenido.Length.Should().Be(1024);
+        envio.CuerpoHtml.Should().Contain("<br>", "el cuadro es texto plano: sin esto los párrafos llegarían colapsados")
+            .And.NotContain("\n");
+    }
+
+    /// <summary>Tope de adjuntos de Graph (3 MB): por encima no se abre el compositor y el aviso dice qué hacer, con la descarga a mano.</summary>
+    [Fact]
+    public async Task Un_zip_por_encima_del_tope_no_abre_el_compositor_y_ofrece_la_descarga()
+    {
+        var grande = new byte[(int)LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes + 1];
+        var (cut, _) = await AbrirCajonPorCorreoAsync(Result.Exito(new PaqueteDocumentalDescargaDto("grande.zip", grande)));
+
+        await BotonEnviarPorCorreo(cut).ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".visitas-solicitud-correo .alerta-formulario").TextContent
+            .Should().Contain("3,1 MB").And.Contain("hasta 3 MB").And.Contain("Descárgalo"));
+        cut.FindComponents<RedactarMensajeDrawer>().Single().Instance.Visible.Should().BeFalse("el ZIP no cabe en un correo: no se abre un compositor que acabaría fallando al enviar");
+        cut.FindAll("a[href$='paquete-documental.zip']").Should().ContainSingle("la descarga sigue disponible como alternativa");
+    }
+
+    [Fact]
+    public async Task Un_zip_justo_en_el_tope_si_abre_el_compositor()
+    {
+        var justo = new byte[(int)LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes];
+        var (cut, _) = await AbrirCajonPorCorreoAsync(Result.Exito(new PaqueteDocumentalDescargaDto("justo.zip", justo)));
+
+        await BotonEnviarPorCorreo(cut).ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindComponents<RedactarMensajeDrawer>().Single().Instance.Visible.Should().BeTrue());
+    }
+
+    [Fact]
+    public async Task Si_el_paquete_falla_el_aviso_dice_el_motivo_y_no_se_abre_el_compositor()
+    {
+        var (cut, _) = await AbrirCajonPorCorreoAsync(Result.Fallo<PaqueteDocumentalDescargaDto>(ObtenerPaqueteDocumentalVisitaQueryHandler.SinDocumentos));
+
+        await BotonEnviarPorCorreo(cut).ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".visitas-solicitud-correo .alerta-formulario").TextContent.Should().Contain("No hay documentación vigente"));
+        cut.FindComponents<RedactarMensajeDrawer>().Single().Instance.Visible.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_centro_sin_canal_de_correo_no_ofrece_enviar_por_correo()
+    {
+        var norte = Visita("Centro Norte");
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(norte);
+        var cut = Renderizar(mediator);
+
+        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1));
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Enviar por correo");
     }
 
     [Fact]

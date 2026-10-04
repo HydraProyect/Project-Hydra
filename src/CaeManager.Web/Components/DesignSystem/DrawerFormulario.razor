@@ -57,10 +57,11 @@
             @* Mientras se guarda, las acciones extra se deshabilitan solas (fieldset): la pantalla no puede olvidarlo. *@
             <fieldset class="formulario-drawer-pie-extra" disabled="@Guardando">@PieExtra</fieldset>
         }
-        <Boton Variante="VarianteBoton.Primario" Cargando="Guardando" Deshabilitado="TieneMotivoDeshabilitado"
-               title="@MotivoEfectivo" OnClick="GuardarAsync">
+        <BotonConEspera Variante="VarianteBoton.Primario" Guardando="Guardando" Progreso="ProgresoGuardado" Fallido="@GuardadoFallido"
+                        Deshabilitado="TieneMotivoDeshabilitado" title="@MotivoEfectivo" OnClick="GuardarAsync"
+                        OnCancelarEspera="OnCancelarGuardado" OnReintentar="OnReintentarGuardado">
             @TextoGuardar
-        </Boton>
+        </BotonConEspera>
     </Pie>
 </Drawer>
 
@@ -121,6 +122,24 @@
     /// </summary>
     [Parameter] public RenderFragment? SinContenido { get; set; }
 
+    /// <summary>
+    /// Porcentaje real del guardado (0-100), solo si la pantalla conoce el total (subida de ficheros, importación, generación de
+    /// paquetes). Nulo en un guardado corto: el botón muestra la franja en movimiento (<see cref="BotonConEspera"/>).
+    /// </summary>
+    [Parameter] public int? ProgresoGuardado { get; set; }
+
+    /// <summary>
+    /// «Cancelar» el guardado en curso, que el botón ofrece cuando tarda más de lo habitual. Sin delegado no se ofrece: solo la
+    /// pantalla sabe si su comando se puede interrumpir. Lo escrito en el formulario no se toca.
+    /// </summary>
+    [Parameter] public EventCallback OnCancelarGuardado { get; set; }
+
+    /// <summary>
+    /// «Reintentar» tras un guardado sin respuesta. Sin delegado el botón sigue deshabilitado: reintentar a ciegas un alta que quizá
+    /// ya se hizo la duplicaría. Lo escrito en el formulario no se toca.
+    /// </summary>
+    [Parameter] public EventCallback OnReintentarGuardado { get; set; }
+
     [Parameter, EditorRequired] public string TextoGuardar { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string TextoCancelar { get; set; } = string.Empty;
     [Parameter] public EventCallback OnGuardar { get; set; }
@@ -148,6 +167,9 @@
     /// </summary>
     private string? MotivoEfectivo =>
         Cargando ? (string.IsNullOrWhiteSpace(MotivoCargando) ? Comunes["Cargando"].Value : MotivoCargando) : MotivoGuardarDeshabilitado;
+
+    // Un guardado que deja error (del formulario o de campo) no enseña el check de «Hecho».
+    private bool GuardadoFallido => !string.IsNullOrWhiteSpace(MensajeError) || HayErroresDeCampo;
 
     private bool TieneMotivoDeshabilitado => !string.IsNullOrWhiteSpace(MotivoEfectivo);
 

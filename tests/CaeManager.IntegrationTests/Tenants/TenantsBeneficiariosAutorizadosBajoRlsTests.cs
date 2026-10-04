@@ -334,6 +334,30 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             _protector, CookieEmitida(httpContext, ClienteActivoSeleccionado.NombreCookie), _gestor);
         tenant.Should().Be(_a);
         operacion.Should().Be(_operacionA);
+        RecientesSelectorTenant.Interpretar(Uri.UnescapeDataString(CookieEmitida(httpContext, RecientesSelectorTenant.NombreCookie)!), _gestor)
+            .Should().Equal([_a]);
+    }
+
+    [Fact]
+    public async Task El_POST_aceptado_invalida_los_pendientes_del_usuario_y_el_rechazado_no()
+    {
+        var contador = new ContadorPendientesSelectorTenant(TimeProvider.System);
+        var alcance = new[] { new ClienteAutorizadoDto(_a, "A", false, true, EsCarteraGestorCae: true) };
+        var calculos = 0;
+        Task<CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado.MiTrabajoAgregadoDto> Calcular(CancellationToken _)
+        {
+            calculos++;
+            return Task.FromResult(new CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado.MiTrabajoAgregadoDto([]));
+        }
+
+        await contador.ObtenerAsync(_gestor, _origen, alcance, Calcular, CancellationToken.None);
+        await CambiarAsync(_gestor, _operacionCaducada, contador);
+        await contador.ObtenerAsync(_gestor, _origen, alcance, Calcular, CancellationToken.None);
+        calculos.Should().Be(1, "un cambio rechazado no toca la caché");
+
+        await CambiarAsync(_gestor, _a, contador);
+        await contador.ObtenerAsync(_gestor, _origen, alcance, Calcular, CancellationToken.None);
+        calculos.Should().Be(2, "un cambio autorizado descarta lo calculado para ese usuario");
     }
 
     [Fact]
@@ -361,6 +385,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
 
             resultado.Should().BeOfType<ForbidHttpResult>($"el Tenant {excluido} no está en el conjunto autorizado (I1)");
             CookieEmitida(httpContext, ClienteActivoSeleccionado.NombreCookie).Should().BeNull();
+            CookieEmitida(httpContext, RecientesSelectorTenant.NombreCookie).Should().BeNull("un Tenant rechazado nunca es reciente");
         }
     }
 
@@ -640,13 +665,13 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             .Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None);
     }
 
-    private async Task<(IResult, DefaultHttpContext)> CambiarAsync(Guid usuario, Guid tenantId)
+    private async Task<(IResult, DefaultHttpContext)> CambiarAsync(Guid usuario, Guid tenantId, IContadorPendientesSelectorTenant? contador = null)
     {
         await using var runtime = CrearRuntime(usuario, tenantDeLaPeticion: _origen);
         var httpContext = new DefaultHttpContext { User = UsuarioAutenticado(usuario) };
         var resultado = await ClienteActivoEndpoints.CambiarAsync(
             tenantId, "/", httpContext, runtime, new CurrentUserServiceFalso(usuario, tenantOrigenId: _origen),
-            runtime, _protector, CancellationToken.None);
+            runtime, _protector, CancellationToken.None, contador);
         return (resultado, httpContext);
     }
 

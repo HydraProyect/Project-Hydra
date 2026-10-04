@@ -405,6 +405,15 @@
   <data name="OrigenManual" xml:space="preserve">
     <value>Manual</value>
   </data>
+  <data name="EnviarPaquetePorCorreo" xml:space="preserve">
+    <value>Enviar por correo</value>
+  </data>
+  <data name="PaqueteDemasiadoGrandeParaCorreo" xml:space="preserve">
+    <value>El ZIP pesa {0} MB y un correo admite hasta {1} MB de adjuntos. Descárgalo con el botón de al lado y envíalo desde tu correo.</value>
+  </data>
+  <data name="ErrorEnviarPaquetePorCorreo" xml:space="preserve">
+    <value>No pudimos preparar el correo con el paquete. Puedes descargar el ZIP y enviarlo desde tu correo.</value>
+  </data>
   <data name="PlazoHoy" xml:space="preserve">
     <value>Hoy</value>
   </data>

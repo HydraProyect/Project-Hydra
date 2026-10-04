@@ -469,8 +469,13 @@
                         <pre class="visitas-aviso-cuerpo">@_solicitudCorreo.Cuerpo</pre>
                         <div class="visitas-aviso-acciones">
                             <BotonCopiar Valor="@TextoSolicitudParaCopiar(_solicitudCorreo)" Etiqueta="@Textos["SolicitudAccesoCorreoEtiquetaCopiar"]" Texto="@Textos["SolicitudAccesoCorreoCopiar"]" />
+                            <Boton Variante="VarianteBoton.Secundario" Cargando="_preparandoEnvioPaquete" OnClick="AbrirEnviarPaquetePorCorreoAsync">@Textos["EnviarPaquetePorCorreo"]</Boton>
                             <Boton Variante="VarianteBoton.Secundario" Href="@RutaPaqueteDocumental(_detalle.Id)" download data-enhance-nav="false">@Textos["DescargarPaqueteDocumental"]</Boton>
                         </div>
+                        @if (_avisoEnvioPaquete is not null)
+                        {
+                            <p class="alerta-formulario" role="alert">@_avisoEnvioPaquete</p>
+                        }
                     </div>
                 }
             }
@@ -653,5 +658,11 @@
 @* Salir de la pantalla con un «Motivo (opcional)» escrito en alguno de los tres diálogos de confirmación pregunta; el cierre
    del propio diálogo (X, Escape, fondo, «Volver») lo pregunta el DialogoConfirmacion con ese mismo HayCambios. *@
 <AvisoCambiosSinGuardar HayCambios="HayMotivoEnAlgunDialogo" AlDescartar="CerrarDialogosDescartando" />
+
+@* Enviar el paquete por correo: el compositor de Comunicaciones llega con el contacto del Centro, el asunto y el cuerpo de
+   la solicitud (los compone ObtenerSolicitudAccesoCorreoQuery) y el ZIP adjunto. Nada sale hasta que el Gestor CAE pulsa «Enviar». *@
+<RedactarMensajeDrawer Visible="_composerPaqueteVisible" VisibleChanged="v => _composerPaqueteVisible = v"
+                       DestinatariosIniciales="@_solicitudCorreo?.Destinatarios" AsuntoInicial="@_solicitudCorreo?.Asunto"
+                       CuerpoInicial="@_solicitudCorreo?.Cuerpo" Adjunto="_adjuntoPaquete" />
 
 </LimiteDeErrores>

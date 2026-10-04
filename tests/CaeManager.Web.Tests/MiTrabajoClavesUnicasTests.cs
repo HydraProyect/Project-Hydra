@@ -59,7 +59,11 @@ public class MiTrabajoClavesUnicasTests : BunitContext
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => throw new NotSupportedException();
         public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) => request switch
+        {
+            ObtenerMiTrabajoPorPartesQuery => (IAsyncEnumerable<TResponse>)PartesDeMiTrabajo.De(datos, async ct => await Task.Delay(20, ct), cancellationToken),
+            _ => throw new NotSupportedException()
+        };
         public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => Task.CompletedTask;

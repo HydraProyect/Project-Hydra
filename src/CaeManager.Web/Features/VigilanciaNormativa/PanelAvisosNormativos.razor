@@ -19,7 +19,7 @@
 <LimiteDeErrores Islote="this">
 @if (_avisos.Count > 0)
 {
-    <button type="button" class="boton-avisos-normativos" @onclick="() => _abierto = true" title="@Textos["TituloPanel"]">
+    <button type="button" class="boton-avisos-normativos" @onclick="() => _abierto = true" aria-label="@Textos["TituloPanel"]" data-tooltip="@Textos["TituloPanel"]">
         <Icono Nombre="alertas" Tamano="TamanoIcono.Medio" />
         @if (_pendientes > 0)
         {
