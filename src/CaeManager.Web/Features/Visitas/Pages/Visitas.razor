@@ -63,6 +63,11 @@
             <option value="si">@Textos["OpcionSi"]</option>
             <option value="no">@Textos["OpcionNo"]</option>
         </CampoSelect>
+        @* No es un filtro (no recorta la lista): por eso no cuenta en HayFiltrosActivos. *@
+        <CampoSelect Etiqueta="@Textos["EtiquetaOrden"]" Valor="@_orden" ValorChanged="OrdenarAsync">
+            <option value="">@Textos["OpcionOrdenFechas"]</option>
+            <option value="documentacion">@Textos["OpcionOrdenDocumentacion"]</option>
+        </CampoSelect>
     </div>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -128,7 +133,13 @@
                     </span>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaFechas"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.FechaInicio))">
-                    @TextoFechas(context.FechaInicio, context.FechaFin)
+                    <span class="visitas-celda-apilada">
+                        @TextoFechas(context.FechaInicio, context.FechaFin)
+                        @if (!context.EstaCancelada)
+                        {
+                            <span class="visitas-celda-secundaria">@TextoPlazo(context)</span>
+                        }
+                    </span>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["EtiquetaTrabajadores"]" Align="Align.Center">
                     @context.TotalTrabajadores
@@ -136,7 +147,17 @@
                 <TemplateColumn Title="@Textos["ColumnaUrgencia"]" Align="Align.Center">
                     @* Los cuatro valores de NivelUrgenciaVisita, «Normal» incluido:
                        una celda vacía no distingue «normal» de «sin calcular». *@
-                    <Badge Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)">@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)</Badge>
+                    <span class="visitas-celda-apilada">
+                        <Badge Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)">@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)</Badge>
+                        @if (context.Tramo is { } tramo)
+                        {
+                            @* Misma matriz y mismo vocabulario que el detalle (AntelacionVisitaUi);
+                               null = sin solicitud de origen medida o expediente aún incompleto. *@
+                            <span title="@TituloTramo(context)" data-antelacion-tramo="@tramo">
+                                <Badge Tono="@AntelacionVisitaUi.Tono(tramo)">@AntelacionVisitaUi.Texto(tramo)</Badge>
+                            </span>
+                        }
+                    </span>
                 </TemplateColumn>
                 @* El mockup lleva el origen solo al detalle; aquí se conserva
                    también en la lista porque ya existía y se ordena por él. *@

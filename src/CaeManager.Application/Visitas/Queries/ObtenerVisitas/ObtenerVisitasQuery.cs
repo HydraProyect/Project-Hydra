@@ -39,7 +39,21 @@ public record VisitaListaDto(
     bool CentroRequiereGestionCae = true,
     // FS-11: la Visita cancelada solo aparece en el historial (sin SoloActivas).
     bool EstaCancelada = false,
-    string? MotivoCancelacion = null);
+    string? MotivoCancelacion = null,
+    // Matriz de antelación sellada en la Visita (la misma que el detalle):
+    // null mientras no haya solicitud de origen medida y expediente completo.
+    TramoAntelacion? Tramo = null,
+    decimal? AntelacionNominalHoras = null,
+    decimal? AntelacionEfectivaHoras = null)
+{
+    /// <summary>
+    /// Lo que la columna «Documentación» pinta en rojo: ni cancelada, ni en un
+    /// Centro sin gestión CAE (no hay documentación que gestionar), ni completa.
+    /// Es lo que ordena <see cref="ObtenerVisitasQuery.OrdenarPor"/> =
+    /// <c>PorGestionar</c>.
+    /// </summary>
+    public bool PorGestionar => !EstaCancelada && CentroRequiereGestionCae && !DocumentacionCompleta;
+}
 
 /// <summary>
 /// Igual que Dashboard/Alertas, el semáforo de cada Documento se calcula en
@@ -108,9 +122,14 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
 
         var total = await consulta.CountAsync(cancellationToken);
 
+        // PorGestionar depende de la documentación, que se calcula en memoria
+        // (más abajo) y no existe en SQL: ordenar por ello obliga a calcularla
+        // para TODAS las visitas del filtro —ya acotado por el alcance de
+        // cartera de arriba— y paginar después. El resto de órdenes pagina en SQL.
+        var ordenaPorGestionar = request.OrdenarPor == nameof(VisitaListaDto.PorGestionar);
+
         // Lista blanca de columnas ordenables — ver ObtenerClientesQuery.
-        // DocumentacionCompleta no se ordena aquí: se calcula en memoria más
-        // abajo, después de paginar.
+        // PorGestionar no se ordena aquí: ver ordenaPorGestionar.
         var ordenada = (request.OrdenarPor, request.Descendente) switch
         {
             (nameof(VisitaListaDto.CentroNombre), false) => consulta.OrderBy(x => x.centro.Nombre),
@@ -135,9 +154,7 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
         // el orden que haya elegido el usuario.
         ordenada = ordenada.ThenBy(x => x.visita.Id);
 
-        var pagina = await ordenada
-            .Skip((request.Pagina - 1) * request.TamanoPagina)
-            .Take(request.TamanoPagina)
+        var filas = ordenada
             .Select(x => new
             {
                 x.visita.Id,
@@ -153,9 +170,18 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 x.visita.Origen,
                 x.centro.GestionCae,
                 x.visita.EstaCancelada,
-                x.visita.MotivoCancelacion
-            })
-            .ToListAsync(cancellationToken);
+                x.visita.MotivoCancelacion,
+                x.visita.Tramo,
+                x.visita.AntelacionNominalHoras,
+                x.visita.AntelacionEfectivaHoras
+            });
+
+        var pagina = ordenaPorGestionar
+            ? await filas.ToListAsync(cancellationToken)
+            : await filas
+                .Skip((request.Pagina - 1) * request.TamanoPagina)
+                .Take(request.TamanoPagina)
+                .ToListAsync(cancellationToken);
 
         if (pagina.Count == 0)
             return new ResultadoPaginado<VisitaListaDto>([], total, request.Pagina, request.TamanoPagina);
@@ -229,8 +255,26 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                         p.FechaInicio, p.FechaFin, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita),
                 CentroRequiereGestionCae: p.GestionCae != ModalidadGestionCae.SinGestionCae,
                 EstaCancelada: p.EstaCancelada,
-                MotivoCancelacion: p.MotivoCancelacion);
+                MotivoCancelacion: p.MotivoCancelacion,
+                Tramo: p.Tramo,
+                AntelacionNominalHoras: p.AntelacionNominalHoras,
+                AntelacionEfectivaHoras: p.AntelacionEfectivaHoras);
         }).ToList();
+
+        if (ordenaPorGestionar)
+        {
+            // «Por gestionar» primero en sentido descendente (true > false); a igual
+            // estado, la que entra antes. La lista llega ya por FechaInicio, Id.
+            var porEstado = request.Descendente
+                ? elementos.OrderByDescending(e => e.PorGestionar)
+                : elementos.OrderBy(e => e.PorGestionar);
+            elementos = porEstado
+                .ThenBy(e => e.FechaInicio)
+                .ThenBy(e => e.Id)
+                .Skip((request.Pagina - 1) * request.TamanoPagina)
+                .Take(request.TamanoPagina)
+                .ToList();
+        }
 
         return new ResultadoPaginado<VisitaListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
     }
