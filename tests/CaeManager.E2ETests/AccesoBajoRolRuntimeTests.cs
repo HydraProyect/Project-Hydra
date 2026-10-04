@@ -96,6 +96,8 @@ public class AccesoBajoRolRuntimeTests(WebAppFixtureBajoRuntime fixture)
         Assert.True(respuesta!.Ok, $"/usuarios respondió {respuesta.Status}.");
         // Una cookie válida no puede rechazarse porque la RLS oculte la cuenta al revalidarla.
         Assert.DoesNotContain("/cuenta/iniciar-sesion", pagina.Url);
+        // El nombre de la cuenta vive ahora en el panel del menú de usuario (avatar).
+        await Ayudas.AbrirMenuDeUsuarioAsync(pagina);
         await Assertions.Expect(pagina.GetByText(Ayudas.EmailAdministrador).First).ToBeVisibleAsync();
     }
 

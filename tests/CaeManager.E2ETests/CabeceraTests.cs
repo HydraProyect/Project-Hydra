@@ -74,9 +74,12 @@ public class CabeceraTests(WebAppFixture fixture)
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
-        await page.SetViewportSizeAsync(375, 812);
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.DescartarNotificacionesPendientesAsync(page);
+        
+        // El login espera el menú lateral, que en móvil no existe: se entra en escritorio y se estrecha.
+        await page.SetViewportSizeAsync(375, 812);
+        await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
 
         await Assertions.Expect(page.Locator(".boton-buscador-global-texto")).ToBeHiddenAsync();
 
