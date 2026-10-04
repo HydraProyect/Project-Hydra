@@ -293,6 +293,20 @@ public class BotonVarianteYUnSoloPrimarioTests
     }
 
     [Fact]
+    public void BotonConEspera_cuenta_como_Boton_para_la_variante_y_el_primario()
+    {
+        // Control positivo y negativo: el kit pinta su «Guardar» con BotonConEspera; si el analizador no lo reconociera, el primario
+        // implícito de DrawerFormulario/ModalFormulario valdría 0 y 13+ pantallas dejarían de contarlo.
+        var con = Analizar("""<BotonConEspera Variante="VarianteBoton.Primario" Guardando="x">G</BotonConEspera>""");
+        con.Botones.Should().ContainSingle().Which.EsPrimario.Should().BeTrue();
+
+        var sin = Analizar("""<BotonConEspera Guardando="x">G</BotonConEspera>""");
+        sin.Botones.Should().ContainSingle().Which.DeclaraVariante.Should().BeFalse("la variante sigue siendo obligatoria");
+
+        Analizar("""<BotonCopiar Valor="x" />""").Botones.Should().BeEmpty("otro componente cuyo nombre empieza igual no es un Boton");
+    }
+
+    [Fact]
     public void El_analizador_no_pierde_el_hilo_con_un_mayor_que_en_una_lambda_ni_con_un_literal_de_caracter()
     {
         // Si FinDeEtiqueta cerrara en el primer '>' (el de «=>»), el Variante que viene después de la lambda
@@ -529,11 +543,13 @@ public class BotonVarianteYUnSoloPrimarioTests
         return Analizar(File.ReadAllText(ruta)).Botones.Count(b => b.EsPrimario);
     }
 
+    // BotonConEspera es un <Boton> con espera por dentro (ficha 11): mismo Variante, mismo reparto de primarios. Sin esta alternativa el
+    // «Guardar» de los dos kits (que lo usan) dejaría de contar como primario y el trinquete quedaría ciego para ellos.
     private static Analisis Analizar(string razor)
     {
         var texto = LimpiadorDeComentarios.Quitar(razor, razor: true);
 
-        var botones = MarcadoRazor.Aperturas(texto, "Boton").Select(a =>
+        var botones = MarcadoRazor.Aperturas(texto, "Boton(?:ConEspera)?").Select(a =>
         {
             var declara = AtributoVariante.Match(a.Texto);
             var valor = declara.Success ? MarcadoRazor.ValorDeComillas(a.Texto, declara.Index + declara.Length) : string.Empty;

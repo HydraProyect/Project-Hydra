@@ -82,7 +82,7 @@
     }
     else if (_cargando)
     {
-        <EstadoCargando Filas="6" />
+        <Esqueleto Forma="FormaEsqueleto.Lista" Cantidad="6" />
     }
     else if (ItemsFiltrados.Count == 0 && HayFiltrosActivos)
     {
@@ -111,7 +111,7 @@
             </span>
         </div>
 
-        <div class="lista-bandeja">
+        <div class="lista-bandeja contenido-entra">
             @foreach (var grupo in GruposOrdenados)
             {
                 <GrupoCola @key="grupo.GrupoId" Grupo="grupo" ExpandidaPorDefecto="true" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="@_idEnfocado" OnReclamar="AbrirReclamacionDeItemAsync" PaginarPorGrupo="true" MarcarBloqueo="true" />

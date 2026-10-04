@@ -45,7 +45,7 @@
     }
     else if (_kpis is null)
     {
-        <EstadoCargando Filas="2" />
+        <Esqueleto Forma="FormaEsqueleto.Metricas" Cantidad="4" />
     }
     else if (_kpis.SinCarteraAsignada && _carteraEnOtroTenant)
     {
@@ -215,14 +215,14 @@
                     <a class="dashboard-resumen-anillo-enlace" href="/reportes">Desglosar por Cliente empresarial →</a>
                 </div>
             </div>
-            <div class="rejilla-kpis-secundarios">
-                <TarjetaMetrica Discreta="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" Enlace="/trabajadores"
+            <div class="rejilla-kpis-secundarios contenido-entra">
+                <TarjetaMetrica Discreta="true" ContarHastaValor="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" Enlace="/trabajadores"
                                  Pista="@(_kpis.TrabajadoresNuevosEsteMes > 0 ? $"{_kpis.TrabajadoresNuevosEsteMes} nuevos este mes" : null)" />
-                <TarjetaMetrica Discreta="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" Enlace="/centros"
+                <TarjetaMetrica Discreta="true" ContarHastaValor="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" Enlace="/centros"
                                  Pista="@(TrabajadoresBloqueados > 0 ? $"{TrabajadoresBloqueados} trabajador{(TrabajadoresBloqueados == 1 ? "" : "es")} bloqueado{(TrabajadoresBloqueados == 1 ? "" : "s")}" : null)" />
-                <TarjetaMetrica Discreta="true" Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" NombreIcono="check" Enlace="/documentos?estado=Vigente"
+                <TarjetaMetrica Discreta="true" ContarHastaValor="true" Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" NombreIcono="check" Enlace="/documentos?estado=Vigente"
                                  Pista="@(DocumentosFueraDeVigencia > 0 ? $"{DocumentosFueraDeVigencia} fuera de vigencia" : null)" />
-                <TarjetaMetrica Discreta="true" Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" NombreIcono="visitas" Enlace="/visitas"
+                <TarjetaMetrica Discreta="true" ContarHastaValor="true" Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" NombreIcono="visitas" Enlace="/visitas"
                                  Pista="@(_proximamente.Count > 0 ? $"próxima el {_proximamente[0].FechaInicio:dd/MM}" : null)" />
             </div>
         </div>

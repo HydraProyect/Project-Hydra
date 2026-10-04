@@ -88,6 +88,25 @@ button {
   scroll-margin-top: var(--space-6);
 }
 
+/* Entrada del contenido real que sustituye a un esqueleto (ficha 08): fundido corto con un asomo de desplazamiento. Se pone en el
+   contenedor que aparece al terminar la carga; solo anima al insertarse, no en cada re-render. */
+.contenido-entra {
+  animation: contenido-entra var(--motion-transition) var(--ease-fluid) both;
+}
+
+@keyframes contenido-entra {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contenido-entra {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   html,
   .contenido {

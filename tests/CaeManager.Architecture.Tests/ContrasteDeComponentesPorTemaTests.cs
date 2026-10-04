@@ -85,6 +85,7 @@ public class ContrasteDeComponentesPorTemaTests
     private const string Badge = "Components/DesignSystem/Badge.razor.css";
     private const string ListPage = "wwwroot/css/list-page.css";
     private const string Toast = "Components/DesignSystem/AnfitrionToasts.razor.css";
+    private const string Espera = "Components/DesignSystem/BotonConEspera.razor.css";
 
     private static readonly Par[] Pares =
     [
@@ -100,6 +101,16 @@ public class ContrasteDeComponentesPorTemaTests
         new("Botón destructivo, hover (deuda)", Boton, [".boton-destructivo", ".boton-destructivo:not(:disabled):hover"], Minimo: 3.7),
         new("Botón 360", "Components/DesignSystem/Boton360.razor.css", [".boton-360"]),
         new("Botón 360, hover", "Components/DesignSystem/Boton360.razor.css", [".boton-360", ".boton-360:hover"]),
+
+        // ---- Botón con espera (ficha 11): los estados con color propio. El relleno usa los colores de hover de cada variante, ya medidos arriba ----
+        new("Botón con espera, aviso (colgada)", Espera, [".boton-espera ::deep .boton-espera-colgada"]),
+        new("Botón con espera, aviso, hover", Espera,
+            [".boton-espera ::deep .boton-espera-colgada", ".boton-espera ::deep .boton-espera-colgada:not(:disabled):hover"]),
+        new("Botón con espera, hecha", Espera, [".boton-espera ::deep .boton-espera-hecha"]),
+        new("Mensaje de la espera", Espera, [".boton-espera-mensaje"], FondoSiFalta: "var(--color-surface)"),
+        new("Mensaje de la espera colgada", Espera, [".boton-espera[data-estado=\"colgada\"] .boton-espera-mensaje"],
+            FondoSiFalta: "var(--color-surface)"),
+        new("Cancelar de la espera", Espera, [".boton-espera-cancelar"], FondoSiFalta: "var(--color-surface)"),
 
         // ---- Toasts: la letra está en .toast y el fondo en la variante, por eso el barrido no los ve ----
         new("Toast informativo", Toast, [".toast", ".toast-info"]),
