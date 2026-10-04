@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro;
@@ -126,6 +127,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     private bool _confirmarReactivarVisible;
     private Guid _idAReactivar;
+    // Versión de la Visita tal como la vio quien pulsó «Reactivar»: vuelve en el Command.
+    private Guid _versionAReactivar;
     private string _centroAReactivar = string.Empty;
     private bool _reactivando;
     private string _motivoReactivacion = string.Empty;
@@ -1137,9 +1140,11 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             }
             else
             {
-                // FS-11: el aviso ofrece deshacer, que es reactivarla sin motivo.
+                // FS-11: el aviso ofrece deshacer, que es reactivarla sin motivo y con la
+                // versión que dejó la cancelación (el recibo), no con la que la lista tenga luego.
+                var recibo = resultado.Valor;
                 ToastService.Mostrar(Textos["ToastCancelada"], TonoToast.Exito,
-                    Textos["ToastAccionDeshacer"].Value, () => DeshacerCancelarAsync([id]));
+                    Textos["ToastAccionDeshacer"].Value, () => DeshacerCancelarAsync([recibo]));
                 _confirmarCancelarVisible = false;
                 await RecargarAsync();
             }
@@ -1154,9 +1159,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
-    private void AbrirReactivar(Guid id, string centroNombre)
+    private void AbrirReactivar(Guid id, Guid version, string centroNombre)
     {
         _idAReactivar = id;
+        _versionAReactivar = version;
         _centroAReactivar = centroNombre;
         _motivoReactivacion = string.Empty;
         _confirmarReactivarVisible = true;
@@ -1168,11 +1174,20 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
         try
         {
-            var resultado = await Mediator.Send(new ReactivarVisitaCommand(_idAReactivar, _motivoReactivacion));
+            var resultado = await Mediator.Send(new ReactivarVisitaCommand(_idAReactivar, _versionAReactivar, _motivoReactivacion));
 
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
+
+                // La Visita cambió desde que se vio: se cierra el diálogo y se recarga para que lo
+                // que se ve (y la versión que se enviará la próxima vez) sea lo que hay, no una copia vieja.
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+                {
+                    _confirmarReactivarVisible = false;
+                    _detalleVisible = false;
+                    await RecargarAsync();
+                }
             }
             else
             {
@@ -1195,26 +1210,31 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>
     /// «Deshacer» del aviso de cancelar (FS-11): reactiva, una a una y sin
     /// motivo, las Visitas que se acaban de cancelar. Cada reactivación pasa por
-    /// ReactivarVisitaCommand, con la misma autorización y alcance que cancelar.
+    /// ReactivarVisitaCommand, con la misma autorización y alcance que cancelar y con la
+    /// versión del recibo de la cancelación: si alguien cambió la Visita entretanto, se rechaza
+    /// y el aviso lo dice en vez de pisar ese cambio.
     /// </summary>
     private bool _deshaciendoCancelacion;
 
-    private async Task DeshacerCancelarAsync(IReadOnlyList<Guid> ids)
+    private async Task DeshacerCancelarAsync(IReadOnlyList<VisitaCanceladaDto> recibos)
     {
         if (_deshaciendoCancelacion) return;
         _deshaciendoCancelacion = true;
 
         try
         {
-            var r = await RestauracionEnLote.RestaurarAsync(ids, id => Mediator.Send(new ReactivarVisitaCommand(id)));
+            var r = await RestauracionEnLote.RestaurarAsync(
+                recibos.Select(x => x.Id).ToList(),
+                id => Mediator.Send(new ReactivarVisitaCommand(id, recibos.Single(x => x.Id == id).VersionResultante)));
 
             ToastService.Mostrar(
                 r.Errores.Count == 0
-                    ? (ids.Count == 1 ? Textos["ToastReactivada"].Value : Textos["ToastLoteReactivadas", r.Restaurados].Value)
+                    ? (recibos.Count == 1 ? Textos["ToastReactivada"].Value : Textos["ToastLoteReactivadas", r.Restaurados].Value)
                     : Textos["ToastLoteReactivadasConErrores", r.Restaurados, r.Errores.Count, string.Join(" ", r.Errores)].Value,
                 r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
-            if (r.Restaurados > 0)
+            // También con errores: un rechazo por versión significa que la Visita cambió y la lista no lo sabe.
+            if (r.Restaurados > 0 || r.Errores.Count > 0)
                 await RecargarAsync();
         }
         finally
@@ -1260,7 +1280,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             }
 
             var dto = resultado.Valor;
-            var canceladas = dto.IdsCanceladas;
+            var canceladas = dto.Recibos;
 
             // FS-11: el aviso ofrece «Deshacer» sobre las que sí se cancelaron.
             ToastService.Mostrar(

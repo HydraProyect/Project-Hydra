@@ -213,7 +213,7 @@
                         {
                             @* FS-11: reactivar se ofrece a los mismos roles que cancelar; la autorización
                                real, con el alcance de cartera, está en AutorizacionCancelacionVisita. *@
-                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirReactivar(context.Id, context.CentroNombre)">
+                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirReactivar(context.Id, context.Version, context.CentroNombre)">
                                 @Textos["AccionReactivar"]
                             </ItemMenuAccion></SoloConEscritura>
                         }
@@ -576,7 +576,7 @@
                 @(string.IsNullOrWhiteSpace(_detalle.MotivoCancelacion) ? Textos["DetalleCancelada"].Value : Textos["DetalleCanceladaMotivo", _detalle.MotivoCancelacion].Value)
             </span>
             <SoloConEscritura>
-                <Boton Variante="VarianteBoton.Primario" OnClick="() => AbrirReactivar(_detalle.Id, _detalle.CentroNombre)">@Textos["AccionReactivar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="() => AbrirReactivar(_detalle.Id, _detalle.Version, _detalle.CentroNombre)">@Textos["AccionReactivar"]</Boton>
             </SoloConEscritura>
             <Boton Variante="VarianteBoton.Secundario" OnClick="() => _detalleVisible = false">@Textos["BotonCerrar"]</Boton>
         }

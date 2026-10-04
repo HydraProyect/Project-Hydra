@@ -43,11 +43,13 @@ public class AuditoriaCancelacionVisitaTests : IAsyncLifetime
         var visitaId = await SembrarVisitaAsync();
 
         var gestor = Guid.NewGuid();
+        Guid versionDeLaCancelacion;
         await using (var contexto = CrearContexto(new ActorAuditoriaFalso(ActorAuditoria.Normal(gestor))))
         {
             var resultado = await new CancelarVisitaCommandHandler(new VisitaRepository(contexto), contexto, new AlcanceDatosServiceFalso())
                 .Handle(new CancelarVisitaCommand(visitaId, "Obra aplazada"), CancellationToken.None);
             resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
+            versionDeLaCancelacion = resultado.Valor.VersionResultante;
         }
 
         // Reactivación bajo impersonación: el actor real no es el usuario simulado,
@@ -62,7 +64,7 @@ public class AuditoriaCancelacionVisitaTests : IAsyncLifetime
             var resultado = await new ReactivarVisitaCommandHandler(
                     new VisitaRepository(contexto), contexto, new AlcanceDatosServiceFalso(), new EvaluadorExpedienteNulo(),
                     Microsoft.Extensions.Logging.Abstractions.NullLogger<ReactivarVisitaCommandHandler>.Instance)
-                .Handle(new ReactivarVisitaCommand(visitaId, "Se retoma la obra"), CancellationToken.None);
+                .Handle(new ReactivarVisitaCommand(visitaId, versionDeLaCancelacion, "Se retoma la obra"), CancellationToken.None);
             resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
         }
 

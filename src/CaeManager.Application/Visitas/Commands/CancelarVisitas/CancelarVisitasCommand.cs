@@ -9,12 +9,13 @@ namespace CaeManager.Application.Visitas.Commands.CancelarVisitas;
 /// <summary>
 /// Cancelación en lote (FS-11). Mismo criterio de éxito parcial que los borrados
 /// en lote (ver EliminarClientesCommand): cada Visita que no se pudo cancelar
-/// deja un error y no tumba al resto. Devuelve los ids cancelados para que el
-/// aviso ofrezca «Deshacer» solo sobre ellos.
+/// deja un error y no tumba al resto. Devuelve un recibo (Id y versión resultante) por cada Visita
+/// cancelada para que el aviso ofrezca «Deshacer» solo sobre ellas, con la versión que
+/// <c>ReactivarVisitaCommand</c> comprueba.
 /// </summary>
 public record CancelarVisitasCommand(IReadOnlyList<Guid> Ids, string? Motivo = null) : ICommand<ResultadoCancelacionLoteDto>;
 
-public record ResultadoCancelacionLoteDto(int Canceladas, IReadOnlyList<string> Errores, IReadOnlyList<Guid> IdsCanceladas);
+public record ResultadoCancelacionLoteDto(int Canceladas, IReadOnlyList<string> Errores, IReadOnlyList<CancelarVisita.VisitaCanceladaDto> Recibos);
 
 public class CancelarVisitasCommandValidator : AbstractValidator<CancelarVisitasCommand>
 {
@@ -38,7 +39,7 @@ public class CancelarVisitasCommandHandler(
         var centroIdsParaGestion = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
 
         var ahora = DateTime.UtcNow;
-        var canceladas = new List<Guid>();
+        var canceladas = new List<Visita>();
         var errores = new List<string>();
 
         foreach (var id in request.Ids)
@@ -57,11 +58,12 @@ public class CancelarVisitasCommandHandler(
             }
 
             visita.Cancelar(ahora, request.Motivo);
-            canceladas.Add(visita.Id);
+            canceladas.Add(visita);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result.Exito(new ResultadoCancelacionLoteDto(canceladas.Count, errores, canceladas));
+        return Result.Exito(new ResultadoCancelacionLoteDto(
+            canceladas.Count, errores, canceladas.Select(v => new CancelarVisita.VisitaCanceladaDto(v.Id, v.Version)).ToList()));
     }
 }

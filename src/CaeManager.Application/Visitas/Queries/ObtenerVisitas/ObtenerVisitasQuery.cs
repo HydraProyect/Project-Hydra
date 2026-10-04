@@ -44,7 +44,9 @@ public record VisitaListaDto(
     // null mientras no haya solicitud de origen medida y expediente completo.
     TramoAntelacion? Tramo = null,
     decimal? AntelacionNominalHoras = null,
-    decimal? AntelacionEfectivaHoras = null)
+    decimal? AntelacionEfectivaHoras = null,
+    // Versión de la Visita tal como la ve la lista: «Reactivar» la devuelve en el Command.
+    Guid Version = default)
 {
     /// <summary>
     /// Lo que la columna «Documentación» pinta en rojo: ni cancelada, ni en un
@@ -173,7 +175,8 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 x.visita.MotivoCancelacion,
                 x.visita.Tramo,
                 x.visita.AntelacionNominalHoras,
-                x.visita.AntelacionEfectivaHoras
+                x.visita.AntelacionEfectivaHoras,
+                x.visita.Version
             });
 
         var pagina = ordenaPorGestionar
@@ -258,7 +261,8 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 MotivoCancelacion: p.MotivoCancelacion,
                 Tramo: p.Tramo,
                 AntelacionNominalHoras: p.AntelacionNominalHoras,
-                AntelacionEfectivaHoras: p.AntelacionEfectivaHoras);
+                AntelacionEfectivaHoras: p.AntelacionEfectivaHoras,
+                Version: p.Version);
         }).ToList();
 
         if (ordenaPorGestionar)

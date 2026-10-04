@@ -103,7 +103,7 @@ public class VisitasGen2Tests : BunitContext
             Notas: null, v.NotificadoCliente, Trabajadores: [], HoraEstimadaAcceso: null, FechaHoraSolicitudUtc: null,
             FechaHoraExpedienteCompletoUtc: null, AntelacionNominalHoras: 36m, AntelacionEfectivaHoras: 11m, tramo,
             AtribucionUrgencia.SinUrgencia, CentroRequiereGestionCae: v.CentroRequiereGestionCae,
-            EstaCancelada: v.EstaCancelada, MotivoCancelacion: v.MotivoCancelacion);
+            EstaCancelada: v.EstaCancelada, MotivoCancelacion: v.MotivoCancelacion, Version: v.Version);
 
         public HashSet<Guid> VisitasPorCorreo { get; } = [];
 
@@ -208,27 +208,39 @@ public class VisitasGen2Tests : BunitContext
                     {
                         Comandos.Add(cancelar);
                         var i = Visitas.FindIndex(v => v.Id == cancelar.Id);
-                        Visitas[i] = Visitas[i] with { EstaCancelada = true, MotivoCancelacion = cancelar.Motivo };
-                        return Respuesta<TResponse>(Result.Exito());
+                        var versionNueva = Guid.NewGuid();
+                        Visitas[i] = Visitas[i] with { EstaCancelada = true, MotivoCancelacion = cancelar.Motivo, Version = versionNueva };
+                        return Respuesta<TResponse>(Result.Exito(new VisitaCanceladaDto(cancelar.Id, versionNueva)));
                     }
 
                 case CancelarVisitasCommand lote:
                     {
                         Comandos.Add(lote);
+                        var recibos = new List<VisitaCanceladaDto>();
                         foreach (var id in lote.Ids)
                         {
                             var i = Visitas.FindIndex(v => v.Id == id);
-                            Visitas[i] = Visitas[i] with { EstaCancelada = true, MotivoCancelacion = lote.Motivo };
+                            var versionNueva = Guid.NewGuid();
+                            Visitas[i] = Visitas[i] with { EstaCancelada = true, MotivoCancelacion = lote.Motivo, Version = versionNueva };
+                            recibos.Add(new VisitaCanceladaDto(id, versionNueva));
                         }
 
-                        return Respuesta<TResponse>(Result.Exito(new ResultadoCancelacionLoteDto(lote.Ids.Count, [], lote.Ids)));
+                        return Respuesta<TResponse>(Result.Exito(new ResultadoCancelacionLoteDto(lote.Ids.Count, [], recibos)));
                     }
 
                 case ReactivarVisitaCommand reactivar:
                     {
                         Comandos.Add(reactivar);
                         var i = Visitas.FindIndex(v => v.Id == reactivar.Id);
-                        Visitas[i] = Visitas[i] with { EstaCancelada = false, MotivoCancelacion = null };
+                        // Como el handler real: ya reactivada = éxito; versión desfasada = conflicto.
+                        if (!Visitas[i].EstaCancelada)
+                            return Respuesta<TResponse>(Result.Exito());
+
+                        if (Visitas[i].Version != reactivar.VersionEsperada)
+                            return Respuesta<TResponse>(Result.Fallo(Error.Crear(
+                                ConcurrenciaOptimista.CodigoConflicto, "Esta visita cambió desde que la viste.")));
+
+                        Visitas[i] = Visitas[i] with { EstaCancelada = false, MotivoCancelacion = null, Version = Guid.NewGuid() };
                         return Respuesta<TResponse>(Result.Exito());
                     }
 
@@ -277,7 +289,8 @@ public class VisitasGen2Tests : BunitContext
         string centro, bool notificado = false, NivelUrgenciaVisita urgencia = NivelUrgenciaVisita.Urgente,
         OrigenVisita origen = OrigenVisita.Correo) =>
         new(Guid.NewGuid(), Guid.NewGuid(), centro, Guid.NewGuid(), "Iberojet S.A.", Guid.NewGuid(), "Instalaciones Arbeko S.L.",
-            Hoy, Hoy.AddDays(2), TotalTrabajadores: 3, DocumentacionCompleta: false, notificado, origen, urgencia);
+            Hoy, Hoy.AddDays(2), TotalTrabajadores: 3, DocumentacionCompleta: false, notificado, origen, urgencia,
+            Version: Guid.NewGuid());
 
     private static ResultadoPaginado<VisitaListaDto> Pagina(params VisitaListaDto[] visitas) =>
         new(visitas, visitas.Length, 1, 20);
@@ -914,7 +927,71 @@ public class VisitasGen2Tests : BunitContext
         await cut.Find("[role=dialog] textarea").InputAsync(new ChangeEventArgs { Value = "Se retoma" });
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Reactivar").ClickAsync(new MouseEventArgs());
 
-        mediator.Comandos.Should().ContainSingle().Which.Should().Be(new ReactivarVisitaCommand(cancelada.Id, "Se retoma"));
+        mediator.Comandos.Should().ContainSingle().Which.Should().Be(new ReactivarVisitaCommand(cancelada.Id, cancelada.Version, "Se retoma"));
+    }
+
+    /// <summary>
+    /// Versión desfasada al reactivar (otra persona cambió la Visita desde que se cargó la lista): el aviso lo
+    /// dice, el diálogo se cierra y la lista se recarga con la versión nueva; no hay pérdida silenciosa y
+    /// reactivar de nuevo, ya con la versión recargada, funciona.
+    /// </summary>
+    [Fact]
+    public async Task Reactivar_con_version_desfasada_avisa_recarga_y_permite_reintentar()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var cancelada = Visita("Planta Zaragoza") with { EstaCancelada = true };
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(cancelada);
+        var cut = Renderizar(mediator);
+        await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
+            .ChangeAsync(new ChangeEventArgs { Value = false });
+        await ItemDeMenu(cut, "Planta Zaragoza", "Reactivar").ClickAsync(new MouseEventArgs());
+
+        // Otra persona toca la Visita mientras el diálogo está abierto.
+        var versionNueva = Guid.NewGuid();
+        mediator.Visitas[0] = mediator.Visitas[0] with { Version = versionNueva };
+        var consultasAntes = mediator.ConsultasVisitas;
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Reactivar").ClickAsync(new MouseEventArgs());
+
+        mediator.Comandos.OfType<ReactivarVisitaCommand>().Should().ContainSingle().Which.VersionEsperada.Should().Be(cancelada.Version);
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje.Contains("cambió"));
+        mediator.Visitas[0].EstaCancelada.Should().BeTrue("el conflicto no reactivó nada");
+        cut.Markup.Should().NotContain("¿Reactivar la visita a Planta Zaragoza?", "el diálogo se cierra");
+        mediator.ConsultasVisitas.Should().BeGreaterThan(consultasAntes, "se recarga para ver lo que hay");
+
+        await ItemDeMenu(cut, "Planta Zaragoza", "Reactivar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Reactivar").ClickAsync(new MouseEventArgs());
+
+        mediator.Comandos.OfType<ReactivarVisitaCommand>().Last().VersionEsperada.Should().Be(versionNueva);
+        mediator.Visitas[0].EstaCancelada.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// «Deshacer» tras cancelar manda la versión del recibo de la cancelación, no la que la lista tenga después:
+    /// si alguien cambió la Visita entretanto, el aviso dice el motivo y la Visita sigue cancelada.
+    /// </summary>
+    [Fact]
+    public async Task Deshacer_cancelar_manda_la_version_del_recibo_y_avisa_si_la_visita_cambio()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var zaragoza = Visita("Planta Zaragoza");
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.Add(zaragoza);
+        var cut = Renderizar(mediator);
+
+        await ItemDeMenu(cut, "Planta Zaragoza", "Cancelar visita").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar visita").ClickAsync(new MouseEventArgs());
+        var versionDelRecibo = mediator.Visitas[0].Version;
+
+        // Otra persona cambia la Visita antes de que se pulse «Deshacer».
+        mediator.Visitas[0] = mediator.Visitas[0] with { Version = Guid.NewGuid() };
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        mediator.Comandos.OfType<ReactivarVisitaCommand>().Should().ContainSingle().Which.VersionEsperada.Should().Be(versionDelRecibo);
+        mediator.Visitas[0].EstaCancelada.Should().BeTrue("el rechazo por versión no pisa el cambio ajeno");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje.Contains("cambió"));
     }
 
     /// <summary>
