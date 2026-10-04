@@ -10,7 +10,11 @@
            de la pila: sin él, la animación de entrada y el trazado de
            confirmación se redibujarían en cada cambio de la lista, y el
            trazado debe dibujarse una vez por evento (07 § 6.1, DDL-071). *@
-        <div class="toast toast-@toast.Tono.ToString().ToLowerInvariant()" role="status" @key="toast.Id">
+        <div class="toast toast-@toast.Tono.ToString().ToLowerInvariant()" role="status" @key="toast.Id"
+             @onmouseenter="() => ToastService.PunteroSobre(toast.Id, true)"
+             @onmouseleave="() => ToastService.PunteroSobre(toast.Id, false)"
+             @onfocusin="() => ToastService.FocoEn(toast.Id, true)"
+             @onfocusout="() => ToastService.FocoEn(toast.Id, false)">
             @if (toast.Tono == TonoToast.Exito)
             {
                 @* Trazado de confirmación (Tier C, 07 § 6): la marca se dibuja

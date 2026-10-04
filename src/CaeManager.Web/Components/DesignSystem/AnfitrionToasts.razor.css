@@ -30,12 +30,20 @@
 @keyframes entrar-toast {
     from {
         opacity: 0;
-        transform: translateY(-8px);
+        transform: translateX(24px);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateX(0);
     }
+}
+
+/* Con el puntero o el foco de teclado encima, la barra de tiempo se detiene;
+   ToastService detiene a la vez el temporizador real (PunteroSobre/FocoEn),
+   así que el aviso —sobre todo el de «Deshacer»— no se cierra bajo el puntero. */
+.toast:hover .toast-progreso,
+.toast:focus-within .toast-progreso {
+    animation-play-state: paused;
 }
 
 .toast button {
@@ -155,5 +163,11 @@
     .toast-trazado path {
         animation: none;
         stroke-dashoffset: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .toast {
+        animation: none;
     }
 }
