@@ -313,3 +313,63 @@ button {
   font-weight: 600;
   color: var(--color-text-muted);
 }
+
+/*
+  Tooltip propio (ficha 13): lo crea y coloca js/tooltip.js para los botones de
+  solo icono con data-tooltip. Fondo y letra invertidos (--color-text sobre
+  --color-surface): contraste alto en los dos temas. Por encima de Modal (1050),
+  Drawer (1040) y toasts (1100), que es donde viven la mayoría de esos botones.
+*/
+.tooltip-propio {
+  position: fixed;
+  z-index: 1150;
+  max-width: 280px;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  background-color: var(--color-text);
+  color: var(--color-surface);
+  font: var(--font-body-sm);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  /* Salida casi nula; la espera de entrada (400 ms) la pone el script. */
+  transition: opacity var(--motion-fast) var(--ease-standard), visibility 0s linear var(--motion-fast);
+}
+
+.tooltip-propio.tooltip-propio-abajo {
+  transform: translateY(-4px);
+}
+
+.tooltip-propio.tooltip-propio-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition: opacity var(--motion-fast) var(--ease-standard), transform var(--motion-base) var(--ease-fluid);
+}
+
+/* Flecha: apunta al centro del botón aunque el tooltip se haya desplazado para no salirse. */
+.tooltip-propio::after {
+  content: "";
+  position: absolute;
+  left: var(--tooltip-flecha-x, 50%);
+  top: 100%;
+  margin-left: -5px;
+  border: 5px solid transparent;
+  border-top-color: var(--color-text);
+}
+
+.tooltip-propio.tooltip-propio-abajo::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: var(--color-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip-propio,
+  .tooltip-propio.tooltip-propio-visible {
+    transition: none;
+    transform: none;
+  }
+}

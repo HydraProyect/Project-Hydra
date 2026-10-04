@@ -248,6 +248,13 @@
      y oscuro, a diferencia de --shadow-overlay. */
   --color-scrim: rgba(15, 23, 42, 0.45);
 
+  /* Desenfoque ligero de lo que queda tras el velo de Modal y Drawer (ficha 16).
+     Es el filtro entero, no un radio: para APAGARLO en todo el producto basta
+     --scrim-filtro: none (con radio 0 el navegador seguiría componiendo la capa).
+     Se anula solo con prefers-reduced-transparency / reduced-motion. Coste sin
+     medir en equipos modestos: ver la PR. */
+  --scrim-filtro: blur(4px);
+
   /* Motion — contrato cerrado con 07 § 8: NO se declara ningún token que no
      aparezca en esa tabla; si hace falta uno nuevo, se decide primero en 07.
      Cada token declara su FUNCIÓN: un token de duración sin función asignada

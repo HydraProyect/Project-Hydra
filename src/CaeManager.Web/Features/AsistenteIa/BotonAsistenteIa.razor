@@ -13,7 +13,7 @@
 <LimiteDeErrores Islote="this">
 @if (Disponibilidad.Alguna)
 {
-    <button type="button" class="boton-asistente-ia" @onclick="() => AsistenteIaService.Abrir()" title="@TituloBoton" aria-label="@TituloBoton">
+    <button type="button" class="boton-asistente-ia" @onclick="() => AsistenteIaService.Abrir()" data-tooltip="@TituloBoton" aria-label="@TituloBoton">
         <Icono Nombre="chat" Tamano="TamanoIcono.Medio" />
     </button>
 }
